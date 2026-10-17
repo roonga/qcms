@@ -29,6 +29,26 @@ const ADMIN_OPENAPI = fileURLToPath(
 
 const VERBS = new Set(["get", "post", "put", "patch", "delete"]);
 
+/**
+ * Admin routes that exist but are **absent from the shipped document**, with the reason.
+ *
+ * The derivation below is only as complete as that document, and the document is
+ * generated with every flag off (`openapi-document.ts`), so a flag-gated route is invisible
+ * to it. Task 041's two agent-authoring routes are mounted when
+ * `QCMS_FLAG_AGENT_AUTHORING` is on and absent from the document by design, which is why
+ * they had no row at all until the runtime refusal of PR #1061's S2 fix turned their
+ * absence into a 403 in their own suite.
+ *
+ * So they are named here: the orphan check skips them and the case below asserts each one
+ * has a row with the cells its route declares. A future flag-gated admin route has to be
+ * added to this list, and that is the point - the list is short, explicit, and read by a
+ * test rather than remembered.
+ */
+const FLAG_GATED_ROUTES: readonly string[] = [
+  "POST /admin/forms/{id}/draft/assist",
+  "POST /admin/forms/{id}/draft/assist/accept",
+];
+
 /** Every admin route the shipped document serves, as `METHOD /path`. */
 function servedRoutes(): readonly string[] {
   const document = JSON.parse(readFileSync(ADMIN_OPENAPI, "utf8")) as {
@@ -72,9 +92,29 @@ describe("the route table and the mounted admin surface stay in step", () => {
     // The other direction: an orphan row is a decision about a route that no longer
     // exists, which reads as coverage and is not.
     const orphans = ROUTE_POLICIES.map((row) => `${row.method} ${row.path}`).filter(
-      (route) => !served.includes(route),
+      (route) => !served.includes(route) && !FLAG_GATED_ROUTES.includes(route),
     );
     expect(orphans, "ROUTE_POLICIES names a route the admin document does not serve").toEqual([]);
+  });
+
+  it("has a row for each flag-gated admin route the document cannot show", () => {
+    // The derivation's blind spot, closed by naming it. Both routes are agent authoring,
+    // and their cells are the scopes the routes themselves declare: `forms:write` for a
+    // turn, and `forms:write` with `questions:write` for an accept, which materialises
+    // the proposal's new questions as drafts.
+    for (const route of FLAG_GATED_ROUTES) {
+      const [method, path] = route.split(" ");
+      expect(
+        policyForRequest(method ?? "", path ?? ""),
+        `${route} is mounted behind a flag and has no row, so with the flag on nobody ` +
+          "decided who may call it",
+      ).toBeDefined();
+    }
+    const accept = policyForRequest("POST", "/admin/forms/frm_x/draft/assist/accept");
+    expect(accept?.resource).toBe("form");
+    expect(accept?.action).toBe("write");
+    expect(accept?.also).toEqual({ resource: "question", action: "write" });
+    expect(accept?.namesEnvironment).toBeUndefined();
   });
 
   it("exempts exactly two routes from needing a grant, and names both", () => {
@@ -138,6 +178,12 @@ describe("every row names an action the policy declares", () => {
 
     for (const row of ROUTE_POLICIES) {
       const label = `${row.method} ${row.path}`;
+      // A flag-gated route has no entry to compare against; neither of the two names an
+      // environment, which the case above asserts for the one that could.
+      if (FLAG_GATED_ROUTES.includes(label)) {
+        expect(row.namesEnvironment, `${label} is flag-gated`).toBeUndefined();
+        continue;
+      }
       if (row.namesEnvironment !== true) {
         expect(row.environmentFrom, `${label} names no environment`).toBeUndefined();
         continue;
@@ -164,13 +210,14 @@ describe("every row names an action the policy declares", () => {
     }
   });
 
-  it("gives `publish-and-release` both of its cells, and nothing else a second one", () => {
+  it("gives `publish-and-release` both of its cells, and names every row that has two", () => {
     // F2's convenience is two acts, and the review found the release half unasked: the
     // row said the handler would ask for it and the handler never did, so a
-    // `test`-scoped editor reached a production release. One route has an `also`; a
-    // second would be a route somebody should argue for.
+    // `test`-scoped editor reached a production release. Two routes are two acts and
+    // both say so on the row; a third would be a route somebody should argue for.
     const withSecond = ROUTE_POLICIES.filter((row) => row.also !== undefined);
-    expect(withSecond.map((row) => `${row.method} ${row.path}`)).toEqual([
+    expect([...withSecond.map((row) => `${row.method} ${row.path}`)].sort()).toEqual([
+      "POST /admin/forms/{id}/draft/assist/accept",
       "POST /admin/forms/{id}/publish-and-release",
     ]);
     const combined = policyForRequest("POST", "/admin/forms/frm_x/publish-and-release");
