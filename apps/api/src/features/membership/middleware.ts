@@ -21,6 +21,13 @@
  * `route-policy.test.ts` makes it a red unit test, and this makes it a 403 if it ever
  * reaches production anyway.
  *
+ * **The runtime half had to be fixed to be true.** The first version decided whether a
+ * path was routed by asking whether any **row** matched it on any method, which is
+ * circular: a route with no row on any method looked like a path the API does not serve,
+ * and was served. It asks the router now (`isRoutedAdminPath`), and
+ * `membership.integration.test.ts` mounts an admin route the table has never heard of to
+ * prove the refusal rather than describe it (PR #1061's review).
+ *
  * # Why this is a middleware and not a call in each handler
  *
  * ADR-41 asks for enforcement "per route group and per route". A call at the top of each

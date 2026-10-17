@@ -1,10 +1,22 @@
-import { authUser, countAdminUsers } from "@roonga/qcms-db";
+import {
+  authUser,
+  countAdminUsers,
+  listAccessAudit,
+  listAccessGroupHolders,
+  listAccessGroups,
+  listWorkspaces,
+} from "@roonga/qcms-db";
 import { CONTAINER_BOOT_TIMEOUT_MS, startTestDb, type TestDb } from "@roonga/qcms-db/testing";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 
 import { validEnv } from "../../test-support.js";
 import { loadAdminAuthConfig } from "../../config.js";
-import { createInitialAdmin, describeRefusal } from "./bootstrap.js";
+import {
+  SEEDED_FIRST_ADMIN_ROLES,
+  SEED_AUDIT_DETAIL_PREFIX,
+  createInitialAdmin,
+  describeRefusal,
+} from "./bootstrap.js";
 import { createAdminAuth, type AdminAuth } from "./instance.js";
 
 /**
@@ -35,7 +47,12 @@ let testDb: TestDb;
 let auth: AdminAuth;
 
 beforeAll(async () => {
-  testDb = await startTestDb();
+  // **No seeded workspace**, which this suite needs and the others do not: the harness
+  // adopts an existing workspace rather than adding one beside it, and so does the
+  // bootstrap, so a pre-seeded fixture row sends `seedFirstWorkspace` down its adopt
+  // branch and the first administrator's grants are never seeded at all. The suite's own
+  // title is "against an empty database"; this makes it one (PR #1061's review, S4).
+  testDb = await startTestDb({ seedWorkspace: false });
   const config = loadAdminAuthConfig(
     validEnv({ DATABASE_URL: testDb.connectionUri, QCMS_ADMIN_BASE_URL: "http://localhost:7040" }),
   );
@@ -106,6 +123,59 @@ describe("createInitialAdmin against an empty database", () => {
     expect(again.ok === false && again.refusal.kind).toBe("already-bootstrapped");
     // Not an upsert and not a second account: still exactly one.
     expect(await countAdminUsers(testDb.db)).toBe(1);
+  });
+
+  it("seeds exactly the authoring family, with no responses grant (task 069)", async () => {
+    // The assertion `SEEDED_FIRST_ADMIN_ROLES`' own comment promised and the first version
+    // of this suite did not have (PR #1061's review, S4). The seed is accepted as built
+    // (Code Owner, 2026-10-18, PR #1061), and what makes it acceptable is the part this
+    // asserts: the first account can author, publish and release, and it can read no
+    // response data until somebody deliberately grants that (Q29).
+    const [workspace] = await listWorkspaces(testDb.db);
+    expect(workspace).toBeDefined();
+    const groups = await listAccessGroups(testDb.db, workspace?.id ?? "");
+
+    expect([...groups.map((group) => group.name)].sort()).toEqual(
+      [...SEEDED_FIRST_ADMIN_ROLES.map((role) => `all.${role}`)].sort(),
+    );
+    expect([...groups.map((group) => group.role)].sort()).toEqual(
+      ["forms.approver", "forms.editor"],
+    );
+    // Not a `responses.*` grant anywhere, which is the half a reader has to be able to see.
+    expect(groups.filter((group) => group.role.startsWith("responses."))).toEqual([]);
+
+    for (const group of groups) {
+      // Scope `all` in both dimensions, so the first account is not quietly confined.
+      expect(group.environments).toEqual(["all"]);
+      expect(group.forms).toEqual(["all"]);
+      // And the account actually holds each one: a group nobody is in grants nothing.
+      const holders = await listAccessGroupHolders(testDb.db, group.teamId);
+      expect(holders.map((holder) => holder.email)).toEqual([EMAIL]);
+    }
+  });
+
+  it("audits each seeded grant as the created account, naming the command (Q56)", async () => {
+    // Code Owner, 2026-10-18, PR #1061: Q56's "every grant write is a SEC-15 row" is meant
+    // literally, so the seed writes one. Without these rows the first page of the audit
+    // shows two grants nobody granted.
+    const [workspace] = await listWorkspaces(testDb.db);
+    const { rows } = await listAccessAudit(testDb.db, workspace?.id ?? "", { kind: "grant" });
+    const [account] = await testDb.db.select().from(authUser);
+
+    expect(rows).toHaveLength(SEEDED_FIRST_ADMIN_ROLES.length);
+    for (const role of SEEDED_FIRST_ADMIN_ROLES) {
+      const row = rows.find((candidate) => candidate.detail?.includes(`group=all.${role}`));
+      expect(row, `no seeded grant row for all.${role}`).toBeDefined();
+      // The created account is the actor: it is the account the grant is for and the only
+      // identity the installation has. The detail is what says the command did it.
+      expect(row?.actor).toBe(account?.id);
+      expect(row?.detail).toContain(SEED_AUDIT_DETAIL_PREFIX);
+      // Q61: a grant row's scope goes in the detail, and these two columns stay empty
+      // because the act names neither an environment nor a form.
+      expect(row?.environment ?? null).toBeNull();
+      expect(row?.formId ?? null).toBeNull();
+      expect(row?.detail).toContain("environments=all forms=all");
+    }
   });
 
   it("explains a refusal without echoing any credential (SEC-8)", () => {

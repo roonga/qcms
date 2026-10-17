@@ -1012,6 +1012,15 @@ describe("the two role families refuse across each other (criteria 2 to 5)", () 
 describe("the environment a request is authorised for is the environment it acts in", () => {
   /** The editor this block probes with: one grant, `test` only, no claim, no owner row. */
   let testEditor = "";
+  /**
+   * A `responses.eraser` scoped to `test`, for the unflag row.
+   *
+   * Unflag is `response: dispose`, which no `forms.editor` holds in any environment, so
+   * the editor is refused there for the wrong reason and the forged body proves nothing.
+   * The account that makes that row a bypass probe is the one the review named: an eraser
+   * who holds the act in `test` and must not reach it in `prod`.
+   */
+  let testEraser = "";
   /** A production link and a production webhook on the seeded form, minted as the admin. */
   let prodLinkId = "";
   let prodWebhookId = "";
@@ -1042,6 +1051,23 @@ describe("the environment a request is authorised for is the environment it acts
     });
     await ensureWorkspaceMember(testDb.db, SEED_WORKSPACE_ID, editor.userId);
     await addAccessGroupHolder(testDb.db, group.teamId, editor.userId);
+
+    const eraser = await seedAdminSession(testDb.db, {
+      label: "forged-body-eraser",
+      claim: false,
+      owner: false,
+      grants: [],
+    });
+    testEraser = eraser.token;
+    const eraserGroup = await createAccessGroup(testDb.db, {
+      workspaceId: SEED_WORKSPACE_ID,
+      name: "test.responses.eraser.forged",
+      role: "responses.eraser",
+      environments: ["test"],
+      forms: ["all"],
+    });
+    await ensureWorkspaceMember(testDb.db, SEED_WORKSPACE_ID, eraser.userId);
+    await addAccessGroupHolder(testDb.db, eraserGroup.teamId, eraser.userId);
 
     // The production objects the editor must not reach. Minted by the fully credentialed
     // admin, in `prod`, which is the environment the interim switcher resolves to.
@@ -1087,29 +1113,34 @@ describe("the environment a request is authorised for is the environment it acts
       "link revoke",
       "POST",
       (): string => `/admin/forms/${ctx.formId}/links/${prodLinkId}/revoke`,
+      (): string => testEditor,
     ],
     [
       "webhook delete",
       "DELETE",
       (): string => `/admin/forms/${ctx.formId}/webhooks/${prodWebhookId}`,
+      (): string => testEditor,
     ],
     [
       "redeliver",
       "POST",
       (): string => `/admin/forms/${ctx.formId}/deliveries/${ctx.deliveryId}/redeliver`,
+      (): string => testEditor,
     ],
     [
+      // The eraser, not the editor: see `testEraser`.
       "unflag",
       "POST",
       (): string => `/admin/forms/${ctx.formId}/responses/${ctx.sessionId}/unflag`,
+      (): string => testEraser,
     ],
   ])(
-    "%s refuses a test-scoped editor whether or not the body forges an environment (B1)",
-    async (_label, method, path) => {
+    "%s refuses a test-scoped holder whether or not the body forges an environment (B1)",
+    async (_label, method, path, token) => {
       // Without a body: the matrix, as criterion 4 states it.
       const plain = await all.app.request(path(), {
         method,
-        headers: headersFor(testEditor, "prod"),
+        headers: headersFor(token(), "prod"),
       });
       expect(plain.status).toBe(403);
       expectNoPayload(await plain.text());
@@ -1119,7 +1150,7 @@ describe("the environment a request is authorised for is the environment it acts
       // so a body naming one is a key nobody can have meant.
       const forged = await all.app.request(path(), {
         method,
-        headers: headersFor(testEditor, "prod", true),
+        headers: headersFor(token(), "prod", true),
         body: JSON.stringify({ environment: "test" }),
       });
       expect(

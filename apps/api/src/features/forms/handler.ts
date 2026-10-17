@@ -1827,6 +1827,14 @@ export function makePublishFormHandler(deps: Deps): RouteHandler<typeof publishF
  * holds the version, the draft deletion, the release record and the `form.released` event,
  * so a failed release leaves no published version behind to explain. That is the whole
  * reason the publish core is split into `freezeDraft` and `writeVersion` above.
+ *
+ * **Two cells of the permissions matrix, and the gate evaluates both.** This handler makes
+ * no policy call, and that is now correct rather than an omission: the route's row in
+ * `route-policy.ts` carries `form: publish` **and** `release: create`, the second in
+ * `also`, both judged against the environment the body names before this function runs.
+ * The first version left the release half to this handler on the strength of a comment,
+ * and the review of PR #1061 probed it: a `forms.editor` scoped to `test` got past the
+ * gate to a production release.
  */
 export function makePublishAndReleaseFormHandler(
   deps: Deps,

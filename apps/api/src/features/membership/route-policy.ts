@@ -11,16 +11,21 @@
  * **data**, the middleware walks them, and a route with **no row is refused**.
  *
  * That is the property worth having: an admin route added without a decision about who
- * may call it fails closed and says so, rather than being open and silent.
+ * may call it fails closed and says so, rather than being open and silent. The refusal is
+ * the middleware's, at runtime, and it asks the **router** whether a path is served
+ * rather than asking this table - the first version asked the table, which is circular,
+ * and served a route it had never heard of (PR #1061's review).
  * `route-policy.test.ts` closes the loop the other way by deriving the mounted route set
  * from the shipped OpenAPI document, so a route with no row is a red gate before it is
  * ever a refusal in production.
  *
  * # What a row says
  *
- * The (resource, action) the route is, where its **workspace** comes from, and whether
- * the act names an **environment** or a **form**. Nothing in a row is about the caller:
- * the caller's grants are read at the request, and `policy.ts` is what judges them.
+ * The (resource, action) the route is - or **two**, where a route is two acts - where its
+ * **workspace** comes from, whether the act names an **environment** and **where that
+ * environment is read from**, and whether it names a **form**. Nothing in a row is about
+ * the caller: the caller's grants are read at the request, and `policy.ts` is what judges
+ * them.
  *
  * # The installation claim
  *

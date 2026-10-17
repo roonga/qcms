@@ -38,7 +38,7 @@ import {
 } from "@roonga/qcms-db";
 import { CONTAINER_BOOT_TIMEOUT_MS, startTestDb, type TestDb } from "@roonga/qcms-db/testing";
 
-import { createApp } from "../../app.js";
+import { createApp, type SliceRegistrar } from "../../app.js";
 import type { Deps } from "../../deps.js";
 import { ADMIN_SESSION_HEADER, registerAdminAuth } from "../../middleware/admin-auth.js";
 import { registerRequestEnvironment } from "../../middleware/request-environment.js";
@@ -50,6 +50,7 @@ import {
   validEnv,
 } from "../../test-support.js";
 import { createAdminAuth, MEMBERSHIP_LIMIT } from "../auth/instance.js";
+import { pluginWriteBackstop } from "../auth/plugin-write-backstop.js";
 import { registerWorkspaces } from "../workspaces/route.js";
 import { registerGrantCheck } from "./middleware.js";
 import { registerMembership } from "./route.js";
@@ -58,6 +59,8 @@ const ADMIN_ONLY = { public: false, internal: false, admin: true } as const;
 
 let testDb: TestDb;
 let deps: Deps;
+/** A second composition, for the undecided-route probe. */
+let undecidedApp: ReturnType<typeof createApp>;
 let app: ReturnType<typeof createApp>;
 let internalToken: string;
 
@@ -73,9 +76,34 @@ let editorId: string;
 /** An account with a member row carrying the empty role and nothing else (criterion 17). */
 let nobodyToken: string;
 
+/**
+ * An admin route the matrix has never heard of, mounted on its own app.
+ *
+ * It exists to answer one question at runtime rather than by inspection: what does a
+ * deployment do with an admin route nobody declared who may call? The route table's unit
+ * test keeps the shipped set complete, but a build somebody patched, or a route added in a
+ * branch where that test was not run, is exactly the case the refusal is for - and the
+ * first version served it (PR #1061's review, S2).
+ */
+const registerUndecidedRoute: SliceRegistrar = (group): void => {
+  // Group-relative: the admin group is mounted at `/admin`, so this serves
+  // `/admin/not-in-the-matrix`.
+  group.get("/not-in-the-matrix", (c) => c.json({ served: true }));
+};
+
 beforeAll(async () => {
   testDb = await startTestDb();
   deps = makeDeps({ db: testDb.db, env: validEnv() });
+  undecidedApp = createApp(deps, ADMIN_ONLY, {
+    groups: {
+      admin: [
+        registerAdminAuth,
+        registerRequestEnvironment,
+        registerGrantCheck,
+        registerUndecidedRoute,
+      ],
+    },
+  });
   app = createApp(deps, ADMIN_ONLY, {
     groups: {
       admin: [
@@ -925,13 +953,44 @@ describe("the plugin's before-hooks refuse one rule at a time (criterion 14)", (
     ).rejects.toThrow(/member row|GRANT_WRITE_REFUSED/i);
   });
 
-  it("never lets an `externalGroupId` through a plugin endpoint (Q39)", async () => {
+  it("refuses an `externalGroupId` at the hook, for a value that reaches one (Q39)", async () => {
+    // The hook's own refuse branch, which the endpoint test below cannot reach: `input:
+    // false` drops the field before any hook sees it, so the only way to exercise the
+    // backstop is to call it with the payload a future library version, or a second
+    // write path, could hand it (PR #1061's review, L1). Criterion 14 says "refused",
+    // and this is the assertion that says it rather than a comment saying it.
+    const hooks = pluginWriteBackstop(testDb.db);
+    await expect(
+      hooks.beforeCreateTeam({
+        team: {
+          name: "test.forms.viewer.external",
+          role: "forms.viewer",
+          environments: ["test"],
+          forms: ["all"],
+          externalGroupId: "CN=qcms-home",
+        },
+        organization: { id: SEED_WORKSPACE_ID },
+      }),
+    ).rejects.toThrow(/externalGroupId|GRANT_WRITE_REFUSED/i);
+
+    // And on an update, where the merged row is what is judged: a patch that adds the
+    // key to a legal team is the same write by a different door.
+    await expect(
+      hooks.beforeUpdateTeam({
+        team: { name: "test.forms.viewer", role: "forms.viewer", environments: ["test"], forms: ["all"] },
+        updates: { externalGroupId: "CN=qcms-home" },
+        organization: { id: SEED_WORKSPACE_ID },
+      }),
+    ).rejects.toThrow(/externalGroupId|GRANT_WRITE_REFUSED/i);
+  });
+
+  it("drops an `externalGroupId` sent to a plugin endpoint before any hook sees it (Q39)", async () => {
     // **Two controls, and the library's is the first.** `input: false` keeps the field
     // off the endpoint's body schema, so a value sent there is dropped before any hook
     // sees it: the call succeeds and the **column stays null**, which is the property
     // criterion 15 is about - no code path but the task C3 sync seam writes it. The hook
-    // is the backstop for a value that arrives some other way, and it is asserted on the
-    // rules above that a payload can actually carry.
+    // is the backstop for a value that arrives some other way, and the test above calls
+    // that branch directly.
     await createTeamThroughPlugin({
       name: "test.forms.viewer.hooked",
       organizationId: SEED_WORKSPACE_ID,
@@ -1012,5 +1071,36 @@ describe("the configuration guards hold against the running instance (criterion 
             where "activeOrganizationId" is not null or "activeTeamId" is not null`,
     );
     expect(rows.rows[0]?.count).toBe(0);
+  });
+});
+
+describe("an admin route with no row in the matrix is refused at runtime", () => {
+  /**
+   * The runtime half of "an admin route with no row is refused", which `middleware.ts`,
+   * `route-policy.ts`, `docs/SECURITY_DESIGN.md` 3.1, ADR-41's Note and the ledger row all
+   * state. At the first review the code did not do it: it asked the route table whether
+   * the path was routed, which is circular - a route with no row on any method looked like
+   * a path the API does not serve, and was served to any admin session.
+   *
+   * It is asked of Hono now, so this probe is the one that can tell the two readings apart.
+   */
+  it("refuses a mounted admin route the table has never heard of", async () => {
+    const res = await undecidedApp.request("/admin/not-in-the-matrix", {
+      headers: { "x-qcms-internal-token": internalToken, [ADMIN_SESSION_HEADER]: ownerToken },
+    });
+    expect(res.status).toBe(403);
+    const body = (await res.json()) as { error?: { code?: string } };
+    expect(body.error?.code).toBe("ROUTE_NOT_AUTHORIZED");
+  });
+
+  it("still lets the router answer 404 for a path nothing serves", async () => {
+    // The other direction, and the reason the refusal is not simply "every /admin/ path
+    // with no row": a 403 on a path that does not exist answers a question about
+    // authorisation that nobody asked, and it would make every typo look like a
+    // permission problem.
+    const res = await undecidedApp.request("/admin/no-such-thing-at-all", {
+      headers: { "x-qcms-internal-token": internalToken, [ADMIN_SESSION_HEADER]: ownerToken },
+    });
+    expect(res.status).toBe(404);
   });
 });
