@@ -122,7 +122,7 @@ describe("the migration chain is complete", () => {
     expect(offending).toEqual([]);
   });
 
-  it("drops no table, schema or whole plane anywhere in the tree (Q41, criterion 8)", () => {
+  it("drops no table, schema, view, trigger or function anywhere in the tree (Q41, criterion 8)", () => {
     // The half of criterion 8 that has to hold for **every** migration, now and later,
     // rather than only for the baseline.
     //
@@ -137,10 +137,31 @@ describe("the migration chain is complete", () => {
     // `form_status` enum away, and an appended migration can only express that as a
     // `DROP COLUMN` and a `DROP TYPE`.
     //
-    // So what is asserted here is the shape rather than the keyword: no `DROP TABLE`, no
-    // `DROP SCHEMA`, no `DROP VIEW`, no `DROP MATERIALIZED VIEW` and no
-    // `ALTER TABLE ... SET SCHEMA` in any migration. A dropped column or type is an
-    // ordinary retirement; a dropped table or schema is the old shape coming back.
+    // **The exact rule** (Code Owner, 2026-10-17, PR #1060), which this assertion is the
+    // executable form of:
+    //
+    // 1. The baseline carries no `DROP` and no `SET SCHEMA` at all. The case above pins
+    //    that, and it is unnarrowed.
+    // 2. An appended migration **may** drop a column, a type, an index or a constraint.
+    //    Those are ordinary retirements: the field or the check goes, the shape of the
+    //    database and the identity of every table stay.
+    // 3. No migration, baseline or appended, may drop a **table**, a **schema**, a
+    //    **view**, a **materialized view**, a **trigger** or a **function**, and none may
+    //    `ALTER TABLE ... SET SCHEMA`.
+    //
+    // Triggers and functions are in rule 3 rather than rule 2 because of what they hold
+    // here. `form_releases` is append-only by trigger, and the environment guard of Q46 is
+    // a function behind a CHECK: a migration that drops one of those leaves every table
+    // standing and every column in place while quietly retiring the invariant that made
+    // the data trustworthy. That is the same class of change as dropping a table, not the
+    // same class as dropping a column, and it is the harder one to notice in review -
+    // which is the argument for the test refusing it rather than a reader catching it.
+    // Replacing a trigger's function is `CREATE OR REPLACE FUNCTION`, which this rule
+    // leaves alone; it is only the removal that is refused.
+    //
+    // The narrowed regex would otherwise have admitted `DROP TRIGGER` and `DROP FUNCTION`
+    // along with the column and type drops it was narrowed for, which was more than the
+    // ruling grants.
     //
     // `DROP SCHEMA ... CASCADE` is what the environment **drop command** runs, and it
     // lives in `src/environment/sql.ts` rather than in any migration, which is what
@@ -150,7 +171,9 @@ describe("the migration chain is complete", () => {
       .flatMap((name) => {
         const sql = readFileSync(`${MIGRATIONS_DIR}${name}`, "utf8");
         return [
-          ...sql.matchAll(/\b(drop\s+(table|schema|(materialized\s+)?view)|set\s+schema)\b/gi),
+          ...sql.matchAll(
+            /\b(drop\s+(table|schema|(materialized\s+)?view|trigger|function)|set\s+schema)\b/gi,
+          ),
         ]
           .filter((match) => !inComment(sql, match.index))
           .map((match) => `${name}: ${match[0]}`);

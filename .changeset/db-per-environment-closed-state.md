@@ -24,7 +24,12 @@ Breaking, in three places:
 
 - `control.forms.status` and the `control.form_status` enum are **dropped**. A column
   there could only say "closed everywhere". Anything reading `forms.status` reads the
-  release state instead.
+  release state instead. **Migration 0003 carries no value across:** a form whose
+  `forms.status` was `'closed'` before the migration does not come out with
+  `form_releases.closed` set, because the old column said nothing about which
+  environment it meant and the new flag has to say exactly one. A deployment that had
+  closed intake re-closes it per environment after upgrading. Q22 is why that is a
+  sentence here rather than a backfill step: there is no installation to migrate.
 - `closeForm` and `reopenForm` are replaced by `closeFormInEnvironment` and
   `reopenFormInEnvironment`, which take the environment and return the appended release
   row, or `undefined` when the form has nothing released there - there is no state to

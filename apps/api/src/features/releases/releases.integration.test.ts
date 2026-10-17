@@ -564,9 +564,7 @@ describe("refusals", () => {
     expect(won.length + lost.length).toBe(versions.length);
     // Every loser is the typed refusal. No 5xx, and no other code either: a 400 here would
     // mean the request was judged malformed, which it was not.
-    expect(lost.map((r) => [r.status, r.code])).toEqual(
-      lost.map(() => [409, "RELEASE_RACED"]),
-    );
+    expect(lost.map((r) => [r.status, r.code])).toEqual(lost.map(() => [409, "RELEASE_RACED"]));
     expect(results.some((r) => r.status >= 500)).toBe(false);
 
     // And the history is exactly the winners: one row per sequence, dense from 1, with the
