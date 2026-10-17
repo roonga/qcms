@@ -79,6 +79,15 @@ const INTENTIONALLY_OPAQUE = new Set([
   // A not-implemented refusal on a path that fails closed. It fires once per refused
   // request in a configuration nobody runs yet (task 029).
   "challenge provider 'turnstile' is not implemented yet (029); failing closed",
+  // The two per-environment challenge misconfigurations (task 066, Q11). Each fires once
+  // per refused request against a configuration somebody has to correct in one row, and
+  // the environment it names is the whole content: the attribute is dropped like every
+  // unlisted one, so an exported body would say only that something was wrong somewhere.
+  // Deliberately opaque rather than in SAFE_EVENTS, for the reason the turnstile refusal
+  // above is: it is a diagnostic an operator reads in their own log, not a pass-level
+  // metric they count.
+  "challenge provider: no control.environments row; failing closed",
+  "challenge provider: unknown name on the environment; failing closed",
   // Boot-time diagnostic, emitted with the error attached. The error itself is the
   // content and the OTLP path drops it whatever the body says.
   "could not read the sign-in throttle state",

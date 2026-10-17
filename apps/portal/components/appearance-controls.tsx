@@ -200,7 +200,18 @@ export function AppearanceControls() {
   const pathname = usePathname();
   const searchParams = useSearchParams();
   const search = searchParams.toString();
-  const returnTo = search === "" ? pathname : `${pathname}?${search}`;
+  // **Normalised onto the environment's prefix** (Q21, task 066). `proxy.ts` rewrites
+  // `/test/s/x` to `/s/x`, so `usePathname()` is the rewritten path on the server and the
+  // browser's own prefixed path after hydration. Prepending the prefix only when it is
+  // absent makes the two renders produce the same string - no hydration mismatch - and
+  // makes the no-JS return address, which is the server render's and the only one a
+  // scriptless respondent gets, point back inside their own environment.
+  const basePath = state?.basePath ?? "";
+  const prefixed =
+    basePath === "" || pathname === basePath || pathname.startsWith(`${basePath}/`)
+      ? pathname
+      : `${basePath}${pathname}`;
+  const returnTo = search === "" ? prefixed : `${prefixed}?${search}`;
   const [mode, setMode] = useState<AppearanceMode>(state?.mode ?? "light");
   const [font, setFont] = useState<string>(state?.font ?? "");
   const [density, setDensity] = useState<Density>(state?.density ?? "comfortable");

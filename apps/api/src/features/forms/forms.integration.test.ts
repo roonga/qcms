@@ -1842,8 +1842,22 @@ describe("GET /admin/forms - search, status filter and sort", () => {
     // whatever order the rows come back in. Charlie keeps its draft and is never
     // published: it is the row the date sorts have no date for.
     expect((await listPost("/forms/frm_lst_alpha/publish")).status).toBe(200);
-    expect((await listPost("/forms/frm_lst_bravo/publish")).status).toBe(200);
-    expect((await listPost("/forms/frm_lst_bravo/close")).status).toBe(200);
+    // Bravo publishes **and releases**, because the closed state is per (form,
+    // environment) since task 066 (Q18) and lives on the release state: there is no
+    // intake to close in an environment nothing is released to. This app names no
+    // environment on its requests, so it reads and writes the default one, which is the
+    // environment this harness serves.
+    expect(
+      (
+        await listPost("/forms/frm_lst_bravo/publish-and-release", {
+          environment: DEFAULT_TEST_ENVIRONMENT,
+        })
+      ).status,
+    ).toBe(200);
+    expect(
+      (await listPost("/forms/frm_lst_bravo/close", { environment: DEFAULT_TEST_ENVIRONMENT }))
+        .status,
+    ).toBe(200);
   }, 60_000);
 
   /** The listed slugs, in the order the route returned them. */
@@ -1868,7 +1882,7 @@ describe("GET /admin/forms - search, status filter and sort", () => {
     expect(await slugs("search=lst-nothing-matches-this")).toEqual([]);
   });
 
-  it("filters by lifecycle status", async () => {
+  it("filters by the request environment's lifecycle status", async () => {
     expect(await slugs(`${SCOPE}&status=closed`)).toEqual(["lst-bravo"]);
     expect(await slugs(`${SCOPE}&status=open`)).toEqual(["lst-alpha", "lst-charlie"]);
   });

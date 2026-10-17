@@ -32,6 +32,13 @@ const FORM_CODE_MESSAGES: Readonly<Record<string, MessageKey>> = {
   INVALID_LINK_ID: "forms.error.invalidLinkId",
   LINK_NOT_FOUND: "forms.error.linkNotFound",
   LINK_EXPIRY_INVALID: "forms.error.linkExpiryInvalid",
+  // 066's codes. Closing is per (form, environment) and lives on the release state, so
+  // there is no intake to close where nothing is released, and closing twice records
+  // nothing. The sentences name the environment because the refusal is about one.
+  NOT_RELEASED: "forms.lifecycle.notReleasedHere",
+  ALREADY_CLOSED: "forms.lifecycle.alreadyClosedHere",
+  ALREADY_OPEN: "forms.lifecycle.alreadyOpenHere",
+  UNKNOWN_ENVIRONMENT: "forms.error.unknownEnvironment",
   // 035's codes: the response, erasure and webhook-operations routes. They are read
   // through the same map because a screen has one error path, not two (`api-result.ts`).
   // 041 / issue #823: accepting a proposal that carried new question definitions.

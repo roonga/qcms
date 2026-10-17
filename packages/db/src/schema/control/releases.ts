@@ -1,5 +1,6 @@
 import { sql } from "drizzle-orm";
 import {
+  boolean,
   check,
   foreignKey,
   index,
@@ -41,6 +42,19 @@ import { controlSchema } from "../schemas.js";
  * **derived** from the row and its predecessor by `releaseHistory` in
  * `queries/releases.ts` rather than stored, because a flag an administrator types is a
  * flag that can disagree with the versions beside it.
+ *
+ * **The closed state is a value of this state, since task 066** (Q18, ADR-39's
+ * Amendment). {@link formReleases.closed} is the "closed to new sessions" reading of the
+ * pair, so one read of the newest row answers both "which version is released here" and
+ * "is intake open here". That is why Q18 is spelled as the release state *gaining a
+ * value* rather than as a table beside it: the two questions are asked together, by the
+ * respondent path on every start, and an environment role already holds `SELECT` here
+ * (Q48's six-table read list), so no grant widens and ADR-40's role table is unchanged.
+ *
+ * Closing and reopening therefore **append**, carrying the environment's released
+ * version forward with the flag flipped. They inherit this table's properties rather
+ * than needing their own: the history says who closed `prod` and when, nothing can
+ * rewrite it, and a close is never observed as a version change.
  *
  * **No backfill** (Q22): green field means there is no already-published form to write a
  * first release row for, so the first row any form gets is written by a real release.
@@ -106,6 +120,26 @@ export const formReleases = controlSchema.table(
      * be filled in for the rows written before it.
      */
     approvedBy: text("approved_by"),
+    /**
+     * Whether this row leaves the form **closed to new sessions in this environment**
+     * (Q18, task 066). The newest row for the pair is the answer, exactly as it is for
+     * the version.
+     *
+     * `false` on a release, `true` on a close, and back to `false` on a reopen. A close
+     * and a reopen carry the released version forward unchanged, so the version a
+     * respondent would be pinned to is not disturbed by intake being stopped and started
+     * - which is also why this is a flag on the state rather than a release of a
+     * different version.
+     *
+     * **A release does not reopen a closed environment.** `closeFormInEnvironment` and
+     * `reopenFormInEnvironment` are the two doors, and a release carries the current
+     * value forward, because closing `prod` is a deliberate operational act and
+     * releasing a new version is not a request to resume intake.
+     *
+     * In-flight sessions are untouched either way (R1, ADR-07 invariant I4): the state
+     * is read at start and nothing re-reads it for a live session.
+     */
+    closed: boolean("closed").notNull().default(false),
     releasedAt: timestamp("released_at", { withTimezone: true, mode: "date" })
       .notNull()
       .defaultNow(),

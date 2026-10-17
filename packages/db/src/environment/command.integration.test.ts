@@ -183,18 +183,61 @@ describe("dropping an environment (Q24, Q43)", { timeout: COMMAND_TIMEOUT_MS }, 
          (form_id, version, definition, compiled, compiler_version, a2ui_spec_version, semantics_version)
        values ('frm_drop', 1, '{}'::jsonb, '{}'::jsonb, '0.0.0', '0.0.0', '0.0.0')`,
     );
+    // A session in `dev` with nothing released there: the refusal below is about `rel`,
+    // and this is what keeps the success case further down a real drop of a non-empty
+    // environment emptied through the sanctioned door.
     await testDb.client.query(
       `insert into data_dev.sessions (session_id, form_id, form_version, access_mode, environment, expires_at)
        values ('ses_drop', 'frm_drop', 1, 'anonymous', 'dev', now() + interval '1 day')`,
     );
+    // Released to `dev` and not closed there, which is what "open in this environment"
+    // means since task 066 (Q18): the state is the newest `form_releases` row for the
+    // pair, not a column on the form. The release goes into an environment of its own
+    // rather than into `dev`, because a release record pins the environment row it names
+    // and would make `dev` undroppable for the case below - see that case.
+    await createEnvironment(testDb.db, { name: "rel" });
+    await testDb.client.query(
+      `insert into control.form_releases
+         (form_id, environment, version, sequence, released_by)
+       values ('frm_drop', 'rel', 1, 1, 'usr_fixture')`,
+    );
+    await testDb.client.query(
+      `insert into data_rel.sessions (session_id, form_id, form_version, access_mode, environment, expires_at)
+       values ('ses_rel', 'frm_drop', 1, 'anonymous', 'rel', now() + interval '1 day')`,
+    );
 
-    const refusal = await dropEnvironment(testDb.db, "dev");
+    const refusal = await dropEnvironment(testDb.db, "rel");
     // Not a bare refusal: an operator who has been refused needs to know what to do
     // next, so the count and the forms are in the message as well as on the object.
     expect(refusal?.sessionCount).toBe(1);
     expect(refusal?.openForms).toEqual(["frm_drop"]);
     expect(refusal?.reason).toContain("frm_drop");
     expect(refusal?.reason).toContain("1 session");
+  });
+
+  it("refuses an environment anything was ever released to, even once it is empty", async () => {
+    // **A consequence of 065's schema rather than a rule anybody wrote, and recorded here
+    // because it narrows ADR-40's drop rule in practice.**
+    // `control.form_releases.environment` is a foreign key into `control.environments`,
+    // and the history rejects DELETE (`form_releases_reject_delete`), so deleting the
+    // environment row violates that key and there is no sanctioned door to the rows
+    // holding it. An environment anybody released into is therefore undroppable - which
+    // is most environments that were used at all.
+    //
+    // What this task changed is only how the refusal READS: the count turns a foreign-key
+    // violation into a sentence an operator can act on. Whether such an environment
+    // should be droppable at all is a question for the record, not for this command.
+    await testDb.client.query(`delete from data_rel.sessions where session_id = 'ses_rel'`);
+    const refusal = await dropEnvironment(testDb.db, "rel");
+    expect(refusal?.sessionCount).toBe(0);
+    expect(refusal?.releaseCount).toBe(1);
+    expect(refusal?.reason).toMatch(/append-only/);
+    // And the schema is still there, which is the half that matters: a refusal that had
+    // dropped half of it would be worse than the violation it replaced.
+    const still = await testDb.client.query(
+      `select 1 from pg_namespace where nspname = 'data_rel'`,
+    );
+    expect(still.rowCount).toBe(1);
   });
 
   it("succeeds once the environment is closed and empty, and removes it from the live set", async () => {
@@ -210,7 +253,8 @@ describe("dropping an environment (Q24, Q43)", { timeout: COMMAND_TIMEOUT_MS }, 
     const rows = await testDb.client.query<{ name: string }>(
       `select name from control.environments order by position`,
     );
-    expect(rows.rows.map((row) => row.name)).toEqual(["test", "prod"]);
+    // `rel` is still there, and permanently: the case above is why.
+    expect(rows.rows.map((row) => row.name)).toEqual(["test", "prod", "rel"]);
   });
 
   it("refuses an environment that does not exist", async () => {

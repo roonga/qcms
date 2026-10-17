@@ -13,6 +13,8 @@
  * `POST /sessions`.
  */
 
+import { DEFAULT_TEST_ENVIRONMENT } from "@roonga/qcms-db/testing";
+
 import { ADMIN_SESSION_HEADER } from "../../src/middleware/admin-auth.js";
 import type { createApp } from "../../src/app.js";
 
@@ -125,11 +127,23 @@ export class AdminClient {
 
   // --- secure links ---------------------------------------------------------
 
+  /**
+   * Mint secure links.
+   *
+   * `environment` defaults to the one this harness serves, because that is what every
+   * scenario wants and the API requires the field with no default of its own (Q19, task
+   * 066). A scenario that wants another names it.
+   */
   async mintLinks<T = unknown>(
     formId: string,
-    input: { expiresAt: string; oneTime?: boolean; count?: number },
+    input: { environment?: string; expiresAt: string; oneTime?: boolean; count?: number },
   ): Promise<JsonResult<T>> {
-    return parse<T>(await this.req("POST", `/forms/${formId}/links`, input));
+    return parse<T>(
+      await this.req("POST", `/forms/${formId}/links`, {
+        environment: DEFAULT_TEST_ENVIRONMENT,
+        ...input,
+      }),
+    );
   }
 
   // --- webhooks -------------------------------------------------------------
@@ -199,10 +213,18 @@ export class RespondentClient {
     };
   }
 
-  /** Start a session either anonymously (`{ formSlug }`) or via a link (`{ token }`). */
+  /**
+   * Start a session, anonymously (`{ formSlug }`) or via a link (`{ token }`).
+   *
+   * Two routes since task 066, because the two entry modes ride different mount decisions
+   * (Q21): `POST /sessions` is `prod`'s form-slug door and `POST /sessions/link` is on
+   * every environment's surface. The dispatch is here so a scenario reads as it did while
+   * reaching the address a deployment serves; the split itself is asserted in
+   * `04-mount-split.e2e.ts` and in the API's own integration suite.
+   */
   async start<T = unknown>(body: { formSlug: string } | { token: string }): Promise<JsonResult<T>> {
     return parse<T>(
-      await this.app.request("/sessions", {
+      await this.app.request("token" in body ? "/sessions/link" : "/sessions", {
         method: "POST",
         headers: this.headers(),
         body: JSON.stringify(body),

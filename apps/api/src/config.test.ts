@@ -15,7 +15,14 @@ import { synthSecret, validEnv } from "./test-support.js";
 describe("loadConfig - presence and shape (SEC-7, SEC-8)", () => {
   it("accepts a complete environment and parses mount + keys + flags", () => {
     const config = loadConfig(validEnv({ QCMS_MOUNT: "public,internal" }));
-    expect(config.mount).toEqual({ public: true, internal: true, admin: false });
+    expect(config.mount).toEqual({
+      public: true,
+      internal: true,
+      admin: false,
+      // No non-prod respondent surface was named, so none is mounted (Q21): every
+      // `/<env>/` address in this shape is a 404.
+      environments: [],
+    });
     expect(config.keys.link).toHaveLength(1);
     expect(config.keys.internal).toHaveLength(1);
     expect(config.flags.challengeProvider).toBe("none");
@@ -23,12 +30,62 @@ describe("loadConfig - presence and shape (SEC-7, SEC-8)", () => {
     expect(config.challenge.provider).toBe("none");
   });
 
-  it("QCMS_MOUNT=all mounts every surface", () => {
+  it("QCMS_MOUNT=all mounts every surface, non-prod respondent surfaces included", () => {
+    // `all` is the solo shortcut and has to mean "this whole deployment" (Q21): every
+    // surface, plus the respondent surface of every non-prod environment the
+    // configuration names. `prod`'s is `public`, so it is never in the list - a prefixed
+    // `prod` would be a second spelling of the unprefixed address shape.
     expect(loadConfig(validEnv({ QCMS_MOUNT: "all" })).mount).toEqual({
       public: true,
       internal: true,
       admin: true,
+      environments: ["test"],
     });
+  });
+
+  it("mounts one named non-prod environment's respondent surface and no other", () => {
+    // The third environment's credential is the harness's own synthetic one rather than a
+    // second URL written here: a literal would carry a port, and the port allocation is
+    // derived and never typed out (R8, `scripts/check-ports.mjs`).
+    const mount = loadConfig(
+      validEnv({
+        QCMS_MOUNT: "public,admin,dev",
+        QCMS_ENVIRONMENTS: "dev,test,prod",
+        QCMS_DATABASE_URL_DEV: validEnv().QCMS_DATABASE_URL_TEST,
+      }),
+    ).mount;
+    expect(mount).toEqual({
+      public: true,
+      internal: false,
+      admin: true,
+      environments: ["dev"],
+    });
+  });
+
+  it("refuses `prod` as a mount token, naming the surface that mounts it", () => {
+    let thrown: ConfigError | undefined;
+    try {
+      loadConfig(validEnv({ QCMS_MOUNT: "prod,admin" }));
+    } catch (err) {
+      thrown = err as ConfigError;
+    }
+    // Not silently treated as a synonym for `public`: prod is the unprefixed address
+    // shape, so a `/prod/` surface is something this design does not have, and an
+    // operator who asked for it should be told rather than quietly given another thing.
+    expect(thrown?.message).toContain("prod");
+    expect(thrown?.message).toContain("public");
+  });
+
+  it("refuses an environment the configuration does not name", () => {
+    let thrown: ConfigError | undefined;
+    try {
+      loadConfig(validEnv({ QCMS_MOUNT: "public,staging" }));
+    } catch (err) {
+      thrown = err as ConfigError;
+    }
+    // There would be no pool to serve it from, and a mount that silently served nothing
+    // is the shape SEC-14 cannot afford.
+    expect(thrown?.message).toContain("staging");
   });
 
   // Exit criterion 4: missing DATABASE_URL exits with a readable message.

@@ -294,18 +294,30 @@ describe("a scaffolded QCMS deployment", () => {
     // 3. Mint a secure link. The token exists only inside the returned URL, which is
     //    built from QCMS_PORTAL_BASE_URL, so this also proves the scaffolder put the
     //    operator's answer where the API reads it.
+    //
+    //    `environment` is required with no default (ADR-40, Q19): a link belongs to
+    //    exactly one environment, and a caller that omits the field is refused rather
+    //    than silently handed a production link. `prod` is the environment this loop
+    //    released to a step above, and it is the one whose address carries no prefix.
     const minted = await json(
       `${API}/admin/forms/${FORM_ID}/links`,
       {
         method: "POST",
         headers: adminHeaders(),
-        body: JSON.stringify({ expiresAt: "2999-01-01T00:00:00.000Z", oneTime: false, count: 1 }),
+        body: JSON.stringify({
+          environment: "prod",
+          expiresAt: "2999-01-01T00:00:00.000Z",
+          oneTime: false,
+          count: 1,
+        }),
       },
       [201, 200],
     );
     const links = minted["links"] as { url: string }[];
     expect(links).toHaveLength(1);
     const linkUrl = links[0]?.url ?? "";
+    // Unprefixed, because this is `prod`'s link: a non-prod one would read
+    // `${PORTAL_BASE_URL}/<env>/l/<token>` (Q21).
     expect(linkUrl.startsWith(`${PORTAL_BASE_URL}/l/`)).toBe(true);
 
     // 4. Redeem it as a respondent, through the portal, exactly as a browser would.

@@ -24,7 +24,7 @@ import type { CompiledForm } from "@roonga/qcms-a2ui-compiler";
 import type { FormDefinition } from "@roonga/qcms-core";
 import {
   SEED_WORKSPACE_ID,
-  closeForm,
+  closeFormInEnvironment,
   createForm,
   getForm,
   getQuestion,
@@ -221,6 +221,17 @@ describe("archiving a workspace (criterion 4)", () => {
     const workspaceId = await createWorkspace("archive-open");
     const elsewhere = await createWorkspace("archive-open-target");
     const formId = await seedForm("archive_open_form", workspaceId);
+    // Released, which is what makes it open **somewhere** since task 066 (Q18): there is
+    // no `forms.status`, so a form is open in an environment only where a release says
+    // so. Without the release this case would be about a form in neither narrower list,
+    // which is the case below.
+    await insertFormRelease(testDb.db, {
+      formId,
+      environment: "prod",
+      version: 1,
+      releasedBy: "usr_test",
+      fromEnvironment: null,
+    });
 
     const refused = await send("POST", `/workspaces/${workspaceId}/archive`);
     expect(refused.status).toBe(409);
@@ -229,7 +240,7 @@ describe("archiving a workspace (criterion 4)", () => {
     expect(body.error.details).toEqual({
       forms: [formId],
       openForms: [formId],
-      releasedForms: [],
+      releasedForms: [formId],
       shared: false,
     });
 
@@ -260,9 +271,16 @@ describe("archiving a workspace (criterion 4)", () => {
       releasedBy: "usr_test",
       fromEnvironment: null,
     });
-    // Closed, so the open-form half cannot be what refuses it: this is the release-state
-    // half, which reads task 065's table and is the reason this task depends on it.
-    await closeForm(testDb.db, formId);
+    // Closed **in the environment it was released to**, since task 066 (Q18): the closed
+    // state lives on the release state, so there is no whole-form status to set. That is
+    // what empties the open-form half here, leaving the release-state half as the thing
+    // refusing the archive - which reads task 065's table and is why this task depends
+    // on it.
+    await closeFormInEnvironment(testDb.db, {
+      formId,
+      environment: "prod",
+      closedBy: "usr_test",
+    });
 
     const refused = await send("POST", `/workspaces/${workspaceId}/archive`);
     expect(refused.status).toBe(409);
@@ -277,16 +295,20 @@ describe("archiving a workspace (criterion 4)", () => {
     expect((await send("POST", `/workspaces/${workspaceId}/archive`)).status).toBe(200);
   });
 
-  it("refuses while a CLOSED, never-released form remains (Code Owner, 2026-10-16)", async () => {
+  it("refuses while a form in NEITHER narrower list remains (Code Owner, 2026-10-16)", async () => {
     // The reopen loophole, closed where it was opened. This form is neither open nor
     // released, so the first reading of criterion 4 let the archive through and left the
     // form owned by an archived workspace - and `POST /admin/forms/{id}/reopen` reads no
     // workspace state, so it could then be reopened. The ruling is that an archived
     // workspace owns no form at all.
+    //
+    // Since task 066 the form this describes is a **never-released** one rather than a
+    // closed one: the closed state lives on the per-environment release state (Q18), so a
+    // form with no release is neither open anywhere nor closable anywhere. It is exactly
+    // the case both narrower lists miss, which is what the ruling is about.
     const workspaceId = await createWorkspace("archive-closed-form");
     const elsewhere = await createWorkspace("archive-closed-target");
     const formId = await seedForm("archive_closed_form", workspaceId);
-    await closeForm(testDb.db, formId);
 
     const refused = await send("POST", `/workspaces/${workspaceId}/archive`);
     expect(refused.status).toBe(409);
@@ -299,11 +321,15 @@ describe("archiving a workspace (criterion 4)", () => {
       shared: false,
     });
 
-    // And the form it would have left behind is exactly what reopening would have made
-    // open again, so the refusal is the thing that stops that state existing.
+    // And the reopen the refusal was protecting against is now impossible for a second
+    // reason: with nothing released in any environment there is no intake to reopen, so
+    // the route refuses `NOT_RELEASED`. The archive refusal is still what stops an
+    // archived workspace owning the form at all.
     await send("POST", `/forms/${formId}/workspace`, { workspaceId: elsewhere });
     expect((await send("POST", `/workspaces/${workspaceId}/archive`)).status).toBe(200);
-    expect((await send("POST", `/forms/${formId}/reopen`)).status).toBe(200);
+    const reopened = await send("POST", `/forms/${formId}/reopen`, { environment: "prod" });
+    expect(reopened.status).toBe(409);
+    expect(((await reopened.json()) as ErrorBody).error.code).toBe("NOT_RELEASED");
     expect((await getForm(testDb.db, formId))?.workspaceId).toBe(elsewhere);
   });
 

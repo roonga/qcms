@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server";
 
-import { ApiError, startSession } from "@/lib/server/api";
+import { ApiError, startAnonymousSession } from "@/lib/server/api";
 import { portalBaseUrl } from "@/lib/server/config";
 import { isSameOriginPost } from "@/lib/server/route-helpers";
 import { writeSessionToken } from "@/lib/server/session-cookie";
@@ -10,6 +10,13 @@ import { writeSessionToken } from "@/lib/server/session-cookie";
  * without JS). The BFF creates the session, stores the returned bearer in the
  * httpOnly cookie, and redirects (303) to the flow. Typed API errors map to a
  * friendly entry state. No evaluation here (R2).
+ *
+ * **`prod`'s route and `prod`'s alone** (SEC-14, task 066). `proxy.ts` does not serve the
+ * `/f` segment under an environment prefix, nor on a hostname reserved for a non-prod
+ * environment, so every address that reaches this handler is a production one and its
+ * redirects carry no prefix. The API would refuse it anyway: the form-slug door is not
+ * mounted on a non-prod respondent surface, so the answer there is a 404 and not a 403
+ * (ADR-09, criterion 3).
  */
 const ERROR_STATE: Record<string, string> = {
   FORM_CLOSED: "closed",
@@ -38,7 +45,7 @@ export async function POST(
     // No form body (e.g. a bare POST): proceed without a challenge token.
   }
   try {
-    const session = await startSession(
+    const session = await startAnonymousSession(
       challengeToken === undefined ? { formSlug } : { formSlug, challengeToken },
     );
     await writeSessionToken(session.sessionToken);

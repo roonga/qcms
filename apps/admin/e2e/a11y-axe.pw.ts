@@ -960,7 +960,7 @@ test("publish, preview, history and secure links have zero violations", async ({
   pubForm = { formId, slug, choiceId, choiceOption, countId };
 
   // The close confirmation, whose whole body is the R1 explanation.
-  await page.getByRole("button", { name: "Close form" }).click();
+  await page.getByRole("button", { name: /^Close in / }).click();
   await expect(page.getByRole("alertdialog")).toBeVisible();
   await expectNoViolations(page, "close-form confirmation");
   await page.keyboard.press("Escape");
@@ -1050,7 +1050,10 @@ test("publish, preview, history and secure links have zero violations", async ({
   await expectNoViolations(page, "mint dialog");
 
   await fillDate(page, "Expires", "12312030");
-  await page.getByRole("dialog").getByRole("button", { name: "Mint", exact: true }).click();
+  await page
+    .getByRole("dialog")
+    .getByRole("button", { name: "Mint for prod", exact: true })
+    .click();
   await expect(page.getByTestId("qcms-minted-links")).toBeVisible({ timeout: 30_000 });
   await expectNoViolations(page, "minted links, shown once");
 

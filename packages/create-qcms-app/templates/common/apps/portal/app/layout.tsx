@@ -3,6 +3,7 @@ import { cookies, headers } from "next/headers";
 import type { ReactNode } from "react";
 
 import { AppearanceProvider, type AppearanceState } from "@/components/appearance-context";
+import { currentBasePath } from "@/lib/server/environment";
 import { DENSITY_COOKIE, FONT_COOKIE, MODE_COOKIE } from "@/lib/appearance";
 import { t } from "@/lib/i18n/en";
 import { secureCookies } from "@/lib/server/config";
@@ -74,6 +75,9 @@ export default async function RootLayout({ children }: { readonly children: Reac
     brandName: brand.name,
     brandLogoSrc: brand.logoSrc,
     secureCookies: secureCookies(),
+    // The environment serving this request (Q21, task 066), resolved once in the one
+    // layout every page passes through.
+    basePath: await currentBasePath(),
   };
 
   return (

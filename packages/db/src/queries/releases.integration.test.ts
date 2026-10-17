@@ -11,12 +11,16 @@ import {
   type TestDb,
 } from "../testing/harness.js";
 import {
+  closeFormInEnvironment,
   createForm,
+  environmentStatesByForm,
+  getFormEnvironmentState,
   getReleasedVersion,
   insertFormRelease,
   insertFormVersion,
   listFormReleases,
   listReleasedVersions,
+  reopenFormInEnvironment,
 } from "./index.js";
 
 /**
@@ -25,10 +29,16 @@ import {
  * Real Postgres rather than a fake, because everything asserted below is a property of
  * SQL: whether the sequence a concurrent release gets is unique, whether a window
  * function reaches the previous release of the same environment and not of another,
- * whether `distinct on` picks the newest row per pair, and whether the append-only
- * triggers reject an UPDATE and a DELETE. The grants that decide who may write a release
- * row are a different question and are asserted in
- * `apps/api/e2e/security/03-db-least-privilege.e2e.ts`, which connects as the real roles.
+ * whether `environmentStatesByForm`'s `distinct on (form_id)` picks the newest row per
+ * form in one environment, and whether the append-only triggers reject an UPDATE and a
+ * DELETE. The grants that decide who may write a release row are a different question
+ * and are asserted in `apps/api/e2e/security/03-db-least-privilege.e2e.ts`, which
+ * connects as the real roles.
+ *
+ * **The closed state is here too, since task 066** (Q18): it is a value of this state
+ * rather than a table beside it, so closing and reopening are appends with the same
+ * properties - one read answers both questions, the history records who closed `prod`,
+ * and nothing can rewrite it.
  */
 
 let testDb: TestDb;
@@ -144,6 +154,56 @@ describe("a release is a record and never a copy (criterion 2)", () => {
     // place in THIS environment's history and is what "the newest row for the pair"
     // means.
     expect(firstInProd.sequence).toBe(1);
+  });
+
+  /**
+   * The uniqueness the docblock above claims, fired concurrently rather than argued.
+   *
+   * Six inserts of six different versions into one (form, environment), started together
+   * on six pool connections. `insertFormRelease` reads `max(sequence) + 1` in the same
+   * statement that inserts, and under `READ COMMITTED` none of the six sees another's
+   * uncommitted row, so they all compute the same next sequence. The composite primary key
+   * is what makes that safe: one insert per sequence lands and the rest are refused by
+   * name, so a sequence can never be handed to two rows. A nextval-style counter would
+   * accept them all and leave two rows claiming the same place in one history.
+   *
+   * The API turns that refusal into a 409 `RELEASE_RACED`; that half is asserted in
+   * `apps/api/src/features/releases/releases.integration.test.ts`.
+   */
+  it("hands a concurrent release a unique sequence, and refuses the loser by name", async () => {
+    const formId = await seedForm("concurrent", 6);
+    const attempts = await Promise.all(
+      [1, 2, 3, 4, 5, 6].map(async (version) => {
+        try {
+          const row = await insertFormRelease(testDb.db, {
+            formId,
+            environment: "test",
+            version,
+            releasedBy: "usr_alice",
+          });
+          return { sequence: row.sequence, constraint: undefined };
+        } catch (error) {
+          const cause = (error as { cause?: { constraint?: string } }).cause;
+          return { sequence: undefined, constraint: cause?.constraint ?? "unknown" };
+        }
+      }),
+    );
+
+    const landed = attempts.flatMap((a) => (a.sequence === undefined ? [] : [a.sequence]));
+    const refused = attempts.flatMap((a) => (a.constraint === undefined ? [] : [a.constraint]));
+    expect(landed.length).toBeGreaterThanOrEqual(1);
+    expect(landed.length + refused.length).toBe(attempts.length);
+    // Every refusal is the key, not a deadlock or a serialization failure: this guard is
+    // the primary key doing its job, and a different error would mean a different story.
+    expect(refused).toEqual(refused.map(() => "form_releases_form_id_environment_sequence_pk"));
+
+    // No sequence was handed out twice, and the history is dense from 1 - so the winners
+    // are a prefix of the history and no row was skipped over or overwritten.
+    const sequences = [...landed].sort((a, b) => a - b);
+    expect(new Set(sequences).size).toBe(sequences.length);
+    expect(sequences).toEqual(landed.map((_, index) => index + 1));
+    const stored = await listFormReleases(testDb.db, formId, "test");
+    expect(stored.map((row) => row.sequence).sort((a, b) => a - b)).toEqual(sequences);
   });
 
   it("refuses a release of a version that was never published", async () => {
@@ -409,5 +469,151 @@ describe("the released-anywhere filter's input", () => {
     // Versions 1 and 3 only ever existed in the library, which is the churn finding 2
     // accepted and this filter hides.
     expect(await listReleasedVersions(testDb.db, FormId.parse("frm_sequence"))).toEqual([2, 1]);
+  });
+});
+
+describe("the closed state is per (form, environment) (Q18, task 066)", () => {
+  it("closes one environment and leaves the other serving (criterion 5)", async () => {
+    const formId = await seedForm("closedsplit", 2);
+    await insertFormRelease(testDb.db, {
+      formId,
+      environment: "test",
+      version: 1,
+      releasedBy: "usr_alice",
+    });
+    await insertFormRelease(testDb.db, {
+      formId,
+      environment: "prod",
+      version: 2,
+      releasedBy: "usr_alice",
+    });
+
+    const closed = await closeFormInEnvironment(testDb.db, {
+      formId,
+      environment: "prod",
+      closedBy: "usr_bob",
+    });
+
+    // The close carries the released version forward, so what a respondent would be
+    // pinned to is undisturbed by intake stopping.
+    expect(closed?.version).toBe(2);
+    expect(closed?.closed).toBe(true);
+    expect(closed?.fromEnvironment).toBeNull();
+    expect(await getFormEnvironmentState(testDb.db, formId, "prod")).toEqual({
+      version: 2,
+      closed: true,
+    });
+    // And `test` is untouched, which is the whole of Q18: one form, two environments,
+    // two intake states.
+    expect(await getFormEnvironmentState(testDb.db, formId, "test")).toEqual({
+      version: 1,
+      closed: false,
+    });
+
+    const reopened = await reopenFormInEnvironment(testDb.db, {
+      formId,
+      environment: "prod",
+      reopenedBy: "usr_bob",
+    });
+    expect(reopened?.closed).toBe(false);
+    expect(reopened?.version).toBe(2);
+    expect(await getFormEnvironmentState(testDb.db, formId, "prod")).toEqual({
+      version: 2,
+      closed: false,
+    });
+  });
+
+  it("refuses to close an environment the form was never released to", async () => {
+    const formId = await seedForm("closednothing", 1);
+    // There is no state to close: `version` is NOT NULL and keyed into
+    // `control.form_versions`, so a row carrying no version is not expressible, and a
+    // start there already refuses with NO_PUBLISHED_VERSION.
+    expect(
+      await closeFormInEnvironment(testDb.db, {
+        formId,
+        environment: "test",
+        closedBy: "usr_bob",
+      }),
+    ).toBeUndefined();
+    expect(await getFormEnvironmentState(testDb.db, formId, "test")).toBeUndefined();
+  });
+
+  it("records who closed it and when, append-only, in the one history", async () => {
+    const formId = await seedForm("closedaudit", 1);
+    await insertFormRelease(testDb.db, {
+      formId,
+      environment: "prod",
+      version: 1,
+      releasedBy: "usr_alice",
+    });
+    await closeFormInEnvironment(testDb.db, { formId, environment: "prod", closedBy: "usr_bob" });
+
+    const history = await listFormReleases(testDb.db, formId, "prod");
+    const latest = history[0]!;
+    expect([latest.closed, latest.releasedBy, latest.sequence]).toEqual([true, "usr_bob", 2]);
+    // The release that preceded it is intact and is still not a rollback: the close
+    // carried the same version, so no version moved backwards.
+    expect(history[1]!.closed).toBe(false);
+    expect(latest.rollback).toBe(false);
+    expect(latest.replacedVersion).toBe(1);
+  });
+
+  it("carries the closed state forward across a later release", async () => {
+    const formId = await seedForm("closedcarry", 2);
+    await insertFormRelease(testDb.db, {
+      formId,
+      environment: "prod",
+      version: 1,
+      releasedBy: "usr_alice",
+    });
+    await closeFormInEnvironment(testDb.db, { formId, environment: "prod", closedBy: "usr_bob" });
+    // The release handler reads the current value and passes it (`recordRelease`), which
+    // is what makes "a release does not reopen a closed environment" a property of the
+    // state rather than of a handler's good manners.
+    const current = await getFormEnvironmentState(testDb.db, formId, "prod");
+    await insertFormRelease(testDb.db, {
+      formId,
+      environment: "prod",
+      version: 2,
+      releasedBy: "usr_alice",
+      closed: current?.closed ?? false,
+    });
+
+    expect(await getFormEnvironmentState(testDb.db, formId, "prod")).toEqual({
+      version: 2,
+      closed: true,
+    });
+  });
+
+  it("reads one environment's newest row per form for the library list", async () => {
+    const closedForm = await seedForm("libclosed", 1);
+    const openForm = await seedForm("libopen", 1);
+    const otherEnvironment = await seedForm("libother", 1);
+    for (const formId of [closedForm, openForm]) {
+      await insertFormRelease(testDb.db, {
+        formId,
+        environment: "prod",
+        version: 1,
+        releasedBy: "usr_alice",
+      });
+    }
+    await insertFormRelease(testDb.db, {
+      formId: otherEnvironment,
+      environment: "test",
+      version: 1,
+      releasedBy: "usr_alice",
+    });
+    await closeFormInEnvironment(testDb.db, {
+      formId: closedForm,
+      environment: "prod",
+      closedBy: "usr_bob",
+    });
+
+    const states = await environmentStatesByForm(testDb.db, "prod");
+    expect(states.get(closedForm)).toEqual({ version: 1, closed: true });
+    expect(states.get(openForm)).toEqual({ version: 1, closed: false });
+    // A form released only to `test` is absent from `prod`'s map rather than present and
+    // open: "nothing is released here" and "released and open" are different answers.
+    expect(states.has(otherEnvironment)).toBe(false);
   });
 });

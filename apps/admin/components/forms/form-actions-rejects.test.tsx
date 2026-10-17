@@ -129,10 +129,16 @@ describe("a rejected form-level action", () => {
       />,
     );
 
-    await user.click(screen.getByRole("button", { name: t("forms.lifecycle.close") }));
+    // The labels name the environment the act lands in since task 066 (Q18): closing is
+    // per (form, environment), so "Close form" would be ambiguous about where.
+    await user.click(
+      screen.getByRole("button", { name: t("forms.lifecycle.close", { environment: "prod" }) }),
+    );
     const dialog = await screen.findByRole("alertdialog");
     await user.click(
-      await screen.findByRole("button", { name: t("forms.lifecycle.confirmClose") }),
+      await screen.findByRole("button", {
+        name: t("forms.lifecycle.confirmClose", { environment: "prod" }),
+      }),
     );
 
     // Scoped to the dialog, and that scope is the assertion: the sentence is on the page

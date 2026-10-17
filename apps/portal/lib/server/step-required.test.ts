@@ -94,6 +94,11 @@ vi.mock("./logger", async () => {
 // Alias plumbing, not doubles: `@/` is a tsconfig path Next resolves and Vitest does
 // not. The decoder and the route helpers must be real - they are what is under test.
 vi.mock("@/lib/server/config", async () => await import("./config"));
+// Task 066's environment reader, mapped like every other `@/` module here. The real
+// module, not a double: it reads one request header and `prod` is what it answers when
+// nothing set one, so these cases exercise the production address shape - which is what
+// they were written about.
+vi.mock("@/lib/server/environment", async () => await import("./environment"));
 vi.mock("@/lib/server/route-helpers", async () => await import("./route-helpers"));
 vi.mock("@/lib/server/step-form", async () => await import("./step-form"));
 vi.mock("@/lib/i18n/en", async () => await import("../i18n/en"));

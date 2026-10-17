@@ -58,6 +58,7 @@ import { sql } from "drizzle-orm";
 import type { Context } from "hono";
 
 import type { Deps } from "../../../deps.js";
+import type { RequestDatabase } from "../../../environments.js";
 import { ApiError } from "../../../errors.js";
 import type { ApiEnv } from "../../../openapi.js";
 import { FlagReason } from "../flag-reasons.js";
@@ -95,12 +96,11 @@ const fail = {
  * each pinned `question_versions` row - a missing row is an internal
  * inconsistency in a *published* snapshot (I2), not client input, so it throws.
  */
-async function loadFrozenSnapshot(deps: Deps, session: SessionRow): Promise<FrozenSnapshot> {
-  const version = await getFormVersion(
-    deps.databases.forRequest().exec,
-    session.formId,
-    session.formVersion,
-  );
+async function loadFrozenSnapshot(
+  request: RequestDatabase,
+  session: SessionRow,
+): Promise<FrozenSnapshot> {
+  const version = await getFormVersion(request.exec, session.formId, session.formVersion);
   if (version === undefined) {
     throw new Error(
       `submit: session "${session.sessionId}" is pinned to form ${session.formId}@${String(session.formVersion)} which does not exist`,
@@ -111,11 +111,7 @@ async function loadFrozenSnapshot(deps: Deps, session: SessionRow): Promise<Froz
   const questions: QuestionVersionRecord[] = [];
   for (const step of definition.steps) {
     for (const ref of stepQuestionRefs(step)) {
-      const record = await getQuestionVersion(
-        deps.databases.forRequest().exec,
-        ref.questionId,
-        ref.version,
-      );
+      const record = await getQuestionVersion(request.exec, ref.questionId, ref.version);
       if (record === undefined) {
         throw new Error(
           `submit: pinned question ${ref.questionId}@${String(ref.version)} is missing for form ${session.formId}@${String(session.formVersion)} (snapshot not self-contained)`,
@@ -250,13 +246,14 @@ export function makeSubmitHandler(deps: Deps): RouteHandler<typeof submitRoute, 
     const body = c.req.valid("json") as Record<string, unknown>;
     const now = deps.clock.now();
 
-    const session = await getSession(deps.databases.forRequest().exec, sessionId);
+    const request = deps.databases.forRequest(c.get("requestEnvironment"));
+    const session = await getSession(request.exec, sessionId);
     if (session === undefined) throw fail.sessionNotFound();
 
     // Already submitted → idempotent: return the *existing* receipt unchanged
     // (one submission, one outbox row - nothing re-runs).
     if (session.status === "submitted") {
-      const existing = await getSubmission(deps.databases.forRequest().exec, sessionId);
+      const existing = await getSubmission(request.exec, sessionId);
       if (existing === undefined) {
         throw new Error(`submit: session "${sessionId}" is submitted but has no submission row`);
       }
@@ -271,13 +268,13 @@ export function makeSubmitHandler(deps: Deps): RouteHandler<typeof submitRoute, 
 
     // The pinned snapshot is immutable (I1/I4), so it is loaded outside the lock:
     // nothing a concurrent request can do changes it.
-    const snapshot = await loadFrozenSnapshot(deps, session);
+    const snapshot = await loadFrozenSnapshot(request, session);
 
     // The min-time floor is per-form (`forms.min_submit_ms`) with the config
     // default as fallback (task 026). A missing form row here would be an
     // internal inconsistency (the session pins a formId), so fall back to the
     // default rather than fail the submission.
-    const form = await getForm(deps.databases.forRequest().exec, session.formId);
+    const form = await getForm(request.exec, session.formId);
     const minTimeFloorMs = form?.minSubmitMs ?? deps.config.antiAbuse.minSubmitMs;
 
     // Anti-abuse decision is pure over the request and the session row; it changes
@@ -285,7 +282,7 @@ export function makeSubmitHandler(deps: Deps): RouteHandler<typeof submitRoute, 
     // answer, so it does not belong inside the lock.
     const flaggedReason = detectAbuse(deps, session, body, minTimeFloorMs);
 
-    const receipt = await deps.databases.forRequest().exec.transaction(async (tx) => {
+    const receipt = await request.exec.transaction(async (tx) => {
       // Serialize with concurrent submits/answers on this session (I5) so the
       // submitted-state check, the SWEEP and the writes are one atomic decision.
       await tx.execute(sql`select pg_advisory_xact_lock(hashtext(${sessionId}))`);

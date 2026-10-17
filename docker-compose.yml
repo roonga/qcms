@@ -373,6 +373,13 @@ services:
       # .env.compose.example (issue #292); the portal now refuses to start on that shape.
       QCMS_SECURE_COOKIES: ${QCMS_SECURE_COOKIES:-}
       QCMS_PORTAL_BASE_URL: ${QCMS_PORTAL_BASE_URL:?set QCMS_PORTAL_BASE_URL in .env}
+      # The non-prod environments this portal serves, each under `/<env>/` (ADR-40, Q21),
+      # and optionally the hostname each one's traffic arrives on (SEC-14's first handle).
+      # Both default to empty, which serves `prod` only: an environment nobody listed has
+      # no addresses, which is the fail-closed direction. Keep the first in step with the
+      # API's QCMS_MOUNT.
+      QCMS_PORTAL_ENVIRONMENTS: ${QCMS_PORTAL_ENVIRONMENTS:-}
+      QCMS_PORTAL_ENVIRONMENT_HOSTS: ${QCMS_PORTAL_ENVIRONMENT_HOSTS:-}
       QCMS_PORTAL_TRUSTED_PROXY_HOPS: ${QCMS_PORTAL_TRUSTED_PROXY_HOPS:-1}
       # The deployment's managed portal theme (ADR-30). Compose forwards only what a
       # service names, so before issue #499 setting this in .env reached neither app

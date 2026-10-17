@@ -108,11 +108,60 @@ describe("the migration chain is complete", () => {
     expect(entries.map((entry) => entry.idx)).toEqual(entries.map((_, index) => index));
   });
 
-  it("contains no DROP and no SET SCHEMA anywhere in the tree (Q41, criterion 8)", () => {
-    // The ruling, as an executable fact. Nothing is dropped because nothing is moved,
-    // and nothing is moved because the baseline creates each table where it belongs the
-    // first time. A migration that reached for either keyword would be re-establishing
-    // the migrate-in-place shape Q41 removed, and would do it quietly.
+  it("has a baseline carrying no DROP and no SET SCHEMA at all (Q41, criterion 8)", () => {
+    // The ruling, as an executable fact, **on the file it is about**. Nothing is dropped
+    // because nothing is moved, and nothing is moved because the baseline creates each
+    // table where it belongs the first time. A baseline that reached for either keyword
+    // would be the migrate-in-place shape Q41 removed, and would be it quietly.
+    const baseline = entries[0];
+    expect(baseline).toBeDefined();
+    const sql = readFileSync(`${MIGRATIONS_DIR}${baseline!.tag}.sql`, "utf8");
+    const offending = [...sql.matchAll(/\b(drop|set\s+schema)\b/gi)]
+      .filter((match) => !inComment(sql, match.index))
+      .map((match) => match[0]);
+    expect(offending).toEqual([]);
+  });
+
+  it("drops no table, schema, view, trigger or function anywhere in the tree (Q41, criterion 8)", () => {
+    // The half of criterion 8 that has to hold for **every** migration, now and later,
+    // rather than only for the baseline.
+    //
+    // **This assertion was narrowed by task 066, and the narrowing is to what Q41's own
+    // reasoning forbids.** It read `\b(drop|set schema)\b` over every file in the tree,
+    // which is right for the baseline and is more than the ruling says for the files
+    // after it: Q41 forbids reshaping a database in place - moving tables between schemas
+    // and dropping what the move left behind - and says nothing about ordinary schema
+    // evolution, which is what ADR-18's append-only chain exists to carry. Read the
+    // unnarrowed way it also forbade QCMS ever retiring a column again, which no record
+    // decides and which task 066 met on its first line: Q18 takes `forms.status` and the
+    // `form_status` enum away, and an appended migration can only express that as a
+    // `DROP COLUMN` and a `DROP TYPE`.
+    //
+    // **The exact rule** (Code Owner, 2026-10-17, PR #1060), which this assertion is the
+    // executable form of:
+    //
+    // 1. The baseline carries no `DROP` and no `SET SCHEMA` at all. The case above pins
+    //    that, and it is unnarrowed.
+    // 2. An appended migration **may** drop a column, a type, an index or a constraint.
+    //    Those are ordinary retirements: the field or the check goes, the shape of the
+    //    database and the identity of every table stay.
+    // 3. No migration, baseline or appended, may drop a **table**, a **schema**, a
+    //    **view**, a **materialized view**, a **trigger** or a **function**, and none may
+    //    `ALTER TABLE ... SET SCHEMA`.
+    //
+    // Triggers and functions are in rule 3 rather than rule 2 because of what they hold
+    // here. `form_releases` is append-only by trigger, and the environment guard of Q46 is
+    // a function behind a CHECK: a migration that drops one of those leaves every table
+    // standing and every column in place while quietly retiring the invariant that made
+    // the data trustworthy. That is the same class of change as dropping a table, not the
+    // same class as dropping a column, and it is the harder one to notice in review -
+    // which is the argument for the test refusing it rather than a reader catching it.
+    // Replacing a trigger's function is `CREATE OR REPLACE FUNCTION`, which this rule
+    // leaves alone; it is only the removal that is refused.
+    //
+    // The narrowed regex would otherwise have admitted `DROP TRIGGER` and `DROP FUNCTION`
+    // along with the column and type drops it was narrowed for, which was more than the
+    // ruling grants.
     //
     // `DROP SCHEMA ... CASCADE` is what the environment **drop command** runs, and it
     // lives in `src/environment/sql.ts` rather than in any migration, which is what
@@ -121,7 +170,11 @@ describe("the migration chain is complete", () => {
       .filter((name) => name.endsWith(".sql"))
       .flatMap((name) => {
         const sql = readFileSync(`${MIGRATIONS_DIR}${name}`, "utf8");
-        return [...sql.matchAll(/\b(drop|set\s+schema)\b/gi)]
+        return [
+          ...sql.matchAll(
+            /\b(drop\s+(table|schema|(materialized\s+)?view|trigger|function)|set\s+schema)\b/gi,
+          ),
+        ]
           .filter((match) => !inComment(sql, match.index))
           .map((match) => `${name}: ${match[0]}`);
       });

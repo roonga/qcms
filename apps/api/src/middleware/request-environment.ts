@@ -1,14 +1,22 @@
 /**
- * The environment an **admin** request is served from: the Q6 switcher's value (ADR-40,
- * task 065).
+ * The environment a request is served from: **both** of the two sources ADR-40 names
+ * (Q2), one per export.
  *
- * # What this replaces
+ * # The two sources, and why there is no third
  *
- * Until task 065 every request resolved to the `prod` pool, because neither of the two
- * real sources existed (Q53). ADR-40 names them: the `/<env>/` route group on the
- * respondent side (Q21, task 066) and **one global switcher in the admin shell** on the
- * authoring side (Q6, this task). This is that second source, and it is why the
- * respondent half of Q53 still stands: nothing here is mounted on the public group.
+ * Until task 065 every request resolved to the `prod` pool, because neither source
+ * existed (Q53). ADR-40 names them: the **`/<env>/` route group** on the respondent side
+ * (Q21, task 066) and **one global switcher in the admin shell** on the authoring side
+ * (Q6, task 065). {@link fixedEnvironment} is the first and {@link requestEnvironment} is
+ * the second, and both land their answer in the same context key, so every handler reads
+ * one thing.
+ *
+ * They differ in exactly what a client can influence, which is the security half.
+ * {@link requestEnvironment} reads a header, validates it against the live set and
+ * refuses an unknown name - an authenticated administrator chose it. {@link
+ * fixedEnvironment} reads **nothing**: the environment is the group's own, decided when
+ * the process mounted it, so a respondent has no way to name one. That is what keeps
+ * "test is reachable through secure links only" (ADR-40, SEC-14) a routing fact.
  *
  * # Why a header, and why only on the admin group
  *
@@ -20,7 +28,8 @@
  *
  * And **only** on the admin group, which is the security half. A respondent request has
  * no header to set, because this middleware is not in front of it:
- * `registrars.ts` installs it in the admin bucket beside the admin-auth gate, so
+ * `registrars.ts` installs it in the admin bucket beside the admin-auth gate, and
+ * `app.ts` puts {@link fixedEnvironment} in front of each respondent group instead, so
  * "there is no anonymous entry to a non-prod environment" (SEC-14, ADR-09) stays a
  * property of what is mounted rather than a check a handler could skip.
  *
@@ -75,6 +84,26 @@ export function requestEnvironment(deps: Deps): MiddlewareHandler<ApiEnv> {
       }
       c.set("requestEnvironment", named);
     }
+    await next();
+  };
+}
+
+/**
+ * The environment one **respondent** group serves, decided at mount time (Q21).
+ *
+ * `app.ts` installs this on each respondent group: `prod`'s, at the unprefixed
+ * addresses, and one per mounted non-prod environment at `/<env>`. It reads nothing from
+ * the request, which is the point - the address a respondent used is the whole of how
+ * their environment is chosen, and the server-side link row is what decides whether that
+ * address was the right one for their token (Q21: "the path names it, the row decides
+ * it").
+ *
+ * Not a registrar, because it is not a slice's: a slice declares routes and must not be
+ * able to choose which environment they read. `createApp` is the only caller.
+ */
+export function fixedEnvironment(environment: string): MiddlewareHandler<ApiEnv> {
+  return async (c, next) => {
+    c.set("requestEnvironment", environment);
     await next();
   };
 }

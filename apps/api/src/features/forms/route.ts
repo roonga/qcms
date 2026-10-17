@@ -43,6 +43,7 @@ import {
   FormDetailResponse,
   FormIdParam,
   FormSettingsResponse,
+  FormEnvironmentBody,
   FormStatusResponse,
   FormVersionParam,
   FormVersionSnapshotResponse,
@@ -273,15 +274,18 @@ export const publishAndReleaseFormRoute = createRoute({
 export const closeFormRoute = createRoute({
   method: "post",
   path: "/forms/{id}/close",
-  summary: "Close a form to new sessions; in-flight sessions finish (admin)",
+  summary: "Close one environment's intake; in-flight sessions finish (admin)",
   tags,
-  request: { params: FormIdParam },
+  request: { params: FormIdParam, body: jsonBody(FormEnvironmentBody) },
   responses: {
     200: {
-      description: "The form's new lifecycle status",
+      description: "The form's new lifecycle status in that environment",
       content: { "application/json": { schema: FormStatusResponse } },
     },
-    ...errorResponses(400, 401, 404),
+    // 400: a malformed id, or an environment this deployment does not serve.
+    // 409: nothing is released in that environment, so there is no intake to close,
+    // or it is closed already.
+    ...errorResponses(400, 401, 404, 409),
   },
   ...withScopes("forms:write"),
 });
@@ -289,15 +293,15 @@ export const closeFormRoute = createRoute({
 export const reopenFormRoute = createRoute({
   method: "post",
   path: "/forms/{id}/reopen",
-  summary: "Reopen a closed form to new sessions (admin)",
+  summary: "Reopen one environment's intake (admin)",
   tags,
-  request: { params: FormIdParam },
+  request: { params: FormIdParam, body: jsonBody(FormEnvironmentBody) },
   responses: {
     200: {
-      description: "The form's new lifecycle status",
+      description: "The form's new lifecycle status in that environment",
       content: { "application/json": { schema: FormStatusResponse } },
     },
-    ...errorResponses(400, 401, 404),
+    ...errorResponses(400, 401, 404, 409),
   },
   ...withScopes("forms:write"),
 });

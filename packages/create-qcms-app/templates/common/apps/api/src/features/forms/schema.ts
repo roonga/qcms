@@ -367,7 +367,15 @@ export const PreviewConditionResponse = z
 
 // --- responses --------------------------------------------------------------
 
-/** The form lifecycle status, in responses and as the list route's filter. */
+/**
+ * The form lifecycle status, in responses and as the list route's filter.
+ *
+ * **Per environment, and derived, since task 066** (Q18): there is no `forms.status`
+ * column, and what these responses carry is the reading of the request's own
+ * environment's release state - the Q6 switcher's environment on an admin screen. So the
+ * same form is `open` on one screen and `closed` on the next when the switcher moves,
+ * which is the intended behaviour and not a caching artefact.
+ */
 const FormStatus = FormLifecycle;
 
 /** A publish issue: the kernel's `PublishError` union, plus `DEPRECATED_PIN`. */
@@ -588,10 +596,41 @@ export const PublishedAndReleasedResponse = z
   })
   .openapi("PublishedAndReleasedResponse");
 
-/** `POST /admin/forms/:id/close|reopen`: the resulting lifecycle status. */
+/**
+ * `POST /admin/forms/:id/close|reopen`: **which environment's** intake to stop or
+ * resume (Q18, task 066).
+ *
+ * Required, with no default, and in the body rather than taken from the Q6 switcher's
+ * header - the same choice the release and mint bodies make, and for the same reason:
+ * closing intake is an operational act with a consequence, so the environment is a value
+ * the caller states and the admin's confirmation restates (Q6), never one it inherits
+ * from a header it may not have been looking at.
+ *
+ * The name rule is Q42's, so a malformed name is refused by the schema rather than
+ * reaching a query.
+ */
+export const FormEnvironmentBody = z
+  .strictObject({
+    environment: z
+      .string()
+      .min(1)
+      .max(53)
+      .regex(/^[a-z][a-z0-9]*$/)
+      .openapi({ example: "prod" }),
+  })
+  .openapi("FormEnvironmentBody");
+
+/**
+ * `POST /admin/forms/:id/close|reopen`: the resulting lifecycle status, **in that
+ * environment**.
+ *
+ * `environment` is echoed because the status is only meaningful beside it since task 066:
+ * one form can be closed in `prod` and open in `test`, which is the whole of Q18.
+ */
 export const FormStatusResponse = z
   .object({
     formId: z.string().openapi({ example: "frm_signup" }),
+    environment: z.string().openapi({ example: "prod" }),
     status: FormStatus.openapi({ example: "closed" }),
   })
   .openapi("FormStatusResponse");

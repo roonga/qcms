@@ -12,6 +12,13 @@
  * public-only process is a plain 404, not a 403. Admin simply does not exist
  * there.
  *
+ * **Since task 066 the respondent surface is one group per environment** (ADR-40, Q21,
+ * SEC-14), and anonymous entry is a group of its own that only `prod` mounts. Those two
+ * facts are what turn SEC-14's "no anonymous entry to a non-prod environment" from a
+ * handler refusal into the `404` ADR-09 promises: `/test/sessions` with a form slug does
+ * not exist, rather than existing and refusing. ADR-09's Note is amended in this task's
+ * PR because the count of groups riding the flags changes with it.
+ *
  * Feature slices (018–026) are not defined here; they are `SliceRegistrar`s the
  * server entry collects into the surface buckets and passes via `groups`. 017
  * owns the contract, not the slices - so `createApp` with no `groups` composes
@@ -25,9 +32,11 @@ import { bodyLimit } from "hono/body-limit";
 
 import type { MountFlags } from "./config.js";
 import type { Deps } from "./deps.js";
+import { PROD_ENVIRONMENT } from "./environments.js";
 import { errorEnvelope } from "./middleware/error-envelope.js";
 import { internalToken } from "./middleware/internal-token.js";
 import { requestLogger } from "./middleware/request-logger.js";
+import { fixedEnvironment } from "./middleware/request-environment.js";
 import { securityHeaders } from "./middleware/security-headers.js";
 import { validationErrorHook } from "./middleware/validation-hook.js";
 import type { ApiEnv } from "./openapi.js";
@@ -41,7 +50,28 @@ export type SliceRegistrar = (group: OpenAPIHono<ApiEnv>, deps: Deps) => void;
 
 /** Route groups per surface; only groups whose flag is set are mounted. */
 export interface RouteGroups {
-  readonly public?: readonly SliceRegistrar[];
+  /**
+   * The respondent loop: secure-link entry, the session's status read, serving a step
+   * and submitting. Mounted **once per environment** (Q21, task 066) - at `/` for
+   * `prod` when `flags.public` is set, and at `/<env>` for each of
+   * `flags.environments`.
+   *
+   * Every route in it is served from its group's own environment's pool, which the
+   * mount installs (`fixedEnvironment`), so a handler cannot read the wrong
+   * environment's data however the request arrived.
+   */
+  readonly respondent?: readonly SliceRegistrar[];
+  /**
+   * **Anonymous entry** (`POST /sessions` with a form slug), which is `prod`'s and
+   * `prod`'s alone (SEC-14, ADR-09, task 066).
+   *
+   * Its own group because that is the only way the claim can be structural. Anonymous
+   * and secure-link entry were one route discriminated by a body refine, so "there is
+   * no anonymous entry to `test`" could only have been a handler's `403`; split, the
+   * non-prod mount simply does not register this group and the address is a plain
+   * `404`. That is the amendment to ADR-09's Note this task lands.
+   */
+  readonly anonymous?: readonly SliceRegistrar[];
   readonly internal?: readonly SliceRegistrar[];
   readonly admin?: readonly SliceRegistrar[];
   /**
@@ -60,6 +90,12 @@ export interface RouteGroups {
  *
  * `auth` is better-auth's `basePath` default and is matched by the instance's own
  * `basePath` option, so the library builds the same URLs it is served at.
+ *
+ * `public` is `prod`'s respondent surface and carries **no prefix**, which is the half
+ * of Q21 that keeps every link that exists working. A non-prod environment's prefix is
+ * derived from its name by {@link environmentPrefix} rather than listed here, because
+ * the set is configurable (Q1) and a list would go stale the first time an operator
+ * created an environment.
  */
 const MOUNT_PREFIX = {
   public: "/",
@@ -67,6 +103,17 @@ const MOUNT_PREFIX = {
   admin: "/admin",
   auth: "/api/auth",
 } as const;
+
+/**
+ * The mount prefix of one environment's respondent surface (Q21).
+ *
+ * `prod` is unprefixed and every other environment is `/<env>`. Exported because the
+ * portal's addresses, the admin's minted link URLs and the tests all have to agree with
+ * what is mounted here, and three spellings of one rule is two too many.
+ */
+export function environmentPrefix(environment: string): string {
+  return environment === PROD_ENVIRONMENT ? MOUNT_PREFIX.public : `/${environment}`;
+}
 
 export interface CreateAppOptions {
   readonly groups?: RouteGroups;
@@ -128,17 +175,32 @@ export function createApp(
     enabled: boolean,
     prefix: string,
     registrars: readonly SliceRegistrar[] | undefined,
+    environment?: string,
   ): void => {
     if (!enabled) return;
     const group = new OpenAPIHono<ApiEnv>({ defaultHook: validationErrorHook });
     group.use("*", internalToken(deps));
+    // A respondent group is pinned to its own environment (Q21, Q2). Not a header and
+    // not a body field: the group a request was served by IS its environment, so there
+    // is nothing a respondent could send that would change it, and every handler below
+    // reads its pool through `forRequest(c.get("requestEnvironment"))`.
+    if (environment !== undefined) group.use("*", fixedEnvironment(environment));
     for (const register of registrars ?? []) {
       register(group, deps);
     }
     app.route(prefix, group);
   };
 
-  mount(flags.public, MOUNT_PREFIX.public, groups.public);
+  // `prod`'s respondent surface: the loop at its unprefixed addresses, plus anonymous
+  // entry, which only this surface carries (SEC-14).
+  mount(flags.public, MOUNT_PREFIX.public, groups.respondent, PROD_ENVIRONMENT);
+  mount(flags.public, MOUNT_PREFIX.public, groups.anonymous, PROD_ENVIRONMENT);
+  // One respondent surface per mounted non-prod environment, at `/<env>` (Q21). The
+  // anonymous group is deliberately absent from every one of them: that absence is
+  // criterion 3, and it is a routing fact rather than a check.
+  for (const environment of flags.environments ?? []) {
+    mount(true, environmentPrefix(environment), groups.respondent, environment);
+  }
   mount(flags.internal, MOUNT_PREFIX.internal, groups.internal);
   mount(flags.admin, MOUNT_PREFIX.admin, groups.admin);
   // The identity provider, mounted with (and only with) the admin surface. It is

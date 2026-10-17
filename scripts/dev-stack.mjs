@@ -664,6 +664,12 @@ export function frontendChildEnv(
     // it unset the respondent's first click 500s instead of opening a session.
     // The API child above is handed the same value for its own link building.
     QCMS_PORTAL_BASE_URL: portalBaseUrl,
+    // `dev:up` creates `test` and `prod` (Q9), and the API child mounts both surfaces
+    // through `QCMS_MOUNT: "all"`, so the portal serves `test`'s addresses too: a
+    // developer can redeem a `/test/l/<token>` link against the stack they are running
+    // (ADR-40, Q21). No host map, because one dev origin serves everything - the path is
+    // the handle a local stack has.
+    QCMS_PORTAL_ENVIRONMENTS: "test",
   };
 }
 

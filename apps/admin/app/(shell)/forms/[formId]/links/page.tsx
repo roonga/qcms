@@ -12,6 +12,8 @@ import { readState } from "@/lib/read-state";
 import { portalBaseUrl } from "@/lib/server/config";
 import { getForm } from "@/lib/server/forms";
 import { listLinks, MAX_LINK_BATCH } from "@/lib/server/links";
+import { isNonProd } from "@/lib/environment";
+import { currentEnvironment } from "@/lib/server/request-environment";
 import { requireAdminSession } from "@/lib/server/session";
 
 import { mintLinksAction, revokeLinkAction } from "../../actions";
@@ -51,6 +53,7 @@ export default async function FormLinksPage({
 }) {
   const session = await requireAdminSession();
   const { formId } = await params;
+  const environment = await currentEnvironment();
 
   const [detail, links] = await Promise.all([getForm(session, formId), listLinks(session, formId)]);
 
@@ -75,14 +78,23 @@ export default async function FormLinksPage({
           address was meant. `plan/admin-shell-poc/responses-poc.html` is emphatic about
           that distinction and this screen is where it matters most, which is why the
           explanation behind the "?" names the difference in the reader's own terms here. */}
-      {publicLink !== undefined && (
+      {/* THE PUBLIC ADDRESS IS PRODUCTION'S AND ONLY PRODUCTION'S (Q21, task 066).
+          `/f/{slug}` is prod-only and `/<env>/f/{slug}` is not a route anywhere - not on
+          the portal, not on the API - so showing this panel under a `test` banner would
+          offer an address that environment does not have. The secure links below are how
+          a non-prod environment is reached, which is the whole of ADR-40's ruling 3. */}
+      {publicLink !== undefined && !isNonProd(environment) && (
         <PublicFormLink url={publicLink} isClosed={form.status === "closed"} />
+      )}
+      {isNonProd(environment) && (
+        <Alert variant="info">{t("forms.links.noPublicAddress", { environment })}</Alert>
       )}
       {!links.ok && (
         <Alert variant="warning">{t("forms.links.listFailed", { message: links.message })}</Alert>
       )}
       <SecureLinks
         formId={form.formId}
+        environment={environment}
         links={readState(links)}
         canMint={form.versions.length > 0}
         maxBatch={MAX_LINK_BATCH}

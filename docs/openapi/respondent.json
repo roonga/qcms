@@ -110,15 +110,9 @@
           "error"
         ]
       },
-      "StartSessionBody": {
+      "StartLinkSessionBody": {
         "type": "object",
         "properties": {
-          "formSlug": {
-            "type": "string",
-            "minLength": 1,
-            "description": "Public form slug for anonymous entry.",
-            "example": "customer-feedback"
-          },
           "token": {
             "type": "string",
             "minLength": 1,
@@ -126,9 +120,12 @@
           },
           "challengeToken": {
             "type": "string",
-            "description": "Challenge solution (e.g. Turnstile token) for a form with challengeRequired set. Verified by the configured provider; ignored when the provider is `none` (task 026)."
+            "description": "Challenge solution (e.g. Turnstile token) for a form with challengeRequired set. Verified by the environment's provider, or the installation-wide one when the environment names none (task 026, Q11)."
           }
         },
+        "required": [
+          "token"
+        ],
         "additionalProperties": false
       },
       "SessionStatusResponse": {
@@ -619,6 +616,25 @@
         "additionalProperties": {
           "nullable": true
         }
+      },
+      "StartSessionBody": {
+        "type": "object",
+        "properties": {
+          "formSlug": {
+            "type": "string",
+            "minLength": 1,
+            "description": "Public form slug for anonymous entry.",
+            "example": "customer-feedback"
+          },
+          "challengeToken": {
+            "type": "string",
+            "description": "Challenge solution (e.g. Turnstile token) for a form with challengeRequired set. Verified by the environment's provider, or the installation-wide one when the environment names none (task 026, Q11)."
+          }
+        },
+        "required": [
+          "formSlug"
+        ],
+        "additionalProperties": false
       }
     },
     "parameters": {}
@@ -674,9 +690,9 @@
         }
       }
     },
-    "/sessions": {
+    "/sessions/link": {
       "post": {
-        "summary": "Start a respondent session (anonymous or via a secure link)",
+        "summary": "Start a respondent session from a secure link (every environment)",
         "tags": [
           "responses"
         ],
@@ -692,7 +708,7 @@
           "content": {
             "application/json": {
               "schema": {
-                "$ref": "#/components/schemas/StartSessionBody"
+                "$ref": "#/components/schemas/StartLinkSessionBody"
               }
             }
           }
@@ -1350,6 +1366,93 @@
           },
           "422": {
             "description": "Unprocessable entity",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/sessions": {
+      "post": {
+        "summary": "Start an anonymous respondent session from a public form slug (prod only)",
+        "tags": [
+          "responses"
+        ],
+        "security": [
+          {
+            "MachineToken": [
+              "responses:write"
+            ]
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/StartSessionBody"
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": "Session created; the token authorizes every later respondent call",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/StartSessionResponse"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Bad request",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Missing or invalid credentials",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Forbidden",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Not found",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "Conflict",
             "content": {
               "application/json": {
                 "schema": {

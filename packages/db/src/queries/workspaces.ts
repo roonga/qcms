@@ -230,6 +230,16 @@ export interface ArchiveBlockers {
  * them what to reassign. The same reasoning ADR-40's drop rule applies to an environment,
  * which names the open forms and the session count rather than refusing bare.
  *
+ * # What "open" means on the narrower list, since task 066
+ *
+ * There is no `forms.status`: the closed state is per (form, environment) and lives on
+ * the release state (Q18), so "open" here is **open in at least one environment** - the
+ * newest release row for some pair does not say closed. That makes `openForms` a subset
+ * of `releasedForms`, because a form can only be open where something is released, and it
+ * leaves a never-released form in **neither** narrower list. It is still a blocker: the
+ * `forms` list above is every owned form, which is the whole of the Code Owner's
+ * 2026-10-16 reading and is why the loophole stays closed without a status column.
+ *
  * # Why "ever released" rather than "released now" on that narrower list
  *
  * `control.form_releases` is append-only and there is no un-release: an environment moves
@@ -242,7 +252,7 @@ export async function findArchiveBlockers(
   workspaceId: string,
 ): Promise<ArchiveBlockers> {
   const owned = await exec
-    .select({ formId: forms.formId, status: forms.status })
+    .select({ formId: forms.formId })
     .from(forms)
     .where(eq(forms.workspaceId, workspaceId))
     .orderBy(asc(forms.formId));
@@ -254,11 +264,30 @@ export async function findArchiveBlockers(
     .where(eq(forms.workspaceId, workspaceId))
     .orderBy(asc(forms.formId));
 
+  // Open **in some environment**, which is what "open" means since task 066 (Q18): there
+  // is no `forms.status`, and the state is the `closed` flag on the newest
+  // `control.form_releases` row for each (form, environment) pair. A form with no release
+  // anywhere is in neither narrower list and is still a blocker, because `forms` above is
+  // every owned form - which is the Code Owner's 2026-10-16 reading.
+  const open = await exec.execute<{ form_id: string }>(sql`
+    select distinct f.form_id
+      from ${forms} f
+      join ${formReleases} r on r.form_id = f.form_id
+     where f.workspace_id = ${workspaceId}
+       and r.closed = false
+       and r.sequence = (
+             select max(r2.sequence)
+               from ${formReleases} r2
+              where r2.form_id = r.form_id
+                and r2.environment = r.environment)
+     order by f.form_id
+  `);
+
   const workspace = await getWorkspace(exec, workspaceId);
 
   return {
     forms: owned.map((row) => row.formId),
-    openForms: owned.filter((row) => row.status === "open").map((row) => row.formId),
+    openForms: open.rows.map((row) => row.form_id as FormId),
     releasedForms: released.map((row) => row.formId),
     shared: workspace?.isShared ?? false,
   };

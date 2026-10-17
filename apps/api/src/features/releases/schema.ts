@@ -81,6 +81,15 @@ export const ReleaseRecord = z
      * count backwards to see what happened.
      */
     rollback: z.boolean(),
+    /**
+     * Whether this row leaves the environment **closed to new sessions** (Q18, task 066).
+     *
+     * The closed state is a value of this state rather than a table beside it, so closing
+     * and reopening append rows here, carrying the released version forward. A reader of
+     * the history therefore needs this field to tell the three acts apart: a release
+     * changes `version`, a close sets this, a reopen clears it.
+     */
+    closed: z.boolean(),
   })
   .openapi("ReleaseRecord");
 

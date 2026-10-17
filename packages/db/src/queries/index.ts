@@ -74,8 +74,6 @@ export {
   getFormVersion,
   getLatestPublishedVersion,
   listFormVersions,
-  closeForm,
-  reopenForm,
   moveFormToWorkspace,
   updateFormSettings,
 } from "./forms.js";
@@ -193,19 +191,31 @@ export { SessionNotFoundError, eraseSession } from "./erasure.js";
 
 // The live environment set (ADR-40, Q1): the source of which environments exist, read
 // by the admin's Q6 switcher and by every per-environment job that enumerates them.
-export { type EnvironmentRow, listEnvironments } from "./environments.js";
+export {
+  type EnvironmentRow,
+  getEnvironmentChallengeProvider,
+  listEnvironments,
+} from "./environments.js";
 
 // The release record (ADR-40, task 065): what is released to an environment, which is
 // what a new session resolves in place of "the newest published version". Promotion
 // writes a row and copies nothing, and the rollback reading is derived from the row's
 // predecessor rather than stored.
+//
+// Since task 066 the same state carries the **closed** reading (Q18), so closing and
+// reopening are appends here rather than an update to a column on `forms`.
 export {
+  type FormEnvironmentState,
   type FormReleaseHistoryRow,
   type FormReleaseRow,
+  closeFormInEnvironment,
+  environmentStatesByForm,
+  getFormEnvironmentState,
   getReleasedVersion,
   insertFormRelease,
   listFormReleases,
   listReleasedVersions,
+  reopenFormInEnvironment,
 } from "./releases.js";
 
 export {

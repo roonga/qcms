@@ -179,6 +179,10 @@ describe("the §3.2 matrix and the probe inventory stay in step", () => {
       // entries above would cover it: a workspace is addressed under `/admin/workspaces`
       // and the two ownership moves hang off the form and question collections.
       "/admin/workspaces",
+      // The live environment set (ADR-40, task 065), for the same reason: it hangs off no
+      // form, so `/admin/forms` would not cover it and the slice could lose its probe
+      // without this backstop noticing. Added by task 066, which found the gap.
+      "/admin/environments",
     ]) {
       expect(
         adminPaths.some((path) => path.includes(slice)),

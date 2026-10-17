@@ -32,7 +32,7 @@ import {
   mintSecureLink,
 } from "@roonga/qcms-core";
 import {
-  closeForm,
+  closeFormInEnvironment,
   createForm,
   insertFormRelease,
   createQuestionVersion,
@@ -130,8 +130,11 @@ export interface SeededForm {
  *
  * `sharedQuestionsSeeded` skips the library questions for a second form that
  * pins the same ones (the kitchen-sink seed takes the same option).
- * `closed` publishes the version and then closes the form, which is the state a
- * respondent meets when a link outlives the questionnaire (ADR-39).
+ * `closed` publishes the version, releases it, and then closes **that environment's**
+ * intake, which is the state a respondent meets when a link outlives the questionnaire
+ * (ADR-39 as amended by Q18). The closed state is per (form, environment) since task
+ * 066, so this closes the environment the seed released to - `closedEnvironment` names
+ * another when a scenario needs one environment closed and another serving.
  */
 export async function seedInsuranceForm(
   db: Db,
@@ -140,6 +143,7 @@ export async function seedInsuranceForm(
     slug?: string;
     sharedQuestionsSeeded?: boolean;
     closed?: boolean;
+    closedEnvironment?: string;
   } = {},
 ): Promise<SeededForm> {
   const formId = opts.formId ?? "frm_auto_quote";
@@ -152,7 +156,13 @@ export async function seedInsuranceForm(
     defaultLocale: "en",
   });
   await publishInsuranceVersion(db, formId);
-  if (opts.closed === true) await closeForm(db, FormId.parse(formId));
+  if (opts.closed === true) {
+    await closeFormInEnvironment(db, {
+      formId: FormId.parse(formId),
+      environment: opts.closedEnvironment ?? DEFAULT_TEST_ENVIRONMENT,
+      closedBy: "usr_e2e_seed",
+    });
+  }
   return { formId, slug };
 }
 
@@ -290,9 +300,30 @@ function questionDefinitionFor(
  * route, exactly as the version beside them is.
  */
 async function releaseSeededVersion(db: Db, formId: string, version: number): Promise<void> {
+  await releaseSeededVersionTo(db, formId, version, DEFAULT_TEST_ENVIRONMENT);
+}
+
+/**
+ * Release one version of a seeded form into a **named** environment (ADR-40).
+ *
+ * Exported because the browser harness needs a form served in `test` as well as in the
+ * environment its own connection serves: a `/test/l/{token}` address has nothing to serve
+ * until something is released there, and a spec asserting the address would otherwise pass
+ * against the closed screen for the wrong reason (task 066).
+ *
+ * It is here rather than in the portal's own harness because the portal depends on neither
+ * `@roonga/qcms-core` nor `@roonga/qcms-db` and must not (R2); this file is already the
+ * seam its fixtures come through.
+ */
+export async function releaseSeededVersionTo(
+  db: Db,
+  formId: string,
+  version: number,
+  environment: string,
+): Promise<void> {
   await insertFormRelease(db, {
     formId: FormId.parse(formId),
-    environment: DEFAULT_TEST_ENVIRONMENT,
+    environment,
     version,
     releasedBy: "usr_e2e_seed",
   });

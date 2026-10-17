@@ -453,7 +453,10 @@ describe("token purposes cannot be cross-used", () => {
   });
 
   it("refuses a session token presented as a secure link", async () => {
-    const res = await all.app.request("/sessions", {
+    // The secure-link door is `POST /sessions/link` since task 066 (Q21). Posting a
+    // session token to `POST /sessions` would now be refused by the anonymous body's
+    // strict object instead, which proves nothing about cross-purpose tokens.
+    const res = await all.app.request("/sessions/link", {
       method: "POST",
       headers: { "content-type": "application/json", [INTERNAL_TOKEN_HEADER]: internalToken },
       body: JSON.stringify({ token: sessionToken }),
@@ -464,7 +467,7 @@ describe("token purposes cannot be cross-used", () => {
 
   it("proves the link token is a real one before proving it is refused", async () => {
     // Without this, the previous case could pass on any garbage string.
-    const res = await all.app.request("/sessions", {
+    const res = await all.app.request("/sessions/link", {
       method: "POST",
       headers: { "content-type": "application/json", [INTERNAL_TOKEN_HEADER]: internalToken },
       body: JSON.stringify({ token: linkToken }),
@@ -596,7 +599,7 @@ describe("rotating a key list keeps the previous key verifying", () => {
   });
 
   it("still redeems a secure link signed under the demoted link key", async () => {
-    const res = await rotated.app.request("/sessions", {
+    const res = await rotated.app.request("/sessions/link", {
       method: "POST",
       headers: {
         "content-type": "application/json",

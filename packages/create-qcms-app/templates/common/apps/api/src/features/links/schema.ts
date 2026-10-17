@@ -39,9 +39,25 @@ export const FormLinkParams = z.object({
  * `POST /admin/forms/:id/links` - mint one or a batch of secure links. `count`
  * defaults to 1 and is capped at {@link MAX_LINK_BATCH}. `expiresAt` is a future
  * ISO datetime (validated against the request clock in-handler).
+ *
+ * **`environment` is required and has no default** (Q19, task 066). A link belongs to
+ * exactly one environment, the row decides which (Q46), and the reasoning for refusing a
+ * default is precise: a script that omits the field and silently gets a **production**
+ * link is the failure this rule exists to prevent. With request bodies already rejecting
+ * unknown keys (#893) a caller has to be updated for the field either way, so there is
+ * nothing to be gained by guessing for them. The admin takes it from the Q6 switcher.
  */
 export const MintLinksBody = z
   .strictObject({
+    environment: z
+      .string()
+      .min(1)
+      .openapi({
+        description:
+          "The environment this link belongs to; one of the live set. Required, with no " +
+          "default: a caller that omits it is refused (ADR-40, Q19).",
+        example: "test",
+      }),
     expiresAt: z.string().openapi({ example: "2026-12-31T23:59:59.000Z" }),
     oneTime: z.boolean().default(false).openapi({ example: true }),
     count: z.number().int().min(1).max(MAX_LINK_BATCH).default(1).openapi({ example: 1 }),
@@ -50,11 +66,24 @@ export const MintLinksBody = z
 
 // --- responses --------------------------------------------------------------
 
-/** One minted link: its id, the shareable URL (carrying the token), and expiry. */
+/**
+ * One minted link: its id, the shareable URL (carrying the token), its environment and
+ * its expiry.
+ *
+ * **The URL carries the environment as its first path segment unless the environment is
+ * `prod`** (Q21): a non-prod link reads `https://forms.example.com/test/l/eyJ…`, so it is
+ * legible as non-production before anybody clicks it, and `prod` keeps exactly one
+ * address shape so every link that exists keeps working. The environment is **not** in
+ * the token - the path names it and the server-side row decides it.
+ *
+ * `environment` is echoed beside the URL so the admin's confirmation can restate it
+ * (Q6) without parsing the address it is about to show.
+ */
 export const MintedLink = z
   .object({
     linkId: z.string().openapi({ example: "lnk_ab12cd34" }),
-    url: z.string().openapi({ example: "https://forms.example.com/l/eyJ…" }),
+    environment: z.string().openapi({ example: "test" }),
+    url: z.string().openapi({ example: "https://forms.example.com/test/l/eyJ…" }),
     expiresAt: z.string().openapi({ example: "2026-12-31T23:59:59.000Z" }),
   })
   .openapi("MintedLink");
@@ -66,10 +95,18 @@ export const MintLinksResponse = z
 /** A minted link's lifecycle state, derived from the row against the clock. */
 export const LinkState = z.enum(["active", "consumed", "expired", "revoked"]);
 
-/** A link in the listing, with derived state and consumption/revocation stamps. */
+/**
+ * A link in the listing, with derived state and consumption/revocation stamps.
+ *
+ * The listing is **one environment's** since task 066: the Q6 switcher's environment,
+ * which the route reads from the request. `environment` is on each row anyway, because a
+ * table whose scope is only in the banner above it is a table somebody will read out of
+ * context.
+ */
 export const LinkListItem = z
   .object({
     linkId: z.string().openapi({ example: "lnk_ab12cd34" }),
+    environment: z.string().openapi({ example: "test" }),
     state: LinkState.openapi({ example: "active" }),
     oneTime: z.boolean().openapi({ example: true }),
     expiresAt: z.string().openapi({ example: "2026-12-31T23:59:59.000Z" }),

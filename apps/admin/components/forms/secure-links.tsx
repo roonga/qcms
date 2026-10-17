@@ -108,6 +108,7 @@ const REVOKE_DELAY_MS = 60_000;
  */
 export function SecureLinks({
   formId,
+  environment,
   links,
   canMint,
   maxBatch,
@@ -115,6 +116,17 @@ export function SecureLinks({
   revoke,
 }: {
   readonly formId: string;
+  /**
+   * The environment the Q6 switcher has selected (ADR-40, task 066).
+   *
+   * **Display only.** The action reads the switcher's cookie on the server and sends that
+   * value, so what is shown here and what is minted cannot be two different things even
+   * if this prop were wrong: the server does not take the environment from the browser.
+   * What it buys is Q6's restatement - the dialog's title, its body and its confirm
+   * button all name it, because minting is a distributing action and the links leave the
+   * building.
+   */
+  readonly environment: string;
   readonly links: ReadState<readonly SecureLink[]>;
   /** Links open the newest published version, so a never-published form cannot mint. */
   readonly canMint: boolean;
@@ -283,6 +295,7 @@ export function SecureLinks({
 
       <LinksTable
         links={links}
+        environment={environment}
         onRevoke={(linkId) => {
           setRevoked(IDLE_REVOKE);
           setRevoking(linkId);
@@ -293,13 +306,19 @@ export function SecureLinks({
       {dialog === "mint" && (
         <Dialog
           isOpen
-          title={t("forms.links.mintTitle")}
+          title={t("forms.links.mintTitle", { environment })}
           isDismissable={!isPending}
           onOpenChange={(isOpen) => {
             if (!isOpen) setDialog(null);
           }}
         >
           <div className="flex flex-col gap-4">
+            {/* Q6's restatement, inside the modal: the banner is behind it, so an
+                environment named only there is one the operator cannot read while they
+                are deciding. */}
+            <p className="text-sm text-(--color-text-muted)" data-testid="qcms-mint-environment">
+              {t("forms.links.mintEnvironment", { environment })}
+            </p>
             <DatePicker
               label={t("forms.links.expiresAt")}
               description={t("forms.links.expiresAtHint")}
@@ -329,7 +348,9 @@ export function SecureLinks({
                 isDisabled={isPending || expiresAt === ""}
                 onPress={runMint}
               >
-                {isPending ? t("forms.links.pending") : t("forms.links.confirmMint")}
+                {isPending
+                  ? t("forms.links.pending")
+                  : t("forms.links.confirmMint", { environment })}
               </Button>
               <Button
                 variant="ghost"
@@ -463,6 +484,14 @@ function MintedPanel({
         {tPlural("forms.links.mintedTitle.one", "forms.links.mintedTitle.other", links.length)}
       </h3>
       <p className="text-sm text-(--color-text-muted)">{t("forms.links.mintedOnce")}</p>
+      {/* The environment the API wrote on the rows, not the one the screen asked for: what
+          is restated is what was minted (Q6). The URLs above carry it in their first path
+          segment too, unless they are production's. */}
+      {links[0] !== undefined && links[0].environment !== "" && (
+        <p className="text-sm text-(--color-text-muted)" data-testid="qcms-minted-environment">
+          {t("forms.links.mintedEnvironment", { environment: links[0].environment })}
+        </p>
+      )}
       <ul className="flex flex-col gap-2">
         {links.map((link) => (
           <li key={link.linkId} className="flex flex-wrap items-center gap-2">
@@ -494,10 +523,13 @@ function MintedPanel({
 /** The lifecycle table: state, timestamps, and a revoke control for the live ones. */
 function LinksTable({
   links,
+  environment,
   onRevoke,
   isPending,
 }: {
   readonly links: ReadState<readonly SecureLink[]>;
+  /** The environment this listing is of (task 066), for the scope note above the table. */
+  readonly environment: string;
   readonly onRevoke: (linkId: string) => void;
   readonly isPending: boolean;
 }) {
@@ -532,33 +564,48 @@ function LinksTable({
   // lifecycle stamps - it never rendered a token - so the family applies to it with no
   // tension at all.
   return (
-    <div className="qcms-table">
-      <table data-testid="qcms-links-table">
-        <caption className="qcms-visually-hidden">{t("forms.links.table")}</caption>
-        <thead>
-          <tr>
-            <th scope="col">{t("forms.links.column.linkId")}</th>
-            <th scope="col">{t("forms.links.column.state")}</th>
-            <th scope="col">{t("forms.links.column.oneTime")}</th>
-            <th scope="col" className="qcms-cell--num">
-              {t("forms.links.column.expiresAt")}
-            </th>
-            <th scope="col" className="qcms-cell--num">
-              {t("forms.links.column.usedAt")}
-            </th>
-            <th scope="col" className="qcms-cell--num qcms-cell--drop">
-              {t("forms.links.column.createdAt")}
-            </th>
-            <th scope="col">
-              <span className="qcms-visually-hidden">{t("forms.links.revoke")}</span>
-            </th>
-          </tr>
-        </thead>
-        <tbody>
-          {rows.map((link) => (
-            <tr key={link.linkId} data-link-id={link.linkId} data-state={link.state}>
-              <th scope="row">
-                {/* Prefix plus eight, with a copy control (issue #582). A link id is 16
+    <div className="flex flex-col gap-2">
+      {/* The table's SCOPE, stated above it rather than as a column (task 066). The
+          listing is one environment's, and a seventh column would push the family's
+          drop rule (§2) past what a 390px row holds - which is the rule that decided
+          Minted drops. A note costs no layout and says the whole thing; each row still
+          carries its environment as `data-environment` for the browser suite to assert,
+          and `MintedPanel` restates it where the links are actually handed out. */}
+      <p className="text-sm text-(--color-text-muted)" data-testid="qcms-links-scope">
+        {t("forms.links.environmentScope", { environment })}
+      </p>
+      <div className="qcms-table">
+        <table data-testid="qcms-links-table">
+          <caption className="qcms-visually-hidden">{t("forms.links.table")}</caption>
+          <thead>
+            <tr>
+              <th scope="col">{t("forms.links.column.linkId")}</th>
+              <th scope="col">{t("forms.links.column.state")}</th>
+              <th scope="col">{t("forms.links.column.oneTime")}</th>
+              <th scope="col" className="qcms-cell--num">
+                {t("forms.links.column.expiresAt")}
+              </th>
+              <th scope="col" className="qcms-cell--num">
+                {t("forms.links.column.usedAt")}
+              </th>
+              <th scope="col" className="qcms-cell--num qcms-cell--drop">
+                {t("forms.links.column.createdAt")}
+              </th>
+              <th scope="col">
+                <span className="qcms-visually-hidden">{t("forms.links.revoke")}</span>
+              </th>
+            </tr>
+          </thead>
+          <tbody>
+            {rows.map((link) => (
+              <tr
+                key={link.linkId}
+                data-link-id={link.linkId}
+                data-state={link.state}
+                data-environment={link.environment}
+              >
+                <th scope="row">
+                  {/* Prefix plus eight, with a copy control (issue #582). A link id is 16
                     random hex bytes (`apps/api/src/features/links/handler.ts`), so it is
                     OPAQUE and takes §2's 2026-08-20 rule. This is the column that ruling
                     was made about, and `plan/admin-design-contracts.md` §2 carries the
@@ -576,39 +623,40 @@ function LinksTable({
 
                     A link has no detail route, so the whole value stays reachable from the
                     cell itself; `components/entity-id.tsx` states how. */}
-                <EntityId kind="link" value={link.linkId} />
-              </th>
-              <td>
-                <LinkStateTag state={link.state} />
-              </td>
-              <td>{link.oneTime ? t("forms.links.yes") : t("forms.links.no")}</td>
-              <td className="qcms-cell--num">
-                <OperatorDateTime iso={link.expiresAt} fallback={t("forms.links.none")} />
-              </td>
-              <td className="qcms-cell--num">
-                <OperatorDateTime iso={link.consumedAt} fallback={t("forms.links.none")} />
-              </td>
-              <td className="qcms-cell--num qcms-cell--drop">
-                <OperatorDateTime iso={link.createdAt} fallback={t("forms.links.none")} />
-              </td>
-              <td>
-                {isRevocable(link.state) && (
-                  <Button
-                    variant="danger"
-                    size="sm"
-                    isDisabled={isPending}
-                    onPress={() => {
-                      onRevoke(link.linkId);
-                    }}
-                  >
-                    {t("forms.links.revoke")}
-                  </Button>
-                )}
-              </td>
-            </tr>
-          ))}
-        </tbody>
-      </table>
+                  <EntityId kind="link" value={link.linkId} />
+                </th>
+                <td>
+                  <LinkStateTag state={link.state} />
+                </td>
+                <td>{link.oneTime ? t("forms.links.yes") : t("forms.links.no")}</td>
+                <td className="qcms-cell--num">
+                  <OperatorDateTime iso={link.expiresAt} fallback={t("forms.links.none")} />
+                </td>
+                <td className="qcms-cell--num">
+                  <OperatorDateTime iso={link.consumedAt} fallback={t("forms.links.none")} />
+                </td>
+                <td className="qcms-cell--num qcms-cell--drop">
+                  <OperatorDateTime iso={link.createdAt} fallback={t("forms.links.none")} />
+                </td>
+                <td>
+                  {isRevocable(link.state) && (
+                    <Button
+                      variant="danger"
+                      size="sm"
+                      isDisabled={isPending}
+                      onPress={() => {
+                        onRevoke(link.linkId);
+                      }}
+                    >
+                      {t("forms.links.revoke")}
+                    </Button>
+                  )}
+                </td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      </div>
     </div>
   );
 }

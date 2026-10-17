@@ -328,8 +328,8 @@ stateDiagram-v2
     Validating --> Compiling : invariants hold
     Compiling --> Published_vN : snapshot frozen\n(definition + compiled A2UI + version stamps)
     Published_vN --> Draft : new draft opened\n(seeded from vN)
-    Published_vN --> Closed : form closed to new sessions
-    Closed --> Draft : reopened via new version
+    Published_vN --> Closed : intake closed in ONE environment
+    Closed --> Published_vN : intake reopened there
     note right of Published_vN
         Immutable (R1).
         A new session binds to the version
@@ -338,6 +338,25 @@ stateDiagram-v2
         on the version they started.
     end note
 ```
+
+**`Closed` is per (form, environment), and that is the whole of the change task 066 made
+to this state machine** (Q18, ADR-39's Amendment). It used to be a column on the form,
+`forms.status`, so closing stopped new sessions **everywhere**; closing `prod` intake while
+a test run continues is an ordinary operation, so the state moved onto the per-environment
+release state as a `closed` flag on `control.form_releases`, read as the newest row for the
+pair. `forms.status` and the `form_status` enum are gone, and what a screen calls a form's
+status is derived per environment.
+
+Two readings follow from that and are worth stating, because the diagram cannot:
+
+- **The same form is `Published_vN` in one environment and `Closed` in another.** The
+  diagram above is one environment's view of the form.
+- **Reopening is reopening**, not "a new version". The old transition read
+  `Closed --> Draft : reopened via new version`, which described a model where there was
+  nowhere to store "open again"; there is now, so reopening appends a row carrying the
+  released version forward with the flag cleared, and it is an operation rather than a
+  consequence. A **release** into a closed environment does not reopen it: closing is a
+  deliberate act and releasing a version is not a request to resume intake.
 
 The `Validating → Compiling → Published` path is one atomic core call, `compileDraft(draft)`:
 

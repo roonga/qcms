@@ -136,7 +136,7 @@ export const ENV_REFERENCE = [
     requirement: "required",
     fallback: "",
     description:
-      "Which route groups this process serves: a comma-separated list of `public`, `internal`, `admin`, or the shortcut `all`. Unmounted routes do not exist (404, not 403 - ADR-09). The outbox deliverer and retention sweep run in the process that mounts `internal`.",
+      "Which route groups this process serves: a comma-separated list of `public`, `internal`, `admin`, **the name of any non-prod environment in `QCMS_ENVIRONMENTS`**, or the shortcut `all`. `public` is `prod`'s respondent surface at its unprefixed addresses; an environment's own name mounts its respondent surface at `/<env>` (ADR-40, Q21). `all` means every surface plus every non-prod environment this deployment names. Unmounted routes do not exist (404, not 403 - ADR-09), which is how an operator restricts a test environment: leave it out and its addresses are a 404 rather than a refusal (SEC-14). `prod` is **refused** as a token, because prod is the unprefixed shape and `public` is what mounts it. The outbox deliverer and retention sweep run in the process that mounts `internal`.",
   },
   {
     name: "QCMS_LINK_KEYS",
@@ -638,6 +638,22 @@ export const ENV_REFERENCE = [
     fallback: "",
     description:
       "This app's own public origin, used to build the redirects a browser follows. Getting it wrong emits a container-internal address a browser cannot reach.",
+  },
+  {
+    name: "QCMS_PORTAL_ENVIRONMENTS",
+    process: "portal",
+    requirement: "optional",
+    fallback: "",
+    description:
+      "The **non-prod** environments this portal serves, comma-separated (ADR-40, Q21). Each gets its addresses under `/<env>/`, so a test secure link reads `https://forms.example.com/test/l/<token>` and is legible as non-production before anybody clicks it (Q16). `prod` carries no prefix and is always served, so listing it is ignored. **Absent means none**: an environment not listed here has no addresses at all and every `/<env>/` path is a 404, which is the fail-closed direction. A name must match `^[a-z][a-z0-9]*$` (Q42) or it is ignored rather than becoming a path segment. Keep it in step with the API's `QCMS_MOUNT`: an address this portal serves and the API does not mount answers a 404 from the API instead.",
+  },
+  {
+    name: "QCMS_PORTAL_ENVIRONMENT_HOSTS",
+    process: "portal",
+    requirement: "optional",
+    fallback: "",
+    description:
+      "The hostname each non-prod environment's traffic arrives on, as `<env>=<host>` pairs: `test=test-forms.example.com`. SEC-14's **first** handle, and what it buys is narrow and precise: on a host named here the portal does not serve `/f/{slug}` at all, so the public anonymous door does not exist on the restricted hostname even where one ingress forwards everything to one portal. It deliberately does **not** confine the `/<env>/` paths to that host - the two handles fail independently (Q21), so a path rule keeps working on a hostname somebody consolidated onto and a host rule keeps working through a proxy that rewrites paths. The network restriction itself (source network, VPN or identity-aware proxy) is ingress configuration; see the \"Restricting the test environment\" section of `docs/deploy-ingress.md`.",
   },
   {
     name: "QCMS_PORTAL_TRUSTED_PROXY_HOPS",

@@ -297,9 +297,22 @@ function rosterAnnouncement(input: {
 export function StepFlow({
   sessionId,
   initial,
+  basePath,
 }: {
   readonly sessionId: string;
   readonly initial: StepResponse;
+  /**
+   * The environment's address prefix: `""` for `prod` and `/<env>` for every other
+   * (Q21, task 066).
+   *
+   * **A prop and not a derivation.** A client component cannot read the request header
+   * the proxy resolved the environment on, and reading it back out of
+   * `window.location` would make every address below depend on parsing the one the
+   * browser happens to be at. The page that already knows it passes it down, so a
+   * `fetch` from a `test` session's page reaches `test`'s route rather than `prod`'s -
+   * which would answer, and would answer about a session that is a schema away.
+   */
+  readonly basePath: string;
 }) {
   const [snapshot, setSnapshot] = useState<StepResponse>(initial);
   // Seeded from the answers the server already holds for this step (issue #146).
@@ -422,7 +435,7 @@ export function StepFlow({
     async (name: string, value: A2UIAnswerValue | undefined): Promise<boolean> => {
       setBusy(true);
       try {
-        const res = await fetch(`/s/${encodeURIComponent(sessionId)}/answers`, {
+        const res = await fetch(`${basePath}/s/${encodeURIComponent(sessionId)}/answers`, {
           method: "POST",
           headers: { "content-type": "application/json" },
           // Carry the committed cursor so the API re-renders THIS step, never
@@ -475,7 +488,7 @@ export function StepFlow({
           return false;
         }
         if (res.status === 401 || (await isSupersededSemantics(res))) {
-          window.location.assign(`/s/${encodeURIComponent(sessionId)}`);
+          window.location.assign(`${basePath}/s/${encodeURIComponent(sessionId)}`);
           return false;
         }
         if (await isNotVisible(res)) {
@@ -572,7 +585,7 @@ export function StepFlow({
       setBusyGroup(groupId);
       queueRef.current = queueRef.current.then(async () => {
         try {
-          const res = await fetch(`/s/${encodeURIComponent(sessionId)}/roster`, {
+          const res = await fetch(`${basePath}/s/${encodeURIComponent(sessionId)}/roster`, {
             method: "POST",
             headers: { "content-type": "application/json" },
             body: JSON.stringify({
@@ -716,14 +729,14 @@ export function StepFlow({
   const doSubmit = useCallback(async (): Promise<void> => {
     setBusy(true);
     try {
-      const res = await fetch(`/s/${encodeURIComponent(sessionId)}/submit`, {
+      const res = await fetch(`${basePath}/s/${encodeURIComponent(sessionId)}/submit`, {
         method: "POST",
         headers: { "content-type": "application/json" },
         body: "{}",
       });
       if (res.ok) {
         const body = (await res.json()) as { redirect?: string };
-        window.location.assign(body.redirect ?? "/done");
+        window.location.assign(body.redirect ?? `${basePath}/done`);
         return;
       }
       if (res.status === 422) {
@@ -732,7 +745,7 @@ export function StepFlow({
         setCountRefused(isCountRefusal(errorDetailsOf(await readJsonSafely(res))));
         setShowMissing(true);
       } else if (res.status === 401 || (await isSupersededSemantics(res))) {
-        window.location.assign(`/s/${encodeURIComponent(sessionId)}`);
+        window.location.assign(`${basePath}/s/${encodeURIComponent(sessionId)}`);
         return;
       } else {
         setFailed(true);
@@ -768,7 +781,7 @@ export function StepFlow({
       setBusy(true);
       try {
         const query = target === "current" ? "" : `?step=${encodeURIComponent(String(target))}`;
-        const res = await fetch(`/s/${encodeURIComponent(sessionId)}/step${query}`);
+        const res = await fetch(`${basePath}/s/${encodeURIComponent(sessionId)}/step${query}`);
         if (res.status === 200) {
           const next = (await res.json()) as StepResponse;
           // Navigation lands focus on the new step's heading (see the effect), so
@@ -780,7 +793,7 @@ export function StepFlow({
           confirmedRef.current = withServerHeld(confirmedRef.current, next.values);
           setSnapshot(next);
         } else if (res.status === 401 || (await isSupersededSemantics(res))) {
-          window.location.assign(`/s/${encodeURIComponent(sessionId)}`);
+          window.location.assign(`${basePath}/s/${encodeURIComponent(sessionId)}`);
         } else {
           setFailed(true);
         }

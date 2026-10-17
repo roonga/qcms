@@ -25,7 +25,9 @@ import {
   adminLogin,
   buildEnv,
   composeApi,
+  environmentDatabases,
   mintInsuranceLink,
+  releaseSeededVersionTo,
   seedAuthorMessagesForm,
   seedInsuranceForm,
   seedKitchenSinkForm,
@@ -127,6 +129,16 @@ export interface PortalFixtures {
    */
   readonly closedFormToken: string;
   /**
+   * A valid link belonging to the **`test`** environment, whose address is therefore
+   * `/test/l/{token}` (ADR-40, Q21, task 066).
+   *
+   * Criterion 2 asks for the prefix asserted on **both** surfaces, and the portal's half
+   * is only assertable through a browser that followed the address: the API's half is
+   * asserted in its own integration suite. The insurance form is released to `test` as
+   * well as to the harness's own environment so this link has something to serve.
+   */
+  readonly testEnvironmentToken: string;
+  /**
    * A form whose draft pins two question versions that were never published, so an
    * admin dry run reports exactly two issues against its `stp_history` step (issue
    * #625, given a fixture of its own by issue #275).
@@ -224,7 +236,14 @@ export async function startApiServer(): Promise<void> {
     QCMS_FLAG_AGENT_AUTHORING: "fake",
     QCMS_RL_AGENT_ASSIST_MAX: "1000000",
   });
-  const composed = composeApi(testDb.db, env, MOUNT.all, { logger: apiLogger });
+  // **One pool per environment, not one handle behind every pool** (ADR-40, Q2, task 066).
+  // `MOUNT.all` mounts `test`'s respondent surface at `/test`, so this composition serves
+  // two environments and a single handle would write a `test` session into `data_prod` -
+  // where the per-schema `CHECK` refuses it (Q46, the thirteenth guard). The pools are
+  // built in the API's own e2e support, which is where `@roonga/qcms-db` and `pg` are
+  // dependencies: this harness resolves neither directly, deliberately (`db.ts` says why).
+  const databases = environmentDatabases(testDb);
+  const composed = composeApi(testDb.db, env, MOUNT.all, { logger: apiLogger, databases });
   const app = composed.app;
   const config = composed.deps.config;
 
@@ -261,7 +280,9 @@ export async function startApiServer(): Promise<void> {
     expiresAt: new Date(nowMs + oneHour),
     oneTime: true,
   });
-  const consumeRes = await app.request("/sessions", {
+  // `POST /sessions/link` since task 066: secure-link entry is its own route so the two
+  // entry modes can ride different mount decisions (Q21).
+  const consumeRes = await app.request("/sessions/link", {
     method: "POST",
     headers: {
       "content-type": "application/json",
@@ -307,6 +328,17 @@ export async function startApiServer(): Promise<void> {
     expiresAt: new Date(nowMs + oneHour),
   });
 
+  // One link in the `test` environment, for the `/test/l/{token}` address (task 066).
+  // The form is released there as well, because a published version is served nowhere
+  // until it is released (ADR-40): without the release this link would answer the closed
+  // screen rather than the flow, and the spec would pass for the wrong reason.
+  await releaseSeededVersionTo(testDb.db, formId, 1, "test");
+  const testEnvironmentToken = await mintInsuranceLink(testDb.db, config, formId, {
+    linkId: "lnk_test_env",
+    expiresAt: new Date(nowMs + oneHour),
+    environment: "test",
+  });
+
   // The admin builder's "nothing has checked this draft yet" spec needs a draft with
   // a known non-zero issue count, and it used to borrow one from the insurance form,
   // which carried two only because the seed forgot to publish its question versions
@@ -330,6 +362,7 @@ export async function startApiServer(): Promise<void> {
     revokedToken,
     invalidToken: "not-a-real-link-token",
     closedFormToken,
+    testEnvironmentToken,
     unpublishedPinFormId,
   };
   mkdirSync(dirname(FIXTURES_PATH), { recursive: true });

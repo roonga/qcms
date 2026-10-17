@@ -417,7 +417,10 @@ function unknownKeyPolicyViolations(doc: OpenApiDocument): string[] {
  */
 const allSurfaces = createApp(
   makeDeps({ env: validEnv({ QCMS_FLAG_AGENT_AUTHORING: "fake" }) }),
-  { public: true, internal: true, admin: true },
+  // No non-prod respondent surface. One is mounted with the same registrars as `prod`'s,
+  // so it declares no body this walk would not already have reached, and adding one would
+  // only duplicate every respondent path under a prefix.
+  { public: true, internal: true, admin: true, environments: [] },
   { groups: appGroups },
 ).getOpenAPIDocument({ openapi: "3.0.3", info: { title: "all surfaces", version: "0" } });
 
@@ -433,10 +436,16 @@ const allSurfaces = createApp(
 // creating a workspace, marking one shared and the two ownership moves each add a request
 // body (`CreateWorkspaceBody`, `SharedWorkspaceBody`, and `MoveToWorkspaceBody` on the
 // form route and the question route), and every one is a `z.strictObject`.
+//
+// Task 066 then moved the respondent count from 5 to 6, the admin one from 18 to 20 and
+// the all-surfaces one from 25 to 28. Secure-link entry is its own route and so its own
+// body (`StartLinkSessionBody`), which is the split SEC-14's 404 claim rests on; close
+// and reopen each gained a body naming the environment whose intake they act on
+// (`FormEnvironmentBody`, Q18). Every one is a `z.strictObject`.
 const WALKED: ReadonlyArray<readonly [string, OpenApiDocument, number]> = [
-  ["respondent", readCommitted("respondent"), 5],
-  ["admin", committedAdmin, 18],
-  ["all surfaces with every flag on", allSurfaces, 25],
+  ["respondent", readCommitted("respondent"), 6],
+  ["admin", committedAdmin, 20],
+  ["all surfaces with every flag on", allSurfaces, 28],
 ];
 
 describe("every request body rejects unknown keys (issue #893)", () => {

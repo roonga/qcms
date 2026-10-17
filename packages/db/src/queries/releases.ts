@@ -25,6 +25,12 @@ export interface FormReleaseRow {
   fromEnvironment: string | null;
   releasedBy: string;
   approvedBy: string | null;
+  /**
+   * Whether this row leaves the form **closed to new sessions in this environment**
+   * (Q18, task 066). The newest row for the pair is the answer, exactly as it is for
+   * the version.
+   */
+  closed: boolean;
   releasedAt: Date;
 }
 
@@ -86,6 +92,7 @@ export async function insertFormRelease(
     releasedBy: string;
     fromEnvironment?: string | null;
     approvedBy?: string | null;
+    closed?: boolean;
     releasedAt?: Date;
   },
 ): Promise<FormReleaseRow> {
@@ -102,10 +109,138 @@ export async function insertFormRelease(
       releasedBy: input.releasedBy,
       fromEnvironment: input.fromEnvironment ?? null,
       approvedBy: input.approvedBy ?? null,
+      ...(input.closed === undefined ? {} : { closed: input.closed }),
       ...(input.releasedAt === undefined ? {} : { releasedAt: input.releasedAt }),
     })
     .returning();
   return row!;
+}
+
+/**
+ * The form's state in one environment, as a screen and the respondent path read it
+ * (Q18, task 066): which version is released there and whether intake is closed.
+ *
+ * Two readings of one row, which is why they are one type. `undefined` from
+ * {@link getFormEnvironmentState} means the form has never been released there, which is
+ * neither open-and-serving nor closed: nothing is released, so a start refuses with
+ * `NO_PUBLISHED_VERSION` and a screen renders the status as `open` because nobody has
+ * closed anything.
+ */
+export interface FormEnvironmentState {
+  readonly version: number;
+  readonly closed: boolean;
+}
+
+/**
+ * The form's released version **and** closed reading in one environment (Q18).
+ *
+ * The respondent path's one read: `start-session` needs both before it spends anything,
+ * and asking twice would be two round trips for two columns of one row. Runs on an
+ * **environment** pool there, which holds `SELECT` on `control.form_releases` (Q48's
+ * six-table read list) and needs no new grant for the closed state, which is the reason
+ * Q18 is built as a value of the release state rather than as a table beside it.
+ */
+export async function getFormEnvironmentState(
+  exec: Executor,
+  formId: FormId,
+  environment: string,
+): Promise<FormEnvironmentState | undefined> {
+  const row = await getReleasedVersion(exec, formId, environment);
+  return row === undefined ? undefined : { version: row.version, closed: row.closed };
+}
+
+/**
+ * The newest release row per form in one environment, keyed by form id.
+ *
+ * What the admin's form library reads to render each row's status for the environment
+ * the Q6 switcher has selected: one query for the whole list rather than one per form,
+ * because the list is the one screen that asks the question N times.
+ *
+ * `distinct on (form_id)` with a descending `sequence` is the newest row per form, the
+ * same reading {@link getReleasedVersion} takes for one form, and it is served by the
+ * `form_releases_environment_idx` index whose leading column is the environment.
+ */
+export async function environmentStatesByForm(
+  exec: Executor,
+  environment: string,
+): Promise<Map<FormId, FormEnvironmentState>> {
+  const rows = await exec.execute<{ form_id: FormId; version: number; closed: boolean }>(
+    sql`select distinct on (${formReleases.formId})
+               ${formReleases.formId} as form_id,
+               ${formReleases.version} as version,
+               ${formReleases.closed} as closed
+          from ${formReleases}
+         where ${formReleases.environment} = ${environment}
+         order by ${formReleases.formId}, ${formReleases.sequence} desc`,
+  );
+  return new Map(
+    rows.rows.map((row) => [row.form_id, { version: Number(row.version), closed: row.closed }]),
+  );
+}
+
+/**
+ * Close a form to new sessions **in one environment** (Q18, task 066), by appending a
+ * release-state row that carries the released version forward with `closed` set.
+ *
+ * An append rather than an update, because this table is append-only at the database
+ * (`form_releases_reject_update`) and because the history is then the audit answer to
+ * "who closed `prod` intake, and when" for free.
+ *
+ * Returns `undefined` when the form has nothing released in that environment. There is
+ * no state to close: a start there already refuses with `NO_PUBLISHED_VERSION`, and a
+ * row carrying no version is not expressible - `version` is `NOT NULL` and keyed into
+ * `control.form_versions`. The caller turns that into a legible refusal.
+ *
+ * Idempotent in effect and not in rows: closing an already-closed environment appends a
+ * second closed row. The caller refuses that case, so the history stays a record of acts
+ * that changed something.
+ */
+export async function closeFormInEnvironment(
+  exec: Executor,
+  input: { formId: FormId; environment: string; closedBy: string },
+): Promise<FormReleaseRow | undefined> {
+  return setClosedInEnvironment(exec, input.formId, input.environment, input.closedBy, true);
+}
+
+/** Reopen a closed form to new sessions in one environment (Q18). The mirror of close. */
+export async function reopenFormInEnvironment(
+  exec: Executor,
+  input: { formId: FormId; environment: string; reopenedBy: string },
+): Promise<FormReleaseRow | undefined> {
+  return setClosedInEnvironment(exec, input.formId, input.environment, input.reopenedBy, false);
+}
+
+/**
+ * The shared half of close and reopen: read the pair's newest row, append its twin with
+ * the flag set as asked.
+ *
+ * **Call it inside a transaction when the refusal matters.** Both callers do: the read
+ * and the append have to agree about what was released, or a release landing between
+ * them would be closed over with the earlier version.
+ */
+async function setClosedInEnvironment(
+  exec: Executor,
+  formId: FormId,
+  environment: string,
+  actor: string,
+  closed: boolean,
+): Promise<FormReleaseRow | undefined> {
+  const current = await getReleasedVersion(exec, formId, environment);
+  if (current === undefined) return undefined;
+  return insertFormRelease(exec, {
+    formId,
+    environment,
+    version: current.version,
+    releasedBy: actor,
+    // No source environment: nothing was promoted. `fromEnvironment` records a path a
+    // version took, and intake stopping is not one (Q4's null spelling).
+    fromEnvironment: null,
+    // The approval belongs to the release it was given for, not to a later close
+    // (Q51, task 070). Carrying it forward would make the audit say a close was
+    // approved by somebody who approved a release.
+    approvedBy: null,
+    closed,
+  });
 }
 
 /**
@@ -168,6 +303,7 @@ export async function listFormReleases(
       fromEnvironment: formReleases.fromEnvironment,
       releasedBy: formReleases.releasedBy,
       approvedBy: formReleases.approvedBy,
+      closed: formReleases.closed,
       releasedAt: formReleases.releasedAt,
       replacedVersion: replaced.as("replaced_version"),
     })

@@ -72,6 +72,7 @@ import { sql } from "drizzle-orm";
 import type { Context } from "hono";
 
 import type { Deps } from "../../../deps.js";
+import type { RequestDatabase } from "../../../environments.js";
 import { ApiError } from "../../../errors.js";
 import type { ApiEnv } from "../../../openapi.js";
 import { spendAnswerAllowance } from "../rate-limits.js";
@@ -156,12 +157,11 @@ interface LoadedSnapshot {
   readonly questionById: ReadonlyMap<QuestionId, QuestionDefinition>;
 }
 
-async function loadSnapshot(deps: Deps, session: SessionRow): Promise<LoadedSnapshot> {
-  const version = await getFormVersion(
-    deps.databases.forRequest().exec,
-    session.formId,
-    session.formVersion,
-  );
+async function loadSnapshot(
+  request: RequestDatabase,
+  session: SessionRow,
+): Promise<LoadedSnapshot> {
+  const version = await getFormVersion(request.exec, session.formId, session.formVersion);
   if (version === undefined) {
     // A session is pinned at creation to a published version that is immutable
     // (I1/I4); its absence is an internal invariant break, never client input.
@@ -176,11 +176,7 @@ async function loadSnapshot(deps: Deps, session: SessionRow): Promise<LoadedSnap
   const questions: QuestionVersionRecord[] = [];
   for (const step of definition.steps) {
     for (const ref of stepQuestionRefs(step)) {
-      const record = await getQuestionVersion(
-        deps.databases.forRequest().exec,
-        ref.questionId,
-        ref.version,
-      );
+      const record = await getQuestionVersion(request.exec, ref.questionId, ref.version);
       if (record === undefined) {
         throw new Error(
           `serve-step: pinned question ${ref.questionId}@${String(ref.version)} is missing for form ${session.formId}@${String(session.formVersion)} (snapshot not self-contained)`,
@@ -712,8 +708,12 @@ async function authorizedSessionId(c: Context<ApiEnv>, deps: Deps, id: string): 
 }
 
 /** Load a session for a request, rejecting a missing / submitted / expired one. */
-async function loadActiveSession(deps: Deps, id: SessionId, now: Date): Promise<SessionRow> {
-  const session = await getSession(deps.databases.forRequest().exec, id);
+async function loadActiveSession(
+  request: RequestDatabase,
+  id: SessionId,
+  now: Date,
+): Promise<SessionRow> {
+  const session = await getSession(request.exec, id);
   if (session === undefined) throw fail.sessionNotFound();
   if (session.status === "submitted") throw fail.sessionSubmitted();
   if (session.status === "expired" || session.expiresAt.getTime() <= now.getTime()) {
@@ -733,8 +733,9 @@ export function makeGetStepHandler(deps: Deps): RouteHandler<typeof getStepRoute
     const { step: requestedIndex } = c.req.valid("query");
     const sessionId = await authorizedSessionId(c, deps, id);
 
-    const session = await loadActiveSession(deps, sessionId, deps.clock.now());
-    const snapshot = await loadSnapshot(deps, session);
+    const request = deps.databases.forRequest(c.get("requestEnvironment"));
+    const session = await loadActiveSession(request, sessionId, deps.clock.now());
+    const snapshot = await loadSnapshot(request, session);
 
     // This read WRITES, and that is a consequence of the repeating group rather than
     // a change of character: a `fixed` group mints its `count` and an `open` group
@@ -744,7 +745,7 @@ export function makeGetStepHandler(deps: Deps): RouteHandler<typeof getStepRoute
     // mints nothing the second time; the transaction and the advisory lock are what
     // stop two concurrent serves each minting a full set. A form with no repeating
     // group writes nothing at all and this transaction is one lock and two reads.
-    const projection = await deps.databases.forRequest().exec.transaction(async (tx) => {
+    const projection = await request.exec.transaction(async (tx) => {
       await tx.execute(sql`select pg_advisory_xact_lock(hashtext(${sessionId}))`);
       const answers = await latestAnswers(tx, sessionId);
       return projectWithRosters(tx, snapshot, sessionId, answers, requestedIndex);
@@ -789,12 +790,13 @@ export function makeSubmitAnswerHandler(
     const sessionId = await authorizedSessionId(c, deps, id);
     const body = c.req.valid("json");
 
-    const session = await loadActiveSession(deps, sessionId, deps.clock.now());
-    const snapshot = await loadSnapshot(deps, session);
+    const request = deps.databases.forRequest(c.get("requestEnvironment"));
+    const session = await loadActiveSession(request, sessionId, deps.clock.now());
+    const snapshot = await loadSnapshot(request, session);
 
     const target = answerTarget(snapshot, body);
 
-    const projection = await deps.databases.forRequest().exec.transaction(async (tx) => {
+    const projection = await request.exec.transaction(async (tx) => {
       // Serialize answer writes for this session (deterministic ledger order).
       await tx.execute(sql`select pg_advisory_xact_lock(hashtext(${sessionId}))`);
 
@@ -1014,8 +1016,9 @@ export function makeBatchAnswersHandler(
     const sessionId = await authorizedSessionId(c, deps, id);
     const body = c.req.valid("json");
 
-    const session = await loadActiveSession(deps, sessionId, deps.clock.now());
-    const snapshot = await loadSnapshot(deps, session);
+    const request = deps.databases.forRequest(c.get("requestEnvironment"));
+    const session = await loadActiveSession(request, sessionId, deps.clock.now());
+    const snapshot = await loadSnapshot(request, session);
 
     // Resolve every entry against the pinned snapshot before anything is spent or
     // locked: an entry naming a question the form does not pin, or an id that is not
@@ -1028,7 +1031,7 @@ export function makeBatchAnswersHandler(
     // installation's per-answer default is, and a request above the bound is refused.
     await spendAnswerAllowance(deps, sessionId, targets.length, stepAnswerBound(snapshot));
 
-    const result = await deps.databases.forRequest().exec.transaction(async (tx) => {
+    const result = await request.exec.transaction(async (tx) => {
       await tx.execute(sql`select pg_advisory_xact_lock(hashtext(${sessionId}))`);
       const rejected: BatchAnswerResponse["rejected"] = [];
       // One flow evaluation for the visibility decisions, against the state as the
@@ -1119,8 +1122,9 @@ export function makeRosterOpHandler(deps: Deps): RouteHandler<typeof rosterOpRou
     const sessionId = await authorizedSessionId(c, deps, id);
     const body = c.req.valid("json");
 
-    const session = await loadActiveSession(deps, sessionId, deps.clock.now());
-    const snapshot = await loadSnapshot(deps, session);
+    const request = deps.databases.forRequest(c.get("requestEnvironment"));
+    const session = await loadActiveSession(request, sessionId, deps.clock.now());
+    const snapshot = await loadSnapshot(request, session);
 
     const group = groupById(snapshot, body.groupId);
     if (group === undefined) throw fail.unknownGroup();
@@ -1132,7 +1136,7 @@ export function makeRosterOpHandler(deps: Deps): RouteHandler<typeof rosterOpRou
       instanceId = parsed.value;
     }
 
-    const result = await deps.databases.forRequest().exec.transaction(async (tx) => {
+    const result = await request.exec.transaction(async (tx) => {
       // The lock is what makes "has this token been spent" and "write the row" one
       // decision, which is why the token needs no database constraint.
       await tx.execute(sql`select pg_advisory_xact_lock(hashtext(${sessionId}))`);
