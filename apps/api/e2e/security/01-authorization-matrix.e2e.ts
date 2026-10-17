@@ -1077,8 +1077,7 @@ describe("the environment a request is authorised for is the environment it acts
       body: JSON.stringify({ environment: "prod", expiresAt: "2099-01-01T00:00:00.000Z" }),
     });
     expect(minted.status, await minted.clone().text()).toBe(201);
-    prodLinkId =
-      ((await minted.json()) as { links: { linkId: string }[] }).links[0]?.linkId ?? "";
+    prodLinkId = ((await minted.json()) as { links: { linkId: string }[] }).links[0]?.linkId ?? "";
     expect(prodLinkId).not.toBe("");
 
     const created = await all.app.request(`/admin/forms/${ctx.formId}/webhooks`, {

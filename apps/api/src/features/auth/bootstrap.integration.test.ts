@@ -138,9 +138,10 @@ describe("createInitialAdmin against an empty database", () => {
     expect([...groups.map((group) => group.name)].sort()).toEqual(
       [...SEEDED_FIRST_ADMIN_ROLES.map((role) => `all.${role}`)].sort(),
     );
-    expect([...groups.map((group) => group.role)].sort()).toEqual(
-      ["forms.approver", "forms.editor"],
-    );
+    expect([...groups.map((group) => group.role)].sort()).toEqual([
+      "forms.approver",
+      "forms.editor",
+    ]);
     // Not a `responses.*` grant anywhere, which is the half a reader has to be able to see.
     expect(groups.filter((group) => group.role.startsWith("responses."))).toEqual([]);
 

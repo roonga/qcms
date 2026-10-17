@@ -142,7 +142,10 @@ describe("every row names an action the policy declares", () => {
         expect(row.environmentFrom, `${label} names no environment`).toBeUndefined();
         continue;
       }
-      expect(row.environmentFrom, `${label} must say where its environment comes from`).toBeDefined();
+      expect(
+        row.environmentFrom,
+        `${label} must say where its environment comes from`,
+      ).toBeDefined();
       expect(row.environmentFrom === "body", `${label}: environmentFrom vs its OpenAPI body`).toBe(
         declaresEnvironment(row),
       );

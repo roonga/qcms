@@ -977,7 +977,12 @@ describe("the plugin's before-hooks refuse one rule at a time (criterion 14)", (
     // key to a legal team is the same write by a different door.
     await expect(
       hooks.beforeUpdateTeam({
-        team: { name: "test.forms.viewer", role: "forms.viewer", environments: ["test"], forms: ["all"] },
+        team: {
+          name: "test.forms.viewer",
+          role: "forms.viewer",
+          environments: ["test"],
+          forms: ["all"],
+        },
         updates: { externalGroupId: "CN=qcms-home" },
         organization: { id: SEED_WORKSPACE_ID },
       }),
