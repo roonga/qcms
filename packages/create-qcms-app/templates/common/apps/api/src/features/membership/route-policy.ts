@@ -355,6 +355,35 @@ export const ROUTE_POLICIES: readonly RoutePolicy[] = [
     action: "write",
     workspace: "form",
   },
+  // --- the two flag-gated agent-authoring routes (task 041) ---
+  //
+  // **Mounted only when `QCMS_FLAG_AGENT_AUTHORING` is on, and absent from the shipped
+  // OpenAPI document for exactly that reason** (`openapi-document.ts` generates with the
+  // flag off). So the derivation in `route-policy.test.ts` cannot see them, and they had
+  // no row until the runtime refusal of PR #1061's S2 fix made their absence a 403 in
+  // their own suite. That is the derivation's blind spot found by the thing that was
+  // supposed to be redundant with it, and the test now names these two rows explicitly.
+  //
+  // The cells follow the routes' own declared scopes rather than a new judgement: assist
+  // is `forms:write`, and accept is `forms:write` **and** `questions:write`, because it
+  // materialises the proposal's new questions as drafts in the library. Neither names an
+  // environment: an agent turn and an accept both act on the draft, which is one object
+  // per form and belongs to no environment.
+  {
+    method: "POST",
+    path: "/admin/forms/{id}/draft/assist",
+    resource: "form",
+    action: "write",
+    workspace: "form",
+  },
+  {
+    method: "POST",
+    path: "/admin/forms/{id}/draft/assist/accept",
+    resource: "form",
+    action: "write",
+    workspace: "form",
+    also: { resource: "question", action: "write" },
+  },
   {
     method: "POST",
     path: "/admin/forms/{id}/draft/validate",
