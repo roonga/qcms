@@ -189,18 +189,17 @@ describe("a release is a record and never a copy (criterion 2)", () => {
       }),
     );
 
-    const landed = attempts.filter((a) => a.sequence !== undefined);
-    const refused = attempts.filter((a) => a.sequence === undefined);
+    const landed = attempts.flatMap((a) => (a.sequence === undefined ? [] : [a.sequence]));
+    const refused = attempts.flatMap((a) => (a.constraint === undefined ? [] : [a.constraint]));
     expect(landed.length).toBeGreaterThanOrEqual(1);
+    expect(landed.length + refused.length).toBe(attempts.length);
     // Every refusal is the key, not a deadlock or a serialization failure: this guard is
     // the primary key doing its job, and a different error would mean a different story.
-    expect(refused.map((a) => a.constraint)).toEqual(
-      refused.map(() => "form_releases_form_id_environment_sequence_pk"),
-    );
+    expect(refused).toEqual(refused.map(() => "form_releases_form_id_environment_sequence_pk"));
 
     // No sequence was handed out twice, and the history is dense from 1 - so the winners
     // are a prefix of the history and no row was skipped over or overwritten.
-    const sequences = landed.map((a) => a.sequence as number).sort((a, b) => a - b);
+    const sequences = [...landed].sort((a, b) => a - b);
     expect(new Set(sequences).size).toBe(sequences.length);
     expect(sequences).toEqual(landed.map((_, index) => index + 1));
     const stored = await listFormReleases(testDb.db, formId, "test");

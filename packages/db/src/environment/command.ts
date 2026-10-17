@@ -309,11 +309,12 @@ export interface DropRefusal {
   readonly openForms: readonly string[];
   readonly sessionCount: number;
   /**
-   * How many release records name this environment (task 066's observation, 065's
-   * schema).
+   * How many release records name this environment (Q68, 065's schema).
    *
    * **Not a new rule** - the database already refused this drop - and that is the whole
-   * reason it is counted here. `control.form_releases.environment` is a foreign key into
+   * reason it is counted here. Q68 (Code Owner, 2026-10-17) records that the refusal is
+   * **permanent and intended**: the audit trail of what was served where outlives the
+   * environment's usefulness, so there is nothing here to loosen later. `control.form_releases.environment` is a foreign key into
    * `control.environments`, and the history rejects DELETE, so an environment anything
    * was ever released to cannot be dropped **at all**: the delete of the `environments`
    * row violates that key, with no sanctioned door to the rows holding it. Counting the
