@@ -42,7 +42,11 @@ import {
   getTableConfig,
 } from "drizzle-orm/pg-core";
 
-import { reportingViewStatements } from "../reporting-views.js";
+import {
+  reportingViewStatements,
+  workspaceReportingViewNames,
+  workspaceReportingViewStatements,
+} from "../reporting-views.js";
 import { ACCESS_AUDIT_TABLE } from "../schema/control/access-audit.js";
 import {
   APPLICATION_ROLE_PREFIX,
@@ -51,6 +55,7 @@ import {
   dataSchemaName,
   environmentRoleName,
   reportingSchemaName,
+  workspaceReportingRoleName,
 } from "../schema/schemas.js";
 import {
   DATA_PLANE_TABLES,
@@ -486,6 +491,54 @@ export function grantEnvironmentStatements(environment: string): string[] {
     // role included (Q40, finding B). Emitted per environment as well as in the
     // baseline so an environment created later cannot arrive holding it.
     revokeMigrateOnlyStatement(),
+  ];
+}
+
+/**
+ * One (workspace, environment) reporting consumer: its two views and the read-only
+ * role's grants (Q26, task 067).
+ *
+ * # What the role holds, and what makes criterion 7 true
+ *
+ * `USAGE` on **its own** `reporting_<env>` and `SELECT` on **exactly its own two views**.
+ * Nothing else, anywhere: no `SELECT` on the schema's unfiltered `responses` and
+ * `answers_flat`, which are the application's (Q52); no privilege on any `data_<env>`
+ * table; nothing on `control`; and no `USAGE` at all on any other environment's reporting
+ * schema, so another environment's views are unreachable before their rows are.
+ *
+ * Note what is deliberately **not** written: `GRANT SELECT ON ALL TABLES IN SCHEMA`. That
+ * is the form the per-environment recipe used while there was one view set per schema,
+ * and it is exactly the form that would hand a workspace's analysts every other
+ * workspace's views the moment a second set appeared. The grant names the two views.
+ *
+ * # Why every statement is guarded on the role existing
+ *
+ * The same reason every other grant in this module is: a role that can log in needs a
+ * credential, and an operator may provision these roles their own way. So the
+ * reconciliation creates the role only when it is given a password, and the grants land
+ * either way, guarded, exactly as `docs/operations.md`'s recipe already has an operator
+ * run their provisioning first and the grants second.
+ */
+export function workspaceReportingStatements(input: {
+  readonly environment: string;
+  readonly slug: string;
+  readonly workspaceId: string;
+}): string[] {
+  const reporting = reportingSchemaName(input.environment);
+  const role = workspaceReportingRoleName(input.environment, input.slug);
+  return [
+    ...workspaceReportingViewStatements({
+      reporting,
+      slug: input.slug,
+      workspaceId: input.workspaceId,
+      control: CONTROL_SCHEMA,
+    }),
+    guardedOnRole(role, [
+      `GRANT USAGE ON SCHEMA ${quote(reporting)} TO ${quote(role)}`,
+      ...workspaceReportingViewNames(input.slug).map(
+        (view) => `GRANT SELECT ON ${quote(reporting)}.${quote(view)} TO ${quote(role)}`,
+      ),
+    ]),
   ];
 }
 

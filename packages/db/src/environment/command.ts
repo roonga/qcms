@@ -48,6 +48,7 @@ import {
   reportingSchemaName,
 } from "../schema/schemas.js";
 
+import { workspaceReportingStatementsForEnvironment } from "./reporting.js";
 import {
   createEnvironmentStatements,
   dropEnvironmentStatements,
@@ -283,6 +284,17 @@ export async function createEnvironment(
     // arrive holding `two_factor_resets` (Q40). Both are guarded on the role existing.
     for (const statement of grantEnvironmentStatements(input.name)) {
       // check-security-hygiene: allow generated GRANT statements over the same refused name
+      await tx.execute(sql.raw(statement));
+    }
+    // Every existing workspace's reporting view set, and its read-only role's grants, in
+    // the environment being created (Q26, task 067). It is here as well as in the
+    // reconciliation because of the rule that bit tasks 065 and 069: there is no `ALTER
+    // DEFAULT PRIVILEGES` anywhere in this design, so an object a later environment needs
+    // has to be emitted by whatever creates the environment and not only by whatever
+    // creates the object. The grants are guarded on each role existing, which for a
+    // brand-new environment is none of them yet.
+    for (const statement of await workspaceReportingStatementsForEnvironment(tx, input.name)) {
+      // check-security-hygiene: allow generated DDL over a slug and an environment name already refused
       await tx.execute(sql.raw(statement));
     }
 

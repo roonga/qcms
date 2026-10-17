@@ -52,12 +52,14 @@ export const environments = controlSchema.table("environments", {
   challengeProvider: text("challenge_provider"),
   /**
    * Per-environment override of `QCMS_DELIVERY_SNIPPET_TTL_MS`, or `NULL` for the
-   * installation-wide value (Q11). **Task 067 owns reading it.**
+   * installation-wide value (Q11). Read by the retention sweep through
+   * `listEnvironmentRetention` (task 067).
    */
   deliverySnippetTtlMs: bigint("delivery_snippet_ttl_ms", { mode: "number" }),
   /**
    * Per-environment override of `QCMS_OUTBOX_PAYLOAD_TTL_MS`, or `NULL` for the
-   * installation-wide value (Q11). **Task 067 owns reading it.**
+   * installation-wide value (Q11). Read by the retention sweep through
+   * `listEnvironmentRetention` (task 067).
    */
   outboxPayloadTtlMs: bigint("outbox_payload_ttl_ms", { mode: "number" }),
   createdAt: timestamp("created_at", { withTimezone: true, mode: "date" }).notNull().defaultNow(),

@@ -47,14 +47,22 @@ import {
   refuseEnvironmentName,
 } from "./environment/command.js";
 import { environmentDatabaseUrlVariableName } from "./environment/naming.js";
+import { reconcileWorkspaceReporting } from "./environment/reporting.js";
 
 const USAGE = `Usage:
   qcms-db-environment create <name> [--password <password>]
   qcms-db-environment drop <name>
+  qcms-db-environment reporting [--workspace <slug> --environment <name> --password <pw>]
 
   DATABASE_URL must name the migration credential (the role that owns \`control\`).
   A name is lowercase letters and digits, starting with a letter, at most
-  ${String(maxEnvironmentNameLength())} bytes, and not a reserved word.`;
+  ${String(maxEnvironmentNameLength())} bytes, and not a reserved word.
+
+  \`reporting\` reconciles one reporting view set and one read-only role per
+  (workspace, environment) pair (Q26, docs/reporting-view.md). Run it after
+  creating a workspace. With all three flags it also creates that one pair's
+  role with that credential; without them it creates no role and the grants
+  land for the roles an operator has provisioned themselves.`;
 
 /** One line, cause included, in the shape `qcms-db migrate` already uses. */
 function describeError(error: unknown): string {
@@ -66,9 +74,14 @@ function describeError(error: unknown): string {
 }
 
 interface ParsedArgs {
-  readonly action: "create" | "drop";
+  readonly action: "create" | "drop" | "reporting";
+  /** The environment name for `create` and `drop`; empty for `reporting`. */
   readonly name: string;
   readonly password?: string;
+  /** `reporting --workspace`: the one pair whose role this run creates. */
+  readonly workspace?: string;
+  /** `reporting --environment`: the other half of that pair. */
+  readonly environment?: string;
 }
 
 /**
@@ -90,22 +103,60 @@ function refuse(refusal: string): ArgResult {
 }
 
 function parseArgs(argv: readonly string[]): ArgResult {
-  const [action, name, ...rest] = argv;
-  if (action !== "create" && action !== "drop") return refuse(USAGE);
-  if (name === undefined || name.startsWith("-")) return refuse(USAGE);
+  const [action, ...tail] = argv;
+  if (action !== "create" && action !== "drop" && action !== "reporting") return refuse(USAGE);
+
+  // `reporting` takes **no positional name**: the one pair whose role it may create is
+  // named by two flags, because an environment name and a workspace slug obey two
+  // different rules and a positional pair would read as one thing.
+  const name = action === "reporting" ? "" : (tail[0] ?? "");
+  if (action !== "reporting" && (name === "" || name.startsWith("-"))) return refuse(USAGE);
+  const rest = action === "reporting" ? tail : tail.slice(1);
+
   let password: string | undefined;
+  let workspace: string | undefined;
+  let environment: string | undefined;
   for (let i = 0; i < rest.length; i += 1) {
-    if (rest[i] === "--password") {
-      password = rest[i + 1];
-      if (password === undefined) return refuse("--password needs a value");
-      i += 1;
-    } else {
-      return refuse(`unknown argument ${String(rest[i])}\n${USAGE}`);
+    const flag = rest[i];
+    if (flag !== "--password" && flag !== "--workspace" && flag !== "--environment") {
+      return refuse(`unknown argument ${String(flag)}\n${USAGE}`);
+    }
+    const value = rest[i + 1];
+    if (value === undefined) return refuse(`${flag} needs a value`);
+    if (flag === "--password") password = value;
+    if (flag === "--workspace") workspace = value;
+    if (flag === "--environment") environment = value;
+    i += 1;
+  }
+
+  if (action === "drop" && password !== undefined) return refuse("drop takes no --password");
+  if (action !== "reporting" && (workspace !== undefined || environment !== undefined)) {
+    return refuse(`${action} takes no --workspace or --environment\n${USAGE}`);
+  }
+  // All three or none. A password with no pair names no role to create, and a pair with
+  // no password would create a role nobody can log in as, which looks like success and is
+  // not - so it is refused rather than half done.
+  if (action === "reporting") {
+    const given = [password, workspace, environment].filter((value) => value !== undefined).length;
+    if (given !== 0 && given !== 3) {
+      return refuse(
+        "reporting takes --workspace, --environment and --password together or none of " +
+          "them: creating a role needs the pair it belongs to and a credential it logs " +
+          `in with\n${USAGE}`,
+      );
     }
   }
-  if (action === "drop" && password !== undefined) return refuse("drop takes no --password");
-  const args: ParsedArgs = password === undefined ? { action, name } : { action, name, password };
-  return { ok: true, args };
+
+  return {
+    ok: true,
+    args: {
+      action,
+      name,
+      ...(password === undefined ? {} : { password }),
+      ...(workspace === undefined ? {} : { workspace }),
+      ...(environment === undefined ? {} : { environment }),
+    },
+  };
 }
 
 async function main(): Promise<number> {
@@ -116,10 +167,15 @@ async function main(): Promise<number> {
   }
   const parsed = result.args;
 
-  const refusal = refuseEnvironmentName(parsed.name);
-  if (refusal !== undefined) {
-    process.stderr.write(`qcms-db environment failed: ${refusal}\n`);
-    return 1;
+  // `reporting` names no environment of its own: it reconciles the whole live set, and
+  // the `--environment` of its one-pair form names a row that already exists and has
+  // therefore already passed this rule.
+  if (parsed.action !== "reporting") {
+    const refusal = refuseEnvironmentName(parsed.name);
+    if (refusal !== undefined) {
+      process.stderr.write(`qcms-db environment failed: ${refusal}\n`);
+      return 1;
+    }
   }
 
   const databaseUrl = process.env.DATABASE_URL;
@@ -160,6 +216,43 @@ async function main(): Promise<number> {
           "on its own (ADR-24).\n",
       );
       return 0;
+    }
+
+    if (parsed.action === "reporting") {
+      const report = await reconcileWorkspaceReporting(exec, {
+        ...(parsed.password === undefined ||
+        parsed.workspace === undefined ||
+        parsed.environment === undefined
+          ? {}
+          : {
+              create: {
+                environment: parsed.environment,
+                workspaceSlug: parsed.workspace,
+                password: parsed.password,
+              },
+            }),
+      });
+      for (const pair of report.pairs) {
+        // The views always exist after this run; the role is the operator's, so the line
+        // says which it is and whether it is there, because a grant guarded on a missing
+        // role is a grant that silently did not land.
+        process.stdout.write(
+          `${pair.reportingSchema}: ${pair.views.join(", ")} ` +
+            `-> ${pair.role}${pair.roleExists ? "" : " (role not created yet)"}` +
+            `${pair.archived ? " (workspace archived; views kept)" : ""}\n`,
+        );
+      }
+      for (const refused of report.refusals) {
+        process.stderr.write(`skipped: ${refused}\n`);
+      }
+      process.stdout.write(
+        `\nreconciled ${String(report.pairs.length)} (workspace, environment) reporting ` +
+          "pair(s). Grant a pair's role to an analyst's login and point their tool at " +
+          "that schema; `docs/reporting-view.md` is the contract they read.\n",
+      );
+      // A refusal is a pair that does not exist, which is a configuration fault an
+      // operator has to act on, so it is not a success.
+      return report.refusals.length === 0 ? 0 : 1;
     }
 
     const refused = await dropEnvironment(exec, parsed.name);

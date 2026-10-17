@@ -16,6 +16,8 @@ import {
   updateAccessGroupScope,
 } from "../queries/grants.js";
 
+import { WORKSPACE_REPORTING_ROLE_PREFIX } from "../schema/schemas.js";
+
 import {
   RESERVED_ENVIRONMENT_NAMES,
   createEnvironment,
@@ -72,10 +74,12 @@ describe("the environment name rules (Q42)", { timeout: COMMAND_TIMEOUT_MS }, ()
   });
 
   it("refuses a name too long for the LONGEST derived identifier, not for data_<env>", () => {
-    // The distinction is the whole of the rule. A name of 58 bytes fits `data_<env>`
-    // at 63 and does not fit `reporting_<env>` at 68, and Postgres would truncate the
-    // second silently - producing an object whose name is not the one anybody asked
-    // for, and two of which could collide with each other with no error anywhere.
+    // The distinction is the whole of the rule. A name one byte over the limit still
+    // fits `data_<env>` and does not fit the longest identifier the name reaches, which
+    // since task 067 is the per-(workspace, environment) reporting role's
+    // `qcms_reporting_<env>_<slug>` (Q26). Postgres would truncate that one silently,
+    // producing an object whose name is not the one anybody asked for, and two of which
+    // could collide with each other with no error anywhere.
     const limit = maxEnvironmentNameLength();
     const fits = "e".repeat(limit);
     const overflows = "e".repeat(limit + 1);
@@ -93,10 +97,14 @@ describe("the environment name rules (Q42)", { timeout: COMMAND_TIMEOUT_MS }, ()
   });
 
   it("computes the limit from the prefix list rather than reading a constant", () => {
-    // 63 minus the longest of `data_`, `reporting_` and `qcms_app_`, which is
-    // `reporting_` at ten. The figure is asserted as the arithmetic, so adding a longer
-    // prefix moves it here and in the command together.
-    expect(maxEnvironmentNameLength()).toBe(63 - "reporting_".length);
+    // 63 minus the longest of `data_`, `reporting_`, `qcms_app_` and - since task 067
+    // named the per-(workspace, environment) reporting consumer role (Q26) -
+    // `qcms_reporting_` at fifteen. So the limit is **48** where it was 53, which is
+    // exactly what ADR-40 said would happen when this task named its prefix. The figure
+    // is asserted as the arithmetic, which is why adding the fourth prefix moved it here
+    // and in the command together and nowhere else.
+    expect(maxEnvironmentNameLength()).toBe(63 - WORKSPACE_REPORTING_ROLE_PREFIX.length);
+    expect(maxEnvironmentNameLength()).toBe(48);
   });
 
   it.each(RESERVED_ENVIRONMENT_NAMES.filter((name) => /^[a-z][a-z0-9]*$/.test(name)))(

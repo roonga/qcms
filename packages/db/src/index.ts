@@ -62,5 +62,18 @@ export {
   DATA_PLANE_ENUM_TYPES,
   grantAccessAuditStatements,
   environmentObjectNames,
+  workspaceReportingStatements,
   type EnvironmentObjectNames,
 } from "./environment/sql.js";
+
+// The per-(workspace, environment) reporting consumers (Q26, task 067). On the package
+// surface as well as behind the CLI, for the reason the environment command is: the
+// least-privilege suite builds a pair the way an operator does and then asserts what that
+// role can and cannot read (criterion 7).
+export {
+  type WorkspaceReportingPair,
+  type WorkspaceReportingReport,
+  reconcileWorkspaceReporting,
+  refuseWorkspaceReportingNames,
+  workspaceReportingStatementsForEnvironment,
+} from "./environment/reporting.js";
