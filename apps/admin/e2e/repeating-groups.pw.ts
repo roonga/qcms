@@ -759,6 +759,41 @@ test("filters the column picker to the allowed cell types, and says why (case 62
   await reopened.getByRole("button", { name: "Cancel" }).click();
 });
 
+test("previews a one-page-per-instance group one instance per page, named in the step line (076)", async ({
+  page,
+}) => {
+  test.setTimeout(300_000);
+  await signInWithTotp(page, EMAIL, totpSecret);
+
+  await page.goto(`/forms/${formId}`);
+  await openGroupPanel(page, GROUP);
+  const beforePaginate = await savedStamp(page);
+  await chooseRadio(page, "One page per instance");
+  await waitForSaveAfter(page, beforePaginate);
+
+  await page.goto(`/forms/${formId}/preview`);
+  const surface = page.getByTestId("qcms-preview-surface");
+  const stepLine = page.getByTestId("qcms-preview-step");
+  await expect(surface.getByText("E2E Number question")).toBeVisible({ timeout: 60_000 });
+  await setInstanceCount(page.getByRole("textbox", { name: `Instances of ${GROUP}` }), "2");
+
+  // THE SAME `view` THE PORTAL PASSES: each page draws its own passenger and no other, and the
+  // step line names which one, so two pages of one step do not read as the same line twice.
+  await page.getByRole("button", { name: "Next step" }).click();
+  await expect(stepLine).toHaveText(/^Step 2 of \d+: Travellers, Passenger 1$/, {
+    timeout: 60_000,
+  });
+  await expect(surface.locator("fieldset[data-qcms-instance]")).toHaveCount(1);
+  await expect(surface.getByRole("heading", { name: "Passenger 1" })).toBeVisible();
+  await expect(surface.getByRole("heading", { name: "Passenger 2" })).toHaveCount(0);
+
+  await page.getByRole("button", { name: "Next step" }).click();
+  await expect(stepLine).toHaveText(/^Step 3 of \d+: Travellers, Passenger 2$/);
+  await expect(surface.locator("fieldset[data-qcms-instance]")).toHaveCount(1);
+  await expect(surface.getByRole("heading", { name: "Passenger 2" })).toBeVisible();
+  await expect(surface.getByRole("heading", { name: "Passenger 1" })).toHaveCount(0);
+});
+
 /**
  * Set one group's hypothetical instance count, and wait for the control to have committed it.
  *

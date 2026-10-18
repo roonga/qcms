@@ -1,4 +1,14 @@
-import type { CompiledStep, PreviewFlow } from "./types";
+import { instanceLabelFor } from "@roonga/qcms-ui/repeat-node";
+
+import { textOf } from "../questions/definition.ts";
+import { findGroup } from "./draft.ts";
+import {
+  isDraftGroup,
+  type CompiledStep,
+  type DraftForm,
+  type DraftGroup,
+  type PreviewFlow,
+} from "./types.ts";
 
 /**
  * The preview pane's page list (task 076, ADR-28 as amended 2026-09-29, Q22).
@@ -28,14 +38,18 @@ import type { CompiledStep, PreviewFlow } from "./types";
  * than a sequence. The view list is already a sequence, so when it is present it is used
  * as given.
  *
- * ## What it deliberately stops short of
+ * ## Narrowing a page to its instance
  *
- * It pairs a view with its document and no more. Narrowing the drawn group to the view's
- * instance needs a **roster**, and the preview has none until task 074 mints one locally
- * and sends it with the draft; that task owns `draft-preview.tsx`'s expansion and the
- * group panel's presentation switch beside it. Until then a draft cannot carry a group at
- * all (`DraftStep.items` is a pin list), so this list is `visibleSteps` by another name
- * and the pane previews exactly what it previewed before.
+ * `previewViews` pairs a view with its document and no more. Drawing one instance on a
+ * per-instance page is {@link previewViewNarrowing}'s job, and naming that instance in the
+ * pane's step line is {@link previewInstanceLabel}'s. Both mirror the portal's
+ * `viewNarrowing` and `viewInstanceLabel` (`apps/portal/lib/repeat.ts`), with one
+ * difference forced on the admin: the portal is TOLD the paginating group by the API's
+ * `view.groupId`, while the preview endpoint forwards the kernel's view list, which names
+ * only the instance. So the group is read from the draft by the kernel's own rule (the
+ * FIRST `perInstanceStep` group on the step, `stepViews` in
+ * `packages/core/src/evaluate-rules.ts` and `paginatingGroup` in the API's serve-step
+ * handler), and the label is resolved with the renderer's own `instanceLabelFor`.
  */
 
 /** One page of the preview walk: a compiled step, and the instance it draws if it draws one. */
@@ -63,4 +77,50 @@ export function previewViews(
     const step = byStep.get(view.stepId);
     return step === undefined ? [] : [{ step, instanceId: view.instanceId }];
   });
+}
+
+/** The renderer's `view` option: the one group a page paginates and the instance it draws. */
+export interface PreviewViewNarrowing {
+  readonly groupId: string;
+  readonly instanceId: string;
+}
+
+/**
+ * The narrowing a per-instance page is, or `undefined` for every ordinary page.
+ *
+ * Also `undefined` while the draft and the last projection disagree (the author switched
+ * the group's presentation and the debounced re-ask has not answered yet): the page then
+ * draws every instance for one round trip rather than guessing at a group.
+ */
+export function previewViewNarrowing(
+  draft: DraftForm | null,
+  view: PreviewView | undefined,
+): PreviewViewNarrowing | undefined {
+  if (draft === null || view === undefined || view.instanceId === null) return undefined;
+  const step = draft.steps.find((candidate) => candidate.stepId === view.step.stepId);
+  const group = step?.items.find(
+    (item): item is DraftGroup => isDraftGroup(item) && item.presentation === "perInstanceStep",
+  );
+  return group === undefined ? undefined : { groupId: group.groupId, instanceId: view.instanceId };
+}
+
+/**
+ * The resolved label of the instance a per-instance page draws ("Passenger 2"), or
+ * `undefined` when the page draws no instance or the template is empty.
+ *
+ * Resolved against the FULL served roster, so the ordinal is the instance's place in the
+ * group rather than in a one-element list, and never from the `ins_` id, which is not
+ * something a respondent reads (ADR-42).
+ */
+export function previewInstanceLabel(
+  draft: DraftForm | null,
+  rosters: Readonly<Record<string, readonly string[]>>,
+  narrowing: PreviewViewNarrowing | undefined,
+): string | undefined {
+  if (draft === null || narrowing === undefined) return undefined;
+  const found = findGroup(draft, narrowing.groupId);
+  const index = (rosters[narrowing.groupId] ?? []).indexOf(narrowing.instanceId);
+  if (found === undefined || index < 0) return undefined;
+  const template = textOf(found.group.instanceLabel, draft.defaultLocale);
+  return template === "" ? undefined : instanceLabelFor(template, index + 1);
 }

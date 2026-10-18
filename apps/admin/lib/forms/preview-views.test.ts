@@ -1,7 +1,12 @@
 import { describe, expect, it } from "vitest";
 
-import { previewViews } from "./preview-views";
-import type { CompiledStep, PreviewFlow } from "./types";
+import {
+  previewInstanceLabel,
+  previewViewNarrowing,
+  previewViews,
+  type PreviewView,
+} from "./preview-views";
+import type { CompiledStep, DraftForm, DraftGroup, PreviewFlow } from "./types";
 
 /**
  * The preview pane's page list (task 076, ADR-28 as amended 2026-09-29, Q22).
@@ -108,5 +113,88 @@ describe("previewViews", () => {
 
   it("is empty with no preview at all, so the pane clamps to nothing rather than throwing", () => {
     expect(previewViews([], undefined)).toEqual([]);
+  });
+});
+
+const group = (
+  groupId: string,
+  presentation: DraftGroup["presentation"],
+  instanceLabel = "Passenger {n}",
+): DraftGroup => ({
+  groupId,
+  label: { en: "Passengers" },
+  instanceLabel: { en: instanceLabel },
+  items: [{ questionId: `q_${groupId}`, version: 1 }],
+  count: { source: "open", min: 1, max: 5 },
+  presentation,
+});
+
+const draftWith = (...items: DraftGroup[]): DraftForm => ({
+  formId: "frm_trip",
+  defaultLocale: "en",
+  title: { en: "Trip" },
+  steps: [
+    { stepId: "stp_one", title: { en: "One" }, items: [] },
+    { stepId: "stp_pax", title: { en: "Passengers" }, items },
+  ],
+  rules: [],
+});
+
+const page = (stepId: string, instanceId: string | null): PreviewView => ({
+  step: step(stepId),
+  instanceId,
+});
+
+describe("previewViewNarrowing", () => {
+  it("names the step's perInstanceStep group and the page's instance", () => {
+    const draft = draftWith(group("grp_pax", "perInstanceStep"));
+    expect(previewViewNarrowing(draft, page("stp_pax", "ins_p2"))).toEqual({
+      groupId: "grp_pax",
+      instanceId: "ins_p2",
+    });
+  });
+
+  it("picks the FIRST perInstanceStep group, as the kernel and the API do", () => {
+    const draft = draftWith(
+      group("grp_stacked", "stacked"),
+      group("grp_first", "perInstanceStep"),
+      group("grp_second", "perInstanceStep"),
+    );
+    expect(previewViewNarrowing(draft, page("stp_pax", "ins_p1"))?.groupId).toBe("grp_first");
+  });
+
+  it("narrows nothing on an ordinary page", () => {
+    const draft = draftWith(group("grp_pax", "perInstanceStep"));
+    expect(previewViewNarrowing(draft, page("stp_one", null))).toBeUndefined();
+    expect(previewViewNarrowing(draft, undefined)).toBeUndefined();
+    expect(previewViewNarrowing(null, page("stp_pax", "ins_p1"))).toBeUndefined();
+  });
+
+  it("narrows nothing while the draft no longer paginates the step", () => {
+    // The author switched the group to stacked and the debounced re-ask has not answered.
+    const draft = draftWith(group("grp_pax", "stacked"));
+    expect(previewViewNarrowing(draft, page("stp_pax", "ins_p1"))).toBeUndefined();
+  });
+});
+
+describe("previewInstanceLabel", () => {
+  const draft = draftWith(group("grp_pax", "perInstanceStep"));
+  const rosters = { grp_pax: ["ins_p1", "ins_p2", "ins_p3"] };
+
+  it("resolves the template at the instance's ordinal in the full roster", () => {
+    expect(previewInstanceLabel(draft, rosters, { groupId: "grp_pax", instanceId: "ins_p2" })).toBe(
+      "Passenger 2",
+    );
+  });
+
+  it("is undefined with no narrowing, an unknown instance or an empty template", () => {
+    expect(previewInstanceLabel(draft, rosters, undefined)).toBeUndefined();
+    expect(
+      previewInstanceLabel(draft, rosters, { groupId: "grp_pax", instanceId: "ins_gone" }),
+    ).toBeUndefined();
+    const blank = draftWith(group("grp_pax", "perInstanceStep", ""));
+    expect(
+      previewInstanceLabel(blank, rosters, { groupId: "grp_pax", instanceId: "ins_p1" }),
+    ).toBeUndefined();
   });
 });
