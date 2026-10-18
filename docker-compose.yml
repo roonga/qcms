@@ -341,6 +341,22 @@ services:
       # exactly the shape it exists to report. Empty means "nothing declared", which on
       # the proxy-less default is the truth.
       QCMS_ADMIN_TRUSTED_PROXY_HOPS: ${QCMS_ADMIN_TRUSTED_PROXY_HOPS:-}
+      # Agent-assisted authoring (task 041, ADR-25, issue #1063). docs/agent-authoring.md
+      # says to set these on the API, and before this block setting them in .env reached
+      # nothing: the same silent failure #499 and #752 were about. Every one defaults to
+      # empty, which reads as unset, so the shipped default stays `none` - assist routes
+      # unmounted, no key required at boot. Enabling it is an explicit opt-in.
+      #
+      # The provider key lives on THIS service and nowhere else: the browser talks to the
+      # admin's BFF, which talks to the API, which talks to the provider. Not on the
+      # `api-env` anchor, so the one-shot migration never holds it.
+      QCMS_FLAG_AGENT_AUTHORING: ${QCMS_FLAG_AGENT_AUTHORING:-}
+      QCMS_AGENT_MODEL: ${QCMS_AGENT_MODEL:-}
+      QCMS_AGENT_API_KEY: ${QCMS_AGENT_API_KEY:-}
+      QCMS_AGENT_BASE_URL: ${QCMS_AGENT_BASE_URL:-}
+      QCMS_AGENT_MAX_STEPS: ${QCMS_AGENT_MAX_STEPS:-}
+      QCMS_RL_AGENT_ASSIST_WINDOW_MS: ${QCMS_RL_AGENT_ASSIST_WINDOW_MS:-}
+      QCMS_RL_AGENT_ASSIST_MAX: ${QCMS_RL_AGENT_ASSIST_MAX:-}
     depends_on:
       migrate:
         condition: service_completed_successfully
@@ -469,6 +485,10 @@ services:
       # enrollment screen can be skipped. Disagreement fails closed, not silently.
       # The reasoning, and why the default stays `required`, is written out there.
       QCMS_ADMIN_2FA: ${QCMS_ADMIN_2FA:-required}
+      # The api service's twin for agent authoring, and the flag ONLY: this app reads it
+      # to decide whether the builder renders the assist panel. The model and the key are
+      # the API's configuration and never reach this process (ADR-25, SEC-7).
+      QCMS_FLAG_AGENT_AUTHORING: ${QCMS_FLAG_AGENT_AUTHORING:-}
     depends_on:
       api:
         condition: service_healthy

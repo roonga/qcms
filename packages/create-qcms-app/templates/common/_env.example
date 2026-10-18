@@ -119,6 +119,31 @@ QCMS_ADMIN_BASE_URL=
 # (optional, default 1)
 # QCMS_ADMIN_TRUSTED_PROXY_HOPS=
 
+# Model provider key (SEC-7 inventory). Required when
+# QCMS_FLAG_AGENT_AUTHORING names a real provider, except when
+# QCMS_AGENT_BASE_URL points at a local endpoint (loopback, a private-range
+# address, host.docker.internal, or a .local/.localhost/.internal hostname),
+# because a locally hosted model has no key to give. Never logged and never
+# echoed in a boot error.
+# (conditional, secret)
+# QCMS_AGENT_API_KEY=
+
+# Model endpoint override. Required for
+# QCMS_FLAG_AGENT_AUTHORING=openai-compatible, which is how a locally hosted
+# model is configured (Ollama, vLLM, LM Studio, llama.cpp-server); optional
+# for the hosted providers, where it names a gateway or proxy.
+# (conditional)
+# QCMS_AGENT_BASE_URL=
+
+# Hard ceiling on tool-loop steps in one agent turn (task 041).
+# (optional, default 8)
+# QCMS_AGENT_MAX_STEPS=
+
+# The model provider's own model id, never interpreted here. Required when
+# QCMS_FLAG_AGENT_AUTHORING names a real provider, ignored otherwise.
+# (conditional)
+# QCMS_AGENT_MODEL=
+
 # AES-256-GCM key (at least 32 characters) encrypting secrets at rest (SEC-6).
 # It covers exactly one column, the per-webhook HMAC signing secret; stored
 # two-factor material belongs to QCMS_ADMIN_AUTH_SECRET, not to this key
@@ -195,6 +220,14 @@ QCMS_DB_PASSWORD=
 # (task 065).
 # (optional, default test,prod)
 # QCMS_ENVIRONMENTS=
+
+# Whether the agent-authoring chat panel renders in the form builder (ADR-25,
+# task 041). The admin reads only the _effect_ of this flag, never its value
+# in the browser, and holds no provider key: the key lives on the api service.
+# Keep it in step with the API's value, or the panel appears against a surface
+# that is not mounted.
+# (optional, default none)
+# QCMS_FLAG_AGENT_AUTHORING=
 
 # Version stamped into the images at build time
 # (org.opencontainers.image.version). pnpm qcms:build-images derives a real
@@ -309,6 +342,15 @@ QCMS_PORTAL_BASE_URL=
 # does exactly this.
 # (optional, default postgres:16-alpine)
 # QCMS_POSTGRES_IMAGE=
+
+# Agent turns one administrator may request per window.
+# (optional, default 10)
+# QCMS_RL_AGENT_ASSIST_MAX=
+
+# Rate-limit window for POST /admin/forms/{id}/draft/assist, keyed by admin
+# principal.
+# (optional, default 60000)
+# QCMS_RL_AGENT_ASSIST_WINDOW_MS=
 
 # Whether respondent session cookies carry Secure. Setting it false is a
 # downgrade, supported only when QCMS_PORTAL_BASE_URL is a loopback origin
