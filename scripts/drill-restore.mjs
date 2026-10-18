@@ -17,8 +17,8 @@
  * never in doubt. Two things here are deliberately stronger:
  *
  * 1. **The data is destroyed for real.** The database is dropped, and the drill
- *    asserts the public schema is genuinely empty before restoring. A drill that
- *    restores over live data silently passes forever.
+ *    asserts not one QCMS table is left before restoring. A drill that restores over
+ *    live data silently passes forever.
  * 2. **The application is a judge, not just a row count.** After the restore, the
  *    pre-dump administrator is checked by identity (account row, sign-in credential
  *    and two-factor enrolment, each separately because each fails separately), and a
@@ -39,6 +39,23 @@
  * So the post-restore product check drives the **respondent** surface, which needs no
  * credential: the portal renders a restored form, the API reads it, and what is served
  * is the compiled document that came back in the dump (ADR-18).
+ *
+ * ## It covers `control` and every environment in the live set (task 067, criterion 2)
+ *
+ * ADR-40 made the data plane a schema per environment, and green field removed the
+ * migration without removing this drill: `docs/backup-restore.md` opens with the claim
+ * that a backup nobody has restored is not a backup, and that is as true of a database
+ * created in this shape as of one migrated into it. So the fingerprint is taken over
+ * `control`, every `data_<env>` and every `reporting_<env>`, with the environment list
+ * **read out of `control.environments`** rather than written here - which is what makes an
+ * environment created after this feature shipped covered without a code change.
+ *
+ * Two assertions ride with it, and each catches a restore that every row count would call
+ * perfect. The environment **set** is re-derived afterwards and compared, so a restore
+ * that brought back a different set fails on that rather than on a mismatched count. And
+ * `public` is asserted **empty**, because a restore that landed the tables there would
+ * resolve on every search path right up to the first time something else created a
+ * `sessions` table.
  *
  * ## What is deliberately NOT recreated
  *
@@ -70,26 +87,93 @@ import { assertPortSeatChosen, harnessPort } from "./ports.mjs";
 const CONTAINER_DUMP = "/tmp/qcms-drill.dump.sql";
 
 /**
- * Row counts for every table in the public schema, as a stable printable string.
+ * The schemas this installation's data lives in, read out of `control.environments`
+ * (ADR-40; task 067, criterion 2).
  *
- * Deliberately not a hand-written table list: a drill that only counts the tables
- * someone remembered in 2026 stops covering the ones added afterwards, and silently.
- * `query_to_xml` is the standard idiom for a count over a dynamic relation name from
- * inside a single query.
+ * # Why the list is derived and not written down
  *
+ * Under ADR-40 there is no single schema to fingerprint: the control plane is `control`,
+ * each environment has a `data_<env>` and a `reporting_<env>`, and `public` is left
+ * **empty** on purpose. The set is a **table**, so an environment an operator created last
+ * week has to be covered by this drill without anybody editing this file - which is the
+ * whole of criterion 2's "including one created after the feature shipped".
+ *
+ * That is also why this is a query rather than `data_%`. `control.environments` is the
+ * source of the set and a schema name matching a pattern is a consistency check (Q1,
+ * scenario finding 1): an environment whose row exists and whose schema does not is
+ * exactly the kind of half-restored database this drill exists to catch, and a pattern
+ * would simply not look for it.
+ *
+ * @returns {string[]}
+ */
+function dataSchemas() {
+  return schemasForEnvironments(
+    psql([
+      "--tuples-only",
+      "--no-align",
+      "--command",
+      "select name from control.environments order by position;",
+    ]),
+  );
+}
+
+/**
+ * The schema list for one `control.environments` reading, as a pure function of it.
+ *
+ * Split out from the query so the derivation is testable without a container
+ * (`drill-restore.test.ts`), which is what makes criterion 2's "including one created
+ * after the feature shipped" an assertion rather than a claim: a third environment is one
+ * more line in the input and two more schemas in the output, and the test says so.
+ *
+ * @param {string} psqlOutput one environment name per line, in `position` order
+ * @returns {string[]}
+ */
+export function schemasForEnvironments(psqlOutput) {
+  const names = psqlOutput
+    .split("\n")
+    .map((line) => line.trim())
+    .filter((line) => line !== "");
+  if (names.length === 0) {
+    throw new Error(
+      "drill-restore: control.environments is empty, so there is no environment to cover; " +
+        "the stack never migrated or never seeded its environment set",
+    );
+  }
+  // `control` first, then each environment's pair in the table's own order, so the printed
+  // coverage line reads the way the environment list does everywhere else (Q42).
+  return ["control", ...names.flatMap((name) => [`data_${name}`, `reporting_${name}`])];
+}
+
+/**
+ * Row counts for every table and view in every QCMS schema, as a stable printable string.
+ *
+ * Deliberately not a hand-written table list: a drill that only counts the tables somebody
+ * remembered in 2026 stops covering the ones added afterwards, and silently. The **schema**
+ * list is derived too, for the same reason one step up (see {@link dataSchemas}).
+ * `query_to_xml` is the standard idiom for a count over a dynamic relation name from inside
+ * a single query.
+ *
+ * **Views are counted beside tables**, which they were not when every object sat in
+ * `public`. The reporting views are the surface an adopter's BI tool is connected to, and a
+ * restore that brought back every row and none of the views would be a restore that looked
+ * perfect and served nothing (Q10, Q26). A view's count also fails loudly if its body came
+ * back broken, where its mere presence in the catalogue would not.
+ *
+ * @param {string[]} schemas
  * @returns {string}
  */
-function fingerprint() {
+function fingerprint(schemas) {
+  const list = schemas.map((name) => `'${name}'`).join(", ");
   const sql = `
-    select table_name || '=' || (
+    select table_schema || '.' || table_name || '=' || (
       xpath(
         '/row/c/text()',
         query_to_xml(format('select count(*) as c from %I.%I', table_schema, table_name), false, true, '')
       )
     )[1]::text
     from information_schema.tables
-    where table_schema = 'public' and table_type = 'BASE TABLE'
-    order by table_name;
+    where table_schema in (${list}) and table_type in ('BASE TABLE', 'VIEW')
+    order by table_schema, table_name;
   `;
   return psql(["--tuples-only", "--no-align", "--command", sql.replace(/\s+/g, " ").trim()]);
 }
@@ -120,15 +204,52 @@ function shellQuote(value) {
   return `'${value.replaceAll("'", `'\\''`)}'`;
 }
 
-/** Number of tables in the public schema, as a number. */
+/**
+ * Number of tables in every QCMS schema, as a number.
+ *
+ * Not narrowed to a schema list, deliberately: this is called **after the drop**, when
+ * `control.environments` is gone and there is no set to derive one from, and what it has to
+ * answer there is "is anything of ours left at all". So it counts every table outside the
+ * catalogue schemas, which is the question in both of its call sites - before the dump it
+ * says the stack migrated, and after the drop it says the restore below will prove
+ * something.
+ *
+ * @returns {number}
+ */
 function tableCount() {
   const out = psql([
     "--tuples-only",
     "--no-align",
     "--command",
-    "select count(*) from information_schema.tables where table_schema = 'public' and table_type = 'BASE TABLE';",
+    "select count(*) from information_schema.tables where table_schema not in " +
+      "('pg_catalog', 'information_schema') and table_type = 'BASE TABLE';",
   ]);
   return Number(out.trim());
+}
+
+/**
+ * Assert `public` holds no QCMS object, which is ADR-40's layout and not an aesthetic
+ * preference.
+ *
+ * `public` is left empty, off every search path, with `CREATE` on it granted to nobody, so
+ * that an unqualified name can never resolve to something a tool or an extension created
+ * there. A restore that landed QCMS's tables in `public` would work - every search path
+ * ends up resolving them - right up to the first time something else wrote a `sessions`
+ * table, and nothing else in this drill would notice.
+ */
+function assertPublicEmpty() {
+  const left = psql([
+    "--tuples-only",
+    "--no-align",
+    "--command",
+    "select count(*) from information_schema.tables where table_schema = 'public';",
+  ]).trim();
+  if (left !== "0") {
+    throw new Error(
+      `drill-restore: the restored database has ${left} object(s) in \`public\`, which ADR-40 ` +
+        "leaves empty and off every search path",
+    );
+  }
 }
 
 /**
@@ -210,9 +331,9 @@ function assertAdminSurvived(email) {
     "--no-align",
     "--command",
     `select
-       (select count(*) from "user" where email = ${quoteSql(email)}),
-       (select count(*) from "account" a join "user" u on a."userId" = u.id where u.email = ${quoteSql(email)}),
-       (select count(*) from "twoFactor" t join "user" u on t."userId" = u.id where u.email = ${quoteSql(email)})`,
+       (select count(*) from control."user" where email = ${quoteSql(email)}),
+       (select count(*) from control."account" a join control."user" u on a."userId" = u.id where u.email = ${quoteSql(email)}),
+       (select count(*) from control."twoFactor" t join control."user" u on t."userId" = u.id where u.email = ${quoteSql(email)})`,
   ]);
   const [user, account, twoFactor] = counts.trim().split("|").map(Number);
   const problems = [];
@@ -252,8 +373,8 @@ function readRestoredPublishedForm() {
     // `published_at` is NOT NULL on this table: a row in `form_versions` IS a
     // published version, and the draft lives in `form_drafts`. So the join is the
     // whole filter, and the most recent version is the one the seeding run published.
-    `select f.slug from forms f
-       join form_versions v on v.form_id = f.form_id
+    `select f.slug from control.forms f
+       join control.form_versions v on v.form_id = f.form_id
       order by v.published_at desc
       limit 1`,
   ]).trim();
@@ -270,8 +391,8 @@ function readRestoredPublishedForm() {
     // this pulls the visible text out of the stored compilation without the drill
     // having to know the document's shape. `$.**` walks any depth.
     `select jsonb_path_query_array(v.compiled, '$.**.label')
-       from forms f
-       join form_versions v on v.form_id = f.form_id
+       from control.forms f
+       join control.form_versions v on v.form_id = f.form_id
       where f.slug = ${quoteSql(slug)}
       order by v.published_at desc
       limit 1`,
@@ -419,8 +540,14 @@ async function drill() {
     step("seeding real domain data by running the full-stack suite");
     test();
 
-    step("fingerprinting the seeded database");
-    const before = fingerprint();
+    step("fingerprinting the seeded database, one schema per environment in the live set");
+    // The schema set is read out of `control.environments` rather than written here, so an
+    // environment created after this feature shipped is covered without a code change
+    // (ADR-40, Q1; criterion 2). It is read BEFORE the drop, which is the only moment it
+    // can be read at all: the table goes with the database.
+    const schemas = dataSchemas();
+    process.stdout.write(`drill-restore: covering ${schemas.join(", ")}\n`);
+    const before = fingerprint(schemas);
     const seededTables = tableCount();
     if (seededTables === 0) {
       throw new Error("drill-restore: the seeded database has no tables; the stack never migrated");
@@ -446,13 +573,27 @@ async function drill() {
     composeRun(["up", "--detach", "--wait", "api"]);
 
     step("comparing the restored fingerprint against the pre-dump one");
-    const after = fingerprint();
+    // The same schema list, and derived again rather than reused: if the restore brought
+    // back a different environment set, the two lists differ and that is the failure to
+    // report, not a fingerprint quietly taken over whichever set came back.
+    const restoredSchemas = dataSchemas();
+    if (restoredSchemas.join(", ") !== schemas.join(", ")) {
+      throw new Error(
+        "drill-restore: the restored database's environment set is not the one that was " +
+          `dumped.\nbefore: ${schemas.join(", ")}\nafter:  ${restoredSchemas.join(", ")}`,
+      );
+    }
+    const after = fingerprint(restoredSchemas);
     if (after !== before) {
       throw new Error(
         `drill-restore: the restored database does not match the dump.\nbefore:\n${before}\nafter:\n${after}`,
       );
     }
     process.stdout.write(`${after}\n`);
+    // ADR-40 leaves `public` empty and off every search path; a restore that landed the
+    // tables there would pass every count above and be wrong in the one way nothing else
+    // here looks for.
+    assertPublicEmpty();
 
     step("checking the pre-dump administrator survived the restore");
     // Row counts alone would match whether or not the auth tables came back usable,

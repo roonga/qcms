@@ -2114,6 +2114,19 @@ export const messages = {
   "ops.erase.alreadyErased": "That session was already erased. Nothing changed.",
   "ops.erase.failed": "Nothing was erased. {message}",
 
+  // Q7's cross-environment offer (task 067, ADR-17's Note). An erasure acts in the
+  // selected environment only, so a data subject's request is several deliberate acts;
+  // these strings are what make that visible instead of leaving an operator to remember
+  // it. Every one is written so nothing reads as already done or about to happen: the
+  // heading says "also exists", the body says what will be asked for, and the control says
+  // "go to", because it navigates and erases nothing.
+  "ops.erase.elsewhere.title": "This session id also exists in another environment",
+  "ops.erase.elsewhere.body":
+    "An erasure acts in the environment you are looking at and in no other, so nothing here has been erased anywhere else. To finish a data subject's request, go to each environment below and erase there. Each one asks you to confirm again, and names its own environment when it does.",
+  "ops.erase.elsewhere.go": "Go to {environment}",
+  "ops.erase.elsewhere.done": "{environment}: already erased there",
+  "ops.erase.elsewhere.pending": "{environment}: not erased there yet",
+
   "ops.tombstone.title": "Erased",
   "ops.tombstone.body":
     "This session's answers were erased. What remains is the tombstone below (ADR-17).",

@@ -1,5 +1,6 @@
 import type {
   EraseOutcome,
+  ErasureScope,
   LedgerEntry,
   ResponseDetail,
   ResponseListItem,
@@ -175,6 +176,46 @@ export async function eraseSession(
   return {
     ok: true,
     data: { ...parseTombstone(raw, sessionId), alreadyErased: raw["alreadyErased"] === true },
+  };
+}
+
+/**
+ * `GET /admin/forms/{formId}/responses/{sessionId}/erasure-scope` - where else the same
+ * subject identifier has something (Q7, task 067).
+ *
+ * A read that erases nothing. It exists so the screen can **offer** the repetition an
+ * erasure per environment requires, and the offer is a navigation: each repetition is
+ * performed in its own environment with its own type-to-confirm. This app adds no
+ * judgement to the answer - the API has already narrowed the list to the environments
+ * this operator may erase in, so an empty list is an empty list and not something to
+ * filter.
+ *
+ * A failure is **not** an error on this screen. The response and its erasure door are
+ * what the operator came for, and a hint that could not be fetched is a hint missing
+ * rather than a screen broken; the caller renders nothing for it.
+ */
+export async function erasureScope(
+  session: AdminSession,
+  formId: string,
+  sessionId: string,
+): Promise<ApiResult<ErasureScope>> {
+  const path: AdminApiPath = `/forms/${encodeURIComponent(formId)}/responses/${encodeURIComponent(sessionId)}/erasure-scope`;
+  const result = await readResult<Record<string, unknown>>(await adminApiFetch(session, path));
+  if (!result.ok) return result;
+  const raw = result.data;
+  const others = Array.isArray(raw["otherEnvironments"]) ? raw["otherEnvironments"] : [];
+  return {
+    ok: true,
+    data: {
+      sessionId: text(raw["sessionId"], sessionId),
+      environment: text(raw["environment"], ""),
+      alreadyErased: raw["alreadyErased"] === true,
+      otherEnvironments: others.flatMap((entry) => {
+        const row = entry as { environment?: unknown; alreadyErased?: unknown };
+        if (typeof row.environment !== "string" || row.environment === "") return [];
+        return [{ environment: row.environment, alreadyErased: row.alreadyErased === true }];
+      }),
+    },
   };
 }
 

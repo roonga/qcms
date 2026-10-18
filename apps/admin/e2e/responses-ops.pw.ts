@@ -193,7 +193,7 @@ test.describe("admin operations: responses, erasure, webhooks", () => {
     await expect(page.locator("h1").first(), "and not the form's name").not.toHaveText(SLUG);
   });
 
-  test("a CSV export downloads with the version in its name", async ({ page }) => {
+  test("a CSV export downloads with the environment and the version in its name", async ({ page }) => {
     await signInWithTotp(page, EMAIL, totpSecret);
     await openResponses(page, FORM_ID);
 
@@ -241,7 +241,10 @@ test.describe("admin operations: responses, erasure, webhooks", () => {
       page.waitForEvent("download"),
       dialog.getByTestId("qcms-export-download").click(),
     ]);
-    expect(download.suggestedFilename()).toBe(`${FORM_ID}-v1-responses.csv`);
+    // The environment is in the name and in no column (Q8, task 067): one file can never
+    // mix two environments, so a column would change a file adopters parse for no
+    // information the name does not already carry. `prod` is the switcher's default here.
+    expect(download.suggestedFilename()).toBe(`${FORM_ID}-prod-v1-responses.csv`);
 
     // The bytes are the API's: a UTF-8 BOM, then a header row naming the metadata
     // columns and the version's questions. Asserting the BOM proves this app streamed
