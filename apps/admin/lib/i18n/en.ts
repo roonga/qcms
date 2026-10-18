@@ -1814,6 +1814,8 @@ export const messages = {
   "forms.assist.kind.question": "Question",
   "forms.assist.kind.rule": "Rule",
   "forms.assist.rationale": "Assistant's rationale",
+  "forms.assist.newQuestionPending":
+    "New question {questionId}. Accepting creates it as an unpublished draft in the question library. Publish it there before you publish this form.",
   "forms.assist.accept": "Accept into draft",
   "forms.assist.discard": "Discard",
 
@@ -1824,8 +1826,12 @@ export const messages = {
   "forms.assist.error.PROVIDER_ERROR": "The assistant is unavailable right now. Try again shortly.",
   "forms.assist.error.PROVIDER_REJECTED":
     "The model provider refused this request, and trying again will not help. Check the provider account and the assistant settings for this deployment.",
+  // Reached whenever the model answers in prose and proposes nothing: a refusal it explained
+  // itself, an answer to a question, or a request it could not turn into a draft. The reply is
+  // already shown above, so this says what that means rather than guessing why (issue #1065:
+  // "try a smaller change" read as nonsense under "I can't publish anything").
   "forms.assist.error.NO_PROPOSAL":
-    "No proposal could be produced from the current draft. Try describing a smaller change.",
+    "This reply has no proposal, so there is nothing to accept. To get one, describe a change to this form's steps, questions or rules.",
   "forms.assist.error.REFUSED": "The assistant declined that request. {message}",
   "forms.assist.error.LENGTH":
     "The assistant's reply was cut off before it could finish. Try again.",

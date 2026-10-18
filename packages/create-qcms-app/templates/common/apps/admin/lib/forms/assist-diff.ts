@@ -1,6 +1,6 @@
 import { stepPins } from "./draft.ts";
 import { readDraftRules, readDraftSteps, readLocalizedText } from "./draft-payload.ts";
-import type { DraftForm, DraftPin, DraftRule, DraftStep } from "./types.ts";
+import type { DraftForm, DraftPin, DraftRule, DraftStep, FormIssue } from "./types.ts";
 
 /**
  * The proposal diff (task 041).
@@ -101,8 +101,79 @@ function isKeyedObject(value: unknown): value is Record<string, unknown> {
   return typeof value === "object" && value !== null;
 }
 
+/**
+ * Whether two draft values hold the same content, whatever order their object keys are in.
+ *
+ * Key order carries no meaning in a draft, and the two sides reliably disagree on it: the
+ * stored draft has been through Postgres `jsonb`, which reorders keys (shortest first), while
+ * the proposal arrives in whatever order the model wrote. A rule's `when` is carried through
+ * unparsed (`readDraftRules`), so comparing `JSON.stringify` output marked every rule a model
+ * echoed back unchanged as "changed" (issue #1065). Arrays keep their order, because step,
+ * item and option order is content.
+ */
+function sameContent(a: unknown, b: unknown): boolean {
+  return canonical(a) === canonical(b);
+}
+
+function canonical(value: unknown): string {
+  if (Array.isArray(value)) return `[${value.map(canonical).join(",")}]`;
+  if (!isKeyedObject(value)) return JSON.stringify(value) ?? "null";
+  const entries = Object.keys(value)
+    .filter((key) => value[key] !== undefined)
+    .sort()
+    .map((key) => `${JSON.stringify(key)}:${canonical(value[key])}`);
+  return `{${entries.join(",")}}`;
+}
+
 function objects(raw: unknown): readonly Record<string, unknown>[] {
   return Array.isArray(raw) ? raw.filter(isKeyedObject) : [];
+}
+
+/**
+ * The step pins Accept will make resolve: a step in the proposed draft pinning, at version 1,
+ * a question the same proposal invents. Accept creates each invented question as its version 1
+ * draft, so these and only these stop dangling the moment the author accepts.
+ *
+ * Validated before Accept, such a pin names an id nothing has stored yet, so the kernel reports
+ * it as `DANGLING_QUESTION_REF`, and that code's builder sentence ("names a question the form
+ * does not pin. Pin it") is wrong for it: it is pinned, and it will exist (issue #1065).
+ *
+ * Deliberately narrower than "every reference to an invented question". The kernel uses the same
+ * code for a rule reading or showing a question no step pins, and for a group count reading an
+ * unpinned question; inventing the question fixes neither, so those keep the builder's sentence.
+ * So does a pin at a version Accept will not create.
+ */
+export function pendingNewQuestionPins(
+  proposedDraftRaw: unknown,
+  newQuestionsRaw: unknown,
+): ReadonlySet<string> {
+  const invented = parseQuestionTypes(newQuestionsRaw);
+  const pending = new Set<string>();
+  for (const step of parseProposedDraft(proposedDraftRaw).steps) {
+    for (const pin of stepPins(step)) {
+      if (pin.version === 1 && invented.has(pin.questionId)) {
+        pending.add(pinKey(step.stepId, pin.questionId));
+      }
+    }
+  }
+  return pending;
+}
+
+/**
+ * Whether an issue is one of {@link pendingNewQuestionPins}: a dangling step pin (a step and a
+ * question on the path, no rule) whose step and question are in the set.
+ */
+export function isPendingNewQuestionPin(issue: FormIssue, pending: ReadonlySet<string>): boolean {
+  const path = issue.path;
+  if (issue.code !== "DANGLING_QUESTION_REF" || path === undefined) return false;
+  if (path.rule !== undefined || path.step === undefined || path.question === undefined) {
+    return false;
+  }
+  return pending.has(pinKey(path.step, path.question));
+}
+
+function pinKey(stepId: string, questionId: string): string {
+  return `${stepId}\u0000${questionId}`;
 }
 
 function parseQuestionTypes(raw: unknown): ReadonlyMap<string, string> {
@@ -140,7 +211,7 @@ function stepDiff(
         label,
         detail: JSON.stringify(step, null, 2),
       });
-    } else if (JSON.stringify(existing) !== JSON.stringify(step)) {
+    } else if (!sameContent(existing, step)) {
       entries.push({
         kind: "step",
         change: "changed",
@@ -213,7 +284,7 @@ function ruleDiff(current: readonly DraftRule[], proposed: readonly DraftRule[])
         label,
         detail: JSON.stringify(rule, null, 2),
       });
-    } else if (JSON.stringify(existing) !== JSON.stringify(rule)) {
+    } else if (!sameContent(existing, rule)) {
       entries.push({
         kind: "rule",
         change: "changed",

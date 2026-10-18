@@ -1,6 +1,11 @@
 import { describe, expect, it } from "vitest";
 
-import { acceptedDraft, proposalDiff } from "./assist-diff.ts";
+import {
+  acceptedDraft,
+  isPendingNewQuestionPin,
+  pendingNewQuestionPins,
+  proposalDiff,
+} from "./assist-diff.ts";
 import type { DraftForm } from "./types.ts";
 
 const BASE: DraftForm = {
@@ -94,6 +99,46 @@ describe("proposalDiff", () => {
     );
   });
 
+  it("reports nothing for an echoed rule whose keys arrive in a different order", () => {
+    // The stored draft has been through Postgres jsonb, which reorders object keys, and a
+    // model writes them in its own order. Same content, so not a change (issue #1065).
+    const current: DraftForm = {
+      ...BASE,
+      rules: [
+        {
+          ruleId: "rul_followup",
+          when: { op: "equals", value: true, questionId: "q_at_fault" },
+          show: ["q_count"],
+        },
+      ],
+    };
+    const proposed: unknown = {
+      steps: BASE.steps,
+      rules: [
+        {
+          ruleId: "rul_followup",
+          when: { questionId: "q_at_fault", op: "equals", value: true },
+          show: ["q_count"],
+        },
+      ],
+    };
+    expect(proposalDiff(current, proposed, [])).toEqual([]);
+  });
+
+  it("still reports a rule whose array order differs, because order is content", () => {
+    const current: DraftForm = {
+      ...BASE,
+      rules: [{ ruleId: "rul_existing", when: BASE.rules[0]!.when, show: ["stp_a", "stp_b"] }],
+    };
+    const proposed = {
+      ...current,
+      rules: [{ ruleId: "rul_existing", when: BASE.rules[0]!.when, show: ["stp_b", "stp_a"] }],
+    };
+    expect(proposalDiff(current, proposed, [])).toEqual([
+      expect.objectContaining({ kind: "rule", change: "changed", id: "rul_existing" }),
+    ]);
+  });
+
   it("reads a proposal from unparsed wire JSON the same way it reads a DraftForm", () => {
     const wire: unknown = {
       formId: "frm_quote",
@@ -121,6 +166,63 @@ describe("proposalDiff", () => {
       rules: [{ when: { op: "answered", questionId: "q_name" }, show: [] }],
     };
     expect(proposalDiff(BASE, wire, [])).toEqual([]);
+  });
+});
+
+describe("isPendingNewQuestionPin (issue #1065)", () => {
+  // A proposal inventing q_new, pinned by stp_new at version 1, and read by a rule.
+  const proposed = {
+    steps: [
+      {
+        stepId: "stp_new",
+        title: { en: "New" },
+        items: [{ questionId: "q_new", version: 1 }],
+      },
+    ],
+    rules: [],
+  };
+  const invented = [{ questionId: "q_new", type: "shortText" }];
+  const pending = pendingNewQuestionPins(proposed, invented);
+  const dangling = (path: Record<string, string>) => ({
+    code: "DANGLING_QUESTION_REF",
+    message: "x",
+    path,
+  });
+
+  it("matches the step pin Accept will make resolve", () => {
+    expect(isPendingNewQuestionPin(dangling({ step: "stp_new", question: "q_new" }), pending)).toBe(
+      true,
+    );
+  });
+
+  it("does not match a rule reading an invented question, which stays dangling", () => {
+    expect(isPendingNewQuestionPin(dangling({ rule: "rul_x", question: "q_new" }), pending)).toBe(
+      false,
+    );
+  });
+
+  it("does not match a step that does not pin the invented question", () => {
+    // The kernel's group-count check reports {question, step} for an unpinned count source.
+    expect(
+      isPendingNewQuestionPin(dangling({ step: "stp_other", question: "q_new" }), pending),
+    ).toBe(false);
+  });
+
+  it("does not match a pin at a version Accept will not create", () => {
+    const atV2 = pendingNewQuestionPins(
+      { steps: [{ ...proposed.steps[0]!, items: [{ questionId: "q_new", version: 2 }] }] },
+      invented,
+    );
+    expect(isPendingNewQuestionPin(dangling({ step: "stp_new", question: "q_new" }), atV2)).toBe(
+      false,
+    );
+  });
+
+  it("does not match a question the proposal did not invent", () => {
+    const none = pendingNewQuestionPins(proposed, []);
+    expect(isPendingNewQuestionPin(dangling({ step: "stp_new", question: "q_new" }), none)).toBe(
+      false,
+    );
   });
 });
 
