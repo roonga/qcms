@@ -1,7 +1,7 @@
 # QCMS - Security Design
 
 **Status:** authoritative · companion to `ARCHITECTURE.md` (§5.1, §7, §8)
-**Decisions here are numbered SEC-1…SEC-16** and carry ADR weight; conflicts are flagged, not silently overridden.
+**Decisions here are numbered SEC-1…SEC-17** and carry ADR weight; conflicts are flagged, not silently overridden.
 **Delivery:** every control maps to implementation or active work in the traceability matrix (§10).
 
 ---
@@ -644,6 +644,7 @@ The assist surface is admin-only (behind 2FA auth), off by default, and adds one
 Prompt injection is bounded the same way: the allowlist is enforced server-side (draft mutation + validation only; never publish/erase/links/webhooks), every proposal passes kernel validation, and publish remains a human act.
 The provider key follows SEC-8 (validated iff the flag is on, never logged).
 040 covers the surface when enabled.
+**This paragraph describes the shipped four-tool surface.** ADR-25 was amended by Code Owner ruling on 2026-10-19 to let the agent propose acts on every admin screen under a human confirm and a five-class denylist; the control for that surface is SEC-17 (§8d), proposed and not built, and until it is built the allowlist above is the whole of what any deployment exposes.
 
 ## 8a. Telemetry privacy - SEC-13
 
@@ -770,6 +771,43 @@ Without that, the default of ten answers per five seconds refused any whole step
 **PII volume, not PII kind.** This document's standing position is that all answer content is PII regardless of question semantics. Repetition adds no new kind of PII and no new classification question; it multiplies the volume in one session, which is why the bound above exists and why erasure's completeness matters more than it did.
 
 **Verified by:** publish-time unit tests over `REPEAT_MAX_MISSING` on both bounded count sources; a positive test that a large `max` publishes, so the absence of an installation-wide ceiling is pinned rather than assumed; a publish test that a cross-group rule above `REPEAT_EVALUATION_BUDGET` is refused while two large groups with no such rule publish, which is what shows the budget to bound a rule shape and not an instance count; an API test that an add beyond `max` is refused while adds to `max` in each of two groups in one session succeed; a rate-limit test over the roster operation; a rate-limit test that one batch of N answers spends N units and that two batches summing to the allowance are both accepted while one exceeding it is refused; erasure and purge assertions by row count against a real Postgres; a walk of the outbox payload asserting no respondent content outside `answers`, before and after redaction, with the CHECK holding; and the existing in-test OTLP receiver asserting that `ins_` ids appear and that no answer value or instance label does.
+
+## 8d. Agent action surface - SEC-17
+
+**Status: proposed, for Code Owner ruling (drafted 2026-10-19 with the ADR-25 amendment); not built.**
+The rulings it implements are the Code Owner's of 2026-10-19 and are recorded in ADR-25 (`docs/adr/admin.md`); the mechanics below are the recommendation of `plan/agent-everywhere.md` and are not normative until ruled.
+It is a new control number rather than a paragraph in §8, because it introduces a new way for an admin act to be initiated, and the properties that keep that safe have to be citable one by one.
+
+**What changes about the threat model.** Until this control, the assistant's tools could only search, propose a draft, and validate (§8, task 041). Under the amended ADR-25 it may propose any act a screen's own controls offer, except five classes. A proposal is text a model produced, under the influence of everything in its context, including content other people authored. So the model is treated as **untrusted**: every property below holds when the model is fully compromised by an injected instruction.
+
+**The control, in one sentence.** The agent proposes and never executes; a human confirms each act on a card the admin renders from structured arguments; the act runs as that human, through the screen's own server action and API route; five classes can never be proposed, and that is refused on the server at three points.
+
+| Property                                   | Where it is enforced                                                                                                                                                                                                                                 |
+| ------------------------------------------ | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| The turn executes nothing                  | the agent's tool registry holds read tools and propose tools only; no tool holds a mutation executor, pinned by a key-set test per screen context                                                                                                    |
+| One door, per screen                       | one frozen registry; the dispatcher refuses any tool name outside the current screen's list before dispatch, and a refused name ends the turn with no proposals (the 041 shape, issue #814)                                                          |
+| Never-proposable classes, at registration  | a test fails if any registered action kind maps to a denied route, and a coverage test denies new routes in the membership, workspace and webhook secret or target families by default                                                               |
+| Never-proposable classes, at proposal      | each propose tool runs the denylist predicate over its arguments (a release naming `prod` yields no card)                                                                                                                                            |
+| Never-proposable classes, at execution     | the API refuses any request carrying an agent-proposal token to a denied route or with denied arguments, `403 AGENT_ACTION_DENIED`, logged                                                                                                           |
+| Execution is the user's own act            | Confirm calls the screen's own server action under the user's admin session; SEC-3's route policy authorises it exactly as it authorises the screen's control                                                                                        |
+| The confirmed act is the proposed act      | a purpose-tagged MAC token binds user, proposal id, kind, a digest of the arguments, the environment and the form, with a ten-minute expiry; the API recomputes the digest from the request and compares the environment the request is performed in |
+| Single use                                 | the proposal id is unique in the agent audit table, written in the act's own transaction                                                                                                                                                             |
+| Cards cannot be mislabelled                | a card's title and consequence lines are rendered by the admin from the kind, the arguments and the catalog; model text appears only as a quoted plain-text reason                                                                                   |
+| No respondent data to the provider         | screen facts and read-tool outputs are strict, enumerated schemas built on the API from named query helpers; counts and structure only; no answer value, no `ses_` id, no webhook payload or consumer response; proved by a sentinel test per screen |
+| No secret back to the model                | an executed act's result reaches the next turn only through a per-kind allowlisted summary (never a minted link URL, never an export byte)                                                                                                           |
+| No fetch-based exfiltration from the panel | model prose is rendered as Markdown with no raw HTML, no images and no external links as links; SEC-9's CSP (`img-src 'self' data:`, `connect-src 'self'`) is defence in depth                                                                       |
+
+**The five never-proposable classes** (ADR-25 as amended): account and sign-in security (password, 2FA, recovery codes, sessions); erasing respondent data; members, roles and workspace ownership; webhook secrets and targets (rotate, retarget, create an endpoint); release or rollback to `prod`.
+
+**The agent audit.** Every confirmed agent act writes one row to an append-only `control.agent_actions` table in the act's own transaction: proposal id, actor, workspace, environment, form, kind, screen, proposed-at, confirmed-at, and a non-content detail. It takes SEC-15's precedent shape (append-only, no foreign key, `INSERT` without `RETURNING` for application roles, no `UPDATE` or `DELETE` for any). The act's own trail (a release record, a SEC-15 export row, the draft's `agentAssisted` mark) is written unchanged beside it. Who reads it is an open question in the plan.
+
+**Thinking (SEC-8).** Provider reasoning is forwarded to the panel only when the operator setting allows it, and is never logged, never stored, never exported in telemetry and never replayed beyond the provider's own within-turn requirement.
+
+**What it adds to SEC-7.** One key purpose, `agent-proposal`, distinct from every other signing purpose. Whether it is a new variable or derived from an existing key is an open question in the plan; either way it joins the §4 inventory when ruled.
+
+**What it does not change.** The serving path, the respondent API and the portal take no dependency on any of it. With `QCMS_FLAG_AGENT_AUTHORING=none` nothing here is mounted, and the API refuses an agent-proposal header outright, so no deployment records provenance it cannot have produced.
+
+**Verified by (when built):** the registration and coverage tests over the denylist; token tests for tamper, expiry, wrong user, wrong route, argument mismatch, environment mismatch, denied route, flag off and replay against Postgres; the per-screen sentinel payload test; fake-provider scripts that attempt every denied class both as an unknown tool and as denied arguments, and one that obeys an instruction injected into a fixture question title; Playwright confirm and cancel paths per action kind asserting the audit row; and `03-db-least-privilege.e2e.ts` asserting the new table's grant set.
 
 ## 9. Supply chain and release security - SEC-11
 
@@ -1022,5 +1060,6 @@ The 2026-08-14 pass is recorded in `docs/security-review-2026-08-14.md`, which n
 | Environment isolation at the network layer (SEC-14) | §5a      | **Built (task 066): the mount split and the `/<env>/` prefix in `apps/api/src/app.ts`, the portal's two refusals in `apps/portal/proxy.ts`, the 404 assertions in `apps/api/src/features/responses/start-session/environment-addresses.integration.test.ts` and `apps/portal/proxy.test.ts`, the operator recipe in `docs/deploy-ingress.md`; per-environment egress is task 067's** |
 | Access audit for response data (SEC-15)             | §8b      | **#995 (designed, not built): ADR-41's membership model and task 069; `two_factor_resets` (#432) is the precedent shape**                                                                                                                                                                                                                                                            |
 | Repeating-group bounds (SEC-16)                     | §8c      | **2026-09-29 (decided, not built): ADR-42, ADR-43, and tasks 071 to 077 of `plan/repeating-groups-and-table-input.md`; launch scope, not Phase 4**                                                                                                                                                                                                                                   |
+| Agent action surface (SEC-17)                       | §8d      | **2026-10-19 (proposed, not built): ADR-25 as amended; phases C and D of `plan/agent-everywhere.md`**                                                                                                                                                                                                                                                                                |
 
 **Consistency notes against existing docs:** `ARCHITECTURE.md` §5.1's table gains the internal service token implicitly (SEC-4) - no contradiction; 017's config schema grows `QCMS_SESSION_KEYS`, `QCMS_INTERNAL_TOKEN`, `QCMS_APP_KEY` and 010 generalizes to purpose-tagged tokens - **task files 010/017/018 were corrected in place (2026-07-19)** per the staleness rule (`AGENTIC_DEVELOPMENT.md` §1.1); 018's session token is ratified as SEC-2. If a conflict between a task file and this document is discovered later, this document wins and the task file is corrected in the same change.
