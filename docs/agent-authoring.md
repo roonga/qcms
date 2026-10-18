@@ -112,20 +112,21 @@ LM Studio is the same `openai-compatible` provider as everything above, and its 
 
    No `QCMS_AGENT_API_KEY` in any of the three. The gateway address WSL2 reports is an RFC-1918 private address and `host.docker.internal` is named outright, so all three satisfy the local-endpoint rule in §3 step 2 and the key requirement is relaxed.
 
-4. **From Compose, name the host gateway and the variables.** `docker-compose.yml` does not name any `QCMS_AGENT_*` variable, and Compose forwards only what a service names, so putting them in `.env` reaches nothing. Add a local override file:
+4. **From Compose, set the variables in `.env` and name the host gateway.** The `api` service forwards every `QCMS_AGENT_*` variable and the `admin` service forwards the flag (§1), so the settings go in `.env` beside `docker-compose.yml`:
+
+   ```dotenv
+   QCMS_FLAG_AGENT_AUTHORING=openai-compatible
+   QCMS_AGENT_BASE_URL=http://host.docker.internal:1234/v1
+   QCMS_AGENT_MODEL=your-loaded-model-id
+   ```
+
+   Docker Desktop resolves `host.docker.internal` on its own. Docker Engine on Linux does not, so there the `api` service also needs the host gateway named, in a local override file:
 
    ```yaml
    services:
      api:
        extra_hosts:
          - "host.docker.internal:host-gateway"
-       environment:
-         QCMS_FLAG_AGENT_AUTHORING: openai-compatible
-         QCMS_AGENT_BASE_URL: http://host.docker.internal:1234/v1
-         QCMS_AGENT_MODEL: your-loaded-model-id
-     admin:
-       environment:
-         QCMS_FLAG_AGENT_AUTHORING: openai-compatible
    ```
 
    The container route is the one worth reaching for first on Windows, and not only because Compose is how this repository ships: Docker Desktop forwards `host.docker.internal` to the Windows host for you, so it works whether or not step 2's toggle is on, while the direct WSL2 route depends on it entirely. If a turn fails from WSL2 but succeeds from the container, the toggle is the thing to check.
