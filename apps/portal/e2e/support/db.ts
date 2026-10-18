@@ -230,6 +230,29 @@ export class Db {
     }));
   }
 
+  /**
+   * Put a live session's expiry in the past, so the API refuses its next request with
+   * `SESSION_EXPIRED` while its token still verifies (local UX list P2). The token's own
+   * expiry is untouched, which is the state an idle respondent's tab is in.
+   */
+  async expireSession(sessionId: string): Promise<void> {
+    await this.client.query(
+      `update sessions set expires_at = now() - interval '1 minute' where session_id = $1`,
+      [sessionId],
+    );
+  }
+
+  /**
+   * Mark a live session submitted behind the page's back, as another tab of the same
+   * respondent would, so the API refuses its next request with `SESSION_SUBMITTED`
+   * (local UX list P2). The status alone is what that refusal reads.
+   */
+  async markSessionSubmitted(sessionId: string): Promise<void> {
+    await this.client.query(`update sessions set status = 'submitted' where session_id = $1`, [
+      sessionId,
+    ]);
+  }
+
   async close(): Promise<void> {
     await this.client.end();
   }

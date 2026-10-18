@@ -11,13 +11,7 @@ import {
   NO_ROSTER_ACTION,
   SESSION_FIELD,
 } from "@/lib/repeat";
-import {
-  errorSummaryEntries,
-  missingOnStep,
-  missingRequiredEntries,
-  orderedEntries,
-  requiredFieldErrors,
-} from "@/lib/error-summary";
+import { missingOnStep, requiredFieldErrors, stepSummaryEntries } from "@/lib/error-summary";
 import { t } from "@/lib/i18n/en";
 import { PORTAL_LOCALE } from "@/lib/i18n/format";
 import { mergeStepValues } from "@/lib/step-values";
@@ -255,13 +249,13 @@ export function NativeStep({
   // keeps the anchors, the labels and the rendered ids one set of strings; the
   // renderer's own expansion is idempotent, so passing it an expanded document leaves
   // it alone.
-  const errorEntries = orderedEntries(
-    [
-      ...errorSummaryEntries(expandedDocument, refused, initial.flowState.visibleQuestions),
-      // The hydrated flow's own composition, called rather than restated, so both
-      // paths name a missing required question the same way (issue #21, #326).
-      ...missingRequiredEntries(expandedDocument, missing, initial.flowState.visibleQuestions),
-    ],
+  // `stepSummaryEntries` is the one composition both paths draw, so a refused answer and
+  // a missing required question are named the same way here and on the hydrated path
+  // (issues #21, #326, local UX list P7).
+  const errorEntries = stepSummaryEntries(
+    expandedDocument,
+    refused,
+    missing,
     initial.flowState.visibleQuestions,
   );
 

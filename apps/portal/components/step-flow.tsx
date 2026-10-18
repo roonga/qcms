@@ -32,7 +32,15 @@ import {
   type PostedRecord,
   type RejectedAnswers,
 } from "@/lib/answer-record";
-import { missingRequiredEntries } from "@/lib/error-summary";
+import { missingOnStep, refusalsOnStep, stepSummaryEntries } from "@/lib/error-summary";
+import {
+  countRefusalAfterSuccess,
+  failureAfterSuccess,
+  refusalOutcome,
+  type FlowFailure,
+  type FlowSuccess,
+  type RefusalOutcome,
+} from "@/lib/flow-outcome";
 import { t } from "@/lib/i18n/en";
 import { PORTAL_LOCALE } from "@/lib/i18n/format";
 import { buttonClass } from "@/lib/ui";
@@ -71,36 +79,29 @@ async function readJsonSafely(res: Response): Promise<unknown> {
 }
 
 /**
- * Whether a failed response is ADR-16's semantics refusal (issue #743): the
- * pinned snapshot records evaluation semantics this release does not implement.
+ * How the flow answers a refused response, read from its status and typed code
+ * (`lib/flow-outcome.ts`).
  *
- * Worth telling apart from every other failure because it is not transient. The
- * inline failure notice says "we could not reach the server, please try again",
- * and a 409 means a retry against this deployment gets the same answer, so that
- * sentence would send the respondent round a loop with no exit.
+ * Several refusals are not transient: ADR-16's semantics refusal (issue #743), and a
+ * session that has expired or has already been submitted. The inline failure notice
+ * says "we could not reach the server, please try again", and a retry against those
+ * gets the same 409 for ever, so they are answered by reloading the flow page. The
+ * page's SSR read meets the same refusal and already owns the copy for each, so the
+ * reload puts the respondent in front of a screen that is true, and the wording stays
+ * in one place instead of drifting between the hydrated and no-JS paths.
  *
- * Handled by reloading the flow page rather than by rendering a second copy of the
- * screen here. The page's SSR read meets the same refusal and already owns the
- * copy (`formSuperseded.*`), so the reload puts the respondent in front of a
- * terminal screen that is true, and the wording stays in one place instead of
- * drifting between the hydrated and no-JS paths. Reading the code, not the status
- * alone: 409 is also how a stale post of a just-hidden question is refused.
+ * "That question is not currently visible" (issue #1041) shares the 409 and is not
+ * terminal, which is why the code is read and not only the status. The body is read
+ * ONCE here: two predicates that each read it left the second reading a consumed body,
+ * so the not-visible branch could never be taken.
  */
-async function isSupersededSemantics(res: Response): Promise<boolean> {
-  if (res.status !== 409) return false;
-  return errorCodeOf(await readJsonSafely(res)) === "UNSUPPORTED_SEMANTICS_VERSION";
+async function readRefusal(res: Response): Promise<RefusalOutcome> {
+  return refusalOutcome(res.status, errorCodeOf(await readJsonSafely(res)));
 }
 
-/**
- * Whether a refusal is the API saying "that question is not currently visible"
- * (issue #1041).
- *
- * It shares the 409 with the semantics refusal, which is why it is read by CODE and not
- * by status: one is terminal and the other is a client that posted a control the current
- * projection has already hidden. Telling them apart is what stops a stray field painting
- * the lost-session notice, which says something untrue and invites a retry that cannot
- * help.
- */
+/** What a navigation or a submit came to, so its caller can say the right thing. */
+type RoundTrip = "ok" | "failed" | "leaving";
+
 /**
  * Whether a refused submission was refused for a repeating group's COUNT
  * (`REPEAT_COUNT_OUT_OF_RANGE`, ADR-42).
@@ -125,11 +126,6 @@ function isCountRefusal(details: unknown): boolean {
       entry !== null &&
       (entry as { code?: unknown }).code === "REPEAT_COUNT_OUT_OF_RANGE",
   );
-}
-
-async function isNotVisible(res: Response): Promise<boolean> {
-  if (res.status !== 409) return false;
-  return errorCodeOf(await readJsonSafely(res)) === "QUESTION_NOT_VISIBLE";
 }
 
 /** The localized branch-change announcement for an inserted/removed count. */
@@ -294,6 +290,52 @@ function rosterAnnouncement(input: {
     : t("repeat.removed", { label: named, count: after.length });
 }
 
+/**
+ * The page-level notices the flow draws beside its actions (local UX list P9): the
+ * "could not reach the server" failure with its Try again, and a submission refused for
+ * a repeating group's count.
+ */
+function ActionNotices({
+  failure,
+  countRefused,
+  onRetry,
+}: {
+  readonly failure: { readonly seq: number } | undefined;
+  readonly countRefused: boolean;
+  readonly onRetry: () => void;
+}) {
+  return (
+    <>
+      {failure !== undefined ? (
+        <div
+          // Keyed by the failure's sequence, so a second failure is a fresh alert and is
+          // announced again rather than being an unchanged node.
+          key={failure.seq}
+          data-testid="flow-failure"
+          className="flex flex-wrap items-center justify-between gap-3 rounded-(--radius-card) border border-(--color-danger) bg-(--color-danger-subtle) p-4"
+        >
+          <p role="alert" className="text-sm text-(--color-danger-fg)">
+            {t("session.lost.body")}
+          </p>
+          <button
+            type="button"
+            className={buttonClass("secondary")}
+            onClick={onRetry}
+            data-testid="retry-action"
+          >
+            {t("action.retry")}
+          </button>
+        </div>
+      ) : null}
+      {countRefused ? (
+        <p role="alert" data-testid="count-refusal" className="text-sm text-(--color-danger-fg)">
+          {t("repeat.countOutOfRange")}
+        </p>
+      ) : null}
+    </>
+  );
+}
+
 export function StepFlow({
   sessionId,
   initial,
@@ -328,10 +370,36 @@ export function StepFlow({
   // DISPLAYED errors are derived from that plus the values on screen, so a message
   // lives exactly as long as the value it describes (issue #122, `visibleErrors`).
   const [rejected, setRejected] = useState<RejectedAnswers>({});
+  // The same refusals, readable from a queued callback: the Continue gate runs behind
+  // any answer post the click itself caused, and must see the refusal that post may
+  // just have recorded rather than the one the last render saw (local UX list P7).
+  const rejectedRef = useRef<RejectedAnswers>(rejected);
   const errors: A2UIErrors = useMemo(() => visibleErrors(rejected, values), [rejected, values]);
-  const [showMissing, setShowMissing] = useState(false);
-  const [busy, setBusy] = useState(false);
-  const [failed, setFailed] = useState(false);
+  // Whether the error summary is drawn, and a counter bumped by every blocked attempt.
+  // Focus moves to the summary on the bump and on nothing else: the summary's entries
+  // change under the respondent as they answer and correct fields, and following that
+  // with focus would pull them out of the field they are typing in.
+  const [showSummary, setShowSummary] = useState(false);
+  const [summaryRequest, setSummaryRequest] = useState(0);
+  // The "could not reach the server" notice, as the operation it is about (which is
+  // what its Try again re-runs) and a sequence number. The number keys the alert, so a
+  // second failure of the same operation is a new alert and is announced again.
+  const [failure, setFailure] = useState<
+    { readonly op: FlowFailure; readonly seq: number } | undefined
+  >(undefined);
+  // A Continue, Back or Submit the respondent has pressed and that has not finished
+  // (local UX list P4). The buttons are NOT disabled while an answer saves: a press
+  // that lands while the blur's post is in flight is recorded on the serial queue and
+  // runs when that post has landed, so the first click after typing is never
+  // swallowed. What the guard refuses is a SECOND navigation while one is pending,
+  // which is what keeps a double press from advancing twice or submitting twice. The
+  // ref is the guard (a gesture away, not a render away); the state draws it.
+  const intentRef = useRef(false);
+  const [intentPending, setIntentPending] = useState(false);
+  // Set once the page is being replaced (a submit's redirect, or a reload to the
+  // page's own screen for a terminal refusal). Nothing queued after that runs, and the
+  // buttons stay inert, so a late press cannot race the navigation away.
+  const leavingRef = useRef(false);
   const [announcement, setAnnouncement] = useState("");
   // The repeating group's own state (task 073): which group a roster write is in
   // flight for, the whole sentence its `role="status"` region announces, and the
@@ -358,9 +426,9 @@ export function StepFlow({
   // The value currently recorded server-side per question, so a blur does not
   // re-post an answer a change already posted. Without this, selecting a discrete
   // control (which posts on change) and then clicking Continue/Submit blurs the
-  // control and re-posts the identical value: a redundant append that also flips
-  // `busy` at exactly the wrong moment and races the advance guard. Seeded from the
-  // answers the server holds for this step (issue #146), so "what the server has"
+  // control and re-posts the identical value: a redundant append queued ahead of the
+  // advance guard. Seeded from the answers the server holds for this step (issue
+  // #146), so "what the server has"
   // is known from the first render rather than only from this client's own writes,
   // and then written by each post as it is ISSUED, rolled back if that post is
   // refused (issue #122). All of those rules live in `lib/answer-record.ts`; the ref
@@ -425,6 +493,38 @@ export function StepFlow({
   const [countRefused, setCountRefused] = useState(false);
   const prevReadyRef = useRef<boolean>(initial.flowState.readyToSubmit);
 
+  /** Replace the refusal record, keeping the ref the queued gate reads in step. */
+  const updateRejected = useCallback(
+    (update: (previous: RejectedAnswers) => RejectedAnswers): void => {
+      rejectedRef.current = update(rejectedRef.current);
+      setRejected(rejectedRef.current);
+    },
+    [],
+  );
+
+  /** Show the failure notice for one operation (local UX list P9). */
+  const reportFailure = useCallback((op: FlowFailure): void => {
+    setFailure((previous) => ({ op, seq: (previous?.seq ?? 0) + 1 }));
+  }, []);
+
+  /**
+   * A round trip the server answered: drop the notices it makes stale (local UX list
+   * P9). Both used to be set and never cleared, so "We could not reach the server" sat
+   * on the card for the rest of the session over a page that was saving normally.
+   */
+  const noteSuccess = useCallback((success: FlowSuccess): void => {
+    setFailure((previous) =>
+      failureAfterSuccess(previous?.op, success) === undefined ? undefined : previous,
+    );
+    setCountRefused((previous) => countRefusalAfterSuccess(previous, success));
+  }, []);
+
+  /** Re-read the flow page, whose server render owns the screen for a terminal refusal. */
+  const reloadFlow = useCallback((): void => {
+    leavingRef.current = true;
+    window.location.assign(`${basePath}/s/${encodeURIComponent(sessionId)}`);
+  }, [basePath, sessionId]);
+
   /**
    * Post one answer and apply what came back. Returns whether the API ACCEPTED it,
    * which is what decides whether the optimistic record entry stands or is rolled
@@ -433,7 +533,6 @@ export function StepFlow({
    */
   const sendAnswer = useCallback(
     async (name: string, value: A2UIAnswerValue | undefined): Promise<boolean> => {
-      setBusy(true);
       try {
         const res = await fetch(`${basePath}/s/${encodeURIComponent(sessionId)}/answers`, {
           method: "POST",
@@ -463,7 +562,8 @@ export function StepFlow({
           // Drop any earlier refusal for this question: the value that was refused
           // is no longer what the server holds, so its message can never apply
           // again, even if the respondent re-enters that value later.
-          setRejected((prev) => withoutRejection(prev, name));
+          updateRejected((prev) => withoutRejection(prev, name));
+          noteSuccess({ kind: "answer", questionId: name });
           return true;
         }
         if (res.status === 422) {
@@ -484,31 +584,39 @@ export function StepFlow({
             rejection?.constraint,
           );
           const message = authored ?? defaultAnswerMessage(rejection, t("answer.invalid"));
-          setRejected((prev) => withRejection(prev, name, value, message));
+          updateRejected((prev) => withRejection(prev, name, value, message));
+          // The server was reached and answered about this question, so a notice saying
+          // it could not be reached is no longer true of it.
+          noteSuccess({ kind: "answer", questionId: name });
           return false;
         }
-        if (res.status === 401 || (await isSupersededSemantics(res))) {
-          window.location.assign(`${basePath}/s/${encodeURIComponent(sessionId)}`);
+        const outcome = await readRefusal(res);
+        if (outcome === "reload") {
+          reloadFlow();
           return false;
         }
-        if (await isNotVisible(res)) {
+        if (outcome === "notVisible") {
           // The API refused a field the flow does not show (issue #1041). It is not a
           // failure the respondent caused or can act on, and it is not the lost session
-          // that `setFailed` paints: it means this client posted a control the current
+          // that `reportFailure` paints: it means this client posted a control the current
           // projection has already hidden, which a stray reference to a pruned node can
           // still do. Re-reading the step rather than saying "we could not reach the
           // server" is the honest answer - the projection the API just evaluated is the
           // authority on what is on screen (R2), so adopting it removes the control.
-          await doNavigate("current");
+          //
+          // Re-read at the COMMITTED cursor, never the first incomplete step: this branch
+          // was unreachable until the refusal's body was read once (`readRefusal`), and a
+          // cursor-less read here would move the page because an answer was posted,
+          // which ADR-28 forbids.
+          const at = snapshotRef.current.progress.stepIndex;
+          if ((await doNavigate(at)) === "failed") reportFailure({ kind: "refresh" });
           return false;
         }
-        setFailed(true);
+        reportFailure({ kind: "answer", questionId: name });
         return false;
       } catch {
-        setFailed(true);
+        reportFailure({ kind: "answer", questionId: name });
         return false;
-      } finally {
-        setBusy(false);
       }
     },
     [sessionId],
@@ -528,12 +636,14 @@ export function StepFlow({
   const postAnswer = useCallback(
     (name: string, value: A2UIAnswerValue | undefined): void => {
       // Nothing new to say: this exact value is already recorded, or a post
-      // carrying it is in flight. Re-posting is a redundant append that also flips
-      // `busy` at the wrong moment and races the advance guard.
+      // carrying it is in flight. Re-posting is a redundant append that also queues a
+      // round trip ahead of the advance guard for nothing.
       if (isRecorded(lastPostedRef.current, name, value)) return;
       const key = answerKey(value);
       lastPostedRef.current = withIssued(lastPostedRef.current, name, value);
       queueRef.current = queueRef.current.then(async () => {
+        // The page is being replaced; a post now would only race the navigation.
+        if (leavingRef.current) return;
         const accepted = await sendAnswer(name, value);
         if (accepted) {
           confirmedRef.current = withConfirmed(confirmedRef.current, name, value);
@@ -584,6 +694,7 @@ export function StepFlow({
       const paginatedBefore = snapshotRef.current.view.groupId === groupId;
       setBusyGroup(groupId);
       queueRef.current = queueRef.current.then(async () => {
+        if (leavingRef.current) return;
         try {
           const res = await fetch(`${basePath}/s/${encodeURIComponent(sessionId)}/roster`, {
             method: "POST",
@@ -596,12 +707,19 @@ export function StepFlow({
             }),
           });
           if (res.status !== 200) {
+            // An expired or submitted session refuses a roster write the same way it
+            // refuses an answer, and "try again" is as untrue here as it is there.
+            if ((await readRefusal(res)) === "reload") {
+              reloadFlow();
+              return;
+            }
             setRosterStatus({ groupId, message: t("repeat.failed") });
             return;
           }
           const next = (await res.json()) as RosterOpResponse;
           snapshotRef.current = next;
           setSnapshot(next);
+          noteSuccess({ kind: "roster" });
           const after = rosterMap(next.rosters)[groupId] ?? [];
           const templates = instanceLabelTemplates(next.step as unknown as A2UIStepDocument | null);
           setRosterStatus({
@@ -726,8 +844,17 @@ export function StepFlow({
     [moments, postAnswer],
   );
 
-  const doSubmit = useCallback(async (): Promise<void> => {
-    setBusy(true);
+  /** Draw the error summary and move focus to it: a blocked Continue or Submit. */
+  const requestSummary = useCallback((): void => {
+    setShowSummary(true);
+    setSummaryRequest((count) => count + 1);
+  }, []);
+
+  /**
+   * Submit the session. `leaving` once the browser is on its way to the receipt or to
+   * the page's own screen for a terminal refusal, `failed` for the caller to report.
+   */
+  const doSubmit = useCallback(async (): Promise<RoundTrip> => {
     try {
       const res = await fetch(`${basePath}/s/${encodeURIComponent(sessionId)}/submit`, {
         method: "POST",
@@ -736,24 +863,26 @@ export function StepFlow({
       });
       if (res.ok) {
         const body = (await res.json()) as { redirect?: string };
+        leavingRef.current = true;
         window.location.assign(body.redirect ?? `${basePath}/done`);
-        return;
+        return "leaving";
       }
       if (res.status === 422) {
+        noteSuccess({ kind: "submitRefused" });
         // The sweep's own codes, not only its missing-required half: a count refusal has
         // no field to show a message beside, so it gets a page-level one.
         setCountRefused(isCountRefusal(errorDetailsOf(await readJsonSafely(res))));
-        setShowMissing(true);
-      } else if (res.status === 401 || (await isSupersededSemantics(res))) {
-        window.location.assign(`${basePath}/s/${encodeURIComponent(sessionId)}`);
-        return;
-      } else {
-        setFailed(true);
+        requestSummary();
+        return "ok";
       }
+      if ((await readRefusal(res)) === "reload") {
+        reloadFlow();
+        return "leaving";
+      }
+      return "failed";
     } catch {
-      setFailed(true);
+      return "failed";
     }
-    setBusy(false);
   }, [sessionId]);
 
   /**
@@ -775,10 +904,12 @@ export function StepFlow({
    * characters they just typed with the value the server still holds. A navigation
    * has no such in-flight edit (it is queued behind any pending post, and focus
    * moves to the new step's heading).
+   *
+   * Reports nothing itself: the caller knows which operation failed, and that is what
+   * the failure notice's Try again re-runs.
    */
   const doNavigate = useCallback(
-    async (target: number | "current"): Promise<void> => {
-      setBusy(true);
+    async (target: number | "current"): Promise<RoundTrip> => {
       try {
         const query = target === "current" ? "" : `?step=${encodeURIComponent(String(target))}`;
         const res = await fetch(`${basePath}/s/${encodeURIComponent(sessionId)}/step${query}`);
@@ -792,19 +923,45 @@ export function StepFlow({
           lastPostedRef.current = withServerHeld(lastPostedRef.current, next.values);
           confirmedRef.current = withServerHeld(confirmedRef.current, next.values);
           setSnapshot(next);
-        } else if (res.status === 401 || (await isSupersededSemantics(res))) {
-          window.location.assign(`${basePath}/s/${encodeURIComponent(sessionId)}`);
-        } else {
-          setFailed(true);
+          noteSuccess({ kind: "navigation" });
+          return "ok";
         }
+        if ((await readRefusal(res)) === "reload") {
+          reloadFlow();
+          return "leaving";
+        }
+        return "failed";
       } catch {
-        setFailed(true);
-      } finally {
-        setBusy(false);
+        return "failed";
       }
     },
     [sessionId],
   );
+
+  /**
+   * Record one navigation intent (Continue, Back or Submit) and run it on the serial
+   * queue, behind any answer post still in flight (local UX list P4).
+   *
+   * The press is never lost: it is queued the moment it lands, whatever is saving.
+   * And it is never doubled: while one intent is pending a second press is refused
+   * here, so a double click advances one step and a Submit posts once. Once the page
+   * is leaving, nothing runs and the guard stays closed.
+   */
+  const runIntent = useCallback((intent: () => Promise<void>): void => {
+    if (intentRef.current || leavingRef.current) return;
+    intentRef.current = true;
+    setIntentPending(true);
+    queueRef.current = queueRef.current.then(async () => {
+      try {
+        if (!leavingRef.current) await intent();
+      } finally {
+        if (!leavingRef.current) {
+          intentRef.current = false;
+          setIntentPending(false);
+        }
+      }
+    });
+  }, []);
 
   /**
    * Advance on Continue/Submit. Queued after any pending answer post so the gate
@@ -814,46 +971,87 @@ export function StepFlow({
    * ready, shows the error summary when this step still has a gap, or navigates to
    * the first incomplete step when a re-opened earlier required question blocks it
    * (finding N - an explicit action, never a silent backward jump).
+   *
+   * A field showing a refusal blocks both, on any step (local UX list P7). The server
+   * holds something other than what the respondent is looking at - nothing, or the
+   * answer before the one it refused - so moving on would leave the step with an
+   * answer the respondent believes they gave and the ledger does not have. ADR-28's
+   * "Continue advances only after current-step validation" is what that reads as.
    */
   const attemptAdvance = useCallback((): void => {
-    queueRef.current = queueRef.current.then(async () => {
+    runIntent(async () => {
       const snap = snapshotRef.current;
       const index = snap.progress.stepIndex;
       const total = snap.progress.totalVisibleSteps;
       const stepQuestions = new Set(snap.flowState.visibleQuestions);
       const stepMissing = snap.flowState.missingRequired.filter((q) => stepQuestions.has(q));
-      const onFinalStep = index >= total - 1;
+      const refusals = refusalsOnStep(
+        visibleErrors(rejectedRef.current, valuesRef.current),
+        snap.flowState.visibleQuestions,
+      );
+      if (stepMissing.length > 0 || Object.keys(refusals).length > 0) {
+        requestSummary();
+        return;
+      }
 
-      if (onFinalStep) {
+      if (index >= total - 1) {
         if (snap.flowState.readyToSubmit) {
-          await doSubmit();
+          if ((await doSubmit()) === "failed") reportFailure({ kind: "advance" });
           return;
         }
-        if (stepMissing.length > 0) {
-          setShowMissing(true);
-          return;
-        }
-        await doNavigate("current");
-        setShowMissing(true);
+        const read = await doNavigate("current");
+        if (read === "failed") reportFailure({ kind: "advance" });
+        if (read === "ok") requestSummary();
         return;
       }
-      if (stepMissing.length > 0) {
-        setShowMissing(true);
-        return;
-      }
-      setShowMissing(false);
-      await doNavigate(index + 1);
+      setShowSummary(false);
+      if ((await doNavigate(index + 1)) === "failed") reportFailure({ kind: "advance" });
     });
   }, [doNavigate, doSubmit]);
 
   const goBack = useCallback((): void => {
-    queueRef.current = queueRef.current.then(async () => {
+    runIntent(async () => {
       const index = snapshotRef.current.progress.stepIndex;
       if (index <= 0) return;
-      setShowMissing(false);
-      await doNavigate(index - 1);
+      setShowSummary(false);
+      if ((await doNavigate(index - 1)) === "failed") reportFailure({ kind: "back" });
     });
   }, [doNavigate]);
+
+  /**
+   * Re-run the operation the failure notice is about (local UX list P9).
+   *
+   * An answer is re-committed from the value on screen through the ordinary funnel, so
+   * the dedupe and the rollback rules apply as they do to any commit: a defined value
+   * posts, and an emptied control posts its retraction only when the server is known to
+   * hold an answer (ADR-31 as noted 2026-09-02). A navigation re-runs the press, through
+   * the same guard as the button.
+   */
+  const retryFailure = useCallback((): void => {
+    const op = failure?.op;
+    if (op === undefined) return;
+    setFailure(undefined);
+    switch (op.kind) {
+      case "answer": {
+        const value = valuesRef.current[op.questionId];
+        if (value === undefined && !holdsAnswer(lastPostedRef.current, op.questionId)) return;
+        postAnswer(op.questionId, value);
+        return;
+      }
+      case "advance":
+        attemptAdvance();
+        return;
+      case "back":
+        goBack();
+        return;
+      case "refresh":
+        runIntent(async () => {
+          const at = snapshotRef.current.progress.stepIndex;
+          if ((await doNavigate(at)) === "failed") reportFailure({ kind: "refresh" });
+        });
+        return;
+    }
+  }, [failure, postAnswer, attemptAdvance, goBack, runIntent, doNavigate, reportFailure]);
 
   const stepIndex = snapshot.progress.stepIndex;
   const total = snapshot.progress.totalVisibleSteps;
@@ -873,14 +1071,15 @@ export function StepFlow({
     ...(viewLabel === undefined ? {} : { label: viewLabel }),
   };
   const primaryLabel = isFinalStep ? t("action.submit") : t("action.continue");
+  // Absent rather than `false` when nothing is pending, so the markup is unchanged then.
+  const pendingAttr = intentPending ? true : undefined;
 
-  // The error summary lists only the CURRENT step's still-missing required
-  // questions (those are what block Continue/Submit here), from the API's
-  // authoritative set intersected with this step's visible questions.
-  const stepVisible = new Set(snapshot.flowState.visibleQuestions);
-  const missing = showMissing
-    ? snapshot.flowState.missingRequired.filter((q) => stepVisible.has(q))
-    : [];
+  // The error summary lists what blocks Continue/Submit on the CURRENT step: every
+  // field showing a refusal, and every still-missing required question from the API's
+  // authoritative set intersected with this step's visible questions. A refused
+  // question is listed once, by its refusal (`missingOnStep` drops it from the missing
+  // half), exactly as the no-JS path lists it (local UX list P7).
+  //
   // Each entry names its own question, so the summary links have distinct
   // accessible names (WCAG 3.3.1, issue #21). The label comes from the step
   // document the portal already holds, never from a second request; a question
@@ -893,11 +1092,18 @@ export function StepFlow({
   // label nor the instance's: each entry degrades to "Question 2 needs an answer" with no
   // vehicle named, which is the WCAG 3.3.1 distinctness failure the instance prefix exists
   // to prevent.
-  const missingEntries = missingRequiredEntries(
-    expandedStep,
-    missing,
-    snapshot.flowState.visibleQuestions,
-  );
+  const stepVisibleQuestions = snapshot.flowState.visibleQuestions;
+  const stepRefusals = refusalsOnStep(errors, stepVisibleQuestions);
+  const summaryEntries = showSummary
+    ? stepSummaryEntries(
+        expandedStep,
+        stepRefusals,
+        missingOnStep(snapshot.flowState.missingRequired, stepVisibleQuestions, stepRefusals),
+        stepVisibleQuestions,
+      )
+    : [];
+  const summaryCountRef = useRef(0);
+  summaryCountRef.current = summaryEntries.length;
 
   // Announce step/branch changes and manage focus after each projection (030).
   // The SSR first paint needs neither (nothing changed yet), so the diff against
@@ -955,11 +1161,13 @@ export function StepFlow({
 
   // A blocked submit/continue moves focus to the error summary (WCAG 3.3.1); its
   // role="alert" reads the summary heading. Each entry then jumps to its field.
+  // Keyed on the press alone: the entries change as the respondent answers and corrects
+  // fields, and moving focus on that would pull them out of the field they are in.
   useEffect(() => {
-    if (showMissing && missing.length > 0) {
+    if (summaryRequest > 0 && summaryCountRef.current > 0) {
       errorSummaryRef.current?.focus();
     }
-  }, [showMissing, missing.length]);
+  }, [summaryRequest]);
 
   /**
    * Land focus where the roster operation said (Q11), after the render that drew it.
@@ -1008,19 +1216,7 @@ export function StepFlow({
           {announcement}
         </div>
 
-        {failed ? (
-          <p role="alert" className="text-sm text-(--color-danger-fg)">
-            {t("session.lost.body")}
-          </p>
-        ) : null}
-
-        {countRefused ? (
-          <p role="alert" data-testid="count-refusal" className="text-sm text-(--color-danger-fg)">
-            {t("repeat.countOutOfRange")}
-          </p>
-        ) : null}
-
-        {missing.length > 0 ? (
+        {summaryEntries.length > 0 ? (
           <div
             ref={errorSummaryRef}
             role="alert"
@@ -1033,7 +1229,7 @@ export function StepFlow({
               {t("errorSummary.title")}
             </p>
             <ul className="mt-2 flex flex-col gap-1">
-              {missingEntries.map((entry) => (
+              {summaryEntries.map((entry) => (
                 <li key={entry.questionId}>
                   <a
                     href={`#${entry.questionId}`}
@@ -1085,6 +1281,18 @@ export function StepFlow({
           </p>
         )}
 
+        {/* The page-level notices sit beside the actions that caused them rather than at
+            the top of the card (local UX list P9): on a phone the top of the card is
+            usually scrolled away from the button the respondent just pressed, so a
+            notice there was announced and never seen. Each is cleared by the next round
+            trip that makes it untrue (`lib/flow-outcome.ts`). */}
+        <ActionNotices failure={failure} countRefused={countRefused} onRetry={retryFailure} />
+
+        {/* Not `disabled` while an answer saves (local UX list P4): a disabled button
+            swallows the click that lands while the blur's post is in flight, which is
+            the first click after typing. A press is recorded and runs when the queue
+            drains, and while one is pending the buttons are `aria-disabled` and refuse a
+            second (`runIntent`), so nothing advances or submits twice. */}
         <div className="flex items-center justify-between gap-3 pt-2">
           {isFirstStep ? (
             // Back is hidden on the first visible step (042 screen contract); keep the
@@ -1095,7 +1303,7 @@ export function StepFlow({
               type="button"
               className={buttonClass("secondary")}
               onClick={goBack}
-              disabled={busy}
+              aria-disabled={pendingAttr}
               data-testid="back-action"
             >
               {t("action.back")}
@@ -1106,7 +1314,7 @@ export function StepFlow({
             type="button"
             className={buttonClass("primary")}
             onClick={attemptAdvance}
-            disabled={busy}
+            aria-disabled={pendingAttr}
             data-testid="primary-action"
           >
             {primaryLabel}

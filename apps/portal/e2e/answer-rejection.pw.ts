@@ -28,7 +28,14 @@ import { test, expect } from "./support/gates.js";
 
 import { postsFor, watchAnswerPosts } from "./support/answer-log.js";
 import { readFixtures } from "./support/fixtures.js";
-import { KS, blurActive, enterDate, fillText, startKitchenSink } from "./support/kitchen-sink.js";
+import {
+  KS,
+  blurActive,
+  continueStep,
+  enterDate,
+  fillText,
+  startKitchenSink,
+} from "./support/kitchen-sink.js";
 
 import type { Page } from "@playwright/test";
 
@@ -151,4 +158,46 @@ test("a refusal's message lives exactly as long as the value it describes", asyn
     { questionId: "q_full_name", value: HELD, status: 200 },
     { questionId: "q_full_name", value: REFUSED, status: 422 },
   ]);
+});
+
+test("Continue stops at a field showing a refusal, and the summary names it (local UX list P7)", async ({
+  page,
+  browserGuard,
+}) => {
+  browserGuard.expectRequestFailure({ status: 422, url: ANSWERS_URL });
+  const { kitchenSinkSlug } = readFixtures();
+  let stepReads = 0;
+  page.on("request", (request) => {
+    if (request.method() === "GET" && new URL(request.url()).pathname.endsWith("/step")) {
+      stepReads += 1;
+    }
+  });
+
+  await startKitchenSink(page, kitchenSinkSlug);
+  await enterDate(page, "05171990");
+  // The case the old gate let through: the server holds an ACCEPTED answer, so nothing
+  // required is missing, while the field shows a value the server refused. Continue used
+  // to read only `missingRequired` and moved on, leaving the step with an answer the
+  // respondent believed they had given and the ledger did not have.
+  await fillText(page, KS.fullName, HELD);
+  await commitRefused(page, KS.fullName, REFUSED);
+  await expect(page.getByText(INVALID)).toBeVisible();
+
+  await page.getByTestId("primary-action").click();
+  const summary = page.getByTestId("error-summary");
+  await expect(summary).toBeVisible();
+  await expect(summary).toBeFocused();
+  // Named by its refusal, through the composition the no-JS path draws, and not as
+  // "needs an answer": the question is answered, with the value before this one.
+  const link = summary.getByRole("link", { name: `${KS.fullName}: ${INVALID}` });
+  await expect(link).toHaveCount(1);
+  await expect(link).toHaveAttribute("href", "#q_full_name");
+  await expect(page.getByRole("heading", { name: "About you" })).toBeVisible();
+  expect(stepReads).toBe(0);
+
+  // Correcting the value removes the entry and the block with it.
+  await fillText(page, KS.fullName, "Grace Hopper");
+  await expect(link).toHaveCount(0);
+  await continueStep(page);
+  await expect(page.getByRole("heading", { name: "Driving history" })).toBeVisible();
 });
