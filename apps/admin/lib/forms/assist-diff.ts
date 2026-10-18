@@ -101,8 +101,45 @@ function isKeyedObject(value: unknown): value is Record<string, unknown> {
   return typeof value === "object" && value !== null;
 }
 
+/**
+ * Whether two draft values hold the same content, whatever order their object keys are in.
+ *
+ * Key order carries no meaning in a draft, and the two sides reliably disagree on it: the
+ * stored draft has been through Postgres `jsonb`, which reorders keys (shortest first), while
+ * the proposal arrives in whatever order the model wrote. A rule's `when` is carried through
+ * unparsed (`readDraftRules`), so comparing `JSON.stringify` output marked every rule a model
+ * echoed back unchanged as "changed" (issue #1065). Arrays keep their order, because step,
+ * item and option order is content.
+ */
+function sameContent(a: unknown, b: unknown): boolean {
+  return canonical(a) === canonical(b);
+}
+
+function canonical(value: unknown): string {
+  if (Array.isArray(value)) return `[${value.map(canonical).join(",")}]`;
+  if (!isKeyedObject(value)) return JSON.stringify(value) ?? "null";
+  const entries = Object.keys(value)
+    .filter((key) => value[key] !== undefined)
+    .sort()
+    .map((key) => `${JSON.stringify(key)}:${canonical(value[key])}`);
+  return `{${entries.join(",")}}`;
+}
+
 function objects(raw: unknown): readonly Record<string, unknown>[] {
   return Array.isArray(raw) ? raw.filter(isKeyedObject) : [];
+}
+
+/**
+ * The ids of the questions a proposal invents, which Accept creates as unpublished drafts.
+ *
+ * Validated before Accept, the proposed draft pins ids nothing has stored yet, so the kernel
+ * reports each as `DANGLING_QUESTION_REF`, and that code's builder sentence ("names a question
+ * the form does not pin. Pin it") is wrong for them: they are pinned and will exist the
+ * moment the author accepts (issue #1065). The panel uses this set to say what really
+ * happens next instead.
+ */
+export function proposedQuestionIds(newQuestionsRaw: unknown): ReadonlySet<string> {
+  return new Set(parseQuestionTypes(newQuestionsRaw).keys());
 }
 
 function parseQuestionTypes(raw: unknown): ReadonlyMap<string, string> {
@@ -140,7 +177,7 @@ function stepDiff(
         label,
         detail: JSON.stringify(step, null, 2),
       });
-    } else if (JSON.stringify(existing) !== JSON.stringify(step)) {
+    } else if (!sameContent(existing, step)) {
       entries.push({
         kind: "step",
         change: "changed",
@@ -213,7 +250,7 @@ function ruleDiff(current: readonly DraftRule[], proposed: readonly DraftRule[])
         label,
         detail: JSON.stringify(rule, null, 2),
       });
-    } else if (JSON.stringify(existing) !== JSON.stringify(rule)) {
+    } else if (!sameContent(existing, rule)) {
       entries.push({
         kind: "rule",
         change: "changed",

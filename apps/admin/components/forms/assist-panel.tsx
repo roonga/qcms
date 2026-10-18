@@ -3,7 +3,12 @@
 import { useEffect, useRef, useState } from "react";
 
 import { Alert, Button, Card, TextField } from "@/components/kit";
-import { acceptedDraft, proposalDiff, type DiffEntry } from "@/lib/forms/assist-diff";
+import {
+  acceptedDraft,
+  proposalDiff,
+  proposedQuestionIds,
+  type DiffEntry,
+} from "@/lib/forms/assist-diff";
 import {
   readAssistEvents,
   type AssistErrorCode,
@@ -11,7 +16,7 @@ import {
   type AssistProposal,
   type AssistTurn,
 } from "@/lib/forms/assist-stream";
-import type { DraftForm } from "@/lib/forms/types";
+import type { DraftForm, FormIssue } from "@/lib/forms/types";
 import { t, tPlural, type MessageKey } from "@/lib/i18n/en";
 
 import { IssueEntry } from "./validation-panel";
@@ -288,7 +293,11 @@ export function AssistPanel({
                       <ul className="flex flex-col gap-2">
                         {proposal.proposal.issues.map((issue, index) => (
                           <li key={`${issue.code}:${String(index)}`}>
-                            <IssueEntry issue={issue} draft={draft} />
+                            <ProposalIssue
+                              issue={issue}
+                              draft={draft}
+                              newQuestionIds={proposedQuestionIds(proposal.proposal.newQuestions)}
+                            />
                           </li>
                         ))}
                       </ul>
@@ -489,6 +498,39 @@ function workingText(phase: WorkingPhase): string {
   return phase.phase === "tool" && phase.tool !== undefined
     ? t("forms.assist.workingTool", { tool: phase.tool })
     : t("forms.assist.working");
+}
+
+/**
+ * One proposal issue. Every issue renders as the builder renders it, except the one case the
+ * builder never meets: a pin on a question this same proposal invents. Before Accept that
+ * question is not stored, so the kernel calls it `DANGLING_QUESTION_REF`, and the builder's
+ * sentence for that code tells the author to pin a question that is already pinned. Say what
+ * actually happens instead (issue #1065). It still blocks a publish, so it stays in the count.
+ */
+function ProposalIssue({
+  issue,
+  draft,
+  newQuestionIds,
+}: {
+  readonly issue: FormIssue;
+  readonly draft: DraftForm;
+  readonly newQuestionIds: ReadonlySet<string>;
+}) {
+  const questionId = issue.path?.question;
+  if (
+    issue.code === "DANGLING_QUESTION_REF" &&
+    questionId !== undefined &&
+    newQuestionIds.has(questionId)
+  ) {
+    return (
+      <div data-issue-code={issue.code} data-new-question={questionId}>
+        <span className="block text-sm text-(--color-text)">
+          {t("forms.assist.newQuestionPending", { questionId })}
+        </span>
+      </div>
+    );
+  }
+  return <IssueEntry issue={issue} draft={draft} />;
 }
 
 /**

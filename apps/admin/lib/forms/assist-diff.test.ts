@@ -94,6 +94,46 @@ describe("proposalDiff", () => {
     );
   });
 
+  it("reports nothing for an echoed rule whose keys arrive in a different order", () => {
+    // The stored draft has been through Postgres jsonb, which reorders object keys, and a
+    // model writes them in its own order. Same content, so not a change (issue #1065).
+    const current: DraftForm = {
+      ...BASE,
+      rules: [
+        {
+          ruleId: "rul_followup",
+          when: { op: "equals", value: true, questionId: "q_at_fault" },
+          show: ["q_count"],
+        },
+      ],
+    };
+    const proposed: unknown = {
+      steps: BASE.steps,
+      rules: [
+        {
+          ruleId: "rul_followup",
+          when: { questionId: "q_at_fault", op: "equals", value: true },
+          show: ["q_count"],
+        },
+      ],
+    };
+    expect(proposalDiff(current, proposed, [])).toEqual([]);
+  });
+
+  it("still reports a rule whose array order differs, because order is content", () => {
+    const current: DraftForm = {
+      ...BASE,
+      rules: [{ ruleId: "rul_existing", when: BASE.rules[0]!.when, show: ["stp_a", "stp_b"] }],
+    };
+    const proposed = {
+      ...current,
+      rules: [{ ruleId: "rul_existing", when: BASE.rules[0]!.when, show: ["stp_b", "stp_a"] }],
+    };
+    expect(proposalDiff(current, proposed, [])).toEqual([
+      expect.objectContaining({ kind: "rule", change: "changed", id: "rul_existing" }),
+    ]);
+  });
+
   it("reads a proposal from unparsed wire JSON the same way it reads a DraftForm", () => {
     const wire: unknown = {
       formId: "frm_quote",

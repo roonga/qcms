@@ -93,6 +93,72 @@ describe("AssistPanel", () => {
     expect(screen.queryByTestId("qcms-assist-warnings")).toBeNull();
   });
 
+  it("explains a pin on a question the proposal invents instead of saying to pin it", async () => {
+    // Before Accept a proposed question is not stored, so the kernel reports its pin as
+    // DANGLING_QUESTION_REF. The builder's sentence for that code ("Pin it") is wrong here:
+    // Accept creates the question as a draft, and publishing it is the next step (#1065).
+    const proposal = {
+      proposal: {
+        proposedDraft: {
+          ...DRAFT,
+          steps: [
+            ...DRAFT.steps,
+            {
+              stepId: "stp_vehicle",
+              title: { en: "Your vehicle" },
+              items: [{ questionId: "q_vehicle_make", version: 1 }],
+            },
+          ],
+        },
+        newQuestions: [{ questionId: "q_vehicle_make", type: "shortText" }],
+        rationale: "Added a vehicle step.",
+        issues: [
+          {
+            code: "DANGLING_QUESTION_REF",
+            message: 'Step "stp_vehicle" pins question "q_vehicle_make"@1, which does not resolve',
+            path: { step: "stp_vehicle", question: "q_vehicle_make" },
+          },
+          {
+            code: "DANGLING_QUESTION_REF",
+            message: 'Rule "rul_x" reads question "q_gone", which no step pins',
+            path: { rule: "rul_x", question: "q_gone" },
+          },
+        ],
+        warnings: [],
+      },
+    };
+    vi.stubGlobal(
+      "fetch",
+      vi.fn().mockResolvedValue(
+        new Response(sseBody([frame("proposal", proposal)]), {
+          status: 200,
+          headers: { "content-type": "text/event-stream" },
+        }),
+      ),
+    );
+
+    render(
+      <AssistPanel
+        endpoint="/forms/frm_quote/assist"
+        draft={DRAFT}
+        draftUpdatedAt={undefined}
+        onAccept={vi.fn()}
+      />,
+    );
+    sendMessage("Add a vehicle step");
+
+    await waitFor(() => {
+      expect(screen.getByTestId("qcms-assist-proposal")).toBeTruthy();
+    });
+    const validation = screen.getByTestId("qcms-assist-validation");
+    expect(validation.textContent).toContain(
+      t("forms.assist.newQuestionPending", { questionId: "q_vehicle_make" }),
+    );
+    // A genuinely dangling reference still reads as the builder reads it.
+    expect(validation.textContent).toContain(t("forms.issue.danglingQuestion"));
+    expect(validation.querySelectorAll("[data-new-question]")).toHaveLength(1);
+  });
+
   /**
    * The proposal card shows the same two lists the builder's validation panel
    * shows for the same draft (issue #123, ADR-25's "the kernel validates").
