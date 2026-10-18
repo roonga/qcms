@@ -5,8 +5,9 @@ import { useEffect, useRef, useState } from "react";
 import { Alert, Button, Card, TextField } from "@/components/kit";
 import {
   acceptedDraft,
+  isPendingNewQuestionPin,
+  pendingNewQuestionPins,
   proposalDiff,
-  proposedQuestionIds,
   type DiffEntry,
 } from "@/lib/forms/assist-diff";
 import {
@@ -296,7 +297,7 @@ export function AssistPanel({
                             <ProposalIssue
                               issue={issue}
                               draft={draft}
-                              newQuestionIds={proposedQuestionIds(proposal.proposal.newQuestions)}
+                              pendingPins={proposal.pendingPins}
                             />
                           </li>
                         ))}
@@ -391,6 +392,8 @@ interface WorkingPhase {
 interface ProposalState {
   readonly proposal: AssistProposal;
   readonly diff: readonly DiffEntry[];
+  /** The step pins Accept will make resolve (`pendingNewQuestionPins`), computed once. */
+  readonly pendingPins: ReadonlySet<string>;
 }
 
 /** The status line: whichever of "working" or "a proposal just landed" applies. */
@@ -433,6 +436,10 @@ function handleAssistEvent(
     handlers.onProposal({
       proposal: event.proposal,
       diff: proposalDiff(draft, event.proposal.proposedDraft, event.proposal.newQuestions),
+      pendingPins: pendingNewQuestionPins(
+        event.proposal.proposedDraft,
+        event.proposal.newQuestions,
+      ),
     });
   } else if (event.type === "error") {
     handlers.onError({ kind: event.code, message: event.message });
@@ -502,26 +509,24 @@ function workingText(phase: WorkingPhase): string {
 
 /**
  * One proposal issue. Every issue renders as the builder renders it, except the one case the
- * builder never meets: a pin on a question this same proposal invents. Before Accept that
- * question is not stored, so the kernel calls it `DANGLING_QUESTION_REF`, and the builder's
- * sentence for that code tells the author to pin a question that is already pinned. Say what
- * actually happens instead (issue #1065). It still blocks a publish, so it stays in the count.
+ * builder never meets: a step pin on a question this same proposal invents, which Accept will
+ * make resolve. Before Accept that question is not stored, so the kernel calls the pin
+ * `DANGLING_QUESTION_REF`, and the builder's sentence for that code tells the author to pin a
+ * question that is already pinned. Say what actually happens instead (issue #1065). It still
+ * blocks a publish, so it stays in the count. Every other reference to an invented question - a
+ * rule reading one no step pins, say - is genuinely dangling and keeps the builder's sentence.
  */
 function ProposalIssue({
   issue,
   draft,
-  newQuestionIds,
+  pendingPins,
 }: {
   readonly issue: FormIssue;
   readonly draft: DraftForm;
-  readonly newQuestionIds: ReadonlySet<string>;
+  readonly pendingPins: ReadonlySet<string>;
 }) {
   const questionId = issue.path?.question;
-  if (
-    issue.code === "DANGLING_QUESTION_REF" &&
-    questionId !== undefined &&
-    newQuestionIds.has(questionId)
-  ) {
+  if (questionId !== undefined && isPendingNewQuestionPin(issue, pendingPins)) {
     return (
       <div data-issue-code={issue.code} data-new-question={questionId}>
         <span className="block text-sm text-(--color-text)">

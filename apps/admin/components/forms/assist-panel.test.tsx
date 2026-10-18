@@ -110,7 +110,12 @@ describe("AssistPanel", () => {
             },
           ],
         },
-        newQuestions: [{ questionId: "q_vehicle_make", type: "shortText" }],
+        newQuestions: [
+          { questionId: "q_vehicle_make", type: "shortText" },
+          // Invented AND read by a rule, but pinned by no step: accepting creates it in the
+          // library and the form still does not pin it, so the reference stays dangling.
+          { questionId: "q_vehicle_colour", type: "shortText" },
+        ],
         rationale: "Added a vehicle step.",
         issues: [
           {
@@ -122,6 +127,11 @@ describe("AssistPanel", () => {
             code: "DANGLING_QUESTION_REF",
             message: 'Rule "rul_x" reads question "q_gone", which no step pins',
             path: { rule: "rul_x", question: "q_gone" },
+          },
+          {
+            code: "DANGLING_QUESTION_REF",
+            message: 'Rule "rul_y" reads question "q_vehicle_colour", which no step pins',
+            path: { rule: "rul_y", question: "q_vehicle_colour" },
           },
         ],
         warnings: [],
@@ -154,9 +164,16 @@ describe("AssistPanel", () => {
     expect(validation.textContent).toContain(
       t("forms.assist.newQuestionPending", { questionId: "q_vehicle_make" }),
     );
-    // A genuinely dangling reference still reads as the builder reads it.
-    expect(validation.textContent).toContain(t("forms.issue.danglingQuestion"));
+    // Genuinely dangling references still read as the builder reads them - including one to
+    // a question this proposal invents, when no step pins it.
+    expect(validation.textContent).not.toContain(
+      t("forms.assist.newQuestionPending", { questionId: "q_vehicle_colour" }),
+    );
+    expect(validation.querySelectorAll('[data-issue-code="DANGLING_QUESTION_REF"]')).toHaveLength(
+      3,
+    );
     expect(validation.querySelectorAll("[data-new-question]")).toHaveLength(1);
+    expect(validation.textContent?.split(t("forms.issue.danglingQuestion")).length).toBe(3);
   });
 
   /**

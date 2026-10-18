@@ -1,6 +1,6 @@
 import { stepPins } from "./draft.ts";
 import { readDraftRules, readDraftSteps, readLocalizedText } from "./draft-payload.ts";
-import type { DraftForm, DraftPin, DraftRule, DraftStep } from "./types.ts";
+import type { DraftForm, DraftPin, DraftRule, DraftStep, FormIssue } from "./types.ts";
 
 /**
  * The proposal diff (task 041).
@@ -130,16 +130,50 @@ function objects(raw: unknown): readonly Record<string, unknown>[] {
 }
 
 /**
- * The ids of the questions a proposal invents, which Accept creates as unpublished drafts.
+ * The step pins Accept will make resolve: a step in the proposed draft pinning, at version 1,
+ * a question the same proposal invents. Accept creates each invented question as its version 1
+ * draft, so these and only these stop dangling the moment the author accepts.
  *
- * Validated before Accept, the proposed draft pins ids nothing has stored yet, so the kernel
- * reports each as `DANGLING_QUESTION_REF`, and that code's builder sentence ("names a question
- * the form does not pin. Pin it") is wrong for them: they are pinned and will exist the
- * moment the author accepts (issue #1065). The panel uses this set to say what really
- * happens next instead.
+ * Validated before Accept, such a pin names an id nothing has stored yet, so the kernel reports
+ * it as `DANGLING_QUESTION_REF`, and that code's builder sentence ("names a question the form
+ * does not pin. Pin it") is wrong for it: it is pinned, and it will exist (issue #1065).
+ *
+ * Deliberately narrower than "every reference to an invented question". The kernel uses the same
+ * code for a rule reading or showing a question no step pins, and for a group count reading an
+ * unpinned question; inventing the question fixes neither, so those keep the builder's sentence.
+ * So does a pin at a version Accept will not create.
  */
-export function proposedQuestionIds(newQuestionsRaw: unknown): ReadonlySet<string> {
-  return new Set(parseQuestionTypes(newQuestionsRaw).keys());
+export function pendingNewQuestionPins(
+  proposedDraftRaw: unknown,
+  newQuestionsRaw: unknown,
+): ReadonlySet<string> {
+  const invented = parseQuestionTypes(newQuestionsRaw);
+  const pending = new Set<string>();
+  for (const step of parseProposedDraft(proposedDraftRaw).steps) {
+    for (const pin of stepPins(step)) {
+      if (pin.version === 1 && invented.has(pin.questionId)) {
+        pending.add(pinKey(step.stepId, pin.questionId));
+      }
+    }
+  }
+  return pending;
+}
+
+/**
+ * Whether an issue is one of {@link pendingNewQuestionPins}: a dangling step pin (a step and a
+ * question on the path, no rule) whose step and question are in the set.
+ */
+export function isPendingNewQuestionPin(issue: FormIssue, pending: ReadonlySet<string>): boolean {
+  const path = issue.path;
+  if (issue.code !== "DANGLING_QUESTION_REF" || path === undefined) return false;
+  if (path.rule !== undefined || path.step === undefined || path.question === undefined) {
+    return false;
+  }
+  return pending.has(pinKey(path.step, path.question));
+}
+
+function pinKey(stepId: string, questionId: string): string {
+  return `${stepId}\u0000${questionId}`;
 }
 
 function parseQuestionTypes(raw: unknown): ReadonlyMap<string, string> {
