@@ -702,3 +702,61 @@ describe("admin TOTP policy plumbing (SEC-1)", () => {
     expect(service(solo, "migrate").environment).not.toHaveProperty("QCMS_ADMIN_2FA");
   });
 });
+
+describe("agent-authoring plumbing (task 041, ADR-25, issue #1063)", () => {
+  const apiVars = [
+    "QCMS_FLAG_AGENT_AUTHORING",
+    "QCMS_AGENT_MODEL",
+    "QCMS_AGENT_API_KEY",
+    "QCMS_AGENT_BASE_URL",
+    "QCMS_AGENT_MAX_STEPS",
+    "QCMS_RL_AGENT_ASSIST_WINDOW_MS",
+    "QCMS_RL_AGENT_ASSIST_MAX",
+  ];
+
+  it("names every documented variable on the api service, so the feature is reachable", () => {
+    // docs/agent-authoring.md tells an operator to set these on the API. Before #1063 no
+    // service named them, so setting them in .env reached nothing on this topology.
+    const environment = service(solo, "api").environment;
+    for (const name of apiVars) {
+      expect(environment, `api must forward ${name}`).toHaveProperty(name);
+    }
+  });
+
+  it("forwards the flag to the admin, which decides whether the panel renders", () => {
+    expect(service(solo, "admin").environment).toHaveProperty("QCMS_FLAG_AGENT_AUTHORING");
+  });
+
+  it("keeps the model, the key and the endpoint off the admin and the migration", () => {
+    // The key never goes near the browser (ADR-25): the admin is a BFF that only needs to
+    // know whether the feature is on. The migration shares the API's anchor and must not
+    // inherit a provider credential through it.
+    const apiOnly = apiVars.filter((name) => name !== "QCMS_FLAG_AGENT_AUTHORING");
+    for (const name of apiOnly) {
+      expect(
+        service(solo, "admin").environment,
+        `admin must not forward ${name}`,
+      ).not.toHaveProperty(name);
+    }
+    for (const name of apiVars) {
+      expect(
+        service(solo, "migrate").environment,
+        `migrate must not forward ${name}`,
+      ).not.toHaveProperty(name);
+    }
+  });
+
+  it("defaults every one to empty, so a stack started with nothing set keeps the feature off", () => {
+    // Reachability, not a new default: empty reads as unset to both processes, so the flag
+    // falls back to `none` and no key is required at boot. Resolved with every variable
+    // forced empty because `composeConfig` inherits `process.env`.
+    const unset = composeConfig({
+      files: ["docker-compose.yml"],
+      env: Object.fromEntries(apiVars.map((name) => [name, ""])),
+    });
+    for (const name of apiVars) {
+      expect(service(unset, "api").environment?.[name], `${name} must default to empty`).toBe("");
+    }
+    expect(service(unset, "admin").environment?.QCMS_FLAG_AGENT_AUTHORING).toBe("");
+  });
+});

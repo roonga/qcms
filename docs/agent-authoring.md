@@ -29,6 +29,8 @@ To enable it, set three environment variables on the **API** process, and the fl
 
 The admin app only needs the flag, and only to decide whether to render the panel. The **key never goes near the browser**: it lives in the API process's configuration, and the browser talks to the admin's own BFF route, which talks to the API, which talks to the provider.
 
+**On the Compose stack** (`docker compose up`, `pnpm dev:up`), put the variables in the `.env` file beside `docker-compose.yml` and recreate the two containers with `docker compose up -d api admin`. The `api` service forwards all of them and the `admin` service forwards only the flag, so the key never enters the admin container. `.env.compose.example` carries a commented block to copy.
+
 **Boot fails fast on a half-configuration.** Setting the flag without `QCMS_AGENT_API_KEY` (where one is required) or without `QCMS_AGENT_MODEL` stops the process with a message naming the missing variables. The message never contains a value, so a key you did set is never echoed into a log or a crash report (SEC-8).
 
 ### Rolling it back
