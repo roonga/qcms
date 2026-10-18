@@ -85,6 +85,12 @@ vi.mock("@/lib/server/forms", () => ({
   },
   setFormStatus: () => Promise.resolve({ ok: true, data: { status: "closed" } }),
 }));
+// The environment check has its own file (`lib/server/environment-actions.test.ts`); here
+// every screen showed the environment the request resolves to, so the check passes.
+vi.mock("@/lib/server/environments", () => ({
+  confirmShownEnvironment: (_session: unknown, shown: string | undefined) =>
+    Promise.resolve({ ok: true, environment: shown ?? "prod" }),
+}));
 vi.mock("@/lib/server/links", () => ({
   MAX_LINK_BATCH: 100,
   mintLinks: () => {
@@ -263,12 +269,12 @@ describe("034's actions keep a refusal distinct from an error", () => {
 
   it("bounds the mint batch before the request leaves the BFF", async () => {
     const before = calls.mintLinks;
-    const tooMany = await mintLinksAction("frm_demo_form", {
+    const tooMany = await mintLinksAction("frm_demo_form", "prod", {
       expiresAt: "2030-01-01T00:00:00.000Z",
       oneTime: false,
       count: 1000,
     });
-    const tooFew = await mintLinksAction("frm_demo_form", {
+    const tooFew = await mintLinksAction("frm_demo_form", "prod", {
       expiresAt: "2030-01-01T00:00:00.000Z",
       oneTime: false,
       count: 0,
@@ -281,7 +287,7 @@ describe("034's actions keep a refusal distinct from an error", () => {
 
   it("refuses a mint with no expiry rather than sending one the route will reject", async () => {
     const before = calls.mintLinks;
-    const state = await mintLinksAction("frm_demo_form", {
+    const state = await mintLinksAction("frm_demo_form", "prod", {
       expiresAt: "  ",
       oneTime: true,
       count: 1,

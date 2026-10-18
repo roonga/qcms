@@ -4232,6 +4232,10 @@ div:has(> [role="dialog"] [data-qcms-dialog="wide"]) {
 :root.hc .qcms-envtrigger {
   border: 2px solid var(--color-border-strong);
 }
+/* The unknown state (local UX list A12): the same chip, saying so, with nothing to press. */
+.qcms-envtrigger--static {
+  cursor: default;
+}
 
 /* The banner is the bar's second line: full width, left-aligned with everything else on
    the page through the same `--admin-section-pad` the bar and `<main>` both spend. */

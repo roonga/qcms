@@ -8,6 +8,8 @@ import { WebhookConfig } from "@/components/ops/webhook-config";
 import { t } from "@/lib/i18n/en";
 import { formSectionName, pageMetadata } from "@/lib/page-title";
 import { readState } from "@/lib/read-state";
+import { shownEnvironment } from "@/lib/environment";
+import { resolvedEnvironment } from "@/lib/server/environments";
 import { getForm } from "@/lib/server/forms";
 import { listDeliveries, listWebhooks } from "@/lib/server/webhook-ops";
 import { requireAdminSession } from "@/lib/server/session";
@@ -62,11 +64,15 @@ export default async function FormWebhooksPage({
   const session = await requireAdminSession();
   const { formId } = await params;
 
-  const [detail, webhooks, deliveries] = await Promise.all([
+  const [detail, webhooks, deliveries, resolved] = await Promise.all([
     getForm(session, formId),
     listWebhooks(session, formId),
     listDeliveries(session, formId),
+    resolvedEnvironment(session),
   ]);
+  // Endpoints live in one environment's data plane, so every mutation below carries the
+  // environment this render read them from and is refused once that has changed (A1).
+  const shown = shownEnvironment(resolved);
 
   if (!detail.ok) {
     if (detail.code === "FORM_NOT_FOUND" || detail.code === "INVALID_FORM_ID") notFound();
@@ -87,11 +93,11 @@ export default async function FormWebhooksPage({
       )}
       <WebhookConfig
         webhooks={readState(webhooks)}
-        create={createWebhookAction.bind(null, form.formId)}
-        rotate={rotateSecretAction.bind(null, form.formId)}
-        deactivate={deactivateWebhookAction.bind(null, form.formId)}
-        reactivate={reactivateWebhookAction.bind(null, form.formId)}
-        retarget={retargetWebhookAction.bind(null, form.formId)}
+        create={createWebhookAction.bind(null, form.formId, shown)}
+        rotate={rotateSecretAction.bind(null, form.formId, shown)}
+        deactivate={deactivateWebhookAction.bind(null, form.formId, shown)}
+        reactivate={reactivateWebhookAction.bind(null, form.formId, shown)}
+        retarget={retargetWebhookAction.bind(null, form.formId, shown)}
       />
       {!deliveries.ok && (
         <Alert variant="warning">

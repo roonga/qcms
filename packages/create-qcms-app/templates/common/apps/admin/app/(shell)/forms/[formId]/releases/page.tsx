@@ -4,10 +4,10 @@ import type { Metadata } from "next";
 import { Alert } from "@/components/kit";
 import { FormPageHeader } from "@/components/forms/form-page-header";
 import { ReleasePanel } from "@/components/forms/release-panel";
-import { PROD_ENVIRONMENT } from "@/lib/environment";
+import { shownEnvironment } from "@/lib/environment";
 import { t } from "@/lib/i18n/en";
 import { formSectionName, pageMetadata } from "@/lib/page-title";
-import { listEnvironments, selectedEnvironment } from "@/lib/server/environments";
+import { resolvedEnvironment } from "@/lib/server/environments";
 import { getForm } from "@/lib/server/forms";
 import { listReleases } from "@/lib/server/releases";
 import { requireAdminSession } from "@/lib/server/session";
@@ -46,8 +46,9 @@ export async function generateMetadata({
  * the table beside it.
  *
  * The environment set is the API's, read through the shell's own door, because the set is a
- * table and an operator may have created a third environment (ADR-40). A failed read leaves
- * `prod`, which every deployment has.
+ * table and an operator may have created a third environment (ADR-40). A failed read offers no
+ * target at all (local UX list A12): the banner says the environment is unknown, and a
+ * release aimed from a list nobody read would be a release nobody chose.
  *
  * ## What this screen does not do
  *
@@ -72,13 +73,14 @@ export default async function FormReleasesPage({
   }
   const form = detail.data;
 
-  const [history, set] = await Promise.all([
+  const [history, resolved] = await Promise.all([
     listReleases(session, form.formId),
-    listEnvironments(session),
+    resolvedEnvironment(session),
   ]);
-  const environments =
-    set.ok && set.data.length > 0 ? set.data.map((option) => option.name) : [PROD_ENVIRONMENT];
-  const environment = await selectedEnvironment(environments);
+  // An unknown environment set offers no targets rather than `prod` alone (A12): a release
+  // aimed from a list this screen could not read is a release nobody chose.
+  const environments = resolved.status === "known" ? resolved.environments : [];
+  const environment = shownEnvironment(resolved) ?? "";
 
   return (
     <div className="flex flex-col gap-6">

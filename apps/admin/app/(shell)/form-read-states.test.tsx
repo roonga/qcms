@@ -211,13 +211,19 @@ vi.mock("@/lib/server/forms", () => ({
   getForm: () => Promise.resolve(formDetailResult),
   loadPinnableQuestions: () => Promise.resolve(libraryResult),
 }));
-// The builder reads the live environment set too since task 065: the combined
-// publish-and-release action releases to the selected environment and every confirmation
-// on that screen names it. Mocked at the same seam as the reads above, so this file keeps
-// testing the two library read states and nothing about environments.
+// The builder, the links screen and the webhooks screen read the request's resolved
+// environment (task 065, local UX list A12): the combined publish-and-release action
+// releases to it and every confirmation on those screens names it. Mocked at the same seam
+// as the reads above, so this file keeps testing the read states and nothing about
+// environments.
 vi.mock("@/lib/server/environments", () => ({
-  listEnvironments: () => Promise.resolve({ ok: true, data: [{ name: "prod", position: 1 }] }),
-  selectedEnvironment: () => Promise.resolve("prod"),
+  resolvedEnvironment: () =>
+    Promise.resolve({
+      status: "known",
+      environment: "prod",
+      environments: ["prod"],
+      selection: "",
+    }),
 }));
 vi.mock("@/lib/server/webhook-ops", () => ({
   listWebhooks: () => Promise.resolve(webhooksResult),

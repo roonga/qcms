@@ -6,9 +6,18 @@ import {
   apiBaseUrl,
   internalToken,
 } from "./config.ts";
+import { cache } from "react";
+
+import type { ResolvedEnvironment } from "../environment.ts";
+import { headerEnvironment, resolveEnvironment } from "../environment.ts";
+
 import type { AdminSession } from "./session.ts";
 import { serverLogger } from "./logger.ts";
-import { ENVIRONMENT_HEADER, currentEnvironment } from "./request-environment.ts";
+import {
+  ENVIRONMENT_HEADER,
+  environmentSelection,
+  parseEnvironmentSet,
+} from "./request-environment.ts";
 import { REQUEST_ID_HEADER, currentRequestId } from "./request-id.ts";
 
 /**
@@ -58,6 +67,12 @@ export interface AdminApiOptions {
   readonly headers?: Record<string, string>;
   /** Passed through to `fetch`, so a server component can opt into caching. */
   readonly cache?: RequestCache;
+  /**
+   * Send no environment header. Only the read of the live set itself uses it: resolving the
+   * header needs that set, and a stale selection in the header would have the API refuse
+   * the very read that could tell this app the selection is stale.
+   */
+  readonly omitEnvironment?: boolean;
 }
 
 /**
@@ -76,13 +91,15 @@ export async function adminApiFetch(
     ...options.headers,
     [INTERNAL_TOKEN_HEADER]: internalToken(),
     [ADMIN_SESSION_HEADER]: session.token,
-    // The Q6 switcher's environment, on EVERY admin call (ADR-40, task 065). Here rather
-    // than at each screen, because "the switcher sets the environment for every screen" is
-    // a property of this door: a screen added next month cannot forget a header it never
-    // assembles. The API validates the name against the live set and refuses an unknown
-    // one, so this is a selection and not an authority.
-    [ENVIRONMENT_HEADER]: await currentEnvironment(),
   };
+  // The Q6 switcher's environment, on EVERY admin call (ADR-40, task 065). Here rather
+  // than at each screen, because "the switcher sets the environment for every screen" is
+  // a property of this door: a screen added next month cannot forget a header it never
+  // assembles. It is the request's one resolution (A12), the same answer the shell renders,
+  // and the API still validates it, so this is a selection and not an authority.
+  if (options.omitEnvironment !== true) {
+    requestHeaders[ENVIRONMENT_HEADER] = headerEnvironment(await requestEnvironment(session));
+  }
   if (requestId !== undefined) requestHeaders[REQUEST_ID_HEADER] = requestId;
   if (options.body !== undefined) requestHeaders["content-type"] = "application/json";
   return loggedFetch(
@@ -99,6 +116,45 @@ export async function adminApiFetch(
     },
     requestId,
   );
+}
+
+/**
+ * The environment this request is for, resolved once (local UX list A12).
+ *
+ * The selection is the cookie and the authority on what it may name is the live set,
+ * `GET /admin/environments`, so resolving it needs both. Every reader goes through here -
+ * the header {@link adminApiFetch} attaches, the shell's switcher and banner, and every
+ * screen that names the environment in a confirmation - so a stale cookie reads as `prod`
+ * everywhere at once rather than in the chrome alone, and a set that could not be read is
+ * `unknown` everywhere rather than quietly `prod`.
+ *
+ * It lives in this module because the header needs it: `environments.ts` talks to the API
+ * through this door, so resolving there would make the door import its own caller.
+ *
+ * `cache()` is the per-request memo `currentAdminSession` uses and for the same reason: the
+ * layout, the page and the rail each ask, and they should share one read. Nothing outlives
+ * the request. Outside a React render (a server action, a route handler) it does not
+ * memoize and each caller reads the set again, which costs a call and changes no answer.
+ */
+export const requestEnvironment: (session: AdminSession) => Promise<ResolvedEnvironment> = cache(
+  async (session: AdminSession): Promise<ResolvedEnvironment> =>
+    resolveEnvironment(await environmentSelection(), await readEnvironmentSet(session)),
+);
+
+/** The live set's names, or `undefined` when it could not be read. */
+async function readEnvironmentSet(session: AdminSession): Promise<readonly string[] | undefined> {
+  try {
+    const response = await adminApiFetch(session, "/environments", { omitEnvironment: true });
+    if (!response.ok) return undefined;
+    const body: unknown = await response.json();
+    if (typeof body !== "object" || body === null) return undefined;
+    // An object by the check above; the one field read is shape-checked by the parser.
+    return parseEnvironmentSet((body as { environments?: unknown }).environments);
+  } catch {
+    // A transport failure or a truncated body is a set this app could not read, which is
+    // the `unknown` state, never a reason to fail the screen that asked.
+    return undefined;
+  }
 }
 
 /** A path under the API's `/api/auth` group, always leading-slashed. */

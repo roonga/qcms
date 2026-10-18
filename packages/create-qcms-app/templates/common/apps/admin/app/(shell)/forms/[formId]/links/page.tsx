@@ -12,8 +12,8 @@ import { readState } from "@/lib/read-state";
 import { portalBaseUrl } from "@/lib/server/config";
 import { getForm } from "@/lib/server/forms";
 import { listLinks, MAX_LINK_BATCH } from "@/lib/server/links";
-import { isNonProd } from "@/lib/environment";
-import { currentEnvironment } from "@/lib/server/request-environment";
+import { isNonProd, shownEnvironment } from "@/lib/environment";
+import { resolvedEnvironment } from "@/lib/server/environments";
 import { requireAdminSession } from "@/lib/server/session";
 
 import { mintLinksAction, revokeLinkAction } from "../../actions";
@@ -44,7 +44,8 @@ export async function generateMetadata({
  *
  * Both mutations are bound to this route's form id. Revoke additionally takes the link id
  * from the row, but the *path* it revalidates is this form's, so a revoke can never
- * refresh another form's screen.
+ * refresh another form's screen. Both are also bound to the environment this render
+ * showed, so a tab another tab has since switched is refused rather than obeyed (A1).
  */
 export default async function FormLinksPage({
   params,
@@ -53,9 +54,18 @@ export default async function FormLinksPage({
 }) {
   const session = await requireAdminSession();
   const { formId } = await params;
-  const environment = await currentEnvironment();
 
-  const [detail, links] = await Promise.all([getForm(session, formId), listLinks(session, formId)]);
+  // The request's one resolution (A12): the list below is read with this environment in
+  // its header, and the copy and the mint action name the same one. It used to be the raw
+  // cookie, unchecked against the live set, while the shell around it showed the checked
+  // value.
+  const [detail, links, resolved] = await Promise.all([
+    getForm(session, formId),
+    listLinks(session, formId),
+    resolvedEnvironment(session),
+  ]);
+  const shown = shownEnvironment(resolved);
+  const environment = shown ?? t("environment.unknown");
 
   if (!detail.ok) {
     if (detail.code === "FORM_NOT_FOUND" || detail.code === "INVALID_FORM_ID") notFound();
@@ -83,11 +93,13 @@ export default async function FormLinksPage({
           the portal, not on the API - so showing this panel under a `test` banner would
           offer an address that environment does not have. The secure links below are how
           a non-prod environment is reached, which is the whole of ADR-40's ruling 3. */}
-      {publicLink !== undefined && !isNonProd(environment) && (
+      {/* An unknown environment gets neither: the banner says it is unknown, and either
+          panel would be a claim about which environment this is. */}
+      {publicLink !== undefined && shown !== undefined && !isNonProd(shown) && (
         <PublicFormLink url={publicLink} isClosed={form.status === "closed"} />
       )}
-      {isNonProd(environment) && (
-        <Alert variant="info">{t("forms.links.noPublicAddress", { environment })}</Alert>
+      {shown !== undefined && isNonProd(shown) && (
+        <Alert variant="info">{t("forms.links.noPublicAddress", { environment: shown })}</Alert>
       )}
       {!links.ok && (
         <Alert variant="warning">{t("forms.links.listFailed", { message: links.message })}</Alert>
@@ -98,8 +110,8 @@ export default async function FormLinksPage({
         links={readState(links)}
         canMint={form.versions.length > 0}
         maxBatch={MAX_LINK_BATCH}
-        mint={mintLinksAction.bind(null, form.formId)}
-        revoke={revokeLinkAction.bind(null, form.formId)}
+        mint={mintLinksAction.bind(null, form.formId, shown)}
+        revoke={revokeLinkAction.bind(null, form.formId, shown)}
       />
     </div>
   );

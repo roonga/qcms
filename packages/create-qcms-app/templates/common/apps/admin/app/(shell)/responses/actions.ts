@@ -6,6 +6,7 @@ import type { ErasureReason } from "@/lib/ops/erasure";
 import { isErasureReason } from "@/lib/ops/erasure";
 import type { EraseOutcome } from "@/lib/ops/types";
 import { t } from "@/lib/i18n/en";
+import { confirmShownEnvironment } from "@/lib/server/environments";
 import { eraseSession, unflagResponse } from "@/lib/server/responses";
 import { requireAdminSession } from "@/lib/server/session";
 
@@ -25,6 +26,11 @@ import { requireAdminSession } from "@/lib/server/session";
  * `requireAdminSession()` is called in each one because a `"use server"` module is
  * reached directly by the browser and is not covered by the shell layout's gate
  * (issue #177, `shell-route-guards.test.ts`).
+ *
+ * Both act in one environment's data plane, so both also take the environment their
+ * screen showed, bound by the page, and refuse when the request resolves to another
+ * (local UX list A1; `forms/actions.ts` gives the reasoning). For an erasure that is the
+ * difference between a refusal and an irreversible act in an environment nobody named.
  */
 
 /** What the erase dialog renders. */
@@ -54,6 +60,7 @@ export interface UnflagState {
  */
 export async function eraseSessionAction(
   formId: string,
+  shown: string | undefined,
   sessionId: string,
   reason: ErasureReason,
 ): Promise<EraseState> {
@@ -61,6 +68,8 @@ export async function eraseSessionAction(
   if (!isErasureReason(reason)) {
     return { status: "error", message: t("ops.error.invalidErasureReason") };
   }
+  const check = await confirmShownEnvironment(session, shown);
+  if (!check.ok) return { status: "error", message: check.message };
   const result = await eraseSession(session, formId, sessionId, reason);
   if (!result.ok) return { status: "error", message: result.message };
   revalidatePath(`/forms/${formId}/responses`);
@@ -72,9 +81,12 @@ export async function eraseSessionAction(
 /** Release a flagged response's withheld `response.submitted` event (023). */
 export async function unflagResponseAction(
   formId: string,
+  shown: string | undefined,
   sessionId: string,
 ): Promise<UnflagState> {
   const session = await requireAdminSession();
+  const check = await confirmShownEnvironment(session, shown);
+  if (!check.ok) return { status: "error", message: check.message };
   const result = await unflagResponse(session, formId, sessionId);
   if (!result.ok) return { status: "error", message: result.message };
   revalidatePath(`/forms/${formId}/responses`);

@@ -1,9 +1,9 @@
-import { PROD_ENVIRONMENT, parseEnvironment } from "../environment.ts";
+import type { EnvironmentCheck, ResolvedEnvironment } from "../environment.ts";
+import { confirmEnvironment } from "../environment.ts";
 
-import { adminApiFetch } from "./api.ts";
+import { adminApiFetch, requestEnvironment } from "./api.ts";
 import type { ApiResult } from "./api-result.ts";
 import { readResult } from "./api-result.ts";
-import { currentEnvironment } from "./request-environment.ts";
 import type { AdminSession } from "./session.ts";
 
 /**
@@ -23,12 +23,17 @@ export interface EnvironmentOption {
   readonly position: number;
 }
 
-/** `GET /admin/environments` - the set the switcher offers and a release may name. */
+/**
+ * `GET /admin/environments` - the set a grant may name, with each row's position.
+ *
+ * Sent without the environment header: the set is not one environment's, and a stale
+ * selection in the header would have the API refuse this read outright.
+ */
 export async function listEnvironments(
   session: AdminSession,
 ): Promise<ApiResult<readonly EnvironmentOption[]>> {
   const result = await readResult<{ environments?: unknown }>(
-    await adminApiFetch(session, "/environments"),
+    await adminApiFetch(session, "/environments", { omitEnvironment: true }),
   );
   if (!result.ok) return result;
   return { ok: true, data: parseEnvironments(result.data.environments) };
@@ -45,19 +50,25 @@ function parseEnvironments(value: unknown): readonly EnvironmentOption[] {
 }
 
 /**
- * The environment this request is about: the operator's selection, or `prod`.
- *
- * Read from the cookie and **validated against the live set** when one is supplied, so a
- * stale selection - an environment dropped last week, or one left by another deployment on
- * the same host - falls through to production rather than being carried into a request the
- * API will refuse on every screen.
- *
- * The two readers know different things, which is why there are two. `adminApiFetch` has
- * no session and no list while it assembles headers, so `currentEnvironment` sends what the
- * cookie says and lets the API refuse an unknown name with a 400 - the refusal an operator
- * should see, rather than this app serving them production under a banner saying otherwise.
- * A screen that has read the set passes it here, and gets a name it can render.
+ * The environment this request is about, resolved once and shared with the API header
+ * (local UX list A12). See `requestEnvironment` in `api.ts`, which owns it because the
+ * header does.
  */
-export async function selectedEnvironment(available: readonly string[]): Promise<string> {
-  return parseEnvironment(await currentEnvironment(), available) ?? PROD_ENVIRONMENT;
+export function resolvedEnvironment(session: AdminSession): Promise<ResolvedEnvironment> {
+  return requestEnvironment(session);
+}
+
+/**
+ * Confirm an environment-sensitive action against the environment this request resolves
+ * to (local UX list A1).
+ *
+ * Every such action takes `shown` as an argument the page binds, and calls this before it
+ * forwards anything: a refusal carries the catalog sentence the action returns as its
+ * error, and nothing reaches the API. `confirmEnvironment` holds the rule and its reasoning.
+ */
+export async function confirmShownEnvironment(
+  session: AdminSession,
+  shown: string | undefined,
+): Promise<EnvironmentCheck> {
+  return confirmEnvironment(shown, await requestEnvironment(session));
 }

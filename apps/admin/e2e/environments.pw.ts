@@ -146,6 +146,65 @@ test("a destructive confirmation names the environment it is about", async ({ pa
   await expect(page.getByRole("button", { name: "Publish and release…" })).toBeVisible();
 });
 
+test("a dialog never acts in an environment another tab switched to", async ({ page }) => {
+  test.setTimeout(300_000);
+  await signInWithTotp(page, EMAIL, totpSecret);
+
+  // Local UX list A1, reproduced live before the fix: tab A showed "Close it in prod", tab
+  // B switched to test, and confirming in tab A closed the form in TEST. The selection is a
+  // cookie both tabs share, so tab B is a second page in the same context.
+  await page.goto("/forms");
+  await choose(page, "prod");
+  await page.goto(`/forms/${formId}`);
+  await page.getByRole("button", { name: "Close in prod" }).click();
+  const dialog = page.getByRole("alertdialog");
+  await expect(dialog.getByRole("button", { name: "Close it in prod" })).toBeVisible();
+
+  const tabB = await page.context().newPage();
+  await tabB.goto("/forms");
+  await choose(tabB, "test");
+
+  // Tab A still names prod, and its confirmation is refused rather than obeyed in test.
+  await dialog.getByRole("button", { name: "Close it in prod" }).click();
+  await expect(dialog).toContainText("This tab was showing prod; you have since switched to test");
+  await dialog.getByRole("button", { name: "Cancel" }).click();
+
+  // Nothing was closed in either environment. Tab A, reloaded, is in test and the form is
+  // still open there; tab B, back in prod, finds it open there too.
+  await page.reload();
+  await expect(switcher(page)).toHaveAttribute("data-environment", "test");
+  await expect(page.getByRole("button", { name: "Close in test" })).toBeVisible();
+  await choose(tabB, "prod");
+  await tabB.goto(`/forms/${formId}`);
+  await expect(tabB.getByRole("button", { name: "Close in prod" })).toBeVisible();
+  await tabB.close();
+});
+
+test("a tab coming back into view is re-read under another tab's switch", async ({ page }) => {
+  test.setTimeout(300_000);
+  await signInWithTotp(page, EMAIL, totpSecret);
+
+  await page.goto("/forms");
+  await choose(page, "prod");
+
+  const tabB = await page.context().newPage();
+  await tabB.goto("/forms");
+  await choose(tabB, "test");
+  await tabB.close();
+
+  // Still rendered from prod until it is looked at again.
+  await expect(switcher(page)).toHaveAttribute("data-environment", "prod");
+  // A headless page stays visible, so the event a returning operator's browser sends is
+  // dispatched directly; what is asserted is what the shell does with it.
+  await page.evaluate(() => {
+    document.dispatchEvent(new Event("visibilitychange"));
+  });
+  await expect(switcher(page)).toHaveAttribute("data-environment", "test");
+  await expect(banner(page)).toBeVisible();
+
+  await choose(page, "prod");
+});
+
 test("returning to production takes the banner away", async ({ page }) => {
   test.setTimeout(300_000);
   await signInWithTotp(page, EMAIL, totpSecret);

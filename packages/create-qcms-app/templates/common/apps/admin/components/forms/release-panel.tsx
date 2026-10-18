@@ -190,7 +190,8 @@ export function ReleasePanel({
           <Button
             variant="primary"
             size="md"
-            isDisabled={versions.length === 0 || isPending}
+            // No environments is the set the shell could not read (A12): nothing to aim at.
+            isDisabled={versions.length === 0 || environments.length === 0 || isPending}
             onPress={() => {
               setState(IDLE_RELEASE);
               setEnvironment(selectedEnvironment);
