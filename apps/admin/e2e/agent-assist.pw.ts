@@ -248,11 +248,16 @@ test("accepting a proposal creates its new question as an unpublished library dr
   const proposal = page.getByTestId("qcms-assist-proposal");
   await expect(proposal).toBeVisible({ timeout: 60_000 });
 
-  // Before the accept the pin resolves to nothing, because nothing has created it.
-  // This is the honest state, and it is the one the operator used to be left in.
-  await expect(page.getByTestId("qcms-assist-validation")).toContainText("does not resolve", {
-    timeout: 30_000,
-  });
+  // Before the accept the pin resolves to nothing, because nothing has created it. The
+  // kernel calls that a dangling reference, but for a question this proposal invents the
+  // panel says what Accept will do instead of the builder's "Pin it" advice (issue #1065):
+  // the question is already pinned, and publishing it is the step that remains.
+  const proposalValidation = page.getByTestId("qcms-assist-validation");
+  await expect(proposalValidation).toContainText(
+    `New question ${proposedId}. Accepting creates it as an unpublished draft`,
+    { timeout: 30_000 },
+  );
+  await expect(proposalValidation).not.toContainText("Pin it, or change the reference");
 
   const previousSave = await savedStamp(page);
   await page.getByTestId("qcms-assist-accept").locator("button").click();
