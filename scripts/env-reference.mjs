@@ -378,7 +378,7 @@ export const ENV_REFERENCE = [
     requirement: "optional",
     fallback: "604800000 (7d)",
     description:
-      "How long a webhook delivery keeps the stored prefix of the consumer's response body, measured from the attempt. That body can echo a respondent's answers back, so it ages out; the rest of the attempt record is value-free and is kept. `0` removes it at the next sweep.",
+      "How long a webhook delivery keeps the stored prefix of the consumer's response body, measured from the attempt. That body can echo a respondent's answers back, so it ages out; the rest of the attempt record is value-free and is kept. `0` removes it at the next sweep. **Per environment** (Q11): an environment row's `delivery_snippet_ttl_ms` overrides this for that environment, set with `pnpm qcms:environment create --delivery-snippet-ttl-ms`.",
   },
   {
     name: "QCMS_OUTBOX_PAYLOAD_TTL_MS",
@@ -386,7 +386,7 @@ export const ENV_REFERENCE = [
     requirement: "optional",
     fallback: "2592000000 (30d)",
     description:
-      "How long a settled outbox event keeps the answers its payload carries, measured from the moment the event and its whole fan-out stopped moving. The payload is a second copy of the respondent's answers kept only so a delivery can be re-sent, so it ages out with that capability; the envelope and the delivery record are kept. `0` drops them as soon as the fan-out settles.",
+      "How long a settled outbox event keeps the answers its payload carries, measured from the moment the event and its whole fan-out stopped moving. The payload is a second copy of the respondent's answers kept only so a delivery can be re-sent, so it ages out with that capability; the envelope and the delivery record are kept. `0` drops them as soon as the fan-out settles. **Per environment** (Q11): an environment row's `outbox_payload_ttl_ms` overrides this for that environment, set with `pnpm qcms:environment create --outbox-payload-ttl-ms`.",
   },
   {
     name: "QCMS_READY_DB_TIMEOUT_MS",

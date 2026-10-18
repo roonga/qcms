@@ -1,5 +1,8 @@
 import { Hono } from "hono";
+import type { MiddlewareHandler } from "hono";
 import { beforeEach, describe, expect, it, vi } from "vitest";
+
+import type { ApiEnv } from "../openapi.js";
 
 /**
  * The environment reaches the trace (SEC-13; task 067, criterion 6).
@@ -24,9 +27,8 @@ vi.mock("@opentelemetry/api", () => ({
   trace: { getActiveSpan: () => activeSpan.value },
 }));
 
-const { ENVIRONMENT_ATTRIBUTE, fixedEnvironment, requestEnvironment } = await import(
-  "./request-environment.js"
-);
+const { ENVIRONMENT_ATTRIBUTE, fixedEnvironment, requestEnvironment } =
+  await import("./request-environment.js");
 const { makeDeps } = await import("../test-support.js");
 
 beforeEach(() => {
@@ -35,10 +37,10 @@ beforeEach(() => {
 });
 
 /** An app that answers with whatever the middleware left on the context. */
-function appWith(middleware: Parameters<Hono["use"]>[1]): Hono {
-  const app = new Hono();
-  app.use("*", middleware as never);
-  app.get("/probe", (c) => c.text(String((c as never as { get: (k: string) => string }).get("requestEnvironment"))));
+function appWith(middleware: MiddlewareHandler<ApiEnv>): Hono<ApiEnv> {
+  const app = new Hono<ApiEnv>();
+  app.use("*", middleware);
+  app.get("/probe", (c) => c.text(String(c.get("requestEnvironment"))));
   return app;
 }
 

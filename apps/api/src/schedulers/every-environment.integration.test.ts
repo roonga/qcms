@@ -340,11 +340,13 @@ describe("the sweep reads each environment's own retention TTL (Q11, criterion 5
 
   it("redacts under an environment's own TTL and leaves the other environment alone", async () => {
     const ids = new Map<string, string>();
-    for (const environment of LIVE_SET) ids.set(environment, await seedSnippet(environment, environment));
+    for (const environment of LIVE_SET)
+      ids.set(environment, await seedSnippet(environment, environment));
     for (const environment of LIVE_SET) {
-      expect(await stillHeld(environment, ids.get(environment)!), `${environment} starts held`).toBe(
-        true,
-      );
+      expect(
+        await stillHeld(environment, ids.get(environment)!),
+        `${environment} starts held`,
+      ).toBe(true);
     }
 
     // `test` keeps a consumer's response body for no time at all; `prod` says nothing and

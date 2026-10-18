@@ -77,122 +77,159 @@ function refuse(refusal: string): ArgResult {
   return { ok: false, refusal };
 }
 
-export function parseArgs(argv: readonly string[]): ArgResult {
-  const [action, ...tail] = argv;
-  if (action !== "create" && action !== "drop" && action !== "reporting") return refuse(USAGE);
+/** The three subcommands. */
+const ACTIONS = ["create", "drop", "reporting"] as const;
+type Action = (typeof ACTIONS)[number];
 
-  // `reporting` takes **no positional name**: the one pair whose role it may create is
-  // named by two flags, because an environment name and a workspace slug obey two
-  // different rules and a positional pair would read as one thing.
-  const name = action === "reporting" ? "" : (tail[0] ?? "");
-  if (action !== "reporting" && (name === "" || name.startsWith("-"))) return refuse(USAGE);
-  const rest = action === "reporting" ? tail : tail.slice(1);
+/** Every flag any subcommand takes. An argument outside this set is refused by name. */
+const FLAGS = [
+  "--password",
+  "--workspace",
+  "--environment",
+  "--challenge-provider",
+  "--delivery-snippet-ttl-ms",
+  "--outbox-payload-ttl-ms",
+] as const;
+type Flag = (typeof FLAGS)[number];
 
-  const FLAGS = [
-    "--password",
-    "--workspace",
-    "--environment",
-    "--challenge-provider",
-    "--delivery-snippet-ttl-ms",
-    "--outbox-payload-ttl-ms",
-  ] as const;
-  type Flag = (typeof FLAGS)[number];
+/** The flags one invocation carried, by flag, before any rule is applied to them. */
+type FlagValues = Partial<Record<Flag, string>>;
 
-  let password: string | undefined;
-  let workspace: string | undefined;
-  let environment: string | undefined;
-  let challengeProvider: string | undefined;
-  let deliverySnippetTtlMs: number | undefined;
-  let outboxPayloadTtlMs: number | undefined;
+/**
+ * A step's outcome: a value, or the refusal to print.
+ *
+ * One shape for every step rather than `T | string`, so no step returns two different
+ * kinds of thing and a caller cannot mistake a usage message for a value - the same reason
+ * {@link ArgResult} has this shape.
+ */
+type Step<T> =
+  { readonly ok: true; readonly value: T } | { readonly ok: false; readonly refusal: string };
 
-  /** A non-negative integer of milliseconds, or the refusal that names what was wrong. */
-  function duration(flag: string, raw: string): number | string {
-    // `0` is a supported setting for both windows and means "at the next sweep", so the
-    // floor is zero rather than one; a negative or a non-integer is a typo and is refused
-    // rather than clamped, because clamping would store a policy nobody asked for.
-    if (!/^\d+$/.test(raw)) {
-      return `${flag} needs a whole number of milliseconds, not ${JSON.stringify(raw)}`;
-    }
-    return Number(raw);
-  }
+function bad<T>(refusal: string): Step<T> {
+  return { ok: false, refusal };
+}
 
-  for (let i = 0; i < rest.length; i += 1) {
+/**
+ * Collect `--flag value` pairs, or the refusal naming the first thing that was not one.
+ *
+ * Collection and **validation are deliberately separate passes**: which flags a
+ * subcommand may carry, and what a value has to look like, are rules about the command
+ * rather than about parsing, and reading them in one loop is how this function came to be
+ * long enough for the complexity gate to refuse it.
+ */
+function collectFlags(rest: readonly string[]): Step<FlagValues> {
+  const values: FlagValues = {};
+  for (let i = 0; i < rest.length; i += 2) {
     const flag = rest[i];
     if (flag === undefined || !(FLAGS as readonly string[]).includes(flag)) {
-      return refuse(`unknown argument ${String(flag)}\n${USAGE}`);
+      return bad(`unknown argument ${String(flag)}\n${USAGE}`);
     }
     const value = rest[i + 1];
-    if (value === undefined) return refuse(`${flag} needs a value`);
-    switch (flag as Flag) {
-      case "--password":
-        password = value;
-        break;
-      case "--workspace":
-        workspace = value;
-        break;
-      case "--environment":
-        environment = value;
-        break;
-      case "--challenge-provider":
-        challengeProvider = value;
-        break;
-      case "--delivery-snippet-ttl-ms": {
-        const parsed = duration(flag, value);
-        if (typeof parsed === "string") return refuse(parsed);
-        deliverySnippetTtlMs = parsed;
-        break;
-      }
-      case "--outbox-payload-ttl-ms": {
-        const parsed = duration(flag, value);
-        if (typeof parsed === "string") return refuse(parsed);
-        outboxPayloadTtlMs = parsed;
-        break;
-      }
-    }
-    i += 1;
+    if (value === undefined) return bad(`${flag} needs a value`);
+    values[flag as Flag] = value;
   }
+  return { ok: true, value: values };
+}
 
-  const settingsGiven =
-    challengeProvider !== undefined ||
-    deliverySnippetTtlMs !== undefined ||
-    outboxPayloadTtlMs !== undefined;
-  if (action !== "create" && settingsGiven) {
-    return refuse(
+/**
+ * A non-negative whole number of milliseconds, or `undefined` when the text is not one.
+ *
+ * `0` is a supported setting for both retention windows and means "at the next sweep", so
+ * the floor is zero rather than one. A negative or a fractional value is a typo and is
+ * **refused rather than clamped**, because clamping would store a policy nobody asked for.
+ */
+function duration(raw: string): number | undefined {
+  return /^\d+$/.test(raw) ? Number(raw) : undefined;
+}
+
+/**
+ * The settings flags of ADR-24's per-environment set, parsed, or the refusal.
+ *
+ * They belong to `create` alone: they are written onto the environment row when it is
+ * created, and a subcommand that accepted and dropped them would be the worst of both.
+ */
+function settingsFrom(action: Action, values: FlagValues): Step<Partial<ParsedArgs>> {
+  const challengeProvider = values["--challenge-provider"];
+  const snippet = values["--delivery-snippet-ttl-ms"];
+  const payload = values["--outbox-payload-ttl-ms"];
+  if (action !== "create" && (challengeProvider ?? snippet ?? payload) !== undefined) {
+    return bad(
       `${action} takes none of the per-environment settings flags: they are written when ` +
         `an environment is created\n${USAGE}`,
     );
   }
-
-  if (action === "drop" && password !== undefined) return refuse("drop takes no --password");
-  if (action !== "reporting" && (workspace !== undefined || environment !== undefined)) {
-    return refuse(`${action} takes no --workspace or --environment\n${USAGE}`);
-  }
-  // All three or none. A password with no pair names no role to create, and a pair with
-  // no password would create a role nobody can log in as, which looks like success and is
-  // not - so it is refused rather than half done.
-  if (action === "reporting") {
-    const given = [password, workspace, environment].filter((value) => value !== undefined).length;
-    if (given !== 0 && given !== 3) {
-      return refuse(
-        "reporting takes --workspace, --environment and --password together or none of " +
-          "them: creating a role needs the pair it belongs to and a credential it logs " +
-          `in with\n${USAGE}`,
-      );
+  const parsed: Partial<ParsedArgs> = {};
+  if (challengeProvider !== undefined) Object.assign(parsed, { challengeProvider });
+  for (const [flag, key, raw] of [
+    ["--delivery-snippet-ttl-ms", "deliverySnippetTtlMs", snippet],
+    ["--outbox-payload-ttl-ms", "outboxPayloadTtlMs", payload],
+  ] as const) {
+    if (raw === undefined) continue;
+    const ms = duration(raw);
+    if (ms === undefined) {
+      return bad(`${flag} needs a whole number of milliseconds, not ${JSON.stringify(raw)}`);
     }
+    Object.assign(parsed, { [key]: ms });
   }
+  return { ok: true, value: parsed };
+}
 
+/** The rules about which of the remaining flags each subcommand may carry. */
+function refuseFlagCombination(action: Action, values: FlagValues): string | undefined {
+  const password = values["--password"];
+  const workspace = values["--workspace"];
+  const environment = values["--environment"];
+
+  if (action === "drop" && password !== undefined) return "drop takes no --password";
+  if (action !== "reporting" && (workspace ?? environment) !== undefined) {
+    return `${action} takes no --workspace or --environment\n${USAGE}`;
+  }
+  if (action !== "reporting") return undefined;
+
+  // All three or none. A password with no pair names no role to create, and a pair with no
+  // password would create a role nobody can log in as, which looks like success and is
+  // not - so it is refused rather than half done.
+  const given = [password, workspace, environment].filter((value) => value !== undefined).length;
+  if (given === 0 || given === 3) return undefined;
+  return (
+    "reporting takes --workspace, --environment and --password together or none of them: " +
+    `creating a role needs the pair it belongs to and a credential it logs in with\n${USAGE}`
+  );
+}
+
+export function parseArgs(argv: readonly string[]): ArgResult {
+  const [action, ...tail] = argv;
+  if (!(ACTIONS as readonly (string | undefined)[]).includes(action)) return refuse(USAGE);
+  const subcommand = action as Action;
+
+  // `reporting` takes **no positional name**: the one pair whose role it may create is
+  // named by two flags, because an environment name and a workspace slug obey two
+  // different rules and a positional pair would read as one thing.
+  const name = subcommand === "reporting" ? "" : (tail[0] ?? "");
+  if (subcommand !== "reporting" && (name === "" || name.startsWith("-"))) return refuse(USAGE);
+
+  const collected = collectFlags(subcommand === "reporting" ? tail : tail.slice(1));
+  if (!collected.ok) return refuse(collected.refusal);
+  const values = collected.value;
+
+  const combination = refuseFlagCombination(subcommand, values);
+  if (combination !== undefined) return refuse(combination);
+
+  const settings = settingsFrom(subcommand, values);
+  if (!settings.ok) return refuse(settings.refusal);
+
+  const named = {
+    password: values["--password"],
+    workspace: values["--workspace"],
+    environment: values["--environment"],
+  };
   return {
     ok: true,
     args: {
-      action,
+      action: subcommand,
       name,
-      ...(password === undefined ? {} : { password }),
-      ...(workspace === undefined ? {} : { workspace }),
-      ...(environment === undefined ? {} : { environment }),
-      ...(challengeProvider === undefined ? {} : { challengeProvider }),
-      ...(deliverySnippetTtlMs === undefined ? {} : { deliverySnippetTtlMs }),
-      ...(outboxPayloadTtlMs === undefined ? {} : { outboxPayloadTtlMs }),
+      ...Object.fromEntries(Object.entries(named).filter(([, value]) => value !== undefined)),
+      ...settings.value,
     },
   };
 }
-

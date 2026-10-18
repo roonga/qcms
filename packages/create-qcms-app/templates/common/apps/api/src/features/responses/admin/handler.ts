@@ -797,7 +797,11 @@ export function makeErasureScopeHandler(
           request: { resource: "response", action: "erase", environment, formId },
         }).allowed;
       if (!allowed) continue;
-      const presence = await findSubjectPresence(deps.databases.for(environment), formId, sessionId);
+      const presence = await findSubjectPresence(
+        deps.databases.for(environment),
+        formId,
+        sessionId,
+      );
       // Nothing there is nothing to offer. An already-erased environment **is** offered,
       // with the flag, because "already done there" is what an operator working through a
       // data subject's request needs to read.

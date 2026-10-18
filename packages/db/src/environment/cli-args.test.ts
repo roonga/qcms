@@ -106,15 +106,7 @@ describe("reporting", () => {
 
   it("takes the pair and the credential together", () => {
     expect(
-      parsed([
-        "reporting",
-        "--workspace",
-        "home",
-        "--environment",
-        "prod",
-        "--password",
-        "secret",
-      ]),
+      parsed(["reporting", "--workspace", "home", "--environment", "prod", "--password", "secret"]),
     ).toEqual({
       action: "reporting",
       name: "",

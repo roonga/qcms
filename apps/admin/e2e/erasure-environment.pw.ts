@@ -127,14 +127,10 @@ test("an export downloads under the environment it was read from (Q8)", async ({
   // has rows, since the name is what tells an operator which environment the file on
   // their desktop came from.
   await choose(page, "test");
-  expect((await downloadExport(page)).suggestedFilename()).toBe(
-    `${FORM_ID}-test-v1-responses.csv`,
-  );
+  expect((await downloadExport(page)).suggestedFilename()).toBe(`${FORM_ID}-test-v1-responses.csv`);
 
   await choose(page, "prod");
-  expect((await downloadExport(page)).suggestedFilename()).toBe(
-    `${FORM_ID}-prod-v1-responses.csv`,
-  );
+  expect((await downloadExport(page)).suggestedFilename()).toBe(`${FORM_ID}-prod-v1-responses.csv`);
 });
 
 /** Open the export dialog, pin v1 and download, returning the browser's download. */

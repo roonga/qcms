@@ -495,7 +495,11 @@ describe("holdsStatement, the capability Q58's masking reads", () => {
 
   it("is false for a `forms.viewer`, which is the whole of what masks it", () => {
     expect(
-      holdsStatement({ memberRole: undefined, grants: [grant("forms.viewer")] }, "webhook", "configure"),
+      holdsStatement(
+        { memberRole: undefined, grants: [grant("forms.viewer")] },
+        "webhook",
+        "configure",
+      ),
     ).toBe(false);
   });
 
@@ -526,7 +530,11 @@ describe("holdsStatement, the capability Q58's masking reads", () => {
     // The fail-closed direction, which is the same one `grantAllows` takes: a `team.role`
     // written by hand grants nothing.
     expect(
-      holdsStatement({ memberRole: undefined, grants: [grant("forms.wizard")] }, "webhook", "configure"),
+      holdsStatement(
+        { memberRole: undefined, grants: [grant("forms.wizard")] },
+        "webhook",
+        "configure",
+      ),
     ).toBe(false);
     expect(holdsStatement({ memberRole: undefined, grants: [] }, "webhook", "configure")).toBe(
       false,

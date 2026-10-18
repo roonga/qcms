@@ -1047,7 +1047,10 @@ describe("CSV export of a repeating group, both shapes (cases 46 to 48)", () => 
     expect(res.status).toBe(200);
     expect(res.headers.get("content-type")).toBe("application/zip");
     expect(res.headers.get("content-disposition")).toBe(
-      'attachment; filename="frm_booking-v1-responses.zip"',
+      // The environment is in the name and in no column (Q8, task 067); this
+      // composition serves `prod`, which is the switcher's default for a request
+      // that names none.
+      'attachment; filename="frm_booking-prod-v1-responses.zip"',
     );
 
     const files = readZip(bytes);
@@ -1094,7 +1097,7 @@ describe("CSV export of a repeating group, both shapes (cases 46 to 48)", () => 
     const narrow = await exportBytes("/forms/frm_booking/export?format=csv&shape=wide&version=1");
     expect(narrow.res.headers.get("content-type")).toBe("text/csv; charset=utf-8");
     expect(narrow.res.headers.get("content-disposition")).toBe(
-      'attachment; filename="frm_booking-v1-responses.csv"',
+      'attachment; filename="frm_booking-prod-v1-responses.csv"',
     );
     const narrowText = new TextDecoder("utf-8", { ignoreBOM: true }).decode(narrow.bytes);
     expect(narrowText).toBe(

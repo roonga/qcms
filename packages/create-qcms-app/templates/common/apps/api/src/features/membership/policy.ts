@@ -517,9 +517,7 @@ export function holdsStatement(
     ...(input.memberRole === undefined ? [] : [input.memberRole]),
     ...input.grants.map((grant) => grant.role),
   ];
-  return names.some(
-    (name) => declared[name]?.authorize({ [resource]: [action] }).success === true,
-  );
+  return names.some((name) => declared[name]?.authorize({ [resource]: [action] }).success === true);
 }
 
 /**

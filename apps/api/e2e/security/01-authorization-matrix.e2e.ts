@@ -985,6 +985,26 @@ describe("the two role families refuse across each other (criteria 2 to 5)", () 
   });
 });
 
+/**
+ * The headers a request from an authenticated administrator, in one environment, carries.
+ *
+ * Shared by the two blocks below, both of which probe the environment a request is
+ * authorised for against the environment it acts in. `json` adds the content type, because
+ * the routes they probe are a mix of reads and writes.
+ */
+function environmentHeaders(
+  token: string,
+  environment: string,
+  json = false,
+): Record<string, string> {
+  return {
+    ...(json ? { "content-type": "application/json" } : {}),
+    [INTERNAL_TOKEN_HEADER]: internalToken,
+    [ADMIN_SESSION_HEADER]: token,
+    [REQUEST_ENVIRONMENT_HEADER]: environment,
+  };
+}
+
 // --- 12. the environment a request is authorised for is the one it acts in ----
 
 /**
@@ -1025,14 +1045,11 @@ describe("the environment a request is authorised for is the environment it acts
   let prodLinkId = "";
   let prodWebhookId = "";
 
-  function headersFor(token: string, environment: string, json = false): Record<string, string> {
-    return {
-      ...(json ? { "content-type": "application/json" } : {}),
-      [INTERNAL_TOKEN_HEADER]: internalToken,
-      [ADMIN_SESSION_HEADER]: token,
-      [REQUEST_ENVIRONMENT_HEADER]: environment,
-    };
-  }
+  // The module-level helper, aliased so the two blocks below read the way they did when
+  // each carried its own copy. Shared rather than copied because the copies were
+  // identical, which is a lint error and would have been a drift the first time one of
+  // them gained a header.
+  const headersFor = environmentHeaders;
 
   beforeAll(async () => {
     const editor = await seedAdminSession(testDb.db, {
@@ -1255,14 +1272,11 @@ describe("the production split and the masked endpoint URL (criterion 8)", () =>
 
   const WHOLE_URL = "https://consumer.example/hook?token=not-a-real-credential&tenant=acme";
 
-  function headersFor(token: string, environment: string, json = false): Record<string, string> {
-    return {
-      ...(json ? { "content-type": "application/json" } : {}),
-      [INTERNAL_TOKEN_HEADER]: internalToken,
-      [ADMIN_SESSION_HEADER]: token,
-      [REQUEST_ENVIRONMENT_HEADER]: environment,
-    };
-  }
+  // The module-level helper, aliased so the two blocks below read the way they did when
+  // each carried its own copy. Shared rather than copied because the copies were
+  // identical, which is a lint error and would have been a drift the first time one of
+  // them gained a header.
+  const headersFor = environmentHeaders;
 
   /** One account holding exactly one access group, with that role and that scope. */
   async function accountWith(
@@ -1322,14 +1336,11 @@ describe("the production split and the masked endpoint URL (criterion 8)", () =>
   }
 
   it("refuses a `forms.editor` a prod endpoint change, scope or no scope (Q30)", async () => {
-    const change = await all.app.request(
-      `/admin/forms/${ctx.formId}/webhooks/${queryWebhookId}`,
-      {
-        method: "PUT",
-        headers: headersFor(allEditor, "prod", true),
-        body: JSON.stringify({ url: "https://attacker.example/exfiltrate" }),
-      },
-    );
+    const change = await all.app.request(`/admin/forms/${ctx.formId}/webhooks/${queryWebhookId}`, {
+      method: "PUT",
+      headers: headersFor(allEditor, "prod", true),
+      body: JSON.stringify({ url: "https://attacker.example/exfiltrate" }),
+    });
     expect(change.status).toBe(403);
     expectNoPayload(await change.text());
 

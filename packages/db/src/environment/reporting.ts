@@ -216,51 +216,80 @@ export async function reconcileWorkspaceReporting(
   const pairs: WorkspaceReportingPair[] = [];
 
   return exec.transaction(async (tx) => {
-    const wanted = input?.create;
-    if (wanted !== undefined) {
-      if (!names.includes(wanted.environment)) {
-        throw new Error(`environment ${wanted.environment} does not exist`);
-      }
-      if (!workspaces.some((workspace) => workspace.slug === wanted.workspaceSlug)) {
-        throw new Error(`workspace ${wanted.workspaceSlug} does not exist`);
-      }
-      const refusal = refuseWorkspaceReportingNames(wanted.environment, wanted.workspaceSlug);
-      if (refusal !== undefined) throw new Error(refusal);
-      // `createLoginRole` lets **Postgres** quote both the identifier and the credential,
-      // over real bind parameters, and is idempotent. Its own documentation says why a
-      // `DO` block cannot do this.
-      await createLoginRole(tx, workspaceReportingRoleName(wanted.environment, wanted.workspaceSlug), wanted.password);
+    if (input?.create !== undefined) {
+      await createPairRole(tx, input.create, { names, slugs: workspaces.map((w) => w.slug) });
     }
-
     for (const environment of names) {
       for (const workspace of workspaces) {
         const refusal = refuseWorkspaceReportingNames(environment, workspace.slug);
-        if (refusal !== undefined) {
+        if (refusal === undefined) {
+          pairs.push(await reconcileOnePair(tx, environment, workspace));
+        } else {
           refusals.push(refusal);
-          continue;
         }
-        for (const statement of workspaceReportingStatements({
-          environment,
-          slug: workspace.slug,
-          workspaceId: workspace.id,
-        })) {
-          // check-security-hygiene: allow generated DDL over a slug and an environment name already refused above
-          await tx.execute(sql.raw(statement));
-        }
-        const role = workspaceReportingRoleName(environment, workspace.slug);
-        pairs.push({
-          environment,
-          workspaceId: workspace.id,
-          workspaceSlug: workspace.slug,
-          reportingSchema: reportingSchemaName(environment),
-          role,
-          views: workspaceReportingViewNames(workspace.slug),
-          roleExists: await roleExists(tx, role),
-          archived: workspace.archivedAt !== null,
-        });
       }
     }
-
     return { pairs, refusals };
   });
+}
+
+/**
+ * The one pair whose **role** this run creates, with the credential the operator gave.
+ *
+ * It throws rather than collecting a refusal, which is the right direction for this half:
+ * an operator who named a pair expects that pair's role to exist afterwards, so a typo in
+ * either half has to stop the run rather than be reported among the pairs it did reconcile.
+ */
+async function createPairRole(
+  exec: Executor,
+  wanted: {
+    readonly environment: string;
+    readonly workspaceSlug: string;
+    readonly password: string;
+  },
+  live: { readonly names: readonly string[]; readonly slugs: readonly string[] },
+): Promise<void> {
+  if (!live.names.includes(wanted.environment)) {
+    throw new Error(`environment ${wanted.environment} does not exist`);
+  }
+  if (!live.slugs.includes(wanted.workspaceSlug)) {
+    throw new Error(`workspace ${wanted.workspaceSlug} does not exist`);
+  }
+  const refusal = refuseWorkspaceReportingNames(wanted.environment, wanted.workspaceSlug);
+  if (refusal !== undefined) throw new Error(refusal);
+  // `createLoginRole` lets **Postgres** quote both the identifier and the credential, over
+  // real bind parameters, and is idempotent. Its own documentation says why a `DO` block
+  // cannot do this.
+  await createLoginRole(
+    exec,
+    workspaceReportingRoleName(wanted.environment, wanted.workspaceSlug),
+    wanted.password,
+  );
+}
+
+/** One pair's views and grants, and the row the report carries for it. */
+async function reconcileOnePair(
+  exec: Executor,
+  environment: string,
+  workspace: { readonly id: string; readonly slug: string; readonly archivedAt: Date | null },
+): Promise<WorkspaceReportingPair> {
+  for (const statement of workspaceReportingStatements({
+    environment,
+    slug: workspace.slug,
+    workspaceId: workspace.id,
+  })) {
+    // check-security-hygiene: allow generated DDL over a slug and an environment name already refused
+    await exec.execute(sql.raw(statement));
+  }
+  const role = workspaceReportingRoleName(environment, workspace.slug);
+  return {
+    environment,
+    workspaceId: workspace.id,
+    workspaceSlug: workspace.slug,
+    reportingSchema: reportingSchemaName(environment),
+    role,
+    views: workspaceReportingViewNames(workspace.slug),
+    roleExists: await roleExists(exec, role),
+    archived: workspace.archivedAt !== null,
+  };
 }

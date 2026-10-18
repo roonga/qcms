@@ -80,10 +80,7 @@ import type { SliceRegistrar } from "../app.js";
 export const ENVIRONMENT_ATTRIBUTE = "qcms.environment";
 
 /** Stash the request's environment and record it on the active span (SEC-13). */
-function selectEnvironment(
-  c: Parameters<MiddlewareHandler<ApiEnv>>[0],
-  environment: string,
-): void {
+function selectEnvironment(c: Parameters<MiddlewareHandler<ApiEnv>>[0], environment: string): void {
   c.set("requestEnvironment", environment);
   trace.getActiveSpan()?.setAttribute(ENVIRONMENT_ATTRIBUTE, environment);
 }

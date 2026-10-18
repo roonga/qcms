@@ -247,11 +247,24 @@ describe("the audit column and the response routes agree (criterion 8)", () => {
     };
     for (const row of ROUTE_POLICIES) {
       if (row.resource !== "response") continue;
-      // The unflag and the tombstone list are the two `response` rows that are neither a
-      // read nor an export of answer content: SEC-15's kinds are closed, and a sixth was
-      // added for a setting rather than for a flag release.
-      if (row.path.endsWith("/unflag") || row.path === "/admin/erasures") {
-        expect(row.audit).toBeUndefined();
+      // Three `response` rows are neither a read nor an export of answer content, and all
+      // three write no audit row: SEC-15's kinds are closed, and the sixth was added for a
+      // setting rather than for any of these.
+      //
+      //  - **unflag** is a disposition on a response rather than a read of one.
+      //  - **the tombstone list** carries existence without content (ADR-17).
+      //  - **the erasure scope** (Q7, task 067) answers whether a session id exists in a
+      //    form in another environment, which is the same existence-without-content the
+      //    tombstone list reads. It is the eraser's cell because asking where else an
+      //    erasure would have to be repeated is part of performing one, and a row here
+      //    would make the audit of who looked at whose answers noisier without recording
+      //    a single additional look.
+      if (
+        row.path.endsWith("/unflag") ||
+        row.path.endsWith("/erasure-scope") ||
+        row.path === "/admin/erasures"
+      ) {
+        expect(row.audit, `${row.method} ${row.path}`).toBeUndefined();
         continue;
       }
       expect(row.audit, `${row.method} ${row.path}`).toBe(expected[row.action]);

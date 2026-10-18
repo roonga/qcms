@@ -193,7 +193,9 @@ test.describe("admin operations: responses, erasure, webhooks", () => {
     await expect(page.locator("h1").first(), "and not the form's name").not.toHaveText(SLUG);
   });
 
-  test("a CSV export downloads with the environment and the version in its name", async ({ page }) => {
+  test("a CSV export downloads with the environment and the version in its name", async ({
+    page,
+  }) => {
     await signInWithTotp(page, EMAIL, totpSecret);
     await openResponses(page, FORM_ID);
 
