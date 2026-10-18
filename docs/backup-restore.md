@@ -22,6 +22,15 @@ an instruction someone will follow for the first time during an incident.
 
 The last two rows are the ones that bite.
 
+**One database, several schemas, and a backup covers all of them** (ADR-40). The control
+plane is `control`, each environment has a `data_<env>` holding its sessions, answers,
+submissions, tombstones, outbox and endpoints, and each has a `reporting_<env>` holding the
+views a BI tool reads. `public` is left **empty** and is on no search path. Nothing about
+the dump changes for that: `pg_dump` of the one database takes every schema, so a backup is
+whole or it is not a backup. What does change is what a **restore** has to be checked
+against, and the drill below checks `control` plus every environment in the live set rather
+than one list of tables (task 067, criterion 2).
+
 **Keys are not in the dump, and a dump is useless without them.** `QCMS_APP_KEY`
 encrypts webhook signing secrets at rest (SEC-6), so a database restored alongside a
 different `QCMS_APP_KEY` comes back with those secrets undecryptable, and deliveries
@@ -143,12 +152,23 @@ produces a database the product actually works on. It:
 1. Brings up a fresh stack and bootstraps an administrator.
 2. Runs the full-stack browser suite, so the database holds real authored and
    answered domain data rather than fixtures.
-3. Fingerprints every table's row count and takes a dump.
-4. **Destroys the database**, and asserts the public schema is genuinely empty before
-   going any further. A drill that restores over surviving data passes forever while
-   proving nothing.
+3. **Reads the live environment set out of `control.environments`** and fingerprints every
+   table's and every view's row count in `control` and in each environment's `data_<env>`
+   and `reporting_<env>`, then takes a dump. The schema list is derived rather than
+   written down, so an environment an operator created after this feature shipped is
+   covered without a code change - which is the whole of why it is a query and not a list.
+   Views are counted beside tables because the reporting views are what an adopter's BI
+   tool is connected to, and a restore that brought back every row and none of the views
+   would be a restore that looked perfect and served nothing.
+4. **Destroys the database**, and asserts not one QCMS table is left before going any
+   further. A drill that restores over surviving data passes forever while proving
+   nothing.
 5. Restores from the dump and restarts the API.
-6. Compares the fingerprint against the pre-dump one.
+6. Compares the fingerprint against the pre-dump one, **re-deriving the environment set
+   first**: a restore that brought back a different set fails on that rather than on a
+   fingerprint quietly taken over whichever set came back. It then asserts `public` is
+   **empty**, because a restore that landed the tables there would resolve on every search
+   path right up to the first time something else created a `sessions` table.
 7. **Checks the pre-dump administrator survived by identity**: the account row, the
    credential better-auth signs in against, and the two-factor enrolment the first
    suite run performed. Row counts match whether or not the auth tables came back
@@ -193,6 +213,13 @@ networking error dressed up as a restore bug.
 infrastructure (volume snapshots, a standby, a managed failover) rather than a data
 drill, and QCMS cannot rehearse it for you. What QCMS can promise, and does test, is
 that its dump restores into an empty database and that the product works afterwards.
+
+It does not cover **a per-environment restore**, and there is no such thing to cover: the
+environments are schemas in one database, so there is one dump and one restore, and
+restoring `test` without `prod` would mean editing a dump by hand. An operator who wants a
+copy of production data in a test environment is asking for a different thing and should
+build it as one, deliberately and with erasure and retention applied - this drill is about
+getting the installation back.
 
 It also does not cover key material, for the reason in the first section: the keys are
 deliberately not in the dump. Rehearse that half by restoring into a stack whose

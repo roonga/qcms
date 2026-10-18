@@ -18,11 +18,20 @@ exist under N schema names without a copy of their SQL per name:
 - **`reporting_<env>.responses`** - one row per submitted response, answers in a wide JSONB column.
 - **`reporting_<env>.answers_flat`** - the same data unpivoted to long format, one row per answer.
 
-**One schema per environment, each holding the same two view names.** A BI tool connects
-to one environment's schema and its queries are otherwise unchanged - the view names, the
-columns and their types are identical - so what varies between `reporting_prod` and
-`reporting_test` is which rows are in them. A fresh database is created with those two;
-the environment command creates a `reporting_<env>` for every environment added later.
+Since task 067 each schema also holds **a view set per workspace** beside those two (Q26):
+`reporting_prod.home_responses`, `reporting_prod.home_answers_flat` and a pair for every
+other workspace, each a filtered projection of the pair above and each granted to its own
+read-only role. The unprefixed pair is the **application's** and is granted to no consumer;
+a workspace's analysts are granted that workspace's pair in that environment and nothing
+else. See [Connection guidance](#connection-guidance).
+
+**One schema per environment, each holding the same view names.** A BI tool connects to one
+environment's schema and its queries are otherwise unchanged - the view names, the columns
+and their types are identical - so what varies between `reporting_prod` and `reporting_test`
+is which rows are in them. That holds of a workspace's set as well as of the unprefixed
+pair: `home_responses` means the same thing in both schemas. A fresh database is created
+with the two environments; the environment command creates a `reporting_<env>` for every
+environment added later, **with every existing workspace's view set already in it**.
 
 The single `reporting` schema this document described before ADR-40 is **replaced** rather
 than kept beside them, which green field (Q22) makes free. A consumer bound to
@@ -36,8 +45,11 @@ Both exclude **in-progress**, **expired**, and **erased** sessions **by construc
 in `packages/db/src/reporting-views.ts`, which takes its schema names as arguments; migration
 0025's body is that function's output, and a unit test fails if the two fall out of step. The
 reason is ADR-40: the data plane becomes a schema per environment and the view set goes with
-it (`reporting_<env>`), with a set per workspace after task 068, so the same DDL has to be
-creatable more than once under more than one name. The documented column lists below are
+it (`reporting_<env>`), and since task 067 a set per workspace inside each of those (Q26),
+so the same DDL has to be creatable more than once under more than one name. A workspace's
+pair comes from `workspaceReportingViewStatements()` in the same module, which projects the
+unprefixed pair rather than restating it, so there is one copy of the row-inclusion rule
+however many sets exist. The documented column lists below are
 `reportingViewColumns` in that module, which the drift test compares the live catalogue
 against.
 
@@ -201,60 +213,110 @@ non-submitted or erased data.
 
 ## Connection guidance
 
-**Use a read-only role, and grant it one environment.** The reporting surface is a read
-path; grant consumers `SELECT` on **one** environment's schema and nothing else. A
-consumer who should see both gets two grants, deliberately, so "which environments may
-this tool read" is a question an operator answers rather than a default.
+**Use a read-only role, and grant it one workspace in one environment.** The reporting
+surface is a read path, and since task 067 it is granted per **(workspace, environment)**
+pair (Q26, ADR-40's reporting Note, ADR-41): a workspace's analysts are granted exactly
+their workspace's views in exactly their environment and nothing else. A consumer who
+should see two workspaces, or two environments, gets two roles - deliberately, so "which
+responses may this tool read" is a question an operator answers rather than a default.
+
+This is the one place in QCMS where the authorisation model is expressed in **database
+grants** rather than in an API check, and the reason is in the threat: a reporting
+consumer connects with psql or a BI tool and writes their own SQL, so there is no handler
+to put a check in. What holds the boundary is a role that was never granted the thing it
+must not read.
+
+### 1. Create the role, as an operator
 
 ```sql
--- One-time, as a role that may create roles and grant on `reporting`. Replace the
--- password with a value from your secret store - never commit a real credential.
-CREATE ROLE qcms_reporting LOGIN PASSWORD '<from-secret-store>';
-
--- Read-only on ONE environment's reporting views; no access to the operational tables
--- and none to another environment's views.
-GRANT USAGE ON SCHEMA reporting_prod TO qcms_reporting;
-GRANT SELECT ON ALL TABLES IN SCHEMA reporting_prod TO qcms_reporting;
-
--- And on whatever a later migration creates there, so there is no grant step to
--- remember after an upgrade. `FOR ROLE qcms_migrate` is load-bearing: a default
--- privilege binds to ONE granting role, and the role that creates a reporting view
--- is the one that applies migrations, not the one running this recipe. Name the
--- migrating role your deployment uses (`docs/operations.md` calls it
--- `qcms_migrate`); without it this line covers only views this session's own role
--- creates, which is none of them.
-ALTER DEFAULT PRIVILEGES FOR ROLE qcms_migrate IN SCHEMA reporting
-  GRANT SELECT ON TABLES TO qcms_reporting;
+-- One-time, as a superuser or the database owner - a role that may create roles.
+-- Replace the password with a value from your secret store; never commit a real one.
+-- The name is `qcms_reporting_<environment>_<workspace slug>`.
+CREATE ROLE qcms_reporting_prod_home LOGIN PASSWORD '<from-secret-store>';
 ```
 
-The role deliberately gets **no** privileges on `control` or on any `data_<env>` schema,
-so a reporting consumer can never read raw ledger answers, tokens, or auth tables - only
-the curated, erasure-safe views. It gets none on `public` either, which under ADR-40 holds
-nothing at all. Point BI/ETL tools at this role.
+### 2. Reconcile the views and the grants, as the migration role
 
-**This role is not the application's.** Each `qcms_app_<env>` holds `USAGE` and `SELECT`
-on its **own** `reporting_<env>` and nothing on any other environment's (Q52), because the
-staff response-reading path reads these views on the environment's own pool. That grant is
-written by the baseline and the environment command; this one is yours.
+```
+DATABASE_URL=postgres://qcms_migrate:...@host:5432/qcms \
+  pnpm qcms:environment reporting
+```
 
-**A view set per workspace is task 067's** (Q26). When it lands, a workspace's analysts
-are granted exactly their workspace's views in exactly their environment, and this recipe
-becomes per (workspace, environment). The dev-tools viewer role `qcms_ro` is a different
-role in a different file and is unaffected.
+That creates or replaces one view set per (workspace, environment) pair and grants each
+pair's role `USAGE` on its own `reporting_<env>` and `SELECT` on **exactly its own two
+views**. It is idempotent, so **run it after creating a workspace** - the grants are
+guarded on their role existing, so a pair whose role you have not created yet simply gets
+its views, and the command's output says which roles are missing.
 
-**The last statement is not optional, and migration 0025 is why.** A migration that reshapes a
-view `DROP`s and re-`CREATE`s it, and a dropped view takes its grants with it: the new view is
-a new object. The `ALTER DEFAULT PRIVILEGES` above is what re-grants it automatically, so an
-operator who ran the whole recipe upgrades with nothing to do. Two ways to get it wrong, both
-silent until a consumer's query fails:
+Creating a view is DDL and no application role holds any (SEC-10), which is why this is a
+command under the migration credential rather than something `POST /admin/workspaces`
+does. It is the sibling of "after creating an environment, restart the API" (Q59): the
+operator is already at a shell with the migration credential.
 
-- **Running only the explicit `GRANT SELECT ON ALL TABLES`.** That grant covers the views that
-  existed when it ran and nothing else, so the reporting role loses access at this upgrade and
-  the grant has to be re-run.
-- **Omitting `FOR ROLE`.** A default privilege binds to one granting role, and without
-  `FOR ROLE` that role is whoever runs the statement. The views are created by the role that
-  applies migrations, so a default set by a superuser running this recipe never applies to
-  them. The app-role recipe in `docs/operations.md` has the same clause for the same reason.
+The one-pair form creates the role for you, if you would rather not write the SQL above:
+
+```
+DATABASE_URL=... pnpm qcms:environment reporting \
+  --workspace home --environment prod --password "$HOME_PROD_REPORTING_PASSWORD"
+```
+
+### What the role may and may not read
+
+| Object                                                                 | This role                             |
+| ---------------------------------------------------------------------- | ------------------------------------- |
+| `reporting_prod.home_responses`, `home_answers_flat`                   | `SELECT`                              |
+| `reporting_prod` (the schema)                                          | `USAGE`                               |
+| `reporting_prod.vehicle_responses` and every other workspace's set     | nothing                               |
+| `reporting_prod.responses`, `reporting_prod.answers_flat` (unfiltered) | nothing                               |
+| `reporting_test` and every other environment's schema                  | nothing, so its views are unreachable |
+| `control`, every `data_<env>`, `public`                                | nothing                               |
+
+The last two rows of that table are the ones worth reading twice.
+
+**There is no `GRANT SELECT ON ALL TABLES IN SCHEMA`, and there must not be.** That was the
+shape of this recipe while each schema held one view set, and it is exactly the form that
+would hand a workspace's analysts every **other** workspace's views the moment a second set
+appeared. The grant names the two views.
+
+**There is no `ALTER DEFAULT PRIVILEGES` either.** It was in this recipe for a good reason -
+a migration that reshapes a view drops and recreates it, and a dropped view takes its grants
+with it - and that reason does not survive a view set per workspace: a default privilege is
+keyed on (role, schema, object type) with no per-object filter, so it would grant every view
+created in that schema afterwards, which is the leak the row above refuses. The
+reconciliation in step 2 is what replaces it, and it is why that step is a command an
+operator re-runs rather than a privilege that fires on its own.
+
+**The unfiltered `responses` and `answers_flat` are the application's, not a consumer's**
+(Q52). Each `qcms_app_<env>` holds `USAGE` on its own `reporting_<env>` and `SELECT` on that
+schema's views, because the staff response-reading path reads them on the environment's own
+pool; that grant is written by the baseline and the environment command. A consumer role is
+granted its workspace's filtered pair and never those, which is what makes a workspace a
+confidentiality boundary here as well as in the API.
+
+**A workspace's views are a filtered projection of that pair**, not a second copy of their
+SQL: `home_responses` selects from `reporting_prod.responses` and adds one predicate on
+`control.forms.workspace_id`. So the erasure anti-join and the submitted-only rule of [Row
+inclusion](#row-inclusion) live in exactly one view body and reach every workspace. The
+predicate reads the workspace **id**, which is stable; the view **name** carries the slug,
+which is what a connection string and an analyst's query hold.
+
+**The dev-tools viewer role `qcms_ro` is a different role in a different file.** It holds
+`pg_read_all_data` and is defined in `docker-compose.dev-tools.yml`; nothing here touches
+it, and the two are easy to confuse.
+
+**An archived workspace keeps its views.** An archive is terminal (Q66) and says nothing
+about destroying the record of what the workspace held, and these views are what a BI tool
+is connected to - so the reconciliation reports an archived pair rather than removing it.
+Removing a consumer's access is a `REVOKE` or a `DROP ROLE`, which is an operator act with
+its own name.
+
+**What an upgrade that reshapes a view costs you.** A migration that reshapes
+`reporting_<env>.responses` drops and recreates it, and a dropped view takes its grants with
+it - but a workspace's views are not grants on that view, they are objects of their own, and
+`CREATE OR REPLACE` leaves their grants in place. So the answer after any upgrade is the same
+as the answer after creating a workspace: **run `pnpm qcms:environment reporting`**, which is
+idempotent and re-applies whatever the upgrade removed. One step, in one place, rather than a
+privilege that has to have been set up correctly a year earlier.
 
 ---
 

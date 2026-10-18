@@ -187,6 +187,31 @@ an egress firewall rule:
 Nothing else in the API reaches the internet. The portal and the admin reach only the
 API.
 
+**Do not put a credential in a webhook endpoint URL.** Not a bearer token in a query
+parameter, not an API key, not `https://user:pass@host/`. Authenticate the delivery with
+the per-endpoint **signing secret**, which is what it is for: QCMS signs every delivery
+with it and the consumer verifies the signature
+([`docs/webhooks.md`](webhooks.md)). A credential in the URL is a credential in the
+database, in your egress firewall's logs, in your consumer's access logs, and on every
+screen that lists the endpoint.
+
+The product mitigates the mistake and does not fix it. A staff account holding only
+`forms.viewer` reads the endpoint URL with its **query string masked** (Q58), masked by the
+API in its own response rather than by a client, so every consumer of that route sees the
+same thing. A `forms.editor` and above sees the whole URL, because they are the roles that
+set it. **The URL is not treated as a secret and the signing secret is**, so masking a
+query string is a mitigation rather than a control, and this paragraph is the control.
+
+**Webhook egress is per environment** (ADR-40, SEC-14). `webhooks`, `outbox` and
+`webhook_deliveries` live in each environment's own schema, so a deliverer running under
+`data_test`'s search path cannot read a `prod` endpoint row: "a test submission can never
+fire a production endpoint" is a property of the layout rather than a filter. Write the
+same rule a second time in the only vocabulary a firewall has - the segment serving `test`
+permits outbound HTTPS to the **test** endpoint hosts and nothing else - because a defect
+that let a test deliverer claim a prod outbox row would be invisible to the schema and the
+egress rule would refuse the request anyway. SEC-14's firewall rule table in
+[`docs/SECURITY_DESIGN.md`](SECURITY_DESIGN.md) is the table to copy from.
+
 **What that second refusal looks like**, so it is not mistaken for a broken sign-in
 (issue #436). A blocked corpus lookup answers `503` with the code
 `BREACH_CORPUS_UNREACHABLE`, and `qcms:create-admin` prints one line naming the host,
@@ -482,8 +507,8 @@ Validated at boot by `apps/api/src/config.ts`, which collects every problem and 
 | `QCMS_OUTBOX_INTERVAL_MS`           | optional     | `5000`                                           | How often the outbox deliverer runs, in the process that mounts `internal`.                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                |
 | `QCMS_OUTBOX_JITTER_MS`             | optional     | `1000`                                           | Random jitter added to the outbox interval, so several API instances do not tick in lockstep.                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                              |
 | `QCMS_RETENTION_SWEEP_INTERVAL_MS`  | optional     | `3600000 (1h)`                                   | How often the retention sweep runs: expired anonymous sessions, aged webhook response snippets, and aged outbox payloads.                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                  |
-| `QCMS_DELIVERY_SNIPPET_TTL_MS`      | optional     | `604800000 (7d)`                                 | How long a webhook delivery keeps the stored prefix of the consumer's response body, measured from the attempt. That body can echo a respondent's answers back, so it ages out; the rest of the attempt record is value-free and is kept. `0` removes it at the next sweep.                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                |
-| `QCMS_OUTBOX_PAYLOAD_TTL_MS`        | optional     | `2592000000 (30d)`                               | How long a settled outbox event keeps the answers its payload carries, measured from the moment the event and its whole fan-out stopped moving. The payload is a second copy of the respondent's answers kept only so a delivery can be re-sent, so it ages out with that capability; the envelope and the delivery record are kept. `0` drops them as soon as the fan-out settles.                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                        |
+| `QCMS_DELIVERY_SNIPPET_TTL_MS`      | optional     | `604800000 (7d)`                                 | How long a webhook delivery keeps the stored prefix of the consumer's response body, measured from the attempt. That body can echo a respondent's answers back, so it ages out; the rest of the attempt record is value-free and is kept. `0` removes it at the next sweep. **Per environment** (Q11): an environment row's `delivery_snippet_ttl_ms` overrides this for that environment, set with `pnpm qcms:environment create --delivery-snippet-ttl-ms`.                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                              |
+| `QCMS_OUTBOX_PAYLOAD_TTL_MS`        | optional     | `2592000000 (30d)`                               | How long a settled outbox event keeps the answers its payload carries, measured from the moment the event and its whole fan-out stopped moving. The payload is a second copy of the respondent's answers kept only so a delivery can be re-sent, so it ages out with that capability; the envelope and the delivery record are kept. `0` drops them as soon as the fan-out settles. **Per environment** (Q11): an environment row's `outbox_payload_ttl_ms` overrides this for that environment, set with `pnpm qcms:environment create --outbox-payload-ttl-ms`.                                                                                                                                                                                                                                                                                                                                                                                                                                          |
 | `QCMS_READY_DB_TIMEOUT_MS`          | optional     | `2000`                                           | Timeout for the `/ready` database probe. Exceeding it makes `/ready` answer 503, never 500.                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                |
 | `QCMS_BODY_LIMIT_BYTES`             | optional     | `1000000 (1MB)`                                  | Maximum request body the API accepts (SEC-9). Keep the ingress ceiling in step with it: both recipes set one.                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                              |
 | `QCMS_ANTIABUSE_MIN_SUBMIT_MS`      | optional     | `0 (off)`                                        | Global floor on the gap between session start and submit. A faster submit is silently flagged; a form may set its own floor that overrides this.                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                           |
@@ -599,12 +624,12 @@ one-shot migration step and never by a process serving traffic. And since ADR-40
 runtime half is split again, so an author never reads a production answer and the
 anonymous respondent path holds no privilege on the tables that decide who may read one.
 
-| Role               | Held by                               | What it gets                                                                                                                                                                                                                                                                                                                                                                                 |
-| ------------------ | ------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `qcms_migrate`     | the migration step, and nothing else  | Owns `control`, every `data_<env>` and every `reporting_<env>`, plus `CREATE` on the database so it can add them. The DDL rights `drizzle-kit migrate` needs, for the length of one run. It is also what the environment command and `qcms:reset-2fa` run as.                                                                                                                                |
-| `qcms_app_control` | the API's **control** pool            | DML on `control`, with **two tables carved out**: **nothing at all** on `two_factor_resets`, and **`SELECT` and `INSERT` only** on the SEC-15 `access_audit`. **`INSERT` on each `data_<env>.outbox` and no other privilege of any kind in any data schema**; nothing on any `reporting_<env>`. It serves better-auth, authoring, grants, releases, closes and the audit read.               |
-| `qcms_app_<env>`   | the API's pool for that environment   | DML on its **own** `data_<env>`; `USAGE` and `SELECT` on its **own** `reporting_<env>`; on `control`, `SELECT` on a named list, `UPDATE` on `secure_links` and **`INSERT`, and nothing else, on the SEC-15 `access_audit`**. **No privilege of any kind** on `user`, `session`, `account`, `verification`, `twoFactor`, `two_factor_resets`, `invitation`, `member`, `team` or `teamMember`. |
-| `qcms_reporting`   | BI/ETL consumers (optional, separate) | `SELECT` on one environment's `reporting_<env>` schema and nothing else. Its own recipe is in `docs/reporting-view.md`.                                                                                                                                                                                                                                                                      |
+| Role                               | Held by                                                                  | What it gets                                                                                                                                                                                                                                                                                                                                                                                 |
+| ---------------------------------- | ------------------------------------------------------------------------ | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `qcms_migrate`                     | the migration step, and nothing else                                     | Owns `control`, every `data_<env>` and every `reporting_<env>`, plus `CREATE` on the database so it can add them. The DDL rights `drizzle-kit migrate` needs, for the length of one run. It is also what the environment command and `qcms:reset-2fa` run as.                                                                                                                                |
+| `qcms_app_control`                 | the API's **control** pool                                               | DML on `control`, with **two tables carved out**: **nothing at all** on `two_factor_resets`, and **`SELECT` and `INSERT` only** on the SEC-15 `access_audit`. **`INSERT` on each `data_<env>.outbox` and no other privilege of any kind in any data schema**; nothing on any `reporting_<env>`. It serves better-auth, authoring, grants, releases, closes and the audit read.               |
+| `qcms_app_<env>`                   | the API's pool for that environment                                      | DML on its **own** `data_<env>`; `USAGE` and `SELECT` on its **own** `reporting_<env>`; on `control`, `SELECT` on a named list, `UPDATE` on `secure_links` and **`INSERT`, and nothing else, on the SEC-15 `access_audit`**. **No privilege of any kind** on `user`, `session`, `account`, `verification`, `twoFactor`, `two_factor_resets`, `invitation`, `member`, `team` or `teamMember`. |
+| `qcms_reporting_<env>_<workspace>` | BI/ETL consumers (optional, separate, one per workspace and environment) | `USAGE` on **one** `reporting_<env>` and `SELECT` on **exactly that workspace's two views** in it - not the schema, not the application's unfiltered pair, and nothing in any other environment (Q26). Its own recipe is in `docs/reporting-view.md`.                                                                                                                                        |
 
 The second row is the point, and the third and fourth are what ADR-40 added to it.
 Before the first split one credential did both jobs, so the process serving respondent
@@ -671,9 +696,14 @@ DATABASE_URL=postgres://qcms_migrate:...@host:5432/qcms \
   pnpm qcms:environment create dev --password "$DEV_APP_PASSWORD"
 ```
 
-It creates the schema set, emits the per-environment objects, creates
-`qcms_app_dev` with that password, applies its grants and the migrate-only revokes, and
-writes the row in `control.environments`.
+It creates the schema set, emits the per-environment objects **and every existing
+workspace's reporting view set inside them**, creates `qcms_app_dev` with that password,
+applies its grants and the migrate-only revokes, and writes the row in
+`control.environments`.
+It also takes the per-environment settings of ADR-24's amendment:
+`--challenge-provider`, `--delivery-snippet-ttl-ms` and `--outbox-payload-ttl-ms` end up
+as columns on that row, and leaving any of them out leaves the installation-wide typed
+value in force.
 Then set `QCMS_DATABASE_URL_DEV`, add `dev` to `QCMS_ENVIRONMENTS`, and **restart the
 API**: it validated its environment set at boot and will not pick a new one up on its
 own (ADR-24).
@@ -833,7 +863,19 @@ authoring credential that can read them is the property Q40 exists to remove.
 The reporting grants above are the **application** role's own, and they are all of what
 that role needs to serve a staff response read.
 The per-workspace view sets, and the read-only roles an analyst or a BI tool is granted,
-are a different matter in `docs/reporting-view.md`, and task 067 owns them.
+are a different matter and live in `docs/reporting-view.md`.
+Two things about them belong here, because they are operator acts:
+
+- **After creating a workspace, run `pnpm qcms:environment reporting`** under the migration
+  credential. It creates or replaces one view set per (workspace, environment) pair and
+  grants each pair's role exactly its own two views. It is idempotent, so running it after
+  every workspace, and after any upgrade, is the whole of the procedure. Creating a view is
+  DDL and no application role holds any, which is why `POST /admin/workspaces` cannot do
+  it - the same boundary the environment command lives on.
+- **The consumer roles are yours to create**, like every other role in this section, and
+  the grants are guarded on each one existing. A pair whose role you have not created gets
+  its views and no grant, and the command's output names the roles that are missing, so a
+  grant that silently did not land is reported rather than discovered by a consumer.
 
 `qcms_migrate` is unchanged: owner and DDL, in every schema.
 
@@ -1479,6 +1521,39 @@ Retention-driven expiry is separate and automatic: the retention sweep runs in t
 process that mounts `internal`, on `QCMS_RETENTION_SWEEP_INTERVAL_MS`, and logs an
 `expiredCount` each pass. A sweep that reports nothing over a long window when data
 should be expiring is a sign the internal mount is not running anywhere.
+
+**One sweep, every environment** (ADR-40, Q2). It starts **once per process** and iterates
+the live environment set, so the scheduler-singleton rule of
+[`docs/deploy-enterprise.md`](deploy-enterprise.md) section 5 holds unchanged rather than
+multiplying: there is still exactly one process carrying `internal`, and it now does N
+passes per tick instead of one. Every line it logs carries the `environment` it is about,
+which is what makes "which environment is not being swept" a question a log can answer.
+
+**Two of its three windows are per environment** (Q11, ADR-24's amendment). The sweep reads
+`delivery_snippet_ttl_ms` and `outbox_payload_ttl_ms` off each environment's
+`control.environments` row and falls back to the installation-wide typed value where a
+column is `NULL`, which is what every row is created with. The **session TTL is not** in
+that set: it stays installation-wide with the rate limits and the anti-abuse thresholds,
+for the reason in
+[Rate limits are per-process, so replicas multiply them](#rate-limits-are-per-process-so-replicas-multiply-them).
+
+Set them when you create the environment:
+
+```
+DATABASE_URL=postgres://qcms_migrate:...@host:5432/qcms \
+  pnpm qcms:environment create dev --password "$DEV_APP_PASSWORD" \
+    --delivery-snippet-ttl-ms 0 --outbox-payload-ttl-ms 86400000
+```
+
+Changing them on an environment that already exists is an `UPDATE` on that row under the
+migration credential; there is no subcommand for it yet, and the three columns are
+`challenge_provider`, `delivery_snippet_ttl_ms` and `outbox_payload_ttl_ms`.
+
+**An erasure acts in one environment only** (ADR-17's Note, Q7), and the response screen
+offers to repeat it where the same subject identifier has sessions elsewhere. Each
+repetition is its own confirmed act in its own environment, so completing a data subject's
+request across three environments is three acts and leaves three tombstones.
+[`docs/erasure.md`](erasure.md) carries the whole of it.
 
 The same pass also ages out webhook delivery **response snippets** and logs a
 `redactedCount` when it removes any (a count only - logging one would defeat the

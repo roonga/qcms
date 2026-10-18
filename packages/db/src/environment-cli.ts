@@ -42,27 +42,12 @@ import pg from "pg";
 import {
   createEnvironment,
   dropEnvironment,
-  maxEnvironmentNameLength,
   ownsControlSchema,
   refuseEnvironmentName,
 } from "./environment/command.js";
 import { environmentDatabaseUrlVariableName } from "./environment/naming.js";
+import { parseArgs } from "./environment/cli-args.js";
 import { reconcileWorkspaceReporting } from "./environment/reporting.js";
-
-const USAGE = `Usage:
-  qcms-db-environment create <name> [--password <password>]
-  qcms-db-environment drop <name>
-  qcms-db-environment reporting [--workspace <slug> --environment <name> --password <pw>]
-
-  DATABASE_URL must name the migration credential (the role that owns \`control\`).
-  A name is lowercase letters and digits, starting with a letter, at most
-  ${String(maxEnvironmentNameLength())} bytes, and not a reserved word.
-
-  \`reporting\` reconciles one reporting view set and one read-only role per
-  (workspace, environment) pair (Q26, docs/reporting-view.md). Run it after
-  creating a workspace. With all three flags it also creates that one pair's
-  role with that credential; without them it creates no role and the grants
-  land for the roles an operator has provisioned themselves.`;
 
 /** One line, cause included, in the shape `qcms-db migrate` already uses. */
 function describeError(error: unknown): string {
@@ -71,92 +56,6 @@ function describeError(error: unknown): string {
   const cause = error.cause;
   const because = cause instanceof Error ? ` (${collapse(cause.message)})` : "";
   return `${collapse(error.message)}${because}`;
-}
-
-interface ParsedArgs {
-  readonly action: "create" | "drop" | "reporting";
-  /** The environment name for `create` and `drop`; empty for `reporting`. */
-  readonly name: string;
-  readonly password?: string;
-  /** `reporting --workspace`: the one pair whose role this run creates. */
-  readonly workspace?: string;
-  /** `reporting --environment`: the other half of that pair. */
-  readonly environment?: string;
-}
-
-/**
- * Either the parsed arguments or the refusal to print, never both and never a throw.
- *
- * One shape rather than "a `ParsedArgs` or a string", so a caller cannot mistake a
- * usage message for a name: the two are the same type in the wrong design and this
- * command's whole first act is to tell them apart.
- */
-type ArgResult =
-  | { readonly ok: true; readonly args: ParsedArgs }
-  | {
-      readonly ok: false;
-      readonly refusal: string;
-    };
-
-function refuse(refusal: string): ArgResult {
-  return { ok: false, refusal };
-}
-
-function parseArgs(argv: readonly string[]): ArgResult {
-  const [action, ...tail] = argv;
-  if (action !== "create" && action !== "drop" && action !== "reporting") return refuse(USAGE);
-
-  // `reporting` takes **no positional name**: the one pair whose role it may create is
-  // named by two flags, because an environment name and a workspace slug obey two
-  // different rules and a positional pair would read as one thing.
-  const name = action === "reporting" ? "" : (tail[0] ?? "");
-  if (action !== "reporting" && (name === "" || name.startsWith("-"))) return refuse(USAGE);
-  const rest = action === "reporting" ? tail : tail.slice(1);
-
-  let password: string | undefined;
-  let workspace: string | undefined;
-  let environment: string | undefined;
-  for (let i = 0; i < rest.length; i += 1) {
-    const flag = rest[i];
-    if (flag !== "--password" && flag !== "--workspace" && flag !== "--environment") {
-      return refuse(`unknown argument ${String(flag)}\n${USAGE}`);
-    }
-    const value = rest[i + 1];
-    if (value === undefined) return refuse(`${flag} needs a value`);
-    if (flag === "--password") password = value;
-    if (flag === "--workspace") workspace = value;
-    if (flag === "--environment") environment = value;
-    i += 1;
-  }
-
-  if (action === "drop" && password !== undefined) return refuse("drop takes no --password");
-  if (action !== "reporting" && (workspace !== undefined || environment !== undefined)) {
-    return refuse(`${action} takes no --workspace or --environment\n${USAGE}`);
-  }
-  // All three or none. A password with no pair names no role to create, and a pair with
-  // no password would create a role nobody can log in as, which looks like success and is
-  // not - so it is refused rather than half done.
-  if (action === "reporting") {
-    const given = [password, workspace, environment].filter((value) => value !== undefined).length;
-    if (given !== 0 && given !== 3) {
-      return refuse(
-        "reporting takes --workspace, --environment and --password together or none of " +
-          "them: creating a role needs the pair it belongs to and a credential it logs " +
-          `in with\n${USAGE}`,
-      );
-    }
-  }
-
-  return {
-    ok: true,
-    args: {
-      action,
-      name,
-      ...(password === undefined ? {} : { password }),
-      ...(workspace === undefined ? {} : { workspace }),
-      ...(environment === undefined ? {} : { environment }),
-    },
-  };
 }
 
 async function main(): Promise<number> {
@@ -203,6 +102,17 @@ async function main(): Promise<number> {
       const created = await createEnvironment(exec, {
         name: parsed.name,
         ...(parsed.password === undefined ? {} : { password: parsed.password }),
+        settings: {
+          ...(parsed.challengeProvider === undefined
+            ? {}
+            : { challengeProvider: parsed.challengeProvider }),
+          ...(parsed.deliverySnippetTtlMs === undefined
+            ? {}
+            : { deliverySnippetTtlMs: parsed.deliverySnippetTtlMs }),
+          ...(parsed.outboxPayloadTtlMs === undefined
+            ? {}
+            : { outboxPayloadTtlMs: parsed.outboxPayloadTtlMs }),
+        },
       });
       process.stdout.write(
         `created environment ${created.name}\n` +

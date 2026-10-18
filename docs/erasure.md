@@ -144,8 +144,25 @@ Erasure is on request. `last_response_snippet` also has a **time-based** default
 because a column that can hold a respondent's own words should not be kept forever
 merely because nobody filed a request.
 
-`redactAgedResponseSnippets` removes any stored snippet whose attempt is older than
-`QCMS_DELIVERY_SNIPPET_TTL_MS` (default **7 days**) and stamps
+**The two retention windows below are per environment** (Q11, ADR-24's amendment, task
+067). `control.environments` carries `delivery_snippet_ttl_ms` and
+`outbox_payload_ttl_ms`, set through the environment command, and the retention sweep reads
+each environment's own values; `NULL` in either column leaves the installation-wide typed
+value in force, which is what every row is created with. A test environment that keeps a
+consumer's response body for seven days, or a second copy of a tester's answers for thirty,
+is a cost with no benefit. The **session TTL is not** in that set and stays
+installation-wide with the rate limits and the anti-abuse thresholds (finding 6), because a
+per-environment limiter inside one process would be a second place for the replica-count
+caveat of issue #488 to be got wrong.
+
+One sweep still runs per process, not per environment: it starts once under the `internal`
+mount and **iterates the live set**, so the scheduler-singleton rule of
+`docs/deploy-enterprise.md` section 5 holds unchanged (Q2). Each pass applies one
+environment's policy to that environment's rows and ages nothing in another.
+
+`redactAgedResponseSnippets` removes any stored snippet whose attempt is older than that
+environment's snippet window (`QCMS_DELIVERY_SNIPPET_TTL_MS` by default, **7 days**) and
+stamps
 `last_response_snippet_redacted_at`. It runs on the API's existing
 **retention-sweep scheduler** (`QCMS_RETENTION_SWEEP_INTERVAL_MS`, default hourly)
 rather than a scheduler of its own.
@@ -212,8 +229,8 @@ believed they had configured.
 **retention-sweep scheduler** as the two rules above: one sweep with three jobs is
 auditable, three sweeps drift.
 
-**The window is the redelivery window** (`QCMS_OUTBOX_PAYLOAD_TTL_MS`, default **30
-days**, `0` supported). The payload exists so an operator can re-send a delivery, so
+**The window is the redelivery window** (that environment's `outbox_payload_ttl_ms`, or
+`QCMS_OUTBOX_PAYLOAD_TTL_MS`, default **30 days**, `0` supported). The payload exists so an operator can re-send a delivery, so
 its justification expires with that capability rather than on a date somebody picked.
 The clock starts when the event **and its whole fan-out** have settled:
 
@@ -260,8 +277,10 @@ differently.
 
 ## Reporting exclusion
 
-`reporting.responses` and `reporting.answers_flat` exclude erased sessions **two
-ways, independently**:
+`reporting_<env>.responses` and `reporting_<env>.answers_flat` exclude erased sessions
+**two ways, independently** - and so does every workspace's view set inside those schemas
+(Q26), because a workspace's views are a filtered projection of that pair rather than a
+second copy of its SQL, so there is one row-inclusion rule however many sets exist:
 
 - the submission hard-delete removes the row (the views are built from
   `submissions`), and
@@ -300,6 +319,41 @@ are two whole-session delete paths; repetition adds a table to each of them and 
 third path. Its `BEFORE UPDATE` trigger is the answer ledger's rule one table
 over: a removal appends a `removed` row, and rewriting an `added` row into one
 would leave no record that the instance had ever been minted.
+
+## An erasure acts in one environment (ADR-17's Note, Q7, task 067)
+
+Once the data plane is a schema per environment (ADR-40), every table erasure reaches is
+one environment's copy: the answer ledger, the roster, the submission, the tombstone, the
+outbox and the delivery rows. So **an erasure acts in the currently selected environment
+only** and never crosses a boundary in one act, which is what stops `prod` being reached
+from `test` by accident. The confirmation restates which environment it is about, because
+an erasure performed against the wrong one is not undoable.
+
+That safety property is bought at a real cost, and the cost is stated rather than hidden:
+**a data subject's request is several deliberate acts rather than one click.** When the
+same subject identifier also has sessions in another environment, the response screen says
+so and **offers to go and erase there**, each repetition its own confirmed act in its own
+environment, with its own type-to-confirm. Nothing is performed anywhere by that offer -
+it switches the environment and re-reads the screen, which is the same mechanism the global
+switcher uses.
+
+**The subject identifier the screen has is the session id**, and the design gives it no
+other: a link id names a link rather than a person and belongs to exactly one environment,
+and nothing in the data model carries a respondent identity across environments by design
+(see the `link_id` warning under [What is retained](#what-is-retained)). A session id is
+per environment - `data_<env>.sessions` is one table per schema with its own primary key -
+so the same id can exist in two environments, which is what happens when one environment
+was seeded or copied from another. That is the case this offer is for.
+
+The offer is narrowed to the environments the operator may actually erase in, so it never
+suggests an act they would be refused and never discloses that something exists in an
+environment they hold no grant in (ADR-41, Q25). An environment already erased is listed
+with that said, because "already done there" is what somebody working through a request
+needs to read.
+
+**The tombstones are per environment like the sessions they describe.** Completing a
+request across three environments leaves three tombstones, which is correct: each is the
+evidence that a response existed **there** and was erased.
 
 ## Where an operator performs it (task 035)
 

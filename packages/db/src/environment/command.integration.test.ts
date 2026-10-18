@@ -178,6 +178,56 @@ describe("creating an environment", { timeout: COMMAND_TIMEOUT_MS }, () => {
     expect(rows.rows.map((row) => row.name)).toEqual(["test", "prod", "dev"]);
   });
 
+  it("writes the per-environment settings an operator passes (Q11)", async () => {
+    // **A gap task 067 closed.** 064 created these columns and this argument, 066 reads
+    // the challenge provider and 067 reads the two retention windows - and nothing was
+    // passing any of them, because the CLI had no flags for them. A column no command can
+    // write is a feature an operator cannot use.
+    await createEnvironment(testDb.db, {
+      name: "settings",
+      settings: {
+        challengeProvider: "turnstile",
+        // `0` is a supported setting and means "at the next sweep", so it has to survive
+        // as a value rather than being read as absent.
+        deliverySnippetTtlMs: 0,
+        outboxPayloadTtlMs: 86_400_000,
+      },
+    });
+    const row = await testDb.client.query<{
+      challenge_provider: string | null;
+      delivery_snippet_ttl_ms: string | null;
+      outbox_payload_ttl_ms: string | null;
+    }>(
+      `select challenge_provider, delivery_snippet_ttl_ms, outbox_payload_ttl_ms
+         from control.environments where name = 'settings'`,
+    );
+    expect(row.rows[0]?.challenge_provider).toBe("turnstile");
+    expect(Number(row.rows[0]?.delivery_snippet_ttl_ms)).toBe(0);
+    expect(Number(row.rows[0]?.outbox_payload_ttl_ms)).toBe(86_400_000);
+
+    // And an environment created with none of them has `NULL` in all three, which is what
+    // "the installation-wide typed value stands" is stored as.
+    await createEnvironment(testDb.db, { name: "nosettings" });
+    const bare = await testDb.client.query<{
+      challenge_provider: string | null;
+      delivery_snippet_ttl_ms: string | null;
+      outbox_payload_ttl_ms: string | null;
+    }>(
+      `select challenge_provider, delivery_snippet_ttl_ms, outbox_payload_ttl_ms
+         from control.environments where name = 'nosettings'`,
+    );
+    expect(bare.rows[0]).toEqual({
+      challenge_provider: null,
+      delivery_snippet_ttl_ms: null,
+      outbox_payload_ttl_ms: null,
+    });
+
+    // Dropped again: this file shares one container and two later assertions read the live
+    // set by name.
+    expect(await dropEnvironment(testDb.db, "settings")).toBeUndefined();
+    expect(await dropEnvironment(testDb.db, "nosettings")).toBeUndefined();
+  });
+
   it("refuses a second environment of the same name", async () => {
     await expect(createEnvironment(testDb.db, { name: "dev" })).rejects.toThrow(/already exists/);
   });
