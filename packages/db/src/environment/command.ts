@@ -49,6 +49,7 @@ import {
 } from "../schema/schemas.js";
 
 import { workspaceReportingStatementsForEnvironment } from "./reporting.js";
+import { createLoginRole } from "./role.js";
 import {
   createEnvironmentStatements,
   dropEnvironmentStatements,
@@ -259,15 +260,12 @@ export async function createEnvironment(
 
   return exec.transaction(async (tx) => {
     if (input.password !== undefined) {
-      // `format(%I, %L)` rather than interpolation: the name has already passed the
-      // character rule, and a credential must never be concatenated into SQL whatever
-      // else is true of it.
-      await tx.execute(sql`
-        do $$ begin
-          execute format('CREATE ROLE %I LOGIN PASSWORD %L',
-            ${environmentRoleName(input.name)}, ${input.password});
-        end $$;
-      `);
+      // `createLoginRole` lets **Postgres** quote both the identifier and the credential,
+      // over real bind parameters. The `DO` block this used to be could not work at all -
+      // a `DO` body is a string literal, so the `$1` inside it was text and the bind
+      // failed - and it had no test behind it until task 067 met the same shape and added
+      // one; that module's documentation carries the whole account.
+      await createLoginRole(tx, environmentRoleName(input.name), input.password);
     }
 
     // DDL cannot be parameterized: a schema, a table and a constraint name are

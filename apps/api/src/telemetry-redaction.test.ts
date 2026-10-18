@@ -92,6 +92,24 @@ describe("sanitizeAttributes", () => {
     expect(Object.keys(attributes)).toEqual(["http.request.method"]);
   });
 
+  it("keeps the environment, so a trace can be attributed to one (task 067, criterion 6)", () => {
+    // One process serves every environment (Q2), so a `test` trace and a production one
+    // are otherwise indistinguishable in a backend: same route, same status, same
+    // timings. The attribute names no respondent - it is an operator's own name for a
+    // schema, out of `control.environments`, the same handful of strings for every
+    // request in a deployment - which is what makes it an allowlist member rather than
+    // something the allowlist exists to drop.
+    const attributes: Attributes = {
+      "qcms.environment": "test",
+      "http.route": "/sessions/:id/step",
+    };
+    sanitizeAttributes(attributes);
+    expect(attributes).toEqual({
+      "qcms.environment": "test",
+      "http.route": "/sessions/:id/step",
+    });
+  });
+
   it("drops every attribute the allowlist does not name", () => {
     const attributes: Attributes = {
       "http.request.method": "GET",

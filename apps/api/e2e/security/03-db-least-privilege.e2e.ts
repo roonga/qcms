@@ -63,6 +63,8 @@ import {
   CONTROL_READ_TABLES,
   DATA_PLANE_ENUM_TYPES,
   DATA_PLANE_TABLE_NAMES,
+  workspaceReportingRoleName,
+  workspaceReportingStatements,
 } from "@roonga/qcms-db";
 import pg from "pg";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
@@ -87,6 +89,24 @@ const UNSHIPPED_ROLE = "qcms_app_zebra";
 
 /** The reporting consumer role of `docs/reporting-view.md`, granted one environment. */
 const REPORTING_ROLE = "qcms_reporting";
+
+/**
+ * Two workspaces, so criterion 7's "cannot read **another workspace's** views" has
+ * another workspace to be refused (ADR-41, Q26; task 067).
+ *
+ * One would make the criterion unfalsifiable: a role granted the only view set in the
+ * installation reads everything there is, and the assertion would be about nothing.
+ */
+const HOME_WORKSPACE = { id: "org_home_lp", slug: "home" } as const;
+const VEHICLE_WORKSPACE = { id: "org_vehicle_lp", slug: "vehicle" } as const;
+
+/**
+ * The read-only role one workspace's analysts hold in one environment (Q26).
+ *
+ * `home` in `prod`, which is the pair every assertion below is drawn against: the other
+ * workspace's views and the other environment's schema are what it must not reach.
+ */
+const HOME_PROD_REPORTING_ROLE = workspaceReportingRoleName("prod", HOME_WORKSPACE.slug);
 
 /** The privileges a table grant can carry, in the order the catalogue reports them. */
 const DML = ["SELECT", "INSERT", "UPDATE", "DELETE"] as const;
@@ -246,7 +266,94 @@ beforeAll(async () => {
        values ($1, 'Least privilege', 'least-privilege', now())`,
     [FIXTURE_WORKSPACE],
   );
+
+  await seedWorkspaceReporting();
 }, CONTAINER_BOOT_TIMEOUT_MS);
+
+/**
+ * Two workspaces, a submitted response in each, their per-workspace reporting view sets in
+ * both environments, and one login role for `home` in `prod` (Q26; criterion 7).
+ *
+ * # The ordering is the production recipe's, not this file's
+ *
+ * The **role** is created by the `owner` connection and the **views and grants** by
+ * `migrator`, in that order, which is exactly what `docs/operations.md` and
+ * `docs/reporting-view.md` tell an operator to do: roles are cluster-level and
+ * `qcms_migrate` deliberately holds no `CREATEROLE`, and every grant the reconciliation
+ * emits is guarded on its role existing. Doing it the other way round would leave the
+ * grants silently unlanded, which is a failure mode worth being unable to reproduce by
+ * accident.
+ *
+ * Running the view statements as `migrator` is load bearing for a second reason: a view's
+ * underlying-table privileges are checked against the **view owner**, so the owner has to
+ * be the role that owns the schemas. It is also what keeps this file's own "the migration
+ * role is the only role that owns anything" assertion true of the new views.
+ */
+async function seedWorkspaceReporting(): Promise<void> {
+  for (const workspace of [HOME_WORKSPACE, VEHICLE_WORKSPACE]) {
+    await owner.query(
+      `insert into control.organization (id, name, slug, "createdAt")
+         values ($1, $2, $2, now())`,
+      [workspace.id, workspace.slug],
+    );
+    // One form per workspace, with a version, so `control.forms.workspace_id` has
+    // something to filter on and the two view sets are genuinely different reads.
+    const formId = `frm_${workspace.slug}_lp`;
+    await owner.query(
+      `insert into control.forms (form_id, slug, workspace_id, default_locale)
+         values ($1, $1, $2, 'en')`,
+      [formId, workspace.id],
+    );
+    await owner.query(
+      `insert into control.form_versions
+         (form_id, version, definition, compiled, compiler_version,
+          a2ui_spec_version, semantics_version)
+       values ($1, 1, '{}'::jsonb, '{}'::jsonb, '0', '0', '0')`,
+      [formId],
+    );
+    // A submitted response in each environment, so a view that returned nothing could not
+    // be mistaken for a grant that worked.
+    for (const environment of ENVIRONMENTS) {
+      const sessionId = `ses_${workspace.slug}_${environment}`;
+      await owner.query(
+        `insert into data_${environment}.sessions
+           (session_id, form_id, form_version, access_mode, status, environment, expires_at)
+         values ($1, $2, 1, 'anonymous', 'submitted', $3, now() + interval '1 day')`,
+        [sessionId, formId, environment],
+      );
+      await owner.query(
+        `insert into data_${environment}.submissions (session_id, content_hash, locked_answers)
+         values ($1, 'sha256:0', $2::jsonb)`,
+        [sessionId, JSON.stringify({ answers: [], flowState: { visible: [] } })],
+      );
+    }
+  }
+
+  // The role, as a superuser, exactly as the recipe has an operator create it.
+  const password = ephemeralPassword();
+  await owner.query(`CREATE ROLE ${HOME_PROD_REPORTING_ROLE} LOGIN PASSWORD '${password}'`);
+
+  // The views and the grants, as the migration role, through the same generator the
+  // operator command runs. Every pair, not only the one with a login: a workspace whose
+  // views did not exist would make "cannot read another workspace's views" pass for the
+  // wrong reason.
+  for (const environment of ENVIRONMENTS) {
+    for (const workspace of [HOME_WORKSPACE, VEHICLE_WORKSPACE]) {
+      for (const statement of workspaceReportingStatements({
+        environment,
+        slug: workspace.slug,
+        workspaceId: workspace.id,
+      })) {
+        await migrator.query(statement);
+      }
+    }
+  }
+
+  clients.set(
+    HOME_PROD_REPORTING_ROLE,
+    await connectAs(HOME_PROD_REPORTING_ROLE, password, "reporting_prod"),
+  );
+}
 
 afterAll(async () => {
   // Every client above is registered with the harness, so this one call drains them all
@@ -945,6 +1052,119 @@ describe("the documented reporting consumer role is read-only on one environment
   });
 });
 
+/**
+ * **Criterion 7** (Q26, ADR-40's reporting Note, ADR-41): a reporting role granted one
+ * workspace's views in one environment reads those and **cannot read another workspace's
+ * views or another environment's schema**.
+ *
+ * ## Why this criterion is a database test and could not be anything else
+ *
+ * This is the one place in the whole design where the authorisation model is expressed in
+ * **grants** rather than in an API check, and the reason is in the threat: a reporting
+ * consumer connects with psql or a BI tool and writes their own SQL, so there is no
+ * handler to put a check in. What holds the boundary is a role that has not been granted
+ * the thing it must not read - and the only way to know that is to connect as it and be
+ * refused.
+ *
+ * ## The four claims, and why each one is here
+ *
+ * 1. **It reads its own workspace's views, and gets rows.** Without this the three
+ *    refusals below would pass against a role that can read nothing at all.
+ * 2. **It cannot read another workspace's views, in its own environment.** The schema is
+ *    the same and the `USAGE` is held, so this is the grant on the view doing the work -
+ *    which is the half a schema-per-environment layout does not give for free.
+ * 3. **It cannot read another environment's schema.** Refused one step earlier, at
+ *    `USAGE`, so another environment's views are unreachable before their rows are.
+ * 4. **It cannot reach the data plane, the control plane or the application's own
+ *    unfiltered views.** The last of those is the easiest to leave open by accident:
+ *    `reporting_prod.responses` sits in the same schema as the views this role is granted
+ *    and holds every workspace's rows, so a grant written as `ALL TABLES IN SCHEMA` would
+ *    satisfy claim 1 and silently defeat claim 2.
+ */
+describe("a per-workspace reporting role reads one workspace in one environment (criterion 7)", () => {
+  function consumer(): pg.Client {
+    return clients.get(HOME_PROD_REPORTING_ROLE)!;
+  }
+
+  it("reads its own workspace's views, and sees its own workspace's response", async () => {
+    const res = await consumer().query<{ form_id: string }>(
+      `select form_id from reporting_prod.${HOME_WORKSPACE.slug}_responses`,
+    );
+    expect(res.rows.map((row) => row.form_id)).toEqual([`frm_${HOME_WORKSPACE.slug}_lp`]);
+
+    // The flat twin as well: both views of a set are granted, and both are filtered, so a
+    // consumer cannot reach round the wide one through the long one.
+    const flat = await consumer().query(
+      `select session_id from reporting_prod.${HOME_WORKSPACE.slug}_answers_flat`,
+    );
+    expect(flat.rowCount).toBeGreaterThanOrEqual(0);
+  });
+
+  it("cannot read another workspace's views in its own environment", async () => {
+    for (const view of ["responses", "answers_flat"]) {
+      expect(
+        await refusalFor(
+          consumer(),
+          `select * from reporting_prod.${VEHICLE_WORKSPACE.slug}_${view} limit 1`,
+        ),
+        `${VEHICLE_WORKSPACE.slug}_${view} must be refused`,
+      ).toMatch(/permission denied/i);
+    }
+  });
+
+  it("cannot read another environment's reporting schema at all", async () => {
+    // Refused at `USAGE` rather than at the view, which is why this says `schema`: the
+    // role holds nothing on `reporting_test`, so even its own workspace's view set there
+    // is unreachable.
+    expect(await hasSchemaUsage("reporting_test", HOME_PROD_REPORTING_ROLE)).toBe(false);
+    expect(
+      await refusalFor(
+        consumer(),
+        `select * from reporting_test.${HOME_WORKSPACE.slug}_responses limit 1`,
+      ),
+    ).toMatch(/permission denied/i);
+  });
+
+  it("cannot read the application's own unfiltered views in its own schema", async () => {
+    // The assertion that distinguishes this grant from `ALL TABLES IN SCHEMA`.
+    // `reporting_prod.responses` is Q52's, held by `qcms_app_prod` and by no consumer, and
+    // it carries every workspace's rows.
+    for (const view of ["responses", "answers_flat"]) {
+      expect(
+        await refusalFor(consumer(), `select * from reporting_prod.${view} limit 1`),
+        `the unfiltered ${view} must be refused`,
+      ).toMatch(/permission denied/i);
+    }
+  });
+
+  it("holds SELECT on exactly its own two views and nothing else in the schema", async () => {
+    const privileges = await tablePrivileges("reporting_prod", HOME_PROD_REPORTING_ROLE);
+    expect(Object.keys(privileges).sort()).toEqual([
+      `${HOME_WORKSPACE.slug}_answers_flat`,
+      `${HOME_WORKSPACE.slug}_responses`,
+    ]);
+    for (const granted of Object.values(privileges)) expect([...granted]).toEqual(["SELECT"]);
+    expect(await hasSchemaUsage("reporting_prod", HOME_PROD_REPORTING_ROLE)).toBe(true);
+  });
+
+  it("reaches no data-plane table, no control-plane table and no DDL", async () => {
+    const client = consumer();
+    for (const statement of [
+      "select * from data_prod.answers limit 1",
+      "select * from data_prod.submissions limit 1",
+      "select * from control.forms limit 1",
+      `select * from control."user" limit 1`,
+      "select * from control.organization limit 1",
+    ]) {
+      expect(await refusalFor(client, statement), statement).toMatch(/permission denied/i);
+    }
+    expect(
+      await refusalFor(client, `delete from reporting_prod.${HOME_WORKSPACE.slug}_responses`),
+    ).toBeDefined();
+    expect(await refusalFor(client, "create table probe (id int)")).toBeDefined();
+  });
+});
+
 describe("the roles are the operator's to create, not a migration's", () => {
   it("ships no role-creating migration", async () => {
     // Roles are cluster-level, need a credential no migration may carry, and
@@ -961,6 +1181,10 @@ describe("the roles are the operator's to create, not a migration's", () => {
         ...Object.values(ENVIRONMENT_ROLES),
         UNSHIPPED_ROLE,
         REPORTING_ROLE,
+        // The per-(workspace, environment) consumer of Q26, created by this file the way
+        // `docs/operations.md` has an operator create one: as a superuser, before the
+        // grants that are guarded on it existing.
+        HOME_PROD_REPORTING_ROLE,
       ].sort(),
     );
   });

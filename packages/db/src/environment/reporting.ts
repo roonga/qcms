@@ -49,6 +49,7 @@ import {
 } from "../schema/schemas.js";
 import { workspaceReportingViewNames } from "../reporting-views.js";
 
+import { createLoginRole } from "./role.js";
 import { workspaceReportingStatements } from "./sql.js";
 
 /**
@@ -225,17 +226,10 @@ export async function reconcileWorkspaceReporting(
       }
       const refusal = refuseWorkspaceReportingNames(wanted.environment, wanted.workspaceSlug);
       if (refusal !== undefined) throw new Error(refusal);
-      const role = workspaceReportingRoleName(wanted.environment, wanted.workspaceSlug);
-      if (!(await roleExists(tx, role))) {
-        // `format(%I, %L)` rather than interpolation: both halves of the name have passed
-        // their own rules, and a credential must never be concatenated into SQL whatever
-        // else is true of it.
-        await tx.execute(sql`
-          do $$ begin
-            execute format('CREATE ROLE %I LOGIN PASSWORD %L', ${role}, ${wanted.password});
-          end $$;
-        `);
-      }
+      // `createLoginRole` lets **Postgres** quote both the identifier and the credential,
+      // over real bind parameters, and is idempotent. Its own documentation says why a
+      // `DO` block cannot do this.
+      await createLoginRole(tx, workspaceReportingRoleName(wanted.environment, wanted.workspaceSlug), wanted.password);
     }
 
     for (const environment of names) {

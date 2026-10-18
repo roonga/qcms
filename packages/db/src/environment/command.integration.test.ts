@@ -157,7 +157,18 @@ describe("creating an environment", { timeout: COMMAND_TIMEOUT_MS }, () => {
     const views = await testDb.client.query<{ table_name: string }>(
       `select table_name from information_schema.views where table_schema = 'reporting_dev'`,
     );
-    expect(views.rows.map((row) => row.table_name).sort()).toEqual(["answers_flat", "responses"]);
+    // The application's own unprefixed pair (Q52, this task's), **and** the seeded
+    // workspace's set beside it (Q26, task 067): a new environment arrives with every
+    // existing workspace's views already in it, because there is no `ALTER DEFAULT
+    // PRIVILEGES` in this design and an object a later environment needs has to be
+    // emitted by whatever creates the environment. The harness seeds one workspace,
+    // `default`, so one set is what this expects.
+    expect(views.rows.map((row) => row.table_name).sort()).toEqual([
+      "answers_flat",
+      "default_answers_flat",
+      "default_responses",
+      "responses",
+    ]);
   });
 
   it("appends to the live set, after the environments already there", async () => {
@@ -173,6 +184,34 @@ describe("creating an environment", { timeout: COMMAND_TIMEOUT_MS }, () => {
 
   it("refuses a reserved name before it opens a transaction", async () => {
     await expect(createEnvironment(testDb.db, { name: "control" })).rejects.toThrow(/reserved/);
+  });
+
+  it("creates the environment's login role when it is given a credential", async () => {
+    // **A gap task 067 closed rather than a case 064 wrote.** The `--password` path had no
+    // test behind it, and it could not have worked: it built `CREATE ROLE` inside a `DO`
+    // block whose body is a dollar-quoted string literal, so the `$1` placeholders in it
+    // were text and the driver's bind failed outright. The quoting is Postgres's own now
+    // (`./role.ts`), and this is the assertion that says so.
+    //
+    // A generated throwaway credential, never a committed one, and it is never printed:
+    // what is asserted is the role's existence and its ability to log in.
+    const password = Array.from(crypto.getRandomValues(new Uint8Array(16)), (byte) =>
+      byte.toString(16).padStart(2, "0"),
+    ).join("");
+    const created = await createEnvironment(testDb.db, { name: "withrole", password });
+    expect(created.role).toBe("qcms_app_withrole");
+
+    const role = await testDb.client.query<{ rolcanlogin: boolean }>(
+      `select rolcanlogin from pg_roles where rolname = $1`,
+      [created.role],
+    );
+    expect(role.rows[0]?.rolcanlogin, "the role exists and can log in").toBe(true);
+
+    // Dropped again, because this file shares one container and two later assertions read
+    // the live set by name. The role outlives it, which is correct: roles are
+    // cluster-level and the operator's, and `dropEnvironment` deliberately removes only
+    // the schemas (`dropEnvironmentStatements` says why).
+    expect(await dropEnvironment(testDb.db, "withrole")).toBeUndefined();
   });
 });
 

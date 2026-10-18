@@ -87,6 +87,35 @@ export interface EraseOutcome extends Tombstone {
   readonly alreadyErased: boolean;
 }
 
+/**
+ * One other environment holding something for the same subject identifier (Q7, task 067).
+ *
+ * An **offer**, never a pending act: an erasure acts in the selected environment only
+ * (ADR-17's Note), so each of these is somewhere an operator may go and perform another
+ * erasure, with its own confirmation naming its own environment.
+ */
+export interface ErasureElsewhere {
+  readonly environment: string;
+  /** `true` when the erasure there has already been performed. */
+  readonly alreadyErased: boolean;
+}
+
+/**
+ * `GET /admin/forms/{id}/responses/{sessionId}/erasure-scope` - which environment an
+ * erasure from this screen acts in, and where else the same subject identifier has
+ * something (Q7).
+ *
+ * The API narrows `otherEnvironments` to the environments this operator may erase in, so
+ * this app never has an offer to suppress: an empty list means "nothing more that you can
+ * do from here", which is what the screen says by saying nothing.
+ */
+export interface ErasureScope {
+  readonly sessionId: string;
+  readonly environment: string;
+  readonly alreadyErased: boolean;
+  readonly otherEnvironments: readonly ErasureElsewhere[];
+}
+
 /** One configured webhook. The secret is never in a read. */
 export interface WebhookSummary {
   readonly webhookId: string;
