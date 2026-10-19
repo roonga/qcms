@@ -52,12 +52,12 @@
   "dependencies": {
     "@roonga/qcms-a2ui-compiler": "workspace:*",
     "@roonga/qcms-core": "workspace:*",
-    "drizzle-orm": "^0.45.3",
+    "drizzle-orm": "^0.45.4",
     "pg": "^8.23.1"
   },
   "peerDependencies": {
-    "@testcontainers/postgresql": "^12.2.0",
-    "testcontainers": "^12.2.0"
+    "@testcontainers/postgresql": "^12.2.1",
+    "testcontainers": "^12.2.1"
   },
   "peerDependenciesMeta": {
     "@testcontainers/postgresql": {
@@ -68,10 +68,10 @@
     }
   },
   "devDependencies": {
-    "@testcontainers/postgresql": "^12.2.0",
-    "@types/node": "^24.19.1",
+    "@testcontainers/postgresql": "^12.2.1",
+    "@types/node": "^24.19.2",
     "@types/pg": "^8.23.1",
     "drizzle-kit": "^0.31.11",
-    "testcontainers": "^12.2.0"
+    "testcontainers": "^12.2.1"
   }
 }
