@@ -319,6 +319,288 @@ describe("AssistPanel", () => {
     expect(alert.textContent).toContain("502");
   });
 
+  it("streams prose into an assistant bubble, with a step timeline in plain language", async () => {
+    const encoder = new TextEncoder();
+    let push: ((chunk: string) => void) | undefined;
+    let end: (() => void) | undefined;
+    const body = new ReadableStream<Uint8Array>({
+      start(controller) {
+        push = (chunk) => {
+          controller.enqueue(encoder.encode(chunk));
+        };
+        end = () => {
+          controller.close();
+        };
+      },
+    });
+    vi.stubGlobal(
+      "fetch",
+      vi
+        .fn()
+        .mockResolvedValue(
+          new Response(body, { status: 200, headers: { "content-type": "text/event-stream" } }),
+        ),
+    );
+
+    render(
+      <AssistPanel
+        endpoint="/forms/frm_quote/assist"
+        draft={DRAFT}
+        draftUpdatedAt={undefined}
+        onAccept={vi.fn()}
+      />,
+    );
+    sendMessage("Add a step");
+
+    push?.(frame("status", { phase: "thinking" }));
+    push?.(frame("text", { delta: "I will search the library for `q_name` " }));
+    push?.(frame("status", { phase: "tool", tool: "search_question_library" }));
+
+    // Mid-turn: the bubble is live and the prose so far is rendered as Markdown. The
+    // timeline is the last segment, so the caret is not after the prose yet.
+    const live = await screen.findByTestId("qcms-assist-live");
+    expect(live.getAttribute("aria-busy")).toBe("true");
+    expect(live.querySelector("code")?.textContent).toBe("q_name");
+    expect(live.textContent).not.toContain("`");
+    const steps = screen.getByRole("list", { name: t("forms.assist.stepsLabel") });
+    expect(steps.textContent).toContain(t("forms.assist.step.search_question_library"));
+    expect(steps.textContent).not.toContain("search_question_library");
+    expect(steps.querySelector("li")?.getAttribute("data-state")).toBe("running");
+    expect(screen.getByTestId("qcms-assist-status").textContent).toBe(
+      t("forms.assist.step.search_question_library"),
+    );
+
+    push?.(frame("status", { phase: "thinking" }));
+    push?.(frame("text", { delta: "Found **one**." }));
+    await waitFor(() => {
+      expect(steps.querySelector("li")?.getAttribute("data-state")).toBe("done");
+    });
+    expect(
+      screen.getByTestId("qcms-assist-live").querySelector(".qcms-assist-caret"),
+    ).not.toBeNull();
+
+    end?.();
+    await waitFor(() => {
+      expect(screen.queryByTestId("qcms-assist-live")).toBeNull();
+    });
+    const conversation = screen.getByTestId("qcms-assist-conversation");
+    const bubbles = conversation.querySelectorAll(":scope > li");
+    expect(bubbles).toHaveLength(2);
+    expect(bubbles[0]?.getAttribute("data-role")).toBe("user");
+    expect(bubbles[1]?.getAttribute("data-role")).toBe("assistant");
+    expect(bubbles[1]?.querySelector("strong")?.textContent).toBe("one");
+    expect(conversation.querySelector(".qcms-assist-caret")).toBeNull();
+  });
+
+  it("shows the rationale once, in the conversation, and the card refers to it", async () => {
+    const rationale = "Added a driving-history step.";
+    const proposal = {
+      proposal: { proposedDraft: DRAFT, newQuestions: [], rationale, issues: [], warnings: [] },
+    };
+    vi.stubGlobal(
+      "fetch",
+      vi.fn().mockResolvedValue(
+        new Response(sseBody([frame("text", { delta: rationale }), frame("proposal", proposal)]), {
+          status: 200,
+          headers: { "content-type": "text/event-stream" },
+        }),
+      ),
+    );
+
+    render(
+      <AssistPanel
+        endpoint="/forms/frm_quote/assist"
+        draft={DRAFT}
+        draftUpdatedAt={undefined}
+        onAccept={vi.fn()}
+      />,
+    );
+    sendMessage("Add a step");
+
+    const card = await screen.findByTestId("qcms-assist-proposal");
+    await waitFor(() => {
+      expect(screen.getByTestId("qcms-assist-conversation").textContent).toContain(rationale);
+    });
+    expect(card.textContent).not.toContain(rationale);
+    expect(card.textContent).toContain(t("forms.assist.rationaleAbove"));
+    expect(screen.getAllByText(rationale)).toHaveLength(1);
+    // Accept and Discard sit together in the card's footer, after the diff and validation.
+    const footer = card.querySelector(".qcms-assist-card__actions");
+    expect(footer?.querySelector("[data-testid='qcms-assist-accept']")).not.toBeNull();
+    expect(footer?.querySelector("[data-testid='qcms-assist-discard']")).not.toBeNull();
+  });
+
+  it("puts a rationale that never streamed into the conversation rather than the card", async () => {
+    const proposal = {
+      proposal: {
+        proposedDraft: DRAFT,
+        newQuestions: [],
+        rationale: "Kept it as is.",
+        issues: [],
+        warnings: [],
+      },
+    };
+    vi.stubGlobal(
+      "fetch",
+      vi.fn().mockResolvedValue(
+        new Response(sseBody([frame("proposal", proposal)]), {
+          status: 200,
+          headers: { "content-type": "text/event-stream" },
+        }),
+      ),
+    );
+
+    render(
+      <AssistPanel
+        endpoint="/forms/frm_quote/assist"
+        draft={DRAFT}
+        draftUpdatedAt={undefined}
+        onAccept={vi.fn()}
+      />,
+    );
+    sendMessage("Anything to change?");
+
+    const card = await screen.findByTestId("qcms-assist-proposal");
+    await waitFor(() => {
+      expect(screen.getByTestId("qcms-assist-conversation").textContent).toContain(
+        "Kept it as is.",
+      );
+    });
+    expect(card.textContent).not.toContain("Kept it as is.");
+  });
+
+  it("sends the prose of earlier turns as history, not the timeline", async () => {
+    const fetchMock = vi
+      .fn()
+      .mockImplementation(() =>
+        Promise.resolve(
+          new Response(
+            sseBody([
+              frame("status", { phase: "tool", tool: "search_question_library" }),
+              frame("text", { delta: "Nothing found." }),
+            ]),
+            { status: 200, headers: { "content-type": "text/event-stream" } },
+          ),
+        ),
+      );
+    vi.stubGlobal("fetch", fetchMock);
+
+    render(
+      <AssistPanel
+        endpoint="/forms/frm_quote/assist"
+        draft={DRAFT}
+        draftUpdatedAt={undefined}
+        onAccept={vi.fn()}
+      />,
+    );
+    sendMessage("First");
+    await waitFor(() => {
+      expect(screen.queryByTestId("qcms-assist-live")).toBeNull();
+      expect(screen.getByTestId("qcms-assist-conversation").textContent).toContain(
+        "Nothing found.",
+      );
+    });
+    sendMessage("Second");
+    await waitFor(() => {
+      expect(fetchMock).toHaveBeenCalledTimes(2);
+    });
+    const [, init] = fetchMock.mock.calls[1] as [string, RequestInit];
+    const sent = JSON.parse(init.body as string) as { conversation: unknown };
+    expect(sent.conversation).toEqual([
+      { role: "user", content: "First" },
+      { role: "assistant", content: "Nothing found." },
+      { role: "user", content: "Second" },
+    ]);
+  });
+
+  describe("the header", () => {
+    it("has named icon buttons, and no full-width collapse button", () => {
+      render(
+        <AssistPanel
+          endpoint="/forms/frm_quote/assist"
+          draft={DRAFT}
+          draftUpdatedAt={undefined}
+          onAccept={vi.fn()}
+        />,
+      );
+      const toggle = screen.getByRole("button", { name: t("forms.assist.collapse") });
+      expect(toggle.getAttribute("aria-expanded")).toBe("true");
+      expect(toggle.getAttribute("aria-controls")).toBe("qcms-assist-body");
+      expect(toggle.textContent).toBe("");
+      const fresh = screen.getByRole("button", { name: t("forms.assist.newConversation") });
+      // Nothing to clear yet.
+      expect((fresh as HTMLButtonElement).disabled).toBe(true);
+    });
+
+    it("shows a tooltip on focus and hover, and Escape dismisses it", () => {
+      render(
+        <AssistPanel
+          endpoint="/forms/frm_quote/assist"
+          draft={DRAFT}
+          draftUpdatedAt={undefined}
+          onAccept={vi.fn()}
+        />,
+      );
+      const toggle = screen.getByRole("button", { name: t("forms.assist.collapse") });
+      expect(screen.queryByTestId("qcms-assist-tip")).toBeNull();
+      fireEvent.focus(toggle);
+      expect(screen.getByTestId("qcms-assist-tip").textContent).toBe(t("forms.assist.collapse"));
+      fireEvent.keyDown(toggle, { key: "Escape" });
+      expect(screen.queryByTestId("qcms-assist-tip")).toBeNull();
+      fireEvent.blur(toggle);
+      fireEvent.mouseEnter(toggle.parentElement as HTMLElement);
+      expect(screen.getByTestId("qcms-assist-tip")).toBeTruthy();
+      fireEvent.mouseLeave(toggle.parentElement as HTMLElement);
+      expect(screen.queryByTestId("qcms-assist-tip")).toBeNull();
+    });
+
+    it("collapses and expands from the keyboard-operable toggle", () => {
+      render(
+        <AssistPanel
+          endpoint="/forms/frm_quote/assist"
+          draft={DRAFT}
+          draftUpdatedAt={undefined}
+          onAccept={vi.fn()}
+        />,
+      );
+      fireEvent.click(screen.getByRole("button", { name: t("forms.assist.collapse") }));
+      expect(screen.queryByLabelText(t("forms.assist.inputLabel"))).toBeNull();
+      const expand = screen.getByRole("button", { name: t("forms.assist.expand") });
+      expect(expand.tagName).toBe("BUTTON");
+      expect(expand.getAttribute("aria-expanded")).toBe("false");
+      fireEvent.click(expand);
+      expect(screen.getByLabelText(t("forms.assist.inputLabel"))).toBeTruthy();
+    });
+
+    it("starts a new conversation, clearing the turns and the card", async () => {
+      vi.stubGlobal(
+        "fetch",
+        vi.fn().mockResolvedValue(
+          new Response(sseBody([frame("text", { delta: "Hello." })]), {
+            status: 200,
+            headers: { "content-type": "text/event-stream" },
+          }),
+        ),
+      );
+      render(
+        <AssistPanel
+          endpoint="/forms/frm_quote/assist"
+          draft={DRAFT}
+          draftUpdatedAt={undefined}
+          onAccept={vi.fn()}
+        />,
+      );
+      sendMessage("Hi");
+      const fresh = screen.getByRole("button", { name: t("forms.assist.newConversation") });
+      await waitFor(() => {
+        expect((fresh as HTMLButtonElement).disabled).toBe(false);
+      });
+      fireEvent.click(fresh);
+      expect(screen.queryByTestId("qcms-assist-conversation")).toBeNull();
+      expect(screen.getByText(t("forms.assist.emptyHint"))).toBeTruthy();
+    });
+  });
+
   it("renders no proposal card, and no error, before anything is sent", () => {
     render(
       <AssistPanel

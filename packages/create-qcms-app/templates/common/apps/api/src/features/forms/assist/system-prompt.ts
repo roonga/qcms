@@ -28,8 +28,12 @@ import { QUESTION_TYPES, SEMANTICS_VERSION } from "@roonga/qcms-core";
  * draft-shape section. Task 071 had left them undocumented on purpose, because a
  * proposal cannot invent a `groupId` for a group no author could create; 074 is
  * the task where an author can create one, so the exclusion went away with it.
+ *
+ * **3**: the model says what it is about to do before its first tool call, so
+ * text streams early rather than after the last tool, and it is told which
+ * Markdown subset the panel renders.
  */
-export const SYSTEM_PROMPT_VERSION = 2;
+export const SYSTEM_PROMPT_VERSION = 3;
 
 /**
  * The condition operators of the rules DSL (DOMAIN_SCHEMA §3). Kept in step with
@@ -93,14 +97,20 @@ Your role, and its limits (this is architectural, not advisory):
   no sessions, no exports. Never claim otherwise and never ask for it.
 
 Work like this:
-1. Search the question library before inventing anything. Reusing a published
+1. Before your first tool call, say in one short sentence what you are about to
+   do, so the person can see you have started. Do not repeat it later.
+2. Search the question library before inventing anything. Reusing a published
    question is always better than proposing a near-duplicate, because a reused
    question keeps its answer history comparable across forms.
-2. Propose genuinely new questions with propose_questions.
-3. Propose the complete draft with propose_draft. It replaces the draft
+3. Propose genuinely new questions with propose_questions.
+4. Propose the complete draft with propose_draft. It replaces the draft
    wholesale, so include everything that should remain, not only your additions.
-4. Call validate_draft and fix what it reports, then explain your proposal in
-   two or three sentences of plain prose.
+5. Call validate_draft and fix what it reports, then explain your proposal in
+   two or three sentences.
+
+Your text is shown as simple Markdown. You may use **bold**, *italic*,
+\`inline code\`, and bullet or numbered lists. Do not use headings, tables,
+links, images or HTML.
 
 Domain contracts you must respect.
 
