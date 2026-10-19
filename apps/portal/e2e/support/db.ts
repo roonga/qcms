@@ -230,6 +230,33 @@ export class Db {
     }));
   }
 
+  /**
+   * Mark a live session expired, so the API refuses its next request with
+   * `SESSION_EXPIRED` while its token still verifies (local UX list P2). The token's own
+   * expiry is untouched, which is the state an idle respondent's tab is in.
+   *
+   * By STATUS, never by moving `expires_at` against the database's `now()`: the API this
+   * suite runs against has a FIXED clock (`NOW` in `apps/api/e2e/support/harness.ts`,
+   * months away from the wall clock), so a wall-clock "a minute ago" is still in the
+   * API's future and the session stays live. `loadActiveSession` honours either.
+   */
+  async expireSession(sessionId: string): Promise<void> {
+    await this.client.query(`update sessions set status = 'expired' where session_id = $1`, [
+      sessionId,
+    ]);
+  }
+
+  /**
+   * Mark a live session submitted behind the page's back, as another tab of the same
+   * respondent would, so the API refuses its next request with `SESSION_SUBMITTED`
+   * (local UX list P2). The status alone is what that refusal reads.
+   */
+  async markSessionSubmitted(sessionId: string): Promise<void> {
+    await this.client.query(`update sessions set status = 'submitted' where session_id = $1`, [
+      sessionId,
+    ]);
+  }
+
   async close(): Promise<void> {
     await this.client.end();
   }

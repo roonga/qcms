@@ -22,6 +22,10 @@ export const messages = {
   "action.back": "Back",
   "action.continue": "Continue",
   "action.submit": "Submit",
+  // Beside the hydrated flow's "could not reach the server" notice (local UX list P9):
+  // re-runs the operation that failed, which may be an answer save rather than the
+  // Continue or Back the respondent can already see.
+  "action.retry": "Try again",
 
   "progress.step": "Step {current} of {total}",
   // The per-instance step presentation's chrome (task 076, ADR-27, ADR-28 as amended

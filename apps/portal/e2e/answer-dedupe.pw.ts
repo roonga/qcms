@@ -77,9 +77,9 @@ test("a change-commit control blurred before its post resolves posts exactly onc
   // ...and this takes focus out of the radio group while that post is still in
   // flight: the respondent moving on the moment they have chosen. Focus leaves to
   // nowhere (`relatedTarget === null`, a tap on the page background), which is an
-  // exit `FieldBlur` reports like any other, and it is the one gesture available
-  // inside this window - Continue and Back are both `disabled` while a post is in
-  // flight, so neither can take focus here. The flow's blur commit then runs
+  // exit `FieldBlur` reports like any other. (Continue would do as well since local UX
+  // list P4: it is no longer `disabled` while a post is in flight, and a press queues
+  // behind the post; `flow-states.pw.ts` covers that.) The flow's blur commit then runs
   // against a record whose write used to be a response away.
   await blurActive(page);
   expect(await page.evaluate(() => document.activeElement?.tagName)).toBe("BODY");
@@ -93,8 +93,7 @@ test("a change-commit control blurred before its post resolves posts exactly onc
   await commitCheckboxGroup(page);
 
   // Exactly one post for the boolean. Before the fix there were two, the second
-  // repeating the first: a redundant append to the answer ledger, and a second
-  // `busy` flip racing the Continue guard.
+  // repeating the first: a redundant append to the answer ledger.
   expect(postsFor(log, "q_at_fault_accident")).toEqual([
     { questionId: "q_at_fault_accident", value: false, status: 200 },
   ]);

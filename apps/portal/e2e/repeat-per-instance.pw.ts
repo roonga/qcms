@@ -350,6 +350,19 @@ test("a submit refused for the group's count says so instead of nothing", async 
     "One of the repeated sections does not have enough entries to submit. Add the entries it needs and try again.",
   );
   await expect(page).not.toHaveURL(/\/done$/);
+  // Beside the Submit that caused it, not at the top of the card (local UX list P9).
+  await expect(page.getByTestId("count-refusal")).toBeInViewport();
+
+  // Doing what it asks makes it untrue, so it goes (local UX list P9): it used to stay on
+  // the page for the rest of the session, over a group that had since been rebuilt.
+  const added = page.waitForResponse(
+    (response) =>
+      response.request().method() === "POST" &&
+      new URL(response.url()).pathname.endsWith("/roster"),
+  );
+  await page.getByRole("button", { name: "Add Vehicle" }).click();
+  expect((await added).status()).toBe(200);
+  await expect(page.getByTestId("count-refusal")).toHaveCount(0);
 });
 
 test("an Add announces without moving the page, and a removal clamps onto Q11's destination", async ({

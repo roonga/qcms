@@ -15,7 +15,7 @@
  * with the rest of the forced-colours block rather than as variants in this string.
  */
 const BUTTON_BASE =
-  "qcms-chrome-button inline-flex items-center justify-center rounded-(--radius-control) min-h-(--space-control-h) px-(--space-control-pad-x) py-2.5 text-sm font-medium transition-colors focus:outline-none focus-visible:ring-2 focus-visible:ring-(--color-focus-ring) focus-visible:ring-offset-2 focus-visible:ring-offset-(--color-surface) disabled:cursor-not-allowed disabled:opacity-50";
+  "qcms-chrome-button inline-flex items-center justify-center rounded-(--radius-control) min-h-(--space-control-h) px-(--space-control-pad-x) py-2.5 text-sm font-medium transition-colors focus:outline-none focus-visible:ring-2 focus-visible:ring-(--color-focus-ring) focus-visible:ring-offset-2 focus-visible:ring-offset-(--color-surface) disabled:cursor-not-allowed disabled:opacity-50 aria-disabled:cursor-not-allowed aria-disabled:opacity-50";
 
 export type ButtonVariant = "primary" | "secondary";
 

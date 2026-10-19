@@ -7,7 +7,9 @@ import {
   missingOnStep,
   missingRequiredEntries,
   orderedEntries,
+  refusalsOnStep,
   requiredFieldErrors,
+  stepSummaryEntries,
 } from "./error-summary";
 
 /**
@@ -350,5 +352,54 @@ describe("the no-JS missing-required narrowing (issue #920)", () => {
       { questionId: "q_absent", message: "c" },
     ];
     expect(orderedEntries(entries, VISIBLE).map((e) => e.message)).toEqual(["b", "a", "c"]);
+  });
+});
+
+/**
+ * Local UX list P7: the hydrated summary listed missing required questions only, so a
+ * field showing "not valid" was absent from it and Continue moved past it, while the
+ * no-JS path listed refused answers too. Both paths now draw `stepSummaryEntries`, and
+ * the hydrated gate reads `refusalsOnStep`.
+ */
+describe("the shared step summary (local UX list P7)", () => {
+  it("lists a refused answer beside a missing one, in the order the fields are asked", () => {
+    const refused: A2UIErrors = { q_dob: "Enter a real date" };
+    const entries = stepSummaryEntries(
+      stepDoc,
+      refused,
+      missingOnStep(["q_full_name", "q_dob"], VISIBLE, refused),
+      VISIBLE,
+    );
+    expect(entries).toEqual([
+      { questionId: "q_full_name", message: "Full name needs an answer." },
+      { questionId: "q_dob", message: "Date of birth: Enter a real date" },
+    ]);
+  });
+
+  it("names a refused required question once, by its refusal", () => {
+    const refused: A2UIErrors = { q_full_name: "Use letters only" };
+    const entries = stepSummaryEntries(
+      stepDoc,
+      refused,
+      missingOnStep(["q_full_name"], VISIBLE, refused),
+      VISIBLE,
+    );
+    expect(entries).toEqual([
+      { questionId: "q_full_name", message: "Full name: Use letters only" },
+    ]);
+  });
+
+  it("is empty when nothing is refused or missing", () => {
+    expect(stepSummaryEntries(stepDoc, {}, [], VISIBLE)).toEqual([]);
+  });
+
+  it("keeps only the refusals on the step being drawn", () => {
+    const errors: A2UIErrors = {
+      q_full_name: "Use letters only",
+      q_elsewhere: "Refused on another step",
+      q_dob: undefined,
+    };
+    expect(refusalsOnStep(errors, VISIBLE)).toEqual({ q_full_name: "Use letters only" });
+    expect(refusalsOnStep({}, VISIBLE)).toEqual({});
   });
 });

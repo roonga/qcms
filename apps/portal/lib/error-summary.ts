@@ -263,3 +263,52 @@ export function orderedEntries(
     .sort((a, b) => a.rank - b.rank || a.index - b.index)
     .map((row) => row.entry);
 }
+
+/**
+ * The refusals showing on the step being drawn: the field errors narrowed to the API's
+ * visible set for that step.
+ *
+ * The hydrated flow keeps every refusal it has been given for the whole session, keyed
+ * by question, and shows each one only while the field still holds the refused value
+ * (`visibleErrors`, issue #122). A refusal on a step the respondent has left, or on a
+ * question a branch has since hidden, is not on screen and must neither block Continue
+ * nor appear in the summary, so the gate and the summary read this narrowing rather than
+ * the whole record.
+ */
+export function refusalsOnStep(
+  errors: A2UIErrors,
+  visibleQuestions: readonly string[],
+): A2UIErrors {
+  const visible = new Set(visibleQuestions);
+  const narrowed: Record<string, string> = {};
+  for (const [questionId, message] of Object.entries(errors)) {
+    if (message !== undefined && visible.has(questionId)) narrowed[questionId] = message;
+  }
+  return narrowed;
+}
+
+/**
+ * The whole error summary for one step, as both portal paths draw it: every refused
+ * answer and every still-missing required question, in the order the fields are asked.
+ *
+ * `missing` is already narrowed by the caller (`missingOnStep`), so a refused question
+ * is reported once, with the kernel's message about the value it refused rather than
+ * "needs an answer". The no-JS path composed this inline and the hydrated path listed
+ * the missing half only, so a hydrated respondent whose field said "not valid" got a
+ * summary that did not mention it (local UX list P7). One function is what keeps the two
+ * paths from drifting again.
+ */
+export function stepSummaryEntries(
+  document: A2UIStepDocument | null,
+  refused: A2UIErrors,
+  missing: readonly string[],
+  visibleQuestions: readonly string[],
+): readonly ErrorSummaryEntry[] {
+  return orderedEntries(
+    [
+      ...errorSummaryEntries(document, refused, visibleQuestions),
+      ...missingRequiredEntries(document, missing, visibleQuestions),
+    ],
+    visibleQuestions,
+  );
+}

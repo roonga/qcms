@@ -502,13 +502,15 @@ body {
     border: 1px solid ButtonBorder;
   }
 
-  /* Continue and Back are `disabled` while a step is in flight
-     (`components/step-flow.tsx`), and `disabled:opacity-50` is the only thing
-     that says so. Opacity is not forced, so the faded button survives, but faded
-     ButtonText is not the signal the platform uses for disabled. This is the one
-     disabled control a respondent actually meets: the component kit's rule 5
-     covers the form controls, and nothing renders one of those disabled today. */
-  .qcms-chrome-button:disabled {
+  /* Continue and Back are `aria-disabled` while a press of one of them is pending
+     (`components/step-flow.tsx`; not `disabled`, which swallowed the click that
+     landed during an answer save, local UX list P4), and the faded opacity is the
+     only thing that says so. Opacity is not forced, so the faded button survives,
+     but faded ButtonText is not the signal the platform uses for disabled. This is
+     the one disabled control a respondent actually meets: the component kit's rule
+     5 covers the form controls, and nothing renders one of those disabled today. */
+  .qcms-chrome-button:disabled,
+  .qcms-chrome-button[aria-disabled="true"] {
     border-color: GrayText;
     color: GrayText;
   }
