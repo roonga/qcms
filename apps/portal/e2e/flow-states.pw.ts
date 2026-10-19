@@ -26,6 +26,7 @@ import { readFixtures } from "./support/fixtures.js";
 import {
   KS,
   blurActive,
+  continueStep,
   enterDate,
   fillText,
   startKitchenSink,
@@ -243,4 +244,61 @@ test("a failed Continue is reported beside the actions and its retry clears it (
   await served;
   await expect(page.getByRole("heading", { name: "Driving history" })).toBeVisible();
   await expect(notice).toHaveCount(0);
+});
+
+/**
+ * Issue #1041's not-visible branch, live since the refusal body is read once (local UX
+ * list P2). On `main` the second of two body reads found the body consumed, so a
+ * `QUESTION_NOT_VISIBLE` 409 painted "We could not reach the server" for good. It now
+ * re-reads the step the respondent is ON, at the committed cursor, so posting an answer
+ * never moves the page (ADR-28) and no failure notice appears.
+ *
+ * The 409 is a fulfilled route: making the real API refuse a visible control would need
+ * a race between two projections, and what is under test is the client's answer to the
+ * refusal, not the API's reasons for sending it.
+ */
+test("a not-visible refusal re-reads the current step and moves nothing (#1041)", async ({
+  page,
+  browserGuard,
+}) => {
+  browserGuard.expectRequestFailure({ status: 409, url: /\/answers$/ });
+  const { kitchenSinkSlug } = readFixtures();
+  await startKitchenSink(page, kitchenSinkSlug);
+  await fillText(page, KS.fullName, "Ada Lovelace");
+  await enterDate(page, "05171990");
+  await continueStep(page);
+  const heading = page.getByRole("heading", { name: "Driving history" });
+  await expect(heading).toBeVisible();
+  await expect(page.getByTestId("progress")).toHaveText("Step 2 of 3");
+
+  await page.route("**/answers", async (route) => {
+    const body = JSON.parse(route.request().postData() ?? "{}") as { questionId?: string };
+    if (body.questionId === "q_at_fault_accident") {
+      await route.fulfill({
+        status: 409,
+        contentType: "application/json",
+        body: JSON.stringify({ error: { code: "QUESTION_NOT_VISIBLE" } }),
+      });
+      return;
+    }
+    await route.continue();
+  });
+  const reread = page.waitForRequest(
+    (request) => request.method() === "GET" && new URL(request.url()).pathname.endsWith("/step"),
+  );
+  const served = stepServed(page);
+
+  // The boolean commits on change (ADR-31), so this click alone issues the refused post.
+  await page.getByText("No", { exact: true }).click();
+
+  // The follow-up is a read of the step at the committed cursor (index 1), never a
+  // cursor-less read, which would serve the first incomplete step instead.
+  const request = await reread;
+  expect(new URL(request.url()).search).toBe("?step=1");
+  await served;
+
+  await expect(heading).toBeVisible();
+  await expect(page.getByTestId("progress")).toHaveText("Step 2 of 3");
+  await expect(page.getByTestId("flow-failure")).toHaveCount(0);
+  await expect(page.getByText(LOST)).toHaveCount(0);
 });
