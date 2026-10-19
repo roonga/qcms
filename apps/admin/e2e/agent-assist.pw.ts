@@ -116,6 +116,16 @@ test("proposes a form, accepts it into the draft, and publishes it (exit criteri
   const proposal = page.getByTestId("qcms-assist-proposal");
   await expect(proposal).toBeVisible({ timeout: 60_000 });
 
+  // The step timeline says Done only on the API's word that a call worked. The default
+  // script searches and proposes, and both succeed, so both steps end done and none is
+  // left running, failed or cut off.
+  const steps = page.getByTestId("qcms-assist-steps").locator("li");
+  await expect(steps).toHaveCount(2, { timeout: 30_000 });
+  await expect(page.getByTestId("qcms-assist-steps").locator("li[data-state='done']")).toHaveCount(
+    2,
+  );
+  await expect(steps.first()).toContainText("Searching the question library");
+
   const diff = page.getByTestId("qcms-assist-diff");
   // Two steps and a rule, each marked textually rather than by colour alone.
   // Scoped to the summary line rather than the whole entry: each entry also carries
@@ -205,6 +215,69 @@ test("refuses a scripted rogue tool call and proposes nothing (exit criterion 4)
   // reached for a forbidden verb does not get the rest of its work accepted.
   await expect(page.getByTestId("qcms-assist-error")).toBeVisible({ timeout: 60_000 });
   await expect(page.getByTestId("qcms-assist-proposal")).toHaveCount(0);
+});
+
+/**
+ * The header tooltips meet WCAG 2.2 SC 1.4.13 in a real layout.
+ *
+ * jsdom has no geometry, so it cannot see whether the pointer crosses empty space on
+ * its way from a button to its tooltip, which is exactly the defect review found: the
+ * bubble sat 4px below the button and the strip between them closed it. Nor can a unit
+ * test show that Escape reaches a tooltip opened by hover while focus is somewhere else
+ * entirely. Both are measured here, with a real pointer and a real keyboard.
+ */
+test("header tooltips stay open across the gap and close on Escape from anywhere (SC 1.4.13)", async ({
+  page,
+}) => {
+  test.setTimeout(120_000);
+  await signInWithTotp(page, EMAIL, totpSecret);
+  await page.goto(`/forms/${formId}`);
+  await expect(page.getByTestId("qcms-assist-panel")).toBeVisible({ timeout: 30_000 });
+
+  const toggle = page.getByTestId("qcms-assist-toggle");
+  const tip = page.getByTestId("qcms-assist-tip");
+  const button = await toggle.boundingBox();
+  if (button === null) throw new Error("the collapse toggle has no box");
+  const x = button.x + button.width / 2;
+
+  // Hoverable: from the button, down through the strip under it, onto the bubble.
+  await page.mouse.move(x, button.y + button.height / 2);
+  await expect(tip).toBeVisible();
+  const tipBox = await tip.boundingBox();
+  if (tipBox === null) throw new Error("the tooltip has no box");
+  // The tooltip's own box starts where the button ends: there is no uncovered strip.
+  expect(tipBox.y).toBeLessThanOrEqual(button.y + button.height + 0.5);
+  expect(tipBox.x).toBeLessThanOrEqual(x);
+  expect(tipBox.x + tipBox.width).toBeGreaterThanOrEqual(x);
+
+  await page.mouse.move(x, button.y + button.height + 2, { steps: 4 });
+  // Longer than the close delay, so a tooltip that had lost hover would be gone.
+  await page.waitForTimeout(500);
+  await expect(tip).toBeVisible();
+  await page.mouse.move(x, tipBox.y + tipBox.height - 4, { steps: 4 });
+  await page.waitForTimeout(500);
+  await expect(tip).toBeVisible();
+
+  // Leaving both closes it.
+  await page.mouse.move(x, tipBox.y + tipBox.height + 120, { steps: 4 });
+  await expect(tip).toBeHidden();
+
+  // Dismissible from anywhere: focus in the composer, the tooltip opened by hover alone.
+  const composer = page.getByTestId("qcms-assist-input").locator("input");
+  await composer.focus();
+  await page.mouse.move(x, button.y + button.height / 2);
+  await expect(tip).toBeVisible();
+  await page.keyboard.press("Escape");
+  await expect(tip).toBeHidden();
+  await expect(composer).toBeFocused();
+
+  // And from the focused button itself, where focus stays too.
+  await page.mouse.move(x, tipBox.y + tipBox.height + 120);
+  await toggle.focus();
+  await expect(tip).toBeVisible();
+  await page.keyboard.press("Escape");
+  await expect(tip).toBeHidden();
+  await expect(toggle).toBeFocused();
 });
 
 /**

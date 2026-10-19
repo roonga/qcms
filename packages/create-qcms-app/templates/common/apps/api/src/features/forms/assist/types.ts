@@ -150,8 +150,23 @@ export type AssistErrorCode = (typeof ASSIST_ERROR_CODES)[number];
  * every variant is JSON-serialisable and value-free with respect to secrets.
  */
 export type AssistEvent =
-  /** Progress, for the panel's working indicator. */
-  | { readonly type: "status"; readonly phase: "thinking" | "tool"; readonly tool?: string }
+  /**
+   * Progress, for the panel's working indicator. A `tool` status carries `step`, a
+   * per-turn ordinal this slice assigns (never the provider's call id), which the
+   * matching `tool-outcome` names.
+   */
+  | {
+      readonly type: "status";
+      readonly phase: "thinking" | "tool";
+      readonly tool?: string;
+      readonly step?: number;
+    }
+  /**
+   * How one allowlisted tool call ended: `done` when it executed and was accepted,
+   * `failed` when it errored (bad input, an executor throw) or its executor refused it.
+   * No error text travels: it is assembled from model-supplied input (SEC-8).
+   */
+  | { readonly type: "tool-outcome"; readonly step: number; readonly outcome: "done" | "failed" }
   /** A chunk of the assistant's prose (the rationale, streamed). */
   | { readonly type: "text"; readonly delta: string }
   /** A tool call outside the allowlist was refused server-side (041 security control). */

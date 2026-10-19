@@ -95,8 +95,9 @@ draft that references that run's own fixtures and actually publishes.
 
 A script is selected by a `#qcms-fake:<script>` directive in a user turn:
 `default`, `rogue-publish`, `rogue-erase`, `rogue-webhook`, `rogue-responses`,
-`refusal`, `provider-error`, `provider-rejected`, `tool-error-recovered`,
-`propose-questions`, `no-proposal`, `length`, `step-limit`. The `rogue-*` scripts
+`refusal`, `provider-error`, `provider-rejected`, `tool-then-provider-error`,
+`tool-error-recovered`, `propose-questions`, `no-proposal`, `length`, `step-limit`.
+The `rogue-*` scripts
 exist because a hostile model is the threat the allowlist is for, and the only
 honest way to test a refusal is to have something actually attempt the forbidden
 call.

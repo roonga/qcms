@@ -57,6 +57,11 @@ interface RunOutcome {
    * quoted: a tool error's text is assembled from model-supplied input.
    */
   toolErrors: number;
+  /**
+   * The step ordinal each allowlisted tool call was announced with, keyed by the
+   * SDK's call id. The id stays here; only the ordinal reaches the client.
+   */
+  readonly toolSteps: Map<string, number>;
 }
 
 /**
@@ -223,6 +228,31 @@ function noteToolFailure(outcome: RunOutcome, toolName: string): void {
 }
 
 /**
+ * The outcome of one announced tool call, for the panel's step timeline.
+ *
+ * A step is `done` only on evidence that it worked: a final `tool-result` whose
+ * executor did not refuse the input (`propose_draft` answers `accepted: false` for a
+ * proposal naming another form, which is a result, not a success). A `tool-error` is
+ * `failed`. A call that was never announced - a refused verb - has no step and
+ * produces nothing, so the refusal path is unchanged. No text from the result or the
+ * error is forwarded. Exported for its unit test.
+ */
+export function toolOutcomeEvent(
+  toolSteps: ReadonlyMap<string, number>,
+  toolCallId: string,
+  output: unknown,
+  { preliminary = false, errored = false }: { preliminary?: boolean; errored?: boolean } = {},
+): AssistEvent | undefined {
+  const step = toolSteps.get(toolCallId);
+  if (step === undefined || preliminary) return undefined;
+  const refused =
+    typeof output === "object" &&
+    output !== null &&
+    (output as { accepted?: unknown }).accepted === false;
+  return { type: "tool-outcome", step, outcome: errored || refused ? "failed" : "done" };
+}
+
+/**
  * Map one SDK stream part onto the slice's own event vocabulary, recording what
  * the turn's terminal events will need. Returns `undefined` for parts that only
  * update the outcome.
@@ -245,13 +275,19 @@ function handlePart(part: TextStreamPart<ToolSet>, outcome: RunOutcome): AssistE
       // emits next is the same refused call arriving a second time, and
       // `noteToolFailure` skips it rather than counting it (issue #840).
       if (isAllowedToolName(part.toolName)) {
-        return { type: "status", phase: "tool", tool: part.toolName };
+        const step = outcome.toolSteps.size + 1;
+        outcome.toolSteps.set(part.toolCallId, step);
+        return { type: "status", phase: "tool", tool: part.toolName, step };
       }
       outcome.rejectedTool = part.toolName;
       return undefined;
+    case "tool-result":
+      return toolOutcomeEvent(outcome.toolSteps, part.toolCallId, part.output, {
+        preliminary: part.preliminary === true,
+      });
     case "tool-error":
       noteToolFailure(outcome, part.toolName);
-      return undefined;
+      return toolOutcomeEvent(outcome.toolSteps, part.toolCallId, undefined, { errored: true });
     case "error":
       noteFailure(outcome, part.error);
       return undefined;
@@ -325,6 +361,7 @@ async function* runTurn(args: {
     providerRetryable: true,
     providerStatus: undefined,
     toolErrors: 0,
+    toolSteps: new Map(),
   };
 
   const result = streamText({

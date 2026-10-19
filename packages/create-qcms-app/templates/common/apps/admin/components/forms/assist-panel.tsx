@@ -24,6 +24,7 @@ import {
   runningStep,
   turnText,
   type AssistantTurnView,
+  type StepState,
   type TurnSegment,
   type TurnStep,
 } from "@/lib/forms/assist-turn";
@@ -535,7 +536,33 @@ function Segment({
   return <StepTimeline steps={segment.steps} />;
 }
 
-/** The plain-language step list. State is an icon and a word, never colour alone. */
+const STEP_STATE_LABELS: Readonly<Record<StepState, MessageKey>> = {
+  running: "forms.assist.stepRunning",
+  done: "forms.assist.stepDone",
+  failed: "forms.assist.stepFailed",
+  interrupted: "forms.assist.stepInterrupted",
+};
+
+/** One step's icon. Each state has its own shape, so state never rests on colour. */
+function StepIcon({ state }: { readonly state: StepState }) {
+  if (state === "running") return <span className="qcms-assist-steps__pulse" />;
+  const path = {
+    done: "M20 6 9 17l-5-5",
+    failed: "M18 6 6 18M6 6l12 12",
+    interrupted: "M5 12h14",
+  }[state];
+  return (
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5">
+      <path d={path} strokeLinecap="round" strokeLinejoin="round" />
+    </svg>
+  );
+}
+
+/**
+ * The plain-language step list. A step that went wrong says so in words beside its
+ * label; a running or finished step's state is spoken but not printed, because the
+ * icon and the list's own progress already show it.
+ */
 function StepTimeline({ steps }: { readonly steps: readonly TurnStep[] }) {
   return (
     <ol
@@ -543,23 +570,21 @@ function StepTimeline({ steps }: { readonly steps: readonly TurnStep[] }) {
       aria-label={t("forms.assist.stepsLabel")}
       data-testid="qcms-assist-steps"
     >
-      {steps.map((step, index) => (
-        <li key={`${step.label}:${String(index)}`} data-state={step.state}>
-          <span className="qcms-assist-steps__icon" aria-hidden="true">
-            {step.state === "done" ? (
-              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5">
-                <path d="M20 6 9 17l-5-5" strokeLinecap="round" strokeLinejoin="round" />
-              </svg>
-            ) : (
-              <span className="qcms-assist-steps__pulse" />
-            )}
-          </span>
-          <span>{t(step.label)}</span>
-          <span className="qcms-visually-hidden">
-            , {t(step.state === "done" ? "forms.assist.stepDone" : "forms.assist.stepRunning")}
-          </span>
-        </li>
-      ))}
+      {steps.map((step, index) => {
+        const problem = step.state === "failed" || step.state === "interrupted";
+        return (
+          <li key={`${step.label}:${String(index)}`} data-state={step.state}>
+            <span className="qcms-assist-steps__icon" aria-hidden="true">
+              <StepIcon state={step.state} />
+            </span>
+            <span>{t(step.label)}</span>
+            <span className="qcms-visually-hidden">, </span>
+            <span className={problem ? "qcms-assist-steps__state" : "qcms-visually-hidden"}>
+              {t(STEP_STATE_LABELS[step.state])}
+            </span>
+          </li>
+        );
+      })}
     </ol>
   );
 }

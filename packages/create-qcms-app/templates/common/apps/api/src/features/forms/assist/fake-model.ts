@@ -59,6 +59,7 @@ export const FAKE_SCRIPTS = [
   "refusal",
   "provider-error",
   "provider-rejected",
+  "tool-then-provider-error",
   "tool-error-recovered",
   "propose-questions",
   "no-proposal",
@@ -380,6 +381,21 @@ function planProposeQuestionsStep(
   ];
 }
 
+/**
+ * One tool call that runs, then the provider fails on the next step: the shape that
+ * tells a step that finished apart from a turn that did not.
+ */
+function planToolThenErrorStep(prompt: readonly PromptMessage[]): StreamPart[] {
+  if (prompt.some((m) => m.role === "tool")) {
+    return [{ type: "error", error: new Error("upstream provider unavailable") }];
+  }
+  return [
+    ...textParts("Searching first."),
+    toolCallPart("search_question_library", { limit: 1 }),
+    finishPart("tool-calls"),
+  ];
+}
+
 /** Plan the parts this step emits, given everything that has happened so far. */
 function planStep(prompt: readonly PromptMessage[], script: FakeScript): StreamPart[] {
   const rogueTool = ROGUE_TOOLS[script];
@@ -415,6 +431,7 @@ function planStep(prompt: readonly PromptMessage[], script: FakeScript): StreamP
       },
     ];
   }
+  if (script === "tool-then-provider-error") return planToolThenErrorStep(prompt);
   if (script === "no-proposal") {
     return [...textParts("I need more detail before I can propose anything."), finishPart("stop")];
   }

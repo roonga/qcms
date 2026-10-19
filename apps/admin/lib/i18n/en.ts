@@ -1822,6 +1822,11 @@ export const messages = {
   "forms.assist.stepsLabel": "Steps the assistant took",
   "forms.assist.stepRunning": "In progress",
   "forms.assist.stepDone": "Done",
+  // A step is only ever "Done" on the API's word that it worked. One that errored is
+  // "Failed"; one still open when the turn ended (an error, a lost connection) did not
+  // finish, and the panel does not guess how it would have gone.
+  "forms.assist.stepFailed": "Failed",
+  "forms.assist.stepInterrupted": "Did not finish",
   "forms.assist.step.search_question_library": "Searching the question library",
   "forms.assist.step.propose_questions": "Drafting questions",
   "forms.assist.step.propose_draft": "Drafting the form",

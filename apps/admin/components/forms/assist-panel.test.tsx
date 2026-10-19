@@ -4,7 +4,7 @@ import { afterEach, describe, expect, it, vi } from "vitest";
 import type { DraftForm } from "@/lib/forms/types";
 import { t } from "@/lib/i18n/en";
 
-import { AssistPanel } from "./assist-panel";
+import { AssistPanel, messageForError } from "./assist-panel";
 
 const DRAFT: DraftForm = {
   formId: "frm_quote",
@@ -354,7 +354,7 @@ describe("AssistPanel", () => {
 
     push?.(frame("status", { phase: "thinking" }));
     push?.(frame("text", { delta: "I will search the library for `q_name` " }));
-    push?.(frame("status", { phase: "tool", tool: "search_question_library" }));
+    push?.(frame("status", { phase: "tool", tool: "search_question_library", step: 1 }));
 
     // Mid-turn: the bubble is live and the prose so far is rendered as Markdown. The
     // timeline is the last segment, so the caret is not after the prose yet.
@@ -370,8 +370,14 @@ describe("AssistPanel", () => {
       t("forms.assist.step.search_question_library"),
     );
 
+    // A later status alone is not evidence the search worked; its outcome is.
     push?.(frame("status", { phase: "thinking" }));
     push?.(frame("text", { delta: "Found **one**." }));
+    await waitFor(() => {
+      expect(screen.getByTestId("qcms-assist-live").textContent).toContain("Found");
+    });
+    expect(steps.querySelector("li")?.getAttribute("data-state")).toBe("running");
+    push?.(frame("tool-outcome", { step: 1, outcome: "done" }));
     await waitFor(() => {
       expect(steps.querySelector("li")?.getAttribute("data-state")).toBe("done");
     });
@@ -513,6 +519,109 @@ describe("AssistPanel", () => {
     ]);
   });
 
+  describe("the step timeline is honest about how each step ended", () => {
+    function renderPanel(): void {
+      render(
+        <AssistPanel
+          endpoint="/forms/frm_quote/assist"
+          draft={DRAFT}
+          draftUpdatedAt={undefined}
+          onAccept={vi.fn()}
+        />,
+      );
+    }
+
+    async function stepStates(): Promise<(string | null)[]> {
+      await waitFor(() => {
+        expect(screen.queryByTestId("qcms-assist-live")).toBeNull();
+      });
+      const steps = screen.getByRole("list", { name: t("forms.assist.stepsLabel") });
+      return [...steps.querySelectorAll("li")].map((li) => li.getAttribute("data-state"));
+    }
+
+    function streamResponse(frames: readonly string[]): Response {
+      return new Response(sseBody(frames), {
+        status: 200,
+        headers: { "content-type": "text/event-stream" },
+      });
+    }
+
+    it("shows a failed call as failed and its retry as done", async () => {
+      vi.stubGlobal(
+        "fetch",
+        vi
+          .fn()
+          .mockResolvedValue(
+            streamResponse([
+              frame("status", { phase: "tool", tool: "propose_draft", step: 1 }),
+              frame("tool-outcome", { step: 1, outcome: "failed" }),
+              frame("status", { phase: "thinking" }),
+              frame("status", { phase: "tool", tool: "propose_draft", step: 2 }),
+              frame("tool-outcome", { step: 2, outcome: "done" }),
+            ]),
+          ),
+      );
+      renderPanel();
+      sendMessage("Add a step");
+      expect(await stepStates()).toEqual(["failed", "done"]);
+      const steps = screen.getByRole("list", { name: t("forms.assist.stepsLabel") });
+      expect(steps.textContent).toContain(t("forms.assist.stepFailed"));
+    });
+
+    it("never shows Done for a step a terminal error cut off", async () => {
+      vi.stubGlobal(
+        "fetch",
+        vi
+          .fn()
+          .mockResolvedValue(
+            streamResponse([
+              frame("status", { phase: "tool", tool: "validate_draft", step: 1 }),
+              frame("error", { code: "PROVIDER_ERROR", message: "upstream" }),
+            ]),
+          ),
+      );
+      renderPanel();
+      sendMessage("Check it");
+      expect(await stepStates()).toEqual(["interrupted"]);
+      const steps = screen.getByRole("list", { name: t("forms.assist.stepsLabel") });
+      expect(steps.textContent).toContain(t("forms.assist.stepInterrupted"));
+      expect(steps.querySelector("[data-state='done']")).toBeNull();
+      expect(screen.getByRole("alert").textContent).not.toContain("upstream");
+    });
+
+    it("never shows Done when reading the stream fails mid-step", async () => {
+      const encoder = new TextEncoder();
+      // The first read delivers the step; the next one fails, as a dropped connection does.
+      let delivered = false;
+      const body = new ReadableStream<Uint8Array>({
+        pull(controller) {
+          if (delivered) {
+            controller.error(new Error("connection reset"));
+            return;
+          }
+          delivered = true;
+          controller.enqueue(
+            encoder.encode(frame("status", { phase: "tool", tool: "propose_draft", step: 1 })),
+          );
+        },
+      });
+      vi.stubGlobal(
+        "fetch",
+        vi
+          .fn()
+          .mockResolvedValue(
+            new Response(body, { status: 200, headers: { "content-type": "text/event-stream" } }),
+          ),
+      );
+      renderPanel();
+      sendMessage("Draft it");
+      expect(await stepStates()).toEqual(["interrupted"]);
+      expect(screen.getByRole("alert").textContent).toBe(
+        messageForError({ kind: "PROVIDER_ERROR" }),
+      );
+    });
+  });
+
   describe("the header", () => {
     it("has named icon buttons, and no full-width collapse button", () => {
       render(
@@ -532,7 +641,48 @@ describe("AssistPanel", () => {
       expect((fresh as HTMLButtonElement).disabled).toBe(true);
     });
 
-    it("shows a tooltip on focus and hover, and Escape dismisses it", () => {
+    it("dismisses a hover-open tooltip on Escape with focus elsewhere, without moving focus", async () => {
+      render(
+        <AssistPanel
+          endpoint="/forms/frm_quote/assist"
+          draft={DRAFT}
+          draftUpdatedAt={undefined}
+          onAccept={vi.fn()}
+        />,
+      );
+      const input = screen.getByLabelText(t("forms.assist.inputLabel"));
+      input.focus();
+      const toggle = screen.getByRole("button", { name: t("forms.assist.collapse") });
+      fireEvent.mouseEnter(toggle.parentElement as HTMLElement);
+      expect(screen.getByTestId("qcms-assist-tip")).toBeTruthy();
+      fireEvent.keyDown(input, { key: "Escape" });
+      await waitFor(() => {
+        expect(screen.queryByTestId("qcms-assist-tip")).toBeNull();
+      });
+      expect(document.activeElement).toBe(input);
+    });
+
+    it("removes its document Escape listener when the tooltip closes or unmounts", () => {
+      const added = vi.spyOn(document, "addEventListener");
+      const removed = vi.spyOn(document, "removeEventListener");
+      const { unmount } = render(
+        <AssistPanel
+          endpoint="/forms/frm_quote/assist"
+          draft={DRAFT}
+          draftUpdatedAt={undefined}
+          onAccept={vi.fn()}
+        />,
+      );
+      const toggle = screen.getByRole("button", { name: t("forms.assist.collapse") });
+      fireEvent.focus(toggle);
+      const keydownAdds = added.mock.calls.filter(([type]) => type === "keydown");
+      expect(keydownAdds).toHaveLength(1);
+      const handler = keydownAdds[0]?.[1];
+      unmount();
+      expect(removed).toHaveBeenCalledWith("keydown", handler);
+    });
+
+    it("shows a tooltip on focus and hover, and Escape dismisses it", async () => {
       render(
         <AssistPanel
           endpoint="/forms/frm_quote/assist"
@@ -550,8 +700,13 @@ describe("AssistPanel", () => {
       fireEvent.blur(toggle);
       fireEvent.mouseEnter(toggle.parentElement as HTMLElement);
       expect(screen.getByTestId("qcms-assist-tip")).toBeTruthy();
+      // Leaving closes it after a short delay rather than at once, so a pointer on its
+      // way to the tooltip does not lose it.
       fireEvent.mouseLeave(toggle.parentElement as HTMLElement);
-      expect(screen.queryByTestId("qcms-assist-tip")).toBeNull();
+      expect(screen.getByTestId("qcms-assist-tip")).toBeTruthy();
+      await waitFor(() => {
+        expect(screen.queryByTestId("qcms-assist-tip")).toBeNull();
+      });
     });
 
     it("collapses and expands from the keyboard-operable toggle", () => {

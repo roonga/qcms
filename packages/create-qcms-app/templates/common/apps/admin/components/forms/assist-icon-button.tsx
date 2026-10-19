@@ -1,6 +1,9 @@
 "use client";
 
-import { useState, type ReactNode } from "react";
+import { useEffect, useRef, useState, type ReactNode } from "react";
+
+/** How long a tooltip outlives the pointer leaving it, so a diagonal path does not close it. */
+const HOVER_CLOSE_DELAY_MS = 200;
 
 /**
  * A small icon button with a visible tooltip, for the assistant panel's header.
@@ -10,9 +13,20 @@ import { useState, type ReactNode } from "react";
  * accessible name is the label; the tooltip repeats it for sighted pointer and keyboard
  * users and is hidden from assistive technology so it is not read twice.
  *
- * The tooltip meets WCAG 2.2 SC 1.4.13: it shows on hover and on focus, stays while the
- * pointer moves onto it (it sits inside the hovered wrapper), and Escape dismisses it
- * without moving focus. The target is 28 CSS px, above SC 2.5.8's 24px floor.
+ * ## WCAG 2.2 SC 1.4.13, and what each half of it costs
+ *
+ * - **Hoverable.** The tooltip is a descendant of the hovered wrapper, and its own box
+ *   starts flush with the button's bottom edge: the visible bubble is offset inside it
+ *   by padding, so there is no strip between the two where the pointer is over neither.
+ *   A short close delay covers the pointer leaving at a corner on its way across.
+ * - **Dismissible.** Escape closes it wherever keyboard focus is, not only on the
+ *   button: while a tooltip is open, a document listener watches for Escape and is
+ *   removed again when it closes. Escape on the focused button stops there; elsewhere
+ *   the key goes on to whatever else wants it, and focus never moves.
+ * - **Persistent.** It stays until the pointer and focus have both left, or Escape.
+ *
+ * The target is 28 CSS px, above SC 2.5.8's 24px floor. Geometry and Escape are proven
+ * in a real browser by `e2e/agent-assist.pw.ts`, because jsdom has no layout.
  */
 export function AssistIconButton({
   label,
@@ -36,17 +50,39 @@ export function AssistIconButton({
   const [hovered, setHovered] = useState(false);
   const [focused, setFocused] = useState(false);
   const [dismissed, setDismissed] = useState(false);
+  const closeTimer = useRef<ReturnType<typeof setTimeout> | undefined>(undefined);
   const open = (hovered || focused) && !dismissed;
+
+  useEffect(() => {
+    if (!open) return undefined;
+    const onKeyDown = (event: KeyboardEvent) => {
+      if (event.key === "Escape") setDismissed(true);
+    };
+    document.addEventListener("keydown", onKeyDown);
+    return () => {
+      document.removeEventListener("keydown", onKeyDown);
+    };
+  }, [open]);
+
+  useEffect(() => {
+    return () => {
+      clearTimeout(closeTimer.current);
+    };
+  }, []);
 
   return (
     <span
       className="qcms-assist-iconbtn"
       onMouseEnter={() => {
+        clearTimeout(closeTimer.current);
+        if (!hovered) setDismissed(false);
         setHovered(true);
-        setDismissed(false);
       }}
       onMouseLeave={() => {
-        setHovered(false);
+        clearTimeout(closeTimer.current);
+        closeTimer.current = setTimeout(() => {
+          setHovered(false);
+        }, HOVER_CLOSE_DELAY_MS);
       }}
     >
       <button
@@ -78,7 +114,7 @@ export function AssistIconButton({
       </button>
       {open && (
         <span aria-hidden="true" className="qcms-assist-iconbtn__tip" data-testid="qcms-assist-tip">
-          {label}
+          <span className="qcms-assist-iconbtn__bubble">{label}</span>
         </span>
       )}
     </span>
