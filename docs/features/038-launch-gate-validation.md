@@ -1,7 +1,7 @@
 # 038 - Launch-gate validation
 
-**Stage:** 8b (the launch gate) · **Scope:** whole product · **Depends on:** 036, **040**, **071 to 077** (stage 8c, repeating groups) (and 037 if ready - ADR-19 fallback applies)
-**References:** `PROJECT_GOAL.md` §4 · `IMPLEMENTATION_PLAN.md` Stage 8b and Stage 8c exits · **ADR-19** · **ADR-42**, **ADR-43**, **SEC-16** (repeating groups, ruled into launch on 2026-09-29)
+**Stage:** 8b (the launch gate) · **Scope:** whole product · **Depends on:** 036, **040**, **071 to 077** (stage 8c, repeating groups), **phases A to D of `plan/agent-everywhere.md`** (the agent on every admin screen; Code Owner, 2026-10-19; work orders not yet numbered) (and 037 if ready - ADR-19 fallback applies)
+**References:** `PROJECT_GOAL.md` §4 · `IMPLEMENTATION_PLAN.md` Stage 8a (the agent), Stage 8b and Stage 8c exits · **ADR-19** · **ADR-42**, **ADR-43**, **SEC-16** (repeating groups, ruled into launch on 2026-09-29) · **`docs/agent-principle.md`**, **ADR-25** as amended and **SEC-17** (the agent, ruled onto the launch gate on 2026-10-19) · `plan/agent-everywhere.md` section 1.2
 
 ## Context
 
@@ -16,6 +16,7 @@ The launch gate is a human test, not a CI job: someone who is not the author of 
   4. Respond: complete the form twice via secure link and anonymously, exercising both branch paths, on a phone for at least one run. **Add and remove an instance of the repeating group in each run**, and do one run with scripting disabled, since the no-JS roster operation is the part of that feature with no fallback behind it.
   5. Receive: see both responses in admin; export CSV **in both shapes, long and wide**, and confirm every instance is present in each; receive the signed webhook at a provided test receiver (supply a one-command receiver, e.g. `npx qcms-webhook-echo`, that verifies the signature and prints the payload) and confirm the repeated answers are inside its `answers` member.
   6. Operate: erase one response; verify the export excludes it, **including its group instances**; view the tombstone.
+  7. Assisted run (the agent, `plan/agent-everywhere.md` section 1.2): with the agent enabled, ask it for a change on at least three screens (the builder, the releases screen and a response screen); confirm one single-step card and one multi-step plan and check each ran through the screen's own control; cancel one proposal and check nothing changed; sign in as a read-only user and check the agent offers no write; and check that no answer value appears anywhere in the conversation.
 - **Run log template:** per step, record success or failure, time taken, relevant command output, and friction notes verbatim. Every point where the tester left the README to search, guess, or ask becomes an issue.
 - **Pre-flight:** all CI suites green (kernel, corpus drift, conformance, e2e, **security matrix (040)**, compose smoke, restore drill, CLI e2e if in scope); axe/Lighthouse gates green; a11y manual pass (030) has no open blockers; **security review doc (040) dated and cited - `docs/security-review-2026-08-14.md` as of that pass (040 landed it; a later pass supersedes it by date) - with zero open high-severity findings**; version stamps in a published snapshot verified by hand once.
 - **Triage rule:** launch-blocking = the tester cannot complete a step from the README, or data-integrity/auth failures. Everything else → issues (label `post-launch-polish`). Fix blockers, re-run only the failed steps with a _fresh_ environment.
@@ -23,9 +24,10 @@ The launch gate is a human test, not a CI job: someone who is not the author of 
 
 ## Exit criteria
 
-1. An external tester completes all six goals from the README alone; run log committed.
-2. Zero launch-blocking findings open.
-3. Packages published; release tagged; the announcement can honestly repeat `PROJECT_GOAL.md` §4's launch criteria.
+1. An external tester completes all seven goals from the README alone; run log committed.
+2. The assisted run (goal 7) shows no answer value in the conversation and no write offered to the read-only user; either is launch-blocking.
+3. Zero launch-blocking findings open.
+4. Packages published; release tagged; the announcement can honestly repeat `PROJECT_GOAL.md` §4's launch criteria.
 
 ## Out of scope
 
