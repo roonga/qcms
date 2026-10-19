@@ -339,6 +339,56 @@ test("case 30: exactly one __qop entry reaches the server, or none", async ({ pa
   expect(postedValues(continueBody, SESSION_FIELD)).toEqual([sessionId]);
 });
 
+test("Enter in a member field continues and leaves the roster alone (local UX list P3)", async ({
+  page,
+}) => {
+  // Without scripting, Enter in a text field presses the form's default button, which is
+  // the FIRST submit button in tree order. Vehicle 1's Remove precedes the visible
+  // Continue, so before the hidden default existed this Enter removed the instance the
+  // respondent was typing into. Now it is the ordinary whole-step POST and its 303.
+  const sessionId = await startNoJsRepeat(page);
+  await page.getByLabel("Fleet reference").fill("NORTH-1");
+  const plate = card(page, 1).getByLabel("Registration plate");
+  await plate.fill("AAA111");
+  // The roster button that used to win is on the page and ahead of the visible Continue.
+  const remove = page.getByRole("button", { name: removeName(1) });
+  await expect(remove).toBeVisible();
+  const visibleSubmit = await stepSubmit(page).elementHandle();
+  expect(
+    await remove.evaluate(
+      (node, submit) =>
+        (node.compareDocumentPosition(submit) & Node.DOCUMENT_POSITION_FOLLOWING) !== 0,
+      visibleSubmit,
+    ),
+  ).toBe(true);
+
+  const posts = countStepPosts(page);
+  const served = page.waitForResponse(
+    (response) => response.request().isNavigationRequest() && response.status() === 200,
+  );
+  await plate.press("Enter");
+  await served;
+
+  // The step advanced: the fixture is one step, so Continue is also the submit and the
+  // 303 lands on the receipt. And it went to the whole-step route, not the Server Action.
+  await expect(page).toHaveURL(/\/done/);
+  expect(posts()).toBe(1);
+
+  const db = await openDb(databaseUrl);
+  try {
+    // The roster is what it was: the one instance the step started with, never removed.
+    const roster = await db.rosterRows(sessionId);
+    expect(roster.filter((row) => row.event === "added")).toHaveLength(1);
+    expect(roster.filter((row) => row.event === "removed")).toHaveLength(0);
+    const locked = await db.lockedAnswers(sessionId);
+    expect(
+      locked.filter((answer) => answer.questionId === "q_rf_plate").map((a) => a.value),
+    ).toEqual(["AAA111"]);
+  } finally {
+    await db.close();
+  }
+});
+
 test("case 35: a re-render after a refusal shows every accepted answer and every refused value", async ({
   page,
 }) => {

@@ -29,13 +29,19 @@ import type { Page } from "@playwright/test";
  *   submit buttons inside the SAME form, the group's Add and Remove, because that is how
  *   one form reaches several operations without scripting. They are excluded by name
  *   rather than by position, since their count follows the live instance count.
+ * - **never the implicit-submission default** (local UX list P3): the same step also
+ *   carries a hidden, `aria-hidden` copy of Continue as the form's first submit button, so
+ *   that Enter in a field continues rather than pressing a Remove or an Add. A respondent
+ *   cannot reach it, so a spec clicks the real control.
  *
  * What is left is exactly one control: the one that posts the step to the whole-step BFF
  * route. On a repeating step that is the control carrying `formaction`, because the form's
  * own action is the Server Action the `__qop` buttons use.
  */
 export function stepSubmit(page: Page) {
-  return page.getByTestId("step-card").locator('form button[type="submit"]:not([name="__qop"])');
+  return page
+    .getByTestId("step-card")
+    .locator('form button[type="submit"]:not([name="__qop"]):not([data-qcms-implicit-submit])');
 }
 
 /** Submit the step's native form and wait for the page the 303 lands on. */
