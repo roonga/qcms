@@ -158,3 +158,15 @@ describe("list formatting", () => {
     expect(formatList([], DEFAULT_LOCALE)).toBe("");
   });
 });
+
+describe("the calendar and digits (explicit Gregorian policy)", () => {
+  it("writes an ISO instant as its Gregorian date in Latin digits whatever the tag's default", () => {
+    const iso = "1990-05-17T12:00:00.000Z";
+    for (const locale of ["th-TH", "fa-IR", "zh-CN-u-ca-chinese", "en-US-u-ca-buddhist"]) {
+      const text = formatDay(iso, { locale, timeZone: "UTC" });
+      expect(text, locale).toContain("1990");
+      expect(text, locale).toContain("17");
+      expect(text, locale).not.toMatch(/2533|1369|[\u06F0-\u06F9\u0660-\u0669]/u);
+    }
+  });
+});

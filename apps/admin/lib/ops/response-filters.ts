@@ -180,7 +180,9 @@ export function versionFilter(value: string): string | undefined {
  * does not exist would otherwise become a filter for a different day.
  */
 export function dayFilter(value: string): string | undefined {
-  if (!DAY_ONLY.test(value)) return undefined;
+  // Years 0001 to 9999: the four-digit shape, and no year 0, which `lib/time-zone.ts` will
+  // not widen. A year below 100 stays that year; nothing here maps it onto 19xx.
+  if (!DAY_ONLY.test(value) || value.startsWith("0000")) return undefined;
   const parsed = new Date(`${value}T00:00:00.000Z`);
   if (Number.isNaN(parsed.getTime())) return undefined;
   return parsed.toISOString().startsWith(value) ? value : undefined;

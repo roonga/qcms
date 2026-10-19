@@ -213,6 +213,19 @@ describe("export filter parsing", () => {
     });
   });
 
+  it("widens a skipped midnight to the first instant of the day, both ways round", () => {
+    const link = exportQuery(
+      choice({ version: "2", from: "2026-09-06", to: "2026-09-05", timeZone: "America/Santiago" }),
+    );
+    const query = new URLSearchParams(link);
+    expect(query.get("from")).toBe("2026-09-06T04:00:00.000Z");
+    expect(query.get("to")).toBe("2026-09-06T03:59:59.999Z");
+    expect(parse(link)).toEqual({
+      ok: true,
+      filters: { version: "2", from: "2026-09-06T04:00:00.000Z", to: "2026-09-06T03:59:59.999Z" },
+    });
+  });
+
   it("accepts a bare day as the same day, so a hand-typed range means what it says", () => {
     expect(parse("from=2026-07-01&to=2026-07-31")).toEqual({
       ok: true,

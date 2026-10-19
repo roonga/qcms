@@ -992,8 +992,9 @@ test("a frozen date version renders cleanly with its bounds saved", async ({ pag
   // empty state is an absent value, so the reset also flipped it from controlled to
   // uncontrolled and react-stately said so on the console - which is how issue #220's
   // console fault was reachable at all.
-  await expect(page.getByRole("group", { name: "Earliest date" })).toContainText("1/1/2030");
-  await expect(page.getByRole("group", { name: "Latest date" })).toContainText("12/31/2030");
+  // Drawn in QCMS_LOCALE, unset in the harness, so en-GB day-first (Code Owner, 2026-10-19).
+  await expect(page.getByRole("group", { name: "Earliest date" })).toContainText("01/01/2030");
+  await expect(page.getByRole("group", { name: "Latest date" })).toContainText("31/12/2030");
 
   await confirmLifecycle(page, /^Publish version 1$/, "Publish");
 

@@ -6,6 +6,7 @@ import { A2UIStepRenderer, type A2UIStepDocument } from "./A2UIStepRenderer.tsx"
 import {
   assembleNativeDate,
   dateSegmentOrder,
+  isoDateLocale,
   NATIVE_DATE_PART_PREFIX,
   NATIVE_FIELD_KIND_PREFIX,
   splitNativeDate,
@@ -190,5 +191,85 @@ describe("the no-JS date control", () => {
       expect(scripted).toEqual(dateSegmentOrder(locale));
       unmount();
     }
+  });
+});
+
+/**
+ * The explicit calendar policy: one Gregorian, Latin-digit date on both renders, whatever
+ * the operator's tag defaults to (review of PR #1077). Before it, `th-TH` drew 1990 as the
+ * Buddhist 2533 once hydrated, `fa-IR` drew 27/2/1369 in Persian digits, and a
+ * `-u-ca-chinese` extension changed the parts and their order, while the no-JS boxes kept
+ * showing and posting the Gregorian numbers.
+ */
+describe("the calendar policy across both renders", () => {
+  const NON_GREGORIAN = ["th-TH", "fa-IR", "zh-CN-u-ca-chinese", "en-US-u-ca-buddhist", "ar-EG"];
+
+  it("forces the Gregorian calendar and Latin digits and keeps everything else", () => {
+    expect(isoDateLocale("th-TH")).toBe("th-TH-u-ca-gregory-nu-latn");
+    expect(isoDateLocale("zh-CN-u-ca-chinese")).toBe("zh-CN-u-ca-gregory-nu-latn");
+    expect(isoDateLocale("fa-IR-u-nu-arabext")).toBe("fa-IR-u-ca-gregory-nu-latn");
+    expect(isoDateLocale("en-GB")).toBe("en-GB-u-ca-gregory-nu-latn");
+    // A string Intl cannot read is the caller's to refuse, not this function's.
+    expect(isoDateLocale("not a locale")).toBe("not a locale");
+  });
+
+  it.each(NON_GREGORIAN)("%s: the scripted field shows the stored day the boxes show", (locale) => {
+    const native = renderNative({ [DATE_QUESTION]: "1990-05-17" }, locale);
+    const nativeParts: Record<string, string> = {};
+    for (const box of boxes(native.container))
+      nativeParts[box.dataset["qcmsDatePart"] ?? ""] = box.value;
+    const nativeOrder = order(native.container);
+    native.unmount();
+    expect(nativeParts).toEqual({ day: "17", month: "05", year: "1990" });
+
+    const scripted = render(
+      <A2UIStepRenderer
+        document={dateStep}
+        values={{ [DATE_QUESTION]: "1990-05-17" }}
+        locale={locale}
+      />,
+    );
+    const segments = [
+      ...scripted.container.querySelectorAll<HTMLElement>('[role="spinbutton"][data-type]'),
+    ]
+      .filter((segment) => ["day", "month", "year"].includes(segment.dataset["type"] ?? ""))
+      .map((segment) => ({ type: segment.dataset["type"] ?? "", text: segment.textContent ?? "" }));
+    scripted.unmount();
+
+    // Same order on both renders, and the same Gregorian numbers in ASCII digits.
+    expect(segments.map(({ type }) => type)).toEqual(nativeOrder);
+    const scriptedParts: Record<string, string> = {};
+    for (const { type, text } of segments) scriptedParts[type] = text;
+    for (const text of Object.values(scriptedParts)) expect(text).toMatch(/^\d+$/u);
+    expect(Number(scriptedParts["day"])).toBe(17);
+    expect(Number(scriptedParts["month"])).toBe(5);
+    expect(Number(scriptedParts["year"])).toBe(1990);
+  });
+
+  it.each(NON_GREGORIAN)("%s: what is typed into the boxes posts as that ISO day", (locale) => {
+    const { container, unmount } = renderNative({}, locale);
+    const typed = { day: "17", month: "5", year: "1990" } as const;
+    for (const box of boxes(container)) {
+      box.value = typed[box.dataset["qcmsDatePart"] as keyof typeof typed];
+    }
+    const posted = new FormData(container.querySelector("form")!);
+    unmount();
+    const part = (name: string): string => {
+      const value = posted.get(`${name}${DATE_QUESTION}`);
+      return typeof value === "string" ? value : "";
+    };
+    expect(
+      assembleNativeDate({
+        day: part(NATIVE_DATE_PART_PREFIX.day),
+        month: part(NATIVE_DATE_PART_PREFIX.month),
+        year: part(NATIVE_DATE_PART_PREFIX.year),
+      }),
+    ).toBe("1990-05-17");
+  });
+
+  it("reads the order of a calendar extension's tag from its Gregorian form", () => {
+    expect(dateSegmentOrder("zh-CN-u-ca-chinese")).toEqual(["year", "month", "day"]);
+    expect(dateSegmentOrder("th-TH")).toEqual(["day", "month", "year"]);
+    expect(dateSegmentOrder("fa-IR")).toEqual(["year", "month", "day"]);
   });
 });

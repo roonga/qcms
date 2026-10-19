@@ -390,10 +390,10 @@ UTC` rather than `23:45`. That is the rule being followed rather than bent: a 24
   `2 Aug 2026, 23:45 UTC` rather than the `en` 12-hour string), and
   `components/operator-time.tsx` no longer renders a pinned UTC string first: the server
   render paints no time and the operator's zone is the only one ever shown, on every
-  surface, rails and detail routes included. The mint dialog's expiry promise is no
-  longer UTC either: the chosen day ends in the operator's zone, named in the hint, the
-  same clock the links table shows it on. The response filters and the export range read
-  their days in that zone too, carried as `tz` in the address.
+  surface, rails and detail routes included. The response filters and the export range
+  read their days in the applied filter's zone, carried as `tz` in the address. **The
+  mint dialog's expiry promise is unchanged and still UTC**, named in its hint; the links
+  table shows that same instant on the operator's clock with the zone named.
 
 - **The table wrapper carries no border and no radius.** Six of the nine shipped
   tables had none, the frozen card's table takes its border from the surrounding

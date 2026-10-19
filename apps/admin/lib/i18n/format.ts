@@ -31,6 +31,8 @@
  * What did not change: storage and the values on the wire are UTC instants.
  */
 
+import { isoDateLocale } from "@roonga/qcms-ui/native-submit";
+
 /** The locale used when `QCMS_LOCALE` is unset (Code Owner ruling 2026-10-19). */
 export const DEFAULT_LOCALE = "en-GB";
 
@@ -58,7 +60,10 @@ function dateFormat(
   const key = `${kind}|${locale}|${timeZone}`;
   let format = dateFormats.get(key);
   if (format === undefined) {
-    format = new Intl.DateTimeFormat(locale, {
+    // Gregorian calendar and Latin digits, whatever the tag's default: every instant is an
+    // ISO value, and the date pickers draw the same way (`isoDateLocale`). The order, month
+    // names, separators and hour cycle stay the operator's.
+    format = new Intl.DateTimeFormat(isoDateLocale(locale), {
       ...(kind === "day" ? DAY_OPTIONS : DAY_AND_TIME_OPTIONS),
       timeZone,
     });

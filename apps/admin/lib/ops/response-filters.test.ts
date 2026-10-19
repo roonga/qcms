@@ -195,3 +195,30 @@ describe("response filter parsing: the day's zone", () => {
     expect(parseResponseQuery({ tz: "Not/AZone" }).ignored).toEqual([]);
   });
 });
+
+/**
+ * The day boundary at clock jumps and odd years, through the parser the page uses
+ * (review of PR #1077).
+ */
+describe("response filter parsing: boundaries", () => {
+  it("starts a day whose midnight daylight saving skips at the first instant it exists", () => {
+    // America/Santiago: 00:00 on 2026-09-06 becomes 01:00. The old arithmetic began the
+    // filter at 23:00 on the 5th, an hour of another day's rows.
+    const parsed = parseResponseQuery({
+      from: "2026-09-06",
+      to: "2026-09-05",
+      tz: "America/Santiago",
+    });
+    expect(parsed.request.from).toBe("2026-09-06T04:00:00.000Z");
+    expect(parsed.request.to).toBe("2026-09-06T03:59:59.999Z");
+  });
+
+  it("keeps a year below 100 as that year, and refuses year 0", () => {
+    expect(parseResponseQuery({ from: "0099-07-01" }).request.from).toBe(
+      "0099-07-01T00:00:00.000Z",
+    );
+    const zero = parseResponseQuery({ from: "0000-01-01" });
+    expect(zero.request.from).toBeUndefined();
+    expect(zero.ignored).toEqual(["from"]);
+  });
+});

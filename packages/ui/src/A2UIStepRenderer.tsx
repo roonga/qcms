@@ -11,7 +11,7 @@ import type {
 } from "./field-context.tsx";
 import { QcmsFieldContext } from "./field-context.tsx";
 import { withDemotedHeadings } from "./heading-demotion.ts";
-import { withNativeSubmit, type NativeSubmitOptions } from "./native-submit.ts";
+import { isoDateLocale, withNativeSubmit, type NativeSubmitOptions } from "./native-submit.ts";
 import { registryForSpecVersion } from "./registry.tsx";
 import { QcmsRepeatContext, type QcmsRepeatContextValue } from "./repeat/repeat-context.tsx";
 import { expandRepeatGroups, type RepeatExpansion } from "./repeat/repeat-expand.ts";
@@ -105,13 +105,18 @@ export function A2UIStepRenderer({
   errors = NO_ERRORS,
   onChange = noop,
   onBlur = noop,
-  locale = "en-US",
+  locale: requestedLocale = "en-US",
   specVersion,
   nativeSubmit,
   headingLevelOffset = 0,
   repeat,
 }: A2UIStepRendererProps) {
   const registry = registryForSpecVersion(specVersion);
+  // Every control and the no-JS date fallback read the SAME tag, with the Gregorian
+  // calendar and Latin digits forced (`isoDateLocale`): a date answer is an ISO day, so
+  // a locale whose default calendar differs (th-TH, fa-IR, a `-u-ca-` extension) must not
+  // draw it as another date on one render and not the other.
+  const locale = useMemo(() => isoDateLocale(requestedLocale), [requestedLocale]);
   const native = nativeSubmit !== undefined;
   // The form's action travels in the context when it is a function (task 073): a node's
   // props are stored, serialisable data, so a Server Action cannot ride there.

@@ -2,6 +2,8 @@
 
 import { createContext, useContext, type ReactNode } from "react";
 
+import { isoDateLocale } from "@roonga/qcms-ui/native-submit";
+
 import { I18nProvider } from "@/components/kit";
 import { DEFAULT_LOCALE } from "@/lib/i18n/format";
 
@@ -20,6 +22,10 @@ import { DEFAULT_LOCALE } from "@/lib/i18n/format";
  * render: a filter's date field could draw one segment order on the server and another
  * after hydration, the defect the ruling exists to end on the portal.
  *
+ * The provider's tag has the Gregorian calendar and Latin digits forced (`isoDateLocale`),
+ * because a filter's day is an ISO date: a th-TH operator must not pick a Buddhist year
+ * the server then reads as Gregorian.
+ *
  * The default only applies to a tree rendered without the provider (the unit suites);
  * every page goes through the layout.
  */
@@ -34,7 +40,7 @@ export function LocaleProvider({
 }) {
   return (
     <LocaleContext.Provider value={locale}>
-      <I18nProvider locale={locale}>{children}</I18nProvider>
+      <I18nProvider locale={isoDateLocale(locale)}>{children}</I18nProvider>
     </LocaleContext.Provider>
   );
 }

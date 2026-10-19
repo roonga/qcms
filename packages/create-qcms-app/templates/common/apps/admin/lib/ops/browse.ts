@@ -62,3 +62,33 @@ export function responsePageLink(formId: string, filters: AppliedFilters, target
   search.set("page", String(target));
   return `/forms/${encodeURIComponent(formId)}/responses?${search.toString()}`;
 }
+
+/**
+ * The zone a DRAFT day range is read in, and therefore the one its hint names and the one
+ * Apply or Export writes as `tz` (review of PR #1077).
+ *
+ * - **An applied range the operator has not touched keeps the zone it was applied in.**
+ *   That is `applied.tz`, or UTC when the address named none or an unknown one, because
+ *   UTC is what `parseResponseQuery` widened it in. So a legacy `?from=2026-07-01` is
+ *   labelled UTC rather than the reader's zone, and a range a Los Angeles colleague shared
+ *   stays Los Angeles when a Sydney operator changes only Version or Flagged and presses
+ *   Apply, or exports the same range. Silently re-reading the days on another clock would
+ *   change the result set behind an unchanged control.
+ * - **A range the operator has changed, or a new one, is read on their own clock**, the
+ *   one the rows are shown on. The hint moves as soon as a day changes, so the switch is
+ *   visible before it is applied. There is no separate zone control: clearing and picking
+ *   the days again is how an operator re-reads a shared range on their own clock.
+ *
+ * `null` while the operator's zone is not yet known (the server render and hydration's
+ * first pass), and only in the second case.
+ */
+export function draftDayZone(
+  applied: AppliedFilters,
+  draft: { readonly from: string; readonly to: string },
+  operatorZone: string | null,
+): string | null {
+  const appliedHasDays = applied.from !== "" || applied.to !== "";
+  const untouched = appliedHasDays && draft.from === applied.from && draft.to === applied.to;
+  if (untouched) return applied.tz !== undefined && applied.tz !== "" ? applied.tz : "UTC";
+  return operatorZone;
+}

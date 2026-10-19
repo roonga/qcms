@@ -31,6 +31,8 @@
  * determinism reason as the locale.
  */
 
+import { isoDateLocale } from "@roonga/qcms-ui/native-submit";
+
 /** The locale used when `QCMS_LOCALE` is unset (Code Owner ruling 2026-10-19). */
 export const DEFAULT_LOCALE = "en-GB";
 
@@ -51,7 +53,8 @@ function dayAndTime({ locale, timeZone }: FormatContext): Intl.DateTimeFormat {
   const key = `${locale}|${timeZone}`;
   let format = cache.get(key);
   if (format === undefined) {
-    format = new Intl.DateTimeFormat(locale, {
+    // Gregorian calendar and Latin digits, as the date field draws (`isoDateLocale`).
+    format = new Intl.DateTimeFormat(isoDateLocale(locale), {
       year: "numeric",
       month: "short",
       day: "numeric",

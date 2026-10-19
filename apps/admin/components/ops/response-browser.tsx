@@ -10,7 +10,7 @@ import { Button, DatePicker, Dialog, Select } from "@/components/kit";
 import { FlagTag } from "@/components/ops/ops-tags";
 import { answerPreviewText } from "@/lib/ops/answers";
 import type { AppliedFilters } from "@/lib/ops/browse";
-import { responsePageLink } from "@/lib/ops/browse";
+import { draftDayZone, responsePageLink } from "@/lib/ops/browse";
 import type { ExportChoice, ExportFormat, ExportShape } from "@/lib/ops/export";
 import {
   DEFAULT_EXPORT_SHAPE,
@@ -81,16 +81,10 @@ export function ResponseBrowser({
 }) {
   const router = useRouter();
   const [isPending, startTransition] = useTransition();
-  // The clock the rows are shown on, and therefore the one a chosen day is read on (Code
-  // Owner, 2026-10-19). Applying a day filter writes it into the address as `tz`, so the
-  // server widens the day in this zone and a shared link keeps meaning the same rows.
+  // The clock the rows are shown on (Code Owner, 2026-10-19). A NEW or changed day range is
+  // read on it; an applied range nobody has touched keeps the zone it was applied in
+  // (`draftDayZone`), and Apply writes whichever applies into the address as `tz`.
   const operatorZone = useOperatorZone();
-  // What the day hints name: the zone the APPLIED days were read in when the address
-  // carries one (a link shared from another zone), else the operator's own.
-  const dayZone =
-    (filters.from !== "" || filters.to !== "") && filters.tz !== undefined && filters.tz !== ""
-      ? filters.tz
-      : (operatorZone ?? t("ops.common.yourZone"));
 
   // The controls are a DRAFT of the next filter set. `filters` is what the server
   // actually applied, and the two are not the same thing the moment an operator types
@@ -100,6 +94,9 @@ export function ResponseBrowser({
   const [to, setTo] = useState(filters.to);
   const [flagged, setFlagged] = useState(filters.flagged);
   const [exporting, setExporting] = useState(false);
+  // The zone the draft days are read in, named in the hint and written on Apply.
+  const draftZone = draftDayZone(filters, { from, to }, operatorZone);
+  const dayZone = draftZone ?? t("ops.common.yourZone");
 
   // Re-seed the draft whenever the APPLIED set changes under it. `useState` reads its
   // initializer once, so back/forward navigation (and the push below) re-rendered this
@@ -107,7 +104,7 @@ export function ResponseBrowser({
   // controls that disagree with the table beside them. Keying off a serialization of
   // the applied set rather than an effect keeps it a render-time derivation, which is
   // what it is: no effect, no flash of the stale value.
-  const applied = `${filters.version}|${filters.from}|${filters.to}|${filters.flagged}`;
+  const applied = `${filters.version}|${filters.from}|${filters.to}|${filters.flagged}|${filters.tz ?? ""}`;
   const [seeded, setSeeded] = useState(applied);
   if (seeded !== applied) {
     setSeeded(applied);
@@ -141,9 +138,9 @@ export function ResponseBrowser({
       from,
       to,
       flagged,
-      tz: from !== "" || to !== "" ? (operatorZone ?? "") : "",
+      tz: from !== "" || to !== "" ? (draftZone ?? "") : "",
     });
-  }, [go, version, from, to, flagged, operatorZone]);
+  }, [go, version, from, to, flagged, draftZone]);
 
   const clear = useCallback(() => {
     setVersion("");
@@ -383,7 +380,8 @@ export function ResponseBrowser({
           initialVersion={version}
           initialFrom={from}
           initialTo={to}
-          timeZone={operatorZone}
+          initialZone={draftZone}
+          operatorZone={operatorZone}
           onClose={() => {
             setExporting(false);
           }}
@@ -421,7 +419,8 @@ function ExportDialog({
   initialVersion,
   initialFrom,
   initialTo,
-  timeZone,
+  initialZone,
+  operatorZone,
   onClose,
 }: {
   readonly formId: string;
@@ -429,8 +428,10 @@ function ExportDialog({
   readonly initialVersion: string;
   readonly initialFrom: string;
   readonly initialTo: string;
-  /** The operator's zone, the clock the range's days are read on; null until known. */
-  readonly timeZone: string | null;
+  /** The zone the toolbar's range is read in when the dialog opens (`draftDayZone`). */
+  readonly initialZone: string | null;
+  /** The operator's own zone, for a range changed in the dialog; null until known. */
+  readonly operatorZone: string | null;
   readonly onClose: () => void;
 }) {
   const [format, setFormat] = useState<ExportFormat>("csv");
@@ -439,6 +440,9 @@ function ExportDialog({
   const [from, setFrom] = useState(initialFrom);
   const [to, setTo] = useState(initialTo);
 
+  // The range the dialog opened with keeps the toolbar's zone; a changed one is read on
+  // the operator's clock, by the same rule the toolbar follows.
+  const timeZone = from === initialFrom && to === initialTo ? initialZone : operatorZone;
   const choice: ExportChoice = {
     format,
     version,

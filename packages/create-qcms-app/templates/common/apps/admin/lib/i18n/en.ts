@@ -1723,13 +1723,15 @@ export const messages = {
   "forms.links.mintEnvironment":
     "These links will start sessions in {environment}, and nowhere else. A non-production link carries the environment's name in its address.",
   "forms.links.expiresAt": "Expires",
-  // The zone is named here because this is where the promise is made. Since the Code Owner
-  // ruling of 2026-10-19 it is the operator's own zone (`endOfDay` in the forms actions
-  // widens the chosen day on that clock), which is also the clock the links table shows the
-  // expiry on, so the sentence and the table agree. `{zone}` is an IANA zone name, or
-  // `ops.common.yourZone` for the instant before the browser has said which.
-  "forms.links.expiresAtHint":
-    "The link stops working at the end of this day in {zone}, used or not.",
+  // The zone is named here because this is where the promise is made, and it stays UTC
+  // even though the links table went operator-local in issue #279. The two are not in
+  // tension. The stored instant is the end of the chosen day in UTC (`endOfDay` in the
+  // forms actions), so this sentence states the rule the API will actually enforce for a
+  // respondent who may be anywhere, while the table states that same instant on the clock
+  // the operator reading it is on. A dialog promising "the end of your today" would be
+  // promising something the stored value does not say, and two operators picking the same
+  // calendar day would mint links dying up to a day apart.
+  "forms.links.expiresAtHint": "The link stops working at the end of this day, UTC, used or not.",
   "forms.links.oneTime": "One-time (stops working after the first use)",
   "forms.links.count": "How many",
   "forms.links.countHint": "Up to {max} at a time.",
@@ -1960,8 +1962,9 @@ export const messages = {
   "ops.responses.filter.onlyClean": "Not flagged",
   "ops.responses.filter.apply": "Apply filters",
   "ops.responses.filter.clear": "Clear filters",
-  // `{zone}` is the clock the days are read on, the same one the rows below are shown on
-  // (Code Owner, 2026-10-19): an IANA zone name, or `ops.common.yourZone`.
+  // `{zone}` is the clock the days are actually read on (Code Owner, 2026-10-19): the
+  // applied filter's zone while its days are untouched (UTC for an address that names
+  // none), else the operator's own; an IANA zone name, or `ops.common.yourZone`.
   "ops.responses.filter.dayHint": "Whole days, in {zone}.",
   // A filter value the address carried that no filter accepts (issue 521): a mistyped
   // date, a `flagged` that is not true or false, a version that is not a number. The

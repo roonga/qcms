@@ -147,14 +147,50 @@ export const NATIVE_DATE_PART_PREFIX: Readonly<Record<DatePart, string>> = {
 };
 
 /**
- * The order a locale writes a calendar day's parts in, read from `Intl` so it is the
- * order react-aria's DateField draws for the same tag.
+ * The locale every QCMS date is drawn, entered and formatted in: the operator's tag with
+ * the **Gregorian calendar and Latin digits** forced: the explicit calendar policy the
+ * operator-locale change records in its ADR-27 amendment, made to satisfy that ruling's
+ * requirement that the server render and the hydrated render agree.
+ *
+ * ## Why the calendar and the digits are not the operator's to choose
+ *
+ * A date answer is an ISO-8601 day, `YYYY-MM-DD`, which is a Gregorian date written in
+ * ASCII digits, and every instant the apps show is stored the same way. A locale whose
+ * default calendar is not Gregorian would otherwise draw that same value as a different
+ * date: `th-TH` shows 1990 as the Buddhist year 2533, `fa-IR` shows 17 May 1990 as
+ * 27/2/1369 in Persian digits, and an explicit extension such as `-u-ca-chinese` changes
+ * the parts and their order. The no-JS boxes post exactly the numbers typed, so a
+ * respondent who typed the year they saw on one render would have answered a different
+ * date on the other. Forcing the calendar and the digits here, in the one function both
+ * renders and both apps' formatters call, keeps the server render, the hydrated
+ * react-aria control and the stored answer on the same date. The answer is never
+ * reinterpreted: it stays the ISO day it always was.
+ *
+ * What stays the operator's: the order of the parts, month names, separators, the hour
+ * cycle, list words and every other convention of the tag. A `-u-ca-` or `-u-nu-`
+ * extension the operator wrote is overridden rather than refused, because the tag is
+ * still a valid choice for everything else it says. A string `Intl` cannot read is
+ * returned as given, so the caller's own validation reports it.
+ */
+export function isoDateLocale(locale: string): string {
+  try {
+    return new Intl.Locale(locale, { calendar: "gregory", numberingSystem: "latn" }).toString();
+  } catch {
+    return locale;
+  }
+}
+
+/**
+ * The order a locale writes a calendar day's parts in, read from `Intl` in the
+ * {@link isoDateLocale} form of the tag, so it is the order react-aria's DateField draws
+ * under the same provider.
  *
  * Deterministic for a given tag: it never reads the runtime's own locale or zone, which
- * is what lets the server render and the hydrated render agree.
+ * is what lets the server render and the hydrated render agree. `relatedYear` is read as
+ * the year; only a non-Gregorian calendar emits it, which {@link isoDateLocale} prevents.
  */
 export function dateSegmentOrder(locale: string): readonly DatePart[] {
-  const parts = new Intl.DateTimeFormat(locale, {
+  const parts = new Intl.DateTimeFormat(isoDateLocale(locale), {
     year: "numeric",
     month: "2-digit",
     day: "2-digit",
@@ -162,11 +198,10 @@ export function dateSegmentOrder(locale: string): readonly DatePart[] {
   }).formatToParts(new Date(Date.UTC(2000, 10, 22)));
   const order: DatePart[] = [];
   for (const part of parts) {
-    if (
-      (part.type === "day" || part.type === "month" || part.type === "year") &&
-      !order.includes(part.type)
-    ) {
-      order.push(part.type);
+    // `relatedYear` is missing from older lib typings, hence the widening to string.
+    const type = (part.type as string) === "relatedYear" ? "year" : part.type;
+    if ((type === "day" || type === "month" || type === "year") && !order.includes(type)) {
+      order.push(type);
     }
   }
   return order.length === 3 ? order : ["day", "month", "year"];

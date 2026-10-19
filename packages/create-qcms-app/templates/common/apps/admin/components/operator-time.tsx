@@ -59,8 +59,8 @@ const unknownZone = () => null;
 /**
  * The operator's zone, or `null` during the server render and hydration's first pass.
  *
- * Exported for the few places that NAME the zone rather than format with it: the day
- * filters' hint and the link-expiry hint, which say which clock a chosen day is read on.
+ * Exported for the places that NAME the zone rather than format with it: the day filters'
+ * and the export range's hints, which say which clock a chosen day is read on.
  */
 export function useOperatorZone(): string | null {
   return useSyncExternalStore(noSubscription, browserZone, unknownZone);
