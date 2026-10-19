@@ -40,7 +40,7 @@ Node LTS, pnpm, Turborepo, Zod, Hono, Next.js, Postgres, Drizzle, better-auth, `
 - TLS and ingress are operator infrastructure. The API container is not published.
 - Both frontends use the `a2-react-aria` stack. A2UI is for compiled form steps; admin screens use ordinary React.
 - Feature flags use the typed environment registry. Form settings are not feature flags.
-- Agents may assist authoring only. The kernel validates, a human publishes, and no LLM enters the serving path or respondent data path.
+- The admin agent is governed by `docs/agent-principle.md` (ADR-25 as amended 2026-10-19, SEC-17). The kernel validates, and no LLM enters the serving path or respondent data path.
 - No CORS headers. Never log answer values or expose secrets.
 - User-facing strings are localized. The portal uses an explicit Continue, Back, and Submit cursor.
 - Retraction is a tombstone append. The API is the sole domain-data client; both frontends proxy through BFF handlers.

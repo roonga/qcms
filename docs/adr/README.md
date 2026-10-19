@@ -40,7 +40,7 @@ Each record carries a **Status** line (implemented; amended, with date and task 
 | ADR-22 | One UI component stack                  | core   |
 | ADR-23 | Test layers                             | core   |
 | ADR-24 | Typed deployment flags                  | core   |
-| ADR-25 | Agent-assisted authoring only           | admin  |
+| ADR-25 | Agent proposes, human confirms          | admin  |
 | ADR-26 | Different frontend decisions by surface | core   |
 | ADR-27 | Internationalization in both apps       | core   |
 | ADR-28 | Explicit portal navigation              | portal |

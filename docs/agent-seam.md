@@ -54,7 +54,7 @@ The default resolver is a deterministic projection of the pinned domain model
 1. **A Phase-4 adaptive/agent resolver** (out of scope now, R7). It would
    implement `resolveStep` to branch on prior answers - producing documents that
    respond to what a respondent has already entered. Note the seam is
-   **authoring/compile-time**: agents assist authoring only (ADR-25); the
+   **authoring/compile-time**: the admin agent never serves (`docs/agent-principle.md`, ADR-25); the
    serving path serves the stored document and never sees an LLM (ADR-18). A
    richer context (threading answers) is a forward-compatible extension of
    `StepResolverContext`.
