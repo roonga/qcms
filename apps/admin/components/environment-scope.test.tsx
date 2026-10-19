@@ -3,6 +3,7 @@ import userEvent from "@testing-library/user-event";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 import { EnvironmentScope } from "./environment-scope.tsx";
+import { EnvironmentSwitcher } from "./environment-switcher.tsx";
 import { FormActions } from "./forms/form-actions.tsx";
 import { ResponseDetail } from "./ops/response-detail.tsx";
 import { ENVIRONMENT_COOKIE } from "../lib/environment.ts";
@@ -193,5 +194,26 @@ describe("a refusal because another tab switched", { timeout: 30_000 }, () => {
       await within(dialog).findByText(t("ops.erase.failed", { message: SWITCHED })),
     ).toBeTruthy();
     expect(screen.queryByTestId("qcms-tombstone")).toBeNull();
+  });
+});
+
+describe("the switcher after a re-read", () => {
+  it("shows the selection the server re-rendered, not the one it was mounted with", () => {
+    // The CI failure this pins: the re-read on return worked and the banner said test, but
+    // the switcher kept the name its state was initialised with and went on saying prod.
+    const { rerender } = render(
+      <EnvironmentSwitcher environments={["prod", "test"]} selected="prod" secureCookies={false} />,
+    );
+    const control = screen.getByTestId("qcms-environment-switcher");
+    expect(control.getAttribute("data-environment")).toBe("prod");
+
+    rerender(
+      <EnvironmentSwitcher environments={["prod", "test"]} selected="test" secureCookies={false} />,
+    );
+
+    expect(control.getAttribute("data-environment")).toBe("test");
+    expect(
+      screen.getByRole("button", { name: t("environment.trigger", { environment: "test" }) }),
+    ).toBeTruthy();
   });
 });

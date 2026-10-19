@@ -219,12 +219,14 @@ export async function redeliver(
   session: AdminSession,
   formId: string,
   deliveryId: string,
+  /** The confirmed environment, so a redeliver-all loop resolves it once, not per row. */
+  environment: string,
 ): Promise<ApiResult<{ readonly deliveryId: string; readonly nextAttemptAt: string }>> {
   const result = await readResult<Record<string, unknown>>(
     await adminApiFetch(
       session,
       `/forms/${encodeURIComponent(formId)}/deliveries/${encodeURIComponent(deliveryId)}/redeliver`,
-      { method: "POST" },
+      { method: "POST", environment },
     ),
   );
   if (!result.ok) return result;

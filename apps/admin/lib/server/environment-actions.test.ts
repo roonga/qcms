@@ -28,7 +28,7 @@ import { t } from "../i18n/en.ts";
 /** What the request resolves to; set before each test. Hoisted, so it cannot name the type. */
 const current = vi.hoisted((): { value: unknown } => ({ value: undefined }));
 
-const sent = vi.hoisted(() => ({ count: 0, environments: [] as string[] }));
+const sent = vi.hoisted(() => ({ count: 0, environments: [] as string[], resolutions: 0 }));
 
 /** One forwarded call, and the environment it named when it named one. */
 function forwarded(environment?: string): Promise<unknown> {
@@ -56,7 +56,10 @@ vi.mock("@/lib/server/session", () => ({
     }),
 }));
 vi.mock("@/lib/server/api", () => ({
-  requestEnvironment: () => Promise.resolve(current.value),
+  requestEnvironment: () => {
+    sent.resolutions += 1;
+    return Promise.resolve(current.value);
+  },
   adminApiFetch: () => {
     throw new Error("no API call is expected from this file");
   },
@@ -86,7 +89,7 @@ vi.mock("@/lib/server/webhook-ops", () => ({
   deactivateWebhook: () => forwarded(),
   reactivateWebhook: () => forwarded(),
   retargetWebhook: () => forwarded(),
-  redeliver: () => forwarded(),
+  redeliver: (_s: unknown, _f: string, _d: string, environment: string) => forwarded(environment),
 }));
 
 const forms = await import("../../app/(shell)/forms/actions.ts");
@@ -151,6 +154,7 @@ function resolvedTo(environment: string): ResolvedEnvironment {
 beforeEach(() => {
   sent.count = 0;
   sent.environments = [];
+  sent.resolutions = 0;
   current.value = resolvedTo("prod");
 });
 
@@ -214,5 +218,19 @@ describe("a release chosen in the release dialog", () => {
     await forms.releaseVersionAction("frm_a", { environment: "prod", version: 1 });
 
     expect(sent.count).toBe(1);
+  });
+});
+
+describe("redeliver all", () => {
+  it("resolves the environment once for the whole batch, and names it on every row", async () => {
+    const targets = ["dlv_1", "dlv_2", "dlv_3"].map((deliveryId) => ({
+      formId: "frm_a",
+      deliveryId,
+    }));
+
+    await webhooks.redeliverAllAction("prod", targets);
+
+    expect(sent.resolutions).toBe(1);
+    expect(sent.environments).toEqual(["prod", "prod", "prod"]);
   });
 });

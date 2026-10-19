@@ -58,6 +58,17 @@ export function EnvironmentSwitcher({
   readonly secureCookies: boolean;
 }) {
   const [current, setCurrent] = useState(selected);
+  // The selection the server last rendered. When it moves without this control being used
+  // - another tab switched and this tab was re-read on its return (`EnvironmentScope`, local
+  // UX list A1) - the shown name follows it. `useState` reads its argument on the first
+  // render only, so without this the banner below would say `test` while this control
+  // went on saying `prod`. Adjusted during render rather than in an effect, React's
+  // pattern for state derived from a changed prop, so no frame shows the stale name.
+  const [rendered, setRendered] = useState(selected);
+  if (selected !== rendered) {
+    setRendered(selected);
+    setCurrent(selected);
+  }
   const [isPending, startTransition] = useTransition();
   const router = useRouter();
 

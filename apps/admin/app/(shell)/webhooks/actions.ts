@@ -162,7 +162,7 @@ export async function redeliverAction(
   const session = await requireAdminSession();
   const check = await confirmShownEnvironment(session, shown);
   if (!check.ok) return { status: "error", message: check.message };
-  const result = await redeliver(session, formId, deliveryId);
+  const result = await redeliver(session, formId, deliveryId, check.environment);
   if (!result.ok) return { status: "error", message: result.message };
   revalidatePath("/webhooks");
   return { status: "done", queued: 1, failed: 0 };
@@ -185,7 +185,7 @@ export async function redeliverAllAction(
   let failed = 0;
   let lastMessage = "";
   for (const { formId, deliveryId } of targets) {
-    const result = await redeliver(session, formId, deliveryId);
+    const result = await redeliver(session, formId, deliveryId, check.environment);
     if (result.ok) queued += 1;
     else {
       failed += 1;

@@ -194,13 +194,22 @@ test("a tab coming back into view is re-read under another tab's switch", async 
 
   // Still rendered from prod until it is looked at again.
   await expect(switcher(page)).toHaveAttribute("data-environment", "prod");
-  // A headless page stays visible, so the event a returning operator's browser sends is
-  // dispatched directly; what is asserted is what the shell does with it.
+  // Playwright's default Chromium (the headless shell) never hides a page: measured with
+  // probes on every one, page A reports `visible` before tab B opens, while it is open,
+  // after it closes and after `bringToFront()`, and receives no `visibilitychange` at any of
+  // those points. So the event a returning operator's browser sends cannot be produced by
+  // switching tabs here and is dispatched directly. The state the shell checks is asserted
+  // first, so a red below is about what the shell does with a return, not about whether the
+  // harness produced one.
+  await page.bringToFront();
+  expect(await page.evaluate(() => document.visibilityState)).toBe("visible");
   await page.evaluate(() => {
     document.dispatchEvent(new Event("visibilitychange"));
   });
-  await expect(switcher(page)).toHaveAttribute("data-environment", "test");
   await expect(banner(page)).toBeVisible();
+  await expect(banner(page)).toHaveAttribute("data-environment", "test");
+  // The switcher follows the re-read too, rather than keeping the name it was mounted with.
+  await expect(switcher(page)).toHaveAttribute("data-environment", "test");
 
   await choose(page, "prod");
 });

@@ -73,6 +73,13 @@ export interface AdminApiOptions {
    * the very read that could tell this app the selection is stale.
    */
   readonly omitEnvironment?: boolean;
+  /**
+   * The environment to name, when the caller already holds this request's resolution (a
+   * guarded action's `confirmShownEnvironment` answer). It saves re-reading the live set per
+   * call, which outside a React render is not memoized: a loop of calls would otherwise read
+   * it once per iteration.
+   */
+  readonly environment?: string;
 }
 
 /**
@@ -98,7 +105,8 @@ export async function adminApiFetch(
   // assembles. It is the request's one resolution (A12), the same answer the shell renders,
   // and the API still validates it, so this is a selection and not an authority.
   if (options.omitEnvironment !== true) {
-    requestHeaders[ENVIRONMENT_HEADER] = headerEnvironment(await requestEnvironment(session));
+    requestHeaders[ENVIRONMENT_HEADER] =
+      options.environment ?? headerEnvironment(await requestEnvironment(session));
   }
   if (requestId !== undefined) requestHeaders[REQUEST_ID_HEADER] = requestId;
   if (options.body !== undefined) requestHeaders["content-type"] = "application/json";

@@ -15,8 +15,9 @@ release a flagged response, the webhook endpoint actions and redelivery) now tak
 environment its page rendered and refuses, sending nothing, when the request resolves to a
 different one: "This tab was showing prod; you have since switched to test. Nothing was
 changed. Reload to continue." The refusal is shown inside the dialog that was confirmed. A
-tab that becomes visible again under a changed cookie is also re-read. The environment
-stays out of admin URLs.
+tab that becomes visible again under a changed cookie is also re-read, and the switcher
+now follows the re-read selection instead of keeping the name it was mounted with. The
+environment stays out of admin URLs.
 
 The API header used to carry the raw cookie while the shell validated it and fell back to
 `prod`. Both now read one resolution, so a stale selection is `prod` in the chrome and on
