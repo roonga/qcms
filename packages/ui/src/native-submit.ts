@@ -1,5 +1,8 @@
 import type { A2Node } from "@a2ra/core";
 
+import { REPEAT_GROUP_NODE_TYPE } from "./repeat/repeat-node.ts";
+import { REPEAT_TABLE_NODE_TYPE } from "./repeat/repeat-table-node.ts";
+
 /**
  * Native (no-JS) submit mode for the A2UI step renderer (task 044).
  *
@@ -189,11 +192,24 @@ function toChildArray(children: A2Node["children"]): A2Node[] {
 }
 
 /**
+ * Whether the tree carries a repeating group in either presentation, which is what puts
+ * `__qop` submit buttons (Remove, Add) into the same form as the submit control.
+ */
+function carriesRosterButtons(node: A2Node): boolean {
+  if (node.type === REPEAT_GROUP_NODE_TYPE || node.type === REPEAT_TABLE_NODE_TYPE) return true;
+  return toChildArray(node.children).some((child) => carriesRosterButtons(child));
+}
+
+/**
  * Return a render-time copy of the step's root that is natively submittable:
  * the (compiled `Form`) root gains `action`/`method`, and a `SubmitButton` node
  * is appended as its last child. The input `root` is never mutated (ADR-18); this
  * is the same render-time shaping the portal already does when it prunes to the
  * visible questions.
+ *
+ * When the tree carries a repeating group, a hidden copy of that node is also
+ * prepended as the first child, so Enter in a field continues rather than pressing a
+ * `__qop` Remove or Add (local UX list P3).
  *
  * A non-`Form` root (never produced by the compiler, but the type allows it) is
  * returned untouched apart from the appended submit control, since only a `<form>`
@@ -218,5 +234,14 @@ export function withNativeSubmit(root: A2Node, opts: NativeSubmitOptions): A2Nod
   // carries stored, serialisable data only: the adapter reads the function from the
   // field context instead.
   if (opts.formAction === undefined) props.action = opts.action;
-  return { ...root, props, children: [...toChildArray(root.children), submitNode] };
+  // Enter in a text, number or date field submits through the form's default button,
+  // which is the FIRST submit button in tree order, and the submit control is appended
+  // last. On a step with a repeating group every Remove and Add precedes it, so Enter
+  // would remove or add an instance instead of continuing (local UX list P3). A hidden
+  // copy built from the same props goes first, so it mirrors the real control by
+  // construction. A step with no group carries no other submit button and is unchanged.
+  const leading: A2Node[] = carriesRosterButtons(root)
+    ? [{ type: SUBMIT_NODE_TYPE, props: { ...submitProps, implicitDefault: true } }]
+    : [];
+  return { ...root, props, children: [...leading, ...toChildArray(root.children), submitNode] };
 }
