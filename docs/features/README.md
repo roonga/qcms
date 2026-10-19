@@ -7,7 +7,7 @@ This directory contains executable work orders only. Completed work orders are r
 Use each task's `Depends on` header and the active queue below. Two additional constraints apply:
 
 - 040 must complete before 038.
-- 041 never gates 038.
+- **The agent on every admin screen, phases A to D of `plan/agent-everywhere.md`, must complete before 038** (Code Owner, 2026-10-19). It is launch scope and on the launch gate, governed by `docs/agent-principle.md`, and 038's checklist gains an assisted run. This replaces the earlier "041 never gates 038"; the phases become numbered work orders when they are written.
 - **071 to 077 must all complete before 038** (Code Owner, 2026-09-29). Repeating groups are launch scope and `docs/PROJECT_GOAL.md` section 5 promises all three presentations, so launch validation walks, exports and reads back a repeating group and there is no launch subset.
 
 ## Execution protocol
