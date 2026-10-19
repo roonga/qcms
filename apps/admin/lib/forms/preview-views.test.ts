@@ -140,6 +140,12 @@ const draftWith = (...items: DraftGroup[]): DraftForm => ({
   rules: [],
 });
 
+/** The served roster the narrowing cases read against. */
+const SERVED: Readonly<Record<string, readonly string[]>> = {
+  grp_pax: ["ins_p1", "ins_p2", "ins_p3"],
+  grp_first: ["ins_p1"],
+};
+
 const page = (stepId: string, instanceId: string | null): PreviewView => ({
   step: step(stepId),
   instanceId,
@@ -148,7 +154,7 @@ const page = (stepId: string, instanceId: string | null): PreviewView => ({
 describe("previewViewNarrowing", () => {
   it("names the step's perInstanceStep group and the page's instance", () => {
     const draft = draftWith(group("grp_pax", "perInstanceStep"));
-    expect(previewViewNarrowing(draft, page("stp_pax", "ins_p2"))).toEqual({
+    expect(previewViewNarrowing(draft, page("stp_pax", "ins_p2"), SERVED)).toEqual({
       groupId: "grp_pax",
       instanceId: "ins_p2",
     });
@@ -160,20 +166,30 @@ describe("previewViewNarrowing", () => {
       group("grp_first", "perInstanceStep"),
       group("grp_second", "perInstanceStep"),
     );
-    expect(previewViewNarrowing(draft, page("stp_pax", "ins_p1"))?.groupId).toBe("grp_first");
+    expect(previewViewNarrowing(draft, page("stp_pax", "ins_p1"), SERVED)?.groupId).toBe(
+      "grp_first",
+    );
   });
 
   it("narrows nothing on an ordinary page", () => {
     const draft = draftWith(group("grp_pax", "perInstanceStep"));
-    expect(previewViewNarrowing(draft, page("stp_one", null))).toBeUndefined();
-    expect(previewViewNarrowing(draft, undefined)).toBeUndefined();
-    expect(previewViewNarrowing(null, page("stp_pax", "ins_p1"))).toBeUndefined();
+    expect(previewViewNarrowing(draft, page("stp_one", null), SERVED)).toBeUndefined();
+    expect(previewViewNarrowing(draft, undefined, SERVED)).toBeUndefined();
+    expect(previewViewNarrowing(null, page("stp_pax", "ins_p1"), SERVED)).toBeUndefined();
   });
 
   it("narrows nothing while the draft no longer paginates the step", () => {
     // The author switched the group to stacked and the debounced re-ask has not answered.
     const draft = draftWith(group("grp_pax", "stacked"));
-    expect(previewViewNarrowing(draft, page("stp_pax", "ins_p1"))).toBeUndefined();
+    expect(previewViewNarrowing(draft, page("stp_pax", "ins_p1"), SERVED)).toBeUndefined();
+  });
+
+  it("narrows nothing to an instance the served roster does not carry", () => {
+    // The author lowered the count and the debounced re-ask has not answered: the page list
+    // still names an instance the projection no longer serves.
+    const draft = draftWith(group("grp_pax", "perInstanceStep"));
+    expect(previewViewNarrowing(draft, page("stp_pax", "ins_p9"), SERVED)).toBeUndefined();
+    expect(previewViewNarrowing(draft, page("stp_pax", "ins_p1"), {})).toBeUndefined();
   });
 });
 

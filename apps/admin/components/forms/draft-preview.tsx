@@ -190,7 +190,7 @@ export function DraftPreview({
   // The per-instance page this is, or `undefined` for every ordinary page (task 076): the
   // same `view` the portal hands the renderer, so a "One page per instance" group draws one
   // instance per page here exactly as it does for a respondent.
-  const view = previewViewNarrowing(draft, views[index]);
+  const view = previewViewNarrowing(draft, views[index], served);
   const instanceLabel = previewInstanceLabel(draft, served, view);
 
   return (

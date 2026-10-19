@@ -90,18 +90,23 @@ export interface PreviewViewNarrowing {
  *
  * Also `undefined` while the draft and the last projection disagree (the author switched
  * the group's presentation and the debounced re-ask has not answered yet): the page then
- * draws every instance for one round trip rather than guessing at a group.
+ * draws every instance for one round trip rather than guessing at a group. The same holds
+ * when the instance is not in that group's served roster, so a page never narrows to an
+ * instance the projection does not carry.
  */
 export function previewViewNarrowing(
   draft: DraftForm | null,
   view: PreviewView | undefined,
+  rosters: Readonly<Record<string, readonly string[]>>,
 ): PreviewViewNarrowing | undefined {
   if (draft === null || view === undefined || view.instanceId === null) return undefined;
+  const { instanceId } = view;
   const step = draft.steps.find((candidate) => candidate.stepId === view.step.stepId);
   const group = step?.items.find(
     (item): item is DraftGroup => isDraftGroup(item) && item.presentation === "perInstanceStep",
   );
-  return group === undefined ? undefined : { groupId: group.groupId, instanceId: view.instanceId };
+  if (group === undefined || !(rosters[group.groupId] ?? []).includes(instanceId)) return undefined;
+  return { groupId: group.groupId, instanceId };
 }
 
 /**

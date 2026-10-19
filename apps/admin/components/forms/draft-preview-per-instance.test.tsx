@@ -1,9 +1,9 @@
 import { render, screen, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
-import { describe, expect, it } from "vitest";
+import { describe, expect, it, vi } from "vitest";
 
-import { DraftPreview } from "./draft-preview.tsx";
-import type { DraftForm, DraftPreview as DraftPreviewPayload } from "../../lib/forms/types.ts";
+import type { DraftPreviewState } from "../../lib/forms/builder-state.ts";
+import type { DraftForm } from "../../lib/forms/types.ts";
 import { t } from "../../lib/i18n/en.ts";
 
 /**
@@ -14,9 +14,37 @@ import { t } from "../../lib/i18n/en.ts";
  * instance it is in the step line. Before this the pane walked the right number of pages
  * and drew every instance on each of them.
  *
- * Everything below the `preview` prop is real: the view list, the narrowing, the shared
- * projection and the shared renderer.
+ * Only the network edge is faked. The `preview` prop goes through the real `previewDraft`
+ * read in `lib/server/forms.ts`, fed the endpoint's wire body, because that read is where the
+ * view list was once dropped on its way to a component that handled it correctly. Below it
+ * the view list, the narrowing, the shared projection and the shared renderer are all real.
  */
+
+/** What the fake network edge answers the preview call with; set per case. */
+let wireBody: Record<string, unknown> = {};
+
+vi.mock("../../lib/server/api.ts", () => ({
+  adminApiFetch: () =>
+    Promise.resolve(
+      new Response(JSON.stringify(wireBody), {
+        status: 200,
+        headers: { "content-type": "application/json" },
+      }),
+    ),
+}));
+
+const { DraftPreview } = await import("./draft-preview.tsx");
+const { previewDraft } = await import("../../lib/server/forms.ts");
+
+const SESSION: Parameters<typeof previewDraft>[0] = {
+  userId: "u_1",
+  email: "admin@example.test",
+  name: "Admin",
+  role: "admin",
+  twoFactorEnabled: true,
+  mustChangePassword: false,
+  token: "tok",
+};
 
 const ROSTER = ["ins_p1", "ins_p2", "ins_p3"] as const;
 
@@ -67,18 +95,37 @@ const DRAFT: DraftForm = {
   rules: [],
 };
 
-const PREVIEW: DraftPreviewPayload = {
-  documents: [PAX_STEP],
-  compilerVersion: "0.1.0",
-  a2uiSpecVersion: "1.0.0",
-  flow: {
-    visibleSteps: [PAX_STEP.stepId],
-    visibleQuestions: ROSTER.map((instanceId) => `${instanceId}/q_pax_name`),
-    complete: false,
-    rosters: [{ groupId: "grp_pax", instances: [...ROSTER] }],
-    visibleStepViews: ROSTER.map((instanceId) => ({ stepId: PAX_STEP.stepId, instanceId })),
-  },
-};
+/** The endpoint's body for this draft, as `apps/api`'s preview handler sends it. */
+function wire(visibleStepViews: readonly unknown[]): Record<string, unknown> {
+  return {
+    documents: [PAX_STEP],
+    compilerVersion: "0.1.0",
+    a2uiSpecVersion: "1.0.0",
+    flow: {
+      visibleSteps: [PAX_STEP.stepId],
+      visibleQuestions: ROSTER.map((instanceId) => `${instanceId}/q_pax_name`),
+      complete: false,
+      rosters: [{ groupId: "grp_pax", instances: [...ROSTER] }],
+      visibleStepViews,
+    },
+  };
+}
+
+/** The pane's `preview` prop, through the real read, as the server action maps it. */
+async function preview(input: {
+  readonly draft: DraftForm;
+  readonly answers: Readonly<Record<string, unknown>>;
+  readonly instances: Readonly<Record<string, readonly string[]>>;
+}): Promise<DraftPreviewState> {
+  const result = await previewDraft(SESSION, input.draft.formId, {
+    definition: input.draft,
+    answers: input.answers,
+    instances: input.instances,
+  });
+  return result.ok
+    ? { status: "ok", preview: result.data }
+    : { status: "error", message: result.message };
+}
 
 function drawnFields(): string[] {
   const surface = screen.getByTestId("qcms-preview-surface");
@@ -89,14 +136,9 @@ function drawnFields(): string[] {
 
 describe("a per-instance page in the draft preview", () => {
   it("draws only its own instance and names it in the step line", async () => {
+    wireBody = wire(ROSTER.map((instanceId) => ({ stepId: PAX_STEP.stepId, instanceId })));
     const user = userEvent.setup();
-    render(
-      <DraftPreview
-        draft={DRAFT}
-        defaultTheme="slate"
-        preview={() => Promise.resolve({ status: "ok", preview: PREVIEW })}
-      />,
-    );
+    render(<DraftPreview draft={DRAFT} defaultTheme="slate" preview={preview} />);
 
     const line = await screen.findByTestId("qcms-preview-step");
     expect(line.textContent).toBe(
@@ -136,20 +178,8 @@ describe("a per-instance page in the draft preview", () => {
         items: step.items.map((item) => ({ ...item, presentation: "stacked" as const })),
       })),
     };
-    const flow = {
-      visibleSteps: PREVIEW.flow.visibleSteps,
-      visibleQuestions: PREVIEW.flow.visibleQuestions,
-      complete: false,
-      rosters: PREVIEW.flow.rosters,
-      visibleStepViews: [{ stepId: PAX_STEP.stepId, instanceId: null }],
-    };
-    render(
-      <DraftPreview
-        draft={stacked}
-        defaultTheme="slate"
-        preview={() => Promise.resolve({ status: "ok", preview: { ...PREVIEW, flow } })}
-      />,
-    );
+    wireBody = wire([{ stepId: PAX_STEP.stepId, instanceId: null }]);
+    render(<DraftPreview draft={stacked} defaultTheme="slate" preview={preview} />);
 
     const line = await screen.findByTestId("qcms-preview-step");
     expect(line.textContent).toBe(
