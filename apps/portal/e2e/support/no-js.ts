@@ -53,6 +53,28 @@ export async function submitStep(page: Page): Promise<void> {
   await served;
 }
 
+/** The no-JS date field's three boxes, by part (Code Owner ruling 2026-10-19). */
+export const NATIVE_DATE_BOX = {
+  day: (name: string) => `input[name="__qdd__${name}"]`,
+  month: (name: string) => `input[name="__qdm__${name}"]`,
+  year: (name: string) => `input[name="__qdy__${name}"]`,
+} as const;
+
+/**
+ * Fill the no-JS date field from an ISO day.
+ *
+ * The field is three boxes (day, month, year) in the order `QCMS_LOCALE` writes a date,
+ * not one `<input type="date">`, so the server render and the hydrated DateField draw
+ * the parts in one order. Each box is addressed by its posted name, so this helper does
+ * not depend on that order. An empty `iso` empties all three.
+ */
+export async function fillNativeDate(page: Page, name: string, iso: string): Promise<void> {
+  const [year = "", month = "", day = ""] = iso === "" ? [] : iso.split("-");
+  await page.locator(NATIVE_DATE_BOX.day(name)).fill(day);
+  await page.locator(NATIVE_DATE_BOX.month(name)).fill(month);
+  await page.locator(NATIVE_DATE_BOX.year(name)).fill(year);
+}
+
 /**
  * Start counting the whole-step POSTs this page makes, so "the browser blocked it"
  * is a counted fact rather than an absence observed for an arbitrary length of time.
@@ -99,7 +121,7 @@ export async function walkToCoverStep(page: Page, slug: string): Promise<void> {
   await page.getByRole("button", { name: "Start" }).click();
   await page.waitForURL(/\/s\/ses_/);
   await page.locator('input[name="q_full_name"]').fill("Ada Lovelace");
-  await page.locator('input[name="q_dob"]').fill("1990-05-17");
+  await fillNativeDate(page, "q_dob", "1990-05-17");
   await submitStep(page);
   await page.getByText("No", { exact: true }).click();
   await page.getByText("Breakdown", { exact: true }).click();

@@ -1,24 +1,31 @@
 import { render } from "@testing-library/react";
+import { renderToString } from "react-dom/server";
 import { describe, expect, it } from "vitest";
 
 import { A2UIStepRenderer, type A2UIStepDocument } from "./A2UIStepRenderer.tsx";
-import { NATIVE_FIELD_KIND_PREFIX } from "./native-submit.ts";
+import {
+  assembleNativeDate,
+  dateSegmentOrder,
+  NATIVE_DATE_PART_PREFIX,
+  NATIVE_FIELD_KIND_PREFIX,
+  splitNativeDate,
+} from "./native-submit.ts";
 import { loadGoldenForms } from "./test-support/golden.ts";
 
 /**
- * The no-JS date control (issue #920).
+ * The no-JS date control (issue #920; segment order by the Code Owner ruling of
+ * 2026-10-19).
  *
- * The defect these pin: in native-submit mode the DatePicker's form value was an
+ * The defect #920 pinned: in native-submit mode the DatePicker's form value was an
  * `<input type="text" hidden required>`, which `willValidate` is true for and which
  * the browser cannot focus to report the failure, so Chrome abandoned the whole
- * step's submit with `An invalid form control with name='q_dob' is not focusable`.
- * A required date question was a no-JS dead end, and the segmented control it sat
- * behind could not be typed into without scripting either.
+ * step's submit. The defect 2026-10-19 pinned: the fallback that fixed it was an
+ * `<input type="date">`, drawn in the BROWSER's locale order, so the server render and
+ * the hydrated react-aria DateField (drawn in the configured locale) disagreed.
  *
- * jsdom can pin the MARKUP contract - which element carries the name, whether it is
- * focusable, what the browser will validate - which is the whole of what the fix
- * changes. Whether Chrome then submits the form is layout- and browser-behaviour
- * dependent (ADR-23), so it is asserted in `apps/portal/e2e/no-js-required.pw.ts`.
+ * jsdom can pin the MARKUP contract - which elements carry which names, their order,
+ * what the browser will validate. Whether Chrome then submits the form is browser
+ * behaviour (ADR-23), asserted in `apps/portal/e2e/no-js-required.pw.ts`.
  */
 
 const kitchenSink = loadGoldenForms().find((f) => f.version === "v1" && f.form === "kitchen-sink");
@@ -30,65 +37,121 @@ const dateStep: A2UIStepDocument = kitchenSink.compiled.documents[0];
 
 const NATIVE = { action: "/s/ses_abc/step", submitLabel: "Continue" } as const;
 
-function renderNative(values?: Record<string, string>) {
+function renderNative(values?: Record<string, string>, locale = "en-GB") {
   return render(
-    <A2UIStepRenderer document={dateStep} values={values ?? {}} nativeSubmit={NATIVE} />,
+    <A2UIStepRenderer
+      document={dateStep}
+      values={values ?? {}}
+      nativeSubmit={NATIVE}
+      locale={locale}
+    />,
   );
 }
 
-/** Every control in the form that would be posted under the question's own name. */
-function postedFields(container: HTMLElement): HTMLInputElement[] {
-  return [...container.querySelectorAll<HTMLInputElement>(`input[name="${DATE_QUESTION}"]`)].filter(
-    // An empty `form` attribute owns the control to no form at all, so react-aria's
-    // autofill mirror never serializes; only what the form owns is on the wire.
-    (input) => input.getAttribute("form") !== "",
-  );
+/** The three boxes, in DOM order. */
+function boxes(container: HTMLElement): HTMLInputElement[] {
+  return [...container.querySelectorAll<HTMLInputElement>("input[data-qcms-date-part]")];
 }
 
-describe("the no-JS date control (issue #920)", () => {
-  it("posts the date from exactly one native day input", () => {
+const order = (container: HTMLElement) =>
+  boxes(container).map((box) => box.dataset["qcmsDatePart"]);
+
+describe("dateSegmentOrder", () => {
+  it("reads the order from Intl, per locale", () => {
+    expect(dateSegmentOrder("en-GB")).toEqual(["day", "month", "year"]);
+    expect(dateSegmentOrder("en-US")).toEqual(["month", "day", "year"]);
+    expect(dateSegmentOrder("de-DE")).toEqual(["day", "month", "year"]);
+    expect(dateSegmentOrder("ja-JP")).toEqual(["year", "month", "day"]);
+  });
+});
+
+describe("assembleNativeDate / splitNativeDate", () => {
+  it("joins and pads digits into the ISO day the API reads", () => {
+    expect(assembleNativeDate({ day: "7", month: "5", year: "1990" })).toBe("1990-05-07");
+    expect(assembleNativeDate({ day: " 17 ", month: "05", year: "1990" })).toBe("1990-05-17");
+  });
+
+  it("is absence when every part is blank, and passes anything else through for the API", () => {
+    expect(assembleNativeDate({ day: "", month: " ", year: "" })).toBeUndefined();
+    expect(assembleNativeDate({})).toBeUndefined();
+    // A partial date is not completed or dropped here: the API refuses it (R2).
+    expect(assembleNativeDate({ day: "5", year: "1990" })).toBe("1990--05");
+    expect(assembleNativeDate({ day: "x", month: "5", year: "1990" })).toBe("1990-05-x");
+  });
+
+  it("splits a stored or re-rendered value back into the boxes", () => {
+    expect(splitNativeDate("1990-05-17")).toEqual({ year: "1990", month: "05", day: "17" });
+    expect(splitNativeDate("1990--05")).toEqual({ year: "1990", month: "", day: "05" });
+    expect(splitNativeDate(undefined)).toEqual({ year: "", month: "", day: "" });
+    expect(splitNativeDate("nonsense")).toEqual({ year: "", month: "", day: "" });
+  });
+});
+
+describe("the no-JS date control", () => {
+  it("draws day, month, year for en-GB and month, day, year for en-US", () => {
+    expect(order(renderNative(undefined, "en-GB").container)).toEqual(["day", "month", "year"]);
+    expect(order(renderNative(undefined, "en-US").container)).toEqual(["month", "day", "year"]);
+  });
+
+  it("draws the same order in a server render as on the client", () => {
+    for (const locale of ["en-GB", "en-US"]) {
+      const html = renderToString(
+        <A2UIStepRenderer document={dateStep} values={{}} nativeSubmit={NATIVE} locale={locale} />,
+      );
+      const serverOrder = [...html.matchAll(/data-qcms-date-part="(day|month|year)"/g)].map(
+        (match) => match[1],
+      );
+      expect(serverOrder).toEqual(dateSegmentOrder(locale));
+    }
+  });
+
+  it("posts each part under its own prefixed name and nothing under the bare name", () => {
     const { container } = renderNative();
-    const fields = postedFields(container);
-    expect(fields.length).toBe(1);
-    expect(fields[0].type).toBe("date");
+    const names = boxes(container).map((box) => box.name);
+    expect(names).toEqual([
+      `${NATIVE_DATE_PART_PREFIX.day}${DATE_QUESTION}`,
+      `${NATIVE_DATE_PART_PREFIX.month}${DATE_QUESTION}`,
+      `${NATIVE_DATE_PART_PREFIX.year}${DATE_QUESTION}`,
+    ]);
+    const bare = [
+      ...container.querySelectorAll<HTMLInputElement>(`input[name="${DATE_QUESTION}"]`),
+    ];
+    expect(bare.filter((input) => input.getAttribute("form") !== "")).toEqual([]);
   });
 
-  it("renders a control the browser can validate AND focus", () => {
+  it("renders boxes the browser can validate AND focus", () => {
+    for (const box of boxes(renderNative().container)) {
+      expect(box.required).toBe(true);
+      expect(box.hasAttribute("hidden")).toBe(false);
+      expect(box.type).toBe("text");
+      expect(box.inputMode).toBe("numeric");
+      expect(box.disabled).toBe(false);
+    }
+  });
+
+  it("names the group by the question's label and each box by its part", () => {
     const { container } = renderNative();
-    const input = postedFields(container)[0];
-    // The defect in one assertion: the element carrying the constraint is not
-    // hidden, so a browser reporting its validity has somewhere to put the message.
-    expect(input.required).toBe(true);
-    expect(input.hasAttribute("hidden")).toBe(false);
-    expect(input.type).not.toBe("hidden");
-    expect(input.disabled).toBe(false);
+    const fieldset = container.querySelector("fieldset[data-qcms-native-date]");
+    expect(fieldset?.querySelector("legend")?.textContent).toContain("Date of birth");
+    const labels = boxes(container).map(
+      (box) => container.querySelector<HTMLLabelElement>(`label[for="${box.id}"]`)?.textContent,
+    );
+    expect(labels).toEqual(["Day", "Month", "Year"]);
   });
 
-  it("carries the question's ISO day bounds as native min/max", () => {
-    const { container } = renderNative();
-    const input = postedFields(container)[0];
-    expect(input.getAttribute("min")).toBe("1900-01-01");
-    expect(input.getAttribute("max")).toBe("2100-12-31");
+  it("seeds the stored answer into the three boxes, so it re-posts unchanged", () => {
+    const values = boxes(renderNative({ [DATE_QUESTION]: "1990-05-17" }).container).map(
+      (box) => box.value,
+    );
+    expect(values).toEqual(["17", "05", "1990"]);
   });
 
-  it("is labelled by the question's own label, so the browser names it in the report", () => {
-    const { container } = renderNative();
-    const input = postedFields(container)[0];
-    const label = container.querySelector<HTMLLabelElement>(`label[for="${input.id}"]`);
-    expect(label?.textContent).toContain("Date of birth");
-  });
-
-  it("seeds the stored answer as an uncontrolled default, so it re-posts unchanged", () => {
-    const { container } = renderNative({ [DATE_QUESTION]: "1990-05-17" });
-    expect(postedFields(container)[0].value).toBe("1990-05-17");
-  });
-
-  it("still tags the field `string` for the BFF decoder", () => {
+  it("tags the field `date` for the BFF decoder", () => {
     const { container } = renderNative();
     const kind = container.querySelector<HTMLInputElement>(
       `input[type="hidden"][name="${NATIVE_FIELD_KIND_PREFIX}${DATE_QUESTION}"]`,
     );
-    expect(kind?.value).toBe("string");
+    expect(kind?.value).toBe("date");
   });
 
   it("shows the API's refusal in the field's own error slot", () => {
@@ -99,19 +162,33 @@ describe("the no-JS date control (issue #920)", () => {
         nativeSubmit={NATIVE}
       />,
     );
-    const input = postedFields(container)[0];
-    expect(input.getAttribute("aria-invalid")).toBe("true");
-    const describedBy = input.getAttribute("aria-describedby") ?? "";
-    const described = describedBy
+    const box = boxes(container)[0];
+    expect(box.getAttribute("aria-invalid")).toBe("true");
+    const described = (box.getAttribute("aria-describedby") ?? "")
       .split(" ")
       .map((id) => container.querySelector(`#${CSS.escape(id)}`)?.textContent)
       .join(" ");
     expect(described).toContain("That date is out of range.");
   });
 
-  it("leaves the scripted render alone: no native day input when JS drives the form", () => {
-    const { container } = render(<A2UIStepRenderer document={dateStep} />);
-    expect(container.querySelector('input[type="date"]:not([form=""])')).toBeNull();
+  it("leaves the scripted render alone: no native boxes when JS drives the form", () => {
+    const { container } = render(<A2UIStepRenderer document={dateStep} locale="en-GB" />);
+    expect(boxes(container)).toEqual([]);
     expect(container.querySelectorAll('[role="spinbutton"]').length).toBeGreaterThan(0);
+  });
+
+  it("orders the scripted DateField's segments by the same locale", () => {
+    for (const locale of ["en-GB", "en-US"]) {
+      const { container, unmount } = render(
+        <A2UIStepRenderer document={dateStep} locale={locale} />,
+      );
+      const scripted = [
+        ...container.querySelectorAll<HTMLElement>('[role="spinbutton"][data-type]'),
+      ]
+        .map((segment) => segment.dataset["type"])
+        .filter((type) => type === "day" || type === "month" || type === "year");
+      expect(scripted).toEqual(dateSegmentOrder(locale));
+      unmount();
+    }
   });
 });

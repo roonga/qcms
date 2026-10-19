@@ -19,7 +19,7 @@
  * reason - the kitchen sink's first step carries a required date, and the DatePicker's
  * form value rode an `<input type="text" hidden required>` the browser could not focus
  * to report validity on, so step one was a dead end with scripting off. Issue #920 fixed
- * that (the native-submit renderer emits a real `<input type="date">`, and
+ * that (the native-submit renderer emits real day, month and year boxes, and
  * `no-js-required.pw.ts` walks step one with no scripting at all), so only the resume
  * reason remains. What this file does is seed the session through the scripted path and
  * then do the whole subject of the issue - the clear, the submit, and what the server

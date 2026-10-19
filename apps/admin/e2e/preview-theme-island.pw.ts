@@ -451,20 +451,16 @@ test("the switcher is localized, keyboard-operable and shows focus", async ({ pa
  * The locale the previewed controls format on (issue #906).
  *
  * The three preview surfaces used to pass no `locale` to `A2UIStepRenderer` and so
- * inherited `@roonga/qcms-ui`'s own `en-US` into react-aria's `I18nProvider`, while this app
- * declares `en` and the portal passes `en` to the same renderer. This is the browser
- * reading of the corrected state: the segmented date field an author previews is laid out
- * the way the declared locale lays it out, which is the same order the portal harness types
- * into a respondent's date field key by key (`apps/portal/e2e/support/kitchen-sink.ts`).
+ * inherited `@roonga/qcms-ui`'s own `en-US` into react-aria's `I18nProvider`. Since the Code
+ * Owner ruling of 2026-10-19 both apps read the deployment's `QCMS_LOCALE` (default en-GB),
+ * and the harness leaves it unset. This is the browser reading of that: the segmented date
+ * field an author previews is laid out day, month, year, the same order the portal draws a
+ * respondent's date field in.
  *
- * **What this assertion can and cannot see, stated rather than implied.** It cannot
- * distinguish `en` from `en-US`: `packages/ui/src/locale.test.tsx` measures the whole golden
- * corpus under both and the markup is identical, so no rendered assertion anywhere can
- * witness a dropped prop. That guard is at the source and prop level, in
- * `lib/questions/renderer-surface.test.ts` and `components/preview-locale.test.tsx`. What
- * this one does is pin the shape those two only name: a locale change that DOES move the
- * field, whether from a mis-declared tag or a renderer default that drifts to something
- * other than `en`, lands here in the browser and on the operator's screen at the same time.
+ * **What this assertion can see.** Unlike the old `en` default, en-GB is distinguishable from
+ * the renderer's own `en-US` in the browser: a dropped prop would draw month first and fail
+ * here. The source and prop guards are in `lib/questions/renderer-surface.test.ts` and
+ * `components/preview-locale.test.tsx`.
  */
 test("the island lays out a date field the way the declared locale does", async ({ page }) => {
   test.setTimeout(120_000);
@@ -472,14 +468,14 @@ test("the island lays out a date field the way the declared locale does", async 
   await openPreview(page, "locale", "Date");
 
   const surface = island(page);
-  // The segments, in document order, as react-aria tags them. `en` gives month first and
-  // a locale like `de-DE` gives day first, so the ORDER is the observable.
+  // The segments, in document order, as react-aria tags them. en-GB gives day first and
+  // en-US month first, so the ORDER is the observable.
   const segments = surface.locator("[data-type]");
   await expect(segments.first()).toBeVisible();
   expect(await segments.evaluateAll((nodes) => nodes.map((node) => node.dataset.type))).toEqual([
-    "month",
-    "literal",
     "day",
+    "literal",
+    "month",
     "literal",
     "year",
   ]);

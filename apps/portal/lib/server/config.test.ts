@@ -1,6 +1,9 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
 
 import {
+  appLocale,
+  assertLocaleConfigured,
+  parseLocale,
   assertNoPlaceholderSecrets,
   assertSecureCookiesConfigured,
   looksLikePlaceholder,
@@ -387,5 +390,49 @@ describe("assertNoPlaceholderSecrets", () => {
     ]) {
       expect(looksLikePlaceholder(value)).toBe(false);
     }
+  });
+});
+
+/**
+ * `QCMS_LOCALE` (Code Owner ruling 2026-10-19, ADR-27 amendment): unset is en-GB, a
+ * supported tag is canonicalised, and anything else refuses boot without the value.
+ */
+describe("QCMS_LOCALE", () => {
+  it("defaults to en-GB when unset or blank", () => {
+    vi.stubEnv("QCMS_LOCALE", "");
+    expect(appLocale()).toBe("en-GB");
+    vi.stubEnv("QCMS_LOCALE", "   ");
+    expect(appLocale()).toBe("en-GB");
+    expect(parseLocale(undefined)).toBe("en-GB");
+  });
+
+  it("accepts and canonicalises a supported BCP 47 tag", () => {
+    vi.stubEnv("QCMS_LOCALE", "en-US");
+    expect(appLocale()).toBe("en-US");
+    expect(parseLocale(" de-de ")).toBe("de-DE");
+    expect(parseLocale("en-au")).toBe("en-AU");
+  });
+
+  it("refuses a malformed or unsupported tag, and never echoes the value", () => {
+    for (const bad of ["en_GB_nonsense!", "not a locale", "zz-ZZ-x-not"]) {
+      expect(() => parseLocale(bad)).toThrow(/QCMS_LOCALE/u);
+      try {
+        parseLocale(bad);
+      } catch (error) {
+        expect(String(error)).not.toContain(bad);
+      }
+    }
+  });
+
+  it("is a boot refusal naming the variable and not the value", () => {
+    vi.stubEnv("QCMS_LOCALE", "secret-looking value!");
+    expect(() => assertLocaleConfigured()).toThrow(/Refusing to start: QCMS_LOCALE/u);
+    try {
+      assertLocaleConfigured();
+    } catch (error) {
+      expect(String(error)).not.toContain("secret-looking value!");
+    }
+    vi.stubEnv("QCMS_LOCALE", "en-GB");
+    expect(() => assertLocaleConfigured()).not.toThrow();
   });
 });

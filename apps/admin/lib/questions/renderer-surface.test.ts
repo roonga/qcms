@@ -56,15 +56,17 @@ const PREVIEW_ISLAND = "components/preview-theme-island.tsx";
 const SCOPE_VOCABULARY = "lib/preview-theme.ts";
 
 /**
- * The module that declares the locale the previews render on, once (issue #906).
+ * The module that declares where the previews' locale comes from, once (issue #906): since
+ * the Code Owner ruling of 2026-10-19 that is the deployment's `QCMS_LOCALE`, read on the
+ * server and provided to the client tree, and the previews take it through one hook.
  *
  * It is the fourth module allowed to name {@link PREVIEW_LOCALE_CONSTANT}, and the only
- * one that is not a rendering surface: it is where the value is written down.
+ * one that is not a rendering surface: it is where the hook is written down.
  */
-const LOCALE_VOCABULARY = "lib/i18n/format.ts";
+const LOCALE_VOCABULARY = "components/locale-context.tsx";
 
-/** The name of that declaration, spelled here so the assertions cannot drift from it. */
-const PREVIEW_LOCALE_CONSTANT = "PREVIEW_LOCALE";
+/** The name of that hook, spelled here so the assertions cannot drift from it. */
+const PREVIEW_LOCALE_CONSTANT = "usePreviewLocale";
 
 /**
  * A locale spelled out at a call site, in every shape JSX and TypeScript allow.
@@ -73,7 +75,7 @@ const PREVIEW_LOCALE_CONSTANT = "PREVIEW_LOCALE";
  * the ground and does not: it matches `locale={"en"}`, `locale={'en'}` and the empty
  * `locale=""`, and misses `locale="en"` - the ONE shape a person actually writes, because
  * a JSX string attribute needs no braces. Copilot caught it on PR #938. The gap was closed
- * indirectly (each module must also contain `locale={PREVIEW_LOCALE}`, and TSX refuses a
+ * indirectly (each module must also contain `locale={previewLocale}`, and TSX refuses a
  * duplicate attribute on one element) but only for a second mount inside the SAME element,
  * which is not what the assertion claims. {@link LOCALE_LITERAL_SHAPES} pins the pattern
  * against each spelling, so a guard that stops guarding fails here rather than passing
@@ -91,7 +93,7 @@ const LOCALE_LITERAL_SHAPES = {
     'locale={ "en" }',
     'locale=""',
   ],
-  passed: ["locale={PREVIEW_LOCALE}", "locale={locale}"],
+  passed: ["locale={previewLocale}", "locale={locale}"],
 } as const;
 
 /** ADR-38's carrier attribute, spelled here so the assertion cannot drift from it. */
@@ -230,11 +232,12 @@ describe("A2UI rendering surface (exit criterion 3)", () => {
       const module = files.find((file) => file.path === path);
       expect(module, `${path} should be scanned`).toBeDefined();
       const text = stripComments(module!.text);
-      expect(text, `${path} should pass the declared preview locale`).toContain(
-        `locale={${PREVIEW_LOCALE_CONSTANT}}`,
+      expect(text, `${path} should read the declared preview locale`).toContain(
+        `= ${PREVIEW_LOCALE_CONSTANT}();`,
       );
+      expect(text, `${path} should pass it to the renderer`).toContain("locale={previewLocale}");
       expect(text, `${path} should take it from ${LOCALE_VOCABULARY}`).toContain(
-        'from "@/lib/i18n/format"',
+        'from "@/components/locale-context"',
       );
       // And not as a literal of its own, which is the shape three sites drift apart in.
       expect(text, `${path} should not spell a locale out`).not.toMatch(LOCALE_LITERAL);
@@ -243,10 +246,9 @@ describe("A2UI rendering surface (exit criterion 3)", () => {
     // One declaration, three call sites: the modules naming the constant are exactly the
     // three rendering surfaces plus the module that declares it. A fourth entry here is
     // where review gets to ask which screen grew a locale.
-    expect(modulesMentioning(PREVIEW_LOCALE_CONSTANT)).toEqual([
-      ...RENDERING_MODULES,
-      LOCALE_VOCABULARY,
-    ]);
+    expect([...modulesMentioning(PREVIEW_LOCALE_CONSTANT)].sort()).toEqual(
+      [...RENDERING_MODULES, LOCALE_VOCABULARY].sort(),
+    );
   });
 
   it("catches a locale literal in every shape someone would write one (906)", () => {

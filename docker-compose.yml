@@ -408,6 +408,13 @@ services:
       # the appearance the builder's preview island opens in, so an author sees a
       # question as this deployment serves it. It is not on the `api-env` anchor
       # because neither the API nor the one-shot migration renders anything.
+      # The deployment's formatting locale (Code Owner ruling 2026-10-19, ADR-27): how dates,
+      # times and numbers are written and the order a date field draws its day, month and
+      # year in, on both sides of hydration. The admin takes the SAME value, so an author's
+      # preview matches what respondents see. Empty means unset, which is en-GB; a malformed
+      # tag refuses to boot naming the variable. Not on the `api-env` anchor: the API
+      # formats nothing for a reader.
+      QCMS_LOCALE: ${QCMS_LOCALE:-}
       QCMS_PORTAL_THEME: ${QCMS_PORTAL_THEME:-}
       # The rest of the appearance group `apps/portal/lib/server/theme.ts` reads, and it
       # is one group rather than six knobs: theme, corners, mode, density, font, the
@@ -479,6 +486,9 @@ services:
       # (task 058). It changes nothing about this app's own chrome, which is never
       # adopter-themeable (ADR-26). See the portal service for the rest of the reasoning.
       QCMS_PORTAL_THEME: ${QCMS_PORTAL_THEME:-}
+      # The portal's twin, and it takes the same value: the admin formats its own dates in it
+      # and renders the A2UI previews on it. See the portal service.
+      QCMS_LOCALE: ${QCMS_LOCALE:-}
       OTEL_EXPORTER_OTLP_ENDPOINT: ${OTEL_EXPORTER_OTLP_ENDPOINT:-}
       # The api service's twin, and it must hold the same value: that service decides
       # whether an unenrolled session is accepted, this one decides whether the

@@ -111,6 +111,13 @@ export { TextField } from "./components/a2ui/text-field/index.ts";
  * ship its own opinion about. Closing the gap upstream is the ADR-22 route if one arrives.
  */
 export { Tab, TabList, TabPanel, Tabs } from "react-aria-components";
+/**
+ * react-aria's locale boundary, so a consuming app can name the locale its kit
+ * controls format and order dates in (`QCMS_LOCALE`, Code Owner ruling 2026-10-19)
+ * instead of inheriting the browser's, which differs between the server render and
+ * the hydrated one.
+ */
+export { I18nProvider } from "react-aria-components";
 
 /**
  * The combobox primitives: a text input that FILTERS a list, by the same route and for the

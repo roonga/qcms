@@ -77,9 +77,9 @@ function questionIdFor(slug: string): string {
  * happened.
  *
  * The `locale` is pinned too, but only as a belt: the date SHAPE does not follow the
- * browser. `formatOperatorDateTime` takes the zone from the runtime and keeps
- * `ADMIN_LOCALE`, so an operator elsewhere reads their own clock inside English prose
- * (ADR-27, R7). Pinning it here means a runner with a different default cannot make this
+ * browser. `components/operator-time.tsx` takes the zone from the browser and the locale
+ * from the deployment's `QCMS_LOCALE` (Code Owner, 2026-10-19), so an operator elsewhere
+ * reads their own clock inside English prose (ADR-27, R7). Pinning it here means a runner with a different default cannot make this
  * spec's reasoning look conditional on something it does not actually depend on.
  */
 test.use({ timezoneId: "Asia/Kolkata", locale: "en-US" });

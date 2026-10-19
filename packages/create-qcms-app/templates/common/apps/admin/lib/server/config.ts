@@ -16,6 +16,7 @@
  * for the CSRF origin check below; the API reads it too, for better-auth's `baseURL`.
  */
 
+import { DEFAULT_LOCALE } from "../i18n/format.ts";
 import { DEFAULT_PREVIEW_THEME, parsePreviewTheme, type PreviewTheme } from "../preview-theme.ts";
 
 /** The SEC-4 internal-token header the API requires on every call. */
@@ -464,4 +465,63 @@ export function twoFactorOptional(): boolean {
  */
 export function sessionMaxAgeMs(): number {
   return positiveIntEnv("QCMS_ADMIN_SESSION_MAX_AGE_MS", DEFAULT_SESSION_MAX_AGE_MS);
+}
+
+/**
+ * Read a `QCMS_LOCALE` value: a BCP 47 tag this runtime's `Intl` supports, returned in
+ * canonical form, or {@link DEFAULT_LOCALE} when unset or blank (Code Owner ruling
+ * 2026-10-19, ADR-27 amendment).
+ *
+ * It decides how dates, numbers and lists are FORMATTED, the order the kit's date
+ * pickers draw a day in, and the locale the A2UI previews render on, so an author sees
+ * the date field the portal (which reads the same variable) serves. It does not choose a
+ * catalog: the admin's copy stays English whatever this says (R7).
+ *
+ * An unparseable tag throws, and so does a well-formed one the runtime has no data for,
+ * because `Intl` would otherwise fall back silently. The message never carries the value.
+ */
+export function parseLocale(raw: string | undefined): string {
+  const trimmed = raw?.trim() ?? "";
+  if (trimmed === "") return DEFAULT_LOCALE;
+  let canonical: string | undefined;
+  try {
+    canonical = Intl.getCanonicalLocales(trimmed)[0];
+  } catch {
+    canonical = undefined;
+  }
+  if (canonical === undefined || Intl.DateTimeFormat.supportedLocalesOf([canonical]).length === 0) {
+    throw new Error(
+      "QCMS_LOCALE must be a BCP 47 language tag this runtime supports, such as en-GB",
+    );
+  }
+  return canonical;
+}
+
+/**
+ * The deployment's formatting locale (`QCMS_LOCALE`). The root layout reads it and hands
+ * it to the client through `LocaleProvider` and react-aria's `I18nProvider`, so the server
+ * render and the hydrated render format against the same tag.
+ */
+export function appLocale(): string {
+  return parseLocale(process.env.QCMS_LOCALE);
+}
+
+/**
+ * Refuse to boot on an unusable `QCMS_LOCALE`, from `instrumentation.ts`.
+ *
+ * **Twin:** `apps/portal/lib/server/config.ts`. Both apps read the one variable.
+ */
+export function assertLocaleConfigured(): void {
+  try {
+    appLocale();
+  } catch {
+    throw new Error(
+      [
+        "Refusing to start: QCMS_LOCALE is not a usable locale.",
+        "  observed: QCMS_LOCALE is set, but not to a BCP 47 language tag this runtime's Intl supports (the value is not printed).",
+        "  effect: dates, numbers and date-field order would silently fall back to a convention nobody chose.",
+        "  remedy: set a tag such as en-GB, en-US or de-DE, or remove the variable to use the en-GB default. See docs/operations.md.",
+      ].join("\n"),
+    );
+  }
 }

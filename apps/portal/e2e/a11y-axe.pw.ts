@@ -48,7 +48,7 @@ import type { Page } from "@playwright/test";
 import { readFixtures } from "./support/fixtures.js";
 import { COUNT_LABEL, answerCount, chooseAccident, startAnonymousFlow } from "./support/flow.js";
 import { waitForHydration } from "./support/hydration.js";
-import { submitStep, walkToCoverStep } from "./support/no-js.js";
+import { fillNativeDate, submitStep, walkToCoverStep } from "./support/no-js.js";
 import { starveScripts } from "./support/script-starve.js";
 import {
   KS,
@@ -164,7 +164,7 @@ test("axe: the no-JS FALLBACK step, with the native date input, has zero violati
   // The no-JS render of a STEP, which no scan reached before issue #920: the entry
   // page's fallback was the only one audited, and the entry page carries no input
   // control at all. Two things on this render exist nowhere else and so were never
-  // scanned. The date question is a qcms-owned `<input type="date">` rather than the
+  // scanned. The date question is a qcms-owned fieldset of day, month and year boxes rather than the
   // vendored picker (`packages/ui/src/native-date-field.tsx`), with a hand-written
   // label association, description and error slot - markup that a manual read found
   // correct and that nothing was watching. And the missing-required report draws a
@@ -177,14 +177,14 @@ test("axe: the no-JS FALLBACK step, with the native date input, has zero violati
   await page.goto(`/f/${kitchenSinkSlug}`);
   await page.getByRole("button", { name: "Start" }).click();
   await page.waitForURL(/\/s\/ses_/);
-  const day = page.locator('[data-qcms-field] input[type="date"]');
+  const day = page.locator('[data-qcms-field] input[data-qcms-date-part="day"]');
   await expect(day).toBeVisible();
   expect(
     starvation.starvedCount(),
     "the bundle must have been requested and starved, or this scans the hydrated render",
   ).toBeGreaterThan(0);
   // Which render is on screen, asserted rather than assumed: the hydrated one has
-  // spinbutton segments and no day input.
+  // spinbutton segments and no day box.
   await expect(page.locator('[data-qcms-field] [role="spinbutton"]')).toHaveCount(0);
 
   await expectNoAxeViolations(page, "step 1 clean (no-JS fallback render)");
@@ -209,7 +209,7 @@ test("axe: the no-JS FALLBACK step, with the native date input, has zero violati
 
   await page.goto(`/s/${sessionId}`);
   await expect(page.getByTestId("error-summary")).toBeVisible();
-  await expect(page.locator('[data-qcms-field] input[type="date"]')).toBeVisible();
+  await expect(page.locator('[data-qcms-field] input[data-qcms-date-part="day"]')).toBeVisible();
   await expectNoAxeViolations(page, "step 1 missing required (no-JS fallback render)");
 });
 
@@ -231,7 +231,7 @@ test("axe: the no-JS FALLBACK step holding a required group and a native number 
   await page.getByRole("button", { name: "Start" }).click();
   await page.waitForURL(/\/s\/ses_/);
   await page.locator('input[name="q_full_name"]').fill("Ada Lovelace");
-  await page.locator('input[name="q_dob"]').fill("1990-05-17");
+  await fillNativeDate(page, "q_dob", "1990-05-17");
   await submitStep(page);
   await expect(page.getByRole("heading", { name: "Driving history" })).toBeVisible();
   expect(

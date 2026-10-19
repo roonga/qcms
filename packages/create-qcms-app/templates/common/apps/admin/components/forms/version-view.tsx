@@ -9,10 +9,10 @@ import {
 import { useCallback, useState } from "react";
 
 import { Button } from "@/components/kit";
+import { usePreviewLocale } from "@/components/locale-context";
 import { PreviewThemeIsland } from "@/components/preview-theme-island";
 import type { FormVersionSnapshot } from "@/lib/forms/types";
 import { t } from "@/lib/i18n/en";
-import { PREVIEW_LOCALE } from "@/lib/i18n/format";
 import { VERSION_HEADING_ID } from "@/lib/page-headings";
 import type { PreviewTheme } from "@/lib/preview-theme";
 
@@ -63,6 +63,7 @@ export function VersionView({
   /** The deployment's configured portal theme, read on the server by the page. */
   readonly defaultTheme: PreviewTheme;
 }) {
+  const previewLocale = usePreviewLocale();
   const [answers, setAnswers] = useState<{ key: number; values: A2UIValues }>({
     key: snapshot.version,
     values: {},
@@ -154,8 +155,8 @@ export function VersionView({
               specVersion={snapshot.a2uiSpecVersion}
               // The locale the previewed controls format on (issue #906). Without it the
               // renderer falls back to `@roonga/qcms-ui`'s own `en-US`, which is a tag this app
-              // never chose; `PREVIEW_LOCALE` is the respondent tag the portal renders on.
-              locale={PREVIEW_LOCALE}
+              // never chose; `usePreviewLocale` is QCMS_LOCALE, the tag the portal renders on.
+              locale={previewLocale}
               // The document is embedded in a page that already has an `h1` (the route's,
               // naming the version), and it carries the outline it would have as a whole
               // page on the portal: a form-title `h1` on the first step. Rendered

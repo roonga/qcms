@@ -13,7 +13,7 @@ import type { MintedLink, SecureLink } from "@/lib/forms/types";
 import type { ReadState } from "@/lib/read-state";
 import { focusPostAction } from "@/lib/ops/post-action-focus";
 import { EntityId } from "@/components/entity-id";
-import { OperatorDateTime } from "@/components/operator-time";
+import { OperatorDateTime, useOperatorZone } from "@/components/operator-time";
 import { t, tPlural } from "@/lib/i18n/en";
 import { unexpected } from "@/lib/ops/unexpected";
 
@@ -137,6 +137,7 @@ export function SecureLinks({
     readonly expiresAt: string;
     readonly oneTime: boolean;
     readonly count: number;
+    readonly timeZone?: string;
   }) => Promise<MintLinksState>;
   readonly revoke: (linkId: string) => Promise<RevokeLinkState>;
 }) {
@@ -151,6 +152,9 @@ export function SecureLinks({
   const [expiresAt, setExpiresAt] = useState<string>("");
   const [oneTime, setOneTime] = useState(false);
   const [count, setCount] = useState(1);
+  // The clock the chosen expiry day ends on, and the one the table below shows it on
+  // (Code Owner, 2026-10-19). Named in the hint, and sent with the request.
+  const operatorZone = useOperatorZone();
 
   // WHERE FOCUS GOES WHEN THE MINTED PANEL IS DISMISSED (issue 379). A ref on the wrapper
   // and not on the control, because the vendored `Button` takes no `ref` and ADR-22 forbids
@@ -161,7 +165,7 @@ export function SecureLinks({
 
   const runMint = useCallback(() => {
     startTransition(() => {
-      void mint({ expiresAt, oneTime, count })
+      void mint({ expiresAt, oneTime, count, timeZone: operatorZone ?? "UTC" })
         .then((state) => {
           setMinted(state);
           if (state.status === "minted") setDialog(null);
@@ -175,7 +179,7 @@ export function SecureLinks({
           setMinted({ status: "error", message: unexpected() });
         });
     });
-  }, [mint, expiresAt, oneTime, count]);
+  }, [mint, expiresAt, oneTime, count, operatorZone]);
 
   const runRevoke = useCallback(
     (linkId: string) => {
@@ -324,7 +328,9 @@ export function SecureLinks({
             </p>
             <DatePicker
               label={t("forms.links.expiresAt")}
-              description={t("forms.links.expiresAtHint")}
+              description={t("forms.links.expiresAtHint", {
+                zone: operatorZone ?? t("ops.common.yourZone"),
+              })}
               granularity="day"
               value={expiresAt}
               onChange={setExpiresAt}

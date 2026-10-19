@@ -152,8 +152,9 @@ describe("what a panel row says about itself", () => {
       questionPanels(definition("date", { constraints: { min: "2030-01-01" } })).find(
         (panel) => panel.id === "constraints",
       )?.digest,
-      // ADR-27 through `lib/i18n/format`, pinned to UTC for the reason issue #582 records.
-    ).toBe("from Jan 1, 2030");
+      // ADR-27 through `lib/i18n/format`, in the default en-GB locale, read in UTC because a
+      // bound is a calendar day rather than an instant (`constraintPart`).
+    ).toBe("from 1 Jan 2030");
   });
 
   it("digests Validation messages as a count of the keys the question can hold", () => {

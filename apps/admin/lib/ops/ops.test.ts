@@ -87,6 +87,26 @@ describe("export rules", () => {
     expect(query).toContain("to=2026-07-31T23%3A59%3A59.999Z");
   });
 
+  it("widens the days in the operator's zone and names it beside them (2026-10-19)", () => {
+    const query = new URLSearchParams(
+      exportQuery(
+        choice({
+          version: "2",
+          from: "2026-07-01",
+          to: "2026-07-01",
+          timeZone: "Australia/Sydney",
+        }),
+      ),
+    );
+    expect(query.get("from")).toBe("2026-06-30T14:00:00.000Z");
+    expect(query.get("to")).toBe("2026-07-01T13:59:59.999Z");
+    expect(query.get("tz")).toBe("Australia/Sydney");
+    // No days, no zone: it would describe nothing.
+    expect(exportQuery(choice({ version: "2", timeZone: "Australia/Sydney" }))).toBe(
+      "?format=csv&version=2",
+    );
+  });
+
   it("omits empty filters rather than sending blanks", () => {
     expect(exportQuery(choice({ version: "2" }))).toBe("?format=csv&version=2");
   });
@@ -167,6 +187,29 @@ describe("export filter parsing", () => {
         from: "2026-07-01T00:00:00.000Z",
         to: "2026-07-31T23:59:59.999Z",
       },
+    });
+  });
+
+  it("round-trips a link built on another clock, and reads its days on that clock", () => {
+    const link = exportQuery(
+      choice({ version: "2", from: "2026-07-01", to: "2026-07-31", timeZone: "Australia/Sydney" }),
+    );
+    expect(parse(link)).toEqual({
+      ok: true,
+      filters: {
+        version: "2",
+        from: "2026-06-30T14:00:00.000Z",
+        to: "2026-07-31T13:59:59.999Z",
+      },
+    });
+    expect(parse("from=2026-07-01&tz=America%2FLos_Angeles")).toEqual({
+      ok: true,
+      filters: { from: "2026-07-01T07:00:00.000Z" },
+    });
+    // An instant that is not a whole day on the named clock is still a partial instant.
+    expect(parse("from=2026-07-01T00%3A00%3A00.000Z&tz=Australia%2FSydney")).toEqual({
+      ok: false,
+      invalid: ["from"],
     });
   });
 

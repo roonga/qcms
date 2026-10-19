@@ -10,6 +10,7 @@ import {
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 
 import { Alert, Button, NumberField } from "@/components/kit";
+import { usePreviewLocale } from "@/components/locale-context";
 import { IssueEntry } from "@/components/forms/validation-panel";
 import { PreviewThemeIsland } from "@/components/preview-theme-island";
 import {
@@ -22,7 +23,6 @@ import { IDLE_DRAFT_PREVIEW, PREVIEW_INSTANCE_CAP } from "@/lib/forms/builder-st
 import { countBounds, draftGroups, questionGroupIds, stepPins } from "@/lib/forms/draft";
 import type { DraftForm, DraftGroup } from "@/lib/forms/types";
 import { t, tPlural } from "@/lib/i18n/en";
-import { PREVIEW_LOCALE } from "@/lib/i18n/format";
 import { unexpected } from "@/lib/ops/unexpected";
 import type { PreviewTheme } from "@/lib/preview-theme";
 
@@ -96,6 +96,7 @@ export function DraftPreview({
     readonly instances: Readonly<Record<string, readonly string[]>>;
   }) => Promise<DraftPreviewState>;
 }) {
+  const previewLocale = usePreviewLocale();
   const [answers, setAnswers] = useState<A2UIValues>({});
   const [state, setState] = useState<DraftPreviewState>(IDLE_DRAFT_PREVIEW);
   const [stepIndex, setStepIndex] = useState(0);
@@ -319,8 +320,8 @@ export function DraftPreview({
               }}
               // The locale the previewed controls format on (issue #906). Without it the
               // renderer falls back to `@roonga/qcms-ui`'s own `en-US`, which is a tag this app
-              // never chose; `PREVIEW_LOCALE` is the respondent tag the portal renders on.
-              locale={PREVIEW_LOCALE}
+              // never chose; `usePreviewLocale` is QCMS_LOCALE, the tag the portal renders on.
+              locale={previewLocale}
               // Same embed as the version view, and the same reason (issue #537): this
               // route's own `h1` names the page ("Draft preview: <slug>"), and the compiled
               // document arrives carrying the outline it would have as a whole page on the

@@ -6,6 +6,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import type { MouseEvent } from "react";
 
 import { HydrationMarker } from "@/components/hydration-marker";
+import { useAppLocale } from "@/components/locale-context";
 import { PortalShell } from "@/components/portal-shell";
 import {
   diffFlow,
@@ -42,7 +43,6 @@ import {
   type RefusalOutcome,
 } from "@/lib/flow-outcome";
 import { t } from "@/lib/i18n/en";
-import { PORTAL_LOCALE } from "@/lib/i18n/format";
 import { buttonClass } from "@/lib/ui";
 import {
   authorMessageFor,
@@ -366,6 +366,7 @@ export function StepFlow({
   // Continue/Submit gate from `missingRequired` / `readyToSubmit`, both computed
   // by the API and never re-derived here (R2).
   const [values, setValues] = useState<A2UIValues>(initial.values);
+  const locale = useAppLocale();
   // Which questions the API refused, and which value it refused for each. The
   // DISPLAYED errors are derived from that plus the values on screen, so a message
   // lives exactly as long as the value it describes (issue #122, `visibleErrors`).
@@ -1266,12 +1267,13 @@ export function StepFlow({
                 ...(rosterStatus !== undefined ? { status: rosterStatus } : {}),
                 ...(busyGroup !== undefined ? { busyGroupId: busyGroup } : {}),
               }}
-              // The respondent-facing controls run on the portal's own locale rather than
-              // on the renderer package's `en-US` default (ADR-27, issue #729): this prop
-              // feeds react-aria's `I18nProvider`, so it decides the date field's segment
-              // order, its calendar and its announcements. Passing nothing left that choice
-              // to a default no portal deployment could reach.
-              locale={PORTAL_LOCALE}
+              // The respondent-facing controls run on the deployment's QCMS_LOCALE rather
+              // than on the renderer package's `en-US` default (ADR-27, issue #729, Code
+              // Owner 2026-10-19): this prop feeds react-aria's `I18nProvider`, so it
+              // decides the date field's segment order, its calendar and its
+              // announcements, and the no-JS view passes the same tag so the order does
+              // not change at hydration.
+              locale={locale}
               specVersion={snapshot.a2uiSpecVersion}
             />
           </div>

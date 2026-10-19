@@ -246,6 +246,20 @@ QCMS_INTERNAL_TOKEN=
 # (required, secret)
 QCMS_LINK_KEYS=
 
+# The deployment's formatting locale (Code Owner ruling 2026-10-19, ADR-27): a
+# BCP 47 tag such as en-GB, en-US or de-DE. It decides how dates, times,
+# numbers and lists are formatted and the order a date field draws its day,
+# month and year in, including the kit's date pickers and the A2UI previews.
+# It is formatting, not translation: the copy stays English whatever this
+# says. Set the same value on the portal and admin services, so an author's
+# preview matches what respondents see. Unset or blank is en-GB. A malformed
+# tag, or one this runtime's Intl has no data for, refuses to boot naming the
+# variable and never printing the value. Admin times are shown on each
+# operator's own clock with the zone named; the zone comes from the browser,
+# not from this variable.
+# (optional, default en-GB)
+# QCMS_LOCALE=
+
 # Public origin of the respondent portal, used to build the secure-link URLs
 # authors copy. Absolute http(s); a trailing slash is stripped.
 # (required)

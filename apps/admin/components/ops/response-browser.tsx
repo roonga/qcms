@@ -20,7 +20,7 @@ import {
   versionRequired,
 } from "@/lib/ops/export";
 import type { ResponsePage } from "@/lib/ops/types";
-import { OperatorDateTime } from "@/components/operator-time";
+import { OperatorDateTime, useOperatorZone } from "@/components/operator-time";
 import { t, tPlural } from "@/lib/i18n/en";
 import type { ReadState } from "@/lib/read-state";
 
@@ -81,6 +81,16 @@ export function ResponseBrowser({
 }) {
   const router = useRouter();
   const [isPending, startTransition] = useTransition();
+  // The clock the rows are shown on, and therefore the one a chosen day is read on (Code
+  // Owner, 2026-10-19). Applying a day filter writes it into the address as `tz`, so the
+  // server widens the day in this zone and a shared link keeps meaning the same rows.
+  const operatorZone = useOperatorZone();
+  // What the day hints name: the zone the APPLIED days were read in when the address
+  // carries one (a link shared from another zone), else the operator's own.
+  const dayZone =
+    (filters.from !== "" || filters.to !== "") && filters.tz !== undefined && filters.tz !== ""
+      ? filters.tz
+      : (operatorZone ?? t("ops.common.yourZone"));
 
   // The controls are a DRAFT of the next filter set. `filters` is what the server
   // actually applied, and the two are not the same thing the moment an operator types
@@ -126,8 +136,14 @@ export function ResponseBrowser({
   const apply = useCallback(() => {
     // Page is deliberately dropped: a new filter set has a new page 1, and keeping
     // page 4 would land the operator on an empty page and read as "no matches".
-    go({ version, from, to, flagged });
-  }, [go, version, from, to, flagged]);
+    go({
+      version,
+      from,
+      to,
+      flagged,
+      tz: from !== "" || to !== "" ? (operatorZone ?? "") : "",
+    });
+  }, [go, version, from, to, flagged, operatorZone]);
 
   const clear = useCallback(() => {
     setVersion("");
@@ -191,14 +207,14 @@ export function ResponseBrowser({
         />
         <DatePicker
           label={t("ops.responses.filter.from")}
-          description={t("ops.responses.filter.dayHint")}
+          description={t("ops.responses.filter.dayHint", { zone: dayZone })}
           granularity="day"
           value={from}
           onChange={setFrom}
         />
         <DatePicker
           label={t("ops.responses.filter.to")}
-          description={t("ops.responses.filter.dayHint")}
+          description={t("ops.responses.filter.dayHint", { zone: dayZone })}
           granularity="day"
           value={to}
           onChange={setTo}
@@ -367,6 +383,7 @@ export function ResponseBrowser({
           initialVersion={version}
           initialFrom={from}
           initialTo={to}
+          timeZone={operatorZone}
           onClose={() => {
             setExporting(false);
           }}
@@ -404,6 +421,7 @@ function ExportDialog({
   initialVersion,
   initialFrom,
   initialTo,
+  timeZone,
   onClose,
 }: {
   readonly formId: string;
@@ -411,6 +429,8 @@ function ExportDialog({
   readonly initialVersion: string;
   readonly initialFrom: string;
   readonly initialTo: string;
+  /** The operator's zone, the clock the range's days are read on; null until known. */
+  readonly timeZone: string | null;
   readonly onClose: () => void;
 }) {
   const [format, setFormat] = useState<ExportFormat>("csv");
@@ -419,7 +439,15 @@ function ExportDialog({
   const [from, setFrom] = useState(initialFrom);
   const [to, setTo] = useState(initialTo);
 
-  const choice: ExportChoice = { format, version, from, to, shape };
+  const choice: ExportChoice = {
+    format,
+    version,
+    from,
+    to,
+    shape,
+    ...(timeZone === null ? {} : { timeZone }),
+  };
+  const dayHint = t("ops.export.dayHint", { zone: timeZone ?? t("ops.common.yourZone") });
   const needsVersion = versionRequired(format);
   const needsShape = shapeApplies(format);
   const ready = isExportable(choice) && versions.length > 0;
@@ -476,14 +504,14 @@ function ExportDialog({
         />
         <DatePicker
           label={t("ops.export.from")}
-          description={t("ops.export.dayHint")}
+          description={dayHint}
           granularity="day"
           value={from}
           onChange={setFrom}
         />
         <DatePicker
           label={t("ops.export.to")}
-          description={t("ops.export.dayHint")}
+          description={dayHint}
           granularity="day"
           value={to}
           onChange={setTo}

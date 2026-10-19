@@ -29,6 +29,12 @@ export interface AppliedFilters {
   readonly from: string;
   readonly to: string;
   readonly flagged: string;
+  /**
+   * The IANA zone the two days are whole days IN (Code Owner, 2026-10-19), "" when the
+   * address named none or an unknown one, which reads as UTC. Optional because it is not a
+   * filter: it changes what `from` and `to` mean, never which filters are applied.
+   */
+  readonly tz?: string;
 }
 
 /**
@@ -48,6 +54,7 @@ export function responsePageLink(formId: string, filters: AppliedFilters, target
     ["from", filters.from],
     ["to", filters.to],
     ["flagged", filters.flagged],
+    ["tz", filters.tz ?? ""],
   ];
   for (const [key, value] of pairs) {
     if (value !== "") search.set(key, value);

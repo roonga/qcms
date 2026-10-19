@@ -51,7 +51,7 @@ test("kitchen-sink: every type via Continue/Back, Submit, and independent DB ver
   await expect(page.getByTestId("primary-action")).toHaveText("Continue");
 
   await fillText(page, KS.fullName, "Ada Lovelace");
-  await enterDate(page, "05171990"); // 1990-05-17 (en-US MM/DD/YYYY)
+  await enterDate(page, "05171990"); // 1990-05-17, given as MMDDYYYY whatever the field order
   await continueStep(page);
 
   // --- Step 2: Driving history (boolean + number + multi-choice + long text) -

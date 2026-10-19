@@ -8,9 +8,9 @@ import {
 } from "@roonga/qcms-ui";
 import { useCallback, useState } from "react";
 
+import { usePreviewLocale } from "@/components/locale-context";
 import { PreviewThemeIsland } from "@/components/preview-theme-island";
 import { t } from "@/lib/i18n/en";
-import { PREVIEW_LOCALE } from "@/lib/i18n/format";
 import type { PreviewTheme } from "@/lib/preview-theme";
 import type { PreviewDocument } from "@/lib/questions/types";
 
@@ -103,6 +103,7 @@ export function QuestionPreview({
    */
   readonly resetKey: string | number;
 }) {
+  const previewLocale = usePreviewLocale();
   // `root` crosses the wire as `unknown` because the A2UI node tree is opaque to both
   // the API's schema and this BFF: the renderer's registry is the only thing that knows
   // what a node means. Naming the renderer's own prop type keeps that narrowing here,
@@ -145,8 +146,8 @@ export function QuestionPreview({
           onChange={handleChange}
           // The locale the previewed controls format on (issue #906). Without it the
           // renderer falls back to `@roonga/qcms-ui`'s own `en-US`, which is a tag this app
-          // never chose; `PREVIEW_LOCALE` is the respondent tag the portal renders on.
-          locale={PREVIEW_LOCALE}
+          // never chose; `usePreviewLocale` is QCMS_LOCALE, the tag the portal renders on.
+          locale={previewLocale}
         />
       </PreviewThemeIsland>
     </div>

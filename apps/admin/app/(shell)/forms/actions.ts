@@ -35,6 +35,7 @@ import { MAX_LINK_BATCH, mintLinks, revokeLink } from "@/lib/server/links";
 import { publishAndRelease, releaseVersion } from "@/lib/server/releases";
 import { confirmShownEnvironment } from "@/lib/server/environments";
 import { requireAdminSession } from "@/lib/server/session";
+import { endOfDayIn, isTimeZone } from "@/lib/time-zone";
 
 /**
  * The form builder's mutations (task 033).
@@ -563,6 +564,11 @@ interface MintRequest {
   readonly expiresAt: string;
   readonly oneTime: boolean;
   readonly count: number;
+  /**
+   * The IANA zone the chosen day ends in: the operator's browser zone, the clock the links
+   * table shows the expiry on (Code Owner, 2026-10-19). Absent or unknown reads as UTC.
+   */
+  readonly timeZone?: string;
 }
 
 /**
@@ -594,7 +600,7 @@ export async function mintLinksAction(
   if (!check.ok) return { status: "error", message: check.message };
   const result = await mintLinks(session, formId, {
     environment: check.environment,
-    expiresAt: endOfDay(request.expiresAt),
+    expiresAt: endOfDay(request.expiresAt, request.timeZone),
     oneTime: request.oneTime,
     count,
   });
@@ -604,25 +610,26 @@ export async function mintLinksAction(
 }
 
 /**
- * Widen a calendar day to the instant it ends, in UTC.
+ * Widen a calendar day to the instant it ends, in the operator's zone.
  *
  * The mint dialog asks for a day, because "which day does this stop working" is the
  * question an author has, and a date picker is the control for it. The API wants an
  * instant. Taking the **end** of the chosen day rather than its start is the direction that
  * matches what the author was told: a link dated the 31st works on the 31st.
  *
- * The zone is UTC and the dialog's hint says so, which is the second half of the same
- * decision. Widening in the author's local zone would make the stored instant depend on the
- * machine the link was minted from - two operators picking the same day would mint links
- * that die up to a day apart - and it would contradict the links table, which renders every
- * timestamp in UTC for the same reason (`lib/i18n/format.ts`). One clock, named in the copy,
- * beats a local one nobody can see afterwards.
+ * The zone is the operator's, and the dialog's hint names it (Code Owner ruling 2026-10-19).
+ * It used to be UTC, on the ground that the links table rendered UTC too; since the ruling
+ * that table shows every expiry on the operator's own clock, so a day widened in UTC came
+ * back as the next morning for anyone east of it. Two operators in different zones picking
+ * the same day now mint links that end at different instants, and that is the honest reading:
+ * each asked for the end of the day they could see, on the clock the table then shows them.
+ * The zone arrives from the browser by name and is validated here; an unknown one is UTC.
  *
  * A value that already carries a time is passed through untouched, so a future control
  * with finer granularity needs no change here.
  */
-function endOfDay(value: string): string {
-  return /^\d{4}-\d{2}-\d{2}$/.test(value) ? `${value}T23:59:59.999Z` : value;
+function endOfDay(value: string, timeZone: string | undefined): string {
+  return endOfDayIn(value, isTimeZone(timeZone) ? timeZone : "UTC");
 }
 
 /** Revoke one link. 018 refuses it from that moment; an in-flight session is unaffected. */

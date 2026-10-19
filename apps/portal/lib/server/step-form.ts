@@ -1,8 +1,11 @@
 // Import the transport constants from the React-free subpath, so this server-only
 // BFF module never pulls the @roonga/qcms-ui client components into a Server Component.
 import {
+  assembleNativeDate,
+  NATIVE_DATE_PART_PREFIX,
   NATIVE_FIELD_ANSWERED_PREFIX,
   NATIVE_FIELD_KIND_PREFIX,
+  type DatePart,
   type NativeFieldKind,
 } from "@roonga/qcms-ui/native-submit";
 import {
@@ -95,6 +98,16 @@ import { SESSION_FIELD } from "../repeat";
  * beside its marker and decodes to the same `null` retraction as any other cleared
  * field. Nothing here changed to accommodate it, which is the point: the rule was
  * always about the post rather than about the control.
+ *
+ * **A date arrives in three parts, since the 2026-10-19 ruling.** The no-JS date
+ * control is a day, a month and a year box in the configured locale's order, each
+ * posting under its own `__qdd__` / `__qdm__` / `__qdy__` name beside a `date` kind
+ * tag, and `assembleNativeDate` (the renderer package's own function, so the two sides
+ * cannot disagree about the join) turns them into the `YYYY-MM-DD` string the scripted
+ * path posts. Three blank parts are absence, which is what lets the clear rule above
+ * apply unchanged; anything else passes through as typed for the API to judge. A post
+ * still carrying the `string` kind and the bare name (a hand-built post, or a page
+ * rendered by an earlier build) decodes exactly as before.
  */
 
 /** One decoded answer, ready to POST to the internal API's per-question endpoint. */
@@ -159,7 +172,18 @@ export interface DecodedStepForm {
   readonly fields: readonly string[];
 }
 
-const KINDS: ReadonlySet<string> = new Set<NativeFieldKind>(["string", "number", "radio", "multi"]);
+const KINDS: ReadonlySet<string> = new Set<NativeFieldKind>([
+  "string",
+  "number",
+  "radio",
+  "multi",
+  "date",
+]);
+
+const DATE_PARTS = Object.entries(NATIVE_DATE_PART_PREFIX) as readonly (readonly [
+  DatePart,
+  string,
+])[];
 
 /**
  * Decode one wire field (its raw string value(s)) to its canonical shape by kind.
@@ -167,8 +191,14 @@ const KINDS: ReadonlySet<string> = new Set<NativeFieldKind>(["string", "number",
  * nothing selected - which the caller reads as a clear or as silence depending on
  * the answered marker. Coercion only - never a validity judgement.
  */
-function decodeValue(kind: NativeFieldKind, raws: readonly string[]): unknown {
+function decodeValue(
+  kind: NativeFieldKind,
+  raws: readonly string[],
+  dateParts: Readonly<Partial<Record<DatePart, string>>> | undefined,
+): unknown {
   switch (kind) {
+    case "date":
+      return assembleNativeDate(dateParts ?? {});
     case "multi": {
       const selected = raws.filter((v) => v !== "");
       return selected.length > 0 ? selected : undefined;
@@ -199,6 +229,7 @@ interface Partitioned {
   readonly rawByName: ReadonlyMap<string, string[]>;
   readonly kindByName: ReadonlyMap<string, NativeFieldKind>;
   readonly answered: ReadonlySet<string>;
+  readonly datePartsByName: ReadonlyMap<string, Partial<Record<DatePart, string>>>;
   readonly rosterOp: RosterOpRequest | undefined;
   readonly sessionId: string | undefined;
 }
@@ -208,6 +239,7 @@ function partition(entries: Iterable<[string, FormDataEntryValue]>): Partitioned
   const rawByName = new Map<string, string[]>();
   const kindByName = new Map<string, NativeFieldKind>();
   const answered = new Set<string>();
+  const datePartsByName = new Map<string, Partial<Record<DatePart, string>>>();
   let rosterOp: RosterOpRequest | undefined;
   let sessionId: string | undefined;
   /**
@@ -239,6 +271,15 @@ function partition(entries: Iterable<[string, FormDataEntryValue]>): Partitioned
       answered.add(key.slice(NATIVE_FIELD_ANSWERED_PREFIX.length));
       return true;
     }
+    for (const [part, prefix] of DATE_PARTS) {
+      if (key.startsWith(prefix)) {
+        const name = key.slice(prefix.length);
+        const parts = datePartsByName.get(name) ?? {};
+        parts[part] ??= entry;
+        datePartsByName.set(name, parts);
+        return true;
+      }
+    }
     return false;
   };
   for (const [key, entry] of entries) {
@@ -248,7 +289,7 @@ function partition(entries: Iterable<[string, FormDataEntryValue]>): Partitioned
     if (list === undefined) rawByName.set(key, [entry]);
     else list.push(entry);
   }
-  return { rawByName, kindByName, answered, rosterOp, sessionId };
+  return { rawByName, kindByName, answered, datePartsByName, rosterOp, sessionId };
 }
 
 /**
@@ -257,7 +298,8 @@ function partition(entries: Iterable<[string, FormDataEntryValue]>): Partitioned
  * and unknown kind tags are ignored.
  */
 export function decodeStepForm(entries: Iterable<[string, FormDataEntryValue]>): DecodedStepForm {
-  const { rawByName, kindByName, answered, rosterOp, sessionId } = partition(entries);
+  const { rawByName, kindByName, answered, datePartsByName, rosterOp, sessionId } =
+    partition(entries);
   const answers: DecodedAnswer[] = [];
   const cleared: Record<string, NativeFieldKind> = {};
   const fields = [...kindByName.keys()];
@@ -269,7 +311,7 @@ export function decodeStepForm(entries: Iterable<[string, FormDataEntryValue]>):
   // against it. Insertion order follows the tags' document order, which is the
   // fields' own order, so answers are forwarded in the order the form asked them.
   for (const [name, kind] of kindByName) {
-    const value = decodeValue(kind, rawByName.get(name) ?? []);
+    const value = decodeValue(kind, rawByName.get(name) ?? [], datePartsByName.get(name));
     if (value !== undefined) {
       answers.push({ questionId: name, value });
     } else if (answered.has(name)) {

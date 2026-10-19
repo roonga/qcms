@@ -43,12 +43,17 @@ import { openDb } from "./support/db.js";
 import { readFixtures } from "./support/fixtures.js";
 import { expect, test } from "./support/gates.js";
 import { KS } from "./support/kitchen-sink.js";
-import { countStepPosts, stepSubmit, submitStep } from "./support/no-js.js";
+import {
+  countStepPosts,
+  fillNativeDate,
+  NATIVE_DATE_BOX,
+  stepSubmit,
+  submitStep,
+} from "./support/no-js.js";
 
 test.use({ javaScriptEnabled: false });
 
 const NAME_FIELD = 'input[name="q_full_name"]';
-const DATE_FIELD = 'input[name="q_dob"]';
 
 /** Start the kitchen sink with no scripting and land on step one ("About you"). */
 async function startWithoutJs(page: Page, slug: string): Promise<string> {
@@ -65,18 +70,25 @@ test("a JS-disabled respondent submits a step holding a required date", async ({
   try {
     const sessionId = await startWithoutJs(page, kitchenSinkSlug);
 
-    // The control the browser can actually operate: a native day input, labelled by
-    // the question, carrying the question's own ISO bounds. Before the fix the only
-    // thing on the page under this name was an unfocusable hidden mirror.
-    const date = page.locator(DATE_FIELD);
-    await expect(date).toBeVisible();
-    await expect(date).toHaveAttribute("type", "date");
-    await expect(date).toHaveAttribute("min", "1900-01-01");
-    await expect(date).toHaveAttribute("max", "2100-12-31");
-    await expect(page.getByLabel(KS.dob)).toHaveAttribute("name", "q_dob");
+    // The controls the browser can actually operate: a group named by the question,
+    // holding a day, a month and a year box, each required and each labelled. Before
+    // #920 the only thing on the page under this name was an unfocusable hidden
+    // mirror; before the 2026-10-19 ruling it was one `<input type="date">` drawn in
+    // the browser's locale order. The order now follows QCMS_LOCALE (en-GB unset).
+    const group = page.getByRole("group", { name: KS.dob });
+    await expect(group).toBeVisible();
+    await expect(group.getByRole("textbox")).toHaveCount(3);
+    expect(
+      await group
+        .locator("input[data-qcms-date-part]")
+        .evaluateAll((nodes) => nodes.map((node) => (node as HTMLElement).dataset["qcmsDatePart"])),
+    ).toEqual(["day", "month", "year"]);
+    for (const part of ["day", "month", "year"] as const) {
+      await expect(page.locator(NATIVE_DATE_BOX[part]("q_dob"))).toHaveAttribute("required", "");
+    }
 
     await page.locator(NAME_FIELD).fill("Ada Lovelace");
-    await date.fill("1990-05-17");
+    await fillNativeDate(page, "q_dob", "1990-05-17");
     await submitStep(page);
 
     // The step advanced, which is the whole claim: this POST could not happen at all
@@ -110,7 +122,7 @@ test("the browser still refuses to submit an empty required date, and says so on
 
   // Now fill it and submit for real. The navigation that follows is what makes the
   // count above decisive: if the first click had posted, there would be two.
-  await page.locator(DATE_FIELD).fill("1990-05-17");
+  await fillNativeDate(page, "q_dob", "1990-05-17");
   await submitStep(page);
   await expect(page.getByRole("heading", { name: "Driving history" })).toBeVisible();
   expect(postCount()).toBe(1);
@@ -158,7 +170,9 @@ test("a crafted post that skips the browser is refused by the API and reported o
     // The answer that WAS accepted survives the round trip, so the respondent fixes
     // one field instead of retyping the step.
     await expect(page.locator(NAME_FIELD)).toHaveValue("Ada Lovelace");
-    await expect(page.locator(DATE_FIELD)).toHaveValue("");
+    for (const part of ["day", "month", "year"] as const) {
+      await expect(page.locator(NATIVE_DATE_BOX[part]("q_dob"))).toHaveValue("");
+    }
   } finally {
     await db.close();
   }
@@ -206,7 +220,9 @@ test("the API's own 422 lands next to its field too, with the rest of the step i
     // The value the respondent typed is back in the box, so they correct it rather
     // than retype it, and the accepted date beside it is untouched.
     await expect(page.locator(NAME_FIELD)).toHaveValue("Ada1");
-    await expect(page.locator(DATE_FIELD)).toHaveValue("1990-05-17");
+    await expect(page.locator(NATIVE_DATE_BOX.day("q_dob"))).toHaveValue("17");
+    await expect(page.locator(NATIVE_DATE_BOX.month("q_dob"))).toHaveValue("05");
+    await expect(page.locator(NATIVE_DATE_BOX.year("q_dob"))).toHaveValue("1990");
   } finally {
     await db.close();
   }

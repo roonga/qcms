@@ -1,11 +1,12 @@
 import Link from "next/link";
 import type { ReactNode } from "react";
 
+import { OperatorDay } from "@/components/operator-time";
+import { PublishedOnDay } from "@/components/questions/published-on-day";
 import { QuestionPanelRows } from "@/components/questions/question-panel-rows";
 import { StatusTag } from "@/components/questions/status-tag";
 import { RailDisclosure } from "@/components/rail-disclosure";
 import { t, tPlural } from "@/lib/i18n/en";
-import { formatDay } from "@/lib/i18n/format";
 import type { QuestionPanel, QuestionPanelId } from "@/lib/questions/panels";
 import type { QuestionVersion } from "@/lib/questions/types";
 import { latestPublishedVersion, versionRailItems } from "@/lib/questions/version-rail";
@@ -192,19 +193,17 @@ export function QuestionVersionsRail({
               editor it constrains. R6 is what makes it permanent, so the rail states it where
               it states the question's other permanent facts and the editor states nothing.
 
-              STILL UTC, and named rather than left to be discovered (issue #582). The Code
-              Owner's 2026-09-11 ruling moved day columns onto the operator's own zone, and it
-              was about TABLES: this is a detail route's rail, and a server component with no
-              hydration swap to hang the operator zone on. The consequence is visible and
-              accepted for now: the library table can name 3 Aug where this line names 2 Aug
-              for an operator east of UTC, because they are the same instant read on two
-              clocks. Extending the ruling here is a decision, not a detail. The version dates
-              below carry the same note for the same reason. */}
+              ON THE OPERATOR'S CLOCK, like every admin time (Code Owner, 2026-10-19). This
+              line used to stay UTC, so the library table could name 3 Aug where this line named
+              2 Aug for an operator east of UTC. The ruling made operator-local display apply
+              everywhere, so the day comes from the same client component the table uses. */}
           <dl className="qcms-question-rail__details">
             <dt>{t("questions.detail.slug")}</dt>
             <dd className="qcms-question-rail__details-slug">{slug}</dd>
             <dt>{t("questions.detail.created")}</dt>
-            <dd>{formatDay(createdAt)}</dd>
+            <dd>
+              <OperatorDay iso={createdAt} />
+            </dd>
             {type !== undefined && (
               <>
                 <dt>{t("questions.detail.type")}</dt>
@@ -254,14 +253,13 @@ export function QuestionVersionsRail({
                       <span>{t("questions.detail.version", { version: item.version })}</span>
                       <StatusTag status={item.status} />
                     </span>
-                    {/* STILL UTC (issue #582): the 2026-09-11 ruling moved the day columns
-                        of TABLES onto the operator's zone, and this is a rail. The same
-                        note is on the details group above, which is the other surface that
-                        can now disagree with a table about which day an instant fell on. */}
+                    {/* The operator's day, as on the details group above (2026-10-19). */}
                     <span className="qcms-rail__sub">
-                      {item.publishedAt === null
-                        ? t("questions.detail.unpublished")
-                        : t("questions.detail.publishedAt", { date: formatDay(item.publishedAt) })}
+                      {item.publishedAt === null ? (
+                        t("questions.detail.unpublished")
+                      ) : (
+                        <PublishedOnDay iso={item.publishedAt} />
+                      )}
                     </span>
                   </Link>
                   {/* UNDER THE SELECTED VERSION AND ONLY IT (Code Owner, 2026-09-27). A panel

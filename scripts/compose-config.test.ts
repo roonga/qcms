@@ -583,6 +583,32 @@ describe("managed portal theme plumbing (ADR-30, issue #499)", () => {
   });
 });
 
+describe("operator locale plumbing (Code Owner ruling 2026-10-19, ADR-27)", () => {
+  it("names QCMS_LOCALE on both apps, so one value reaches both", () => {
+    // Both apps or neither: the portal formats a respondent's dates and orders their date
+    // field in it, and the admin renders its previews on it, so forwarding it to one alone
+    // makes an author's preview disagree with what respondents see.
+    for (const name of ["portal", "admin"]) {
+      expect(service(solo, name).environment, `${name} must forward QCMS_LOCALE`).toHaveProperty(
+        "QCMS_LOCALE",
+      );
+    }
+  });
+
+  it("leaves it empty by default, so each app applies its own en-GB default", () => {
+    const unset = composeConfig({ files: ["docker-compose.yml"], env: { QCMS_LOCALE: "" } });
+    for (const name of ["portal", "admin"]) {
+      expect(service(unset, name).environment?.QCMS_LOCALE).toBe("");
+    }
+  });
+
+  it("keeps it off the API and the one-shot migration, which format nothing for a reader", () => {
+    for (const name of ["api", "migrate"]) {
+      expect(service(solo, name).environment).not.toHaveProperty("QCMS_LOCALE");
+    }
+  });
+});
+
 /**
  * The rest of the portal's appearance group (issue #752).
  *

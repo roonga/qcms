@@ -113,8 +113,95 @@ export const NATIVE_FIELD_ANSWERED_VALUE = "1";
  * - `radio` - a RadioGroup: `"true"`/`"false"` decode to a JSON boolean (a boolean
  *   question), any other value stays a string (a singleChoice OptionId).
  * - `multi` - a CheckboxGroup: the array of selected string values.
+ * - `date` - the no-JS date field's three parts, posted under
+ *   {@link NATIVE_DATE_PART_PREFIX} names and assembled by {@link assembleNativeDate}.
  */
-export type NativeFieldKind = "string" | "number" | "radio" | "multi";
+export type NativeFieldKind = "string" | "number" | "radio" | "multi" | "date";
+
+/** The three parts of a calendar day, in no particular order. */
+export type DatePart = "day" | "month" | "year";
+
+/**
+ * The name prefixes the no-JS date field's three inputs post under
+ * (Code Owner ruling 2026-10-19, ADR-27 amendment). For question `q_dob` the day box is
+ * `__qdd__q_dob`, the month box `__qdm__q_dob` and the year box `__qdy__q_dob`.
+ *
+ * ## Why three boxes rather than `<input type="date">`
+ *
+ * A native date input draws its day, month and year in the order of the BROWSER's own
+ * locale, and no attribute moves it (`lang` is ignored for this). The hydrated control
+ * is react-aria's DateField, whose order follows the `I18nProvider` locale the portal
+ * names from `QCMS_LOCALE`. So a respondent on an en-GB deployment whose browser was
+ * en-US saw month/day/year in the server render and day/month/year after hydration, or
+ * the reverse. Three labelled boxes in the configured order are the only native markup
+ * whose order the server decides, so the two renders agree by construction.
+ *
+ * Names are per part, never one repeated name: a repeated name posts its values in DOM
+ * order, and the DOM order is locale-dependent, so the decoder could not tell which
+ * value was which.
+ */
+export const NATIVE_DATE_PART_PREFIX: Readonly<Record<DatePart, string>> = {
+  day: "__qdd__",
+  month: "__qdm__",
+  year: "__qdy__",
+};
+
+/**
+ * The order a locale writes a calendar day's parts in, read from `Intl` so it is the
+ * order react-aria's DateField draws for the same tag.
+ *
+ * Deterministic for a given tag: it never reads the runtime's own locale or zone, which
+ * is what lets the server render and the hydrated render agree.
+ */
+export function dateSegmentOrder(locale: string): readonly DatePart[] {
+  const parts = new Intl.DateTimeFormat(locale, {
+    year: "numeric",
+    month: "2-digit",
+    day: "2-digit",
+    timeZone: "UTC",
+  }).formatToParts(new Date(Date.UTC(2000, 10, 22)));
+  const order: DatePart[] = [];
+  for (const part of parts) {
+    if (
+      (part.type === "day" || part.type === "month" || part.type === "year") &&
+      !order.includes(part.type)
+    ) {
+      order.push(part.type);
+    }
+  }
+  return order.length === 3 ? order : ["day", "month", "year"];
+}
+
+/**
+ * Join the three posted parts into the `YYYY-MM-DD` string the API reads, or
+ * `undefined` when every part is blank.
+ *
+ * Coercion only, never a validity judgement (R2): digits are zero-padded to the ISO
+ * widths, and anything else passes through as typed, so `31/02/2026` or a letter in the
+ * year reaches the API as a string it refuses with its own message.
+ */
+export function assembleNativeDate(
+  parts: Readonly<Partial<Record<DatePart, string>>>,
+): string | undefined {
+  const day = (parts.day ?? "").trim();
+  const month = (parts.month ?? "").trim();
+  const year = (parts.year ?? "").trim();
+  if (day === "" && month === "" && year === "") return undefined;
+  const pad = (value: string, width: number): string =>
+    /^\d+$/.test(value) && value.length < width ? value.padStart(width, "0") : value;
+  return `${pad(year, 4)}-${pad(month, 2)}-${pad(day, 2)}`;
+}
+
+/**
+ * Split a stored or re-rendered value back into the three boxes. A well-formed ISO day
+ * fills all three; anything else that still has two hyphens fills them as typed, so a
+ * refused post re-renders with what the respondent wrote; the rest renders blank.
+ */
+export function splitNativeDate(value: string | undefined): Readonly<Record<DatePart, string>> {
+  const match = value === undefined ? null : /^([^-]*)-([^-]*)-([^-]*)$/.exec(value);
+  if (match === null) return { day: "", month: "", year: "" };
+  return { year: match[1] ?? "", month: match[2] ?? "", day: match[3] ?? "" };
+}
 
 /**
  * A Next Server Action, as React renders it into a `<form action>` (task 073).

@@ -2,6 +2,7 @@ import { A2UIStepRenderer, expandRepeatGroups, hasRepeatGroup } from "@roonga/qc
 import type { A2UIErrors, A2UIStepDocument, A2UIValues } from "@roonga/qcms-ui";
 import { useActionState } from "react";
 
+import { useAppLocale } from "@/components/locale-context";
 import { PortalShell } from "@/components/portal-shell";
 import { rosterOperation } from "@/app/s/[sessionId]/roster-action";
 import {
@@ -13,7 +14,6 @@ import {
 } from "@/lib/repeat";
 import { missingOnStep, requiredFieldErrors, stepSummaryEntries } from "@/lib/error-summary";
 import { t } from "@/lib/i18n/en";
-import { PORTAL_LOCALE } from "@/lib/i18n/format";
 import { mergeStepValues } from "@/lib/step-values";
 import { buttonClass } from "@/lib/ui";
 import { authorMessageFor } from "@/lib/validation-message";
@@ -168,6 +168,7 @@ export function NativeStep({
   // session rides as a hidden input instead (`__qsid`, below), which is how plain HTML has
   // always given one form its context, and the action reads it out of the form data.
   const [rosterState, rosterFormAction] = useActionState(rosterOperation, NO_ROSTER_ACTION);
+  const locale = useAppLocale();
 
   const stepDocument = initial.step as unknown as A2UIStepDocument | null;
   const repeating = stepDocument !== null && hasRepeatGroup(stepDocument.root);
@@ -318,9 +319,10 @@ export function NativeStep({
             document={expandedDocument}
             values={values}
             errors={errors}
-            // Same reason as the scripted view (issue #729): the portal names its own
-            // locale for react-aria instead of inheriting the renderer's `en-US` default.
-            locale={PORTAL_LOCALE}
+            // The same QCMS_LOCALE the scripted view passes (issue #729, Code Owner
+            // 2026-10-19). Here it also orders the no-JS date field's day, month and year
+            // boxes, which is what keeps the order fixed across hydration.
+            locale={locale}
             specVersion={initial.a2uiSpecVersion}
             nativeSubmit={{
               action,

@@ -3,8 +3,9 @@
  * react-aria control quirks so the flow spec reads as a script: radios and
  * checkboxes sit under a decorative indicator that intercepts pointer events (so
  * click the visible label text, not the input); the NumberField emits per
- * keystroke (type key-by-key); the DatePicker is a segmented DateField in en-US
- * order MM/DD/YYYY that only emits a value once all segments are complete.
+ * keystroke (type key-by-key); the DatePicker is a segmented DateField, drawn in the
+ * order the portal's QCMS_LOCALE writes a date (en-GB DD/MM/YYYY by default), that
+ * only emits a value once all segments are complete.
  *
  * WHEN each answer posts is ADR-31's commit table, which these helpers encode so
  * a spec reads as a script rather than as event plumbing: booleans and single
@@ -16,7 +17,7 @@
  * `commit-moments.pw.ts`; here they are only the driving convention.
  */
 
-import { expect, type Page, type Response } from "@playwright/test";
+import { expect, type Locator, type Page, type Response } from "@playwright/test";
 
 import { waitForHydration } from "./hydration.js";
 
@@ -79,24 +80,52 @@ export async function fillText(page: Page, name: string, value: string): Promise
   await recorded;
 }
 
+/** A calendar day's three parts, as react-aria tags its segments. */
+export type DatePartName = "day" | "month" | "year";
+
 /**
- * Enter a date into the segmented DateField (en-US MM/DD/YYYY), then blur. The
- * date's commit moment is `completion` (ADR-31): a partial date never posts, and
- * the complete one posts once, when editing ends. Typing all eight digits and
- * blurring is therefore one post - see `commit-moments.pw.ts` for why the
+ * The order a segmented DateField draws its parts in, read off the page rather than
+ * assumed. It follows the portal's `QCMS_LOCALE` (Code Owner ruling 2026-10-19): the
+ * harness leaves it unset, so the default `en-GB` gives day, month, year.
+ */
+export async function dateSegmentOrder(group: Locator): Promise<DatePartName[]> {
+  const types = await group
+    .locator('[role="spinbutton"][data-type]')
+    .evaluateAll((nodes) => nodes.map((node) => (node as HTMLElement).dataset["type"] ?? ""));
+  return types.filter(
+    (type): type is DatePartName => type === "day" || type === "month" || type === "year",
+  );
+}
+
+/**
+ * Split `MMDDYYYY` digits into parts. The callers have always written dates this way, and
+ * keeping the argument stable means only this helper knows the field's real order.
+ */
+export function dateParts(digits: string): Record<DatePartName, string> {
+  return { month: digits.slice(0, 2), day: digits.slice(2, 4), year: digits.slice(4) };
+}
+
+/**
+ * Enter a date into the segmented DateField, then blur. `digits` is `MMDDYYYY`
+ * whatever the configured locale; the helper types the parts in the order the field
+ * draws them. The date's commit moment is `completion` (ADR-31): a partial date never
+ * posts, and the complete one posts once, when editing ends. Typing all eight digits
+ * and blurring is therefore one post - see `commit-moments.pw.ts` for why the
  * control's own "value is non-empty" signal cannot be the trigger.
  */
 export async function enterDate(page: Page, digits: string): Promise<void> {
   const recorded = answerPosted(page);
   const group = page.getByRole("group", { name: KS.dob });
-  // Click the month segment directly: react-aria handles the pointer event and
-  // makes the segment ready for keyboard entry (a programmatic .focus() on the
-  // segment span does not always enable typing). Typing auto-advances the rest.
-  const month = group.getByRole("spinbutton", { name: /month/i });
-  await month.click();
-  await page.keyboard.type(digits); // e.g. "05171990" -> 1990-05-17
+  const order = await dateSegmentOrder(group);
+  const parts = dateParts(digits);
+  // Click the FIRST segment directly: react-aria handles the pointer event and makes
+  // the segment ready for keyboard entry (a programmatic .focus() on the segment span
+  // does not always enable typing). Typing auto-advances the rest.
+  const first = group.getByRole("spinbutton", { name: new RegExp(order[0] ?? "month", "i") });
+  await first.click();
+  await page.keyboard.type(order.map((part) => parts[part]).join("")); // e.g. 17/05/1990
   // Confirm the segments actually filled before blurring (guards a missed focus).
-  await expect(month).not.toHaveText(/mm/i);
+  await expect(group.getByRole("spinbutton", { name: /month/i })).not.toHaveText(/mm/i);
   await blurActive(page);
   await recorded;
 }
@@ -256,7 +285,7 @@ export async function checkOption(page: Page, label: string): Promise<void> {
 export async function advanceToCoverStep(page: Page, slug: string): Promise<void> {
   await startKitchenSink(page, slug);
   await fillText(page, KS.fullName, "Ada Lovelace");
-  await enterDate(page, "05171990"); // 1990-05-17 (en-US MM/DD/YYYY)
+  await enterDate(page, "05171990"); // 1990-05-17, given as MMDDYYYY whatever the field order
   await continueStep(page);
   await chooseRadio(page, "No");
   await checkOption(page, "Breakdown");
