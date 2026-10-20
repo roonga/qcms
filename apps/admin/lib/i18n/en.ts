@@ -1610,6 +1610,9 @@ export const messages = {
   "forms.preview.explain":
     "This is your draft compiled and rendered through the same renderer a respondent uses. Answer the questions to walk your own branches. Nothing here is saved.",
   "forms.preview.stepOf": "Step {index} of {total}: {title}",
+  // A "One page per instance" page (task 076): the step line names the instance it draws,
+  // as the portal's progress indicator does ("Step 2 of 3: Vehicle 2").
+  "forms.preview.stepOfInstance": "Step {index} of {total}: {title}, {instance}",
   "forms.preview.previous": "Previous step",
   "forms.preview.next": "Next step",
   // The preview's own instance dimension (074, ADR-42 §6.5). A roster is state the server owns

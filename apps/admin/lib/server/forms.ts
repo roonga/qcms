@@ -453,6 +453,7 @@ export async function previewDraft(
   if (!result.ok) return result;
   const raw = result.data;
   const flow = (raw["flow"] ?? {}) as Record<string, unknown>;
+  const views = parseStepViews(flow["visibleStepViews"]);
   return {
     ok: true,
     data: {
@@ -464,9 +465,35 @@ export async function previewDraft(
         visibleQuestions: asStringList(flow["visibleQuestions"]),
         complete: flow["complete"] === true,
         rosters: parseRosters(flow["rosters"]),
+        ...(views === undefined ? {} : { visibleStepViews: views }),
       },
     },
   };
+}
+
+/**
+ * The ADR-28 view list the preview endpoint forwards from the kernel (task 076), or
+ * `undefined` when the API omitted it.
+ *
+ * Absent and empty are different answers, exactly as for `instanceOutcomes`: the API omits
+ * the field for a draft with no repeating group, and `previewViews` reads that absence as
+ * "walk the visible steps". Collapsing absent into `[]` would make such a draft preview no
+ * page at all, and dropping the field (which this read did until local UX list A2) made
+ * every per-instance group preview as one page drawing every instance.
+ */
+function parseStepViews(
+  raw: unknown,
+): readonly { readonly stepId: string; readonly instanceId: string | null }[] | undefined {
+  if (!Array.isArray(raw)) return undefined;
+  const parsed: { stepId: string; instanceId: string | null }[] = [];
+  for (const entry of raw) {
+    if (typeof entry !== "object" || entry === null) continue;
+    const row = entry as { stepId?: unknown; instanceId?: unknown };
+    if (typeof row.stepId !== "string") continue;
+    if (typeof row.instanceId !== "string" && row.instanceId !== null) continue;
+    parsed.push({ stepId: row.stepId, instanceId: row.instanceId });
+  }
+  return parsed;
 }
 
 /**

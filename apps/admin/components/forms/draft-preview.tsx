@@ -12,7 +12,11 @@ import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { Alert, Button, NumberField } from "@/components/kit";
 import { IssueEntry } from "@/components/forms/validation-panel";
 import { PreviewThemeIsland } from "@/components/preview-theme-island";
-import { previewViews } from "@/lib/forms/preview-views";
+import {
+  previewInstanceLabel,
+  previewViewNarrowing,
+  previewViews,
+} from "@/lib/forms/preview-views";
 import type { DraftPreviewState } from "@/lib/forms/builder-state";
 import { IDLE_DRAFT_PREVIEW, PREVIEW_INSTANCE_CAP } from "@/lib/forms/builder-state";
 import { countBounds, draftGroups, questionGroupIds, stepPins } from "@/lib/forms/draft";
@@ -183,6 +187,11 @@ export function DraftPreview({
   // author's own declared maxima, so rendering the asked-for list would draw instances the
   // projection does not carry and whose fields would all be pruned as not visible.
   const served = useMemo(() => rosterRecord(state.preview?.flow.rosters ?? []), [state.preview]);
+  // The per-instance page this is, or `undefined` for every ordinary page (task 076): the
+  // same `view` the portal hands the renderer, so a "One page per instance" group draws one
+  // instance per page here exactly as it does for a respondent.
+  const view = previewViewNarrowing(draft, views[index], served);
+  const instanceLabel = previewInstanceLabel(draft, served, view);
 
   return (
     <section
@@ -264,11 +273,20 @@ export function DraftPreview({
       {state.preview !== undefined && step !== undefined && (
         <>
           <p className="text-sm text-(--color-text-muted)" data-testid="qcms-preview-step">
-            {t("forms.preview.stepOf", {
-              index: index + 1,
-              total: views.length,
-              title: stepTitle(draft, step.stepId),
-            })}
+            {/* A per-instance page names its instance, as the portal's indicator does:
+                without it three passengers read as three identical "Step n" lines. */}
+            {instanceLabel === undefined
+              ? t("forms.preview.stepOf", {
+                  index: index + 1,
+                  total: views.length,
+                  title: stepTitle(draft, step.stepId),
+                })
+              : t("forms.preview.stepOfInstance", {
+                  index: index + 1,
+                  total: views.length,
+                  title: stepTitle(draft, step.stepId),
+                  instance: instanceLabel,
+                })}
           </p>
 
           {/* The drawn frame (issue 668): everything outside it on this screen is authoring
@@ -296,6 +314,7 @@ export function DraftPreview({
                  control below the frame, not a respondent's to change. */
               repeat={{
                 rosters: served,
+                ...(view !== undefined ? { view } : {}),
                 visible: new Set(state.preview.flow.visibleQuestions),
               }}
               // The locale the previewed controls format on (issue #906). Without it the
@@ -318,7 +337,7 @@ export function DraftPreview({
               draft,
               step.stepId,
               state.preview.flow.visibleQuestions,
-              served,
+              view === undefined ? served : { ...served, [view.groupId]: [view.instanceId] },
             ) && (
               <p className="text-sm text-(--color-text-muted)" data-testid="qcms-preview-empty">
                 {t("forms.preview.emptyStep")}
