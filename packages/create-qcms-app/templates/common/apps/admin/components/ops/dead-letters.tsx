@@ -3,6 +3,7 @@
 import { useCallback, useEffect, useRef, useState, useTransition } from "react";
 
 import { EmptyState } from "@/components/empty-state";
+import { useEnvironmentUnknown } from "@/components/environment-scope";
 import { Alert, Button, Dialog } from "@/components/kit";
 import { focusPostAction } from "@/lib/ops/post-action-focus";
 import type { DeadLetterItem } from "@/lib/ops/types";
@@ -82,6 +83,8 @@ export function DeadLetters({
   const [state, setState] = useState<RedeliverState>(IDLE);
   const [confirming, setConfirming] = useState(false);
   const [isPending, startTransition] = useTransition();
+  // The queue is one environment's (A12).
+  const environmentUnknown = useEnvironmentUnknown();
   const heading = useRef<HTMLHeadingElement>(null);
 
   // Both redelivery paths remove the control that started them - the row's own button,
@@ -173,7 +176,7 @@ export function DeadLetters({
               <Button
                 variant="secondary"
                 size="md"
-                isDisabled={isPending}
+                isDisabled={isPending || environmentUnknown}
                 onPress={() => {
                   setState(IDLE);
                   setConfirming(true);
@@ -234,7 +237,7 @@ export function DeadLetters({
                         <Button
                           variant="secondary"
                           size="sm"
-                          isDisabled={isPending}
+                          isDisabled={isPending || environmentUnknown}
                           onPress={() => {
                             setState(IDLE);
                             run(() => redeliver(row.formId, row.deliveryId));
@@ -271,31 +274,39 @@ export function DeadLetters({
             if (!isOpen) setConfirming(false);
           }}
         >
-          <div className="flex flex-wrap gap-2">
-            <Button
-              variant="primary"
-              size="md"
-              isDisabled={isPending}
-              onPress={() => {
-                run(() =>
-                  redeliverAll(
-                    rows.map((row) => ({ formId: row.formId, deliveryId: row.deliveryId })),
-                  ),
-                );
-              }}
-            >
-              {isPending ? t("ops.common.working") : t("ops.deadLetters.confirmRedeliverAll")}
-            </Button>
-            <Button
-              variant="ghost"
-              size="md"
-              isDisabled={isPending}
-              onPress={() => {
-                setConfirming(false);
-              }}
-            >
-              {t("ops.common.cancel")}
-            </Button>
+          <div className="flex flex-col gap-4">
+            {/* Inside the modal while it is open, rather than in the region behind it (A1). */}
+            {state.status === "error" && (
+              <Alert variant="error">
+                {t("ops.deadLetters.redeliverFailed", { message: state.message ?? "" })}
+              </Alert>
+            )}
+            <div className="flex flex-wrap gap-2">
+              <Button
+                variant="primary"
+                size="md"
+                isDisabled={isPending}
+                onPress={() => {
+                  run(() =>
+                    redeliverAll(
+                      rows.map((row) => ({ formId: row.formId, deliveryId: row.deliveryId })),
+                    ),
+                  );
+                }}
+              >
+                {isPending ? t("ops.common.working") : t("ops.deadLetters.confirmRedeliverAll")}
+              </Button>
+              <Button
+                variant="ghost"
+                size="md"
+                isDisabled={isPending}
+                onPress={() => {
+                  setConfirming(false);
+                }}
+              >
+                {t("ops.common.cancel")}
+              </Button>
+            </div>
           </div>
         </Dialog>
       )}

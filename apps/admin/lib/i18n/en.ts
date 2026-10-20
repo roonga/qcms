@@ -119,6 +119,18 @@ export const messages = {
   // Named in a destructive confirmation, which Q6 requires of each one: an erasure
   // performed against the wrong environment is not undoable.
   "environment.inThis": "In {environment}.",
+  // The shell when the live set could not be read (local UX list A12). Never shown as
+  // `prod`: a screen that could not check the selection must not look like one that did.
+  "environment.unknown": "Environment unknown",
+  "environment.unknownBanner":
+    "QCMS could not read the environment list, so it cannot confirm which environment this screen shows. Actions that change an environment are unavailable until it can. Reload to try again.",
+  // An environment-sensitive action refusing to run (local UX list A1). The selection is a
+  // cookie every tab shares, so a tab can be showing one environment after another tab
+  // switched to a different one; the action refuses rather than act where it was not shown.
+  "environment.switched":
+    "This tab was showing {shown}; you have since switched to {current}. Nothing was changed. Reload to continue.",
+  "environment.unconfirmed":
+    "QCMS could not confirm which environment this tab is showing, so nothing was changed. Reload to try again.",
 
   // The account menu (task 032). Unlike the appearance trigger above, this one is NOT
   // wordless: it paints an initials monogram, and WCAG 2.2 SC 2.5.3 (label in name)

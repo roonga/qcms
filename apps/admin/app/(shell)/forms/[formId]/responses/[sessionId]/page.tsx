@@ -14,8 +14,8 @@ import { RESPONSE_HEADING_ID } from "@/lib/page-headings";
 import { getForm, getFormVersion } from "@/lib/server/forms";
 import { getQuestion } from "@/lib/server/questions";
 import { getResponse, listErasures } from "@/lib/server/responses";
-import { PROD_ENVIRONMENT } from "@/lib/environment";
-import { listEnvironments, selectedEnvironment } from "@/lib/server/environments";
+import { shownEnvironment } from "@/lib/environment";
+import { resolvedEnvironment } from "@/lib/server/environments";
 import { requireAdminSession } from "@/lib/server/session";
 
 import { eraseSessionAction, unflagResponseAction } from "../../../../responses/actions";
@@ -62,17 +62,16 @@ export default async function ResponseDetailPage({
   const session = await requireAdminSession();
   const { formId, sessionId } = await params;
 
-  const [form, response, set] = await Promise.all([
+  const [form, response, resolved] = await Promise.all([
     getForm(session, formId),
     getResponse(session, formId, sessionId),
     // The response above was read from the selected environment's data plane; the erasure
     // confirmation has to name it, because an erasure performed against the wrong
-    // environment is not undoable (Q6).
-    listEnvironments(session),
+    // environment is not undoable (Q6). The request's one resolution (A12), so the name is
+    // the environment the read above was actually made in.
+    resolvedEnvironment(session),
   ]);
-  const environment = await selectedEnvironment(
-    set.ok && set.data.length > 0 ? set.data.map((option) => option.name) : [PROD_ENVIRONMENT],
-  );
+  const shown = shownEnvironment(resolved);
 
   if (!form.ok) {
     if (form.code === "FORM_NOT_FOUND" || form.code === "INVALID_FORM_ID") notFound();
@@ -124,14 +123,16 @@ export default async function ResponseDetailPage({
         {t("ops.detail.back")}
       </Link>
       <ResponseDetail
-        environment={environment}
+        environment={shown ?? t("environment.unknown")}
         detail={response.data}
         pins={pins}
         labels={labels}
         labelsFailed={failed}
         linksHref={`/forms/${encodeURIComponent(formId)}/links`}
-        erase={eraseSessionAction.bind(null, formId)}
-        unflag={unflagResponseAction.bind(null, formId)}
+        // Bound to the environment this render showed, so an erasure confirmed in a tab
+        // another tab has since switched is refused rather than performed elsewhere (A1).
+        erase={eraseSessionAction.bind(null, formId, shown)}
+        unflag={unflagResponseAction.bind(null, formId, shown)}
       />
     </div>
   );

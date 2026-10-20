@@ -40,7 +40,28 @@ import { t } from "@/lib/i18n/en";
  * operator is, not an interruption. An alert would be announced again on every navigation,
  * which is the shape of a banner people learn to ignore.
  */
-export function EnvironmentBanner({ environment }: { readonly environment: string }) {
+export function EnvironmentBanner({
+  environment,
+}: {
+  /** `undefined` when the request could not confirm one (local UX list A12). */
+  readonly environment: string | undefined;
+}) {
+  // Unknown is the state the banner is MOST needed for, so it is never absent: the
+  // alternative is a screen that looks like production because nothing on it says
+  // otherwise, which is exactly the claim a failed read cannot support.
+  if (environment === undefined) {
+    return (
+      <div
+        className="qcms-envbanner"
+        data-testid="qcms-environment-banner"
+        data-environment=""
+        role="status"
+      >
+        <strong className="qcms-envbanner__name">{t("environment.unknown")}</strong>
+        <span>{t("environment.unknownBanner")}</span>
+      </div>
+    );
+  }
   if (!isNonProd(environment)) return null;
   return (
     <div

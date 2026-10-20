@@ -146,6 +146,74 @@ test("a destructive confirmation names the environment it is about", async ({ pa
   await expect(page.getByRole("button", { name: "Publish and release…" })).toBeVisible();
 });
 
+test("a dialog never acts in an environment another tab switched to", async ({ page }) => {
+  test.setTimeout(300_000);
+  await signInWithTotp(page, EMAIL, totpSecret);
+
+  // Local UX list A1, reproduced live before the fix: tab A showed "Close it in prod", tab
+  // B switched to test, and confirming in tab A closed the form in TEST. The selection is a
+  // cookie both tabs share, so tab B is a second page in the same context.
+  await page.goto("/forms");
+  await choose(page, "prod");
+  await page.goto(`/forms/${formId}`);
+  await page.getByRole("button", { name: "Close in prod" }).click();
+  const dialog = page.getByRole("alertdialog");
+  await expect(dialog.getByRole("button", { name: "Close it in prod" })).toBeVisible();
+
+  const tabB = await page.context().newPage();
+  await tabB.goto("/forms");
+  await choose(tabB, "test");
+
+  // Tab A still names prod, and its confirmation is refused rather than obeyed in test.
+  await dialog.getByRole("button", { name: "Close it in prod" }).click();
+  await expect(dialog).toContainText("This tab was showing prod; you have since switched to test");
+  await dialog.getByRole("button", { name: "Cancel" }).click();
+
+  // Nothing was closed in either environment. Tab A, reloaded, is in test and the form is
+  // still open there; tab B, back in prod, finds it open there too.
+  await page.reload();
+  await expect(switcher(page)).toHaveAttribute("data-environment", "test");
+  await expect(page.getByRole("button", { name: "Close in test" })).toBeVisible();
+  await choose(tabB, "prod");
+  await tabB.goto(`/forms/${formId}`);
+  await expect(tabB.getByRole("button", { name: "Close in prod" })).toBeVisible();
+  await tabB.close();
+});
+
+test("a tab coming back into view is re-read under another tab's switch", async ({ page }) => {
+  test.setTimeout(300_000);
+  await signInWithTotp(page, EMAIL, totpSecret);
+
+  await page.goto("/forms");
+  await choose(page, "prod");
+
+  const tabB = await page.context().newPage();
+  await tabB.goto("/forms");
+  await choose(tabB, "test");
+  await tabB.close();
+
+  // Still rendered from prod until it is looked at again.
+  await expect(switcher(page)).toHaveAttribute("data-environment", "prod");
+  // Playwright's default Chromium (the headless shell) never hides a page: measured with
+  // probes on every one, page A reports `visible` before tab B opens, while it is open,
+  // after it closes and after `bringToFront()`, and receives no `visibilitychange` at any of
+  // those points. So the event a returning operator's browser sends cannot be produced by
+  // switching tabs here and is dispatched directly. The state the shell checks is asserted
+  // first, so a red below is about what the shell does with a return, not about whether the
+  // harness produced one.
+  await page.bringToFront();
+  expect(await page.evaluate(() => document.visibilityState)).toBe("visible");
+  await page.evaluate(() => {
+    document.dispatchEvent(new Event("visibilitychange"));
+  });
+  await expect(banner(page)).toBeVisible();
+  await expect(banner(page)).toHaveAttribute("data-environment", "test");
+  // The switcher follows the re-read too, rather than keeping the name it was mounted with.
+  await expect(switcher(page)).toHaveAttribute("data-environment", "test");
+
+  await choose(page, "prod");
+});
+
 test("returning to production takes the banner away", async ({ page }) => {
   test.setTimeout(300_000);
   await signInWithTotp(page, EMAIL, totpSecret);

@@ -13,6 +13,7 @@ import {
   retargetWebhook,
   rotateWebhookSecret,
 } from "@/lib/server/webhook-ops";
+import { confirmShownEnvironment } from "@/lib/server/environments";
 import { requireAdminSession } from "@/lib/server/session";
 
 /**
@@ -38,14 +39,22 @@ import { requireAdminSession } from "@/lib/server/session";
  *
  * `requireAdminSession()` is called in each exported function: a `"use server"`
  * module is reached directly and the shell layout's gate does not cover it (#177).
+ *
+ * Endpoints and their deliveries live in one environment's data plane, so every function
+ * here also takes the environment its screen showed, bound by the page, and refuses when
+ * the request resolves to another (local UX list A1; `forms/actions.ts` gives the
+ * reasoning). The redelivery pair take it first because their page binds nothing else.
  */
 
 /** Configure a new endpoint. The response carries the secret exactly once. */
 export async function createWebhookAction(
   formId: string,
+  shown: string | undefined,
   request: { readonly url: string; readonly active: boolean },
 ): Promise<WebhookActionState> {
   const session = await requireAdminSession();
+  const check = await confirmShownEnvironment(session, shown);
+  if (!check.ok) return { status: "error", message: check.message };
   const result = await createWebhook(session, formId, request);
   if (!result.ok) {
     return {
@@ -60,9 +69,12 @@ export async function createWebhookAction(
 /** Rotate an endpoint's secret. The new one is shown once and never again. */
 export async function rotateSecretAction(
   formId: string,
+  shown: string | undefined,
   webhookId: string,
 ): Promise<WebhookActionState> {
   const session = await requireAdminSession();
+  const check = await confirmShownEnvironment(session, shown);
+  if (!check.ok) return { status: "error", message: check.message };
   const result = await rotateWebhookSecret(session, formId, webhookId);
   if (!result.ok) {
     return {
@@ -77,9 +89,12 @@ export async function rotateSecretAction(
 /** Stop delivering to an endpoint (soft: the row and its history stay). */
 export async function deactivateWebhookAction(
   formId: string,
+  shown: string | undefined,
   webhookId: string,
 ): Promise<WebhookActionState> {
   const session = await requireAdminSession();
+  const check = await confirmShownEnvironment(session, shown);
+  if (!check.ok) return { status: "error", message: check.message };
   const result = await deactivateWebhook(session, formId, webhookId);
   if (!result.ok) {
     return {
@@ -94,9 +109,12 @@ export async function deactivateWebhookAction(
 /** Put a deactivated endpoint back in service. */
 export async function reactivateWebhookAction(
   formId: string,
+  shown: string | undefined,
   webhookId: string,
 ): Promise<WebhookActionState> {
   const session = await requireAdminSession();
+  const check = await confirmShownEnvironment(session, shown);
+  if (!check.ok) return { status: "error", message: check.message };
   const result = await reactivateWebhook(session, formId, webhookId);
   if (!result.ok) {
     return {
@@ -111,10 +129,13 @@ export async function reactivateWebhookAction(
 /** Point an endpoint somewhere else - the "fix the target" half of the redeliver loop. */
 export async function retargetWebhookAction(
   formId: string,
+  shown: string | undefined,
   webhookId: string,
   url: string,
 ): Promise<WebhookActionState> {
   const session = await requireAdminSession();
+  const check = await confirmShownEnvironment(session, shown);
+  if (!check.ok) return { status: "error", message: check.message };
   const result = await retargetWebhook(session, formId, webhookId, url);
   if (!result.ok) {
     return {
@@ -133,9 +154,15 @@ export async function retargetWebhookAction(
  * server-side, so the caller names the form it believes the delivery belongs to and
  * the API refuses the pair if it does not hold.
  */
-export async function redeliverAction(formId: string, deliveryId: string): Promise<RedeliverState> {
+export async function redeliverAction(
+  shown: string | undefined,
+  formId: string,
+  deliveryId: string,
+): Promise<RedeliverState> {
   const session = await requireAdminSession();
-  const result = await redeliver(session, formId, deliveryId);
+  const check = await confirmShownEnvironment(session, shown);
+  if (!check.ok) return { status: "error", message: check.message };
+  const result = await redeliver(session, formId, deliveryId, check.environment);
   if (!result.ok) return { status: "error", message: result.message };
   revalidatePath("/webhooks");
   return { status: "done", queued: 1, failed: 0 };
@@ -148,14 +175,17 @@ export async function redeliverAction(formId: string, deliveryId: string): Promi
  * batch sharing one (issue #305).
  */
 export async function redeliverAllAction(
+  shown: string | undefined,
   targets: readonly { readonly formId: string; readonly deliveryId: string }[],
 ): Promise<RedeliverState> {
   const session = await requireAdminSession();
+  const check = await confirmShownEnvironment(session, shown);
+  if (!check.ok) return { status: "error", message: check.message };
   let queued = 0;
   let failed = 0;
   let lastMessage = "";
   for (const { formId, deliveryId } of targets) {
-    const result = await redeliver(session, formId, deliveryId);
+    const result = await redeliver(session, formId, deliveryId, check.environment);
     if (result.ok) queued += 1;
     else {
       failed += 1;

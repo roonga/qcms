@@ -93,13 +93,13 @@ regeneration and `git add` the result rather than merging two sets of counts.
 
 <!-- BEGIN GENERATED: ownership-seam (pnpm qcms:sync-templates) -->
 
-### Scaffolded paths (446 files common to both shapes)
+### Scaffolded paths (447 files common to both shapes)
 
 | Path                                                                 | Files |
 | -------------------------------------------------------------------- | ----- |
 | `(project root)`                                                     | 8     |
-| `apps/`                                                              | 435   |
-| `apps/admin/`                                                        | 259   |
+| `apps/`                                                              | 436   |
+| `apps/admin/`                                                        | 260   |
 | `apps/admin/app/`                                                    | 76    |
 | `apps/admin/app/(shell)/`                                            | 58    |
 | `apps/admin/app/(shell)/@rail/`                                      | 24    |
@@ -164,7 +164,7 @@ regeneration and `git add` the result rather than merging two sets of counts.
 | `apps/admin/app/two-factor/recovery-codes/`                          | 2     |
 | `apps/admin/app/two-factor/recovery-codes/confirm/`                  | 1     |
 | `apps/admin/app/two-factor/recovery/verify/`                         | 1     |
-| `apps/admin/components/`                                             | 84    |
+| `apps/admin/components/`                                             | 85    |
 | `apps/admin/components/forms/`                                       | 33    |
 | `apps/admin/components/membership/`                                  | 5     |
 | `apps/admin/components/ops/`                                         | 7     |
@@ -241,7 +241,7 @@ regeneration and `git add` the result rather than merging two sets of counts.
 
 ### QCMS-internal references in the scaffolded source
 
-`2815` lines across `399` scaffolded files cite a QCMS issue, ADR, SEC control, plan task or repository path.
+`2816` lines across `399` scaffolded files cite a QCMS issue, ADR, SEC control, plan task or repository path.
 
 These are comments, and they stay (issue #457, tier 3). They are the engineering
 rationale for code you now own, which is worth more to you than a tidy file, and
@@ -256,7 +256,7 @@ rather than documented: the images no longer claim to be built from this
 repository, and no scaffolded message names a script your project does not define.
 
 <details>
-<summary>Every scaffolded file (446)</summary>
+<summary>Every scaffolded file (447)</summary>
 
 ```
 .dockerignore
@@ -349,6 +349,7 @@ apps/admin/components/copy-entity-id.tsx
 apps/admin/components/empty-state.tsx
 apps/admin/components/entity-id.tsx
 apps/admin/components/environment-banner.tsx
+apps/admin/components/environment-scope.tsx
 apps/admin/components/environment-switcher.tsx
 apps/admin/components/forms/agent-provenance-tag.tsx
 apps/admin/components/forms/assist-panel.tsx

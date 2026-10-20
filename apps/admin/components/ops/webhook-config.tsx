@@ -4,6 +4,7 @@ import { useCallback, useState, useTransition } from "react";
 
 import { EmptyState } from "@/components/empty-state";
 import { EntityId } from "@/components/entity-id";
+import { useEnvironmentUnknown } from "@/components/environment-scope";
 import { Alert, Button, Checkbox, Dialog, TextField } from "@/components/kit";
 import type { ReadState } from "@/lib/read-state";
 import type { RevealedWebhook, WebhookSummary } from "@/lib/ops/types";
@@ -98,6 +99,8 @@ export function WebhookConfig({
   const [revealed, setRevealed] = useState<RevealedWebhook | null>(null);
   const [copyNote, setCopyNote] = useState("");
   const [isPending, startTransition] = useTransition();
+  // Every control here acts in one environment's data plane (A12).
+  const environmentUnknown = useEnvironmentUnknown();
 
   const run = useCallback((call: () => Promise<WebhookActionState>) => {
     startTransition(() => {
@@ -181,7 +184,7 @@ export function WebhookConfig({
           <Button
             variant="primary"
             size="md"
-            isDisabled={isPending}
+            isDisabled={isPending || environmentUnknown}
             onPress={() => {
               setState(IDLE);
               setDialog({ kind: "create" });
@@ -239,7 +242,7 @@ export function WebhookConfig({
               <Button
                 variant="primary"
                 size="md"
-                isDisabled={isPending}
+                isDisabled={isPending || environmentUnknown}
                 onPress={() => {
                   setState(IDLE);
                   setDialog({ kind: "create" });
@@ -313,7 +316,7 @@ export function WebhookConfig({
                         <Button
                           variant="secondary"
                           size="sm"
-                          isDisabled={isPending}
+                          isDisabled={isPending || environmentUnknown}
                           onPress={() => {
                             setState(IDLE);
                             setDialog({ kind: "retarget", webhookId: hook.webhookId });
@@ -324,7 +327,7 @@ export function WebhookConfig({
                         <Button
                           variant="secondary"
                           size="sm"
-                          isDisabled={isPending}
+                          isDisabled={isPending || environmentUnknown}
                           onPress={() => {
                             setState(IDLE);
                             setDialog({ kind: "rotate", webhookId: hook.webhookId });
@@ -336,7 +339,7 @@ export function WebhookConfig({
                           <Button
                             variant="danger"
                             size="sm"
-                            isDisabled={isPending}
+                            isDisabled={isPending || environmentUnknown}
                             onPress={() => {
                               setState(IDLE);
                               setDialog({ kind: "deactivate", webhookId: hook.webhookId });
@@ -348,7 +351,7 @@ export function WebhookConfig({
                           <Button
                             variant="secondary"
                             size="sm"
-                            isDisabled={isPending}
+                            isDisabled={isPending || environmentUnknown}
                             onPress={() => {
                               setState(IDLE);
                               run(() => reactivate(hook.webhookId));
@@ -406,6 +409,7 @@ export function WebhookConfig({
           body={t("ops.webhooks.rotateBody")}
           confirmLabel={t("ops.webhooks.confirmRotate")}
           isPending={isPending}
+          error={state.status === "error" ? state.message : undefined}
           onConfirm={() => {
             run(() => rotate(dialog.webhookId));
           }}
@@ -421,6 +425,7 @@ export function WebhookConfig({
           body={t("ops.webhooks.deactivateBody")}
           confirmLabel={t("ops.webhooks.confirmDeactivate")}
           isPending={isPending}
+          error={state.status === "error" ? state.message : undefined}
           onConfirm={() => {
             run(() => deactivate(dialog.webhookId));
           }}
@@ -573,6 +578,7 @@ function ConfirmDialog({
   body,
   confirmLabel,
   isPending,
+  error,
   onConfirm,
   onClose,
 }: {
@@ -580,6 +586,8 @@ function ConfirmDialog({
   readonly body: string;
   readonly confirmLabel: string;
   readonly isPending: boolean;
+  /** Said inside the modal, as `UrlDialog` does: the page's own alert is behind it. */
+  readonly error?: string | undefined;
   readonly onConfirm: () => void;
   readonly onClose: () => void;
 }) {
@@ -594,13 +602,16 @@ function ConfirmDialog({
         if (!isOpen) onClose();
       }}
     >
-      <div className="flex flex-wrap gap-2">
-        <Button variant="danger" size="md" isDisabled={isPending} onPress={onConfirm}>
-          {isPending ? t("ops.common.working") : confirmLabel}
-        </Button>
-        <Button variant="ghost" size="md" isDisabled={isPending} onPress={onClose}>
-          {t("ops.common.cancel")}
-        </Button>
+      <div className="flex flex-col gap-4">
+        {error !== undefined && <Alert variant="error">{error}</Alert>}
+        <div className="flex flex-wrap gap-2">
+          <Button variant="danger" size="md" isDisabled={isPending} onPress={onConfirm}>
+            {isPending ? t("ops.common.working") : confirmLabel}
+          </Button>
+          <Button variant="ghost" size="md" isDisabled={isPending} onPress={onClose}>
+            {t("ops.common.cancel")}
+          </Button>
+        </div>
       </div>
     </Dialog>
   );

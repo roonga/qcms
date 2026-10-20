@@ -6,13 +6,14 @@ import { AdminNav } from "@/components/admin-nav";
 import { Announcer } from "@/components/announcer";
 import { AppearanceMenu } from "@/components/appearance-menu";
 import { EnvironmentBanner } from "@/components/environment-banner";
+import { EnvironmentScope } from "@/components/environment-scope";
 import { EnvironmentSwitcher } from "@/components/environment-switcher";
 import { MeasuredMain } from "@/components/measured-main";
 import { TopbarHeight } from "@/components/topbar-height";
 import { MODE_COOKIE, parseMode } from "@/lib/appearance";
-import { PROD_ENVIRONMENT } from "@/lib/environment";
+import { shownEnvironment } from "@/lib/environment";
 import { secureCookies } from "@/lib/server/config";
-import { listEnvironments, selectedEnvironment } from "@/lib/server/environments";
+import { resolvedEnvironment } from "@/lib/server/environments";
 import { t } from "@/lib/i18n/en";
 import { requireAdminSession } from "@/lib/server/session";
 
@@ -89,19 +90,17 @@ export default async function ShellLayout({
   // The environment set is the API's answer, not a literal here (ADR-40: the set is a
   // table and an operator may add to it), and the selection is validated against it so a
   // cookie naming an environment this deployment no longer serves falls through to
-  // production rather than being carried into every screen's reads. A failed read leaves
-  // one option, `prod`, which is the environment every deployment has: a switcher that
-  // could not list the set must not offer a choice it cannot stand behind.
+  // production rather than being carried into every screen's reads.
   // Since task 069 this read is already narrowed to **the environments the caller holds
   // in some grant** (Q25), by the API rather than here: a switcher is one client of that
   // route, and a second client reading the whole set would see round a narrowing done in
-  // the first. `prod` stays the fallback for a read that failed, because it is the
-  // environment every deployment has and a switcher that could not list the set must not
-  // offer a choice it cannot stand behind.
-  const set = await listEnvironments(session);
-  const environments =
-    set.ok && set.data.length > 0 ? set.data.map((option) => option.name) : [PROD_ENVIRONMENT];
-  const environment = await selectedEnvironment(environments);
+  // the first.
+  // It is the request's ONE resolution (local UX list A12), the same answer the API header
+  // carries, so the chrome cannot say `prod` while the screen reads another environment. A
+  // read of the set that failed is `unknown`, never `prod`: the banner says so, the
+  // switcher has nothing to offer, and environment-sensitive actions are disabled here and
+  // refused by their server actions.
+  const resolved = await resolvedEnvironment(session);
 
   return (
     <div className="flex min-h-dvh flex-col">
@@ -164,11 +163,27 @@ export default async function ShellLayout({
                 because it is the widest-reaching of the three: appearance changes how a
                 screen looks and the account menu is about who is signed in, while this one
                 changes which rows every screen is showing. */}
-            <EnvironmentSwitcher
-              environments={environments}
-              selected={environment}
-              secureCookies={secureCookies()}
-            />
+            {resolved.status === "known" ? (
+              <EnvironmentSwitcher
+                environments={resolved.environments}
+                selected={resolved.environment}
+                secureCookies={secureCookies()}
+              />
+            ) : (
+              // Nothing to offer: the set is what the menu lists, and it could not be read.
+              // Not a button, because pressing it could do nothing.
+              <div
+                className="qcms-envswitch"
+                data-testid="qcms-environment-switcher"
+                data-environment=""
+                data-nonprod="true"
+                data-pending="false"
+              >
+                <span className="qcms-envtrigger qcms-envtrigger--static">
+                  {t("environment.unknown")}
+                </span>
+              </div>
+            )}
             <AppearanceMenu mode={mode} secureCookies={secureCookies()} />
             <AccountMenu email={session.email} name={session.name} />
           </div>
@@ -179,7 +194,7 @@ export default async function ShellLayout({
             padding already accounts for it and SC 2.4.11 holds with no second measurement.
             Absent under `prod`, which is what makes its presence information rather than
             furniture. */}
-        <EnvironmentBanner environment={environment} />
+        <EnvironmentBanner environment={shownEnvironment(resolved)} />
       </header>
       {/* The shell body: the rail's track and the content column, and the thing that grows
           to fill whatever height the topbar leaves (issue 559, and N2 of
@@ -195,15 +210,20 @@ export default async function ShellLayout({
           here - the account menu carries it on every screen, including the seven with no
           rail - so the line went rather than moving somewhere it would have been absent
           half the time (Code Owner decision, 2026-08-23). */}
-      <div className="qcms-shell-body">
-        {rail}
-        {/* The content column's cap is set by the ROUTE, not by one number here (issue
-            558, `plan/admin-ux-audit.md` §6): five screens earn width, two render
-            respondent-facing content and take less than the default, nine keep the
-            measure they have. The sixteen answers are one table in `lib/measure.ts`;
-            `MeasuredMain` only applies the row that matches the pathname. */}
-        <MeasuredMain>{children}</MeasuredMain>
-      </div>
+      {/* What every environment-sensitive control below reads to disable itself while the
+          environment is unknown, and the watcher that re-reads this tab when it comes back
+          into view under a selection another tab changed (local UX list A1, A12). */}
+      <EnvironmentScope selection={resolved.selection} unknown={resolved.status === "unknown"}>
+        <div className="qcms-shell-body">
+          {rail}
+          {/* The content column's cap is set by the ROUTE, not by one number here (issue
+              558, `plan/admin-ux-audit.md` §6): five screens earn width, two render
+              respondent-facing content and take less than the default, nine keep the
+              measure they have. The sixteen answers are one table in `lib/measure.ts`;
+              `MeasuredMain` only applies the row that matches the pathname. */}
+          <MeasuredMain>{children}</MeasuredMain>
+        </div>
+      </EnvironmentScope>
     </div>
   );
 }

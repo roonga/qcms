@@ -3,6 +3,7 @@
 import Link from "next/link";
 import { useCallback, useEffect, useState, useTransition } from "react";
 
+import { useEnvironmentUnknown } from "@/components/environment-scope";
 import { Alert, Button, Dialog, Select, TextField } from "@/components/kit";
 import { flagReasonText } from "@/components/ops/ops-tags";
 import { TombstoneCard } from "@/components/ops/tombstone-card";
@@ -95,6 +96,7 @@ export function ResponseDetail({
   const [dialog, setDialog] = useState<"erase" | "unflag" | null>(null);
   const [released, setReleased] = useState(false);
   const [isPending, startTransition] = useTransition();
+  const environmentUnknown = useEnvironmentUnknown();
 
   // Showing an outcome and announcing it are one event, never two, so neither path can
   // acquire a message the other does not have. The announcement goes to the shell's
@@ -227,10 +229,12 @@ export function ResponseDetail({
           sighted operator needs is the message beside the state that produced it. Two
           live regions holding the same sentence would say it twice. */}
       <div className="flex flex-col gap-2">
-        {erasureNote !== "" && (
+        {/* Not while the dialog that produced the note is open: it says the note itself,
+            in front of the operator, and this copy would be behind it. */}
+        {erasureNote !== "" && dialog !== "erase" && (
           <Alert variant={tombstone === null ? "error" : "success"}>{erasureNote}</Alert>
         )}
-        {unflagNote !== "" && <Alert variant="info">{unflagNote}</Alert>}
+        {unflagNote !== "" && dialog !== "unflag" && <Alert variant="info">{unflagNote}</Alert>}
       </div>
 
       {tombstone === null ? (
@@ -245,8 +249,9 @@ export function ResponseDetail({
               <Button
                 variant="secondary"
                 size="md"
-                isDisabled={isPending}
+                isDisabled={isPending || environmentUnknown}
                 onPress={() => {
+                  setUnflagNote("");
                   setDialog("unflag");
                 }}
               >
@@ -261,8 +266,9 @@ export function ResponseDetail({
             <Button
               variant="danger"
               size="md"
-              isDisabled={isPending}
+              isDisabled={isPending || environmentUnknown}
               onPress={() => {
+                setErasureNote("");
                 setDialog("erase");
               }}
             >
@@ -285,6 +291,10 @@ export function ResponseDetail({
             if (!isOpen) setDialog(null);
           }}
         >
+          {/* A failure is said inside the modal, which is where the operator is looking: the
+              page's own alert is behind it (a refusal for a switched environment is the
+              case that made this matter, local UX list A1). */}
+          {unflagNote !== "" && <Alert variant="error">{unflagNote}</Alert>}
           <div className="flex flex-wrap gap-2">
             <Button variant="primary" size="md" isDisabled={isPending} onPress={runUnflag}>
               {isPending ? t("ops.common.working") : t("ops.detail.confirmUnflag")}
@@ -308,6 +318,7 @@ export function ResponseDetail({
           sessionId={detail.sessionId}
           environment={environment}
           isPending={isPending}
+          error={tombstone === null && erasureNote !== "" ? erasureNote : undefined}
           onConfirm={runErase}
           onClose={() => {
             setDialog(null);
@@ -513,12 +524,15 @@ function EraseDialog({
   sessionId,
   environment,
   isPending,
+  error,
   onConfirm,
   onClose,
 }: {
   readonly sessionId: string;
   readonly environment: string;
   readonly isPending: boolean;
+  /** The failure of the last attempt, said inside the modal rather than behind it (A1). */
+  readonly error?: string | undefined;
   readonly onConfirm: (reason: ErasureReason) => void;
   readonly onClose: () => void;
 }) {
@@ -565,6 +579,7 @@ function EraseDialog({
           errorMessage={t("ops.erase.mismatch")}
           onChange={setTyped}
         />
+        {error !== undefined && <Alert variant="error">{error}</Alert>}
         <div className="flex flex-wrap gap-2">
           <Button
             variant="danger"

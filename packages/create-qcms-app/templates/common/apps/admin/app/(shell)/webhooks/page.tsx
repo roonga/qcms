@@ -6,6 +6,8 @@ import { DeadLetters } from "@/components/ops/dead-letters";
 import { t } from "@/lib/i18n/en";
 import { pageMetadata } from "@/lib/page-title";
 import { readState } from "@/lib/read-state";
+import { shownEnvironment } from "@/lib/environment";
+import { resolvedEnvironment } from "@/lib/server/environments";
 import { listForms } from "@/lib/server/forms";
 import { listDeadLetters } from "@/lib/server/webhook-ops";
 import { requireAdminSession } from "@/lib/server/session";
@@ -29,7 +31,14 @@ export function generateMetadata(): Metadata {
  */
 export default async function WebhooksPage() {
   const session = await requireAdminSession();
-  const [deadLetters, forms] = await Promise.all([listDeadLetters(session), listForms(session)]);
+  const [deadLetters, forms, resolved] = await Promise.all([
+    listDeadLetters(session),
+    listForms(session),
+    resolvedEnvironment(session),
+  ]);
+  // The queue is one environment's, so redelivery carries the environment this render read
+  // it from and is refused once another tab has switched away from it (A1).
+  const shown = shownEnvironment(resolved);
 
   return (
     <div className="flex flex-col gap-8">
@@ -53,8 +62,8 @@ export default async function WebhooksPage() {
        */}
       <DeadLetters
         deadLetters={readState(deadLetters)}
-        redeliver={redeliverAction}
-        redeliverAll={redeliverAllAction}
+        redeliver={redeliverAction.bind(null, shown)}
+        redeliverAll={redeliverAllAction.bind(null, shown)}
       />
 
       <section aria-labelledby="qcms-webhook-forms-heading" className="flex flex-col gap-2">

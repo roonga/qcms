@@ -4,6 +4,7 @@ import Link from "next/link";
 import { useCallback, useState, useTransition } from "react";
 
 import { Alert, Button, Dialog } from "@/components/kit";
+import { useEnvironmentUnknown } from "@/components/environment-scope";
 import { AgentProvenanceTag } from "@/components/forms/agent-provenance-tag";
 import { IssueEntry } from "@/components/forms/validation-panel";
 import type { FormStatusState, PublishReleaseState, PublishState } from "@/lib/forms/builder-state";
@@ -72,11 +73,15 @@ export function FormActions({
    * A second prop rather than a flag on `publish`, because the two are different acts with
    * different consequences: one adds a version to the library, the other also decides what
    * a respondent in that environment is served.
+   *
+   * Bound by the page to the environment this screen shows, which is the one it releases to;
+   * refused if the request's environment has changed since (A1).
    */
-  readonly publishAndRelease: (environment: string) => Promise<PublishReleaseState>;
+  readonly publishAndRelease: () => Promise<PublishReleaseState>;
+  /** Bound by the page to the environment this screen shows; refused if that has changed. */
   readonly setStatus: (action: "close" | "reopen") => Promise<FormStatusState>;
   /**
-   * The environment the operator's Q6 switcher has selected.
+   * The environment the operator's Q6 switcher had selected when this screen rendered.
    *
    * It is what the combined action releases to, and it is **named in every confirmation on
    * this screen**: an act performed against the wrong environment is not undoable, which is
@@ -99,6 +104,8 @@ export function FormActions({
   const [releasedState, setReleased] = useState<PublishReleaseState>(IDLE_PUBLISH_RELEASE);
   const [lifecycle, setLifecycle] = useState<FormStatusState>(IDLE_FORM_STATUS);
   const [isPending, startTransition] = useTransition();
+  // Publish reaches no environment, so only the two acts that do wait on one (A12).
+  const environmentUnknown = useEnvironmentUnknown();
 
   const version = nextVersion(latestVersion);
   const summary = freezeSummary(draft);
@@ -132,7 +139,7 @@ export function FormActions({
 
   const runPublishRelease = useCallback(() => {
     startTransition(() => {
-      void publishAndRelease(environment)
+      void publishAndRelease()
         .then((state) => {
           setReleased(state);
           // A rejection carries the same work list an ordinary publish's does, and that
@@ -148,7 +155,7 @@ export function FormActions({
           setDialog(null);
         });
     });
-  }, [publishAndRelease, environment]);
+  }, [publishAndRelease]);
 
   const runStatus = useCallback(
     (action: "close" | "reopen") => {
@@ -196,7 +203,7 @@ export function FormActions({
         <Button
           variant="secondary"
           size="md"
-          isDisabled={!canPublish || isPending}
+          isDisabled={!canPublish || isPending || environmentUnknown}
           onPress={() => {
             setReleased(IDLE_PUBLISH_RELEASE);
             setDialog("publishRelease");
@@ -207,7 +214,7 @@ export function FormActions({
         <Button
           variant="secondary"
           size="md"
-          isDisabled={isPending}
+          isDisabled={isPending || environmentUnknown}
           onPress={() => {
             setLifecycle(IDLE_FORM_STATUS);
             setDialog(status === "open" ? "close" : "reopen");

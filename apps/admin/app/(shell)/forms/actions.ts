@@ -33,7 +33,7 @@ import {
 } from "@/lib/server/forms";
 import { MAX_LINK_BATCH, mintLinks, revokeLink } from "@/lib/server/links";
 import { publishAndRelease, releaseVersion } from "@/lib/server/releases";
-import { currentEnvironment } from "@/lib/server/request-environment";
+import { confirmShownEnvironment } from "@/lib/server/environments";
 import { requireAdminSession } from "@/lib/server/session";
 
 /**
@@ -68,6 +68,17 @@ import { requireAdminSession } from "@/lib/server/session";
  * every action here starts with `requireAdminSession()` rather than trusting that the
  * screen which rendered it was itself guarded. Same gap issue #177 recorded for
  * `settings/password/route.ts`, closed here by construction.
+ *
+ * ## Every environment-sensitive action carries the environment it showed
+ *
+ * The selection is a cookie every tab shares, so the environment an action runs in and the
+ * environment its dialog named could differ: a tab rendered under `prod` kept saying `prod`
+ * after another tab switched to `test`, and confirming closed the form in `test` (local UX
+ * list A1). So each action that acts in one environment takes the environment its screen
+ * showed, bound by the page next to the form id, and `confirmShownEnvironment` refuses a
+ * difference before anything is forwarded. The environment is still not an authority taken
+ * from the client: the cookie selects it, the API validates it, and the bound value can only
+ * earn a refusal.
  *
  * ## Still a proxy (R2)
  *
@@ -402,6 +413,11 @@ export async function publishFormAction(formId: string): Promise<PublishState> {
  * which environment a release names is a privilege this app could grant. What a caller
  * cannot do is aim the release at another form, because the id is bound from the route.
  *
+ * It is the one environment-naming action **not** confirmed against the switcher (A1), and
+ * deliberately: its target is chosen in the dialog, named there, and sent in the body, so
+ * the release lands where the dialog said whatever another tab did to the cookie, and
+ * releasing to an environment other than the selected one is what promotion is.
+ *
  * **Releasing an earlier version is a rollback and is this same call.** There is no second
  * action, because there is no second mechanism: the API derives the marking from the
  * release's predecessor and reports it, and the screen says so afterwards.
@@ -437,13 +453,20 @@ export async function releaseVersionAction(
  * leaves no published version behind and the author's draft where they left it. A refused
  * publish comes back as the same work list an ordinary publish's refusal does, because it
  * is the same refusal.
+ *
+ * `shown` is the environment the dialog named, the switcher's selection when the screen
+ * rendered, bound by the page; it is the release's target. A tab that has since been
+ * switched elsewhere is refused rather than releasing somewhere the banner in front of the
+ * operator no longer describes.
  */
 export async function publishAndReleaseAction(
   formId: string,
-  environment: string,
+  shown: string | undefined,
 ): Promise<PublishReleaseState> {
   const session = await requireAdminSession();
-  const result = await publishAndRelease(session, formId, environment);
+  const check = await confirmShownEnvironment(session, shown);
+  if (!check.ok) return { status: "error", message: check.message };
+  const result = await publishAndRelease(session, formId, check.environment);
   if (!result.ok) {
     if (result.issues.length > 0) {
       return { status: "rejected", issues: result.issues, message: result.message };
@@ -511,16 +534,18 @@ export async function previewDraftAction(
  *
  * Q18 is the other half, and the copy carries that too: it changes one **environment's**
  * intake. Closing `prod` leaves a `test` run serving and the reverse holds, which is why
- * the environment is read from the Q6 switcher here and restated in the confirmation
- * before the act rather than reported after it.
+ * the confirmation restates the environment before the act, and why the act runs only in
+ * the environment that confirmation named (`shown`, bound by the page).
  */
 export async function setFormStatusAction(
   formId: string,
+  shown: string | undefined,
   action: "close" | "reopen",
 ): Promise<FormStatusState> {
   const session = await requireAdminSession();
-  const environment = await currentEnvironment();
-  const result = await setFormStatus(session, formId, action, environment);
+  const check = await confirmShownEnvironment(session, shown);
+  if (!check.ok) return { status: "error", message: check.message };
+  const result = await setFormStatus(session, formId, action, check.environment);
   if (!result.ok) return { status: "error", message: result.message };
   revalidatePath("/forms");
   // "layout", for the reason `saveDraftAction` records: closing a form changes the header
@@ -550,6 +575,7 @@ interface MintRequest {
  */
 export async function mintLinksAction(
   formId: string,
+  shown: string | undefined,
   request: MintRequest,
 ): Promise<MintLinksState> {
   const session = await requireAdminSession();
@@ -561,11 +587,13 @@ export async function mintLinksAction(
     return { status: "error", message: messageForFormCode("LINK_EXPIRY_INVALID") };
   }
 
-  // The Q6 switcher's environment, read on the server where the cookie is (Q19). The
+  // The environment the mint dialog named, confirmed against the request's (Q19, A1). The
   // API requires the field and refuses a caller that omits it, so there is no shape in
-  // which this screen mints into an environment nobody chose.
+  // which this screen mints into an environment nobody chose or was not shown.
+  const check = await confirmShownEnvironment(session, shown);
+  if (!check.ok) return { status: "error", message: check.message };
   const result = await mintLinks(session, formId, {
-    environment: await currentEnvironment(),
+    environment: check.environment,
     expiresAt: endOfDay(request.expiresAt),
     oneTime: request.oneTime,
     count,
@@ -598,11 +626,18 @@ function endOfDay(value: string): string {
 }
 
 /** Revoke one link. 018 refuses it from that moment; an in-flight session is unaffected. */
-export async function revokeLinkAction(formId: string, linkId: string): Promise<RevokeLinkState> {
+export async function revokeLinkAction(
+  formId: string,
+  shown: string | undefined,
+  linkId: string,
+): Promise<RevokeLinkState> {
   const session = await requireAdminSession();
   // Scoped to the switcher's environment by the API, which the one door's header carries:
   // an administrator revokes what the environment they are looking at listed, and a link
-  // in another environment takes the same 404 a cross-form link takes (task 066).
+  // in another environment takes the same 404 a cross-form link takes (task 066). The
+  // check makes "looking at" true of this tab rather than of whichever tab switched last.
+  const check = await confirmShownEnvironment(session, shown);
+  if (!check.ok) return { status: "error", message: check.message };
   const result = await revokeLink(session, formId, linkId);
   if (!result.ok) return { status: "error", message: result.message };
   revalidatePath(`/forms/${formId}/links`);

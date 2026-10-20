@@ -32,6 +32,8 @@
  * `SameSite=Lax`, `Secure` in production.
  */
 
+import { t } from "./i18n/en.ts";
+
 /**
  * The unprefixed, unrestricted environment every deployment has (ADR-40).
  *
@@ -101,4 +103,117 @@ export function environmentCookie(environment: string, secure: boolean): string 
  */
 export function isNonProd(environment: string): boolean {
   return environment !== PROD_ENVIRONMENT;
+}
+
+/**
+ * What one request resolved its environment to (local UX list A12).
+ *
+ * Resolved **once**, and the one answer is what the API header carries and what the chrome
+ * renders: before this, the header carried the raw cookie while the shell validated it and
+ * fell back to `prod`, so a stale selection could show production while reading another
+ * environment's rows.
+ *
+ * `unknown` is the state a failed read of the live set leaves, and it is deliberately not
+ * `prod`: a screen that could not check the selection must not look like one that did.
+ * `selection` is the cookie exactly as the server read it (empty for none) in both cases,
+ * because it is what a tab compares against to notice that another tab has switched.
+ */
+export type ResolvedEnvironment =
+  | {
+      readonly status: "known";
+      readonly environment: string;
+      /** The live set, in canonical order, as the switcher offers it. */
+      readonly environments: readonly string[];
+      readonly selection: string;
+    }
+  | { readonly status: "unknown"; readonly selection: string };
+
+/**
+ * Resolve a selection against the live set, or against `undefined` when the set could not
+ * be read.
+ *
+ * An empty set falls back to `prod` alone, which is what the shell has always offered a
+ * caller holding no grant: the API answers that caller's reads with its own refusals.
+ */
+export function resolveEnvironment(
+  raw: string | undefined,
+  available: readonly string[] | undefined,
+): ResolvedEnvironment {
+  const selection = raw ?? "";
+  if (available === undefined) return { status: "unknown", selection };
+  const environments = available.length > 0 ? available : [PROD_ENVIRONMENT];
+  return {
+    status: "known",
+    environment: parseEnvironment(raw, environments) ?? PROD_ENVIRONMENT,
+    environments,
+    selection,
+  };
+}
+
+/**
+ * The environment the API header names for this request.
+ *
+ * The resolved environment when there is one. When the set could not be read, the raw
+ * selection (or `prod` for none) is still sent, because the API validates it and refuses
+ * a name it does not serve; what changes in that state is that the chrome says the
+ * environment is unknown and every environment-sensitive action refuses.
+ */
+export function headerEnvironment(resolved: ResolvedEnvironment): string {
+  if (resolved.status === "known") return resolved.environment;
+  return resolved.selection === "" ? PROD_ENVIRONMENT : resolved.selection;
+}
+
+/** The environment a screen shows, or `undefined` when it could not confirm one. */
+export function shownEnvironment(resolved: ResolvedEnvironment): string | undefined {
+  return resolved.status === "known" ? resolved.environment : undefined;
+}
+
+/** Whether an environment-sensitive action may run, and where. */
+export type EnvironmentCheck =
+  | { readonly ok: true; readonly environment: string }
+  | { readonly ok: false; readonly message: string };
+
+/**
+ * Confirm an environment-sensitive action against the request's environment (A1): the
+ * environment to act in, or the catalog sentence the action returns instead of acting.
+ *
+ * `shown` is the environment the screen displayed when it rendered the control, bound by
+ * the page into the action rather than read when the action runs. The cookie is shared by
+ * every tab, so a tab that rendered `prod` keeps saying `prod` after another tab switches to
+ * `test`, and an action that read the cookie at run time acted in `test` under a dialog
+ * naming `prod`. Refusing the difference is the whole fix: the operator is told what
+ * happened and reloads, and nothing was changed in an environment they were not shown.
+ *
+ * Not an authority (the cookie still selects and the API still validates): a caller who
+ * edits the bound value only earns a refusal or the act they could have performed anyway.
+ */
+export function confirmEnvironment(
+  shown: string | undefined,
+  current: ResolvedEnvironment,
+): EnvironmentCheck {
+  if (shown === undefined || current.status === "unknown") {
+    return { ok: false, message: t("environment.unconfirmed") };
+  }
+  if (shown === current.environment) return { ok: true, environment: shown };
+  return {
+    ok: false,
+    message: t("environment.switched", { shown, current: current.environment }),
+  };
+}
+
+/**
+ * The environment cookie's value in a `document.cookie` string, or `""` for none.
+ *
+ * The same spelling `resolveEnvironment` records as `selection`, so a tab can compare the
+ * cookie with what its own page was rendered from without either side normalising.
+ */
+export function selectionFromCookies(cookieHeader: string): string {
+  for (const part of cookieHeader.split(";")) {
+    const separator = part.indexOf("=");
+    if (separator === -1) continue;
+    if (part.slice(0, separator).trim() === ENVIRONMENT_COOKIE) {
+      return part.slice(separator + 1).trim();
+    }
+  }
+  return "";
 }

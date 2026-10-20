@@ -3,6 +3,7 @@
 import { useCallback, useEffect, useRef, useState, useTransition } from "react";
 
 import { EmptyState } from "@/components/empty-state";
+import { useEnvironmentUnknown } from "@/components/environment-scope";
 import { Alert, Button, Checkbox, DatePicker, Dialog, NumberField } from "@/components/kit";
 import { LinkStateTag } from "@/components/forms/link-state-tag";
 import type { MintLinksState, RevokeLinkState } from "@/lib/forms/builder-state";
@@ -117,14 +118,15 @@ export function SecureLinks({
 }: {
   readonly formId: string;
   /**
-   * The environment the Q6 switcher has selected (ADR-40, task 066).
+   * The environment the Q6 switcher had selected when this screen rendered (ADR-40,
+   * task 066).
    *
-   * **Display only.** The action reads the switcher's cookie on the server and sends that
-   * value, so what is shown here and what is minted cannot be two different things even
-   * if this prop were wrong: the server does not take the environment from the browser.
-   * What it buys is Q6's restatement - the dialog's title, its body and its confirm
-   * button all name it, because minting is a distributing action and the links leave the
-   * building.
+   * **Display only.** The page binds the same value into both actions, and each refuses
+   * when the request's environment is no longer it (local UX list A1), so what is shown
+   * here and what is minted or revoked cannot be two different things even after another
+   * tab switches. What this prop buys is Q6's restatement - the dialog's title, its body
+   * and its confirm button all name it, because minting is a distributing action and the
+   * links leave the building.
    */
   readonly environment: string;
   readonly links: ReadState<readonly SecureLink[]>;
@@ -144,6 +146,7 @@ export function SecureLinks({
   const [revoked, setRevoked] = useState<RevokeLinkState>(IDLE_REVOKE);
   const [copyNote, setCopyNote] = useState<string>("");
   const [isPending, startTransition] = useTransition();
+  const environmentUnknown = useEnvironmentUnknown();
 
   const [expiresAt, setExpiresAt] = useState<string>("");
   const [oneTime, setOneTime] = useState(false);
@@ -228,7 +231,7 @@ export function SecureLinks({
           <Button
             variant="primary"
             size="md"
-            isDisabled={isPending}
+            isDisabled={isPending || environmentUnknown}
             onPress={() => {
               setMinted(IDLE_MINT);
               setDialog("mint");
@@ -300,7 +303,7 @@ export function SecureLinks({
           setRevoked(IDLE_REVOKE);
           setRevoking(linkId);
         }}
-        isPending={isPending}
+        isPending={isPending || environmentUnknown}
       />
 
       {dialog === "mint" && (
