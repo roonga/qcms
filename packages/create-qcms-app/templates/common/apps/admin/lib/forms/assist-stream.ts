@@ -62,7 +62,14 @@ export const ASSIST_ERROR_CODES = [
 export type AssistErrorCode = (typeof ASSIST_ERROR_CODES)[number];
 
 export type AssistEvent =
-  | { readonly type: "status"; readonly phase: "thinking" | "tool"; readonly tool?: string }
+  | {
+      readonly type: "status";
+      readonly phase: "thinking" | "tool";
+      readonly tool?: string;
+      /** A `tool` status's per-turn step ordinal, which its `tool-outcome` names. */
+      readonly step?: number;
+    }
+  | { readonly type: "tool-outcome"; readonly step: number; readonly outcome: "done" | "failed" }
   | { readonly type: "text"; readonly delta: string }
   | { readonly type: "tool-rejected"; readonly tool: string }
   | {
@@ -86,7 +93,7 @@ const FRAME_SEPARATOR = "\n\n";
  * across chunk boundaries, and the buffer here keeps a partial *frame* the same way -
  * both are read out only once a complete unit is available. A frame this parser
  * cannot make sense of (no `data:` line, or a `data:` payload that is not the JSON
- * shape one of the six variants above expects) is skipped rather than thrown: one
+ * shape one of the variants above expects) is skipped rather than thrown: one
  * event this build does not recognise should not end a stream the rest of which is
  * perfectly good.
  */
@@ -147,6 +154,8 @@ function toAssistEvent(raw: unknown): AssistEvent | undefined {
   switch (raw["type"]) {
     case "status":
       return toStatusEvent(raw);
+    case "tool-outcome":
+      return toToolOutcomeEvent(raw);
     case "text":
       return typeof raw["delta"] === "string" ? { type: "text", delta: raw["delta"] } : undefined;
     case "tool-rejected":
@@ -166,11 +175,28 @@ function toAssistEvent(raw: unknown): AssistEvent | undefined {
   }
 }
 
+function isStepOrdinal(value: unknown): value is number {
+  return typeof value === "number" && Number.isInteger(value) && value > 0;
+}
+
 function toStatusEvent(raw: Record<string, unknown>): AssistEvent | undefined {
   const phase = raw["phase"];
   if (phase !== "thinking" && phase !== "tool") return undefined;
   const tool = raw["tool"];
-  return typeof tool === "string" ? { type: "status", phase, tool } : { type: "status", phase };
+  const step = raw["step"];
+  return {
+    type: "status",
+    phase,
+    ...(typeof tool === "string" ? { tool } : {}),
+    ...(isStepOrdinal(step) ? { step } : {}),
+  };
+}
+
+function toToolOutcomeEvent(raw: Record<string, unknown>): AssistEvent | undefined {
+  const step = raw["step"];
+  const outcome = raw["outcome"];
+  if (!isStepOrdinal(step) || (outcome !== "done" && outcome !== "failed")) return undefined;
+  return { type: "tool-outcome", step, outcome };
 }
 
 function toUsageEvent(raw: Record<string, unknown>): AssistEvent | undefined {

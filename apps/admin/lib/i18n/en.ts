@@ -1815,8 +1815,23 @@ export const messages = {
   "forms.assist.turnAssistant": "Assistant",
   "forms.assist.inputLabel": "Describe the next change",
   "forms.assist.send": "Send",
+  "forms.assist.newConversation": "Start a new conversation",
   "forms.assist.working": "The assistant is working.",
-  "forms.assist.workingTool": "The assistant is using a tool: {tool}",
+  // The step timeline. Each tool is named by what it does for the author, never by its
+  // identifier; `step.other` covers a name this build does not know.
+  "forms.assist.stepsLabel": "Steps the assistant took",
+  "forms.assist.stepRunning": "In progress",
+  "forms.assist.stepDone": "Done",
+  // A step is only ever "Done" on the API's word that it worked. One that errored is
+  // "Failed"; one still open when the turn ended (an error, a lost connection) did not
+  // finish, and the panel does not guess how it would have gone.
+  "forms.assist.stepFailed": "Failed",
+  "forms.assist.stepInterrupted": "Did not finish",
+  "forms.assist.step.search_question_library": "Searching the question library",
+  "forms.assist.step.propose_questions": "Drafting questions",
+  "forms.assist.step.propose_draft": "Drafting the form",
+  "forms.assist.step.validate_draft": "Checking the draft",
+  "forms.assist.step.other": "Working on your request",
 
   "forms.assist.proposalHeading": "Proposal",
   "forms.assist.diffCount.one": "1 change proposed.",
@@ -1828,7 +1843,7 @@ export const messages = {
   "forms.assist.kind.step": "Step",
   "forms.assist.kind.question": "Question",
   "forms.assist.kind.rule": "Rule",
-  "forms.assist.rationale": "Assistant's rationale",
+  "forms.assist.rationaleAbove": "The assistant's explanation is in the conversation above.",
   "forms.assist.newQuestionPending":
     "New question {questionId}. Accepting creates it as an unpublished draft in the question library. Publish it there before you publish this form.",
   "forms.assist.accept": "Accept into draft",

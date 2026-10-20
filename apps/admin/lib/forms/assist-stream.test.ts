@@ -39,6 +39,23 @@ describe("readAssistEvents", () => {
     ]);
   });
 
+  it("reads a tool step's ordinal and its outcome, and drops a malformed outcome", async () => {
+    const body = streamOf([
+      frame("status", { phase: "tool", tool: "propose_draft", step: 2 }),
+      frame("tool-outcome", { step: 2, outcome: "failed" }),
+      frame("tool-outcome", { step: 2, outcome: "maybe" }),
+      frame("tool-outcome", { step: "2", outcome: "done" }),
+      frame("tool-outcome", { step: 0, outcome: "done" }),
+      frame("status", { phase: "tool", tool: "propose_draft", step: -1 }),
+    ]);
+    const events = await collect(body);
+    expect(events).toEqual([
+      { type: "status", phase: "tool", tool: "propose_draft", step: 2 },
+      { type: "tool-outcome", step: 2, outcome: "failed" },
+      { type: "status", phase: "tool", tool: "propose_draft" },
+    ]);
+  });
+
   it("reassembles a frame the network split across two chunks", async () => {
     const whole = frame("text", { delta: "one piece" });
     const splitAt = Math.floor(whole.length / 2);

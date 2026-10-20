@@ -166,7 +166,7 @@ What **does** go to the provider, when you use a hosted one: your form structure
 
 ### Token usage
 
-Counts are logged per turn (input tokens, output tokens, step count, provider, prompt version) and shown in the panel. Content is never logged.
+Counts are logged per turn (input tokens, output tokens, step count, provider, prompt version); the panel does not show them. Content is never logged.
 
 ---
 
@@ -182,9 +182,9 @@ It is assembled from the kernel's own exports where the kernel exposes a list (q
 
 1. You type a description. The admin posts it to its own BFF route, which forwards it to `POST /admin/forms/{id}/draft/assist` with your admin session.
 2. The API builds the bounded context described above and starts one bounded tool loop against the configured provider.
-3. Progress streams back as server-sent events: a working indicator, the assistant's prose as it arrives, and which tool it is using.
+3. Progress streams back as server-sent events. The panel shows the assistant's reply in a chat bubble as it arrives, rendered as a small, safe subset of Markdown (bold, italic, inline code and lists; never raw HTML, images or clickable links), and a list of the steps it has taken in plain words, such as "Searching the question library". A step is marked Done only when the API reports that the call worked; a call that errored or that the server refused is marked Failed, and a step still open when the turn ends (an error, a lost connection) is marked "Did not finish". No error text from a tool or the provider is shown. The system prompt asks the model to say what it is about to do before its first tool call, so text appears early in the turn.
 4. When the loop ends, **the server runs the publish validation itself** over the proposed draft and attaches both of its advisory lists: the issues that would block a publish, and the warnings that would not. The panel is never handed an unvalidated proposal.
-5. You see a diff of steps, questions and rules against your current draft, with the validation result beside it. It is the same verdict, from the same kernel call, that the builder's own validation panel would show for that draft, so accepting a proposal never changes what you are told about it.
+5. You see a proposal card with a diff of steps, questions and rules against your current draft, the validation result, and the Accept and Discard buttons together at its foot. The assistant's explanation is shown once, in the conversation, and the card refers to it. It is the same verdict, from the same kernel call, that the builder's own validation panel would show for that draft, so accepting a proposal never changes what you are told about it.
 6. **Accept into draft** saves the proposal through the builder's own autosave and live validation; nothing bypasses them. When the proposal introduced new questions, that save also creates them (below).
 7. The draft is marked "includes agent-assisted changes". The mark is sticky and shows on the builder and on the publish confirmation, so whoever publishes knows what they are signing.
 8. You publish, or not, exactly as you would for a hand-authored form.

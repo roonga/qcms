@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useRef, useState, type ReactNode } from "react";
 
 import { Alert, Button, Card, TextField } from "@/components/kit";
 import {
@@ -17,9 +17,22 @@ import {
   type AssistProposal,
   type AssistTurn,
 } from "@/lib/forms/assist-stream";
+import {
+  applyTurnEvent,
+  EMPTY_TURN,
+  finishTurn,
+  runningStep,
+  turnText,
+  type AssistantTurnView,
+  type StepState,
+  type TurnSegment,
+  type TurnStep,
+} from "@/lib/forms/assist-turn";
 import type { DraftForm, FormIssue } from "@/lib/forms/types";
 import { t, tPlural, type MessageKey } from "@/lib/i18n/en";
 
+import { AssistIconButton } from "./assist-icon-button";
+import { AssistMarkdown } from "./assist-markdown";
 import { IssueEntry } from "./validation-panel";
 
 /**
@@ -52,10 +65,25 @@ import { IssueEntry } from "./validation-panel";
  * ## Streaming
  *
  * `fetch(endpoint).body` is read by `readAssistEvents` (`lib/forms/assist-stream.ts`)
- * as it arrives: a `status` event updates the working indicator, `text` deltas
- * accumulate into the in-progress assistant turn, and a terminal `proposal` or `error`
- * event ends the turn. `usage` carries no UI surface - token counts are server-side
- * logging only (SEC-8).
+ * as it arrives and folded by `lib/forms/assist-turn.ts` into the in-progress
+ * assistant bubble: `text` deltas render in place as Markdown (`assist-markdown.tsx`,
+ * a safe subset) with a caret after the last character, and `status` events build a
+ * step timeline in plain language, each step marked done when the next status
+ * arrives. A terminal `proposal` or `error` event ends the turn. `usage` carries no UI
+ * surface - token counts are server-side logging only (SEC-8).
+ *
+ * ## The rationale is shown once
+ *
+ * The proposal's `rationale` is the turn's own streamed prose, so it is already in the
+ * assistant bubble by the time the card arrives. The card says where to find it rather
+ * than printing it a second time. A proposal that arrives with a rationale and no
+ * streamed text puts the rationale in the bubble instead, so it is still shown exactly
+ * once.
+ *
+ * ## The conversation is memory only
+ *
+ * Nothing about the conversation is persisted; a reload or "Start a new conversation"
+ * begins again. Only the collapsed state is remembered, in `localStorage`.
  */
 export function AssistPanel({
   endpoint,
@@ -76,16 +104,16 @@ export function AssistPanel({
   readonly onAccept: (proposedDraft: DraftForm, newQuestions: readonly unknown[]) => void;
 }) {
   const [collapsed, setCollapsed] = useState(false);
-  const [conversation, setConversation] = useState<readonly AssistTurn[]>([]);
+  const [turns, setTurns] = useState<readonly DisplayTurn[]>([]);
   const [inputValue, setInputValue] = useState("");
-  const [working, setWorking] = useState<WorkingPhase | undefined>(undefined);
-  const [streamingText, setStreamingText] = useState("");
+  const [live, setLive] = useState<AssistantTurnView | undefined>(undefined);
   const [proposal, setProposal] = useState<ProposalState | undefined>(undefined);
   const [panelError, setPanelError] = useState<AssistPanelError | undefined>(undefined);
   const [focusToken, setFocusToken] = useState(0);
 
   const headingRef = useRef<HTMLHeadingElement>(null);
   const abortRef = useRef<AbortController | null>(null);
+  const working = live !== undefined;
 
   useEffect(() => {
     try {
@@ -117,16 +145,25 @@ export function AssistPanel({
     });
   }
 
+  function newConversation() {
+    if (working) return;
+    setTurns([]);
+    setProposal(undefined);
+    setPanelError(undefined);
+    setInputValue("");
+    setFocusToken((token) => token + 1);
+  }
+
   async function send() {
     const content = inputValue.trim();
-    if (content === "" || working !== undefined) return;
+    if (content === "" || working) return;
 
-    const nextConversation = [...conversation, { role: "user" as const, content }];
-    setConversation(nextConversation);
+    const nextTurns: readonly DisplayTurn[] = [...turns, { role: "user", content }];
+    setTurns(nextTurns);
     setInputValue("");
     setPanelError(undefined);
     setProposal(undefined);
-    setWorking({ phase: "thinking" });
+    setLive(EMPTY_TURN);
 
     const controller = new AbortController();
     abortRef.current = controller;
@@ -137,46 +174,50 @@ export function AssistPanel({
         method: "POST",
         headers: { "content-type": "application/json" },
         body: JSON.stringify({
-          conversation: nextConversation,
+          conversation: toConversation(nextTurns),
           ...(draftUpdatedAt === undefined ? {} : { clientState: draftUpdatedAt }),
         }),
         signal: controller.signal,
       });
     } catch {
-      setWorking(undefined);
+      setLive(undefined);
       setPanelError({ kind: "PROVIDER_ERROR" });
       return;
     }
 
     if (!response.ok || response.body === null) {
-      setWorking(undefined);
+      setLive(undefined);
       setPanelError(await errorForResponse(response));
       return;
     }
 
-    let assistantText = "";
+    let view = EMPTY_TURN;
     try {
       for await (const event of readAssistEvents(response.body)) {
+        view = applyTurnEvent(view, event);
         handleAssistEvent(event, draft, {
-          onWorking: setWorking,
-          onText: (delta) => {
-            assistantText += delta;
-            setStreamingText(assistantText);
-          },
           onToolRejected: (tool) => {
             setPanelError({ kind: "TOOL_REJECTED", tool });
           },
-          onProposal: setProposal,
+          onProposal: (state) => {
+            // The rationale is the turn's own prose. Only when none streamed does it
+            // become the bubble's text, so it is shown exactly once either way.
+            if (turnText(view).trim() === "" && state.proposal.rationale !== "") {
+              view = applyTurnEvent(view, { type: "text", delta: state.proposal.rationale });
+            }
+            setProposal(state);
+          },
           onError: setPanelError,
         });
+        setLive(view);
       }
     } catch {
       setPanelError((current) => current ?? { kind: "PROVIDER_ERROR" });
     } finally {
-      setWorking(undefined);
-      setStreamingText("");
-      if (assistantText !== "") {
-        setConversation((current) => [...current, { role: "assistant", content: assistantText }]);
+      const finished = finishTurn(view);
+      setLive(undefined);
+      if (finished.segments.length > 0) {
+        setTurns((current) => [...current, { role: "assistant", view: finished }]);
       }
     }
   }
@@ -193,55 +234,73 @@ export function AssistPanel({
     setFocusToken((token) => token + 1);
   }
 
-  const statusText = computeStatusText(working, proposal);
+  const statusText = computeStatusText(live, proposal);
+  const hasConversation = turns.length > 0 || live !== undefined;
 
   return (
     <aside
       aria-labelledby="qcms-assist-heading"
       data-testid="qcms-assist-panel"
-      className="flex flex-col gap-3 rounded-md border border-(--color-border) p-4"
+      className="qcms-assist"
     >
-      <div className="flex flex-wrap items-center justify-between gap-2">
-        <h2 id="qcms-assist-heading" className="text-base font-semibold text-(--color-text)">
+      <div className="qcms-assist__header">
+        <h2 id="qcms-assist-heading" className="qcms-assist__title">
           {t("forms.assist.title")}
         </h2>
-        <div data-testid="qcms-assist-toggle">
-          <Button variant="ghost" size="sm" onPress={toggleCollapsed}>
-            {collapsed ? t("forms.assist.expand") : t("forms.assist.collapse")}
-          </Button>
+        <div className="qcms-assist__actions">
+          {!collapsed && (
+            <AssistIconButton
+              label={t("forms.assist.newConversation")}
+              onPress={newConversation}
+              isDisabled={working || (turns.length === 0 && proposal === undefined)}
+              testId="qcms-assist-new"
+            >
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                <path d="M12 5v14M5 12h14" strokeLinecap="round" />
+              </svg>
+            </AssistIconButton>
+          )}
+          <AssistIconButton
+            label={collapsed ? t("forms.assist.expand") : t("forms.assist.collapse")}
+            onPress={toggleCollapsed}
+            expanded={!collapsed}
+            controls={BODY_ID}
+            testId="qcms-assist-toggle"
+          >
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+              <path
+                d={collapsed ? "m6 9 6 6 6-6" : "m18 15-6-6-6 6"}
+                strokeLinecap="round"
+                strokeLinejoin="round"
+              />
+            </svg>
+          </AssistIconButton>
         </div>
       </div>
 
       {!collapsed && (
-        <div className="flex flex-col gap-4">
-          <p aria-live="polite" aria-busy={working !== undefined} data-testid="qcms-assist-status">
+        <div id={BODY_ID} className="qcms-assist__body">
+          <p
+            aria-live="polite"
+            aria-busy={working}
+            data-testid="qcms-assist-status"
+            className="qcms-visually-hidden"
+          >
             {statusText}
           </p>
 
-          {conversation.length === 0 ? (
+          {!hasConversation ? (
             <p className="text-sm text-(--color-text-muted)">{t("forms.assist.emptyHint")}</p>
           ) : (
             <ol
               aria-label={t("forms.assist.conversationLabel")}
               data-testid="qcms-assist-conversation"
-              className="flex flex-col gap-2 text-sm"
+              className="qcms-assist-chat"
             >
-              {conversation.map((turn, index) => (
-                <li key={`${turn.role}:${String(index)}`}>
-                  <strong>
-                    {t(
-                      turn.role === "user" ? "forms.assist.turnYou" : "forms.assist.turnAssistant",
-                    )}
-                    :
-                  </strong>{" "}
-                  {turn.content}
-                </li>
+              {turns.map((turn, index) => (
+                <TurnBubble key={`${turn.role}:${String(index)}`} turn={turn} />
               ))}
-              {streamingText !== "" && (
-                <li aria-busy="true">
-                  <strong>{t("forms.assist.turnAssistant")}:</strong> {streamingText}
-                </li>
-              )}
+              {live !== undefined && <TurnBubble turn={{ role: "assistant", view: live }} live />}
             </ol>
           )}
 
@@ -252,23 +311,37 @@ export function AssistPanel({
           )}
 
           {proposal !== undefined && (
-            <div data-testid="qcms-assist-proposal">
+            <section
+              data-testid="qcms-assist-proposal"
+              aria-labelledby="qcms-assist-proposal-heading"
+            >
               <Card padding="md" border>
-                <div className="flex flex-col gap-3">
-                  <h3
-                    ref={headingRef}
-                    tabIndex={-1}
-                    id="qcms-assist-proposal-heading"
-                    className="text-base font-semibold text-(--color-text)"
-                  >
-                    {t("forms.assist.proposalHeading")}
-                  </h3>
-                  {proposal.proposal.rationale !== "" && (
+                <div className="qcms-assist-card">
+                  <div className="flex flex-col gap-1">
+                    <h3
+                      ref={headingRef}
+                      tabIndex={-1}
+                      id="qcms-assist-proposal-heading"
+                      className="text-base font-semibold text-(--color-text)"
+                    >
+                      {t("forms.assist.proposalHeading")}
+                    </h3>
                     <p className="text-sm text-(--color-text-muted)">
-                      <span className="qcms-visually-hidden">{t("forms.assist.rationale")}: </span>
-                      {proposal.proposal.rationale}
+                      {tPlural(
+                        "forms.assist.diffCount.one",
+                        "forms.assist.diffCount.other",
+                        proposal.diff.length,
+                      )}
                     </p>
-                  )}
+                    {proposal.proposal.rationale !== "" && (
+                      <p
+                        className="text-sm text-(--color-text-muted)"
+                        data-testid="qcms-assist-rationale-ref"
+                      >
+                        {t("forms.assist.rationaleAbove")}
+                      </p>
+                    )}
+                  </div>
 
                   <ul className="flex flex-col gap-2 text-sm" data-testid="qcms-assist-diff">
                     {proposal.diff.length === 0 ? (
@@ -335,7 +408,7 @@ export function AssistPanel({
                     </div>
                   )}
 
-                  <div className="flex flex-wrap gap-2">
+                  <div className="qcms-assist-card__actions">
                     <div data-testid="qcms-assist-accept">
                       <Button variant="primary" size="md" onPress={accept}>
                         {t("forms.assist.accept")}
@@ -349,7 +422,7 @@ export function AssistPanel({
                   </div>
                 </div>
               </Card>
-            </div>
+            </section>
           )}
 
           <div className="flex flex-wrap items-end gap-2">
@@ -359,7 +432,7 @@ export function AssistPanel({
                 label={t("forms.assist.inputLabel")}
                 value={inputValue}
                 onChange={setInputValue}
-                isDisabled={working !== undefined}
+                isDisabled={working}
                 autoFocus={focusToken > 0}
               />
             </div>
@@ -367,7 +440,7 @@ export function AssistPanel({
               <Button
                 variant="primary"
                 size="md"
-                isDisabled={working !== undefined || inputValue.trim() === ""}
+                isDisabled={working || inputValue.trim() === ""}
                 onPress={() => {
                   void send();
                 }}
@@ -383,10 +456,137 @@ export function AssistPanel({
 }
 
 const COLLAPSE_STORAGE_KEY = "qcms-assist-collapsed";
+const BODY_ID = "qcms-assist-body";
 
-interface WorkingPhase {
-  readonly phase: "thinking" | "tool";
-  readonly tool?: string;
+/** One turn as the panel shows it. The assistant's is a timeline, not a string. */
+type DisplayTurn =
+  | { readonly role: "user"; readonly content: string }
+  | { readonly role: "assistant"; readonly view: AssistantTurnView };
+
+/**
+ * The history the API is sent: each turn's prose, exactly as before the timeline
+ * existed. An assistant turn that said nothing (only steps, or an error) is left out,
+ * as it always was.
+ */
+function toConversation(turns: readonly DisplayTurn[]): readonly AssistTurn[] {
+  return turns.flatMap((turn): AssistTurn[] => {
+    if (turn.role === "user") return [turn];
+    const content = turnText(turn.view);
+    return content === "" ? [] : [{ role: "assistant", content }];
+  });
+}
+
+/**
+ * One chat bubble. A user turn is its own words, as typed; an assistant turn is its
+ * segments in arrival order - prose as Markdown, steps as a timeline. The live bubble is
+ * `aria-busy` and carries the caret after its last prose, so a screen reader is not read
+ * the reply token by token and a sighted reader sees where the text is growing.
+ */
+function TurnBubble({
+  turn,
+  live = false,
+}: {
+  readonly turn: DisplayTurn;
+  readonly live?: boolean;
+}) {
+  if (turn.role === "user") {
+    return (
+      <li className="qcms-assist-bubble qcms-assist-bubble--user" data-role="user">
+        <span className="qcms-visually-hidden">{t("forms.assist.turnYou")}: </span>
+        <span className="whitespace-pre-wrap">{turn.content}</span>
+      </li>
+    );
+  }
+  const segments = turn.view.segments;
+  const caret = live ? <span className="qcms-assist-caret" aria-hidden="true" /> : undefined;
+  const lastIsText = segments.at(-1)?.kind === "text";
+  return (
+    <li
+      className="qcms-assist-bubble qcms-assist-bubble--assistant"
+      data-role="assistant"
+      aria-busy={live ? true : undefined}
+      data-testid={live ? "qcms-assist-live" : undefined}
+    >
+      <span className="qcms-visually-hidden">{t("forms.assist.turnAssistant")}: </span>
+      {segments.map((segment, index) => (
+        <Segment
+          key={`${segment.kind}:${String(index)}`}
+          segment={segment}
+          trailing={index === segments.length - 1 && lastIsText ? caret : undefined}
+        />
+      ))}
+      {live && !lastIsText && (
+        <p className="text-sm text-(--color-text-muted)">
+          {segments.length === 0 && t("forms.assist.working")}
+          {caret}
+        </p>
+      )}
+    </li>
+  );
+}
+
+function Segment({
+  segment,
+  trailing,
+}: {
+  readonly segment: TurnSegment;
+  readonly trailing: ReactNode;
+}) {
+  if (segment.kind === "text") return <AssistMarkdown text={segment.text} trailing={trailing} />;
+  return <StepTimeline steps={segment.steps} />;
+}
+
+const STEP_STATE_LABELS: Readonly<Record<StepState, MessageKey>> = {
+  running: "forms.assist.stepRunning",
+  done: "forms.assist.stepDone",
+  failed: "forms.assist.stepFailed",
+  interrupted: "forms.assist.stepInterrupted",
+};
+
+/** One step's icon. Each state has its own shape, so state never rests on colour. */
+function StepIcon({ state }: { readonly state: StepState }) {
+  if (state === "running") return <span className="qcms-assist-steps__pulse" />;
+  const path = {
+    done: "M20 6 9 17l-5-5",
+    failed: "M18 6 6 18M6 6l12 12",
+    interrupted: "M5 12h14",
+  }[state];
+  return (
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5">
+      <path d={path} strokeLinecap="round" strokeLinejoin="round" />
+    </svg>
+  );
+}
+
+/**
+ * The plain-language step list. A step that went wrong says so in words beside its
+ * label; a running or finished step's state is spoken but not printed, because the
+ * icon and the list's own progress already show it.
+ */
+function StepTimeline({ steps }: { readonly steps: readonly TurnStep[] }) {
+  return (
+    <ol
+      className="qcms-assist-steps"
+      aria-label={t("forms.assist.stepsLabel")}
+      data-testid="qcms-assist-steps"
+    >
+      {steps.map((step, index) => {
+        const problem = step.state === "failed" || step.state === "interrupted";
+        return (
+          <li key={`${step.label}:${String(index)}`} data-state={step.state}>
+            <span className="qcms-assist-steps__icon" aria-hidden="true">
+              <StepIcon state={step.state} />
+            </span>
+            <span>{t(step.label)}</span>
+            <span className="qcms-visually-hidden">, </span>
+            <span className={problem ? "qcms-assist-steps__state" : "qcms-visually-hidden"}>
+              {t(STEP_STATE_LABELS[step.state])}
+            </span>
+          </li>
+        );
+      })}
+    </ol>
+  );
 }
 
 interface ProposalState {
@@ -398,39 +598,31 @@ interface ProposalState {
 
 /** The status line: whichever of "working" or "a proposal just landed" applies. */
 function computeStatusText(
-  working: WorkingPhase | undefined,
+  live: AssistantTurnView | undefined,
   proposal: ProposalState | undefined,
 ): string {
-  if (working !== undefined) return workingText(working);
+  if (live !== undefined) {
+    const step = runningStep(live);
+    return step === undefined ? t("forms.assist.working") : t(step.label);
+  }
   if (proposal !== undefined) return proposalAnnounce(proposal.diff, proposal.proposal);
   return "";
 }
 
 /**
- * One SSE event, applied to the panel's state via the callbacks the caller supplies.
- *
- * Pulled out of `send()`'s streaming loop so the loop itself stays a single call per
- * event rather than a five-way branch repeated on every iteration - the branching is
- * exactly the same, it just has a name and a unit boundary now.
+ * One SSE event's non-timeline effects, applied via the callbacks the caller supplies.
+ * `text` and `status` are folded into the bubble by `applyTurnEvent` instead.
  */
 function handleAssistEvent(
   event: AssistEvent,
   draft: DraftForm,
   handlers: {
-    readonly onWorking: (phase: WorkingPhase) => void;
-    readonly onText: (delta: string) => void;
     readonly onToolRejected: (tool: string) => void;
     readonly onProposal: (state: ProposalState) => void;
     readonly onError: (error: AssistPanelError) => void;
   },
 ): void {
-  if (event.type === "status") {
-    handlers.onWorking(
-      event.tool === undefined ? { phase: event.phase } : { phase: event.phase, tool: event.tool },
-    );
-  } else if (event.type === "text") {
-    handlers.onText(event.delta);
-  } else if (event.type === "tool-rejected") {
+  if (event.type === "tool-rejected") {
     handlers.onToolRejected(event.tool);
   } else if (event.type === "proposal") {
     handlers.onProposal({
@@ -499,12 +691,6 @@ async function errorForResponse(response: Response): Promise<AssistPanelError> {
   const body: unknown = await response.json().catch(() => undefined);
   const message = (body as { error?: { message?: unknown } } | undefined)?.error?.message;
   return { kind: "HTTP", message: typeof message === "string" ? message : String(response.status) };
-}
-
-function workingText(phase: WorkingPhase): string {
-  return phase.phase === "tool" && phase.tool !== undefined
-    ? t("forms.assist.workingTool", { tool: phase.tool })
-    : t("forms.assist.working");
 }
 
 /**

@@ -17,7 +17,7 @@ import {
 
 import { createNullLogger, type Logger } from "../../../logger.js";
 import { recordingLogger } from "../../../test-support.js";
-import { aiSdkDraftAssistant } from "./assistant.js";
+import { aiSdkDraftAssistant, toolOutcomeEvent } from "./assistant.js";
 import { fakeAssistantModel } from "./fake-model.js";
 import {
   ASSIST_ERROR_CODES,
@@ -254,6 +254,78 @@ describe("draft assistant tool loop (fake provider)", () => {
     ).toBeDefined();
     // And nothing told the operator the provider was unavailable.
     expect(events.filter((e) => e.type === "error")).toHaveLength(0);
+  });
+
+  describe("tool outcomes, for an honest step timeline", () => {
+    /** `[tool, outcome]` per announced step, in step order. */
+    function stepOutcomes(events: readonly AssistEvent[]): [string, string | undefined][] {
+      const announced = events.flatMap((e) =>
+        e.type === "status" && e.phase === "tool" && e.step !== undefined
+          ? [{ tool: e.tool ?? "", step: e.step }]
+          : [],
+      );
+      return announced.map(({ tool, step }) => {
+        const outcome = events.find((e) => e.type === "tool-outcome" && e.step === step);
+        return [tool, outcome?.type === "tool-outcome" ? outcome.outcome : undefined];
+      });
+    }
+
+    it("reports every call of a successful turn as done, each after its own announcement", async () => {
+      const { ctx } = contextFor("a vehicle-insurance quote");
+      const events = await collect(ctx);
+      expect(stepOutcomes(events)).toEqual([
+        ["search_question_library", "done"],
+        ["propose_draft", "done"],
+      ]);
+      const announced = events.findIndex((e) => e.type === "status" && e.step === 1);
+      const finished = events.findIndex((e) => e.type === "tool-outcome" && e.step === 1);
+      expect(announced).toBeLessThan(finished);
+    });
+
+    it("reports a failed call as failed, and the retry on its own step", async () => {
+      const { ctx } = contextFor("#qcms-fake:tool-error-recovered build me a form");
+      const events = await collect(ctx);
+      expect(stepOutcomes(events)).toEqual([
+        ["propose_draft", "failed"],
+        ["search_question_library", "done"],
+        ["propose_draft", "done"],
+      ]);
+      // No error text travels with the outcome (SEC-8).
+      for (const event of events.filter((e) => e.type === "tool-outcome")) {
+        expect(Object.keys(event).sort()).toEqual(["outcome", "step", "type"]);
+      }
+    });
+
+    it("maps a result the executor refused to failed, and an unannounced call to nothing", () => {
+      const steps = new Map([["call_1", 1]]);
+      expect(toolOutcomeEvent(steps, "call_1", { accepted: false, reason: "x" })).toEqual({
+        type: "tool-outcome",
+        step: 1,
+        outcome: "failed",
+      });
+      expect(toolOutcomeEvent(steps, "call_1", { accepted: true })).toMatchObject({
+        outcome: "done",
+      });
+      expect(toolOutcomeEvent(steps, "call_1", undefined, { errored: true })).toMatchObject({
+        outcome: "failed",
+      });
+      expect(toolOutcomeEvent(steps, "call_1", {}, { preliminary: true })).toBeUndefined();
+      expect(toolOutcomeEvent(steps, "call_unknown", {})).toBeUndefined();
+    });
+
+    it("keeps the finished step done when the provider then fails, and adds no outcome", async () => {
+      const { ctx } = contextFor("#qcms-fake:tool-then-provider-error go");
+      const events = await collect(ctx);
+      expect(stepOutcomes(events)).toEqual([["search_question_library", "done"]]);
+      expect(events.at(-1)).toMatchObject({ type: "error", code: "PROVIDER_ERROR" });
+    });
+
+    it("announces no step and no outcome for a refused verb", async () => {
+      const { ctx } = contextFor("#qcms-fake:rogue-publish do it");
+      const events = await collect(ctx);
+      expect(events.filter((e) => e.type === "tool-outcome")).toHaveLength(0);
+      expect(stepOutcomes(events)).toEqual([]);
+    });
   });
 
   it("counts the failed call in the turn record without quoting it", async () => {

@@ -87,14 +87,21 @@ function parseConversation(
 
 /**
  * The headers to answer with: the upstream's own `content-type` and `retry-after`
- * (a 429's caller-facing signal) carried through, and `cache-control: no-store` added
- * on a 200 - an assist turn is never a document worth caching, streamed or not.
+ * (a 429's caller-facing signal) carried through, and on a 200 the two that keep the
+ * stream a stream. `no-store` because an assist turn is never a document worth
+ * caching; `no-cache, no-transform` and `x-accel-buffering: no` because a compressing
+ * or buffering proxy in front of the admin would otherwise batch the frames and turn
+ * streamed prose back into one burst at the end of the turn. The API sets the last one
+ * on its own hop for the same reason.
  */
 function forwardedHeaders(upstream: Response): Headers {
   const headers = new Headers();
   const contentType = upstream.headers.get("content-type");
   if (contentType !== null) headers.set("content-type", contentType);
-  if (upstream.ok) headers.set("cache-control", "no-store");
+  if (upstream.ok) {
+    headers.set("cache-control", "no-cache, no-store, no-transform");
+    headers.set("x-accel-buffering", "no");
+  }
   const retryAfter = upstream.headers.get("retry-after");
   if (retryAfter !== null) headers.set("retry-after", retryAfter);
   return headers;

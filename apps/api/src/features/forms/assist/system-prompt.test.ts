@@ -120,6 +120,13 @@ describe("the draft assistant system prompt", () => {
     }
   });
 
+  it("asks for a sentence before the first tool call, so the panel has text to stream early", () => {
+    const prompt = buildSystemPrompt();
+    expect(prompt).toContain("Before your first tool call, say in one short sentence");
+    // The Markdown subset the admin panel renders, and nothing it refuses to.
+    expect(prompt).toContain("Do not use headings, tables,\nlinks, images or HTML.");
+  });
+
   it("is deterministic, so an upstream cache of it is worth having", () => {
     expect(buildSystemPrompt()).toBe(buildSystemPrompt());
     expect(SYSTEM_PROMPT_VERSION).toBeGreaterThan(0);
