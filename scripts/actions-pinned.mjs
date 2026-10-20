@@ -123,7 +123,9 @@ const SCANNED_LOCAL_PREFIXES = ["./.github/actions/", "./.github/workflows/"];
  * @property {string} value The `uses:` value with quotes removed, or the line's content for
  *   a shape the reader refused.
  * @property {Kind} kind
- * @property {string | undefined} action `owner/repo` for a remote reference.
+ * @property {string | undefined} action `owner/repo` for a remote reference, with any
+ *   sub-path dropped, so `github/codeql-action/init` and `github/codeql-action/analyze` are
+ *   one value. The one-pin rule keys on it, which is why the sub-path goes.
  * @property {string | undefined} ref Whatever follows `@`; undefined when there is none.
  * @property {string | undefined} comment The same-line trailing comment, trimmed.
  * @property {string | undefined} why Why the reader refused this line, when it did.
@@ -722,27 +724,51 @@ export function pinProblems(references, dependabotDirectories) {
     }
   }
 
-  // One action, one pin. Six files named `pnpm/action-setup@v6.0.9` and two the moving `@v6` when
-  // #948 was raised, which is how a repository comes to run two releases of one action
-  // without saying so. Dependabot moves every occurrence together, so a divergence after
-  // this point is a hand edit, and it should be a red rather than a discovery. Keyed
-  // case-insensitively, because GitHub resolves `Pnpm/Action-Setup` to the same repository.
+  // One repository, one pin. Six files named `pnpm/action-setup@v6.0.9` and two the moving
+  // `@v6` when #948 was raised, which is how a repository comes to run two releases of one
+  // action without saying so. Dependabot moves every occurrence together, so a divergence
+  // after this point is a hand edit, and it should be a red rather than a discovery.
+  //
+  // The grouping covers **first-party** references as well as third-party ones, which is what
+  // issue #1078 widened after the PR #1056 review asked the question. It had grouped
+  // third-party references alone, and the carve-out above is about the FORM of a first-party
+  // pin (a version tag rather than a SHA), not about whether this repository may run two
+  // releases of one action at once: `actions/checkout@v7` in eleven files and `@v6` in the
+  // twelfth is the #948 defect with GitHub's name on it, every line of it individually valid,
+  // and it is Dependabot's pull requests that move every copy together either way.
+  //
+  // The key is the **repository** (`owner/repo`) rather than the action path, so the
+  // sub-actions of one repository group together: one release of `github/codeql-action`
+  // publishes `init`, `analyze` and the rest from one commit, and `init@v4.38.2` beside
+  // `analyze@v4.39.0` is two releases of one action however many paths it is spelled across.
+  // That half was already true, because `classify` drops the sub-path before it ever gets
+  // here; it was untested and unstated, so #1078 wrote it down and put a case on it rather
+  // than leaving the next reader of this loop to re-derive it. The one live symptom was
+  // `github/codeql-action` being first-party and therefore skipped entirely.
+  //
+  // Local and `docker://` references are outside the grouping because neither has a
+  // repository pin to compare. A local reference is this repository's own code, reviewed in
+  // the pull request that changes it and carrying no ref at all; a `docker://` reference is
+  // refused outright above. Both leave `action` undefined, and the `kind` test below says so
+  // explicitly rather than leaning on that.
+  //
+  // Keyed case-insensitively, because GitHub resolves `Pnpm/Action-Setup` to the same
+  // repository.
   /** @type {Map<string, Reference[]>} */
-  const byAction = new Map();
+  const byRepository = new Map();
   for (const reference of references) {
-    if (reference.kind !== "third-party" || reference.action === undefined) continue;
+    if (reference.kind !== "third-party" && reference.kind !== "first-party") continue;
+    if (reference.action === undefined) continue;
     const key = reference.action.toLowerCase();
-    const seen = byAction.get(key);
-    if (seen === undefined) byAction.set(key, [reference]);
+    const seen = byRepository.get(key);
+    if (seen === undefined) byRepository.set(key, [reference]);
     else seen.push(reference);
   }
-  for (const [action, group] of byAction) {
-    const pins = new Set(
-      group.map((reference) => `${reference.ref ?? "(none)"} # ${reference.comment ?? "(none)"}`),
-    );
+  for (const [repository, group] of byRepository) {
+    const pins = new Set(group.map(pinIdentity));
     if (pins.size > 1) {
       problems.push(
-        `${action} is referenced at more than one pin: ${[...pins].sort().join(" / ")}. Two ` +
+        `${repository} is referenced at more than one pin: ${[...pins].sort().join(" / ")}. Two ` +
           "releases of one action running in one repository is the #948 defect itself; the " +
           `references are at ${group
             .map((reference) => `${reference.file}:${String(reference.line)}`)
@@ -752,6 +778,26 @@ export function pinProblems(references, dependabotDirectories) {
   }
 
   return problems;
+}
+
+/**
+ * What makes two references the same pin, for the one-pin rule above.
+ *
+ * For a third-party reference the trailing version comment is part of the pin and not
+ * decoration: Dependabot moves the SHA and the comment together, so two copies of one SHA
+ * documented as two different releases is a hand edit and one of the two sentences is false.
+ *
+ * For a first-party reference the comment carries no requirement anywhere in this file, so it
+ * is not part of the identity either: `actions/checkout@v7` and `actions/checkout@v7 # the
+ * pinned major` name the same tag, and reddening that pair would be enforcing a rule the
+ * ruling does not state.
+ *
+ * @param {Reference} reference
+ */
+function pinIdentity(reference) {
+  const ref = reference.ref ?? "(none)";
+  if (reference.kind !== "third-party") return ref;
+  return `${ref} # ${reference.comment ?? "(none)"}`;
 }
 
 /**
