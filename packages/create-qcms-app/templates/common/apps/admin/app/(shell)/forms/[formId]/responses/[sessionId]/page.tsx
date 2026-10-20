@@ -14,16 +14,10 @@ import { t } from "@/lib/i18n/en";
 import { RESPONSE_HEADING_ID } from "@/lib/page-headings";
 import { getForm, getFormVersion } from "@/lib/server/forms";
 import { getQuestion } from "@/lib/server/questions";
-<<<<<<< HEAD
-import { getResponse, listErasures } from "@/lib/server/responses";
-import { shownEnvironment } from "@/lib/environment";
-import { resolvedEnvironment } from "@/lib/server/environments";
-=======
 import { secureCookies } from "@/lib/server/config";
 import { erasureScope, getResponse, listErasures } from "@/lib/server/responses";
-import { PROD_ENVIRONMENT } from "@/lib/environment";
-import { listEnvironments, selectedEnvironment } from "@/lib/server/environments";
->>>>>>> 6e8fbf5c (feat(admin,api,csv): 067 the cross-environment erasure offer, the environment in an export's name, and the restore drill over every environment)
+import { shownEnvironment } from "@/lib/environment";
+import { resolvedEnvironment } from "@/lib/server/environments";
 import { requireAdminSession } from "@/lib/server/session";
 
 import { eraseSessionAction, unflagResponseAction } from "../../../../responses/actions";
@@ -70,36 +64,23 @@ export default async function ResponseDetailPage({
   const session = await requireAdminSession();
   const { formId, sessionId } = await params;
 
-<<<<<<< HEAD
-  const [form, response, resolved] = await Promise.all([
-=======
-  const [form, response, set, scope] = await Promise.all([
->>>>>>> 6e8fbf5c (feat(admin,api,csv): 067 the cross-environment erasure offer, the environment in an export's name, and the restore drill over every environment)
+  const [form, response, resolved, scope] = await Promise.all([
     getForm(session, formId),
     getResponse(session, formId, sessionId),
     // The response above was read from the selected environment's data plane; the erasure
     // confirmation has to name it, because an erasure performed against the wrong
-<<<<<<< HEAD
     // environment is not undoable (Q6). The request's one resolution (A12), so the name is
     // the environment the read above was actually made in.
     resolvedEnvironment(session),
-  ]);
-  const shown = shownEnvironment(resolved);
-=======
-    // environment is not undoable (Q6).
-    listEnvironments(session),
     // Q7's cross-environment offer (task 067). Read beside the response rather than after
-    // it, because the case it exists for is the one where the response is **gone** - an
-    // operator who has just erased here needs to know where else they have to go, and
-    // that branch renders without ever reaching the detail below. A failure is a hint
-    // missing and not a screen broken, so this result is only ever read for its offers.
+    // it, because the case it exists for is the one where the response is **gone**: an
+    // operator who has just erased here needs to know where else they have to go, and that
+    // branch renders without ever reaching the detail below. A failure is a hint missing
+    // and not a screen broken, so this result is only ever read for its offers.
     erasureScope(session, formId, sessionId),
   ]);
+  const shown = shownEnvironment(resolved);
   const elsewhere = scope.ok ? scope.data.otherEnvironments : [];
-  const environment = await selectedEnvironment(
-    set.ok && set.data.length > 0 ? set.data.map((option) => option.name) : [PROD_ENVIRONMENT],
-  );
->>>>>>> 6e8fbf5c (feat(admin,api,csv): 067 the cross-environment erasure offer, the environment in an export's name, and the restore drill over every environment)
 
   if (!form.ok) {
     if (form.code === "FORM_NOT_FOUND" || form.code === "INVALID_FORM_ID") notFound();
@@ -132,9 +113,9 @@ export default async function ResponseDetailPage({
         ) : (
           <TombstoneCard tombstone={tombstone} />
         )}
-        {/* The offer belongs here most of all: this screen IS a tombstone, so the
-            erasure in this environment is done and what is left is the other
-            environments the same request has to reach (Q7). */}
+        {/* The offer belongs here most of all: this screen IS a tombstone, so the erasure
+            in this environment is done and what is left is the other environments the
+            same request has to reach (Q7). */}
         <ErasureElsewhereOffer others={elsewhere} secureCookies={secureCookies()} />
       </div>
     );
