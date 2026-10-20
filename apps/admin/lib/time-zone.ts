@@ -94,9 +94,17 @@ const STEP = 15 * 60_000;
 function firstInstantOf(year: number, monthIndex: number, day: number, timeZone: string): number {
   const midnight = utcMidnight(year, monthIndex, day);
   const target = year * 10_000 + (monthIndex + 1) * 100 + day;
-  // Fifteen hours before UTC midnight the local date is the previous day in every zone
-  // (offsets run from -12 to +14), so the scan starts on the wrong side of the boundary.
+  // The scan has to START on the previous day, so that the boundary it then searches for
+  // is in front of it. Fifteen hours before UTC midnight is early enough for every offset
+  // in use (-12 to +14), but a fixed window is not a property of the zone database: two
+  // zones' pre-1867 local mean time was further east than that (America/Metlakatla at
+  // +15:13:42, America/Juneau at +15:02:19), and there the scan used to begin already
+  // inside the target day, so the search below settled on its own starting point rather
+  // than on midnight - silently, and about two minutes out. Walking back until the local
+  // date really is earlier establishes the precondition instead of asserting it, and costs
+  // one extra formatter call on every zone and date where fifteen hours was already enough.
   let before = midnight - 15 * HOUR;
+  while (localDateKey(before, timeZone) >= target) before -= HOUR;
   let after = before + STEP;
   while (localDateKey(after, timeZone) < target) {
     before = after;

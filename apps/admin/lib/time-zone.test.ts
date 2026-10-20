@@ -95,6 +95,28 @@ describe("startOfDayIn / endOfDayIn", () => {
     expect(startOfDayIn("0000-01-01", "UTC")).toBe("0000-01-01");
   });
 
+  it("is exact in a zone whose historical offset is further east than +15", () => {
+    // Review of PR #1077, finding B. The scan used to start a fixed fifteen hours before
+    // UTC midnight, on the stated ground that every zone reads the previous day there.
+    // That is true of the offsets in use (-12 to +14) and false of two zones' pre-1867
+    // local mean time: America/Metlakatla was +15:13:42 and America/Juneau +15:02:19, so
+    // the scan began INSIDE the target day and the search settled on its own starting
+    // point - 00:02:19 and 00:13:42 local instead of midnight, with nothing saying so.
+    // No response can exist in that era; what is being held here is that the day
+    // definition has no window in it to fall off, so neither can a later tzdata entry.
+    const juneau = startOfDayIn("1860-01-01", "America/Juneau");
+    expect(wall(juneau, "America/Juneau")).toBe("01/01/1860, 00:00:00");
+    expect(endOfDayIn("1860-01-01", "America/Juneau")).toBe(
+      new Date(Date.parse(startOfDayIn("1860-01-02", "America/Juneau")) - 1).toISOString(),
+    );
+    const metlakatla = startOfDayIn("1866-06-15", "America/Metlakatla");
+    expect(wall(metlakatla, "America/Metlakatla")).toBe("15/06/1866, 00:00:00");
+    // And the same zones after 1867, where fifteen hours was always enough.
+    expect(wall(startOfDayIn("1868-01-01", "America/Juneau"), "America/Juneau")).toBe(
+      "01/01/1868, 00:00:00",
+    );
+  });
+
   it("passes a value that is not day-shaped through untouched", () => {
     expect(startOfDayIn("2026-07-01T12:00:00.000Z", "UTC")).toBe("2026-07-01T12:00:00.000Z");
     expect(endOfDayIn("nonsense", "Australia/Sydney")).toBe("nonsense");

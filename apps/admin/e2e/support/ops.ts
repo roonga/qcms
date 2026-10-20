@@ -502,10 +502,24 @@ export function openDeliverer(): {
 
 // --- browser steps -----------------------------------------------------------
 
-/** Open a form's responses tab and wait for the browser to be on screen. */
+/**
+ * Open a form's responses tab and wait for the browser to be LIVE, not merely on screen.
+ *
+ * The section carrying this test id is server-rendered, so it is visible long before React
+ * attaches - about 65ms after the navigation against an attach landing 200 to 340ms later,
+ * measured on an idle machine. Everything a caller then does to it belongs to React: the
+ * Export trigger, the filter controls, the row links' client navigation. A press issued in
+ * that window is received by nothing and no poll can re-issue it (issue #815), which is
+ * how the CSV export test came to need its last allowed retry on a loaded CI host.
+ *
+ * So this entry helper owns the wait and every caller inherits it, which is the rule
+ * `support/hydration.ts` states for the shell's other entry helpers. On an already
+ * hydrated page it resolves on its first poll.
+ */
 export async function openResponses(page: Page, formId: string): Promise<void> {
   await page.goto(`/forms/${formId}/responses`);
   await expect(page.getByTestId("qcms-response-browser")).toBeVisible();
+  await waitForHydration(page);
 }
 
 /** Open a form's webhooks tab and wait for the config to be on screen. */

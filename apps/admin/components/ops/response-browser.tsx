@@ -232,9 +232,36 @@ export function ResponseBrowser({
         <Button variant="ghost" size="md" isDisabled={isPending} onPress={clear}>
           {t("ops.responses.filter.clear")}
         </Button>
+        {/* Offered only once the operator's clock is known, which is also the first moment
+            this press can be received at all (review of PR #1077, finding A).
+
+            Two things come together on this one control. The dialog it opens is React's
+            alone - the server renders this trigger and none of its behaviour - so a press
+            before the attach is received by nothing and the dialog never mounts. Measured
+            on an idle machine: the server-rendered section is on screen about 65ms after
+            the navigation and the attach lands 200 to 340ms later, a window a loaded host
+            widens; `e2e/hydration-wait.pw.ts` schedules it rather than waiting for it to
+            happen. And the dialog's range is read in whichever zone applies to it
+            (`initialZone`, `operatorZone`), so opening it in that window would mean a
+            range control that cannot say which clock reads it.
+
+            `operatorZone` is null exactly for the server render and hydration's first pass
+            (`components/operator-time.tsx`), so this is "not attached yet" said in the
+            terms this screen already has, and a dialog mounted by client navigation reads
+            the zone immediately and is never disabled. The toolbar's other two actions
+            already disable themselves while they cannot act (`isPending`); this is the
+            same sentence about a different reason, and it makes the refusal visible rather
+            than letting a press disappear.
+
+            It is NOT the general case. Every React-only trigger in this shell is inert
+            until the attach (issue #815 fixed the suite's half of that; the portal's
+            product half is open as #965), and a shell-wide stance on it is the Code
+            Owner's to take. This control is in scope here because this change is what
+            gave it a dependency on the operator's clock. */}
         <Button
           variant="primary"
           size="md"
+          isDisabled={operatorZone === null}
           onPress={() => {
             setExporting(true);
           }}
