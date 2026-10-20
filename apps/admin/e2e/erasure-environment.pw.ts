@@ -98,8 +98,20 @@ test("the erasure confirmation names the environment it would act in", async ({ 
   await expect(dialog.getByRole("button", { name: "Erase permanently" })).toBeDisabled();
 });
 
-test("a response read reaches the selected environment and no other", async ({ page }) => {
+test("a response read reaches the selected environment and no other", async ({
+  page,
+  browserGuard,
+}) => {
   test.setTimeout(300_000);
+  // The whole point of this test is a response that is **not there** in the other
+  // environment, and a screen that is not there is a 404 the browser reports to the
+  // console. Declared rather than tolerated, because the console gate is what makes an
+  // unexpected fault a failure, and an undeclared 404 here would have been indistinguishable
+  // from the page breaking.
+  browserGuard.expectRequestFailure({
+    status: 404,
+    url: new RegExp(`/responses/${prodSession}$`),
+  });
   await signInWithTotp(page, EMAIL, totpSecret);
   await page.goto(`/forms/${FORM_ID}/responses`);
   await expect(page.getByTestId("qcms-response-browser")).toBeVisible();
