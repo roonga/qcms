@@ -81,7 +81,7 @@ import { pluginWriteBackstop } from "./plugin-write-backstop.js";
  * backup codes but leaves `user.twoFactorEnabled` false until a real TOTP code
  * verifies, so an abandoned enrollment cannot leave an account half-protected.
  *
- * **better-auth 1.7.7 refuses a second enrollment over a verified factor** rather than
+ * **better-auth 1.7.10 refuses a second enrollment over a verified factor** rather than
  * re-provisioning one: `enableTwoFactor` throws `TOTP_ALREADY_ENABLED` when a
  * `twoFactor` row exists whose `verified` is not false, and the `verified` it writes is
  * `skipVerificationOnEnable` alone rather than inheriting an existing `true`
@@ -94,7 +94,7 @@ import { pluginWriteBackstop } from "./plugin-write-backstop.js";
  * (`dist/plugins/two-factor/index.mjs:135-138`) <!-- expect: const encryptedSecret = await symmetricEncrypt( --> and the recovery codes
  * (`.../backup-codes/index.mjs:19-22`). <!-- expect: storeBackupCodes === "encrypted" --> That used to make `QCMS_ADMIN_AUTH_SECRET` a
  * key nobody could change without destroying every enrolment, which task 056 recorded
- * as permanent. It is not permanent any more: better-auth 1.7.7 carries a versioned
+ * as permanent. It is not permanent any more: better-auth 1.7.10 carries a versioned
  * key set (`secrets`) and writes a `$ba$<version>$` envelope, so an operator adds a new
  * version, keeps the old one for reading, and stored material re-encodes under the
  * current version as it is used. Recovery-code blobs re-encode on **every redemption**
@@ -135,7 +135,7 @@ export const AUTH_BASE_PATH = "/api/auth";
  *
  * A literal in the library rather than a configurable name: `findCredentialAccount`
  * looks the row up with `value: "credential"`
- * (`dist/db/internal-adapter.mjs:652-669`) <!-- expect: value: "credential" -->, and
+ * (`dist/db/internal-adapter.mjs:667-684`) <!-- expect: value: "credential" -->, and
  * `/change-password` writes the new hash to whatever that read returned. Named here
  * because the `account.update.after` hook below has to tell that row apart from an
  * OAuth account whose refreshed tokens go through the same write.
@@ -185,7 +185,7 @@ export function warnIfBreachCheckDisabled(
  * ## Why this exists
  *
  * The throttle is better-auth's. Until issue #390 whether it ran was decided by
- * `NODE_ENV`: read against better-auth 1.7.7, the pinned version,
+ * `NODE_ENV`: read against better-auth 1.7.10, the pinned version,
  * `dist/context/create-context.mjs:172` <!-- expect: options.rateLimit?.enabled ?? isProduction --> resolves it as
  * `options.rateLimit?.enabled ?? isProduction`, and `isProduction` is a module-scope
  * `const` in `@better-auth/core/dist/env/env-impl.mjs:32` <!-- expect: isProduction = nodeENV === "production" --> (`nodeENV === "production"`,
@@ -204,7 +204,7 @@ export function warnIfBreachCheckDisabled(
  * ## Read back, never echoed
  *
  * Every field comes from `await auth.$context`, which is the object the limiter itself
- * consults: in better-auth 1.7.7, `dist/api/rate-limiter/index.mjs:293` <!-- expect: if (!ctx.rateLimit.enabled) return --> gates on
+ * consults: in better-auth 1.7.10, `dist/api/rate-limiter/index.mjs:293` <!-- expect: if (!ctx.rateLimit.enabled) return --> gates on
  * `ctx.rateLimit.enabled`, and
  * `getIP` (`@better-auth/core/dist/utils/ip.mjs:206`) <!-- expect: ipAddressHeaders || DEFAULT_IP_HEADERS --> reads the header list off
  * `ctx.options.advanced.ipAddress`. Reporting the options this file passes in instead
@@ -221,7 +221,7 @@ export function warnIfBreachCheckDisabled(
  *
  * ## What is deliberately not in here
  *
- * The **numbers**. In better-auth 1.7.7 the sign-in rule is three attempts per ten
+ * The **numbers**. In better-auth 1.7.10 the sign-in rule is three attempts per ten
  * seconds (`getDefaultSpecialRules`, `dist/api/rate-limiter/index.mjs:305-311`, <!-- expect: window: 10, max: 3 --> matching
  * `/sign-in`, `/sign-up`, `/change-password` and `/change-email`), and the two-factor
  * plugin adds the same shape for `/two-factor/*`
@@ -239,7 +239,7 @@ export interface SignInThrottleState {
   readonly enabled: boolean;
   /**
    * The headers the limiter resolves a caller's address from, in order, as
-   * `getIP` reads them (better-auth 1.7.7, the pinned version:
+   * `getIP` reads them (better-auth 1.7.10, the pinned version:
    * `@better-auth/core/dist/utils/ip.mjs:206`). Header
    * **names**, never a value: an address identifies a person and SEC-8 and
    * SEC-13 keep it out of a log line, which is why this reports where the
@@ -651,7 +651,7 @@ export function createAdminAuth(input: AdminAuthInput) {
       },
     }),
     // The **versioned** key set, and `secret` beside it as the legacy fallback
-    // (issue #319). better-auth 1.7.7 resolves these together in
+    // (issue #319). better-auth 1.7.10 resolves these together in
     // `dist/context/create-context.mjs:70-82`: with `secrets` present it builds a
     // `SecretConfig` whose current version encrypts, whose whole map decrypts, and
     // whose `legacySecret` is `secret` - used only for ciphertext that predates the
@@ -679,7 +679,7 @@ export function createAdminAuth(input: AdminAuthInput) {
     // SEC-1's brute-force throttle on sign-in, change-password and two-factor, stated
     // rather than inferred (issue #390).
     //
-    // better-auth 1.7.7, the pinned version, resolves this as
+    // better-auth 1.7.10, the pinned version, resolves this as
     // `options.rateLimit?.enabled ?? isProduction`
     // (`dist/context/create-context.mjs:172`), and `isProduction` is
     // `nodeENV === "production"` over a `NODE_ENV` captured once when
@@ -789,16 +789,16 @@ export function createAdminAuth(input: AdminAuthInput) {
            *
            * The event that means "a password was successfully changed" is the write
            * of the new hash to the credential account row, which is
-           * `dist/api/routes/update-user.mjs:172`
+           * `dist/api/routes/update-user.mjs:175`
            * <!-- expect: internalAdapter.updateAccount(account.id, { password: passwordHash }) -->.
            * It is reached only after the `password.verify` of the current password at
-           * `dist/api/routes/update-user.mjs:168`
+           * `dist/api/routes/update-user.mjs:169`
            * <!-- expect: password.verify --> succeeded. `updateAccount` routes through
-           * `updateWithHooks`, at `dist/db/internal-adapter.mjs:696`
+           * `updateWithHooks`, at `dist/db/internal-adapter.mjs:711`
            * <!-- expect: updateWithHooks -->, which runs this hook.
            *
            * That is what makes exit criterion 2 hold by construction rather than by
-           * enumeration. A refused change throws before `:172`. Signing out and in
+           * enumeration. A refused change throws before `:175`. Signing out and in
            * again writes the `session` model, never `account`. A session refresh
            * writes `session`. None of them reaches this hook at all.
            *
@@ -815,11 +815,16 @@ export function createAdminAuth(input: AdminAuthInput) {
            * `update.after` hooks are queued through `queueAfterTransactionHook`,
            * which runs the hook immediately when no transaction is open and pushes it
            * onto the commit's pending list otherwise:
-           * `@better-auth/core/dist/context/transaction.mjs:112`
+           * `@better-auth/core/dist/context/transaction.mjs:139`
            * <!-- expect: if (!store?.isTransactionActive) return executeHook(); -->,
            * and `runWithTransaction` awaits that list after the commit
-           * (`@better-auth/core/dist/context/transaction.mjs:78`)
+           * (`@better-auth/core/dist/context/transaction.mjs:90,109`)
            * <!-- expect: for (const hook of pendingHooks) -->.
+           * Since 1.7.8 the branch that is live here is the deferred one:
+           * `/change-password` wraps the session revocation and the account write in
+           * `runWithTransaction` (`dist/api/routes/update-user.mjs:173`)
+           * <!-- expect: const newSession = await runWithTransaction( -->, where
+           * before the write was unwrapped and the hook ran inline.
            * Either way it is awaited before the endpoint answers, so the very next
            * `get-session` the admin makes - the one on the redirect after the form
            * POST - already sees the cleared flag. The write goes through this
@@ -880,7 +885,7 @@ export function createAdminAuth(input: AdminAuthInput) {
           // Recovery codes are ciphertext at rest, under the versioned key set above
           // (issue #319, SEC-7).
           //
-          // This restates better-auth 1.7.7's own default rather than changing it:
+          // This restates better-auth 1.7.10's own default rather than changing it:
           // `dist/plugins/two-factor/index.mjs:25-27` <!-- expect: storeBackupCodes: "encrypted" --> builds `backupCodeOptions` as
           // `{ storeBackupCodes: "encrypted", ...options?.backupCodeOptions }`, so
           // an instance that passes nothing already encrypts. Verified against the

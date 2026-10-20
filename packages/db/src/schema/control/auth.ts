@@ -21,7 +21,7 @@ import { controlSchema } from "../schemas.js";
  * upgrade throws.
  *
  * "At startup" is shorthand for the first request through `auth.handler`, where
- * better-auth 1.7.7 runs `ctx.checkSchema()` from the router's `onRequest` hook and
+ * better-auth 1.7.10 runs `ctx.checkSchema()` from the router's `onRequest` hook and
  * caches the verdict; nothing is checked at import.
  *
  * The check runs in **both directions** as of 1.7.3, which is the property that made
@@ -89,7 +89,7 @@ export const authSession = controlSchema.table("session", {
     .references(() => authUser.id, { onDelete: "cascade" }),
   /**
    * The organisation plugin's two session columns (Q32, Q39). Both are
-   * `required: false` and `input: false` in better-auth 1.7.7
+   * `required: false` and `input: false` in better-auth 1.7.10
    * (`dist/plugins/organization/organization.mjs:858-871`), <!-- expect: activeOrganizationId: { -->
    * so they are nullable here and no request body can set them. `activeTeamId` exists
    * only while `teams.enabled` is on, which task 069's configuration turns on; the
@@ -183,7 +183,7 @@ export const authTwoFactor = controlSchema.table("twoFactor", {
  * migration, because the two tracks are independent and whichever lands first carries
  * them; 068 creates them instead only if 068 lands first.
  *
- * ## The fields below are read off better-auth 1.7.7, not remembered
+ * ## The fields below are read off better-auth 1.7.10, not remembered
  *
  * `dist/plugins/organization/organization.mjs:704-840` <!-- expect: const schema = { -->
  * declares `organization`, `member` and `invitation`.
@@ -194,10 +194,10 @@ export const authTwoFactor = controlSchema.table("twoFactor", {
  *
  * ## What the library's check does and does not look at
  *
- * `@better-auth/drizzle-adapter 1.7.7` introspects the Drizzle schema **by the key
+ * `@better-auth/drizzle-adapter 1.7.10` introspects the Drizzle schema **by the key
  * each table is exported under and the property name of each column**, reading only
  * `notNull` and `hasDefault`
- * (`@better-auth/drizzle-adapter/dist/schema-check-DFZjRat1.mjs:85-99`). <!-- expect: if (!is(table, Table)) continue -->
+ * (`@better-auth/drizzle-adapter/dist/schema-check-Dqk6A4Es.mjs:121-136`). <!-- expect: if (!is(table, Table)) continue -->
  * `diffSchema` then asks two questions and no others: every column the library writes
  * exists, and every column it does **not** write is nullable or carries a default
  * (`@better-auth/core/dist/db/schema-diff.mjs:41-54`). <!-- expect: kind: "unexpected-required-column" -->

@@ -39,6 +39,9 @@ import {
 const STALE = "1.6.26";
 /** Stands in for the resolved pin. */
 const PINNED = "1.7.1";
+/** Two peer versions of one scoped package, for the two-resolutions fixture. */
+const PEER = "0.4.2";
+const PEER_NEXT = "0.5.0";
 
 const GATE = fileURLToPath(new URL("check-vendor-pin.mjs", import.meta.url));
 
@@ -129,9 +132,9 @@ describe("lockfile resolution", () => {
     "    dependencies:",
     `      '@better-auth/core': ${PINNED}`,
     "",
-    `  '@better-auth/core@${PINNED}(@better-auth/utils@0.4.2)':`,
+    `  '@better-auth/core@${PINNED}(@better-auth/utils@${PEER})':`,
     "    dependencies:",
-    "      '@better-auth/utils': 0.4.2",
+    `      '@better-auth/utils': ${PEER}`,
   ].join("\n");
 
   it("reads the resolved version of each better-auth package", () => {
@@ -141,7 +144,7 @@ describe("lockfile resolution", () => {
   });
 
   it("ignores a nested dependency line, which is indented past a top-level key", () => {
-    // `      '@better-auth/utils': 0.4.2` is a dependency edge, not a resolution, and
+    // The `'@better-auth/utils': <version>` line is a dependency edge, not a resolution, and
     // its version is not written in the `name@version` form the key uses. Reading one
     // as a resolution would make the gate accept versions no entry declares.
     expect(resolvedVersions(lock).has("@better-auth/utils")).toBe(false);
@@ -151,12 +154,12 @@ describe("lockfile resolution", () => {
     const twice = [
       "packages:",
       "",
-      `  '@better-auth/utils@0.4.2':`,
-      `  '@better-auth/utils@0.5.0':`,
+      `  '@better-auth/utils@${PEER}':`,
+      `  '@better-auth/utils@${PEER_NEXT}':`,
     ].join("\n");
     expect([...(resolvedVersions(twice).get("@better-auth/utils") ?? [])].sort()).toEqual([
-      "0.4.2",
-      "0.5.0",
+      PEER,
+      PEER_NEXT,
     ]);
   });
 
