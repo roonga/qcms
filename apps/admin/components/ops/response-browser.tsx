@@ -299,7 +299,9 @@ export function ResponseBrowser({
                         kind="session"
                         value={row.sessionId}
                         href={`${base}/${encodeURIComponent(row.sessionId)}`}
-                        linkLabel={t("ops.responses.open", { sessionId: row.sessionId })}
+                        linkLabel={(shown) =>
+                          t("ops.responses.open", { shownId: shown, sessionId: row.sessionId })
+                        }
                       />
                     </th>
                     <td className="qcms-cell--num">v{row.formVersion}</td>

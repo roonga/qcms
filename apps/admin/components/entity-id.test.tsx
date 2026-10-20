@@ -86,13 +86,13 @@ describe("an id that is its row's anchor", () => {
         kind="session"
         value={SESSION}
         href="/forms/frm_x/responses/ses_45cf634512ab9f0e77c1d2e3f4a5b6c7"
-        linkLabel={`Open response ${SESSION}`}
+        linkLabel={(shown) => `${shown}, open response ${SESSION}`}
       />,
     );
     // Interactive content cannot nest, and a button inside an anchor is exactly that. The
     // anchor closes before the button opens.
     expect(markup.indexOf("</a>")).toBeLessThan(markup.indexOf("<button"));
-    expect(markup).toContain(`aria-label="Open response ${SESSION}"`);
+    expect(markup).toContain(`aria-label="ses_45cf6345, open response ${SESSION}"`);
     expect(markup).toContain('href="/forms/frm_x/responses/ses_45cf634512ab9f0e77c1d2e3f4a5b6c7"');
   });
 
@@ -101,8 +101,40 @@ describe("an id that is its row's anchor", () => {
     // of it: the abbreviation is a width decision, and a row announced by a prefix would
     // be a row a screen-reader user cannot tell from another.
     const markup = markupOf(
-      <EntityId kind="session" value={SESSION} href="/x" linkLabel={`Open response ${SESSION}`} />,
+      <EntityId
+        kind="session"
+        value={SESSION}
+        href="/x"
+        linkLabel={(shown) => `${shown}, open response ${SESSION}`}
+      />,
     );
     expect(markup).toContain(SESSION);
+  });
+
+  it("builds the name on the string the cell paints, so 2.5.3 cannot drift", () => {
+    // The label builder is handed the PAINTED head and nothing else, which is what stops a
+    // caller holding the whole value from opening the name with a 32-character string the
+    // cell never shows. axe-core 4.14.0 compares visible text to accessible name by WORD
+    // rather than by substring, so `ses_45cf6345` sitting inside the longer value is a
+    // violation there and was one here: a speech-input operator saying what the cell shows
+    // matched nothing (`docs/a11y.md`, "Label in name").
+    let seen = "";
+    const markup = markupOf(
+      <EntityId
+        kind="session"
+        value={SESSION}
+        href="/x"
+        copy={false}
+        linkLabel={(shown) => {
+          seen = shown;
+          return `${shown}, open response ${SESSION}`;
+        }}
+      />,
+    );
+    expect(seen).toBe("ses_45cf6345");
+    expect(textOf(markup).startsWith(seen)).toBe(true);
+    // The front of the name IS the front of the cell, as one string rather than two that
+    // happen to agree.
+    expect(markup).toContain('aria-label="ses_45cf6345, ');
   });
 });

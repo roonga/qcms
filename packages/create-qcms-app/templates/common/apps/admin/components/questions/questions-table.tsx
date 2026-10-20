@@ -96,7 +96,7 @@ export function QuestionsTable({ rows }: { readonly rows: readonly QuestionListI
                   kind="question"
                   value={question.questionId}
                   href={`/questions/${encodeURIComponent(question.questionId)}`}
-                  linkLabel={t("questions.open", { questionId: question.questionId })}
+                  linkLabel={(shown) => t("questions.open", { questionId: shown })}
                 />
               </th>
               <td>{textOf(question.label ?? undefined)}</td>

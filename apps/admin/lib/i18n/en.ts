@@ -1996,7 +1996,14 @@ export const messages = {
   "ops.responses.pageOf": "Page {page} of {pages}",
   "ops.responses.previous": "Previous page",
   "ops.responses.next": "Next page",
-  "ops.responses.open": "Open response {sessionId}",
+  // The painted abbreviation first, then the whole id: same shape and same reason as
+  // `account.trigger` and `forms.step.movePin` (WCAG 2.5.3, `docs/a11y.md`). The cell
+  // paints `ses_45cf6345` and this name used to open with the 32-character value, so the
+  // two had no WORD in common even though one was a prefix of the other - a name no
+  // speech-input operator could say. `{shownId}` is what the cell paints, `{sessionId}`
+  // the whole value, which stays in the name so a row is still announced by an id that
+  // identifies it (issue #582).
+  "ops.responses.open": "{shownId}, open response {sessionId}",
   "ops.responses.listFailed": "The responses could not be loaded. {message}",
 
   // Export.
