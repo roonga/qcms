@@ -481,8 +481,20 @@ export async function assertPortalServesRestoredForm(slug, labels) {
   const target = new URL(start.headers.get("location") ?? "", base);
   const refused = target.searchParams.get("state");
   if (refused !== null) {
+    // **The refusal names its own cause**, because the three it used to guess between are
+    // not the only three and the interesting ones are not in the list. `state=error` in
+    // particular is every refusal the entry route does not have a word for: an origin-belt
+    // refusal, an API error code the route does not map, a rate limit, a 500, or a fetch
+    // that never completed. Reading it as "your restored data is missing" is the worst
+    // possible false alarm to raise during a recovery, so the portal's own log goes in the
+    // message - it carries `origin.belt.refused` for the first and the API's code for the
+    // rest (SEC-8: the portal logs no value, so this is ids and classifications only).
+    const portalLog = composeCapture(["logs", "--tail", "30", "portal"]);
     throw new Error(
-      `drill-restore: the portal refused to start a session on the restored form ${slug} (state=${refused}; "notfound" means the form row did not come back, "closed" means its published version did not)`,
+      `drill-restore: the portal refused to start a session on the restored form ${slug} ` +
+        `(state=${refused}). "notfound" means the form row did not come back, "closed" ` +
+        `means no version is released to prod, and "error" is anything else - the portal's ` +
+        `last 30 log lines follow.\n${portalLog}`,
     );
   }
   const sessionId = target.pathname.startsWith("/s/") ? target.pathname.slice(3) : "";
