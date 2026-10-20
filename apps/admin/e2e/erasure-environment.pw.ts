@@ -51,7 +51,9 @@ let prodSession = "";
 
 test.beforeAll(async () => {
   await createTestAdmin(EMAIL);
-  prodSession = await submitResponse(SLUG, [[ACCIDENT, "no"]]);
+  // `false`, not "no": `q_at_fault_accident` is a boolean in the insurance fixture, and
+  // the API refuses a string for it with a 422.
+  prodSession = await submitResponse(SLUG, [[ACCIDENT, false]]);
 });
 
 function switcher(page: Page) {

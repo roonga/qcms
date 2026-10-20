@@ -105,19 +105,35 @@ export function exportQuery(choice: ExportChoice): string {
 /**
  * The filename the download is offered under.
  *
- * The form id and the format, plus the version when there is one, so two exports of
- * the same form at different versions do not overwrite each other in a downloads
- * folder. No timestamp: it would make the name unstable between two exports of the
- * same data, which is worse for an operator diffing them.
+ * The form id, the **environment**, and the format, plus the version when there is one,
+ * so two exports of the same form at different versions do not overwrite each other in a
+ * downloads folder. No timestamp: it would make the name unstable between two exports of
+ * the same data, which is worse for an operator diffing them.
+ *
+ * **The environment is in the name and in no column** (Q8, ADR-40, task 067). An export
+ * reads one environment's pool, so a file can never mix two and a column would change a
+ * file adopters parse for no information the name does not already carry. What it answers
+ * is the operator's question rather than the consumer's: which environment the file on
+ * their desktop came from. Before this, two environments' exports of one form and version
+ * were the same name, and a report built from the wrong one looked exactly like a report
+ * built from the right one.
+ *
+ * It must be the environment the **API read**, not a second opinion about it: the caller
+ * passes `currentEnvironment()`, which is the same cookie `adminApiFetch` builds the
+ * `x-qcms-environment` header from, so the name and the rows cannot disagree. The API
+ * names its own stream the same way (`responseExportFileName` in `@roonga/qcms-csv`); this
+ * one is what the browser saves, because this route re-names the download to settle the
+ * extension (see {@link exportExtension}).
  */
 export function exportFilename(
   formId: string,
+  environment: string,
   choice: ExportChoice,
   extension: ExportExtension = choice.format,
 ): string {
   const version =
     versionRequired(choice.format) && choice.version !== "" ? `-v${choice.version}` : "";
-  return `${formId}${version}-responses.${extension}`;
+  return `${formId}-${environment}${version}-responses.${extension}`;
 }
 
 /** The extensions a finished export can land under. */

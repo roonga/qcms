@@ -2,6 +2,7 @@ import type { NextRequest } from "next/server";
 
 import type { ExportFilterField } from "@/lib/ops/export";
 import { exportExtension, exportFilename, parseExportFilters } from "@/lib/ops/export";
+import { currentEnvironment } from "@/lib/server/request-environment";
 import { exportResponses } from "@/lib/server/responses";
 import { requireAdminSessionForRequest } from "@/lib/server/session";
 
@@ -98,6 +99,10 @@ export async function GET(
     "content-disposition",
     `attachment; filename="${exportFilename(
       formId,
+      // The environment the API read, from the same cookie `adminApiFetch` built this
+      // request's `x-qcms-environment` header from, so the name and the rows cannot
+      // disagree about which environment the file holds (Q8, task 067).
+      await currentEnvironment(),
       { format, shape, version: parsed.filters.version ?? "", from: "", to: "" },
       exportExtension(format, upstream.headers.get("content-type")),
     )}"`,
