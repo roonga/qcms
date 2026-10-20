@@ -150,20 +150,45 @@ describe("the action pin inventory", () => {
     expect(actionFiles.every((file) => ACTION_FILES.test(file))).toBe(true);
   });
 
-  it("holds each third-party action at one SHA with one complete version comment", () => {
+  it("holds every remote action at one pin per repository, first-party included", () => {
     // The property, not today's count (#972 review, Copilot on the previous shape). A second
     // correctly pinned vendor action must pass here, so nothing below pins the number of
     // actions or the character set of a repository name.
-    const byAction = new Map<string, Set<string>>();
-    for (const reference of of("third-party")) {
+    //
+    // The grouping mirrors the rule: by repository, and over both remote classes rather than
+    // `of("third-party")` alone (issue #1078). Iterating the third-party class asserted
+    // nothing about the twelve `actions/checkout` lines or the `github/codeql-action` pair,
+    // which is the half of the gap this file carried.
+    const byRepository = new Map<string, Set<string>>();
+    for (const reference of [...of("third-party"), ...of("first-party")]) {
       const key = (reference.action ?? "?").toLowerCase();
-      const pins = byAction.get(key) ?? new Set<string>();
-      pins.add(`${reference.ref ?? "?"} # ${reference.comment ?? "?"}`);
-      byAction.set(key, pins);
+      const pins = byRepository.get(key) ?? new Set<string>();
+      pins.add(reference.ref ?? "?");
+      byRepository.set(key, pins);
     }
 
-    expect(byAction.size).toBeGreaterThan(0);
-    for (const [action, pins] of byAction) {
+    expect(byRepository.size).toBeGreaterThan(0);
+    for (const [repository, pins] of byRepository) {
+      expect([...pins], `${repository} is referenced at more than one pin`).toHaveLength(1);
+    }
+    // `github/codeql-action` is the sub-path case in the tree today, so the loop above ran
+    // over a real pair of sub-actions and not only over single-path references.
+    expect(
+      of("first-party").filter((reference) => reference.action === "github/codeql-action").length,
+    ).toBeGreaterThan(1);
+
+    // The third-party half carries the stricter pin shape the SHA rule asks for, where the
+    // trailing version comment is part of the pin.
+    const thirdPartyPins = new Map<string, Set<string>>();
+    for (const reference of of("third-party")) {
+      const key = (reference.action ?? "?").toLowerCase();
+      const pins = thirdPartyPins.get(key) ?? new Set<string>();
+      pins.add(`${reference.ref ?? "?"} # ${reference.comment ?? "?"}`);
+      thirdPartyPins.set(key, pins);
+    }
+
+    expect(thirdPartyPins.size).toBeGreaterThan(0);
+    for (const [action, pins] of thirdPartyPins) {
       expect([...pins], `${action} is referenced at more than one pin`).toHaveLength(1);
       expect([...pins][0]).toMatch(/^[0-9a-f]{40} # v\d+\.\d+\.\d+/);
     }
@@ -586,7 +611,7 @@ describe("the rule bites", () => {
     expect(strip("v6.0.10-rc.1")).toStrictEqual([]);
   });
 
-  it("fails when one action is referenced at two different pins, whatever the case", () => {
+  it("fails when one THIRD-PARTY action is referenced at two different pins, whatever the case", () => {
     // The #948 inconsistency itself: `@v6.0.9` in six files and `@v6` in two. Grouping is
     // case-insensitive because GitHub resolves `Pnpm/Action-Setup` to the same repository.
     const split = (action: string): string[] =>
@@ -604,6 +629,116 @@ describe("the rule bites", () => {
     expect(split((firstThirdParty().action ?? "").toUpperCase()).join("\n")).toContain(
       "referenced at more than one pin",
     );
+  });
+
+  it("fails when one FIRST-PARTY action is referenced at two different version tags", () => {
+    // The gap issue #1078 closed, found by the PR #1056 review. The one-pin rule grouped
+    // third-party references only, so `actions/checkout` at two tags passed: each line was
+    // individually a valid version tag, and nothing compared them. The carve-out is about
+    // the form of a first-party pin, not about running two releases of one action at once.
+    const read = readWorkflow(
+      "      - uses: actions/checkout@v7",
+      "      - uses: actions/setup-node@v7",
+      "      - uses: actions/checkout@v6",
+    );
+
+    expect(read.map((reference) => reference.kind)).toStrictEqual([
+      "first-party",
+      "first-party",
+      "first-party",
+    ]);
+    expect(problemsNow(read).join("\n")).toContain(
+      "actions/checkout is referenced at more than one pin: v6 / v7",
+    );
+    // The line numbers are named, as they are for a third-party divergence, and the action
+    // that does agree is not dragged in.
+    expect(problemsNow(read).join("\n")).toContain(`${WORKFLOW_PATH}:6, ${WORKFLOW_PATH}:8`);
+    expect(problemsNow(read).join("\n")).not.toContain("actions/setup-node");
+    // A SHA and a tag are two pins too, although each is accepted on its own.
+    expect(
+      problemsNow(
+        readWorkflow(
+          "      - uses: actions/checkout@v7",
+          `      - uses: actions/checkout@${"0".repeat(40)}`,
+        ),
+      ).join("\n"),
+    ).toContain("more than one pin");
+    // Keyed case-insensitively here as well, since GitHub resolves the repository name
+    // without regard to case. (A first-party OWNER is case-sensitive by design, so
+    // `Actions/checkout` is a third-party reference and is covered above.)
+    expect(
+      problemsNow(
+        readWorkflow("      - uses: actions/Checkout@v7", "      - uses: actions/checkout@v6"),
+      ).join("\n"),
+    ).toContain("more than one pin");
+  });
+
+  it("fails when two sub-actions of one repository sit at two different pins", () => {
+    // The narrower half of #1078. One release of `github/codeql-action` publishes `init` and
+    // `analyze` from one commit, so two releases of it running in one repository is the #948
+    // defect spelled across two paths. The grouping key is the repository rather than the
+    // action path, which `classify` has always arranged by dropping the sub-path; what hid
+    // this pair was the first-party skip above, and nothing asserted either half before now.
+    // PR #1056 moved both lines together, so the tree was green either way.
+    const read = readWorkflow(
+      "      - uses: github/codeql-action/init@v4.38.2",
+      "      - uses: github/codeql-action/analyze@v4.39.0",
+    );
+
+    expect(read.map((reference) => reference.action)).toStrictEqual([
+      "github/codeql-action",
+      "github/codeql-action",
+    ]);
+    expect(problemsNow(read).join("\n")).toContain(
+      "github/codeql-action is referenced at more than one pin: v4.38.2 / v4.39.0",
+    );
+  });
+
+  it("passes when both sub-actions of one repository sit at one pin", () => {
+    // The negative control for the case above, and the shape the tree carries today: the
+    // grouping must not red a repository just for being referenced through two paths.
+    expect(
+      problemsNow(
+        readWorkflow(
+          "      - uses: github/codeql-action/init@v4.39.0",
+          "      - uses: github/codeql-action/analyze@v4.39.0",
+        ),
+      ),
+    ).toStrictEqual([]);
+  });
+
+  it("leaves local and `docker://` references out of the one-pin grouping", () => {
+    // Neither has a repository pin to compare. A local reference is this repository's own
+    // code, reviewed in the pull request that changes it and carrying no ref at all; a
+    // `docker://` reference is refused outright, which is the only thing to say about it.
+    const problems = problemsNow(
+      readWorkflow(
+        "      - uses: ./.github/actions/test-postgres-image",
+        "      - uses: ./.github/actions/assert-no-docker-hub-pulls",
+        "      - uses: docker://alpine:3.20",
+        "      - uses: docker://alpine:3.21",
+      ),
+    );
+
+    // Exactly the two Docker refusals, so nothing grouped the two local references as one
+    // action at two pins of `(none)` either.
+    expect(problems).toHaveLength(2);
+    expect(problems.join("\n")).not.toContain("more than one pin");
+  });
+
+  it("does not treat a trailing comment on a first-party line as a second pin", () => {
+    // The comment is part of the pin for a third-party reference, because Dependabot moves
+    // the SHA and the comment together and two readings of one SHA means one of them is
+    // false. No rule here asks a first-party line for a comment, so a stray one must not
+    // redden a pair of references that name the same tag.
+    expect(
+      problemsNow(
+        readWorkflow(
+          "      - uses: actions/checkout@v7",
+          "      - uses: actions/checkout@v7 # the pinned major",
+        ),
+      ),
+    ).toStrictEqual([]);
   });
 
   it("fails on an empty inventory rather than passing vacuously", () => {
