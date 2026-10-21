@@ -1557,7 +1557,8 @@ DATABASE_URL=postgres://qcms_migrate:...@host:5432/qcms \
 ```
 
 Changing them on an environment that already exists is an `UPDATE` on that row under the
-migration credential; there is no subcommand for it yet, and the three columns are
+migration credential; there is **no subcommand for it**, which is a decision rather than a
+gap (Q72, Code Owner, 2026-10-22, tracked in issue #1095), and the three columns are
 `challenge_provider`, `delivery_snippet_ttl_ms` and `outbox_payload_ttl_ms`.
 
 **An erasure acts in one environment only** (ADR-17's Note, Q7), and the response screen

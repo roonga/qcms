@@ -158,6 +158,14 @@ async function refuseWithoutStatement<T>(
     // safe to repeat.
     const inner = error instanceof Error ? error.cause : undefined;
     const because = inner instanceof Error ? inner.message : "the database refused it";
+    // Attaching the caught error is the defect this function exists to fix. drizzle's
+    // wrapper message is `Failed query: <sql>\nparams: <params>`, and
+    // `environment-cli.ts`'s `describeError` appends a cause's message to the line it
+    // prints, so a `cause` here would put the statement and its parameters back on an
+    // operator's terminal (SEC-8, PR #1093's review, finding 2). The driver's own
+    // complaint is repeated instead, which is the part that is safe and the part that
+    // tells the operator what to do.
+    // eslint-disable-next-line preserve-caught-error -- a `cause` would re-leak the statement
     throw new Error(`could not ${act} the role ${role}: ${because.replaceAll(/\s+/g, " ").trim()}`);
   }
 }

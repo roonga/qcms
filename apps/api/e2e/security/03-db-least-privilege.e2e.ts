@@ -1178,7 +1178,9 @@ describe("a per-workspace reporting role reads one workspace in one environment 
         where n.nspname = 'reporting_prod' and c.relkind = 'v'
           and c.relname like $1
         order by c.relname`,
-      [`${HOME_WORKSPACE.slug}\_%`],
+      // `_` is a LIKE wildcard; escaping it keeps the pattern to this workspace's own
+      // views. The backslash is SQL's, so it is written as a plain character here.
+      [`${HOME_WORKSPACE.slug}${String.fromCharCode(92)}_%`],
     );
     expect(options.rows.map((row) => row.relname)).toEqual([
       `${HOME_WORKSPACE.slug}_answers_flat`,

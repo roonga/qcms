@@ -112,7 +112,7 @@ describe("createLoginRole", { timeout: TIMEOUT_MS }, () => {
     // cast is to the package's own `Executor` alias, which is structurally this handle.
     const exec = drizzle(unprivileged) as unknown as Parameters<typeof createLoginRole>[0];
 
-    let message = "";
+    let message: string;
     try {
       await createLoginRole(exec, "probe_refused", password);
       throw new Error("expected the creation to be refused");

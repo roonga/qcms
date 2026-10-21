@@ -337,8 +337,8 @@ environment, with its own type-to-confirm. Nothing is performed anywhere by that
 it switches the environment and re-reads the screen, which is the same mechanism the global
 switcher uses.
 
-**The subject identifier the screen has is the session id**, and the design gives it no
-other: a link id names a link rather than a person and belongs to exactly one environment,
+**The subject identifier the screen has is the session id** (Q71, Code Owner, 2026-10-22),
+and the design gives it no other: a link id names a link rather than a person and belongs to exactly one environment,
 and nothing in the data model carries a respondent identity across environments by design
 (see the `link_id` warning under [What is retained](#what-is-retained)). A session id is
 per environment - `data_<env>.sessions` is one table per schema with its own primary key -
