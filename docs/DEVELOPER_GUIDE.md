@@ -803,7 +803,7 @@ The create response carries the comment it made, so `--jq .body` on the POST is 
 
 ### Triaging a Dependabot pull request
 
-A bump arrives red, and none of the red is about the bump: the bot edits manifests and writes neither the changeset `check:changeset` wants nor the scaffolding template re-sync `check:templates` wants. For an **npm** bump, one command from the bot's branch fixes both (issues #421 and #834); a `docker/` base-image digest bump is the exception and has its own recipe two paragraphs down.
+A bump arrives red, and none of the red is about the bump: the bot edits manifests and writes neither the changeset `check:changeset` wants nor the scaffolding template re-sync `check:templates` wants. For an **npm** bump, one command from the bot's branch fixes both (issues #421 and #834); a `docker/` base-image digest bump is the exception, and its own recipe is at the end of this section.
 
 ```sh
 gh pr checkout <number>
