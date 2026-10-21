@@ -276,6 +276,14 @@ beforeAll(async () => {
   // under test and Testcontainers' connection URI names it - so every QCMS schema goes
   // instead, which is what the dump's own `DROP SCHEMA` statements would do over a
   // populated database and leaves nothing for the restore to hide behind.
+  //
+  // One thing that therefore does NOT happen here: `public` survives with the ACL and the
+  // owner the recipe gave it, where the documented procedure recreates the database and
+  // gets a `public` owned by `pg_database_owner`. That difference is exactly what
+  // `UNREAPPLIABLE_SOURCES` is about, and `pnpm qcms:drill-restore` is what exercises it,
+  // because it really does `dropdb` and `createdb`. The `public` assertion below is still
+  // worth making - it is the property, whoever established it - and the drill makes the
+  // same one against the real images.
   for (const schema of [...QCMS_SCHEMAS, "drizzle"]) {
     await owner.query(`DROP SCHEMA IF EXISTS ${schema} CASCADE`);
   }
