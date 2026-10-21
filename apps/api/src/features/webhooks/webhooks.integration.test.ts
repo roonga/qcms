@@ -441,9 +441,14 @@ describe("the pending `prod` endpoint change (task 070, Q30, Q51)", () => {
       `/forms/${FORM_ID}/webhooks/proposals/${first.proposal.proposalId}/confirm`,
       "POST",
     );
-    const proposed = await req(app, `/forms/${FORM_ID}/webhooks/${first.proposal.webhookId}`, "PUT", {
-      url: PROPOSED,
-    });
+    const proposed = await req(
+      app,
+      `/forms/${FORM_ID}/webhooks/${first.proposal.webhookId}`,
+      "PUT",
+      {
+        url: PROPOSED,
+      },
+    );
     expect(proposed.status).toBe(202);
     const pendingId = ((await proposed.json()) as { proposal: { proposalId: string } }).proposal
       .proposalId;
@@ -475,7 +480,8 @@ describe("the pending `prod` endpoint change (task 070, Q30, Q51)", () => {
     const proposalId = ((await created.json()) as { proposal: { proposalId: string } }).proposal
       .proposalId;
     expect(
-      (await as(secondToken, `/forms/${FORM_ID}/webhooks/proposals/${proposalId}`, "DELETE")).status,
+      (await as(secondToken, `/forms/${FORM_ID}/webhooks/proposals/${proposalId}`, "DELETE"))
+        .status,
     ).toBe(200);
 
     const after = await listAccessAudit(testDb.db, SEED_WORKSPACE_ID, { kind: "setting" });

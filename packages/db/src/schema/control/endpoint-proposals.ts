@@ -1,5 +1,13 @@
 import { sql } from "drizzle-orm";
-import { boolean, check, foreignKey, index, text, timestamp, uniqueIndex } from "drizzle-orm/pg-core";
+import {
+  boolean,
+  check,
+  foreignKey,
+  index,
+  text,
+  timestamp,
+  uniqueIndex,
+} from "drizzle-orm/pg-core";
 
 import type { FormId } from "@roonga/qcms-core";
 
@@ -142,10 +150,7 @@ export const webhookEndpointProposals = controlSchema.table(
       columns: [t.environment],
       foreignColumns: [environments.name],
     }),
-    check(
-      "webhook_endpoint_proposals_kind",
-      sql`${t.kind} in ('create', 'update', 'deactivate')`,
-    ),
+    check("webhook_endpoint_proposals_kind", sql`${t.kind} in ('create', 'update', 'deactivate')`),
     // A proposal is confirmed or withdrawn, never both. Two columns rather than a status
     // enum because each carries an account and a time, and a status would need them anyway.
     check(

@@ -208,7 +208,8 @@ function actContext(
   const principal = c.get("adminPrincipal");
   if (principal === undefined) throw fail.noPrincipal();
   return {
-    environment: grant?.environment ?? deps.databases.forRequest(c.get("requestEnvironment")).environment,
+    environment:
+      grant?.environment ?? deps.databases.forRequest(c.get("requestEnvironment")).environment,
     // A configure route's row is a `form` workspace row, so the middleware resolved one.
     // The empty string is unreachable in a mounted process and would make an audit row
     // that answers nothing, so it is refused rather than written.

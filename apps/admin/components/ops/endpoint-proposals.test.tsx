@@ -56,9 +56,7 @@ describe("the pending endpoint changes panel", () => {
     // The ordinary case on every screen: the rule gates `prod` alone and is off by default
     // (Q13), so an empty state here would be a permanent block of text saying nothing has
     // happened.
-    render(
-      <EndpointProposals proposals={{ ok: true, data: [] }} confirm={idle} withdraw={idle} />,
-    );
+    render(<EndpointProposals proposals={{ ok: true, data: [] }} confirm={idle} withdraw={idle} />);
     expect(screen.queryByTestId("qcms-endpoint-proposals")).toBeNull();
   });
 

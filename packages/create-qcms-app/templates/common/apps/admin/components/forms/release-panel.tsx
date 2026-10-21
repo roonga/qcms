@@ -65,6 +65,32 @@ function movement(row: ReleaseRecord): string {
   return t("forms.releases.replaced", { replaced: row.replacedVersion });
 }
 
+/**
+ * The one sentence the two-person rule has to say about the selected pair (Q51, task 070).
+ *
+ * Three cases and they are not interchangeable - the operator published this version and
+ * cannot release it, the author is unknown so the rule cannot be checked, or somebody else
+ * published it and this operator is the second account - so it is a function rather than a
+ * nested ternary inside the markup, which is both harder to read and a lint error here.
+ */
+function twoPersonSentence(input: {
+  readonly blockedByRule: boolean;
+  readonly author: string | null;
+  readonly version: number;
+  readonly environment: string;
+}): string {
+  if (input.blockedByRule) {
+    return t("forms.releases.twoPersonSelf", {
+      version: input.version,
+      environment: input.environment,
+    });
+  }
+  if (input.author === null) {
+    return t("forms.releases.twoPersonUnknown", { version: input.version });
+  }
+  return t("forms.releases.twoPersonSecond", { environment: input.environment });
+}
+
 export function ReleasePanel({
   releases,
   versions,
@@ -367,11 +393,7 @@ export function ReleasePanel({
             {gatedByRule && (
               <div data-testid="qcms-release-two-person">
                 <Alert variant={blockedByRule ? "error" : "info"}>
-                  {blockedByRule
-                    ? t("forms.releases.twoPersonSelf", { version, environment })
-                    : author === null
-                      ? t("forms.releases.twoPersonUnknown", { version })
-                      : t("forms.releases.twoPersonSecond", { environment })}
+                  {twoPersonSentence({ blockedByRule, author, version, environment })}
                 </Alert>
               </div>
             )}

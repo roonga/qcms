@@ -1551,11 +1551,7 @@ describe("the two-person rule for production (task 070, criteria 1 to 7)", () =>
 
   /** The endpoint's live URL, read from the environment's own data plane. */
   async function liveUrl(): Promise<string | undefined> {
-    const row = await getWebhook(
-      testDb.db,
-      FormId.parse(TWO_PERSON_FORM),
-      webhookId,
-    );
+    const row = await getWebhook(testDb.db, FormId.parse(TWO_PERSON_FORM), webhookId);
     return row?.url;
   }
 
@@ -1564,14 +1560,11 @@ describe("the two-person rule for production (task 070, criteria 1 to 7)", () =>
     token: string,
     url: string,
   ): Promise<{ status: number; proposalId?: string }> {
-    const res = await all.app.request(
-      `/admin/forms/${TWO_PERSON_FORM}/webhooks/${webhookId}`,
-      {
-        method: "PUT",
-        headers: headersFor(token, "prod", true),
-        body: JSON.stringify({ url }),
-      },
-    );
+    const res = await all.app.request(`/admin/forms/${TWO_PERSON_FORM}/webhooks/${webhookId}`, {
+      method: "PUT",
+      headers: headersFor(token, "prod", true),
+      body: JSON.stringify({ url }),
+    });
     if (res.status !== 202) return { status: res.status };
     const body = (await res.json()) as { proposal: { proposalId: string } };
     return { status: res.status, proposalId: body.proposal.proposalId };
@@ -1796,10 +1789,9 @@ describe("the two-person rule for production (task 070, criteria 1 to 7)", () =>
     expect(await liveUrl()).toBe(ORIGINAL_URL);
 
     // And it is visible as pending, which is what a second approver reads before agreeing.
-    const pending = await all.app.request(
-      `/admin/forms/${TWO_PERSON_FORM}/webhooks/proposals`,
-      { headers: headersFor(second.token, "prod") },
-    );
+    const pending = await all.app.request(`/admin/forms/${TWO_PERSON_FORM}/webhooks/proposals`, {
+      headers: headersFor(second.token, "prod"),
+    });
     expect(pending.status).toBe(200);
     const list = (await pending.json()) as {
       proposals: { proposalId: string; url: string | null; proposedBy: string }[];
@@ -1809,13 +1801,11 @@ describe("the two-person rule for production (task 070, criteria 1 to 7)", () =>
   });
 
   it("refuses the proposer their own confirmation, and refuses every other shape (criterion 7)", async () => {
-    const pending = await all.app.request(
-      `/admin/forms/${TWO_PERSON_FORM}/webhooks/proposals`,
-      { headers: headersFor(second.token, "prod") },
-    );
-    const proposalId = (
-      (await pending.json()) as { proposals: { proposalId: string }[] }
-    ).proposals[0]!.proposalId;
+    const pending = await all.app.request(`/admin/forms/${TWO_PERSON_FORM}/webhooks/proposals`, {
+      headers: headersFor(second.token, "prod"),
+    });
+    const proposalId = ((await pending.json()) as { proposals: { proposalId: string }[] })
+      .proposals[0]!.proposalId;
 
     // 1. The proposer. The rule itself.
     const own = await confirm(author.token, proposalId);
@@ -1854,13 +1844,11 @@ describe("the two-person rule for production (task 070, criteria 1 to 7)", () =>
   });
 
   it("applies the change when a different prod approver confirms it (criterion 7)", async () => {
-    const pending = await all.app.request(
-      `/admin/forms/${TWO_PERSON_FORM}/webhooks/proposals`,
-      { headers: headersFor(second.token, "prod") },
-    );
-    const proposalId = (
-      (await pending.json()) as { proposals: { proposalId: string }[] }
-    ).proposals[0]!.proposalId;
+    const pending = await all.app.request(`/admin/forms/${TWO_PERSON_FORM}/webhooks/proposals`, {
+      headers: headersFor(second.token, "prod"),
+    });
+    const proposalId = ((await pending.json()) as { proposals: { proposalId: string }[] })
+      .proposals[0]!.proposalId;
 
     const confirmed = await confirm(second.token, proposalId);
     expect(confirmed.status).toBe(200);
@@ -1952,9 +1940,7 @@ describe("the two-person rule for production (task 070, criteria 1 to 7)", () =>
     expect(confirmed.status).toBe(200);
 
     const after = await listAccessAudit(testDb.db, SEED_WORKSPACE_ID, { kind: "setting" });
-    const added = after.rows.filter(
-      (row) => !before.rows.some((earlier) => earlier.id === row.id),
-    );
+    const added = after.rows.filter((row) => !before.rows.some((earlier) => earlier.id === row.id));
     expect(added.length).toBeGreaterThanOrEqual(2);
     const acts = added.map((row) => row.detail ?? "");
     expect(acts.some((detail) => detail.includes("act=propose"))).toBe(true);

@@ -138,7 +138,8 @@ export const deactivateWebhookRoute = createRoute({
 export const listEndpointProposalsRoute = createRoute({
   method: "get",
   path: "/forms/{id}/webhooks/proposals",
-  summary: "List endpoint changes waiting for a second approver, in the selected environment (admin)",
+  summary:
+    "List endpoint changes waiting for a second approver, in the selected environment (admin)",
   tags,
   request: { params: FormIdParam },
   responses: {
