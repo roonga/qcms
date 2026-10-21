@@ -810,27 +810,49 @@ export function createAdminAuth(input: AdminAuthInput) {
            * belt on braces - but a deployment that adds one must not have its flag
            * cleared by a token refresh, and the guard is cheaper than the incident.
            *
-           * ## Ordering and the transaction
+           * ## Ordering, and why this is not "after the commit"
            *
            * `update.after` hooks are queued through `queueAfterTransactionHook`,
-           * which runs the hook immediately when no transaction is open and pushes it
-           * onto the commit's pending list otherwise:
+           * which runs the hook inline when no scope is open and pushes it onto the
+           * open scope's pending list otherwise:
            * `@better-auth/core/dist/context/transaction.mjs:139`
            * <!-- expect: if (!store?.isTransactionActive) return executeHook(); -->,
-           * and `runWithTransaction` awaits that list after the commit
-           * (`@better-auth/core/dist/context/transaction.mjs:90,109`)
+           * and `runWithTransaction` drains that list once the work it wrapped has
+           * returned (`@better-auth/core/dist/context/transaction.mjs:90,109`)
            * <!-- expect: for (const hook of pendingHooks) -->.
            * Since 1.7.8 the branch that is live here is the deferred one:
            * `/change-password` wraps the session revocation and the account write in
            * `runWithTransaction` (`dist/api/routes/update-user.mjs:173`)
            * <!-- expect: const newSession = await runWithTransaction( -->, where
            * before the write was unwrapped and the hook ran inline.
-           * Either way it is awaited before the endpoint answers, so the very next
-           * `get-session` the admin makes - the one on the redirect after the form
-           * POST - already sees the cleared flag. The write goes through this
-           * process's own executor rather than the library's adapter, which is
-           * correct on both paths: outside a transaction there is none to join, and
-           * inside one the hook has been deferred until after the commit.
+           *
+           * **That wrap is an async-local scope here, not a database transaction,
+           * so there is no commit to be after and nothing that rolls back.**
+           * `createAdminAuth` passes no `transaction` option to `drizzleAdapter`, so
+           * the adapter advertises none
+           * (`@better-auth/drizzle-adapter/dist/index.mjs:563`)
+           * <!-- expect: transaction: config.transaction ?? false -->; the adapter
+           * factory defaults the same flag to `false`
+           * (`@better-auth/core/dist/db/adapter/factory.mjs:31`)
+           * <!-- expect: transaction: cfg.transaction ?? false --> and then resolves
+           * `adapter.transaction` to `createAsIsTransaction`
+           * (`@better-auth/core/dist/db/adapter/factory.mjs:422`)
+           * <!-- expect: lazyLoadTransaction = createAsIsTransaction(adapter) -->,
+           * which hands the callback the very adapter it already had
+           * (`@better-auth/core/dist/db/adapter/factory.mjs:18`)
+           * <!-- expect: (adapter) => (fn) => fn(adapter) -->.
+           * The session revocation and the account write are therefore applied as
+           * they happen. What the wrap does buy is the scope itself, and that is
+           * what defers this hook rather than running it inline.
+           *
+           * What this flag needs from all that is ordering, and the ordering holds:
+           * the hook is queued during the account write, drained after the wrapped
+           * work has succeeded, and awaited before the endpoint answers - so the
+           * very next `get-session` the admin makes, the one on the redirect after
+           * the form POST, already sees the cleared flag. The write goes through
+           * this process's own executor rather than the library's adapter, which is
+           * correct on both paths: there is no transaction to join, and the hook has
+           * in any case been deferred until after the write it reacts to.
            */
           after: async (account) => {
             const row = account as { readonly providerId?: unknown; readonly userId?: unknown };
