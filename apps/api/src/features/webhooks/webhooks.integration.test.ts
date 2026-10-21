@@ -10,7 +10,13 @@
  */
 
 import { FormId } from "@roonga/qcms-core";
-import { SEED_WORKSPACE_ID, createForm, getWebhook } from "@roonga/qcms-db";
+import {
+  SEED_WORKSPACE_ID,
+  createForm,
+  getWebhook,
+  listAccessAudit,
+  setRequireSecondApprover,
+} from "@roonga/qcms-db";
 import { CONTAINER_BOOT_TIMEOUT_MS, startTestDb, type TestDb } from "@roonga/qcms-db/testing";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 
@@ -33,6 +39,8 @@ let internalToken: string;
 // middleware verifies it against the database, so a made-up marker no longer
 // authenticates anything.
 let adminSessionToken: string;
+/** The account that token belongs to, which every propose below is the act of. */
+let adminUserId: string;
 // A fixed base env so the on-prem-override app shares the internal token and app
 // key with the default app - only QCMS_WEBHOOK_ALLOW_PRIVATE varies.
 let baseEnv: Record<string, string | undefined>;
@@ -54,7 +62,9 @@ beforeAll(async () => {
   baseEnv = validEnv();
   ({ deps, app } = buildApp(baseEnv));
   internalToken = internalTokenFor(deps.config);
-  adminSessionToken = (await seedAdminSession(testDb.db)).token;
+  const seeded = await seedAdminSession(testDb.db);
+  adminSessionToken = seeded.token;
+  adminUserId = seeded.userId;
   await createForm(testDb.db, {
     workspaceId: SEED_WORKSPACE_ID,
     formId: FORM_ID,
@@ -306,5 +316,183 @@ describe("SSRF guardrail (SEC-6): default-deny, override-allow", () => {
     expect(res.status).toBe(201);
     const { secret } = (await res.json()) as { secret: string };
     expect(secret.startsWith("whsec_")).toBe(true);
+  });
+});
+
+describe("the pending `prod` endpoint change (task 070, Q30, Q51)", () => {
+  /** A second `forms.approver` holding `prod`: the account the rule needs. */
+  let secondToken = "";
+  let secondUserId = "";
+  /** A `forms.viewer`, for Q58's masking of a **proposed** URL. */
+  let viewerToken = "";
+
+  const AGREED = "https://agreed-consumer.example/hook";
+  const PROPOSED = "https://proposed-consumer.example/hook?token=not-a-real-credential";
+
+  /** This suite's requests as one named account. */
+  async function as(
+    token: string,
+    path: string,
+    method: string,
+    body?: unknown,
+  ): Promise<Response> {
+    return app.request(`/admin${path}`, {
+      method,
+      headers: {
+        "content-type": "application/json",
+        "x-qcms-internal-token": internalToken,
+        [ADMIN_SESSION_HEADER]: token,
+      },
+      ...(body === undefined ? {} : { body: JSON.stringify(body) }),
+    });
+  }
+
+  beforeAll(async () => {
+    const second = await seedAdminSession(testDb.db, { label: "second-approver" });
+    secondToken = second.token;
+    secondUserId = second.userId;
+    const viewer = await seedAdminSession(testDb.db, {
+      label: "pending-viewer",
+      claim: false,
+      owner: false,
+      grants: ["forms.viewer"],
+    });
+    viewerToken = viewer.token;
+    await setRequireSecondApprover(testDb.db, SEED_WORKSPACE_ID, true);
+  });
+
+  afterAll(async () => {
+    await setRequireSecondApprover(testDb.db, SEED_WORKSPACE_ID, false);
+  });
+
+  it("holds a new prod endpoint pending, with its secret shown once and nothing live", async () => {
+    const res = await req(app, `/forms/${FORM_ID}/webhooks`, "POST", { url: AGREED });
+    // A `202` rather than a `201`: the operator performed the same act and the answer is
+    // "stored, waiting for a second approver" instead of "done".
+    expect(res.status).toBe(202);
+    const body = (await res.json()) as {
+      pending: true;
+      secret: string;
+      proposal: { proposalId: string; webhookId: string; kind: string; rotatesSecret: boolean };
+    };
+    expect(body.pending).toBe(true);
+    // The plaintext exists only at this moment, so it is revealed here (SEC-6) - and
+    // nothing signs with it until the change applies, which is what `pending` says.
+    expect(body.secret.startsWith("whsec_")).toBe(true);
+    expect(body.proposal.kind).toBe("create");
+    expect(body.proposal.rotatesSecret).toBe(true);
+
+    // **Nothing live.** The endpoint does not exist yet, so the deliverer has nothing to
+    // post to and the proposed URL receives nothing at all.
+    expect(await getWebhook(testDb.db, FORM_ID, body.proposal.webhookId)).toBeUndefined();
+    const list = await req(app, `/forms/${FORM_ID}/webhooks`, "GET");
+    const rows = (await list.json()) as { webhooks: { webhookId: string }[] };
+    expect(rows.webhooks.map((row) => row.webhookId)).not.toContain(body.proposal.webhookId);
+
+    // Confirmed by the second account, the endpoint is created - with the id the proposal
+    // minted, which is what makes a repeated apply idempotent.
+    const confirmed = await as(
+      secondToken,
+      `/forms/${FORM_ID}/webhooks/proposals/${body.proposal.proposalId}/confirm`,
+      "POST",
+    );
+    expect(confirmed.status).toBe(200);
+    const stored = await getWebhook(testDb.db, FORM_ID, body.proposal.webhookId);
+    expect(stored?.url).toBe(AGREED);
+    // The secret that was shown once is the secret the endpoint now holds, which is what
+    // makes a pending create usable at all (025 signs with it).
+    expect(await decryptWebhookSecret(stored!.secretEncrypted, deps.config.keys.app)).toBe(
+      body.secret,
+    );
+  });
+
+  it("holds a deactivation pending, so the endpoint keeps delivering until it is agreed", async () => {
+    const created = await req(app, `/forms/${FORM_ID}/webhooks`, "POST", { url: AGREED });
+    const first = (await created.json()) as { proposal: { proposalId: string; webhookId: string } };
+    await as(
+      secondToken,
+      `/forms/${FORM_ID}/webhooks/proposals/${first.proposal.proposalId}/confirm`,
+      "POST",
+    );
+    const webhookId = first.proposal.webhookId;
+
+    const removed = await req(app, `/forms/${FORM_ID}/webhooks/${webhookId}`, "DELETE");
+    expect(removed.status).toBe(202);
+    const pending = (await removed.json()) as { proposal: { proposalId: string; kind: string } };
+    expect(pending.proposal.kind).toBe("deactivate");
+    // Still active: a deactivation stops a consumer an agreed configuration feeds, and
+    // whether that is right is the question a second approver reads.
+    expect((await getWebhook(testDb.db, FORM_ID, webhookId))?.active).toBe(true);
+
+    const confirmed = await as(
+      secondToken,
+      `/forms/${FORM_ID}/webhooks/proposals/${pending.proposal.proposalId}/confirm`,
+      "POST",
+    );
+    expect(confirmed.status).toBe(200);
+    expect((await getWebhook(testDb.db, FORM_ID, webhookId))?.active).toBe(false);
+  });
+
+  it("masks a proposed URL's query string for a `forms.viewer` (Q58)", async () => {
+    const created = await req(app, `/forms/${FORM_ID}/webhooks`, "POST", { url: AGREED });
+    const first = (await created.json()) as { proposal: { proposalId: string; webhookId: string } };
+    await as(
+      secondToken,
+      `/forms/${FORM_ID}/webhooks/proposals/${first.proposal.proposalId}/confirm`,
+      "POST",
+    );
+    const proposed = await req(app, `/forms/${FORM_ID}/webhooks/${first.proposal.webhookId}`, "PUT", {
+      url: PROPOSED,
+    });
+    expect(proposed.status).toBe(202);
+    const pendingId = ((await proposed.json()) as { proposal: { proposalId: string } }).proposal
+      .proposalId;
+
+    // The pending list hands a stored URL to a caller who may not be allowed to set it,
+    // which is the one property that decides whether a URL is masked. So it masks the
+    // same way the endpoint list does.
+    const asViewer = await as(viewerToken, `/forms/${FORM_ID}/webhooks/proposals`, "GET");
+    expect(asViewer.status).toBe(200);
+    const viewerRows = (await asViewer.json()) as { proposals: { url: string | null }[] };
+    const viewerRow = viewerRows.proposals.find(() => true);
+    expect(viewerRow?.url).toContain("(hidden)");
+    expect(JSON.stringify(viewerRows)).not.toContain("not-a-real-credential");
+
+    // And whole for an account that may configure it.
+    const asApprover = await as(secondToken, `/forms/${FORM_ID}/webhooks/proposals`, "GET");
+    const approverRows = (await asApprover.json()) as { proposals: { url: string | null }[] };
+    expect(approverRows.proposals.some((row) => row.url === PROPOSED)).toBe(true);
+
+    // Clean up so the next case starts with nothing pending on this endpoint.
+    expect(
+      (await as(secondToken, `/forms/${FORM_ID}/webhooks/proposals/${pendingId}`, "DELETE")).status,
+    ).toBe(200);
+  });
+
+  it("writes one SEC-15 `setting` row per act, with the environment and the form (Q61)", async () => {
+    const before = await listAccessAudit(testDb.db, SEED_WORKSPACE_ID, { kind: "setting" });
+    const created = await req(app, `/forms/${FORM_ID}/webhooks`, "POST", { url: AGREED });
+    const proposalId = ((await created.json()) as { proposal: { proposalId: string } }).proposal
+      .proposalId;
+    expect(
+      (await as(secondToken, `/forms/${FORM_ID}/webhooks/proposals/${proposalId}`, "DELETE")).status,
+    ).toBe(200);
+
+    const after = await listAccessAudit(testDb.db, SEED_WORKSPACE_ID, { kind: "setting" });
+    const added = after.rows.filter((row) => !before.rows.some((old) => old.id === row.id));
+    expect(added).toHaveLength(2);
+    const details = added.map((row) => row.detail ?? "").join("\n");
+    expect(details).toContain("act=propose");
+    expect(details).toContain("act=withdraw");
+    for (const row of added) {
+      // Q61: both are filled in because the act names both.
+      expect(row.environment).toBe("prod");
+      expect(row.formId).toBe(FORM_ID);
+      // The withdrawal is the second account's act, so the actor is that account.
+      expect([adminUserId, secondUserId]).toContain(row.actor);
+      // The URL stays out of the audit: a `forms.owner` reads the audit and Q58 never
+      // gave that role an unmasked endpoint URL.
+      expect(row.detail ?? "").not.toContain("agreed-consumer.example");
+    }
   });
 });

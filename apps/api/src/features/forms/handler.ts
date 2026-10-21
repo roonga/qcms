@@ -1869,7 +1869,6 @@ export function makePublishAndReleaseFormHandler(
     const formId = requireFormId(c.req.valid("param").id);
     const environment = requireEnvironment(deps, c.req.valid("json").environment);
     const now = deps.clock.now();
-    const frozen = await freezeDraft(deps, formId);
     // Thrown rather than recorded as `""`. The release record is the audit answer to
     // "who put that version into `prod`", and a row whose actor is the empty string
     // answers nothing while looking like an answer. The admin-auth gate makes this
@@ -1888,21 +1887,24 @@ export function makePublishAndReleaseFormHandler(
     // which means they have to be two requests. The operator publishes here (or through
     // `POST /publish`) and a second approver releases through `POST /releases`.
     //
-    // Raised **before the transaction opens**, so a refusal leaves no published version
-    // behind to explain - the same property the combined act's atomicity already has.
+    // Raised **before the draft is even compiled**, which is the cheap end of the same
+    // property the combined act's atomicity already has: a refusal costs no database work
+    // and leaves no published version behind to explain.
     const form = await getForm(deps.databases.control, formId);
     if (form === undefined) throw fail.formNotFound();
     const approvedBy = await approvalForRelease(deps.databases.control, {
       workspaceId: c.get("grantContext")?.workspaceId ?? form.workspaceId,
       environment,
-      // The version does not exist yet, so its number is the one this act is about to
-      // assign. It is only ever read back in a refusal message, and the rule refuses this
-      // route unconditionally in `prod`, so the number named is the one the operator sees
-      // in the version list rather than the one about to be minted.
+      // The version does not exist yet, so the number named is the newest one that does:
+      // it is only ever read back in a refusal message, and the rule refuses this route
+      // unconditionally in `prod`, so what the operator wants to be told about is the
+      // version list they are looking at.
       version: (await getLatestPublishedVersion(deps.databases.control, formId))?.version ?? 0,
       author: principal.userId,
       releasedBy: principal.userId,
     });
+
+    const frozen = await freezeDraft(deps, formId);
 
     const result = await deps.databases.control.transaction(async (tx) => {
       const version = await writeVersion(tx, formId, frozen, now, principal.userId);

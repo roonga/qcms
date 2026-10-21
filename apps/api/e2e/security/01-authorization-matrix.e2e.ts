@@ -1590,8 +1590,14 @@ describe("the two-person rule for production (task 070, criteria 1 to 7)", () =>
   }
 
   beforeAll(async () => {
-    author = await approverAccount("two-person-author", "forms.approver", ["prod"]);
-    second = await approverAccount("two-person-second", "forms.approver", ["prod"]);
+    // **`all` in both dimensions for the two approvers**, deliberately. The block above
+    // asserts the scope refusals; what this one has to assert is the refusals that are
+    // about the **account** and about the handler's own environment comparison, and an
+    // approver scoped to `prod` alone would be refused a `test` release by the scope
+    // before either of those could be reached. Criterion 5's "an approver without prod in
+    // scope" is `testApprover` below, which is what that clause is for.
+    author = await approverAccount("two-person-author", "forms.approver", ["all"]);
+    second = await approverAccount("two-person-second", "forms.approver", ["all"]);
     testApprover = (await approverAccount("two-person-test", "forms.approver", ["test"])).token;
     viewer = (await approverAccount("two-person-viewer", "forms.viewer", ["all"])).token;
 
@@ -1674,7 +1680,9 @@ describe("the two-person rule for production (task 070, criteria 1 to 7)", () =>
     const before = await releasedVersion("prod");
     const refused = await release(author.token, 1, "prod");
     expect(refused.status).toBe(403);
-    expect(((await refused.clone().json()) as { code?: string }).code).toBe("APPROVER_IS_AUTHOR");
+    expect(((await refused.clone().json()) as { error?: { code?: string } }).error?.code).toBe(
+      "APPROVER_IS_AUTHOR",
+    );
     expectNoPayload(await refused.text());
     // The effect, not only the status: a refusal that still wrote the release row would
     // have served the new version in production.
@@ -1710,7 +1718,7 @@ describe("the two-person rule for production (task 070, criteria 1 to 7)", () =>
     // "a different account released it" is not something this deployment can claim.
     const refused = await release(second.token, 3, "prod");
     expect(refused.status).toBe(409);
-    expect(((await refused.clone().json()) as { code?: string }).code).toBe(
+    expect(((await refused.clone().json()) as { error?: { code?: string } }).error?.code).toBe(
       "APPROVER_UNKNOWN_AUTHOR",
     );
     expect(await releasedVersion("prod")).toBe(1);
@@ -1812,7 +1820,9 @@ describe("the two-person rule for production (task 070, criteria 1 to 7)", () =>
     // 1. The proposer. The rule itself.
     const own = await confirm(author.token, proposalId);
     expect(own.status).toBe(403);
-    expect(((await own.clone().json()) as { code?: string }).code).toBe("PROPOSER_CANNOT_CONFIRM");
+    expect(((await own.clone().json()) as { error?: { code?: string } }).error?.code).toBe(
+      "PROPOSER_CANNOT_CONFIRM",
+    );
 
     // 2. A second account that does not hold `forms.approver` with `prod` in scope. Each
     //    is refused by the policy row before the handler runs, so none of them can learn

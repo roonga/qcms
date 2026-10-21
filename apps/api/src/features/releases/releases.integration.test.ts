@@ -56,10 +56,13 @@ import {
   createForm,
   createQuestion,
   createQuestionVersion,
+  getReleasedVersion,
   getSession,
   insertFormVersion,
   insertSecureLink,
+  listFormVersions,
   publishQuestionVersion,
+  setRequireSecondApprover,
   schema,
 } from "@roonga/qcms-db";
 import type { Executor } from "@roonga/qcms-db";
@@ -749,5 +752,96 @@ describe("publish and release in one act (finding 2's combined action)", () => {
     const form = (await detail.json()) as { versions: unknown[]; draft: unknown };
     expect(form.versions).toEqual([]);
     expect(form.draft).not.toBeNull();
+  });
+});
+
+describe("the two-person rule for a prod release (task 070, Q13, Q30, Q51)", () => {
+  const RULE_FORM = FormId.parse("frm_two_person_rel");
+
+  beforeAll(async () => {
+    await createForm(control, {
+      workspaceId: SEED_WORKSPACE_ID,
+      formId: RULE_FORM,
+      slug: "two-person-release",
+      defaultLocale: "en",
+    });
+    // Version 1 published by the account every request below is made as, which is the
+    // case criterion 1 refuses, and version 2 by somebody else.
+    for (const publishedBy of [adminUserId, "au_somebody_else"]) {
+      await insertFormVersion(control, {
+        formId: RULE_FORM,
+        definition: emptyDef,
+        compiled: emptyCompiled,
+        compilerVersion: "0.1.0",
+        a2uiSpecVersion: "0.1.0",
+        semanticsVersion: "1",
+        publishedBy,
+      });
+    }
+  });
+
+  afterAll(async () => {
+    // Q13's default, for anything composed after this block.
+    await setRequireSecondApprover(control, SEED_WORKSPACE_ID, false);
+  });
+
+  it("records no approval and compares nothing with the switch off (criterion 3)", async () => {
+    await setRequireSecondApprover(control, SEED_WORKSPACE_ID, false);
+    // The author releasing their own version into `prod`, which is what a
+    // single-administrator installation does and has to go on being able to do.
+    const res = await post(`/forms/${RULE_FORM}/releases`, { environment: "prod", version: 1 });
+    expect(res.status).toBe(200);
+    const body = (await res.json()) as { release: { approvedBy: string | null } };
+    expect(body.release.approvedBy).toBeNull();
+  });
+
+  it("refuses the publishing account and records the approver otherwise (criteria 1, 2)", async () => {
+    await setRequireSecondApprover(control, SEED_WORKSPACE_ID, true);
+
+    const refused = await post(`/forms/${RULE_FORM}/releases`, { environment: "prod", version: 1 });
+    expect(refused.status).toBe(403);
+    expect(((await refused.json()) as { error: { code: string } }).error.code).toBe(
+      "APPROVER_IS_AUTHOR",
+    );
+
+    // Version 2 was published by a different account, so this request is the second
+    // account and its id is what lands on the row.
+    const allowed = await post(`/forms/${RULE_FORM}/releases`, { environment: "prod", version: 2 });
+    expect(allowed.status).toBe(200);
+    expect(
+      ((await allowed.json()) as { release: { approvedBy: string | null } }).release.approvedBy,
+    ).toBe(adminUserId);
+
+    // And on the row rather than only in the response, which is what makes it auditable.
+    const stored = await getReleasedVersion(control, RULE_FORM, "prod");
+    expect(stored?.approvedBy).toBe(adminUserId);
+  });
+
+  it("leaves a non-prod release alone with the switch on (criterion 4)", async () => {
+    await setRequireSecondApprover(control, SEED_WORKSPACE_ID, true);
+    const res = await post(`/forms/${RULE_FORM}/releases`, { environment: "test", version: 1 });
+    expect(res.status).toBe(200);
+    expect(
+      ((await res.json()) as { release: { approvedBy: string | null } }).release.approvedBy,
+    ).toBeNull();
+  });
+
+  it("refuses publish-and-release into prod outright with the switch on (Q51)", async () => {
+    // F2's convenience publishes and releases as one account, so the account that
+    // publishes **is** the account releasing - exactly what criterion 1 refuses. The two
+    // acts have to be two accounts, which means they have to be two requests.
+    await setRequireSecondApprover(control, SEED_WORKSPACE_ID, true);
+    const before = await getReleasedVersion(control, RULE_FORM, "prod");
+    const res = await post(`/forms/${RULE_FORM}/publish-and-release`, { environment: "prod" });
+    expect(res.status).toBe(403);
+    expect(((await res.json()) as { error: { code: string } }).error.code).toBe(
+      "APPROVER_IS_AUTHOR",
+    );
+    // Nothing published and nothing released: the refusal is raised before the
+    // transaction opens, so there is no stray version left behind to explain.
+    const after = await getReleasedVersion(control, RULE_FORM, "prod");
+    expect(after?.version).toBe(before?.version);
+    const versions = await listFormVersions(control, RULE_FORM);
+    expect(versions).toHaveLength(2);
   });
 });
