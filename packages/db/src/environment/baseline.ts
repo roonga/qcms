@@ -33,8 +33,9 @@
  * the whole migration tree, so this property is executable rather than a convention.
  */
 
-import { CONTROL_ROLE, CONTROL_SCHEMA } from "../schema/schemas.js";
+import { CONTROL_SCHEMA } from "../schema/schemas.js";
 
+import { controlRoleGrantStatements, lockPublicStatements } from "./grants.js";
 import {
   createEnvironmentStatements,
   grantEnvironmentStatements,
@@ -190,52 +191,27 @@ function seedEnvironmentsStatement(): string {
  * runs under the migration credential interactively.
  */
 
-/** The control role's rights on `control`: DML, with `two_factor_resets` carved out. */
-function controlRoleGrantStatement(): string {
-  const statements = [
-    `GRANT USAGE ON SCHEMA "${CONTROL_SCHEMA}" TO "${CONTROL_ROLE}"`,
-    `GRANT SELECT, INSERT, UPDATE, DELETE ON ALL TABLES IN SCHEMA "${CONTROL_SCHEMA}" TO "${CONTROL_ROLE}"`,
-    `GRANT USAGE ON ALL SEQUENCES IN SCHEMA "${CONTROL_SCHEMA}" TO "${CONTROL_ROLE}"`,
-  ];
-  const body = statements.map((statement) => `\t\tEXECUTE '${statement}';`).join("\n");
-  return `-- \`qcms_app_control\` serves better-auth, authoring, grants, releases and closes, so
--- it holds DML on the whole of \`control\` - with the audit tables carved out below and
--- in task 069's migration. In the data schemas it holds INSERT on \`outbox\` and nothing
--- else at all (Q49), which the per-environment block above grants.
-DO $$
-BEGIN
-\tIF EXISTS (SELECT 1 FROM pg_roles WHERE rolname = '${CONTROL_ROLE}') THEN
-${body}
-\tEND IF;
-END
-$$;`;
-}
-
-/** `public` is left empty, off every search path, with `CREATE` on it granted to nobody. */
-function lockPublicStatement(): string {
-  return `-- \`public\` holds no QCMS object at all and is on no search path (Q20, criterion 2).
--- PostgreSQL 15 already revokes CREATE on it from PUBLIC; stated here so the property
--- is a thing this migration establishes rather than a default it inherits, and so a
--- database restored onto an older cluster gets it too.
-REVOKE CREATE ON SCHEMA "public" FROM PUBLIC;`;
-}
-
 /**
  * Every hand-authored statement of the baseline, in dependency order.
  *
  * The order is not cosmetic: the trigger functions exist before any trigger executes
  * them, every environment's tables exist before its grants name them, and the
  * migrate-only revoke runs last so it takes back whatever the passes above handed out.
+ *
+ * **The grant statements come from `./grants.ts`, not from here** (issue #1094). That
+ * module is the one ordered list of grant sources, so this migration and the re-grant
+ * subcommand emit the same bytes from the same functions rather than one of them holding
+ * a copy that drifts.
  */
 export function baselineHandAuthoredStatements(
   environments: readonly string[] = SHIPPED_ENVIRONMENTS,
 ): string[] {
   return [
-    lockPublicStatement(),
+    ...lockPublicStatements(),
     ...triggerFunctionStatements(),
     seedEnvironmentsStatement(),
     ...environments.flatMap((environment) => createEnvironmentStatements(environment)),
-    controlRoleGrantStatement(),
+    ...controlRoleGrantStatements(),
     ...environments.flatMap((environment) => grantEnvironmentStatements(environment)),
     // Last, so it takes back whatever the DML passes above handed out (Q40, finding B).
     revokeMigrateOnlyStatement(),

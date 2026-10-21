@@ -30,7 +30,7 @@
  *
  * Belt as well as braces, because the verifier is not a secret but the role name and the
  * driver's complaint are all an operator needs: every statement here runs inside
- * {@link refuseWithoutStatement}, which rethrows an error carrying the role, the act and
+ * {@link refuseWithoutStatement}, which rethrows an error carrying the subject, the act and
  * the **driver's** message, and never drizzle's wrapper, its `params`, or any `cause` the
  * command's own `describeError` would unwrap into the terminal.
  *
@@ -138,16 +138,24 @@ async function scramVerifier(password: string): Promise<string> {
 }
 
 /**
- * Run one statement, and on failure rethrow an error that names the act, the role and the
- * **driver's** complaint, with no statement text, no bind parameters and no `cause`.
+ * Run one statement, and on failure rethrow an error that names the act, its subject and
+ * the **driver's** complaint, with no statement text, no bind parameters and no `cause`.
  *
  * No `cause`, deliberately: `environment-cli.ts`'s `describeError` appends a cause's
  * message to the line it prints, so attaching drizzle's wrapper would put the statement
  * back on the terminal through the very helper that is supposed to summarise it.
+ *
+ * **Exported because it is the one wrapper, not one of two** (PR #1099's review, finding
+ * 1). The re-grant subcommand had the identical defect on its own path - it attached
+ * drizzle's wrapper as a `cause`, and the full `DO $$ ... GRANT ...` reached stderr
+ * through `describeError` - and the fix is to call this rather than to write a second
+ * copy of the same reasoning. `subject` is free text ("the role qcms_app_dev", "the
+ * control role's DML on control") so one wrapper serves both; `role.ts`'s own callers
+ * pass `the role <name>`, which keeps their messages byte-identical to 067's.
  */
-async function refuseWithoutStatement<T>(
+export async function refuseWithoutStatement<T>(
   act: string,
-  role: string,
+  subject: string,
   run: () => Promise<T>,
 ): Promise<T> {
   try {
@@ -166,7 +174,7 @@ async function refuseWithoutStatement<T>(
     // complaint is repeated instead, which is the part that is safe and the part that
     // tells the operator what to do.
     // eslint-disable-next-line preserve-caught-error -- a `cause` would re-leak the statement
-    throw new Error(`could not ${act} the role ${role}: ${because.replaceAll(/\s+/g, " ").trim()}`);
+    throw new Error(`could not ${act} ${subject}: ${because.replaceAll(/\s+/g, " ").trim()}`);
   }
 }
 
@@ -189,7 +197,7 @@ export async function createLoginRole(
   role: string,
   password: string,
 ): Promise<void> {
-  const existing = await refuseWithoutStatement("look up", role, () =>
+  const existing = await refuseWithoutStatement("look up", `the role ${role}`, () =>
     exec.execute<{ found: boolean }>(
       sql`select exists (select 1 from pg_roles where rolname = ${role}) as found`,
     ),
@@ -200,7 +208,7 @@ export async function createLoginRole(
   // refused without a round trip.
   const verifier = await scramVerifier(password);
 
-  const built = await refuseWithoutStatement("build the statement for", role, () =>
+  const built = await refuseWithoutStatement("build the statement for", `the role ${role}`, () =>
     exec.execute<{ statement: string }>(
       sql`select format('CREATE ROLE %I LOGIN PASSWORD %L', ${role}::text, ${verifier}::text) as statement`,
     ),
@@ -209,7 +217,7 @@ export async function createLoginRole(
   if (statement === undefined) {
     throw new Error(`could not build the CREATE ROLE statement for ${role}`);
   }
-  await refuseWithoutStatement("create", role, () =>
+  await refuseWithoutStatement("create", `the role ${role}`, () =>
     // check-security-hygiene: allow server-built DDL whose identifier and SCRAM verifier were quoted by Postgres
     exec.execute(sql.raw(statement)),
   );

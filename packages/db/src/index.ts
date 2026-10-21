@@ -77,3 +77,23 @@ export {
   refuseWorkspaceReportingNames,
   workspaceReportingStatementsForEnvironment,
 } from "./environment/reporting.js";
+
+// The grant model as one ordered list of sources, and the re-grant step a restore needs
+// (issue #1094). Exported because the restore drill and the least-privilege suites call
+// the same code the migrations do rather than a second copy of the model.
+//
+// `listEnvironmentNames` is deliberately NOT re-exported here: `queries/grants.ts` already
+// exports one, reached through the star export above, and a second name would have
+// shadowed the query three API handlers call (PR #1099's review, finding 2).
+export {
+  GRANT_SOURCES,
+  UNREAPPLIABLE_SOURCES,
+  type GrantPass,
+  type GrantSource,
+  controlRoleGrantStatements,
+  lockPublicStatements,
+  migrationBackedStatements,
+  regrantPasses,
+} from "./environment/grants.js";
+
+export { type RegrantReport, regrantEnvironments, unreappliedNote } from "./environment/regrant.js";
