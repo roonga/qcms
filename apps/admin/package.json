@@ -29,10 +29,10 @@
     "@roonga/qcms-observability": "workspace:*",
     "@roonga/qcms-ui": "workspace:*",
     "@vercel/otel": "^2.1.3",
-    "next": "16.4.0",
+    "next": "16.4.2",
     "qrcode": "^1.5.4",
-    "react": "19.3.0",
-    "react-dom": "19.3.0"
+    "react": "19.3.1",
+    "react-dom": "19.3.1"
   },
   "devDependencies": {
     "@roonga/qcms-core": "workspace:*",
@@ -40,12 +40,12 @@
     "@tailwindcss/postcss": "^4.3.3",
     "@testing-library/dom": "^10.4.2",
     "@testing-library/react": "^16.3.3",
-    "@testing-library/user-event": "^14.6.7",
-    "@types/node": "^24.19.1",
+    "@testing-library/user-event": "^14.6.8",
+    "@types/node": "^24.19.2",
     "@types/qrcode": "^1.5.6",
     "@types/react": "^19.3.0",
     "@types/react-dom": "^19.3.0",
-    "jsdom": "^30.1.2",
+    "jsdom": "^30.1.3",
     "otplib": "^13.5.0",
     "tailwindcss": "^4.3.3"
   }

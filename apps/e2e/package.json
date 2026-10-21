@@ -10,9 +10,9 @@
     "lint": "node ../../scripts/eslint-workspace.mjs ."
   },
   "devDependencies": {
-    "@playwright/test": "^1.63.0",
+    "@playwright/test": "^1.64.1",
     "@roonga/qcms-db": "workspace:*",
-    "@types/node": "^24.19.1",
+    "@types/node": "^24.19.2",
     "otplib": "^13.5.0"
   }
 }

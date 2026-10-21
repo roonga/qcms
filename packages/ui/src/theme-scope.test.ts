@@ -21,13 +21,18 @@
  * A note on the environment. jsdom resolves the cascade for elements a rule matches
  * directly, which is exactly what is measured below (the carrier element itself, and
  * the controls the treatment rules name). `border-width` is unreliable in its
- * shorthand handling, so the high-contrast half is measured on `box-shadow`, which
- * its flat-surfaces rule sets. The rendered-pixel half of the contract lives in
+ * shorthand handling - it reads `0px` on a matched element and on an unmatched one
+ * alike - so the high-contrast half is measured on `color-scheme`, which the HC
+ * scaffold sets on the carrier itself and which still reads differently either side
+ * of it. `box-shadow` is asserted too but no longer discriminates, so the sheet's
+ * control-level flat-surfaces rule is not pinned here; the assertion says so where it
+ * stands. The rendered-pixel half of the contract, that rule included, lives in
  * `apps/portal/e2e/theming.pw.ts`, in a real browser.
  *
- * Two things this file used to lean on stopped being true at the jsdom 26 -> 30 bump
- * (issue #113), and both were jsdom catching up to the browser rather than drifting
- * from it, so the assertions moved instead of the expectations being relaxed:
+ * Three things this file used to lean on stopped being true as jsdom caught up to the
+ * browser, two at the jsdom 26 -> 30 bump (issue #113) and one at 30.1.3. None of the
+ * three was jsdom drifting from the browser, so the assertions moved instead of the
+ * expectations being relaxed:
  *
  *  - **Custom properties now inherit.** jsdom 26 resolved `--token` only on an
  *    element a rule matched directly and gave a descendant `""`; 29.0.2 applied
@@ -45,6 +50,17 @@
  *    (https://github.com/jsdom/jsdom/releases/tag/v30.0.0). Shorthands such as
  *    `border-radius` and `padding-inline` are still `""` when unset, so the two
  *    spellings sit side by side below on purpose.
+ *  - **`box-shadow` joined them at 30.1.3.** jsdom 30.1.2 returned `""` for an unset
+ *    `box-shadow`; 30.1.3 returns the initial value, `none`, which is what a browser
+ *    returns, and its release notes list another round of computed-style fixes
+ *    including "incorrect shorthand defaults and inheritance"
+ *    (https://github.com/jsdom/jsdom/releases/tag/v30.1.3). This one cost a
+ *    measurement rather than an expectation: `none` on a control inside a
+ *    high-contrast carrier no longer differs from `none` on one outside, so asserting
+ *    the pair would assert nothing. The containment half therefore moved onto
+ *    `color-scheme`, which the HC layer sets to `light` on the carrier and which
+ *    reaches the control inside it by ordinary inheritance while a control outside
+ *    keeps the initial `normal`.
  */
 
 import { readFileSync } from "node:fs";
@@ -198,8 +214,27 @@ describe("the treatment layer is contained by the carrier", () => {
     const { inside, outside } = mountBoth();
 
     // Flat surfaces: the HC layer neutralizes every shadow utility it can reach.
+    // The positive half only, and a weak one. Since jsdom 30.1.3 an unset
+    // `box-shadow` resolves to its initial value, which is also `none`, so neither
+    // side of the carrier can tell a matched rule from an unmatched one any more.
+    // **The control-level flat-surfaces rule, `[data-qcms-theme-scope].hc
+    // [class*="shadow-"]`, is therefore no longer pinned in jsdom at all**: this line
+    // would still read `none` if that rule were deleted from the sheet. Where it IS
+    // measured is `apps/portal/e2e/theming.pw.ts`, on rendered pixels in a real
+    // browser, which is where this file's header already sends the rendered half of
+    // the contract.
     expect(token(inside, "box-shadow")).toBe("none");
-    expect(token(outside, "box-shadow")).toBe("");
+
+    // Containment, measured on the HC declaration whose two sides do still read
+    // differently: `color-scheme: light` sits on the CARRIER and reaches the control
+    // inside it by inheritance, while a `[data-rac]` control outside keeps the initial
+    // `normal`. So what this pins is the containment of the carrier's own declaration,
+    // not of a rule that matches a control. The control-level half is the test below,
+    // whose `var(...)` readings do still tell a matched rule from an unmatched one,
+    // and the two together are what let a host import this sheet without its own
+    // control layer turning into HC.
+    expect(token(inside, "color-scheme")).toBe("light");
+    expect(token(outside, "color-scheme")).toBe("normal");
   });
 
   it("applies the radius and spacing treatment inside the container only", () => {
@@ -229,6 +264,9 @@ describe("the treatment layer is contained by the carrier", () => {
     const { outside } = mountBoth();
 
     expect(token(outside, "border-radius")).toBe("var(--radius-control)");
-    expect(token(outside, "box-shadow")).toBe("none");
+    // `color-scheme` rather than `box-shadow`, for the reason the header gives: the
+    // flat-surfaces reading is the initial value as well since jsdom 30.1.3, so it
+    // can no longer tell a treated control from an untreated one.
+    expect(token(outside, "color-scheme")).toBe("light");
   });
 });
