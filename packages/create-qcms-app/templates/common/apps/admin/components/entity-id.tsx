@@ -19,7 +19,10 @@ import { type EntityIdKind, isOpaqueEntityKind, splitEntityId } from "@/lib/enti
  *
  * - **Assistive technology reads the whole value.** The clipped span is in the
  *   accessibility tree, so the row header announces `ses_45cf6345…` in full rather than
- *   naming a row by a string that identifies nothing.
+ *   naming a row by a string that identifies nothing. Where the id is the row's anchor,
+ *   an `aria-label` replaces that subtree in the name computation, so the whole value has
+ *   to be in the LABEL for this to stay true - which is why `linkLabel` is given the
+ *   painted head and is expected to name the whole id after it.
  * - **A selection copies the whole value.** Clipped text is still selected text, so
  *   dragging across the cell and pressing copy yields the id, not the abbreviation. That
  *   is the no-JavaScript half of §2's copy affordance, and it is what makes the rule
@@ -52,8 +55,19 @@ export function EntityId({
   readonly value: string;
   /** Where this row goes, when the id itself is the row's anchor. */
   readonly href?: string;
-  /** The anchor's accessible name, which names the destination rather than the bare id. */
-  readonly linkLabel?: string;
+  /**
+   * The anchor's accessible name, which names the destination rather than the bare id.
+   *
+   * It takes the string this cell PAINTS rather than being a plain string, because of
+   * WCAG 2.5.3 (`docs/a11y.md`, "Label in name"): an anchor over an abbreviated id paints
+   * `ses_45cf6345`, and that - not the whole value - is what an operator can see, say and
+   * point at. Handing the caller the painted head is what keeps the front of the name and
+   * the front of the cell the same string by construction. A caller holding the whole id
+   * can otherwise build a name whose first word merely LOOKS like the abbreviation, which
+   * is a name a speech-input operator cannot activate and the shape axe-core 4.14.0
+   * stopped accepting (see the message in `lib/i18n/en.ts` for how the two fit together).
+   */
+  readonly linkLabel?: (shown: string) => string;
   /**
    * Whether the cell carries a copy control. Required by §2 for an opaque id, because the
    * abbreviation is not a pasteable value; "welcome" rather than required for a derived
@@ -74,7 +88,7 @@ export function EntityId({
       {href === undefined ? (
         id
       ) : (
-        <Link className="qcms-text-link" href={href} aria-label={linkLabel}>
+        <Link className="qcms-text-link" href={href} aria-label={linkLabel?.(head)}>
           {id}
         </Link>
       )}
