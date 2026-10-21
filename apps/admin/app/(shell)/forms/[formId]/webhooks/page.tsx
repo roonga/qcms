@@ -4,6 +4,7 @@ import type { Metadata } from "next";
 import { Alert } from "@/components/kit";
 import { FormPageHeader } from "@/components/forms/form-page-header";
 import { DeliveryDashboard } from "@/components/ops/delivery-dashboard";
+import { EndpointProposals } from "@/components/ops/endpoint-proposals";
 import { WebhookConfig } from "@/components/ops/webhook-config";
 import { t } from "@/lib/i18n/en";
 import { formSectionName, pageMetadata } from "@/lib/page-title";
@@ -11,15 +12,17 @@ import { readState } from "@/lib/read-state";
 import { shownEnvironment } from "@/lib/environment";
 import { resolvedEnvironment } from "@/lib/server/environments";
 import { getForm } from "@/lib/server/forms";
-import { listDeliveries, listWebhooks } from "@/lib/server/webhook-ops";
+import { listDeliveries, listEndpointProposals, listWebhooks } from "@/lib/server/webhook-ops";
 import { requireAdminSession } from "@/lib/server/session";
 
 import {
+  confirmEndpointChangeAction,
   createWebhookAction,
   deactivateWebhookAction,
   reactivateWebhookAction,
   retargetWebhookAction,
   rotateSecretAction,
+  withdrawEndpointChangeAction,
 } from "../../../webhooks/actions";
 
 /** The browser-tab title for this route (issue #536): the section, and the form it belongs to. */
@@ -64,10 +67,15 @@ export default async function FormWebhooksPage({
   const session = await requireAdminSession();
   const { formId } = await params;
 
-  const [detail, webhooks, deliveries, resolved] = await Promise.all([
+  const [detail, webhooks, deliveries, proposals, resolved] = await Promise.all([
     getForm(session, formId),
     listWebhooks(session, formId),
     listDeliveries(session, formId),
+    // What is waiting for a second approver (task 070). Read beside the endpoints rather
+    // than on a screen of its own, because the question "what is live here" and the
+    // question "what is waiting to be" are asked in one glance - and a pending change is
+    // not a state of an endpoint, which is why it renders as its own panel.
+    listEndpointProposals(session, formId),
     resolvedEnvironment(session),
   ]);
   // Endpoints live in one environment's data plane, so every mutation below carries the
@@ -91,6 +99,16 @@ export default async function FormWebhooksPage({
       {!webhooks.ok && (
         <Alert variant="error">{t("ops.webhooks.listFailed", { message: webhooks.message })}</Alert>
       )}
+      {/* Above the endpoint list deliberately: a change the operator proposed a moment
+          ago, or one a colleague is waiting on, is what they came back for, and the list
+          below shows the endpoint still doing what it did. The panel renders nothing at
+          all when nothing is waiting, which is the ordinary case - the rule gates `prod`
+          alone and is off by default (Q13). */}
+      <EndpointProposals
+        proposals={readState(proposals)}
+        confirm={confirmEndpointChangeAction.bind(null, form.formId, shown)}
+        withdraw={withdrawEndpointChangeAction.bind(null, form.formId, shown)}
+      />
       <WebhookConfig
         webhooks={readState(webhooks)}
         create={createWebhookAction.bind(null, form.formId, shown)}

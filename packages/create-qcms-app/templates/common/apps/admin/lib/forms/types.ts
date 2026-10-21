@@ -278,6 +278,16 @@ export interface FormVersionSummary {
   readonly compilerVersion: string;
   readonly a2uiSpecVersion: string;
   readonly semanticsVersion: string;
+  /**
+   * The account that published this version, or null for one published before the API
+   * recorded it (task 070).
+   *
+   * **The author the two-person rule compares against** (Q51): a release to `prod` in a
+   * workspace that requires a second approver is refused for this account. The release
+   * screen reads it so it can say "you published this one" before the operator presses
+   * anything, rather than after a refusal.
+   */
+  readonly publishedBy: string | null;
 }
 
 /**
@@ -313,6 +323,16 @@ export interface FormDetail {
   readonly draftAgentAssisted: boolean;
   /** The stored draft's `updatedAt`, task 041's `clientState` token for an assist call. */
   readonly draftUpdatedAt: string | null;
+  /**
+   * Whether this form's workspace requires a second approver for a production release
+   * (Q13, Q30, Q32; task 070).
+   *
+   * A behaviour statement about this form rather than a workspace setting read: the
+   * membership screens are an owner's (Q35) and an approver holds no grant on them, so the
+   * release screen could not get this from the workspace row. `false` is the default and
+   * the state a single-administrator installation stays in (Q13).
+   */
+  readonly requiresSecondApprover: boolean;
 }
 
 /**

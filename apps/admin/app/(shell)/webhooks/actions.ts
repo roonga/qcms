@@ -6,12 +6,15 @@ import type { WebhookActionState } from "@/components/ops/webhook-config";
 import type { RedeliverState } from "@/components/ops/dead-letters";
 import { t } from "@/lib/i18n/en";
 import {
+  confirmEndpointProposal,
   createWebhook,
   deactivateWebhook,
   reactivateWebhook,
   redeliver,
   retargetWebhook,
   rotateWebhookSecret,
+  withdrawEndpointProposal,
+  type ConfigureOutcome,
 } from "@/lib/server/webhook-ops";
 import { confirmShownEnvironment } from "@/lib/server/environments";
 import { requireAdminSession } from "@/lib/server/session";
@@ -63,7 +66,7 @@ export async function createWebhookAction(
     };
   }
   revalidatePath(`/forms/${formId}/webhooks`);
-  return { status: "done", revealed: result.data };
+  return settled(result.data, (applied) => ({ status: "done", revealed: applied }));
 }
 
 /** Rotate an endpoint's secret. The new one is shown once and never again. */
@@ -83,7 +86,7 @@ export async function rotateSecretAction(
     };
   }
   revalidatePath(`/forms/${formId}/webhooks`);
-  return { status: "done", revealed: result.data };
+  return settled(result.data, (applied) => ({ status: "done", revealed: applied }));
 }
 
 /** Stop delivering to an endpoint (soft: the row and its history stay). */
@@ -103,7 +106,7 @@ export async function deactivateWebhookAction(
     };
   }
   revalidatePath(`/forms/${formId}/webhooks`);
-  return { status: "done" };
+  return settled(result.data, () => ({ status: "done" }));
 }
 
 /** Put a deactivated endpoint back in service. */
@@ -123,7 +126,7 @@ export async function reactivateWebhookAction(
     };
   }
   revalidatePath(`/forms/${formId}/webhooks`);
-  return { status: "done" };
+  return settled(result.data, () => ({ status: "done" }));
 }
 
 /** Point an endpoint somewhere else - the "fix the target" half of the redeliver loop. */
@@ -144,7 +147,7 @@ export async function retargetWebhookAction(
     };
   }
   revalidatePath(`/forms/${formId}/webhooks`);
-  return { status: "done" };
+  return settled(result.data, () => ({ status: "done" }));
 }
 
 /**
@@ -195,4 +198,80 @@ export async function redeliverAllAction(
   revalidatePath("/webhooks");
   if (queued === 0 && failed > 0) return { status: "error", message: lastMessage };
   return { status: "done", queued, failed };
+}
+
+/**
+ * Turn a configure outcome into the state the panel renders (Q30, Q51; task 070).
+ *
+ * One helper for all five mutations, because the two-person rule answers each of them the
+ * same way: either the endpoint changed, or the change is **stored pending** and the
+ * endpoint is exactly as it was. The pending branch carries the proposal so the panel can
+ * name the second account it is waiting for, and carries the secret where the change sets
+ * one - shown once here as it would have been on a change that applied at once (SEC-6).
+ */
+function settled<T>(
+  result: ConfigureOutcome<T>,
+  applied: (value: T) => WebhookActionState,
+): WebhookActionState {
+  if (!result.pending) return applied(result.applied);
+  return {
+    status: "pending",
+    pending: result.proposal,
+    ...(result.secret === undefined
+      ? {}
+      : {
+          revealed: {
+            webhookId: result.proposal.webhookId,
+            url: result.proposal.url ?? "",
+            active: result.proposal.active ?? true,
+            secret: result.secret,
+          },
+        }),
+  };
+}
+
+/**
+ * Confirm a pending `prod` endpoint change: the second of Q51's two acts.
+ *
+ * **Refused for the account that proposed it**, and refused for anybody who does not hold
+ * `forms.approver` with this environment in scope. Neither refusal is this app's to make
+ * (R2): the API answers both and this reports the answer.
+ */
+export async function confirmEndpointChangeAction(
+  formId: string,
+  shown: string | undefined,
+  proposalId: string,
+): Promise<WebhookActionState> {
+  const session = await requireAdminSession();
+  const check = await confirmShownEnvironment(session, shown);
+  if (!check.ok) return { status: "error", message: check.message };
+  const result = await confirmEndpointProposal(session, formId, proposalId, check.environment);
+  if (!result.ok) {
+    return {
+      status: "error",
+      message: t("ops.proposals.confirmFailed", { message: result.message }),
+    };
+  }
+  revalidatePath(`/forms/${formId}/webhooks`);
+  return { status: "done" };
+}
+
+/** Withdraw a pending `prod` endpoint change, applying it to nothing. */
+export async function withdrawEndpointChangeAction(
+  formId: string,
+  shown: string | undefined,
+  proposalId: string,
+): Promise<WebhookActionState> {
+  const session = await requireAdminSession();
+  const check = await confirmShownEnvironment(session, shown);
+  if (!check.ok) return { status: "error", message: check.message };
+  const result = await withdrawEndpointProposal(session, formId, proposalId, check.environment);
+  if (!result.ok) {
+    return {
+      status: "error",
+      message: t("ops.proposals.withdrawFailed", { message: result.message }),
+    };
+  }
+  revalidatePath(`/forms/${formId}/webhooks`);
+  return { status: "done" };
 }

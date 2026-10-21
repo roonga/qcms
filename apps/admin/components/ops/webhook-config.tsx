@@ -7,15 +7,24 @@ import { EntityId } from "@/components/entity-id";
 import { useEnvironmentUnknown } from "@/components/environment-scope";
 import { Alert, Button, Checkbox, Dialog, TextField } from "@/components/kit";
 import type { ReadState } from "@/lib/read-state";
-import type { RevealedWebhook, WebhookSummary } from "@/lib/ops/types";
+import type { EndpointProposal, RevealedWebhook, WebhookSummary } from "@/lib/ops/types";
 import { unexpected } from "@/lib/ops/unexpected";
 import { OperatorDateTime } from "@/components/operator-time";
 import { t } from "@/lib/i18n/en";
 
 /** What a webhook mutation hands back to this screen. */
 export interface WebhookActionState {
-  readonly status: "idle" | "done" | "error";
+  /**
+   * `"pending"` is task 070's (Q30, Q51): the workspace requires a second approver for
+   * production, so the change was **stored** and the endpoint is exactly as it was. It is a
+   * fourth status rather than a flag on `"done"` because it is not done - a screen that
+   * reported it as a success would tell an operator a production endpoint had changed when
+   * nothing had.
+   */
+  readonly status: "idle" | "done" | "pending" | "error";
   readonly revealed?: RevealedWebhook;
+  /** The change that is waiting, on a `"pending"` state. */
+  readonly pending?: EndpointProposal;
   readonly message?: string;
 }
 
@@ -107,7 +116,11 @@ export function WebhookConfig({
       void call()
         .then((next) => {
           setState(next);
-          if (next.status !== "done") return;
+          // `"pending"` closes the dialog and reveals the secret like `"done"` does: the
+          // operator's act is finished either way, and the plaintext exists only in this
+          // one response (SEC-6). What differs is the sentence beside it, which the status
+          // region below renders from the state rather than from the dialog.
+          if (next.status !== "done" && next.status !== "pending") return;
           setDialog(null);
           if (next.revealed !== undefined) setRevealed(next.revealed);
         })
@@ -200,6 +213,17 @@ export function WebhookConfig({
           passing and axe green, because axe can only judge regions it finds (#359). */}
       <div aria-live="polite" className="flex flex-col gap-2" data-testid="qcms-webhook-status">
         {state.status === "error" && <Alert variant="error">{state.message}</Alert>}
+        {/* The two-person rule's answer, stated rather than implied (Q51, task 070). The
+            endpoint is unchanged and the proposed value is waiting for a different
+            `forms.approver` holding this environment in scope; the panel below lists it
+            with the acts that end it. */}
+        {state.status === "pending" && (
+          <div data-testid="qcms-webhook-pending">
+            <Alert variant="info">
+              {t("ops.proposals.stored", { environment: state.pending?.environment ?? "" })}
+            </Alert>
+          </div>
+        )}
         {copyNote !== "" && <p className="text-sm text-(--color-text-muted)">{copyNote}</p>}
       </div>
 

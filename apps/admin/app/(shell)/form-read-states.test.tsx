@@ -228,6 +228,10 @@ vi.mock("@/lib/server/environments", () => ({
 vi.mock("@/lib/server/webhook-ops", () => ({
   listWebhooks: () => Promise.resolve(webhooksResult),
   listDeliveries: () => Promise.resolve(deliveriesResult),
+  // Task 070's pending list. Always empty here: these cases are about the endpoint and
+  // delivery reads' own three states, and the pending panel renders nothing at all when
+  // nothing is waiting, which is the ordinary case this screen is in (Q13's default).
+  listEndpointProposals: () => Promise.resolve({ ok: true, data: [] }),
 }));
 vi.mock("@/lib/server/links", () => ({
   listLinks: () => Promise.resolve(linksResult),
@@ -237,11 +241,13 @@ vi.mock("@/lib/server/links", () => ({
 const NOOP_ACTION = () => Promise.resolve({ status: "idle" });
 
 vi.mock("./webhooks/actions", () => ({
+  confirmEndpointChangeAction: NOOP_ACTION,
   createWebhookAction: NOOP_ACTION,
   deactivateWebhookAction: NOOP_ACTION,
   reactivateWebhookAction: NOOP_ACTION,
   retargetWebhookAction: NOOP_ACTION,
   rotateSecretAction: NOOP_ACTION,
+  withdrawEndpointChangeAction: NOOP_ACTION,
 }));
 vi.mock("./forms/actions", () => ({
   mintLinksAction: NOOP_ACTION,

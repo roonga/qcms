@@ -149,6 +149,10 @@ export const getForm: (session: AdminSession, formId: string) => Promise<ApiResu
         // showing a tag the API never actually promised.
         draftAgentAssisted: raw["draftAgentAssisted"] === true,
         draftUpdatedAt: typeof raw["draftUpdatedAt"] === "string" ? raw["draftUpdatedAt"] : null,
+        // Task 070's switch, as a statement about this form. Defaults towards **off**, so
+        // a build talking to a pre-070 API shows no rule rather than claiming one the API
+        // will not enforce.
+        requiresSecondApprover: raw["requiresSecondApprover"] === true,
       },
     };
   });
@@ -705,6 +709,10 @@ function parseVersions(raw: unknown): readonly FormVersionSummary[] {
       compilerVersion: asString(entry["compilerVersion"], ""),
       a2uiSpecVersion: asString(entry["a2uiSpecVersion"], ""),
       semanticsVersion: asString(entry["semanticsVersion"], ""),
+      // The author the two-person rule compares against (Q51, task 070). Null rather than
+      // an empty string when the API sent none: "unknown" and "nobody" are different
+      // answers, and the release screen says so.
+      publishedBy: typeof entry["publishedBy"] === "string" ? entry["publishedBy"] : null,
     }));
 }
 

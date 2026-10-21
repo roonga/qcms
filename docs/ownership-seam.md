@@ -93,13 +93,13 @@ regeneration and `git add` the result rather than merging two sets of counts.
 
 <!-- BEGIN GENERATED: ownership-seam (pnpm qcms:sync-templates) -->
 
-### Scaffolded paths (453 files common to both shapes)
+### Scaffolded paths (456 files common to both shapes)
 
 | Path                                                                 | Files |
 | -------------------------------------------------------------------- | ----- |
 | `(project root)`                                                     | 8     |
-| `apps/`                                                              | 442   |
-| `apps/admin/`                                                        | 265   |
+| `apps/`                                                              | 445   |
+| `apps/admin/`                                                        | 266   |
 | `apps/admin/app/`                                                    | 76    |
 | `apps/admin/app/(shell)/`                                            | 58    |
 | `apps/admin/app/(shell)/@rail/`                                      | 24    |
@@ -164,10 +164,10 @@ regeneration and `git add` the result rather than merging two sets of counts.
 | `apps/admin/app/two-factor/recovery-codes/`                          | 2     |
 | `apps/admin/app/two-factor/recovery-codes/confirm/`                  | 1     |
 | `apps/admin/app/two-factor/recovery/verify/`                         | 1     |
-| `apps/admin/components/`                                             | 88    |
+| `apps/admin/components/`                                             | 89    |
 | `apps/admin/components/forms/`                                       | 35    |
 | `apps/admin/components/membership/`                                  | 5     |
-| `apps/admin/components/ops/`                                         | 8     |
+| `apps/admin/components/ops/`                                         | 9     |
 | `apps/admin/components/questions/`                                   | 11    |
 | `apps/admin/components/test-support/`                                | 2     |
 | `apps/admin/lib/`                                                    | 94    |
@@ -177,14 +177,14 @@ regeneration and `git add` the result rather than merging two sets of counts.
 | `apps/admin/lib/ops/`                                                | 10    |
 | `apps/admin/lib/questions/`                                          | 8     |
 | `apps/admin/lib/server/`                                             | 27    |
-| `apps/api/`                                                          | 105   |
-| `apps/api/src/`                                                      | 102   |
-| `apps/api/src/features/`                                             | 70    |
+| `apps/api/`                                                          | 107   |
+| `apps/api/src/`                                                      | 104   |
+| `apps/api/src/features/`                                             | 72    |
 | `apps/api/src/features/auth/`                                        | 5     |
 | `apps/api/src/features/forms/`                                       | 12    |
 | `apps/api/src/features/forms/assist/`                                | 9     |
 | `apps/api/src/features/links/`                                       | 3     |
-| `apps/api/src/features/membership/`                                  | 8     |
+| `apps/api/src/features/membership/`                                  | 9     |
 | `apps/api/src/features/outbox/`                                      | 3     |
 | `apps/api/src/features/questions/`                                   | 4     |
 | `apps/api/src/features/releases/`                                    | 4     |
@@ -193,7 +193,7 @@ regeneration and `git add` the result rather than merging two sets of counts.
 | `apps/api/src/features/responses/serve-step/`                        | 3     |
 | `apps/api/src/features/responses/start-session/`                     | 3     |
 | `apps/api/src/features/responses/submit/`                            | 3     |
-| `apps/api/src/features/webhooks/`                                    | 7     |
+| `apps/api/src/features/webhooks/`                                    | 8     |
 | `apps/api/src/features/workspaces/`                                  | 5     |
 | `apps/api/src/middleware/`                                           | 7     |
 | `apps/api/src/routes/`                                               | 1     |
@@ -241,7 +241,7 @@ regeneration and `git add` the result rather than merging two sets of counts.
 
 ### QCMS-internal references in the scaffolded source
 
-`2861` lines across `402` scaffolded files cite a QCMS issue, ADR, SEC control, plan task or repository path.
+`2921` lines across `405` scaffolded files cite a QCMS issue, ADR, SEC control, plan task or repository path.
 
 These are comments, and they stay (issue #457, tier 3). They are the engineering
 rationale for code you now own, which is worth more to you than a tidy file, and
@@ -256,7 +256,7 @@ rather than documented: the images no longer claim to be built from this
 repository, and no scaffolded message names a script your project does not define.
 
 <details>
-<summary>Every scaffolded file (453)</summary>
+<summary>Every scaffolded file (456)</summary>
 
 ```
 .dockerignore
@@ -399,6 +399,7 @@ apps/admin/components/mode-glyph.tsx
 apps/admin/components/operator-time.tsx
 apps/admin/components/ops/dead-letters.tsx
 apps/admin/components/ops/delivery-dashboard.tsx
+apps/admin/components/ops/endpoint-proposals.tsx
 apps/admin/components/ops/erasure-elsewhere.tsx
 apps/admin/components/ops/ops-tags.tsx
 apps/admin/components/ops/response-browser.tsx
@@ -565,6 +566,7 @@ apps/api/src/features/membership/resolver.ts
 apps/api/src/features/membership/route-policy.ts
 apps/api/src/features/membership/route.ts
 apps/api/src/features/membership/schema.ts
+apps/api/src/features/membership/two-person.ts
 apps/api/src/features/outbox/handler.ts
 apps/api/src/features/outbox/route.ts
 apps/api/src/features/outbox/schema.ts
@@ -598,6 +600,7 @@ apps/api/src/features/responses/submit/schema.ts
 apps/api/src/features/webhooks/crypto.ts
 apps/api/src/features/webhooks/handler.ts
 apps/api/src/features/webhooks/mask.ts
+apps/api/src/features/webhooks/propose.ts
 apps/api/src/features/webhooks/route.ts
 apps/api/src/features/webhooks/schema.ts
 apps/api/src/features/webhooks/signing.ts

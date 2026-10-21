@@ -1591,6 +1591,15 @@ export const messages = {
     "This becomes the version new sessions in {environment} start on. Sessions already under way stay on the version they pinned, and every earlier release stays in the history.",
   "forms.releases.rollbackWarning":
     "This is a rollback: {environment} is on v{current}, and v{version} is older.",
+  // The two-person rule for production (task 070, Q51), said before the operator presses
+  // anything. One switch, and the rule is about two accounts rather than two kinds of
+  // person: the account that published the version, against the account releasing it.
+  "forms.releases.twoPersonSelf":
+    "You published v{version}, so you cannot release it to {environment}. This workspace requires an approver other than the version's author: ask another approver to release it.",
+  "forms.releases.twoPersonSecond":
+    "This workspace requires a second approver for {environment}. You did not publish this version, so you can release it, and your account is recorded as the approval.",
+  "forms.releases.twoPersonUnknown":
+    "v{version} was published before this deployment recorded publishing accounts, so the second-approver rule cannot be checked against it. Publish a new version and release that one.",
   "forms.releases.version": "Version to release",
   "forms.releases.environment": "Environment",
   "forms.releases.fromEnvironment": "Promoted from (optional)",
@@ -2218,6 +2227,43 @@ export const messages = {
     "Deliveries already queued for this endpoint go to the new URL on their next attempt, including redelivered ones.",
   "ops.webhooks.confirmRetarget": "Save the URL",
   "ops.webhooks.retargetFailed": "The URL was not changed. {message}",
+
+  // The two-person rule for a production endpoint change (task 070, Q30, Q51). The
+  // workspace setting that turns it on is the membership screen's; what these strings do
+  // is tell an operator the difference between "changed" and "waiting", because that is
+  // the one distinction the mechanism exists to make visible.
+  "ops.proposals.stored":
+    "Saved as a change waiting for approval. Nothing has changed in {environment} yet: a different approver has to confirm it before the endpoint moves.",
+  "ops.proposals.heading": "Changes waiting for approval",
+  "ops.proposals.intro":
+    "This workspace requires a second approver for production. Each change below has taken effect on nothing: the endpoint still delivers exactly as it did. An approver other than the one who proposed it can confirm it, and either of them can withdraw it.",
+  "ops.proposals.table": "Endpoint changes waiting for approval",
+  "ops.proposals.column.endpoint": "Endpoint",
+  "ops.proposals.column.change": "Proposed change",
+  "ops.proposals.column.proposedBy": "Proposed by",
+  "ops.proposals.column.state": "State",
+  "ops.proposals.column.actions": "Actions",
+  "ops.proposals.kind.create": "Add this endpoint",
+  "ops.proposals.kind.update": "Change this endpoint",
+  "ops.proposals.kind.deactivate": "Stop delivering to this endpoint",
+  "ops.proposals.rotates": "Confirming this also rotates the signing secret.",
+  "ops.proposals.state.waiting": "Waiting for a second approver",
+  // The two-pool window, stated in the row rather than left to be inferred: somebody
+  // confirmed and the endpoint write did not land, so the endpoint is still the old one.
+  // Confirming again finishes it and records no second confirmation.
+  "ops.proposals.state.unapplied": "Confirmed, not yet applied. Confirm again to finish it.",
+  "ops.proposals.confirm": "Confirm",
+  "ops.proposals.confirmTitle": "Confirm this endpoint change?",
+  "ops.proposals.confirmBody":
+    "The endpoint in {environment} starts delivering to {url} as soon as this is confirmed.",
+  "ops.proposals.confirmWarning":
+    "You cannot confirm a change you proposed yourself. If this is yours, ask another approver.",
+  "ops.proposals.confirmFailed": "That change was not confirmed. {message}",
+  "ops.proposals.withdraw": "Withdraw",
+  "ops.proposals.withdrawTitle": "Withdraw this endpoint change?",
+  "ops.proposals.withdrawBody":
+    "The change is discarded and the endpoint in {environment} is left exactly as it is. Proposing it again starts over.",
+  "ops.proposals.withdrawFailed": "That change was not withdrawn. {message}",
 
   // The delivery dashboard.
   "ops.deliveries.heading": "Recent deliveries",

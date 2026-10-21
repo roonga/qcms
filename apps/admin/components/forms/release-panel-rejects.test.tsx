@@ -39,6 +39,13 @@ const HISTORY: readonly ReleaseRecord[] = [
   },
 ];
 
+/**
+ * The two-person rule switched **off**, which is Q13's default and what every case in this
+ * file is about: these are transport and refusal cases, and the rule's own cases are in
+ * `release-panel-two-person.test.tsx`.
+ */
+const RULE_OFF = { required: false, viewer: "au_viewer", authorOf: {} } as const;
+
 function transportFailure(): Promise<never> {
   return Promise.reject(new TypeError("fetch failed"));
 }
@@ -53,6 +60,7 @@ describe("a rejected release", () => {
         environments={["test", "prod"]}
         selectedEnvironment="test"
         release={transportFailure}
+        twoPerson={RULE_OFF}
       />,
     );
 
@@ -84,6 +92,7 @@ describe("the release confirmation", () => {
         environments={["test", "prod"]}
         selectedEnvironment="test"
         release={() => Promise.resolve({ status: "idle" as const })}
+        twoPerson={RULE_OFF}
       />,
     );
 
@@ -110,6 +119,7 @@ describe("the release confirmation", () => {
         // `prod` is on v2 in the history above, so releasing v1 there is a rollback.
         selectedEnvironment="prod"
         release={() => Promise.resolve({ status: "idle" as const })}
+        twoPerson={RULE_OFF}
       />,
     );
 
@@ -139,6 +149,7 @@ describe("the release history", () => {
         environments={["test", "prod"]}
         selectedEnvironment="prod"
         release={() => Promise.resolve({ status: "idle" as const })}
+        twoPerson={RULE_OFF}
       />,
     );
 
@@ -156,6 +167,7 @@ describe("the release history", () => {
         environments={["test", "prod"]}
         selectedEnvironment="test"
         release={() => Promise.resolve({ status: "idle" as const })}
+        twoPerson={RULE_OFF}
       />,
     );
 
