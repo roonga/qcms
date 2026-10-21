@@ -153,6 +153,21 @@ export {
   writeAccessAuditRow,
 } from "./access-audit.js";
 
+// The pending `prod` endpoint change (Q30, Q51; task 070). Control-plane state with a
+// lifecycle, whose state transitions are conditional updates so the database picks the
+// winner of a race rather than two confirmations both applying; `endpoint-proposals.js`
+// records why, and why the apply is the one step that is not here.
+export {
+  type EndpointProposalRow,
+  confirmEndpointProposal,
+  getEndpointProposal,
+  hasPendingEndpointProposal,
+  insertEndpointProposal,
+  listOpenEndpointProposals,
+  markEndpointProposalApplied,
+  withdrawEndpointProposal,
+} from "./endpoint-proposals.js";
+
 export {
   type SessionRow,
   type SessionStatus,
