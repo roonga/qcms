@@ -22,11 +22,12 @@
  * directly, which is exactly what is measured below (the carrier element itself, and
  * the controls the treatment rules name). `border-width` is unreliable in its
  * shorthand handling - it reads `0px` on a matched element and on an unmatched one
- * alike - so the high-contrast half is measured on the two declarations whose
- * readings still differ either side of the carrier: `box-shadow`, which the
- * flat-surfaces rule sets, for the positive claim, and `color-scheme`, which the HC
- * scaffold sets on the carrier itself, for the containment claim. The rendered-pixel
- * half of the contract lives in `apps/portal/e2e/theming.pw.ts`, in a real browser.
+ * alike - so the high-contrast half is measured on `color-scheme`, which the HC
+ * scaffold sets on the carrier itself and which still reads differently either side
+ * of it. `box-shadow` is asserted too but no longer discriminates, so the sheet's
+ * control-level flat-surfaces rule is not pinned here; the assertion says so where it
+ * stands. The rendered-pixel half of the contract, that rule included, lives in
+ * `apps/portal/e2e/theming.pw.ts`, in a real browser.
  *
  * Three things this file used to lean on stopped being true as jsdom caught up to the
  * browser, two at the jsdom 26 -> 30 bump (issue #113) and one at 30.1.3. None of the
@@ -213,16 +214,25 @@ describe("the treatment layer is contained by the carrier", () => {
     const { inside, outside } = mountBoth();
 
     // Flat surfaces: the HC layer neutralizes every shadow utility it can reach.
-    // The positive half only. Since jsdom 30.1.3 an unset `box-shadow` resolves to
-    // its initial value, which is also `none`, so the reading outside the carrier is
-    // no longer evidence of anything and is deliberately not asserted here.
+    // The positive half only, and a weak one. Since jsdom 30.1.3 an unset
+    // `box-shadow` resolves to its initial value, which is also `none`, so neither
+    // side of the carrier can tell a matched rule from an unmatched one any more.
+    // **The control-level flat-surfaces rule, `[data-qcms-theme-scope].hc
+    // [class*="shadow-"]`, is therefore no longer pinned in jsdom at all**: this line
+    // would still read `none` if that rule were deleted from the sheet. Where it IS
+    // measured is `apps/portal/e2e/theming.pw.ts`, on rendered pixels in a real
+    // browser, which is where this file's header already sends the rendered half of
+    // the contract.
     expect(token(inside, "box-shadow")).toBe("none");
 
     // Containment, measured on the HC declaration whose two sides do still read
-    // differently: `color-scheme: light` sits on the carrier and inherits to the
-    // control inside it, while a `[data-rac]` control outside keeps the initial
-    // `normal` - which is the half the whole approach exists for, since a host can
-    // then import this sheet without its own control layer turning into HC.
+    // differently: `color-scheme: light` sits on the CARRIER and reaches the control
+    // inside it by inheritance, while a `[data-rac]` control outside keeps the initial
+    // `normal`. So what this pins is the containment of the carrier's own declaration,
+    // not of a rule that matches a control. The control-level half is the test below,
+    // whose `var(...)` readings do still tell a matched rule from an unmatched one,
+    // and the two together are what let a host import this sheet without its own
+    // control layer turning into HC.
     expect(token(inside, "color-scheme")).toBe("light");
     expect(token(outside, "color-scheme")).toBe("normal");
   });
