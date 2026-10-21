@@ -75,8 +75,17 @@ The four flags are not incidental:
 | Flag                  | Why                                                                                                                                                         |
 | --------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | `--clean --if-exists` | The dump drops what it is about to create, so restoring over a partially populated database is deterministic rather than a pile of "already exists" errors. |
-| `--no-owner`          | The restore target's role may not be named the same thing. Ownership is reassigned to whoever runs the restore.                                             |
-| `--no-privileges`     | Grants are the target deployment's business, not the source's.                                                                                              |
+| `--no-owner`          | The restore target's role may not be named the same thing. Ownership is reassigned to whoever runs the restore, which is why step 4 below names a role.     |
+| `--no-privileges`     | Grants are the target deployment's business, not the source's. The dump therefore carries **no grant at all**, which is why step 5 below exists.             |
+
+**The last two flags each cost you a step on the way back, and both costs are
+deliberate** (Code Owner, 2026-10-22; issue #1094). A dump that named roles would be a
+dump coupled to one deployment's role names, and a dump that carried ownership would be a
+dump that only restores onto a cluster with the same roles. So the grants and the
+ownership are re-established by the restore procedure rather than carried in the file, and
+skipping either leaves a database the application cannot use: QCMS puts every application
+grant in a migration, and the drizzle journal rides **inside** the dump, so a restored
+database already reports every migration applied and re-running `migrate` grants nothing.
 
 For anything but a small deployment prefer the custom format
 (`--format=custom`), which restores with `pg_restore`, supports parallel restore
@@ -102,27 +111,42 @@ Encrypt the dumps at rest. They contain every answer every respondent has submit
 
 ## Restoring
 
-Order matters, and step 1 is the one people skip.
+Order matters, and the two steps people skip are 1 and 5.
 
 ```bash
 # 1. Stop the writers. A restore into a live database races the application.
 docker compose stop api portal admin
 
-# 2. Recreate an empty database. Connections must go first: Postgres refuses to
-#    drop a database anything is still connected to.
+# 2. Make sure the roles exist. The restore and the re-grant both run as the migration
+#    role, and `db-roles` creates it; on a stack that has never been up, or a database
+#    this file does not manage, follow the "Least-privilege database roles" recipe in
+#    docs/operations.md first.
+docker compose up --no-deps db-roles
+
+# 3. Recreate an empty database. Connections must go first: Postgres refuses to
+#    drop a database anything is still connected to. The last statement is not
+#    optional: `CREATE ON DATABASE` is a privilege ON the database, so dropping the
+#    database destroys it, and without it the restore in step 4 cannot create a schema.
 docker compose exec -T postgres sh -c '
   psql --username "$POSTGRES_USER" --dbname postgres --command \
     "select pg_terminate_backend(pid) from pg_stat_activity
      where datname = '"'"'$POSTGRES_DB'"'"' and pid <> pg_backend_pid();" &&
   dropdb --username "$POSTGRES_USER" "$POSTGRES_DB" &&
-  createdb --username "$POSTGRES_USER" --owner "$POSTGRES_USER" "$POSTGRES_DB"'
+  createdb --username "$POSTGRES_USER" --owner "$POSTGRES_USER" "$POSTGRES_DB" &&
+  psql --username "$POSTGRES_USER" --dbname "$POSTGRES_DB" --command \
+    "GRANT CREATE ON DATABASE \"$POSTGRES_DB\" TO qcms_migrate;"'
 
-# 3. Restore. ON_ERROR_STOP is not optional.
+# 4. Restore AS THE MIGRATION ROLE. ON_ERROR_STOP is not optional, and neither is
+#    `--username qcms_migrate`: see below.
 docker compose exec -T postgres \
-  sh -c 'psql --username "$POSTGRES_USER" --dbname "$POSTGRES_DB" --set ON_ERROR_STOP=on' \
+  sh -c 'psql --username qcms_migrate --dbname "$POSTGRES_DB" --set ON_ERROR_STOP=on' \
   < qcms-20260807T000000Z.sql
 
-# 4. Bring the application back.
+# 5. Re-apply the grants. The dump carries none. Without this the application comes
+#    back with no privilege on its own data and the first respondent write answers 500.
+docker compose run --rm --no-deps migrate qcms-db-environment regrant
+
+# 6. Bring the application back.
 docker compose up --detach --wait
 ```
 
@@ -131,10 +155,87 @@ restore that reported success while skipping every statement after the first err
 `psql` defaults to carrying on. A restore without it can exit 0 having created half a
 schema, and the failure surfaces days later as a missing table.
 
-Do **not** run the `migrate` service after a restore. The dump contains drizzle's
-migrations table, so the restored database already knows its schema version; running
-migrations against a restored database is at best a no-op and at worst applies a
-migration the dump already contained.
+### Why step 4 names `qcms_migrate`
+
+`--no-owner` discards the dump's ownership and gives every restored object to **whoever
+runs the restore**. Under SEC-10 the role that owns every QCMS schema is `qcms_migrate`,
+so restoring as the bootstrap superuser leaves `control`, every `data_<env>` and every
+`reporting_<env>` owned by a role the design says owns nothing: `pnpm qcms:environment` is
+then refused by its ownership guard, the re-grant in step 5 cannot grant on objects it does
+not own, and the next upgrade's migration fails on tables it cannot alter.
+
+No password appears in step 4, and inside Compose none is needed. `psql` there connects
+over the Unix socket, and the official Postgres image's `pg_hba.conf` carries initdb's own
+default of `local all all trust`. **The image passes no `--auth` flag**, so that default is
+inherited rather than chosen, and an operator who overrides it - `POSTGRES_INITDB_ARGS`
+carrying `--auth-local=scram-sha-256` or `--auth=...`, on the `up` that first initialised
+the data directory - will meet a password prompt here. Supply the credential the way you
+supply every other one: `PGPASSWORD` from your secret store in the `exec` environment, or a
+`.pgpass` entry, and never on the command line, where it reaches the process list. The same
+applies to any restore outside Compose.
+
+### Why step 5 exists at all
+
+`--no-privileges` means the dump carries **no `GRANT` and no `REVOKE`**: zero lines,
+against 39 in `packages/db/migrations/0000_environments_baseline.sql`. Every application
+grant QCMS makes lives in a migration, and the drizzle journal is a table **inside** the
+dump, so a restored database already reports every migration applied and running
+`migrate` re-applies nothing. The result before this step existed: `qcms_app_prod` held no
+`USAGE` on `data_prod` and no `INSERT` on `data_prod.sessions`, and the first respondent
+write answered 500 (issue #1094).
+
+`qcms-db-environment regrant` re-applies the whole model - the baseline's guarded grants,
+each environment's grants, the control-schema grants including the `control.access_audit`
+grants and the `qcms_app%` write revokes, and task 067's per-workspace reporting views and
+roles - for **every** environment in `control.environments` and every workspace in
+`control.organization`, so an environment or a workspace created after the last release is
+covered too. Four properties are worth knowing:
+
+- **It is idempotent.** Every grant statement is a `GRANT` or a `REVOKE`, which set a
+  privilege rather than adding one, and the reporting views are `CREATE OR REPLACE VIEW`.
+  So running it twice, or running it on a database that is already correct, changes
+  nothing. Run it if you are not sure whether you have.
+- **It cannot widen privilege.** The statements are the migrations' and the environment
+  command's own bytes, emitted by the same generators, from one registry
+  (`packages/db/src/environment/grants.ts`); a test fails if a `GRANT` appears anywhere in
+  the migration tree that the registry does not produce, and
+  `apps/api/e2e/security/04-db-restore-regrant.e2e.ts` compares the complete grant map -
+  relations, columns, functions, types, schemas, default ACLs and large objects - before
+  the dump and after the re-grant for equality.
+- **It runs under the migration credential** and needs nothing beyond ownership of the
+  QCMS schemas: no `CREATEROLE`, no `SUPERUSER`, no ownership of the database. The roles
+  stay the operator's to create. It never prints a statement, so no error path can carry a
+  credential (SEC-8); what it prints is the grant source that failed and the driver's own
+  reason.
+- **No restart is needed.** A grant takes effect on the next statement, including on a pool
+  that is already connected. This is unlike `qcms:environment create`, which needs one
+  because a new environment's credential arrives through the process environment.
+
+One statement in the model it deliberately does not re-apply: `REVOKE CREATE ON SCHEMA
+public FROM PUBLIC`. A `REVOKE` on a schema requires owning it, and a freshly created
+database owns `public` as `pg_database_owner`, which the migration role is not a member
+of. PostgreSQL 15 and later grant `PUBLIC` no `CREATE` on a new `public` anyway, so the
+property holds without it; the command reports a warning if it finds otherwise, step 2's
+`db-roles` re-applies the statement as the superuser, and the drill asserts the result.
+
+### Step 6 runs the `migrate` one-shot, and that is harmless here
+
+Do **not** run the `migrate` service *in order to migrate* after a restore. The dump
+contains drizzle's migrations table, so the restored database already knows its schema
+version, and migrating it is at best a no-op and at worst applies a migration the dump
+already contained.
+
+Step 6 nevertheless starts it, and that is not a contradiction: `api` depends on `migrate`
+completing, so `docker compose up --detach --wait` runs the one-shot whatever you intended.
+It is a no-op for exactly the reason above - the journal came back in the dump, so
+`drizzle-kit migrate` finds nothing to apply - and `--wait` would have failed the step if
+it were not. If you would rather it did not run at all,
+`docker compose up --detach --no-deps api portal admin` brings the three services back
+without it.
+
+Step 5 uses `docker compose run` on the same service to reach the `qcms-db-environment`
+binary on its image; `--no-deps` keeps Compose from starting anything else, and the
+service's own `qcms-db-migrate` command is replaced, so no migration runs there either.
 
 If the restore is to a _newer_ QCMS version than the dump was taken from, restore
 first and then migrate: that is an upgrade, and it follows the upgrade procedure in
@@ -160,10 +261,21 @@ produces a database the product actually works on. It:
    Views are counted beside tables because the reporting views are what an adopter's BI
    tool is connected to, and a restore that brought back every row and none of the views
    would be a restore that looked perfect and served nothing.
+   It also snapshots **every privilege every `qcms%` role holds**, on every object kind
+   that can carry one, which step 5 compares against.
 4. **Destroys the database**, and asserts not one QCMS table is left before going any
    further. A drill that restores over surviving data passes forever while proving
    nothing.
-5. Restores from the dump and restarts the API.
+5. Restores from the dump **as `qcms_migrate`**, then **re-applies the grant model and
+   holds the result against a snapshot taken in step 3**. First it asserts the restored
+   database does *not* yet hold the pre-dump grants, so the step cannot pass by doing
+   nothing; then it runs `qcms-db-environment regrant`, asserts each environment's role
+   holds `USAGE` on its data and reporting schemas and `INSERT` on its `sessions`, asserts
+   `control`, `data_<env>` and `reporting_<env>` are owned by `qcms_migrate`, asserts
+   `PUBLIC` holds no `CREATE` on `public`, and compares the whole grant map - relations,
+   columns, functions, types, schemas, default ACLs and large objects - against the
+   snapshot for **equality**, so a privilege the re-grant widened fails here. Then it runs
+   the step again and asserts nothing changed. Finally it restarts the API.
 6. Compares the fingerprint against the pre-dump one, **re-deriving the environment set
    first**: a restore that brought back a different set fails on that rather than on a
    fingerprint quietly taken over whichever set came back. It then asserts `public` is
@@ -214,16 +326,11 @@ infrastructure (volume snapshots, a standby, a managed failover) rather than a d
 drill, and QCMS cannot rehearse it for you. What QCMS can promise, and does test, is
 that its dump restores into an empty database and that the product works afterwards.
 
-**Known limitation: a restored database holds no application grants** (issue #1094). Every
-grant in this product lives in the baseline migration (ADR-40; `docs/operations.md` says
-so), the dump below is taken with `--no-privileges`, and the post-restore migration is a
-no-op because drizzle's journal came back in the dump. So after the documented restore the
-schemas exist with every row, and `qcms_app_<env>` holds nothing on them: the first
-respondent request fails on permission. `--no-owner` compounds it by landing ownership on
-the restoring credential rather than on `qcms_migrate`. The drill reaches this and reports
-it rather than passing over it, which is why its step 8 is red today. The agreed fix is an
-idempotent re-grant step with the restore run as `qcms_migrate` and `--no-privileges` kept
-(Code Owner, 2026-10-22); it is tracked in issue #1094 and is not part of task 067.
+Task 067 recorded a **known limitation** here: a restored database held no application
+grant and the wrong owner, so the drill's step 8 was red. That limitation is **closed**
+(issue #1094, PR #1099). The restore runs as `qcms_migrate` and ends with
+`qcms-db-environment regrant`, both documented above, and the drill asserts the grant map
+and the ownership rather than reporting their absence.
 
 It does not cover **a per-environment restore**, and there is no such thing to cover: the
 environments are schemas in one database, so there is one dump and one restore, and

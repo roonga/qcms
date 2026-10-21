@@ -19,7 +19,13 @@
  * 1. **The data is destroyed for real.** The database is dropped, and the drill
  *    asserts not one QCMS table is left before restoring. A drill that restores over
  *    live data silently passes forever.
- * 2. **The application is a judge, not just a row count.** After the restore, the
+ * 2. **The grants and the ownership are judged too** (issue #1094). `pg_dump
+ *    --no-privileges` carries no grant at all and `--no-owner` lands ownership on
+ *    whoever runs the restore, so the drill restores as `qcms_migrate`, runs the
+ *    re-grant subcommand, and compares the whole grant map against the pre-dump one
+ *    for **equality** - twice, so the step is idempotent. Before this, a restored
+ *    database answered 500 on the first respondent write.
+ * 3. **The application is a judge, not just a row count.** After the restore, the
  *    pre-dump administrator is checked by identity (account row, sign-in credential
  *    and two-factor enrolment, each separately because each fails separately), and a
  *    form published BEFORE the dump is requested from the running portal. Row counts
@@ -85,6 +91,23 @@ import { assertPortSeatChosen, harnessPort } from "./ports.mjs";
 
 /** Where the dump lands inside the `postgres` container, and on the host. */
 const CONTAINER_DUMP = "/tmp/qcms-drill.dump.sql";
+
+/**
+ * The migration role, which is the credential the restore runs as (issue #1094).
+ *
+ * `pg_dump --no-owner` lands ownership on **whoever runs the restore**, so restoring as
+ * `$POSTGRES_USER` left `control`, every `data_<env>` and every `reporting_<env>` owned by
+ * the bootstrap superuser - after which `ownsControlSchema` refuses the environment
+ * command and a later migration run as `qcms_migrate` fails on objects it does not own.
+ * Restoring as this role lands ownership where SEC-10 expects it.
+ *
+ * No password is passed and none is needed: `psql` inside the container connects over the
+ * Unix socket, and the official image's `pg_hba.conf` carries initdb's own default of
+ * `local all all trust`. The image passes no `--auth` flag of its own, so an operator who
+ * hardens that default with `POSTGRES_INITDB_ARGS` has to supply the credential - see
+ * `docs/backup-restore.md`, which says how (PR #1099's review, finding 5).
+ */
+const MIGRATE_ROLE = "qcms_migrate";
 
 /**
  * The schemas this installation's data lives in, read out of `control.environments`
@@ -292,6 +315,14 @@ function destroyDatabase() {
       `"select pg_terminate_backend(pid) from pg_stat_activity where datname = '$POSTGRES_DB' and pid <> pg_backend_pid();"`,
       `&& dropdb --username "$POSTGRES_USER" "$POSTGRES_DB"`,
       `&& createdb --username "$POSTGRES_USER" --owner "$POSTGRES_USER" "$POSTGRES_DB"`,
+      // `CREATE ON DATABASE` is a privilege ON the database, so dropping the database
+      // destroys it along with everything else - and the one-shot that granted it
+      // (`db-roles`) runs at `up`, not here. Without this line the restore below cannot
+      // create a schema, and the failure reads as a broken dump rather than a missing
+      // grant (issue #1094). The operator recipe in `docs/backup-restore.md` carries the
+      // same line.
+      `&& psql --username "$POSTGRES_USER" --dbname "$POSTGRES_DB" --command`,
+      `"GRANT CREATE ON DATABASE \\"$POSTGRES_DB\\" TO ${MIGRATE_ROLE};"`,
     ].join(" "),
   ]);
 }
@@ -307,8 +338,171 @@ function restoreFrom(hostPath) {
     "-c",
     // ON_ERROR_STOP is the difference between a restore that failed and a restore
     // that reported success while skipping every statement after the first error.
-    `psql --username "$POSTGRES_USER" --dbname "$POSTGRES_DB" --set ON_ERROR_STOP=on --file ${CONTAINER_DUMP}`,
+    //
+    // As `qcms_migrate`, not as `$POSTGRES_USER`: see {@link MIGRATE_ROLE}.
+    `psql --username ${MIGRATE_ROLE} --dbname "$POSTGRES_DB" --set ON_ERROR_STOP=on --file ${CONTAINER_DUMP}`,
   ]);
+}
+
+/**
+ * Re-apply the grant model, which is the step the restore procedure gained for issue
+ * #1094, and assert the result.
+ *
+ * `pg_dump --no-privileges` carries no grant, and the drizzle journal rides inside the
+ * dump, so a post-restore `migrate` re-applies nothing: before this step the restored
+ * database held no application grant at all and the first respondent write answered 500.
+ *
+ * `--no-deps` is load-bearing. Without it Compose would start `db-roles` again, and that
+ * one-shot re-assigns every schema's ownership to `qcms_migrate` - which would repair the
+ * ownership half of the defect behind the drill's back and make the assertion below
+ * vacuous.
+ */
+function regrant() {
+  // `--no-TTY` for the reason every other compose call here passes it: this runs from a
+  // script with no terminal attached, and Compose's default is to allocate one.
+  composeRun(["run", "--rm", "--no-TTY", "--no-deps", "migrate", "qcms-db-environment", "regrant"]);
+}
+
+/**
+ * The facts the re-grant exists to establish, read out of the restored catalogue.
+ *
+ * Asserted per environment from `control.environments` rather than against `test` and
+ * `prod`, so an environment an operator created is covered - the same derivation
+ * {@link dataSchemas} makes one step up.
+ *
+ * Ownership is read for **all three** of an environment's schemas plus `control`:
+ * `reporting_<env>` is where task 067's per-workspace views live, and a restore that left
+ * them on the superuser would refuse the next `qcms-db-environment reporting` run
+ * (PR #1099's review, finding 7).
+ */
+function assertRestoredGrants() {
+  const rows = psql([
+    "--tuples-only",
+    "--no-align",
+    "--command",
+    `select e.name
+       || ' usage=' || has_schema_privilege('qcms_app_' || e.name, 'data_' || e.name, 'USAGE')
+       || ' insert=' || has_table_privilege('qcms_app_' || e.name, 'data_' || e.name || '.sessions', 'INSERT')
+       || ' reporting=' || has_schema_privilege('qcms_app_' || e.name, 'reporting_' || e.name, 'USAGE')
+       || ' data_owner=' || (select pg_get_userbyid(n.nspowner) from pg_namespace n where n.nspname = 'data_' || e.name)
+       || ' reporting_owner=' || (select pg_get_userbyid(n.nspowner) from pg_namespace n where n.nspname = 'reporting_' || e.name)
+       || ' control_owner=' || (select pg_get_userbyid(n.nspowner) from pg_namespace n where n.nspname = 'control')
+      from control.environments e
+      where exists (select 1 from pg_roles where rolname = 'qcms_app_' || e.name)
+      order by e.position`,
+  ]).trim();
+  if (rows === "") {
+    throw new Error(
+      "drill-restore: no environment in `control.environments` has an application role, so " +
+        "the grant assertions below would prove nothing",
+    );
+  }
+  const problems = [];
+  for (const row of rows.split("\n")) {
+    if (!row.includes(" usage=t")) problems.push(`${row} (no USAGE on its data schema)`);
+    if (!row.includes(" insert=t")) problems.push(`${row} (no INSERT on its sessions table)`);
+    if (!row.includes(" reporting=t")) problems.push(`${row} (no USAGE on its reporting schema)`);
+    if (!row.includes(` data_owner=${MIGRATE_ROLE}`)) problems.push(`${row} (data misowned)`);
+    if (!row.includes(` reporting_owner=${MIGRATE_ROLE}`)) {
+      problems.push(`${row} (reporting misowned)`);
+    }
+    if (!row.includes(` control_owner=${MIGRATE_ROLE}`)) problems.push(`${row} (control misowned)`);
+  }
+  // The one statement the re-grant cannot re-apply, so the property it establishes is
+  // asserted rather than assumed: a REVOKE on a schema needs its owner, and a database
+  // recreated by the restore owns `public` as `pg_database_owner`.
+  const publicCreate = psql([
+    "--tuples-only",
+    "--no-align",
+    "--command",
+    `select coalesce(bool_or(acl.privilege_type = 'CREATE' and acl.grantee = 0), false)
+       from pg_namespace n, aclexplode(coalesce(n.nspacl, acldefault('n', n.nspowner))) acl
+      where n.nspname = 'public'`,
+  ]).trim();
+  if (publicCreate !== "f") problems.push("PUBLIC still holds CREATE on schema public");
+  if (problems.length > 0) {
+    throw new Error(
+      `drill-restore: the re-granted database is not what a migrated one holds:\n  ${problems.join("\n  ")}`,
+    );
+  }
+  process.stdout.write(`drill-restore: re-granted and owned by ${MIGRATE_ROLE}:\n${rows}\n`);
+}
+
+/**
+ * Every privilege every `qcms%` role holds, on every object kind that can carry one, as a
+ * printable snapshot.
+ *
+ * Taken before the dump and again after the re-grant, and compared for **equality**: the
+ * re-grant must restore exactly what a migrated database holds and must not widen a single
+ * privilege. `apps/api/e2e/security/04-db-restore-regrant.e2e.ts` makes the same
+ * comparison against a Testcontainers database; this is the one that makes it against the
+ * real images and the documented procedure.
+ *
+ * **Six object kinds, not one** (PR #1099's review, finding 4). A map over
+ * `information_schema.table_privileges` alone would let a future sequence, function, type,
+ * column or default-privilege grant widen the model and still pass an "equality" - and the
+ * registry already emits `GRANT USAGE ON ALL SEQUENCES IN SCHEMA`, so that future is one
+ * generator edit away. `relacl`/`proacl`/`typacl` are read through `aclexplode` because
+ * `information_schema` has no view for a function or a type privilege, and a NULL acl
+ * means "the owner's defaults and nothing granted", which `aclexplode` of NULL correctly
+ * yields no rows for.
+ *
+ * @returns {string}
+ */
+function grantSnapshot() {
+  const sql = `
+    with qcms as (select oid, rolname from pg_roles where rolname like 'qcms%')
+    select line from (
+      select format('relation %s.%s %s %s', n.nspname, c.relname, q.rolname, a.privilege_type) as line
+        from pg_class c
+        join pg_namespace n on n.oid = c.relnamespace
+        cross join lateral aclexplode(c.relacl) a
+        join qcms q on q.oid = a.grantee
+       where n.nspname not like 'pg\\_%' and n.nspname <> 'information_schema'
+      union all
+      select format('column %s.%s.%s %s %s', table_schema, table_name, column_name, grantee, privilege_type)
+        from information_schema.column_privileges
+       where grantee like 'qcms%'
+         and not exists (
+           select 1 from information_schema.table_privileges t
+            where t.table_schema = column_privileges.table_schema
+              and t.table_name = column_privileges.table_name
+              and t.grantee = column_privileges.grantee
+              and t.privilege_type = column_privileges.privilege_type)
+      union all
+      select format('function %s.%s %s %s', n.nspname, p.proname, q.rolname, a.privilege_type) as line
+        from pg_proc p
+        join pg_namespace n on n.oid = p.pronamespace
+        cross join lateral aclexplode(p.proacl) a
+        join qcms q on q.oid = a.grantee
+       where n.nspname not like 'pg\\_%' and n.nspname <> 'information_schema'
+      union all
+      select format('type %s.%s %s %s', n.nspname, t.typname, q.rolname, a.privilege_type) as line
+        from pg_type t
+        join pg_namespace n on n.oid = t.typnamespace
+        cross join lateral aclexplode(t.typacl) a
+        join qcms q on q.oid = a.grantee
+       where n.nspname not like 'pg\\_%' and n.nspname <> 'information_schema'
+      union all
+      select format('schema %s %s %s', n.nspname, q.rolname, a.privilege_type) as line
+        from pg_namespace n
+        cross join lateral aclexplode(n.nspacl) a
+        join qcms q on q.oid = a.grantee
+       where n.nspname not like 'pg\\_%' and n.nspname <> 'information_schema'
+      union all
+      select format('default %s %s %s %s %s', coalesce(n.nspname, '-'), d.defaclobjtype, pg_get_userbyid(d.defaclrole), q.rolname, a.privilege_type) as line
+        from pg_default_acl d
+        left join pg_namespace n on n.oid = d.defaclnamespace
+        cross join lateral aclexplode(d.defaclacl) a
+        join qcms q on q.oid = a.grantee
+      union all
+      select format('largeobject %s %s %s', l.oid, q.rolname, a.privilege_type) as line
+        from pg_largeobject_metadata l
+        cross join lateral aclexplode(l.lomacl) a
+        join qcms q on q.oid = a.grantee
+    ) lines order by line;
+  `;
+  return psql(["--tuples-only", "--no-align", "--command", sql.replace(/\s+/g, " ").trim()]);
 }
 
 /**
@@ -564,6 +758,10 @@ async function drill() {
     if (seededTables === 0) {
       throw new Error("drill-restore: the seeded database has no tables; the stack never migrated");
     }
+    // Taken before the dump, compared after the re-grant. The whole grant map rather than
+    // the privileges this script expected: the re-grant must restore exactly what a
+    // migrated database holds and widen nothing (issue #1094).
+    const grantsBefore = grantSnapshot();
     process.stdout.write(`${before}\n`);
 
     step(`dumping to ${hostDump}`);
@@ -578,8 +776,37 @@ async function drill() {
       );
     }
 
-    step("restoring from the dump");
+    step(`restoring from the dump, as ${MIGRATE_ROLE}`);
     restoreFrom(hostDump);
+
+    step("re-applying the grant model, which the dump deliberately does not carry");
+    // The step the procedure gained for issue #1094. The assertion before it is what makes
+    // this step evidence rather than ritual: the restored database must NOT hold the
+    // application grants yet, so a re-grant that did nothing could not pass.
+    const grantsAfterRestore = grantSnapshot();
+    if (grantsAfterRestore === grantsBefore) {
+      throw new Error(
+        "drill-restore: the restored database already holds every grant, so this step " +
+          "proves nothing. Either `--no-privileges` was dropped from the dump flags or " +
+          "something re-granted behind the drill (check that `regrant` runs with --no-deps, " +
+          "so Compose does not re-run the `db-roles` one-shot)",
+      );
+    }
+    regrant();
+    assertRestoredGrants();
+    const grantsAfterRegrant = grantSnapshot();
+    if (grantsAfterRegrant !== grantsBefore) {
+      throw new Error(
+        `drill-restore: the re-granted database does not hold the pre-dump grant map.\nbefore:\n${grantsBefore}\nafter:\n${grantsAfterRegrant}`,
+      );
+    }
+    // Idempotence, on the real images: running the step twice must change nothing, so an
+    // operator re-running a recovery script cannot widen anything by doing so.
+    regrant();
+    if (grantSnapshot() !== grantsBefore) {
+      throw new Error("drill-restore: running the re-grant a second time changed the grant map");
+    }
+    process.stdout.write("drill-restore: the grant map matches the pre-dump one, twice over\n");
 
     step("restarting the API so it reconnects to the restored database");
     composeRun(["up", "--detach", "--wait", "api"]);

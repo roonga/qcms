@@ -900,6 +900,58 @@ sanctioned whole-session delete paths (erasure and the retention purge) are ordi
 `DELETE` statements passing the `answers_reject_delete` trigger door (ADR-17, migration
 0004), so plain `DELETE` is the right and sufficient grant.
 
+### Re-applying the grants: `qcms-db-environment regrant`
+
+**The grants themselves are the migrations', not this recipe's.** The recipe above creates
+the roles and hands the schemas to `qcms_migrate`; every `GRANT` and `REVOKE` lives in a
+migration, guarded on the role existing, because the migration that creates a table is the
+only place that runs as its owner in the same step. A second copy here would be a second
+copy to keep in step with Q40, Q48, Q49 and Q52.
+
+That has one consequence an operator meets exactly once, during a **restore**. A
+`pg_dump --no-privileges` carries no grant, and the drizzle journal rides inside the dump,
+so a restored database reports every migration applied and re-running `migrate` grants
+nothing: before issue #1094 a restored database held no application grant at all and the
+first respondent write answered 500. One command re-applies the model:
+
+```bash
+# Under the MIGRATION credential - the role that owns `control`.
+DATABASE_URL=postgres://qcms_migrate:...@host:5432/qcms pnpm qcms:environment regrant
+
+# Or, on the Compose stack, through the image that already carries the credential.
+docker compose run --rm --no-deps migrate qcms-db-environment regrant
+```
+
+It re-applies, for **every** environment in `control.environments` and in the order a
+migrated database applied them: the baseline's guarded grants, each environment's grants
+(`grantEnvironmentStatements`), the control-schema grants including the
+`control.access_audit` grants and the `qcms_app%` `UPDATE`/`DELETE` revokes from task 069's
+migration, and the migrate-only revoke on `control.two_factor_resets` last. It takes no
+environment name, because an installation that created `staging` after the last release has
+to get `staging` back too.
+
+What to know before running it:
+
+| Property | What it means |
+| -------- | ------------- |
+| **Credential** | `qcms_migrate`, the migration role. It is refused by an ownership test rather than a role name, so a deployment that renamed its roles is still held to the property rather than to the spelling. |
+| **Privileges it needs** | Ownership of `control`, every `data_<env>` and every `reporting_<env>`, because only an owner may `GRANT`. And **nothing else**: no `CREATEROLE`, no `SUPERUSER`, no ownership of the database. |
+| **Idempotent** | Every statement is a `GRANT` or a `REVOKE`, which set a privilege rather than adding one. Running it twice, or running it on a database that is already correct, changes nothing. Run it if you are unsure whether you have. |
+| **Cannot widen privilege** | The statements are the migrations' own bytes from one registry (`packages/db/src/environment/grants.ts`). A test fails if a `GRANT` appears anywhere in the migration tree that the registry does not produce, and `apps/api/e2e/security/04-db-restore-regrant.e2e.ts` compares the complete grant map before a dump and after a re-grant for equality. |
+| **No restart needed** | A grant takes effect on the next statement, including on a pool that is already connected. Unlike `qcms:environment create`, which needs one because a new environment's credential arrives through the process environment. |
+| **Prints no statement** | Not even on a failure: it names the grant source and Postgres's reason instead, so no error path can carry a credential (SEC-8). |
+
+One statement in the model it does **not** re-apply, and the command says so: `REVOKE
+CREATE ON SCHEMA public FROM PUBLIC`. A `REVOKE` on a schema requires owning it, and a
+freshly created database owns `public` as `pg_database_owner`, which the migration role is
+not a member of. PostgreSQL 15 and later grant `PUBLIC` no `CREATE` on a new `public`
+anyway; the command reports a warning if it finds otherwise, and the `db-roles` one-shot
+re-applies the statement as the superuser on the next `up`.
+
+Nothing else needs this command. An ordinary migration grants as it goes, and
+`qcms:environment create` grants the environment it creates. The full restore procedure,
+with the step in place, is in `docs/backup-restore.md`.
+
 ### There is no upgrade path, and that is a ruling
 
 **Code Owner, 2026-09-29, Q22 and Q41.**
@@ -1761,3 +1813,10 @@ Policy, schedule guidance, the restore procedure and the automated restore drill
 in `docs/backup-restore.md`. The one line that belongs here: a backup nobody has
 restored is not a backup, which is why the drill is a script (`pnpm qcms:drill-restore`)
 and runs in CI rather than living in a document as an instruction.
+
+Two steps of that procedure are database-role work and belong to this document's model, so
+they are named here as well as there: the restore runs **as `qcms_migrate`**, because
+`pg_dump --no-owner` gives every restored object to whoever runs the restore and the
+schemas have to come back owned by the role SEC-10 says owns them; and it is followed by
+`qcms-db-environment regrant`, because `--no-privileges` means the dump carries no grant
+at all. See "Re-applying the grants" above.

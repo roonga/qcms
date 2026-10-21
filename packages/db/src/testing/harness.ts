@@ -89,6 +89,22 @@ export interface StartedTestPostgres {
   /** The libpq connection string, as {@link TestDb.connectionUri} already carries it. */
   getConnectionUri(): string;
   /**
+   * Run a command **inside** the container, for the one thing a connection cannot do:
+   * reach the server's own binaries.
+   *
+   * Added for `apps/api/e2e/security/04-db-restore-regrant.e2e.ts` (issue #1094), which
+   * takes a real `pg_dump` and restores it with `psql` to prove the re-grant repairs what
+   * `--no-privileges` dropped. A dump simulated over a connection would prove nothing: the
+   * defect **is** what `pg_dump` leaves out.
+   *
+   * Narrower than upstream's on purpose, exactly as `stop` below is: upstream takes
+   * `string[] | string` with an options object and resolves `{ output, stdout, stderr,
+   * exitCode }`, and naming either here would put a Testcontainers type back on the
+   * exported surface. A method accepting more and returning more is assignable to this
+   * one, which is what `harness-types.test.ts` asserts.
+   */
+  exec(command: string[]): Promise<{ readonly exitCode: number; readonly output: string }>;
+  /**
    * Do not call this directly - use {@link TestDb.teardown}, which is idempotent.
    *
    * Declared with no parameters and an `unknown` result on purpose. Upstream takes a
