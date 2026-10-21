@@ -229,10 +229,15 @@ must not read.
 ### 1. Create the role, as an operator
 
 ```sql
--- One-time, as a superuser or the database owner - a role that may create roles.
+-- One-time, as a superuser or the database owner: a role that holds CREATEROLE. The
+-- shipped `qcms_migrate` does NOT, so this step is not the migration credential's.
 -- Replace the password with a value from your secret store; never commit a real one.
 -- The name is `qcms_reporting_<environment>_<workspace slug>`.
-CREATE ROLE qcms_reporting_prod_home LOGIN PASSWORD '<from-secret-store>';
+--
+-- Quoted, because a workspace slug may contain hyphens: `qcms_reporting_prod_home` needs
+-- no quotes but `qcms_reporting_prod_home-insurance` does, and the generator quotes the
+-- identifier either way. Quoting always is the form that is correct for every slug.
+CREATE ROLE "qcms_reporting_prod_home" LOGIN PASSWORD '<from-secret-store>';
 ```
 
 ### 2. Reconcile the views and the grants, as the migration role
@@ -253,7 +258,11 @@ command under the migration credential rather than something `POST /admin/worksp
 does. It is the sibling of "after creating an environment, restart the API" (Q59): the
 operator is already at a shell with the migration credential.
 
-The one-pair form creates the role for you, if you would rather not write the SQL above:
+The one-pair form creates the role for you, if you would rather not write the SQL above -
+**with a connection that holds `CREATEROLE`**, which the shipped `qcms_migrate` does not,
+so this form is a superuser's. It computes the SCRAM verifier for the password itself and
+sends that rather than the password, so the credential appears in no statement, no error
+and no server log:
 
 ```
 DATABASE_URL=... pnpm qcms:environment reporting \
@@ -277,6 +286,23 @@ The last two rows of that table are the ones worth reading twice.
 shape of this recipe while each schema held one view set, and it is exactly the form that
 would hand a workspace's analysts every **other** workspace's views the moment a second set
 appeared. The grant names the two views.
+
+**Both views carry `WITH (security_barrier = true)`, and that is the control rather than a
+tuning option.** A plain view's `WHERE` is not a privilege boundary in PostgreSQL: the
+planner may push a qual the consumer wrote below the view's own filter and evaluate it
+against the rows the view exists to hide, and such a qual can report what it saw through a
+data-dependent error (`1 / (CASE WHEN form_id = 'other' THEN 0 END)` raises only if it met
+that row), through a `COST 1` function in `pg_temp`, or through either under
+`join_collapse_limit = 1`, which any role may set. The review of PR #1093 read another
+workspace's production answers all three ways against the first version of these views. The
+option closes it, and `CREATE OR REPLACE VIEW` accepts it, so the reconciliation applies it
+to views that already exist and drops nothing.
+
+The unfiltered pair deliberately does **not** carry it: those views are granted to
+`qcms_app_<env>`, which holds DML on its own `data_<env>` and can read every row they omit
+straight from the tables, so there is no boundary there to defend and a barrier would only
+forbid pushdown on the application's own hot read path. `03-db-least-privilege.e2e.ts`
+asserts the option on every workspace view and runs the three probes as the consumer role.
 
 **There is no `ALTER DEFAULT PRIVILEGES` either.** It was in this recipe for a good reason -
 a migration that reshapes a view drops and recreates it, and a dropped view takes its grants

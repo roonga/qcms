@@ -1360,7 +1360,10 @@ describe("the production split and the masked endpoint URL (criterion 8)", () =>
       headers: headersFor(allEditor, "test", true),
       body: JSON.stringify({ url: "https://test-consumer.example/hook" }),
     });
-    expect(change.status).not.toBe(403);
+    // The exact status, not `not.toBe(403)`: a 500 would satisfy the weaker form and this
+    // is the case that has to prove the editor is genuinely **served** here (PR #1093's
+    // review, finding 8).
+    expect(change.status).toBe(201);
   });
 
   it("allows a `forms.approver` holding prod the same prod endpoint change", async () => {

@@ -41,7 +41,7 @@
 import { sql } from "drizzle-orm";
 
 import type { Executor } from "../queries/executor.js";
-import { listActiveWorkspaces, listWorkspaces } from "../queries/workspaces.js";
+import { listWorkspaces } from "../queries/workspaces.js";
 import {
   CONTROL_SCHEMA,
   reportingSchemaName,
@@ -155,7 +155,7 @@ async function roleExists(exec: Executor, role: string): Promise<boolean> {
 }
 
 /**
- * Every active workspace's view set for **one** environment, as statements.
+ * Every workspace's view set for **one** environment, as statements.
  *
  * Called by `createEnvironment` inside its own transaction, so a new environment arrives
  * with every workspace's views already in it rather than waiting for somebody to
@@ -172,7 +172,13 @@ export async function workspaceReportingStatementsForEnvironment(
   exec: Executor,
   environment: string,
 ): Promise<string[]> {
-  const workspaces = await listActiveWorkspaces(exec);
+  // **Every** workspace, archived ones included, which is the list the reconciliation
+  // covers (PR #1093's review, finding 6). The two used to differ, so a new environment
+  // lacked an archived workspace's views until somebody ran the reconciliation. An archive
+  // is terminal (Q66) and says nothing about destroying the record of what the workspace
+  // held, and those views are what a BI tool is connected to - so a new environment gets
+  // them too, and the two paths now answer the same question.
+  const workspaces = await listWorkspaces(exec);
   return workspaces
     .filter((workspace) => refuseWorkspaceReportingNames(environment, workspace.slug) === undefined)
     .flatMap((workspace) =>

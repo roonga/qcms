@@ -46,6 +46,18 @@ describe("one workspace's reporting view set", () => {
     expect(workspaceReportingViewNames("home")).toEqual(["home_responses", "home_answers_flat"]);
   });
 
+  it("declares `security_barrier`, which is what makes the filter a boundary", () => {
+    // A plain view's WHERE is not a privilege boundary: the planner may push a qual the
+    // consumer wrote below it and evaluate it against the rows the view exists to hide,
+    // and the qual can report what it saw through a data-dependent error or a cheap
+    // `pg_temp` function. PR #1093's review read the other workspace's answers that way.
+    // The e2e suite runs those probes against a real Postgres; this is the cheap check
+    // that the option is in the statement at all.
+    for (const statement of statements.filter((s) => s.startsWith("CREATE OR REPLACE"))) {
+      expect(statement).toContain("WITH (security_barrier = true)");
+    }
+  });
+
   it("projects the unprefixed pair rather than restating its body", () => {
     // The property that keeps the erasure anti-join and the submitted-only predicate in
     // one place: a per-workspace view that had its own copy of them could lose one, and

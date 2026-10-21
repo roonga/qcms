@@ -111,6 +111,17 @@ const HOME_PROD_REPORTING_ROLE = workspaceReportingRoleName("prod", HOME_WORKSPA
 /** The privileges a table grant can carry, in the order the catalogue reports them. */
 const DML = ["SELECT", "INSERT", "UPDATE", "DELETE"] as const;
 
+/**
+ * The credential the per-workspace reporting consumer logs in with, and a counter for the
+ * probe clients below.
+ *
+ * At module scope because the planner probes each need a **session of their own**: `pg_temp`
+ * is per session, and a notice listener on the shared client would collect another case's
+ * notices.
+ */
+let homeReportingPassword = "";
+let probeClients = 0;
+
 let testDb: TestDb;
 /** Superuser/owner connection: the "as a superuser or the database owner" the recipe asks for. */
 let owner: pg.Client;
@@ -324,13 +335,23 @@ async function seedWorkspaceReporting(): Promise<void> {
       await owner.query(
         `insert into data_${environment}.submissions (session_id, content_hash, locked_answers)
          values ($1, 'sha256:0', $2::jsonb)`,
-        [sessionId, JSON.stringify({ answers: [], flowState: { visible: [] } })],
+        [
+          sessionId,
+          // One distinctive answer per workspace, so a leak is detectable **by value**
+          // rather than only by row count: the probes below assert that the other
+          // workspace's secret never reaches a qual the consumer wrote.
+          JSON.stringify({
+            answers: [{ questionId: "q_secret", value: `${workspace.slug.toUpperCase()}_SECRET` }],
+            flowState: { visible: [] },
+          }),
+        ],
       );
     }
   }
 
   // The role, as a superuser, exactly as the recipe has an operator create it.
   const password = ephemeralPassword();
+  homeReportingPassword = password;
   await owner.query(`CREATE ROLE ${HOME_PROD_REPORTING_ROLE} LOGIN PASSWORD '${password}'`);
 
   // The views and the grants, as the migration role, through the same generator the
@@ -1145,6 +1166,122 @@ describe("a per-workspace reporting role reads one workspace in one environment 
     ]);
     for (const granted of Object.values(privileges)) expect([...granted]).toEqual(["SELECT"]);
     expect(await hasSchemaUsage("reporting_prod", HOME_PROD_REPORTING_ROLE)).toBe(true);
+  });
+
+  it("declares `security_barrier` on every one of its views (PR #1093's review)", async () => {
+    // The option is what makes the view's filter a boundary rather than a hint. Read out
+    // of the catalogue rather than off the generator, because what defends the rows is the
+    // option the database is holding, not the one the source meant to emit.
+    const options = await owner.query<{ relname: string; reloptions: string[] | null }>(
+      `select c.relname, c.reloptions
+         from pg_class c join pg_namespace n on n.oid = c.relnamespace
+        where n.nspname = 'reporting_prod' and c.relkind = 'v'
+          and c.relname like $1
+        order by c.relname`,
+      [`${HOME_WORKSPACE.slug}\_%`],
+    );
+    expect(options.rows.map((row) => row.relname)).toEqual([
+      `${HOME_WORKSPACE.slug}_answers_flat`,
+      `${HOME_WORKSPACE.slug}_responses`,
+    ]);
+    for (const row of options.rows) {
+      expect(row.reloptions ?? [], row.relname).toContain("security_barrier=true");
+    }
+  });
+
+  /**
+   * The three side channels PR #1093's review read the other workspace's data through.
+   *
+   * Each one makes the consumer's own qual report what it was handed, and none of them
+   * needs a privilege the role does not have: the first is an arithmetic error, the second
+   * and third are a `COST 1` function in `pg_temp`, which `PUBLIC` may create by default.
+   * They are here rather than in a unit test because what they exercise is the **planner**,
+   * and no string assertion can stand in for it.
+   */
+  describe("the consumer's own SQL cannot reach past the filter", () => {
+    const OTHER_SECRET = `${VEHICLE_WORKSPACE.slug.toUpperCase()}_SECRET`;
+
+    /** A `COST 1` function in `pg_temp` that records every value it is handed. */
+    async function plantProbe(client: pg.Client, name: string): Promise<void> {
+      await client.query(
+        `create or replace function pg_temp.${name}(v text) returns boolean as $$
+           begin raise notice 'SAW %', v; return true; end
+         $$ language plpgsql cost 1`,
+      );
+    }
+
+    /** Every `SAW` notice one query raised, which is every value the qual was handed. */
+    async function noticesFrom(sql: string): Promise<string[]> {
+      // A client of its own: a notice listener on the shared one would collect another
+      // case's notices, and `pg_temp` is per session anyway.
+      const client = testDb.register(
+        new pg.Client({
+          connectionString: uriFor(testDb, HOME_PROD_REPORTING_ROLE, homeReportingPassword),
+        }),
+        `probe client ${String(probeClients++)}`,
+      );
+      await client.connect();
+      const seen: string[] = [];
+      client.on("notice", (notice) => {
+        if (notice.message !== undefined) seen.push(notice.message);
+      });
+      await plantProbe(client, "saw");
+      await client.query(sql);
+      await client.end();
+      return seen;
+    }
+
+    it("raises no data-dependent error for a row it must not see", async () => {
+      // `division by zero` fires only if a row whose `form_id` is the other workspace's
+      // reached the qual. `int4div` is not `leakproof` precisely because it can raise, so
+      // a barrier view refuses to push it down.
+      const refusal = await refusalFor(
+        clients.get(HOME_PROD_REPORTING_ROLE)!,
+        `select count(*) from reporting_prod.${HOME_WORKSPACE.slug}_responses
+          where 1 / (case when form_id = 'frm_${VEHICLE_WORKSPACE.slug}_lp' then 0 else 1 end) = 1`,
+      );
+      expect(refusal, "the other workspace's row reached the consumer's qual").toBeUndefined();
+    });
+
+    it("hands a cheap function only its own workspace's rows", async () => {
+      // The same planner knobs as the case below: without them this harness's one-row
+      // tables do not produce the plan that pushes the qual down, and an assertion that
+      // cannot fail is an assertion that has stopped guarding anything.
+      const seen = await noticesFrom(
+        `set join_collapse_limit = 1; set from_collapse_limit = 1;
+         select count(*) from reporting_prod.${HOME_WORKSPACE.slug}_responses
+          where pg_temp.saw(form_id || ' ' || session_id)`,
+      );
+      expect(seen.length).toBeGreaterThan(0);
+      expect(seen.join("\n")).not.toContain(`frm_${VEHICLE_WORKSPACE.slug}_lp`);
+      expect(seen.join("\n")).toContain(`frm_${HOME_WORKSPACE.slug}_lp`);
+    });
+
+    it("hands a cheap function no other workspace's answers, under the planner knobs a role may set", async () => {
+      // `join_collapse_limit` and `from_collapse_limit` are `USERSET`, so any role may
+      // choose the plan shape that pushed this qual below the filter before the barrier.
+      for (const view of [
+        `${HOME_WORKSPACE.slug}_responses`,
+        `${HOME_WORKSPACE.slug}_answers_flat`,
+      ]) {
+        const column = view.endsWith("_responses") ? "answers::text" : "value::text";
+        const seen = await noticesFrom(
+          `set join_collapse_limit = 1; set from_collapse_limit = 1;
+           select count(*) from reporting_prod.${view} where pg_temp.saw(${column})`,
+        );
+        expect(seen.join("\n"), view).not.toContain(OTHER_SECRET);
+        expect(seen.join("\n"), view).toContain(`${HOME_WORKSPACE.slug.toUpperCase()}_SECRET`);
+      }
+    });
+
+    it("still serves the legitimate read, which is what the barrier must not cost", async () => {
+      const res = await clients
+        .get(HOME_PROD_REPORTING_ROLE)!
+        .query<{ form_id: string }>(
+          `select form_id from reporting_prod.${HOME_WORKSPACE.slug}_responses`,
+        );
+      expect(res.rows.map((row) => row.form_id)).toEqual([`frm_${HOME_WORKSPACE.slug}_lp`]);
+    });
   });
 
   it("reaches no data-plane table, no control-plane table and no DDL", async () => {

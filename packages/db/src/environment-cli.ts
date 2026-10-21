@@ -187,6 +187,10 @@ async function main(): Promise<number> {
 
   const pool = new pg.Pool({ connectionString: databaseUrl });
   try {
+    // `drizzle(pool)` with no schema is a handle this package's `Executor` alias describes
+    // structurally but does not match nominally: the alias is the schema-bound type the
+    // query helpers take, and nothing this command calls reads a declared table through
+    // it. The same cast `migrate.ts` makes, for the same reason.
     return await run(drizzle(pool) as unknown as Exec, parsed);
   } catch (error) {
     process.stderr.write(`qcms-db environment failed: ${describeError(error)}\n`);

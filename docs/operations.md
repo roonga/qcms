@@ -700,6 +700,10 @@ It creates the schema set, emits the per-environment objects **and every existin
 workspace's reporting view set inside them**, creates `qcms_app_dev` with that password,
 applies its grants and the migrate-only revokes, and writes the row in
 `control.environments`.
+`--password` needs a connection holding `CREATEROLE`; the shipped `qcms_migrate` has none,
+so provision the role as a superuser first and run this without the flag, or run this as a
+superuser. Either way the credential never reaches a logged statement.
+
 It also takes the per-environment settings of ADR-24's amendment:
 `--challenge-provider`, `--delivery-snippet-ttl-ms` and `--outbox-payload-ttl-ms` end up
 as columns on that row, and leaving any of them out leaves the installation-wide typed
@@ -872,8 +876,15 @@ Two things about them belong here, because they are operator acts:
   every workspace, and after any upgrade, is the whole of the procedure. Creating a view is
   DDL and no application role holds any, which is why `POST /admin/workspaces` cannot do
   it - the same boundary the environment command lives on.
-- **The consumer roles are yours to create**, like every other role in this section, and
-  the grants are guarded on each one existing. A pair whose role you have not created gets
+- **The consumer roles are yours to create**, like every other role in this section, as a
+  superuser or another role holding `CREATEROLE`. The shipped `qcms_migrate` holds
+  **no `CREATEROLE`** (deliberately, and `03-db-least-privilege.e2e.ts` asserts it), so
+  `qcms:environment create --password` and `qcms:environment reporting --password` are a
+  superuser's commands, not the migration credential's; run under `qcms_migrate` the server
+  refuses them with `permission denied to create role`. When a password is given, the
+  command computes the role's SCRAM verifier itself and sends that rather than the
+  password, so the credential appears in no statement, no error line and no server log.
+  The grants are guarded on each role existing. A pair whose role you have not created gets
   its views and no grant, and the command's output names the roles that are missing, so a
   grant that silently did not land is reported rather than discovered by a consumer.
 

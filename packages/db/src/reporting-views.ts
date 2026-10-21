@@ -378,6 +378,45 @@ function sqlLiteral(value: string): string {
  * The column list is written out rather than `SELECT *`, so the catalogue carries the
  * documented columns in the documented order and `docs/reporting-view.md`'s drift test
  * reads the same list for a workspace's view as for the one it projects.
+ *
+ * # `security_barrier` is the control, and a plain view is not one
+ *
+ * **A plain view's `WHERE` is not a privilege boundary in PostgreSQL**, and this is the
+ * one place in the design where that distinction decides whether a grant holds. The
+ * planner may push a qual the consumer wrote *below* the view's own filter and evaluate it
+ * against the rows the view exists to hide, and a qual can report what it saw in three
+ * ways that need no privilege at all:
+ *
+ *   - a **data-dependent error**: `WHERE 1 / (CASE WHEN form_id = 'frm_other' THEN 0 ELSE
+ *     1 END) = 1` raises `division by zero` only if a row of the other workspace reached
+ *     it, and `int4div` is not `leakproof` precisely because it can;
+ *   - a **cheap function** in `pg_temp` (`TEMP` on the database belongs to `PUBLIC` by
+ *     default) declared `COST 1`, which the planner prefers to evaluate first and which
+ *     can `RAISE NOTICE` every value it is handed;
+ *   - the same function under `join_collapse_limit = 1` and `from_collapse_limit = 1`,
+ *     both `USERSET`, so any role may choose the plan shape that pushes it down.
+ *
+ * The review of PR #1093 ran all three as `qcms_reporting_prod_home` against this
+ * generator's output and read the **other** workspace's answers, session ids, form ids,
+ * versions and access modes. `WITH (security_barrier = true)` closed all three and left the
+ * legitimate read unchanged.
+ *
+ * `CREATE OR REPLACE VIEW` accepts `WITH`, so the reconciliation applies the option to a
+ * view that already exists and **nothing is dropped**: Q67 stays intact and no BI tool's
+ * connection breaks.
+ *
+ * # Why the option is not on the unfiltered pair as well
+ *
+ * `reporting_<env>.responses` and `answers_flat` are granted to `qcms_app_<env>` and to no
+ * consumer (Q52). That role holds DML on its own `data_<env>`, so it can read every row
+ * those views omit straight from the tables: the views are a projection for it, never a
+ * boundary, and there is nothing for a barrier to defend. What a barrier would do there is
+ * forbid pushdown on the application's own hot read path - the response list, the detail
+ * and the export - for no privilege gained. The boundary is the outer view, which is where
+ * the grant is, and that is where the option goes.
+ *
+ * Revoking `TEMP` on the database would not be enough on its own: the division probe needs
+ * no function at all.
  */
 export function workspaceReportingViewStatements(views: WorkspaceReportingViews): string[] {
   const predicate =
@@ -392,8 +431,8 @@ export function workspaceReportingViewStatements(views: WorkspaceReportingViews)
       .map((column) => `\t"w"."${column}" AS "${column}"`)
       .join(",\n");
     return (
-      `CREATE OR REPLACE VIEW ${target} AS\nSELECT\n${projection}\n` +
-      `FROM ${source} "w"\nWHERE ${predicate};`
+      `CREATE OR REPLACE VIEW ${target} WITH (security_barrier = true) AS\n` +
+      `SELECT\n${projection}\nFROM ${source} "w"\nWHERE ${predicate};`
     );
   });
 }

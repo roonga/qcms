@@ -126,6 +126,8 @@ function collectFlags(rest: readonly string[]): Step<FlagValues> {
     }
     const value = rest[i + 1];
     if (value === undefined) return bad(`${flag} needs a value`);
+    // Narrowed by the `includes` guard above, which TypeScript cannot carry across a
+    // `readonly string[]` membership test.
     values[flag as Flag] = value;
   }
   return { ok: true, value: values };
@@ -200,6 +202,8 @@ function refuseFlagCombination(action: Action, values: FlagValues): string | und
 export function parseArgs(argv: readonly string[]): ArgResult {
   const [action, ...tail] = argv;
   if (!(ACTIONS as readonly (string | undefined)[]).includes(action)) return refuse(USAGE);
+  // Same narrowing, same reason: the guard above is a membership test over a widened
+  // array, which does not narrow `action` on its own.
   const subcommand = action as Action;
 
   // `reporting` takes **no positional name**: the one pair whose role it may create is

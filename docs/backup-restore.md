@@ -214,6 +214,17 @@ infrastructure (volume snapshots, a standby, a managed failover) rather than a d
 drill, and QCMS cannot rehearse it for you. What QCMS can promise, and does test, is
 that its dump restores into an empty database and that the product works afterwards.
 
+**Known limitation: a restored database holds no application grants** (issue #1094). Every
+grant in this product lives in the baseline migration (ADR-40; `docs/operations.md` says
+so), the dump below is taken with `--no-privileges`, and the post-restore migration is a
+no-op because drizzle's journal came back in the dump. So after the documented restore the
+schemas exist with every row, and `qcms_app_<env>` holds nothing on them: the first
+respondent request fails on permission. `--no-owner` compounds it by landing ownership on
+the restoring credential rather than on `qcms_migrate`. The drill reaches this and reports
+it rather than passing over it, which is why its step 8 is red today. The agreed fix is an
+idempotent re-grant step with the restore run as `qcms_migrate` and `--no-privileges` kept
+(Code Owner, 2026-10-22); it is tracked in issue #1094 and is not part of task 067.
+
 It does not cover **a per-environment restore**, and there is no such thing to cover: the
 environments are schemas in one database, so there is one dump and one restore, and
 restoring `test` without `prod` would mean editing a dump by hand. An operator who wants a

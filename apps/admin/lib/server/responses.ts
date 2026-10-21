@@ -211,6 +211,8 @@ export async function erasureScope(
       environment: text(raw["environment"], ""),
       alreadyErased: raw["alreadyErased"] === true,
       otherEnvironments: others.flatMap((entry) => {
+        // The API's payload is `unknown` at this boundary by design (this module's header
+        // says why), so each field is read off a widened shape and then checked.
         const row = entry as { environment?: unknown; alreadyErased?: unknown };
         if (typeof row.environment !== "string" || row.environment === "") return [];
         return [{ environment: row.environment, alreadyErased: row.alreadyErased === true }];
