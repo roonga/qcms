@@ -62,6 +62,7 @@ import {
   CONTROL_FORBIDDEN_TABLES,
   CONTROL_READ_TABLES,
   DATA_PLANE_ENUM_TYPES,
+  ENDPOINT_PROPOSALS_TABLE,
   DATA_PLANE_TABLE_NAMES,
   workspaceReportingRoleName,
   workspaceReportingStatements,
@@ -433,6 +434,11 @@ describe("qcms_app_control: the control plane, and one grant in each data plane"
     // revoke rows that are control-pool acts (Q56), and holds neither `UPDATE` nor
     // `DELETE`, so it can add a row and change none.
     expect([...(held["access_audit"] ?? [])].sort()).toEqual(["INSERT", "SELECT"]);
+    // And the pending `prod` endpoint change is **not** a carve-out: this role holds the
+    // ordinary DML, which is what ADR-40's role table gives it on `control`, and the loop
+    // below is what asserts it. Named here so a reader looking for task 070's table finds
+    // the answer rather than inferring it from a loop.
+    expect([...(held[ENDPOINT_PROPOSALS_TABLE] ?? [])].sort()).toEqual([...DML].sort());
     // Every other control-plane table carries all four. An exact per-table comparison,
     // so a table that lost a privilege fails here as loudly as one that gained it.
     for (const [table, privileges] of Object.entries(held)) {
@@ -717,6 +723,24 @@ describe.each(ENVIRONMENTS)(
         expect([...(held[table] ?? [])].sort(), `control.${table}`).toEqual(expected);
       }
       expect([...(held[ACCESS_AUDIT_TABLE] ?? [])]).toEqual(["INSERT"]);
+    });
+
+    it("holds nothing at all on the pending prod endpoint change (task 070)", async () => {
+      // Implied by the exact key list above and asserted by name as well, because the
+      // absence is a decision rather than an omission: `webhook_endpoint_proposals` holds
+      // a **proposed production URL**, and the credential that serves anonymous
+      // respondent traffic can neither read one nor write one. Proposing and confirming
+      // are an administrator's acts on configuration, so they run on the control pool -
+      // exactly as minting a secure link does while redeeming one does not (Q53).
+      const held = await tablePrivileges("control", role);
+      expect(held[ENDPOINT_PROPOSALS_TABLE]).toBeUndefined();
+      for (const privilege of DML) {
+        const res = await owner.query<{ has: boolean }>(
+          `select has_table_privilege($1, $2, $3) as has`,
+          [role, `control.${ENDPOINT_PROPOSALS_TABLE}`, privilege],
+        );
+        expect(res.rows[0]?.has, `${role} must not hold ${privilege} there`).toBe(false);
+      }
     });
 
     it.each(CONTROL_FORBIDDEN_TABLES)(

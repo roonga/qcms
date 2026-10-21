@@ -288,6 +288,33 @@ async function applyConfirmedProposal(
   return stamped ?? proposal;
 }
 
+/**
+ * The columns one proposal changes on the endpoint row, as an update patch.
+ *
+ * A null on the proposal means "this act does not name that field" rather than "set it to
+ * null", which is why each one is spread conditionally: a proposal that only flips `active`
+ * must not blank the URL its confirmer never looked at.
+ */
+function endpointPatch(
+  proposal: EndpointProposalRow,
+  now: Date,
+): {
+  url?: string;
+  secretEncrypted?: string;
+  active?: boolean;
+  deactivatedAt?: Date | null;
+  now: Date;
+} {
+  return {
+    ...(proposal.url === null ? {} : { url: proposal.url }),
+    ...(proposal.secretEncrypted === null ? {} : { secretEncrypted: proposal.secretEncrypted }),
+    ...(proposal.active === null
+      ? {}
+      : { active: proposal.active, deactivatedAt: proposal.active ? null : now }),
+    now,
+  };
+}
+
 /** The endpoint write one proposal describes, in its own environment's data plane. */
 async function applyToEndpoint(
   exec: Executor,
@@ -295,47 +322,31 @@ async function applyToEndpoint(
   proposal: EndpointProposalRow,
 ): Promise<void> {
   const now = deps.clock.now();
-  switch (proposal.kind) {
-    case "create": {
-      // A repeated apply must not mint a second endpoint, so the existing row wins and the
-      // write becomes the update it would have been. The `url` is `NOT NULL` on the
-      // endpoint and a `create` proposal always carries one, which the create route
-      // validated before it proposed.
-      const existing = await getWebhook(exec, proposal.formId, proposal.webhookId);
-      if (existing === undefined) {
-        await insertWebhook(exec, {
-          webhookId: proposal.webhookId,
-          formId: proposal.formId,
-          url: proposal.url ?? "",
-          secretEncrypted: proposal.secretEncrypted ?? "",
-          active: proposal.active ?? true,
-        });
-        return;
-      }
-      await updateWebhook(exec, proposal.formId, proposal.webhookId, {
-        ...(proposal.url === null ? {} : { url: proposal.url }),
-        ...(proposal.secretEncrypted === null ? {} : { secretEncrypted: proposal.secretEncrypted }),
-        ...(proposal.active === null ? {} : { active: proposal.active }),
-        now,
-      });
-      return;
-    }
-    case "update": {
-      await updateWebhook(exec, proposal.formId, proposal.webhookId, {
-        ...(proposal.url === null ? {} : { url: proposal.url }),
-        ...(proposal.secretEncrypted === null ? {} : { secretEncrypted: proposal.secretEncrypted }),
-        ...(proposal.active === null
-          ? {}
-          : { active: proposal.active, deactivatedAt: proposal.active ? null : now }),
-        now,
-      });
-      return;
-    }
-    case "deactivate": {
-      await deactivateWebhook(exec, proposal.formId, proposal.webhookId, now);
-      return;
-    }
+  if (proposal.kind === "deactivate") {
+    await deactivateWebhook(exec, proposal.formId, proposal.webhookId, now);
+    return;
   }
+  // A repeated apply of a `create` must not mint a second endpoint, so an existing row
+  // wins and the write becomes the update it would have been. The id is minted at propose
+  // time precisely so this is decidable (`newProposalId`'s sibling in `handler.ts`).
+  const existing =
+    proposal.kind === "create"
+      ? await getWebhook(exec, proposal.formId, proposal.webhookId)
+      : undefined;
+  if (proposal.kind === "create" && existing === undefined) {
+    // `url` and `secret_encrypted` are `NOT NULL` on the endpoint, and a `create` proposal
+    // always carries both: the create route validated the URL and encrypted the secret
+    // before it proposed anything.
+    await insertWebhook(exec, {
+      webhookId: proposal.webhookId,
+      formId: proposal.formId,
+      url: proposal.url ?? "",
+      secretEncrypted: proposal.secretEncrypted ?? "",
+      active: proposal.active ?? true,
+    });
+    return;
+  }
+  await updateWebhook(exec, proposal.formId, proposal.webhookId, endpointPatch(proposal, now));
 }
 
 /** Withdraw a pending change, with its audit row, in one transaction on the control pool. */

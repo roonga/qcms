@@ -36,11 +36,18 @@ import { Buffer } from "node:buffer";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 
 import { SEED_WORKSPACE_ID } from "@roonga/qcms-db/testing";
+import { FormId } from "@roonga/qcms-core";
 import {
   addAccessGroupHolder,
   authOrganization,
   createAccessGroup,
+  createForm,
   ensureWorkspaceMember,
+  getReleasedVersion,
+  getWebhook,
+  insertFormVersion,
+  listAccessAudit,
+  setRequireSecondApprover,
 } from "@roonga/qcms-db";
 
 import { REQUEST_ENVIRONMENT_HEADER } from "../../src/middleware/request-environment.js";
@@ -1447,5 +1454,507 @@ describe("the production split and the masked endpoint URL (criterion 8)", () =>
     expect(res.status).toBe(200);
     const body = await res.text();
     expect(body).not.toContain("not-a-real-credential");
+  });
+});
+
+// --- 14. the two-person rule for production (task 070, criteria 1 to 7) -----
+
+/**
+ * One switch, two mechanisms, over HTTP (Q13, Q30, Q34, Q38, Q51; finding 5).
+ *
+ * The block above asserts **who** may change production: a `forms.approver` holding `prod`
+ * in scope, and nobody else (Q30's split). This one asserts that holding that grant is not
+ * enough on its own once a workspace turns the two-person rule on - **two accounts** are
+ * needed, and the two acts take the two shapes Q51 gives them:
+ *
+ *   - **a release is one act**, refused for the account that published the version;
+ *   - **an endpoint change is two acts**, proposed, held pending, confirmed by somebody
+ *     else, and taking effect on nothing in between.
+ *
+ * Every probe is **over HTTP against a mounted app**, because that is the only level at
+ * which the mechanism is the composition of a route, a policy row, a switch read and a
+ * handler. The effect is asserted beside the status everywhere it is observable: a 403 that
+ * still released a version, or a pending change that was already live, would satisfy a
+ * status-only test.
+ *
+ * Its own form, so nothing here disturbs the release history or the endpoint set the blocks
+ * above assert against, and the **switch is turned on in `beforeAll` and off in
+ * `afterAll`** so a block added after this one inherits the default (Q13: off).
+ */
+describe("the two-person rule for production (task 070, criteria 1 to 7)", () => {
+  const headersFor = environmentHeaders;
+  const TWO_PERSON_FORM = "frm_two_person";
+  const ORIGINAL_URL = "https://agreed-consumer.example/hook";
+  const PROPOSED_URL = "https://second-consumer.example/hook";
+
+  /** The account that published version 1, and a `forms.approver` holding `prod`. */
+  let author = { token: "", userId: "" };
+  /** A second `forms.approver` holding `prod`: the account the rule needs. */
+  let second = { token: "", userId: "" };
+  /** A `forms.approver` holding `prod` in **another workspace** (criterion 5). */
+  let foreignApprover = "";
+  /** A `forms.approver` in the right workspace holding only `test` (criterion 5). */
+  let testApprover = "";
+  /** A `forms.owner` with no `forms.approver` grant (criterion 5, Q34). */
+  let owner = "";
+  /** A `forms.viewer`, which releases and approves nothing (criterion 5, Q38). */
+  let viewer = "";
+  /** The installation claim with no membership at all (criterion 6). */
+  let claimOnly = "";
+  /** The endpoint the pending changes are about, created before the switch went on. */
+  let webhookId = "";
+
+  /** One account holding exactly one access group, with that role and that scope. */
+  async function approverAccount(
+    label: string,
+    role: string,
+    environments: readonly string[],
+    workspaceId: string = SEED_WORKSPACE_ID,
+  ): Promise<{ token: string; userId: string }> {
+    const account = await seedAdminSession(testDb.db, {
+      label,
+      claim: false,
+      owner: false,
+      grants: [],
+    });
+    const group = await createAccessGroup(testDb.db, {
+      workspaceId,
+      name: `${environments.join("-")}.${role}.${label}`,
+      role,
+      environments,
+      forms: ["all"],
+    });
+    await ensureWorkspaceMember(testDb.db, workspaceId, account.userId);
+    await addAccessGroupHolder(testDb.db, group.teamId, account.userId);
+    return { token: account.token, userId: account.userId };
+  }
+
+  /** The switch, as an owner's `PUT /settings` would leave it (task 069 built that route). */
+  async function setSwitch(on: boolean): Promise<void> {
+    await setRequireSecondApprover(testDb.db, SEED_WORKSPACE_ID, on);
+  }
+
+  /** Release a version into an environment as one account, and answer the response. */
+  async function release(token: string, version: number, environment: string): Promise<Response> {
+    return all.app.request(`/admin/forms/${TWO_PERSON_FORM}/releases`, {
+      method: "POST",
+      headers: headersFor(token, environment, true),
+      body: JSON.stringify({ environment, version }),
+    });
+  }
+
+  /** The version released in one environment right now, or `undefined`. */
+  async function releasedVersion(environment: string): Promise<number | undefined> {
+    const row = await getReleasedVersion(testDb.db, FormId.parse(TWO_PERSON_FORM), environment);
+    return row?.version;
+  }
+
+  /** The endpoint's live URL, read from the environment's own data plane. */
+  async function liveUrl(): Promise<string | undefined> {
+    const row = await getWebhook(
+      testDb.db,
+      FormId.parse(TWO_PERSON_FORM),
+      webhookId,
+    );
+    return row?.url;
+  }
+
+  /** Propose a change to the endpoint's URL as one account; answers the parsed body. */
+  async function proposeUrl(
+    token: string,
+    url: string,
+  ): Promise<{ status: number; proposalId?: string }> {
+    const res = await all.app.request(
+      `/admin/forms/${TWO_PERSON_FORM}/webhooks/${webhookId}`,
+      {
+        method: "PUT",
+        headers: headersFor(token, "prod", true),
+        body: JSON.stringify({ url }),
+      },
+    );
+    if (res.status !== 202) return { status: res.status };
+    const body = (await res.json()) as { proposal: { proposalId: string } };
+    return { status: res.status, proposalId: body.proposal.proposalId };
+  }
+
+  /** Confirm a pending change as one account, in one environment. */
+  async function confirm(
+    token: string,
+    proposalId: string,
+    environment = "prod",
+  ): Promise<Response> {
+    return all.app.request(
+      `/admin/forms/${TWO_PERSON_FORM}/webhooks/proposals/${proposalId}/confirm`,
+      { method: "POST", headers: headersFor(token, environment) },
+    );
+  }
+
+  beforeAll(async () => {
+    author = await approverAccount("two-person-author", "forms.approver", ["prod"]);
+    second = await approverAccount("two-person-second", "forms.approver", ["prod"]);
+    testApprover = (await approverAccount("two-person-test", "forms.approver", ["test"])).token;
+    viewer = (await approverAccount("two-person-viewer", "forms.viewer", ["all"])).token;
+
+    // A `forms.owner` with no approver grant at all (Q34): an owner administers a
+    // workspace and approves nothing, and nothing is implied from the member row.
+    const ownerAccount = await seedAdminSession(testDb.db, {
+      label: "two-person-owner",
+      claim: false,
+      owner: true,
+      grants: [],
+    });
+    owner = ownerAccount.token;
+
+    // The installation claim with **no membership**: the claim administers and reaches no
+    // form, release, link, webhook or response anywhere (Q29).
+    claimOnly = (
+      await seedAdminSession(testDb.db, {
+        label: "two-person-claim",
+        claim: true,
+        membership: false,
+      })
+    ).token;
+
+    // A second workspace, so "an approver from another workspace is refused" is a real
+    // grant in a real workspace rather than an absent one.
+    const [foreign] = await testDb.db
+      .insert(authOrganization)
+      .values({
+        id: `org_two_person_${synthSecret().slice(0, 8)}`,
+        name: "Another workspace",
+        slug: `another-${synthSecret().slice(0, 8)}`,
+        createdAt: new Date("2026-10-22T00:00:00.000Z"),
+      })
+      .returning({ id: authOrganization.id });
+    foreignApprover = (
+      await approverAccount("two-person-foreign", "forms.approver", ["prod"], foreign!.id)
+    ).token;
+
+    await createForm(testDb.db, {
+      workspaceId: SEED_WORKSPACE_ID,
+      formId: FormId.parse(TWO_PERSON_FORM),
+      slug: "two-person-rule",
+      defaultLocale: "en",
+    });
+    // Three versions with three different authors, which is the whole input to criterion 1:
+    // the author is **the account that published the version** (Q51), so the rule needs
+    // versions that differ in exactly that.
+    for (const publishedBy of [author.userId, second.userId, null]) {
+      await insertFormVersion(testDb.db, {
+        formId: FormId.parse(TWO_PERSON_FORM),
+        definition: { formId: TWO_PERSON_FORM, steps: [] } as never,
+        compiled: {} as never,
+        compilerVersion: "0.1.0",
+        a2uiSpecVersion: "0.1.0",
+        semanticsVersion: "1",
+        publishedBy,
+      });
+    }
+
+    // The endpoint, created **before the switch goes on**, which is also criterion 3's
+    // endpoint half: with the rule off a single account configures production at once,
+    // exactly as task 067 built it.
+    const created = await all.app.request(`/admin/forms/${TWO_PERSON_FORM}/webhooks`, {
+      method: "POST",
+      headers: headersFor(author.token, "prod", true),
+      body: JSON.stringify({ url: ORIGINAL_URL }),
+    });
+    expect(created.status, "a prod endpoint with the switch off applies at once").toBe(201);
+    webhookId = ((await created.json()) as { webhookId: string }).webhookId;
+
+    await setSwitch(true);
+  });
+
+  afterAll(async () => {
+    // Back to Q13's default, so nothing after this block inherits the rule.
+    await setSwitch(false);
+  });
+
+  it("refuses a prod release by the account that published the version (criterion 1)", async () => {
+    const before = await releasedVersion("prod");
+    const refused = await release(author.token, 1, "prod");
+    expect(refused.status).toBe(403);
+    expect(((await refused.clone().json()) as { code?: string }).code).toBe("APPROVER_IS_AUTHOR");
+    expectNoPayload(await refused.text());
+    // The effect, not only the status: a refusal that still wrote the release row would
+    // have served the new version in production.
+    expect(await releasedVersion("prod")).toBe(before);
+  });
+
+  it("allows a different prod approver, in one act, and records the approval (criteria 1, 2)", async () => {
+    const allowed = await release(second.token, 1, "prod");
+    expect(allowed.status).toBe(200);
+    const body = (await allowed.json()) as { release: { approvedBy: string | null } };
+    // **On the release row**, which is what makes the approval auditable rather than
+    // procedural: a flow that confirmed in the admin and recorded nothing would satisfy
+    // the screen and fail the audit the rule exists for.
+    expect(body.release.approvedBy).toBe(second.userId);
+    expect(await releasedVersion("prod")).toBe(1);
+
+    // And readable in the history, which is criterion 2's second half.
+    const history = await all.app.request(`/admin/forms/${TWO_PERSON_FORM}/releases`, {
+      headers: headersFor(second.token, "prod"),
+    });
+    expect(history.status).toBe(200);
+    const rows = (await history.json()) as {
+      releases: { version: number; environment: string; approvedBy: string | null }[];
+    };
+    expect(
+      rows.releases.find((row) => row.environment === "prod" && row.version === 1)?.approvedBy,
+    ).toBe(second.userId);
+  });
+
+  it("refuses a prod release of a version whose author is unknown", async () => {
+    // Only reachable for a version published before `published_by` existed. The rule
+    // compares two accounts and one of them is unknown, so the conservative answer is no:
+    // "a different account released it" is not something this deployment can claim.
+    const refused = await release(second.token, 3, "prod");
+    expect(refused.status).toBe(409);
+    expect(((await refused.clone().json()) as { code?: string }).code).toBe(
+      "APPROVER_UNKNOWN_AUTHOR",
+    );
+    expect(await releasedVersion("prod")).toBe(1);
+  });
+
+  it("never asks for an approver outside prod, whatever the switch says (criterion 4)", async () => {
+    // The switch is on for this workspace throughout this block, so this is the case that
+    // keeps a test cycle usable (finding 5): a release to `test` is self-service, and the
+    // author releasing their own version there is the ordinary shape of it.
+    const released = await release(author.token, 1, "test");
+    expect(released.status).toBe(200);
+    const body = (await released.json()) as { release: { approvedBy: string | null } };
+    // No approval recorded, because none was required. A column filled in anyway would
+    // make the history claim a second account had agreed to something.
+    expect(body.release.approvedBy).toBeNull();
+  });
+
+  it("matches task 065 exactly with the switch off (criterion 3)", async () => {
+    // The criterion that protects the default. An implementation that asked for an
+    // approver and then accepted the same account would have changed the default's
+    // behaviour while appearing to keep it.
+    await setSwitch(false);
+    try {
+      const released = await release(author.token, 2, "prod");
+      expect(released.status).toBe(200);
+      const body = (await released.json()) as { release: { approvedBy: string | null } };
+      expect(body.release.approvedBy).toBeNull();
+      expect(await releasedVersion("prod")).toBe(2);
+    } finally {
+      await setSwitch(true);
+    }
+  });
+
+  it("walks every refusal the rule leaves to the grant model (criterion 5)", async () => {
+    const before = await releasedVersion("prod");
+    for (const [label, token] of [
+      // An approver holding `prod` in another workspace: the grant is real and reaches
+      // nothing here, which is ADR-41's whole premise.
+      ["an approver from another workspace", foreignApprover],
+      // The right workspace, the wrong environment scope.
+      ["an approver without prod in scope", testApprover],
+      // Q34: an owner who should approve is given a `forms.approver` grant, which makes
+      // their authority a row somebody can read rather than a rank.
+      ["a forms.owner with no approver grant", owner],
+      // Q38: this role releases nothing and approves nothing.
+      ["a forms.viewer", viewer],
+    ] as const) {
+      const refused = await release(token, 3, "prod");
+      expect(refused.status, label).toBe(403);
+      expectNoPayload(await refused.text());
+    }
+    expect(await releasedVersion("prod")).toBe(before);
+  });
+
+  it("refuses the installation claim a prod release, with or without an author (criterion 6)", async () => {
+    // ADR-41's Q12 Note: the claim administers and reads no data anywhere, and a release
+    // is not administration. So an administrator holding it but no membership cannot
+    // approve - and cannot approve their own release either, which is the same refusal
+    // reached from the other direction.
+    const before = await releasedVersion("prod");
+    for (const version of [1, 3]) {
+      const refused = await release(claimOnly, version, "prod");
+      expect(refused.status, `claim releasing v${version}`).toBe(403);
+      expectNoPayload(await refused.text());
+    }
+    expect(await releasedVersion("prod")).toBe(before);
+  });
+
+  it("holds a prod endpoint change pending and delivers nothing to the new URL (criterion 7)", async () => {
+    const proposed = await proposeUrl(author.token, PROPOSED_URL);
+    expect(proposed.status).toBe(202);
+    expect(proposed.proposalId).toBeDefined();
+    // The property the whole mechanism is for: the live endpoint is untouched, so the
+    // deliverer goes on posting to the URL that was already agreed.
+    expect(await liveUrl()).toBe(ORIGINAL_URL);
+
+    // And it is visible as pending, which is what a second approver reads before agreeing.
+    const pending = await all.app.request(
+      `/admin/forms/${TWO_PERSON_FORM}/webhooks/proposals`,
+      { headers: headersFor(second.token, "prod") },
+    );
+    expect(pending.status).toBe(200);
+    const list = (await pending.json()) as {
+      proposals: { proposalId: string; url: string | null; proposedBy: string }[];
+    };
+    expect(list.proposals.map((row) => row.proposalId)).toContain(proposed.proposalId);
+    expect(list.proposals[0]?.proposedBy).toBe(author.userId);
+  });
+
+  it("refuses the proposer their own confirmation, and refuses every other shape (criterion 7)", async () => {
+    const pending = await all.app.request(
+      `/admin/forms/${TWO_PERSON_FORM}/webhooks/proposals`,
+      { headers: headersFor(second.token, "prod") },
+    );
+    const proposalId = (
+      (await pending.json()) as { proposals: { proposalId: string }[] }
+    ).proposals[0]!.proposalId;
+
+    // 1. The proposer. The rule itself.
+    const own = await confirm(author.token, proposalId);
+    expect(own.status).toBe(403);
+    expect(((await own.clone().json()) as { code?: string }).code).toBe("PROPOSER_CANNOT_CONFIRM");
+
+    // 2. A second account that does not hold `forms.approver` with `prod` in scope. Each
+    //    is refused by the policy row before the handler runs, so none of them can learn
+    //    that the proposal exists either.
+    for (const [label, token] of [
+      ["an approver from another workspace", foreignApprover],
+      ["an approver without prod in scope", testApprover],
+      ["a forms.owner with no approver grant", owner],
+      ["a forms.viewer", viewer],
+      // The claim holder cannot bypass the rule: it holds no `webhook: configure`
+      // anywhere, which is the matrix's shape rather than a check this route makes.
+      ["the installation claim", claimOnly],
+    ] as const) {
+      const refused = await confirm(token, proposalId);
+      expect(refused.status, label).toBe(403);
+      expectNoPayload(await refused.text());
+    }
+
+    // 3. A forged switcher. The proposal is for `prod`; a request whose switcher says
+    //    `test` is authorised against `test`, where an editor suffices, so the handler
+    //    compares the proposal's own environment and answers **not found** rather than
+    //    forbidden - a caller scoped to `test` learns nothing about what is pending in
+    //    production.
+    const forged = await confirm(second.token, proposalId, "test");
+    expect(forged.status).toBe(404);
+
+    // Nothing above changed anything.
+    expect(await liveUrl()).toBe(ORIGINAL_URL);
+  });
+
+  it("applies the change when a different prod approver confirms it (criterion 7)", async () => {
+    const pending = await all.app.request(
+      `/admin/forms/${TWO_PERSON_FORM}/webhooks/proposals`,
+      { headers: headersFor(second.token, "prod") },
+    );
+    const proposalId = (
+      (await pending.json()) as { proposals: { proposalId: string }[] }
+    ).proposals[0]!.proposalId;
+
+    const confirmed = await confirm(second.token, proposalId);
+    expect(confirmed.status).toBe(200);
+    const body = (await confirmed.json()) as {
+      proposal: { confirmedBy: string | null; appliedAt: string | null };
+    };
+    expect(body.proposal.confirmedBy).toBe(second.userId);
+    expect(body.proposal.appliedAt).not.toBeNull();
+    // The positive control, and the only assertion that proves the mechanism does
+    // anything at all: the endpoint is now the proposed one.
+    expect(await liveUrl()).toBe(PROPOSED_URL);
+
+    // And it is no longer pending, so a screen does not offer it twice.
+    const after = await all.app.request(`/admin/forms/${TWO_PERSON_FORM}/webhooks/proposals`, {
+      headers: headersFor(second.token, "prod"),
+    });
+    expect(((await after.json()) as { proposals: unknown[] }).proposals).toHaveLength(0);
+  });
+
+  it("withdraws a pending change without applying it (criterion 7)", async () => {
+    const proposed = await proposeUrl(second.token, "https://withdrawn-consumer.example/hook");
+    expect(proposed.status).toBe(202);
+
+    const withdrawn = await all.app.request(
+      `/admin/forms/${TWO_PERSON_FORM}/webhooks/proposals/${proposed.proposalId}`,
+      { method: "DELETE", headers: headersFor(author.token, "prod") },
+    );
+    expect(withdrawn.status).toBe(200);
+    // Applied to nothing, which is the point: a withdrawal is the second approver
+    // refusing, or the proposer changing their mind, and either way the endpoint is the
+    // one that was already agreed.
+    expect(await liveUrl()).toBe(PROPOSED_URL);
+
+    // A withdrawn proposal cannot then be confirmed by anybody.
+    const late = await confirm(author.token, proposed.proposalId!);
+    expect(late.status).toBe(404);
+  });
+
+  it("refuses a second pending change to the same endpoint", async () => {
+    const first = await proposeUrl(author.token, "https://one-consumer.example/hook");
+    expect(first.status).toBe(202);
+    const secondChange = await proposeUrl(author.token, "https://two-consumer.example/hook");
+    // Two pending changes would make "confirm this one" ambiguous, and confirming the
+    // second would overwrite a value its own confirmer had read in a different screen.
+    expect(secondChange.status).toBe(409);
+
+    // Leave the endpoint with nothing pending for the next case.
+    const cleared = await all.app.request(
+      `/admin/forms/${TWO_PERSON_FORM}/webhooks/proposals/${first.proposalId}`,
+      { method: "DELETE", headers: headersFor(author.token, "prod") },
+    );
+    expect(cleared.status).toBe(200);
+  });
+
+  it("leaves no hole when the switch goes off while a change is pending", async () => {
+    const proposed = await proposeUrl(author.token, "https://switched-off.example/hook");
+    expect(proposed.status).toBe(202);
+
+    await setSwitch(false);
+    try {
+      // Turning the rule off does not apply what was waiting, and it does not make the
+      // proposer's own confirmation acceptable: a proposal that exists carries two
+      // accounts, and the switch governs whether a change **becomes** a proposal rather
+      // than who may confirm one that already is.
+      expect(await liveUrl()).toBe(PROPOSED_URL);
+      const own = await confirm(author.token, proposed.proposalId!);
+      expect(own.status).toBe(403);
+      expect(await liveUrl()).toBe(PROPOSED_URL);
+    } finally {
+      await setSwitch(true);
+    }
+
+    const cleared = await all.app.request(
+      `/admin/forms/${TWO_PERSON_FORM}/webhooks/proposals/${proposed.proposalId}`,
+      { method: "DELETE", headers: headersFor(second.token, "prod") },
+    );
+    expect(cleared.status).toBe(200);
+  });
+
+  it("writes a SEC-15 row for every propose, confirm and withdraw (Q61)", async () => {
+    // The audit half of the mechanism. Counted rather than matched on text: what matters
+    // is that no act changes a production endpoint's pending state without a row, and the
+    // columns Q61 names are filled in because this act names both an environment and a
+    // form.
+    const before = await listAccessAudit(testDb.db, SEED_WORKSPACE_ID, { kind: "setting" });
+    const proposed = await proposeUrl(author.token, "https://audited-consumer.example/hook");
+    expect(proposed.status).toBe(202);
+    const confirmed = await confirm(second.token, proposed.proposalId!);
+    expect(confirmed.status).toBe(200);
+
+    const after = await listAccessAudit(testDb.db, SEED_WORKSPACE_ID, { kind: "setting" });
+    const added = after.rows.filter(
+      (row) => !before.rows.some((earlier) => earlier.id === row.id),
+    );
+    expect(added.length).toBeGreaterThanOrEqual(2);
+    const acts = added.map((row) => row.detail ?? "");
+    expect(acts.some((detail) => detail.includes("act=propose"))).toBe(true);
+    expect(acts.some((detail) => detail.includes("act=confirm"))).toBe(true);
+    for (const row of added) {
+      expect(row.environment).toBe("prod");
+      expect(row.formId).toBe(TWO_PERSON_FORM);
+      // The URL is deliberately absent: the audit is readable by a `forms.owner`, who is
+      // not in the `forms` family at all and whom Q58 never gave an unmasked endpoint URL.
+      expect(row.detail ?? "").not.toContain("audited-consumer.example");
+    }
   });
 });
