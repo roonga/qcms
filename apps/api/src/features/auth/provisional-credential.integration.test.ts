@@ -287,3 +287,243 @@ describe("clearMustChangePassword", () => {
     expect(after?.updatedAt.getTime()).toBeGreaterThanOrEqual(before.updatedAt.getTime());
   });
 });
+
+/**
+ * `/change-password` is atomic, because the drizzle adapter is opted into transactions
+ * (Code Owner, 2026-10-22).
+ *
+ * ## What is being asserted, and why it needs a real database
+ *
+ * `instance.ts` passes `transaction: true` to `drizzleAdapter`, which turns better-auth's
+ * `runWithTransaction` wrap around the session revocation, the credential write and the
+ * replacement session into one `BEGIN`. The property that buys is a negative one - that a
+ * failure part-way through leaves **nothing** behind - and a negative about rollback is
+ * only observable against a database that can roll back. A stub adapter would assert that
+ * a fake transaction was opened, which is the claim already in the type.
+ *
+ * ## How the failure is forced
+ *
+ * With a Postgres trigger that raises on the write under test, which is the only seam that
+ * fails the statement better-auth is in the middle of without reaching into the library.
+ * Each case installs its trigger after the fixture is set up and drops it before the state
+ * is read back, so the reads are ordinary ones.
+ *
+ * Two cases, because the two failure positions lose different things:
+ *
+ * - **The credential write fails**, after the revocation. What must survive is the
+ *   sessions. Untransacted, the `DELETE` has already committed and every other session is
+ *   gone while the old password still works.
+ * - **The replacement session fails**, after the credential write. What must survive is the
+ *   old password **and** the provisional flag. Untransacted, the password has moved while
+ *   the caller is told the change failed, and `runWithTransaction` drains the queued
+ *   `account.update.after` hook anyway on the path where work could not roll back
+ *   (`@better-auth/core/dist/context/transaction.mjs:106`)
+ *   <!-- expect: if (adapter.options?.adapterConfig.transaction === false) --> - so the
+ *   flag is cleared by a change that did not happen.
+ *
+ * Both cases are red with `transaction: false` and green with `transaction: true`, which is
+ * what makes them a test of this configuration rather than of better-auth.
+ */
+describe("a failed /change-password leaves nothing behind (Code Owner, 2026-10-22)", () => {
+  const ATOMIC_EMAIL = "atomic.admin@example.test";
+  const FIRST_PASSWORD = `atomic-first-${Buffer.from(crypto.getRandomValues(new Uint8Array(18))).toString("base64url")}`;
+  const SECOND_PASSWORD = `atomic-second-${Buffer.from(crypto.getRandomValues(new Uint8Array(18))).toString("base64url")}`;
+
+  /**
+   * A second account, so this block shares no state with the ones above.
+   *
+   * They walk one account through a bootstrap and several changes in file order, and a
+   * case that has to know which password is current would be coupled to that order for no
+   * reason. `signUpEmail` marks it provisional by the same `defaultValue` the bootstrap
+   * relies on, which is the starting state these cases need anyway.
+   */
+  beforeAll(async () => {
+    const created = await auth.api.signUpEmail({
+      body: { email: ATOMIC_EMAIL, password: FIRST_PASSWORD, name: "Atomic Admin" },
+      asResponse: true,
+    });
+    expect(created.status).toBe(200);
+  });
+
+  /** The user id, read off the column. */
+  async function atomicUserId(): Promise<string> {
+    const [row] = await testDb.db
+      .select({ id: authUser.id })
+      .from(authUser)
+      .where(eq(authUser.email, ATOMIC_EMAIL));
+    if (row === undefined) throw new Error("the atomicity fixture account is missing");
+    return row.id;
+  }
+
+  /**
+   * The committed state of this account, through {@link TestDb.client}.
+   *
+   * The dedicated client rather than the pool, because what these cases are about is what
+   * survived a rollback: a read has to see committed rows and nothing else.
+   */
+  async function committedState(): Promise<{
+    sessions: number;
+    flag: boolean | null;
+    passwordHash: string | null;
+  }> {
+    const userId = await atomicUserId();
+    const sessions = await testDb.client.query<{ total: string }>(
+      'select count(*)::text as total from control."session" where "userId" = $1',
+      [userId],
+    );
+    const user = await testDb.client.query<{ must_change_password: boolean | null }>(
+      'select "mustChangePassword" as must_change_password from control."user" where id = $1',
+      [userId],
+    );
+    const account = await testDb.client.query<{ password: string | null }>(
+      'select password from control."account" where "userId" = $1 and "providerId" = $2',
+      [userId, "credential"],
+    );
+    return {
+      sessions: Number(sessions.rows[0]?.total ?? "0"),
+      flag: user.rows[0]?.must_change_password ?? null,
+      passwordHash: account.rows[0]?.password ?? null,
+    };
+  }
+
+  /** Install a trigger that refuses one statement on one table, and hand back its undo. */
+  async function refuse(
+    table: "session" | "account",
+    event: "insert" | "update",
+  ): Promise<() => Promise<void>> {
+    const name = `qcms_refuse_${table}_${event}`;
+    await testDb.client.query(
+      `create or replace function control.${name}() returns trigger as $$ ` +
+        `begin raise exception 'refused by the atomicity test'; end; $$ language plpgsql`,
+    );
+    await testDb.client.query(
+      `create trigger ${name} before ${event} on control."${table}" ` +
+        `for each row execute function control.${name}()`,
+    );
+    return async () => {
+      await testDb.client.query(`drop trigger if exists ${name} on control."${table}"`);
+      await testDb.client.query(`drop function if exists control.${name}()`);
+    };
+  }
+
+  /**
+   * Attempt the change and say how it ended.
+   *
+   * A trigger's `RAISE` reaches this caller as a thrown `pg` error rather than as a non-2xx
+   * body, `asResponse` or not: better-auth maps its own `APIError` to a response and lets
+   * anything else out. So the outcome is read off which way the call left, and a refusal
+   * these cases provoked deliberately is not re-thrown - what each one asserts is the state
+   * afterwards.
+   */
+  async function attemptChange(cookie: string): Promise<"ok" | "threw"> {
+    try {
+      const response = await auth.api.changePassword({
+        body: {
+          currentPassword: FIRST_PASSWORD,
+          newPassword: SECOND_PASSWORD,
+          revokeOtherSessions: true,
+        },
+        headers: new Headers({ cookie }),
+        asResponse: true,
+      });
+      return response.ok ? "ok" : "threw";
+    } catch {
+      return "threw";
+    }
+  }
+
+  /** Sign this account in, returning the cookie header. */
+  async function signInAtomic(password: string): Promise<string> {
+    const response = await auth.api.signInEmail({
+      body: { email: ATOMIC_EMAIL, password },
+      asResponse: true,
+    });
+    expect(response.status).toBe(200);
+    return response.headers
+      .getSetCookie()
+      .map((cookie) => cookie.split(";")[0])
+      .join("; ");
+  }
+
+  it("keeps the sessions when the credential write fails after the revocation", async () => {
+    const cookie = await signInAtomic(FIRST_PASSWORD);
+    // A second session, so "the revocation was rolled back" is a claim about more than the
+    // caller's own row: `revokeOtherSessions` deletes every session this account holds.
+    await signInAtomic(FIRST_PASSWORD);
+    const before = await committedState();
+    expect(before.sessions).toBeGreaterThanOrEqual(2);
+
+    const undo = await refuse("account", "update");
+    const outcome = await attemptChange(cookie);
+    await undo();
+    // Establish that the attempt really failed: a success here would make everything below
+    // vacuous.
+    expect(outcome).toBe("threw");
+
+    const after = await committedState();
+    // The rollback, stated as the three rows it covers.
+    expect(after.sessions).toBe(before.sessions);
+    expect(after.passwordHash).toBe(before.passwordHash);
+    expect(after.flag).toBe(true);
+    // And the credential really did not move, which the hash comparison implies and a
+    // sign-in proves: the old password is still the password.
+    await signInAtomic(FIRST_PASSWORD);
+  });
+
+  it("keeps the old password and the provisional flag when the replacement session fails", async () => {
+    const cookie = await signInAtomic(FIRST_PASSWORD);
+    const before = await committedState();
+    expect(before.flag).toBe(true);
+    expect(before.sessions).toBeGreaterThanOrEqual(1);
+
+    // Refusing the `session` insert fails the wrap at its last step, with the revocation
+    // and the credential write already issued inside it.
+    const undo = await refuse("session", "insert");
+    const outcome = await attemptChange(cookie);
+    await undo();
+    expect(outcome).toBe("threw");
+
+    const after = await committedState();
+    // Task 061's fail-closed half first, because it is the one this configuration changed:
+    // the flag is cleared by a password change that commits and by nothing else.
+    // Untransacted this reads `false`, cleared by the queued hook on a change the caller
+    // was told had failed.
+    expect(after.flag).toBe(true);
+    expect(after.passwordHash).toBe(before.passwordHash);
+    expect(after.sessions).toBe(before.sessions);
+
+    // The account is still usable with the password it had, and still gated.
+    const body = await auth.api.getSession({
+      headers: new Headers({ cookie: await signInAtomic(FIRST_PASSWORD) }),
+      asResponse: true,
+    });
+    expect(body.status).toBe(200);
+    expect(((await body.json()) as { user?: { mustChangePassword?: unknown } }).user
+      ?.mustChangePassword).toBe(true);
+  });
+
+  it("commits all three rows together when nothing fails", async () => {
+    // The positive case, so the two negatives above cannot pass by the endpoint being
+    // broken for every input: one session replaces the set, the credential moves, and the
+    // flag clears, in one act.
+    const cookie = await signInAtomic(FIRST_PASSWORD);
+    await signInAtomic(FIRST_PASSWORD);
+    const before = await committedState();
+
+    const changed = await auth.api.changePassword({
+      body: {
+        currentPassword: FIRST_PASSWORD,
+        newPassword: SECOND_PASSWORD,
+        revokeOtherSessions: true,
+      },
+      headers: new Headers({ cookie }),
+      asResponse: true,
+    });
+    expect(changed.ok).toBe(true);
+
+    const after = await committedState();
+    expect(after.sessions).toBe(1);
+    expect(after.passwordHash).not.toBe(before.passwordHash);
+    expect(after.flag).toBe(false);
+  });
+});

@@ -620,6 +620,63 @@ export function createAdminAuth(input: AdminAuthInput) {
   return betterAuth({
     database: drizzleAdapter(input.db, {
       provider: "pg",
+      // **Real database transactions for better-auth's multi-step writes** (Code Owner,
+      // 2026-10-22).
+      //
+      // The adapter's own default is `false`
+      // (`@better-auth/drizzle-adapter/dist/index.mjs:563`)
+      // <!-- expect: transaction: config.transaction ?? false -->, and the adapter factory
+      // defaults the same flag the same way
+      // (`@better-auth/core/dist/db/adapter/factory.mjs:31`)
+      // <!-- expect: transaction: cfg.transaction ?? false --> before resolving
+      // `adapter.transaction` to `createAsIsTransaction`
+      // (`@better-auth/core/dist/db/adapter/factory.mjs:422`)
+      // <!-- expect: lazyLoadTransaction = createAsIsTransaction(adapter) -->, which hands
+      // the callback the very adapter it already had
+      // (`@better-auth/core/dist/db/adapter/factory.mjs:18`)
+      // <!-- expect: (adapter) => (fn) => fn(adapter) -->. Left at the default, a
+      // `runWithTransaction` wrap is an async-local scope and nothing more: the writes
+      // inside it are applied as they happen and none of them rolls back.
+      //
+      // That default is wrong for this deployment because of `/change-password`, which
+      // since 1.7.8 wraps the session revocation, the credential write and the
+      // replacement session in one such wrap
+      // (`dist/api/routes/update-user.mjs:173`)
+      // <!-- expect: const newSession = await runWithTransaction( -->. Without a real
+      // transaction a failure part-way through leaves a partial result the admin cannot
+      // see and cannot undo: every session revoked while the old password still works, or
+      // the password moved while the caller is told it did not. SEC-1 asks a password
+      // change to revoke the other sessions, and it is one act, so it commits as one.
+      //
+      // Passing `true` makes the adapter's `transaction` a function rather than `false`,
+      // and that single value decides two behaviours at once
+      // (`@better-auth/core/dist/context/transaction.mjs:65-110`)
+      // <!-- expect: result = await adapter.transaction( -->: the wrapped work runs in a
+      // `db.transaction` on this process's Drizzle handle, and the hooks queued inside it
+      // are drained **only after the commit**, where before they were drained on the
+      // failing path too (`@better-auth/core/dist/context/transaction.mjs:106`)
+      // <!-- expect: if (adapter.options?.adapterConfig.transaction === false) -->. The
+      // second half is what makes task 061's `databaseHooks.account.update.after` below
+      // fail closed: a change that does not commit no longer clears the provisional flag.
+      //
+      // `input.db` is a top-level Drizzle handle over a `pg.Pool` in every caller - the
+      // composition root passes `deps.databases.control` (`features/auth/route.ts`),
+      // `qcms:create-admin` builds its own, and the integration suites use the test
+      // harness's - so `db.transaction` opens a real `BEGIN` on one pooled connection.
+      // `Executor` is the `PgDatabase` supertype of both that handle and a `PgTransaction`
+      // (`packages/db/src/queries/executor.ts`), and were a transaction handle ever passed
+      // in, Drizzle would nest the adapter's transaction as a savepoint rather than fail.
+      //
+      // **Connection cost, because a transaction holds one.** Three endpoints open one
+      // (`/change-password`, and the challenge-cookie consume inside
+      // `/two-factor/verify-totp` and `/two-factor/verify-backup-code`), each for a few
+      // statements and no network call: password hashing and the breach-corpus lookup both
+      // happen before the wrap is entered. Nothing inside a transaction asks the pool for a
+      // second connection - our one `databaseHooks` entry writes through `input.db`, and it
+      // is an after-hook that runs once the commit has released the first - so the pool
+      // cannot deadlock against itself here. The control pool is node-postgres' default
+      // size (`apps/api/src/environments.ts` opens it with no `max`), which is ten.
+      transaction: true,
       // Explicit model-to-table mapping: `@roonga/qcms-db`'s exported names are prefixed
       // (`authUser`) to keep them apart from the domain tables, while better-auth
       // addresses its models unprefixed. Without the map the adapter would look for
@@ -810,15 +867,15 @@ export function createAdminAuth(input: AdminAuthInput) {
            * belt on braces - but a deployment that adds one must not have its flag
            * cleared by a token refresh, and the guard is cheaper than the incident.
            *
-           * ## Ordering, and why this is not "after the commit"
+           * ## Ordering, and why the commit is what this hook waits for
            *
            * `update.after` hooks are queued through `queueAfterTransactionHook`,
-           * which runs the hook inline when no scope is open and pushes it onto the
-           * open scope's pending list otherwise:
+           * which runs the hook inline when no transaction is open and pushes it
+           * onto the pending list otherwise:
            * `@better-auth/core/dist/context/transaction.mjs:139`
            * <!-- expect: if (!store?.isTransactionActive) return executeHook(); -->,
-           * and `runWithTransaction` drains that list once the work it wrapped has
-           * returned (`@better-auth/core/dist/context/transaction.mjs:90,109`)
+           * and `runWithTransaction` drains that list
+           * (`@better-auth/core/dist/context/transaction.mjs:90,109`)
            * <!-- expect: for (const hook of pendingHooks) -->.
            * Since 1.7.8 the branch that is live here is the deferred one:
            * `/change-password` wraps the session revocation and the account write in
@@ -826,33 +883,27 @@ export function createAdminAuth(input: AdminAuthInput) {
            * <!-- expect: const newSession = await runWithTransaction( -->, where
            * before the write was unwrapped and the hook ran inline.
            *
-           * **That wrap is an async-local scope here, not a database transaction,
-           * so there is no commit to be after and nothing that rolls back.**
-           * `createAdminAuth` passes no `transaction` option to `drizzleAdapter`, so
-           * the adapter advertises none
-           * (`@better-auth/drizzle-adapter/dist/index.mjs:563`)
-           * <!-- expect: transaction: config.transaction ?? false -->; the adapter
-           * factory defaults the same flag to `false`
-           * (`@better-auth/core/dist/db/adapter/factory.mjs:31`)
-           * <!-- expect: transaction: cfg.transaction ?? false --> and then resolves
-           * `adapter.transaction` to `createAsIsTransaction`
-           * (`@better-auth/core/dist/db/adapter/factory.mjs:422`)
-           * <!-- expect: lazyLoadTransaction = createAsIsTransaction(adapter) -->,
-           * which hands the callback the very adapter it already had
-           * (`@better-auth/core/dist/db/adapter/factory.mjs:18`)
-           * <!-- expect: (adapter) => (fn) => fn(adapter) -->.
-           * The session revocation and the account write are therefore applied as
-           * they happen. What the wrap does buy is the scope itself, and that is
-           * what defers this hook rather than running it inline.
+           * **And since `transaction: true` on the adapter above (Code Owner,
+           * 2026-10-22) that wrap is a real `BEGIN`, which is what makes the clearing
+           * fail closed.** The drain happens once, after the commit, and the failing
+           * path skips it: the branch that runs queued hooks over work that could not
+           * roll back is guarded on the adapter advertising no transaction
+           * (`@better-auth/core/dist/context/transaction.mjs:106`)
+           * <!-- expect: if (adapter.options?.adapterConfig.transaction === false) -->,
+           * which is no longer this instance. So a `/change-password` that throws after
+           * the credential write - the replacement session failing to insert, say - rolls
+           * the write back **and** leaves the flag set, where before it would have rolled
+           * nothing back and cleared the flag anyway.
+           * `provisional-credential.integration.test.ts` asserts both halves against a
+           * real Postgres rather than against this paragraph.
            *
-           * What this flag needs from all that is ordering, and the ordering holds:
-           * the hook is queued during the account write, drained after the wrapped
-           * work has succeeded, and awaited before the endpoint answers - so the
-           * very next `get-session` the admin makes, the one on the redirect after
-           * the form POST, already sees the cleared flag. The write goes through
-           * this process's own executor rather than the library's adapter, which is
-           * correct on both paths: there is no transaction to join, and the hook has
-           * in any case been deferred until after the write it reacts to.
+           * On the success path nothing about the timing changed: the drain is awaited
+           * before the endpoint answers, so the very next `get-session` the admin makes -
+           * the one on the redirect after the form POST - already sees the cleared flag.
+           * The write goes through this process's own executor rather than the library's
+           * adapter, which is what keeps it off the transaction's connection: by the time
+           * the hook runs the commit has returned that connection to the pool, so this
+           * update takes a fresh one and cannot block on rows the transaction held.
            */
           after: async (account) => {
             const row = account as { readonly providerId?: unknown; readonly userId?: unknown };
