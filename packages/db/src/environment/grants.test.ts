@@ -123,8 +123,10 @@ describe("the grant registry", () => {
     // control` reaches `access_audit` and `two_factor_resets` once those tables exist,
     // and the two revokes are what take the extra privileges back. On a fresh migrate the
     // tables do not exist yet, so a reversed order would pass every other test here.
-    const controlRole = regrantedText.indexOf("ON ALL TABLES IN SCHEMA \"control\"");
-    const auditRevoke = regrantedText.indexOf("REVOKE UPDATE, DELETE ON TABLE control.access_audit");
+    const controlRole = regrantedText.indexOf('ON ALL TABLES IN SCHEMA "control"');
+    const auditRevoke = regrantedText.indexOf(
+      "REVOKE UPDATE, DELETE ON TABLE control.access_audit",
+    );
     const migrateOnly = regrantedText.lastIndexOf("two_factor_resets FROM %I");
     expect(controlRole).toBeGreaterThan(-1);
     expect(auditRevoke).toBeGreaterThan(controlRole);

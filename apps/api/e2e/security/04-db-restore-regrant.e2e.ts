@@ -77,8 +77,15 @@ const QCMS_SCHEMAS = [
 ] as const;
 const DML = ["SELECT", "INSERT", "UPDATE", "DELETE"] as const;
 
-/** Where the dump lands inside the container. */
-const DUMP_PATH = "/tmp/qcms-restore-regrant.sql";
+/**
+ * Where the dump lands inside the container.
+ *
+ * `/var/lib/postgresql` rather than `/tmp`: the directory is the `postgres` user's own
+ * inside a container this test alone owns, so there is no shared-temp race and no
+ * sticky-bit question to reason about. `sonarjs/publicly-writable-directories` is right
+ * to ask about `/tmp`, and the answer here is to not use it.
+ */
+const DUMP_PATH = "/var/lib/postgresql/qcms-restore-regrant.sql";
 
 let testDb: TestDb;
 /** Superuser connection: the "as a superuser or the database owner" the recipe asks for. */
@@ -189,7 +196,10 @@ async function tablePrivileges(
     [schema, role],
   );
   const byTable: Record<string, string[]> = {};
-  for (const row of res.rows) (byTable[row.table_name] ??= []).push(row.privilege_type);
+  for (const row of res.rows) {
+    const privileges = (byTable[row.table_name] ??= []);
+    privileges.push(row.privilege_type);
+  }
   return byTable;
 }
 

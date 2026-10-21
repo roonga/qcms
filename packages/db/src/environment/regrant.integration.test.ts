@@ -164,7 +164,13 @@ describe("the re-grant subcommand", { timeout: REGRANT_TIMEOUT_MS }, () => {
     // requirement of the ruling, asserted as an equality.
     const expected = await grantMap(owner);
     for (const role of APPLICATION_ROLES) {
-      for (const schema of ["control", "data_test", "data_prod", "reporting_test", "reporting_prod"]) {
+      for (const schema of [
+        "control",
+        "data_test",
+        "data_prod",
+        "reporting_test",
+        "reporting_prod",
+      ]) {
         await owner.query(`REVOKE ALL ON ALL TABLES IN SCHEMA ${schema} FROM ${role}`);
         await owner.query(`REVOKE ALL ON ALL SEQUENCES IN SCHEMA ${schema} FROM ${role}`);
         await owner.query(`REVOKE ALL ON SCHEMA ${schema} FROM ${role}`);
@@ -241,7 +247,9 @@ describe("the re-grant subcommand", { timeout: REGRANT_TIMEOUT_MS }, () => {
     // A restored database carries the live set inside the dump, so an empty table means
     // the restore did not land the control plane - which is worth a refusal rather than a
     // report of zero statements that reads as success.
-    await owner.query(`create table control.environments_regrant_backup as table control.environments`);
+    await owner.query(
+      `create table control.environments_regrant_backup as table control.environments`,
+    );
     await owner.query(`delete from control.environments where name = 'staging'`);
     await owner.query(`alter table control.form_releases disable trigger all`);
     await owner.query(`delete from control.form_releases`);
