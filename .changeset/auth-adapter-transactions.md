@@ -23,3 +23,9 @@ flag could be cleared by a change that did not take.
 The option is now `true`, and the generated comment carries the reasoning with vendor
 citations. A scaffolded project inherits the fix on its next generation; an existing one
 adds `transaction: true` beside `provider: "pg"` in that file.
+
+**This supersedes the entry earlier in this release** that described the same wrap as an
+async-local scope and the hook as ordered rather than atomic
+(`.changeset/create-qcms-app-change-password-hook-scope.md`). That entry was accurate about
+the configuration it found, and it is what prompted this one: the reason the wrap had no
+rollback was a default nobody had chosen. Both lines belong in the changelog in that order.
