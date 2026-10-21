@@ -803,7 +803,7 @@ The create response carries the comment it made, so `--jq .body` on the POST is 
 
 ### Triaging a Dependabot pull request
 
-A bump arrives red, and none of the red is about the bump: the bot edits manifests and writes neither the changeset `check:changeset` wants nor the scaffolding template re-sync `check:templates` wants. One command from the bot's branch fixes both (issues #421 and #834):
+A bump arrives red, and none of the red is about the bump: the bot edits manifests and writes neither the changeset `check:changeset` wants nor the scaffolding template re-sync `check:templates` wants. For an **npm** bump, one command from the bot's branch fixes both (issues #421 and #834); a `docker/` base-image digest bump is the exception and has its own recipe two paragraphs down.
 
 ```sh
 gh pr checkout <number>
@@ -814,6 +814,17 @@ pnpm verify
 **One thing to check by eye before the gates: a `codemirror` group pull request must carry all six `@codemirror/*` packages** (issue #712, `CONTRIBUTING.md`, "Dependabot grouping"). They are exact-pinned and depend on each other through `^6` ranges, so a subset resolves two copies of a shared package and `next build` fails on a `TS2345` that names `KeyBinding` rather than any version. `pnpm exec turbo run typecheck --filter=qcms-admin` passes with that tree, so the package-scoped typecheck will not tell you.
 
 Run it without `--write` first if you want to read what it would say. It refuses, naming the file, when the branch carries anything it cannot honestly call dependency maintenance - a source file, an `exports` edit, an app change that would ride into the scaffold - and that refusal is the point: a bot pull request should be red for a reason specific to it. Whatever `verify` reports after that one command is about the dependencies.
+
+**A `docker/` base-image digest bump is the one shape that command does not cover, and it says so rather than guessing** (issues #1003, #1072). The `base-images` group moves the `FROM` digests in `docker/*.Dockerfile`, and `packages/create-qcms-app/templates/common/docker/*.Dockerfile.tmpl` are generated from those files - but a `.Dockerfile.tmpl` is not a generated app manifest, which is the only template shape `scripts/dependabot-changeset.mjs` can describe as a dependency range moving. So it exits 1 with "regenerating the scaffolding templates changed files that are not generated app manifests, so this is not a dependency-only bump", lists the three `.Dockerfile.tmpl` paths, and then says to write the changeset by hand with `pnpm changeset`, describing what actually changed. That is the instruction, not a failure to work around:
+
+```sh
+gh pr checkout <number>
+pnpm qcms:sync-templates   # regenerates the three .Dockerfile.tmpl copies
+pnpm changeset             # one hand-written `create-qcms-app: patch` entry
+pnpm verify
+```
+
+`.changeset/create-qcms-app-node-base-digest-1003.md` and the changeset #1072 landed on `main` are the shape to copy: name the digest that moved, say that the tag, the stages and the user are unchanged, and say what the new digest resolves to, since the Node patch level inside it is what has to clear the workspace `engines` floor.
 
 ## Human gates
 

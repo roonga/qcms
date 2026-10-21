@@ -37,8 +37,11 @@ import { trackedFilesUnder } from "./tracked-files.mjs";
  * `v6` resolved to the `v6.0.10` commit - so two jobs in this repository were running a
  * different release of the same action from the other six, and nothing in the tree said
  * which. That is the whole defect class in one line: the reference did not name what ran.
- * All eight now name the `v6.0.10` commit, which is the release the Code Owner chose as the
- * single pin because it carries a patched bundled pnpm (SEC-11, issue #948).
+ * #948 brought all eight to one commit SHA, which at the time was the `v6.0.10` release -
+ * the one the Code Owner chose as the single pin because it carries a patched bundled pnpm
+ * (SEC-11, issue #948). Dependabot's `actions` group has moved that pin since and will move
+ * it again, so what the eight lines name today is in `.github/workflows/**` and is not
+ * repeated here; this file asserts the shape of a pin, never a particular digit.
  *
  * ## Where the rule lives, and why not here
  *
