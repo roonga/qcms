@@ -433,6 +433,16 @@ export const FormVersionSummary = z
     compilerVersion: z.string().openapi({ example: "0.1.0" }),
     a2uiSpecVersion: z.string().openapi({ example: "0.1.0" }),
     semanticsVersion: z.string().openapi({ example: "1" }),
+    /**
+     * The account that published this version, or null for one published before the
+     * column existed (task 070).
+     *
+     * **This is the author Q51's two-person rule compares against**, which is why it rides
+     * the version summary rather than a read of its own: the release screen has the version
+     * list in hand and needs to be able to say "you published this one" *before* the
+     * operator presses anything, rather than after a refusal.
+     */
+    publishedBy: z.string().nullable().openapi({ example: "usr_alice" }),
   })
   .openapi("FormVersionSummary");
 
@@ -464,6 +474,20 @@ export const FormDetailResponse = z
      * `challengeRequired` is unenforceable the moment the form opens.
      */
     challengeEnforceable: ChallengeEnforceable,
+    /**
+     * Whether this form's workspace requires a second approver for production (Q13, Q30,
+     * Q32; task 070), read from the workspace's `requireSecondApprover` field.
+     *
+     * A **behaviour statement about this form**, not a workspace setting read: the
+     * membership screens are an owner's (Q35) and an approver holds no grant on them, so a
+     * screen that needed the workspace row to tell an approver the rule applies could not
+     * get it. It rides the detail read the release and the endpoint screens already make.
+     *
+     * It is not a secret and not a flag value in ADR-24's sense: it says what this
+     * deployment will do with the operator's next release, which is exactly what a screen
+     * has to say before the operator acts rather than after a 403.
+     */
+    requiresSecondApprover: z.boolean().openapi({ example: false }),
   })
   .openapi("FormDetailResponse");
 

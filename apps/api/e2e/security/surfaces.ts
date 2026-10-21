@@ -560,6 +560,37 @@ export const SURFACES: readonly Surface[] = [
     anonymousReachable: false,
   },
   {
+    // The pending `prod` endpoint change (Q30, Q51; task 070). Three surfaces, because
+    // the mechanism is three acts and each is its own cell of the matrix: the read is the
+    // endpoint read's, and the confirm and the withdraw are `webhook: configure` in the
+    // environment the switcher selects, which in `prod` is a `forms.approver`'s alone.
+    name: "GET /admin/forms/{id}/webhooks/proposals",
+    row: "links-webhooks",
+    group: "admin",
+    method: "GET",
+    path: (ctx) => `/admin/forms/${ctx.formId}/webhooks/proposals`,
+    anonymousReachable: false,
+    readControl: true,
+  },
+  {
+    name: "POST /admin/forms/{id}/webhooks/proposals/{proposalId}/confirm",
+    row: "links-webhooks",
+    group: "admin",
+    method: "POST",
+    // A proposal id this fixture never minted: the gate has to refuse the credential
+    // shape before the handler ever looks it up, which is what these probes assert.
+    path: (ctx) => `/admin/forms/${ctx.formId}/webhooks/proposals/wep_notreal/confirm`,
+    anonymousReachable: false,
+  },
+  {
+    name: "DELETE /admin/forms/{id}/webhooks/proposals/{proposalId}",
+    row: "links-webhooks",
+    group: "admin",
+    method: "DELETE",
+    path: (ctx) => `/admin/forms/${ctx.formId}/webhooks/proposals/wep_notreal`,
+    anonymousReachable: false,
+  },
+  {
     name: "GET /admin/forms/{id}/deliveries",
     row: "links-webhooks",
     group: "admin",

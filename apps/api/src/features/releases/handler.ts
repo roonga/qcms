@@ -14,11 +14,18 @@
  *     session started *after* it resolves, in that environment alone, and there is no
  *     write path here that could touch `sessions`: the control pool holds no privilege on
  *     that table in any environment.
- *   - **No approval rule.** The `approvedBy` column is written by task 070's two-person
- *     rule for `prod` (Q51). This task records the column and enforces nothing.
- *   - **No membership check.** These screens are not gated by a workspace role, because
- *     the role and its scope arrive with tasks 068 and 069; adding a check before they
- *     exist would be inventing it.
+ *   - **No re-pin of a live session** (ADR-07, invariant I4, Q5) - see above.
+ *
+ * **The approval rule arrived with task 070** (Q51). A release to `prod` in a workspace
+ * whose `requireSecondApprover` switch is on is **one act** by a `forms.approver` who is
+ * not the account that published the version, and the approving account is written to
+ * `form_releases.approved_by` so the approval is a row somebody can read rather than a UI
+ * step (`../membership/two-person.ts`). With the switch off, which is the default, nothing
+ * is compared and nothing is written: the row is the row task 065 wrote.
+ *
+ * **The membership check is the middleware's** (task 069): `release: create` in the
+ * environment the body names, with the matrix's production split meaning a `forms.editor`
+ * holding `prod` in scope is still refused it. Nothing here re-asks that question.
  */
 
 import type { RouteHandler } from "@hono/zod-openapi";
@@ -40,6 +47,7 @@ import type { Deps } from "../../deps.js";
 import { ApiError } from "../../errors.js";
 import type { ApiEnv } from "../../openapi.js";
 import { holdsInstallationClaim } from "../membership/resolver.js";
+import { approvalForRelease } from "../membership/two-person.js";
 import { recordRelease } from "./release.js";
 import type { environmentSetRoute, releaseHistoryRoute, releaseVersionRoute } from "./route.js";
 
@@ -192,6 +200,22 @@ export function makeReleaseVersionHandler(
     const principal = c.get("adminPrincipal");
     if (principal === undefined) throw fail.noPrincipal();
 
+    // **The two-person rule** (Q13, Q30, Q51; task 070), outside the transaction because
+    // it is a refusal and costs no database work when it refuses. It answers the account
+    // to record as the approver, or `undefined` when no approval was required - which is
+    // every release outside `prod` and every release in a workspace whose switch is off.
+    //
+    // The author is the version's `published_by`: the account that **published** it, not
+    // whoever last edited the draft (Q51). `version` was read above, so this costs no
+    // extra round trip beyond the workspace read the switch needs.
+    const approvedBy = await approvalForRelease(deps.databases.control, {
+      workspaceId: c.get("grantContext")?.workspaceId ?? form.workspaceId,
+      environment,
+      version: body.version,
+      author: version.publishedBy,
+      releasedBy: principal.userId,
+    });
+
     // **The `ALREADY_RELEASED` check runs inside the transaction**, with the read that
     // decides the response's `replacedVersion` and `rollback`. It was outside, which left
     // two windows rather than one convenience: a concurrent release could land between
@@ -217,6 +241,10 @@ export function makeReleaseVersionHandler(
           environment,
           version: body.version,
           releasedBy: principal.userId,
+          // The approval, on the release record, which is what makes it auditable rather
+          // than procedural (ADR-41) and readable in the history (criterion 2). `undefined`
+          // where none was required, so the column stays null exactly as task 065 left it.
+          approvedBy,
           fromEnvironment,
           // Intake stays as it was: releasing a version into a closed environment does
           // not resume it (Q18). A first release has no current state and lands open.

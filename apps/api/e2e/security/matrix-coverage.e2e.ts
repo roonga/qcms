@@ -206,6 +206,12 @@ describe("the §3.2 matrix and the probe inventory stay in step", () => {
       "/admin/me/access",
       "/admin/workspaces/{id}/members",
       "/admin/workspaces/{id}/access-groups",
+      // The pending `prod` endpoint change (Q30, Q51; task 070). Its own prefix even
+      // though `/admin/forms/{id}/webhooks` above matches it as a substring, because it is
+      // a gate somebody could forget independently of the endpoint routes: these three are
+      // the two-person rule's own surface, and a probe set that lost them would still cover
+      // the endpoint slice and claim the same coverage.
+      "/admin/forms/{id}/webhooks/proposals",
     ]) {
       expect(
         adminPaths.some((path) => path.includes(slice)),

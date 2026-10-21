@@ -53,6 +53,17 @@ export interface ReleaseInput {
   /** Where it was promoted from, absent for a first release or a hotfix (Q4). */
   readonly fromEnvironment?: string | undefined;
   /**
+   * The approving account, where the two-person rule required one (Q51, task 070), and
+   * **absent where it did not** - which is every release outside `prod` and every release
+   * in a workspace whose `requireSecondApprover` switch is off.
+   *
+   * The caller decides it, because deciding it is a refusal as well as a value
+   * (`../membership/two-person.ts`): a release the rule refuses never reaches this
+   * function. What rides the transaction here is only the recording, so an approval cannot
+   * be observed without the release it approved, nor the release without its approval.
+   */
+  readonly approvedBy?: string | undefined;
+  /**
    * Whether this row leaves the environment **closed** to new sessions (Q18, task 066).
    *
    * The caller reads the environment's current value and passes it, which is what makes
@@ -82,6 +93,7 @@ export async function recordRelease(tx: Executor, input: ReleaseInput): Promise<
     version: input.version,
     releasedBy: input.releasedBy,
     fromEnvironment: input.fromEnvironment ?? null,
+    approvedBy: input.approvedBy ?? null,
     closed: input.closed ?? false,
   });
   await enqueueInEnvironment(tx, input.environment, {
@@ -93,6 +105,11 @@ export async function recordRelease(tx: Executor, input: ReleaseInput): Promise<
       fromEnvironment: release.fromEnvironment,
       releasedBy: release.releasedBy,
       releasedAt: release.releasedAt.toISOString(),
+      // The approving account where the two-person rule required one (Q51, task 070), and
+      // null where it did not. On the event for the reason `releasedBy` is: a consumer
+      // reading "version 4 is released to prod" and acting on it should not have to come
+      // back and ask who agreed to it.
+      approvedBy: release.approvedBy,
       // The intake state the release leaves behind (Q18). On the event because a
       // consumer reading "version 4 is released to prod" and acting on it would
       // otherwise have no way to know prod is not accepting sessions.

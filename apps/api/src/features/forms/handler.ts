@@ -77,6 +77,7 @@ import {
   getForm,
   getFormVersion,
   getLatestPublishedVersion,
+  getWorkspace,
   insertFormVersion,
   listForms,
   listQuestionOwnership,
@@ -94,6 +95,7 @@ import { challengeEnforceable } from "../../config.js";
 import type { Deps } from "../../deps.js";
 import { ApiError } from "../../errors.js";
 import { workspaceFilterFor } from "../membership/context.js";
+import { approvalForRelease } from "../membership/two-person.js";
 import type { ApiEnv } from "../../openapi.js";
 import { recordRelease } from "../releases/release.js";
 import { resolveWorkspaceForNewObject } from "../workspaces/resolve.js";
@@ -805,6 +807,7 @@ export function makeGetFormHandler(deps: Deps): RouteHandler<typeof getFormRoute
 
     const versions = await listFormVersions(deps.databases.control, formId);
     const openDraft = await getDraft(deps.databases.control, formId);
+    const workspace = await getWorkspace(deps.databases.control, form.workspaceId);
     const environmentState = await getFormEnvironmentState(
       deps.databases.control,
       formId,
@@ -842,6 +845,8 @@ export function makeGetFormHandler(deps: Deps): RouteHandler<typeof getFormRoute
           compilerVersion: v.compilerVersion,
           a2uiSpecVersion: v.a2uiSpecVersion,
           semanticsVersion: v.semanticsVersion,
+          // The author Q51's two-person rule compares a `prod` release against (task 070).
+          publishedBy: v.publishedBy,
         })),
         // The abuse-control settings ride the detail read (033's settings panel)
         // rather than getting a GET of their own: they live on the identity row
@@ -856,6 +861,12 @@ export function makeGetFormHandler(deps: Deps): RouteHandler<typeof getFormRoute
         // panel can warn on load that `challengeRequired` is unenforceable
         // (033), rather than only discovering it after a write.
         challengeEnforceable: challengeEnforceable(deps.config.flags),
+        // Whether the two-person rule applies to a `prod` release of this form (Q13, Q30;
+        // task 070). On the detail read for the reason `challengeEnforceable` is: the
+        // screen has to be able to say the rule applies *before* the operator presses
+        // anything, and the workspace row it comes from is an owner's to read (Q35) while
+        // the account that needs to be told is the approver's.
+        requiresSecondApprover: workspace?.requireSecondApprover ?? false,
       },
       200,
     );
@@ -1757,12 +1768,21 @@ async function freezeDraft(
   return { snapshot, compiled: compileForm(snapshot, {}) };
 }
 
-/** Freeze the version and drop the draft, in the caller's transaction (§11). */
+/**
+ * Freeze the version and drop the draft, in the caller's transaction (§11).
+ *
+ * `publishedBy` is **the author the two-person rule compares against** (Q51, task 070):
+ * the account that published this version. It is frozen here, with the snapshot, because
+ * `form_versions` is append-only and no later write can fill it in - and because Q51's
+ * author is the publisher rather than whoever last edited the draft, so a draft several
+ * editors touched has exactly one author and the rule compares two accounts.
+ */
 async function writeVersion(
   tx: Executor,
   formId: FormId,
   frozen: { snapshot: FrozenSnapshot; compiled: CompiledForm },
   publishedAt: Date,
+  publishedBy: string,
 ): Promise<FormVersionRow> {
   const version = await insertFormVersion(tx, {
     formId,
@@ -1772,6 +1792,7 @@ async function writeVersion(
     a2uiSpecVersion: frozen.compiled.a2uiSpecVersion,
     semanticsVersion: String(frozen.snapshot.semanticsVersion),
     publishedAt,
+    publishedBy,
   });
   await deleteDraft(tx, formId);
   return version;
@@ -1782,6 +1803,11 @@ export function makePublishFormHandler(deps: Deps): RouteHandler<typeof publishF
     const formId = requireFormId(c.req.valid("param").id);
     const now = deps.clock.now();
     const frozen = await freezeDraft(deps, formId);
+    // Thrown rather than recorded as `""`. `published_by` is the author Q51's two-person
+    // rule compares a `prod` release against, and a version whose author is the empty
+    // string would be a version the rule could not judge while looking as though it could.
+    const principal = c.get("adminPrincipal");
+    if (principal === undefined) throw fail.noPrincipal();
 
     // **Publishing queues nothing** (Code Owner, 2026-09-30, Q60). One transaction still,
     // so the draft never lingers past its publish (§11), but there is no event in it.
@@ -1801,7 +1827,7 @@ export function makePublishFormHandler(deps: Deps): RouteHandler<typeof publishF
     // `forms.integration.test.ts` asserts that by count rather than leaving it to the
     // absence of a line here.
     const inserted = await deps.databases.control.transaction((tx) =>
-      writeVersion(tx, formId, frozen, now),
+      writeVersion(tx, formId, frozen, now, principal.userId),
     );
 
     return c.json(
@@ -1851,13 +1877,44 @@ export function makePublishAndReleaseFormHandler(
     const principal = c.get("adminPrincipal");
     if (principal === undefined) throw fail.noPrincipal();
 
+    // **The two-person rule, and this route is the case where it always refuses** (Q51,
+    // task 070). This handler publishes and releases in one act, so the account that
+    // publishes the version *is* the account releasing it - and a release to `prod` by the
+    // publishing account is exactly what criterion 1 refuses while the workspace's
+    // `requireSecondApprover` switch is on.
+    //
+    // So F2's convenience is unavailable for a gated production release, and that is the
+    // rule rather than a limitation of this route: the two acts have to be two accounts,
+    // which means they have to be two requests. The operator publishes here (or through
+    // `POST /publish`) and a second approver releases through `POST /releases`.
+    //
+    // Raised **before the transaction opens**, so a refusal leaves no published version
+    // behind to explain - the same property the combined act's atomicity already has.
+    const form = await getForm(deps.databases.control, formId);
+    if (form === undefined) throw fail.formNotFound();
+    const approvedBy = await approvalForRelease(deps.databases.control, {
+      workspaceId: c.get("grantContext")?.workspaceId ?? form.workspaceId,
+      environment,
+      // The version does not exist yet, so its number is the one this act is about to
+      // assign. It is only ever read back in a refusal message, and the rule refuses this
+      // route unconditionally in `prod`, so the number named is the one the operator sees
+      // in the version list rather than the one about to be minted.
+      version: (await getLatestPublishedVersion(deps.databases.control, formId))?.version ?? 0,
+      author: principal.userId,
+      releasedBy: principal.userId,
+    });
+
     const result = await deps.databases.control.transaction(async (tx) => {
-      const version = await writeVersion(tx, formId, frozen, now);
+      const version = await writeVersion(tx, formId, frozen, now, principal.userId);
       const release = await recordRelease(tx, {
         formId,
         environment,
         version: version.version,
         releasedBy: principal.userId,
+        // `undefined` in every case this route can reach: the rule above refuses a gated
+        // `prod` release outright, so a release that gets here needed no approval. The
+        // value is threaded rather than hard-coded so the two release paths read the same.
+        approvedBy,
         // No source: the version is new, so it was released nowhere before this (Q4).
         fromEnvironment: undefined,
         // A new version into a closed environment does not resume intake (Q18). Nothing
