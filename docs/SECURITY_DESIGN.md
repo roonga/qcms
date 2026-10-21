@@ -62,7 +62,7 @@ It is cleared by a database hook on the credential account's password write - th
 better-auth 1.7.10 ships no "force password change" option, plugin or hook, so the enforcement is entirely QCMS's; the admin plugin's `banned` field is the nearest shape and is the wrong semantics, since a banned account is refused rather than sent to a remedy.
 
 **The clearing fails closed, because the password change commits as one act (Code Owner, 2026-10-22).**
-`POST /change-password` revokes the account's other sessions, writes the new credential and issues a replacement session, and since better-auth 1.7.8 the library wraps all three in one `runWithTransaction`.
+`POST /change-password` revokes the account's other sessions, writes the new credential and issues a replacement session, and since version 1.7.8 the library wraps all three in one `runWithTransaction`.
 That wrap is only a database transaction if the adapter says it has one, and the Drizzle adapter's default is that it does not: left at the default, the wrap is an async-local scope, the three writes are applied as they happen, a failure part-way through rolls nothing back, and better-auth then drains the hooks queued inside it **even on the failing path**, on the reasoning that work which could not roll back has happened.
 Three things followed from that, each of them wrong for this control: every other session could be revoked while the old password still worked, the password could move while the caller was told the change failed, and on that second path the provisional flag was cleared by a change that did not take.
 So `createAdminAuth` opts the adapter into transactions.

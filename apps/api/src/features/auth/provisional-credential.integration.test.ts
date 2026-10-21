@@ -498,8 +498,9 @@ describe("a failed /change-password leaves nothing behind (Code Owner, 2026-10-2
       asResponse: true,
     });
     expect(body.status).toBe(200);
-    expect(((await body.json()) as { user?: { mustChangePassword?: unknown } }).user
-      ?.mustChangePassword).toBe(true);
+    expect(
+      ((await body.json()) as { user?: { mustChangePassword?: unknown } }).user?.mustChangePassword,
+    ).toBe(true);
   });
 
   it("commits all three rows together when nothing fails", async () => {
