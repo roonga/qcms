@@ -307,3 +307,137 @@ export function replaceReportingViewStatements(schemas: ReportingViewSchemas): r
 export function reportingViewMigrationSql(schemas: ReportingViewSchemas): string {
   return `${replaceReportingViewStatements(schemas).join("\n--> statement-breakpoint\n")}\n`;
 }
+
+/**
+ * One workspace's view set inside one environment's reporting schema (Q26, task 067).
+ *
+ * # Why a filtered projection rather than a second copy of the view body
+ *
+ * Q26 gives each environment's schema **a view set per workspace**, every set with its
+ * own read-only role, because this is the one place in the design where the
+ * authorisation model is expressed in database grants rather than in an API check: a
+ * reporting consumer writes their own SQL against a role an operator granted, so a check
+ * in a handler would hold against nobody.
+ *
+ * The obvious way to build one is to emit the whole of {@link reportingViewStatements}
+ * again with a `WHERE` added. That would put the erasure anti-join, the submitted-only
+ * predicate and the repeat-group aggregation in N+1 places, and the one of those that
+ * cannot be allowed to drift is the **row inclusion**: a per-workspace view that lost the
+ * tombstone anti-join would serve an erased respondent's answers to an analyst, which is
+ * the shape of the data-loss defect task 075 existed to fix one view over.
+ *
+ * So a workspace's views **select from the unprefixed views** and add nothing but the
+ * filter. Row inclusion stays in one body, the repeat shape reaches every workspace
+ * because it reaches that body, and what a workspace's set adds is exactly one predicate
+ * a reader can check.
+ *
+ * # Why the filter is the workspace id and the name is the slug
+ *
+ * `control.forms.workspace_id` is the ownership (task 068) and an id is stable, so the
+ * predicate reads it. The **view name** carries the slug, because the name is what a BI
+ * tool's connection and an analyst's query hold and `home_responses` is the name Q26
+ * writes. The two halves cannot disagree, because the generator takes both and the
+ * reconciliation that calls it reads them off one row.
+ *
+ * # Why a cross-schema read is sound here
+ *
+ * The body reads `control.forms`, which the consumer role holds **no privilege on**. That
+ * is Postgres's own rule working for this design rather than against it: privileges on a
+ * view's underlying relations are checked against the view's **owner**, `qcms_migrate`, so
+ * the role reads exactly the rows the view defines and reaches neither `control.forms` nor
+ * the unfiltered views it is built from. Criterion 7 asserts both halves against a real
+ * Postgres.
+ */
+export interface WorkspaceReportingViews {
+  /** The schema the views are created in, `reporting_<env>`. */
+  readonly reporting: string;
+  /** The workspace's slug, which names the views. */
+  readonly slug: string;
+  /** The workspace's id, which filters them. */
+  readonly workspaceId: string;
+  /** The control-plane schema holding `forms`. */
+  readonly control: string;
+}
+
+/** `'org_x'` as a SQL string literal, with any embedded quote doubled. */
+function sqlLiteral(value: string): string {
+  return `'${value.replaceAll("'", "''")}'`;
+}
+
+/**
+ * `CREATE OR REPLACE VIEW` for one workspace's pair, in dependency order.
+ *
+ * **`CREATE OR REPLACE` rather than a drop and a create**, for two reasons pointing the
+ * same way. Q67 (Code Owner, 2026-10-17) forbids any migration dropping a view, and
+ * although this runs from an operator command rather than from a migration, the reason
+ * behind that rule holds here too: these views are what an adopter's BI tool is connected
+ * to. And replacing is what makes the reconciliation **idempotent**, which is what lets
+ * an operator run it after every workspace they create without first working out what
+ * already exists.
+ *
+ * The column list is written out rather than `SELECT *`, so the catalogue carries the
+ * documented columns in the documented order and `docs/reporting-view.md`'s drift test
+ * reads the same list for a workspace's view as for the one it projects.
+ *
+ * # `security_barrier` is the control, and a plain view is not one
+ *
+ * **A plain view's `WHERE` is not a privilege boundary in PostgreSQL**, and this is the
+ * one place in the design where that distinction decides whether a grant holds. The
+ * planner may push a qual the consumer wrote *below* the view's own filter and evaluate it
+ * against the rows the view exists to hide, and a qual can report what it saw in three
+ * ways that need no privilege at all:
+ *
+ *   - a **data-dependent error**: `WHERE 1 / (CASE WHEN form_id = 'frm_other' THEN 0 ELSE
+ *     1 END) = 1` raises `division by zero` only if a row of the other workspace reached
+ *     it, and `int4div` is not `leakproof` precisely because it can;
+ *   - a **cheap function** in `pg_temp` (`TEMP` on the database belongs to `PUBLIC` by
+ *     default) declared `COST 1`, which the planner prefers to evaluate first and which
+ *     can `RAISE NOTICE` every value it is handed;
+ *   - the same function under `join_collapse_limit = 1` and `from_collapse_limit = 1`,
+ *     both `USERSET`, so any role may choose the plan shape that pushes it down.
+ *
+ * The review of PR #1093 ran all three as `qcms_reporting_prod_home` against this
+ * generator's output and read the **other** workspace's answers, session ids, form ids,
+ * versions and access modes. `WITH (security_barrier = true)` closed all three and left the
+ * legitimate read unchanged.
+ *
+ * `CREATE OR REPLACE VIEW` accepts `WITH`, so the reconciliation applies the option to a
+ * view that already exists and **nothing is dropped**: Q67 stays intact and no BI tool's
+ * connection breaks.
+ *
+ * # Why the option is not on the unfiltered pair as well
+ *
+ * `reporting_<env>.responses` and `answers_flat` are granted to `qcms_app_<env>` and to no
+ * consumer (Q52). That role holds DML on its own `data_<env>`, so it can read every row
+ * those views omit straight from the tables: the views are a projection for it, never a
+ * boundary, and there is nothing for a barrier to defend. What a barrier would do there is
+ * forbid pushdown on the application's own hot read path - the response list, the detail
+ * and the export - for no privilege gained. The boundary is the outer view, which is where
+ * the grant is, and that is where the option goes.
+ *
+ * Revoking `TEMP` on the database would not be enough on its own: the division probe needs
+ * no function at all.
+ */
+export function workspaceReportingViewStatements(views: WorkspaceReportingViews): string[] {
+  const predicate =
+    `"w"."form_id" IN (\n` +
+    `\tSELECT "form_id" FROM ${qualified(views.control, "forms")}\n` +
+    `\tWHERE "workspace_id" = ${sqlLiteral(views.workspaceId)}\n` +
+    `)`;
+  return reportingViewColumns.map((contract) => {
+    const source = qualified(views.reporting, contract.name);
+    const target = qualified(views.reporting, `${views.slug}_${contract.name}`);
+    const projection = contract.columns
+      .map((column) => `\t"w"."${column}" AS "${column}"`)
+      .join(",\n");
+    return (
+      `CREATE OR REPLACE VIEW ${target} WITH (security_barrier = true) AS\n` +
+      `SELECT\n${projection}\nFROM ${source} "w"\nWHERE ${predicate};`
+    );
+  });
+}
+
+/** The view names one workspace's set holds in a reporting schema, in order. */
+export function workspaceReportingViewNames(slug: string): readonly string[] {
+  return reportingViewColumns.map((contract) => `${slug}_${contract.name}`);
+}

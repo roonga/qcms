@@ -985,6 +985,26 @@ describe("the two role families refuse across each other (criteria 2 to 5)", () 
   });
 });
 
+/**
+ * The headers a request from an authenticated administrator, in one environment, carries.
+ *
+ * Shared by the two blocks below, both of which probe the environment a request is
+ * authorised for against the environment it acts in. `json` adds the content type, because
+ * the routes they probe are a mix of reads and writes.
+ */
+function environmentHeaders(
+  token: string,
+  environment: string,
+  json = false,
+): Record<string, string> {
+  return {
+    ...(json ? { "content-type": "application/json" } : {}),
+    [INTERNAL_TOKEN_HEADER]: internalToken,
+    [ADMIN_SESSION_HEADER]: token,
+    [REQUEST_ENVIRONMENT_HEADER]: environment,
+  };
+}
+
 // --- 12. the environment a request is authorised for is the one it acts in ----
 
 /**
@@ -1025,14 +1045,11 @@ describe("the environment a request is authorised for is the environment it acts
   let prodLinkId = "";
   let prodWebhookId = "";
 
-  function headersFor(token: string, environment: string, json = false): Record<string, string> {
-    return {
-      ...(json ? { "content-type": "application/json" } : {}),
-      [INTERNAL_TOKEN_HEADER]: internalToken,
-      [ADMIN_SESSION_HEADER]: token,
-      [REQUEST_ENVIRONMENT_HEADER]: environment,
-    };
-  }
+  // The module-level helper, aliased so the two blocks below read the way they did when
+  // each carried its own copy. Shared rather than copied because the copies were
+  // identical, which is a lint error and would have been a drift the first time one of
+  // them gained a header.
+  const headersFor = environmentHeaders;
 
   beforeAll(async () => {
     const editor = await seedAdminSession(testDb.db, {
@@ -1209,5 +1226,226 @@ describe("the environment a request is authorised for is the environment it acts
       body: JSON.stringify({}),
     });
     expect(empty.status).toBe(400);
+  });
+});
+
+// --- 13. the production split, and Q58's masked endpoint URL ------------------
+
+/**
+ * **Criterion 8** (Q30, Q33, Q58; task 067): a **`prod`** webhook endpoint change and a
+ * **`prod`** link mint are refused without the `forms.approver` role holding `prod` in
+ * scope, a `dev` or `test` endpoint change stays an editor's, **and** the endpoint read
+ * masks the URL's query string for a `forms.viewer` while returning it whole to a
+ * `forms.editor`.
+ *
+ * ## Why these are HTTP probes and not policy unit tests
+ *
+ * The matrix's production split is already a unit test on `policy.ts`, and it would stay
+ * green while the gate in front of it was wrong - which is exactly what PR #1061's review
+ * found twice. So each claim below is made the way an attacker would make it: a real
+ * session token, the real routes, the real middleware, and for the masking, the actual
+ * bytes of the response rather than what a component would render from them.
+ *
+ * ## The masking is asserted at the API, for each of the two roles
+ *
+ * Q58 is explicit that **the API masks, in the response**, never the admin's rendering, so
+ * that a second client of the same route cannot see round it. A test that drove the admin
+ * would therefore assert the wrong layer. Both roles are probed on one URL carrying a
+ * query string, which is the only shape where the two answers differ.
+ *
+ * ## The reason the URL is not a secret, stated where somebody will read it
+ *
+ * The signing secret is (SEC-6: encrypted at rest, returned once, never on a read) and the
+ * URL is not. Masking the query string is a mitigation for an operator who put a
+ * credential in a URL, which `docs/webhooks.md` and `docs/operations.md` tell them not to
+ * do; it is not a control, and nothing below should be read as making it one.
+ */
+describe("the production split and the masked endpoint URL (criterion 8)", () => {
+  /** A `forms.editor` holding **every** environment, including `prod` in its scope. */
+  let allEditor = "";
+  /** A `forms.approver` holding `prod`. */
+  let prodApprover = "";
+  /** A `forms.viewer`, which is the role Q58 masks for. */
+  let viewer = "";
+  /** The endpoint whose URL carries a query string, in `prod`. */
+  let queryWebhookId = "";
+
+  const WHOLE_URL = "https://consumer.example/hook?token=not-a-real-credential&tenant=acme";
+
+  // The module-level helper, aliased so the two blocks below read the way they did when
+  // each carried its own copy. Shared rather than copied because the copies were
+  // identical, which is a lint error and would have been a drift the first time one of
+  // them gained a header.
+  const headersFor = environmentHeaders;
+
+  /** One account holding exactly one access group, with that role and that scope. */
+  async function accountWith(
+    label: string,
+    role: string,
+    environments: readonly string[],
+  ): Promise<string> {
+    const account = await seedAdminSession(testDb.db, {
+      label,
+      claim: false,
+      owner: false,
+      // No default grants: the seeded `all`-scoped set would make every refusal below
+      // untestable.
+      grants: [],
+    });
+    const group = await createAccessGroup(testDb.db, {
+      workspaceId: SEED_WORKSPACE_ID,
+      name: `${environments.join("-")}.${role}.${label}`,
+      role,
+      environments,
+      forms: ["all"],
+    });
+    await ensureWorkspaceMember(testDb.db, SEED_WORKSPACE_ID, account.userId);
+    await addAccessGroupHolder(testDb.db, group.teamId, account.userId);
+    return account.token;
+  }
+
+  beforeAll(async () => {
+    // `all` in both dimensions, which is the scope that makes the refusals below about
+    // the **role** rather than about the scope: Q30 narrows a production endpoint change
+    // to an approver, and an editor holding `prod` in scope is still refused it.
+    allEditor = await accountWith("prod-split-editor", "forms.editor", ["all"]);
+    prodApprover = await accountWith("prod-split-approver", "forms.approver", ["prod"]);
+    viewer = await accountWith("prod-split-viewer", "forms.viewer", ["all"]);
+
+    // The endpoint the masking is read off, created by the fully credentialed
+    // administrator so its existence owes nothing to the rules under test.
+    const created = await all.app.request(`/admin/forms/${ctx.formId}/webhooks`, {
+      method: "POST",
+      headers: headersFor(adminToken, "prod", true),
+      body: JSON.stringify({ url: WHOLE_URL }),
+    });
+    expect(created.status).toBe(201);
+    queryWebhookId = ((await created.json()) as { webhookId: string }).webhookId;
+  });
+
+  /** The endpoint list as this token reads it in this environment. */
+  async function listEndpoints(
+    token: string,
+    environment: string,
+  ): Promise<{ webhookId: string; url: string }[]> {
+    const res = await all.app.request(`/admin/forms/${ctx.formId}/webhooks`, {
+      headers: headersFor(token, environment),
+    });
+    expect(res.status).toBe(200);
+    return ((await res.json()) as { webhooks: { webhookId: string; url: string }[] }).webhooks;
+  }
+
+  it("refuses a `forms.editor` a prod endpoint change, scope or no scope (Q30)", async () => {
+    const change = await all.app.request(`/admin/forms/${ctx.formId}/webhooks/${queryWebhookId}`, {
+      method: "PUT",
+      headers: headersFor(allEditor, "prod", true),
+      body: JSON.stringify({ url: "https://attacker.example/exfiltrate" }),
+    });
+    expect(change.status).toBe(403);
+    expectNoPayload(await change.text());
+
+    // The effect, not only the status: an editor who can point a production webhook at any
+    // URL can route production personal data out of the deployment, which is the whole
+    // reason Q30 moved this row.
+    const after = await listEndpoints(adminToken, "prod");
+    expect(after.find((row) => row.webhookId === queryWebhookId)?.url).toBe(WHOLE_URL);
+  });
+
+  it("leaves a `test` endpoint change an editor's (Q30's narrowing)", async () => {
+    // Narrowed to `prod` deliberately: a `dev` or `test` endpoint routes test data to a
+    // test consumer, and gating it would cost a test cycle and protect nothing. Whatever
+    // the handler then says, it is not a 403.
+    const change = await all.app.request(`/admin/forms/${ctx.formId}/webhooks`, {
+      method: "POST",
+      headers: headersFor(allEditor, "test", true),
+      body: JSON.stringify({ url: "https://test-consumer.example/hook" }),
+    });
+    // The exact status, not `not.toBe(403)`: a 500 would satisfy the weaker form and this
+    // is the case that has to prove the editor is genuinely **served** here (PR #1093's
+    // review, finding 8).
+    expect(change.status).toBe(201);
+  });
+
+  it("allows a `forms.approver` holding prod the same prod endpoint change", async () => {
+    // The positive control. Without it the refusal above would pass against a row that
+    // refused everybody, and criterion 8 would be satisfied by a broken route.
+    const change = await all.app.request(`/admin/forms/${ctx.formId}/webhooks`, {
+      method: "POST",
+      headers: headersFor(prodApprover, "prod", true),
+      body: JSON.stringify({ url: "https://approved-consumer.example/hook" }),
+    });
+    expect(change.status).toBe(201);
+  });
+
+  it("refuses a `forms.editor` a prod link mint and allows the approver (Q30)", async () => {
+    const body = { environment: "prod", expiresAt: "2099-01-01T00:00:00.000Z" };
+    const refused = await all.app.request(`/admin/forms/${ctx.formId}/links`, {
+      method: "POST",
+      headers: headersFor(allEditor, "prod", true),
+      body: JSON.stringify(body),
+    });
+    expect(refused.status).toBe(403);
+    expectNoPayload(await refused.text());
+
+    const allowed = await all.app.request(`/admin/forms/${ctx.formId}/links`, {
+      method: "POST",
+      headers: headersFor(prodApprover, "prod", true),
+      body: JSON.stringify(body),
+    });
+    expect(allowed.status).toBe(201);
+
+    // And the same editor minting into `test` is not refused: the split is about `prod`.
+    const inTest = await all.app.request(`/admin/forms/${ctx.formId}/links`, {
+      method: "POST",
+      headers: headersFor(allEditor, "test", true),
+      body: JSON.stringify({ ...body, environment: "test" }),
+    });
+    expect(inTest.status).not.toBe(403);
+  });
+
+  it("refuses a `forms.editor` closing and reopening prod, and allows the approver (Q33)", async () => {
+    for (const action of ["close", "reopen"]) {
+      const refused = await all.app.request(`/admin/forms/${ctx.formId}/${action}`, {
+        method: "POST",
+        headers: headersFor(allEditor, "prod", true),
+        body: JSON.stringify({ environment: "prod" }),
+      });
+      expect(refused.status, `${action} in prod as an editor`).toBe(403);
+
+      const allowed = await all.app.request(`/admin/forms/${ctx.formId}/${action}`, {
+        method: "POST",
+        headers: headersFor(prodApprover, "prod", true),
+        body: JSON.stringify({ environment: "prod" }),
+      });
+      expect(allowed.status, `${action} in prod as an approver`).not.toBe(403);
+    }
+  });
+
+  it("masks the endpoint URL's query string for a `forms.viewer` (Q58)", async () => {
+    const rows = await listEndpoints(viewer, "prod");
+    const row = rows.find((entry) => entry.webhookId === queryWebhookId);
+    expect(row, "the viewer reads endpoint configuration in every environment").toBeDefined();
+    // Scheme, host and path whole; the query string gone. The role is meant to be able to
+    // tell what this endpoint is.
+    expect(row?.url).toBe("https://consumer.example/hook?(hidden)");
+    expect(row?.url).not.toContain("token=");
+    expect(row?.url).not.toContain("not-a-real-credential");
+  });
+
+  it("returns the whole URL to a `forms.editor` (Q58)", async () => {
+    const rows = await listEndpoints(allEditor, "prod");
+    expect(rows.find((entry) => entry.webhookId === queryWebhookId)?.url).toBe(WHOLE_URL);
+  });
+
+  it("masks the delivery dashboard's copy of the same URL for a `forms.viewer` (Q58)", async () => {
+    // The same stored URL by a second route, which is what "a second client cannot see
+    // round it" is about one layer along: the delivery list is `webhook: read` like the
+    // endpoint list, so it masks the same way.
+    const res = await all.app.request(`/admin/forms/${ctx.formId}/deliveries`, {
+      headers: headersFor(viewer, "prod"),
+    });
+    expect(res.status).toBe(200);
+    const body = await res.text();
+    expect(body).not.toContain("not-a-real-credential");
   });
 });

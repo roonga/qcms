@@ -183,6 +183,64 @@ export async function eraseSession(
 }
 
 /**
+ * Whether one environment holds anything for a subject, and whether it has already been
+ * erased there (Q7, ADR-17's Note; task 067).
+ *
+ * # Why this read exists, and what it deliberately does not do
+ *
+ * An erasure acts in **the selected environment only** and never crosses a boundary in
+ * one act, so `prod` cannot be reached from `test` by accident. The cost Q7 accepts is
+ * that a data subject's request is several deliberate acts rather than one click, and the
+ * mitigation it asks for is that the screen **says so and offers to repeat the erasure**
+ * where the same subject identifier also has sessions. This is the read behind that
+ * offer, called once per other environment, on that environment's own pool.
+ *
+ * **It answers existence and nothing else.** No answer, no form version, no timestamp: a
+ * caller asking "is there something of this subject in `prod`" is told yes or no, which is
+ * the whole of what an offer to go and erase it needs, and is the same
+ * existence-without-content the tombstone itself is built on.
+ *
+ * **Form-scoped like {@link eraseSession}, and for the same reason** (issue #305): both
+ * lookups name the form, so a session belonging to another form is not found and the
+ * answer is indistinguishable from an id that exists nowhere. A hint that leaked "this id
+ * exists, in a form you cannot reach" would be a worse disclosure than the one it helps
+ * with.
+ */
+export interface SubjectPresence {
+  /** A session with this id, in this form. */
+  readonly hasSession: boolean;
+  /** A tombstone for it: the erasure here has already been performed. */
+  readonly alreadyErased: boolean;
+}
+
+/**
+ * What one environment holds for one (form, session) pair.
+ *
+ * Two reads rather than a join, because the two answers come from tables that outlive each
+ * other: the tombstone has no foreign key to `sessions`, deliberately, so that it survives
+ * a later retention purge of the scrubbed session shell (ADR-17). A join would make
+ * "erased long ago, shell since purged" look like "nothing here", which is the one wrong
+ * answer this read can give.
+ */
+export async function findSubjectPresence(
+  exec: Executor,
+  formId: FormId,
+  sessionId: SessionId,
+): Promise<SubjectPresence> {
+  const [session] = await exec
+    .select({ sessionId: sessions.sessionId })
+    .from(sessions)
+    .where(and(eq(sessions.sessionId, sessionId), eq(sessions.formId, formId)))
+    .limit(1);
+  const [tombstone] = await exec
+    .select({ sessionId: erasureTombstones.sessionId })
+    .from(erasureTombstones)
+    .where(and(eq(erasureTombstones.sessionId, sessionId), eq(erasureTombstones.formId, formId)))
+    .limit(1);
+  return { hasSession: session !== undefined, alreadyErased: tombstone !== undefined };
+}
+
+/**
  * Every `outbox` row that carries this session's answers, matched on the payload's
  * own `sessionId`. There is no `outbox.session_id` column - the outbox stores
  * whole domain events, and a session id is a property of one event *type* - so the

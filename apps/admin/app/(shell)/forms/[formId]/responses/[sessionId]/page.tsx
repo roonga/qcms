@@ -4,6 +4,7 @@ import { notFound } from "next/navigation";
 
 import { Alert } from "@/components/kit";
 import { FormPageHeader } from "@/components/forms/form-page-header";
+import { ErasureElsewhereOffer } from "@/components/ops/erasure-elsewhere";
 import { ResponseDetail } from "@/components/ops/response-detail";
 import { TombstoneCard } from "@/components/ops/tombstone-card";
 import { labelsForPins, pinsOf, type QuestionPin } from "@/lib/ops/labels";
@@ -13,7 +14,10 @@ import { t } from "@/lib/i18n/en";
 import { RESPONSE_HEADING_ID } from "@/lib/page-headings";
 import { getForm, getFormVersion } from "@/lib/server/forms";
 import { getQuestion } from "@/lib/server/questions";
-import { getResponse, listErasures } from "@/lib/server/responses";
+import { holdsEraserGrantAnywhere } from "@/lib/membership/types";
+import { secureCookies } from "@/lib/server/config";
+import { readMyAccess } from "@/lib/server/membership";
+import { erasureScope, getResponse, listErasures } from "@/lib/server/responses";
 import { shownEnvironment } from "@/lib/environment";
 import { resolvedEnvironment } from "@/lib/server/environments";
 import { requireAdminSession } from "@/lib/server/session";
@@ -62,7 +66,7 @@ export default async function ResponseDetailPage({
   const session = await requireAdminSession();
   const { formId, sessionId } = await params;
 
-  const [form, response, resolved] = await Promise.all([
+  const [form, response, resolved, mine] = await Promise.all([
     getForm(session, formId),
     getResponse(session, formId, sessionId),
     // The response above was read from the selected environment's data plane; the erasure
@@ -70,8 +74,27 @@ export default async function ResponseDetailPage({
     // environment is not undoable (Q6). The request's one resolution (A12), so the name is
     // the environment the read above was actually made in.
     resolvedEnvironment(session),
+    // What this administrator holds, which decides whether the offer below is worth asking
+    // for at all. In the batch rather than after it, so a screen that does not need the
+    // offer costs no extra round trip (PR #1093's review, finding 5).
+    readMyAccess(session),
   ]);
   const shown = shownEnvironment(resolved);
+
+  // Q7's cross-environment offer (task 067), fetched only for a caller who could ever be
+  // offered a repetition. A `responses.viewer` holding no eraser grant would get a 403 on
+  // every detail view for an answer that is always "nothing to offer", so the question is
+  // not asked. One sequential hop for a caller who may erase, which is the page's existing
+  // shape anyway - `resolveLabels` below is already awaited after this batch.
+  //
+  // The offer itself is still the API's decision: it narrows to the environments this
+  // caller may erase in, for this form, in this form's workspace. This only avoids a
+  // request whose answer is known.
+  const mayErase = mine.ok && holdsEraserGrantAnywhere(mine.data);
+  const scope = mayErase ? await erasureScope(session, formId, sessionId) : undefined;
+  // A failure is a hint missing and not a screen broken, so this result is only ever read
+  // for its offers.
+  const elsewhere = scope?.ok === true ? scope.data.otherEnvironments : [];
 
   if (!form.ok) {
     if (form.code === "FORM_NOT_FOUND" || form.code === "INVALID_FORM_ID") notFound();
@@ -104,6 +127,10 @@ export default async function ResponseDetailPage({
         ) : (
           <TombstoneCard tombstone={tombstone} />
         )}
+        {/* The offer belongs here most of all: this screen IS a tombstone, so the erasure
+            in this environment is done and what is left is the other environments the
+            same request has to reach (Q7). */}
+        <ErasureElsewhereOffer others={elsewhere} secureCookies={secureCookies()} />
       </div>
     );
   }
@@ -122,6 +149,7 @@ export default async function ResponseDetailPage({
       <Link className="qcms-text-link" href={`/forms/${encodeURIComponent(formId)}/responses`}>
         {t("ops.detail.back")}
       </Link>
+      <ErasureElsewhereOffer others={elsewhere} secureCookies={secureCookies()} />
       <ResponseDetail
         environment={shown ?? t("environment.unknown")}
         detail={response.data}

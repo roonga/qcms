@@ -127,6 +127,33 @@ export interface MyAccess {
   readonly workspaces: readonly MyAccessWorkspace[];
 }
 
+/**
+ * The role that erases a response (ADR-41, Q38). Named here rather than spelled at a call
+ * site, because a screen that decides what to fetch from a role name is a screen that
+ * breaks silently when the name changes.
+ */
+export const RESPONSES_ERASER_ROLE = "responses.eraser";
+
+/**
+ * Whether the signed-in administrator holds `responses.eraser` **anywhere** (PR #1093's
+ * review, finding 5).
+ *
+ * The question a response screen asks before it fetches the cross-environment erasure
+ * offer. A `responses.viewer` holding no eraser grant can never be offered a repetition, so
+ * fetching it for them is a request whose only outcome is a 403 on every detail view.
+ *
+ * Deliberately "anywhere" rather than "in this form's workspace": the admin's form read
+ * does not carry a workspace id, and the API narrows the offer per environment and per
+ * workspace anyway. So this is the cheap half of the decision, and it is the half that
+ * removes the 403 for the caller the finding is about; a caller who does hold the role
+ * somewhere still asks, and the API answers for the form in front of them.
+ */
+export function holdsEraserGrantAnywhere(access: MyAccess): boolean {
+  return access.workspaces.some((workspace) =>
+    workspace.grants.some((grant) => grant.role === RESPONSES_ERASER_ROLE),
+  );
+}
+
 /** What a Server Action reports back to the component that called it. */
 export type MembershipActionState =
   | { readonly status: "idle" }

@@ -75,6 +75,8 @@ describe("query helper import surface", () => {
     // respondent path reads carries the closed value, so there is no update anywhere.
     "listEnvironments",
     "getEnvironmentChallengeProvider",
+    // The retention TTL overrides the sweep reads per environment (Q11, task 067).
+    "listEnvironmentRetention",
     "insertFormRelease",
     "getReleasedVersion",
     "getFormEnvironmentState",
@@ -142,6 +144,11 @@ describe("query helper import surface", () => {
     // internal (imported by module path), not on the public surface.
     "eraseSession",
     "SessionNotFoundError",
+    // `findSubjectPresence` is beside the door rather than inside it (task 067, Q7): it
+    // reads whether one environment holds a (form, session) pair and whether it has
+    // already been erased, which is what the cross-environment erasure offer needs and
+    // which opens nothing.
+    "findSubjectPresence",
     // outbox
     "backoffDelayMs",
     "computeBackoff",

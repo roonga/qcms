@@ -48,6 +48,13 @@
 
 export * from "./zip.js";
 
+// The name a response export downloads under, which since task 067 carries the
+// environment it was read from and never a column (Q8, ADR-40). It is here rather than at
+// the three call sites for the reason the field helpers are: there are three of these
+// names, three templates drift, and the way they drift is that one of them loses the
+// environment and nobody notices until an operator holds two files called the same thing.
+export * from "./file-name.js";
+
 /**
  * The leading characters a spreadsheet may read as the start of a formula.
  *

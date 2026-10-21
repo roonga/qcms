@@ -16,6 +16,8 @@ import {
   updateAccessGroupScope,
 } from "../queries/grants.js";
 
+import { WORKSPACE_REPORTING_ROLE_PREFIX } from "../schema/schemas.js";
+
 import {
   RESERVED_ENVIRONMENT_NAMES,
   createEnvironment,
@@ -72,10 +74,12 @@ describe("the environment name rules (Q42)", { timeout: COMMAND_TIMEOUT_MS }, ()
   });
 
   it("refuses a name too long for the LONGEST derived identifier, not for data_<env>", () => {
-    // The distinction is the whole of the rule. A name of 58 bytes fits `data_<env>`
-    // at 63 and does not fit `reporting_<env>` at 68, and Postgres would truncate the
-    // second silently - producing an object whose name is not the one anybody asked
-    // for, and two of which could collide with each other with no error anywhere.
+    // The distinction is the whole of the rule. A name one byte over the limit still
+    // fits `data_<env>` and does not fit the longest identifier the name reaches, which
+    // since task 067 is the per-(workspace, environment) reporting role's
+    // `qcms_reporting_<env>_<slug>` (Q26). Postgres would truncate that one silently,
+    // producing an object whose name is not the one anybody asked for, and two of which
+    // could collide with each other with no error anywhere.
     const limit = maxEnvironmentNameLength();
     const fits = "e".repeat(limit);
     const overflows = "e".repeat(limit + 1);
@@ -93,10 +97,14 @@ describe("the environment name rules (Q42)", { timeout: COMMAND_TIMEOUT_MS }, ()
   });
 
   it("computes the limit from the prefix list rather than reading a constant", () => {
-    // 63 minus the longest of `data_`, `reporting_` and `qcms_app_`, which is
-    // `reporting_` at ten. The figure is asserted as the arithmetic, so adding a longer
-    // prefix moves it here and in the command together.
-    expect(maxEnvironmentNameLength()).toBe(63 - "reporting_".length);
+    // 63 minus the longest of `data_`, `reporting_`, `qcms_app_` and - since task 067
+    // named the per-(workspace, environment) reporting consumer role (Q26) -
+    // `qcms_reporting_` at fifteen. So the limit is **48** where it was 53, which is
+    // exactly what ADR-40 said would happen when this task named its prefix. The figure
+    // is asserted as the arithmetic, which is why adding the fourth prefix moved it here
+    // and in the command together and nowhere else.
+    expect(maxEnvironmentNameLength()).toBe(63 - WORKSPACE_REPORTING_ROLE_PREFIX.length);
+    expect(maxEnvironmentNameLength()).toBe(48);
   });
 
   it.each(RESERVED_ENVIRONMENT_NAMES.filter((name) => /^[a-z][a-z0-9]*$/.test(name)))(
@@ -149,7 +157,18 @@ describe("creating an environment", { timeout: COMMAND_TIMEOUT_MS }, () => {
     const views = await testDb.client.query<{ table_name: string }>(
       `select table_name from information_schema.views where table_schema = 'reporting_dev'`,
     );
-    expect(views.rows.map((row) => row.table_name).sort()).toEqual(["answers_flat", "responses"]);
+    // The application's own unprefixed pair (Q52, this task's), **and** the seeded
+    // workspace's set beside it (Q26, task 067): a new environment arrives with every
+    // existing workspace's views already in it, because there is no `ALTER DEFAULT
+    // PRIVILEGES` in this design and an object a later environment needs has to be
+    // emitted by whatever creates the environment. The harness seeds one workspace,
+    // `default`, so one set is what this expects.
+    expect(views.rows.map((row) => row.table_name).sort()).toEqual([
+      "answers_flat",
+      "default_answers_flat",
+      "default_responses",
+      "responses",
+    ]);
   });
 
   it("appends to the live set, after the environments already there", async () => {
@@ -159,12 +178,90 @@ describe("creating an environment", { timeout: COMMAND_TIMEOUT_MS }, () => {
     expect(rows.rows.map((row) => row.name)).toEqual(["test", "prod", "dev"]);
   });
 
+  it("writes the per-environment settings an operator passes (Q11)", async () => {
+    // **A gap task 067 closed.** 064 created these columns and this argument, 066 reads
+    // the challenge provider and 067 reads the two retention windows - and nothing was
+    // passing any of them, because the CLI had no flags for them. A column no command can
+    // write is a feature an operator cannot use.
+    await createEnvironment(testDb.db, {
+      name: "settings",
+      settings: {
+        challengeProvider: "turnstile",
+        // `0` is a supported setting and means "at the next sweep", so it has to survive
+        // as a value rather than being read as absent.
+        deliverySnippetTtlMs: 0,
+        outboxPayloadTtlMs: 86_400_000,
+      },
+    });
+    const row = await testDb.client.query<{
+      challenge_provider: string | null;
+      delivery_snippet_ttl_ms: string | null;
+      outbox_payload_ttl_ms: string | null;
+    }>(
+      `select challenge_provider, delivery_snippet_ttl_ms, outbox_payload_ttl_ms
+         from control.environments where name = 'settings'`,
+    );
+    expect(row.rows[0]?.challenge_provider).toBe("turnstile");
+    expect(Number(row.rows[0]?.delivery_snippet_ttl_ms)).toBe(0);
+    expect(Number(row.rows[0]?.outbox_payload_ttl_ms)).toBe(86_400_000);
+
+    // And an environment created with none of them has `NULL` in all three, which is what
+    // "the installation-wide typed value stands" is stored as.
+    await createEnvironment(testDb.db, { name: "nosettings" });
+    const bare = await testDb.client.query<{
+      challenge_provider: string | null;
+      delivery_snippet_ttl_ms: string | null;
+      outbox_payload_ttl_ms: string | null;
+    }>(
+      `select challenge_provider, delivery_snippet_ttl_ms, outbox_payload_ttl_ms
+         from control.environments where name = 'nosettings'`,
+    );
+    expect(bare.rows[0]).toEqual({
+      challenge_provider: null,
+      delivery_snippet_ttl_ms: null,
+      outbox_payload_ttl_ms: null,
+    });
+
+    // Dropped again: this file shares one container and two later assertions read the live
+    // set by name.
+    expect(await dropEnvironment(testDb.db, "settings")).toBeUndefined();
+    expect(await dropEnvironment(testDb.db, "nosettings")).toBeUndefined();
+  });
+
   it("refuses a second environment of the same name", async () => {
     await expect(createEnvironment(testDb.db, { name: "dev" })).rejects.toThrow(/already exists/);
   });
 
   it("refuses a reserved name before it opens a transaction", async () => {
     await expect(createEnvironment(testDb.db, { name: "control" })).rejects.toThrow(/reserved/);
+  });
+
+  it("creates the environment's login role when it is given a credential", async () => {
+    // **A gap task 067 closed rather than a case 064 wrote.** The `--password` path had no
+    // test behind it, and it could not have worked: it built `CREATE ROLE` inside a `DO`
+    // block whose body is a dollar-quoted string literal, so the `$1` placeholders in it
+    // were text and the driver's bind failed outright. The quoting is Postgres's own now
+    // (`./role.ts`), and this is the assertion that says so.
+    //
+    // A generated throwaway credential, never a committed one, and it is never printed:
+    // what is asserted is the role's existence and its ability to log in.
+    const password = Array.from(crypto.getRandomValues(new Uint8Array(16)), (byte) =>
+      byte.toString(16).padStart(2, "0"),
+    ).join("");
+    const created = await createEnvironment(testDb.db, { name: "withrole", password });
+    expect(created.role).toBe("qcms_app_withrole");
+
+    const role = await testDb.client.query<{ rolcanlogin: boolean }>(
+      `select rolcanlogin from pg_roles where rolname = $1`,
+      [created.role],
+    );
+    expect(role.rows[0]?.rolcanlogin, "the role exists and can log in").toBe(true);
+
+    // Dropped again, because this file shares one container and two later assertions read
+    // the live set by name. The role outlives it, which is correct: roles are
+    // cluster-level and the operator's, and `dropEnvironment` deliberately removes only
+    // the schemas (`dropEnvironmentStatements` says why).
+    expect(await dropEnvironment(testDb.db, "withrole")).toBeUndefined();
   });
 });
 

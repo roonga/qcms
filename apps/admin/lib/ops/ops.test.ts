@@ -91,12 +91,20 @@ describe("export rules", () => {
     expect(exportQuery(choice({ version: "2" }))).toBe("?format=csv&version=2");
   });
 
-  it("names the file after the form, the version and the format", () => {
-    expect(exportFilename("frm_intake", choice({ version: "2" }))).toBe(
-      "frm_intake-v2-responses.csv",
+  it("names the file after the form, the environment, the version and the format", () => {
+    expect(exportFilename("frm_intake", "prod", choice({ version: "2" }))).toBe(
+      "frm_intake-prod-v2-responses.csv",
     );
-    expect(exportFilename("frm_intake", choice({ format: "json" }))).toBe(
-      "frm_intake-responses.json",
+    expect(exportFilename("frm_intake", "prod", choice({ format: "json" }))).toBe(
+      "frm_intake-prod-responses.json",
+    );
+    // The environment is in the name and in no column (Q8, task 067): an export reads one
+    // environment's pool, so a file can never mix two, and what the name answers is which
+    // environment the file on an operator's desktop came from. Before this, these two were
+    // the same name and a report built from the wrong one was indistinguishable from one
+    // built from the right one.
+    expect(exportFilename("frm_intake", "test", choice({ version: "2" }))).not.toBe(
+      exportFilename("frm_intake", "prod", choice({ version: "2" })),
     );
   });
 
@@ -129,9 +137,9 @@ describe("export rules", () => {
     expect(exportExtension("csv", "text/csv; charset=utf-8")).toBe("csv");
     expect(exportExtension("csv", null)).toBe("csv");
     expect(exportExtension("json", "application/json; charset=utf-8")).toBe("json");
-    expect(exportFilename("frm_booking", choice({ version: "2", shape: "long" }), "zip")).toBe(
-      "frm_booking-v2-responses.zip",
-    );
+    expect(
+      exportFilename("frm_booking", "prod", choice({ version: "2", shape: "long" }), "zip"),
+    ).toBe("frm_booking-prod-v2-responses.zip");
   });
 });
 

@@ -10,6 +10,7 @@ import {
   type Resource,
   type RoleName,
   decideAccess,
+  holdsStatement,
   isEnvironmentScoped,
   isFormScoped,
   roles,
@@ -475,5 +476,80 @@ describe("a grant holder with several grants is judged per act, not by rank", ()
         request: { resource: "form", action: "write" },
       }).allowed,
     ).toBe(false);
+  });
+});
+
+/**
+ * `holdsStatement`, which is the question Q58's masking asks (task 067).
+ *
+ * It is deliberately **not** `decideAccess`: Q58 masks for a `forms.viewer` and shows the
+ * whole URL to a `forms.editor` and above, which is a statement about the role the caller
+ * holds rather than about an act they are performing. The endpoint read itself is
+ * workspace-wide and environment-agnostic (the matrix's two read rows), so there is no act
+ * to judge and no scope to narrow.
+ */
+describe("holdsStatement, the capability Q58's masking reads", () => {
+  function grant(role: string, environments: readonly string[] = ["all"]) {
+    return { role, environments, forms: ["all"] as readonly string[] };
+  }
+
+  it("is false for a `forms.viewer`, which is the whole of what masks it", () => {
+    expect(
+      holdsStatement(
+        { memberRole: undefined, grants: [grant("forms.viewer")] },
+        "webhook",
+        "configure",
+      ),
+    ).toBe(false);
+  });
+
+  it("is true for a `forms.editor` and for a `forms.approver`", () => {
+    for (const role of ["forms.editor", "forms.approver"]) {
+      expect(
+        holdsStatement({ memberRole: undefined, grants: [grant(role)] }, "webhook", "configure"),
+        role,
+      ).toBe(true);
+    }
+  });
+
+  it("ignores the environment scope, which is the one judgement in it", () => {
+    // The conservative reading of a ruling that names roles rather than scopes: a
+    // `forms.editor` scoped to `test` already reads every environment's endpoint
+    // configuration, production included (Q39), so masking it for that caller alone would
+    // invent a per-environment meaning for a read the matrix says has none.
+    expect(
+      holdsStatement(
+        { memberRole: undefined, grants: [grant("forms.editor", ["test"])] },
+        "webhook",
+        "configure",
+      ),
+    ).toBe(true);
+  });
+
+  it("is false for a role name no configuration declares, and for no grant at all", () => {
+    // The fail-closed direction, which is the same one `grantAllows` takes: a `team.role`
+    // written by hand grants nothing.
+    expect(
+      holdsStatement(
+        { memberRole: undefined, grants: [grant("forms.wizard")] },
+        "webhook",
+        "configure",
+      ),
+    ).toBe(false);
+    expect(holdsStatement({ memberRole: undefined, grants: [] }, "webhook", "configure")).toBe(
+      false,
+    );
+  });
+
+  it("reads the member row's role as well as the team grants", () => {
+    // A `forms.owner` holds no `webhook` statement at all, so the member row cannot unmask
+    // anything; what this asserts is that the row is **looked at**, so a future role that
+    // did hold it would be read from there too.
+    expect(holdsStatement({ memberRole: "forms.owner", grants: [] }, "membership", "write")).toBe(
+      true,
+    );
+    expect(holdsStatement({ memberRole: "forms.owner", grants: [] }, "webhook", "configure")).toBe(
+      false,
+    );
   });
 });

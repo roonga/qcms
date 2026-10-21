@@ -48,6 +48,8 @@ import {
   reportingSchemaName,
 } from "../schema/schemas.js";
 
+import { workspaceReportingStatementsForEnvironment } from "./reporting.js";
+import { createLoginRole } from "./role.js";
 import {
   createEnvironmentStatements,
   dropEnvironmentStatements,
@@ -258,15 +260,12 @@ export async function createEnvironment(
 
   return exec.transaction(async (tx) => {
     if (input.password !== undefined) {
-      // `format(%I, %L)` rather than interpolation: the name has already passed the
-      // character rule, and a credential must never be concatenated into SQL whatever
-      // else is true of it.
-      await tx.execute(sql`
-        do $$ begin
-          execute format('CREATE ROLE %I LOGIN PASSWORD %L',
-            ${environmentRoleName(input.name)}, ${input.password});
-        end $$;
-      `);
+      // `createLoginRole` lets **Postgres** quote both the identifier and the credential,
+      // over real bind parameters. The `DO` block this used to be could not work at all -
+      // a `DO` body is a string literal, so the `$1` inside it was text and the bind
+      // failed - and it had no test behind it until task 067 met the same shape and added
+      // one; that module's documentation carries the whole account.
+      await createLoginRole(tx, environmentRoleName(input.name), input.password);
     }
 
     // DDL cannot be parameterized: a schema, a table and a constraint name are
@@ -283,6 +282,17 @@ export async function createEnvironment(
     // arrive holding `two_factor_resets` (Q40). Both are guarded on the role existing.
     for (const statement of grantEnvironmentStatements(input.name)) {
       // check-security-hygiene: allow generated GRANT statements over the same refused name
+      await tx.execute(sql.raw(statement));
+    }
+    // Every existing workspace's reporting view set, and its read-only role's grants, in
+    // the environment being created (Q26, task 067). It is here as well as in the
+    // reconciliation because of the rule that bit tasks 065 and 069: there is no `ALTER
+    // DEFAULT PRIVILEGES` anywhere in this design, so an object a later environment needs
+    // has to be emitted by whatever creates the environment and not only by whatever
+    // creates the object. The grants are guarded on each role existing, which for a
+    // brand-new environment is none of them yet.
+    for (const statement of await workspaceReportingStatementsForEnvironment(tx, input.name)) {
+      // check-security-hygiene: allow generated DDL over a slug and an environment name already refused
       await tx.execute(sql.raw(statement));
     }
 

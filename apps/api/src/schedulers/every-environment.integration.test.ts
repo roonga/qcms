@@ -38,12 +38,16 @@ import {
   createSession,
   enqueue,
   getSession,
+  insertDelivery,
   insertFormVersion,
+  insertWebhook,
+  listWebhooks,
   outbox,
   schema,
+  webhookDeliveries,
   type Executor,
 } from "@roonga/qcms-db";
-import { eq } from "drizzle-orm";
+import { eq, sql } from "drizzle-orm";
 import {
   CONTAINER_BOOT_TIMEOUT_MS,
   searchPathOptions,
@@ -76,6 +80,16 @@ const LIVE_SET = ["test", "prod"] as const;
  */
 const DUE_AT = new Date("2026-01-01T00:00:00.000Z");
 const PASS_AT = new Date("2026-01-01T00:01:00.000Z");
+
+/**
+ * The instant the per-environment retention sweep below runs at.
+ *
+ * Fixed for the reason the two above are, and in this case load bearing twice over: the
+ * assertion turns on the distance between a row's `last_attempt_at` and a horizon computed
+ * from this value minus a TTL, so both sides have to be on one clock or the test is
+ * measuring the host-to-container offset.
+ */
+const SWEEP_AT = new Date("2026-02-01T00:00:00.000Z");
 
 let testDb: TestDb;
 let databases: Databases;
@@ -267,5 +281,172 @@ describe("one pass reaches every environment in the live set (criterion 9)", () 
         .where(eq(outbox.id, eventIds.get(environment)!));
       expect(row?.deliveredAt, `data_${environment}.outbox was drained`).not.toBeNull();
     }
+  });
+});
+
+/**
+ * The retention TTLs are per environment (Q11, ADR-24's amendment; task 067, criterion 5).
+ *
+ * This is the half of criterion 5 that the sweep test above cannot reach. That one asserts
+ * the pass **reaches** every environment; this one asserts it **reads each environment's
+ * own policy** and that a pass over one does not age a row in another - which is the same
+ * sentence from the other side, and the direction a shared-handle test could never fail.
+ *
+ * The shape is the smallest that can tell the two apart. `test` is given a TTL of `0`,
+ * which is a supported setting meaning "at the next sweep", and `prod` is left `NULL`,
+ * which means the installation-wide seven days. One row in each environment is aged an
+ * hour: `test`'s is past its own horizon and `prod`'s is nowhere near its, so a sweep that
+ * read one number for both leaves the wrong pair of rows behind whichever number it read.
+ */
+describe("the sweep reads each environment's own retention TTL (Q11, criterion 5)", () => {
+  /** A delivery row carrying a consumer's response body, aged an hour. */
+  async function seedSnippet(environment: string, suffix: string): Promise<string> {
+    const exec = databases.for(environment);
+    const { formId } = await seedForm(`frm_ttl_${suffix}`);
+    const webhookId = `whk_ttl_${suffix}`;
+    await insertWebhook(exec, {
+      webhookId,
+      formId,
+      // Never reached: this test drives the sweep, which never posts anything. The URL
+      // is the shape the config guard accepts so the row is an ordinary one.
+      url: "https://consumer.example.com/hook",
+      secretEncrypted: "not-a-real-secret",
+    });
+    const event = await enqueue(exec, { eventType: "response.submitted", payload: {} });
+    await insertDelivery(exec, { outboxId: event.id, webhookId });
+    const aged = await exec
+      .update(webhookDeliveries)
+      .set({
+        // The two columns the sweep's predicate reads. `last_attempt_at` is not null,
+        // which migration 0015's CHECK requires of any row holding a snippet.
+        lastResponseSnippet: "the consumer echoed the request back",
+        lastAttemptAt: new Date(SWEEP_AT.getTime() - 60 * 60 * 1000),
+      })
+      .where(eq(webhookDeliveries.webhookId, webhookId))
+      .returning({ id: webhookDeliveries.id });
+    expect(aged, `data_${environment} seeded one delivery with a snippet`).toHaveLength(1);
+    return aged[0]!.id;
+  }
+
+  /** Whether that delivery still holds its snippet. */
+  async function stillHeld(environment: string, id: string): Promise<boolean> {
+    const [row] = await databases
+      .for(environment)
+      .select({ snippet: webhookDeliveries.lastResponseSnippet })
+      .from(webhookDeliveries)
+      .where(eq(webhookDeliveries.id, id));
+    return row?.snippet !== null && row?.snippet !== undefined;
+  }
+
+  it("redacts under an environment's own TTL and leaves the other environment alone", async () => {
+    const ids = new Map<string, string>();
+    for (const environment of LIVE_SET)
+      ids.set(environment, await seedSnippet(environment, environment));
+    for (const environment of LIVE_SET) {
+      expect(
+        await stillHeld(environment, ids.get(environment)!),
+        `${environment} starts held`,
+      ).toBe(true);
+    }
+
+    // `test` keeps a consumer's response body for no time at all; `prod` says nothing and
+    // therefore keeps the installation-wide seven days. Written through the column the
+    // operator command writes, which is the only writer in production.
+    await databases.control.execute(
+      sql`update control.environments set delivery_snippet_ttl_ms = 0 where name = 'test'`,
+    );
+    await databases.control.execute(
+      sql`update control.environments set delivery_snippet_ttl_ms = null where name = 'prod'`,
+    );
+
+    await sweepEveryEnvironment(makeDeps({ databases }), SWEEP_AT);
+
+    expect(
+      await stillHeld("test", ids.get("test")!),
+      "data_test's snippet should be gone: that environment's TTL is 0",
+    ).toBe(false);
+    expect(
+      await stillHeld("prod", ids.get("prod")!),
+      "data_prod's snippet should remain: no override, so the installation-wide window stands",
+    ).toBe(true);
+  });
+});
+
+/**
+ * **A test submission cannot reach a prod endpoint** (Q3; task 067, criterion 1).
+ *
+ * The property comes out of the layout rather than from a check: `webhooks` is per
+ * environment, so the deliverer running on `data_test` **cannot see a `data_prod.webhooks`
+ * row at all**. There is no code path to assert the absence of, which is exactly why the
+ * criterion asks for this against a real Postgres rather than for an argument: what makes
+ * it true is two schemas and a search path, and the only way to be sure of those is to
+ * have them.
+ *
+ * The shape below is a negative with a positive control beside it, because a negative
+ * alone would pass against a deliverer that delivered nothing anywhere. So:
+ *
+ *   - a **production** endpoint exists for the form, and it is active;
+ *   - a `response.submitted` event is enqueued in **`test`** and in `test` alone;
+ *   - one pass runs over the whole live set;
+ *   - and the production endpoint receives **no delivery row**, while a `test` endpoint
+ *     added beside it receives one from the same event.
+ *
+ * The second clause is what gives the first its meaning: the pass did fan the event out,
+ * to the endpoint in the event's own environment, and the production row was not merely
+ * missed by a pass that did nothing.
+ */
+describe("a test submission cannot reach a prod endpoint (criterion 1)", () => {
+  it("fans out inside the event's own environment and nowhere else", async () => {
+    const { formId } = await seedForm("frm_no_cross_env_delivery");
+
+    // The production endpoint. Active, so nothing about the absence below is a property
+    // of a deactivated row.
+    await insertWebhook(databases.for("prod"), {
+      webhookId: "whk_prod_target",
+      formId,
+      url: "https://prod-consumer.example.com/hook",
+      secretEncrypted: "not-a-real-secret",
+    });
+    // The positive control, in the event's own environment.
+    await insertWebhook(databases.for("test"), {
+      webhookId: "whk_test_target",
+      formId,
+      url: "https://test-consumer.example.com/hook",
+      secretEncrypted: "not-a-real-secret",
+    });
+    expect(
+      (await listWebhooks(databases.for("prod"), formId)).map((row) => row.webhookId),
+      "the production endpoint exists and is the deliverer's to find if it can",
+    ).toEqual(["whk_prod_target"]);
+
+    const event = await enqueue(databases.for("test"), {
+      eventType: "response.submitted",
+      payload: { sessionId: "ses_cross_env_probe", formId },
+    });
+    await databases
+      .for("test")
+      .update(outbox)
+      .set({ nextAttemptAt: DUE_AT })
+      .where(eq(outbox.id, event.id));
+
+    await runDeliveryPassForEveryEnvironment(makeDeps({ databases }), { now: PASS_AT });
+
+    const prodDeliveries = await databases
+      .for("prod")
+      .select({ webhookId: webhookDeliveries.webhookId })
+      .from(webhookDeliveries);
+    expect(
+      prodDeliveries.map((row) => row.webhookId),
+      "a test submission materialised a delivery to a production endpoint",
+    ).not.toContain("whk_prod_target");
+
+    const testDeliveries = await databases
+      .for("test")
+      .select({ webhookId: webhookDeliveries.webhookId })
+      .from(webhookDeliveries);
+    expect(
+      testDeliveries.map((row) => row.webhookId),
+      "the pass fanned the event out inside its own environment, so the negative above means something",
+    ).toContain("whk_test_target");
   });
 });

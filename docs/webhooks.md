@@ -13,14 +13,17 @@ All routes carry the `webhooks:manage` SEC-5 scope (inert at launch) and sit
 behind the internal service-token gate (SEC-4) and admin-auth. A public-only
 process has no admin group, so these paths 404 (ADR-09).
 
-| Route                                         | Effect                                                                                                                                                                                   |
-| --------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `POST /admin/forms/:id/webhooks`              | `{ url, secret?, active? }` → configure a webhook. The secret is **generated** if omitted, and shown **exactly once** in the response `secret` field.                                    |
-| `GET /admin/forms/:id/webhooks`               | List the form's webhooks. Secrets are **masked** - never returned; each row reports `hasSecret: true`.                                                                                   |
-| `PUT /admin/forms/:id/webhooks/:webhookId`    | Update `url` / `active`, or rotate the secret. Rotation is explicit (`rotateSecret: true` or an explicit `secret`) and the new secret is shown once; a plain update never re-reveals it. |
-| `DELETE /admin/forms/:id/webhooks/:webhookId` | **Soft-deactivate**: sets `active = false`, stamps `deactivated_at`; the row is retained so delivery history survives.                                                                   |
+| Route                                         | Effect                                                                                                                                                                                                     |
+| --------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `POST /admin/forms/:id/webhooks`              | `{ url, secret?, active? }` → configure a webhook. The secret is **generated** if omitted, and shown **exactly once** in the response `secret` field.                                                      |
+| `GET /admin/forms/:id/webhooks`               | List the form's webhooks. Secrets are **masked** - never returned; each row reports `hasSecret: true`. A caller holding only `forms.viewer` also sees the URL's query string replaced by `(hidden)` (Q58). |
+| `PUT /admin/forms/:id/webhooks/:webhookId`    | Update `url` / `active`, or rotate the secret. Rotation is explicit (`rotateSecret: true` or an explicit `secret`) and the new secret is shown once; a plain update never re-reveals it.                   |
+| `DELETE /admin/forms/:id/webhooks/:webhookId` | **Soft-deactivate**: sets `active = false`, stamps `deactivated_at`; the row is retained so delivery history survives.                                                                                     |
 
-Multiple webhooks per form are allowed; 025 delivers to every `active` one.
+Multiple webhooks per form are allowed; 025 delivers to every `active` one. Every route
+above acts in **one environment**, chosen by the administrator's environment switcher, and
+a `prod` change is a `forms.approver`'s - see
+[The endpoint URL](#the-endpoint-url-not-a-secret-and-not-a-place-for-a-credential).
 
 ## Secret storage - encrypted at rest, not hashed (SEC-6/SEC-8)
 
@@ -52,6 +55,46 @@ impossible).
   query reads the webhook's current secret rather than one snapshotted at enqueue.
   This entry previously described a dual-signing overlap as a 025 delivery-time
   concern; that capability was specified and never built (issue #453).
+
+## The endpoint URL: not a secret, and not a place for a credential
+
+**Do not put a credential in a webhook endpoint URL.** Not a bearer token in a query
+parameter, not an API key, not `https://user:pass@host/`. Authenticate the delivery with
+the **signing secret**, which is what it is for: every delivery carries
+`X-QCMS-Signature: v1=HMAC-SHA256(secret, timestamp + "." + body)`, and the consumer recipe
+below is how a consumer verifies it. A credential in the URL is a credential in the
+database, in your egress firewall's logs, in your consumer's access logs, and on every
+screen that lists the endpoint.
+
+**The URL is not treated as a secret and the signing secret is** (Q58, Code Owner,
+2026-09-30). The secret is encrypted at rest under `QCMS_APP_KEY`, is returned exactly once
+at the create or the rotate that produced it, and never appears in a read. The URL is
+configuration: it is shown to the staff who may see endpoint configuration, it is in the
+delivery dashboard, and it is in an egress rule somebody has written.
+
+**What a `forms.viewer` sees is the URL with its query string masked.** A caller holding
+only that role reads the scheme, the host and the path, with the query replaced by
+`(hidden)`; a `forms.editor` and above sees the whole URL. The **API** does the masking, in
+the response it returns, so a second client of the same route - a script, another front
+end, a curl - sees the same thing as the shipped admin. The same rule covers the delivery
+dashboard's copy of the URL, because that is the same stored value reaching the same role by
+a second route.
+
+That masking is a **mitigation and not a control**, which is why the instruction at the top
+of this section exists. It narrows who can read a credential somebody put where it does not
+belong; it does not make the URL a safe place to put one, and nothing else in the product
+treats it as one.
+
+**Endpoints are per environment** (ADR-40, Q3). `webhooks`, `outbox` and
+`webhook_deliveries` live in each environment's own schema, so a deliverer running under
+`data_test`'s search path cannot read a `prod` endpoint row at all: "a test submission can
+never fire a production endpoint" is a property of the layout rather than a filter anybody
+has to remember. Two consequences follow. Endpoint configuration is authored **once per
+environment** and a promotion does not carry it. And configuring a **`prod`** endpoint is a
+`forms.approver`'s act with `prod` in scope (Q30, ADR-41), because an editor who can point
+a production webhook at any URL can route production personal data out of the deployment;
+the same change in `dev` or `test` stays an editor's. SEC-14's per-environment egress
+allowlist is the network backstop underneath both.
 
 ## SSRF guardrail (SEC-6)
 

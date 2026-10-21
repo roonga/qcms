@@ -633,6 +633,31 @@ export const ROUTE_POLICIES: readonly RoutePolicy[] = [
     audit: "erasure",
   },
   {
+    // Q7's cross-environment offer (task 067). The **eraser's** cell, in the selected
+    // environment, because asking where else an erasure would have to be repeated is part
+    // of performing one: a caller who may not erase here has no business being told what
+    // exists elsewhere. It names this form, so the data family's form scope narrows it
+    // like every other response row.
+    //
+    // **The other environments are not this row's to authorise**, and that is the point of
+    // the rule PR #1061's review wrote: the environment the policy checks is exactly the
+    // environment the handler acts in, and this handler **acts in none of them** - it
+    // reads existence and offers. It asks the same decision function, per environment,
+    // before it includes one, so an offer the caller would be refused is never made.
+    //
+    // No `audit` kind: SEC-15's kinds are closed and `read` means a response read. This
+    // reads whether a session id exists, which is what `GET /admin/erasures` reads and
+    // writes no row for either.
+    method: "GET",
+    path: "/admin/forms/{id}/responses/{sessionId}/erasure-scope",
+    resource: "response",
+    action: "erase",
+    workspace: "form",
+    namesEnvironment: true,
+    environmentFrom: "switcher",
+    namesForm: true,
+  },
+  {
     // Releasing a withheld response is a **disposition** on response data rather than a
     // read of it, so it is the eraser's row and carries its own action. It writes no
     // audit row, because it is neither a read, an export nor an erasure - SEC-15's kinds

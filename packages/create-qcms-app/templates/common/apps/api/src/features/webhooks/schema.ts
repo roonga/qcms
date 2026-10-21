@@ -56,7 +56,23 @@ export const UpdateWebhookBody = z
 export const WebhookSummary = z
   .object({
     webhookId: z.string().openapi({ example: "whk_ab12cd34" }),
-    url: z.string().openapi({ example: "https://consumer.example.com/qcms-hook" }),
+    /**
+     * The endpoint's URL, with its **query string masked for a `forms.viewer`** and whole
+     * for a `forms.editor` and above (Q58, task 067).
+     *
+     * The masking is the API's, in this response, never a client's rendering, so every
+     * consumer of this route sees the same thing. The URL is not treated as a secret and
+     * the signing secret is; masking a query string is a mitigation rather than a
+     * control, which is why `docs/webhooks.md` and `docs/operations.md` tell operators not
+     * to put a credential in an endpoint URL at all.
+     */
+    url: z.string().openapi({
+      description:
+        "The endpoint URL. A caller holding only forms.viewer sees the query string " +
+        "replaced by (hidden); forms.editor and above see the whole URL. Do not put " +
+        "credentials in an endpoint URL: use the signing secret.",
+      example: "https://consumer.example.com/qcms-hook",
+    }),
     active: z.boolean().openapi({ example: true }),
     /** True once a secret is configured; the value itself is never returned. */
     hasSecret: z.literal(true).openapi({ example: true }),

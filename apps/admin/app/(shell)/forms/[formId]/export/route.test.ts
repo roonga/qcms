@@ -128,7 +128,10 @@ describe("export route: what it forwards", () => {
 
     expect(exportCalls[0]).toMatchObject({ version: "1" });
     expect(response.headers.get("content-disposition")).toBe(
-      'attachment; filename="frm_intake-v1-responses.csv"',
+      // The environment is in the name and in no column (Q8, task 067). `prod` here is
+      // the cookie's default, which is also what `adminApiFetch` sent as the
+      // `x-qcms-environment` header, so the name and the rows agree by construction.
+      'attachment; filename="frm_intake-prod-v1-responses.csv"',
     );
   });
 
@@ -234,14 +237,14 @@ describe("export route: the CSV shape (task 075)", () => {
     const response = await get("?format=csv&version=2");
     expect(response.headers.get("content-type")).toBe("application/zip");
     expect(response.headers.get("content-disposition")).toBe(
-      'attachment; filename="frm_intake-v2-responses.zip"',
+      'attachment; filename="frm_intake-prod-v2-responses.zip"',
     );
   });
 
   it("still names a .csv for the same request when the API answered with CSV", async () => {
     const response = await get("?format=csv&version=2");
     expect(response.headers.get("content-disposition")).toBe(
-      'attachment; filename="frm_intake-v2-responses.csv"',
+      'attachment; filename="frm_intake-prod-v2-responses.csv"',
     );
   });
 });

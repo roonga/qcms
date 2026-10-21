@@ -55,7 +55,7 @@ import { ApiError } from "../../errors.js";
 import type { ApiEnv } from "../../openapi.js";
 import { resolveWorkspaceForNewObject } from "../workspaces/resolve.js";
 import type { AccessRequest } from "./policy.js";
-import { decideAccess } from "./policy.js";
+import { decideAccess, holdsStatement } from "./policy.js";
 import {
   type ResolvedMembership,
   holdsInstallationClaim,
@@ -457,7 +457,38 @@ async function decideInOneWorkspace(
     workspaceId,
     ...(environment === undefined ? {} : { environment }),
     ...(decision.role === undefined ? {} : { role: decision.role }),
+    ...endpointUrlVisibility(policy, resolved),
   };
+}
+
+/**
+ * How much of an endpoint's URL this caller is shown, on the rows where there is one
+ * (Q58, task 067).
+ *
+ * Only the **endpoint read** gets a value, which is the one route that returns a stored
+ * URL to a caller who may not be allowed to set it. The configure routes need none: a
+ * caller who reached one holds `webhook: configure` by definition, and the URL it echoes
+ * back is the one they just sent.
+ *
+ * It is `decision.role` that is **not** asked, deliberately. That field is whichever grant
+ * happened to allow the read first, and a person holding both `forms.viewer` and
+ * `forms.editor` would be masked or not depending on the order their grants came back
+ * from the database - a response that varies with a row order is a response nobody can
+ * reason about. The question asked instead is whether **any** grant they hold declares
+ * `webhook: configure`, which is stable and is the capability Q58's "editor and above"
+ * names.
+ */
+function endpointUrlVisibility(
+  policy: RoutePolicy,
+  resolved: ResolvedMembership,
+): { endpointUrl?: "whole" | "masked" } {
+  if (policy.resource !== "webhook" || policy.action !== "read") return {};
+  const mayConfigure = holdsStatement(
+    { memberRole: resolved.memberRole, grants: resolved.grants },
+    "webhook",
+    "configure",
+  );
+  return { endpointUrl: mayConfigure ? "whole" : "masked" };
 }
 
 /** The context an installation-only row leaves behind: the environment, and no workspace. */

@@ -483,6 +483,18 @@ export const SURFACES: readonly Surface[] = [
     anonymousReachable: false,
   },
   {
+    // Q7's cross-environment offer (task 067). A side-effect-free read on seeded ids, so
+    // it is a positive control as well as a gate probe: without one, a suite of 401s
+    // proves only that the URL is wrong.
+    name: "GET /admin/forms/{id}/responses/{sessionId}/erasure-scope",
+    row: "erasure",
+    group: "admin",
+    method: "GET",
+    path: (ctx) => `/admin/forms/${ctx.formId}/responses/${ctx.sessionId}/erasure-scope`,
+    anonymousReachable: false,
+    readControl: true,
+  },
+  {
     name: "GET /admin/erasures",
     row: "erasure",
     group: "admin",
