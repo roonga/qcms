@@ -20,10 +20,40 @@ process has no admin group, so these paths 404 (ADR-09).
 | `PUT /admin/forms/:id/webhooks/:webhookId`    | Update `url` / `active`, or rotate the secret. Rotation is explicit (`rotateSecret: true` or an explicit `secret`) and the new secret is shown once; a plain update never re-reveals it.                   |
 | `DELETE /admin/forms/:id/webhooks/:webhookId` | **Soft-deactivate**: sets `active = false`, stamps `deactivated_at`; the row is retained so delivery history survives.                                                                                     |
 
+| `GET /admin/forms/:id/webhooks/proposals` | List the endpoint changes waiting for a second approver, in the switcher's environment. A caller holding only `forms.viewer` sees a proposed URL's query string replaced by `(hidden)`, exactly as on the endpoint list (Q58). |
+| `POST /admin/forms/:id/webhooks/proposals/:proposalId/confirm` | Apply a waiting change. **Refused for the account that proposed it**, and refused for anybody not holding `forms.approver` with this environment in scope. |
+| `DELETE /admin/forms/:id/webhooks/proposals/:proposalId` | Withdraw a waiting change, applying it to nothing. Either account may withdraw it. |
+
 Multiple webhooks per form are allowed; 025 delivers to every `active` one. Every route
 above acts in **one environment**, chosen by the administrator's environment switcher, and
 a `prod` change is a `forms.approver`'s - see
 [The endpoint URL](#the-endpoint-url-not-a-secret-and-not-a-place-for-a-credential).
+
+### A production endpoint change may need two accounts (task 070)
+
+A workspace carries one switch, `requireSecondApprover`, **off by default**. With it on, the
+three configure routes above answer **`202`** in `prod` instead of applying the change: the
+body carries `pending: true` and the proposal, the live endpoint row is untouched, and the
+deliverer goes on posting to the URL that was already agreed. The proposed URL receives
+nothing at all until a **different** `forms.approver` holding `prod` in scope confirms it.
+
+Three things an API consumer should build for:
+
+- **`202` is not an error and not a success.** A client that treats every 2xx as "done"
+  will tell an operator a production endpoint moved when it did not. Branch on the body's
+  `pending` marker.
+- **A `create` answers `202` with the secret.** The plaintext exists only in that response
+  (SEC-6), so it is revealed at propose time and nothing signs with it until the change is
+  confirmed. Store it then, not later.
+- **One pending change per endpoint.** A second proposal for the same endpoint is refused
+  `409 ENDPOINT_CHANGE_PENDING`: two waiting changes would make "confirm this one"
+  ambiguous. Confirm or withdraw the first.
+
+Outside `prod`, and in a workspace that leaves the switch off, every route behaves exactly
+as the table above describes. The rule gates `prod` alone, deliberately: a `dev` endpoint
+routes test data to a test consumer, and gating it would cost a test cycle and protect
+nothing. SEC-14's per-environment egress allowlist stays the network backstop underneath,
+because an endpoint that should not have been set is still one a firewall can refuse.
 
 ## Secret storage - encrypted at rest, not hashed (SEC-6/SEC-8)
 
