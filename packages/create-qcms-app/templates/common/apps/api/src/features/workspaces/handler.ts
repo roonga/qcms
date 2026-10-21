@@ -141,7 +141,7 @@ function isUniqueViolation(err: unknown): boolean {
  * concurrent create loses the race.
  *
  * The plugin checks the slug before inserting, at
- * `dist/plugins/organization/routes/crud-org.mjs:62` of better-auth 1.7.7
+ * `dist/plugins/organization/routes/crud-org.mjs:62` of better-auth 1.7.10
  * (`findOrganizationBySlug` then `APIError.from("BAD_REQUEST", ...)`), so a second caller
  * can be refused there rather than by `organization_slug_unique` underneath. Nothing in
  * `app.ts` or `errors.ts` maps a vendor `APIError`, so without this branch that caller
