@@ -95,17 +95,31 @@ const CREATE_APP_ROOT = fileURLToPath(new URL("packages/create-qcms-app", import
 // directory from its own location; the two have to agree.
 const COVERAGE_DIR = fileURLToPath(new URL("coverage", import.meta.url));
 
-// Single root Vitest configuration - every package and app is a project here;
-// no per-package runners or configs. (Vitest 4 removed vitest.workspace.ts;
-// test.projects is its replacement - task 001.)
+// One root Vitest configuration, enumerating every project in the workspace: there
+// is no second runner, and the `projects` list below is the only place a project is
+// registered. Two directories do keep a config of their own, `packages/ui` and
+// `apps/admin` (twice, one project per file extension), because they need an
+// environment and setup files this file does not impose; `workspaceProjects` picks
+// those up by path, so they are projects of this config rather than runners beside
+// it. (Vitest 4 removed vitest.workspace.ts; test.projects is its replacement -
+// task 001.)
 export default defineConfig({
   test: {
     // Bound the per-run worker pool. Every package's `test` script runs
     // `vitest run --root <repo> --project <name>`, so each turbo task spawns its
     // own pool against this config and turbo runs several of those at once: the
-    // two multiply. Measured on a 24-core box, `turbo run test --force` went from
-    // a peak of 32 concurrent worker processes to 16 with this plus the paired
-    // `concurrency` in turbo.json, for about 9% more wall time (66s to 72s).
+    // two multiply.
+    //
+    // The figures in the next two paragraphs are the original measurement, taken on
+    // a 24-core box in PR #73 on 2026-07-25 against **vitest 4.1.10**. They are kept
+    // because they are what the cap was adopted for, and dated because vitest 5.0.4
+    // changed how the number is applied (see below), so they describe the cap's
+    // effect then rather than a reading anybody should expect from this tree today.
+    // Anything that needs a current number should re-measure.
+    //
+    // `turbo run test --force` went from a peak of 32 concurrent worker processes to
+    // 16 with this plus the paired `concurrency` in turbo.json, for about 9% more
+    // wall time (66s to 72s).
     //
     // What this does and does not buy, measured rather than assumed: it lowers
     // oversubscription and the process/memory footprint, so a long agent-loop
