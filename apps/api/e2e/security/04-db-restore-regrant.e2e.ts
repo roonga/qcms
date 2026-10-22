@@ -53,7 +53,10 @@ import {
   DATA_PLANE_TABLE_NAMES,
   GRANT_SOURCES,
   ownsControlSchema,
+  reconcileWorkspaceReporting,
   regrantEnvironments,
+  workspaceReportingRoleName,
+  workspaceReportingViewNames,
 } from "@roonga/qcms-db";
 import { drizzle } from "drizzle-orm/node-postgres";
 import pg from "pg";
@@ -67,6 +70,24 @@ const ENVIRONMENTS = ["test", "prod"] as const;
 const ENVIRONMENT_ROLES = { test: "qcms_app_test", prod: "qcms_app_prod" } as const;
 /** A name this project does not ship, so the prefix-shaped revokes are executed. */
 const UNSHIPPED_ROLE = "qcms_app_zebra";
+
+/**
+ * **Two** workspaces, so task 067's per-workspace reporting grants are covered by the
+ * equality below (PR #1099's review, finding 3).
+ *
+ * One would not be enough for the claim that matters: a grant that reached both
+ * workspaces' views would look correct against a single workspace, and the whole point of
+ * Q26 is that an analyst holding one workspace's role reads one workspace's views.
+ */
+const WORKSPACES: readonly { readonly id: string; readonly slug: string }[] = [
+  { id: "org_restore_home", slug: "home" },
+  { id: "org_restore_vehicle", slug: "vehicle" },
+];
+
+/** Every `qcms_reporting_<env>_<slug>` role, derived rather than typed. */
+const REPORTING_ROLES = ENVIRONMENTS.flatMap((environment) =>
+  WORKSPACES.map((workspace) => workspaceReportingRoleName(environment, workspace.slug)),
+);
 /** Every schema QCMS names, which is also the set whose ownership is asserted. */
 const QCMS_SCHEMAS = [
   "control",
@@ -129,10 +150,26 @@ async function inContainer(command: string[], what: string): Promise<string> {
 
 /** `psql` inside the container, as `role`, over the local socket. */
 function psql(role: string, args: string[]): string[] {
-  // The local socket, where the official image's `initdb --auth-local=trust` means no
-  // password is needed and none is passed - which is also why the documented restore
-  // procedure can name `qcms_migrate` without putting a credential in the runbook (SEC-8).
+  // The local socket, where the official image's `pg_hba.conf` carries initdb's own
+  // default of `local all all trust`, so no password is needed and none is passed. The
+  // image sets no `--auth` flag of its own (PR #1099's review, finding 5); that is also
+  // why the documented restore procedure can name `qcms_migrate` without putting a
+  // credential in the runbook, and why it says what to do when an operator has overridden
+  // the default with `POSTGRES_INITDB_ARGS` (SEC-8).
   return ["psql", "--username", role, "--dbname", databaseName(), ...args];
+}
+
+/**
+ * A drizzle handle on the migration credential's pool, which is what the subcommand runs
+ * on.
+ *
+ * `drizzle(pool)` with no schema satisfies the `Executor` alias structurally but not
+ * nominally, and nothing here reads a declared table through it. The same cast
+ * `environment-cli.ts` and `migrate.ts` make, for the same reason - written once here
+ * rather than at each call site.
+ */
+function migrateDb(): Parameters<typeof regrantEnvironments>[0] {
+  return drizzle(migratePool) as unknown as Parameters<typeof regrantEnvironments>[0];
 }
 
 function databaseName(): string {
@@ -140,32 +177,105 @@ function databaseName(): string {
 }
 
 /**
- * The complete grant map: every privilege every `qcms%` role holds on every relation in
- * every schema, plus schema `USAGE` and `CREATE`.
+ * The complete grant map: every privilege every `qcms%` role holds, on every object kind
+ * that can carry one.
  *
  * The whole map rather than the privileges a test expected, because the property is "the
  * re-grant cannot widen privilege" and a listing of what was expected cannot see a
  * privilege nobody expected.
+ *
+ * **Six object kinds, not one** (PR #1099's review, finding 4). The first version read
+ * `information_schema.table_privileges` plus schema `USAGE`/`CREATE`, which left
+ * sequences, functions, types, column-level privileges, default ACLs and large objects
+ * outside the equality - and the registry already emits `GRANT USAGE ON ALL SEQUENCES IN
+ * SCHEMA`, so a future sequence or function grant was one generator edit away from
+ * widening the model unseen. `relacl`/`proacl`/`typacl`/`nspacl` are read through
+ * `aclexplode` rather than `information_schema`, which has no view for a function or a
+ * type privilege; a NULL acl means "the owner's implicit rights and nothing granted", and
+ * `aclexplode(NULL)` correctly yields no rows.
+ *
+ * Widening it is what caught the one real over-reach in this change: on a restored
+ * database the baseline's `SELECT ON ALL TABLES IN SCHEMA reporting_<env>` reaches task
+ * 067's per-workspace views, because they came back in the dump. See
+ * `revokeWorkspaceViewsFromEnvironmentRole`.
  */
 async function grantMap(): Promise<string[]> {
-  const tables = await owner.query<{ row: string }>(
-    `select format('%s.%s %s %s', table_schema, table_name, grantee, privilege_type) as row
-       from information_schema.table_privileges
-      where grantee like 'qcms%'
+  const result = await owner.query<{ line: string }>(`
+    with qcms as (select oid, rolname from pg_roles where rolname like 'qcms%')
+    select line from (
+      select format('relation %s.%s %s %s', n.nspname, c.relname, q.rolname, a.privilege_type) as line
+        from pg_class c
+        join pg_namespace n on n.oid = c.relnamespace
+        cross join lateral aclexplode(c.relacl) a
+        join qcms q on q.oid = a.grantee
+       where n.nspname not like 'pg\\_%' and n.nspname <> 'information_schema'
+      union all
+      select format('column %s.%s.%s %s %s', table_schema, table_name, column_name, grantee, privilege_type)
+        from information_schema.column_privileges
+       where grantee like 'qcms%'
+         and not exists (
+           select 1 from information_schema.table_privileges t
+            where t.table_schema = column_privileges.table_schema
+              and t.table_name = column_privileges.table_name
+              and t.grantee = column_privileges.grantee
+              and t.privilege_type = column_privileges.privilege_type)
+      union all
+      select format('function %s.%s %s %s', n.nspname, p.proname, q.rolname, a.privilege_type) as line
+        from pg_proc p
+        join pg_namespace n on n.oid = p.pronamespace
+        cross join lateral aclexplode(p.proacl) a
+        join qcms q on q.oid = a.grantee
+       where n.nspname not like 'pg\\_%' and n.nspname <> 'information_schema'
+      union all
+      select format('type %s.%s %s %s', n.nspname, t.typname, q.rolname, a.privilege_type) as line
+        from pg_type t
+        join pg_namespace n on n.oid = t.typnamespace
+        cross join lateral aclexplode(t.typacl) a
+        join qcms q on q.oid = a.grantee
+       where n.nspname not like 'pg\\_%' and n.nspname <> 'information_schema'
+      union all
+      select format('schema %s %s %s', n.nspname, q.rolname, a.privilege_type) as line
+        from pg_namespace n
+        cross join lateral aclexplode(n.nspacl) a
+        join qcms q on q.oid = a.grantee
+       where n.nspname not like 'pg\\_%' and n.nspname <> 'information_schema'
+      union all
+      select format('default %s %s %s %s %s', coalesce(n.nspname, '-'), d.defaclobjtype,
+                    pg_get_userbyid(d.defaclrole), q.rolname, a.privilege_type) as line
+        from pg_default_acl d
+        left join pg_namespace n on n.oid = d.defaclnamespace
+        cross join lateral aclexplode(d.defaclacl) a
+        join qcms q on q.oid = a.grantee
+      union all
+      select format('largeobject %s %s %s', l.oid, q.rolname, a.privilege_type) as line
+        from pg_largeobject_metadata l
+        cross join lateral aclexplode(l.lomacl) a
+        join qcms q on q.oid = a.grantee
+    ) lines order by line`);
+  return result.rows.map((row) => row.line);
+}
+
+/**
+ * Every per-workspace reporting view, with whether it carries `security_barrier`.
+ *
+ * Task 067's review found that a plain view's own predicate is not a security boundary in
+ * Postgres: a qual the consumer writes can be pushed below it and evaluated against the
+ * rows the view was meant to hide, so each workspace view is created `WITH
+ * (security_barrier = true)`. That option lives in `pg_class.reloptions`, which is part of
+ * the view definition rather than a privilege - so it rides in the dump rather than being
+ * re-granted, and this is the assertion that it really does (PR #1099's review).
+ */
+async function securityBarriers(): Promise<string[]> {
+  const result = await owner.query<{ line: string }>(
+    `select format('%s.%s barrier=%s', n.nspname, c.relname,
+                   coalesce(array_to_string(c.reloptions, ','), 'none')) as line
+       from pg_class c join pg_namespace n on n.oid = c.relnamespace
+      where c.relkind = 'v' and n.nspname like 'reporting\\_%'
+        and c.relname = any($1)
       order by 1`,
+    [WORKSPACES.flatMap((workspace) => [...workspaceReportingViewNames(workspace.slug)])],
   );
-  const schemas = await owner.query<{ row: string }>(
-    `select format('schema %s %s %s', n.nspname, r.rolname, p.privilege) as row
-       from pg_catalog.pg_namespace n
-       cross join pg_catalog.pg_roles r
-       cross join (values ('USAGE'), ('CREATE')) as p(privilege)
-      where r.rolname like 'qcms%'
-        and n.nspname not like 'pg\\_%'
-        and n.nspname <> 'information_schema'
-        and has_schema_privilege(r.rolname, n.nspname, p.privilege)
-      order by 1`,
-  );
-  return [...tables.rows.map((row) => row.row), ...schemas.rows.map((row) => row.row)];
+  return result.rows.map((row) => row.line);
 }
 
 /** Every schema and relation QCMS names, with its owner. */
@@ -218,6 +328,8 @@ let ownershipBeforeDump: string[] = [];
 let grantLinesInDump = -1;
 /** The grant map measured immediately after the restore and before the re-grant. */
 let grantsAfterRestore: string[] = [];
+/** The per-workspace views' `security_barrier` state before the dump. */
+let barriersBeforeDump: string[] = [];
 
 beforeAll(async () => {
   // UNMIGRATED: the recipe creates the roles and hands over the schemas before the first
@@ -232,6 +344,7 @@ beforeAll(async () => {
     CONTROL_ROLE,
     ...Object.values(ENVIRONMENT_ROLES),
     UNSHIPPED_ROLE,
+    ...REPORTING_ROLES,
   ]) {
     const password = ephemeralPassword();
     passwords.set(role, password);
@@ -252,8 +365,26 @@ beforeAll(async () => {
   await applyMigrations(migrator);
   await migrator.end();
 
+  // The two workspaces and their reporting view sets, as an operator makes them: a
+  // workspace row, then `qcms-db-environment reporting`, which is what
+  // `reconcileWorkspaceReporting` is. Without this the database would be missing every
+  // per-workspace view and the equality below would cover none of task 067's grants.
+  for (const workspace of WORKSPACES) {
+    await owner.query(
+      `insert into control.organization (id, name, slug, "createdAt")
+         values ($1, $1, $2, now())`,
+      [workspace.id, workspace.slug],
+    );
+  }
+  migratePool = testDb.register(
+    new pg.Pool({ connectionString: uriFor(MIGRATE_ROLE) }),
+    "migrate pool",
+  );
+  await reconcileWorkspaceReporting(migrateDb());
+
   grantsBeforeDump = await grantMap();
   ownershipBeforeDump = await ownershipMap();
+  barriersBeforeDump = await securityBarriers();
 
   // 1. The dump, with the flags `docs/backup-restore.md` documents.
   await inContainer(
@@ -297,12 +428,7 @@ beforeAll(async () => {
   grantsAfterRestore = await grantMap();
 
   // 4. The re-grant, on the migration credential, exactly as the subcommand runs it.
-  migratePool = testDb.register(
-    new pg.Pool({ connectionString: uriFor(MIGRATE_ROLE) }),
-    "migrate pool",
-  );
-  const migrateDb = drizzle(migratePool) as unknown as Parameters<typeof regrantEnvironments>[0];
-  await regrantEnvironments(migrateDb);
+  await regrantEnvironments(migrateDb());
 
   for (const environment of ENVIRONMENTS) {
     const role = ENVIRONMENT_ROLES[environment];
@@ -347,36 +473,86 @@ describe("after the restore and the re-grant", () => {
     }
   });
 
+  it("gives every per-workspace reporting role exactly its own two views back", async () => {
+    // Task 067's half of the model, which the dump drops like every other grant. The
+    // claim is **exact**: this role holds `USAGE` on its own `reporting_<env>` and
+    // `SELECT` on its own two views, and nothing on the other workspace's pair, on the
+    // unfiltered environment-wide pair, or on any other environment's schema (Q26, Q52).
+    for (const environment of ENVIRONMENTS) {
+      for (const workspace of WORKSPACES) {
+        const role = workspaceReportingRoleName(environment, workspace.slug);
+        const own = [...workspaceReportingViewNames(workspace.slug)];
+        const held = await tablePrivileges(`reporting_${environment}`, role);
+        expect(Object.keys(held).sort(), role).toEqual([...own].sort());
+        for (const [view, privileges] of Object.entries(held)) {
+          expect([...privileges], `${role} on ${view}`).toEqual(["SELECT"]);
+        }
+        expect(await hasSchemaUsage(`reporting_${environment}`, role), role).toBe(true);
+
+        const other = environment === "test" ? "prod" : "test";
+        expect(await tablePrivileges(`reporting_${other}`, role), role).toEqual({});
+        expect(await hasSchemaUsage(`reporting_${other}`, role), role).toBe(false);
+        expect(await tablePrivileges(`data_${environment}`, role), role).toEqual({});
+        expect(await tablePrivileges("control", role), role).toEqual({});
+      }
+    }
+  });
+
+  it("leaves the application role its own two views and not a workspace's (ADR-40, Q52)", async () => {
+    // The over-reach the widened grant map caught. `grantEnvironmentStatements` grants
+    // `SELECT ON ALL TABLES IN SCHEMA reporting_<env>`, which on a restored database
+    // reaches the per-workspace views too, because they came back in the dump. The
+    // narrowing source takes that back, and this is the assertion that it did.
+    for (const environment of ENVIRONMENTS) {
+      const role = ENVIRONMENT_ROLES[environment];
+      const held = await tablePrivileges(`reporting_${environment}`, role);
+      expect(Object.keys(held).sort(), role).toEqual(["answers_flat", "responses"]);
+      for (const privileges of Object.values(held)) expect([...privileges]).toEqual(["SELECT"]);
+    }
+  });
+
+  it("keeps `security_barrier` on every per-workspace view", async () => {
+    // Not a privilege, so the re-grant is not what restores it: the option lives in the
+    // view definition and rides in the dump. Asserted because a restore that brought the
+    // views back **without** it would leave every workspace's analysts able to read the
+    // other workspace's rows through their own view, which is the defect 067's review
+    // found and the one thing in that model a grant cannot fix.
+    const after = await securityBarriers();
+    expect(after).toEqual(barriersBeforeDump);
+    expect(after).toHaveLength(ENVIRONMENTS.length * WORKSPACES.length * 2);
+    for (const line of after) expect(line, line).toContain("barrier=security_barrier=true");
+  });
+
   it("passes the `ownsControlSchema` guard the environment command refuses on", async () => {
     // The second half of the defect. Before this fix the restore landed ownership on the
     // superuser, so the next `pnpm qcms:environment create ...` was refused and a later
     // migration as `qcms_migrate` would have failed on objects it did not own.
-    const connected = await ownsControlSchema(
-      drizzle(migratePool) as unknown as Parameters<typeof ownsControlSchema>[0],
-    );
+    const connected = await ownsControlSchema(migrateDb());
     expect(connected.role).toBe(MIGRATE_ROLE);
     expect(connected.owns).toBe(true);
   });
 
   it("changes nothing when the re-grant runs a second time", async () => {
     const after = await grantMap();
-    await regrantEnvironments(
-      drizzle(migratePool) as unknown as Parameters<typeof regrantEnvironments>[0],
-    );
+    await regrantEnvironments(migrateDb());
     expect(await grantMap()).toEqual(after);
     expect(await grantMap()).toEqual(grantsBeforeDump);
   });
 
   it("reports one pass per source, with every environment-scoped source expanded", async () => {
-    const report = await regrantEnvironments(
-      drizzle(migratePool) as unknown as Parameters<typeof regrantEnvironments>[0],
-    );
+    const report = await regrantEnvironments(migrateDb());
     expect(report.environments).toEqual([...ENVIRONMENTS]);
-    const perEnvironment = GRANT_SOURCES.filter((source) => source.scope === "environment").length;
+    // Every source that is not installation-wide expands once per environment, whichever
+    // kind it is - which is what makes this count a property of the list rather than of
+    // the sources anybody remembered.
+    const perEnvironment = GRANT_SOURCES.filter(
+      (source) => source.scope !== "installation",
+    ).length;
     const installation = GRANT_SOURCES.length - perEnvironment;
     expect(report.passes).toHaveLength(installation + perEnvironment * ENVIRONMENTS.length);
-    // Task 067's per-workspace reporting grants arrive as one more environment-scoped
-    // source, and this count follows them with no edit here.
+    // Every pass carries statements, the two reporting ones included: the workspaces
+    // seeded above are what make that true.
+    for (const pass of report.passes) expect(pass.statements, pass.source).toBeGreaterThan(0);
     expect(report.publicCreateGrantedToPublic).toBe(false);
   });
 
