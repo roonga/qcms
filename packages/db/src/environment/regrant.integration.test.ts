@@ -3,6 +3,7 @@ import pg from "pg";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 
 import type { Executor } from "../queries/executor.js";
+import { listEnvironmentNames } from "../queries/grants.js";
 import {
   CONTAINER_BOOT_TIMEOUT_MS,
   applyMigrations,
@@ -10,9 +11,13 @@ import {
   type TestDb,
 } from "../testing/harness.js";
 
+import { workspaceReportingRoleName } from "../schema/schemas.js";
+
 import { createEnvironment, ownsControlSchema } from "./command.js";
+import { reconcileWorkspaceReporting } from "./reporting.js";
+import { describeError } from "./describe-error.js";
 import { GRANT_SOURCES } from "./grants.js";
-import { listEnvironmentNames, regrantEnvironments } from "./regrant.js";
+import { regrantEnvironments } from "./regrant.js";
 
 /**
  * The re-grant subcommand against a real catalogue (issue #1094).
@@ -42,6 +47,12 @@ import { listEnvironmentNames, regrantEnvironments } from "./regrant.js";
 const REGRANT_TIMEOUT_MS = 60_000;
 
 const MIGRATE_ROLE = "qcms_migrate";
+
+/** Two workspaces, so a per-workspace grant that reached both would be visible. */
+const WORKSPACES: readonly (readonly [string, string])[] = [
+  ["org_regrant_home", "home"],
+  ["org_regrant_vehicle", "vehicle"],
+];
 const APPLICATION_ROLES = [
   "qcms_app_control",
   "qcms_app_test",
@@ -64,32 +75,80 @@ function ephemeralPassword(): string {
 }
 
 /**
- * The complete grant map: every privilege every `qcms%` role holds on every table and
- * view in every schema QCMS named, plus schema `USAGE` and `CREATE`.
+ * The complete grant map: every privilege every `qcms%` role holds, on every object kind
+ * that can carry one.
  *
- * **The whole map rather than the privileges a test expected**, because the property
- * under test is "the re-grant cannot widen privilege". A listing of what was expected
- * cannot see a privilege nobody expected; an equality on the whole map can, and names it.
+ * **The whole map rather than the privileges a test expected**, because the property under
+ * test is "the re-grant cannot widen privilege". A listing of what was expected cannot see
+ * a privilege nobody expected; an equality on the whole map can, and names it.
+ *
+ * **Six object kinds, not one** (PR #1099's review, finding 4). The first version read
+ * `information_schema.table_privileges` plus schema `USAGE`/`CREATE`, which leaves
+ * sequences, functions, types, column-level privileges, default ACLs and large objects
+ * outside the equality - and the registry already emits `GRANT USAGE ON ALL SEQUENCES IN
+ * SCHEMA`, so a future sequence or function grant was one generator edit away from
+ * widening the model unseen. `relacl`/`proacl`/`typacl`/`nspacl` are read through
+ * `aclexplode` rather than `information_schema`, which has no view for a function or a type
+ * privilege; a NULL acl means "the owner's implicit rights and nothing granted", and
+ * `aclexplode(NULL)` correctly yields no rows.
+ *
+ * A column privilege is listed only when its table does not already carry the same one, so
+ * the map is not every table grant repeated once per column.
  */
 async function grantMap(client: pg.Client): Promise<string[]> {
-  const tables = await client.query<{ row: string }>(
-    `select format('%s.%s %s %s', table_schema, table_name, grantee, privilege_type) as row
-       from information_schema.table_privileges
-      where grantee like 'qcms%'
-      order by 1`,
-  );
-  const schemas = await client.query<{ row: string }>(
-    `select format('schema %s %s %s', n.nspname, r.rolname, p.privilege) as row
-       from pg_catalog.pg_namespace n
-       cross join pg_catalog.pg_roles r
-       cross join (values ('USAGE'), ('CREATE')) as p(privilege)
-      where r.rolname like 'qcms%'
-        and n.nspname not like 'pg\\_%'
-        and n.nspname <> 'information_schema'
-        and has_schema_privilege(r.rolname, n.nspname, p.privilege)
-      order by 1`,
-  );
-  return [...tables.rows.map((row) => row.row), ...schemas.rows.map((row) => row.row)];
+  const res = await client.query<{ line: string }>(`
+    with qcms as (select oid, rolname from pg_roles where rolname like 'qcms%')
+    select line from (
+      select format('relation %s.%s %s %s', n.nspname, c.relname, q.rolname, a.privilege_type) as line
+        from pg_class c
+        join pg_namespace n on n.oid = c.relnamespace
+        cross join lateral aclexplode(c.relacl) a
+        join qcms q on q.oid = a.grantee
+       where n.nspname not like 'pg\\_%' and n.nspname <> 'information_schema'
+      union all
+      select format('column %s.%s.%s %s %s', table_schema, table_name, column_name, grantee, privilege_type)
+        from information_schema.column_privileges
+       where grantee like 'qcms%'
+         and not exists (
+           select 1 from information_schema.table_privileges t
+            where t.table_schema = column_privileges.table_schema
+              and t.table_name = column_privileges.table_name
+              and t.grantee = column_privileges.grantee
+              and t.privilege_type = column_privileges.privilege_type)
+      union all
+      select format('function %s.%s %s %s', n.nspname, p.proname, q.rolname, a.privilege_type) as line
+        from pg_proc p
+        join pg_namespace n on n.oid = p.pronamespace
+        cross join lateral aclexplode(p.proacl) a
+        join qcms q on q.oid = a.grantee
+       where n.nspname not like 'pg\\_%' and n.nspname <> 'information_schema'
+      union all
+      select format('type %s.%s %s %s', n.nspname, t.typname, q.rolname, a.privilege_type) as line
+        from pg_type t
+        join pg_namespace n on n.oid = t.typnamespace
+        cross join lateral aclexplode(t.typacl) a
+        join qcms q on q.oid = a.grantee
+       where n.nspname not like 'pg\\_%' and n.nspname <> 'information_schema'
+      union all
+      select format('schema %s %s %s', n.nspname, q.rolname, a.privilege_type) as line
+        from pg_namespace n
+        cross join lateral aclexplode(n.nspacl) a
+        join qcms q on q.oid = a.grantee
+       where n.nspname not like 'pg\\_%' and n.nspname <> 'information_schema'
+      union all
+      select format('default %s %s %s %s %s', coalesce(n.nspname, '-'), d.defaclobjtype,
+                    pg_get_userbyid(d.defaclrole), q.rolname, a.privilege_type) as line
+        from pg_default_acl d
+        left join pg_namespace n on n.oid = d.defaclnamespace
+        cross join lateral aclexplode(d.defaclacl) a
+        join qcms q on q.oid = a.grantee
+      union all
+      select format('largeobject %s %s %s', l.oid, q.rolname, a.privilege_type) as line
+        from pg_largeobject_metadata l
+        cross join lateral aclexplode(l.lomacl) a
+        join qcms q on q.oid = a.grantee
+    ) lines order by line`);
+  return res.rows.map((row) => row.line);
 }
 
 beforeAll(async () => {
@@ -105,6 +164,22 @@ beforeAll(async () => {
     await owner.query(`CREATE ROLE ${role} LOGIN PASSWORD '${password}'`);
   }
   await applyMigrations(owner);
+  // **Two workspaces, and their reporting roles**, so task 067's per-workspace source has
+  // something to emit and the equality below covers it. One workspace would not: a grant
+  // that reached both workspaces' views would look correct against one.
+  for (const [id, slug] of WORKSPACES) {
+    await owner.query(
+      `insert into control.organization (id, name, slug, "createdAt") values ($1, $1, $2, now())`,
+      [id, slug],
+    );
+    for (const environment of ["test", "prod"]) {
+      // The role name is this generator's, not a literal: a test that re-typed the
+      // derivation would pass while the derivation drifted.
+      await owner.query(
+        `CREATE ROLE ${workspaceReportingRoleName(environment, slug)} LOGIN PASSWORD '${password}'`,
+      );
+    }
+  }
   // Registered with the harness, so teardown drains it before the container stops: an
   // unregistered pool whose database vanished underneath it reports as an unhandled
   // `terminating connection due to administrator command` (issue #888).
@@ -112,7 +187,15 @@ beforeAll(async () => {
     new pg.Pool({ connectionString: testDb.connectionUri }),
     "owner pool",
   );
+  // `drizzle(pool)` with no schema satisfies the `Executor` alias structurally but not
+  // nominally, and nothing under test reads a declared table through it. The same cast
+  // `environment-cli.ts` and `migrate.ts` make, for the same reason.
   db = drizzle(pool) as unknown as Executor;
+  // The reporting reconciliation, which is what `docs/reporting-view.md` tells an operator
+  // to run after creating a workspace. Without it this database would not be the state a
+  // set-up installation is in - it would be missing every per-workspace view - and "changes
+  // nothing on a database that is already correct" would be measuring the wrong database.
+  await reconcileWorkspaceReporting(db);
 }, CONTAINER_BOOT_TIMEOUT_MS);
 
 afterAll(async () => {
@@ -144,7 +227,9 @@ describe("the re-grant subcommand", { timeout: REGRANT_TIMEOUT_MS }, () => {
 
   it("reports one pass per source, with every environment-scoped source expanded", async () => {
     const report = await regrantEnvironments(db);
-    const perEnvironment = GRANT_SOURCES.filter((source) => source.scope === "environment").length;
+    const perEnvironment = GRANT_SOURCES.filter(
+      (source) => source.scope !== "installation",
+    ).length;
     const installation = GRANT_SOURCES.length - perEnvironment;
     expect(report.passes).toHaveLength(installation + perEnvironment * 2);
     // Task 067's reporting source arrives as one more environment-scoped entry, and this
@@ -208,21 +293,18 @@ describe("the re-grant subcommand", { timeout: REGRANT_TIMEOUT_MS }, () => {
 
   it("names the source and never the statement when Postgres refuses (SEC-8)", async () => {
     // drizzle wraps a failed statement in a `DrizzleQueryError` whose message is
-    // `Failed query: ${query}`, and the CLI writes an error's message to stderr. No grant
-    // statement carries a credential today; the discipline is asserted anyway, so a
-    // generator that one day emits a `CREATE ROLE ... PASSWORD` is not the thing that
-    // discovers this.
-    const pool = testDb.register(
-      new pg.Pool({
-        connectionString: (() => {
-          const uri = new URL(testDb.connectionUri);
-          uri.username = "qcms_app_control";
-          uri.password = password;
-          return uri.toString();
-        })(),
-      }),
-      "non-owner pool",
-    );
+    // `Failed query: <sql>\nparams: <params>`, and the CLI unwraps a cause into the line it
+    // writes to stderr. No grant statement carries a credential today; the discipline is
+    // asserted anyway, so a generator that one day emits a `CREATE ROLE ... PASSWORD` is
+    // not the thing that discovers this - which is exactly how it was discovered on the
+    // `CREATE ROLE` path in PR #1093 and on this path in PR #1099.
+    const uri = new URL(testDb.connectionUri);
+    uri.username = "qcms_app_control";
+    uri.password = password;
+    const pool = testDb.register(new pg.Pool({ connectionString: uri.toString() }), "non-owner");
+    // `drizzle(pool)` with no schema satisfies the `Executor` alias structurally but not
+    // nominally, and nothing under test reads a declared table through it. The same cast
+    // `environment-cli.ts` and `migrate.ts` make, for the same reason.
     const asApplicationRole = drizzle(pool) as unknown as Executor;
     // The guard the CLI applies first, for completeness: this credential is refused
     // before any statement runs.
@@ -233,14 +315,26 @@ describe("the re-grant subcommand", { timeout: REGRANT_TIMEOUT_MS }, () => {
       (error: unknown) => error,
     );
     expect(failure).toBeInstanceOf(Error);
-    const message = (failure as Error).message;
-    expect(message).toContain("could not re-apply");
-    expect(message).toContain("SEC-8");
-    expect(message).not.toMatch(/\bGRANT\b/);
-    expect(message).not.toMatch(/\bREVOKE\b/);
-    expect(message).not.toContain("Failed query");
-    // The cause is still attached, so the CLI's one-line form says why Postgres refused.
-    expect((failure as Error).cause).toBeDefined();
+    // The error is an `Error` by the assertion above, so reading it as one is a narrowing
+    // the compiler cannot do through `unknown` rather than a claim about its shape.
+    const thrown = failure as Error;
+
+    // **What reaches stderr**, which is the layer the leak was in: the entry file writes
+    // `qcms-db environment failed: ${describeError(error)}`, and `describeError` unwraps a
+    // cause into that line. Asserting the thrown message alone is what missed it.
+    const printed = `qcms-db environment failed: ${describeError(thrown)}`;
+    for (const leak of [/\bGRANT\b/, /\bREVOKE\b/, /Failed query/, /DO \$\$/, /params:/]) {
+      expect(printed, `stderr must not carry ${String(leak)}`).not.toMatch(leak);
+    }
+    // And it has to say something useful: the grant source that failed, and the driver's
+    // own reason. `permission denied for schema control` is what Postgres says to a role
+    // that does not own it, and repeating it is what tells an operator what to do.
+    expect(printed).toContain("could not re-apply");
+    expect(printed).toContain("the control role's DML on control (baseline)");
+    expect(printed).toMatch(/permission denied/i);
+    // No cause at all, which is what makes the line above provable rather than lucky:
+    // `describeError` appends a cause's message, so the wrapper must attach none.
+    expect(thrown.cause).toBeUndefined();
   });
 
   it("refuses a database whose live set is empty, rather than granting nothing quietly", async () => {

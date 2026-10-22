@@ -51,28 +51,9 @@ import {
 } from "./environment/command.js";
 import { environmentDatabaseUrlVariableName } from "./environment/naming.js";
 import { parseArgs, type ParsedArgs } from "./environment/cli-args.js";
+import { describeError } from "./environment/describe-error.js";
 import { regrantEnvironments, unreappliedNote } from "./environment/regrant.js";
 import { reconcileWorkspaceReporting } from "./environment/reporting.js";
-
-/**
- * One line, cause included, in the shape `qcms-db migrate` already uses.
- *
- * **A `cause` is unwrapped here, which is exactly why nothing in this package may attach
- * drizzle's wrapper as one** (SEC-8). `DrizzleQueryError`'s message is `Failed query:
- * <sql>\nparams: <params>`, so a `cause` carrying it would put the statement and its bind
- * parameters on an operator's terminal through the helper meant to summarise the failure.
- * `refuseWithoutStatement` in `environment/role.ts` is the wrapper every statement-running
- * path uses for that reason: it repeats the **driver's** own complaint and attaches no
- * cause. PR #1093's review found the leak on the `CREATE ROLE` path and PR #1099's review
- * found it again on the re-grant path, which is why both now go through one wrapper.
- */
-function describeError(error: unknown): string {
-  const collapse = (text: string): string => text.replaceAll(/\s+/g, " ").trim();
-  if (!(error instanceof Error)) return collapse(String(error));
-  const cause = error.cause;
-  const because = cause instanceof Error ? ` (${collapse(cause.message)})` : "";
-  return `${collapse(error.message)}${because}`;
-}
 
 /** The executor shape the command's helpers take. */
 type Exec = Parameters<typeof ownsControlSchema>[0];

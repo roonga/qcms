@@ -3,12 +3,7 @@ import { fileURLToPath } from "node:url";
 
 import { describe, expect, it } from "vitest";
 
-import {
-  GRANT_SOURCES,
-  UNREAPPLIABLE_SOURCES,
-  regrantPasses,
-  regrantStatements,
-} from "./grants.js";
+import { GRANT_SOURCES, UNREAPPLIABLE_SOURCES, migrationBackedStatements } from "./grants.js";
 import { SHIPPED_ENVIRONMENTS } from "./baseline.js";
 
 /**
@@ -19,10 +14,14 @@ import { SHIPPED_ENVIRONMENTS } from "./baseline.js";
  * that **a test fails if the two ever differ**. Two directions make that executable, and
  * the second is the one that catches the realistic mistake:
  *
- *   1. **Every statement the registry produces is in the migration tree, verbatim.** This
- *      is the direction `baseline.test.ts` and `control-table-grants.test.ts` already
- *      cover for their own files; it is repeated here over the whole list, so a source
- *      added to the registry that no migration carries fails.
+ *   1. **Every statement the registry's migration-backed half produces is in the migration
+ *      tree, verbatim.** This is the direction `baseline.test.ts` and
+ *      `control-table-grants.test.ts` already cover for their own files; it is repeated
+ *      here over the whole list, so a source added to the registry that no migration
+ *      carries fails. The one source outside that half is task 067's per-workspace
+ *      reporting pass, which reads `control.organization` at run time and which no
+ *      migration can carry; its exemption is **data on the source** and is asserted
+ *      below, so a second exemption needs a deliberate edit and a reason.
  *   2. **Every `GRANT` and `REVOKE` in the migration tree is produced by the registry.**
  *      This is the one that fails when somebody writes a migration that grants something
  *      and does not add a producer for it. Without it, the next task's grant would be
@@ -75,7 +74,7 @@ function grantLines(): { file: string; line: string }[] {
 }
 
 describe("the grant registry", () => {
-  const regranted = regrantStatements(SHIPPED_ENVIRONMENTS);
+  const regranted = migrationBackedStatements(SHIPPED_ENVIRONMENTS);
   const regrantedText = regranted.join("\n");
   const everyMigration = [...migrationSql().values()].join("\n");
 
@@ -110,7 +109,7 @@ describe("the grant registry", () => {
   });
 
   it("emits only statements the migration tree already carries, verbatim", () => {
-    // Direction 1. `regrantStatements` for the shipped set is the baseline's own grant
+    // Direction 1. `migrationBackedStatements` for the shipped set is the baseline's own grant
     // half plus the two later migrations', so every statement must be found as written.
     for (const statement of regranted) {
       expect(everyMigration, statement.split("\n")[0]).toContain(statement);
@@ -133,23 +132,51 @@ describe("the grant registry", () => {
     expect(migrateOnly).toBeGreaterThan(auditRevoke);
   });
 
-  it("expands one pass per environment for every environment-scoped source", () => {
-    const passes = regrantPasses(["test", "prod", "staging"]);
-    const perEnvironment = GRANT_SOURCES.filter((source) => source.scope === "environment").length;
-    const installation = GRANT_SOURCES.length - perEnvironment;
-    expect(passes).toHaveLength(installation + perEnvironment * 3);
-    // Task 067 adds a reporting source with this scope, and this is the line that proves
-    // the expansion is a property of the list rather than of the two shipped names.
-    for (const environment of ["test", "prod", "staging"]) {
-      const forEnvironment = passes.filter((pass) => pass.environment === environment);
-      expect(forEnvironment).toHaveLength(perEnvironment);
-      for (const pass of forEnvironment) expect(pass.statements.length).toBeGreaterThan(0);
+  it("exempts exactly the sources that say so, each with a recorded reason", () => {
+    // The exemption from direction 1 is **data**, not a hole in the test. Task 067's
+    // per-workspace reporting grants name a workspace slug read from
+    // `control.organization` at run time, so no migration can carry one - and the source
+    // that emits them has to say so, with a reason, or this fails.
+    const exempt = GRANT_SOURCES.filter((source) => !source.inMigrationTree);
+    expect(exempt.map((source) => source.name)).toEqual([
+      "one environment's per-workspace reporting views and roles (task 067, Q26)",
+      "the application role holds its own reporting views, not a workspace's (ADR-40, Q52)",
+    ]);
+    for (const source of exempt) {
+      expect(source.whyNotInMigrationTree ?? "", source.name).toMatch(/control\.organization/);
+      // And only the database-reading kind may be exempt: a synchronous source is derived
+      // from source code alone, so a migration can and must carry its output.
+      expect(source.scope, source.name).toBe("environment-database");
+    }
+    // Every other source is in the tree, which is what makes direction 1 above cover the
+    // whole of the model a migration applies.
+    for (const source of GRANT_SOURCES.filter((entry) => entry.inMigrationTree)) {
+      expect(source.scope, source.name).not.toBe("environment-database");
+      expect(source.whyNotInMigrationTree, source.name).toBeUndefined();
     }
   });
 
+  it("leaves the exempt source out of the migration-tree comparison, by construction", () => {
+    // `migrationBackedStatements` is what both directions read, and it must not be able to
+    // reach a source that needs a database: a sync walk over an async generator would
+    // silently emit nothing and make direction 1 pass vacuously for it.
+    const names = GRANT_SOURCES.filter((source) => source.inMigrationTree).map(
+      (source) => source.name,
+    );
+    for (const exempt of [
+      "one environment's per-workspace reporting views and roles (task 067, Q26)",
+      "the application role holds its own reporting views, not a workspace's (ADR-40, Q52)",
+    ]) {
+      expect(names).not.toContain(exempt);
+    }
+    // A floor: the tree-backed half still carries the whole of what the migrations apply.
+    expect(migrationBackedStatements(["test"]).length).toBeGreaterThan(5);
+  });
+
   it("names every source, because a failure reports the name and never the statement", () => {
-    // SEC-8. `regrant.ts` rethrows with the source name in place of the SQL, so a source
-    // with an empty name would turn a refusal into a line that says nothing.
+    // SEC-8. `regrant.ts` passes the source name to `refuseWithoutStatement` in place of
+    // the SQL, so a source with an empty name would turn a refusal into a line that says
+    // nothing.
     for (const source of GRANT_SOURCES) expect(source.name.length).toBeGreaterThan(5);
   });
 });

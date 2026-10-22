@@ -44,6 +44,7 @@ import type { Executor } from "../queries/executor.js";
 import { listWorkspaces } from "../queries/workspaces.js";
 import {
   CONTROL_SCHEMA,
+  environmentRoleName,
   reportingSchemaName,
   workspaceReportingRoleName,
 } from "../schema/schemas.js";
@@ -188,6 +189,60 @@ export async function workspaceReportingStatementsForEnvironment(
         workspaceId: workspace.id,
       }),
     );
+}
+
+/**
+ * Take back the `SELECT` the baseline's `ALL TABLES` grant reaches on a **restored**
+ * database: task 067's per-workspace views, which the application role must not hold
+ * (ADR-40, Q52; issue #1094).
+ *
+ * # Why this is needed only on a restore, and why it is a revoke
+ *
+ * `grantEnvironmentStatements` hands the application role
+ * `GRANT SELECT ON ALL TABLES IN SCHEMA reporting_<env>`. That is a grant on the views
+ * that exist **at that moment** and not a standing rule, and in every live path it runs
+ * before any per-workspace view exists: the baseline creates `responses` and
+ * `answers_flat` and grants, and `createEnvironment` does the same before it reconciles
+ * this environment's workspace views. So on a migrated installation the application role
+ * holds exactly the two environment-wide views, which is what the record says it holds -
+ * the per-workspace pair belongs to the analysts' role, and `workspaceReportingStatements`
+ * above says so in as many words.
+ *
+ * A **restore** inverts the order. The views come back inside the dump, so the same
+ * `ALL TABLES` statement now reaches every workspace's pair too, and the re-granted
+ * database would hold more than the migrated one it is supposed to equal. No migration
+ * carries this revoke because no migration ever runs in that order.
+ *
+ * It is a **narrowing and can only ever be one**: `REVOKE SELECT` on views named by 067's
+ * own `workspaceReportingViewNames`, from the one role `environmentRoleName` derives,
+ * guarded on that role existing. Nothing here can grant anything.
+ *
+ * The alternative is to narrow the baseline's statement to the two views it means, which
+ * is the same correction 067 made for the analysts' role one paragraph up. That edits a
+ * published migration, so it is a Code Owner decision rather than this issue's, and it is
+ * recorded as one in PR #1099.
+ */
+export async function revokeWorkspaceViewsFromEnvironmentRole(
+  exec: Executor,
+  environment: string,
+): Promise<string[]> {
+  const workspaces = await listWorkspaces(exec);
+  const reporting = reportingSchemaName(environment);
+  const role = environmentRoleName(environment);
+  const views = workspaces
+    .filter((workspace) => refuseWorkspaceReportingNames(environment, workspace.slug) === undefined)
+    .flatMap((workspace) => workspaceReportingViewNames(workspace.slug));
+  if (views.length === 0) return [];
+  const quoted = views.map((view) => `"${reporting}"."${view}"`).join(", ");
+  return [
+    `DO $$
+BEGIN
+\tIF EXISTS (SELECT 1 FROM pg_roles WHERE rolname = '${role}') THEN
+\t\tEXECUTE 'REVOKE SELECT ON ${quoted.replaceAll("'", "''")} FROM "${role}"';
+\tEND IF;
+END
+$$;`,
+  ];
 }
 
 /**

@@ -50,7 +50,10 @@ import type { Executor } from "../queries/executor.js";
 import { ACCESS_AUDIT_TABLE } from "../schema/control/access-audit.js";
 import { CONTROL_ROLE, CONTROL_SCHEMA } from "../schema/schemas.js";
 
-import { workspaceReportingStatementsForEnvironment } from "./reporting.js";
+import {
+  revokeWorkspaceViewsFromEnvironmentRole,
+  workspaceReportingStatementsForEnvironment,
+} from "./reporting.js";
 import {
   grantAccessAuditStatements,
   grantControlTableStatements,
@@ -206,6 +209,24 @@ export const GRANT_SOURCES: readonly GrantSource[] = [
       "migration was written, and the generator is async because it has to read them",
     statements: async (exec, environment) =>
       workspaceReportingStatementsForEnvironment(exec, environment),
+  },
+  {
+    // The companion of the pass above, and a narrowing only. `grantEnvironmentStatements`
+    // grants the application role `SELECT ON ALL TABLES IN SCHEMA reporting_<env>`, which
+    // on a RESTORED database reaches the per-workspace views too, because they came back in
+    // the dump before this ran. On every live path they do not exist yet. See
+    // `revokeWorkspaceViewsFromEnvironmentRole` for why that makes the restored database
+    // hold more than the migrated one it must equal, and for the Code Owner question.
+    name: "the application role holds its own reporting views, not a workspace's (ADR-40, Q52)",
+    scope: "environment-database",
+    inMigrationTree: false,
+    whyNotInMigrationTree:
+      "it corrects an ordering only a restore produces: the baseline's ALL TABLES grant on " +
+      "reporting_<env> runs before any per-workspace view exists in every live path, and " +
+      "after they all exist on a restore, so no migration runs in the order that needs it. " +
+      "It reads control.organization to know which views to name",
+    statements: async (exec, environment) =>
+      revokeWorkspaceViewsFromEnvironmentRole(exec, environment),
   },
   {
     name: "control.form_releases (migration 0001)",
