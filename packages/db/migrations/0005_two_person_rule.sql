@@ -15,7 +15,7 @@ CREATE TABLE "control"."webhook_endpoint_proposals" (
 	"withdrawn_by" text,
 	"withdrawn_at" timestamp with time zone,
 	CONSTRAINT "webhook_endpoint_proposals_kind" CHECK ("control"."webhook_endpoint_proposals"."kind" in ('create', 'update', 'deactivate')),
-	CONSTRAINT "webhook_endpoint_proposals_one_outcome" CHECK ("control"."webhook_endpoint_proposals"."confirmed_at" is null or "control"."webhook_endpoint_proposals"."withdrawn_at" is null),
+	CONSTRAINT "webhook_endpoint_proposals_one_outcome" CHECK ("control"."webhook_endpoint_proposals"."applied_at" is null or "control"."webhook_endpoint_proposals"."withdrawn_at" is null),
 	CONSTRAINT "webhook_endpoint_proposals_second_account" CHECK ("control"."webhook_endpoint_proposals"."confirmed_by" is null or "control"."webhook_endpoint_proposals"."confirmed_by" <> "control"."webhook_endpoint_proposals"."proposed_by"),
 	CONSTRAINT "webhook_endpoint_proposals_applied_after_confirm" CHECK ("control"."webhook_endpoint_proposals"."applied_at" is null or "control"."webhook_endpoint_proposals"."confirmed_at" is not null),
 	CONSTRAINT "webhook_endpoint_proposals_outcome_actor" CHECK (("control"."webhook_endpoint_proposals"."confirmed_at" is null) = ("control"."webhook_endpoint_proposals"."confirmed_by" is null) and ("control"."webhook_endpoint_proposals"."withdrawn_at" is null) = ("control"."webhook_endpoint_proposals"."withdrawn_by" is null))

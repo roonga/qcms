@@ -175,4 +175,73 @@ describe("the pending endpoint changes panel", () => {
     await user.click(within(dialog).getByRole("button", { name: t("ops.proposals.withdraw") }));
     expect(withdraw).toHaveBeenCalledWith("wep_waiting");
   });
+
+  it("says per kind what confirming will do (review finding 4)", async () => {
+    // The generic sentence was wrong for two of the three kinds: a deactivation stops
+    // delivery, and an update naming no URL has nothing to put in the hole, so an approver
+    // read "starts delivering to " while Confirm would do the opposite.
+    const cases = [
+      [
+        WAITING,
+        t("ops.proposals.confirmBody.retarget", { environment: "prod", url: WAITING.url ?? "" }),
+      ],
+      [
+        { ...WAITING, kind: "create" as const },
+        t("ops.proposals.confirmBody.create", { environment: "prod", url: WAITING.url ?? "" }),
+      ],
+      [
+        { ...WAITING, kind: "deactivate" as const, url: null },
+        t("ops.proposals.confirmBody.deactivate", { environment: "prod" }),
+      ],
+      // An update that only rotates the secret: no URL, so no target to name.
+      [
+        { ...WAITING, url: null, rotatesSecret: true },
+        t("ops.proposals.confirmBody.update", { environment: "prod" }),
+      ],
+    ] as const;
+
+    for (const [proposal, sentence] of cases) {
+      const user = userEvent.setup();
+      const view = render(
+        <EndpointProposals
+          proposals={{ ok: true, data: [proposal] }}
+          confirm={idle}
+          withdraw={idle}
+        />,
+      );
+      await user.click(screen.getByRole("button", { name: t("ops.proposals.confirm") }));
+      const dialog = await screen.findByRole("alertdialog");
+      expect(dialog.textContent, `${proposal.kind}, url ${String(proposal.url)}`).toContain(
+        sentence,
+      );
+      // No stray "starts delivering to" on a kind that stops delivery.
+      if (proposal.kind === "deactivate") {
+        expect(dialog.textContent).toContain("stops receiving deliveries");
+      }
+      view.unmount();
+    }
+  });
+
+  it("offers a confirmed-but-unapplied row a withdrawal, and says what it buys (review finding 3)", async () => {
+    // The operator's way out of an apply that keeps failing: nothing is live to undo, and
+    // withdrawing releases the endpoint so a new change can be proposed for it. The button
+    // used to be rendered for this state and could only ever answer 409.
+    const user = userEvent.setup();
+    const withdraw = vi.fn(() => Promise.resolve({ status: "done" as const }));
+    render(
+      <EndpointProposals
+        proposals={{ ok: true, data: [UNAPPLIED] }}
+        confirm={idle}
+        withdraw={withdraw}
+      />,
+    );
+
+    await user.click(screen.getByRole("button", { name: t("ops.proposals.withdraw") }));
+    const dialog = await screen.findByRole("alertdialog");
+    expect(dialog.textContent).toContain(
+      t("ops.proposals.withdrawBodyConfirmed", { environment: "prod" }),
+    );
+    await user.click(within(dialog).getByRole("button", { name: t("ops.proposals.withdraw") }));
+    expect(withdraw).toHaveBeenCalledWith("wep_unapplied");
+  });
 });

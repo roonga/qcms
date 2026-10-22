@@ -1435,6 +1435,12 @@ export const messages = {
   "forms.error.unknownEnvironment":
     "This deployment serves no such environment. Pick one from the environment switcher.",
   "forms.error.unknown": "The request failed ({code}).",
+  // Task 070's two release-path refusals, in the operator's words. Both are states of the
+  // version rather than of the caller, so each says what to do with the version.
+  "forms.error.approverIsAuthor":
+    "You published this version, so you cannot release it to production. This workspace requires an approver other than the version's author: ask another approver to release it.",
+  "forms.error.approverUnknownAuthor":
+    "This version was published before the deployment recorded publishing accounts, so the second-approver rule cannot be checked against it. Publish a new version and release that one.",
   "forms.error.unknownCreate": "The form could not be created. Try again.",
   "forms.error.listFailed": "The form library could not be loaded. {message}",
   "forms.error.libraryFailed": "The question library could not be loaded. {message}",
@@ -2232,6 +2238,17 @@ export const messages = {
   // workspace setting that turns it on is the membership screen's; what these strings do
   // is tell an operator the difference between "changed" and "waiting", because that is
   // the one distinction the mechanism exists to make visible.
+  // The six refusals task 070's rule can raise, in the operator's words rather than as a
+  // code. Each says what would make the act work, because every one of them is a refusal
+  // the caller cannot clear by retrying.
+  "ops.error.proposerCannotConfirm":
+    "You proposed this change, so you cannot confirm it. Another approver who holds production in scope has to.",
+  "ops.error.endpointChangePending":
+    "This endpoint already has a change waiting for approval. Confirm or withdraw that one first.",
+  "ops.error.endpointProposalNotFound":
+    "That change is no longer waiting in this environment. Reload the screen to see what is pending.",
+  "ops.error.endpointProposalNotPending":
+    "That change has already been confirmed or withdrawn. Reload the screen to see where it got to.",
   "ops.proposals.stored":
     "Saved as a change waiting for approval. Nothing has changed in {environment} yet: a different approver has to confirm it before the endpoint moves.",
   "ops.proposals.heading": "Changes waiting for approval",
@@ -2254,8 +2271,18 @@ export const messages = {
   "ops.proposals.state.unapplied": "Confirmed, not yet applied. Confirm again to finish it.",
   "ops.proposals.confirm": "Confirm",
   "ops.proposals.confirmTitle": "Confirm this endpoint change?",
-  "ops.proposals.confirmBody":
-    "The endpoint in {environment} starts delivering to {url} as soon as this is confirmed.",
+  // One sentence per kind, because the generic one was wrong for two of the three: a
+  // deactivation stops delivery, and an update that only rotates the secret or flips
+  // `active` names no URL at all, so "starts delivering to " told the approver the
+  // opposite of what pressing Confirm would do (PR #1100's review, finding 4).
+  "ops.proposals.confirmBody.create":
+    "A new endpoint in {environment} starts receiving deliveries at {url} as soon as this is confirmed.",
+  "ops.proposals.confirmBody.retarget":
+    "The endpoint in {environment} starts delivering to {url} as soon as this is confirmed, and stops delivering to its current URL.",
+  "ops.proposals.confirmBody.update":
+    "The endpoint in {environment} keeps its current URL and takes the rest of this change as soon as it is confirmed.",
+  "ops.proposals.confirmBody.deactivate":
+    "The endpoint in {environment} stops receiving deliveries as soon as this is confirmed. Its row and its delivery history are kept.",
   "ops.proposals.confirmWarning":
     "You cannot confirm a change you proposed yourself. If this is yours, ask another approver.",
   "ops.proposals.confirmFailed": "That change was not confirmed. {message}",
@@ -2263,6 +2290,11 @@ export const messages = {
   "ops.proposals.withdrawTitle": "Withdraw this endpoint change?",
   "ops.proposals.withdrawBody":
     "The change is discarded and the endpoint in {environment} is left exactly as it is. Proposing it again starts over.",
+  // The confirmed-but-unapplied row's own withdrawal, which is the operator's way out when
+  // an apply keeps failing: nothing is live to unpick, and withdrawing releases the
+  // endpoint so a fresh change can be proposed for it.
+  "ops.proposals.withdrawBodyConfirmed":
+    "This change was confirmed and never reached the endpoint, so there is nothing live to undo. Withdrawing it releases the endpoint in {environment} so a new change can be proposed for it.",
   "ops.proposals.withdrawFailed": "That change was not withdrawn. {message}",
 
   // The delivery dashboard.

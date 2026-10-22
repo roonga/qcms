@@ -1,5 +1,5 @@
 {
-  "id": "58c38f3e-f49a-416c-857c-4b0b56d667e9",
+  "id": "a3893a52-2431-446b-98bf-2ca31a99de07",
   "prevId": "3239a8b0-d7a5-4059-8e06-3eaf3f826aac",
   "version": "7",
   "dialect": "postgresql",
@@ -1850,7 +1850,7 @@
         },
         "webhook_endpoint_proposals_one_outcome": {
           "name": "webhook_endpoint_proposals_one_outcome",
-          "value": "\"control\".\"webhook_endpoint_proposals\".\"confirmed_at\" is null or \"control\".\"webhook_endpoint_proposals\".\"withdrawn_at\" is null"
+          "value": "\"control\".\"webhook_endpoint_proposals\".\"applied_at\" is null or \"control\".\"webhook_endpoint_proposals\".\"withdrawn_at\" is null"
         },
         "webhook_endpoint_proposals_second_account": {
           "name": "webhook_endpoint_proposals_second_account",

@@ -58,6 +58,16 @@ const FORM_CODE_MESSAGES: Readonly<Record<string, MessageKey>> = {
   WEBHOOK_URL_REJECTED: "ops.error.webhookUrlRejected",
   DELIVERY_NOT_FOUND: "ops.error.deliveryNotFound",
   DELIVERY_NOT_REDELIVERABLE: "ops.error.deliveryNotRedeliverable",
+  // 070's codes: the two-person rule for production. Mapped because an unmapped code
+  // renders `forms.error.unknown` with the raw token, and these are the refusals an
+  // operator is *most* likely to meet - the rule exists to refuse them - so "Something
+  // went wrong (APPROVER_IS_AUTHOR)" would be the sentence that teaches the feature.
+  APPROVER_IS_AUTHOR: "forms.error.approverIsAuthor",
+  APPROVER_UNKNOWN_AUTHOR: "forms.error.approverUnknownAuthor",
+  PROPOSER_CANNOT_CONFIRM: "ops.error.proposerCannotConfirm",
+  ENDPOINT_CHANGE_PENDING: "ops.error.endpointChangePending",
+  ENDPOINT_PROPOSAL_NOT_FOUND: "ops.error.endpointProposalNotFound",
+  ENDPOINT_PROPOSAL_NOT_PENDING: "ops.error.endpointProposalNotPending",
   unauthorized: "forms.error.unauthorized",
   rate_limited: "forms.error.rateLimited",
   internal: "forms.error.internal",

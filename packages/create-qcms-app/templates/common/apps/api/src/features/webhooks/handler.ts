@@ -280,6 +280,12 @@ function proposalBody(
  * route over. So the proposal's own environment has to be the one the request was
  * authorised for, and a mismatch is **not found** rather than forbidden: a caller scoped to
  * `test` learns nothing about what is pending in `prod`.
+ *
+ * A **withdrawn** proposal is not found either: it was applied to nothing and is over, and
+ * a caller naming one learns no more than that. An **applied** one is returned, because
+ * what to say about it differs per route and only the caller knows which it is - confirming
+ * an applied change is the end state that caller asked for, and withdrawing one is refused
+ * because the change is live (PR #1100's review, finding 7).
  */
 async function requireProposal(
   deps: Deps,
@@ -294,8 +300,7 @@ async function requireProposal(
     proposal === undefined ||
     proposal.formId !== input.formId ||
     proposal.environment !== input.environment ||
-    proposal.withdrawnAt !== null ||
-    proposal.appliedAt !== null
+    proposal.withdrawnAt !== null
   ) {
     throw proposalFailures.notFound();
   }
@@ -596,6 +601,17 @@ export function makeConfirmEndpointProposalHandler(
       environment: act.environment,
     });
 
+    // **Already applied is an idempotent success.** Two approvers pressing Confirm on an
+    // unapplied row within one round trip is the window: the winner stamps `applied_at`
+    // and the loser arrives here with the end state they asked for already reached. There
+    // is nothing to retry and nothing wrong with their request, so the answer is the row
+    // (PR #1100's review, finding 7). The proposer is still refused, because the one rule
+    // this mechanism exists for does not stop applying once the change has landed.
+    if (proposal.appliedAt !== null) {
+      if (proposal.proposedBy === act.actor) throw proposalFailures.selfConfirmation();
+      return c.json({ proposal: proposalBody(proposal, "whole") }, 200);
+    }
+
     const settled =
       proposal.confirmedAt === null
         ? await confirmEndpointChange(deps, {
@@ -619,9 +635,14 @@ export function makeConfirmEndpointProposalHandler(
  * is no separate "reject", because a rejection that left the row in a third state would be
  * a third thing for a screen to explain and the record already says who ended it.
  *
- * A **confirmed** proposal cannot be withdrawn, which is why `requireProposal` treats an
- * applied one as absent and the withdraw statement's own predicate refuses a claimed one:
- * the change was agreed, and unpicking it is a new proposal with its own second approver.
+ * **A confirmed proposal whose apply has not landed can be withdrawn too**, and that is the
+ * operator's way out of a persistently failing apply: the `one_open` index holds the
+ * endpoint claimed while such a row exists, so without this door a broken environment pool
+ * would mean no new proposal for that endpoint is ever accepted. It is safe because nothing
+ * is live to unpick - `applied_at is null` is exactly that - and the row keeps both
+ * accounts. An **applied** proposal is not withdrawable: `requireProposal` treats it as
+ * absent, the statement's predicate refuses it and the `one_outcome` CHECK refuses it a
+ * third time, because the change is live and reversing it is a new proposal.
  */
 export function makeWithdrawEndpointProposalHandler(
   deps: Deps,
@@ -635,6 +656,11 @@ export function makeWithdrawEndpointProposalHandler(
       formId,
       environment: act.environment,
     });
+
+    // An applied change is live and reversing it is a new proposal, so this is the state
+    // mismatch the `one_outcome` CHECK and the statement's predicate both refuse. A 409
+    // rather than a 404: the row exists and the caller can read why.
+    if (proposal.appliedAt !== null) throw proposalFailures.notPending();
 
     const withdrawn = await withdrawEndpointChange(deps, {
       proposal,

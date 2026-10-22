@@ -151,11 +151,19 @@ export const webhookEndpointProposals = controlSchema.table(
       foreignColumns: [environments.name],
     }),
     check("webhook_endpoint_proposals_kind", sql`${t.kind} in ('create', 'update', 'deactivate')`),
-    // A proposal is confirmed or withdrawn, never both. Two columns rather than a status
-    // enum because each carries an account and a time, and a status would need them anyway.
+    // **An applied proposal is never withdrawn**, which is the one pair that cannot both
+    // be true: the change is live, and unpicking it is a new proposal.
+    //
+    // A *confirmed* proposal can be withdrawn, and that is deliberate (PR #1100's review,
+    // finding 3). The two-pool window above can leave a confirmation whose endpoint write
+    // never landed, and if nothing could end that row the `one_open` index would keep the
+    // endpoint claimed forever: no new proposal accepted, and only a successful resume to
+    // clear it. So a withdrawal ends it, the endpoint is untouched because it was never
+    // live, and the row keeps **both** accounts - who agreed and who then gave up on it -
+    // which is why this is two columns rather than a status.
     check(
       "webhook_endpoint_proposals_one_outcome",
-      sql`${t.confirmedAt} is null or ${t.withdrawnAt} is null`,
+      sql`${t.appliedAt} is null or ${t.withdrawnAt} is null`,
     ),
     // The two accounts the whole mechanism is about. The API refuses a self-confirmation
     // with a message; this refuses it as a write, so a second write path could not.
@@ -187,7 +195,9 @@ export const webhookEndpointProposals = controlSchema.table(
      * write did not land is confirmed and not applied, and it can still be resumed. If a
      * second proposal could be created and applied beside it, resuming the first would
      * overwrite the second with a value nobody had agreed to last. So a confirmed proposal
-     * keeps the endpoint claimed until its apply lands or it is withdrawn.
+     * keeps the endpoint claimed **until its apply lands or it is withdrawn**, and a
+     * withdrawal of that state is a real door rather than a sentence: see the
+     * `one_outcome` check below.
      */
     uniqueIndex("webhook_endpoint_proposals_one_open")
       .on(t.environment, t.webhookId)

@@ -74,9 +74,21 @@ export async function fillStable(field: Locator, value: string): Promise<void> {
  * callers immediately either assert a URL or type into the screen the POST redirects
  * to - both of which race the in-flight response. Waiting for the URL to leave the bare
  * `/sign-in` means every caller starts from a document that has actually arrived.
+ *
+ * **And the wait before the first keystroke is load-bearing too** (PR #1100). The admin
+ * runs as a dev server here, so the first request for `/sign-in` in a run pays its
+ * compilation and React hydrates after the navigation resolves: `fill` then lands on an
+ * input the re-render is about to replace, and the fill fails with "Execution context was
+ * destroyed, most likely because of a navigation" - on the Email field or, more often, on
+ * the Password field between the two. Every spec but the first in a run was spared it
+ * because an earlier file had warmed the route, which is why this surfaced as an
+ * intermittent "admin sign-in loop" rather than as a defect anybody could place. Waiting
+ * for the app's own hydration marker is the fix, at the one place every caller shares; it
+ * early-returns when scripting is disabled, so the no-JS specs are untouched.
  */
 export async function submitSignIn(page: Page, email: string): Promise<void> {
   await page.goto("/sign-in");
+  await waitForHydration(page);
   await fillStable(page.getByLabel("Email"), email);
   await fillStable(page.getByLabel("Password"), TEST_PASSWORD);
   await Promise.all([

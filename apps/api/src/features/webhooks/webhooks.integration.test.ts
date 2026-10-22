@@ -12,7 +12,9 @@
 import { FormId } from "@roonga/qcms-core";
 import {
   SEED_WORKSPACE_ID,
+  confirmEndpointProposal,
   createForm,
+  getEndpointProposal,
   getWebhook,
   listAccessAudit,
   setRequireSecondApprover,
@@ -472,6 +474,100 @@ describe("the pending `prod` endpoint change (task 070, Q30, Q51)", () => {
     expect(
       (await as(secondToken, `/forms/${FORM_ID}/webhooks/proposals/${pendingId}`, "DELETE")).status,
     ).toBe(200);
+  });
+
+  it("withdraws a confirmed change whose apply never landed, and frees the endpoint", async () => {
+    // PR #1100's review, finding 3. The state is reached by hand rather than by breaking a
+    // pool: `confirmed_at` set with `applied_at` null is exactly what a confirmation whose
+    // endpoint write failed leaves behind, and what matters is that the row can be ended.
+    const created = await req(app, `/forms/${FORM_ID}/webhooks`, "POST", { url: AGREED });
+    const first = (await created.json()) as { proposal: { proposalId: string; webhookId: string } };
+    await as(
+      secondToken,
+      `/forms/${FORM_ID}/webhooks/proposals/${first.proposal.proposalId}/confirm`,
+      "POST",
+    );
+    const webhookId = first.proposal.webhookId;
+
+    const stuck = await req(app, `/forms/${FORM_ID}/webhooks/${webhookId}`, "PUT", {
+      url: PROPOSED,
+    });
+    expect(stuck.status).toBe(202);
+    const stuckId = ((await stuck.json()) as { proposal: { proposalId: string } }).proposal
+      .proposalId;
+    await confirmEndpointProposal(testDb.db, {
+      proposalId: stuckId,
+      confirmedBy: secondUserId,
+      confirmedAt: new Date("2026-10-22T00:00:00.000Z"),
+    });
+
+    // While it sits there the endpoint is claimed, which is the wedge: no new change for
+    // it is accepted.
+    const blocked = await req(app, `/forms/${FORM_ID}/webhooks/${webhookId}`, "PUT", {
+      url: "https://third-consumer.example/hook",
+    });
+    expect(blocked.status).toBe(409);
+
+    // The door out. Nothing live is unpicked - the endpoint still holds the agreed URL -
+    // and the row keeps both accounts.
+    const withdrawn = await as(
+      secondToken,
+      `/forms/${FORM_ID}/webhooks/proposals/${stuckId}`,
+      "DELETE",
+    );
+    expect(withdrawn.status).toBe(200);
+    expect((await getWebhook(testDb.db, FORM_ID, webhookId))?.url).toBe(AGREED);
+    const row = await getEndpointProposal(testDb.db, stuckId);
+    expect(row?.confirmedBy).toBe(secondUserId);
+    expect(row?.withdrawnBy).toBe(secondUserId);
+    expect(row?.appliedAt).toBeNull();
+
+    // And the endpoint is free again.
+    const freed = await req(app, `/forms/${FORM_ID}/webhooks/${webhookId}`, "PUT", {
+      url: "https://fourth-consumer.example/hook",
+    });
+    expect(freed.status).toBe(202);
+    const freedId = ((await freed.json()) as { proposal: { proposalId: string } }).proposal
+      .proposalId;
+    expect(
+      (await as(secondToken, `/forms/${FORM_ID}/webhooks/proposals/${freedId}`, "DELETE")).status,
+    ).toBe(200);
+  });
+
+  it("answers both of two concurrent resumes of a `create` cleanly (review finding 7)", async () => {
+    // Two approvers pressing Confirm on an unapplied `create` within one round trip both
+    // read "no endpoint yet" and both insert; the loser used to get a 500 off
+    // `webhooks_pkey`. The row the proposal describes is the same row either way - the id
+    // is minted at propose time - so the loser is an idempotent success.
+    const created = await req(app, `/forms/${FORM_ID}/webhooks`, "POST", { url: AGREED });
+    const proposal = (await created.json()) as {
+      proposal: { proposalId: string; webhookId: string };
+    };
+    await confirmEndpointProposal(testDb.db, {
+      proposalId: proposal.proposal.proposalId,
+      confirmedBy: secondUserId,
+      confirmedAt: new Date("2026-10-22T00:00:00.000Z"),
+    });
+
+    const [left, right] = await Promise.all([
+      as(
+        secondToken,
+        `/forms/${FORM_ID}/webhooks/proposals/${proposal.proposal.proposalId}/confirm`,
+        "POST",
+      ),
+      as(
+        secondToken,
+        `/forms/${FORM_ID}/webhooks/proposals/${proposal.proposal.proposalId}/confirm`,
+        "POST",
+      ),
+    ]);
+    // Neither caller is told to retry and neither sees a 500: the end state they both
+    // wanted is the state the endpoint is in.
+    expect([left.status, right.status].sort()).toEqual([200, 200]);
+    expect((await getWebhook(testDb.db, FORM_ID, proposal.proposal.webhookId))?.url).toBe(AGREED);
+    expect(
+      (await getEndpointProposal(testDb.db, proposal.proposal.proposalId))?.appliedAt,
+    ).not.toBeNull();
   });
 
   it("writes one SEC-15 `setting` row per act, with the environment and the form (Q61)", async () => {

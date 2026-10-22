@@ -13,16 +13,15 @@ All routes carry the `webhooks:manage` SEC-5 scope (inert at launch) and sit
 behind the internal service-token gate (SEC-4) and admin-auth. A public-only
 process has no admin group, so these paths 404 (ADR-09).
 
-| Route                                         | Effect                                                                                                                                                                                                     |
-| --------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `POST /admin/forms/:id/webhooks`              | `{ url, secret?, active? }` → configure a webhook. The secret is **generated** if omitted, and shown **exactly once** in the response `secret` field.                                                      |
-| `GET /admin/forms/:id/webhooks`               | List the form's webhooks. Secrets are **masked** - never returned; each row reports `hasSecret: true`. A caller holding only `forms.viewer` also sees the URL's query string replaced by `(hidden)` (Q58). |
-| `PUT /admin/forms/:id/webhooks/:webhookId`    | Update `url` / `active`, or rotate the secret. Rotation is explicit (`rotateSecret: true` or an explicit `secret`) and the new secret is shown once; a plain update never re-reveals it.                   |
-| `DELETE /admin/forms/:id/webhooks/:webhookId` | **Soft-deactivate**: sets `active = false`, stamps `deactivated_at`; the row is retained so delivery history survives.                                                                                     |
-
-| `GET /admin/forms/:id/webhooks/proposals` | List the endpoint changes waiting for a second approver, in the switcher's environment. A caller holding only `forms.viewer` sees a proposed URL's query string replaced by `(hidden)`, exactly as on the endpoint list (Q58). |
-| `POST /admin/forms/:id/webhooks/proposals/:proposalId/confirm` | Apply a waiting change. **Refused for the account that proposed it**, and refused for anybody not holding `forms.approver` with this environment in scope. |
-| `DELETE /admin/forms/:id/webhooks/proposals/:proposalId` | Withdraw a waiting change, applying it to nothing. Either account may withdraw it. |
+| Route                                                          | Effect                                                                                                                                                                                                                         |
+| -------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| `POST /admin/forms/:id/webhooks`                               | `{ url, secret?, active? }` → configure a webhook. The secret is **generated** if omitted, and shown **exactly once** in the response `secret` field.                                                                          |
+| `GET /admin/forms/:id/webhooks`                                | List the form's webhooks. Secrets are **masked** - never returned; each row reports `hasSecret: true`. A caller holding only `forms.viewer` also sees the URL's query string replaced by `(hidden)` (Q58).                     |
+| `PUT /admin/forms/:id/webhooks/:webhookId`                     | Update `url` / `active`, or rotate the secret. Rotation is explicit (`rotateSecret: true` or an explicit `secret`) and the new secret is shown once; a plain update never re-reveals it.                                       |
+| `DELETE /admin/forms/:id/webhooks/:webhookId`                  | **Soft-deactivate**: sets `active = false`, stamps `deactivated_at`; the row is retained so delivery history survives.                                                                                                         |
+| `GET /admin/forms/:id/webhooks/proposals`                      | List the endpoint changes waiting for a second approver, in the switcher's environment. A caller holding only `forms.viewer` sees a proposed URL's query string replaced by `(hidden)`, exactly as on the endpoint list (Q58). |
+| `POST /admin/forms/:id/webhooks/proposals/:proposalId/confirm` | Apply a waiting change. **Refused for the account that proposed it**, and refused for anybody not holding `forms.approver` with this environment in scope.                                                                     |
+| `DELETE /admin/forms/:id/webhooks/proposals/:proposalId`       | Withdraw a waiting change, applying it to nothing. Either account may withdraw it.                                                                                                                                             |
 
 Multiple webhooks per form are allowed; 025 delivers to every `active` one. Every route
 above acts in **one environment**, chosen by the administrator's environment switcher, and
@@ -48,6 +47,15 @@ Three things an API consumer should build for:
 - **One pending change per endpoint.** A second proposal for the same endpoint is refused
   `409 ENDPOINT_CHANGE_PENDING`: two waiting changes would make "confirm this one"
   ambiguous. Confirm or withdraw the first.
+
+**If a confirmation never reaches the endpoint, withdraw it.** The proposal and the endpoint
+live on two different pools, so a confirmed change whose endpoint write failed is recorded
+as confirmed with nothing applied, and the endpoint stays **claimed** while that row is
+open: no new change for it is accepted. Confirming again finishes the apply, and if it
+keeps failing, `DELETE /admin/forms/:id/webhooks/proposals/:proposalId` ends the row and
+frees the endpoint. Nothing live is unpicked, because nothing was ever applied. An
+**applied** change is different and cannot be withdrawn: it is live, and reversing it is a
+new proposal with its own second approver.
 
 Outside `prod`, and in a workspace that leaves the switch off, every route behaves exactly
 as the table above describes. The rule gates `prod` alone, deliberately: a `dev` endpoint

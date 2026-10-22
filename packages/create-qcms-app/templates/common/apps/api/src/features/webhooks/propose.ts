@@ -116,7 +116,13 @@ export const proposalFailures = {
     ),
 } as const;
 
-/** Whether a driver error is a unique-violation (23505), which here is the pending index. */
+/**
+ * Whether a driver error is a unique-violation (23505).
+ *
+ * Two keys reach it and both are races this module settles rather than reports: the
+ * `one_open` index, where the loser of two proposals gets a 409, and `webhooks_pkey`, where
+ * the loser of two resumes of the same `create` gets an idempotent success.
+ */
 function isPendingKeyViolation(error: unknown): boolean {
   const code = (error as { code?: string })?.code;
   const causeCode = (error as { cause?: { code?: string } })?.cause?.code;
@@ -337,14 +343,27 @@ async function applyToEndpoint(
     // `url` and `secret_encrypted` are `NOT NULL` on the endpoint, and a `create` proposal
     // always carries both: the create route validated the URL and encrypted the secret
     // before it proposed anything.
-    await insertWebhook(exec, {
-      webhookId: proposal.webhookId,
-      formId: proposal.formId,
-      url: proposal.url ?? "",
-      secretEncrypted: proposal.secretEncrypted ?? "",
-      active: proposal.active ?? true,
-    });
-    return;
+    //
+    // **The primary-key violation is an idempotent success, not an error** (PR #1100's
+    // review, finding 7). Two resumes of the same unapplied `create` can both read
+    // `undefined` from the check above within one round trip, and the loser's insert then
+    // hits `webhooks_pkey`. There is nothing wrong with that caller's request and nothing
+    // for them to retry: the row the proposal describes exists, written from this same
+    // proposal by the same id, which is why the id is minted at propose time. So the loser
+    // falls through to the update below, which writes the proposal's own values over a row
+    // that already holds them, and both callers answer 200 with the change applied.
+    try {
+      await insertWebhook(exec, {
+        webhookId: proposal.webhookId,
+        formId: proposal.formId,
+        url: proposal.url ?? "",
+        secretEncrypted: proposal.secretEncrypted ?? "",
+        active: proposal.active ?? true,
+      });
+      return;
+    } catch (error) {
+      if (!isPendingKeyViolation(error)) throw error;
+    }
   }
   await updateWebhook(exec, proposal.formId, proposal.webhookId, endpointPatch(proposal, now));
 }

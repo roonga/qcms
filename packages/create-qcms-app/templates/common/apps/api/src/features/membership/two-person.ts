@@ -19,7 +19,7 @@
  *   - **A release is one act.** The version named already exists and can be judged in one
  *     look, so a `forms.approver` holding `prod` in scope who is *not* the account that
  *     published it releases it, and the approval is recorded on the release row.
- *     {@link refuseSelfApprovedRelease} is that check.
+ *     {@link approvalForRelease} is that check, and it answers the account to record.
  *   - **An endpoint change is two acts.** The proposed URL is a new value somebody has to
  *     read before it is live, so it is proposed, held pending and confirmed by a different
  *     account (`features/webhooks/propose.ts`, `control.webhook_endpoint_proposals`).

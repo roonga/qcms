@@ -259,12 +259,30 @@ export async function markEndpointProposalApplied(
 }
 
 /**
- * Withdraw a pending proposal, or answer `undefined` when it was not pending.
+ * Withdraw an **open** proposal - pending, or confirmed with its apply not yet landed - or
+ * answer `undefined` when there was nothing open to withdraw.
  *
  * Either account may withdraw: the proposer changing their mind and a second approver
- * refusing the change are the same act on the row, and which it was is in the audit. A
- * confirmed proposal cannot be withdrawn - the change has been agreed, and unpicking it is
- * a new proposal.
+ * refusing the change are the same act on the row, and which it was is in the audit.
+ *
+ * # Why a confirmed proposal can be withdrawn
+ *
+ * It could not at first, and the predicate said so while two comments and an admin button
+ * said the opposite (PR #1100's review, finding 3). The direction chosen is the one that
+ * leaves an operator a way out: a confirmation whose endpoint write never landed holds the
+ * endpoint claimed through the `one_open` index, so with no withdrawal for that state a
+ * persistently failing apply would mean **no new proposal for that endpoint is ever
+ * accepted** and only a successful resume could clear it. That is a wedge with no operator
+ * door, which is worse than the thing the narrower predicate was protecting.
+ *
+ * It is safe because the endpoint was never changed: nothing is live to unpick, which is
+ * exactly what `applied_at is null` means. An **applied** proposal is a different matter
+ * and stays un-withdrawable, here and in the `one_outcome` CHECK: the change is live, and
+ * reversing it is a new proposal with its own second approver.
+ *
+ * The row keeps both accounts afterwards - `confirmed_by` and `withdrawn_by` - because the
+ * record is that somebody agreed and somebody then gave up on it, and losing the first half
+ * would make the audit disagree with the SEC-15 rows beside it.
  */
 export async function withdrawEndpointProposal(
   exec: Executor,
@@ -283,7 +301,7 @@ export async function withdrawEndpointProposal(
     .where(
       and(
         eq(webhookEndpointProposals.proposalId, input.proposalId),
-        isNull(webhookEndpointProposals.confirmedAt),
+        isNull(webhookEndpointProposals.appliedAt),
         isNull(webhookEndpointProposals.withdrawnAt),
       ),
     )

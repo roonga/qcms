@@ -50,6 +50,41 @@ import type { WebhookActionState } from "./webhook-config";
  * live. The row says so in those words, and Confirm stays available because pressing it
  * again finishes the apply without recording a second confirmation.
  */
+/**
+ * What the dialog says this act will do, per kind.
+ *
+ * One sentence per kind rather than one with a `{url}` hole, because the generic one was
+ * wrong for two of the three (PR #1100's review, finding 4): a **deactivation** stops
+ * delivery, and an **update that names no URL** - one that only rotates the secret or flips
+ * `active` - has nothing to put in the hole, so the approver read "starts delivering to "
+ * while pressing Confirm would do the opposite or something else entirely.
+ *
+ * The withdrawal has two readings for the same reason. A pending change is discarded; a
+ * **confirmed** one whose apply never landed has nothing live to undo, and what withdrawing
+ * it buys is the endpoint back, so a new change can be proposed for it. That is the
+ * operator's way out of an apply that keeps failing.
+ */
+function dialogSentence(act: "confirm" | "withdraw", proposal: EndpointProposal): string {
+  const environment = proposal.environment;
+  if (act === "withdraw") {
+    return proposal.confirmedAt === null
+      ? t("ops.proposals.withdrawBody", { environment })
+      : t("ops.proposals.withdrawBodyConfirmed", { environment });
+  }
+  if (proposal.kind === "deactivate") {
+    return t("ops.proposals.confirmBody.deactivate", { environment });
+  }
+  if (proposal.url === null) {
+    // An update that names no target: the secret, the `active` flag, or both. "Keeps its
+    // current URL" is the half an approver needs, because the row above already shows what
+    // is changing.
+    return t("ops.proposals.confirmBody.update", { environment });
+  }
+  return proposal.kind === "create"
+    ? t("ops.proposals.confirmBody.create", { environment, url: proposal.url })
+    : t("ops.proposals.confirmBody.retarget", { environment, url: proposal.url });
+}
+
 export function EndpointProposals({
   proposals,
   confirm,
@@ -208,12 +243,7 @@ export function EndpointProposals({
           }}
         >
           <div className="flex flex-col gap-4" data-testid="qcms-proposal-dialog">
-            <p className="text-sm">
-              {t(`ops.proposals.${dialog.act}Body`, {
-                environment: dialog.proposal.environment,
-                url: dialog.proposal.url ?? "",
-              })}
-            </p>
+            <p className="text-sm">{dialogSentence(dialog.act, dialog.proposal)}</p>
             {/* Q6's restatement: an act performed against the wrong environment is not
                 undoable, and confirming one of these is what makes a production endpoint
                 live. */}

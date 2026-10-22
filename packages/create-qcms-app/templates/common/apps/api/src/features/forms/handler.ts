@@ -1895,11 +1895,16 @@ export function makePublishAndReleaseFormHandler(
     const approvedBy = await approvalForRelease(deps.databases.control, {
       workspaceId: c.get("grantContext")?.workspaceId ?? form.workspaceId,
       environment,
-      // The version does not exist yet, so the number named is the newest one that does:
-      // it is only ever read back in a refusal message, and the rule refuses this route
-      // unconditionally in `prod`, so what the operator wants to be told about is the
-      // version list they are looking at.
-      version: (await getLatestPublishedVersion(deps.databases.control, formId))?.version ?? 0,
+      // **The version this act is about to assign**, which is the newest published one
+      // plus one, and `1` for a form that has never been published. It is only ever read
+      // back in a refusal message, and the first version of this line named the *previous*
+      // version - or `0` on a form with none - so the sentence told the operator they had
+      // published a version they may never have touched (PR #1100's review, finding 5).
+      // `insertFormVersion` assigns the same number with a scalar subquery, so the two
+      // agree unless a concurrent publish lands between this read and the refusal, which
+      // can only happen on a request this rule is about to refuse anyway.
+      version:
+        ((await getLatestPublishedVersion(deps.databases.control, formId))?.version ?? 0) + 1,
       author: principal.userId,
       releasedBy: principal.userId,
     });
