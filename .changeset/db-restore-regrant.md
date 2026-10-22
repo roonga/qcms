@@ -41,10 +41,10 @@ reporting_<env>` reaches task 067's per-workspace views on a restored database, 
 every live path it runs before they exist, so the re-grant narrows the application role
 back to the environment-wide pair that ADR-40's Q52 gives it.
 
-It **prints no statement in any error path** (SEC-8). Every statement runs inside the same
-wrapper `CREATE ROLE` uses, which attaches no cause and repeats the driver's own reason,
-because the command's one-line error form unwraps a cause and drizzle's wrapper message is
-the failed statement.
+It **prints no statement in any error path** (SEC-8). Every database call it makes, the
+reads as well as the grants, runs inside the same wrapper `CREATE ROLE` uses, which
+attaches no cause and repeats the driver's own reason, because the command's one-line error
+form unwraps a cause and drizzle's wrapper message is the failed statement.
 
 `StartedTestPostgres` gains `exec`, so a test can reach the container's own `pg_dump` and
 `psql`.

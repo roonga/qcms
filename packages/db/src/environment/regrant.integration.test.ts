@@ -292,6 +292,42 @@ describe("the re-grant subcommand", { timeout: REGRANT_TIMEOUT_MS }, () => {
     expect(await grantMap(owner), "after a second re-grant").toEqual(expected);
   });
 
+  it("names the read and never the query when a READ fails (SEC-8)", async () => {
+    // The case the test above missed. The first version wrapped every statement and left
+    // three reads bare, so PR #1099's round-2 review falsified the module's "never a
+    // statement, in any error path" sentence in one command by renaming
+    // `control.environments`, and got drizzle's wrapper on stderr verbatim:
+    //
+    //   qcms-db environment failed: Failed query: select "name" from "control"."environments"
+    //   order by "control"."environments"."position" asc params: (relation ... does not exist)
+    //
+    // None of the three reads can carry a credential - each is a fixed query over no input -
+    // so this is the documented claim being made true rather than a credential path being
+    // closed. The rename is how the review measured it, so it is how this asserts it.
+    await owner.query(`alter table control.environments rename to environments_sec8_renamed`);
+    try {
+      const failure = await regrantEnvironments(db).then(
+        () => undefined,
+        (error: unknown) => error,
+      );
+      expect(failure).toBeInstanceOf(Error);
+      // A narrowing the compiler cannot make through `unknown`, not a claim about the value.
+      const thrown = failure as Error;
+      const printed = `qcms-db environment failed: ${describeError(thrown)}`;
+
+      // `select` and `Failed query` are the two the leaked form carried.
+      for (const leak of [/Failed query/, /params:/, /\bselect\b/i, /\bGRANT\b/, /DO \$\$/]) {
+        expect(printed, `stderr must not carry ${String(leak)}`).not.toMatch(leak);
+      }
+      // And it still has to be actionable: which read failed, and what Postgres said.
+      expect(printed).toContain("could not read the live environment set");
+      expect(printed).toMatch(/does not exist/i);
+      expect(thrown.cause).toBeUndefined();
+    } finally {
+      await owner.query(`alter table control.environments_sec8_renamed rename to environments`);
+    }
+  });
+
   it("refuses a database whose live set is empty, rather than granting nothing quietly", async () => {
     // A restored database carries the live set inside the dump, so an empty table means
     // the restore did not land the control plane - which is worth a refusal rather than a

@@ -49,6 +49,9 @@ import {
   workspaceReportingRoleName,
 } from "../schema/schemas.js";
 import { workspaceReportingViewNames } from "../reporting-views.js";
+// The one copy of the doubling rule, aliased to this file's existing call-site name
+// (PR #1099's round-2 review, finding 6).
+import { sqlLiteral as literal } from "../sql-literal.js";
 
 import { createLoginRole } from "./role.js";
 import { workspaceReportingGrantStatements, workspaceReportingStatements } from "./sql.js";
@@ -145,11 +148,6 @@ export function refuseWorkspaceReportingNames(
     `Postgres silently truncates one over ${String(MAX_IDENTIFIER_BYTES)}. Rename the ` +
     "workspace's slug or the environment and run this again."
   );
-}
-
-/** `'x'` from `x`. A SQL string literal, with the doubling rule. */
-function literal(value: string): string {
-  return `'${value.replaceAll("'", "''")}'`;
 }
 
 /** Whether a role exists in the cluster. */

@@ -83,6 +83,11 @@
  * shown.
  */
 
+// The one copy of the SQL doubling rule. This module's own copy was the oldest of three
+// (PR #1099's round-2 review, finding 6); the helper imports nothing, so this file still
+// pulls in no schema, driver or `node:` module.
+import { sqlLiteral } from "./sql-literal.js";
+
 /** A view in the reporting schema, with its documented column list in order. */
 export interface ReportingViewContract {
   readonly name: string;
@@ -357,11 +362,6 @@ export interface WorkspaceReportingViews {
   readonly workspaceId: string;
   /** The control-plane schema holding `forms`. */
   readonly control: string;
-}
-
-/** `'org_x'` as a SQL string literal, with any embedded quote doubled. */
-function sqlLiteral(value: string): string {
-  return `'${value.replaceAll("'", "''")}'`;
 }
 
 /**
