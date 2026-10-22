@@ -1,7 +1,8 @@
 # Security Policy
 
 > **Pre-release notice.** QCMS is pre-1.0 and unreleased. The pre-launch security
-> review has been run (`docs/security-review-2026-08-14.md`) and its sign-off is
+> review has been run and refreshed (`docs/security-review-2026-10-23.md`, which
+> supersedes `docs/security-review-2026-08-14.md` by date) and its sign-off is
 > a Code Owner gate that has not yet been given, so QCMS is **not yet suitable
 > for production use or for handling real respondent data**. The review document
 > records what was verified, what was not, and which findings are still open.
@@ -75,7 +76,11 @@ class here, not a deflection.
 ## Where the security model is written down
 
 - [`docs/SECURITY_DESIGN.md`](docs/SECURITY_DESIGN.md) - threat model, controls
-  and the numbered decisions SEC-1 to SEC-13.
+  and the numbered decisions SEC-1 to SEC-17.
+- [`docs/security-review-2026-10-23.md`](docs/security-review-2026-10-23.md) -
+  the current pre-launch review: findings, severities, an explicit list of what
+  could not be verified, and the checklist of Code Owner acts still outstanding.
 - [`docs/security-review-2026-08-14.md`](docs/security-review-2026-08-14.md) -
-  the pre-launch review: findings, severities, and an explicit list of what could
-  not be verified.
+  the first pre-launch pass, superseded by the one above and kept as written. A
+  review snapshot records what was true on its date, so it is never edited in
+  place.

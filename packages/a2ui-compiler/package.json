@@ -4,8 +4,18 @@
   "private": false,
   "description": "qcms FormDefinition-to-A2UI compiler: the pure projection from a published snapshot to A2UI documents (task 011)",
   "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/roonga/qcms.git",
+    "directory": "packages/a2ui-compiler"
+  },
+  "homepage": "https://github.com/roonga/qcms/tree/main/packages/a2ui-compiler#readme",
+  "bugs": {
+    "url": "https://github.com/roonga/qcms/issues"
+  },
   "publishConfig": {
-    "access": "public"
+    "access": "public",
+    "provenance": true
   },
   "type": "module",
   "main": "./dist/index.js",

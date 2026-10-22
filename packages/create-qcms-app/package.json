@@ -4,9 +4,19 @@
   "private": false,
   "description": "Scaffold a QCMS deployment: the owned application shell plus the versioned @roonga/qcms-* packages (ADR-05).",
   "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/roonga/qcms.git",
+    "directory": "packages/create-qcms-app"
+  },
+  "homepage": "https://github.com/roonga/qcms/tree/main/packages/create-qcms-app#readme",
+  "bugs": {
+    "url": "https://github.com/roonga/qcms/issues"
+  },
   "type": "module",
   "publishConfig": {
-    "access": "public"
+    "access": "public",
+    "provenance": true
   },
   "bin": {
     "create-qcms-app": "./dist/cli.js"

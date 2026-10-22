@@ -4,8 +4,18 @@
   "private": false,
   "description": "qcms Drizzle schema, migrations, and the Testcontainers test harness (task 013)",
   "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/roonga/qcms.git",
+    "directory": "packages/db"
+  },
+  "homepage": "https://github.com/roonga/qcms/tree/main/packages/db#readme",
+  "bugs": {
+    "url": "https://github.com/roonga/qcms/issues"
+  },
   "publishConfig": {
-    "access": "public"
+    "access": "public",
+    "provenance": true
   },
   "type": "module",
   "main": "./dist/index.js",

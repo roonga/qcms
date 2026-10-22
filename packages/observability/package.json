@@ -3,7 +3,8 @@
   "version": "0.0.0",
   "private": false,
   "publishConfig": {
-    "access": "public"
+    "access": "public",
+    "provenance": true
   },
   "files": [
     "dist",
@@ -13,6 +14,15 @@
   ],
   "description": "Shared server logging and safe OTLP log export for QCMS apps",
   "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/roonga/qcms.git",
+    "directory": "packages/observability"
+  },
+  "homepage": "https://github.com/roonga/qcms/tree/main/packages/observability#readme",
+  "bugs": {
+    "url": "https://github.com/roonga/qcms/issues"
+  },
   "type": "module",
   "main": "./dist/index.js",
   "types": "./dist/index.d.ts",
