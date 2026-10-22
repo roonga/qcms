@@ -88,10 +88,15 @@ the only file that calls it and `apps/admin/lib/server/session.ts` the only file
 reads a session. Everything else - the sign-in screen, the 2FA screens, sign-out - is a
 form POST to a route handler under `apps/admin/app/`.
 
-The admin's seven forwarded operations are the practical inventory of what a replacement
-has to answer, and they are listed in one place (`ALLOWED_AUTH_ENDPOINTS`). An IdP swap
-that keeps the BFF shape can reimplement that surface; one that redirects to a provider
-replaces the screens instead and leaves it unmounted.
+The admin's eight forwarded operations are the practical inventory of what a replacement
+has to answer, and they are listed in one place (`ALLOWED_AUTH_ENDPOINTS`). The count was
+seven until issue #319 added `two-factor/generate-backup-codes` as the password-gated
+replacement for the removed recovery-code read-back route, and this sentence had not
+followed; `docs/SECURITY_DESIGN.md` §2.1, which enumerates all eight, is the list to trust
+if the two ever disagree again.
+
+An IdP swap that keeps the BFF shape can reimplement that surface; one that redirects to a
+provider replaces the screens instead and leaves it unmounted.
 
 An OIDC swap replaces the screens with a redirect to the provider and a callback route,
 and replaces `currentAdminSession()` with a read of whatever the provider's SDK stores.

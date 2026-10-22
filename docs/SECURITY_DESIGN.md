@@ -61,6 +61,14 @@ A column the library did not know about would be absent from that session object
 It is cleared by a database hook on the credential account's password write - the one event that means a password was successfully changed - and by nothing else: not by a failed attempt, not by signing out and in again, not by a session refresh.
 better-auth 1.7.10 ships no "force password change" option, plugin or hook, so the enforcement is entirely QCMS's; the admin plugin's `banned` field is the nearest shape and is the wrong semantics, since a banned account is refused rather than sent to a remedy.
 
+**The clearing fails closed, because the password change commits as one act (Code Owner, 2026-10-22).**
+`POST /change-password` revokes the account's other sessions, writes the new credential and issues a replacement session, and since version 1.7.8 the library wraps all three in one `runWithTransaction`.
+That wrap is only a database transaction if the adapter says it has one, and the Drizzle adapter's default is that it does not: left at the default, the wrap is an async-local scope, the three writes are applied as they happen, a failure part-way through rolls nothing back, and better-auth then drains the hooks queued inside it **even on the failing path**, on the reasoning that work which could not roll back has happened.
+Three things followed from that, each of them wrong for this control: every other session could be revoked while the old password still worked, the password could move while the caller was told the change failed, and on that second path the provisional flag was cleared by a change that did not take.
+So `createAdminAuth` opts the adapter into transactions.
+A change now commits or leaves nothing behind, and the flag is cleared only by a credential write that committed - which is what the paragraph above has always claimed and what the configuration now makes true.
+`apps/api/src/features/auth/provisional-credential.integration.test.ts` asserts both failure positions against a real Postgres, by refusing the write under test at the database and reading back what survived.
+
 **The order relative to 2FA enrolment: password change first.**
 031 forces TOTP enrolment on first sign-in and 061 puts the password change ahead of it, because enrolment binds a second factor to an account whose first factor is still the credential from the provisioning script - the pair is then only as good as its oldest half, and the more fiddly of the two steps is asked for at the moment the account is weakest.
 It also falls out of what each screen needs: enrolment needs an authenticator app in someone's hand and a fifteen-minute cookie, a password change needs neither, so nobody is parked on a screen they cannot finish while holding a credential they should not have.
