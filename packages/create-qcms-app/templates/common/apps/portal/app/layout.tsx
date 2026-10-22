@@ -3,10 +3,11 @@ import { cookies, headers } from "next/headers";
 import type { ReactNode } from "react";
 
 import { AppearanceProvider, type AppearanceState } from "@/components/appearance-context";
+import { LocaleProvider } from "@/components/locale-context";
 import { currentBasePath } from "@/lib/server/environment";
 import { DENSITY_COOKIE, FONT_COOKIE, MODE_COOKIE } from "@/lib/appearance";
 import { t } from "@/lib/i18n/en";
-import { secureCookies } from "@/lib/server/config";
+import { appLocale, secureCookies } from "@/lib/server/config";
 import { modeBootstrapScript } from "@/lib/server/mode-bootstrap";
 import {
   modeClass,
@@ -142,7 +143,12 @@ export default async function RootLayout({ children }: { readonly children: Reac
         <a href="#portal-main" className="skip-link">
           {t("action.skipToContent")}
         </a>
-        <AppearanceProvider value={state}>{children}</AppearanceProvider>
+        {/* The deployment's formatting locale (QCMS_LOCALE, Code Owner 2026-10-19), read
+            here on the server and handed to every client component, so the server render
+            and the hydrated render format dates and order date fields identically. */}
+        <LocaleProvider locale={appLocale()}>
+          <AppearanceProvider value={state}>{children}</AppearanceProvider>
+        </LocaleProvider>
       </body>
     </html>
   );

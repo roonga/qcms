@@ -487,9 +487,9 @@ test("the no-JS date fallback gets the same tabular figures (issue #920)", async
   const { kitchenSinkSlug } = readFixtures();
 
   // The control the test above reads - the segmented date field's spinbuttons - does
-  // not exist on this render. With scripting off a date question is one native
-  // `<input type="date">` (`packages/ui/src/native-date-field.tsx`), and it shows the
-  // same digits through the browser's own control, so it needs the same token or two
+  // not exist on this render. With scripting off a date question is three native
+  // `inputmode="numeric"` boxes (`packages/ui/src/native-date-field.tsx`), showing the
+  // same digits, so they need the same token or two
   // renders of one question disagree about whether a day and a month keep their
   // column. COMPONENT_GUIDELINES item 9 asks for the assertion here rather than for
   // the selector alone.
@@ -502,7 +502,7 @@ test("the no-JS date fallback gets the same tabular figures (issue #920)", async
   await page.getByRole("button", { name: "Start" }).click();
   await page.waitForURL(/\/s\/ses_/);
 
-  const day = page.locator('[data-qcms-field] input[type="date"]');
+  const day = page.locator('[data-qcms-field] input[data-qcms-date-part="day"]');
   await expect(day).toBeVisible();
   expect(
     starvation.starvedCount(),

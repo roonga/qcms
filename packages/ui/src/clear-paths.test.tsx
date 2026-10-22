@@ -266,7 +266,7 @@ describe("the native transport posts the same clear (issue #127)", { timeout: 30
     expect(posted).toContainEqual(["__qa__q_preexisting_conditions", "1"]);
   });
 
-  it("date: an emptied day input posts empty WITH its answered marker (issue #920)", async () => {
+  it("date: three emptied boxes post empty WITH the answered marker (issues #920, #127)", async () => {
     const user = userEvent.setup();
     const serialize = renderNative(stepAbout, { q_dob: "1990-05-17" });
 
@@ -274,20 +274,26 @@ describe("the native transport posts the same clear (issue #127)", { timeout: 30
     // the control's shape rather than a decision: native mode rendered the vendored
     // segmented picker, whose form value rode a hidden mirror only JavaScript writes,
     // so with scripting off the seeded answer was what serialized and no gesture could
-    // empty it. The native day input can be emptied, so the #127 pair now forms for a
-    // date exactly as it does for a text box, and `decodeStepForm` turns it into the
-    // same `null`.
-    expect(serialize()).toContainEqual(["q_dob", "1990-05-17"]);
+    // empty it. The native boxes can be emptied, so the #127 pair forms for a date
+    // exactly as it does for a text box, and `decodeStepForm` turns three blank parts
+    // into the same `null` (the parts are per-box since the 2026-10-19 ruling).
+    expect(serialize()).toContainEqual(["__qdd__q_dob", "17"]);
+    expect(serialize()).toContainEqual(["__qdm__q_dob", "05"]);
+    expect(serialize()).toContainEqual(["__qdy__q_dob", "1990"]);
+    expect(serialize()).toContainEqual(["__qk__q_dob", "date"]);
     expect(serialize()).toContainEqual(["__qa__q_dob", "1"]);
 
-    await user.clear(screen.getByLabelText(/Date of birth/));
+    for (const part of ["Day", "Month", "Year"]) {
+      await user.clear(screen.getByLabelText(part));
+    }
 
-    expect(serialize()).toContainEqual(["q_dob", ""]);
+    for (const prefix of ["__qdd__", "__qdm__", "__qdy__"]) {
+      expect(serialize()).toContainEqual([`${prefix}q_dob`, ""]);
+    }
     expect(serialize()).toContainEqual(["__qa__q_dob", "1"]);
-    // Exactly one field posts under the question's name: the browser never serializes
-    // react-aria's autofill mirror (it is owned by no form), and the mirror is not
-    // rendered on this path at all now.
-    expect(serialize().filter(([name]) => name === "q_dob")).toHaveLength(1);
+    // Nothing posts under the bare question name: react-aria's autofill mirror is
+    // owned by no form, and the mirror is not rendered on this path at all now.
+    expect(serialize().filter(([name]) => name === "q_dob")).toEqual([]);
   });
 
   it("an unanswered question of either type posts no marker, so its emptiness stays silence", () => {

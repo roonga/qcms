@@ -50,6 +50,8 @@ import {
   chooseRadio,
   commitCheckboxGroup,
   continueStep,
+  dateParts,
+  dateSegmentOrder,
   enterDate,
   fillText,
   startKitchenSink,
@@ -129,13 +131,19 @@ test("shortText commits on blur, and a date commits once, only when complete", a
   // value, which it raises on every digit typed into the year - a year segment
   // holding "1" is a filled segment. This test pins the rule from both ends: no
   // partial date is ever posted, and a complete date is posted exactly once.
+  //
+  // Typed in the order the field draws its parts, which follows QCMS_LOCALE (en-GB by
+  // default: day, month, year) rather than an assumed US order (Code Owner, 2026-10-19).
   const dob = page.getByRole("group", { name: KS.dob });
   const month = dob.getByRole("spinbutton", { name: /month/i });
-  await month.click();
-  await page.keyboard.type("05"); // month only: day and year are placeholders
+  const order = await dateSegmentOrder(dob);
+  const parts = dateParts("05171990");
+  const typed = order.map((part) => parts[part]).join("");
+  await dob.getByRole("spinbutton", { name: new RegExp(order[0] ?? "month", "i") }).click();
+  await page.keyboard.type(typed.slice(0, 2)); // the first part only: the rest are placeholders
   expect(postsFor(log, "q_dob")).toEqual([]);
 
-  await page.keyboard.type("17199"); // 05 / 17 / 199_ - the year is unfinished
+  await page.keyboard.type(typed.slice(2, -1)); // every part, the year one digit short
   await expect(month).not.toHaveText(/mm/i);
   // The three provisional COMPLETE dates react-aria emitted while the year filled
   // (0001-05-17, 0019-05-17, 0199-05-17) are not answers and were not posted.
@@ -144,7 +152,7 @@ test("shortText commits on blur, and a date commits once, only when complete", a
   expect(postsFor(log, "q_dob")).toEqual([]);
 
   const dobPosted = answerPosted(page);
-  await page.keyboard.type("0"); // 1990: the date is now what was meant
+  await page.keyboard.type(typed.slice(-1)); // 1990: the date is now what was meant
   await blurActive(page);
   await dobPosted;
 

@@ -1,7 +1,7 @@
 import { HydrationMarker } from "@/components/hydration-marker";
+import { LocalDateTime } from "@/components/local-time";
 import { PortalShell } from "@/components/portal-shell";
 import { t } from "@/lib/i18n/en";
-import { formatDateTime } from "@/lib/i18n/format";
 
 /**
  * Completion receipt (screen contract `/done`): a success card showing the submit
@@ -15,13 +15,6 @@ export function CompletionView({
   readonly submittedAt: string;
   readonly contentHash: string;
 }) {
-  // The receipt's one locale-dependent value (ADR-27, issue #729). It used to be an
-  // inline `toLocaleString("en-US", ...)` here with a literal ` UTC` appended below, which
-  // made this component the place a second portal locale had to be edited. `lib/i18n/format`
-  // is that swap point now, and it renders the zone name itself; the string a respondent
-  // reads is unchanged.
-  const submittedDisplay = formatDateTime(submittedAt);
-
   return (
     <PortalShell>
       {/* This root's hydration signal (issue #159). */}
@@ -45,7 +38,12 @@ export function CompletionView({
             <dt className="text-xs font-medium text-(--color-text-muted)">
               {t("completion.submittedAt")}
             </dt>
-            <dd className="text-sm text-(--color-text)">{submittedDisplay}</dd>
+            {/* The receipt's one locale-dependent value (ADR-27). Formatted in the
+                deployment's QCMS_LOCALE and shown on the respondent's own clock with the
+                zone named, UTC until the page hydrates (Code Owner, 2026-10-19). */}
+            <dd className="text-sm text-(--color-text)" data-testid="submitted-at">
+              <LocalDateTime iso={submittedAt} />
+            </dd>
           </div>
           <div className="flex flex-col gap-0.5">
             <dt className="text-xs font-medium text-(--color-text-muted)">

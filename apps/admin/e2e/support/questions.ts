@@ -224,9 +224,13 @@ export async function useRowMenu(page: Page, index: number, item: RegExp): Promi
  *
  * react-aria renders a date as a row of spinbutton segments, so the value is typed rather
  * than set: focus the first segment and the digits roll through the segments in the order
- * the resolved locale lays them out. `digits` is therefore locale-ordered. The config pins
- * no `locale`, so this is Chromium's default `en-US` and the order is MMDDYYYY; the
- * trailing-year assertion below fails loudly rather than silently if that ever changes.
+ * the locale lays them out. That order is the deployment's `QCMS_LOCALE` since the Code
+ * Owner ruling of 2026-10-19 (the admin wraps its tree in react-aria's `I18nProvider`), not
+ * the browser's, and the harness leaves it unset, so it is en-GB's day, month, year.
+ *
+ * `digits` is `MMDDYYYY` whatever the locale, and this reads the field's real segment order
+ * off the page and types the parts in it, so a caller never has to know the order. The
+ * trailing-year assertion fails loudly rather than silently if the typing went astray.
  */
 export async function fillDate(page: Page, label: string, digits: string): Promise<void> {
   // A `DatePicker`'s segments hold no value of their own; the digits are read by React's
@@ -237,8 +241,20 @@ export async function fillDate(page: Page, label: string, digits: string): Promi
   // there rather than needing to know which caller it has.
   await ensurePanel(page, "constraints");
   const group = page.getByRole("group", { name: label });
+  const parts: Record<string, string> = {
+    month: digits.slice(0, 2),
+    day: digits.slice(2, 4),
+    year: digits.slice(4),
+  };
+  const order = await group
+    .locator('[role="spinbutton"][data-type]')
+    .evaluateAll((nodes) => nodes.map((node) => (node as HTMLElement).dataset["type"] ?? ""));
+  const typed = order
+    .filter((type) => type in parts)
+    .map((type) => parts[type])
+    .join("");
   await group.getByRole("spinbutton").first().click();
-  await page.keyboard.type(digits);
+  await page.keyboard.type(typed);
   await expect(group).toContainText(digits.slice(-4));
 }
 

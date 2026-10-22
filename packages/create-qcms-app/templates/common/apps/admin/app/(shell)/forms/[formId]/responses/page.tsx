@@ -10,6 +10,7 @@ import { clampedPage } from "@/lib/ops/paging";
 import { parseResponseQuery } from "@/lib/ops/response-filters";
 import { formSectionName, pageMetadata } from "@/lib/page-title";
 import { readState } from "@/lib/read-state";
+import { appLocale } from "@/lib/server/config";
 import { getForm } from "@/lib/server/forms";
 import { listResponses } from "@/lib/server/responses";
 import { requireAdminSession } from "@/lib/server/session";
@@ -124,7 +125,12 @@ export default async function FormResponsesPage({
           "ops.responses.filter.ignored.one",
           "ops.responses.filter.ignored.other",
           ignored.length,
-          { fields: formatList(ignored.map((field) => t(`ops.responses.filter.${field}`))) },
+          {
+            fields: formatList(
+              ignored.map((field) => t(`ops.responses.filter.${field}`)),
+              appLocale(),
+            ),
+          },
         )}
       </span>
     </Alert>

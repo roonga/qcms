@@ -1,3 +1,4 @@
+import { render as renderClient } from "@testing-library/react";
 import type { ReactNode } from "react";
 import { renderToStaticMarkup } from "react-dom/server";
 import { describe, expect, it, vi } from "vitest";
@@ -121,6 +122,38 @@ async function render(
   );
 }
 
+/**
+ * The rail as the browser shows it once the operator's zone is known (Code Owner ruling
+ * 2026-10-19): admin times paint nothing on the server, so the dates are read off a
+ * client render, with the process zone pinned to UTC so the expectation is a fact rather
+ * than the runner's clock.
+ */
+async function renderedText(): Promise<string> {
+  const { QuestionVersionsRail } = await import("./question-versions-rail.tsx");
+  const original = process.env.TZ;
+  process.env.TZ = "UTC";
+  try {
+    const { container, unmount } = renderClient(
+      <QuestionVersionsRail
+        questionId="q_smoking_status"
+        slug="smoking-status"
+        createdAt="2025-06-01T09:00:00.000Z"
+        versions={VERSIONS}
+        selected={3}
+        panels={PANELS}
+        panel="content"
+        actions={<span data-testid="stub-actions" />}
+      />,
+    );
+    const text = container.textContent ?? "";
+    unmount();
+    return text;
+  } finally {
+    if (original === undefined) delete process.env.TZ;
+    else process.env.TZ = original;
+  }
+}
+
 describe("the question rail's markup", () => {
   it("takes the shared rail column, under a name of its own", async () => {
     const html = await render();
@@ -168,8 +201,11 @@ describe("the question rail's markup", () => {
     expect(html).toContain("<dt>Slug</dt>");
     expect(html).toContain("smoking-status</dd>");
     expect(html).toContain("<dt>Created</dt>");
-    // ADR-27 through `lib/i18n/format`, pinned to UTC for the reason issue #582 records.
-    expect(html).toContain("Jun 1, 2025</dd>");
+    // The server paints the instant and no text: the day is the operator's, so it exists
+    // only once the browser has said which zone that is (Code Owner, 2026-10-19).
+    expect(html).toContain('<dd><time dateTime="2025-06-01T09:00:00.000Z"></time></dd>');
+    // ADR-27 through `lib/i18n/format`, in the default en-GB locale.
+    expect(await renderedText()).toContain("Created1 Jun 2025");
   });
 
   it("states the type once, with its locked status, and never inside the editor", async () => {
@@ -260,11 +296,11 @@ describe("the question rail's markup", () => {
   });
 
   it("says when each version was published, locale-aware, and says so when it never was", async () => {
-    const html = await render();
-    // ADR-27, through `lib/i18n/format`: a rendered date, pinned to UTC so the server and
-    // the browser agree, rather than the wire representation with its tail cut off (issue 277).
-    expect(html).toContain("Published May 14, 2026");
-    expect(html).toContain("Never published");
+    // ADR-27, through `lib/i18n/format`: a rendered date on the operator's clock, rather
+    // than the wire representation with its tail cut off (issue 277).
+    const text = await renderedText();
+    expect(text).toContain("Published 14 May 2026");
+    expect(text).toContain("Never published");
   });
 
   it("digests the group above it: how many versions, and which one is live", async () => {

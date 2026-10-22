@@ -10,7 +10,7 @@ import { Button, DatePicker, Dialog, Select } from "@/components/kit";
 import { FlagTag } from "@/components/ops/ops-tags";
 import { answerPreviewText } from "@/lib/ops/answers";
 import type { AppliedFilters } from "@/lib/ops/browse";
-import { responsePageLink } from "@/lib/ops/browse";
+import { draftDayZone, responsePageLink } from "@/lib/ops/browse";
 import type { ExportChoice, ExportFormat, ExportShape } from "@/lib/ops/export";
 import {
   DEFAULT_EXPORT_SHAPE,
@@ -20,7 +20,7 @@ import {
   versionRequired,
 } from "@/lib/ops/export";
 import type { ResponsePage } from "@/lib/ops/types";
-import { OperatorDateTime } from "@/components/operator-time";
+import { OperatorDateTime, useOperatorZone } from "@/components/operator-time";
 import { t, tPlural } from "@/lib/i18n/en";
 import type { ReadState } from "@/lib/read-state";
 
@@ -81,6 +81,10 @@ export function ResponseBrowser({
 }) {
   const router = useRouter();
   const [isPending, startTransition] = useTransition();
+  // The clock the rows are shown on (Code Owner, 2026-10-19). A NEW or changed day range is
+  // read on it; an applied range nobody has touched keeps the zone it was applied in
+  // (`draftDayZone`), and Apply writes whichever applies into the address as `tz`.
+  const operatorZone = useOperatorZone();
 
   // The controls are a DRAFT of the next filter set. `filters` is what the server
   // actually applied, and the two are not the same thing the moment an operator types
@@ -90,6 +94,9 @@ export function ResponseBrowser({
   const [to, setTo] = useState(filters.to);
   const [flagged, setFlagged] = useState(filters.flagged);
   const [exporting, setExporting] = useState(false);
+  // The zone the draft days are read in, named in the hint and written on Apply.
+  const draftZone = draftDayZone(filters, { from, to }, operatorZone);
+  const dayZone = draftZone ?? t("ops.common.yourZone");
 
   // Re-seed the draft whenever the APPLIED set changes under it. `useState` reads its
   // initializer once, so back/forward navigation (and the push below) re-rendered this
@@ -97,7 +104,7 @@ export function ResponseBrowser({
   // controls that disagree with the table beside them. Keying off a serialization of
   // the applied set rather than an effect keeps it a render-time derivation, which is
   // what it is: no effect, no flash of the stale value.
-  const applied = `${filters.version}|${filters.from}|${filters.to}|${filters.flagged}`;
+  const applied = `${filters.version}|${filters.from}|${filters.to}|${filters.flagged}|${filters.tz ?? ""}`;
   const [seeded, setSeeded] = useState(applied);
   if (seeded !== applied) {
     setSeeded(applied);
@@ -126,8 +133,14 @@ export function ResponseBrowser({
   const apply = useCallback(() => {
     // Page is deliberately dropped: a new filter set has a new page 1, and keeping
     // page 4 would land the operator on an empty page and read as "no matches".
-    go({ version, from, to, flagged });
-  }, [go, version, from, to, flagged]);
+    go({
+      version,
+      from,
+      to,
+      flagged,
+      tz: from !== "" || to !== "" ? (draftZone ?? "") : "",
+    });
+  }, [go, version, from, to, flagged, draftZone]);
 
   const clear = useCallback(() => {
     setVersion("");
@@ -191,14 +204,14 @@ export function ResponseBrowser({
         />
         <DatePicker
           label={t("ops.responses.filter.from")}
-          description={t("ops.responses.filter.dayHint")}
+          description={t("ops.responses.filter.dayHint", { zone: dayZone })}
           granularity="day"
           value={from}
           onChange={setFrom}
         />
         <DatePicker
           label={t("ops.responses.filter.to")}
-          description={t("ops.responses.filter.dayHint")}
+          description={t("ops.responses.filter.dayHint", { zone: dayZone })}
           granularity="day"
           value={to}
           onChange={setTo}
@@ -219,9 +232,36 @@ export function ResponseBrowser({
         <Button variant="ghost" size="md" isDisabled={isPending} onPress={clear}>
           {t("ops.responses.filter.clear")}
         </Button>
+        {/* Offered only once the operator's clock is known, which is also the first moment
+            this press can be received at all (review of PR #1077, finding A).
+
+            Two things come together on this one control. The dialog it opens is React's
+            alone - the server renders this trigger and none of its behaviour - so a press
+            before the attach is received by nothing and the dialog never mounts. Measured
+            on an idle machine: the server-rendered section is on screen about 65ms after
+            the navigation and the attach lands 200 to 340ms later, a window a loaded host
+            widens; `e2e/hydration-wait.pw.ts` schedules it rather than waiting for it to
+            happen. And the dialog's range is read in whichever zone applies to it
+            (`initialZone`, `operatorZone`), so opening it in that window would mean a
+            range control that cannot say which clock reads it.
+
+            `operatorZone` is null exactly for the server render and hydration's first pass
+            (`components/operator-time.tsx`), so this is "not attached yet" said in the
+            terms this screen already has, and a dialog mounted by client navigation reads
+            the zone immediately and is never disabled. The toolbar's other two actions
+            already disable themselves while they cannot act (`isPending`); this is the
+            same sentence about a different reason, and it makes the refusal visible rather
+            than letting a press disappear.
+
+            It is NOT the general case. Every React-only trigger in this shell is inert
+            until the attach (issue #815 fixed the suite's half of that; the portal's
+            product half is open as #965), and a shell-wide stance on it is the Code
+            Owner's to take. This control is in scope here because this change is what
+            gave it a dependency on the operator's clock. */}
         <Button
           variant="primary"
           size="md"
+          isDisabled={operatorZone === null}
           onPress={() => {
             setExporting(true);
           }}
@@ -367,6 +407,8 @@ export function ResponseBrowser({
           initialVersion={version}
           initialFrom={from}
           initialTo={to}
+          initialZone={draftZone}
+          operatorZone={operatorZone}
           onClose={() => {
             setExporting(false);
           }}
@@ -404,6 +446,8 @@ function ExportDialog({
   initialVersion,
   initialFrom,
   initialTo,
+  initialZone,
+  operatorZone,
   onClose,
 }: {
   readonly formId: string;
@@ -411,6 +455,10 @@ function ExportDialog({
   readonly initialVersion: string;
   readonly initialFrom: string;
   readonly initialTo: string;
+  /** The zone the toolbar's range is read in when the dialog opens (`draftDayZone`). */
+  readonly initialZone: string | null;
+  /** The operator's own zone, for a range changed in the dialog; null until known. */
+  readonly operatorZone: string | null;
   readonly onClose: () => void;
 }) {
   const [format, setFormat] = useState<ExportFormat>("csv");
@@ -419,7 +467,18 @@ function ExportDialog({
   const [from, setFrom] = useState(initialFrom);
   const [to, setTo] = useState(initialTo);
 
-  const choice: ExportChoice = { format, version, from, to, shape };
+  // The range the dialog opened with keeps the toolbar's zone; a changed one is read on
+  // the operator's clock, by the same rule the toolbar follows.
+  const timeZone = from === initialFrom && to === initialTo ? initialZone : operatorZone;
+  const choice: ExportChoice = {
+    format,
+    version,
+    from,
+    to,
+    shape,
+    ...(timeZone === null ? {} : { timeZone }),
+  };
+  const dayHint = t("ops.export.dayHint", { zone: timeZone ?? t("ops.common.yourZone") });
   const needsVersion = versionRequired(format);
   const needsShape = shapeApplies(format);
   const ready = isExportable(choice) && versions.length > 0;
@@ -476,14 +535,14 @@ function ExportDialog({
         />
         <DatePicker
           label={t("ops.export.from")}
-          description={t("ops.export.dayHint")}
+          description={dayHint}
           granularity="day"
           value={from}
           onChange={setFrom}
         />
         <DatePicker
           label={t("ops.export.to")}
-          description={t("ops.export.dayHint")}
+          description={dayHint}
           granularity="day"
           value={to}
           onChange={setTo}

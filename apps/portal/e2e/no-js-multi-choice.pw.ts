@@ -49,13 +49,12 @@ import {
   fillText,
   startKitchenSink,
 } from "./support/kitchen-sink.js";
-import { countStepPosts, stepSubmit, submitStep } from "./support/no-js.js";
+import { countStepPosts, fillNativeDate, stepSubmit, submitStep } from "./support/no-js.js";
 
 test.use({ javaScriptEnabled: false });
 
 const COVER_QUESTION = "q_optional_cover";
 const NAME_FIELD = 'input[name="q_full_name"]';
-const DATE_FIELD = 'input[name="q_dob"]';
 
 /** The group's three checkboxes, whatever their labels. */
 function coverBoxes(page: Page) {
@@ -74,7 +73,7 @@ async function startWithoutJs(page: Page, slug: string): Promise<string> {
 /** Clear step one (a required name and a required date) and land on step two. */
 async function passAboutStep(page: Page): Promise<void> {
   await page.locator(NAME_FIELD).fill("Ada Lovelace");
-  await page.locator(DATE_FIELD).fill("1990-05-17");
+  await fillNativeDate(page, "q_dob", "1990-05-17");
   await submitStep(page);
   await expect(page.getByRole("heading", { name: "Driving history" })).toBeVisible();
 }

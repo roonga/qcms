@@ -119,8 +119,18 @@ client render both paint native mode before `ProgressiveStep` swaps the whole fo
   segments nobody can type into without scripting, and its form value rode on an
   `<input type="text" hidden required>` - `hidden`, not `type="hidden"`, so the browser
   tried to report its validity, could not focus it, and abandoned the whole step's
-  submission. Native-submit mode emits `@roonga/qcms-ui`'s `NativeDateField` instead: one
-  real `<input type="date">`, posting the same ISO day under the same field name.
+  submission. Native-submit mode emits `@roonga/qcms-ui`'s `NativeDateField` instead. It
+  was one `<input type="date">` until the Code Owner ruling of 2026-10-19 (ADR-27
+  amendment): a native date input draws its parts in the browser's locale, so the server
+  render and the hydrated DateField (drawn in `QCMS_LOCALE`) disagreed about the order. It
+  is now a fieldset of day, month and year boxes in the `QCMS_LOCALE` order, each required
+  when the question is, posting under per-part names beside a `date` kind tag; the
+  whole-step decoder joins them into the same ISO day the scripted path posts. Both renders use
+  the Gregorian calendar and Latin digits whatever the tag's default (`isoDateLocale`), so a
+  `th-TH` or `fa-IR` deployment shows and accepts the stored ISO day rather than a Buddhist or
+  Persian date. The ISO
+  bounds are not native attributes any more (three boxes cannot carry them), so an
+  out-of-range day is reported after the round trip, per the principle above.
 - **A number** (issue #18, Code Owner ruling 2026-09-19). The vendored NumberField's
   visible box is `<input type="text" inputmode="numeric">` with **no `name`**, and the
   form value rides a separate `<input type="hidden">` that only JavaScript writes - so

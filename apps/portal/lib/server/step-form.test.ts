@@ -279,3 +279,49 @@ describe("the roster operation, the fourth reserved name (task 073, ADR-43)", ()
     ]);
   });
 });
+
+describe("decodeStepForm: the no-JS date's three parts (Code Owner, 2026-10-19)", () => {
+  it("joins the day, month and year boxes into the ISO day, whatever order they posted in", () => {
+    const decoded = decodeStepForm(
+      form(
+        ["__qdm__q_dob", "5"],
+        ["__qdd__q_dob", "17"],
+        ["__qdy__q_dob", "1990"],
+        ["__qk__q_dob", "date"],
+      ),
+    );
+    expect(decoded.answers).toEqual([{ questionId: "q_dob", value: "1990-05-17" }]);
+    expect(decoded.fields).toEqual(["q_dob"]);
+    expect(decoded.extras).toEqual({});
+  });
+
+  it("reads three blank boxes as absence, and as a retraction when marked answered", () => {
+    const blank: [string, string][] = [
+      ["__qdd__q_dob", ""],
+      ["__qdm__q_dob", ""],
+      ["__qdy__q_dob", ""],
+      ["__qk__q_dob", "date"],
+    ];
+    expect(decodeStepForm(form(...blank)).answers).toEqual([]);
+    const cleared = decodeStepForm(form(...blank, ["__qa__q_dob", "1"]));
+    expect(cleared.answers).toEqual([{ questionId: "q_dob", value: null }]);
+    expect(cleared.cleared).toEqual({ q_dob: "date" });
+  });
+
+  it("passes a partial date through for the API to refuse rather than judging it", () => {
+    const decoded = decodeStepForm(
+      form(
+        ["__qdd__q_dob", "5"],
+        ["__qdm__q_dob", ""],
+        ["__qdy__q_dob", "1990"],
+        ["__qk__q_dob", "date"],
+      ),
+    );
+    expect(decoded.answers).toEqual([{ questionId: "q_dob", value: "1990--05" }]);
+  });
+
+  it("still decodes the earlier single-field shape under the `string` kind", () => {
+    const decoded = decodeStepForm(form(["q_dob", "1990-05-17"], ["__qk__q_dob", "string"]));
+    expect(decoded.answers).toEqual([{ questionId: "q_dob", value: "1990-05-17" }]);
+  });
+});

@@ -3,6 +3,7 @@
 import { useActionState, useEffect, useMemo, useRef, useState, type ReactNode } from "react";
 
 import { Alert, Checkbox, Select, TextField } from "@/components/kit";
+import { useAppLocale } from "@/components/locale-context";
 import { t } from "@/lib/i18n/en";
 import {
   blankDefinition,
@@ -220,9 +221,10 @@ export function QuestionEditor({
   // Memoized on the state objects rather than recomputed, so the rail is woken when the
   // document or the verdict changes and not when React re-renders this form for any other
   // reason. `definition` and `issueList` are both stable between edits.
+  const locale = useAppLocale();
   const panels = useMemo(
-    () => questionPanels(definition, { withPreview: preview !== undefined }),
-    [definition, preview],
+    () => questionPanels(definition, { withPreview: preview !== undefined, locale }),
+    [definition, preview, locale],
   );
   const counts = useMemo(() => panelIssueCounts(panels, issueList), [panels, issueList]);
   const leftover = unplacedIssues(issueList, renderedQuestionFields(panels));

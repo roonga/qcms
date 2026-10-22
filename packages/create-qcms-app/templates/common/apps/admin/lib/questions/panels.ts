@@ -1,5 +1,5 @@
 import { t, tPlural } from "../i18n/en.ts";
-import { formatDay } from "../i18n/format.ts";
+import { DEFAULT_LOCALE, formatDay } from "../i18n/format.ts";
 
 import { CONSTRAINT_FIELDS, authoredMessageKeys, hasOptions, textOf } from "./definition.ts";
 import { fieldPathOf } from "./errors.ts";
@@ -123,7 +123,7 @@ export const DEFAULT_QUESTION_PANEL: QuestionPanelId = "content";
  */
 export function questionPanels(
   definition: QuestionDefinitionView,
-  options: { readonly withPreview?: boolean } = {},
+  options: { readonly withPreview?: boolean; readonly locale?: string } = {},
 ): readonly QuestionPanel[] {
   const panels: QuestionPanel[] = [
     panel("content", t("questions.panel.content"), contentDigest(definition), [
@@ -156,7 +156,7 @@ export function questionPanels(
       panel(
         "constraints",
         t("questions.editor.constraints"),
-        constraintsDigest(definition, owned),
+        constraintsDigest(definition, owned, options.locale ?? DEFAULT_LOCALE),
         owned.map((field) => `constraints.${field}`),
       ),
     );
@@ -318,7 +318,11 @@ function contentDigest(definition: QuestionDefinitionView): string {
  * field's own label is on the control the row opens, which is where an author reads the long
  * form.
  */
-function constraintsDigest(definition: QuestionDefinitionView, owned: readonly string[]): string {
+function constraintsDigest(
+  definition: QuestionDefinitionView,
+  owned: readonly string[],
+  locale: string,
+): string {
   const constraints = (definition.constraints ?? {}) as Readonly<Record<string, unknown>>;
   const parts: string[] = [];
   for (const field of owned) {
@@ -326,24 +330,31 @@ function constraintsDigest(definition: QuestionDefinitionView, owned: readonly s
     // The same "did the author leave a value here?" test `forWire` prunes on, plus `false`
     // for the one boolean constraint: an unticked "whole numbers only" is not a constraint.
     if (value === undefined || value === "" || value === false) continue;
-    parts.push(constraintPart(definition, field, value));
+    parts.push(constraintPart(definition, field, value, locale));
   }
   return parts.length === 0 ? t("questions.panel.constraintsNone") : parts.join(", ");
 }
 
 /** One constraint, in the shortest phrase that still says which bound it is. */
-function constraintPart(definition: QuestionDefinitionView, field: string, value: unknown): string {
+function constraintPart(
+  definition: QuestionDefinitionView,
+  field: string,
+  value: unknown,
+  locale: string,
+): string {
   if (field === "pattern") return t("questions.panel.constraintPattern");
   if (field === "integer") return t("questions.panel.constraintInteger");
   // A DATE BOUND READS AS A RANGE, NOT AS AN EXTREME. "min Jan 1, 2030" is the same fact as
   // "from Jan 1, 2030" and the second is how the fields themselves are labelled ("Earliest
   // date", "Latest date"), so the digest says it the way the panel does. The day is rendered
-  // through the shared formatter rather than shown as the wire string, ADR-27's rule, and it
-  // is UTC for the reason the rail's version dates are (issue #582).
+  // through the shared formatter rather than shown as the wire string, ADR-27's rule, in the
+  // deployment's QCMS_LOCALE. It is read in UTC on purpose, and this is NOT an instant: a
+  // bound is a calendar day stored as `YYYY-MM-DD`, which parses as UTC midnight, so any other
+  // zone would name the day before for a reader west of UTC.
   const isLower = field === "min" || field === "minLength" || field === "minSelected";
   if (definition.type === "date" && typeof value === "string") {
     return t(isLower ? "questions.panel.constraintFrom" : "questions.panel.constraintTo", {
-      value: formatDay(value, value),
+      value: formatDay(value, { locale, timeZone: "UTC" }, value),
     });
   }
   return t(isLower ? "questions.panel.constraintMin" : "questions.panel.constraintMax", {
@@ -382,7 +393,8 @@ function booleanDigest(definition: QuestionDefinitionView): string {
 export function questionPanelState(
   definition: QuestionDefinitionView,
   params: Readonly<Record<string, string | string[] | undefined>>,
+  locale: string = DEFAULT_LOCALE,
 ): { readonly panels: readonly QuestionPanel[]; readonly panel: QuestionPanelId } {
-  const panels = questionPanels(definition, { withPreview: true });
+  const panels = questionPanels(definition, { withPreview: true, locale });
   return { panels, panel: panelFromParams(params, panels) };
 }

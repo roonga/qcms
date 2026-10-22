@@ -2,7 +2,7 @@ import { render } from "@testing-library/react";
 import { describe, expect, it } from "vitest";
 
 import { A2UIStepRenderer, type A2UIStepDocument } from "./A2UIStepRenderer.tsx";
-import { withNativeSubmit } from "./native-submit.ts";
+import { NATIVE_DATE_PART_PREFIX, withNativeSubmit } from "./native-submit.ts";
 import { loadGoldenForms } from "./test-support/golden.ts";
 
 // Native (no-JS) submit mode (task 044). The opt-in `nativeSubmit` prop turns the
@@ -259,7 +259,13 @@ describe("the answered marker (issue #127)", () => {
     const posted = new FormData(container.querySelector("form")!);
     for (const name of answered(container)) {
       const question = name.slice("__qa__".length);
-      expect(posted.getAll(question).filter((v) => v !== "")).not.toHaveLength(0);
+      // A date posts its three parts under prefixed names (Code Owner, 2026-10-19).
+      const names =
+        posted.get(`__qk__${question}`) === "date"
+          ? Object.values(NATIVE_DATE_PART_PREFIX).map((prefix) => `${prefix}${question}`)
+          : [question];
+      const values = names.flatMap((field) => posted.getAll(field)).filter((v) => v !== "");
+      expect(values).not.toHaveLength(0);
     }
     expect(answered(container).sort()).toEqual(["__qa__q_dob", "__qa__q_full_name"]);
 

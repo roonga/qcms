@@ -351,7 +351,7 @@ test("the no-JS date fallback's box consumes the same spacing tokens (issue #920
   await page.getByRole("button", { name: "Start" }).click();
   await page.waitForURL(/\/s\/ses_/);
 
-  const day = page.locator('[data-qcms-field] input[type="date"]');
+  const day = page.locator('[data-qcms-field] input[data-qcms-date-part="day"]');
   await expect(day).toBeVisible();
   expect(
     starvation.starvedCount(),

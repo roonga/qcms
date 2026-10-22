@@ -32,7 +32,11 @@ import { batchLogExportTimings } from "@roonga/qcms-observability/otel";
 import { OTLPLogExporter } from "@opentelemetry/exporter-logs-otlp-http";
 import { BatchLogRecordProcessor } from "@opentelemetry/sdk-logs";
 
-import { assertNoPlaceholderSecrets, assertSecureCookiesConfigured } from "./lib/server/config";
+import {
+  assertLocaleConfigured,
+  assertNoPlaceholderSecrets,
+  assertSecureCookiesConfigured,
+} from "./lib/server/config";
 import { redactingSpanProcessor } from "./lib/server/telemetry-redaction";
 
 /** The service name reported when `OTEL_SERVICE_NAME` is not set. */
@@ -98,6 +102,9 @@ function refuseUnsafeConfiguration(): void {
     // refusals with the same exit shape, so a deployment carrying both defects sees the
     // first, fixes it, and is told about the second on the next start.
     assertNoPlaceholderSecrets();
+    // Third: an unusable QCMS_LOCALE (Code Owner ruling 2026-10-19). Not a security
+    // refusal, but the same "fail at boot, name the variable" posture as other config.
+    assertLocaleConfigured();
   } catch (error) {
     if (process.env.NEXT_RUNTIME === "nodejs") {
       process.stderr?.write(`${error instanceof Error ? error.message : String(error)}\n`);

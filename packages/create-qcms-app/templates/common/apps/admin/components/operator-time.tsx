@@ -1,95 +1,101 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useSyncExternalStore } from "react";
 
-import {
-  formatDateTime,
-  formatDay,
-  formatOperatorDateTime,
-  formatOperatorDay,
-  isInstant,
-} from "@/lib/i18n/format";
+import { useAppLocale } from "@/components/locale-context";
+import { formatDateTime, formatDay, isInstant } from "@/lib/i18n/format";
 
 /**
- * Operator-local timestamp display, without a hydration mismatch (issue #279).
+ * Operator-local times, the only way an admin screen shows an instant (issue #279;
+ * rebuilt by the Code Owner ruling of 2026-10-19, local UX list A9).
  *
- * The Code Owner accepted UTC display on 2026-08-02 and queued local display as the
- * follow-up. What made it a follow-up rather than a one-line change is that every screen
- * showing a timestamp is a client component Next also renders on the server, and a
- * formatter that resolves its zone from the ambient runtime produces one string in Node
- * and another in the browser. React reports that as a hydration mismatch, and the suite's
- * shared console gate fails the run on it.
+ * ## What the ruling asked for
  *
- * ## Why this is safe, stated exactly
+ * Admin times on the operator's own clock **everywhere, list and detail alike**, with
+ * the zone always named, formatted in the deployment's `QCMS_LOCALE`. What prompted it:
+ * one submission read as Oct 17 on the responses list and Oct 18 on its detail page.
  *
- * React compares the server's HTML against the **first** client render only. So the rule
- * this module enforces is: the first render is `formatDateTime` - the pinned `en` catalog
- * locale, pinned UTC - on both sides of the boundary, byte for byte, because it reads
- * nothing from the runtime it is executing in. `useState(false)` guarantees that: its
- * initial value is the same constant in Node and in the browser, and effects do not run
- * during hydration's first pass. Only afterwards does the effect flip the flag and cause a
- * second, browser-only render on the operator's own clock. That second render is an
- * ordinary state update, which React is free to produce different output for.
+ * ## The choice: the zone is resolved in the browser, and the server paints no time
  *
- * Only the ZONE comes from the runtime. The locale stays `ADMIN_LOCALE`, so an operator
- * elsewhere reads their own clock inside English prose rather than a German date shape in
- * an English sentence: ADR-27 makes a second locale a configuration change that swaps
- * `ADMIN_LOCALE` alongside the catalog, and R7 defers that to Phase 4. The argument, and
- * the one line that would widen it, live at `formatOperatorDateTime`.
+ * The server cannot know the operator's zone. The old design rendered pinned UTC on the
+ * server and through hydration, then swapped to the browser's zone in an effect, so
+ * every time on every screen was briefly (or, wherever the swap had not happened yet,
+ * persistently) a UTC time - which is exactly how two screens could name two days for
+ * one instant. Two alternatives were weighed:
  *
- * The mismatch is therefore impossible by construction rather than avoided by care: there
- * is no code path on which `formatOperatorDateTime` can be reached during a server render,
- * because `hydrated` cannot be `true` there.
+ * - **Pass the zone explicitly from the server**, from a cookie the browser writes. The
+ *   first visit would still have no cookie and paint UTC, a new cookie needs a place in
+ *   the cookie inventory, and the value would be a browser-supplied string the server
+ *   renders. More moving parts for the same answer.
+ * - **Render times client-side** (this). The admin has no no-JS requirement (Code Owner,
+ *   2026-08-22 and 2026-09-27), so a time that only exists once scripting runs costs
+ *   nothing a supported operator can see except a blank for the length of hydration.
+ *
+ * So there is one zone in this app, the browser's, and a time is either that or not yet
+ * drawn. A UTC string is never painted, and no two screens can disagree.
+ *
+ * ## Why there is no hydration mismatch, stated exactly
+ *
+ * `useSyncExternalStore` returns its SERVER snapshot (`null`: "zone unknown") during the
+ * server render and during hydration's first pass, so the HTML React compares is the
+ * same placeholder on both sides; the browser snapshot (the resolved zone) is read on
+ * the render after. A component mounted later by client navigation reads the browser
+ * snapshot immediately and never shows the placeholder. The zone and the locale are then
+ * passed to formatters that read nothing from the runtime, so the output depends only on
+ * those two named inputs (`lib/i18n/format.ts`).
  *
  * ## What the markup carries
  *
  * `<time dateTime={iso}>` keeps the machine-readable UTC instant in the DOM whatever the
- * text says, so the wire value stays inspectable and a reader's zone never has to be
- * reverse-engineered out of prose. An unreadable value renders the caller's fallback with
- * no `<time>` around it, because `dateTime` with nothing valid in it would be a worse
- * answer than none.
- *
- * ## Day-only columns come through here too (issue #582)
- *
- * They did not, until the Code Owner's ruling of 2026-09-11: a bare calendar-day column
- * stayed UTC on the ground that it has no clock in its output to name a zone on. The value
- * is still an instant, so the UTC day could name a day the operator's own clock never
- * agreed with, and one zone across every table is what the #794 ruling settled.
- * {@link OperatorDay} and {@link useOperatorDayFormat} are that half, and they are the same
- * mechanism rather than a parallel one: pinned UTC through hydration, the operator's zone
- * after. What a day column does NOT gain is a clock or a zone name; it is still a day.
- *
- * ## Out of scope, deliberately
- *
- * The mint dialog's expiry promise stays UTC and stays explicitly named. It is a promise
- * about when a link stops working for a respondent somewhere else, not a convenience for
- * the operator reading it, so it does not come through here.
+ * text says. An unreadable value renders the caller's fallback with no `<time>` around
+ * it, on both sides of hydration, because "there is no such instant" does not depend on
+ * the zone.
  */
 
+const noSubscription = () => () => {};
+const browserZone = () => Intl.DateTimeFormat().resolvedOptions().timeZone || "UTC";
+const unknownZone = () => null;
+
 /**
- * The date-time formatter this render should use: pinned UTC until hydration finishes,
- * the operator's own zone afterwards (their locale is not taken; see the module note).
+ * The operator's zone, or `null` during the server render and hydration's first pass.
  *
- * A hook rather than only a component, because two callers put the result inside a
- * catalog sentence (`t("...", { time })`) rather than in an element of its own, and there
- * is no place to hang a component there. Same formatter, same hydration gate, one path.
+ * Exported for the places that NAME the zone rather than format with it: the day filters'
+ * and the export range's hints, which say which clock a chosen day is read on.
  */
-export function useOperatorDateTimeFormat(): (
-  iso: string | null | undefined,
-  fallback?: string,
-) => string {
-  const [hydrated, setHydrated] = useState(false);
-  useEffect(() => {
-    setHydrated(true);
-  }, []);
-  return hydrated ? formatOperatorDateTime : formatDateTime;
+export function useOperatorZone(): string | null {
+  return useSyncExternalStore(noSubscription, browserZone, unknownZone);
+}
+
+type InstantFormatter = (iso: string | null | undefined, fallback?: string) => string;
+
+function useOperatorFormatter(format: typeof formatDateTime | typeof formatDay): InstantFormatter {
+  const locale = useAppLocale();
+  const timeZone = useOperatorZone();
+  return (iso, fallback = "") => {
+    if (!isInstant(iso)) return fallback;
+    return timeZone === null ? "" : format(iso, { locale, timeZone }, fallback);
+  };
 }
 
 /**
- * One operator-facing timestamp: UTC through hydration, then the operator's own clock.
+ * The date-time formatter for this render: the operator's zone, named, in the deployment
+ * locale; an empty string for a readable instant until the zone is known.
  *
- * The fallback is the caller's, because "there is no such instant" reads differently per
- * screen ("None", "-", a blank cell) and that is copy, not formatting.
+ * A hook rather than only a component, because some callers put the result inside a
+ * catalog sentence (`t("...", { time })`) and there is no element to hang a component on.
+ */
+export function useOperatorDateTimeFormat(): InstantFormatter {
+  return useOperatorFormatter(formatDateTime);
+}
+
+/** The calendar-day twin: the day the instant falls on in the operator's zone. */
+export function useOperatorDayFormat(): InstantFormatter {
+  return useOperatorFormatter(formatDay);
+}
+
+/**
+ * One operator-facing timestamp. The fallback is the caller's, because "there is no such
+ * instant" reads differently per screen ("None", "-", a blank cell) and that is copy.
  */
 export function OperatorDateTime({
   iso,
@@ -105,32 +111,8 @@ export function OperatorDateTime({
 }
 
 /**
- * The day formatter this render should use: pinned UTC until hydration finishes, the
- * operator's own zone afterwards.
- *
- * A hook as well as a component for the same reason its sibling is one: the forms list puts
- * its day inside a catalog sentence ("v3, frozen {date}") rather than in an element of its
- * own, and there is no place to hang a component there.
- */
-export function useOperatorDayFormat(): (
-  iso: string | null | undefined,
-  fallback?: string,
-) => string {
-  const [hydrated, setHydrated] = useState(false);
-  useEffect(() => {
-    setHydrated(true);
-  }, []);
-  return hydrated ? formatOperatorDay : formatDay;
-}
-
-/**
- * One operator-facing calendar day: UTC through hydration, then the operator's own clock.
- *
- * The `<time dateTime>` wrapper is the same bargain the timestamp makes: whatever the text
- * says, the machine-readable instant stays in the DOM, so a reader never has to
- * reverse-engineer a zone out of prose. The attribute carries the full instant rather than
- * a `YYYY-MM-DD` slice, because the instant is what the row actually holds and slicing it
- * would re-state the UTC day this component exists to stop being the only answer.
+ * One operator-facing calendar day. No clock and no zone name in the text, but the day
+ * itself is the operator's (Code Owner, 2026-09-11, issue #582).
  */
 export function OperatorDay({
   iso,

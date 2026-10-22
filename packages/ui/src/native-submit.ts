@@ -113,8 +113,130 @@ export const NATIVE_FIELD_ANSWERED_VALUE = "1";
  * - `radio` - a RadioGroup: `"true"`/`"false"` decode to a JSON boolean (a boolean
  *   question), any other value stays a string (a singleChoice OptionId).
  * - `multi` - a CheckboxGroup: the array of selected string values.
+ * - `date` - the no-JS date field's three parts, posted under
+ *   {@link NATIVE_DATE_PART_PREFIX} names and assembled by {@link assembleNativeDate}.
  */
-export type NativeFieldKind = "string" | "number" | "radio" | "multi";
+export type NativeFieldKind = "string" | "number" | "radio" | "multi" | "date";
+
+/** The three parts of a calendar day, in no particular order. */
+export type DatePart = "day" | "month" | "year";
+
+/**
+ * The name prefixes the no-JS date field's three inputs post under
+ * (Code Owner ruling 2026-10-19, ADR-27 amendment). For question `q_dob` the day box is
+ * `__qdd__q_dob`, the month box `__qdm__q_dob` and the year box `__qdy__q_dob`.
+ *
+ * ## Why three boxes rather than `<input type="date">`
+ *
+ * A native date input draws its day, month and year in the order of the BROWSER's own
+ * locale, and no attribute moves it (`lang` is ignored for this). The hydrated control
+ * is react-aria's DateField, whose order follows the `I18nProvider` locale the portal
+ * names from `QCMS_LOCALE`. So a respondent on an en-GB deployment whose browser was
+ * en-US saw month/day/year in the server render and day/month/year after hydration, or
+ * the reverse. Three labelled boxes in the configured order are the only native markup
+ * whose order the server decides, so the two renders agree by construction.
+ *
+ * Names are per part, never one repeated name: a repeated name posts its values in DOM
+ * order, and the DOM order is locale-dependent, so the decoder could not tell which
+ * value was which.
+ */
+export const NATIVE_DATE_PART_PREFIX: Readonly<Record<DatePart, string>> = {
+  day: "__qdd__",
+  month: "__qdm__",
+  year: "__qdy__",
+};
+
+/**
+ * The locale every QCMS date is drawn, entered and formatted in: the operator's tag with
+ * the **Gregorian calendar and Latin digits** forced: the explicit calendar policy the
+ * operator-locale change records in its ADR-27 amendment, made to satisfy that ruling's
+ * requirement that the server render and the hydrated render agree.
+ *
+ * ## Why the calendar and the digits are not the operator's to choose
+ *
+ * A date answer is an ISO-8601 day, `YYYY-MM-DD`, which is a Gregorian date written in
+ * ASCII digits, and every instant the apps show is stored the same way. A locale whose
+ * default calendar is not Gregorian would otherwise draw that same value as a different
+ * date: `th-TH` shows 1990 as the Buddhist year 2533, `fa-IR` shows 17 May 1990 as
+ * 27/2/1369 in Persian digits, and an explicit extension such as `-u-ca-chinese` changes
+ * the parts and their order. The no-JS boxes post exactly the numbers typed, so a
+ * respondent who typed the year they saw on one render would have answered a different
+ * date on the other. Forcing the calendar and the digits here, in the one function both
+ * renders and both apps' formatters call, keeps the server render, the hydrated
+ * react-aria control and the stored answer on the same date. The answer is never
+ * reinterpreted: it stays the ISO day it always was.
+ *
+ * What stays the operator's: the order of the parts, month names, separators, the hour
+ * cycle, list words and every other convention of the tag. A `-u-ca-` or `-u-nu-`
+ * extension the operator wrote is overridden rather than refused, because the tag is
+ * still a valid choice for everything else it says. A string `Intl` cannot read is
+ * returned as given, so the caller's own validation reports it.
+ */
+export function isoDateLocale(locale: string): string {
+  try {
+    return new Intl.Locale(locale, { calendar: "gregory", numberingSystem: "latn" }).toString();
+  } catch {
+    return locale;
+  }
+}
+
+/**
+ * The order a locale writes a calendar day's parts in, read from `Intl` in the
+ * {@link isoDateLocale} form of the tag, so it is the order react-aria's DateField draws
+ * under the same provider.
+ *
+ * Deterministic for a given tag: it never reads the runtime's own locale or zone, which
+ * is what lets the server render and the hydrated render agree. `relatedYear` is read as
+ * the year; only a non-Gregorian calendar emits it, which {@link isoDateLocale} prevents.
+ */
+export function dateSegmentOrder(locale: string): readonly DatePart[] {
+  const parts = new Intl.DateTimeFormat(isoDateLocale(locale), {
+    year: "numeric",
+    month: "2-digit",
+    day: "2-digit",
+    timeZone: "UTC",
+  }).formatToParts(new Date(Date.UTC(2000, 10, 22)));
+  const order: DatePart[] = [];
+  for (const part of parts) {
+    // `relatedYear` is missing from older lib typings, hence the widening to string.
+    const type = (part.type as string) === "relatedYear" ? "year" : part.type;
+    if ((type === "day" || type === "month" || type === "year") && !order.includes(type)) {
+      order.push(type);
+    }
+  }
+  return order.length === 3 ? order : ["day", "month", "year"];
+}
+
+/**
+ * Join the three posted parts into the `YYYY-MM-DD` string the API reads, or
+ * `undefined` when every part is blank.
+ *
+ * Coercion only, never a validity judgement (R2): digits are zero-padded to the ISO
+ * widths, and anything else passes through as typed, so `31/02/2026` or a letter in the
+ * year reaches the API as a string it refuses with its own message.
+ */
+export function assembleNativeDate(
+  parts: Readonly<Partial<Record<DatePart, string>>>,
+): string | undefined {
+  const day = (parts.day ?? "").trim();
+  const month = (parts.month ?? "").trim();
+  const year = (parts.year ?? "").trim();
+  if (day === "" && month === "" && year === "") return undefined;
+  const pad = (value: string, width: number): string =>
+    /^\d+$/.test(value) && value.length < width ? value.padStart(width, "0") : value;
+  return `${pad(year, 4)}-${pad(month, 2)}-${pad(day, 2)}`;
+}
+
+/**
+ * Split a stored or re-rendered value back into the three boxes. A well-formed ISO day
+ * fills all three; anything else that still has two hyphens fills them as typed, so a
+ * refused post re-renders with what the respondent wrote; the rest renders blank.
+ */
+export function splitNativeDate(value: string | undefined): Readonly<Record<DatePart, string>> {
+  const match = value === undefined ? null : /^([^-]*)-([^-]*)-([^-]*)$/.exec(value);
+  if (match === null) return { day: "", month: "", year: "" };
+  return { year: match[1] ?? "", month: match[2] ?? "", day: match[3] ?? "" };
+}
 
 /**
  * A Next Server Action, as React renders it into a `<form action>` (task 073).

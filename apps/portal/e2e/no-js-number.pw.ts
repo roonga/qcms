@@ -38,14 +38,13 @@ import type { Page } from "@playwright/test";
 import { openDb } from "./support/db.js";
 import { readFixtures } from "./support/fixtures.js";
 import { expect, test } from "./support/gates.js";
-import { countStepPosts, submitStep } from "./support/no-js.js";
+import { countStepPosts, fillNativeDate, submitStep } from "./support/no-js.js";
 
 test.use({ javaScriptEnabled: false });
 
 const COUNT_FIELD = 'input[name="q_accident_count"]';
 const ANNUAL_KM_FIELD = 'input[name="q_annual_km"]';
 const NAME_FIELD = 'input[name="q_full_name"]';
-const DATE_FIELD = 'input[name="q_dob"]';
 
 /** Start the kitchen sink with no scripting and return the session id. */
 async function startWithoutJs(page: Page, slug: string): Promise<string> {
@@ -59,7 +58,7 @@ async function startWithoutJs(page: Page, slug: string): Promise<string> {
 /** Clear step one (a required name and a required date) and land on step two. */
 async function passAboutStep(page: Page): Promise<void> {
   await page.locator(NAME_FIELD).fill("Ada Lovelace");
-  await page.locator(DATE_FIELD).fill("1990-05-17");
+  await fillNativeDate(page, "q_dob", "1990-05-17");
   await submitStep(page);
   await expect(page.getByRole("heading", { name: "Driving history" })).toBeVisible();
 }

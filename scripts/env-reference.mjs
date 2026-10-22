@@ -695,6 +695,14 @@ export const ENV_REFERENCE = [
       "Turnstile site key for the rendered widget. Required when the portal's challenge provider is `turnstile`. The **same variable the API reads** since issue #331 consolidated the two spellings onto this one, so set it once for both processes; the API still accepts the deprecated bare `TURNSTILE_SITE_KEY` and warns at boot.",
   },
   {
+    name: "QCMS_LOCALE",
+    process: "portal",
+    requirement: "optional",
+    fallback: "en-GB",
+    description:
+      "The deployment's formatting locale (Code Owner ruling 2026-10-19, ADR-27): a BCP 47 tag such as `en-GB`, `en-US` or `de-DE`. It decides how dates, times, numbers and lists are formatted and the order a date field draws its day, month and year in, in the scripted date field and the no-JS fallback alike, so the server render and the hydrated render agree. It is formatting, not translation: the copy stays English whatever this says. **Set the same value on the `portal` and `admin` services**, so an author's preview matches what respondents see. Unset or blank is `en-GB`. A malformed tag, or one this runtime's `Intl` has no data for, **refuses to boot** naming the variable and never printing the value.",
+  },
+  {
     name: "QCMS_PORTAL_THEME",
     process: "portal",
     requirement: "optional",
@@ -846,6 +854,14 @@ export const ENV_REFERENCE = [
     fallback: "",
     description:
       "The **portal's** variable, read here too: it is the origin a published form's public link is built against, so the builder can show the address respondents use (`${QCMS_PORTAL_BASE_URL}/f/<slug>`). Set the same value the API and the portal get. Unset, the builder shows no link rather than a broken one, which is why it is optional here and required of those two. This app never makes a request to the portal; it writes the address down for an operator to hand out.",
+  },
+  {
+    name: "QCMS_LOCALE",
+    process: "admin",
+    requirement: "optional",
+    fallback: "en-GB",
+    description:
+      "The deployment's formatting locale (Code Owner ruling 2026-10-19, ADR-27): a BCP 47 tag such as `en-GB`, `en-US` or `de-DE`. It decides how dates, times, numbers and lists are formatted and the order a date field draws its day, month and year in, including the kit's date pickers and the A2UI previews. It is formatting, not translation: the copy stays English whatever this says. **Set the same value on the `portal` and `admin` services**, so an author's preview matches what respondents see. Unset or blank is `en-GB`. A malformed tag, or one this runtime's `Intl` has no data for, **refuses to boot** naming the variable and never printing the value. Admin times are shown on each operator's own clock with the zone named; the zone comes from the browser, not from this variable.",
   },
   {
     name: "QCMS_PORTAL_THEME",

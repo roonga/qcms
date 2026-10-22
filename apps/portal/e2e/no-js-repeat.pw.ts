@@ -515,7 +515,9 @@ test("the group renders one card per live instance with a legend and a heading",
   // names it, with the same text reachable as a heading. One element does both jobs, so
   // the label is spoken once rather than twice by a screen reader that reads a legend
   // with every control in its group.
-  const legend = card(page, 1).locator("legend");
+  // The card's OWN legend: a date question inside the instance is a fieldset with a legend
+  // of its own since the no-JS date became three boxes (Code Owner, 2026-10-19).
+  const legend = card(page, 1).locator(":scope > legend");
   await expect(legend).toHaveText("Vehicle 1");
   await expect(legend.locator("h4")).toHaveAttribute("tabindex", "-1");
   // The focus handle the 200's `autofocus` lands on, and the id the summary anchors at.

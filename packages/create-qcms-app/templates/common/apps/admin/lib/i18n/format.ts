@@ -1,140 +1,76 @@
 /**
- * Locale-aware value formatting for the admin (ADR-27).
+ * Locale-aware value formatting for the admin (ADR-27; operator locale and zones by the
+ * Code Owner ruling of 2026-10-19).
  *
  * ADR-27 puts dates, numbers and currency through the platform `Intl` APIs rather than
- * through hand-cut strings, for the same reason it puts prose through a catalog: a second
- * locale must be a configuration change, not a rewrite. Three screens had been slicing an
- * ISO timestamp to its first ten characters instead, which is not a date format at all -
- * it is the wire representation with its tail cut off, and it reads as one.
+ * through hand-cut strings, for the same reason it puts prose through a catalog: a
+ * different convention must be a configuration change, not a rewrite.
  *
- * ## Two constraints pull in opposite directions, and both are satisfied here
+ * ## Both inputs are ARGUMENTS, and nothing here reads the runtime
  *
- * **Determinism.** These tables render inside client components, which Next also renders on
- * the server, so a formatter that resolved its locale or its time zone from the ambient
- * runtime would produce one string in Node and another in the browser: a hydration mismatch,
- * which the suite's shared console gate fails a run on. That is exactly what the `.slice(0,
- * 10)` in `forms/page.tsx` was avoiding, and its comment says so. So both inputs are
- * explicit: the app's locale, and UTC.
+ * **The locale is the operator's (`QCMS_LOCALE`).** This app used to format against the
+ * bare tag `en`, which `Intl` reads as United States conventions (`Oct 17, 2026`, a
+ * 12-hour clock, month-first date fields). The ruling gives the operator one setting,
+ * default {@link DEFAULT_LOCALE}, read on the server by `lib/server/config.ts` and handed
+ * to client components by `components/locale-context.tsx`. It is formatting, not
+ * translation: the catalog stays English (R7).
  *
- * **Truthfulness.** UTC is not a compromise here, it is the right answer for this app. The
- * API stores instants, a secure link's expiry is a promise made to a respondent who may be
- * anywhere, and an operator reading a link's lifetime needs one clock rather than their own.
- * So the zone is rendered alongside every time (`timeZoneName: "short"`) rather than left
- * for the reader to assume, and `endOfDay` in the forms actions widens a chosen day to the
- * end of that same UTC day, so what the mint dialog promises and what the table later shows
- * are the same instant.
+ * **The zone is the reader's, named in every time.** The ruling's other half: an admin
+ * time is shown on the operator's own clock everywhere, list and detail alike, with the
+ * zone in the output. The browser is the only party that knows that clock, so
+ * `components/operator-time.tsx` resolves it there and passes it in; the server never
+ * formats an instant at all (see that module for why, and for how hydration stays
+ * clean). Before the ruling the server render used pinned UTC and the browser swapped
+ * to the local zone after hydration, so one screen could show a submission on Oct 17
+ * and the next on Oct 18; a UTC string is now never painted for an admin time.
  *
- * A second locale swaps `ADMIN_LOCALE` alongside the catalog module and every date follows;
- * nothing here needs to change.
+ * Because every formatter takes both inputs explicitly, the output depends on nothing
+ * but its arguments: not on the host's locale or zone, and not on which side of
+ * hydration it runs. The formatter caches are keyed on the pair for the same reason.
  *
- * ## Operator-local display (issue #279)
- *
- * The Code Owner accepted UTC deliberately on 2026-08-02 and queued the local-display
- * follow-up, which is what {@link formatOperatorDateTime} is. It resolves the ZONE from the
- * runtime - and only the zone, keeping {@link ADMIN_LOCALE} for the reasons recorded at that
- * function - which is precisely what the determinism argument above forbids doing during a
- * server render - so it is **never called during one**. `components/operator-time.tsx`
- * owns that rule: the server render and the first client render both go through
- * {@link formatDateTime}, and the swap to this formatter happens in an effect afterwards.
- * Calling it anywhere else reintroduces the mismatch this module exists to avoid.
- *
- * What did *not* change: storage, the values on the wire, `endOfDay`'s UTC widening, and
- * the mint dialog's expiry promise (`forms.links.expiresAtHint`), which is a statement made
- * to a respondent in some other zone rather than a convenience for the operator reading it.
- *
- * {@link formatDay} is the pinned-UTC half of the same pair, and {@link formatOperatorDay}
- * is its operator-zone twin (Code Owner, 2026-09-11, issue #582). The day columns used to
- * stay UTC on the ground that a bare day has no clock in its output to name a zone on. That
- * is true about the output and beside the point about the value: those columns render an
- * INSTANT, so naming its UTC day tells an operator east or west of UTC that something
- * happened on a day their own clock never agreed with. `plan/admin-design-contracts.md` §2
- * carries the amendment; the hydration rule is unchanged, which is why there are two
- * functions here rather than one that reads the ambient zone.
+ * What did not change: storage and the values on the wire are UTC instants.
  */
 
-/**
- * The locale every formatter resolves against.
- *
- * One locale at launch (R7), named once. It is deliberately not read from the request or
- * from the browser: see the determinism argument above.
- */
-export const ADMIN_LOCALE = "en";
+import { isoDateLocale } from "@roonga/qcms-ui/native-submit";
 
-/**
- * The locale the A2UI previews render on (issue #906).
- *
- * ## Why a preview needs a locale named at all
- *
- * `A2UIStepRenderer` takes a `locale` and hands it to react-aria's `I18nProvider`, which
- * is what decides a `DateField`'s segment order and placeholders, its calendar, and the
- * announcements a `NumberField`'s stepper buttons carry. The prop is optional and the
- * package's own default is `en-US`, so the three preview surfaces
- * (`components/forms/draft-preview.tsx`, `components/forms/version-view.tsx` and
- * `components/questions/question-preview.tsx`) used to draw respondent controls on a tag
- * this app never chose and could not change from here. Issue #729 corrected the portal
- * half of exactly that; #906 is this half.
- *
- * ## Whose locale it is, which is the decision worth writing down
- *
- * A preview shows an author what a RESPONDENT will see, so the tag has to be the one the
- * portal renders respondents on - preview fidelity is the property the preview exists for
- * (ARCHITECTURE section 6). That tag is the portal's own `PORTAL_LOCALE`, and this app
- * cannot import it, because `apps/*` never import each other. At launch the mirror costs
- * nothing: R7 gives the product one locale, both apps declare `en`, and this is therefore
- * defined as {@link ADMIN_LOCALE} rather than as a second literal, so there is one value
- * in this app and no pair to drift. `format.test.ts` reads the portal's declaration and
- * fails if the two ever disagree, which is what makes the mirror safe rather than merely
- * true today.
- *
- * **The form's own `defaultLocale` is the obvious wrong answer, and it is worth saying
- * why.** A draft and a snapshot both carry one, and it looks like the respondent's locale.
- * It is not the same thing: `defaultLocale` selects WHICH localized strings the compiler
- * writes into the document (ADR-11, invariant I3), and by the time a step reaches this
- * renderer that choice is already made and baked into the stored bytes. What is left for
- * the `locale` prop is how react-aria formats and announces the controls around that text,
- * and the portal resolves that from its app constant while reading `defaultLocale`
- * nowhere. So a preview that used the form's tag would render a form whose
- * `defaultLocale` is `en-AU` differently from the portal serving that same form: the
- * divergence #906 is about, reintroduced from the other side.
- *
- * What the separate NAME buys is the seam, and it is worth being exact about how much of
- * one. This constant carries the react-aria tag and only that, which is today's whole job
- * because a stored document's text is already resolved. When issue #732 gives a respondent
- * a locale of their own, this declaration is where the preview's copy of that tag moves -
- * one place rather than three call sites - while the operator's chrome stays on
- * {@link ADMIN_LOCALE}. Which locale the document itself is compiled in is the other half
- * of #732 and not something this constant can express.
- * `lib/questions/renderer-surface.test.ts` asserts the three sites pass this constant and
- * name no locale of their own, so a fourth surface cannot quietly reinstate the default.
- *
- * ## What moving off `en-US` changed on screen: nothing
- *
- * `packages/ui/src/locale.test.tsx` renders every step of the golden corpus under `en` and
- * under `en-US` and the markup is identical, so this is a seam correction and not a
- * rendering change. The same file renders the corpus under a locale that genuinely
- * differs, so the prop is shown to be load-bearing rather than assumed to be.
- */
-export const PREVIEW_LOCALE = ADMIN_LOCALE;
+/** The locale used when `QCMS_LOCALE` is unset (Code Owner ruling 2026-10-19). */
+export const DEFAULT_LOCALE = "en-GB";
 
-/** The zone every timestamp is rendered in, named in the output so it is never assumed. */
-const DISPLAY_TIME_ZONE = "UTC";
+/** Where and how to format: the deployment's locale and the zone to read an instant in. */
+export interface FormatContext {
+  readonly locale: string;
+  readonly timeZone: string;
+}
 
-const DAY = new Intl.DateTimeFormat(ADMIN_LOCALE, {
-  year: "numeric",
-  month: "short",
-  day: "numeric",
-  timeZone: DISPLAY_TIME_ZONE,
-});
+const DAY_OPTIONS: Intl.DateTimeFormatOptions = { year: "numeric", month: "short", day: "numeric" };
 
-const DAY_AND_TIME = new Intl.DateTimeFormat(ADMIN_LOCALE, {
-  year: "numeric",
-  month: "short",
-  day: "numeric",
+const DAY_AND_TIME_OPTIONS: Intl.DateTimeFormatOptions = {
+  ...DAY_OPTIONS,
   hour: "2-digit",
   minute: "2-digit",
-  timeZone: DISPLAY_TIME_ZONE,
   timeZoneName: "short",
-});
+};
+
+const dateFormats = new Map<string, Intl.DateTimeFormat>();
+
+function dateFormat(
+  kind: "day" | "dayAndTime",
+  { locale, timeZone }: FormatContext,
+): Intl.DateTimeFormat {
+  const key = `${kind}|${locale}|${timeZone}`;
+  let format = dateFormats.get(key);
+  if (format === undefined) {
+    // Gregorian calendar and Latin digits, whatever the tag's default: every instant is an
+    // ISO value, and the date pickers draw the same way (`isoDateLocale`). The order, month
+    // names, separators and hour cycle stay the operator's.
+    format = new Intl.DateTimeFormat(isoDateLocale(locale), {
+      ...(kind === "day" ? DAY_OPTIONS : DAY_AND_TIME_OPTIONS),
+      timeZone,
+    });
+    dateFormats.set(key, format);
+  }
+  return format;
+}
 
 /**
  * Read an API timestamp, or `undefined` when there is nothing to read.
@@ -150,25 +86,6 @@ function instant(iso: string | null | undefined): Date | undefined {
 }
 
 /**
- * A calendar day in UTC, for a column where the time of day carries no meaning.
- *
- * This is the pinned half: the server render and the first client render, and any caller
- * outside a table that has no hydration swap to hang an operator zone on. A table's day
- * column goes through `components/operator-time.tsx` instead, which starts here and swaps
- * to {@link formatOperatorDay} afterwards.
- */
-export function formatDay(iso: string | null | undefined, fallback = ""): string {
-  const parsed = instant(iso);
-  return parsed === undefined ? fallback : DAY.format(parsed);
-}
-
-/** A day and a time, with the zone named. For anything an operator has to act on. */
-export function formatDateTime(iso: string | null | undefined, fallback = ""): string {
-  const parsed = instant(iso);
-  return parsed === undefined ? fallback : DAY_AND_TIME.format(parsed);
-}
-
-/**
  * Whether a value is an instant this module can render at all.
  *
  * Exported so a caller can decide whether it has something machine-readable to put in a
@@ -179,128 +96,60 @@ export function isInstant(iso: string | null | undefined): iso is string {
 }
 
 /**
- * The same day and time as {@link formatDateTime}, on the **operator's own clock**.
+ * A calendar day, for a column where the time of day carries no meaning.
  *
- * The zone is still named (`timeZoneName: "short"`), for the reason it always was: a time
- * without a clock attached is a time the reader has to guess at, and that stays true when
- * the clock is their own. An operator in Sydney now reads a link's expiry as the local
- * instant it actually dies at, rather than as a UTC time roughly ten hours behind the day
- * they picked.
- *
- * ## The ZONE comes from the runtime. The LOCALE deliberately does not.
- *
- * Only `timeZone` is resolved from the environment; the locale stays {@link ADMIN_LOCALE},
- * exactly as it is for {@link formatDay}, {@link formatDateTime} and {@link formatList}.
- *
- * That is the narrower reading of issue #279, on purpose. The cost that issue documents is
- * entirely a ZONE cost - an operator in Sydney picking "today" gets an expiry ten hours
- * into their next local day, one in US-West gets mid-afternoon - and nothing in it argues
- * about date shape. Taking the locale as well would put a German operator's `2. Aug. 2026`
- * inside an English sentence, and it would break the property ADR-27 states in this
- * module's own header: that a second locale is a configuration change swapping
- * `ADMIN_LOCALE` alongside the catalog, with every date following. R7 defers a second
- * locale to Phase 4, so the catalog is English and the dates beside it stay English.
- *
- * Widening this to the runtime locale is a one-line change if the Code Owner decides date
- * shape should follow the reader rather than the catalog. That is a decision rather than a
- * detail, which is why it is not taken here.
- *
- * **This must not run during a server render.** See the module note above and
- * `components/operator-time.tsx`, which is the only thing that should call it.
- *
- * The zone is re-resolved on every call rather than captured once at module load. The cache
- * below keys on what the runtime resolved, so a changed ambient zone produces a new
- * formatter instead of a stale one - which is what makes the behaviour testable without a
- * browser, and costs one `resolvedOptions()` call per timestamp.
+ * The day is the one the instant falls on IN `context.timeZone`: 23:30 UTC is already
+ * tomorrow in Sydney, so the zone decides which day is named even though no clock is
+ * printed (Code Owner, 2026-09-11, issue #582).
  */
-export function formatOperatorDateTime(iso: string | null | undefined, fallback = ""): string {
+export function formatDay(
+  iso: string | null | undefined,
+  context: FormatContext,
+  fallback = "",
+): string {
   const parsed = instant(iso);
-  return parsed === undefined ? fallback : operatorDayAndTime().format(parsed);
+  return parsed === undefined ? fallback : dateFormat("day", context).format(parsed);
 }
 
 /**
- * The same calendar day as {@link formatDay}, on the **operator's own clock**
- * (Code Owner, 2026-09-11, issue #582).
- *
- * A day column carries no clock, so there is no zone name in the output and none is added:
- * what changes is WHICH day is named. An instant at 23:30 UTC is already tomorrow in Sydney
- * and still today in Los Angeles, and a table that answered with the UTC day was telling
- * two thirds of its readers about a day their own clock never agreed with. One zone across
- * every table is what the #794 ruling settled; this is the day-only half of it.
- *
- * The locale is still {@link ADMIN_LOCALE} and only the zone comes from the runtime, for
- * the reasons written out at {@link formatOperatorDateTime}.
- *
- * **This must not run during a server render**, exactly as its sibling must not.
- * `components/operator-time.tsx` owns that rule for both.
+ * A day and a time, with the zone named (`timeZoneName: "short"`), for anything an
+ * operator has to act on. No seconds: a table answers "when", and the detail route
+ * answers "in which second" where that matters (`plan/admin-design-contracts.md` §2).
  */
-export function formatOperatorDay(iso: string | null | undefined, fallback = ""): string {
+export function formatDateTime(
+  iso: string | null | undefined,
+  context: FormatContext,
+  fallback = "",
+): string {
   const parsed = instant(iso);
-  return parsed === undefined ? fallback : operatorDay().format(parsed);
+  return parsed === undefined ? fallback : dateFormat("dayAndTime", context).format(parsed);
 }
 
 /**
- * The operator's resolved zone, re-read on every call rather than captured at module load.
+ * {@link formatDateTime} fixed to the default locale and UTC, as a value rather than a call.
  *
- * One reader for both operator formatters, so a changed ambient zone invalidates both
- * caches together and neither can be a version behind the other. It costs one
- * `resolvedOptions()` call per formatted value, which is what makes the behaviour testable
- * without a browser: a test that moves `TZ` sees the next call move with it.
+ * For unit callers only: two helpers take the operator's formatter as a parameter (the
+ * hook lives in the component that calls them) and default to this so a test can call
+ * them with a row alone. No screen renders through it.
  */
-function operatorZone(): string {
-  // `timeZone: undefined` asks the runtime for its own zone rather than naming one. It is
-  // the single input these formatters take from the environment.
-  return new Intl.DateTimeFormat(ADMIN_LOCALE, { timeZone: undefined }).resolvedOptions().timeZone;
+export function formatUtcDateTimeForTests(iso: string | null | undefined, fallback = ""): string {
+  return formatDateTime(iso, { locale: DEFAULT_LOCALE, timeZone: "UTC" }, fallback);
 }
 
-let cachedOperatorFormat: Intl.DateTimeFormat | undefined;
-let cachedOperatorZone: string | undefined;
-
-function operatorDayAndTime(): Intl.DateTimeFormat {
-  const timeZone = operatorZone();
-  if (cachedOperatorZone !== timeZone || cachedOperatorFormat === undefined) {
-    cachedOperatorZone = timeZone;
-    cachedOperatorFormat = new Intl.DateTimeFormat(ADMIN_LOCALE, {
-      year: "numeric",
-      month: "short",
-      day: "numeric",
-      hour: "2-digit",
-      minute: "2-digit",
-      timeZone,
-      timeZoneName: "short",
-    });
-  }
-  return cachedOperatorFormat;
-}
-
-let cachedOperatorDayFormat: Intl.DateTimeFormat | undefined;
-let cachedOperatorDayZone: string | undefined;
-
-function operatorDay(): Intl.DateTimeFormat {
-  const timeZone = operatorZone();
-  if (cachedOperatorDayZone !== timeZone || cachedOperatorDayFormat === undefined) {
-    cachedOperatorDayZone = timeZone;
-    cachedOperatorDayFormat = new Intl.DateTimeFormat(ADMIN_LOCALE, {
-      year: "numeric",
-      month: "short",
-      day: "numeric",
-      timeZone,
-    });
-  }
-  return cachedOperatorDayFormat;
-}
+const listFormats = new Map<string, Intl.ListFormat>();
 
 /**
  * Join names into a sentence's list ("a", "a and b", "a, b and c").
  *
- * Same argument as the date formatters above, for the same reason: a list separator and
- * the word before the last item are locale shape, not punctuation, and hand-joining with
- * `", "` bakes English into a template a second locale would have to unpick. `Intl` knows
- * the rule, and `ADMIN_LOCALE` is the one input it gets, so the output is deterministic
- * between the server render and the browser.
+ * A list separator and the word before the last item are locale shape, not punctuation,
+ * and hand-joining with `", "` bakes one convention into a template. `Intl` knows the
+ * rule, and the locale is its one input, so the output is deterministic.
  */
-const LIST = new Intl.ListFormat(ADMIN_LOCALE, { style: "long", type: "conjunction" });
-
-export function formatList(items: readonly string[]): string {
-  return LIST.format(items);
+export function formatList(items: readonly string[], locale: string): string {
+  let format = listFormats.get(locale);
+  if (format === undefined) {
+    format = new Intl.ListFormat(locale, { style: "long", type: "conjunction" });
+    listFormats.set(locale, format);
+  }
+  return format.format(items);
 }

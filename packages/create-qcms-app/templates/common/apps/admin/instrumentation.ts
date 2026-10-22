@@ -16,7 +16,11 @@ import { allowlistingLogRecordProcessor } from "@roonga/qcms-observability/logs"
 import { batchLogExportTimings } from "@roonga/qcms-observability/otel";
 import { registerOTel } from "@vercel/otel";
 
-import { assertNoPlaceholderSecrets, assertSecureCookiesConfigured } from "./lib/server/config";
+import {
+  assertLocaleConfigured,
+  assertNoPlaceholderSecrets,
+  assertSecureCookiesConfigured,
+} from "./lib/server/config";
 import { redactingSpanProcessor } from "./lib/server/telemetry-redaction";
 
 export const DEFAULT_SERVICE_NAME = "qcms-admin";
@@ -71,6 +75,9 @@ function refuseUnsafeConfiguration(): void {
     // refusals with the same exit shape, so a deployment carrying both defects sees the
     // first, fixes it, and is told about the second on the next start.
     assertNoPlaceholderSecrets();
+    // Third: an unusable QCMS_LOCALE (Code Owner ruling 2026-10-19). Not a security
+    // refusal, but the same "fail at boot, name the variable" posture as other config.
+    assertLocaleConfigured();
   } catch (error) {
     if (process.env.NEXT_RUNTIME === "nodejs") {
       process.stderr?.write(`${error instanceof Error ? error.message : String(error)}\n`);

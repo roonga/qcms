@@ -10,7 +10,7 @@ import { t } from "@/lib/i18n/en";
 import { pageMetadata } from "@/lib/page-title";
 import { questionPanelState } from "@/lib/questions/panels";
 import { selectVersion } from "@/lib/questions/version-rail";
-import { previewPortalTheme } from "@/lib/server/config";
+import { appLocale, previewPortalTheme } from "@/lib/server/config";
 import { getPreview, getQuestion } from "@/lib/server/questions";
 import { requireAdminSession } from "@/lib/server/session";
 
@@ -99,7 +99,7 @@ export default async function QuestionDetailPage({
   const preview = await getPreview(session, questionId, selected.version);
   // Resolved through the one function the rail's slot also calls, so the address and the
   // rendered panel cannot be read off two different lists (`lib/questions/panels.ts`).
-  const { panel } = questionPanelState(selected.definition, query);
+  const { panel } = questionPanelState(selected.definition, query, appLocale());
 
   return (
     // THE 720px EDITOR COLUMN (issue 668). `question-editor-poc.html` puts a single

@@ -32,17 +32,16 @@ import {
  *   §2's prefix-plus-8 for an opaque id and whole for a derived one.
  * - **Timestamps and days.** No table cell renders an instant-shaped value as a child at
  *   all, and no table file calls a date formatter directly. Both go through
- *   `components/operator-time.tsx`, which renders the pinned UTC string for the server
- *   render and the first client render and the operator's own zone after hydration. The
+ *   `components/operator-time.tsx`, which paints no time on the server and the operator's
+ *   own zone, named, once the browser has said which (Code Owner, 2026-10-19). The
  *   day-only columns came through here on 2026-09-11 (Code Owner, issue #582): they had
  *   been the one exemption, rendering the UTC day of an instant, and one zone across every
  *   table is what the #794 ruling settled.
  * - **No second formatting path.** A table file may not reach for a formatter of its own -
  *   `Intl.DateTimeFormat`, `toLocaleString`, or `formatDateTime` called directly - which is
  *   what "one shared formatter, no per-table variants" means when it is a check rather than
- *   a sentence. `operator-time.tsx` is the only caller of the pinned formatter, and
- *   `format.ts` says why that matters: calling it during a server render is how the
- *   hydration mismatch this app avoids by construction comes back.
+ *   a sentence. `operator-time.tsx` is the only caller of the formatters, and it is what
+ *   keeps a server render from formatting an instant on a zone nobody chose.
  *
  * ## What this cannot see, stated rather than implied
  *
@@ -206,8 +205,8 @@ describe("every table's timestamp and day cells", () => {
   });
 
   it("reaches for no formatter of its own, day formatters included", () => {
-    // `formatDateTime` is still REFERENCED in one table file, as the default parameter of a
-    // helper the §3.7 test calls with a row alone; what is forbidden is calling it, which
+    // A fixed UTC formatter is still REFERENCED in one table file, as the default parameter
+    // of a helper the §3.7 test calls with a row alone; what is forbidden is calling it, which
     // is what would put a second, un-hydrated formatting path on the screen. `formatDay` is
     // forbidden the same way and for the same reason since the day columns moved: calling
     // it from a table is how a column would quietly go back to naming the UTC day.
@@ -251,15 +250,12 @@ describe("the shared components", () => {
     expect(abbreviating).toEqual(["components/entity-id.tsx", "lib/entity-id.ts"]);
   });
 
-  it("keep the operator's clock in one module, as issue #279 left it", () => {
-    // Every file that names the operator-zone formatter at all, its own module excepted.
-    // `operator-time.tsx` does not CALL it - it returns it from a hook, so the call site is
-    // the caller's - which is why this counts references rather than invocations, and why
-    // the assertion is about who can reach it rather than who runs it.
-    const readers = adminSources().filter(
-      (path) =>
-        path !== "lib/i18n/format.ts" &&
-        /formatOperator(?:DateTime|Day)/.test(readFileSync(join(ADMIN_ROOT, path), "utf8")),
+  it("keep the operator's clock in one module (issue #279, Code Owner 2026-10-19)", () => {
+    // Every file that asks the runtime for its zone. Only `operator-time.tsx` may: it is
+    // what keeps the read out of the server render, and every formatter takes the zone it
+    // is handed rather than reading one (`lib/i18n/format.ts`).
+    const readers = adminSources().filter((path) =>
+      /resolvedOptions\(\)\.timeZone/.test(readFileSync(join(ADMIN_ROOT, path), "utf8")),
     );
     expect(readers).toEqual(["components/operator-time.tsx"]);
   });

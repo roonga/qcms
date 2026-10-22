@@ -6,11 +6,12 @@ import type {
   DraftPreview as DraftPreviewPayload,
   FormVersionSnapshot,
 } from "@/lib/forms/types";
-import { PREVIEW_LOCALE } from "@/lib/i18n/format";
+import { DEFAULT_LOCALE } from "@/lib/i18n/format";
 import type { PreviewDocument } from "@/lib/questions/types";
 
 /**
- * Every preview surface hands the renderer the locale this app declares (issue #906).
+ * Every preview surface hands the renderer the deployment's QCMS_LOCALE (issue #906; the
+ * operator-set locale by the Code Owner ruling of 2026-10-19).
  *
  * ## What is under examination, and why it is the prop rather than the pixels
  *
@@ -32,7 +33,7 @@ import type { PreviewDocument } from "@/lib/questions/types";
  * The renderer is therefore the one part stubbed: it re-emits the props that matter as DOM
  * so they can be asserted the way anything else in jsdom is. Everything above it is real -
  * the three components, the island they mount inside, the visible-set projection, the
- * catalog and the locale declaration itself.
+ * catalog and the locale provider the root layout mounts.
  */
 
 /** Where the stub writes what it received, per mounted preview. */
@@ -51,6 +52,10 @@ vi.mock("@roonga/qcms-ui", async (importOriginal) => {
 const { DraftPreview } = await import("./forms/draft-preview.tsx");
 const { VersionView } = await import("./forms/version-view.tsx");
 const { QuestionPreview } = await import("./questions/question-preview.tsx");
+const { LocaleProvider } = await import("./locale-context.tsx");
+
+/** A locale that differs from both the default and the renderer's own, as QCMS_LOCALE may. */
+const CONFIGURED = "de-DE";
 
 /** One compiled step, shaped as the compiler emits one: a `Form` over one control. */
 const STEP = {
@@ -110,31 +115,45 @@ async function localeReachingTheRenderer(): Promise<string> {
 }
 
 describe("the locale each preview surface declares", () => {
-  it("is not the renderer's own default, or there would be nothing to assert", () => {
-    // The premise, stated once: this only matters because the package default differs from
-    // what the app declares. If a later version of `@roonga/qcms-ui` defaults to `en`, the
-    // three assertions below still hold and this one says the stakes changed.
-    expect(PREVIEW_LOCALE).not.toBe("en-US");
+  it("defaults to en-GB, which is not the renderer's own en-US default", () => {
+    // The premise, stated once: this only matters because the package default differs
+    // from what the app declares.
+    expect(DEFAULT_LOCALE).toBe("en-GB");
   });
 
   it("reaches the renderer from the draft preview", async () => {
     render(
-      <DraftPreview
-        draft={DRAFT}
-        defaultTheme="slate"
-        preview={() => Promise.resolve({ status: "ok", preview: DRAFT_PREVIEW })}
-      />,
+      <LocaleProvider locale={CONFIGURED}>
+        <DraftPreview
+          draft={DRAFT}
+          defaultTheme="slate"
+          preview={() => Promise.resolve({ status: "ok", preview: DRAFT_PREVIEW })}
+        />
+      </LocaleProvider>,
     );
-    expect(await localeReachingTheRenderer()).toBe(PREVIEW_LOCALE);
+    expect(await localeReachingTheRenderer()).toBe(CONFIGURED);
   });
 
   it("reaches the renderer from the published version view", async () => {
-    render(<VersionView snapshot={SNAPSHOT} defaultTheme="slate" />);
-    expect(await localeReachingTheRenderer()).toBe(PREVIEW_LOCALE);
+    render(
+      <LocaleProvider locale={CONFIGURED}>
+        <VersionView snapshot={SNAPSHOT} defaultTheme="slate" />
+      </LocaleProvider>,
+    );
+    expect(await localeReachingTheRenderer()).toBe(CONFIGURED);
   });
 
   it("reaches the renderer from the single-question preview", async () => {
-    render(<QuestionPreview preview={QUESTION_PREVIEW} resetKey={1} defaultTheme="slate" />);
-    expect(await localeReachingTheRenderer()).toBe(PREVIEW_LOCALE);
+    render(
+      <LocaleProvider locale={CONFIGURED}>
+        <QuestionPreview preview={QUESTION_PREVIEW} resetKey={1} defaultTheme="slate" />
+      </LocaleProvider>,
+    );
+    expect(await localeReachingTheRenderer()).toBe(CONFIGURED);
+  });
+
+  it("falls back to the default when no provider is mounted (a unit tree, never a page)", async () => {
+    render(<VersionView snapshot={SNAPSHOT} defaultTheme="slate" />);
+    expect(await localeReachingTheRenderer()).toBe(DEFAULT_LOCALE);
   });
 });

@@ -86,8 +86,9 @@ import { toVSafePattern } from "./v-safe-pattern.ts";
  *
  * - **DatePicker** (issue #920): a row of JS-driven spinbutton segments nobody can
  *   type into, whose value rides an unfocusable `hidden` mirror the browser refuses
- *   to submit a required step around. Native mode renders `NativeDateField`, a real
- *   `<input type="date">` posting the same ISO day on the same field name.
+ *   to submit a required step around. Native mode renders `NativeDateField`: day,
+ *   month and year boxes in the configured locale's order, tagged `date` so the BFF
+ *   joins them into the same ISO day the scripted path posts (Code Owner, 2026-10-19).
  * - **NumberField** (issue #18): an unnamed visible text box beside a
  *   JavaScript-synced `<input type="hidden">`, so keystrokes are discarded and the
  *   seeded answer is what posts. Native mode renders `NativeNumberField`, a real
@@ -572,7 +573,7 @@ function DatePickerField(props: Readonly<DatePickerProps>) {
           isInvalid={field.error != null}
           errorMessage={field.error}
         />
-        <FieldMarkers name={props.name} kind="string" />
+        <FieldMarkers name={props.name} kind="date" />
       </FieldBlur>
     );
   }

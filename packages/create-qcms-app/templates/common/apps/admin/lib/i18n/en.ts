@@ -1910,6 +1910,9 @@ export const messages = {
   "forms.tab.webhooks": "Webhooks",
 
   "ops.common.none": "-",
+  // Stands in for an IANA zone name in a hint for the moment before the browser has said
+  // which zone it is on (`components/operator-time.tsx`, Code Owner 2026-10-19).
+  "ops.common.yourZone": "your time zone",
   "ops.common.cancel": "Cancel",
   "ops.common.working": "Working…",
   "ops.common.copy": "Copy",
@@ -1959,7 +1962,10 @@ export const messages = {
   "ops.responses.filter.onlyClean": "Not flagged",
   "ops.responses.filter.apply": "Apply filters",
   "ops.responses.filter.clear": "Clear filters",
-  "ops.responses.filter.dayHint": "Whole days, in UTC.",
+  // `{zone}` is the clock the days are actually read on (Code Owner, 2026-10-19): the
+  // applied filter's zone while its days are untouched (UTC for an address that names
+  // none), else the operator's own; an IANA zone name, or `ops.common.yourZone`.
+  "ops.responses.filter.dayHint": "Whole days, in {zone}.",
   // A filter value the address carried that no filter accepts (issue 521): a mistyped
   // date, a `flagged` that is not true or false, a version that is not a number. The
   // toolbar cannot produce one, so the operator either hand-edited the address or
@@ -2048,7 +2054,7 @@ export const messages = {
     "JSON carries repeated answers inside each record, so it has one shape.",
   "ops.export.from": "Submitted from",
   "ops.export.to": "Submitted to",
-  "ops.export.dayHint": "Whole days, in UTC.",
+  "ops.export.dayHint": "Whole days, in {zone}.",
   "ops.export.download": "Download",
   "ops.export.noVersions": "This form has no published version, so there is nothing to export.",
   // One sentence per format, because they are different files: an empty CSV is its

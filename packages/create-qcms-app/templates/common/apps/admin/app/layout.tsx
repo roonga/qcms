@@ -3,8 +3,10 @@ import type { Metadata, Viewport } from "next";
 import type { ReactNode } from "react";
 
 import { HydrationMarker } from "@/components/hydration-marker";
+import { LocaleProvider } from "@/components/locale-context";
 import { MODE_COOKIE, parseMode } from "@/lib/appearance";
 import { t } from "@/lib/i18n/en";
+import { appLocale } from "@/lib/server/config";
 
 import "./globals.css";
 
@@ -125,7 +127,10 @@ export default async function AdminRootLayout({ children }: { readonly children:
         <a href="#main-content" className="skip-link">
           {t("action.skipToContent")}
         </a>
-        {children}
+        {/* The deployment's formatting locale (QCMS_LOCALE, Code Owner 2026-10-19), read
+            here on the server. The provider renders no element, so the scripting gate's
+            `body>` rule is unaffected. */}
+        <LocaleProvider locale={appLocale()}>{children}</LocaleProvider>
         {/* LAST in the body, and that position is measured rather than chosen for looks.
             Document order does not matter to the reader this is for: in the state where it
             is visible it is the only thing in the accessibility tree, because the rule

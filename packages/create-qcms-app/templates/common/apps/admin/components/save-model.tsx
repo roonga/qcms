@@ -3,7 +3,7 @@
 import { useEffect, useId, useRef, useState } from "react";
 import { useOperatorDateTimeFormat } from "@/components/operator-time";
 import { t, type MessageKey } from "@/lib/i18n/en";
-import { formatDateTime } from "@/lib/i18n/format";
+import { formatUtcDateTimeForTests } from "@/lib/i18n/format";
 
 /**
  * The two save-model statements, in one module (issue 518; design-language element 7;
@@ -155,9 +155,12 @@ function settledSaveState(
   savedAt: string | undefined,
   // The instant goes inside a catalog sentence, so the operator-local formatter arrives as
   // an argument from the component holding the hydration gate rather than being reached for
-  // here (issue #279). `formatDateTime` is the default, which is also what the gate hands
-  // back before hydration finishes.
-  formatSavedAt: (iso: string | null | undefined, fallback?: string) => string = formatDateTime,
+  // here (issue #279). A fixed UTC formatter is the default for unit callers only; the
+  // component always passes the operator-zone one (Code Owner, 2026-10-19).
+  formatSavedAt: (
+    iso: string | null | undefined,
+    fallback?: string,
+  ) => string = formatUtcDateTimeForTests,
 ): string {
   if (hasFailed) return t("forms.save.failed");
   if (savedAt !== undefined) return t("forms.save.saved", { time: formatSavedAt(savedAt) });

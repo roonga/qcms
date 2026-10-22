@@ -614,9 +614,14 @@ export async function mintLinksAction(
  * The zone is UTC and the dialog's hint says so, which is the second half of the same
  * decision. Widening in the author's local zone would make the stored instant depend on the
  * machine the link was minted from - two operators picking the same day would mint links
- * that die up to a day apart - and it would contradict the links table, which renders every
- * timestamp in UTC for the same reason (`lib/i18n/format.ts`). One clock, named in the copy,
- * beats a local one nobody can see afterwards.
+ * that die up to a day apart. One clock, named in the copy where the promise is made.
+ *
+ * This is the recorded UTC carve-out (`plan/admin-design-contracts.md` section 2), and it
+ * deliberately survives the operator-locale change of 2026-10-19: that change moved how
+ * instants are DISPLAYED, not what this promise means. The links table shows the same
+ * instant on the operator's own clock with the zone named, so a reader east of UTC sees
+ * the next morning's local time beside a day the dialog called UTC; both labels say which
+ * clock they are on, which is what keeps the pair honest.
  *
  * A value that already carries a time is passed through untouched, so a future control
  * with finer granularity needs no change here.

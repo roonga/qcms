@@ -49,6 +49,7 @@ export {
   DatePicker,
   Dialog,
   Form,
+  I18nProvider,
   Menu,
   NumberField,
   Select,

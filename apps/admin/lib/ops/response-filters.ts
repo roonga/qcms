@@ -1,3 +1,4 @@
+import { endOfDayIn, isTimeZone, startOfDayIn } from "../time-zone.ts";
 import type { AppliedFilters } from "./browse.ts";
 
 /**
@@ -35,10 +36,16 @@ import type { AppliedFilters } from "./browse.ts";
  *
  * ## Dates are widened here, not at the call site
  *
- * `from` and `to` are whole UTC days in the toolbar and instants in the API, so the
- * widening (`T00:00:00.000Z` / `T23:59:59.999Z`) lives next to the validation that
- * earns it. Building the instant anywhere else is what let an unvalidated value become
- * a malformed one.
+ * `from` and `to` are whole days in the toolbar and instants in the API, so the widening
+ * lives next to the validation that earns it. Building the instant anywhere else is what let
+ * an unvalidated value become a malformed one.
+ *
+ * Whole days in WHICH zone is the `tz` parameter (Code Owner ruling 2026-10-19): the rows
+ * are shown on the operator's own clock, so the toolbar writes the operator's zone beside the
+ * days and the filter reads the days on that clock too, and the hint under each picker names
+ * it. The zone travels in the address rather than being inferred, so a shared link filters
+ * the same rows for whoever opens it. An absent or unknown `tz` reads as UTC, which is what
+ * every link written before the ruling meant.
  *
  * ## The validators are exported; the policy around them is not shared (issue 551)
  *
@@ -104,6 +111,8 @@ export function parseResponseQuery(query: SearchParams): ResponseQuery {
     to: one(query["to"]),
     flagged: one(query["flagged"]),
   } as const;
+  const rawZone = one(query["tz"]);
+  const tz = isTimeZone(rawZone) ? rawZone : "";
 
   const parsed = {
     version: versionFilter(raw.version),
@@ -117,14 +126,15 @@ export function parseResponseQuery(query: SearchParams): ResponseQuery {
     from: parsed.from ?? "",
     to: parsed.to ?? "",
     flagged: parsed.flagged ?? "",
+    ...(tz === "" ? {} : { tz }),
   };
 
   return {
     applied,
     request: {
       ...(parsed.version === undefined ? {} : { version: parsed.version }),
-      ...(parsed.from === undefined ? {} : { from: dayStart(parsed.from) }),
-      ...(parsed.to === undefined ? {} : { to: dayEnd(parsed.to) }),
+      ...(parsed.from === undefined ? {} : { from: dayStart(parsed.from, tz || "UTC") }),
+      ...(parsed.to === undefined ? {} : { to: dayEnd(parsed.to, tz || "UTC") }),
       ...(parsed.flagged === undefined ? {} : { flagged: parsed.flagged }),
     },
     // Read off `applied`, which holds only values that parsed. This is the whole fix:
@@ -162,14 +172,17 @@ export function versionFilter(value: string): string | undefined {
 }
 
 /**
- * A whole-UTC-day filter, in the `YYYY-MM-DD` shape the day pickers emit.
+ * A whole-day filter, in the `YYYY-MM-DD` shape the day pickers emit. Which zone the day is
+ * whole in is the caller's `tz`; this only decides whether the day exists.
  *
  * The round trip is not redundant with the pattern: `2026-02-31` matches the pattern
  * and `Date` rolls it forward to March 3rd rather than rejecting it, so a day that
  * does not exist would otherwise become a filter for a different day.
  */
 export function dayFilter(value: string): string | undefined {
-  if (!DAY_ONLY.test(value)) return undefined;
+  // Years 0001 to 9999: the four-digit shape, and no year 0, which `lib/time-zone.ts` will
+  // not widen. A year below 100 stays that year; nothing here maps it onto 19xx.
+  if (!DAY_ONLY.test(value) || value.startsWith("0000")) return undefined;
   const parsed = new Date(`${value}T00:00:00.000Z`);
   if (Number.isNaN(parsed.getTime())) return undefined;
   return parsed.toISOString().startsWith(value) ? value : undefined;
@@ -179,7 +192,8 @@ export function dayFilter(value: string): string | undefined {
 const DAY_ONLY = /^\d{4}-\d{2}-\d{2}$/;
 
 /**
- * Widen a chosen calendar day to the instant it begins / ends, in UTC (issue #312).
+ * Widen a chosen calendar day to the instant it begins / ends, in a named zone (issue #312;
+ * the zone by the Code Owner ruling of 2026-10-19).
  *
  * ONE definition of the day boundary, in the module that already owns what counts as a
  * day. It was two: `parseResponseQuery` above concatenated the suffixes inline while
@@ -189,20 +203,21 @@ const DAY_ONLY = /^\d{4}-\d{2}-\d{2}$/;
  *
  * The reasoning the export module recorded is the reasoning here, and none of it is
  * specific to exporting. The controls ask for a day because that is the question an
- * operator has, the API wants an instant, and widening in the operator's local zone would
- * make the filtered set depend on the machine that asked for it. UTC is what every
- * timestamp on these screens is rendered in (`lib/i18n/format.ts`), so the filter and the
- * column agree. It is the same decision `endOfDay` records for link expiry.
+ * operator has, and the API wants an instant. The day is read in the zone the rows are
+ * shown in, the operator's (`components/operator-time.tsx`), so the filter and the column
+ * agree; that zone is NAMED by the caller (the `tz` parameter), never read from the
+ * runtime, so the filtered set depends on the address and not on the machine that asked.
+ * It defaults to UTC, which is what a day meant before the ruling.
  *
  * A value that already carries a time passes through untouched, which is what lets the
  * export route hand a raw querystring parameter straight in.
  */
-export function dayStart(value: string): string {
-  return DAY_ONLY.test(value) ? `${value}T00:00:00.000Z` : value;
+export function dayStart(value: string, timeZone = "UTC"): string {
+  return DAY_ONLY.test(value) ? startOfDayIn(value, timeZone) : value;
 }
 
-export function dayEnd(value: string): string {
-  return DAY_ONLY.test(value) ? `${value}T23:59:59.999Z` : value;
+export function dayEnd(value: string, timeZone = "UTC"): string {
+  return DAY_ONLY.test(value) ? endOfDayIn(value, timeZone) : value;
 }
 
 /** The flag filter: the API's enum, and nothing that merely looks like it. */

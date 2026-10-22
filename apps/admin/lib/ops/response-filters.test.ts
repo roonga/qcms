@@ -158,3 +158,67 @@ describe("response filter parsing: the whole querystring", () => {
     expect(parseResponseQuery({ page: "-3" }).page).toBe(1);
   });
 });
+
+/**
+ * Whole days on the operator's clock (Code Owner ruling 2026-10-19). The toolbar writes the
+ * operator's zone as `tz` beside the days, so the filter reads the days in the zone the
+ * rows are shown in, and a shared link keeps meaning the same rows.
+ */
+describe("response filter parsing: the day's zone", () => {
+  it("widens the days in the named zone", () => {
+    const parsed = parseResponseQuery({
+      from: "2026-07-01",
+      to: "2026-07-01",
+      tz: "Australia/Sydney",
+    });
+    expect(parsed.request.from).toBe("2026-06-30T14:00:00.000Z");
+    expect(parsed.request.to).toBe("2026-07-01T13:59:59.999Z");
+    expect(parsed.applied.tz).toBe("Australia/Sydney");
+    expect(parsed.ignored).toEqual([]);
+  });
+
+  it("reads an absent or unknown zone as UTC, which is what older links meant", () => {
+    for (const tz of [undefined, "", "Not/AZone"]) {
+      const parsed = parseResponseQuery({
+        from: "2026-07-01",
+        ...(tz === undefined ? {} : { tz }),
+      });
+      expect(parsed.request.from).toBe("2026-07-01T00:00:00.000Z");
+      expect(parsed.applied.tz).toBeUndefined();
+    }
+  });
+
+  it("is not itself a filter: a zone alone filters nothing and is never reported", () => {
+    const parsed = parseResponseQuery({ tz: "Australia/Sydney" });
+    expect(parsed.hasFilters).toBe(false);
+    expect(parsed.ignored).toEqual([]);
+    expect(parseResponseQuery({ tz: "Not/AZone" }).ignored).toEqual([]);
+  });
+});
+
+/**
+ * The day boundary at clock jumps and odd years, through the parser the page uses
+ * (review of PR #1077).
+ */
+describe("response filter parsing: boundaries", () => {
+  it("starts a day whose midnight daylight saving skips at the first instant it exists", () => {
+    // America/Santiago: 00:00 on 2026-09-06 becomes 01:00. The old arithmetic began the
+    // filter at 23:00 on the 5th, an hour of another day's rows.
+    const parsed = parseResponseQuery({
+      from: "2026-09-06",
+      to: "2026-09-05",
+      tz: "America/Santiago",
+    });
+    expect(parsed.request.from).toBe("2026-09-06T04:00:00.000Z");
+    expect(parsed.request.to).toBe("2026-09-06T03:59:59.999Z");
+  });
+
+  it("keeps a year below 100 as that year, and refuses year 0", () => {
+    expect(parseResponseQuery({ from: "0099-07-01" }).request.from).toBe(
+      "0099-07-01T00:00:00.000Z",
+    );
+    const zero = parseResponseQuery({ from: "0000-01-01" });
+    expect(zero.request.from).toBeUndefined();
+    expect(zero.ignored).toEqual(["from"]);
+  });
+});

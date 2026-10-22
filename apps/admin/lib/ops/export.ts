@@ -1,4 +1,5 @@
 import type { ResponseFilterField } from "./response-filters.ts";
+import { isTimeZone } from "../time-zone.ts";
 import { dayEnd, dayFilter, dayStart, versionFilter } from "./response-filters.ts";
 
 /**
@@ -62,6 +63,11 @@ export interface ExportChoice {
   readonly to: string;
   /** Absent means the default, which is what a caller written before 075 sends. */
   readonly shape?: ExportShape;
+  /**
+   * The IANA zone the two days are whole days in: the operator's, so the range matches the
+   * rows they read (Code Owner, 2026-10-19). Absent means UTC.
+   */
+  readonly timeZone?: string;
 }
 
 /** Whether a version must be chosen before this format can be exported. */
@@ -97,8 +103,14 @@ export function exportQuery(choice: ExportChoice): string {
   if (shapeApplies(choice.format) && choice.shape !== undefined) {
     search.set("shape", choice.shape);
   }
-  if (choice.from.trim() !== "") search.set("from", dayStart(choice.from.trim()));
-  if (choice.to.trim() !== "") search.set("to", dayEnd(choice.to.trim()));
+  // The days are widened in the operator's zone, and the zone rides beside them so the
+  // route can check the instants are whole days on that clock (`parseExportFilters`).
+  const zone = isTimeZone(choice.timeZone) ? choice.timeZone : "UTC";
+  const from = choice.from.trim();
+  const to = choice.to.trim();
+  if (from !== "") search.set("from", dayStart(from, zone));
+  if (to !== "") search.set("to", dayEnd(to, zone));
+  if ((from !== "" || to !== "") && zone !== "UTC") search.set("tz", zone);
   return `?${search.toString()}`;
 }
 
@@ -208,8 +220,10 @@ export type ExportFilterParse =
  *
  * `exportQuery` widens a chosen day to the instant it begins or ends, so the link the
  * dialog builds carries `2026-07-01T00:00:00.000Z`, while a hand-typed URL is likelier
- * to carry `2026-07-01`. Both are accepted and both mean the same whole UTC day; the
- * request is always built from the widened form, because that is what the API reads.
+ * to carry `2026-07-01`. Both are accepted and both mean the same whole day in the zone the
+ * `tz` parameter names (UTC when it names none, which is what every link written before the
+ * 2026-10-19 ruling meant); the request is always built from the widened form, because that
+ * is what the API reads.
  *
  * A partial instant such as `to=2026-07-01T12:00:00.000Z` is refused even though the
  * API would accept it. The export's unit is a day everywhere it is offered - in the
@@ -217,10 +231,12 @@ export type ExportFilterParse =
  * half-day here would be the second answer this function exists to prevent.
  */
 export function parseExportFilters(query: URLSearchParams): ExportFilterParse {
+  const rawZone = query.get("tz") ?? "";
+  const zone = isTimeZone(rawZone) ? rawZone : "UTC";
   const parsed = {
     version: versionFilter(query.get("version") ?? ""),
-    from: boundFilter(query.get("from") ?? "", "from"),
-    to: boundFilter(query.get("to") ?? "", "to"),
+    from: boundFilter(query.get("from") ?? "", "from", zone),
+    to: boundFilter(query.get("to") ?? "", "to", zone),
   } as const;
 
   // An absent or empty parameter is no filter and no complaint, exactly as it is on the
@@ -241,18 +257,35 @@ export function parseExportFilters(query: URLSearchParams): ExportFilterParse {
 }
 
 /**
- * One end of the range: the whole UTC day it names, widened back to the instant the API
- * filters on, or `undefined` if it names no day.
+ * One end of the range: the whole day it names in `zone`, widened back to the instant the
+ * API filters on, or `undefined` if it names no day.
  *
  * The round trip through `dayFilter` is what rejects `2026-02-31`, which is day-shaped
  * and does not exist. Comparing against the widened form rather than pattern-matching
  * the time part is what rejects a partial instant without a second regex to keep in
  * step with `dayStart`/`dayEnd`.
  */
-function boundFilter(value: string, bound: "from" | "to"): string | undefined {
-  const widen = bound === "from" ? dayStart : dayEnd;
-  const day = value.slice(0, 10);
-  if (value !== day && value !== widen(day)) return undefined;
+function boundFilter(value: string, bound: "from" | "to", zone: string): string | undefined {
+  const widen = (day: string) => (bound === "from" ? dayStart(day, zone) : dayEnd(day, zone));
+  // The day an instant names is its local day in `zone`, which is not always its first ten
+  // characters: Sydney's first instant of 1 July is 30 June in UTC. So a full instant is
+  // accepted only when it is exactly the widening of the day on either side of its UTC date.
+  const day = DAY_PREFIX.test(value) && value.length === 10 ? value : localDayOf(value, widen);
+  if (day === undefined) return undefined;
   const valid = dayFilter(day);
   return valid === undefined ? undefined : widen(valid);
+}
+
+const DAY_PREFIX = /^\d{4}-\d{2}-\d{2}/;
+
+/** The day whose widening is exactly `value`, or `undefined` when it is a partial instant. */
+function localDayOf(value: string, widen: (day: string) => string): string | undefined {
+  if (!DAY_PREFIX.test(value)) return undefined;
+  const utcDay = Date.parse(`${value.slice(0, 10)}T00:00:00.000Z`);
+  if (Number.isNaN(utcDay)) return undefined;
+  for (const shift of [0, 1, -1]) {
+    const candidate = new Date(utcDay + shift * 86_400_000).toISOString().slice(0, 10);
+    if (widen(candidate) === value) return candidate;
+  }
+  return undefined;
 }

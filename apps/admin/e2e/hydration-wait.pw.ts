@@ -3,7 +3,7 @@
  * own right (issue #210, following the shape the portal's `hydration-wait.pw.ts` set for
  * issues #121 and #159).
  *
- * Three claims have to hold, and none of them is visible from a passing auth spec:
+ * Six claims have to hold, and none of them is visible from a passing auth spec:
  *
  * 1. **The marker cannot lie.** It is stamped from a mount effect, so it is absent from a
  *    server render by construction - and the first test asserts that against the real SSR
@@ -38,7 +38,19 @@
  *    the bundle is let in. Remove the wait from `openMenu` and the press lands on the inert
  *    button, nothing re-issues it, and the last assertion reds.
  *
- * 5. **It must not fire where React is never coming.** The marker cannot appear on a page
+ * 5. **A control whose behaviour has not arrived says so** (review of PR #1077, finding A).
+ *    Claim 4 closes the suite's half of a swallowed press: wait, then press. The fifth test
+ *    closes the other half on the one control this change gave a dependency on the
+ *    operator's clock. The responses screen's Export trigger opens a dialog that is React's
+ *    alone and whose day range is read on that clock, and the section around it is
+ *    server-rendered, so the trigger used to be on screen and pressable for the 200 to
+ *    340ms before the attach while a press on it reached nothing. That is what the CSV
+ *    export test hit on a loaded CI host, where it passed only on its last allowed retry.
+ *    The test holds the bundle back, requires the trigger to be disabled rather than
+ *    pressable, and then requires it to work the moment React lands - both halves, since a
+ *    control that never enables would satisfy the first on its own.
+ *
+ * 6. **It must not fire where React is never coming.** The marker cannot appear on a page
  *    whose scripts will never run, so a wait for it is minutes of timeout rather than a
  *    failure that names itself. The last test pins that the wait returns immediately
  *    instead. This is not hypothetical: the first version of this change reddened all three
@@ -299,6 +311,52 @@ test("a menu press waits for the attach rather than landing on an inert trigger"
   } finally {
     held.release();
   }
+});
+
+/**
+ * The seeded insurance form, whose responses tab carries the Export control. Read only:
+ * this test opens the dialog and dismisses nothing, and exports nothing.
+ */
+const RESPONSES_FORM_ID = "frm_auto_quote";
+
+test("the export trigger is refused rather than inert while React is still in flight", async ({
+  page,
+}) => {
+  await signInWithTotp(page, EMAIL, totpSecret);
+
+  const held = holdScripts(page);
+  try {
+    // The responses screen, served whole, with React held outside the door.
+    await page.goto(`/forms/${RESPONSES_FORM_ID}/responses`, { waitUntil: "commit" });
+
+    // The server-rendered section is already on screen. That is the trap the CSV export
+    // test fell into: its entry helper waited for exactly this and then pressed, and on a
+    // loaded CI host the press landed here, where the dialog's state belongs to a React
+    // that has not arrived (run 39324027672 passed only on its last allowed retry).
+    await expect(page.getByTestId("qcms-response-browser")).toBeVisible();
+    await expect(
+      page.locator(`html[${HYDRATED_ATTRIBUTE}]`),
+      "the point of this block is a screen React has not reached",
+    ).toHaveCount(0);
+
+    // So the control says so. Disabled rather than pressable-and-inert, which is both the
+    // honest state and the one Playwright's own actionability check waits out instead of
+    // clicking into. It is also what the dialog needs: its day range is read on the
+    // operator's clock, and the browser has not yet said which one that is.
+    const exportTrigger = page.getByRole("button", { name: "Export", exact: true });
+    await expect(exportTrigger).toBeDisabled();
+    await expect(page.getByTestId("qcms-export-dialog")).toHaveCount(0);
+  } finally {
+    held.release();
+  }
+
+  // Let React in, and the same control works. Both halves are needed: the disabled state
+  // alone would also be produced by a control that never enables.
+  await waitForHydration(page, { timeout: HYDRATION_BUDGET_MS });
+  const exportTrigger = page.getByRole("button", { name: "Export", exact: true });
+  await expect(exportTrigger).toBeEnabled();
+  await exportTrigger.click();
+  await expect(page.getByTestId("qcms-export-dialog")).toBeVisible();
 });
 
 test.describe("without JavaScript", () => {

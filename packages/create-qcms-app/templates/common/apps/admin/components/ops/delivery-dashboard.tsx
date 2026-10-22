@@ -7,7 +7,7 @@ import { cancelledReasonText, DeliveryStatusTag } from "@/components/ops/ops-tag
 import { OperatorDateTime, useOperatorDateTimeFormat } from "@/components/operator-time";
 import type { ReadState } from "@/lib/read-state";
 import type { DeliveryItem } from "@/lib/ops/types";
-import { formatDateTime } from "@/lib/i18n/format";
+import { formatUtcDateTimeForTests } from "@/lib/i18n/format";
 import { t, tPlural } from "@/lib/i18n/en";
 
 /**
@@ -216,12 +216,15 @@ function deliveryDigest(row: DeliveryItem): string {
 /**
  * The redaction instant lands inside a catalog sentence rather than in an element of its
  * own, so this takes the formatter its caller is holding (issue #279) instead of reaching
- * for one: the caller is the component, and the hydration gate lives in a hook.
- * `formatDateTime` is the default so the §3.7 test can still call this with a row alone.
+ * for one: the caller is the component, and the operator's zone lives in a hook. A fixed
+ * UTC formatter is the default, for unit callers only, so the §3.7 test can still call this with a row alone.
  */
 function responseBodyText(
   row: DeliveryItem,
-  formatWhen: (iso: string | null | undefined, fallback?: string) => string = formatDateTime,
+  formatWhen: (
+    iso: string | null | undefined,
+    fallback?: string,
+  ) => string = formatUtcDateTimeForTests,
 ): string {
   if (row.responseSnippetRedactedAt !== null) {
     return t("ops.deliveries.redactedBody", {

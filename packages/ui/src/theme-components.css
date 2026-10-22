@@ -185,9 +185,8 @@
 
    Same anchors the rules above use, so nothing depends on a vendored Tailwind
    class string: the number field's inner input, the date field's spinbutton
-   segments, the no-JS date fallback's native day input (issue #920, which shows
-   the same digits through the browser's own control), and any input the renderer
-   marks numeric.
+   segments, the no-JS date fallback's day, month and year boxes (which are
+   `inputmode="numeric"`), and any input the renderer marks numeric.
    -------------------------------------------------------------------------- */
 [data-qcms-theme-scope]
   [data-qcms-field]
@@ -195,7 +194,6 @@
     [role="group"][data-rac] > input,
     [role="spinbutton"],
     input[type="number"],
-    input[type="date"],
     input[inputmode="numeric"],
     input[inputmode="decimal"]
   ) {
@@ -696,10 +694,17 @@
    controls disagree about the element and both answers are correct: react-aria
    renders a `<label for>` for a labelable control (TextField, NumberField, and the
    qcms native fallbacks) and a `<span>` wired by `aria-labelledby` for a grouped
-   one (DatePicker, RadioGroup), since `<label for>` cannot name a group. */
+   one (DatePicker, RadioGroup), since `<label for>` cannot name a group. The no-JS
+   date fallback is a `<fieldset>`, so its question label is a `<legend>` (the
+   2026-10-19 segment-order ruling); each of its three boxes keeps its own visible
+   part label. */
 [data-qcms-theme-scope] .qcms-repeat-table__hidden,
 [data-qcms-theme-scope] .qcms-repeat-table__cell-name,
-[data-qcms-theme-scope] .qcms-repeat-table__cell [data-qcms-field] > * > :is(label, span):first-child,
+[data-qcms-theme-scope]
+  .qcms-repeat-table__cell
+  [data-qcms-field]
+  > *
+  > :is(label, span, legend):first-child,
 /* The hint, clipped for the same reason the label is: it is identical in every cell
    of a column, and the column header carries it once. `slot="description"` is
    react-aria's own anchor; `data-qcms-hint` is the qcms native fallbacks' spelling
@@ -799,7 +804,7 @@
     .qcms-repeat-table__cell
     [data-qcms-field]
     > *
-    > :is(label, span):first-child,
+    > :is(label, span, legend):first-child,
   [data-qcms-theme-scope] .qcms-repeat-table__cell [data-qcms-field] > * > [slot="description"],
   [data-qcms-theme-scope] .qcms-repeat-table__cell [data-qcms-field] > * > [data-qcms-hint] {
     position: static;

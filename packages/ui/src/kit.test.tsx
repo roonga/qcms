@@ -113,9 +113,14 @@ describe("@roonga/qcms-ui/kit surface", () => {
     // topbar composed the popup primitives directly. Issue #234 closed that: upstream
     // ships the trigger, header, class-name and item slots the topbar needed, every
     // admin menu is the vendored `Menu`, and the primitives left this barrel with them.
+    //
+    // `I18nProvider` is not a primitive but the locale boundary the admin wraps its
+    // shell in (`QCMS_LOCALE`, Code Owner ruling 2026-10-19), so it is listed here and
+    // not in the render matrix below.
     const exported = Object.entries(kit).filter(([, value]) => typeof value === "function");
     expect(new Set(exported.map(([name]) => name))).toEqual(
       new Set([
+        "I18nProvider",
         "Alert",
         "Breadcrumb",
         "Button",
