@@ -214,6 +214,7 @@ Four properties are worth knowing:
   ```
   qcms-db environment failed: could not re-apply control.access_audit (migration 0004): permission denied for schema control
   ```
+
 - **No restart is needed.** A grant takes effect on the next statement, including on a pool
   that is already connected. This is unlike `qcms:environment create`, which needs one
   because a new environment's credential arrives through the process environment.
