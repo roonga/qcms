@@ -43,6 +43,15 @@ import { waitForHydration } from "./support/hydration.js";
  * `forms.editor` and `forms.approver` together, so what the rule separates is accounts, and
  * a spec with one account could only ever assert the refusals.
  *
+ * # This file owns the seeded workspace's switch, and leaves it off
+ *
+ * The switch is workspace state, not per-test state, so turning it on reaches every later
+ * screen that reads it. The suite runs `workers: 1` with `fullyParallel: false`, so no other
+ * file is mid-run while this one holds it on, and `membership.pw.ts` - the one file that
+ * asserts the switch is **unchecked** - sorts before this one. The last test here turns it
+ * back off, which is the invariant a test added to this file has to keep: leave the
+ * workspace as Q13's default found it.
+ *
  * # The accessibility checks here, and what stays in the sweep
  *
  * `a11y-axe.pw.ts` is the sweep: three modes, the heading-order debt register, every state
