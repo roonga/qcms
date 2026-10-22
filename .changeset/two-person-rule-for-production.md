@@ -35,6 +35,15 @@ installation with one administrator cannot satisfy the rule at all. With it on, 
   `forms.approver` holding `prod` in scope. `DELETE` on the same path withdraws it, and
   every propose, confirm and withdraw writes a SEC-15 `setting` row.
 
+Three things an API consumer should build for. A `202` is neither an error nor a success:
+branch on the body's `pending` marker, because a client that reads every 2xx as "done" will
+report that a production endpoint moved when it did not. A confirm of a change that is
+**already applied** answers `200` with the row rather than a 404, so two approvers pressing
+Confirm at once both get the end state they asked for. And a confirmed change whose endpoint
+write never landed can be **withdrawn**: it holds the endpoint claimed until it is applied or
+withdrawn, so that withdrawal is the way out when an apply keeps failing. An applied change
+cannot be withdrawn - it is live, and reversing it is a new proposal.
+
 Nothing changes for `dev` or `test`, or for a workspace that leaves the switch off: a
 release there is self-service for an editor holding that environment, which is what keeps a
 test cycle usable.
