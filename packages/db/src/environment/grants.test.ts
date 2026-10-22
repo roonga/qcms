@@ -139,7 +139,7 @@ describe("the grant registry", () => {
     // that emits them has to say so, with a reason, or this fails.
     const exempt = GRANT_SOURCES.filter((source) => !source.inMigrationTree);
     expect(exempt.map((source) => source.name)).toEqual([
-      "one environment's per-workspace reporting views and roles (task 067, Q26)",
+      "one environment's per-workspace reporting grants (task 067, Q26)",
       "the application role holds its own reporting views, not a workspace's (ADR-40, Q52)",
     ]);
     for (const source of exempt) {
@@ -164,7 +164,7 @@ describe("the grant registry", () => {
       (source) => source.name,
     );
     for (const exempt of [
-      "one environment's per-workspace reporting views and roles (task 067, Q26)",
+      "one environment's per-workspace reporting grants (task 067, Q26)",
       "the application role holds its own reporting views, not a workspace's (ADR-40, Q52)",
     ]) {
       expect(names).not.toContain(exempt);

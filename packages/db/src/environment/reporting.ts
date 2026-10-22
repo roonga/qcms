@@ -51,7 +51,7 @@ import {
 import { workspaceReportingViewNames } from "../reporting-views.js";
 
 import { createLoginRole } from "./role.js";
-import { workspaceReportingStatements } from "./sql.js";
+import { workspaceReportingGrantStatements, workspaceReportingStatements } from "./sql.js";
 
 /**
  * Postgres truncates an identifier longer than `NAMEDATALEN - 1` bytes, silently. 63 with
@@ -193,6 +193,32 @@ export async function workspaceReportingStatementsForEnvironment(
         slug: workspace.slug,
         workspaceId: workspace.id,
       }),
+    );
+}
+
+/**
+ * Every workspace's reporting **grants** for one environment, and no DDL (issue #1094).
+ *
+ * The re-grant subcommand's source. `pg_dump --no-privileges` keeps the views and loses
+ * these, so a restore needs exactly this half - and a `regrant` that also emitted the
+ * `CREATE OR REPLACE VIEW` would **create** a view set for a workspace nobody had
+ * reconciled, which the restore drill caught it doing. Creating the views is
+ * {@link reconcileWorkspaceReporting}'s job, and `docs/reporting-view.md` says to run it
+ * after creating a workspace.
+ *
+ * The same filter as {@link workspaceReportingStatementsForEnvironment}: a pair whose slug
+ * is too long for this environment's identifiers is skipped rather than raised, because a
+ * grant pass must not fail over a pair the reconciliation is what reports.
+ */
+export async function workspaceReportingGrantsForEnvironment(
+  exec: Executor,
+  environment: string,
+): Promise<string[]> {
+  const workspaces = await listWorkspaces(exec);
+  return workspaces
+    .filter((workspace) => refuseWorkspaceReportingNames(environment, workspace.slug) === undefined)
+    .flatMap((workspace) =>
+      workspaceReportingGrantStatements({ environment, slug: workspace.slug }),
     );
 }
 

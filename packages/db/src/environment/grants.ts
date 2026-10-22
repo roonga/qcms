@@ -39,11 +39,15 @@
  *
  * The first draft of this module said 067's per-workspace reporting grants would be "one
  * more entry with `scope: "environment"`". PR #1099's review showed that does not hold:
- * `workspaceReportingStatementsForEnvironment` is **async** and reads
- * `control.organization`, and no migration carries a per-workspace grant, because the
- * workspaces did not exist when any migration was written. So the list gained a third
- * source kind, `environment-database`, and a recorded exemption from the
- * migration-tree comparison. See {@link GrantSource}.
+ * the generator is **async** and reads `control.organization`, and no migration carries a
+ * per-workspace grant, because the workspaces did not exist when any migration was
+ * written. So the list gained a third source kind, `environment-database`, and a recorded
+ * exemption from the migration-tree comparison. See {@link GrantSource}.
+ *
+ * Only the **grant** half of 067's generator is in the list. The view half is not: a
+ * restore keeps the views and loses the privileges, so a command called `regrant` has no
+ * business creating a view set nobody reconciled - which it did, until the restore drill
+ * caught it.
  */
 
 import type { Executor } from "../queries/executor.js";
@@ -52,7 +56,7 @@ import { CONTROL_ROLE, CONTROL_SCHEMA } from "../schema/schemas.js";
 
 import {
   revokeWorkspaceViewsFromEnvironmentRole,
-  workspaceReportingStatementsForEnvironment,
+  workspaceReportingGrantsForEnvironment,
 } from "./reporting.js";
 import {
   grantAccessAuditStatements,
@@ -130,7 +134,7 @@ REVOKE CREATE ON SCHEMA "public" FROM PUBLIC;`,
  *   - **`environment`**: one pass per environment, synchronous, from a generator a
  *     migration also calls.
  *   - **`environment-database`**: one pass per environment, **asynchronous and reading the
- *     database**. `workspaceReportingStatementsForEnvironment` has to read
+ *     database**. `workspaceReportingGrantsForEnvironment` has to read
  *     `control.organization` to know which workspaces exist, so its statements cannot be
  *     derived from source alone and **no migration carries them** - a per-workspace grant
  *     names a workspace that did not exist when any migration was written.
@@ -196,11 +200,12 @@ export const GRANT_SOURCES: readonly GrantSource[] = [
     statements: grantEnvironmentStatements,
   },
   {
-    // Task 067's, called rather than copied: these are the same statements
-    // `createEnvironment` and `qcms-db-environment reporting` apply, including the
-    // `security_barrier = true` the views carry, so a restore cannot bring back a
-    // workspace view without its barrier or a reporting role without its two grants.
-    name: "one environment's per-workspace reporting views and roles (task 067, Q26)",
+    // Task 067's grant half, called rather than copied. The **view** half is deliberately
+    // not here: a restore keeps the views and loses only the privileges, and a command
+    // called `regrant` that created a view set nobody had reconciled would be doing DDL an
+    // operator did not ask for - which the restore drill caught it doing. The views'
+    // `security_barrier = true` rides in the dump and is asserted rather than re-applied.
+    name: "one environment's per-workspace reporting grants (task 067, Q26)",
     scope: "environment-database",
     inMigrationTree: false,
     whyNotInMigrationTree:
@@ -208,7 +213,7 @@ export const GRANT_SOURCES: readonly GrantSource[] = [
       "time, so no migration can carry one: the workspaces did not exist when any " +
       "migration was written, and the generator is async because it has to read them",
     statements: async (exec, environment) =>
-      workspaceReportingStatementsForEnvironment(exec, environment),
+      workspaceReportingGrantsForEnvironment(exec, environment),
   },
   {
     // The companion of the pass above, and a narrowing only. `grantEnvironmentStatements`
@@ -313,10 +318,11 @@ export function migrationBackedStatements(environments: readonly string[]): stri
  * Every pass that re-applies the whole grant model to the environments given, in the
  * order a migrated database applied it.
  *
- * Idempotent by construction rather than by a guard: every grant statement is a `GRANT` or
- * a `REVOKE`, which Postgres treats as "make it so" and not "add one", and 067's view
- * statements are `CREATE OR REPLACE VIEW`. So running this twice, or running it against a
- * database that is already correct, changes nothing. The e2e suite asserts both against a
+ * Idempotent by construction rather than by a guard: every statement is a `GRANT` or a
+ * `REVOKE`, which Postgres treats as "make it so" and not "add one". **There is no DDL in
+ * the set at all**, which is the other half of why it is safe: a `regrant` neither creates
+ * nor drops an object. So running this twice, or running it against a database that is
+ * already correct, changes nothing. The e2e suite asserts both against a
  * real catalogue rather than resting on that sentence.
  *
  * Asynchronous because one source reads the database. The reads happen here, before the

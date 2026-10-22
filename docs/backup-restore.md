@@ -186,15 +186,17 @@ write answered 500 (issue #1094).
 
 `qcms-db-environment regrant` re-applies the whole model - the baseline's guarded grants,
 each environment's grants, the control-schema grants including the `control.access_audit`
-grants and the `qcms_app%` write revokes, and task 067's per-workspace reporting views and
-roles - for **every** environment in `control.environments` and every workspace in
+grants and the `qcms_app%` write revokes, and task 067's per-workspace reporting grants -
+for **every** environment in `control.environments` and every workspace in
 `control.organization`, so an environment or a workspace created after the last release is
-covered too. Four properties are worth knowing:
+covered too. **It grants and revokes, and never creates or drops an object**: the views come
+back in the dump, and reconciling a missing one is `qcms-db-environment reporting`'s job.
+Four properties are worth knowing:
 
-- **It is idempotent.** Every grant statement is a `GRANT` or a `REVOKE`, which set a
-  privilege rather than adding one, and the reporting views are `CREATE OR REPLACE VIEW`.
-  So running it twice, or running it on a database that is already correct, changes
-  nothing. Run it if you are not sure whether you have.
+- **It is idempotent.** Every statement is a `GRANT` or a `REVOKE`, which set a privilege
+  rather than adding one, and there is no DDL in the set at all. So running it twice, or
+  running it on a database that is already correct, changes nothing. Run it if you are not
+  sure whether you have.
 - **It cannot widen privilege.** The statements are the migrations' and the environment
   command's own bytes, emitted by the same generators, from one registry
   (`packages/db/src/environment/grants.ts`); a test fails if a `GRANT` appears anywhere in
