@@ -4,6 +4,8 @@ import { rulesNotRun } from "@roonga/qcms-e2e-support/axe";
 
 import { expect, test } from "../../portal/e2e/support/gates.js";
 
+import { openDbHandle } from "../../api/e2e/support/index.js";
+import { readFixtures } from "../../portal/e2e/support/fixtures.js";
 import { createTestAdmin, uniqueAdminEmail } from "./support/admin-account.js";
 import { enrollNewAdmin, signInWithTotp } from "./support/flow.js";
 import { chooseOption } from "./support/forms.js";
@@ -52,6 +54,10 @@ import { waitForHydration } from "./support/hydration.js";
  * back off, which is the invariant a test added to this file has to keep: leave the
  * workspace as Q13's default found it.
  *
+ * **The `afterAll` below is what makes that invariant true when the group is cut short**,
+ * and the case it is for is a CI retry rather than another spec: a retry re-runs the serial
+ * group from test 1, and test 2 asserts the default. See the hook.
+ *
  * # The accessibility checks here, and what stays in the sweep
  *
  * `a11y-axe.pw.ts` is the sweep: three modes, the heading-order debt register, every state
@@ -90,6 +96,43 @@ test.beforeAll(async () => {
   // The rule is about two **accounts**, so one account could only ever assert refusals.
   await createTestAdmin(PROPOSER);
   await createTestAdmin(APPROVER);
+});
+
+/**
+ * Put the switch back to Q13's default, whatever happened above.
+ *
+ * The last test turns it off through the real panel, which is the claim; this is the net
+ * under it, and the case it exists for is a **CI retry** rather than another spec (PR
+ * #1100's round-two review, finding 2). A failure anywhere in a serial group skips the rest
+ * of the group, test 8 included, so the switch stays on - and `retries: 2` then re-runs the
+ * group from test 1, where test 2 asserts the switch is **unchecked**. Without this hook any
+ * flake in tests 2 to 7 converts into a deterministic red at test 2, reported against "Q13's
+ * default" rather than against whatever actually broke. Hooks still run when a serial group
+ * is cut short, which is what makes the net work.
+ *
+ * A raw statement rather than the product's own route, for the reason `markProvisional` uses
+ * one: this is harness code reaching for one row, the database client belongs to the API
+ * workspace, and a cleanup that went through the UI could fail for the same reason the test
+ * before it did. The same shape as
+ * `apps/api/src/features/releases/releases.integration.test.ts`'s `afterAll` on this switch.
+ */
+test.afterAll(async () => {
+  const handle = openDbHandle(readFixtures().databaseUrl);
+  try {
+    const updated = await handle.query(
+      `update control."organization" set "requireSecondApprover" = false where id = $1`,
+      [WORKSPACE_ID],
+    );
+    // A silent no-op is the failure mode worth refusing, which is `markProvisional`'s rule
+    // one table over: a renamed column throws on its own, but a workspace id this harness
+    // no longer matches would leave the switch on while the hook reported success - and the
+    // next run would meet exactly the red at test 2 that this hook exists to prevent.
+    if (updated.rows.length === 0 && (updated as { rowCount?: number }).rowCount === 0) {
+      throw new Error(`the two-person cleanup matched no workspace for ${WORKSPACE_ID}`);
+    }
+  } finally {
+    await handle.close();
+  }
 });
 
 /** The sweep's tag set and extra rules, applied here to a state the sweep cannot reach. */

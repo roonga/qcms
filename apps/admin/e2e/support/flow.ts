@@ -75,16 +75,21 @@ export async function fillStable(field: Locator, value: string): Promise<void> {
  * to - both of which race the in-flight response. Waiting for the URL to leave the bare
  * `/sign-in` means every caller starts from a document that has actually arrived.
  *
- * **And the wait before the first keystroke is load-bearing too** (PR #1100). The admin
- * runs as a dev server here, so the first request for `/sign-in` in a run pays its
- * compilation and React hydrates after the navigation resolves: `fill` then lands on an
- * input the re-render is about to replace, and the fill fails with "Execution context was
- * destroyed, most likely because of a navigation" - on the Email field or, more often, on
- * the Password field between the two. Every spec but the first in a run was spared it
- * because an earlier file had warmed the route, which is why this surfaced as an
- * intermittent "admin sign-in loop" rather than as a defect anybody could place. Waiting
- * for the app's own hydration marker is the fix, at the one place every caller shares; it
- * early-returns when scripting is disabled, so the no-JS specs are untouched.
+ * **The hydration wait before the first keystroke is one poll, and it is redundant by
+ * design** (PR #1100, and its round-two review's finding 5). `fillStable` already waits for
+ * the marker inside its retry loop, so this line is not what makes a fill land; what it does
+ * is make the guarantee explicit at the one place every caller shares, and pay it once
+ * before any attempt rather than leaving the loop's 15-second budget to absorb it.
+ *
+ * It was added while chasing the intermittent "admin sign-in loop" - a fill failing with
+ * "Execution context was destroyed, most likely because of a navigation" against a dev
+ * server compiling `/sign-in` for the first time in a run - and the spec that reproduced it
+ * went from failing four attempts out of four to passing. That is the evidence it is worth
+ * keeping, and it is deliberately weaker than a causal claim: the retry loop's own wait was
+ * already there, so the honest reading is that paying it at the entry point helps rather
+ * than that its absence was the cause.
+ *
+ * It early-returns when scripting is disabled, so the no-JS specs are untouched.
  */
 export async function submitSignIn(page: Page, email: string): Promise<void> {
   await page.goto("/sign-in");

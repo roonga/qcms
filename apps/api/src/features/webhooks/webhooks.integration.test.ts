@@ -568,6 +568,23 @@ describe("the pending `prod` endpoint change (task 070, Q30, Q51)", () => {
     expect(
       (await getEndpointProposal(testDb.db, proposal.proposal.proposalId))?.appliedAt,
     ).not.toBeNull();
+
+    // **And the rule does not stop applying once the change has landed.** The idempotent
+    // success above is for a second *approver*; the proposer arriving at the same applied
+    // row is still refused, which is the line that keeps "two accounts" true after the
+    // apply rather than only up to it (PR #1100's round-two review, finding 4). Without
+    // this the branch that refuses them had no case at all: the pre-apply refusal is
+    // covered over HTTP and the applied-row success is covered above, and between them
+    // they would both pass with the refusal deleted.
+    const byProposer = await req(
+      app,
+      `/forms/${FORM_ID}/webhooks/proposals/${proposal.proposal.proposalId}/confirm`,
+      "POST",
+    );
+    expect(byProposer.status).toBe(403);
+    expect(((await byProposer.json()) as { error: { code: string } }).error.code).toBe(
+      "PROPOSER_CANNOT_CONFIRM",
+    );
   });
 
   it("writes one SEC-15 `setting` row per act, with the environment and the form (Q61)", async () => {

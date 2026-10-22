@@ -640,9 +640,20 @@ export function makeConfirmEndpointProposalHandler(
  * endpoint claimed while such a row exists, so without this door a broken environment pool
  * would mean no new proposal for that endpoint is ever accepted. It is safe because nothing
  * is live to unpick - `applied_at is null` is exactly that - and the row keeps both
- * accounts. An **applied** proposal is not withdrawable: `requireProposal` treats it as
- * absent, the statement's predicate refuses it and the `one_outcome` CHECK refuses it a
- * third time, because the change is live and reversing it is a new proposal.
+ * accounts.
+ *
+ * An **applied** proposal is not withdrawable, because the change is live and reversing it
+ * is a new proposal. What refuses it is the **explicit guard in this handler**, below: a 409
+ * on `appliedAt !== null`, which is the status a caller can read a reason off. Two things
+ * stand behind that guard and neither is what answers the request - the statement's own
+ * predicate carries `applied_at is null`, so a second write path could not slip past it, and
+ * the `one_outcome` CHECK would refuse the row even then. `requireProposal` is **not** one of
+ * them, and an earlier version of this sentence said it was (PR #1100's round-two review,
+ * finding 1): it returns an applied proposal on purpose, because what to say about one
+ * differs per route. The cost of that wrong clause was a reader's, not a caller's - removing
+ * the guard on the strength of it would have produced the same 409 from
+ * `withdrawEndpointChange`, so nothing would have looked broken - which is why it is worth
+ * naming the real mechanism rather than three plausible ones.
  */
 export function makeWithdrawEndpointProposalHandler(
   deps: Deps,
@@ -657,9 +668,10 @@ export function makeWithdrawEndpointProposalHandler(
       environment: act.environment,
     });
 
-    // An applied change is live and reversing it is a new proposal, so this is the state
-    // mismatch the `one_outcome` CHECK and the statement's predicate both refuse. A 409
-    // rather than a 404: the row exists and the caller can read why.
+    // **This is the refusal**, and the docblock above names it as such: `requireProposal`
+    // returned the applied row on purpose. A 409 rather than a 404 because the row exists
+    // and the caller can read why; the statement's predicate and the `one_outcome` CHECK
+    // stand behind it for a second write path rather than for this one.
     if (proposal.appliedAt !== null) throw proposalFailures.notPending();
 
     const withdrawn = await withdrawEndpointChange(deps, {
