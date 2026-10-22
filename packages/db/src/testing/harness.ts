@@ -37,6 +37,11 @@ export type { DrainableConnection } from "./teardown.js";
  */
 export { SEED_WORKSPACE_ID };
 
+// The effective-privilege map the restore gates compare for equality (issue #1094). Here
+// rather than in each suite because two of them live in different packages and a third
+// copy of a 60-line catalogue query is a third copy to keep correct.
+export { PRIVILEGE_MAP_SQL } from "./privilege-map.js";
+
 const { Client, Pool } = pg;
 
 /**

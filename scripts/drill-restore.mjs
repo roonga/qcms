@@ -222,6 +222,19 @@ function psql(args) {
   ]);
 }
 
+/**
+ * The effective-privilege map query, read from the one file the two test suites read
+ * through `@roonga/qcms-db/testing`.
+ *
+ * @returns {string}
+ */
+export function privilegeMapSql() {
+  return readFileSync(
+    join(REPOSITORY_ROOT, "packages", "db", "privileges", "privilege-map.sql"),
+    "utf8",
+  );
+}
+
 /** @param {string} value */
 function shellQuote(value) {
   return `'${value.replaceAll("'", `'\\''`)}'`;
@@ -465,88 +478,40 @@ function assertRestoredGrants() {
 }
 
 /**
- * Every privilege every `qcms%` role holds, on every object kind that can carry one, as a
- * printable snapshot.
+ * Every privilege every `qcms%` role **holds**, on every object kind that can carry one, as
+ * a printable snapshot.
  *
  * Taken before the dump and again after the re-grant, and compared for **equality**: the
  * re-grant must restore exactly what a migrated database holds and must not widen a single
- * privilege. `apps/api/e2e/security/04-db-restore-regrant.e2e.ts` makes the same
- * comparison against a Testcontainers database; this is the one that makes it against the
- * real images and the documented procedure.
+ * privilege. `apps/api/e2e/security/04-db-restore-regrant.e2e.ts` makes the same comparison
+ * against a Testcontainers database; this is the one that makes it against the real images
+ * and the documented procedure.
  *
- * **Six object kinds, not one** (PR #1099's review, finding 4). A map over
- * `information_schema.table_privileges` alone would let a future sequence, function, type,
- * column or default-privilege grant widen the model and still pass an "equality" - and the
- * registry already emits `GRANT USAGE ON ALL SEQUENCES IN SCHEMA`, so that future is one
- * generator edit away. `relacl`/`proacl`/`typacl` are read through `aclexplode` because
- * `information_schema` has no view for a function or a type privilege, and a NULL acl
- * means "the owner's defaults and nothing granted", which `aclexplode` of NULL correctly
- * yields no rows for.
+ * **Effective, not stored**, and that distinction is this drill's finding. The first version
+ * read `relacl` and friends through `aclexplode`, which reports what is written down: a
+ * `REVOKE` on a relation whose ACL is NULL materialises it to the owner's own entry and it
+ * stays there, so the map reported a difference in a privilege nobody holds. `psql` reads
+ * the same query the two suites use, kept in `packages/db/src/testing/privilege-map.ts`.
  *
- * **`public` is out of scope here, and only here** (Q76). The documented procedure
- * recreates the database, so `public` comes back owned by `pg_database_owner` where it was
- * owned by `qcms_migrate` before - and the owner's own ACL entry moves with it, which this
- * map would report as a difference in a privilege no QCMS role holds. The property that
- * matters is asserted directly instead, in {@link assertRestoredGrants}: `PUBLIC` holds no
- * `CREATE` on it, and no `qcms_app%` role does either. `04-db-restore-regrant.e2e.ts` keeps
- * `public` in its own map, because it does not drop the database and so never meets this.
+ * It reads the **same file** the suites read, `packages/db/privileges/privilege-map.sql`,
+ * rather than importing the built package: this script runs before, between and after
+ * builds of `packages/db/dist`, so a recovery drill must not depend on one.
+ * `drill-restore.test.ts` asserts the path still exists and still carries the query.
+ *
+ * `public` is excluded here and nowhere else (Q76): the documented procedure recreates the
+ * database, so `public` comes back owned by `pg_database_owner` where it was owned by
+ * `qcms_migrate`, and the migration role's `CREATE` on it genuinely changes. The property
+ * that matters is asserted directly in {@link assertRestoredGrants}.
  *
  * @returns {string}
  */
 function grantSnapshot() {
-  const sql = `
-    with qcms as (select oid, rolname from pg_roles where rolname like 'qcms%')
-    select line from (
-      select format('relation %s.%s %s %s', n.nspname, c.relname, q.rolname, a.privilege_type) as line
-        from pg_class c
-        join pg_namespace n on n.oid = c.relnamespace
-        cross join lateral aclexplode(c.relacl) a
-        join qcms q on q.oid = a.grantee
-       where n.nspname not like 'pg\\_%' and n.nspname not in ('information_schema', 'public')
-      union all
-      select format('column %s.%s.%s %s %s', table_schema, table_name, column_name, grantee, privilege_type)
-        from information_schema.column_privileges
-       where grantee like 'qcms%' and table_schema <> 'public'
-         and not exists (
-           select 1 from information_schema.table_privileges t
-            where t.table_schema = column_privileges.table_schema
-              and t.table_name = column_privileges.table_name
-              and t.grantee = column_privileges.grantee
-              and t.privilege_type = column_privileges.privilege_type)
-      union all
-      select format('function %s.%s %s %s', n.nspname, p.proname, q.rolname, a.privilege_type) as line
-        from pg_proc p
-        join pg_namespace n on n.oid = p.pronamespace
-        cross join lateral aclexplode(p.proacl) a
-        join qcms q on q.oid = a.grantee
-       where n.nspname not like 'pg\\_%' and n.nspname not in ('information_schema', 'public')
-      union all
-      select format('type %s.%s %s %s', n.nspname, t.typname, q.rolname, a.privilege_type) as line
-        from pg_type t
-        join pg_namespace n on n.oid = t.typnamespace
-        cross join lateral aclexplode(t.typacl) a
-        join qcms q on q.oid = a.grantee
-       where n.nspname not like 'pg\\_%' and n.nspname not in ('information_schema', 'public')
-      union all
-      select format('schema %s %s %s', n.nspname, q.rolname, a.privilege_type) as line
-        from pg_namespace n
-        cross join lateral aclexplode(n.nspacl) a
-        join qcms q on q.oid = a.grantee
-       where n.nspname not like 'pg\\_%' and n.nspname not in ('information_schema', 'public')
-      union all
-      select format('default %s %s %s %s %s', coalesce(n.nspname, '-'), d.defaclobjtype, pg_get_userbyid(d.defaclrole), q.rolname, a.privilege_type) as line
-        from pg_default_acl d
-        left join pg_namespace n on n.oid = d.defaclnamespace
-        cross join lateral aclexplode(d.defaclacl) a
-        join qcms q on q.oid = a.grantee
-      union all
-      select format('largeobject %s %s %s', l.oid, q.rolname, a.privilege_type) as line
-        from pg_largeobject_metadata l
-        cross join lateral aclexplode(l.lomacl) a
-        join qcms q on q.oid = a.grantee
-    ) lines order by line;
-  `;
-  return psql(["--tuples-only", "--no-align", "--command", sql.replace(/\s+/g, " ").trim()]);
+  return psql([
+    "--tuples-only",
+    "--no-align",
+    "--command",
+    privilegeMapSql().replace("$1", "array['public']").replace(/\s+/g, " ").trim(),
+  ]);
 }
 
 /**

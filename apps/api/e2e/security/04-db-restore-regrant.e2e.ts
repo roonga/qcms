@@ -45,7 +45,11 @@
  * reaches them through the container (`StartedTestPostgres.exec`, widened for this file).
  */
 
-import { applyMigrations, CONTAINER_BOOT_TIMEOUT_MS } from "@roonga/qcms-db/testing";
+import {
+  applyMigrations,
+  CONTAINER_BOOT_TIMEOUT_MS,
+  PRIVILEGE_MAP_SQL,
+} from "@roonga/qcms-db/testing";
 import {
   ACCESS_AUDIT_TABLE,
   CONTROL_FORBIDDEN_TABLES,
@@ -177,81 +181,18 @@ function databaseName(): string {
 }
 
 /**
- * The complete grant map: every privilege every `qcms%` role holds, on every object kind
- * that can carry one.
+ * The complete effective privilege map, from the shared query.
  *
  * The whole map rather than the privileges a test expected, because the property is "the
  * re-grant cannot widen privilege" and a listing of what was expected cannot see a
  * privilege nobody expected.
  *
- * **Six object kinds, not one** (PR #1099's review, finding 4). The first version read
- * `information_schema.table_privileges` plus schema `USAGE`/`CREATE`, which left
- * sequences, functions, types, column-level privileges, default ACLs and large objects
- * outside the equality - and the registry already emits `GRANT USAGE ON ALL SEQUENCES IN
- * SCHEMA`, so a future sequence or function grant was one generator edit away from
- * widening the model unseen. `relacl`/`proacl`/`typacl`/`nspacl` are read through
- * `aclexplode` rather than `information_schema`, which has no view for a function or a
- * type privilege; a NULL acl means "the owner's implicit rights and nothing granted", and
- * `aclexplode(NULL)` correctly yields no rows.
- *
- * Widening it is what caught the one real over-reach in this change: on a restored
- * database the baseline's `SELECT ON ALL TABLES IN SCHEMA reporting_<env>` reaches task
- * 067's per-workspace views, because they came back in the dump. See
- * `revokeWorkspaceViewsFromEnvironmentRole`.
+ * **Effective, not stored** - see `PRIVILEGE_MAP_SQL` for why that distinction cost a
+ * drill run. No schema is excluded: this harness drops the QCMS schemas rather than the
+ * database, so `public`'s owner never moves.
  */
 async function grantMap(): Promise<string[]> {
-  const result = await owner.query<{ line: string }>(`
-    with qcms as (select oid, rolname from pg_roles where rolname like 'qcms%')
-    select line from (
-      select format('relation %s.%s %s %s', n.nspname, c.relname, q.rolname, a.privilege_type) as line
-        from pg_class c
-        join pg_namespace n on n.oid = c.relnamespace
-        cross join lateral aclexplode(c.relacl) a
-        join qcms q on q.oid = a.grantee
-       where n.nspname not like 'pg\\_%' and n.nspname <> 'information_schema'
-      union all
-      select format('column %s.%s.%s %s %s', table_schema, table_name, column_name, grantee, privilege_type)
-        from information_schema.column_privileges
-       where grantee like 'qcms%'
-         and not exists (
-           select 1 from information_schema.table_privileges t
-            where t.table_schema = column_privileges.table_schema
-              and t.table_name = column_privileges.table_name
-              and t.grantee = column_privileges.grantee
-              and t.privilege_type = column_privileges.privilege_type)
-      union all
-      select format('function %s.%s %s %s', n.nspname, p.proname, q.rolname, a.privilege_type) as line
-        from pg_proc p
-        join pg_namespace n on n.oid = p.pronamespace
-        cross join lateral aclexplode(p.proacl) a
-        join qcms q on q.oid = a.grantee
-       where n.nspname not like 'pg\\_%' and n.nspname <> 'information_schema'
-      union all
-      select format('type %s.%s %s %s', n.nspname, t.typname, q.rolname, a.privilege_type) as line
-        from pg_type t
-        join pg_namespace n on n.oid = t.typnamespace
-        cross join lateral aclexplode(t.typacl) a
-        join qcms q on q.oid = a.grantee
-       where n.nspname not like 'pg\\_%' and n.nspname <> 'information_schema'
-      union all
-      select format('schema %s %s %s', n.nspname, q.rolname, a.privilege_type) as line
-        from pg_namespace n
-        cross join lateral aclexplode(n.nspacl) a
-        join qcms q on q.oid = a.grantee
-       where n.nspname not like 'pg\\_%' and n.nspname <> 'information_schema'
-      union all
-      select format('default %s %s %s %s %s', coalesce(n.nspname, '-'), d.defaclobjtype,
-                    pg_get_userbyid(d.defaclrole), q.rolname, a.privilege_type) as line
-        from pg_default_acl d
-        left join pg_namespace n on n.oid = d.defaclnamespace
-        cross join lateral aclexplode(d.defaclacl) a
-        join qcms q on q.oid = a.grantee
-      union all
-      select format('largeobject %s %s %s', l.oid, q.rolname, a.privilege_type) as line
-        from pg_largeobject_metadata l
-        cross join lateral aclexplode(l.lomacl) a
-        join qcms q on q.oid = a.grantee
-    ) lines order by line`);
+  const result = await owner.query<{ line: string }>(PRIVILEGE_MAP_SQL, [[]]);
   return result.rows.map((row) => row.line);
 }
 
