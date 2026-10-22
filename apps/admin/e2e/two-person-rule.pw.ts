@@ -182,6 +182,11 @@ function pendingPanel(page: Page) {
   return page.getByTestId("qcms-endpoint-proposals");
 }
 
+/** The endpoint list's row for one URL, if it has one. */
+function endpointRowFor(page: Page, url: string) {
+  return page.getByTestId("qcms-webhooks-table").locator("tr").filter({ hasText: url });
+}
+
 /** The row for the change this spec created, by the id read off it. */
 function pendingRow(page: Page) {
   return pendingPanel(page).locator(`tr[data-proposal="${proposalId}"]`);
@@ -247,7 +252,13 @@ test("a prod endpoint change is stored waiting, and nothing is live", async ({ p
 
   // **Nothing live.** The endpoint list is the screen's other half and it has no row for
   // this URL, because the proposal reached no `data_prod.webhooks` row at all.
-  await expect(page.getByTestId("qcms-webhooks-table")).toHaveCount(0);
+  //
+  // Asserted on the **URL** rather than on the table's absence: this form carries whatever
+  // endpoints earlier specs in the run left on it, so "no table" is true in a single-file
+  // run and false in the suite - which is how the first version of this line passed alone
+  // and failed at test 466. The URL is unique to this file, so the narrower claim is the
+  // one that is actually about the mechanism.
+  await expect(endpointRowFor(page, AGREED_URL)).toHaveCount(0);
 
   proposalId =
     (await pendingPanel(page)
@@ -284,7 +295,7 @@ test("the account that proposed it cannot confirm it, and is told why", async ({
   );
   // Still waiting, and still nothing live.
   await expect(pendingPanel(page)).toContainText("Waiting for a second approver");
-  await expect(page.getByTestId("qcms-webhooks-table")).toHaveCount(0);
+  await expect(endpointRowFor(page, AGREED_URL)).toHaveCount(0);
 });
 
 test("a second approver confirms it, and the endpoint goes live", async ({ page }) => {
@@ -299,7 +310,7 @@ test("a second approver confirms it, and the endpoint goes live", async ({ page 
   // The panel empties, because nothing is waiting any more, and the endpoint list now
   // carries the row. Both halves, because either one alone would be satisfiable by a bug.
   await expect(pendingPanel(page)).toHaveCount(0);
-  await expect(page.getByTestId("qcms-webhooks-table")).toContainText(AGREED_URL);
+  await expect(endpointRowFor(page, AGREED_URL)).toHaveCount(1);
 });
 
 test("either account can withdraw a waiting change, and the endpoint is untouched", async ({
