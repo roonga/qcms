@@ -147,6 +147,11 @@ export function refuseWorkspaceReportingNames(
   );
 }
 
+/** `'x'` from `x`. A SQL string literal, with the doubling rule. */
+function literal(value: string): string {
+  return `'${value.replaceAll("'", "''")}'`;
+}
+
 /** Whether a role exists in the cluster. */
 async function roleExists(exec: Executor, role: string): Promise<boolean> {
   const result = await exec.execute<{ found: boolean }>(
@@ -214,8 +219,24 @@ export async function workspaceReportingStatementsForEnvironment(
  * carries this revoke because no migration ever runs in that order.
  *
  * It is a **narrowing and can only ever be one**: `REVOKE SELECT` on views named by 067's
- * own `workspaceReportingViewNames`, from the one role `environmentRoleName` derives,
- * guarded on that role existing. Nothing here can grant anything.
+ * own `workspaceReportingViewNames`, from the one role `environmentRoleName` derives.
+ *
+ * # Why each revoke is guarded on the privilege actually being held
+ *
+ * Not tidiness. A `REVOKE` on a relation whose `relacl` is NULL **materialises** that ACL:
+ * Postgres writes out the owner's own implicit entries, so `aclexplode` starts reporting
+ * seven rows for a relation that is semantically unchanged. On an installation whose
+ * per-workspace reporting roles do not exist - the Compose stack is one, because its
+ * `db-roles` one-shot creates the four application roles and nothing else - the views
+ * carry no ACL at all, and an unconditional revoke would make the restored database differ
+ * from the migrated one in the grant map while differing from it in no privilege. The
+ * restore drill caught exactly that. So each view is revoked only where the application
+ * role really holds `SELECT` on it, which is precisely the over-reach this corrects.
+ *
+ * The two guards are **nested** rather than `AND`ed, because PostgreSQL does not promise
+ * to short-circuit a boolean operator, and `has_table_privilege` raises on a role that
+ * does not exist. `to_regclass` is the third: a workspace whose views have not been
+ * reconciled into this environment yet has none to revoke on.
  *
  * The alternative is to narrow the baseline's statement to the two views it means, which
  * is the same correction 067 made for the analysts' role one paragraph up. That edits a
@@ -229,20 +250,23 @@ export async function revokeWorkspaceViewsFromEnvironmentRole(
   const workspaces = await listWorkspaces(exec);
   const reporting = reportingSchemaName(environment);
   const role = environmentRoleName(environment);
-  const views = workspaces
+  return workspaces
     .filter((workspace) => refuseWorkspaceReportingNames(environment, workspace.slug) === undefined)
-    .flatMap((workspace) => workspaceReportingViewNames(workspace.slug));
-  if (views.length === 0) return [];
-  const quoted = views.map((view) => `"${reporting}"."${view}"`).join(", ");
-  return [
-    `DO $$
+    .flatMap((workspace) => workspaceReportingViewNames(workspace.slug))
+    .map(
+      (view) => `DO $$
+DECLARE qualified text := ${literal(`"${reporting}"."${view}"`)};
 BEGIN
-\tIF EXISTS (SELECT 1 FROM pg_roles WHERE rolname = '${role}') THEN
-\t\tEXECUTE 'REVOKE SELECT ON ${quoted.replaceAll("'", "''")} FROM "${role}"';
+\tIF EXISTS (SELECT 1 FROM pg_roles WHERE rolname = ${literal(role)}) THEN
+\t\tIF to_regclass(qualified) IS NOT NULL THEN
+\t\t\tIF has_table_privilege(${literal(role)}, qualified, 'SELECT') THEN
+\t\t\t\tEXECUTE format('REVOKE SELECT ON %s FROM %I', qualified, ${literal(role)});
+\t\t\tEND IF;
+\t\tEND IF;
 \tEND IF;
 END
 $$;`,
-  ];
+    );
 }
 
 /**

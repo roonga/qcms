@@ -420,6 +420,17 @@ function assertRestoredGrants() {
       where n.nspname = 'public'`,
   ]).trim();
   if (publicCreate !== "f") problems.push("PUBLIC still holds CREATE on schema public");
+  // The same property per role, because `public` is out of the snapshot above (Q76) and
+  // this is what keeps that exclusion from losing anything: no application role may create
+  // an object there, whoever owns the schema after the restore.
+  const appCreate = psql([
+    "--tuples-only",
+    "--no-align",
+    "--command",
+    `select coalesce(bool_or(has_schema_privilege(rolname, 'public', 'CREATE')), false)
+       from pg_roles where rolname like 'qcms\\_app%'`,
+  ]).trim();
+  if (appCreate !== "f") problems.push("a qcms_app% role holds CREATE on schema public");
   if (problems.length > 0) {
     throw new Error(
       `drill-restore: the re-granted database is not what a migrated one holds:\n  ${problems.join("\n  ")}`,
@@ -447,6 +458,14 @@ function assertRestoredGrants() {
  * means "the owner's defaults and nothing granted", which `aclexplode` of NULL correctly
  * yields no rows for.
  *
+ * **`public` is out of scope here, and only here** (Q76). The documented procedure
+ * recreates the database, so `public` comes back owned by `pg_database_owner` where it was
+ * owned by `qcms_migrate` before - and the owner's own ACL entry moves with it, which this
+ * map would report as a difference in a privilege no QCMS role holds. The property that
+ * matters is asserted directly instead, in {@link assertRestoredGrants}: `PUBLIC` holds no
+ * `CREATE` on it, and no `qcms_app%` role does either. `04-db-restore-regrant.e2e.ts` keeps
+ * `public` in its own map, because it does not drop the database and so never meets this.
+ *
  * @returns {string}
  */
 function grantSnapshot() {
@@ -458,11 +477,11 @@ function grantSnapshot() {
         join pg_namespace n on n.oid = c.relnamespace
         cross join lateral aclexplode(c.relacl) a
         join qcms q on q.oid = a.grantee
-       where n.nspname not like 'pg\\_%' and n.nspname <> 'information_schema'
+       where n.nspname not like 'pg\\_%' and n.nspname not in ('information_schema', 'public')
       union all
       select format('column %s.%s.%s %s %s', table_schema, table_name, column_name, grantee, privilege_type)
         from information_schema.column_privileges
-       where grantee like 'qcms%'
+       where grantee like 'qcms%' and table_schema <> 'public'
          and not exists (
            select 1 from information_schema.table_privileges t
             where t.table_schema = column_privileges.table_schema
@@ -475,20 +494,20 @@ function grantSnapshot() {
         join pg_namespace n on n.oid = p.pronamespace
         cross join lateral aclexplode(p.proacl) a
         join qcms q on q.oid = a.grantee
-       where n.nspname not like 'pg\\_%' and n.nspname <> 'information_schema'
+       where n.nspname not like 'pg\\_%' and n.nspname not in ('information_schema', 'public')
       union all
       select format('type %s.%s %s %s', n.nspname, t.typname, q.rolname, a.privilege_type) as line
         from pg_type t
         join pg_namespace n on n.oid = t.typnamespace
         cross join lateral aclexplode(t.typacl) a
         join qcms q on q.oid = a.grantee
-       where n.nspname not like 'pg\\_%' and n.nspname <> 'information_schema'
+       where n.nspname not like 'pg\\_%' and n.nspname not in ('information_schema', 'public')
       union all
       select format('schema %s %s %s', n.nspname, q.rolname, a.privilege_type) as line
         from pg_namespace n
         cross join lateral aclexplode(n.nspacl) a
         join qcms q on q.oid = a.grantee
-       where n.nspname not like 'pg\\_%' and n.nspname <> 'information_schema'
+       where n.nspname not like 'pg\\_%' and n.nspname not in ('information_schema', 'public')
       union all
       select format('default %s %s %s %s %s', coalesce(n.nspname, '-'), d.defaclobjtype, pg_get_userbyid(d.defaclrole), q.rolname, a.privilege_type) as line
         from pg_default_acl d
