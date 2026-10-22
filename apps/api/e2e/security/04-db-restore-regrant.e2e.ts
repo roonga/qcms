@@ -55,6 +55,7 @@ import {
   CONTROL_FORBIDDEN_TABLES,
   CONTROL_READ_TABLES,
   DATA_PLANE_TABLE_NAMES,
+  ENDPOINT_PROPOSALS_TABLE,
   GRANT_SOURCES,
   ownsControlSchema,
   reconcileWorkspaceReporting,
@@ -525,6 +526,56 @@ describe("the projections of that map, named so a failure says which claim broke
       expect([...privileges].sort(), `control.${table}`).toEqual([...DML].sort());
     }
     expect(Object.keys(held).length).toBeGreaterThan(10);
+  });
+
+  it("brings task 070's table and column back, with nobody new on them", async () => {
+    // The whole-map equality above covers the table's **grants**, and the two projections
+    // around it cover both halves structurally - the control role's DML through the loop,
+    // and the environment roles' absence through their exact key list. What neither covers
+    // is a **column**: `form_versions.published_by` carries no privilege of its own, so a
+    // restore that dropped it would leave every grant assertion in this file green and the
+    // two-person rule unable to name an author. Hence one named case for both.
+    const table = await owner.query<{ relname: string }>(
+      `select c.relname from pg_class c
+         join pg_namespace n on n.oid = c.relnamespace
+        where n.nspname = 'control' and c.relname = $1`,
+      [ENDPOINT_PROPOSALS_TABLE],
+    );
+    expect(table.rows.map((row) => row.relname)).toEqual([ENDPOINT_PROPOSALS_TABLE]);
+
+    // The guards came back too. A table restored without its CHECKs would accept a
+    // self-confirmation, which is the one write this mechanism exists to refuse.
+    const guards = await owner.query<{ conname: string }>(
+      `select conname from pg_constraint
+        where conrelid = ('control.' || $1)::regclass and contype = 'c' order by conname`,
+      [ENDPOINT_PROPOSALS_TABLE],
+    );
+    expect(guards.rows.map((row) => row.conname)).toContain(
+      "webhook_endpoint_proposals_second_account",
+    );
+    const index = await owner.query<{ indexname: string }>(
+      `select indexname from pg_indexes where schemaname = 'control' and tablename = $1`,
+      [ENDPOINT_PROPOSALS_TABLE],
+    );
+    expect(index.rows.map((row) => row.indexname)).toContain("webhook_endpoint_proposals_one_open");
+
+    // The control role holds DML; no environment role holds anything at all.
+    expect(
+      [
+        ...((await tablePrivileges("control", CONTROL_ROLE))[ENDPOINT_PROPOSALS_TABLE] ?? []),
+      ].sort(),
+    ).toEqual([...DML].sort());
+    for (const environment of ENVIRONMENTS) {
+      const held = await tablePrivileges("control", ENVIRONMENT_ROLES[environment]);
+      expect(held[ENDPOINT_PROPOSALS_TABLE], `qcms_app_${environment}`).toBeUndefined();
+    }
+
+    // And the author column, which no grant map can see.
+    const column = await owner.query<{ column_name: string }>(
+      `select column_name from information_schema.columns
+        where table_schema = 'control' and table_name = 'form_versions' and column_name = 'published_by'`,
+    );
+    expect(column.rows.map((row) => row.column_name)).toEqual(["published_by"]);
   });
 
   it.each(ENVIRONMENTS)(

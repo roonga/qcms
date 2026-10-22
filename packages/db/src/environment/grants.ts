@@ -52,6 +52,7 @@
 
 import type { Executor } from "../queries/executor.js";
 import { ACCESS_AUDIT_TABLE } from "../schema/control/access-audit.js";
+import { ENDPOINT_PROPOSALS_TABLE } from "../schema/control/endpoint-proposals.js";
 import { CONTROL_ROLE, CONTROL_SCHEMA } from "../schema/schemas.js";
 
 import {
@@ -244,6 +245,19 @@ export const GRANT_SOURCES: readonly GrantSource[] = [
     scope: "installation",
     inMigrationTree: true,
     statements: grantAccessAuditStatements,
+  },
+  {
+    // Task 070's pending `prod` endpoint change. The ordinary shape for a control-plane
+    // table a migration creates after the baseline, and it needs no carve-out: the one
+    // statement is DML for the control role, and **no environment role holds anything**
+    // here, because `webhook_endpoint_proposals` is not on `CONTROL_READ_TABLES`. It sits
+    // after the control role's `ALL TABLES` pass for the reason every entry above it does -
+    // on a restored database that pass has already reached this table - and what follows it
+    // is only the migrate-only revoke, which names a different table.
+    name: `${CONTROL_SCHEMA}.${ENDPOINT_PROPOSALS_TABLE} (migration 0005)`,
+    scope: "installation",
+    inMigrationTree: true,
+    statements: () => grantControlTableStatements(ENDPOINT_PROPOSALS_TABLE),
   },
   {
     name: "control.two_factor_resets is migrate-only (baseline, last)",
