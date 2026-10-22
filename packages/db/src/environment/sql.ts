@@ -524,15 +524,39 @@ export function workspaceReportingStatements(input: {
   readonly slug: string;
   readonly workspaceId: string;
 }): string[] {
-  const reporting = reportingSchemaName(input.environment);
-  const role = workspaceReportingRoleName(input.environment, input.slug);
   return [
     ...workspaceReportingViewStatements({
-      reporting,
+      reporting: reportingSchemaName(input.environment),
       slug: input.slug,
       workspaceId: input.workspaceId,
       control: CONTROL_SCHEMA,
     }),
+    ...workspaceReportingGrantStatements(input),
+  ];
+}
+
+/**
+ * The **grant half** of the pair above, on its own.
+ *
+ * Split out for the re-grant subcommand (issue #1094), which re-applies privileges and
+ * must not do DDL. `pg_dump --no-privileges` loses the grants and keeps the views, so a
+ * restore needs this half and nothing else - and a `regrant` that emitted the `CREATE OR
+ * REPLACE VIEW` would quietly **create** a view set an operator had never asked for,
+ * which is what the restore drill caught it doing: the view set for a workspace nobody had
+ * run `qcms-db-environment reporting` for appeared out of a command whose name says it
+ * grants. Reconciling the views is that subcommand's job and `docs/reporting-view.md`
+ * already says to run it.
+ *
+ * One function and not a second copy of the grant text: {@link workspaceReportingStatements}
+ * composes this with the view half, so the two emissions cannot differ.
+ */
+export function workspaceReportingGrantStatements(input: {
+  readonly environment: string;
+  readonly slug: string;
+}): string[] {
+  const reporting = reportingSchemaName(input.environment);
+  const role = workspaceReportingRoleName(input.environment, input.slug);
+  return [
     guardedOnRole(role, [
       `GRANT USAGE ON SCHEMA ${quote(reporting)} TO ${quote(role)}`,
       ...workspaceReportingViewNames(input.slug).map(

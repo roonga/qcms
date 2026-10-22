@@ -20,6 +20,7 @@ export const USAGE = `Usage:
                                     [--outbox-payload-ttl-ms <ms>]
   qcms-db-environment drop <name>
   qcms-db-environment reporting [--workspace <slug> --environment <name> --password <pw>]
+  qcms-db-environment regrant
 
   DATABASE_URL must name the migration credential (the role that owns \`control\`).
   A name is lowercase letters and digits, starting with a letter, at most
@@ -34,11 +35,17 @@ export const USAGE = `Usage:
   (workspace, environment) pair (Q26, docs/reporting-view.md). Run it after
   creating a workspace. With all three flags it also creates that one pair's
   role with that credential; without them it creates no role and the grants
-  land for the roles an operator has provisioned themselves.`;
+  land for the roles an operator has provisioned themselves.
+
+  \`regrant\` takes no name and no flag: it re-applies every grant and revoke in
+  the model, for every environment in \`control.environments\`. It is the step a
+  RESTORE needs, because \`pg_dump --no-privileges\` carries no grant and the
+  drizzle journal rides inside the dump, so a post-restore migrate re-applies
+  nothing (issue #1094). It is idempotent.`;
 
 export interface ParsedArgs {
-  readonly action: "create" | "drop" | "reporting";
-  /** The environment name for `create` and `drop`; empty for `reporting`. */
+  readonly action: "create" | "drop" | "reporting" | "regrant";
+  /** The environment name for `create` and `drop`; empty for `reporting` and `regrant`. */
   readonly name: string;
   readonly password?: string;
   /**
@@ -77,8 +84,8 @@ function refuse(refusal: string): ArgResult {
   return { ok: false, refusal };
 }
 
-/** The three subcommands. */
-const ACTIONS = ["create", "drop", "reporting"] as const;
+/** The four subcommands. */
+const ACTIONS = ["create", "drop", "reporting", "regrant"] as const;
 type Action = (typeof ACTIONS)[number];
 
 /** Every flag any subcommand takes. An argument outside this set is refused by name. */
@@ -182,6 +189,11 @@ function refuseFlagCombination(action: Action, values: FlagValues): string | und
   const workspace = values["--workspace"];
   const environment = values["--environment"];
 
+  // `regrant` acts on the whole live set and reads nothing from an operator, so every
+  // flag is refused by name rather than accepted and ignored (issue #1094).
+  if (action === "regrant" && Object.keys(values).length > 0) {
+    return `regrant takes no arguments\n${USAGE}`;
+  }
   if (action === "drop" && password !== undefined) return "drop takes no --password";
   if (action !== "reporting" && (workspace ?? environment) !== undefined) {
     return `${action} takes no --workspace or --environment\n${USAGE}`;
@@ -209,10 +221,15 @@ export function parseArgs(argv: readonly string[]): ArgResult {
   // `reporting` takes **no positional name**: the one pair whose role it may create is
   // named by two flags, because an environment name and a workspace slug obey two
   // different rules and a positional pair would read as one thing.
-  const name = subcommand === "reporting" ? "" : (tail[0] ?? "");
-  if (subcommand !== "reporting" && (name === "" || name.startsWith("-"))) return refuse(USAGE);
+  // `regrant` takes no positional name for the same reason, and no flag either.
+  const unnamed = subcommand === "reporting" || subcommand === "regrant";
+  const name = unnamed ? "" : (tail[0] ?? "");
+  if (!unnamed && (name === "" || name.startsWith("-"))) return refuse(USAGE);
+  if (subcommand === "regrant" && tail.length > 0) {
+    return refuse(`regrant takes no arguments\n${USAGE}`);
+  }
 
-  const collected = collectFlags(subcommand === "reporting" ? tail : tail.slice(1));
+  const collected = collectFlags(unnamed ? tail : tail.slice(1));
   if (!collected.ok) return refuse(collected.refusal);
   const values = collected.value;
 

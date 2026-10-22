@@ -12,6 +12,10 @@
  *
  * # Drop it. Refuses while it holds a session or an open form.
  * DATABASE_URL=... qcms-db-environment drop dev
+ *
+ * # Re-apply every grant and revoke, for every environment in the live set. The step a
+ * # RESTORE needs, because `pg_dump --no-privileges` carries no grant (issue #1094).
+ * DATABASE_URL=... qcms-db-environment regrant
  * ```
  *
  * ## Why a command and not an endpoint
@@ -47,16 +51,9 @@ import {
 } from "./environment/command.js";
 import { environmentDatabaseUrlVariableName } from "./environment/naming.js";
 import { parseArgs, type ParsedArgs } from "./environment/cli-args.js";
+import { describeError } from "./environment/describe-error.js";
+import { regrantEnvironments, unreappliedNote } from "./environment/regrant.js";
 import { reconcileWorkspaceReporting } from "./environment/reporting.js";
-
-/** One line, cause included, in the shape `qcms-db migrate` already uses. */
-function describeError(error: unknown): string {
-  const collapse = (text: string): string => text.replaceAll(/\s+/g, " ").trim();
-  if (!(error instanceof Error)) return collapse(String(error));
-  const cause = error.cause;
-  const because = cause instanceof Error ? ` (${collapse(cause.message)})` : "";
-  return `${collapse(error.message)}${because}`;
-}
 
 /** The executor shape the command's helpers take. */
 type Exec = Parameters<typeof ownsControlSchema>[0];
@@ -129,6 +126,42 @@ async function runReporting(exec: Exec, parsed: ParsedArgs): Promise<number> {
   return report.refusals.length === 0 ? 0 : 1;
 }
 
+/**
+ * `regrant`: re-apply every grant and revoke in the model, for every environment.
+ *
+ * The step a restore needs. See `environment/regrant.ts` for why the dump cannot carry
+ * them and why re-running `migrate` does not help (issue #1094).
+ */
+async function runRegrant(exec: Exec): Promise<number> {
+  const report = await regrantEnvironments(exec);
+  const lines = report.passes.map((pass) => {
+    const where = pass.environment === undefined ? "" : ` [${pass.environment}]`;
+    return `  ${String(pass.statements).padStart(3)} statement(s)  ${pass.source}${where}`;
+  });
+  process.stdout.write(
+    `re-applied the grant model to ${String(report.environments.length)} environment(s): ` +
+      `${report.environments.join(", ")}\n` +
+      `${lines.join("\n")}\n` +
+      `  ${String(report.statements)} statement(s) in total, in one transaction\n` +
+      unreappliedNote(),
+  );
+  if (report.publicCreateGrantedToPublic) {
+    // A finding rather than a failure: the re-grant did what it can, and this needs a
+    // credential that owns `public`, which the migration role is not.
+    process.stderr.write(
+      "WARNING: PUBLIC still holds CREATE on schema `public`. Run " +
+        "`REVOKE CREATE ON SCHEMA public FROM PUBLIC` as a superuser or the database " +
+        "owner (ADR-40, Q20).\n",
+    );
+  }
+  process.stdout.write(
+    "The grants are now what a migrated database holds. No restart is needed: a grant " +
+      "takes effect on the next statement, including on a pool that is already " +
+      "connected.\n",
+  );
+  return 0;
+}
+
 /** `drop`: narrowly, and reporting the refusal rather than a bare no. */
 async function runDrop(exec: Exec, name: string): Promise<number> {
   const refused = await dropEnvironment(exec, name);
@@ -159,6 +192,7 @@ async function run(exec: Exec, parsed: ParsedArgs): Promise<number> {
   }
   if (parsed.action === "create") return runCreate(exec, parsed);
   if (parsed.action === "reporting") return runReporting(exec, parsed);
+  if (parsed.action === "regrant") return runRegrant(exec);
   return runDrop(exec, parsed.name);
 }
 
@@ -170,10 +204,11 @@ async function main(): Promise<number> {
   }
   const parsed = result.args;
 
-  // `reporting` names no environment of its own: it reconciles the whole live set, and
-  // the `--environment` of its one-pair form names a row that already exists and has
-  // therefore already passed this rule.
-  const refusal = parsed.action === "reporting" ? undefined : refuseEnvironmentName(parsed.name);
+  // `reporting` and `regrant` name no environment of their own: each acts on the whole
+  // live set, and the `--environment` of `reporting`'s one-pair form names a row that
+  // already exists and has therefore already passed this rule.
+  const named = parsed.action !== "reporting" && parsed.action !== "regrant";
+  const refusal = named ? refuseEnvironmentName(parsed.name) : undefined;
   if (refusal !== undefined) {
     process.stderr.write(`qcms-db environment failed: ${refusal}\n`);
     return 1;

@@ -120,8 +120,8 @@ whether or not they run with `skipLibCheck`.
 One consequence worth knowing before you reach for it. `TestDb.container` is typed
 as `StartedTestPostgres`, a small structural interface this package owns, rather
 than as Testcontainers' `StartedPostgreSqlContainer`. That is what keeps the
-optional peers off the declaration surface. It names `logs()`, `getConnectionUri()`
-and `stop()`; if you need more of the upstream container, widen the interface and
+optional peers off the declaration surface. It names `logs()`, `getConnectionUri()`,
+`exec()` and `stop()`; if you need more of the upstream container, widen the interface and
 `harness-types.test.ts` will hold it against the real type.
 
 ```ts

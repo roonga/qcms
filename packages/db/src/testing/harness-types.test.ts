@@ -45,12 +45,19 @@ describe("StartedTestPostgres against @testcontainers/postgresql", () => {
   });
 
   it("names only what a consumer of the harness actually uses", () => {
-    // A behavioural note in test form. `logs` is the one member with a caller outside this
-    // package (`apps/portal/e2e/support/api-server.ts` streams the Postgres server log
-    // into the browser suite's capture file); `getConnectionUri` and `stop` are used by the
-    // harness itself. Anything a future caller needs is added here and to the interface
-    // together, and this test is where the omission shows up as a failed compile.
-    const members: readonly (keyof StartedTestPostgres)[] = ["logs", "getConnectionUri", "stop"];
-    expect(members).toHaveLength(3);
+    // A behavioural note in test form. Two members have callers outside this package:
+    // `logs` (`apps/portal/e2e/support/api-server.ts` streams the Postgres server log into
+    // the browser suite's capture file) and `exec`
+    // (`apps/api/e2e/security/04-db-restore-regrant.e2e.ts` runs `pg_dump` and `psql`
+    // inside the container, issue #1094). `getConnectionUri` and `stop` are the harness's
+    // own. Anything a future caller needs is added here and to the interface together, and
+    // this test is where the omission shows up as a failed compile.
+    const members: readonly (keyof StartedTestPostgres)[] = [
+      "logs",
+      "getConnectionUri",
+      "exec",
+      "stop",
+    ];
+    expect(members).toHaveLength(4);
   });
 });

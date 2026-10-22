@@ -36,6 +36,7 @@
     "dist",
     "src",
     "migrations",
+    "privileges",
     "!src/**/*.test.*",
     "!src/**/__snapshots__/**",
     "!src/test-support/**"

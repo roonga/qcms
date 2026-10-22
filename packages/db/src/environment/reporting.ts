@@ -44,13 +44,14 @@ import type { Executor } from "../queries/executor.js";
 import { listWorkspaces } from "../queries/workspaces.js";
 import {
   CONTROL_SCHEMA,
+  environmentRoleName,
   reportingSchemaName,
   workspaceReportingRoleName,
 } from "../schema/schemas.js";
 import { workspaceReportingViewNames } from "../reporting-views.js";
 
 import { createLoginRole } from "./role.js";
-import { workspaceReportingStatements } from "./sql.js";
+import { workspaceReportingGrantStatements, workspaceReportingStatements } from "./sql.js";
 
 /**
  * Postgres truncates an identifier longer than `NAMEDATALEN - 1` bytes, silently. 63 with
@@ -146,6 +147,11 @@ export function refuseWorkspaceReportingNames(
   );
 }
 
+/** `'x'` from `x`. A SQL string literal, with the doubling rule. */
+function literal(value: string): string {
+  return `'${value.replaceAll("'", "''")}'`;
+}
+
 /** Whether a role exists in the cluster. */
 async function roleExists(exec: Executor, role: string): Promise<boolean> {
   const result = await exec.execute<{ found: boolean }>(
@@ -187,6 +193,105 @@ export async function workspaceReportingStatementsForEnvironment(
         slug: workspace.slug,
         workspaceId: workspace.id,
       }),
+    );
+}
+
+/**
+ * Every workspace's reporting **grants** for one environment, and no DDL (issue #1094).
+ *
+ * The re-grant subcommand's source. `pg_dump --no-privileges` keeps the views and loses
+ * these, so a restore needs exactly this half - and a `regrant` that also emitted the
+ * `CREATE OR REPLACE VIEW` would **create** a view set for a workspace nobody had
+ * reconciled, which the restore drill caught it doing. Creating the views is
+ * {@link reconcileWorkspaceReporting}'s job, and `docs/reporting-view.md` says to run it
+ * after creating a workspace.
+ *
+ * The same filter as {@link workspaceReportingStatementsForEnvironment}: a pair whose slug
+ * is too long for this environment's identifiers is skipped rather than raised, because a
+ * grant pass must not fail over a pair the reconciliation is what reports.
+ */
+export async function workspaceReportingGrantsForEnvironment(
+  exec: Executor,
+  environment: string,
+): Promise<string[]> {
+  const workspaces = await listWorkspaces(exec);
+  return workspaces
+    .filter((workspace) => refuseWorkspaceReportingNames(environment, workspace.slug) === undefined)
+    .flatMap((workspace) =>
+      workspaceReportingGrantStatements({ environment, slug: workspace.slug }),
+    );
+}
+
+/**
+ * Take back the `SELECT` the baseline's `ALL TABLES` grant reaches on a **restored**
+ * database: task 067's per-workspace views, which the application role must not hold
+ * (ADR-40, Q52; issue #1094).
+ *
+ * # Why this is needed only on a restore, and why it is a revoke
+ *
+ * `grantEnvironmentStatements` hands the application role
+ * `GRANT SELECT ON ALL TABLES IN SCHEMA reporting_<env>`. That is a grant on the views
+ * that exist **at that moment** and not a standing rule, and in every live path it runs
+ * before any per-workspace view exists: the baseline creates `responses` and
+ * `answers_flat` and grants, and `createEnvironment` does the same before it reconciles
+ * this environment's workspace views. So on a migrated installation the application role
+ * holds exactly the two environment-wide views, which is what the record says it holds -
+ * the per-workspace pair belongs to the analysts' role, and `workspaceReportingStatements`
+ * above says so in as many words.
+ *
+ * A **restore** inverts the order. The views come back inside the dump, so the same
+ * `ALL TABLES` statement now reaches every workspace's pair too, and the re-granted
+ * database would hold more than the migrated one it is supposed to equal. No migration
+ * carries this revoke because no migration ever runs in that order.
+ *
+ * It is a **narrowing and can only ever be one**: `REVOKE SELECT` on views named by 067's
+ * own `workspaceReportingViewNames`, from the one role `environmentRoleName` derives.
+ *
+ * # Why each revoke is guarded on the privilege actually being held
+ *
+ * Not tidiness. A `REVOKE` on a relation whose `relacl` is NULL **materialises** that ACL:
+ * Postgres writes out the owner's own implicit entries, so `aclexplode` starts reporting
+ * seven rows for a relation that is semantically unchanged. On an installation whose
+ * per-workspace reporting roles do not exist - the Compose stack is one, because its
+ * `db-roles` one-shot creates the four application roles and nothing else - the views
+ * carry no ACL at all, and an unconditional revoke would make the restored database differ
+ * from the migrated one in the grant map while differing from it in no privilege. The
+ * restore drill caught exactly that. So each view is revoked only where the application
+ * role really holds `SELECT` on it, which is precisely the over-reach this corrects.
+ *
+ * The two guards are **nested** rather than `AND`ed, because PostgreSQL does not promise
+ * to short-circuit a boolean operator, and `has_table_privilege` raises on a role that
+ * does not exist. `to_regclass` is the third: a workspace whose views have not been
+ * reconciled into this environment yet has none to revoke on.
+ *
+ * The alternative is to narrow the baseline's statement to the two views it means, which
+ * is the same correction 067 made for the analysts' role one paragraph up. That edits a
+ * published migration, so it is a Code Owner decision rather than this issue's, and it is
+ * recorded as one in PR #1099.
+ */
+export async function revokeWorkspaceViewsFromEnvironmentRole(
+  exec: Executor,
+  environment: string,
+): Promise<string[]> {
+  const workspaces = await listWorkspaces(exec);
+  const reporting = reportingSchemaName(environment);
+  const role = environmentRoleName(environment);
+  return workspaces
+    .filter((workspace) => refuseWorkspaceReportingNames(environment, workspace.slug) === undefined)
+    .flatMap((workspace) => workspaceReportingViewNames(workspace.slug))
+    .map(
+      (view) => `DO $$
+DECLARE qualified text := ${literal(`"${reporting}"."${view}"`)};
+BEGIN
+\tIF EXISTS (SELECT 1 FROM pg_roles WHERE rolname = ${literal(role)}) THEN
+\t\tIF to_regclass(qualified) IS NOT NULL THEN
+\t\t\tIF has_table_privilege(${literal(role)}, qualified, 'SELECT') THEN
+\t\t\t\tEXECUTE format('REVOKE SELECT ON %s FROM %I', qualified, ${literal(role)});
+\t\t\tEND IF;
+\t\tEND IF;
+\tEND IF;
+END
+$$;`,
     );
 }
 
