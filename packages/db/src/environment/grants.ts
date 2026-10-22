@@ -250,10 +250,15 @@ export const GRANT_SOURCES: readonly GrantSource[] = [
     // Task 070's pending `prod` endpoint change. The ordinary shape for a control-plane
     // table a migration creates after the baseline, and it needs no carve-out: the one
     // statement is DML for the control role, and **no environment role holds anything**
-    // here, because `webhook_endpoint_proposals` is not on `CONTROL_READ_TABLES`. It sits
-    // after the control role's `ALL TABLES` pass for the reason every entry above it does -
-    // on a restored database that pass has already reached this table - and what follows it
-    // is only the migrate-only revoke, which names a different table.
+    // here, because `webhook_endpoint_proposals` is not on `CONTROL_READ_TABLES`.
+    //
+    // **Its position is chronology, not a dependency**, and that is worth saying because the
+    // entry above it is the other way round (PR #1100's round-two review, finding 3). The
+    // access audit has to follow the control role's `ALL TABLES` pass, because it narrows
+    // what that pass gave; this entry only grants DML on one table to the role `ALL TABLES`
+    // already gave DML on, and no statement after it names the table. So moving it fails no
+    // test, and none should: a reader looking for the one that enforces the order will not
+    // find it.
     name: `${CONTROL_SCHEMA}.${ENDPOINT_PROPOSALS_TABLE} (migration 0005)`,
     scope: "installation",
     inMigrationTree: true,
