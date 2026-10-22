@@ -177,7 +177,11 @@ describe("the pending `prod` endpoint change's grants (task 070, Q30 with Q51)",
     // enforce it: a CHECK here, a predicate in `confirmEndpointProposal`, and a refusal
     // with a message in the handler.
     expect(sql).toContain('CONSTRAINT "webhook_endpoint_proposals_second_account"');
-    expect(sql).toContain('CREATE UNIQUE INDEX "webhook_endpoint_proposals_one_pending"');
+    // The predicate is `applied_at is null`, not `confirmed_at is null`: a confirmation
+    // whose endpoint write did not land can still be resumed, so it keeps the endpoint
+    // claimed and a second proposal cannot be applied beside it.
+    expect(sql).toContain('CREATE UNIQUE INDEX "webhook_endpoint_proposals_one_open"');
+    expect(sql).toContain("WHERE applied_at is null and withdrawn_at is null");
   });
 
   it("records the publishing account the release rule compares against (Q51)", () => {

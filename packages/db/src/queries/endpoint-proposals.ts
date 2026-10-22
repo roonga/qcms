@@ -159,8 +159,15 @@ export async function listOpenEndpointProposals(
 }
 
 /**
- * Whether one endpoint already has a pending change, which is what the propose path checks
- * before it mints an id.
+ * Whether one endpoint already has an **open** change, which is what the propose path
+ * checks before it mints an id.
+ *
+ * Open means *not yet applied and not withdrawn*, which is the same predicate the
+ * `webhook_endpoint_proposals_one_open` index carries and for the reason that index records:
+ * a confirmed proposal whose endpoint write did not land can still be resumed, so it keeps
+ * the endpoint claimed. A read that only asked about *pending* ones would let a second
+ * proposal be created and applied beside it, and resuming the first would then overwrite
+ * the second with a value nobody had agreed to last.
  */
 export async function hasPendingEndpointProposal(
   exec: Executor,
@@ -174,7 +181,7 @@ export async function hasPendingEndpointProposal(
       and(
         eq(webhookEndpointProposals.environment, environment),
         eq(webhookEndpointProposals.webhookId, webhookId),
-        isNull(webhookEndpointProposals.confirmedAt),
+        isNull(webhookEndpointProposals.appliedAt),
         isNull(webhookEndpointProposals.withdrawnAt),
       ),
     )

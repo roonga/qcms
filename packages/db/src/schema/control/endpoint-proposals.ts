@@ -174,16 +174,24 @@ export const webhookEndpointProposals = controlSchema.table(
       sql`(${t.confirmedAt} is null) = (${t.confirmedBy} is null) and (${t.withdrawnAt} is null) = (${t.withdrawnBy} is null)`,
     ),
     /**
-     * **One pending proposal per endpoint per environment.**
+     * **One open proposal per endpoint per environment**, where open means *not yet applied
+     * and not withdrawn*.
      *
-     * Two pending changes to the same endpoint would make "confirm this one" ambiguous: the
+     * Two open changes to the same endpoint would make "confirm this one" ambiguous: the
      * second confirmation would overwrite the first with a value its confirmer had read in a
      * different screen. A second endpoint in the same form is a different `webhook_id` and
      * is unaffected, which is why the key is the endpoint rather than the form.
+     *
+     * The predicate is **`applied_at is null`** rather than `confirmed_at is null`, and the
+     * difference is the two-pool window one paragraph up: a confirmation whose endpoint
+     * write did not land is confirmed and not applied, and it can still be resumed. If a
+     * second proposal could be created and applied beside it, resuming the first would
+     * overwrite the second with a value nobody had agreed to last. So a confirmed proposal
+     * keeps the endpoint claimed until its apply lands or it is withdrawn.
      */
-    uniqueIndex("webhook_endpoint_proposals_one_pending")
+    uniqueIndex("webhook_endpoint_proposals_one_open")
       .on(t.environment, t.webhookId)
-      .where(sql`confirmed_at is null and withdrawn_at is null`),
+      .where(sql`applied_at is null and withdrawn_at is null`),
     // "What is pending for this form", which is the admin's screen and the one read whose
     // leading column is the form.
     index("webhook_endpoint_proposals_form_idx").on(t.formId, t.environment, t.proposedAt.desc()),

@@ -1,5 +1,5 @@
 {
-  "id": "345a5e44-af35-45ce-ba7e-1518661a2d2a",
+  "id": "58c38f3e-f49a-416c-857c-4b0b56d667e9",
   "prevId": "3239a8b0-d7a5-4059-8e06-3eaf3f826aac",
   "version": "7",
   "dialect": "postgresql",
@@ -1760,8 +1760,8 @@
         }
       },
       "indexes": {
-        "webhook_endpoint_proposals_one_pending": {
-          "name": "webhook_endpoint_proposals_one_pending",
+        "webhook_endpoint_proposals_one_open": {
+          "name": "webhook_endpoint_proposals_one_open",
           "columns": [
             {
               "expression": "environment",
@@ -1777,7 +1777,7 @@
             }
           ],
           "isUnique": true,
-          "where": "confirmed_at is null and withdrawn_at is null",
+          "where": "applied_at is null and withdrawn_at is null",
           "concurrently": false,
           "method": "btree",
           "with": {}

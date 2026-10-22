@@ -77,6 +77,15 @@ const fail = {
    */
   noPrincipal: (): Error =>
     new Error("webhooks: no admin principal on a request that records an actor"),
+  /**
+   * No workspace on a request whose act is recorded in one.
+   *
+   * A `500`, for the same reason {@link fail.noPrincipal} is: the audit row's
+   * `workspace_id` is established by the middleware before any handler runs, and a row
+   * carrying `""` answers nothing while looking like an answer.
+   */
+  noWorkspace: (): Error =>
+    new Error("webhooks: no workspace on a request whose act is recorded in one"),
   urlRejected: (reason: WebhookUrlRejection): ApiError =>
     new ApiError("WEBHOOK_URL_REJECTED", 422, urlRejectionMessage(reason), { reason }),
 } as const;
@@ -207,13 +216,17 @@ function actContext(
   const grant = c.get("grantContext");
   const principal = c.get("adminPrincipal");
   if (principal === undefined) throw fail.noPrincipal();
+  // A configure route's row is a `form` workspace row, so the middleware resolved one. An
+  // absent or empty workspace is **refused rather than written**: it would make a SEC-15
+  // row whose `workspace_id` answers nothing while looking like an answer, which is the
+  // same reasoning the release record uses for an empty actor. Unreachable in a mounted
+  // process, which is why it throws rather than degrading.
+  const workspaceId = grant?.workspaceId;
+  if (workspaceId === undefined || workspaceId === "") throw fail.noWorkspace();
   return {
     environment:
       grant?.environment ?? deps.databases.forRequest(c.get("requestEnvironment")).environment,
-    // A configure route's row is a `form` workspace row, so the middleware resolved one.
-    // The empty string is unreachable in a mounted process and would make an audit row
-    // that answers nothing, so it is refused rather than written.
-    workspaceId: grant?.workspaceId ?? "",
+    workspaceId,
     actor: principal.userId,
   };
 }
