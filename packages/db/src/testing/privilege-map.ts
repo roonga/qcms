@@ -29,6 +29,11 @@ import { fileURLToPath } from "node:url";
  * this object - so materialisation, ownership-implied rights and grants through `PUBLIC` all
  * read the same whichever way they are stored.
  *
+ * A **superuser is excluded**, for the same reason: it holds everything on everything by
+ * definition rather than by a grant, so its rows would say nothing about the model and
+ * would outnumber the ones that do. The bootstrap credential matches the `qcms%` prefix
+ * and is one.
+ *
  * Two kinds stay on `aclexplode`, because there is no `has_*_privilege` form for them:
  * default ACLs (`pg_default_acl`) and large objects. ADR-40 sets no default privileges and
  * QCMS stores no large object, so both are empty today - and that is exactly why they are

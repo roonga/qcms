@@ -223,6 +223,24 @@ function psql(args) {
 }
 
 /**
+ * Collapse a SQL text to one line, **stripping `--` comments first**.
+ *
+ * The comments are the whole reason this is a function. Collapsing newlines in a query
+ * that carries a `--` comment turns the rest of the query into part of that comment, and
+ * `psql` then runs a truncated statement - which is how the first run of the shared
+ * privilege map failed, with nothing in the log but `docker exited with status 1`.
+ *
+ * @param {string} sql
+ * @returns {string}
+ */
+function oneLine(sql) {
+  return sql
+    .replace(/--[^\n]*/g, " ")
+    .replace(/\s+/g, " ")
+    .trim();
+}
+
+/**
  * The effective-privilege map query, read from the one file the two test suites read
  * through `@roonga/qcms-db/testing`.
  *
@@ -510,7 +528,7 @@ function grantSnapshot() {
     "--tuples-only",
     "--no-align",
     "--command",
-    privilegeMapSql().replace("$1", "array['public']").replace(/\s+/g, " ").trim(),
+    oneLine(privilegeMapSql().replace("$1", "array['public']")),
   ]);
 }
 

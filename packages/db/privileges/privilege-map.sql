@@ -1,4 +1,8 @@
-with qcms as (select rolname from pg_roles where rolname like 'qcms%'),
+-- Every QCMS role that is not a superuser. A superuser holds every privilege on every
+-- object by definition rather than by a grant, so its rows would say nothing about the
+-- grant model and would outnumber the ones that do. The bootstrap credential
+-- (`QCMS_DB_USER`, `qcms` by default) matches the prefix and is one.
+with qcms as (select rolname from pg_roles where rolname like 'qcms%' and not rolsuper),
      schemas as (
        select n.oid, n.nspname
          from pg_catalog.pg_namespace n
