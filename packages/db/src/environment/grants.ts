@@ -20,7 +20,7 @@
  *
  * A third hand-kept copy of the model is what the Code Owner's ruling of 2026-10-22
  * forbids, so this module is the one list and the three callers walk it. {@link
- * regrantStatements} is caller 3; {@link GRANT_SOURCES} is what it walks, and
+ * regrantPasses} is caller 3; {@link GRANT_SOURCES} is what it walks, and
  * `grants.test.ts` fails if a `GRANT` or a `REVOKE` appears anywhere in the migration
  * tree that this list does not produce.
  *

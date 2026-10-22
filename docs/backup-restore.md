@@ -206,9 +206,14 @@ Four properties are worth knowing:
   the dump and after the re-grant for equality.
 - **It runs under the migration credential** and needs nothing beyond ownership of the
   QCMS schemas: no `CREATEROLE`, no `SUPERUSER`, no ownership of the database. The roles
-  stay the operator's to create. It never prints a statement, so no error path can carry a
-  credential (SEC-8); what it prints is the grant source that failed and the driver's own
-  reason.
+  stay the operator's to create. **No error path prints a statement** (SEC-8): every
+  database call it makes, the reads as well as the grants, reports the grant source or the
+  read that failed plus the driver's own reason, and never the SQL. What that looks like on
+  a refusal:
+
+  ```
+  qcms-db environment failed: could not re-apply control.access_audit (migration 0004): permission denied for schema control
+  ```
 - **No restart is needed.** A grant takes effect on the next statement, including on a pool
   that is already connected. This is unlike `qcms:environment create`, which needs one
   because a new environment's credential arrives through the process environment.
@@ -217,8 +222,15 @@ One statement in the model it deliberately does not re-apply: `REVOKE CREATE ON 
 public FROM PUBLIC`. A `REVOKE` on a schema requires owning it, and a freshly created
 database owns `public` as `pg_database_owner`, which the migration role is not a member
 of. PostgreSQL 15 and later grant `PUBLIC` no `CREATE` on a new `public` anyway, so the
-property holds without it; the command reports a warning if it finds otherwise, step 2's
-`db-roles` re-applies the statement as the superuser, and the drill asserts the result.
+property holds without it; the command reports a warning if it finds otherwise, and the
+drill asserts the result.
+
+The run that re-applies it is **step 6's** `docker compose up --detach --wait`, not step
+2's. Step 2 runs before step 3 drops and recreates the database, so whatever it applied
+goes with the old one. The statement lives in the `db-roles` service, and `db-roles` is a
+`service_completed_successfully` dependency of `migrate`, which `api` depends on, so
+bringing the stack back up is what runs it again, as the superuser, which is the role
+that can.
 
 ### Step 6 runs the `migrate` one-shot, and that is harmless here
 

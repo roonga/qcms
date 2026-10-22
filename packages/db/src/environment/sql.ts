@@ -47,6 +47,10 @@ import {
   workspaceReportingViewNames,
   workspaceReportingViewStatements,
 } from "../reporting-views.js";
+// Aliased to the name this file's thirteen call sites already use: renaming them would
+// have been diff noise over a string function, and what mattered was removing the third
+// copy of the doubling rule (PR #1099's round-2 review, finding 6).
+import { sqlLiteral as literal } from "../sql-literal.js";
 import { ACCESS_AUDIT_TABLE } from "../schema/control/access-audit.js";
 import {
   APPLICATION_ROLE_PREFIX,
@@ -84,11 +88,6 @@ function requireName(name: string | undefined, what: string): string {
     throw new Error(`the per-environment generator needs a name for ${what}`);
   }
   return name;
-}
-
-/** `'test'` from `test`. A SQL string literal, with the doubling rule. */
-function literal(value: string): string {
-  return `'${value.replaceAll("'", "''")}'`;
 }
 
 /**
@@ -433,6 +432,20 @@ export function grantEnvironmentStatements(environment: string): string[] {
     `GRANT SELECT, INSERT, UPDATE, DELETE ON ALL TABLES IN SCHEMA ${quote(schema)} TO ${quote(role)}`,
     `GRANT USAGE ON ALL SEQUENCES IN SCHEMA ${quote(schema)} TO ${quote(role)}`,
     // Q52: its own reporting views and no other environment's.
+    //
+    // `ALL TABLES` means the environment-wide pair ONLY BECAUSE OF WHEN THIS RUNS. It is a
+    // point-in-time grant over the tables that exist at that moment, and on every live
+    // path that is `responses` and `answers_flat` and nothing else: the baseline creates
+    // them and grants, and `createEnvironment` grants (`command.ts`) before it reconciles
+    // the environment's per-workspace views. Move the reconciliation above the grant pass
+    // and this line silently hands the application role every workspace's views, which
+    // Q52 and 067's `workspaceReportingStatements` put on the analysts' roles instead.
+    //
+    // A restore inverts the order for free, because the views come back inside the dump,
+    // which is why `revokeWorkspaceViewsFromEnvironmentRole` in `./reporting.ts` exists
+    // and is in `GRANT_SOURCES` after this pass. Narrowing this statement to the two views
+    // it means would be the other fix; the Code Owner ruled on 2026-10-23 (PR #1099, Q82)
+    // to keep the revoke-only source and leave shipped migrations untouched.
     `GRANT USAGE ON SCHEMA ${quote(reporting)} TO ${quote(role)}`,
     `GRANT SELECT ON ALL TABLES IN SCHEMA ${quote(reporting)} TO ${quote(role)}`,
     `GRANT USAGE ON SCHEMA ${quote(CONTROL_SCHEMA)} TO ${quote(role)}`,

@@ -35,8 +35,10 @@
  * below anyway, read from the constants `@roonga/qcms-db` exports, so a failure says which
  * claim broke rather than printing a diff of several hundred rows.
  *
- * 03 is left untouched on purpose: it owns the claim about a **migrated** database, and
- * task 067 (PR #1093) is editing it.
+ * 03 is left untouched on purpose: it owns the claim about a **migrated** database, which
+ * is a different claim from this file's, and it was task 067's to edit (PR #1093, merged
+ * as `98bf4f32`). Keeping the two files apart is what lets a failure here say "the restore
+ * lost a grant" rather than "least privilege is wrong somewhere".
  *
  * ## Why `container.exec` rather than a simulated dump
  *

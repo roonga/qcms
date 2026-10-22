@@ -50,11 +50,22 @@ select line from (
     cross join qcms q
    where has_function_privilege(q.rolname, f.oid, 'EXECUTE')
   union all
+  -- Enums AND domains. The filter was `= 'e'`, which left a `CREATE DOMAIN`'s `USAGE`
+  -- grant outside the equality; the tree carries four `CREATE TYPE` and no `CREATE DOMAIN`
+  -- today, so this closes a latent gap rather than a live one (PR #1099's round-2 review,
+  -- finding 5).
+  --
+  -- Not every `typtype`, though the review suggested dropping the filter. Composites
+  -- ('c') would be the wrong kind of complete: every table has an implicit row type in
+  -- `pg_type`, and its array type with it, so admitting them would repeat the relation
+  -- rows above once per table per role and bury the grants that are about the model. 'e'
+  -- and 'd' are the kinds an application schema creates and grants deliberately. A future
+  -- standalone composite, which QCMS does not use, would need this line revisited.
   select format('type %s.%s %s USAGE', s.nspname, t.typname, q.rolname) as line
     from pg_catalog.pg_type t
     join schemas s on s.oid = t.typnamespace
     cross join qcms q
-   where t.typtype = 'e' and has_type_privilege(q.rolname, t.oid, 'USAGE')
+   where t.typtype in ('e', 'd') and has_type_privilege(q.rolname, t.oid, 'USAGE')
   union all
   select format('schema %s %s %s', s.nspname, q.rolname, p.privilege) as line
     from schemas s

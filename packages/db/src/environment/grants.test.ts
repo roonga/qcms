@@ -18,10 +18,12 @@ import { SHIPPED_ENVIRONMENTS } from "./baseline.js";
  *      tree, verbatim.** This is the direction `baseline.test.ts` and
  *      `control-table-grants.test.ts` already cover for their own files; it is repeated
  *      here over the whole list, so a source added to the registry that no migration
- *      carries fails. The one source outside that half is task 067's per-workspace
- *      reporting pass, which reads `control.organization` at run time and which no
- *      migration can carry; its exemption is **data on the source** and is asserted
- *      below, so a second exemption needs a deliberate edit and a reason.
+ *      carries fails. **Two** sources sit outside that half, both reading
+ *      `control.organization` at run time so that no migration can carry them: task 067's
+ *      per-workspace reporting grants, and the revoke that narrows the environment role
+ *      back off those same views. Their exemption is **data on the source** and the test
+ *      twenty lines down pins the exempt set to exactly the two that declare it, so a
+ *      third needs a deliberate edit and a reason.
  *   2. **Every `GRANT` and `REVOKE` in the migration tree is produced by the registry.**
  *      This is the one that fails when somebody writes a migration that grants something
  *      and does not add a producer for it. Without it, the next task's grant would be
