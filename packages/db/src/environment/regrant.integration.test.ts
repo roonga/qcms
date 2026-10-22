@@ -227,9 +227,7 @@ describe("the re-grant subcommand", { timeout: REGRANT_TIMEOUT_MS }, () => {
 
   it("reports one pass per source, with every environment-scoped source expanded", async () => {
     const report = await regrantEnvironments(db);
-    const perEnvironment = GRANT_SOURCES.filter(
-      (source) => source.scope !== "installation",
-    ).length;
+    const perEnvironment = GRANT_SOURCES.filter((source) => source.scope !== "installation").length;
     const installation = GRANT_SOURCES.length - perEnvironment;
     expect(report.passes).toHaveLength(installation + perEnvironment * 2);
     // Task 067's reporting source arrives as one more environment-scoped entry, and this

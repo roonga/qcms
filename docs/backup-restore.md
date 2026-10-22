@@ -76,7 +76,7 @@ The four flags are not incidental:
 | --------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | `--clean --if-exists` | The dump drops what it is about to create, so restoring over a partially populated database is deterministic rather than a pile of "already exists" errors. |
 | `--no-owner`          | The restore target's role may not be named the same thing. Ownership is reassigned to whoever runs the restore, which is why step 4 below names a role.     |
-| `--no-privileges`     | Grants are the target deployment's business, not the source's. The dump therefore carries **no grant at all**, which is why step 5 below exists.             |
+| `--no-privileges`     | Grants are the target deployment's business, not the source's. The dump therefore carries **no grant at all**, which is why step 5 below exists.            |
 
 **The last two flags each cost you a step on the way back, and both costs are
 deliberate** (Code Owner, 2026-10-22; issue #1094). A dump that named roles would be a
@@ -220,7 +220,7 @@ property holds without it; the command reports a warning if it finds otherwise, 
 
 ### Step 6 runs the `migrate` one-shot, and that is harmless here
 
-Do **not** run the `migrate` service *in order to migrate* after a restore. The dump
+Do **not** run the `migrate` service _in order to migrate_ after a restore. The dump
 contains drizzle's migrations table, so the restored database already knows its schema
 version, and migrating it is at best a no-op and at worst applies a migration the dump
 already contained.
@@ -268,7 +268,7 @@ produces a database the product actually works on. It:
    nothing.
 5. Restores from the dump **as `qcms_migrate`**, then **re-applies the grant model and
    holds the result against a snapshot taken in step 3**. First it asserts the restored
-   database does *not* yet hold the pre-dump grants, so the step cannot pass by doing
+   database does _not_ yet hold the pre-dump grants, so the step cannot pass by doing
    nothing; then it runs `qcms-db-environment regrant`, asserts each environment's role
    holds `USAGE` on its data and reporting schemas and `INSERT` on its `sessions`, asserts
    `control`, `data_<env>` and `reporting_<env>` are owned by `qcms_migrate`, asserts

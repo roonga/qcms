@@ -545,9 +545,7 @@ describe("after the restore and the re-grant", () => {
     // Every source that is not installation-wide expands once per environment, whichever
     // kind it is - which is what makes this count a property of the list rather than of
     // the sources anybody remembered.
-    const perEnvironment = GRANT_SOURCES.filter(
-      (source) => source.scope !== "installation",
-    ).length;
+    const perEnvironment = GRANT_SOURCES.filter((source) => source.scope !== "installation").length;
     const installation = GRANT_SOURCES.length - perEnvironment;
     expect(report.passes).toHaveLength(installation + perEnvironment * ENVIRONMENTS.length);
     // Every pass carries statements, the two reporting ones included: the workspaces
