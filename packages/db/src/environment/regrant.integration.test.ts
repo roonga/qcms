@@ -335,6 +335,28 @@ describe("the re-grant subcommand", { timeout: REGRANT_TIMEOUT_MS }, () => {
     expect(thrown.cause).toBeUndefined();
   });
 
+  it("is stable over a workspace whose reporting roles the operator has not created", async () => {
+    // The shape the Compose stack is in, and the one the restore drill found: 067's grants
+    // are guarded on each reporting role existing, so for such a workspace the views carry
+    // no ACL at all. Both of this PR's database-reading sources have to leave that alone -
+    // a `REVOKE` on a NULL `relacl` materialises it, and `aclexplode` then reports the
+    // owner's seven implicit entries for a relation that is semantically unchanged.
+    await owner.query(
+      `insert into control.organization (id, name, slug, "createdAt")
+         values ('org_regrant_unprovisioned', 'Unprovisioned', 'unprovisioned', now())`,
+    );
+    await reconcileWorkspaceReporting(db);
+    const expected = await grantMap(owner);
+    // The views exist, and nothing is granted on them, which is what makes the next two
+    // runs worth measuring.
+    expect(expected.filter((line) => line.includes("unprovisioned"))).toEqual([]);
+
+    await regrantEnvironments(db);
+    expect(await grantMap(owner), "after one re-grant").toEqual(expected);
+    await regrantEnvironments(db);
+    expect(await grantMap(owner), "after a second re-grant").toEqual(expected);
+  });
+
   it("refuses a database whose live set is empty, rather than granting nothing quietly", async () => {
     // A restored database carries the live set inside the dump, so an empty table means
     // the restore did not land the control plane - which is worth a refusal rather than a

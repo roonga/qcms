@@ -345,6 +345,31 @@ function restoreFrom(hostPath) {
 }
 
 /**
+ * The lines one grant snapshot has and the other does not, both ways round.
+ *
+ * A 460-line snapshot printed twice is not a diagnosis: the first failure of this
+ * comparison was read by diffing two blocks of log by hand. What a reader needs is the
+ * rows that moved, so that is what a refusal carries.
+ *
+ * @param {string} expected
+ * @param {string} actual
+ * @returns {string}
+ */
+function grantDifference(expected, actual) {
+  const split = (text) => new Set(text.split("\n").filter((line) => line.trim() !== ""));
+  const before = split(expected);
+  const after = split(actual);
+  const missing = [...before].filter((line) => !after.has(line)).sort();
+  const extra = [...after].filter((line) => !before.has(line)).sort();
+  return (
+    `${String(missing.length)} missing, ${String(extra.length)} unexpected\n` +
+    missing.map((line) => `  -${line}`).join("\n") +
+    (missing.length > 0 && extra.length > 0 ? "\n" : "") +
+    extra.map((line) => `  +${line}`).join("\n")
+  );
+}
+
+/**
  * Re-apply the grant model, which is the step the restore procedure gained for issue
  * #1094, and assert the result.
  *
@@ -816,14 +841,19 @@ async function drill() {
     const grantsAfterRegrant = grantSnapshot();
     if (grantsAfterRegrant !== grantsBefore) {
       throw new Error(
-        `drill-restore: the re-granted database does not hold the pre-dump grant map.\nbefore:\n${grantsBefore}\nafter:\n${grantsAfterRegrant}`,
+        "drill-restore: the re-granted database does not hold the pre-dump grant map.\n" +
+          grantDifference(grantsBefore, grantsAfterRegrant),
       );
     }
     // Idempotence, on the real images: running the step twice must change nothing, so an
     // operator re-running a recovery script cannot widen anything by doing so.
     regrant();
-    if (grantSnapshot() !== grantsBefore) {
-      throw new Error("drill-restore: running the re-grant a second time changed the grant map");
+    const grantsAfterSecond = grantSnapshot();
+    if (grantsAfterSecond !== grantsBefore) {
+      throw new Error(
+        "drill-restore: running the re-grant a second time changed the grant map.\n" +
+          grantDifference(grantsBefore, grantsAfterSecond),
+      );
     }
     process.stdout.write("drill-restore: the grant map matches the pre-dump one, twice over\n");
 
