@@ -4,6 +4,7 @@ import { fileURLToPath } from "node:url";
 import { describe, expect, it } from "vitest";
 
 import { ACCESS_AUDIT_TABLE } from "../schema/control/access-audit.js";
+import { ENDPOINT_PROPOSALS_TABLE } from "../schema/control/endpoint-proposals.js";
 import {
   CONTROL_READ_TABLES,
   grantAccessAuditStatements,
@@ -38,6 +39,11 @@ const MIGRATION = fileURLToPath(
  */
 const AUDIT_MIGRATION = fileURLToPath(
   new URL("../../migrations/0004_access_audit.sql", import.meta.url),
+);
+
+/** The migration that creates the pending `prod` endpoint change (task 070, Q30, Q51). */
+const PROPOSALS_MIGRATION = fileURLToPath(
+  new URL("../../migrations/0005_two_person_rule.sql", import.meta.url),
 );
 
 describe("the `form_releases` grants", () => {
@@ -132,5 +138,56 @@ describe("the SEC-15 access audit's grants and revokes (task 069, Q40 with Q56)"
     // Guarded on the table existing, because the baseline calls the generator before this
     // migration has run.
     expect(generated).toContain(`tablename = '${ACCESS_AUDIT_TABLE}'`);
+  });
+});
+
+describe("the pending `prod` endpoint change's grants (task 070, Q30 with Q51)", () => {
+  const sql = readFileSync(PROPOSALS_MIGRATION, "utf8");
+
+  it("are exactly the statements the generator emits, verbatim", () => {
+    const statements = grantControlTableStatements(ENDPOINT_PROPOSALS_TABLE);
+    // **One**, and the count is the decision: the control role's DML, and no loop over the
+    // environment roles, because this table is not on their read list.
+    expect(statements).toHaveLength(1);
+    for (const statement of statements) expect(sql).toContain(statement);
+  });
+
+  it("gives no environment role any privilege at all", () => {
+    // The property the control plane's split buys here: the credential that serves
+    // anonymous respondent traffic cannot read a proposed production URL and cannot write
+    // one. Proposing and confirming are an administrator's acts on configuration, so they
+    // run on the control pool - exactly as minting a secure link does while redeeming one
+    // does not (Q53).
+    expect(CONTROL_READ_TABLES).not.toContain(ENDPOINT_PROPOSALS_TABLE);
+    expect(sql).not.toContain("FROM control.environments AS environment");
+    expect(sql).not.toContain(`ON "control"."${ENDPOINT_PROPOSALS_TABLE}" TO %I`);
+    expect(grantEnvironmentStatements("staging").join("\n")).not.toContain(
+      ENDPOINT_PROPOSALS_TABLE,
+    );
+  });
+
+  it("carries no append-only trigger, unlike `form_releases`", () => {
+    // These rows have a lifecycle and are updated in place; the append-only record of what
+    // happened is the SEC-15 audit, which no application role may UPDATE or DELETE.
+    expect(sql).not.toContain("CREATE TRIGGER");
+  });
+
+  it("refuses a self-confirmation at the database as well as in the handler", () => {
+    // The one rule the whole mechanism exists for, written at every layer that could
+    // enforce it: a CHECK here, a predicate in `confirmEndpointProposal`, and a refusal
+    // with a message in the handler.
+    expect(sql).toContain('CONSTRAINT "webhook_endpoint_proposals_second_account"');
+    // The predicate is `applied_at is null`, not `confirmed_at is null`: a confirmation
+    // whose endpoint write did not land can still be resumed, so it keeps the endpoint
+    // claimed and a second proposal cannot be applied beside it.
+    expect(sql).toContain('CREATE UNIQUE INDEX "webhook_endpoint_proposals_one_open"');
+    expect(sql).toContain("WHERE applied_at is null and withdrawn_at is null");
+  });
+
+  it("records the publishing account the release rule compares against (Q51)", () => {
+    // `form_versions` is append-only, so a column added to it can never be filled in for
+    // the rows written before this migration - which is why the release rule refuses a
+    // `prod` release of such a version while the switch is on rather than waving it through.
+    expect(sql).toContain('ALTER TABLE "control"."form_versions" ADD COLUMN "published_by" text');
   });
 });

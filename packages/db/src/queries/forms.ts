@@ -195,6 +195,13 @@ export async function deleteDraft(exec: Executor, formId: FormId): Promise<boole
  * stamps. The version number is assigned atomically by a scalar subquery in the
  * same INSERT; the composite primary key `(formId, version)` is the backstop
  * against a concurrent duplicate.
+ *
+ * `publishedBy` is **the author the two-person rule compares against** (Q51, task 070): the
+ * account that published this version, frozen with the snapshot because the table is
+ * append-only and no later write can fill it in. It is optional on the input for the
+ * fixtures and seeding paths that publish without an administrator principal; both admin
+ * publish routes always pass it, and a null is the "author unknown" case the release rule
+ * refuses rather than waves through.
  */
 export async function insertFormVersion(
   exec: Executor,
@@ -206,6 +213,7 @@ export async function insertFormVersion(
     a2uiSpecVersion: string;
     semanticsVersion: string;
     publishedAt?: Date;
+    publishedBy?: string | null;
   },
 ): Promise<FormVersionRow> {
   const [row] = await exec
@@ -219,6 +227,7 @@ export async function insertFormVersion(
       a2uiSpecVersion: input.a2uiSpecVersion,
       semanticsVersion: input.semanticsVersion,
       ...(input.publishedAt ? { publishedAt: input.publishedAt } : {}),
+      publishedBy: input.publishedBy ?? null,
     })
     .returning();
   return row!;

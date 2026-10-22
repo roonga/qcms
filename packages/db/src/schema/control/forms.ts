@@ -104,6 +104,31 @@ export const formVersions = controlSchema.table(
     publishedAt: timestamp("published_at", { withTimezone: true, mode: "date" })
       .notNull()
       .defaultNow(),
+    /**
+     * The administrator who published this version: a better-auth `control.user` id, or
+     * null for a version published before task 070 added the column.
+     *
+     * **This is the "author" the two-person rule compares against** (Q51, ADR-41). A release
+     * to `prod` under the workspace's `requireSecondApprover` switch is refused when the
+     * releasing account is this one. Q51 defines the author as *the account that published
+     * the version*, not whoever last edited the draft, which is why the value is frozen here
+     * with the snapshot rather than derived from a draft's history: a draft several editors
+     * touched has exactly one author, so the check compares two accounts rather than two
+     * roles.
+     *
+     * **Deliberately no foreign key into `user`**, for the reason `form_releases.released_by`
+     * has none either: this is the audit answer to "who published that version", and a row
+     * whose actor a later account deletion could cascade or block answers the question only
+     * while it is convenient.
+     *
+     * **Nullable, and null means the author is unknown rather than nobody.** This table is
+     * append-only (`form_versions_reject_update`), so a column added to it can never be
+     * filled in for the rows written before it and no backfill value would be true. The
+     * release path therefore **refuses** a `prod` release of such a version while the switch
+     * is on, rather than letting it through: the rule cannot be checked, and the conservative
+     * answer to "cannot be checked" is no.
+     */
+    publishedBy: text("published_by"),
   },
   (t) => [
     primaryKey({ columns: [t.formId, t.version] }),

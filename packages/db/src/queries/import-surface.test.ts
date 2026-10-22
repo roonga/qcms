@@ -255,6 +255,19 @@ describe("query helper import surface", () => {
     "writeAccessAuditRow",
     "listAccessAudit",
     "countAccessAuditByKind",
+    // The pending `prod` endpoint change (Q30 with Q51; task 070). **No delete helper**,
+    // and the absence is the same kind as the audit's above: a proposal is resolved by
+    // being confirmed or withdrawn, each of which records the account that did it, and a
+    // helper that removed the row would be a way to make a proposed production URL stop
+    // having been proposed. Both state transitions carry their precondition in the
+    // statement, so two confirmations racing cannot both apply.
+    "insertEndpointProposal",
+    "getEndpointProposal",
+    "listOpenEndpointProposals",
+    "hasPendingEndpointProposal",
+    "confirmEndpointProposal",
+    "markEndpointProposalApplied",
+    "withdrawEndpointProposal",
   ];
 
   it("exposes exactly the intended query-helper surface", () => {

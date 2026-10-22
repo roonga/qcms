@@ -73,6 +73,7 @@ const DETAIL: FormDetail = {
   challengeEnforceable: false,
   draftAgentAssisted: false,
   draftUpdatedAt: null,
+  requiresSecondApprover: false,
 };
 
 /** The builder's non-assist props, none of which this file is about. */

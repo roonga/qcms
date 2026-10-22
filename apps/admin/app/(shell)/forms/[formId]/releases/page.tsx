@@ -98,6 +98,17 @@ export default async function FormReleasesPage({
         environments={environments}
         selectedEnvironment={environment}
         release={releaseVersionAction.bind(null, form.formId)}
+        // The two-person rule's three inputs (Q51, task 070): the workspace's switch, the
+        // account reading the screen, and the account that **published** each version. The
+        // panel needs all three to say whether this operator can release this version into
+        // production before they press anything, instead of after a 403.
+        twoPerson={{
+          required: form.requiresSecondApprover,
+          viewer: session.userId,
+          authorOf: Object.fromEntries(
+            form.versions.map((version) => [String(version.version), version.publishedBy]),
+          ),
+        }}
       />
     </div>
   );

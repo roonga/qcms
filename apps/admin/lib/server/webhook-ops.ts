@@ -2,6 +2,7 @@ import type {
   DeadLetterItem,
   DeliveryItem,
   DeliveryStatus,
+  EndpointProposal,
   RevealedWebhook,
   WebhookSummary,
 } from "../ops/types.ts";
@@ -49,12 +50,20 @@ export async function listWebhooks(
   return { ok: true, data: rows(result.data.webhooks).filter(isWebhook).map(parseWebhook) };
 }
 
-/** `POST /admin/forms/{id}/webhooks` - configure one. The secret comes back once. */
+/**
+ * `POST /admin/forms/{id}/webhooks` - configure one. The secret comes back once.
+ *
+ * **Or the change is stored pending** (Q30, Q51; task 070): in a workspace that requires a
+ * second approver for production, a new `prod` endpoint is a proposal and no endpoint
+ * exists yet. The secret is still revealed here, because this is the only moment its
+ * plaintext exists - and nothing signs with it until a second account confirms the change,
+ * which is what `pending` tells the screen to say.
+ */
 export async function createWebhook(
   session: AdminSession,
   formId: string,
   request: { readonly url: string; readonly active: boolean },
-): Promise<ApiResult<RevealedWebhook>> {
+): Promise<ApiResult<ConfigureOutcome<RevealedWebhook>>> {
   const result = await readResult<Record<string, unknown>>(
     await adminApiFetch(session, `/forms/${encodeURIComponent(formId)}/webhooks`, {
       method: "POST",
@@ -62,7 +71,7 @@ export async function createWebhook(
     }),
   );
   if (!result.ok) return result;
-  return { ok: true, data: parseRevealed(result.data) };
+  return { ok: true, data: outcome(result.data, () => parseRevealed(result.data)) };
 }
 
 /**
@@ -77,7 +86,7 @@ export async function rotateWebhookSecret(
   session: AdminSession,
   formId: string,
   webhookId: string,
-): Promise<ApiResult<RevealedWebhook>> {
+): Promise<ApiResult<ConfigureOutcome<RevealedWebhook>>> {
   const result = await readResult<Record<string, unknown>>(
     await adminApiFetch(
       session,
@@ -86,7 +95,10 @@ export async function rotateWebhookSecret(
     ),
   );
   if (!result.ok) return result;
-  return { ok: true, data: parseRevealed({ ...result.data, webhookId }) };
+  return {
+    ok: true,
+    data: outcome(result.data, () => parseRevealed({ ...result.data, webhookId })),
+  };
 }
 
 /**
@@ -100,7 +112,7 @@ export async function deactivateWebhook(
   session: AdminSession,
   formId: string,
   webhookId: string,
-): Promise<ApiResult<{ readonly webhookId: string }>> {
+): Promise<ApiResult<ConfigureOutcome<{ readonly webhookId: string }>>> {
   const result = await readResult<Record<string, unknown>>(
     await adminApiFetch(
       session,
@@ -109,7 +121,10 @@ export async function deactivateWebhook(
     ),
   );
   if (!result.ok) return result;
-  return { ok: true, data: { webhookId: text(result.data["webhookId"], webhookId) } };
+  return {
+    ok: true,
+    data: outcome(result.data, () => ({ webhookId: text(result.data["webhookId"], webhookId) })),
+  };
 }
 
 /** `PUT .../{webhookId}` with `active: true` - put a deactivated endpoint back in service. */
@@ -117,7 +132,7 @@ export async function reactivateWebhook(
   session: AdminSession,
   formId: string,
   webhookId: string,
-): Promise<ApiResult<{ readonly webhookId: string }>> {
+): Promise<ApiResult<ConfigureOutcome<{ readonly webhookId: string }>>> {
   const result = await readResult<Record<string, unknown>>(
     await adminApiFetch(
       session,
@@ -126,7 +141,10 @@ export async function reactivateWebhook(
     ),
   );
   if (!result.ok) return result;
-  return { ok: true, data: { webhookId: text(result.data["webhookId"], webhookId) } };
+  return {
+    ok: true,
+    data: outcome(result.data, () => ({ webhookId: text(result.data["webhookId"], webhookId) })),
+  };
 }
 
 /** `PUT .../{webhookId}` with a new url - repointing a broken target. */
@@ -135,7 +153,7 @@ export async function retargetWebhook(
   formId: string,
   webhookId: string,
   url: string,
-): Promise<ApiResult<{ readonly webhookId: string; readonly url: string }>> {
+): Promise<ApiResult<ConfigureOutcome<{ readonly webhookId: string; readonly url: string }>>> {
   const result = await readResult<Record<string, unknown>>(
     await adminApiFetch(
       session,
@@ -146,10 +164,10 @@ export async function retargetWebhook(
   if (!result.ok) return result;
   return {
     ok: true,
-    data: {
+    data: outcome(result.data, () => ({
       webhookId: text(result.data["webhookId"], webhookId),
       url: text(result.data["url"], url),
-    },
+    })),
   };
 }
 
@@ -239,7 +257,116 @@ export async function redeliver(
   };
 }
 
+// --- the pending `prod` endpoint change (Q30, Q51; task 070) ---------------
+
+/** `GET /admin/forms/{id}/webhooks/proposals` - what is waiting, in the shown environment. */
+export async function listEndpointProposals(
+  session: AdminSession,
+  formId: string,
+): Promise<ApiResult<readonly EndpointProposal[]>> {
+  const result = await readResult<{ proposals?: unknown }>(
+    await adminApiFetch(session, `/forms/${encodeURIComponent(formId)}/webhooks/proposals`),
+  );
+  if (!result.ok) return result;
+  return {
+    ok: true,
+    data: rows(result.data.proposals)
+      .filter((entry) => typeof entry["proposalId"] === "string")
+      .map(parseProposal),
+  };
+}
+
+/**
+ * `POST .../proposals/{proposalId}/confirm` - the second of Q51's two acts.
+ *
+ * Refused for the account that proposed it, and refused for anybody who does not hold
+ * `forms.approver` with this environment in scope. Neither refusal is this app's to make:
+ * the API answers both, and this screen renders the answer (R2).
+ */
+export async function confirmEndpointProposal(
+  session: AdminSession,
+  formId: string,
+  proposalId: string,
+  environment: string,
+): Promise<ApiResult<EndpointProposal>> {
+  const result = await readResult<{ proposal?: unknown }>(
+    await adminApiFetch(
+      session,
+      `/forms/${encodeURIComponent(formId)}/webhooks/proposals/${encodeURIComponent(proposalId)}/confirm`,
+      { method: "POST", environment },
+    ),
+  );
+  if (!result.ok) return result;
+  return { ok: true, data: parseProposal(asRecord(result.data.proposal)) };
+}
+
+/** `DELETE .../proposals/{proposalId}` - end a pending change without applying it. */
+export async function withdrawEndpointProposal(
+  session: AdminSession,
+  formId: string,
+  proposalId: string,
+  environment: string,
+): Promise<ApiResult<EndpointProposal>> {
+  const result = await readResult<{ proposal?: unknown }>(
+    await adminApiFetch(
+      session,
+      `/forms/${encodeURIComponent(formId)}/webhooks/proposals/${encodeURIComponent(proposalId)}`,
+      { method: "DELETE", environment },
+    ),
+  );
+  if (!result.ok) return result;
+  return { ok: true, data: parseProposal(asRecord(result.data.proposal)) };
+}
+
 // --- reading the API's payloads ---------------------------------------------
+
+function asRecord(raw: unknown): Record<string, unknown> {
+  return typeof raw === "object" && raw !== null ? (raw as Record<string, unknown>) : {};
+}
+
+const PROPOSAL_KINDS: readonly EndpointProposal["kind"][] = ["create", "update", "deactivate"];
+
+/**
+ * Read one pending change.
+ *
+ * An unrecognised `kind` reads as `update`, which is the direction a delivery row's
+ * unknown status already takes and for the same reason: a change this build cannot classify
+ * is still one an approver has to be able to see and withdraw, so it stays in the list
+ * rather than vanishing from the only screen that can end it. `url` stays **null** when the
+ * API sent none, because a deactivation names no target and an empty string in that cell
+ * would read as "pointed at nothing".
+ */
+function parseProposal(entry: Record<string, unknown>): EndpointProposal {
+  return {
+    proposalId: text(entry["proposalId"], ""),
+    webhookId: text(entry["webhookId"], ""),
+    environment: text(entry["environment"], ""),
+    kind: PROPOSAL_KINDS.find((kind) => kind === entry["kind"]) ?? "update",
+    url: nullableText(entry["url"]),
+    active: typeof entry["active"] === "boolean" ? entry["active"] : null,
+    rotatesSecret: entry["rotatesSecret"] === true,
+    proposedBy: text(entry["proposedBy"], ""),
+    proposedAt: text(entry["proposedAt"], ""),
+    confirmedBy: nullableText(entry["confirmedBy"]),
+    confirmedAt: nullableText(entry["confirmedAt"]),
+    appliedAt: nullableText(entry["appliedAt"]),
+  };
+}
+
+/**
+ * The pending change a configure call was stored as, or `undefined` when it applied at
+ * once.
+ *
+ * One reader for all five mutations, because a `202` means the same thing on every one of
+ * them: the workspace requires a second approver for production, so nothing happened to
+ * the endpoint yet. Keyed off the body's own `pending` marker rather than off the status
+ * code, so a caller that does not inspect the response still cannot mistake one for the
+ * other.
+ */
+function pendingOf(entry: Record<string, unknown>): EndpointProposal | undefined {
+  if (entry["pending"] !== true) return undefined;
+  return parseProposal(asRecord(entry["proposal"]));
+}
 
 const DELIVERY_STATUSES: readonly DeliveryStatus[] = [
   "delivered",
@@ -344,4 +471,30 @@ function headerMap(raw: unknown): Readonly<Record<string, string>> | null {
     (entry): entry is [string, string] => typeof entry[1] === "string",
   );
   return entries.length === 0 ? null : Object.fromEntries(entries);
+}
+
+/**
+ * What a configure call did: applied at once, or stored pending for a second approver
+ * (Q30, Q51; task 070).
+ *
+ * One union for all five mutations, because the two-person rule answers each of them the
+ * same way and a screen that handled it per call site would be five places for the pending
+ * case to be forgotten - and forgetting it means telling an operator a production endpoint
+ * changed when it did not.
+ */
+export type ConfigureOutcome<T> =
+  | { readonly pending: false; readonly applied: T }
+  | { readonly pending: true; readonly proposal: EndpointProposal; readonly secret?: string };
+
+/** Read a configure response into {@link ConfigureOutcome}. */
+function outcome<T>(entry: Record<string, unknown>, applied: () => T): ConfigureOutcome<T> {
+  const proposal = pendingOf(entry);
+  if (proposal === undefined) return { pending: false, applied: applied() };
+  return {
+    pending: true,
+    proposal,
+    // Present only when the pending change sets a new signing secret, and shown exactly
+    // once here as it would have been on a change that applied at once (SEC-6).
+    ...(typeof entry["secret"] === "string" ? { secret: entry["secret"] } : {}),
+  };
 }

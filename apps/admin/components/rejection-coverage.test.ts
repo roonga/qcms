@@ -86,6 +86,9 @@ const HANDLERS: Readonly<Record<string, readonly string[]>> = {
     "copy a minted URL (forms/secure-links-rejects.test.tsx)",
   ],
   "ops/dead-letters.tsx": ["redeliver, single and bulk (ops/dead-letters-rejects.test.tsx)"],
+  "ops/endpoint-proposals.tsx": [
+    "confirm and withdraw a pending prod endpoint change (ops/endpoint-proposals.test.tsx)",
+  ],
   "ops/response-detail.tsx": [
     "release a withheld event (ops/response-detail-rejects.test.tsx)",
     "erase (ops/response-detail-rejects.test.tsx)",
@@ -151,11 +154,12 @@ describe("the rejection handlers of the admin's forms and ops components", () =>
     expect(found).toStrictEqual(declared);
   });
 
-  it("number fifteen, of which eleven are action rejections (nine at issue #352)", () => {
+  it("number sixteen, of which twelve are action rejections (nine at issue #352)", () => {
     const entries = Object.values(HANDLERS).flat();
     // Fifteen since task 065: the combined publish-and-release action and the release
-    // panel's own each added one.
-    expect(entries).toHaveLength(15);
+    // panel's own each added one. **Sixteen since task 070**, whose pending-change panel
+    // drives a confirm and a withdraw through one handler.
+    expect(entries).toHaveLength(16);
 
     // Three clipboard chains: a refusal the operator can act on, or silence.
     const clipboard = entries.filter((entry) => entry.startsWith("copy"));
@@ -170,7 +174,10 @@ describe("the rejection handlers of the admin's forms and ops components", () =>
     // moves only when an action-rejection handler is genuinely added or removed, not when
     // a handler of some other shape joins the list.
     // Eleven since task 065: the combined publish-and-release action and the release
-    // panel's own release are both action rejections.
-    expect(entries.length - clipboard.length - parse.length).toBe(11);
+    // panel's own release are both action rejections. **Twelve since task 070**: a
+    // confirmation of a pending production endpoint change is one too, and it is the one
+    // whose silence would be worst - an operator left wondering whether a production
+    // endpoint just moved.
+    expect(entries.length - clipboard.length - parse.length).toBe(12);
   });
 });

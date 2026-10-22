@@ -110,6 +110,7 @@ const VERSIONS: readonly FormVersionSummary[] = [
     compilerVersion: "1.2.3",
     a2uiSpecVersion: "0.9.0",
     semanticsVersion: "4",
+    publishedBy: null,
   },
   {
     version: 1,
@@ -117,6 +118,7 @@ const VERSIONS: readonly FormVersionSummary[] = [
     compilerVersion: "1.2.2",
     a2uiSpecVersion: "0.9.0",
     semanticsVersion: "4",
+    publishedBy: null,
   },
 ];
 

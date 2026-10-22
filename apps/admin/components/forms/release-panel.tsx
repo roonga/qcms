@@ -7,6 +7,7 @@ import { Alert, Button, Dialog, Select } from "@/components/kit";
 import { OperatorDay } from "@/components/operator-time";
 import type { ReleaseState } from "@/lib/forms/builder-state";
 import { IDLE_RELEASE } from "@/lib/forms/builder-state";
+import { PROD_ENVIRONMENT } from "@/lib/environment";
 import { currentReleaseByEnvironment, type ReleaseRecord } from "@/lib/forms/releases";
 import { t } from "@/lib/i18n/en";
 import { unexpected } from "@/lib/ops/unexpected";
@@ -64,12 +65,39 @@ function movement(row: ReleaseRecord): string {
   return t("forms.releases.replaced", { replaced: row.replacedVersion });
 }
 
+/**
+ * The one sentence the two-person rule has to say about the selected pair (Q51, task 070).
+ *
+ * Three cases and they are not interchangeable - the operator published this version and
+ * cannot release it, the author is unknown so the rule cannot be checked, or somebody else
+ * published it and this operator is the second account - so it is a function rather than a
+ * nested ternary inside the markup, which is both harder to read and a lint error here.
+ */
+function twoPersonSentence(input: {
+  readonly blockedByRule: boolean;
+  readonly author: string | null;
+  readonly version: number;
+  readonly environment: string;
+}): string {
+  if (input.blockedByRule) {
+    return t("forms.releases.twoPersonSelf", {
+      version: input.version,
+      environment: input.environment,
+    });
+  }
+  if (input.author === null) {
+    return t("forms.releases.twoPersonUnknown", { version: input.version });
+  }
+  return t("forms.releases.twoPersonSecond", { environment: input.environment });
+}
+
 export function ReleasePanel({
   releases,
   versions,
   environments,
   selectedEnvironment,
   release,
+  twoPerson,
 }: {
   /** The whole history, newest first, every environment. */
   readonly releases: readonly ReleaseRecord[];
@@ -84,6 +112,22 @@ export function ReleasePanel({
     version: number;
     fromEnvironment?: string;
   }) => Promise<ReleaseState>;
+  /**
+   * The two-person rule for production, where the workspace has turned it on (Q13, Q30,
+   * Q51; task 070).
+   *
+   * `required` is the workspace's switch, `authorOf` is the account that **published** each
+   * version (Q51's author) and `viewer` is the account reading the screen. The dialog uses
+   * all three to say, before anything is pressed, whether this operator can release this
+   * version into production - rather than letting them find out from a 403. Nothing here
+   * decides anything (R2): the API refuses the act, and this is what stops the refusal
+   * being the first the operator hears of the rule.
+   */
+  readonly twoPerson: {
+    readonly required: boolean;
+    readonly viewer: string;
+    readonly authorOf: Readonly<Record<string, string | null>>;
+  };
 }) {
   const [isOpen, setOpen] = useState(false);
   const [environment, setEnvironment] = useState(selectedEnvironment);
@@ -100,6 +144,15 @@ export function ReleasePanel({
   // records it.
   const isRollback =
     version !== undefined && currentVersion !== undefined && version < currentVersion;
+
+  // The two-person rule's three readings of the selected (version, environment) pair. The
+  // rule gates `prod` alone (finding 5), so this is false everywhere else whatever the
+  // workspace setting says - which is the same narrowing the API makes.
+  const gatedByRule = twoPerson.required && environment === PROD_ENVIRONMENT;
+  const author = version === undefined ? null : (twoPerson.authorOf[String(version)] ?? null);
+  // Two accounts, not two kinds of person: what blocks the release is this operator having
+  // published this version, never which roles they hold.
+  const blockedByRule = gatedByRule && author !== null && author === twoPerson.viewer;
 
   const run = (): void => {
     if (version === undefined) return;
@@ -333,6 +386,17 @@ export function ReleasePanel({
             <p className="text-sm font-semibold" data-testid="qcms-release-environment">
               {t("environment.inThis", { environment })}
             </p>
+            {/* The two-person rule, stated before the press (Q51, task 070). Three cases
+                and they are not interchangeable: the operator published this version and
+                cannot release it, the author is unknown so the rule cannot be checked, or
+                somebody else published it and this operator is the second account. */}
+            {gatedByRule && (
+              <div data-testid="qcms-release-two-person">
+                <Alert variant={blockedByRule ? "error" : "info"}>
+                  {twoPersonSentence({ blockedByRule, author, version, environment })}
+                </Alert>
+              </div>
+            )}
             {isRollback && (
               <div data-testid="qcms-release-rollback-warning">
                 <Alert variant="warning">
@@ -350,7 +414,17 @@ export function ReleasePanel({
               </Alert>
             )}
             <div className="flex flex-wrap gap-2">
-              <Button variant="primary" size="md" isDisabled={isPending} onPress={run}>
+              <Button
+                variant="primary"
+                size="md"
+                // Disabled rather than left to fail: the API refuses this exact pair with
+                // a 403, and a button that is certain to be refused is a button that
+                // teaches the rule by refusing. Every other refusal the rule can raise
+                // depends on the caller's grants, which this screen does not hold, so
+                // those are still the API's to answer.
+                isDisabled={isPending || blockedByRule}
+                onPress={run}
+              >
                 {isPending
                   ? t("forms.releases.pending")
                   : t("forms.releases.confirm", { environment })}

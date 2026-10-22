@@ -142,6 +142,48 @@ export interface RevealedWebhook {
 }
 
 /**
+ * One endpoint change waiting for a second approver (ADR-41's release rule, Q30, Q51;
+ * task 070).
+ *
+ * The workspace's two-person switch gates **`prod` alone**, so this list is empty in every
+ * other environment and empty in `prod` too for a workspace that has not turned the rule
+ * on. When it is on, a configure act is stored rather than applied and this is what the
+ * screen renders from: **two accounts and no third thing**, because that is the whole shape
+ * of the rule.
+ *
+ * `url` arrives **already masked for a `forms.viewer`** (Q58). The API does the masking in
+ * the response, never this app's rendering, so a second client of the same route cannot see
+ * round it - and the role that can see a pending production change is not necessarily the
+ * role that may set its target.
+ */
+export interface EndpointProposal {
+  readonly proposalId: string;
+  readonly webhookId: string;
+  readonly environment: string;
+  /** Which configure act is waiting: a new endpoint, a change to one, or its removal. */
+  readonly kind: "create" | "update" | "deactivate";
+  /** The proposed target, or null where the act names none (a deactivation). */
+  readonly url: string | null;
+  readonly active: boolean | null;
+  /** True when confirming this will also rotate the signing secret. */
+  readonly rotatesSecret: boolean;
+  readonly proposedBy: string;
+  readonly proposedAt: string;
+  /**
+   * The confirming account, where one has confirmed.
+   *
+   * Non-null with `appliedAt` still null is a confirmation whose endpoint write did not
+   * land: the proposal and the endpoint commit on two different pools, so the window
+   * exists, and the endpoint is **not** live. The panel says so rather than implying it,
+   * because the alternative reading - "confirmed, therefore live" - is the one that would
+   * send an operator looking for deliveries that are not happening.
+   */
+  readonly confirmedBy: string | null;
+  readonly confirmedAt: string | null;
+  readonly appliedAt: string | null;
+}
+
+/**
  * The delivery lifecycle, as the API derives it from the row's timestamps.
  *
  * `cancelled` (059) is a delivery erasure terminally stopped: it will never be

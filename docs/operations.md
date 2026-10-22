@@ -783,6 +783,21 @@ migration and the command runs after it, and one emission has to be correct in b
 positions. Task 064 set **no `ALTER DEFAULT PRIVILEGES`**, so a control-plane table's
 grants are explicit or absent.
 
+**The pending `prod` endpoint change is the ordinary case, and the absence in it is the
+decision** (Q30 with Q51, task 070). `control.webhook_endpoint_proposals` holds an endpoint
+change that is waiting for a second approver in a workspace that requires one. Its grants
+are what `grantControlTableStatements` emits for any new control-plane table and
+nothing more: **`qcms_app_control` gets DML, and no environment role gets anything at all**.
+The table is not on the environment roles' read list, so the credential that serves
+anonymous respondent traffic can neither read a proposed production URL nor write one -
+proposing and confirming are an administrator's acts on configuration, so they run on the
+control pool exactly as **minting** a secure link does while **redeeming** one does not. The
+statement lives in migration 0005, which is the migration that creates the table, and the
+environment-create command needs no clause for it because no role it creates holds anything
+there. There is **no append-only trigger** either, unlike `form_releases`: these rows have a
+lifecycle and are updated in place, and the append-only record of what happened is the
+SEC-15 audit above.
+
 **If you renamed the application roles entirely, this revoke is still yours to check.**
 The prefix is `qcms_app`, so a deployment that calls its roles something else keeps all
 four privileges on the audit table. That is a real limit and not an oversight: a

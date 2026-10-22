@@ -520,6 +520,10 @@
           "challengeEnforceable": {
             "type": "boolean",
             "example": false
+          },
+          "requiresSecondApprover": {
+            "type": "boolean",
+            "example": false
           }
         },
         "required": [
@@ -532,7 +536,8 @@
           "draftUpdatedAt",
           "versions",
           "settings",
-          "challengeEnforceable"
+          "challengeEnforceable",
+          "requiresSecondApprover"
         ]
       },
       "FormVersionSummary": {
@@ -559,6 +564,11 @@
           "semanticsVersion": {
             "type": "string",
             "example": "1"
+          },
+          "publishedBy": {
+            "type": "string",
+            "nullable": true,
+            "example": "usr_alice"
           }
         },
         "required": [
@@ -566,7 +576,8 @@
           "publishedAt",
           "compilerVersion",
           "a2uiSpecVersion",
-          "semanticsVersion"
+          "semanticsVersion",
+          "publishedBy"
         ]
       },
       "FormSettings": {
@@ -2534,6 +2545,111 @@
           "createdAt"
         ]
       },
+      "PendingEndpointChangeResponse": {
+        "type": "object",
+        "properties": {
+          "pending": {
+            "type": "boolean",
+            "enum": [
+              true
+            ],
+            "example": true
+          },
+          "proposal": {
+            "$ref": "#/components/schemas/EndpointProposal"
+          },
+          "secret": {
+            "type": "string",
+            "example": "whsec_…"
+          }
+        },
+        "required": [
+          "pending",
+          "proposal"
+        ]
+      },
+      "EndpointProposal": {
+        "type": "object",
+        "properties": {
+          "proposalId": {
+            "type": "string",
+            "example": "wep_ab12cd34"
+          },
+          "formId": {
+            "type": "string",
+            "example": "frm_intake"
+          },
+          "environment": {
+            "type": "string",
+            "example": "prod"
+          },
+          "webhookId": {
+            "type": "string",
+            "example": "whk_ab12cd34"
+          },
+          "kind": {
+            "type": "string",
+            "enum": [
+              "create",
+              "update",
+              "deactivate"
+            ],
+            "example": "update"
+          },
+          "url": {
+            "type": "string",
+            "nullable": true,
+            "example": "https://consumer.example.com/qcms-hook-v2"
+          },
+          "active": {
+            "type": "boolean",
+            "nullable": true,
+            "example": true
+          },
+          "rotatesSecret": {
+            "type": "boolean",
+            "example": false
+          },
+          "proposedBy": {
+            "type": "string",
+            "example": "usr_alice"
+          },
+          "proposedAt": {
+            "type": "string",
+            "example": "2026-10-22T00:00:00.000Z"
+          },
+          "confirmedBy": {
+            "type": "string",
+            "nullable": true,
+            "example": null
+          },
+          "confirmedAt": {
+            "type": "string",
+            "nullable": true,
+            "example": null
+          },
+          "appliedAt": {
+            "type": "string",
+            "nullable": true,
+            "example": null
+          }
+        },
+        "required": [
+          "proposalId",
+          "formId",
+          "environment",
+          "webhookId",
+          "kind",
+          "url",
+          "active",
+          "rotatesSecret",
+          "proposedBy",
+          "proposedAt",
+          "confirmedBy",
+          "confirmedAt",
+          "appliedAt"
+        ]
+      },
       "CreateWebhookBody": {
         "type": "object",
         "properties": {
@@ -2701,6 +2817,31 @@
           "webhookId",
           "active",
           "deactivatedAt"
+        ]
+      },
+      "EndpointProposalListResponse": {
+        "type": "object",
+        "properties": {
+          "proposals": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/EndpointProposal"
+            }
+          }
+        },
+        "required": [
+          "proposals"
+        ]
+      },
+      "EndpointProposalResponse": {
+        "type": "object",
+        "properties": {
+          "proposal": {
+            "$ref": "#/components/schemas/EndpointProposal"
+          }
+        },
+        "required": [
+          "proposal"
         ]
       },
       "DeadLettersResponse": {
@@ -7206,6 +7347,16 @@
               }
             }
           },
+          "202": {
+            "description": "The workspace requires a second approver for production, so the change is stored pending and takes effect on nothing until a different account confirms it",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PendingEndpointChangeResponse"
+                }
+              }
+            }
+          },
           "400": {
             "description": "Bad request",
             "content": {
@@ -7228,6 +7379,16 @@
           },
           "404": {
             "description": "Not found",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "Conflict",
             "content": {
               "application/json": {
                 "schema": {
@@ -7369,6 +7530,16 @@
               }
             }
           },
+          "202": {
+            "description": "The workspace requires a second approver for production, so the change is stored pending and takes effect on nothing until a different account confirms it",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PendingEndpointChangeResponse"
+                }
+              }
+            }
+          },
           "400": {
             "description": "Bad request",
             "content": {
@@ -7391,6 +7562,16 @@
           },
           "404": {
             "description": "Not found",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "Conflict",
             "content": {
               "application/json": {
                 "schema": {
@@ -7454,6 +7635,16 @@
               }
             }
           },
+          "202": {
+            "description": "The workspace requires a second approver for production, so the change is stored pending and takes effect on nothing until a different account confirms it",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PendingEndpointChangeResponse"
+                }
+              }
+            }
+          },
           "400": {
             "description": "Bad request",
             "content": {
@@ -7476,6 +7667,278 @@
           },
           "404": {
             "description": "Not found",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "Conflict",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/admin/forms/{id}/webhooks/proposals": {
+      "get": {
+        "summary": "List endpoint changes waiting for a second approver, in the selected environment (admin)",
+        "tags": [
+          "webhooks"
+        ],
+        "security": [
+          {
+            "MachineToken": [
+              "webhooks:manage"
+            ]
+          }
+        ],
+        "parameters": [
+          {
+            "schema": {
+              "type": "string",
+              "example": "frm_intake"
+            },
+            "required": true,
+            "name": "id",
+            "in": "path"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "The endpoint changes that are pending, newest first; a proposed URL's query string is masked for a caller holding only forms.viewer",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/EndpointProposalListResponse"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Bad request",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Missing or invalid credentials",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Not found",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/admin/forms/{id}/webhooks/proposals/{proposalId}/confirm": {
+      "post": {
+        "summary": "Confirm a pending endpoint change; refused for the account that proposed it (admin)",
+        "tags": [
+          "webhooks"
+        ],
+        "security": [
+          {
+            "MachineToken": [
+              "webhooks:manage"
+            ]
+          }
+        ],
+        "parameters": [
+          {
+            "schema": {
+              "type": "string",
+              "example": "frm_intake"
+            },
+            "required": true,
+            "name": "id",
+            "in": "path"
+          },
+          {
+            "schema": {
+              "type": "string",
+              "example": "wep_ab12cd34"
+            },
+            "required": true,
+            "name": "proposalId",
+            "in": "path"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "The confirmed change, now applied to the endpoint",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/EndpointProposalResponse"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Bad request",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Missing or invalid credentials",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Forbidden",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Not found",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "Conflict",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/admin/forms/{id}/webhooks/proposals/{proposalId}": {
+      "delete": {
+        "summary": "Withdraw a pending endpoint change (admin)",
+        "tags": [
+          "webhooks"
+        ],
+        "security": [
+          {
+            "MachineToken": [
+              "webhooks:manage"
+            ]
+          }
+        ],
+        "parameters": [
+          {
+            "schema": {
+              "type": "string",
+              "example": "frm_intake"
+            },
+            "required": true,
+            "name": "id",
+            "in": "path"
+          },
+          {
+            "schema": {
+              "type": "string",
+              "example": "wep_ab12cd34"
+            },
+            "required": true,
+            "name": "proposalId",
+            "in": "path"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "The withdrawn change, which was applied to nothing",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/EndpointProposalResponse"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Bad request",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Missing or invalid credentials",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Forbidden",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Not found",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "Conflict",
             "content": {
               "application/json": {
                 "schema": {

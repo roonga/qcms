@@ -559,6 +559,56 @@ export const ROUTE_POLICIES: readonly RoutePolicy[] = [
     environmentFrom: "switcher",
   },
   {
+    // What is waiting for a second approver (Q30, Q51; task 070). The **endpoint read's**
+    // cell, like the endpoint list above, and it names no environment for the same reason
+    // that one does not: a configuration read is workspace-wide and environment-agnostic in
+    // the matrix (Q39), because authoring roles are workspace-wide and only the write
+    // actions are environment-scoped. The handler reads the switcher to choose which
+    // environment's pending list to show, exactly as the endpoint list does.
+    method: "GET",
+    path: "/admin/forms/{id}/webhooks/proposals",
+    resource: "webhook",
+    action: "read",
+    workspace: "form",
+  },
+  {
+    // Confirming a pending endpoint change: `webhook: configure` in the switcher's
+    // environment, so in `prod` the matrix's production split means only a
+    // `forms.approver` holding `prod` in scope reaches it (069's `policy.ts`). That is
+    // criterion 7's "a second account without `forms.approver` holding `prod` cannot
+    // confirm", enforced by the same table as every other cell rather than by a check this
+    // handler could forget.
+    //
+    // **`switcher`, and the handler compares the proposal's own environment against it.**
+    // A `prod` proposal confirmed by a request whose switcher said `test` would be
+    // authorised against `test`, where a `forms.editor` suffices - the exact bypass PR
+    // #1061's review found one route over - so a mismatch is not found.
+    //
+    // No `audit` kind: the SEC-15 row rides the confirmation's own transaction on the
+    // control pool, and the kinds this column names are the response-data ones plus the
+    // grant family. The `setting` row this writes is Q61's, and the handler writes it
+    // beside the state change rather than from this column.
+    method: "POST",
+    path: "/admin/forms/{id}/webhooks/proposals/{proposalId}/confirm",
+    resource: "webhook",
+    action: "configure",
+    workspace: "form",
+    namesEnvironment: true,
+    environmentFrom: "switcher",
+  },
+  {
+    // Withdrawing one. The same cell as confirming it, because ending a proposed
+    // production change is the same authority as agreeing to one, and either account may
+    // do it - which it was is in the audit.
+    method: "DELETE",
+    path: "/admin/forms/{id}/webhooks/proposals/{proposalId}",
+    resource: "webhook",
+    action: "configure",
+    workspace: "form",
+    namesEnvironment: true,
+    environmentFrom: "switcher",
+  },
+  {
     method: "GET",
     path: "/admin/forms/{id}/deliveries",
     resource: "webhook",
