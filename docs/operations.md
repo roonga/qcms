@@ -153,8 +153,9 @@ revision as both installed and candidate, so nothing is given up by deleting it.
 ten findings above stay cleared, and the digest-reproducibility property the pin exists
 for comes back. Nothing about the triage shape below changed: the `--only-upgrade` row
 is still the remedy for a `deb` package Debian has fixed ahead of the base, it is simply
-not in use today. **Two
-criticals remain unfixed in Debian 12**, `CVE-2026-5450` against `libc6` and `libc-bin`, tagged
+not in use today.
+
+**Two criticals remain unfixed in Debian 12**, `CVE-2026-5450` against `libc6` and `libc-bin`, tagged
 `<no-dsa> (Minor issue)` on the `glibc` source in the image. Whether to accept those,
 move the base, or wait for a point release is an open Code Owner decision recorded in
 that section. The job is not a required check, so a red scan never blocks a merge.
