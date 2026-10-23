@@ -87,6 +87,9 @@ let formId = "";
 /** The form's slug, which is also the portal's entry path for it. */
 const FORM_SLUG = `e2e-pub-insurance-${RUN}`;
 
+/** What the author calls this form, which is what the rail's Header shows (issue #1116). */
+const FORM_TITLE = "Vehicle insurance";
+
 test.beforeAll(async () => {
   await createTestAdmin(EMAIL);
 });
@@ -121,7 +124,7 @@ test("publishes a draft and reports what it froze (exit criterion 1)", async ({ 
   await publishQuestion(page, ACCIDENT_COUNT, "Number");
   await publishQuestion(page, CLAIM_NOTES, "Long text");
 
-  formId = await createForm(page, FORM_SLUG, "Vehicle insurance");
+  formId = await createForm(page, FORM_SLUG, FORM_TITLE);
 
   await addStep(page, "Driving history");
   await pinQuestion(page, questionIdFor(AT_FAULT), 1);
@@ -412,8 +415,15 @@ test("history renders the stored compiled document and never previews (exit crit
   // THE FORM'S NAME IS THE RAIL'S, not a breadcrumb's (§7.0 ruling 3, issue #1116). The
   // trail that used to carry it on this route is gone; the rail one column over names the
   // form at both widths, and the way back is its Header's link.
+  //
+  // The TITLE rather than the slug, which is the Header's own rule (`formDisplayName`): what
+  // an author called the form is what a person recognises, and the slug is only the fallback
+  // for a form nobody has named. The retired breadcrumb carried the slug, because a crumb is
+  // a path.
   await expect(page.locator('[aria-label="Breadcrumb"]')).toHaveCount(0);
-  await expect(page.getByTestId("qcms-rail")).toContainText(FORM_SLUG);
+  const rail = page.getByTestId("qcms-rail");
+  await expect(rail).toContainText(FORM_TITLE);
+  await expect(rail.getByRole("link", { name: "Forms", exact: true })).toBeVisible();
   // Said once: the body's own "Viewing v1" heading went when the page took the subject.
   await expect(page.getByRole("heading", { name: /^Version 1$|^Viewing v1$/u })).toHaveCount(1);
 
