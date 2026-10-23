@@ -593,3 +593,49 @@ test("2026-09-27 makes the preview the last panel, showing what was last saved",
   await openPanel(page, "content");
   await expect(field(page, "Label")).toHaveValue("Edited but not saved");
 });
+
+test("1116 gives the parent of the current row no fill, so one row reads as selected", async ({
+  page,
+}) => {
+  test.setTimeout(300_000);
+  await signInWithTotp(page, EMAIL, totpSecret);
+  await page.setViewportSize({ width: 1280, height: 900 });
+  await page.goto(detailPath());
+
+  // §7.0 ruling 2: one current mark - a tinted fill, weight 700 and a 2px inline-start
+  // accent edge - and a PARENT of the current row gets weight 600 and no fill. This rail is
+  // where the defect was: a version row and the panel row nested under it are both true
+  // statements about the address, so both carry `aria-current="page"`, and until #1116 both
+  // wore the identical mark one directly above the other. The form rail had the same problem
+  // and solved it by dropping the accent edge from every row of its tree, which is why the
+  // rule is now one rule for every rail rather than one per rail.
+  const rail = page.getByTestId("qcms-question-rail");
+  const marked = rail.locator('.qcms-rail__link[aria-current="page"]');
+  await expect(marked, "the selected version and the open panel under it").toHaveCount(2);
+
+  const painted = await marked.evaluateAll((nodes: readonly Element[]) =>
+    nodes.map((node) => {
+      const style = getComputedStyle(node);
+      return {
+        item: node.getAttribute("data-rail-item") ?? "a row",
+        weight: style.fontWeight,
+        // A fill, read as "not the transparent a row carries when it is not current".
+        filled:
+          style.backgroundColor !== "rgba(0, 0, 0, 0)" && style.backgroundColor !== "transparent",
+        edge: style.borderInlineStartWidth,
+      };
+    }),
+  );
+
+  const filled = painted.filter((row) => row.filled);
+  expect(filled, "exactly one row carries the full current mark").toHaveLength(1);
+  expect(filled[0]?.item, "and it is the panel, which is what the column is showing").toMatch(
+    /^panel:/u,
+  );
+  expect(filled[0]?.weight, "the selected row is at weight 700").toBe("700");
+  expect(filled[0]?.edge, "and carries the 2px accent edge").toBe("2px");
+  for (const parent of painted.filter((row) => !row.filled)) {
+    expect(parent.weight, `${parent.item} is a parent, at weight 600`).toBe("600");
+    expect(parent.edge, `${parent.item} keeps the edge transparent`).toBe("2px");
+  }
+});

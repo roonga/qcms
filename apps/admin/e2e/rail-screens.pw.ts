@@ -535,56 +535,16 @@ test("1116 heads every form screen's rail the same way, and leaves no breadcrumb
       // AND NO TRAIL IN THE CONTENT COLUMN. The breadcrumb was the first line of every one
       // of these screens; the back link replaces it, and a trail restored beside it would
       // be the form's name and the section's said twice on one screen.
+      //
+      // Located by the breadcrumb's own name rather than by counting navigations in the
+      // column: the responses screen has a legitimate one, its pager.
       await expect
         .soft(
-          page.locator("main#main-content").getByRole("navigation"),
+          page.locator('main#main-content [aria-label="Breadcrumb"]'),
           `${screen.path} at ${String(width)} has no breadcrumb in its column`,
         )
         .toHaveCount(0);
     }
   }
   await page.setViewportSize({ width: SIDEBAR, height: 900 });
-});
-
-test("1116 gives the parent of the current row no fill, so one row reads as selected", async ({
-  page,
-}) => {
-  test.setTimeout(300_000);
-  await signInWithTotp(page, EMAIL, totpSecret);
-  await page.setViewportSize({ width: SIDEBAR, height: 900 });
-
-  // §7.0 ruling 2: one current mark - a tinted fill, weight 700 and a 2px inline-start
-  // accent edge - and a PARENT of the current row gets weight 600 and no fill. The form
-  // rail is where that used to be arranged the other way round: `[data-rail-group]` removed
-  // the accent edge from every row of this tree, because the mark stacked up three deep.
-  //
-  // The builder with a step selected is the case: the Form row leads to this screen and the
-  // step row is what the column is showing, so both are current and only one may read as
-  // selected.
-  await page.goto(`/forms/${FORM_ID}`);
-  await openRail(page);
-  await page.locator("[data-rail-step-select]").first().click();
-
-  const marked = page.locator('.qcms-rail__link[aria-current="page"]');
-  await expect(marked, "the step and the form it belongs to").toHaveCount(2);
-  const painted = await marked.evaluateAll((nodes: readonly Element[]) =>
-    nodes.map((node) => {
-      const style = getComputedStyle(node);
-      return {
-        item: node.getAttribute("data-rail-item") ?? "a row",
-        weight: style.fontWeight,
-        // A fill, read as "not the transparent the row carries when it is not current".
-        filled:
-          style.backgroundColor !== "rgba(0, 0, 0, 0)" && style.backgroundColor !== "transparent",
-        edge: style.borderInlineStartWidth,
-      };
-    }),
-  );
-  const filled = painted.filter((row) => row.filled);
-  expect(filled, "exactly one row carries the full current mark").toHaveLength(1);
-  expect(filled[0]?.weight, "the selected row is at weight 700").toBe("700");
-  expect(filled[0]?.edge, "and carries the 2px accent edge").toBe("2px");
-  for (const parent of painted.filter((row) => !row.filled)) {
-    expect(parent.weight, `${parent.item} is a parent, at weight 600`).toBe("600");
-  }
 });
