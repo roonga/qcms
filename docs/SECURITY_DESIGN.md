@@ -985,6 +985,36 @@ Every one of the 15 is in the **base image** rather than in the application tree
 At `high`: `CVE-2026-86145`, `CVE-2026-89157` and `CVE-2026-89161` against `libpcre2-8-0@10.42-1`, fixed in Debian's `10.42-1+deb12u1`, so the pinned digest is behind a point release; and `brace-expansion@5.0.7`, `tar@7.5.19` and `ip-address@10.2.0`, which are **npm's own bundled dependencies under `/usr/local/lib/node_modules/npm`** and not this workspace's (the lockfile resolves `brace-expansion@5.0.9` under the override CONTRIBUTING records).
 That last group is the concrete answer to what an image scan adds over `pnpm audit`: `pnpm audit` reads this repository's dependency graph and structurally cannot see a package the base image ships.
 
+**The `perl-base` layer is gone again, because a published base digest finally carries the package (2026-10-24, issue #969).**
+The pin moves from `sha256:a5f4366e...` (built 2026-10-14) to `sha256:55fb5f5a...` (built 2026-10-21), the same `24-bookworm-slim` tag, resolving Node v24.22.1 against the `>= 24.15` engine floor.
+That digest installs `perl-base 5.36.0-7+deb12u4`, which is verbatim the removal condition the 2026-10-10 ruling attached to the layer, so the layer is deleted from `docker/{api,portal,admin}.Dockerfile` and from the three generated templates, and the cost option 4 records is given back: two builds of one commit on different days install the same packages again.
+Nothing is traded away by deleting it, and that is measured rather than assumed: `docker run --rm node:24-bookworm-slim@sha256:55fb5f5a... sh -c 'apt-get update -qq && dpkg -l perl-base && apt-cache policy perl-base'` reports `5.36.0-7+deb12u4` as the installed version **and** as the candidate, from `deb.debian.org/debian-security bookworm-security/main`.
+The `apt-get update` is as load-bearing here as the paragraphs above say it is.
+The glibc pair is untouched: `CVE-2026-5450` against `libc6` and `libc-bin` still has no fixed version in Debian 12, so the open question above is still a question about those two and this change answers none of it.
+**Nothing moves to trixie**, which remains a separate decision under #894 with the standing trigger versions recorded above.
+
+**What the bump is measured to buy, base image alone, and it is not what the weekly issue of 2026-10-19 suggests.**
+Each base scanned directly with grype 0.119.0 against the vulnerability database built 2026-10-23, the same version the `scan` job pins; directly against the image rather than through one of our SBOMs, so these numbers are about the base and not about our images, which is the same method the trixie table above uses:
+
+| Base image                                 | Findings | Critical | High | Fixable at `high` or above |
+| ------------------------------------------ | -------- | -------- | ---- | -------------------------- |
+| `node:24-bookworm-slim@sha256:a5f4366e...` | 248      | 7        | 79   | 13 (5 critical, 8 high)    |
+| `node:24-bookworm-slim@sha256:55fb5f5a...` | 235      | 2        | 74   | 3 (0 critical, 3 high)     |
+
+**Through the SBOMs, which is what the workflow scans, the three images move by nothing at all**, and the honest reading of that is the point of recording it.
+Before and after are both 0 blocking, 3 reported fixable at `high` and 73 reported unfixed rows, with `qcms-api` at 379 packages and the two front ends at 298, each 2 critical, 74 high, 80 medium and 223 with no fix.
+The two runs agree down to the reported-set fingerprint the `scan-issue` job compares weeks on, `05db3426994c...`, which is the precise form of "nothing moved": a weekly run on this change would post no comment at all.
+The reason is that the previous digest already cleared five of the eight fixable highs the 2026-10-19 weekly issue reported, and that issue predates it: #1072's digest landed on 2026-10-21 carrying `libpcre2-8-0 10.42-1+deb12u2`, which clears `CVE-2026-103111`, and an npm tree at `brace-expansion 5.0.9`, `ip-address 10.5.0` and `tar 7.5.22`, which clears `GHSA-mh99-v99m-4gvg`, `GHSA-rgw5-rvv9-x895`, `GHSA-mwp4-54f8-5fhr` and `GHSA-r292-9mhp-454m`.
+That also closes the `libpcre2-8-0@10.42-1` and `brace-expansion@5.0.7`, `tar@7.5.19`, `ip-address@10.2.0` rows the 2026-09-18 measurement a few paragraphs above records: `CVE-2026-86145`, `CVE-2026-89157` and `CVE-2026-89161` are not in the report at all any more, and the npm trio moved with npm's own bundled tree rather than with anything in this workspace, exactly as that paragraph predicted.
+The build-time `perl-base` layer was already supplying `deb12u4`, so the image scan never saw the five perl rows the base-only table above shows; this change moves them from the layer into the pinned base, which is a reproducibility result and not a findings result.
+
+**Three fixable highs remain, no digest of this tag clears them, and the removal condition is upstream.**
+All three are in npm's own bundled tree under `/usr/local/lib/node_modules/npm`: `GHSA-6j4f-fj2g-mc7p` and `GHSA-qhr7-859c-m2p7` against `brace-expansion@5.0.9`, fixed in 5.0.10 and 5.0.11, and `GHSA-rfgv-xxqx-mfg5` against `undici@6.28.0`, fixed in 6.28.1.
+They are not this workspace's: the lockfile resolves `brace-expansion@5.0.12` under the override CONTRIBUTING records, and `undici` at 7.x and 8.x, so nothing in the dependency graph can reach them.
+They are npm 11.19.1's, which is the npm Node 24.22.1 bundles, so the fix arrives when Node's bundled npm moves and reaches these images through the same weekly Dependabot digest bump.
+Deleting npm from the runtime stages, or installing a newer npm over it, would reach them and would be a new decision with its own cost; neither is taken here.
+So `docs/operations.md`'s triage table is accurate and the remedy for these three is the next Node image, and the weekly issue will keep naming them until then, which is the reporting channel working rather than failing.
+
 **Why this cannot block unrelated work, stated rather than left to be discovered.**
 The vulnerability database is fetched at run time, so the same tree scans differently on different days and a CVE published this morning changes the verdict for every branch in flight.
 That is acceptable **only** because the `Images` workflow publishes no required context: `protect-main` requires exactly four (`verify (node-24)`, `api-e2e`, `browser-e2e`, `full-stack-e2e`), and neither `build` nor `scan` is among them, so a red scan reports beside a mergeable pull request.
@@ -999,8 +1029,8 @@ The keyless cosign signature over `checksums.txt` was **not** checked; no cosign
 Dependabot does not track a digest in a workflow `env`, so a bump is a deliberate edit: hash the new asset, confirm it against those two publications, wait out the repository's 24-hour release-age hold (CONTRIBUTING, "The release-age hold", whose reasoning applies with more force to a binary CI executes), and record the digest in the same commit.
 
 **Weekly, and how a finding reaches a person.**
-The workflow gained a `schedule` trigger for the same reason `audit.yml` has one: the images are a near-deterministic function of the tree (digest-pinned bases, `--frozen-lockfile`, and since 2026-10-10 the one `--only-upgrade perl-base` layer recorded above, which resolves against `bookworm-security` at build time), so what moves between runs is the advisory database and that single package, and nothing would surface a CVE disclosed against an already-published image unless a run happened without a commit.
-That exception argues for the schedule rather than against it: while the layer exists, a scheduled rebuild is also how a newly published `perl-base` reaches these images at all.
+The workflow gained a `schedule` trigger for the same reason `audit.yml` has one: the images are a deterministic function of the tree (digest-pinned bases, `--frozen-lockfile`), so what moves between runs is the advisory database, and nothing would surface a CVE disclosed against an already-published image unless a run happened without a commit.
+That held with one exception between 2026-10-10 and 2026-10-24, while each runtime stage carried the `--only-upgrade perl-base` layer recorded above and a scheduled rebuild was also how a newly published `perl-base` reached these images at all; the pinned digest now ships the fixed package, so the layer and the exception are both gone (issue #969).
 A scheduled run builds and **publishes nothing**.
 `scan-issue` is the only job in the workflow holding `issues: write`, it runs only on the schedule, and it files or updates one `security`-labeled issue the way the `pnpm audit` run does.
 Three properties keep that issue worth reading.
@@ -1008,7 +1038,7 @@ It carries unfixed findings as well as fixable ones, for the reason given above.
 A finding present in all three images is one row naming them rather than three rows, so the listing is about 66 rows and not 198.
 And the script emits a digest of the reported set which the job compares against the digest embedded in the last comment, so a week in which nothing moved says nothing at all - which makes a comment appearing mean that the answer changed.
 A scheduled run whose scan failed outright files that fact instead of staying silent, as `audit.yml` does.
-Triage is the same shape as that run's: a `deb` finding is cleared by a base-image digest bump (Dependabot's `docker` ecosystem opens it), or, when Debian has published the fix and no base digest carries it yet, by an `--only-upgrade` of that one package in each runtime stage (issue #1047, `perl-base` today); an `npm` finding under `/usr/local/lib/node_modules/npm` by the same bump; and an `npm` finding in the application tree by a dependency bump or a targeted entry in CONTRIBUTING > Security overrides, which is the removal-condition ledger.
+Triage is the same shape as that run's: a `deb` finding is cleared by a base-image digest bump (Dependabot's `docker` ecosystem opens it), or, when Debian has published the fix and no base digest carries it yet, by an `--only-upgrade` of that one package in each runtime stage, which needs its own ruling per package and is in use for none today (issue #1047 covered `perl-base` until a published digest carried the fix, issue #969); an `npm` finding under `/usr/local/lib/node_modules/npm` by the same digest bump, and by nothing else, since that is npm's own bundled tree and it moves only when Node's bundled npm does; and an `npm` finding in the application tree by a dependency bump or a targeted entry in CONTRIBUTING > Security overrides, which is the removal-condition ledger.
 `docs/operations.md` carries the runbook and the local reproduction.
 
 **Removal conditions.**

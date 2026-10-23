@@ -93,10 +93,12 @@
  * (2026-10-10, issue #1047). `perl 5.36.0-7+deb12u4` reached `bookworm-security`, which
  * fixes `perl-base`, so the five perl criticals became findings WITH a published fix and
  * this gate went red everywhere with nothing in the tree having moved. No published
- * `node:24-bookworm-slim` carries the fixed package yet, so the fourth option above was
- * taken narrowly: each runtime stage upgrades that one package at build time, with the
- * cost and the removal condition stated in the Dockerfile. The two glibc criticals are
- * still unfixed in Debian 12 and the open decision is now about those two.
+ * `node:24-bookworm-slim` carried the fixed package then, so the fourth option above was
+ * taken narrowly: each runtime stage upgraded that one package at build time, with the
+ * cost and the removal condition stated in the Dockerfile. **A published digest carries
+ * it as of 2026-10-24, so that layer is gone again** (issue #969) and the images are
+ * reproducible from the pinned `FROM` digest alone. The two glibc criticals are still
+ * unfixed in Debian 12 and the open decision is now about those two.
  *
  * ## Why this cannot red an unrelated pull request
  *
@@ -500,7 +502,7 @@ export function renderReport(summaries, floors) {
 
   lines.push("");
   lines.push(
-    "Triage: a `deb` finding is cleared by a base-image digest bump (Dependabot's `docker` ecosystem opens it; `docker/*.Dockerfile` carries the digest beside the tag), or, when Debian has published the fix and no base digest carries it yet, by an `--only-upgrade` of that one package in each runtime stage (issue #1047, `perl-base` today); an `npm` finding under `/usr/local/lib/node_modules/npm` by the same bump; and an `npm` finding in the application tree by a dependency bump or a targeted entry in CONTRIBUTING > Security overrides, which is the removal-condition ledger. A finding with no fix in this distribution is recorded rather than accepted, and `wont-fix` is the scanner's label for that rather than upstream's verdict: see `docs/SECURITY_DESIGN.md` section 9 and `docs/operations.md`.",
+    "Triage: a `deb` finding is cleared by a base-image digest bump (Dependabot's `docker` ecosystem opens it; `docker/*.Dockerfile` carries the digest beside the tag), or, when Debian has published the fix and no base digest carries it yet, by an `--only-upgrade` of that one package in each runtime stage, which needs its own ruling per package and is in use for none today (issue #1047 covered `perl-base` until a published digest carried the fix, issue #969); an `npm` finding under `/usr/local/lib/node_modules/npm` by the same digest bump, and by nothing else, since that is npm's own bundled tree and it moves only when Node's bundled npm does; and an `npm` finding in the application tree by a dependency bump or a targeted entry in CONTRIBUTING > Security overrides, which is the removal-condition ledger. A finding with no fix in this distribution is recorded rather than accepted, and `wont-fix` is the scanner's label for that rather than upstream's verdict: see `docs/SECURITY_DESIGN.md` section 9 and `docs/operations.md`.",
   );
   lines.push("");
   return lines.join("\n");
