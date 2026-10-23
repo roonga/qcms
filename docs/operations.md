@@ -29,11 +29,14 @@ directly. The admin's import-surface test refuses a database import outright.
 All three are two-stage builds on one digest-pinned `node:24-bookworm-slim` base. The
 build stage installs the whole workspace and compiles it; the runtime stage receives
 only what the process needs, runs as the unprivileged `node` user, and listens on 3000
-inside the container. One exception to "the base is what the digest says" is live and
-temporary: each runtime stage upgrades `perl-base` from `bookworm-security` at build
-time, because Debian has fixed five criticals against it and no published base digest
-carries the fixed package yet (issue #1047). The layer states its own removal condition
-and the scan triage below names the shape. Every image carries `org.opencontainers.image.title`, `.version`
+inside the container. **The base is what the digest says, with no exception**, which is
+worth stating because for two weeks it was not: between 2026-10-10 and 2026-10-24 each
+runtime stage upgraded `perl-base` from `bookworm-security` at build time, because
+Debian had fixed five criticals against it and no published base digest carried the
+fixed package (issue #1047). The published digest pinned today installs
+`5.36.0-7+deb12u4`, which was that layer's own removal condition, so the layer is gone
+and two builds of one commit on different days install the same packages again (issue
+#969). Every image carries `org.opencontainers.image.title`, `.version`
 and `.source`; `pnpm qcms:build-images` stamps a real version (the workspace version
 plus the short commit, marked when the tree was dirty) and attaches an SBOM and SLSA
 provenance attestation, which is what the `Images` workflow runs before it publishes
@@ -133,14 +136,24 @@ published `perl 5.36.0-7+deb12u4` in `bookworm-security`, which fixes `perl-base
 all five perl criticals (`CVE-2026-8376`, `CVE-2026-12087`, `CVE-2026-13221`,
 `CVE-2026-42496`, `CVE-2026-57433`). They became findings **with a published fix**, which
 is the one thing the blocking rule is sensitive to, and the job went red repository-wide
-with nothing in the tree having changed. No published `node:24-bookworm-slim` carries the
-fixed package yet, so each runtime stage in `docker/*.Dockerfile` now upgrades that one
-package at build time; the Dockerfile comment carries the reasoning, the cost to
+with nothing in the tree having changed. No published `node:24-bookworm-slim` carried the
+fixed package then, so each runtime stage in `docker/*.Dockerfile` upgraded that one
+package at build time; the Dockerfile comment carried the reasoning, the cost to
 reproducibility and the condition for deleting the layer again. The same upgrade also
 clears **five reported `perl-base` highs** that had a published fix in the same revision
 (`CVE-2026-42497`, `CVE-2026-48959`, `CVE-2026-48962`, `CVE-2026-57432`,
 `CVE-2026-7017`), so a weekly issue compared against one from before 2026-10-10 is ten
-named findings shorter with nothing added; section 9 counts it from both runs. **Two
+named findings shorter with nothing added; section 9 counts it from both runs.
+
+**And the layer is gone again as of 2026-10-24 (issue #969), because a published digest
+finally carries the package.** The `node:24-bookworm-slim` digest pinned today installs
+`perl-base 5.36.0-7+deb12u4` itself, which is the removal condition the layer named, and
+`apt-cache policy perl-base` after an `apt-get update` in that base reports the same
+revision as both installed and candidate, so nothing is given up by deleting it. The
+ten findings above stay cleared, and the digest-reproducibility property the pin exists
+for comes back. Nothing about the triage shape below changed: the `--only-upgrade` row
+is still the remedy for a `deb` package Debian has fixed ahead of the base, it is simply
+not in use today. **Two
 criticals remain unfixed in Debian 12**, `CVE-2026-5450` against `libc6` and `libc-bin`, tagged
 `<no-dsa> (Minor issue)` on the `glibc` source in the image. Whether to accept those,
 move the base, or wait for a point release is an open Code Owner decision recorded in
@@ -151,7 +164,7 @@ that section. The job is not a required check, so a red scan never blocks a merg
 | The finding is against                                                    | It is cleared by                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                     |
 | ------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
 | a `deb` package                                                           | a base-image digest bump. Dependabot's `docker` ecosystem opens it; the digest sits beside the tag in each `docker/*.Dockerfile`, and all three move together.                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                       |
-| a `deb` package Debian has fixed and no published base digest carries yet | an `--only-upgrade` of that one package in each runtime stage, as `perl-base` is upgraded today under the Code Owner ruling of 2026-10-10 (issue #1047), which covers that package only. Check it first, in one command, with `docker run --rm node:24-bookworm-slim sh -c 'apt-get update -qq && dpkg -l <package> && apt-cache policy <package>'`. **The `apt-get update` is load-bearing**: the image ships no apt lists, so `apt-cache policy` alone reports the installed version as the candidate and names no `bookworm-security` source, which reads as the opposite of the finding. The layer is only justified while the candidate is above the installed version, and it is deleted once a digest bump brings the fix in. |
+| a `deb` package Debian has fixed and no published base digest carries yet | an `--only-upgrade` of that one package in each runtime stage. **No such layer is in the tree today** (issue #969): `perl-base` carried one between 2026-10-10 and 2026-10-24 under the Code Owner ruling of 2026-10-10 (issue #1047), which covered that package only, and it was deleted when a published digest brought the fix in. A second package needs its own ruling. Check the position first, in one command, with `docker run --rm node:24-bookworm-slim sh -c 'apt-get update -qq && dpkg -l <package> && apt-cache policy <package>'`. **The `apt-get update` is load-bearing**: the image ships no apt lists, so `apt-cache policy` alone reports the installed version as the candidate and names no `bookworm-security` source, which reads as the opposite of the finding. Such a layer is only justified while the candidate is above the installed version, and it is deleted once a digest bump brings the fix in. |
 | an `npm` package under `/usr/local/lib/node_modules/npm`                  | the same base-image bump. That is npm's own bundled tree, shipped by the Node image, and no change to this workspace's dependencies can reach it.                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                    |
 | an `npm` package in the application tree                                  | a dependency bump, or a targeted entry in CONTRIBUTING > Security overrides, which is the removal-condition ledger for one.                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                          |
 | nothing with a fix available in this distribution                         | nothing in this repository, yet. It is reported and not silenced, and `wont-fix` is the scanner's label rather than upstream's verdict; check the Debian security tracker before repeating it.                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                       |
