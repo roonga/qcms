@@ -2395,9 +2395,25 @@ div:has(> [role="dialog"] [data-qcms-dialog="wide"]) {
   inline-size: 100%;
   justify-content: center;
 }
+/* THE LIFECYCLE PAIR'S CELL (§7.0 ruling 5, issue #1116). Publish and Deprecate came out
+   of the rail into this row, where at most one of them is ever rendered - a draft
+   publishes, a published version deprecates, a deprecated one offers neither - so this
+   box is empty on one version in three and must take no space when it is. A flex box
+   with no padding and no gap of its own does that; the grid's `gap` places it. */
+.qcms-question-head__lifecycle {
+  display: flex;
+}
+.qcms-question-head__lifecycle > button {
+  flex: 1 1 auto;
+  justify-content: center;
+}
 @variant compact {
+  /* THREE TRACKS, which is what the pair added: the heading and the save note on the
+     first, Save on the second, and the lifecycle control on the third. Both `auto`
+     tracks collapse to nothing when their cell is empty, so a frozen version's row is
+     the same two-track row it was before the pair arrived. */
   .qcms-question-head {
-    grid-template-columns: 1fr auto;
+    grid-template-columns: 1fr auto auto;
     column-gap: 1rem;
   }
   .qcms-question-head__id {
@@ -2412,6 +2428,10 @@ div:has(> [role="dialog"] [data-qcms-dialog="wide"]) {
     grid-column: 2;
     grid-row: 1;
     inline-size: auto;
+  }
+  .qcms-question-head__lifecycle {
+    grid-column: 3;
+    grid-row: 1;
   }
 }
 
@@ -2577,7 +2597,13 @@ div:has(> [role="dialog"] [data-qcms-dialog="wide"]) {
 /* The operations badges (task 035), same family as the link and question tags: the
    word is always rendered and these tints are the secondary signal only, so the
    table still reads in high contrast and to a colour-blind operator. */
+/* A FORM'S OPEN/CLOSED STATUS, which the rail's Header states as its one tag (§7.0,
+   issue #1116). It joins the two families above rather than minting a third pair of
+   tints: open is the same "working as intended" green an active webhook wears, and
+   closed is the muted terminal treatment a cancelled delivery wears - closed is a
+   decision an operator made, not a failure, so it is quiet rather than danger-tinted. */
 .qcms-tag--delivery-delivered,
+.qcms-tag--form-open,
 .qcms-tag--hook-active {
   background-color: var(--color-success-subtle);
   color: var(--color-success-fg);
@@ -2597,7 +2623,8 @@ div:has(> [role="dialog"] [data-qcms-dialog="wide"]) {
 /* Cancelled is terminal but not a failure: erasure did exactly what it promised.
    Muted rather than danger-tinted, so an operator scanning for problems does not
    read a correctly-honoured erasure as one (task 059). */
-.qcms-tag--delivery-cancelled {
+.qcms-tag--delivery-cancelled,
+.qcms-tag--form-closed {
   background-color: var(--color-surface-hover);
   color: var(--color-text-muted);
   border-color: var(--color-border-strong);
@@ -3110,25 +3137,12 @@ div:has(> [role="dialog"] [data-qcms-dialog="wide"]) {
   .qcms-rail__chevron {
     display: none;
   }
-  /* THE FORM RAIL SAYS THE FORM'S NAME ONCE (Code Owner, 2026-08-26). Its first row is
-     the form's own screen and carries the form's name, so the summary line above it was
-     the same word twice with nothing to tell them apart. Hidden only where the rail is a
-     permanent sidebar: below this boundary the rail collapses to that one line and it is
-     the whole of the rail, which is what issue 693 put the form's name there for. The
-     element stays in the DOM so widening and narrowing the window needs no re-render.
-
-     The other two rails keep theirs at every width - neither has a row repeating its
-     scope, so for them the summary is the only place it is written. */
-  .qcms-rail--form > .qcms-rail__disclosure > .qcms-rail__summary {
-    display: none;
-  }
-  /* ...and the body takes over the space it left. Without this the form's own row began
-     flush against the top bar, with none of the breathing room the summary used to
-     provide above it. Only in this rail and only at this width, because it is the only
-     one whose summary is hidden. */
-  .qcms-rail--form .qcms-rail__body {
-    padding-block-start: 0.75rem;
-  }
+  /* THE HEADER IS VISIBLE ON EVERY RAIL AT THIS WIDTH (§7.0 ruling 2.1, issue #1116).
+     The form rail used to hide its summary here, because its first row was the form's own
+     screen and carried the form's name, so the line above it was the same word twice.
+     §7.0's Header carries a back link and a status tag that no row has, so it is no longer
+     a repetition; one rule for the summary on every rail is also what makes "the rail
+     looks the same everywhere" something a reader can check at a glance. */
 }
 
 .qcms-rail__body {
@@ -3326,21 +3340,22 @@ div:has(> [role="dialog"] [data-qcms-dialog="wide"]) {
 /* NO PADDING OF ITS OWN. It used to carry `0.5rem 0.25rem`, which made the add control a
    52px box among 40px rows and put an 8px space above it and 4px below - a third spacing
    in a column that has one. The cluster's gap places it now, like every other row. */
-/* A FULL-TRACK CONTROL BLOCK. `__add` is the builder's Add step; `__block` is the
-   same geometry named for reuse, which the question rail's lifecycle buttons take
-   (Code Owner, 2026-09-27), and `__block` stacks where `__add` holds one control. */
-.qcms-rail-steps__add,
-.qcms-rail-steps__block {
+/* THE ACTIONS PART, which is a full-track control block at the foot of the rail
+   (§7.0 ruling 2.5, issue #1116).
+
+   Two classes stood here: `__add` for the builder's Add step, under the step list, and
+   `__block` for the question rail's stacked lifecycle buttons. The ruling moved Add step
+   into this part and took the lifecycle pair out of the rail altogether, so one class is
+   what is left - and it stacks, because a screen may have more than one structural action
+   even though none does today. */
+.qcms-rail__actions {
   display: flex;
-  padding-block: 0;
-}
-.qcms-rail-steps__block {
   flex-direction: column;
   gap: var(--admin-rail-row-gap);
-  margin-block-end: 0.5rem;
+  padding-block: 0;
+  margin-block-start: 0.5rem;
 }
-.qcms-rail-steps__add > button,
-.qcms-rail-steps__block > button {
+.qcms-rail__actions > button {
   flex: 1 1 auto;
   justify-content: center;
 }
@@ -3349,7 +3364,7 @@ div:has(> [role="dialog"] [data-qcms-dialog="wide"]) {
    `className`, so its `ghost` treatment is restated here in tokens rather than reached
    for: a transparent fill, the shared border, ordinary text. A reader moving between
    form screens should not see the rail's last control change shape. */
-.qcms-rail-steps__add-link {
+.qcms-rail__action-link {
   flex: 1 1 auto;
   /* The button it stands in for is a `button`, so the reset gives that one the control
      height and this one has to ask for it, exactly as the rows above do. Without it the
@@ -3368,7 +3383,7 @@ div:has(> [role="dialog"] [data-qcms-dialog="wide"]) {
   font-weight: 500;
   text-decoration: none;
 }
-.qcms-rail-steps__add-link:hover {
+.qcms-rail__action-link:hover {
   background-color: var(--color-surface-hover);
 }
 
@@ -3457,7 +3472,9 @@ div:has(> [role="dialog"] [data-qcms-dialog="wide"]) {
   gap: 0.5rem;
   padding-inline: 0.5rem;
   padding-block: 0.4rem;
-  border-inline-start: 3px solid transparent;
+  /* 2px, which is what §7.0 writes the accent edge as. Present and transparent on every
+     row, so marking the current one moves no text. */
+  border-inline-start: 2px solid transparent;
   border-radius: var(--radius-control);
   color: var(--color-text);
   font-size: 0.875rem;
@@ -3469,32 +3486,46 @@ div:has(> [role="dialog"] [data-qcms-dialog="wide"]) {
   background-color: var(--color-surface-hover);
   color: var(--color-text);
 }
-/* Never colour alone: the accent edge and the heavier weight carry the same
-   statement `aria-current` makes to a screen reader, which is what keeps this
-   readable in high contrast where the tint collapses into the surface. */
+/* ONE CURRENT-ROW MARK, IN EVERY RAIL (§7.0 ruling 2, issue #1116): a tinted fill,
+   weight 700 and a 2px inline-start accent edge.
+
+   Never colour alone: the edge and the heavier weight carry the same statement
+   `aria-current` makes to a screen reader, which is what keeps this readable in high
+   contrast where the tint collapses into the surface.
+
+   This used to be three rules. The form rail dropped the edge on every row of its tree
+   (Code Owner, 2026-08-26) because the mark stacked up there - the row for the screen,
+   the row for what that screen is showing, and a step's ordinal all marking the same
+   place; the Settings rail restated the four declarations under a class of its own so
+   that neither rail's mark could be changed by editing the other's. The result was one
+   device drawn three ways, and on the question rail a version row and its open panel wore
+   the identical mark one above the other. §7.0 settles it with the rule below instead:
+   one mark, and a PARENT of the current row demoted rather than every row in a tree. */
 .qcms-rail__link[aria-current="page"] {
   border-inline-start-color: var(--color-primary);
   background-color: var(--color-info-subtle);
   color: var(--color-info-fg);
   font-weight: 700;
 }
-/* THE FORM RAIL'S CURRENT ROW CARRIES NO ACCENT EDGE (Code Owner, 2026-08-26). The
-   rule above paints one on the inline-start border of any current rail row, and in
-   this tree it stacked up: the row for the screen, the row for what that screen is
-   showing, and a step's own ordinal all marking the same place at once.
+/* THE PARENT OF THE CURRENT ROW: weight 600 and no fill (§7.0 ruling 2).
+   "Exactly one row reads as selected" is the requirement, and a nested rail has two true
+   `aria-current="page"` rows whenever a child is open - the Form row with a step selected
+   under it, a version row with a panel open under it. Both statements stay, because both
+   are true of the address; the parent keeps only the weight that says "you are in here".
 
-   Colour is still not carrying the state alone, which is what the rule above is
-   careful about. `aria-current="page"` is what a screen reader is told either way,
-   and `font-weight: 700` is a non-colour signal that survives high contrast. The
-   settings and question rails keep their edge: they are flat lists of one kind of
-   row, where nothing else is competing to mark the same thing.
-
-   Scoped by `[data-rail-group]`, which only the form-subtree rail emits, so it holds
-   for every row of that tree - including ones added later - and reaches neither of the
-   other two rails. */
-[data-rail-group] .qcms-rail__link[aria-current="page"],
-.qcms-rail-steps .qcms-rail__link[aria-current="page"] {
+   `:has()` is what makes this one rule rather than a per-rail class: a row is a parent
+   exactly when a nested group AFTER it contains the current row, which is true of the
+   form tree and the version list alike and will be true of a tree added later. */
+/* The second selector is the builder's rows, where the row is a `<div>` holding the
+   control and its menu trigger, so the current row is not itself the group's sibling. The
+   same statement, reached one level down. */
+.qcms-rail__link[aria-current="page"]:has(~ .qcms-rail__group [aria-current="page"]),
+.qcms-rail-steps__row:has(~ .qcms-rail__group [aria-current="page"])
+  .qcms-rail__link[aria-current="page"] {
   border-inline-start-color: transparent;
+  background-color: transparent;
+  color: var(--color-text);
+  font-weight: 600;
 }
 
 /* WHERE THE GROUPING IS, now that the indent and the tree line have gone. The rail's rows
@@ -3623,53 +3654,29 @@ div:has(> [role="dialog"] [data-qcms-dialog="wide"]) {
 }
 
 /* ===========================================================================
-   THE SETTINGS RAIL AND ITS PANELS - issue 655, built to
-   `plan/admin-shell-poc/settings-newquestion-poc.html`.
+   THE SETTINGS SCREEN'S PANELS - issue 655, built to
+   `plan/admin-shell-poc/settings-newquestion-poc.html`; one rail since §7.0
+   (issue #1116).
 
-   A SECOND, NARROWER RAIL, NOT THE ONE ABOVE. The rail above navigates between
-   ROUTES. Settings is one route, so its rail switches which PANEL of that route
-   is on screen. The two share the grid column, the 240px width and the
-   `--bp-sidebar` collapse behaviour, which are the `qcms-rail*` rules above and
-   know nothing about what a rail carries. Everything below is this screen's own.
+   THIS BLOCK USED TO BE A SECOND RAIL. It opened by saying so at length: the rail above
+   navigates between routes, Settings is one route, so its rail switched which PANEL of
+   that route was showing, and the two shared the column and the width and "nothing else".
+   They share the whole anatomy now, so what is left here is the one rule that belongs to
+   the SCREEN rather than to its rail - which panel is on display.
 
-   THE POC SWITCHES PANELS WITH A SCRIPT AND SO DOES THIS SCREEN. The rows are
-   buttons, the active row is marked with `aria-current="page"` set by React, and
-   the two panels that are not showing carry `hidden`. Nothing here is conditional
-   on a stylesheet knowing which section is current, which is what the `:target`
-   machinery this replaces existed to arrange. `docs/admin-constraints.md` says
-   what binds this app: the POCs are the design, and JavaScript is available.
+   THE PANELS SWITCH ON THE URL FRAGMENT. The rows are anchors to the three section ids
+   (§7.0 ruling 2.2), `components/settings-panels.tsx` reads the fragment and the two
+   panels that are not showing carry `hidden`. Nothing here is conditional on a stylesheet
+   knowing which section is current, which is what the `:target` machinery an earlier
+   build used existed to arrange: the admin requires JavaScript (standing correction
+   2026-08-22, ruling 2026-09-27), so the panel switch is script and the stylesheet only
+   has to honour `hidden`. ==================================================== */
 
-   WHY THE CURRENT-ROW DECLARATIONS ARE RESTATED RATHER THAN LEANT ON. The shared
-   block above already has a `[aria-current="page"]` rule, and taking it would
-   make one rule the place where both rails' active marks are decided, so the next
-   change to either would have to be argued as a change to both. Four duplicated
-   declarations is the cheaper side of that trade, and it is the same trade the
-   two components make. ==================================================== */
-
-/* A row here is a BUTTON wearing the shared row geometry, so the control chrome
-   the anchor never had is taken off: the user-agent border on three sides (the
-   inline-start edge is kept, because that is what the active mark paints), the
-   button background, the centred text and the button font. */
-.qcms-settings-rail__link {
-  inline-size: 100%;
-  border-block: 0;
-  border-inline-end: 0;
-  background-color: transparent;
-  font-family: inherit;
-  text-align: start;
-  cursor: pointer;
-  appearance: none;
-}
-
-/* Never colour alone: the accent edge and the heavier weight carry the same
-   statement `aria-current` makes to a screen reader, which is what keeps this
-   readable in high contrast where the tint collapses into the surface. */
-.qcms-settings-rail__link[aria-current="page"] {
-  border-inline-start-color: var(--color-primary);
-  background-color: var(--color-info-subtle);
-  color: var(--color-info-fg);
-  font-weight: 700;
-}
+/* NOTHING ABOUT A SETTINGS ROW IS ITS OWN ANY MORE (§7.0, issue #1116). Two rules stood
+   here: a `<button>` reset, because the rows were buttons, and a restatement of the
+   current-row mark's four declarations under a class of this screen's own, so that neither
+   rail's mark could be changed by editing the other's. The rows are anchors now and one
+   rule marks the current row in every rail, so both are gone rather than relocated. */
 
 /* The two panels that are not showing, and this rule is load-bearing rather than
    a restatement of the browser default. The `[hidden]` rule the framework's reset
@@ -3682,16 +3689,17 @@ div:has(> [role="dialog"] [data-qcms-dialog="wide"]) {
 }
 
 /* ===========================================================================
-   THE QUESTION DETAIL RAIL - issue 650, built to
-   `plan/admin-shell-poc/question-editor-poc.html`.
+   THE RAIL'S HEADER PARTS AND ITS TWO-LINE ROWS - issue 650, built to
+   `plan/admin-shell-poc/question-editor-poc.html`; one rail since §7.0
+   (issue #1116).
 
-   A THIRD RAIL, AND THE THIRD ANSWER TO "WHAT DOES A RAIL CARRY". The first
-   navigates between the routes of one form's subtree; the second switches which
-   panel of the single Settings route is showing; this one lists one question's
-   versions, each of which is a `?v=` on the route the reader is already standing
-   on. What all three share is the grid column, the 240px width and the
-   `--bp-sidebar` collapse behaviour, which are the `qcms-rail*` rules above and
-   know nothing about what a rail carries. Everything below is this screen's own.
+   THIS BLOCK USED TO BE A THIRD RAIL, and opened by saying which of three answers to
+   "what does a rail carry" it was. There is one answer now, and what survives here is
+   what the ANATOMY needs and the form subtree happens not to use: a Header with a mono
+   subject id, secondary fact lines and a digest under it, and a row that carries a second
+   line. Every one of those is `qcms-rail__*` and reaches whichever rail asks for it, which
+   is the §7.0 change rather than a rename - the question rail asked for all of them first,
+   and a list screen's filter count will ask for the Header's.
 
    WHY A ROW IS TWO LINES HERE AND ONE LINE THERE. A form's rail row is a step
    title and a badge. A version row carries three facts an operator reads
@@ -3720,19 +3728,21 @@ div:has(> [role="dialog"] [data-qcms-dialog="wide"]) {
    twice in two stacked rows at 390. Its two rules and their `@variant sidebar`
    override went with it, and the summary reads like the form rail's: the thing
    the rail belongs to, and nothing else. */
-.qcms-question-rail__summary-id {
+.qcms-rail__id {
   font-family: var(--font-mono);
 }
 
-/* THE WAY BACK, ABOVE THE DISCLOSURE (Code Owner, 2026-09-27). Outside the
-   `<details>` rather than in its body, so it survives the collapse: below
-   `--bp-sidebar` the body is shut and a link inside it would be reachable only by
-   expanding a navigation first.
+/* THE WAY BACK, ABOVE THE DISCLOSURE (Code Owner, 2026-09-27; every rail that has a
+   parent since §7.0, issue #1116). Outside the `<details>` rather than in its body, so it
+   survives the collapse: below `--bp-sidebar` the body is shut and a link inside it would
+   be reachable only by expanding a navigation first. It is also why the link is not inside
+   the `<summary>` itself, where §7.0 draws the Header's three parts: a `<summary>` is
+   exposed as a button, and a link inside one is nested interactive content.
 
    Quiet rather than a button: it is the same text link it was at the top of the
    content column, wearing the rail's own inline padding so it lines up with the
    rows under it rather than with the column's edge. */
-.qcms-question-rail__back {
+.qcms-rail__back {
   display: inline-flex;
   align-items: center;
   align-self: start;
@@ -3745,7 +3755,7 @@ div:has(> [role="dialog"] [data-qcms-dialog="wide"]) {
   font-weight: 600;
   text-decoration: none;
 }
-.qcms-question-rail__back:hover {
+.qcms-rail__back:hover {
   text-decoration: underline;
 }
 
@@ -3758,7 +3768,7 @@ div:has(> [role="dialog"] [data-qcms-dialog="wide"]) {
    are short too, so stacking them would spend six lines of a 240px track on what
    fits in three. `min-inline-size: 0` on the value lets a long slug wrap rather
    than widen the grid, which is the same reason the shared row rule sets it. */
-.qcms-question-rail__details {
+.qcms-rail__facts {
   display: grid;
   grid-template-columns: auto 1fr;
   align-items: baseline;
@@ -3768,11 +3778,11 @@ div:has(> [role="dialog"] [data-qcms-dialog="wide"]) {
   margin: 0;
   font-size: 0.75rem;
 }
-.qcms-question-rail__details > dt {
+.qcms-rail__facts > dt {
   color: var(--color-text-muted);
   white-space: nowrap;
 }
-.qcms-question-rail__details > dd {
+.qcms-rail__facts > dd {
   min-inline-size: 0;
   margin: 0;
   color: var(--color-text);
@@ -3780,14 +3790,14 @@ div:has(> [role="dialog"] [data-qcms-dialog="wide"]) {
 }
 /* The slug is an authored identifier, in the mono face every other identifier in
    this app is written in - the same call the summary's question id makes. */
-.qcms-question-rail__details-slug {
+.qcms-rail__facts-slug {
   font-family: var(--font-mono);
 }
 
 /* The version digest, as one muted line above the list. It takes the rail's own
    inline padding so it lines up with the rows under it; everything else about it
    is `.qcms-rail__sub`, which the rows' second lines use too. */
-.qcms-question-rail__digest {
+.qcms-rail__digest {
   padding-inline: 0.5rem;
   margin-block-end: 0.25rem;
 }
@@ -3822,28 +3832,18 @@ div:has(> [role="dialog"] [data-qcms-dialog="wide"]) {
    zeroes exactly this, rather than by weakening that rule: it is right for the tree
    it was written for.
 
-   NO `data-rail-group` ON THIS LIST, deliberately, and the attribute is the reason
-   the class exists: the rule above keyed off `[data-rail-group]` removes a current
-   row's accent edge, which is right in the form rail's stacked tree and wrong here.
-   This rail keeps its edge, exactly as the comment on that rule says it does. */
-.qcms-question-rail__panels.qcms-rail__group {
+   IT CARRIES `data-rail-group` NOW (issue #1116). The paragraph that stood here
+   explained the opposite: the attribute was what removed a current row's accent edge in
+   the form rail's stacked tree, and this list stayed out of it so that its own rows kept
+   their edge. §7.0 decides the stacking directly instead - the PARENT of a current row
+   loses its fill and its edge, whichever rail it is in - so the attribute is free to be
+   what it says it is, and the panel rows are the Children part like any other.
+
+   The `<button>` reset that followed went with the rows themselves: a panel row is an
+   anchor since §7.0 ruling 2.2, so there is no control chrome left to take off. */
+.qcms-rail__group--panels.qcms-rail__group {
   margin-block: var(--admin-rail-row-gap) 0.375rem;
   margin-inline-start: 0.75rem;
-}
-
-/* The `<button>` half of a row that is otherwise `.qcms-rail__link`, which is what
-   `.qcms-rail-steps__form` does for the builder's Form row and for the same reason:
-   the app's reset gives every button the control height, and these four lines are
-   what stop it looking like a control sitting on a list rather than a row of one. */
-.qcms-question-rail__panel {
-  inline-size: 100%;
-  border-block: 0;
-  border-inline-end: 0;
-  background-color: transparent;
-  font-family: inherit;
-  text-align: start;
-  cursor: pointer;
-  appearance: none;
 }
 
 /* THE ADD-QUESTION PICKER'S MULTI-SELECT (issue 660).

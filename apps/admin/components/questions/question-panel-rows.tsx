@@ -1,5 +1,7 @@
 "use client";
 
+import { useEffect } from "react";
+
 import { t, tPlural } from "@/lib/i18n/en";
 import {
   chooseQuestionPanel,
@@ -19,17 +21,26 @@ import type { QuestionPanel, QuestionPanelId } from "@/lib/questions/panels";
  * client document. Like the Settings rail's rows, what they switch is a panel of the one route
  * the reader is already standing on rather than an address they could open elsewhere.
  *
- * So they are **buttons**, which is the rule rather than an exception to it
- * (`docs/admin-constraints.md`: an anchor navigates, a button acts). Choosing Constraints
- * changes what the column beside the rail is showing; there is nothing to open in a new tab.
- * The version rows they nest under stay anchors for the same rule read the other way: a version
- * is a different address (`?v=3`) and middle-clicking one has to work.
+ * They were **buttons**, on the rule that an anchor navigates and a button acts
+ * (`docs/admin-constraints.md`), because choosing Constraints changes what the column beside
+ * the rail is showing rather than going anywhere. **§7.0 ruling 2.2 reverses that for rail
+ * rows specifically: "anchors to the subject's routes or same-page panels ... Never
+ * buttons"** (issue #1116). One rail with one kind of row is the point: an operator should
+ * not have to learn which rows of a rail can be middle-clicked.
  *
- * **The admin requires JavaScript** (Code Owner, 2026-09-27), so there is no fallback here and
- * none is wanted. Nothing renders a dead anchor for a reader who has none. That is a property
- * of the app rather than a concession this component negotiated: the Settings rail already
- * switches its panels the same way, and `docs/admin-constraints.md` puts the POCs in charge of
- * the design.
+ * So a row is an anchor onto the panel's own section id - `panel.anchorId`, the id the
+ * editor already puts on the open panel and the id the refused-save path moves focus to. The
+ * fragment is a real address: it is readable, copyable, and this component reads it back on
+ * mount, so `#panel-constraints` pasted into the bar opens Constraints.
+ *
+ * What the fragment does NOT do is render the panel by itself. The editor shows one panel at
+ * a time, so four of the five ids are not in the document until their row is chosen, and the
+ * click handler is what switches the panel. **The admin requires JavaScript** (Code Owner,
+ * 2026-09-27; the standing correction of 2026-08-22 says there is no no-JS requirement here),
+ * so this is the whole mechanism rather than an enhancement over one.
+ *
+ * The version rows these nest under are anchors too, and were already: a version is a
+ * different address (`?v=3`).
  *
  * ## Why the rows exist before the editor has published anything
  *
@@ -64,13 +75,26 @@ export function QuestionPanelRows({
   const counts = live?.issueCounts;
   const open = useQuestionPanel(selected);
 
+  // THE FRAGMENT IS READ BACK, which is what makes the rows' `href` an address rather than
+  // decoration: arriving at `#panel-options` opens Options, exactly as the Settings screen
+  // reads its own fragment. Once only, on mount - after that the reader's clicks are what
+  // decide, and each of those sets the fragment as it goes.
+  useEffect(() => {
+    const addressed = rows.find((row) => `#${row.anchorId}` === globalThis.location.hash);
+    if (addressed !== undefined) chooseQuestionPanel(addressed.id);
+    // `rows` is read for the first paint's list and nothing more: re-running this as the
+    // editor republishes its panels would re-select the fragment's panel under a reader who
+    // had since chosen another.
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- mount only, deliberately
+  }, []);
+
   return (
     // A list rather than loose rows, and named, because a screen reader walking this rail
     // otherwise meets a second unlabelled list inside the version list and has nothing to tell
     // them apart. `aria-label` rather than a heading, for the reason the whole rail carries
     // none: it renders before `<main>`, so a heading here would sit above the screen's `<h1>`.
     <ul
-      className="qcms-rail__group qcms-question-rail__panels"
+      className="qcms-rail__group qcms-rail__group--panels"
       aria-label={t("questions.rail.panels")}
       data-rail-group="panels"
     >
@@ -78,9 +102,9 @@ export function QuestionPanelRows({
         const issueCount = counts?.get(panel.id) ?? 0;
         return (
           <li key={panel.id}>
-            <button
-              type="button"
-              className="qcms-rail__link qcms-rail__link--stacked qcms-question-rail__panel"
+            <a
+              href={`#${panel.anchorId}`}
+              className="qcms-rail__link qcms-rail__link--stacked"
               data-rail-item={`panel:${panel.id}`}
               // NO `aria-controls`, and that is a correction rather than an omission. The
               // Settings rail's rows carry one, because that screen renders all three of its
@@ -98,6 +122,10 @@ export function QuestionPanelRows({
               // the open panel up by it to move focus inside.
               aria-current={panel.id === open ? "page" : undefined}
               data-rail-panel={panel.id}
+              // NOT prevented: the fragment is meant to land in the address bar, and the
+              // browser's own scroll-into-view on it is harmless - the panel it names is
+              // either the one about to render at the top of the column or not in the
+              // document at all.
               onClick={() => {
                 chooseQuestionPanel(panel.id);
               }}
@@ -119,7 +147,7 @@ export function QuestionPanelRows({
                   one being a line and the other a block. `.qcms-rail__sub` is that one
                   treatment, shared with the version rows. */}
               <span className="qcms-rail__sub">{panel.digest}</span>
-            </button>
+            </a>
           </li>
         );
       })}

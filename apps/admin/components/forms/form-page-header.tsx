@@ -1,10 +1,24 @@
-import { Breadcrumb, type BreadcrumbItem } from "@/components/kit";
 import { t } from "@/lib/i18n/en";
 import { sectionHeadingId } from "@/lib/page-headings";
 
 /**
- * The chrome every form section shares: breadcrumb and identity line (034; 035 adds the
- * responses and webhooks sections).
+ * The chrome every form section shares: the screen's heading and the form's identity line
+ * (034; 035 adds the responses and webhooks sections).
+ *
+ * ## The breadcrumb left this header for the rail's Header (§7.0 ruling 3, issue #1116)
+ *
+ * It was "Forms / kitchen-sink / Links", the first line of every form section's column.
+ * §7.0 makes the way back the rail Header's own back link - "the Header's back link ...
+ * replaces the content-column breadcrumb on every screen" - and the rail states the form's
+ * name and status one row above it, so the trail was three facts the rail already carried,
+ * said again in the column beside it.
+ *
+ * **The default heading became visible with that change, and that is a consequence rather
+ * than a second decision.** It was `qcms-visually-hidden` on the Code Owner's ruling of
+ * 2026-08-26, whose whole reason was that "Links" directly under "Forms / kitchen-sink /
+ * Links" told a sighted reader something they had just read. With the breadcrumb gone it is
+ * the only thing naming the screen, so hiding it would leave five sibling screens with no
+ * visible name at all.
  *
  * A server component, and since issue 561 an entirely static one. Keeping it in one place
  * is what stops the preview, version history, links, responses and webhooks screens
@@ -30,8 +44,8 @@ import { sectionHeadingId } from "@/lib/page-headings";
  * This paragraph used to say the heading composed the section's name with the form's slug
  * through a `forms.section.heading` template, citing the drawings that head their screens
  * "Draft preview: Life insurance". Both halves are gone: the Code Owner's amendment of
- * 2026-08-26 heads all six screens with the section name alone, because the rail and the
- * breadcrumb both carry the form and composing it here said the same word a third time,
+ * 2026-08-26 heads all six screens with the section name alone, because the rail carries
+ * the form already and composing it here said the same word twice,
  * and the key itself was deleted by issue #538's dead-key sweep. The deviation from the
  * drawing and the reasoning for it are recorded in `app/(shell)/section-headings.test.tsx`
  * and in the comment beside the heading below. Corrected under issue #756,
@@ -55,7 +69,7 @@ import { sectionHeadingId } from "@/lib/page-headings";
  * Two routes sit one level deeper still - a single stored version, a single response - and
  * there neither the form nor the section names the subject: two responses of one form were
  * two pages with identical headings (issue #510). Those routes pass `heading`, and the form
- * stays in the breadcrumb, which is where context belongs.
+ * stays in the rail's Header, which is where context belongs since §7.0.
  */
 export function FormPageHeader({
   formId,
@@ -67,9 +81,9 @@ export function FormPageHeader({
   readonly formId: string;
   readonly slug: string;
   /**
-   * The catalog key of the current section, which names both the last breadcrumb crumb and
-   * the section half of the default `<h1>`. One key for both, so a section cannot end up
-   * called one thing in the breadcrumb and another in the heading above it.
+   * The catalog key of the current section, which names the default `<h1>` and the row the
+   * rail marks current. One key for both, so a screen cannot end up called one thing in
+   * its heading and another in the rail beside it.
    */
   readonly section:
     "builder" | "rules" | "preview" | "versions" | "releases" | "links" | "responses" | "webhooks";
@@ -84,32 +98,17 @@ export function FormPageHeader({
    */
   readonly heading?: { readonly id: string; readonly text: string };
 }) {
-  const crumbs: BreadcrumbItem[] = [
-    { id: "forms", label: t("forms.builder.crumbs"), href: "/forms" },
-    { id: formId, label: slug, href: `/forms/${encodeURIComponent(formId)}` },
-    { id: section, label: t(`forms.tab.${section}`) },
-  ];
-
   return (
     <div className="flex flex-col gap-3">
-      <Breadcrumb items={crumbs} ariaLabel={t("forms.builder.crumbLabel")} />
       {/* `tabIndex` only with an override: it is a programmatic focus destination, and an
           untargeted heading has no reason to be one. */}
-      {/* HIDDEN WHEN IT ONLY REPEATS THE BREADCRUMB, kept for the reader who cannot see
-          the breadcrumb (Code Owner, 2026-08-26). Every screen needs a level-one heading:
-          it is what a screen reader navigates by, and a page without one fails the axe
-          sweep this app runs in three modes. But when it says "Links" directly beneath
-          "Forms / kitchen-sink / Links", it is telling a sighted reader something they
-          have already read.
-
-          Only the DEFAULT heading is hidden. A route that passes its own - the version
-          detail's "Version 3", the response detail's heading - is naming something the
-          breadcrumb does not, and stays visible. That is also the branch that takes focus
-          programmatically, and a focus destination nobody can see would be a worse thing
-          to have than a repeated title. */}
+      {/* VISIBLE ON EVERY SECTION SINCE #1116. The default heading was hidden from
+          2026-08-26 because the breadcrumb above it had just said the same word; the
+          breadcrumb is the rail Header's back link now (§7.0 ruling 3), so this is the one
+          place the screen is named in its own column. */}
       {/* THE DEFAULT HEADING CARRIES AN ID TOO (issue #669). It used to have one only when
           a route overrode it, which was enough while every default heading was decoration
-          above a breadcrumb that had already said the same word. `/forms/{formId}/rules`
+          above a breadcrumb that had since said the same word. `/forms/{formId}/rules`
           is the first section screen whose body is a labelled region: the rules editor
           points its `aria-labelledby` at this heading rather than minting a second one,
           because two level-one headings on one screen is the defect, not the fix. Derived
@@ -118,16 +117,11 @@ export function FormPageHeader({
       <h1
         id={heading?.id ?? sectionHeadingId(section)}
         tabIndex={heading === undefined ? undefined : -1}
-        className={
-          heading === undefined
-            ? "qcms-visually-hidden"
-            : "qcms-ops-title text-xl font-semibold text-(--color-text)"
-        }
+        className="qcms-ops-title text-xl font-semibold text-(--color-text)"
       >
         {/* THE SECTION'S NAME, WITHOUT THE FORM'S (Code Owner, 2026-08-26). It read
-            "Links: kitchen-sink", and the breadcrumb directly above it already says
-            "Forms / kitchen-sink / Links": the heading was a mashup of the two crumbs a
-            line below them.
+            "Links: kitchen-sink", and the rail one column over says the form's name
+            already: the heading was a mashup of two things said elsewhere.
 
             Issue 679's fix is kept rather than reverted, because its defect was a
             different one. All five section screens used to render the SAME heading - the
@@ -139,8 +133,8 @@ export function FormPageHeader({
             What this DOES deviate from is the drawing: `preview-versions-poc.html` and
             `responses-poc.html` compose both parts. They were drawn before this rail
             carried the form's name on every one of these screens, and the form's identity
-            is now on screen three times over - the breadcrumb, the rail, and the form id
-            line below. Ruled on by the Code Owner rather than transcribed. */}
+            is still on screen twice - the rail's Header and the form id line below. Ruled
+            on by the Code Owner rather than transcribed. */}
         {heading?.text ?? t(`forms.tab.${section}`)}
       </h1>
       {status !== undefined && (

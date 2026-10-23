@@ -1,4 +1,4 @@
-import { LifecycleActions } from "@/components/questions/lifecycle-actions";
+import { NewVersionAction } from "@/components/questions/lifecycle-actions";
 import { QuestionVersionsRail } from "@/components/questions/question-versions-rail";
 import { questionPanelState } from "@/lib/questions/panels";
 import { selectVersion } from "@/lib/questions/version-rail";
@@ -47,7 +47,9 @@ import { lifecycleAction } from "../../../questions/actions";
  * `lifecycleAction` is imported from the page's own route rather than re-declared here for
  * the same reason: publish, deprecate and new-version are one server action with one
  * revalidation, and a second copy of it in this segment would be a second place for the
- * `POST` and the redirect to drift.
+ * `POST` and the redirect to drift. The rail posts only new-version to it now: Publish and
+ * Deprecate are the screen's heading row since §7.0 ruling 5 (issue #1116), and they call
+ * the same action from there.
  */
 export default async function QuestionDetailRail({
   params,
@@ -80,11 +82,10 @@ export default async function QuestionDetailRail({
       panels={panels}
       panel={panel}
       actions={
-        <LifecycleActions
+        <NewVersionAction
           action={lifecycleAction}
           questionId={rail.questionId}
           version={selected.version}
-          status={selected.status}
           latestVersion={latest?.version ?? selected.version}
         />
       }

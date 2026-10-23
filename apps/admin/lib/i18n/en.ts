@@ -27,6 +27,22 @@
  */
 
 export const messages = {
+  // THE RAIL, which is one rail on every screen that has one
+  // (`plan/admin-design-contracts.md` §7.0, Code Owner 2026-10-24; issue #1116).
+  //
+  // One string, because the frame has one name to compose and the parts fill themselves
+  // from what they already carry. The `<aside>` is named for its SUBJECT - a form's name, a
+  // question's id, "Settings" - which the caller already has, and the navigation inside it
+  // is that subject's sections. Three per-rail label strings stood here until #1116
+  // ("{slug} steps and sections", "Versions of {questionId}", "Settings sections"), which
+  // is three wordings for one landmark and three things for a translator to keep parallel.
+  //
+  // It names what the navigation carries rather than what it is: a `nav` is already
+  // announced as a navigation landmark, so repeating the word would have a screen reader
+  // say it twice. Naming the subject is what keeps it distinct from the topbar's own
+  // landmark on the same page.
+  "rail.sections": "{subject} sections",
+
   "app.title": "QCMS",
   "app.description": "Author questionnaires, publish forms, and review responses.",
 
@@ -243,13 +259,6 @@ export const messages = {
     "Your saved codes cannot be shown again. If you have lost them, generate a new set: the codes you have now will stop working.",
   "settings.recoveryCodesPassword": "Your password",
   "settings.recoveryCodesAction": "Generate new recovery codes",
-
-  // The Settings section rail (`plan/admin-design-contracts.md` §7a). Four strings, and
-  // the two that are not section names both exist because the rail has no route to speak
-  // for it: `summaryDefault` is what the collapsed summary says before the URL names a
-  // section, and `current` is the phrase that replaces the `aria-current` a stylesheet
-  // cannot set, so the active row is not marked by colour alone.
-  "settings.rail.label": "Settings sections",
 
   // ---------------------------------------------------------------------------
   // The question library (task 032).
@@ -536,7 +545,6 @@ export const messages = {
   // rather than a count and a fragment joined in the component: a locale that puts the
   // published version first, or that needs a different separator, changes it here (ADR-27).
   // `tPlural` picks the singular, which is the state a question spends its first minute in.
-  "questions.rail.label": "Versions of {questionId}",
   "questions.rail.digestOne": "{count} version, v{version} published",
   "questions.rail.digest": "{count} versions, v{version} published",
   "questions.rail.digestNoneOne": "{count} version, none published",
@@ -672,8 +680,6 @@ export const messages = {
   "forms.create.submit": "Create form",
   "forms.create.submitting": "Creating the form...",
 
-  "forms.builder.crumbs": "Forms",
-  "forms.builder.crumbLabel": "Breadcrumb",
   // The identity line under the heading on every form screen. This paragraph used to say
   // the builder's five sibling sections composed `forms.section.heading` while the builder
   // headed itself with the bare slug; neither half survived. The Code Owner's 2026-08-26
@@ -2477,11 +2483,6 @@ export const messages = {
 
   // --- the form-subtree rail (`plan/admin-design-contracts.md` §7, issue 559) ---
   //
-  // The rail's accessible name says what it carries rather than what it is: a `nav`
-  // is already announced as a navigation landmark, so repeating the word here would
-  // make a screen reader say it twice. Naming the form as well is what keeps this
-  // distinct from the topbar's own landmark on the same page.
-  "forms.rail.label": "{slug} steps and sections",
   "forms.rail.steps": "Steps",
   "forms.rail.formMenu": "Actions for {title}",
   "forms.rail.sections": "Sections",

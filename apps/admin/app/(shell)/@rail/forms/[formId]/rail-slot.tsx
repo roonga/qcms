@@ -1,4 +1,5 @@
 import { FormSubtreeRail } from "@/components/forms/form-subtree-rail";
+import { RailAddStep } from "@/components/forms/rail-add-step";
 import { RailSteps } from "@/components/forms/rail-steps";
 import type { RailCurrent, RailItem } from "@/lib/forms/subtree-rail";
 import { loadFormRail } from "@/lib/server/form-rail";
@@ -68,12 +69,19 @@ export async function FormRailSlot({
       formId={rail.formId}
       slug={rail.slug}
       title={rail.title}
+      status={rail.status}
       steps={rail.steps}
       issueCounts={rail.issueCounts}
       current={current}
       renderSteps={(item: RailItem, steps: readonly RailItem[]) => (
         <RailSteps item={item} serverItems={steps} />
       )}
+      // THE ACTIONS PART (§7.0, issue #1116). Add step is a client component on all eight
+      // screens for one reason: on the builder it has to reach the draft in the browser,
+      // and on the other seven it has to render the anchor that lands there. Handed in as a
+      // node, like the steps above it, so this slot stays the only place that knows the
+      // rail has a client half.
+      actions={<RailAddStep builderHref={`/forms/${encodeURIComponent(rail.formId)}`} />}
     />
   );
 }

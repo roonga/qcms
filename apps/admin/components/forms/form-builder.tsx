@@ -28,6 +28,7 @@ import {
   setGroupPresentation,
 } from "@/lib/forms/draft";
 import { ruleAnchorId, rulesHref, stepAnchorId, stepIssueCounts } from "@/lib/forms/issues";
+import { currentScreenName } from "@/lib/forms/screen-name";
 import { hasSettingsChange, settingsPatch } from "@/lib/forms/settings";
 import {
   isDraftGroup,
@@ -47,7 +48,7 @@ import { GroupPanel } from "./group-panel";
 import { RulesLens } from "./rules-lens";
 import { SaveNotices } from "./save-notices";
 import { concurrentNoticeCookie } from "@/lib/builder-notice";
-import { currentScreenName } from "./builder-breadcrumb";
+
 import { usePublishBuilderRail, type BuilderSelection } from "@/lib/forms/builder-bridge";
 import { StepEditor } from "./step-editor";
 import { ValidationPanel } from "./validation-panel";
@@ -290,9 +291,8 @@ export function FormBuilder({
     }
   }
 
-  // The one name for the screen being shown, shared with the breadcrumb so the two cannot
-  // drift. `currentScreenName` takes the published snapshot rather than the selection,
-  // because that is what the crumb outside this tree can also read.
+  // The one name for the screen being shown (`lib/forms/screen-name.ts`), so the heading
+  // and the rail's marked row cannot drift.
   const screenName = currentScreenName(selection, draft.steps);
 
   // The settings, on the same debounce and deliberately the same shape as the draft's loop
