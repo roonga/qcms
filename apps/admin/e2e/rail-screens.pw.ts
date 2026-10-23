@@ -489,7 +489,6 @@ test("561 puts every shared rail row in the same box on all three builder-family
   }
 });
 
-
 test("1116 heads every form screen's rail the same way, and leaves no breadcrumb behind", async ({
   page,
 }) => {
@@ -568,13 +567,15 @@ test("1116 gives the parent of the current row no fill, so one row reads as sele
 
   const marked = page.locator('.qcms-rail__link[aria-current="page"]');
   await expect(marked, "the step and the form it belongs to").toHaveCount(2);
-  const painted = await marked.evaluateAll((nodes) =>
+  const painted = await marked.evaluateAll((nodes: readonly Element[]) =>
     nodes.map((node) => {
       const style = getComputedStyle(node);
       return {
-        item: node.getAttribute("data-rail-item") ?? node.className,
+        item: node.getAttribute("data-rail-item") ?? "a row",
         weight: style.fontWeight,
-        filled: style.backgroundColor !== "rgba(0, 0, 0, 0)" && style.backgroundColor !== "transparent",
+        // A fill, read as "not the transparent the row carries when it is not current".
+        filled:
+          style.backgroundColor !== "rgba(0, 0, 0, 0)" && style.backgroundColor !== "transparent",
         edge: style.borderInlineStartWidth,
       };
     }),
