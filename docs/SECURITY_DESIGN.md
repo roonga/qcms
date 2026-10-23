@@ -994,7 +994,7 @@ The glibc pair is untouched: `CVE-2026-5450` against `libc6` and `libc-bin` stil
 **Nothing moves to trixie**, which remains a separate decision under #894 with the standing trigger versions recorded above.
 
 **What the bump is measured to buy, base image alone, and it is not what the weekly issue of 2026-10-19 suggests.**
-Each base scanned directly with grype 0.119.0 against the vulnerability database built 2026-10-23, which is the same binary and the same floors the `scan` job uses:
+Each base scanned directly with grype 0.119.0 against the vulnerability database built 2026-10-23, the same version the `scan` job pins; directly against the image rather than through one of our SBOMs, so these numbers are about the base and not about our images, which is the same method the trixie table above uses:
 
 | Base image                                 | Findings | Critical | High | Fixable at `high` or above |
 | ------------------------------------------ | -------- | -------- | ---- | -------------------------- |
@@ -1005,6 +1005,7 @@ Each base scanned directly with grype 0.119.0 against the vulnerability database
 Before and after are both 0 blocking, 3 reported fixable at `high` and 73 reported unfixed rows, with `qcms-api` at 379 packages and the two front ends at 298, each 2 critical, 74 high, 80 medium and 223 with no fix.
 The two runs agree down to the reported-set fingerprint the `scan-issue` job compares weeks on, `05db3426994c...`, which is the precise form of "nothing moved": a weekly run on this change would post no comment at all.
 The reason is that the previous digest already cleared five of the eight fixable highs the 2026-10-19 weekly issue reported, and that issue predates it: #1072's digest landed on 2026-10-21 carrying `libpcre2-8-0 10.42-1+deb12u2`, which clears `CVE-2026-103111`, and an npm tree at `brace-expansion 5.0.9`, `ip-address 10.5.0` and `tar 7.5.22`, which clears `GHSA-mh99-v99m-4gvg`, `GHSA-rgw5-rvv9-x895`, `GHSA-mwp4-54f8-5fhr` and `GHSA-r292-9mhp-454m`.
+That also closes the `libpcre2-8-0@10.42-1` and `brace-expansion@5.0.7`, `tar@7.5.19`, `ip-address@10.2.0` rows the 2026-09-18 measurement a few paragraphs above records: `CVE-2026-86145`, `CVE-2026-89157` and `CVE-2026-89161` are not in the report at all any more, and the npm trio moved with npm's own bundled tree rather than with anything in this workspace, exactly as that paragraph predicted.
 The build-time `perl-base` layer was already supplying `deb12u4`, so the image scan never saw the five perl rows the base-only table above shows; this change moves them from the layer into the pinned base, which is a reproducibility result and not a findings result.
 
 **Three fixable highs remain, no digest of this tag clears them, and the removal condition is upstream.**
