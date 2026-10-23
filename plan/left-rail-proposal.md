@@ -49,7 +49,7 @@ One frame (`components/rail-frame.tsx`) with up to five parts, always in this or
 3. **Children,** nested under the current section only: steps under the builder row, panels under the selected version.
 4. **Filters:** the screen's list filters, in a `<form role="search">` with a "Filters" heading and an active-count ("Filters · 2").
    - Same field order on every list: Search first, then the status filter, then type or other filters, then sort.
-   - "Apply" stays, so filters work without JavaScript.
+   - "Apply" submits the filter form. The admin requires JavaScript, so this is not a no-JS path.
    - "Clear filters" appears only when one is set. The URL keeps carrying the filter state, so a filtered list can still be bookmarked.
 5. **Actions:** structural actions only, at the foot: "New question", "New form", "Add step", "New version".
    - Lifecycle actions (Publish, Release, Close, Deprecate, Save, Erase) stay in the content heading row on every screen.
@@ -104,7 +104,7 @@ The form subtree is the one place where both Sections and Filters appear. On the
 
 ## Smaller fix found on the way
 
-- The builder's first-visit autosave notice and the "Not saved yet ?" toggle push the content down on every form screen. Consider moving the notice into the save-state popover.
+- The builder's first-visit autosave notice and the "Not saved yet" help toggle push the content down on every form screen. Consider moving the notice into the save-state popover.
 
 ## Decisions needed
 

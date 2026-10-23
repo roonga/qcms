@@ -115,6 +115,9 @@ What this invalidates, named so it is not re-derived:
   "must remain usable without JS" as a floor. **That instruction was wrong.** The POC draws
   `<button>` elements calling `showSettingsPanel()`, and under the POC-wins ruling above,
   that is the approved design.
+  **Superseded 2026-10-24 by §7.0 ruling 2:** rail items are anchors, never buttons, on
+  every rail; Settings items are `#fragment` anchors that select the panel. The no-JS
+  point above still stands: no rail needs a no-JS path.
 - **#570's anchor work is unaffected.** Its argument had two halves - a whole-row click
   handler is a control only a mouse understands, and it cannot be opened in a new tab.
   Neither depends on scripting being off.
@@ -932,7 +935,7 @@ closes with it.
 
 ### 7.0 Ruling, 2026-10-24 (Code Owner): one rail on every screen
 
-**This subsection governs the rail.** Where anything later in §7 or in §7a disagrees with it, this subsection wins; those passages are kept as history and rationale, and the sentences it reverses are marked "Superseded 2026-10-24" where they stand. The analysis and the screen-by-screen evidence are in `plan/left-rail-proposal.md`. Work: #1115 (this record), #1116 (frame), #1117 (every screen and list filters), #1118 (section filters), #1119 (hide toggle).
+**This subsection governs the rail.** Where anything else in this document disagrees with it about the rail (the preamble, the rest of §7 and §7a included), this subsection wins; those passages are kept as history and rationale, and the sentences it reverses are marked "Superseded 2026-10-24" where they stand. The analysis and the screen-by-screen evidence are in `plan/left-rail-proposal.md`. Work: #1115 (this record), #1116 (frame), #1117 (every screen and list filters), #1118 (section filters), #1119 (hide toggle).
 
 **Premise.** The topbar is the app-level navigation. The left rail belongs to the page: it holds what the current screen needs beside its content, and it looks and behaves the same everywhere.
 
@@ -943,7 +946,7 @@ The eight rulings:
    1. **Header:** a back link to the parent screen (none on a top-level screen), the subject's name, and at most one status tag. Below `--bp-sidebar` the Header is the disclosure's summary, shut by default. Above it, it is a visible plain header on every rail. It is one element at both widths, as the 2026-08-22 amendment below requires.
    2. **Sections:** anchors to the subject's routes or same-page panels, inside `<nav aria-label="<subject> sections">`. Never buttons.
    3. **Children:** nested under the current section only.
-   4. **Filters:** the screen's filters in `<form role="search">`, with a "Filters" heading and an active count. They are ordered Search, status, type or other, then sort. "Apply" keeps no-JS working, and the URL carries the state.
+   4. **Filters:** the screen's filters in `<form role="search">`, with a "Filters" heading and an active count. They are ordered Search, status, type or other, then sort. "Apply" submits the filter form and the URL carries the state, so a filtered list can be bookmarked and reloaded. This is not a no-JS path: the admin requires JavaScript (the 2026-09-27 ruling above).
    5. **Actions:** structural actions only ("New question", "New form", "Add step", "New version").
    - The root is `<aside aria-label="<subject>">`.
    - **One current-row mark:** tinted fill, weight 700 and a 2px inline-start accent edge. A parent of the current row gets weight 600 and no fill, so exactly one row reads as selected.
@@ -972,6 +975,12 @@ The eight rulings:
 | Workspaces (list)             | Workspaces                             | the workspace list, Your own access                                                                | -                                                                                                           | -            | none      |
 | Workspace detail              | back to Workspaces, workspace name     | Members, Access groups, Workspace settings, Access audit                                           | -                                                                                                           | -            | none      |
 | Settings                      | Settings                               | Account, Change password, Two-factor authentication                                                | -                                                                                                           | -            | none      |
+
+**Clarifications of the rulings (conductor drafting, 2026-10-24, from the review of #1120; the Code Owner corrects on request):**
+
+- **The question rail's details group** (Slug, Created, Type with its locked status) stays and sits in the Header under the subject as secondary lines. It describes the subject, so it belongs with it. **Per-row digests and issue badges** (per step, per panel) stay as row content in Sections and Children.
+- **The collapsed summary** (below `--bp-sidebar`) shows the subject plus at most one count: the issue total on the form and question rails, or the active filter count on a list screen. It truncates with an ellipsis, and the count never truncates. The back link stays visible through the collapse, as the question rail's already does.
+- **The form's sections are eight, not seven:** Releases joined the sibling list after it was written (§7.1 below lists seven). The routes `/export` and `/assist` are endpoints, not screens, and get no row.
 
 **What still holds from the passages below:**
 
@@ -1182,7 +1191,8 @@ The eight rulings:
   on the builder, an anchor on the other seven screens - is what produced the
   geometry defects `apps/admin/e2e/rail-screens.pw.ts` exists for.
 
-- Collapsed (below `--bp-sidebar`), the summary names the ~~active item~~ **form**
+- (**Narrowed 2026-10-24, §7.0 clarifications:** the summary is the Header with at most
+  one count.) Collapsed (below `--bp-sidebar`), the summary names the ~~active item~~ **form**
   and the **form's** issue total (`plan/admin-mobile-stance.md`, amended
   2026-08-23; issue #693). The summary text truncates with an ellipsis; the markup
   is one shared component, not per-screen copies.
@@ -1254,11 +1264,12 @@ how an unexamined choice becomes the house pattern.
   The disclosure semantics are kept by hiding the summary visually rather than by dropping
   it, which costs no second code path.
 
-- **The Settings rail (§7a) follows the same mechanism**, being a different component with
+- (**Superseded 2026-10-24, §7.0 ruling 2:** one frame for every rail; the rails differ in
+  contents only.) **The Settings rail (§7a) follows the same mechanism**, being a different component with
   the same collapse behaviour. It does not get to answer this differently.
 
 `components/rail-frame.tsx` is the shared chrome and `components/forms/form-subtree-rail.tsx`
-is §7's contents; the split is what keeps §7a a distinct component that shares the column,
+is §7's contents (**superseded 2026-10-24:** §7.0 makes `rail-frame.tsx` the one frame and every rail a set of contents for it); the split is what keeps §7a a distinct component that shares the column,
 the width and the collapse behaviour and nothing else.
 
 **Amendment, 2026-08-22 (escalated by PR #621): a step item is a fragment on
