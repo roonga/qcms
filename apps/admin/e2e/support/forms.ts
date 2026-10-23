@@ -359,12 +359,13 @@ export async function openRules(page: Page): Promise<void> {
 }
 
 /**
- * The rules screen's own `<h1>`, which is visually hidden because the breadcrumb directly
- * above it already ends in "Rules".
+ * The rules screen's own `<h1>`.
  *
- * Attached rather than visible, for that reason: `FormPageHeader` hides a default heading
- * that would only repeat the crumb, and `qcms-visually-hidden` is a clipped box rather
- * than `display: none`, so it is in the accessibility tree and not in the picture.
+ * It was visually hidden until #1116, because the breadcrumb directly above it already
+ * ended in "Rules"; §7.0 ruling 3 replaced that trail with the rail Header's back link, so
+ * the heading is the one thing naming this screen in its own column and is visible. Located
+ * by id rather than by role, because the rules editor labels its region with this same
+ * heading and the id is what both sides read.
  */
 export function rulesHeading(page: Page): Locator {
   return page.locator("#qcms-rules-heading");

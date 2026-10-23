@@ -92,7 +92,6 @@ export default async function FormWebhooksPage({
     <div className="flex flex-col gap-8">
       <FormPageHeader
         formId={form.formId}
-        slug={form.slug}
         section="webhooks"
         status={form.status}
       />

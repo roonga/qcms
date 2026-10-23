@@ -53,7 +53,6 @@ export default async function FormPreviewPage({
     <div className="flex flex-col gap-6">
       <FormPageHeader
         formId={form.formId}
-        slug={form.slug}
         section="preview"
         status={form.status}
       />

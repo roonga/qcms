@@ -70,7 +70,6 @@ export default async function FormVersionsPage({
     <div className="flex flex-col gap-6">
       <FormPageHeader
         formId={form.formId}
-        slug={form.slug}
         section="versions"
         status={form.status}
       />

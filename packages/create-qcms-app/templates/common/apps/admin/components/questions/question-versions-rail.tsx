@@ -5,88 +5,59 @@ import { OperatorDay } from "@/components/operator-time";
 import { PublishedOnDay } from "@/components/questions/published-on-day";
 import { QuestionPanelRows } from "@/components/questions/question-panel-rows";
 import { StatusTag } from "@/components/questions/status-tag";
-import { RailDisclosure } from "@/components/rail-disclosure";
+import { RailFrame } from "@/components/rail-frame";
 import { t, tPlural } from "@/lib/i18n/en";
 import type { QuestionPanel, QuestionPanelId } from "@/lib/questions/panels";
 import type { QuestionVersion } from "@/lib/questions/types";
 import { latestPublishedVersion, versionRailItems } from "@/lib/questions/version-rail";
 
 /**
- * The question detail screen's rail, built to `plan/admin-shell-poc/question-editor-poc.html`
- * (issue 650) and carrying the editor's panel switches since 2026-09-27 (Code Owner).
+ * The question detail screen's parts of the one rail (`plan/admin-design-contracts.md`
+ * §7.0, issues 650 and #1116).
  *
- * ## A third rail, named distinctly, and not a variant of either of the other two
+ * ## It was a third rail. There is one rail now
  *
- * The app now ships three rails that share a column and share nothing else.
- * `components/forms/form-subtree-rail.tsx` navigates between the ROUTES of one form's
- * subtree. `components/settings-section-rail.tsx` switches which PANEL of the single
- * Settings route is on screen. This one does both at once: its version rows are `?v=` on the
- * route the reader is already standing on, and the panel rows nested under the selected one
- * switch which part of that version's editor the column beside the rail is showing. Three
- * different answers to "what does a rail carry", which is why they are three files rather than
- * one component with a flag: a flag would be the seam along which the three contracts get
- * unified, and the next change to any of them would have to be argued as a change to all three.
+ * This file used to restate the frame's chrome - the disclosure, the summary, the body - and
+ * argued at length that it should, because three rails answered "what does a rail carry"
+ * three ways and a shared frame would be the seam along which those three contracts got
+ * unified. The 2026-10-24 ruling unified them deliberately: one frame, one anatomy, one
+ * current-row mark, on every screen. So the restated chrome is gone and this file is the
+ * five parts, as `components/rail-frame.tsx` takes them.
  *
- * **`components/rail-frame.tsx` is not widened for this.** No base component, no widened
- * props type, no variant flag, no shared module. The `<details>` chrome below is restated
- * rather than taken from `RailFrame`, which is the same trade the Settings rail made.
+ * - **Header:** back to Questions, the question's id, the selected version's status, and
+ *   under them the question's own permanent facts - slug, created day, and the type with
+ *   its locked status - plus the version digest. The details group staying in the Header is
+ *   the 2026-10-24 clarification to §7.0; it is a statement about the SUBJECT, which is what
+ *   the Header is for.
+ * - **Sections:** the version list. Each row is `?v=` on the route the reader is already
+ *   standing on.
+ * - **Children:** the selected version's editor panels, nested inside its version row,
+ *   which is what "nested under the current section only" asks for and what the builder's
+ *   rail already does with a form's steps.
+ * - **Actions:** New version, and only that. **Publish and Deprecate left the rail**
+ *   (§7.0 ruling 5: the rail never holds a lifecycle action), and they are in the screen's
+ *   heading row beside Save - `app/(shell)/questions/[questionId]/page.tsx`.
  *
- * That restatement earned itself when the summary carried a collapsed-only "which version"
- * indicator `RailFrame` had no place for. **The indicator is retired (Code Owner,
- * 2026-09-29)** and the summary is now a text line and nothing else, which is exactly what
- * `RailFrame` takes - so the local copy is down to the digest line under it and the details
- * group, and folding this rail onto `RailFrame` is a smaller change than it was. It is not
- * made here: this branch has moved this screen enough, and a shared-chrome change reaches
- * three rails.
+ * ## One current mark, and the parent of the current row
  *
- * ## What it carries, top to bottom
+ * A version row and the panel row nested under it are both true statements about the
+ * address, so both still carry `aria-current="page"`. What changed is the paint: §7.0 gives
+ * the parent of the current row weight 600 and no fill, so a reader sees one selected row
+ * rather than two stacked ones. One rule in `app/globals.css` does that for every rail.
  *
- * The back link, the question's id, the question's own details, the actions on the selected
- * version, the version list, and the selected version's editor panels nested under its row.
- * Four of those six arrived on 2026-09-27 and each has its reason written beside it below. The
- * shape they add up to is the form builder's: the rail is where a reader moves around one
- * thing, and the column beside it shows the one piece they moved to.
+ * ## Anchors, never buttons
  *
- * The version list is still the one group the POC draws, with the lifecycle actions pinned
- * above it, and its reason is unchanged: the version list is the one thing on this screen that
- * grows without bound, so an action anchored below it would drift further down the rail with
- * every version the question accumulates.
- *
- * **A rail here carries actions and same-page switches, and `plan/admin-design-contracts.md`
- * §7 records both as general rules now** rather than as this screen's exception. The clause
- * that forbade them was retired on 2026-08-25.
- *
- * ## The builder's rail is the look, and this file borrows its classes rather than its shape
- *
- * **Code Owner, 2026-09-27: this rail wears the same styling as the form builder's.** So the
- * rows here are `.qcms-rail__link` with `data-rail-item`, the groups are `.qcms-rail__group`
- * with `data-rail-group`, the nested panels sit inside the selected version's `<li>` exactly
- * as the builder's steps sit inside its Form row, the badges are the builder's
- * `.qcms-tag--draft` count, and the lifecycle controls wear `.qcms-rail-steps__add` - the
- * treatment its Add step control already had. Six classes went with that change and the
- * stylesheet says which; what is left of `qcms-question-rail__*` is the four things this rail
- * has and the builder does not: the mono question id in its summary, the digest line above the
- * version list, the details group, and the back link above the disclosure. (There were five
- * until 2026-09-29, when the collapsed-only version indicator was retired: the screen's `<h1>`
- * names the version now, one row under the summary, so at 390 the two said the same thing.)
- *
- * The visible "VERSIONS / 3 versions, v2 published" header row went with them. The builder
- * names a group with `aria-label` on the list rather than with a visible heading, and the
- * digest is what `RailFrame` puts in the summary as a count tag - so that is where it is now.
- *
- * ## Anchors for the versions, buttons for the panels and the actions
- *
- * Which version is selected and which panel is open are both facts about the address, so both
- * arrive as props rather than being read from the browser. A version row is an anchor because
- * it goes to another address and open-in-new-tab has to work; the panel rows and the lifecycle
- * controls are buttons because they act on the version already on screen
- * (`docs/admin-constraints.md`: an anchor navigates, a button acts).
+ * Which version is selected and which panel is open are both facts about the address, so
+ * both arrive as props rather than being read from the browser. Both kinds of row are
+ * anchors (§7.0 ruling 2.2): a version row goes to another address, and a panel row is a
+ * fragment anchor onto the panel it opens - `components/questions/question-panel-rows.tsx`
+ * records what that buys and what it does not pretend to.
  *
  * This component stays a **server** component: the panel rows are a client child and the
- * actions arrive as a slot, so the version list, the details and the back link are resolved
- * once, on the server, from the address. That buys a correct FIRST PAINT rather than reach -
- * the admin requires JavaScript (Code Owner, 2026-09-27) - and it is what lets the marked row
- * and the rendered panel agree before anything has hydrated.
+ * one action arrives as a slot, so the version list, the details and the back link are
+ * resolved once, on the server, from the address. That buys a correct FIRST PAINT rather
+ * than reach - the admin requires JavaScript (Code Owner, 2026-09-27) - and it is what lets
+ * the marked row and the rendered panel agree before anything has hydrated.
  */
 export function QuestionVersionsRail({
   questionId,
@@ -112,11 +83,12 @@ export function QuestionVersionsRail({
   /** The panel the address opens, resolved by `panelFromParams`. */
   readonly panel: QuestionPanelId;
   /**
-   * The lifecycle controls for the selected version, or nothing.
+   * The Actions part: New version, or nothing.
    *
    * A slot rather than an import, so this file stays a server component and the one place
-   * that knows which server action a lifecycle button posts to stays the route that owns
-   * that action.
+   * that knows which server action the control posts to stays the route that owns that
+   * action. It is one structural action now: the lifecycle pair moved to the screen's
+   * heading row (§7.0 ruling 5).
    */
   readonly actions?: ReactNode;
 }) {
@@ -132,74 +104,46 @@ export function QuestionVersionsRail({
   const type = selectedVersion?.definition.type;
 
   return (
-    <div className="qcms-rail qcms-question-rail" data-testid="qcms-question-rail">
-      {/* THE WAY BACK, AT THE TOP OF THE RAIL AND OUTSIDE THE DISCLOSURE (Code Owner,
-          2026-09-27). It was the first line of the content column, above the `<h1>`, which is
-          where a detail screen has always put it - but this screen's column is now a preview
-          and one panel of a form, and a navigation link above them was the one thing in that
-          column that went somewhere else. The rail is where this screen's navigation lives.
-
-          Outside the `<details>` rather than inside its body, and that is the placement doing
-          the work: below `--bp-sidebar` the rail collapses to its summary alone, so a back
-          link in the body would be reachable only by expanding a rail first. Above it, it is
-          the first thing on the screen at every width.
-
-          An anchor, because it goes to another route (`docs/admin-constraints.md`). */}
-      <Link href="/questions" className="qcms-question-rail__back">
-        {t("questions.backToList")}
-      </Link>
-      {/* One native `<details>` at both widths, for the reasons `components/rail-frame.tsx`
-          writes out at length: an element cannot be chosen by media query, a second copy of
-          the navigation would be a second set of rows to walk, and the browser announces
-          expanded and collapsed itself more reliably than any `aria-expanded` written by
-          hand. Shut below `--bp-sidebar` and open above it, which is the shared collapse
-          behaviour §7a names and the one part of the chrome that is NOT restated locally:
-          `components/rail-disclosure.tsx` owns it. Above the boundary the chevron goes and
-          the summary stops advertising itself as a control; it remains one. */}
-      <RailDisclosure>
-        <summary className="qcms-rail__summary">
-          {/* The question's own id, and NOTHING ELSE (Code Owner, 2026-09-29). In the id style,
-              because that is what this rail belongs to and what an author pastes into a ticket,
-              and it is the one line that truncates.
-
-              A collapsed-only "/ Version 2" stood beside it from issue 650 until 2026-09-29.
-              Its reason was that below `--bp-sidebar`, shut, this line is the whole rail, so
-              which version is showing was the one thing a reader could not otherwise get. That
-              stopped being true when the screen's `<h1>` started naming the version
-              (2026-09-28): the indicator then sat directly above a heading that said the same
-              thing, which at 390 is two lines of the same fact. The form rail's summary shows
-              just the form; this one shows just the question. */}
-          <span className="qcms-rail__summary-text qcms-question-rail__summary-id">
-            {questionId}
-          </span>
-          <span className="qcms-rail__chevron" aria-hidden="true">
-            {"›"}
-          </span>
-        </summary>
-        <div className="qcms-rail__body">
-          {/* THE QUESTION'S DETAILS, UNDER ITS ID (Code Owner, 2026-09-27). These three were a
-              meta strip under the `<h1>`: one paragraph of "Slug: x · Created: y · Type: z",
-              which is a statement about the QUESTION sitting at the top of a column that now
-              shows one panel of one version. They belong beside the id they describe, and the
-              summary above is that id.
+    <RailFrame
+      subject={questionId}
+      back={{ href: "/questions", label: t("questions.title") }}
+      /* The question's own id, in the id style, because that is what this rail belongs to
+         and what an author pastes into a ticket. The truncation is the frame's: the Header's
+         name is the one line in a rail that ellipses. */
+      title={<span className="qcms-rail__id">{questionId}</span>}
+      testId="qcms-question-rail"
+      {...(selectedVersion === undefined
+        ? {}
+        : { tag: <StatusTag status={selectedVersion.status} /> })}
+      {...(actions === undefined ? {} : { actions })}
+      lines={
+        <>
+          {/* THE QUESTION'S DETAILS, UNDER ITS ID (Code Owner, 2026-09-27; kept in the
+              Header by the 2026-10-24 clarification to §7.0). These three were a meta strip
+              under the `<h1>`: one paragraph of "Slug: x · Created: y · Type: z", which is a
+              statement about the QUESTION sitting at the top of a column that now shows one
+              panel of one version. They belong beside the id they describe, and the Header
+              above is that id.
 
               A description list rather than a paragraph, because that is what three
               label-and-value pairs are, and because the rail carries no headings - the same
-              `heading-order` constraint the group label below records.
+              `heading-order` constraint the group labels below record.
 
-              The TYPE IS STATED ONCE, HERE, WITH ITS LOCKED STATUS. It used to be said twice:
-              in that strip, and again as "Type is locked to Long text." at the top of the
-              version card. Two sentences for one immutable fact, one of which was inside the
-              editor it constrains. R6 is what makes it permanent, so the rail states it where
-              it states the question's other permanent facts and the editor states nothing.
+              The TYPE IS STATED ONCE, HERE, WITH ITS LOCKED STATUS. It used to be said
+              twice: in that strip, and again as "Type is locked to Long text." at the top of
+              the version card. Two sentences for one immutable fact, one of which was inside
+              the editor it constrains. R6 is what makes it permanent, so the rail states it
+              where it states the question's other permanent facts and the editor states
+              nothing.
 
               ON THE OPERATOR'S CLOCK, like every admin time (Code Owner, 2026-10-19). This
-              line used to stay UTC, so the library table could name 3 Aug where this line named
-              2 Aug for an operator east of UTC. The ruling made operator-local display apply
-              everywhere, so the day comes from the same client component the table uses. */}
-          <dl className="qcms-question-rail__details">
+              line used to stay UTC, so the library table could name 3 Aug where this line
+              named 2 Aug for an operator east of UTC. The ruling made operator-local display
+              apply everywhere, so the day comes from the same client component the table
+              uses. */}
+          <dl className="qcms-rail__facts">
             <dt>{t("questions.detail.slug")}</dt>
-            <dd className="qcms-question-rail__details-slug">{slug}</dd>
+            <dd className="qcms-rail__facts-slug">{slug}</dd>
             <dt>{t("questions.detail.created")}</dt>
             <dd>
               <OperatorDay iso={createdAt} />
@@ -211,72 +155,59 @@ export function QuestionVersionsRail({
               </>
             )}
           </dl>
-          {actions}
-          {/* Named after the question, because a screen reader listing landmarks on this
-              screen otherwise sees "navigation" beside "navigation" and cannot tell the rail
-              from the shell's own nav.
-
-              THE PANEL ROWS ARE INSIDE THIS LANDMARK, which is worth a sentence because they
-              are not navigation: they switch a panel on this page. They are here because they
-              are the CHILDREN of the version row they sit under, and lifting them out would
-              either put them outside the row that owns them or duplicate the row to carry
-              them - the builder's rail nests its steps inside the Form row for the same
-              reason. A `<nav>` that also contains the switches for the thing it navigated to
-              is what the form builder's rail already is. */}
-          {/* The digest, as one muted line above the list rather than as the uppercase header
-              row with a right-aligned count this rail used to draw. `RailFrame` puts a rail's
-              count in the summary as a tag, and that tag is the builder's amber ISSUE count -
-              the wrong thing to borrow for a neutral "3 versions, v2 published". What the two
-              rails genuinely share is the muted secondary treatment, so this takes that and
-              nothing else. */}
-          <p className="qcms-rail__sub qcms-question-rail__digest">{digest}</p>
-          <nav aria-label={t("questions.rail.label", { questionId })}>
-            {/* An unordered list, though versions are numbered: the ordinal is on every row
-                already and is the version number itself, so an `<ol>` would have a screen
-                reader read a position that disagrees with the label beside it as soon as the
-                newest-first order puts version 4 in position 1. */}
-            <ul
-              className="qcms-rail__group"
-              aria-label={t("questions.detail.versions")}
-              data-rail-group="versions"
-            >
-              {items.map((item) => (
-                <li key={item.key}>
-                  <Link
-                    href={item.href}
-                    className="qcms-rail__link qcms-rail__link--stacked"
-                    data-rail-item={item.key}
-                    data-rail-version={item.version}
-                    {...(item.isCurrent ? { "aria-current": "page" as const } : {})}
-                  >
-                    <span className="qcms-rail__row">
-                      <span>{t("questions.detail.version", { version: item.version })}</span>
-                      <StatusTag status={item.status} />
-                    </span>
-                    {/* The operator's day, as on the details group above (2026-10-19). */}
-                    <span className="qcms-rail__sub">
-                      {item.publishedAt === null ? (
-                        t("questions.detail.unpublished")
-                      ) : (
-                        <PublishedOnDay iso={item.publishedAt} />
-                      )}
-                    </span>
-                  </Link>
-                  {/* UNDER THE SELECTED VERSION AND ONLY IT (Code Owner, 2026-09-27). A panel
-                      row opens a panel of the editor, and the editor is showing one version -
-                      the selected one. Rows under every version would be rows that cannot do
-                      what they say, and a frozen version's rows work exactly like a draft's:
-                      they open the same panels, read-only, which is the same rule this screen
-                      has applied to the editor itself since task 032. */}
-                  {item.isCurrent && panels.length > 0 && (
-                    <QuestionPanelRows panels={panels} selected={panel} />
+          {/* The digest, as one muted line above the list rather than as an uppercase header
+              row with a right-aligned count. It is a neutral "3 versions, v2 published",
+              where the Header's one count slot carries an amber ISSUE total - the wrong
+              device to borrow for this. What it shares with a row's second line is the muted
+              secondary treatment, so it takes that and nothing else. */}
+          <p className="qcms-rail__sub qcms-rail__digest">{digest}</p>
+        </>
+      }
+      sections={
+        /* An unordered list, though versions are numbered: the ordinal is on every row
+           already and is the version number itself, so an `<ol>` would have a screen reader
+           read a position that disagrees with the label beside it as soon as the
+           newest-first order puts version 4 in position 1. */
+        <ul
+          className="qcms-rail__group"
+          aria-label={t("questions.detail.versions")}
+          data-rail-group="versions"
+        >
+          {items.map((item) => (
+            <li key={item.key}>
+              <Link
+                href={item.href}
+                className="qcms-rail__link qcms-rail__link--stacked"
+                data-rail-item={item.key}
+                data-rail-version={item.version}
+                {...(item.isCurrent ? { "aria-current": "page" as const } : {})}
+              >
+                <span className="qcms-rail__row">
+                  <span>{t("questions.detail.version", { version: item.version })}</span>
+                  <StatusTag status={item.status} />
+                </span>
+                {/* The operator's day, as on the details group above (2026-10-19). */}
+                <span className="qcms-rail__sub">
+                  {item.publishedAt === null ? (
+                    t("questions.detail.unpublished")
+                  ) : (
+                    <PublishedOnDay iso={item.publishedAt} />
                   )}
-                </li>
-              ))}
-            </ul>
-          </nav>
-        </div>
-      </RailDisclosure>
-    </div>
+                </span>
+              </Link>
+              {/* UNDER THE SELECTED VERSION AND ONLY IT (Code Owner, 2026-09-27). A panel
+                  row opens a panel of the editor, and the editor is showing one version -
+                  the selected one. Rows under every version would be rows that cannot do
+                  what they say, and a frozen version's rows work exactly like a draft's:
+                  they open the same panels, read-only, which is the same rule this screen
+                  has applied to the editor itself since task 032. */}
+              {item.isCurrent && panels.length > 0 && (
+                <QuestionPanelRows panels={panels} selected={panel} />
+              )}
+            </li>
+          ))}
+        </ul>
+      }
+    />
   );
 }

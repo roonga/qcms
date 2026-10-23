@@ -76,7 +76,7 @@ export default async function FormLinksPage({
 
   return (
     <div className="flex flex-col gap-6">
-      <FormPageHeader formId={form.formId} slug={form.slug} section="links" status={form.status} />
+      <FormPageHeader formId={form.formId} section="links" status={form.status} />
       {/* THE FORM'S OWN ADDRESS, above the minted ones (Code Owner, 2026-08-26). It moved
           here from the builder because this is the screen an author comes to when they
           need a link to hand out, and it belongs beside the other kind rather than a

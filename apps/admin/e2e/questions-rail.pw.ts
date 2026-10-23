@@ -193,7 +193,7 @@ test("650 spells out each version's status and digests the group above them", as
   await page.goto(detailPath());
 
   const rail = page.getByTestId("qcms-question-rail");
-  await expect(rail.locator(".qcms-question-rail__digest")).toHaveText(
+  await expect(rail.locator(".qcms-rail__digest")).toHaveText(
     `3 versions, v${String(fixture.publishedVersion)} published`,
   );
   const row = (version: number) => rail.locator(`[data-rail-version="${String(version)}"]`);
@@ -220,7 +220,9 @@ test("650 leaves the version list on this screen exactly once", async ({ page })
   // twice on one screen is two lists that can disagree and two sets of links to walk. The
   // card this replaced lived in the content column, so the column is where it is looked for.
   await expect(
-    page.getByRole("navigation", { name: `Versions of ${fixture.questionId}` }),
+    // Named for the subject since §7.0 (issue #1116): the `<aside>` is "q_x" and the
+    // navigation inside it is "q_x sections". It was "Versions of q_x" on the whole column.
+    page.getByRole("navigation", { name: `${fixture.questionId} sections` }),
     "one version navigation on the screen",
   ).toHaveCount(1);
   await expect(
@@ -229,37 +231,64 @@ test("650 leaves the version list on this screen exactly once", async ({ page })
   ).toHaveCount(0);
 });
 
-test("650 keeps the lifecycle actions working from the rail the POC puts them in", async ({
+test("1116 keeps New version in the rail's Actions part, under the list", async ({ page }) => {
+  await signInWithTotp(page, EMAIL, totpSecret);
+  await page.setViewportSize({ width: 1280, height: 900 });
+  await page.goto(detailPath());
+
+  const rail = page.getByTestId("qcms-question-rail");
+  // UNDER the list now, not pinned above it. The lifecycle block sat above the version list
+  // from issue 650, on the POC's reason that the list is the one thing on this screen that
+  // grows without bound, so an action beneath it would drift down the rail with every
+  // version. §7.0 answers that by taking the lifecycle pair out of the rail altogether: the
+  // one control left is offered whatever the selected version's status, so it never moves.
+  const actionsTop = await rail
+    .locator(".qcms-rail__actions")
+    .evaluate((element) => element.getBoundingClientRect().top);
+  const listBottom = await rail
+    // `.first()` because the rail nests a second group inside the selected version's row -
+    // the editor's panels - and the one this is about is the version list itself.
+    .locator(".qcms-rail__group")
+    .first()
+    .evaluate((element) => element.getBoundingClientRect().bottom);
+  expect(actionsTop).toBeGreaterThanOrEqual(listBottom);
+  await expect(rail.getByRole("button", { name: "New version" })).toBeVisible();
+
+  // AND NO LIFECYCLE ACTION IN THE RAIL, on either version (§7.0 ruling 5). This is the
+  // half that would regress silently: a rail that grew a Publish button back would look
+  // like the POC and contradict the ruling.
+  await expect(
+    rail.getByRole("button", { name: `Publish version ${String(fixture.draftVersion)}` }),
+  ).toHaveCount(0);
+  await page.goto(detailPath(`?v=${String(fixture.publishedVersion)}`));
+  await expect(
+    rail.getByRole("button", { name: `Deprecate version ${String(fixture.publishedVersion)}` }),
+  ).toHaveCount(0);
+});
+
+test("1116 offers Publish and Deprecate from the screen's heading row, beside Save", async ({
   page,
 }) => {
   await signInWithTotp(page, EMAIL, totpSecret);
   await page.setViewportSize({ width: 1280, height: 900 });
   await page.goto(detailPath());
 
-  const rail = page.getByTestId("qcms-question-rail");
-  // Pinned ABOVE the list, which is the POC's own reason for putting them there: the list is
-  // the one thing on this screen that grows without bound.
-  const actionsBottom = await rail
-    .locator(".qcms-question-rail__lifecycle")
-    .evaluate((element) => element.getBoundingClientRect().bottom);
-  const listTop = await rail
-    // `.first()` because the rail now nests a second group inside the selected version's row -
-    // the editor's panels - and the one this is about is the version list itself.
-    .locator(".qcms-rail__group")
-    .first()
-    .evaluate((element) => element.getBoundingClientRect().top);
-  expect(actionsBottom).toBeLessThanOrEqual(listTop);
-
-  // The buttons are the version's, not the question's: the draft offers Publish, and the
-  // published version offers Deprecate instead.
+  // The version's own control, not the question's: the draft offers Publish, and the
+  // published version offers Deprecate instead. In the content column's heading row, which
+  // is where every other screen in the app keeps a lifecycle action (§7.0 ruling 5).
+  const head = page.locator(".qcms-question-head");
   await expect(
-    rail.getByRole("button", { name: `Publish version ${String(fixture.draftVersion)}` }),
+    head.getByRole("button", { name: `Publish version ${String(fixture.draftVersion)}` }),
   ).toBeVisible();
+  await expect(head.getByRole("button", { name: "Save draft" })).toBeVisible();
+
   await page.goto(detailPath(`?v=${String(fixture.publishedVersion)}`));
   await expect(
-    rail.getByRole("button", { name: `Deprecate version ${String(fixture.publishedVersion)}` }),
+    head.getByRole("button", { name: `Deprecate version ${String(fixture.publishedVersion)}` }),
   ).toBeVisible();
-  await expect(rail.getByRole("button", { name: "New version" })).toBeVisible();
+  // A frozen version publishes no save state, so the row holds its height with one control
+  // in it rather than two - and the heading must not move between the two.
+  await expect(head.getByRole("button", { name: "Save draft" })).toHaveCount(0);
 });
 
 test("2026-09-27 nests the editor's panels under the selected version, and switches the column", async ({
@@ -348,7 +377,7 @@ test("2026-09-27 states the question's details in the rail and the way back abov
   await page.goto(detailPath());
 
   const rail = page.getByTestId("qcms-question-rail");
-  const details = rail.locator(".qcms-question-rail__details");
+  const details = rail.locator(".qcms-rail__facts");
   await expect(details).toContainText("Slug");
   await expect(details).toContainText(`e2e-qrail-${RUN}`);
   await expect(details).toContainText("Created");
@@ -361,16 +390,18 @@ test("2026-09-27 states the question's details in the rail and the way back abov
 
   // The way back is in the rail and ABOVE the disclosure, so it survives the collapse: inside
   // the body it would be reachable only by expanding a navigation first.
-  const back = rail.getByRole("link", { name: "Back to questions" });
+  // "Questions" - the parent screen's name, which is what §7.0's Header asks a back link
+  // to say. It read "Back to questions" until issue #1116.
+  const back = rail.getByRole("link", { name: "Questions", exact: true });
   await expect(back).toBeVisible();
   const backBottom = await back.evaluate((element) => element.getBoundingClientRect().bottom);
   const disclosureTop = await page
     .locator("details.qcms-rail__disclosure")
     .evaluate((element) => element.getBoundingClientRect().top);
   expect(backBottom).toBeLessThanOrEqual(disclosureTop);
-  await expect(page.getByRole("main").getByRole("link", { name: "Back to questions" })).toHaveCount(
-    0,
-  );
+  await expect(
+    page.getByRole("main").getByRole("link", { name: "Questions", exact: true }),
+  ).toHaveCount(0);
 
   await page.setViewportSize({ width: 390, height: 900 });
   await expect(back, "still the first thing on screen with the rail shut").toBeVisible();

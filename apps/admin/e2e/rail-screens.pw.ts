@@ -456,7 +456,9 @@ test("561 puts every shared rail row in the same box on all three builder-family
       page.locator("[data-rail-item^='step:'], [data-rail-step-select]").first(),
     ).toBeVisible();
     const measured = await page
-      .locator("[data-rail-item], [data-rail-step-select], .qcms-rail-steps__add")
+      // `.qcms-rail__actions` is where Add step sits since §7.0 (issue #1116): it was
+      // `.qcms-rail-steps__add`, inside the step cluster under the list.
+      .locator("[data-rail-item], [data-rail-step-select], .qcms-rail__actions")
       .evaluateAll((nodes) =>
         nodes.map((node, index) => {
           const box = node.getBoundingClientRect();
@@ -464,7 +466,7 @@ test("561 puts every shared rail row in the same box on all three builder-family
           return {
             gap: previous === undefined ? null : Math.round(box.top - previous.bottom),
             height: Math.round(box.height),
-            isAdd: node.classList.contains("qcms-rail-steps__add"),
+            isAdd: node.classList.contains("qcms-rail__actions"),
           };
         }),
       );
@@ -475,14 +477,113 @@ test("561 puts every shared rail row in the same box on all three builder-family
           .soft([2, 8], `${screen} row ${String(index)} sits on the rail's rhythm`)
           .toContain(row.gap);
       }
-      // ONLY THE ADD CONTROL'S HEIGHT IS PINNED. A step row is a title that WRAPS when it
+      // ONLY THE ACTIONS PART'S HEIGHT IS PINNED. A step row is a title that WRAPS when it
       // is long, which `rail.pw.ts` requires outright, so a row taller than one line is
       // correct here and asserting 40 would forbid the behaviour the rail is meant to have.
       // The add control carries no title, so a 52px box could only ever be padding it gave
       // itself - which is exactly what it used to do.
       if (row.isAdd) {
-        expect.soft(row.height, `${screen}'s add control is one row tall`).toBe(40);
+        expect.soft(row.height, `${screen}'s actions part is one row tall`).toBe(40);
       }
     }
+  }
+});
+
+
+test("1116 heads every form screen's rail the same way, and leaves no breadcrumb behind", async ({
+  page,
+}) => {
+  test.setTimeout(600_000);
+  await signInWithTotp(page, EMAIL, totpSecret);
+
+  // AT BOTH WIDTHS. §7.0 ruling 2.1 makes the Header a visible plain header above
+  // `--bp-sidebar` on EVERY rail - the form rail used to hide its summary there, because
+  // its first row carried the form's name too - and the 2026-10-24 clarification keeps the
+  // back link visible below the boundary, where the body is shut.
+  for (const width of [1440, 390]) {
+    await page.setViewportSize({ width, height: 900 });
+    for (const screen of screens()) {
+      await page.goto(screen.path);
+      const rail = page.getByTestId("qcms-rail");
+      await expect.soft(rail, `${screen.path} at ${String(width)} carries the rail`).toBeVisible();
+
+      // THE WAY BACK (§7.0 ruling 3), labelled with the parent SCREEN's name. Visible with
+      // the disclosure shut, because it sits above it rather than inside the body.
+      await expect
+        .soft(
+          rail.getByRole("link", { name: "Forms", exact: true }),
+          `${screen.path} at ${String(width)} offers the way back to Forms`,
+        )
+        .toBeVisible();
+
+      // THE SUBJECT AND ITS ONE STATUS TAG. The form's name is in the Header at both
+      // widths now, and the tag beside it is the form's open/closed status - the one thing
+      // §7.0 allows there, and something no row of this rail carries.
+      const summary = rail.locator("summary.qcms-rail__summary");
+      await expect
+        .soft(summary, `${screen.path} at ${String(width)} names the form in its Header`)
+        .toBeVisible();
+      await expect
+        .soft(summary, `${screen.path} at ${String(width)} names the form`)
+        .toContainText(SLUG);
+      await expect
+        .soft(
+          summary.locator(".qcms-tag[data-status]"),
+          `${screen.path} at ${String(width)} states the form's status once`,
+        )
+        .toHaveCount(1);
+
+      // AND NO TRAIL IN THE CONTENT COLUMN. The breadcrumb was the first line of every one
+      // of these screens; the back link replaces it, and a trail restored beside it would
+      // be the form's name and the section's said twice on one screen.
+      await expect
+        .soft(
+          page.locator("main#main-content").getByRole("navigation"),
+          `${screen.path} at ${String(width)} has no breadcrumb in its column`,
+        )
+        .toHaveCount(0);
+    }
+  }
+  await page.setViewportSize({ width: SIDEBAR, height: 900 });
+});
+
+test("1116 gives the parent of the current row no fill, so one row reads as selected", async ({
+  page,
+}) => {
+  test.setTimeout(300_000);
+  await signInWithTotp(page, EMAIL, totpSecret);
+  await page.setViewportSize({ width: SIDEBAR, height: 900 });
+
+  // §7.0 ruling 2: one current mark - a tinted fill, weight 700 and a 2px inline-start
+  // accent edge - and a PARENT of the current row gets weight 600 and no fill. The form
+  // rail is where that used to be arranged the other way round: `[data-rail-group]` removed
+  // the accent edge from every row of this tree, because the mark stacked up three deep.
+  //
+  // The builder with a step selected is the case: the Form row leads to this screen and the
+  // step row is what the column is showing, so both are current and only one may read as
+  // selected.
+  await page.goto(`/forms/${FORM_ID}`);
+  await openRail(page);
+  await page.locator("[data-rail-step-select]").first().click();
+
+  const marked = page.locator('.qcms-rail__link[aria-current="page"]');
+  await expect(marked, "the step and the form it belongs to").toHaveCount(2);
+  const painted = await marked.evaluateAll((nodes) =>
+    nodes.map((node) => {
+      const style = getComputedStyle(node);
+      return {
+        item: node.getAttribute("data-rail-item") ?? node.className,
+        weight: style.fontWeight,
+        filled: style.backgroundColor !== "rgba(0, 0, 0, 0)" && style.backgroundColor !== "transparent",
+        edge: style.borderInlineStartWidth,
+      };
+    }),
+  );
+  const filled = painted.filter((row) => row.filled);
+  expect(filled, "exactly one row carries the full current mark").toHaveLength(1);
+  expect(filled[0]?.weight, "the selected row is at weight 700").toBe("700");
+  expect(filled[0]?.edge, "and carries the 2px accent edge").toBe("2px");
+  for (const parent of painted.filter((row) => !row.filled)) {
+    expect(parent.weight, `${parent.item} is a parent, at weight 600`).toBe("600");
   }
 });

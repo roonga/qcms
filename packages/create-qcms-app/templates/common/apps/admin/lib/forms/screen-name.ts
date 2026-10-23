@@ -1,45 +1,25 @@
-"use client";
-
-import { Breadcrumb, type BreadcrumbItem } from "@/components/kit";
-import { useBuilderRail, type BuilderSelection } from "@/lib/forms/builder-bridge";
+import type { BuilderSelection } from "@/lib/forms/builder-bridge";
 import type { DraftStep } from "@/lib/forms/types";
 import { t } from "@/lib/i18n/en";
 import { textOf } from "@/lib/questions/definition";
 
 /**
- * The builder's breadcrumb, whose last crumb is the SCREEN the reader is on.
+ * What to call the screen the builder is showing (issue #1116; before that it lived in
+ * `components/forms/builder-breadcrumb.tsx`).
  *
- * The builder is two screens behind one route, and the breadcrumb is rendered once per
- * route - so it said "Form details" while the reader was looking at a step's questions. A
- * trail that names somewhere you are not is worse than no trail: it is the one part of the
- * chrome whose whole job is to say where you are. (It was three until issue #669 gave the
- * rules a route; that screen has a breadcrumb of its own now, from `FormPageHeader`.)
+ * ## Why it outlived the component it was written for
  *
- * A client component for that reason, and it reads the same bridge the rail does rather
- * than taking the selection as a prop, because the page that renders it is a server
- * component and cannot know a selection made in the browser.
+ * It was the last crumb of the builder's breadcrumb: the builder is two screens behind one
+ * route, so a trail rendered once per route said "Form details" while the reader was looking
+ * at a step's questions, and a trail that names somewhere you are not is worse than no trail.
+ * §7.0 ruling 3 retired the breadcrumb on every form screen in favour of the rail Header's
+ * back link, so the component went - and the builder's own `<h1>` still needs this answer,
+ * from one place, or the heading and the rail's marked row would be two opinions about which
+ * screen is showing.
  *
- * ## What it says before the builder publishes
- *
- * "Form details", which is the screen the builder opens on, so the crumb is right from the
- * first paint rather than correcting itself a frame later.
+ * Pure, and in `lib/` for that reason: the caller is a client component and this reads
+ * nothing but what it is handed.
  */
-export function BuilderBreadcrumb({
-  formId,
-  slug,
-}: {
-  readonly formId: string;
-  readonly slug: string;
-}) {
-  const builder = useBuilderRail();
-  const items: BreadcrumbItem[] = [
-    { id: "forms", label: t("forms.builder.crumbs"), href: "/forms" },
-    { id: formId, label: slug, href: `/forms/${encodeURIComponent(formId)}` },
-    { id: "screen", label: currentScreenName(builder?.selection, builder?.draft.steps ?? []) },
-  ];
-  return <Breadcrumb items={items} ariaLabel={t("forms.builder.crumbLabel")} />;
-}
-
 /**
  * What to call the screen the builder is showing.
  *

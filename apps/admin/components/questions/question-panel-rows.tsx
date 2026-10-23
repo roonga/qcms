@@ -1,7 +1,5 @@
 "use client";
 
-import { useEffect } from "react";
-
 import { t, tPlural } from "@/lib/i18n/en";
 import {
   chooseQuestionPanel,
@@ -28,16 +26,24 @@ import type { QuestionPanel, QuestionPanelId } from "@/lib/questions/panels";
  * buttons"** (issue #1116). One rail with one kind of row is the point: an operator should
  * not have to learn which rows of a rail can be middle-clicked.
  *
- * So a row is an anchor onto the panel's own section id - `panel.anchorId`, the id the
- * editor already puts on the open panel and the id the refused-save path moves focus to. The
- * fragment is a real address: it is readable, copyable, and this component reads it back on
- * mount, so `#panel-constraints` pasted into the bar opens Constraints.
+ * So a row is an anchor onto the panel's own section id - `panel.anchorId`, the id the editor
+ * already puts on the open panel and the id the refused-save path moves focus to. One value
+ * for the row's `href` and the editor's anchor, rather than two that have to be kept equal.
  *
- * What the fragment does NOT do is render the panel by itself. The editor shows one panel at
- * a time, so four of the five ids are not in the document until their row is chosen, and the
- * click handler is what switches the panel. **The admin requires JavaScript** (Code Owner,
- * 2026-09-27; the standing correction of 2026-08-22 says there is no no-JS requirement here),
- * so this is the whole mechanism rather than an enhancement over one.
+ * **What switches the panel is still the click, and the address the switch writes is still
+ * `?panel=`.** `chooseQuestionPanel` replaces that parameter (`lib/questions/editor-bridge.
+ * ts`), which is what a reload and the server read; the fragment rides along beside it. The
+ * default is deliberately not prevented, so the fragment lands in the bar and the browser
+ * scrolls the open panel into view - and a row opened in a new tab arrives at an address that
+ * carries the parameter too.
+ *
+ * What the fragment does NOT do is select a panel on a cold load: the editor renders one panel
+ * at a time, so four of the five ids are not in the document, and a reader arriving on
+ * `#panel-constraints` alone gets the panel `?panel=` names. That is the honest limit of a
+ * fragment on a screen that renders one section, and the parameter is what the screen's own
+ * address contract has always been. **The admin requires JavaScript** (Code Owner, 2026-09-27;
+ * the standing correction of 2026-08-22 records that there is no no-JS requirement here), so
+ * the click handler is the whole mechanism rather than an enhancement over one.
  *
  * The version rows these nest under are anchors too, and were already: a version is a
  * different address (`?v=3`).
@@ -74,19 +80,6 @@ export function QuestionPanelRows({
   const rows = live?.panels ?? panels;
   const counts = live?.issueCounts;
   const open = useQuestionPanel(selected);
-
-  // THE FRAGMENT IS READ BACK, which is what makes the rows' `href` an address rather than
-  // decoration: arriving at `#panel-options` opens Options, exactly as the Settings screen
-  // reads its own fragment. Once only, on mount - after that the reader's clicks are what
-  // decide, and each of those sets the fragment as it goes.
-  useEffect(() => {
-    const addressed = rows.find((row) => `#${row.anchorId}` === globalThis.location.hash);
-    if (addressed !== undefined) chooseQuestionPanel(addressed.id);
-    // Mount only, deliberately: `rows` is read for the first paint's list and nothing more,
-    // and re-running this as the editor republishes its panels would re-select the
-    // fragment's panel under a reader who had since chosen another. `rows` is read through
-    // the closure rather than listed, which is what keeps that true.
-  }, []);
 
   return (
     // A list rather than loose rows, and named, because a screen reader walking this rail

@@ -13,8 +13,8 @@ import { enrollNewAdmin, signInWithTotp } from "./support/flow.js";
  * `lib/settings-sections.test.ts`). What is left is everything that is a computed style, a
  * measured box or an interaction, and that is what this file is: the 240px track turning on
  * at `--bp-sidebar` and not one pixel below it, the 40rem column left-anchored rather than
- * centred, and the switch itself - a rail button changing what the body shows, what the
- * heading says and which row is marked, all three together.
+ * centred, and the switch itself - a rail row changing what the body shows, what the heading
+ * says and which row is marked, all three together.
  *
  * ## The switch crosses two React trees, so a browser is the only place it can be asserted
  *
@@ -24,11 +24,20 @@ import { enrollNewAdmin, signInWithTotp } from "./support/flow.js";
  *
  * ## JavaScript is required, deliberately, and there is no scriptless case below
  *
- * `plan/admin-shell-poc/settings-newquestion-poc.html` switches panels with a script and that
- * is the approved design for this screen. The no-script floor belongs to the respondent
- * portal, which is a different app with a different audience. A previous build of this screen
- * treated it as binding here and produced fragment anchors where the POC draws buttons, which
- * is what issue 655 corrects.
+ * The no-script floor belongs to the respondent portal, which is a different app with a
+ * different audience; the admin requires JavaScript (standing correction 2026-08-22, ruling
+ * 2026-09-27). So the switch below is a script's, and nothing here pretends otherwise.
+ *
+ * ## The rows are anchors again, and this time by ruling (§7.0, issue #1116)
+ *
+ * `plan/admin-shell-poc/settings-newquestion-poc.html` draws each row as
+ * `<button onclick="showSettingsPanel(...)">` and issue 655 existed because an earlier build
+ * had made them fragment anchors. §7.0 ruling 2.2 settles it the other way for every rail in
+ * the app - "anchors to the subject's routes or same-page panels ... Never buttons" - so a
+ * row is an `<a href="#account">` and the fragment is what the screen switches on. The
+ * difference from the build 655 corrected is that the fragment is now the ONE channel: the
+ * account menu's published `/settings#change-password` link and a rail row travel it alike,
+ * and `components/settings-panels.tsx` listens for it.
  *
  * ## The 1023 / 1024 pair
  *
@@ -76,7 +85,7 @@ async function stateOf(page: Page): Promise<{
         const panel = document.querySelector(`#${id}`);
         return panel !== null && getComputedStyle(panel).display !== "none";
       }),
-      marked: [...document.querySelectorAll('.qcms-settings-rail__link[aria-current="page"]')].map(
+      marked: [...document.querySelectorAll('.qcms-rail__link[aria-current="page"]')].map(
         (row) => row.getAttribute("aria-controls") ?? "",
       ),
       heading: heading?.textContent ?? "",
@@ -92,9 +101,13 @@ async function stateOf(page: Page): Promise<{
  * an unscoped role query would match the rail row only while that panel happened to be
  * hidden. A test that passes because of what is hidden is a test that stops meaning what it
  * says the moment the screen it is testing changes.
+ *
+ * A `link` since §7.0 (issue #1116), which also makes the scoping cheaper to trust: the
+ * panel's submit control is a button and this is not, so the two can no longer collide on
+ * role as well as name.
  */
 function railRow(page: Page, name: string): Locator {
-  return page.getByTestId("qcms-settings-rail").getByRole("button", { name, exact: true });
+  return page.getByTestId("qcms-settings-rail").getByRole("link", { name, exact: true });
 }
 
 test.beforeAll(async () => {
@@ -169,7 +182,7 @@ test("655 opens on Account with one panel showing and one row marked", async ({ 
   await expect(page.locator(".qcms-rail__summary-text")).toHaveText("Settings");
 });
 
-test("655 switches the panel, the heading and the mark together when a row is pressed", async ({
+test("655 switches the panel, the heading and the mark together when a row is followed", async ({
   page,
 }) => {
   test.setTimeout(300_000);
@@ -180,7 +193,7 @@ test("655 switches the panel, the heading and the mark together when a row is pr
   await railRow(page, "Change password").click();
   await expect
     .poll(async () => (await stateOf(page)).shown, {
-      message: "pressing a rail row shows that section's panel and hides the other two",
+      message: "following a rail row shows that section's panel and hides the other two",
     })
     .toStrictEqual(["settings-panel-password"]);
   const password = await stateOf(page);
@@ -202,7 +215,7 @@ test("655 switches the panel, the heading and the mark together when a row is pr
   await expect(page.getByLabel("Current password")).toBeHidden();
 });
 
-test("655 works from the keyboard alone, which is what makes a button rail legitimate", async ({
+test("655 works from the keyboard alone, which is what makes a rail of rows legitimate", async ({
   page,
 }) => {
   test.setTimeout(300_000);
@@ -210,8 +223,10 @@ test("655 works from the keyboard alone, which is what makes a button rail legit
   await page.setViewportSize({ width: 1280, height: 900 });
   await page.goto("/settings");
 
-  // Focused rather than clicked, then activated with the key a button answers to. A rail of
-  // `<div onclick>` would pass every other assertion in this file and fail this one.
+  // Focused rather than clicked, then activated with the key the element answers to. A rail
+  // of `<div onclick>` would pass every other assertion in this file and fail this one, and
+  // the rows being anchors since §7.0 (issue #1116) is exactly why this stays: Enter on an
+  // anchor has to reach the panel switch, by way of the fragment.
   const row = railRow(page, "Two-factor authentication");
   await row.focus();
   await expect(row).toBeFocused();
@@ -221,9 +236,10 @@ test("655 works from the keyboard alone, which is what makes a button rail legit
     .poll(async () => (await stateOf(page)).shown)
     .toStrictEqual(["settings-panel-twofactor"]);
   // The state change lands on the element that still has focus, which is what a screen reader
-  // announces when the reader presses it. Focus is not moved: nothing was navigated to.
+  // announces when the reader presses it, and the address now says which section is showing.
   await expect(row).toHaveAttribute("aria-current", "page");
   await expect(row).toBeFocused();
+  await expect(page).toHaveURL(/#two-factor$/u);
 });
 
 test("655 opens on the panel the URL names, by fragment and by redirect marker", async ({
