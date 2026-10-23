@@ -67,6 +67,7 @@ Applies to PR descriptions, PR and review comments, issues, commit messages, and
 The detailed orchestration lives in `.claude/skills/`; the operator guide is `docs/DEVELOPER_GUIDE.md`.
 
 <!-- rtk-instructions v2 -->
+
 # Command output
 
 Command output here is condensed to save tokens, keeping every signal and
