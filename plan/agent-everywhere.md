@@ -60,7 +60,7 @@ Some acts a user may perform exist only in the API: the installation administrat
 
 The review of the 080 to 083 work orders raised four questions, ruled as follows (Code Owner, 2026-10-24, recorded on PR #1109):
 
-- **The dock needs 1280 CSS px and wider** (section 4.2), so the content column keeps `--bp-compact` beside the rail of section 7.0 of `plan/admin-design-contracts.md` (the amendment on open PR #1120; not on `main` until it merges). The rail frame (issue #1116) is a dependency of 082.
+- **The dock needs 1280 CSS px and wider** (section 4.2), so the content column keeps `--bp-compact` beside the rail of section 7.0 of `plan/admin-design-contracts.md` (recorded by #1120). The rail frame (issue #1116) is a dependency of 082.
 - **Pending approval is a step state, terminal for the plan** (section 4.10 rule 4), and the propose tool refuses a publish-then-release-to-`prod` plan while the second-approver switch is on.
 - **One SEC-15 `read` row per conversation for each distinct filter set** (section 10), not one per turn.
 - **The heading-row proposal marker** is part of the card rules (section 4.10).
@@ -141,7 +141,7 @@ It shows a status badge, never colour alone: "Working" while a turn runs with th
 The dock is a grid track rather than an overlay because the shell body is already a two-track grid keyed off whether a rail is present (`layout.tsx:184-206`), and a track is the only geometry that cannot obscure page content.
 The choice between float and dock is stored in a cookie the layout reads, the way the appearance mode is (`layout.tsx:88`), so a dock renders docked on first paint rather than jumping after hydration.
 `plan/admin-mobile-stance.md` decides what "narrow" means for the admin; the sheet follows whatever breakpoint that stance names.
-**The dock needs 1280 CSS px** (Code Owner, 2026-10-24, review finding B4). Section 7.0 of `plan/admin-design-contracts.md` (the amendment on open PR #1120; not on `main` until it merges) puts a 240 px rail on every screen, so at `--bp-sidebar` (1024 px) a 400 px dock would leave 384 px of content, under `--bp-compact`. From 1280 px the content keeps at least 640 px. Between `--bp-sidebar` and 1280 px the Dock toggle is disabled with a tooltip saying why, and the float and the sheet still work; a remembered dock renders the float there and docks again when the window widens. The rail frame (issue #1116) is a dependency of 082.
+**The dock needs 1280 CSS px** (Code Owner, 2026-10-24, review finding B4). Section 7.0 of `plan/admin-design-contracts.md` (recorded by #1120) puts a 240 px rail on every screen, so at `--bp-sidebar` (1024 px) a 400 px dock would leave 384 px of content, under `--bp-compact`. From 1280 px the content keeps at least 640 px. Between `--bp-sidebar` and 1280 px the Dock toggle is disabled with a tooltip saying why, and the float and the sheet still work; a remembered dock renders the float there and docks again when the window widens. The rail frame (issue #1116) is a dependency of 082.
 
 ### 4.3 Keyboard
 
@@ -235,7 +235,7 @@ Further:
 - **Open the screen** links to the screen whose control a single-action card mirrors. Cards are not editable: an edited argument is a different proposal, and the token binds the arguments (section 7.4).
 - **Expiry.** A card or plan older than its token's lifetime (ten minutes, measured to Confirm) shows "Expired - ask again" and its Confirm is disabled. The API checks `exp` on step 0 only and bounds later steps by step 0's confirmation plus ten minutes, so a long run that crosses `exp` completes (section 7.4).
 - **Step states.** Proposed, Running, Done, Failed, Pending approval, Not run, Cancelled and Expired, each a catalog word and an icon.
-- **The proposal marker** (Code Owner, 2026-10-24). While a card waits on the current screen, the heading-row control its first not-yet-run step mirrors (section 7.0 of `plan/admin-design-contracts.md`, the amendment on open PR #1120; not on `main` until it merges, puts lifecycle actions there) carries an "Assistant proposed · Review" marker that moves focus to the card. It is presentational only, never a second Confirm, and the heading-row control behaves exactly as it does without a card.
+- **The proposal marker** (Code Owner, 2026-10-24). While a card waits on the current screen, the heading-row control its first not-yet-run step mirrors (section 7.0 of `plan/admin-design-contracts.md`, recorded by #1120, puts lifecycle actions there) carries an "Assistant proposed · Review" marker that moves focus to the card. It is presentational only, never a second Confirm, and the heading-row control behaves exactly as it does without a card.
 - **Size. Ruled (P2, Code Owner, 2026-10-24):** a plan carries at most 25 steps, a payload bound in the spirit of the conversation cap (`schema.ts:27`) rather than a permission rule.
 - **The draft proposal is a card too.** Today's proposal panel (diff, issues, warnings, Accept, Discard; `assist-panel.tsx:254-353`) becomes the `apply-draft` kind with the same diff and the same two advisory lists; its Accept already runs through the builder's own save (`assist-panel.tsx:184-189`, `form-builder.tsx:820`). It can also be the first step of a plan ("apply this draft, then publish it").
 
