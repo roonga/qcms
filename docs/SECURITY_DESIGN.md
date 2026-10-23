@@ -1003,6 +1003,7 @@ Each base scanned directly with grype 0.119.0 against the vulnerability database
 
 **Through the SBOMs, which is what the workflow scans, the three images move by nothing at all**, and the honest reading of that is the point of recording it.
 Before and after are both 0 blocking, 3 reported fixable at `high` and 73 reported unfixed rows, with `qcms-api` at 379 packages and the two front ends at 298, each 2 critical, 74 high, 80 medium and 223 with no fix.
+The two runs agree down to the reported-set fingerprint the `scan-issue` job compares weeks on, `05db3426994c...`, which is the precise form of "nothing moved": a weekly run on this change would post no comment at all.
 The reason is that the previous digest already cleared five of the eight fixable highs the 2026-10-19 weekly issue reported, and that issue predates it: #1072's digest landed on 2026-10-21 carrying `libpcre2-8-0 10.42-1+deb12u2`, which clears `CVE-2026-103111`, and an npm tree at `brace-expansion 5.0.9`, `ip-address 10.5.0` and `tar 7.5.22`, which clears `GHSA-mh99-v99m-4gvg`, `GHSA-rgw5-rvv9-x895`, `GHSA-mwp4-54f8-5fhr` and `GHSA-r292-9mhp-454m`.
 The build-time `perl-base` layer was already supplying `deb12u4`, so the image scan never saw the five perl rows the base-only table above shows; this change moves them from the layer into the pinned base, which is a reproducibility result and not a findings result.
 
