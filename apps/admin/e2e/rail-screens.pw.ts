@@ -499,6 +499,10 @@ test("1116 heads every form screen's rail the same way, and leaves no breadcrumb
   // `--bp-sidebar` on EVERY rail - the form rail used to hide its summary there, because
   // its first row carried the form's name too - and the 2026-10-24 clarification keeps the
   // back link visible below the boundary, where the body is shut.
+  // Every Header this sweep reads, so the last assertion can be the one §7.0 is about:
+  // they are all the same line.
+  const headers: string[] = [];
+
   for (const width of [1440, 390]) {
     await page.setViewportSize({ width, height: 900 });
     for (const screen of screens()) {
@@ -515,16 +519,24 @@ test("1116 heads every form screen's rail the same way, and leaves no breadcrumb
         )
         .toBeVisible();
 
-      // THE SUBJECT AND ITS ONE STATUS TAG. The form's name is in the Header at both
-      // widths now, and the tag beside it is the form's open/closed status - the one thing
-      // §7.0 allows there, and something no row of this rail carries.
+      // THE SUBJECT AND ITS ONE STATUS TAG. The form's name is in the Header at both widths
+      // now - the form rail used to hide its summary above `--bp-sidebar` - and the tag
+      // beside it is the form's open/closed status, the one thing §7.0 allows there and
+      // something no row of this rail carries.
+      //
+      // Compared against the FIRST screen's Header rather than against the slug, which is
+      // the stronger claim and the one §7.0 makes: ten screens of one form, one Header. The
+      // name itself is the form's title where it has one and its slug where it does not
+      // (`formDisplayName`), so pinning the string here would pin the fixture instead.
       const summary = rail.locator("summary.qcms-rail__summary");
       await expect
         .soft(summary, `${screen.path} at ${String(width)} names the form in its Header`)
         .toBeVisible();
-      await expect
-        .soft(summary, `${screen.path} at ${String(width)} names the form`)
-        .toContainText(SLUG);
+      const name = ((await summary.textContent()) ?? "").trim();
+      expect
+        .soft(name.length, `${screen.path} at ${String(width)} has a Header with text in it`)
+        .toBeGreaterThan(0);
+      headers.push(`${screen.path} @${String(width)}: ${name}`);
       await expect
         .soft(
           summary.locator(".qcms-tag[data-status]"),
@@ -547,4 +559,13 @@ test("1116 heads every form screen's rail the same way, and leaves no breadcrumb
     }
   }
   await page.setViewportSize({ width: SIDEBAR, height: 900 });
+
+  // ONE HEADER, TWENTY READINGS. The chevron is `aria-hidden` and outside the text, so what
+  // is compared is the name and its status tag: the same line on all ten screens at both
+  // widths, which is what "the rail looks the same everywhere" means for the part a reader
+  // sees first.
+  const names = new Set(headers.map((entry) => entry.split(": ").slice(1).join(": ")));
+  expect([...names], `every screen's Header reads the same: ${headers.join(" | ")}`).toHaveLength(
+    1,
+  );
 });

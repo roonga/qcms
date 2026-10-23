@@ -3333,7 +3333,7 @@ div:has(> [role="dialog"] [data-qcms-dialog="wide"]) {
 
    IT SPANS THE ROWS ABOVE IT (Code Owner, 2026-08-26). No inline padding, because the
    group above has none either: a rail row is a full-width box that insets its own text
-   by `0.5rem` plus its 3px marker border, so a container that repeated that inset made
+   by `0.5rem` plus its 2px marker border, so a container that repeated that inset made
    this button narrower than every row it sits under. The kit's `Button` takes no
    `className` - a closed API on purpose - so the stretch is set here, on the one child
    this container has. It centres its own label already. */
@@ -3410,7 +3410,7 @@ div:has(> [role="dialog"] [data-qcms-dialog="wide"]) {
 
 /* A NESTED GROUP, which is what the form's steps are inside the Form row (Code
    Owner, 2026-08-25). The indent is on the group rather than on its rows, so the
-   active mark's 3px edge still lands on the row's own box and a marked step lines
+   active mark's 2px edge still lands on the row's own box and a marked step lines
    up with a marked section rather than sitting 3px inside it.
 
    NO RULE AND NO INDENT (Code Owner, 2026-08-26). There was a line down the left
@@ -3440,9 +3440,9 @@ div:has(> [role="dialog"] [data-qcms-dialog="wide"]) {
   border-block-start-color: var(--color-border-strong);
 }
 
-/* A rail item is an anchor (§7), so everything here styles a link and nothing
-   here styles a button. The 3px inline-start edge is present and transparent on
-   every row, so marking the current one moves no text.
+/* A rail item is an anchor (§7, and §7.0 ruling 2.2 for every rail), so everything here
+   styles a link and nothing here styles a button. The 2px inline-start edge §7.0 writes is
+   present and transparent on every row, so marking the current one moves no text.
 
    A LONG TITLE WRAPS HERE RATHER THAN TRUNCATING, which is the opposite of what
    the collapsed summary does and is deliberate (issues 582, 595, 596). The
