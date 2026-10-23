@@ -11,6 +11,9 @@ normative. C1 is closed at §7a (Settings keeps a rail as a written exception) a
 §8 is closed in the Code Owner's framing (portal and admin are different apps);
 contracts 1-6 were confirmed in the same ruling ("all agree").
 
+**§7 was re-ruled 2026-10-24 (Code Owner): every screen has a rail.** §7.0 states
+the eight rulings and governs the rail; §7a's exception is superseded by it.
+
 **ALL DESIGN AND TECHNICAL LIMITS ON THE ADMIN ARE REMOVED, 2026-08-22 (Code Owner):**
 _"remove all limits on the admin portal."_
 
@@ -927,6 +930,59 @@ closes with it.
 
 ## 7. The rail
 
+### 7.0 Ruling, 2026-10-24 (Code Owner): one rail on every screen
+
+**This subsection governs the rail.** Where anything later in §7 or in §7a disagrees with it, this subsection wins; those passages are kept as history and rationale, and the sentences it reverses are marked "Superseded 2026-10-24" where they stand. The analysis and the screen-by-screen evidence are in `plan/left-rail-proposal.md`. Work: #1115 (this record), #1116 (frame), #1117 (every screen and list filters), #1118 (section filters), #1119 (hide toggle).
+
+**Premise.** The topbar is the app-level navigation. The left rail belongs to the page: it holds what the current screen needs beside its content, and it looks and behaves the same everywhere.
+
+The eight rulings:
+
+1. **Every screen has a rail by default.** A screen goes without one only by a per-screen ruling recorded in the table below. None is ruled today: New form gets a rail too. This replaces §7a's "written exception" and its "no third screen" clause, and the reasoning that eight screens get no rail.
+2. **One anatomy.** One frame (`apps/admin/components/rail-frame.tsx`) with five parts, always in this order. A screen fills only the parts it has.
+   1. **Header:** a back link to the parent screen (none on a top-level screen), the subject's name, and at most one status tag. Below `--bp-sidebar` the Header is the disclosure's summary, shut by default. Above it, it is a visible plain header on every rail. It is one element at both widths, as the 2026-08-22 amendment below requires.
+   2. **Sections:** anchors to the subject's routes or same-page panels, inside `<nav aria-label="<subject> sections">`. Never buttons.
+   3. **Children:** nested under the current section only.
+   4. **Filters:** the screen's filters in `<form role="search">`, with a "Filters" heading and an active count. They are ordered Search, status, type or other, then sort. "Apply" keeps no-JS working, and the URL carries the state.
+   5. **Actions:** structural actions only ("New question", "New form", "Add step", "New version").
+   - The root is `<aside aria-label="<subject>">`.
+   - **One current-row mark:** tinted fill, weight 700 and a 2px inline-start accent edge. A parent of the current row gets weight 600 and no fill, so exactly one row reads as selected.
+   - 240px wide, under the topbar, sticky, viewport height, scrolling on its own. Its background runs to the bottom of the window.
+3. **The way back is the Header's back link.** It replaces the content-column breadcrumb on every screen.
+4. **Filters live in the rail.** List filters (Questions, Forms, Responses index, Webhooks) and section filters (a form's Responses and Version history) move out of the content column.
+5. **Lifecycle actions live in the content heading row only:** Publish, Release, Close, Deprecate, Save and Erase. The rail never holds a lifecycle or destructive action. This reverses the question rail's lifecycle block (amendment of 2026-09-27 below); "New version" stays in the rail as a structural action.
+6. **New form has a rail.** It is not an exception.
+7. **The rail stays under the topbar.** It is not full height. The topbar and rail form one fixed frame, and only the rail's contents change between screens.
+8. **Collapse.** Below `--bp-sidebar`, the shut disclosure stays. Above it, an operator "Hide sidebar" toggle hides the rail entirely (no icon strip) and is remembered per operator, as Appearance is. While the rail is hidden, a "Show sidebar" button in the heading row carries the active filter count. Auto-hiding the rail while the Assistant is expanded is optional and would need its own ruling.
+
+**Every screen's rail.** The Exception column is where a "no rail" ruling would be written.
+
+| Screen                        | Header                                 | Sections                                                                                           | Filters                                                                                                     | Actions      | Exception |
+| ----------------------------- | -------------------------------------- | -------------------------------------------------------------------------------------------------- | ----------------------------------------------------------------------------------------------------------- | ------------ | --------- |
+| Questions (list)              | Questions                              | -                                                                                                  | Search, Status, Type                                                                                        | New question | none      |
+| New question                  | back to Questions, New question        | Content, Constraints (Options for choice types)                                                    | -                                                                                                           | -            | none      |
+| Question detail               | back to Questions, question id, status | versions, with the selected version's panels nested                                                | -                                                                                                           | New version  | none      |
+| Forms (list)                  | Forms                                  | -                                                                                                  | Search, Status, Sort                                                                                        | New form     | none      |
+| New form                      | back to Forms, New form                | -                                                                                                  | -                                                                                                           | -            | none      |
+| Form builder and its sections | back to Forms, form title, status      | Form details (steps nested), Rules, Preview, Version history, Releases, Links, Responses, Webhooks | the section's own: Responses (version, dates, flagged), Version history (every version / released anywhere) | Add step     | none      |
+| Response detail               | the form's rail, Responses current     | as above                                                                                           | -                                                                                                           | -            | none      |
+| Responses (index)             | Responses                              | Erasure log                                                                                        | Search forms                                                                                                | -            | none      |
+| Erasure log                   | back to Responses, Erasure log         | -                                                                                                  | when the log has filters                                                                                    | -            | none      |
+| Webhooks (operations)         | Webhooks                               | Dead-letter queue, one link per form                                                               | form                                                                                                        | -            | none      |
+| Workspaces (list)             | Workspaces                             | the workspace list, Your own access                                                                | -                                                                                                           | -            | none      |
+| Workspace detail              | back to Workspaces, workspace name     | Members, Access groups, Workspace settings, Access audit                                           | -                                                                                                           | -            | none      |
+| Settings                      | Settings                               | Account, Change password, Two-factor authentication                                                | -                                                                                                           | -            | none      |
+
+**What still holds from the passages below:**
+
+- A step is a fragment on the builder, never a route.
+- The rail is a sibling of the capped content column, through the `@rail` parallel slot.
+- A row carries the name its screen carries.
+- Validation stays a selection on the builder; rule editing has its own route.
+- Panel rows are derived from `apps/admin/lib/questions/panels.ts`.
+
+### 7.1 The form-subtree rail, as ruled before 2026-10-24
+
 - The rail carries **navigation within one form's subtree**: the form's children
   (its steps, with per-step issue badges) and the form's sibling screens
   (Builder, **Rules**, Preview, Versions, Links, Responses, Webhooks). A question's
@@ -1027,7 +1083,9 @@ closes with it.
   takes the same `qcms-rail*` and `qcms-rail-steps*` classes: the same row
   geometry and typography, the same current-row mark, the same nesting of children
   inside their parent's row, the same issue badge, and the same full-track control
-  block for its lifecycle buttons that the builder's Add step control wears. Six
+  block for its lifecycle buttons that the builder's Add step control wears
+  (**Superseded 2026-10-24, §7.0 ruling 5:** the lifecycle buttons leave the rail
+  for the heading row; "New version" stays as a structural action). Six
   classes of a look of its own went with that: a labelled header row and its
   right-aligned digest, the lifecycle block's dashed rule, and two bespoke
   two-line row treatments. Four remain, for the four things this rail has and the
@@ -1040,11 +1098,16 @@ closes with it.
   same-page panels (§7a), and both at once here. They remain three components for
   the reason §7a gives - a flag would be the seam along which the three contracts
   get unified - and they now look like one family, which is what the styling
-  ruling settles.
+  ruling settles. (**Superseded 2026-10-24, §7.0:** one frame on every screen; each
+  screen supplies the contents of the five parts.)
 
 - The rail **may carry actions and same-page switches** (Code Owner, 2026-08-25).
   It never carries a route the audit rejected (Validation stays on the builder page,
   `plan/admin-ux-audit.md` §5.5).
+
+  **Narrowed 2026-10-24, §7.0 ruling 5:** the actions a rail carries are
+  structural only (add, new); lifecycle and destructive actions live in the heading
+  row.
 
   Two rails already carry actions and both are the approved design: the question
   detail rail's lifecycle block (`question-editor-poc.html`), and the form
@@ -1177,6 +1240,12 @@ how an unexamined choice becomes the house pattern.
   markup, because it is the disclosure's control and removing it takes the semantics with
   it, but it is not _shown_ as a heading on a wide screen.
 
+  **Superseded 2026-10-24, §7.0 ruling 2:** above `--bp-sidebar` the summary is the
+  rail's visible Header (back link, subject, status) on every rail. The duplication
+  the correction below removed was a summary repeating the first row. The Header
+  names the subject rather than repeating a row, and the builder's title row is
+  folded into it.
+
   **Corrected 2026-08-22 by the Code Owner, overruling this seat.** The earlier text
   accepted the redundancy - the active item named once as the summary and again as the
   marked row - on the grounds that hiding it at one width reintroduces a second code path.
@@ -1237,6 +1306,8 @@ has to understand one. #559 taught four files about it rather than filtering it 
 the standard for the next two rails as well.
 
 ### 7a. Settings keeps a rail, as a written exception
+
+**Superseded 2026-10-24 by §7.0.** Every screen has a rail now, so Settings is no exception and the "no third screen" clause below is void. Settings rail items become anchors under the shared frame and current-row mark. The text below is kept as history.
 
 **[Code Owner ruling, 2026-08-20 - decision C1 closed]** Settings keeps its rail.
 This overrides the audit's row-16 verdict and this document's own recommendation,
