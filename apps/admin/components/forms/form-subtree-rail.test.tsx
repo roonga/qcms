@@ -6,11 +6,17 @@ import type { DraftStep } from "../../lib/forms/types.ts";
 import type { RailCurrent } from "../../lib/forms/subtree-rail.ts";
 
 /**
- * The rail's MARKUP contract (`plan/admin-design-contracts.md` §7, issue 559).
+ * The rail's MARKUP contract (`plan/admin-design-contracts.md` §7.0 and §7.1, issues 559
+ * and #1116).
  *
  * `lib/forms/subtree-rail.test.ts` next door pins what the rail carries. This file pins
- * the four things that are only true of the rendered element, and each of them is a clause
+ * the things that are only true of the rendered element, and each of them is a clause
  * a future change could break without breaking anything else:
+ *
+ * - **The five parts, in order** (§7.0 ruling 2): an `<aside>` named for the subject, a
+ *   Header carrying the way back and one status tag, the Sections inside a `<nav>`, and the
+ *   Actions part at the foot. Order is asserted by index, because a part moved is exactly
+ *   the kind of change that looks right in isolation.
  *
  * - **Anchors, not buttons.** §7 says so, and the reason is not styling: an anchor can be
  *   middle-clicked and opened in a new tab, and a button can do neither. It is asserted by
@@ -63,9 +69,11 @@ async function render(
       formId="frm_life"
       slug="life"
       title=""
+      status="open"
       steps={steps}
       issueCounts={issueCounts}
       current={current}
+      actions={<span data-testid="stub-actions" />}
     />,
   );
 }
@@ -73,11 +81,52 @@ async function render(
 const LINKS: RailCurrent = { kind: "section", section: "links" };
 
 describe("the rail's markup", () => {
-  it("is a navigation landmark named after the form it belongs to", async () => {
+  it("is an aside named for the form, holding a nav named for its sections", async () => {
     const html = await render(LINKS);
-    expect(html).toContain(
-      '<nav class="qcms-rail qcms-rail--form" aria-label="life steps and sections"',
-    );
+    // The column is complementary content about the form; the tree inside it is the
+    // navigation. It was a `<nav class="qcms-rail qcms-rail--form">` all the way out until
+    // §7.0: one element for the whole column made the Actions part navigation too, and the
+    // modifier existed so that one rule could hide this rail's summary alone.
+    expect(html).toMatch(/^<aside class="qcms-rail" aria-label="life"/u);
+    expect(html).toContain('<nav aria-label="life sections">');
+    expect(html).not.toContain("qcms-rail--form");
+  });
+
+  it("puts the five parts in the contract's order", async () => {
+    const html = await render(LINKS);
+    const at = (needle: string): number => {
+      const index = html.indexOf(needle);
+      expect(index, `${needle} is in the rail`).toBeGreaterThan(-1);
+      return index;
+    };
+    // Header (the way back, then the subject line), Sections, then Actions. There are no
+    // children outside the Sections tree and no filters on this screen yet (#1117).
+    expect(at('class="qcms-rail__back"')).toBeLessThan(at("<summary"));
+    expect(at("<summary")).toBeLessThan(at("<nav"));
+    expect(at("<nav")).toBeLessThan(at('class="qcms-rail__actions"'));
+  });
+
+  it("carries the way back to Forms, and the form's status as its one tag", async () => {
+    const html = await render(LINKS);
+    // §7.0's table: "back to Forms, form title, status". The label is the parent SCREEN's
+    // name rather than a sentence, and the link sits outside the disclosure so that it
+    // survives the collapse below `--bp-sidebar`.
+    expect(html).toContain('href="/forms" class="qcms-rail__back"');
+    expect(html).toContain(">Forms</a>");
+    const summary = html.slice(html.indexOf("<summary"), html.indexOf("</summary>"));
+    expect(summary).toContain('class="qcms-tag qcms-tag--form-open" data-status="open"');
+    expect(summary).toContain(">Open</span>");
+  });
+
+  it("holds the Add step control it is handed, in the Actions part", async () => {
+    // It used to sit inside the step cluster, under the list, which is where
+    // `admin-shell-poc.html` draws it; §7.0 names Add step as a structural action and gives
+    // the rail one Actions part for those. Handed in as a node, because on the builder the
+    // control needs the draft in the browser.
+    const html = await render(LINKS);
+    const actions = html.slice(html.indexOf('class="qcms-rail__actions"'));
+    expect(actions).toContain("stub-actions");
+    expect(html.indexOf("stub-actions")).toBeGreaterThan(html.indexOf('data-rail-group="sections"'));
   });
 
   it("orders the tree with each step nested inside the Form row", async () => {
@@ -87,8 +136,10 @@ describe("the rail's markup", () => {
     // steps, then the six remaining sections. Before the nesting the two step anchors
     // came first, which said they were peers of the routes rather than children of one of
     // them. Rules is the first of those six since issue #669 gave it a route of its own.
+    // The Header's back link leads, because the Header is the first part (#1116).
     const anchors = [...html.matchAll(/<a href="([^"]+)"/gu)].map((match) => match[1]);
     expect(anchors).toStrictEqual([
+      "/forms",
       "/forms/frm_life",
       "/forms/frm_life#step-stp_about",
       "/forms/frm_life#step-stp_health",
@@ -143,11 +194,11 @@ describe("the rail's markup", () => {
     expect(html).toContain('<summary class="qcms-rail__summary">');
   });
 
-  it("names the form in the summary, with the form's own issue total", async () => {
-    // Issue 693: the scope, not the active item, which is what the other two rails name and
-    // what `admin-shell-poc.html` draws. The badge moves with it - a step's count beside the
-    // form's name would be two unrelated facts on one line - so both renders below carry the
-    // same "2 issues" while the current row changes underneath them.
+  it("names the form in the Header, with the form's own issue total", async () => {
+    // Issue 693: the scope, not the active item, and §7.0's clarification of 2026-10-24
+    // says the same of the count - the collapsed Header carries "the subject plus at most
+    // one count ... the issue total". So both renders below carry the same "2 issues" while
+    // the current row changes underneath them.
     const onASection = await render(LINKS);
     expect(onASection).toMatch(/<span class="qcms-rail__summary-text">life<\/span>/u);
     expect(onASection).toMatch(/data-testid="qcms-rail-summary-count">2 issues</u);
@@ -170,7 +221,7 @@ describe("the rail's markup", () => {
     expect(withVerdict).toContain('data-rail-issues="2"');
   });
 
-  it("drops the summary badge when the form has no issues at all", async () => {
+  it("drops the Header's count when the form has no issues at all", async () => {
     const html = await render(LINKS, STEPS, new Map());
     expect(html).toMatch(/<span class="qcms-rail__summary-text">life<\/span>/u);
     expect(html).not.toContain("qcms-rail-summary-count");

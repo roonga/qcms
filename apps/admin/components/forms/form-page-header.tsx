@@ -7,6 +7,11 @@ import { sectionHeadingId } from "@/lib/page-headings";
  *
  * ## The breadcrumb left this header for the rail's Header (§7.0 ruling 3, issue #1116)
  *
+ * **The `slug` prop went with it.** The trail was the only thing on this header that named
+ * the form: the heading names the section and the identity line below it names the form's
+ * id and status. The form's NAME is the rail Header's now, on every one of these screens,
+ * so a prop restored here would be a second place for it to be read from.
+ *
  * It was "Forms / kitchen-sink / Links", the first line of every form section's column.
  * §7.0 makes the way back the rail Header's own back link - "the Header's back link ...
  * replaces the content-column breadcrumb on every screen" - and the rail states the form's
@@ -73,13 +78,11 @@ import { sectionHeadingId } from "@/lib/page-headings";
  */
 export function FormPageHeader({
   formId,
-  slug,
   section,
   status,
   heading,
 }: {
   readonly formId: string;
-  readonly slug: string;
   /**
    * The catalog key of the current section, which names the default `<h1>` and the row the
    * rail marks current. One key for both, so a screen cannot end up called one thing in

@@ -82,10 +82,10 @@ export function QuestionPanelRows({
   useEffect(() => {
     const addressed = rows.find((row) => `#${row.anchorId}` === globalThis.location.hash);
     if (addressed !== undefined) chooseQuestionPanel(addressed.id);
-    // `rows` is read for the first paint's list and nothing more: re-running this as the
-    // editor republishes its panels would re-select the fragment's panel under a reader who
-    // had since chosen another.
-    // eslint-disable-next-line react-hooks/exhaustive-deps -- mount only, deliberately
+    // Mount only, deliberately: `rows` is read for the first paint's list and nothing more,
+    // and re-running this as the editor republishes its panels would re-select the
+    // fragment's panel under a reader who had since chosen another. `rows` is read through
+    // the closure rather than listed, which is what keeps that true.
   }, []);
 
   return (

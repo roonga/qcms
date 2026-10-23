@@ -169,12 +169,12 @@ vi.mock("@/components/forms/form-actions", () => ({
 vi.mock("@/components/forms/public-form-link", () => ({
   PublicFormLink: () => <div data-testid="qcms-public-link-stub" />,
 }));
-// The breadcrumb reads the builder bridge to name the screen the reader is on, which a
-// static render of the page has no builder to publish to. Stubbed like the actions beside
-// it: this file is about what a failed READ does, and the crumb is neither read nor
-// affected by one.
-vi.mock("@/components/forms/builder-breadcrumb", () => ({
-  BuilderBreadcrumb: () => <nav data-testid="qcms-breadcrumb-stub" />,
+// The screen-naming lookup the builder heads itself from. A pure function, stubbed to a
+// fixed answer because this file is about what a failed READ does and the screen's name is
+// neither read nor affected by one. It used to be stubbed as part of
+// `components/forms/builder-breadcrumb.tsx`, which §7.0 ruling 3 retired with the
+// breadcrumb itself (issue #1116).
+vi.mock("@/lib/forms/screen-name", () => ({
   currentScreenName: () => "Form details",
 }));
 // The page reads the portal's origin to build a published form's public address. Absent

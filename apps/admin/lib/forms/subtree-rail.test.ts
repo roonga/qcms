@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
 
 import type { DraftStep } from "./types.ts";
-import { formSubtreeRail, railIssueTotal, railSummary, RAIL_SECTIONS } from "./subtree-rail.ts";
+import { formDisplayName, formSubtreeRail, railIssueTotal, RAIL_SECTIONS } from "./subtree-rail.ts";
 
 /**
  * What the rail carries, as a decision rather than as pixels (`plan/admin-design-
@@ -175,37 +175,36 @@ describe("the form-subtree rail's contents", () => {
   });
 });
 
-describe("the collapsed summary", () => {
-  // Issue 693. It named the active ITEM until now - a step label, a section label, or the
-  // slug only when neither was current - so one line meant three things and disagreed with
-  // the other two rails, both of which name their scope. It names the FORM at every
-  // position now, which is also what `admin-shell-poc.html` draws on every screen.
-  it("names the form on a section screen, not the section", () => {
-    const groups = rail({ kind: "section", section: "links" }, new Map([["stp_health", 2]]));
-    expect(railSummary(groups, "life", "")).toStrictEqual({ text: "life", issueCount: 2 });
-  });
-
-  it("names the form on a step screen, not the step", () => {
-    const groups = rail({ kind: "step", stepId: "stp_health" }, new Map([["stp_health", 2]]));
-    expect(railSummary(groups, "life", "")).toStrictEqual({ text: "life", issueCount: 2 });
-  });
-
-  it("names the form when nothing is current, which was the only branch that ever did", () => {
-    const groups = rail({ kind: "step", stepId: "stp_gone" });
-    expect(railSummary(groups, "life", "")).toStrictEqual({ text: "life", issueCount: 0 });
+describe("what the collapsed Header carries", () => {
+  // Issue 693, and §7.0's clarification of 2026-10-24: "the subject plus at most one count".
+  // The line named the active ITEM until 693 - a step label, a section label, or the slug
+  // only when neither was current - so one line meant three things across eight screens. It
+  // names the FORM at every position now, which is also what `admin-shell-poc.html` draws.
+  //
+  // Two reads rather than one since #1116: the pair `railSummary` returned was shaped for a
+  // frame that took a text and a count and nothing else, and §7.0's Header is five parts.
+  it("names the form whatever is current, and counts the form's own issues", () => {
+    for (const current of [
+      { kind: "section", section: "links" },
+      { kind: "step", stepId: "stp_health" },
+      // A step the draft no longer has: the one branch that always did name the form.
+      { kind: "step", stepId: "stp_gone" },
+    ] as const) {
+      const groups = rail(current, new Map([["stp_health", 2]]));
+      expect(formDisplayName("", "life"), `named the form on ${current.kind}`).toBe("life");
+      expect(railIssueTotal(groups), "the form's total, not the current row's").toBe(2);
+    }
   });
 
   it("prefers what the author called the form over how it is addressed", () => {
-    // The slug is in the URL and the breadcrumb; the title is the thing a person
-    // recognises, and until now the rail never showed it at all.
-    const groups = rail({ kind: "section", section: "links" });
-    expect(railSummary(groups, "life", "Life insurance").text).toBe("Life insurance");
+    // The slug is in the URL; the title is the thing a person recognises, and until 2026-08
+    // the rail never showed it at all.
+    expect(formDisplayName("Life insurance", "life")).toBe("Life insurance");
   });
 
   it("falls back to the slug for a form nobody has named yet, rather than an empty row", () => {
-    const groups = rail({ kind: "section", section: "links" });
-    expect(railSummary(groups, "life", "").text).toBe("life");
-    expect(railSummary(groups, "life", "   ").text, "whitespace is not a name").toBe("life");
+    expect(formDisplayName("", "life")).toBe("life");
+    expect(formDisplayName("   ", "life"), "whitespace is not a name").toBe("life");
   });
 
   it("counts every step's issues, not the current row's", () => {
@@ -219,6 +218,5 @@ describe("the collapsed summary", () => {
       ]),
     );
     expect(railIssueTotal(groups)).toBe(3);
-    expect(railSummary(groups, "life", "").issueCount).toBe(3);
   });
 });

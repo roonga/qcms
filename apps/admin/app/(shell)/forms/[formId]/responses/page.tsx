@@ -111,7 +111,6 @@ export default async function FormResponsesPage({
   const header = (
     <FormPageHeader
       formId={form.formId}
-      slug={form.slug}
       section="responses"
       status={form.status}
     />

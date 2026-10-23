@@ -17,7 +17,7 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
  * This route makes two reads and answers their failures differently, which looks like an
  * oversight until you ask what each failed read was carrying:
  *
- * - **The FORM read failed.** `FormPageHeader` is built from the form's slug and status,
+ * - **The FORM read failed.** `FormPageHeader` is built from the form's id and status,
  *   and both arrived on that read. There is no header to render, so the route returns the
  *   alert alone. That branch is CORRECT and this file pins it, precisely so a later reader
  *   who sees the version branch keep its header does not make this one match it and lose
@@ -221,15 +221,19 @@ beforeEach(() => {
  * before this fix all of it was thrown away because a different read failed.
  */
 describe("the version read failing (issue 614)", () => {
-  it("keeps the breadcrumb, the h1, the back link and the identity line", async () => {
+  it("keeps the h1, the back link and the identity line", async () => {
     versionResult = UPSTREAM_FAILURE;
 
     const html = await renderVersionDetail();
 
     // `soft`, so a regression reports every piece of chrome it dropped rather than only
-    // the first. Against the pre-614 route all seven of these fail at once, which is the
-    // shape of the defect: not one missing element but the whole header discarded.
-    expect.soft(html).toContain('data-testid="qcms-breadcrumb-stub"');
+    // the first. Against the pre-614 route all of these fail at once, which is the shape
+    // of the defect: not one missing element but the whole header discarded.
+    //
+    // The breadcrumb was the first of them until §7.0 ruling 3 (issue #1116) replaced it
+    // with the rail Header's back link. The rail is stubbed in this file, so what is left
+    // to assert here is that the header carries no trail of its own.
+    expect.soft(html).not.toContain("qcms-breadcrumb-stub");
     // The `h1` names the version, and names it from the route params: `snapshot.data` does
     // not exist in this branch, so a 7 here is proof the heading no longer depends on the
     // read that failed.
@@ -267,7 +271,7 @@ describe("the version read failing (issue 614)", () => {
  * THE BRANCH THAT IS CORRECT AS WRITTEN, PINNED SO IT STAYS THAT WAY.
  *
  * This is not the same case as the block above and must not be made to match it.
- * `FormPageHeader` renders the form's slug in its breadcrumb and its open/closed status in
+ * `FormPageHeader` renders the form's id and its open/closed status in
  * the identity line, and both of those came from the read that just failed. There is no
  * header to render here: the alternative is a header captioned with a slug the app does
  * not have, which is the false claim §3 exists to prevent. The bare alert is the honest
