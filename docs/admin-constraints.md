@@ -75,3 +75,10 @@ JavaScript and the endpoint set is not republished. This is a constraint on that
 
 **An anchor navigates, a button acts.** A row that goes to another route is an anchor, which
 is what makes open-in-new-tab work. A control that acts on the current page is a button.
+
+**A rail row is an anchor whatever it opens** (`plan/admin-design-contracts.md` §7.0 ruling
+2.2, Code Owner 2026-10-24). That is the one named exception to the sentence above, and it is
+about the rail rather than about anchors: there is one rail in this app now, so a reader
+should not have to learn which of its rows can be middle-clicked. A row that selects a
+same-page panel - a Settings section, one panel of the question editor - links to that
+panel's own fragment and switches it with script.
