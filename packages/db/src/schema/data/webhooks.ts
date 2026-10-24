@@ -5,23 +5,12 @@ import type { FormId } from "@roonga/qcms-core";
 import { forms } from "../control/forms.js";
 
 /**
- * Webhook endpoints an author configures per form (SEC-6, tasks 024/025). The
- * deliverer (025) posts `response.submitted` events to every `active` row and
- * signs each with the row's secret.
+ * Webhook endpoints an author configures per form (SEC-6). The deliverer posts to every
+ * `active` row and signs with the row's secret.
  *
- * **The secret is stored encrypted at rest, never hashed** (SEC-6/SEC-8): 025
- * must recover the plaintext to compute the `X-QCMS-Signature` HMAC, so a
- * one-way hash would make signing impossible. `secretEncrypted` holds
- * AES-256-GCM ciphertext (random IV + tag) under `QCMS_APP_KEY`, produced by the
- * shell's webhook-crypto module - the database only ever sees opaque bytes and
- * never the plaintext. The secret is shown to the author exactly once (on create
- * and on explicit rotation) and masked everywhere else.
- *
- * Soft-deactivation: `DELETE` sets `active = false` and stamps `deactivatedAt`
- * rather than removing the row, so delivery history and audit references survive.
- * `webhookId` is a `whk_`-prefixed opaque id minted by the shell (config
- * infrastructure - it never flows through the kernel, so it is a plain string,
- * not a branded domain id).
+ * The secret is encrypted at rest and never hashed (SEC-6, SEC-8), because the deliverer
+ * must recover the plaintext to compute the HMAC; it is shown to the author once and
+ * masked everywhere else. `DELETE` soft-deactivates, so delivery history survives.
  */
 export const webhooks = pgTable("webhooks", {
   webhookId: text("webhook_id").primaryKey(),

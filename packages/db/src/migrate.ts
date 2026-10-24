@@ -1,28 +1,13 @@
 #!/usr/bin/env node
 /**
- * Apply the package-owned migration history to a configured database.
+ * Apply the package-owned migration history. A separate, explicit process: migrating on
+ * boot would race schema changes with rollout in a multi-instance deployment.
  *
- * This is intentionally a separate, explicit process. Application containers
- * never migrate on boot: in a multi-instance deployment that would make schema
- * changes race with rollout, and it removes the operator's control of upgrades.
+ * The two supported invocations, since a deep path into `dist/` bypasses the `exports`
+ * map and pins a layout this package is free to change:
  *
- * **How to run it** (issue #294). Two supported entry points, both of them real
- * resolutions rather than a guess at this package's build layout:
- *
- * - the `qcms-db-migrate` bin, which is what `docker-compose.yml` runs and what an
- *   adopter gets on their `node_modules/.bin` PATH;
- * - the `@roonga/qcms-db/migrate` export, for a composition that would rather preload it
- *   (`node --import @roonga/qcms-db/migrate --eval ""`).
- *
- * A deep path into `dist/` is neither. It worked only because a filesystem path
- * bypasses the `exports` map, so the layout this package is free to change was
- * pinned by a caller outside it.
- *
- * **Every failure exits 1 with one line on stderr**, in the `qcms-db migrate
- * failed: ...` shape the missing-DATABASE_URL branch below already used. An
- * operator reads this in `docker compose run --rm migrate` output at step 4 of an
- * upgrade, where a Node `ERR_UNHANDLED_REJECTION` stack is noise around the one
- * sentence that matters. `exitCode` rather than `exit()` so the pool still closes.
+ *     qcms-db-migrate
+ *     node --import @roonga/qcms-db/migrate --eval ""
  */
 import { fileURLToPath } from "node:url";
 
@@ -31,12 +16,8 @@ import { migrate } from "drizzle-orm/node-postgres/migrator";
 import pg from "pg";
 
 /**
- * One line, cause included. Drizzle wraps a driver failure in a `Failed query: ...`
- * error whose own message spans several lines and whose `cause` holds the sentence
- * an operator acts on (`ECONNREFUSED`, `password authentication failed`). Reporting
- * only the wrapper says a query failed and never says why; reporting the raw
- * multi-line message breaks the one-failure-one-line shape a container log is read
- * in. So: whitespace collapsed, one level of `cause` appended.
+ * drizzle's wrapper says a query failed and never why, while its `cause` holds the
+ * sentence an operator acts on. Whitespace collapsed to keep a container log to one line.
  */
 function describeError(error: unknown): string {
   const collapse = (text: string): string => text.replaceAll(/\s+/g, " ").trim();
@@ -61,8 +42,8 @@ try {
   await migrate(db, { migrationsFolder });
   process.stdout.write("qcms-db migrations applied\n");
 } catch (error) {
-  // Never the connection string: it carries the database password, and this line
-  // goes to a container log an operator may paste into an issue (SEC-8).
+  // Never the connection string: it carries the database password, and this line goes to
+  // a container log (SEC-8).
   process.stderr.write(`qcms-db migrate failed: ${describeError(error)}\n`);
   process.exitCode = 1;
 } finally {

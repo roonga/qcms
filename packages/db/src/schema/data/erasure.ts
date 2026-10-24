@@ -3,13 +3,8 @@ import { integer, pgTable, text, timestamp } from "drizzle-orm/pg-core";
 import type { FormId, SessionId } from "@roonga/qcms-core";
 
 /**
- * Erasure tombstones (ADR-17, I11). Erasing a session hard-deletes its answer
- * ledger and submission (and scrubs the retained session shell) and writes one
- * of these rows: it preserves that a response existed - and against which form
- * version - without preserving any content. The reporting view excludes erased
- * sessions by construction. No foreign key to `sessions`: the tombstone is
- * independent of the session row and survives even if retention later purges
- * that scrubbed shell.
+ * Erasure tombstones (ADR-17, I11): existence without content. No foreign key to
+ * `sessions`, so a tombstone survives retention purging the scrubbed session shell.
  */
 export const erasureTombstones = pgTable("erasure_tombstones", {
   sessionId: text("session_id").$type<SessionId>().primaryKey(),

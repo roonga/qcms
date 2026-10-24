@@ -11,43 +11,13 @@ import { controlSchema } from "../schemas.js";
 /**
  * Form identity.
  *
- * **There is no `status` column, since task 066** (Q18, ADR-39's Amendment). The closed
- * state is per **(form, environment)** and lives on the per-environment release state,
- * `control.form_releases`, where closing appends a row carrying that environment's
- * released version with `closed` set. A single column here could only say "closed
- * everywhere", which is the one thing Q18 removed: closing `prod` intake while a `test`
- * run continues is an ordinary operation, and so is the reverse. The `form_status` enum
- * went with the column.
+ * There is deliberately no `status` column: the closed state is per (form, environment)
+ * and lives on `control.form_releases`, so a form's status is derived from the newest
+ * release row for the pair.
  *
- * What a screen still calls a form's status is therefore **derived, per environment**,
- * from the newest release row for the pair (`getFormEnvironmentState` and
- * `environmentStatesByForm` in `queries/releases.ts`), and is never read from here.
- *
- * `challengeRequired` and `minSubmitMs` are per-form abuse-control settings
- * (task 026) - operational domain config that lives on the mutable identity
- * row, not in the immutable published definition and not a deployment flag
- * (ADR-24). `challengeRequired` gates start-session (018) behind the environment's
- * challenge provider (Q11); `minSubmitMs` overrides the config-default min-time floor
- * the submit slice (020) enforces (`NULL` = use the config default).
- *
- * `workspaceId` is the workspace that owns this form (ADR-41, task 068, criterion 1).
- * **`NOT NULL` with no default**, which is the whole of that criterion: a form cannot
- * exist without exactly one workspace, and the column is what enforces it rather than a
- * backfill or an authoring convention. Ownership sits on the identity row, so moving a
- * form between workspaces is one `UPDATE` here and no published version changes hands
- * (criterion 7).
- *
- * The foreign key points at the organisation row a workspace **is** (Q32), and it is
- * also the backstop under criterion 5: nothing deletes a workspace, and a delete that
- * somehow reached `control.organization` would be refused by this reference while the
- * workspace still owns a form. `archivedAt` is what a workspace's end of life is
- * (Q15), and this column is why an archive is the last step rather than a cascade.
- *
- * `slug` carries the unique constraint ADR-41's Note asks for (criterion 3): slugs are
- * unique **installation-wide** rather than per workspace, so `/f/{slug}` needs no
- * workspace segment and a slug never changes meaning by context. Green field (Q22)
- * makes it a plain constraint rather than a data fix, since no installation holds a
- * duplicate for it to fail against.
+ * `slug` is unique installation-wide rather than per workspace, so `/f/{slug}` needs no
+ * workspace segment. The `workspaceId` reference is also the backstop against deleting a
+ * workspace that still owns a form.
  */
 export const forms = controlSchema.table("forms", {
   formId: text("form_id").$type<FormId>().primaryKey(),
@@ -57,13 +27,13 @@ export const forms = controlSchema.table("forms", {
     .references(() => authOrganization.id),
   defaultLocale: text("default_locale").notNull(),
   challengeRequired: boolean("challenge_required").notNull().default(false),
+  /** `NULL` to use the config-default min-time floor. */
   minSubmitMs: integer("min_submit_ms"),
 });
 
 /**
- * The mutable working state of a form. The `form_id` primary key enforces the
- * one-open-draft-per-form invariant (a second draft insert for the same form
- * fails the PK uniqueness check).
+ * The mutable working state of a form. The `form_id` primary key is what enforces one open
+ * draft per form.
  */
 export const formDrafts = controlSchema.table("form_drafts", {
   formId: text("form_id")
@@ -71,22 +41,15 @@ export const formDrafts = controlSchema.table("form_drafts", {
     .primaryKey()
     .references(() => forms.formId),
   definition: jsonb("definition").$type<FormDefinition>().notNull(),
-  /**
-   * Whether an agent-assisted proposal has been accepted into this draft (041,
-   * ADR-25). Provenance, not a permission: it is what the builder header and the
-   * publish confirmation show, so the human publishing knows what they are
-   * signing. Sticky within a draft and reset when the draft is discarded, since
-   * a fresh draft has no agent history.
-   */
+  /** Provenance shown on the publish confirmation, not a permission. */
   agentAssisted: boolean("agent_assisted").notNull().default(false),
   updatedAt: timestamp("updated_at", { withTimezone: true, mode: "date" }).notNull().defaultNow(),
 });
 
 /**
- * Immutable published snapshots (R1, I1, ADR-18): the frozen domain definition,
- * the compiled A2UI documents served verbatim by the portal, and the version
- * stamps that make the audit copy self-describing. A BEFORE UPDATE trigger
- * (`form_versions_reject_update`, migration 0001) rejects every UPDATE.
+ * Immutable published snapshots: the frozen definition, the compiled A2UI documents the
+ * portal serves verbatim, and the version stamps. `form_versions_reject_update` rejects
+ * every UPDATE (R1, I1).
  */
 export const formVersions = controlSchema.table(
   "form_versions",
@@ -105,28 +68,10 @@ export const formVersions = controlSchema.table(
       .notNull()
       .defaultNow(),
     /**
-     * The administrator who published this version: a better-auth `control.user` id, or
-     * null for a version published before task 070 added the column.
-     *
-     * **This is the "author" the two-person rule compares against** (Q51, ADR-41). A release
-     * to `prod` under the workspace's `requireSecondApprover` switch is refused when the
-     * releasing account is this one. Q51 defines the author as *the account that published
-     * the version*, not whoever last edited the draft, which is why the value is frozen here
-     * with the snapshot rather than derived from a draft's history: a draft several editors
-     * touched has exactly one author, so the check compares two accounts rather than two
-     * roles.
-     *
-     * **Deliberately no foreign key into `user`**, for the reason `form_releases.released_by`
-     * has none either: this is the audit answer to "who published that version", and a row
-     * whose actor a later account deletion could cascade or block answers the question only
-     * while it is convenient.
-     *
-     * **Nullable, and null means the author is unknown rather than nobody.** This table is
-     * append-only (`form_versions_reject_update`), so a column added to it can never be
-     * filled in for the rows written before it and no backfill value would be true. The
-     * release path therefore **refuses** a `prod` release of such a version while the switch
-     * is on, rather than letting it through: the rule cannot be checked, and the conservative
-     * answer to "cannot be checked" is no.
+     * The author the two-person rule compares a `prod` release against. No foreign key, so
+     * a later account deletion cannot cascade or block the audit answer. Null means the
+     * author is unknown, and the release path refuses such a `prod` release while the
+     * workspace switch is on.
      */
     publishedBy: text("published_by"),
   },
