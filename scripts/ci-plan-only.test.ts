@@ -515,15 +515,14 @@ describe("check:plan covers what the lane skips", () => {
     expect(segments).toContain("pnpm test:tooling:no-build");
   });
 
-  it("excludes exactly one tooling file from the lane, and says which", () => {
-    // `scripts/sql-capture.test.ts` refuses to run until `packages/db` is built, and
-    // building is the cost the lane exists to avoid. It reads nothing the lane admits.
-    // Any OTHER tooling test that grows a build dependency fails `check:plan` loudly,
-    // which is the direction that can be fixed rather than the one that goes unnoticed.
+  it("excludes exactly the tooling files that need a build, and says which", () => {
+    // Both need built packages and read nothing the lane admits. A new build
+    // dependency should fail `check:plan` loudly rather than be excluded silently.
     const noBuild = manifest.scripts["test:tooling:no-build"] ?? "";
     expect(noBuild).toContain("--project tooling");
     expect(noBuild).toContain("sql-capture.test.ts");
-    expect(noBuild.match(/--exclude/g) ?? []).toHaveLength(2);
+    expect(noBuild).toContain("check-bff-config-guards.test.ts");
+    expect(noBuild.match(/--exclude/g) ?? []).toHaveLength(3);
     expect(noBuild).toContain("node_modules");
   });
 });
