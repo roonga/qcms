@@ -1,5 +1,4 @@
 ---
-"qcms-admin": minor
 "create-qcms-app": patch
 ---
 
