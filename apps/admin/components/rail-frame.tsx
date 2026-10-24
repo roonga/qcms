@@ -102,13 +102,19 @@ export function RailFrame({
   /** At most one status tag. */
   readonly tag?: ReactNode;
   /**
-   * The one count the collapsed Header carries, already written out.
+   * The one count the collapsed Header carries, as a {@link RailCount} or nothing.
    *
-   * The issue total on the form rail; the active filter count on a list screen, once #1117
-   * gives those rails their filters. At most one, which is why this is a string rather
-   * than a slot.
+   * The issue total on the form and question rails; the active filter count on a list
+   * screen. At most one, which is why the frame draws no separator around it.
+   *
+   * **A slot rather than a string, since #1117.** It was a string and the frame wrapped it
+   * in the badge, which works for a count the server knows and not for the question rail's:
+   * that total lives in the editor's live document, so it arrives as a client island that
+   * has to render NOTHING before hydration and nothing while the count is zero. A frame
+   * that wrapped it would paint an empty badge in both of those states. So the badge is
+   * {@link RailCount}, used by every caller, and the slot can hold a component instead.
    */
-  readonly count?: string;
+  readonly count?: ReactNode;
   /** The Header's secondary lines: what this rail states about its subject. */
   readonly lines?: ReactNode;
   readonly sections?: ReactNode;
@@ -136,11 +142,7 @@ export function RailFrame({
         <summary className="qcms-rail__summary">
           <span className="qcms-rail__summary-text">{title}</span>
           {tag}
-          {count !== undefined && (
-            <span className="qcms-tag qcms-tag--draft" data-testid="qcms-rail-summary-count">
-              {count}
-            </span>
-          )}
+          {count}
           {/* Decorative: the disclosure's state is already announced by the element
               itself, so a second statement of it here would only be said twice. */}
           <span className="qcms-rail__chevron" aria-hidden="true">
@@ -161,5 +163,28 @@ export function RailFrame({
         </div>
       </RailDisclosure>
     </aside>
+  );
+}
+
+/**
+ * The Header's one count, as the badge every rail draws it in.
+ *
+ * Minted here rather than at each caller so the class and the test handle have one home:
+ * three rails carry a count now (the form's and the question's issue total, and a list
+ * screen's active filter count), and the frame used to own the badge until #1117 needed one
+ * of the three to be a client island.
+ *
+ * The amber `qcms-tag--draft` is the same device a step row's issue badge wears, which is
+ * what makes the collapsed summary's number read as the same fact as the rows under it.
+ *
+ * A caller renders this only when it has a count to show: §7.0 allows at most one, and a
+ * count of zero is not a count - "no issues" and "no filter set" are the absence of the badge
+ * rather than a reassuring nought.
+ */
+export function RailCount({ children }: { readonly children: ReactNode }) {
+  return (
+    <span className="qcms-tag qcms-tag--draft" data-testid="qcms-rail-summary-count">
+      {children}
+    </span>
   );
 }

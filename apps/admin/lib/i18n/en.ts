@@ -43,6 +43,28 @@ export const messages = {
   // landmark on the same page.
   "rail.sections": "{subject} sections",
 
+  // THE FILTERS PART, which is one part of one rail and therefore one set of strings
+  // (§7.0 ruling 2.4, Code Owner 2026-10-24; issue #1117).
+  //
+  // Five strings for every screen that filters, rather than a per-screen "Apply" and a
+  // per-screen "Clear filters": the controls inside the part are the screen's own and keep
+  // their own labels, but the part's title, its active count and its two controls are the
+  // frame's. Four keys went when these arrived (`questions.filter.legend`,
+  // `questions.filter.apply`, `forms.filter.legend`, `forms.filter.apply`) plus the two
+  // per-screen clear links, which is six wordings for three controls that a translator had
+  // to keep parallel by hand.
+  //
+  // "Filters" is a visible title rather than a heading element, and that is an
+  // accessibility constraint rather than a style: the rail renders before `<main>`, so a
+  // heading in it would sit above the screen's own `<h1>` and `heading-order` would report
+  // it on every railed screen at once. The `<form role="search">` takes the same word as
+  // its accessible name, so a screen reader lands on "Filters, search region" either way.
+  "rail.filters": "Filters",
+  "rail.filters.activeOne": "1 active",
+  "rail.filters.active": "{count} active",
+  "rail.filters.apply": "Apply",
+  "rail.filters.clear": "Clear filters",
+
   "app.title": "QCMS",
   "app.description": "Author questionnaires, publish forms, and review responses.",
 
@@ -277,17 +299,18 @@ export const messages = {
   "questions.title": "Questions",
   "questions.intro": "The governed library. Every version is published, never overwritten.",
   "questions.new": "New question",
-  "questions.backToList": "Back to questions",
 
-  "questions.filter.legend": "Filter the library",
+  // The library's three filters, which live in the rail's Filters part (§7.0 ruling 4,
+  // issue #1117). `questions.filter.legend` and `.apply` went with the move: the part
+  // carries its own title and its own Apply, and the clear link is `rail.filters.clear`.
   "questions.filter.search": "Search",
   "questions.filter.searchHint": "Matches the slug and the label text.",
   "questions.filter.status": "Status",
   "questions.filter.statusAll": "Any status",
   "questions.filter.type": "Type",
   "questions.filter.typeAll": "Any type",
-  "questions.filter.apply": "Apply",
-  "questions.filter.clear": "Clear filters",
+  // `questions.filter.clear` went with the part too: the filtered-empty panel no longer
+  // offers a clear link, because the rail's is the one on the screen (issue #1117).
 
   "questions.table.label": "Question library",
   "questions.table.hint": "Open a question from the link in its ID column.",
@@ -620,7 +643,6 @@ export const messages = {
   "forms.title": "Forms",
   "forms.intro": "Compose published questions into steps, and branch between them with rules.",
   "forms.new": "New form",
-  "forms.backToList": "Back to forms",
 
   "forms.table.label": "Form library",
   "forms.table.hint": "Open a form from the link in its Slug column.",
@@ -639,11 +661,13 @@ export const messages = {
   "forms.version.value": "v{version}",
   "forms.version.valueAt": "v{version} on {date}",
 
-  // The library toolbar (issue 686). Worded from `plan/admin-shell-poc/library-lists-poc.html`,
+  // The library's filters (issue 686). Worded from `plan/admin-shell-poc/library-lists-poc.html`,
   // which draws all three controls on this screen and labels each one; the question
   // library's equivalent keys are the sibling wording, so "Search" and "Status" read the
-  // same on both screens and only the hint differs by what each list holds.
-  "forms.filter.legend": "Search and filter forms",
+  // same on both screens and only the hint differs by what each list holds. They moved
+  // into the rail's Filters part with §7.0 ruling 4 (issue #1117), which is where
+  // `forms.filter.legend` and `forms.filter.apply` went: the part names itself and carries
+  // its own Apply and its own clear link.
   "forms.filter.search": "Search",
   "forms.filter.searchHint": "Matches the slug and the form title.",
   "forms.filter.status": "Status",
@@ -653,8 +677,6 @@ export const messages = {
   "forms.filter.sort.slug-desc": "Slug (Z to A)",
   "forms.filter.sort.published-desc": "Newest published",
   "forms.filter.sort.published-asc": "Oldest published",
-  "forms.filter.apply": "Apply",
-  "forms.filter.clear": "Clear filters",
   // The POC's result count, which is the one line that says how many rows the filters
   // just produced. Singular and plural are separate keys rather than one string with a
   // conditional "s", because a second locale is a catalog swap and not a code change.
@@ -1938,6 +1960,13 @@ export const messages = {
   "ops.area.responses.noForms": "No forms exist yet, so nothing has been collected.",
   "ops.area.responses.erasureLog": "Erasure log",
   "ops.area.responses.formsFailed": "The form list could not be loaded. {message}",
+  // The screen's one filter, in the rail's Filters part (§7.0's table, issue #1117). It
+  // narrows the way-in list, which is a list of FORMS, so the label says so rather than
+  // saying "Search" beside a rail headed "Responses" and leaving an operator to guess
+  // whether it searches answers. It is `GET /admin/forms`'s own `search`, which is why it
+  // travels in the URL like every other filter in this app.
+  "ops.area.responses.filter.search": "Search forms",
+  "ops.area.responses.filter.searchHint": "Matches the slug and the form title.",
 
   "ops.area.webhooks.title": "Webhook operations",
   // "screen", not "tab" (issue #651). This sentence is the one place the app explains the
@@ -1954,6 +1983,13 @@ export const messages = {
   // `{slug}`, for the same reason as `ops.area.responses.pickForm` above.
   "ops.area.webhooks.pickForm": "Configure webhooks for {slug}",
   "ops.area.webhooks.noForms": "No forms exist yet, so there is nothing to deliver.",
+  // The screen's one filter, in the rail's Filters part (§7.0's table, issue #1117). The
+  // dead-letter queue is cross-form by the API's own shape, and that stays the default:
+  // "is anything stuck" is the operator's question. The filter is for the next one - "is
+  // anything stuck on THIS form" - and it narrows the queue this render read rather than
+  // asking for a route parameter the API does not have.
+  "ops.area.webhooks.filter.form": "Form",
+  "ops.area.webhooks.filter.formAll": "Any form",
 
   // The response browser.
   "ops.responses.heading": "Responses",
@@ -2182,7 +2218,6 @@ export const messages = {
   "ops.erasures.total.one": "1 erasure",
   "ops.erasures.total.other": "{count} erasures",
   "ops.erasures.loadFailed": "The erasure log could not be loaded. {message}",
-  "ops.erasures.back": "Back to responses",
 
   // Webhook configuration.
   "ops.webhooks.heading": "Webhook endpoints",
@@ -2519,7 +2554,6 @@ export const messages = {
   "membership.area.twoPerson": "Second approver required",
   "membership.area.counts": "{forms} form(s), {questions} question(s)",
   "membership.workspace.title": "{name}",
-  "membership.workspace.back": "All workspaces",
   "membership.workspace.notFound":
     "No such workspace, or you do not manage it. Your own grants are on /workspaces.",
 

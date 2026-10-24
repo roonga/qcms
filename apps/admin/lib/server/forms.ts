@@ -88,6 +88,33 @@ export async function listForms(
   return result.ok ? { ok: true, data: result.data.forms } : result;
 }
 
+/**
+ * The whole, unfiltered form library, memoized per request (issue #1117).
+ *
+ * ## Why this exists beside {@link listForms} rather than instead of it
+ *
+ * `cache()` keys on the arguments by identity, so it cannot memoize a call that passes a
+ * filter object literal - every caller would build a fresh one and every call would miss.
+ * The one answer two trees of a single request genuinely share is the UNFILTERED list, which
+ * takes no object at all, so that is the call that gets a cache and it gets it under its own
+ * name. A screen that filters still calls `listForms`, and pays for its own read as it did.
+ *
+ * ## The two trees that share it
+ *
+ * The webhook operations screen reads the library for its way-in rows, and §7.0 gives that
+ * screen a rail whose Sections are a row per form and whose Filters part offers the same
+ * forms as options (`components/ops/webhook-ops-rail.tsx`). The page and the rail slot are
+ * two React trees rendered from one request and neither can hand the other a value, so
+ * without this the rail would be a second round trip for an answer the request already had -
+ * which is exactly the duplication `lib/server/request-reads.test.ts` was written to hold
+ * down, and the same shape `getForm` and `getQuestion` carry a `cache()` for.
+ */
+export const listAllForms: (session: AdminSession) => Promise<ApiResult<readonly FormListItem[]>> =
+  cache(
+    async (session: AdminSession): Promise<ApiResult<readonly FormListItem[]>> =>
+      listForms(session),
+  );
+
 /** `POST /admin/forms` - the identity and its empty first draft, in one call. */
 export async function createForm(
   session: AdminSession,

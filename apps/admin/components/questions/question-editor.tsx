@@ -253,12 +253,15 @@ export function QuestionEditor({
   // Hand the rail this document's panels and the counts its badges are drawn from. Nothing
   // else crosses: the selection lives in the module both trees read, and the document stays
   // this component's.
-  usePublishQuestionPanels(
-    useMemo(
-      () => (addressedPanel === undefined ? undefined : { panels, issueCounts: counts }),
-      [addressedPanel, panels, counts],
-    ),
-  );
+  //
+  // PUBLISHED ON THE CREATION SCREEN TOO, since issue #1117. It used to be withheld there -
+  // `addressedPanel === undefined ? undefined : ...` - on the reason that `/questions/new`
+  // had no rail to read it. §7.0 gives that screen a rail, whose Sections are this document's
+  // panels and whose Header carries this document's issue total, so the condition was a
+  // statement about the app that had stopped being true. Nothing about the editor's own
+  // rendering reads it: `addressedPanel` still decides whether this screen shows one panel
+  // or all of them.
+  usePublishQuestionPanels(useMemo(() => ({ panels, issueCounts: counts }), [panels, counts]));
 
   // Hand the heading row's Save button this action's pending state. `undefined` while the
   // version is frozen: there is nothing to save, so contract §6 asks for no control at all

@@ -1,4 +1,3 @@
-import Link from "next/link";
 import type { Metadata } from "next";
 
 import { Alert } from "@/components/kit";
@@ -69,6 +68,13 @@ export async function generateMetadata({
  * state: an empty table would say "nothing is granted here" to somebody who was told
  * nothing at all.
  *
+ * # The rail, and the link that left this column (issue #1117)
+ *
+ * §7.0 gives this screen a rail whose Sections are the four panels and whose Header is the
+ * way back, so the "All workspaces" link above the heading is gone - ruling 3 makes the back
+ * link the Header's job on every screen. `listWorkspaces` is memoized per request, so the
+ * rail reading the workspace's name for its Header costs no second round trip.
+ *
  * # Why the reads are parallel and the writes are not
  *
  * The four reads are independent and are issued together. The writes are Server Actions
@@ -98,9 +104,6 @@ export default async function WorkspacePage({
   return (
     <div className="flex min-w-0 flex-col gap-8">
       <div className="flex flex-col gap-1">
-        <Link href="/workspaces" className="text-xs text-(--color-link) underline">
-          {t("membership.workspace.back")}
-        </Link>
         <h1 className="text-xl font-semibold text-(--color-text)">
           {t("membership.workspace.title", { name: workspace?.name ?? workspaceId })}
         </h1>

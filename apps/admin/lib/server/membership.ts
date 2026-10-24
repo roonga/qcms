@@ -1,3 +1,5 @@
+import { cache } from "react";
+
 import type {
   AccessGroup,
   AccessGroupList,
@@ -59,29 +61,44 @@ function strings(value: unknown): readonly string[] {
     : [];
 }
 
-/** `GET /admin/workspaces` - the workspaces the caller administers. */
-export async function listWorkspaces(
+/**
+ * `GET /admin/workspaces` - the workspaces the caller administers.
+ *
+ * `cache()` for the reason `getForm` carries one (issue #626, extended here by #1117): §7.0
+ * gives both membership screens a rail, and a rail is a parallel-route slot - a separate
+ * React tree rendered for the same request, which cannot be handed a value by the page beside
+ * it. Both trees need this list (the list screen's rows and its rail's rows; the detail
+ * screen's heading and its rail's Header both need the workspace's name), and this call takes
+ * the session alone, so it memoizes cleanly and the two trees share one round trip. Without
+ * it, adding the rails would have doubled the reads on both screens.
+ *
+ * It is also the only answer this area has that two trees share: every other call here is
+ * workspace-scoped and read by the page alone.
+ */
+export const listWorkspaces: (
   session: AdminSession,
-): Promise<ApiResult<readonly WorkspaceListItem[]>> {
-  const result = await readResult<{ workspaces?: unknown }>(
-    await adminApiFetch(session, "/workspaces"),
-  );
-  if (!result.ok) return result;
-  return {
-    ok: true,
-    data: rows(result.data.workspaces).map((row) => ({
-      workspaceId: str(row["workspaceId"]),
-      name: str(row["name"]),
-      slug: str(row["slug"]),
-      isShared: bool(row["isShared"]),
-      requireSecondApprover: bool(row["requireSecondApprover"]),
-      seedNewEditorsWithTestData: bool(row["seedNewEditorsWithTestData"]),
-      archivedAt: strOrNull(row["archivedAt"]),
-      forms: num(row["forms"]),
-      questions: num(row["questions"]),
-    })),
-  };
-}
+) => Promise<ApiResult<readonly WorkspaceListItem[]>> = cache(
+  async (session: AdminSession): Promise<ApiResult<readonly WorkspaceListItem[]>> => {
+    const result = await readResult<{ workspaces?: unknown }>(
+      await adminApiFetch(session, "/workspaces"),
+    );
+    if (!result.ok) return result;
+    return {
+      ok: true,
+      data: rows(result.data.workspaces).map((row) => ({
+        workspaceId: str(row["workspaceId"]),
+        name: str(row["name"]),
+        slug: str(row["slug"]),
+        isShared: bool(row["isShared"]),
+        requireSecondApprover: bool(row["requireSecondApprover"]),
+        seedNewEditorsWithTestData: bool(row["seedNewEditorsWithTestData"]),
+        archivedAt: strOrNull(row["archivedAt"]),
+        forms: num(row["forms"]),
+        questions: num(row["questions"]),
+      })),
+    };
+  },
+);
 
 /** `GET /admin/workspaces/{id}/members` - the membership list (owners and the claim only). */
 export async function listMembers(
