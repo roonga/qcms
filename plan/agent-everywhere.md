@@ -204,7 +204,7 @@ Because the principle makes every action the user can take proposable, **the car
 +------------------------------------------------------+
 | (icon) Release version 3 to prod           Proposed  |
 |  Release version 3 of Vehicle quote                  |
-|  Environment [prod] · Production: changes what       |  <- one chip, consequence inline
+|  Environment [PROD] · Production: changes what       |  <- one chip, consequence inline
 |  respondents get.   Replaces: version 2              |
 |  "Version 3 adds the at-fault accident branch."       |  <- model's reason, quoted, plain text
 |                                                      |
