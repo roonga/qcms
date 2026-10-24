@@ -32,7 +32,7 @@ This task feeds that seam from one operator setting and carries the result to th
 5. The sentinel from the `reasoning` script is absent from captured log output, from exported span and log attributes, from the next turn's request body and from the conversation the panel replays, and the per-turn log line carries a reasoning token count and no text.
 6. `env-reference.test.ts` passes with the new row; the compose file forwards the variable to `api` and not to `admin`; `pnpm check:templates` passes.
 7. axe is green over the disclosure open and closed; under emulated reduced motion the indicator has no animation.
-8. 041's exit criteria and 080's criteria 1 to 9 stay green.
+8. 041's exit criteria and 080's criteria 1 to 10 stay green.
 
 ## Files and areas
 
