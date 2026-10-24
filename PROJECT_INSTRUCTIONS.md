@@ -46,6 +46,24 @@ Node LTS, pnpm, Turborepo, Zod, Hono, Next.js, Postgres, Drizzle, better-auth, `
 - Retraction is a tombstone append. The API is the sole domain-data client; both frontends proxy through BFF handlers.
 - Observability follows the OTel baseline and security redaction allowlist.
 
+## Code comments
+
+Code Owner, 2026-10-24. Applies to every comment an agent writes or touches.
+
+- The default is no comment. Write one only when a reader needs something the code itself cannot say: a non-obvious why, a safety or security constraint, or a workaround for an external bug.
+- License headers and lint-disable or `as` justifications stay.
+- JSDoc on exported package APIs stays, concise: one short line, a few at most, saying what the name and types do not. No examples or history unless essential.
+- Never restate what the code does.
+- No history: no ticket narratives, no "was X, now Y", no dates, no record of who ruled what, and no issue or PR numbers unless one is the only pointer to a non-obvious constraint.
+
+## Written text
+
+Code Owner, 2026-10-24. Applies to PR descriptions, PR and issue comments, review verdicts, issues and commit bodies.
+
+- Concise, in short bullet points. No narrative, no restating the diff, no history.
+- A PR body is `## Summary` (a few bullets, plus any `Fixes #NN` line) and `## Test plan` (the gates run, one line each). Add nothing else unless the change needs a ruling or a risk called out.
+- A review comment is the bullet findings followed by the `AGENT-REVIEW` verdict line.
+
 ## Work protocol
 
 1. Read this file, the work order, and its references. Check the ledger, open work, and `git log`.
