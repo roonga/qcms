@@ -3,19 +3,14 @@ import { describe, expect, it } from "vitest";
 import { batchLogExportTimings, batchSpanExportTimings } from "./otel-batch-timings.js";
 
 /**
- * What these cases are for (issue #901).
+ * The defect this module closes is invisible: a schedule delay set in the
+ * environment reached no processor, nothing failed, and the only symptom was a
+ * telemetry poll with a fraction of the margin it claimed.
  *
- * The defect this module exists to close was invisible: `OTEL_BSP_SCHEDULE_DELAY=500`
- * had been set in the browser harness since task 054 and reached no processor, because
- * OpenTelemetry JS 2.x moved the env fallbacks out of the constructors these apps call.
- * Nothing failed, so nothing pointed at it; the only symptom was a telemetry poll with
- * a fifth of the margin its comment claimed.
- *
- * So the assertions below pin the two halves that silence can hide: that a value which
- * IS set arrives as a number a processor can be constructed with, and that an unset
- * variable resolves to the same default the SDK would have applied anyway, which is
- * what makes passing these options explicitly a no-op for every deployment that
- * configures nothing.
+ * So these pin the two halves silence can hide: a value that is set arrives as a
+ * number a processor can be constructed with, and an unset variable resolves to
+ * the default the SDK would have applied anyway, which is what makes passing
+ * these options explicit a no-op for a deployment that configures nothing.
  */
 describe("batchSpanExportTimings", () => {
   it("falls back to the specification defaults when nothing is configured", () => {
@@ -77,19 +72,15 @@ describe("batchLogExportTimings", () => {
   });
 
   /**
-   * Every rejected shape falls back rather than throwing, and the reason is a
-   * deliberate trade: a mistyped telemetry variable must not be able to stop a process
-   * from serving requests. The cases that matter are the ones a permissive parser would
-   * accept as plausible numbers - `parseInt("500ms")` is 500 and `parseInt("1e4")` is 1 -
-   * because those turn a typo into a timing nobody would question.
+   * A rejected shape falls back rather than throwing, because a mistyped
+   * telemetry variable must not stop a process serving requests. The cases that
+   * matter are the ones a permissive parser would read as plausible numbers,
+   * since those turn a typo into a timing nobody would question.
    *
-   * `0` is the one case that is a rejection rather than a parse failure, and it is
-   * asserted here on purpose. The `@opentelemetry/sdk-trace-base` shim would apply it;
-   * this helper does not, because a zero delay stops batching rather than shortening it
-   * (one export request per tick, which is what a simple processor is for and what no
-   * QCMS process constructs). The floor is documented for operators in
-   * `docs/operations.md`, and `1` is accepted, so nothing here blocks a deployment that
-   * genuinely wants the promptest batch this pipeline offers.
+   * Zero is a rejection rather than a parse failure, and diverges from the
+   * upstream shim: a zero delay stops batching rather than shortening it. The
+   * floor is documented in `docs/operations.md`, and one is accepted, so nothing
+   * blocks a deployment that wants the promptest batch this pipeline offers.
    */
   it.each([
     ["not a number", "soon"],

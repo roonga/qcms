@@ -1,64 +1,34 @@
 /**
- * A streaming ZIP container for multi-file exports (task 075, ADR-42).
+ * A streaming ZIP container for multi-file exports: the long CSV shape for a
+ * form with a repeating group is `responses.csv` plus one file per group, so it
+ * downloads as a zip, while a form with no group downloads the single file it
+ * always did and no existing pipeline moves.
  *
- * The long CSV shape ruled for repeating groups (Q17, Code Owner, 2026-09-29) is
- * more than one file: `responses.csv` for every question outside a group, plus one
- * file per group at the group's own grain. A form with at least one group
- * therefore downloads as a **zip of those files**, and a form with none downloads
- * exactly the single file it always did, so no existing pipeline moves.
+ * Hand-written rather than taken as a dependency because it has to be fetch-pure
+ * (R4) and to stream: the response export is memory-bounded by contract, keyset
+ * paging the reporting view, and a library that takes a buffer would undo that
+ * for exactly the forms that need the zip most. It sits beside the field helpers
+ * so the export's byte-level encoding stays one thing in one place.
  *
- * ## Why this is here and not a dependency
+ * Every entry is stored, never deflated. Compression would mean a second
+ * encoder, a second mid-stream failure mode and an output size unknown until the
+ * end, and the operator downloads over HTTP, where content encoding is the
+ * transport's job.
  *
- * It is forty lines of record layout and a CRC table, it has to be **fetch-pure**
- * (R4: no `node:zlib`, no `node:stream`), and it has to **stream**, because the
- * response export is memory-bounded by contract - it keyset-pages the reporting
- * view and never holds the table. A library that takes a buffer would undo that
- * property for exactly the forms that need the zip most.
+ * A local header has to carry a CRC and two sizes, none of them known until the
+ * entry's last byte, so each entry sets flag bit 3, writes zeroes there, and
+ * writes a data descriptor after the data (APPNOTE 4.3.9). Without it the writer
+ * would have to know an entry's size before its first byte, which means
+ * buffering the entry.
  *
- * It lives in `@roonga/qcms-csv` beside {@link csvField} for the reason that module
- * exists: the export's byte-level encoding is one thing in one place, so the API's
- * response export and the admin's link export cannot grow a second copy.
+ * Every entry takes the same fixed DOS timestamp, so two zips of the same data
+ * are byte-identical and a golden test can assert bytes. The clock is
+ * deliberately not consulted.
  *
- * ## Stored, never deflated
- *
- * Every entry is written with method 0 (stored). Compression would mean a second
- * encoder, a second failure mode mid-stream and a `CompressionStream` whose output
- * size is unknown until it ends. CSV compresses well and the operator is
- * downloading over HTTP, where `Content-Encoding: gzip` is the transport's job
- * rather than the container's. A stored zip is a valid zip to every reader.
- *
- * ## Data descriptors, which is what makes it streamable
- *
- * A local file header has to carry a CRC and two sizes, and none of the three is
- * known until the entry's last byte. So each entry sets general-purpose flag bit 3
- * and writes zeroes there, then writes a **data descriptor** after the data with
- * the real values; the central directory at the end carries them too. This is the
- * standard streaming-writer shape (APPNOTE 4.3.9), and it is what makes a
- * single forward pass possible at all: without it the writer would have to know an
- * entry's size before writing its first byte, which means buffering the entry.
- *
- * What bounds the memory is the **one unit of work per `pull`** rule on
- * {@link zipStream} rather than the descriptor: see that function's own note, and
- * the demand test beside it. What this module itself holds is one chunk, the
- * entry's name, and one 46-byte central-directory record per entry already
- * written.
- *
- * ## Determinism
- *
- * Every entry takes the same fixed DOS timestamp (1980-01-01 00:00), so two zips
- * of the same data are byte-identical and a golden test can assert bytes rather
- * than "a zip containing roughly this". The clock is deliberately not consulted.
- *
- * ## The one bound, stated rather than discovered
- *
- * This writer emits a **plain, non-ZIP64 archive**, so no single entry and no
- * archive may reach 4 GiB (0xFFFFFFFF bytes), and an archive may hold at most
- * 65,535 entries. A CSV export of that size is far beyond anything the response
- * export produces today - the whole reporting table for a large deployment is
- * megabytes - but the limit is real, so it is **checked** rather than assumed: a
- * stream that would exceed it errors with a message naming the limit instead of
- * emitting a truncated archive a reader would silently misparse. Lifting it means
- * ZIP64 headers, which is a change to this module and to nothing else.
+ * The archive is non-ZIP64, so no entry and no archive may reach 4 GiB and an
+ * archive holds at most 65,535 entries. The limit is checked rather than
+ * assumed: exceeding it errors with a message naming the limit instead of
+ * emitting a truncated archive a reader would silently misparse.
  */
 
 /** Names are written UTF-8, which is what flag bit 11 announces. */
@@ -79,20 +49,17 @@ const METHOD_STORED = 0;
 const DOS_TIME = 0;
 const DOS_DATE = 0x0021;
 
-/** The 32-bit ceiling every size, offset and count in a non-ZIP64 archive sits under. */
 const UINT32_MAX = 0xffff_ffff;
-/** The 16-bit ceiling the entry count sits under. */
 const UINT16_MAX = 0xffff;
 
-/** One file in the archive: its name, and its bytes as they are produced. */
 export interface ZipEntry {
   /** The path inside the archive, forward slashes, UTF-8. */
   readonly name: string;
-  /** The entry's bytes, streamed. An empty iterable is an empty file. */
+  /** An empty iterable is an empty file. */
   readonly content: AsyncIterable<Uint8Array> | Iterable<Uint8Array>;
 }
 
-/** What the central directory needs to remember about an entry already written. */
+/** What the central directory remembers about an entry already written. */
 interface WrittenEntry {
   readonly name: Uint8Array;
   readonly crc: number;
@@ -101,11 +68,8 @@ interface WrittenEntry {
 }
 
 /**
- * The CRC-32 table (IEEE 802.3 polynomial, reflected), built once on first use.
- *
- * Lazy rather than module-level so importing this module for its types costs
- * nothing, and `let` rather than a top-level computation so the 256-entry build
- * never runs in a process that only serializes CSV fields.
+ * The CRC-32 table (IEEE 802.3 polynomial, reflected), built on first use so
+ * that a process which only serializes CSV fields never builds it.
  */
 let crcTable: Uint32Array | undefined;
 
@@ -124,11 +88,8 @@ function table(): Uint32Array {
 }
 
 /**
- * Fold a chunk into a running CRC-32.
- *
- * The running value is carried **pre-inverted** (`crc` starts at `0xffffffff` and
- * is inverted once at the end), which is the usual shape and the reason
- * {@link crcFinish} exists rather than this returning the final value.
+ * The running value is carried pre-inverted and inverted once at the end, which
+ * is why {@link crcFinish} exists rather than this returning the final value.
  */
 function crcUpdate(crc: number, chunk: Uint8Array): number {
   const lookup = table();
@@ -232,14 +193,13 @@ function concat(left: Uint8Array, right: Uint8Array): Uint8Array {
   return joined;
 }
 
-/** The refusal both 32-bit ceilings raise, naming the limit and the way past it. */
+/** Names the limit and the way past it. */
 function tooLarge(what: string): Error {
   return new Error(
     `zipStream: ${what} exceeds this archive format's 4 GiB limit; ZIP64 headers are not written`,
   );
 }
 
-/** The entry being written: its header fields, and where its content has got to. */
 interface OpenEntry {
   readonly name: Uint8Array;
   readonly label: string;
@@ -253,25 +213,18 @@ interface OpenEntry {
 /**
  * A ZIP archive of `entries`, as a web `ReadableStream` of bytes.
  *
- * **One unit of work per `pull`, and that is the whole of the memory bound.** A
- * web `ReadableStream` applies backpressure by **not calling `pull` again**:
- * `controller.enqueue` never blocks and never waits for a reader. So a `pull`
- * that walked a whole entry would fetch and queue every page of that file the
- * moment the first byte was asked for, however little the consumer had read -
- * the export would be O(file) in the stream's queue and the claim that it is
- * O(page) would be false. An earlier revision of this module did exactly that,
- * and a probe queued 12.8 MB behind a single 43-byte read.
+ * One unit of work per `pull`, and that is the whole of the memory bound. A
+ * `ReadableStream` applies backpressure by not calling `pull` again, and
+ * `enqueue` never blocks, so a `pull` that walked a whole entry would queue
+ * every page of that file the moment the first byte was asked for. Each `pull`
+ * therefore does one thing: open the next entry, take one chunk, close the
+ * entry, or finish the archive. Demand propagates one chunk at a time back to
+ * whatever produces the content, which for the response export is one keyset
+ * page per chunk.
  *
- * So the current entry and its content iterator live in closure state, and each
- * `pull` does one thing: open the next entry (its local header), or take one
- * chunk from the open entry's content, or close it (its data descriptor), or
- * finish the archive (the central directory). Demand therefore propagates one
- * chunk at a time all the way back to whatever produces the content, which for
- * the response export is one keyset page per chunk.
- *
- * The entries are still consumed **in order and lazily**: the next entry is only
- * asked for once the previous one is closed, which is what lets the caller make
- * each entry its own pass over a paged query without ever holding two of them.
+ * Entries are consumed in order and lazily, the next asked for only once the
+ * previous is closed, which is what lets a caller make each entry its own pass
+ * over a paged query without holding two.
  */
 export function zipStream(
   entries: AsyncIterable<ZipEntry> | Iterable<ZipEntry>,
@@ -288,7 +241,7 @@ export function zipStream(
     return result.done === true ? undefined : result.value;
   }
 
-  /** The content iterator for one entry, whichever protocol it offers. */
+  /** Whichever iteration protocol the entry offers. */
   function contentIterator(entry: ZipEntry): AsyncIterator<Uint8Array> | Iterator<Uint8Array> {
     const content = entry.content;
     return Symbol.asyncIterator in content
@@ -296,7 +249,6 @@ export function zipStream(
       : content[Symbol.iterator]();
   }
 
-  /** Open the next entry and enqueue its local header, or finish the archive. */
   async function openNext(controller: ReadableStreamDefaultController<Uint8Array>): Promise<void> {
     const entry = await nextEntry();
     if (entry === undefined) {
@@ -319,7 +271,6 @@ export function zipStream(
     offset += header.length;
   }
 
-  /** Close the open entry: its data descriptor, and its central-directory record. */
   function closeOpen(
     controller: ReadableStreamDefaultController<Uint8Array>,
     entry: OpenEntry,
@@ -344,13 +295,10 @@ export function zipStream(
         await openNext(controller);
         return;
       }
-      // Exactly one NON-EMPTY chunk per `pull`. Empty chunks are skipped inside
-      // this call rather than returned from it, and that is a correctness
-      // requirement rather than a tidy-up: a `pull` that enqueues nothing is not
-      // called again - the implementation only re-pulls when something happened
-      // during the pull - so returning on an empty chunk stalls the stream with a
-      // read request outstanding. Skipping them costs nothing against the memory
-      // bound, because an empty chunk is no bytes.
+      // Exactly one non-empty chunk per `pull`. An empty chunk is skipped inside
+      // this call rather than returned from it, because a `pull` that enqueues
+      // nothing is not called again and the stream would stall with a read
+      // outstanding. Skipping costs nothing: an empty chunk is no bytes.
       for (;;) {
         const step = await entry.content.next();
         if (step.done === true) {
@@ -370,7 +318,7 @@ export function zipStream(
   });
 }
 
-/** The central directory and the end record, as one final chunk. */
+/** One final chunk, so the archive ends in a single enqueue. */
 function centralDirectory(written: readonly WrittenEntry[], offset: number): Uint8Array {
   let directory: Uint8Array = new Uint8Array(0);
   for (const entry of written) directory = concat(directory, centralHeader(entry));

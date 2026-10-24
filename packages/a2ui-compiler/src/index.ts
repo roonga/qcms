@@ -1,9 +1,8 @@
 /**
- * `@roonga/qcms-a2ui-compiler` public surface (task 011): the pure projection from a
- * published `FrozenSnapshot` to A2UI documents (one per step), plus the
- * step-resolver seam (ARCHITECTURE §12). Runtime is React-free and depends on
- * `@roonga/qcms-core` types only - never `db`, never React, never a runtime
- * `@a2ra/core` import (the spec schemas are a test-only devDependency).
+ * The `@roonga/qcms-a2ui-compiler` public surface: the pure projection from a
+ * published snapshot to A2UI documents, plus the step-resolver seam
+ * (ARCHITECTURE §12). The runtime is React-free and depends on kernel types
+ * alone, never on a runtime `@a2ra/core` import.
  */
 export { compileForm, compileFormWith } from "./compile.js";
 

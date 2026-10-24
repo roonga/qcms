@@ -21,60 +21,36 @@ import { REPEAT_GROUP_NODE_TYPE } from "./repeat-group.js";
 import type { A2UINode, CompiledForm } from "./types.js";
 
 /**
- * A2UI golden corpus runner (task 012, ADR-18; generation bumped in 026 and by
- * issue #186). Each corpus form is a `@roonga/qcms-core` fixture; the runner rebuilds
- * its published {@link FrozenSnapshot} through the real publish path
- * (`compileDraft`, task 008), compiles it with the launch compiler
- * (`compileForm`, task 011), and asserts the output equals the committed golden
- * document under the **current** generation directory `golden/v3/`.
+ * The A2UI golden corpus runner: each form is published through the real path
+ * and compiled, and the output must equal the committed golden under the current
+ * generation directory.
  *
- * Each generation is a mapping change that altered existing output, handled by a
- * new directory rather than by editing the previous one (ADR-18, append-only):
+ * A mapping change that alters existing output opens a new generation directory
+ * rather than editing the previous one (ADR-18, append-only). An earlier
+ * generation stays committed as the record of what that compiler produced and is
+ * never recompiled, because a stored snapshot is served from its own bytes
+ * forever.
  *
- * - `v1/` - compiler `0.0.0`, the original corpus (task 012).
- * - `v2/` - compiler `0.1.0`, task 026's honeypot decoy in every step document.
- * - `v3/` - compiler `0.2.0`, issue #186: every compiled heading carries `size`
- *   and `weight`, so a form title and a step title stop rendering at body size
- *   and body weight.
- * - `v4/` - compiler `0.3.0`, task 073 (ADR-42, ADR-43): a repeating group compiles
- *   to a `RepeatGroup` TEMPLATE node carrying its member controls once, which the
- *   renderer clones per live instance. The seven forms carried across from `v3/`
- *   have no group, so their **documents are byte-identical** there and only the
- *   `compilerVersion` stamp moves (acceptance case 5, asserted below).
- *
- * Every earlier generation stays committed as the faithful record of what that
- * compiler produced, and is still asserted spec-valid below. They are never
- * recompiled: the live compiler emits the current generation, and a stored
- * snapshot is served from its own bytes forever (`golden/README.md` spec-bump
- * procedure).
- *
- * These goldens are three contracts at once (`golden/README.md`): the
- * compiler's regression net, the renderer's conformance input (028), and the
- * audit contract with `a2-react-aria`. They are **append-only** - a committed
- * golden is never edited, so a shape change must fail here, never be "fixed" by
- * rewriting the golden. Seed a *new* golden with `UPDATE_GOLDEN=1`; the
- * append-only CI guard (`scripts/check-golden-append-only.mjs`) rejects any edit
- * or deletion of an existing one.
+ * These goldens are three contracts at once (`golden/README.md`): the compiler's
+ * regression net, the renderer's conformance input, and the audit contract with
+ * `a2-react-aria`. A committed golden is never edited, so a shape change must
+ * fail here rather than be fixed by rewriting it. Seed a new golden with
+ * `UPDATE_GOLDEN=1`; the append-only CI guard refuses any other edit.
  */
 
 const CORE_FIXTURES = fileURLToPath(new URL("../../core/fixtures/", import.meta.url));
 /**
- * Corpus-local fixtures (task 048, `../fixtures/corpus/README.md`): the inputs to
- * appended corpus entries whose own questions cannot live in the kernel fixture
- * set (which is asserted to cover each question type exactly once, and whose
- * forms may pin only questions from it).
+ * Corpus-local fixtures (`../fixtures/corpus/README.md`): the inputs to appended
+ * entries whose questions cannot live in the kernel fixture set, which is
+ * asserted to cover each question type exactly once.
  */
 const LOCAL_FIXTURES = fileURLToPath(new URL("../fixtures/corpus/", import.meta.url));
 const GOLDEN_DIR = fileURLToPath(new URL("../golden/v4/", import.meta.url));
 
 /**
- * The frozen generations, oldest first, and what is still true of each. Retained
- * forever (ADR-18) and asserted spec-valid rather than recompiled.
- *
- * The per-generation assertion is what stops "retained" collapsing into "present":
- * `v1` predates the honeypot and must not have one, `v2` has the honeypot and
- * predates issue #186's heading typography and must not have that. Each pins the
- * property that made its successor a new generation, from the older side.
+ * The frozen generations, oldest first, and what is still true of each. Each
+ * pins the property that made its successor a new generation, from the older
+ * side, which is what stops "retained" collapsing into "present".
  */
 const RETAINED_GENERATIONS: readonly {
   readonly dir: string;
@@ -107,15 +83,9 @@ const RETAINED_GENERATIONS: readonly {
 ];
 
 /**
- * Corpus membership: form fixture → golden document filename. `local: true` reads
- * the form from `LOCAL_FIXTURES/forms/` instead of the kernel's
- * `fixtures/forms/valid/`.
- *
- * APPEND ONLY (ADR-18). The last two rows are task 048's: author-supplied
- * validation messages (ADR-32) and boolean label overrides (ADR-36). Everything
- * above them was compiled by an earlier compiler and its bytes are frozen; those
- * forms carry no messages and no label overrides, which is exactly what makes
- * both features provably additive.
+ * Corpus membership, append-only (ADR-18): a row's bytes are frozen once a
+ * generation ships, which is what makes each later feature provably additive.
+ * `local: true` reads the form from the corpus-local fixtures.
  */
 const CORPUS: readonly {
   readonly fixture: string;
@@ -129,22 +99,15 @@ const CORPUS: readonly {
   { fixture: "deep-nesting-rules.json", golden: "deep-nesting-rules.a2ui.json" },
   { fixture: "author-messages.json", golden: "author-messages.a2ui.json", local: true },
   { fixture: "boolean-labels.json", golden: "boolean-labels.a2ui.json", local: true },
-  // Task 073's two, appended for generation `v4/`: the `RepeatGroup` template node.
-  // `repeat-open-group` is the respondent-driven shape (`open`, min 1, max 9) and
-  // carries the Add and Remove wording; `repeat-count-sources` covers the other two
-  // count sources and puts `longText` and `multiChoice` inside a group, which the
-  // stacked presentation allows and the table presentation refuses (acceptance case
-  // 38, Q12).
+  // The open group carries the Add and Remove wording; the count-sources form
+  // covers the other two sources and puts the two types a table refuses inside
+  // a stacked group.
   { fixture: "repeat-open-group.json", golden: "repeat-open-group.a2ui.json", local: true },
   { fixture: "repeat-count-sources.json", golden: "repeat-count-sources.a2ui.json", local: true },
-  // Task 077's one, appended for the same generation: `presentation: "table"` over
-  // exactly the five allowed cell types (`shortText`, `number`, `date`, `boolean`,
-  // `singleChoice`, Q12). No compiler code moved for it - the template node already
-  // carries `presentation`, and the table is a RENDER-time expansion of the same
-  // stored bytes - so this is an appended corpus entry rather than a new generation
-  // and `COMPILER_VERSION` stays where task 073 left it. It is also the document the
-  // renderer's table tests drive, so the shapes they assert are the shapes the
-  // compiler emits rather than a hand-written approximation of them.
+  // The table presentation needed no compiler change, the template node already
+  // carrying `presentation`, so it is an appended entry rather than a new
+  // generation. The renderer's table tests drive this document, so the shapes
+  // they assert are the shapes the compiler emits.
   { fixture: "repeat-table-group.json", golden: "repeat-table-group.a2ui.json", local: true },
 ];
 
@@ -165,12 +128,7 @@ function loadForm(file: string, local = false): FormDefinition {
   return result.value;
 }
 
-/**
- * Question store over the canonical fixtures, each published at versions 1 and
- * 2 (the form fixtures pin `q_at_fault_accident@2` and everything else `@1`) - the same
- * store `compile-draft.test.ts` builds. Pure lookups, no I/O in the kernel (R3);
- * the reads here are the test harness, not the compiler.
- */
+/** The reads here are the test harness, not the compiler, which does no I/O. */
 function fixtureStore(): Pick<DraftInput, "resolveQuestion" | "publishedQuestionVersions"> {
   const byKey = new Map<string, QuestionVersionRecord>();
   const published = new Map<QuestionId, Set<number>>();
@@ -226,18 +184,17 @@ function buildSnapshot(fixture: string, local = false): FrozenSnapshot {
   return result.value.snapshot;
 }
 
-/** Serialize a compiled form to the on-disk golden form (2-space, trailing LF). */
+/** The on-disk golden form: two-space indent, trailing newline. */
 function serialize(compiled: CompiledForm): string {
   return `${JSON.stringify(compiled, null, 2)}\n`;
 }
 
-/** The child nodes of a node, or [] for text/leaf nodes (narrows the union). */
 function childNodes(node: A2UINode): readonly A2UINode[] {
   const children = node.children;
   return children !== undefined && typeof children !== "string" ? children : [];
 }
 
-/** Depth-first walk of every node in a document tree. */
+/** Depth-first, so a count over the result is a count over the whole tree. */
 function walk(node: A2UINode, into: A2UINode[] = []): A2UINode[] {
   into.push(node);
   for (const child of childNodes(node)) {
@@ -247,12 +204,9 @@ function walk(node: A2UINode, into: A2UINode[] = []): A2UINode[] {
 }
 
 /**
- * Validate a node against `@a2ra/core`'s strict recursive parser (the A2UI spec
- * is its Zod schemas, ADR-22); throws a ZodError on any non-conforming node.
- * `@a2ra/core@1.0.0-preview.7` ships `.d.ts` files whose exported symbols
- * resolve to `error` under type-aware lint (an upstream packaging defect noted
- * in `compile.test.ts`), so `parseNode` is disabled for the unsafe-call rule
- * only.
+ * Validates against the vendored strict parser (ADR-22), which throws on any
+ * non-conforming node. The disable below is for an upstream packaging defect in
+ * that package's type declarations, noted in `compile.test.ts`.
  */
 function assertValidA2uiNode(node: A2UINode): void {
   // eslint-disable-next-line @typescript-eslint/no-unsafe-call -- @a2ra/core d.ts type-resolution defect
@@ -260,9 +214,8 @@ function assertValidA2uiNode(node: A2UINode): void {
 }
 
 /**
- * The heading level of a `Text` node, or `undefined` for anything that is not a
- * heading. A node's `props` are `unknown`-valued, so the narrowing is the point:
- * `as` may legitimately be `p`, `span` or `label`, and may be absent entirely.
+ * A node's `props` are `unknown`-valued, so the narrowing is the point: `as` may
+ * legitimately be a non-heading element and may be absent entirely.
  */
 function headingLevel(node: A2UINode): string | undefined {
   if (node.type !== "Text") return undefined;
@@ -277,7 +230,6 @@ describe("A2UI golden corpus (v4 - current generation)", () => {
       const goldenPath = path.join(GOLDEN_DIR, golden);
 
       it("compiles to a spec-valid A2UI document per step", () => {
-        // One document per step, keyed by stepId in form order.
         expect(compiled.documents.length).toBeGreaterThan(0);
         for (const doc of compiled.documents) {
           for (const node of walk(doc.root)) {
@@ -306,35 +258,29 @@ describe("A2UI golden corpus (v4 - current generation)", () => {
 
         const goldenText = readFileSync(goldenPath, "utf8");
         const expected = JSON.parse(goldenText) as CompiledForm;
-        // Structural first: a shape change reports the exact document and path
-        // (e.g. `documents[1].root.children[0].children[3].props.maxLength`),
-        // the readable per-document diff the corpus exists to produce
-        // (exit criterion 3).
+        // Structural first, so a shape change reports the exact document and
+        // path rather than a whole-file diff.
         expect(compiled).toEqual(expected);
-        // Then byte-exact, so formatting/key-order drift is caught too.
+        // Then byte-exact, so formatting and key-order drift is caught too.
         expect(serialized).toBe(goldenText);
       });
 
       it("appends a honeypot decoy as the last field of each step (task 026)", () => {
         for (const doc of compiled.documents) {
-          // root: Form → Flex(column) → [headings…, controls…, Honeypot].
           const flex = childNodes(doc.root)[0];
           expect(flex).toBeDefined();
           const fields = childNodes(flex!);
           const last = fields[fields.length - 1];
           expect(last?.type).toBe("Honeypot");
-          // Exactly one honeypot per document (no stray duplicates).
+          // Exactly one per document, so a duplicate decoy is a failure.
           expect(fields.filter((n) => n.type === "Honeypot").length).toBe(1);
         }
       });
 
       it("gives every heading a size and weight above the body's (issue #186)", () => {
-        // The assertion #186 asks for, and the reason it is here rather than in a
-        // renderer test: the defect was that headings looked exactly like the body copy
-        // beside them, which no gate could see, because the elements were correct and only
-        // the typography was absent. Asserted against the vendored `Text` component's own
-        // defaults, so a future flip of THOSE cannot silently reintroduce it - the compiled
-        // document has to state the intent, not inherit it.
+        // Asserted against the vendored component's own defaults, so a future
+        // flip of those cannot silently make a heading read as body copy: the
+        // compiled document has to state the intent rather than inherit it.
         const TEXT_DEFAULT_SIZE = "md";
         const TEXT_DEFAULT_WEIGHT = "normal";
 
@@ -351,8 +297,8 @@ describe("A2UI golden corpus (v4 - current generation)", () => {
           expect(props.weight).not.toBe(TEXT_DEFAULT_WEIGHT);
         }
 
-        // And the two levels differ from each other, so the form title outranks the step
-        // title rather than merely outranking the body.
+        // The two levels differ from each other too, so the form title outranks
+        // the step title rather than merely outranking the body.
         const h1 = headings.find((entry) => entry.level === "h1")?.props;
         const h2 = headings.find((entry) => entry.level === "h2")?.props;
         expect(h2).toBeDefined();
@@ -366,26 +312,22 @@ describe("A2UI golden corpus (v4 - current generation)", () => {
 });
 
 /**
- * Every frozen generation remains a valid contract forever (ADR-18, the stored copy
- * is served for the life of any snapshot compiled under it). They are *not*
- * recompiled - the live compiler emits the current generation - but every committed
- * document must still parse as a spec-valid `@a2ra/core` document, so the vendored
- * renderer keeps rendering old stored snapshots.
+ * A frozen generation is a contract for the life of any snapshot compiled under
+ * it (ADR-18), so every committed document must still parse as spec-valid and
+ * the vendored renderer must keep rendering it.
  *
- * Each generation also carries the assertion that made its successor a new
- * generation, from the older side: `v1` has no honeypot, `v2` has one and no heading
- * typography. Without those, "retained" would mean nothing more than "the file is
- * still on disk", and a directory quietly regenerated under a later compiler would
- * pass.
+ * Each generation also carries, from the older side, the assertion that made its
+ * successor a new generation. Without those, a directory quietly regenerated
+ * under a later compiler would pass.
  */
 describe.each(RETAINED_GENERATIONS)(
   "A2UI golden corpus ($dir - retained, compiler $compiler)",
   ({ dir, hasHoneypot, hasHeadingTypography, hasRepeatGroup }) => {
     const generationDir = fileURLToPath(new URL(`../golden/${dir}/`, import.meta.url));
 
-    // Iterated from disk, not from CORPUS: each retained generation is a closed
-    // historical set, so a corpus entry appended after it was frozen (task 048's two
-    // are absent from `v1/`) has no document there and must not be looked for.
+    // Iterated from disk rather than from the corpus table: a retained
+    // generation is a closed set, so an entry appended after it was frozen has
+    // no document there and must not be looked for.
     const goldens = readdirSync(generationDir)
       .filter((file) => file.endsWith(".a2ui.json"))
       .sort();
@@ -414,20 +356,13 @@ describe.each(RETAINED_GENERATIONS)(
 );
 
 /**
- * Acceptance case 5 (task 073): **the seven pre-073 golden documents are
- * byte-identical in the new generation.**
+ * The proof that the template node is additive: none of the carried-over forms
+ * declares a group, so each must compile to exactly what it compiled to before.
  *
- * "Byte-identical" is asserted over the `documents` member, which is the compiled
- * A2UI itself, because the enclosing file also carries the `compilerVersion` stamp
- * and that stamp is exactly what a new generation moves (`golden/README.md`: the
- * review diff between two generations "must show the intended mapping change and
- * the `compilerVersion` stamp, and nothing else"). So this asserts both halves: the
- * documents are equal byte for byte, and the whole-file difference is the stamp and
- * nothing else.
- *
- * It is the proof that the `RepeatGroup` node is additive. None of the seven forms
- * declares a repeating group, so a form with no group must compile in v4 to exactly
- * what it compiled to in v3.
+ * Byte equality is asserted over the `documents` member alone, because the
+ * enclosing file also carries the stamp a new generation moves, and the second
+ * assertion is that the stamp is the whole of the difference
+ * (`golden/README.md`).
  */
 describe("v4 carries the pre-073 corpus across byte-identically (case 5)", () => {
   const V3_DIR = fileURLToPath(new URL("../golden/v3/", import.meta.url));
@@ -446,7 +381,7 @@ describe("v4 carries the pre-073 corpus across byte-identically (case 5)", () =>
       expect(JSON.stringify(after.documents, null, 2)).toBe(
         JSON.stringify(before.documents, null, 2),
       );
-      // And the only difference in the whole file is the stamp.
+      // The only difference in the whole file is the stamp.
       expect({ ...after, compilerVersion: before.compilerVersion }).toEqual(before);
       expect(after.compilerVersion).not.toBe(before.compilerVersion);
     });
@@ -454,23 +389,17 @@ describe("v4 carries the pre-073 corpus across byte-identically (case 5)", () =>
 });
 
 /**
- * Acceptance case 34, the compiled-document half: **a repeat step carries exactly
- * one honeypot decoy, and the `RepeatGroup` template carries none.**
- *
- * Expansion is a template **clone**, so a decoy inside the template would be cloned
- * once per live instance and a ten-instance step would post ten `website` fields.
- * The compiler appends the decoy to the step's `Flex` after the group node (task
- * 026, ADR-12), so it is outside the template by construction; this is the
- * assertion that keeps it there. The ten-instance half of the case is asserted on
- * the DOM in `@roonga/qcms-ui` and in the portal's browser suite.
+ * Expansion is a template clone, so a decoy inside the template would be cloned
+ * per live instance and a ten-instance step would post ten decoy fields. The
+ * compiler appends the decoy after the group node, and this is what keeps it
+ * there.
  */
 describe("the honeypot is never inside a RepeatGroup template (case 34)", () => {
   const REPEAT_CORPUS = CORPUS.filter((entry) => entry.fixture.startsWith("repeat-"));
 
   it("covers every repeat corpus form", () => {
-    // Two from task 073 (the open group and the three count sources) and one from
-    // task 077 (the table presentation). The count is asserted rather than trusted so
-    // that a form appended without a decoy assertion is a failure here.
+    // The count is asserted rather than trusted, so a repeat form appended
+    // without a decoy assertion fails here.
     expect(REPEAT_CORPUS).toHaveLength(3);
   });
 

@@ -11,21 +11,15 @@ import { describe, expect, it } from "vitest";
 import { createJsonLogger } from "./logger.js";
 
 /**
- * The emitted line's KEY ORDER, pinned rather than described (issue #502).
+ * The emitted line's key order, pinned rather than described. Every other
+ * assertion over a log line parses it first, and both `JSON.parse` and
+ * `toMatchObject` are order-blind, so a described order went unenforced and
+ * reached the operator documentation wrong.
  *
- * The module comment claimed `{ level, time, msg, ...fields }` while the literal
- * twelve lines below it appended `msg` last, and nothing was red for as long as
- * anyone can tell: every other assertion in the repo reads the line back through
- * `JSON.parse` and `toMatchObject`, both of which are order-blind. The wrong shape
- * then propagated into `docs/operations.md` twice and into a handover claim once,
- * because the comment is the most authoritative-looking description of a format
- * that nothing enforced.
- *
- * So the order is treated as a contract here. It is one for two reasons an
- * order-blind assertion cannot cover: the operator documentation prints example
- * lines an operator copies into a `jq` filter or diffs against captured bytes, and
- * `level` and `time` leading every line is what makes a raw `docker logs` tail
- * readable before anything parses it.
+ * The order is a contract for two reasons an order-blind assertion cannot cover:
+ * the operator documentation prints example lines copied into a `jq` filter or
+ * diffed against captured bytes, and the level and time leading every line is
+ * what makes a raw log tail readable before anything parses it.
  *
  * These read the raw string from the sink, never a parsed object.
  */
@@ -34,10 +28,9 @@ const FIXED_TIME = "2026-08-31T00:00:00.000Z";
 
 /**
  * A synchronous context manager, so `trace.getActiveSpan()` answers inside
- * `context.with`. The API package's default is the no-op one, under which a span
- * set on a context is never active and the correlation branch below would be
- * unreachable. Four lines of state beats pulling `@opentelemetry/sdk-node` into
- * this package's devDependencies to activate one span.
+ * `context.with`: the API package's default is a no-op under which the
+ * correlation branch would be unreachable. Four lines of state beats pulling the
+ * whole SDK into this package's devDependencies to activate one span.
  */
 let currentContext: Context = ROOT_CONTEXT;
 const syncContextManager: ContextManager = {
@@ -69,7 +62,7 @@ function capture(base?: Record<string, unknown>) {
   return { logger, lines };
 }
 
-/** The keys of one emitted line, in the order the serializer wrote them. */
+/** In the order the serializer wrote them. */
 function keysOf(line: string): string[] {
   return Object.keys(JSON.parse(line) as Record<string, unknown>);
 }
@@ -91,10 +84,8 @@ describe("emitted line shape", () => {
   });
 
   it("puts msg last on a bare call too, not third", () => {
-    // The exact claim the module comment used to make. A line with no bindings and
-    // no fields is the one case where `{ level, time, msg }` and the real shape
-    // agree on the KEYS, and they still disagreed on nothing at all - which is why
-    // the wrong description survived: the smallest example does not disprove it.
+    // A line with no bindings and no fields is the one case where the keys agree
+    // whatever the order, which is why the smallest example proves nothing.
     const { logger, lines } = capture();
     logger.warn("bare");
     expect(keysOf(lines[0]!)).toEqual(["level", "time", "msg"]);
@@ -102,9 +93,8 @@ describe("emitted line shape", () => {
   });
 
   it("places the trace correlation between the bindings and the fields", () => {
-    // Documented in the module comment as part of the same shape, and the only part
-    // of it that appears conditionally, so it gets its own line rather than riding
-    // on the first test's ordering.
+    // The only part of the shape that appears conditionally, so it gets its own
+    // case rather than riding on the first test's ordering.
     const span = trace.wrapSpanContext({
       traceId: "0af7651916cd43dd8448eb211c80319c",
       spanId: "b7ad6b7169203331",
@@ -112,9 +102,8 @@ describe("emitted line shape", () => {
     });
     const { logger, lines } = capture({ service: "qcms-api" });
     // The global context manager is process-wide state, so it is installed and
-    // removed inside this one test rather than left for a hook to tidy up. An
-    // assertion below that threw would otherwise leave it installed for whatever
-    // ran next in this worker.
+    // removed inside this test: an assertion that threw would otherwise leave it
+    // installed for whatever ran next in this worker.
     context.setGlobalContextManager(syncContextManager);
     try {
       context.with(trace.setSpan(context.active(), span), () => {
@@ -136,8 +125,8 @@ describe("emitted line shape", () => {
   });
 
   it("emits one line per call with no trailing newline", () => {
-    // The other two halves of the sentence the module comment makes: `write` is
-    // handed exactly one line, and adding the newline is the sink's job.
+    // `write` is handed exactly one line, and adding the newline is the sink's
+    // job.
     const { logger, lines } = capture();
     logger.info("first");
     logger.error("second");

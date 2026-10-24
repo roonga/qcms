@@ -4,17 +4,15 @@ import { HONEYPOT_FIELD_NAME, HONEYPOT_NODE_TYPE, honeypotNode } from "./honeypo
 import type { A2UINode } from "./types.js";
 
 /**
- * Honeypot decoy contract + accessibility assertions (task 026, exit criteria
- * 2 & 5). The live axe/screen-reader pass is 028/030 against the real renderer;
- * here - before that renderer exists - we assert the node carries the hiding
- * intent and that its documented reference rendering is invisible to assistive
- * technology (a DOM-level assertion, which the task states suffices for now).
+ * The decoy's contract and its accessibility properties. The live axe pass runs
+ * against the real renderer; here the assertions are that the node carries the
+ * hiding intent and that its documented reference rendering is invisible to
+ * assistive technology.
  */
 
 /**
- * The reference rendering the renderer (028) MUST produce for a `Honeypot` node
- * (mirrors the contract documented in `honeypot.ts` / `docs/a2ui-mapping.md`).
- * Kept in the test as an executable spec of the a11y contract until 028 owns it.
+ * The rendering the renderer must produce for a `Honeypot` node, kept here as an
+ * executable spec of the contract in `docs/a2ui-mapping.md`.
  */
 function renderHoneypotReference(node: A2UINode): string {
   const props = node.props ?? {};
@@ -33,8 +31,8 @@ function renderHoneypotReference(node: A2UINode): string {
 
 describe("honeypot node contract (exit criterion 2)", () => {
   it("submits under the shared, non-question field name", () => {
-    // The API reads this same key off the submit body (config default); the name
-    // must never look like a qcms question id (`q_…`, R6) to avoid collisions.
+    // The API reads this same key off the submit body, and the name must never
+    // look like a question id (R6), or it could collide with a real control.
     expect(HONEYPOT_FIELD_NAME).toBe("website");
     expect(HONEYPOT_FIELD_NAME.startsWith("q_")).toBe(false);
     expect(honeypotNode().props?.name).toBe(HONEYPOT_FIELD_NAME);
@@ -50,7 +48,7 @@ describe("honeypot node contract (exit criterion 2)", () => {
       ariaHidden: true,
       tabIndex: -1,
     });
-    // A decoy: no children, no value, deterministic (frozen via compilerVersion).
+    // No children and no value, and the same node every time.
     expect(node.children).toBeUndefined();
     expect(honeypotNode()).toEqual(honeypotNode());
   });
@@ -76,7 +74,7 @@ describe("honeypot is invisible to assistive tech (exit criterion 5)", () => {
   it("is not a labelled field (no <label>, no accessible name)", () => {
     expect(html).not.toContain("<label");
     expect(html).not.toContain("aria-label");
-    // The node itself exposes no label/description prop the renderer could name it by.
+    // The node exposes no prop the renderer could name it by either.
     expect(honeypotNode().props).not.toHaveProperty("label");
     expect(honeypotNode().props).not.toHaveProperty("description");
     expect(honeypotNode().props).not.toHaveProperty("aria-label");

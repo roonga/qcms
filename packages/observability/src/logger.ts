@@ -1,38 +1,25 @@
 /**
- * Structured server logging for every QCMS service (task 017, SEC-8; moved here and given
- * an OTLP path by task 062, ADR-34).
+ * Structured server logging for every QCMS service (SEC-8, ADR-34).
  *
- * Logging is an **injected interface**, never a concrete Node logger reached from handler
- * scope: API handlers stay fetch-pure (R4), so they call this `Logger` interface and the
- * composition root supplies the concrete sink. `createJsonLogger` takes a plain
- * `write(line)` function - the servers pass one that writes JSON lines to stdout, tests
- * pass a capturing sink. The emitted shape is
- * `{ level, time, ...bindings, ...correlation, ...fields, msg }`: level as a word, time as
- * an ISO instant, `msg` **last**, one line per call, and no trailing newline handed to
- * `write`. The key order is part of the shape an operator's aggregator and every example
- * in `docs/operations.md` are written against, so `./logger-line-shape.test.ts` asserts it
- * rather than only describing it here (issue #502: this said `msg` was third for as long
- * as anyone can tell, twelve lines above the literal that appends it last, and the error
- * propagated into the operator documentation twice).
+ * Logging is an injected interface rather than a concrete logger reached from
+ * handler scope, because API handlers stay fetch-pure (R4): the composition root
+ * supplies the sink. The emitted key order is part of the shape an operator's
+ * aggregator and the examples in `docs/operations.md` are written against, so
+ * `./logger-line-shape.test.ts` asserts it rather than this comment describing
+ * it.
  *
- * **Redaction (SEC-8):** every field whose key looks like a secret or like respondent
- * content is replaced with `"[REDACTED]"` before serialization, so a careless
- * `logger.info("...", { token })` can never leak the value. Answer content is never
- * logged by policy (log questionIds and counts, not values); the redactor is the
- * backstop, not the primary control.
+ * Redaction (SEC-8): a field whose key looks like a secret or like respondent
+ * content is replaced before serialization, so a careless call cannot leak a
+ * value. Answer content is never logged by policy, and the redactor is the
+ * backstop rather than the primary control.
  *
- * **Trace correlation is explicit here**, not delegated to an instrumentation. Each line
- * picks up `trace_id`/`span_id`/`trace_flags` from the active span when one is in
- * context, and carries none of them when there is not. Task 054 got this from
- * `@opentelemetry/instrumentation-pino`; 062 dropped pino, so the lookup is written out
- * and this module carries no logging dependency at all.
+ * Trace correlation is explicit rather than delegated to an instrumentation, so
+ * this module carries no logging dependency at all.
  *
- * **Two sinks, deliberately unequal.** `write` receives the whole redacted line,
- * including an `Error`'s message and stack, for an operator already inside the process
- * boundary. The OTLP path (`sendToOpenTelemetry`) receives only scalar fields, because an
- * exported record lands in an adopter's backend outside our erasure reach: see
- * `scalarAttributes` below, the allowlist in `./otlp-log-allowlist.ts` behind it, and
- * `./logger-otlp-attributes.test.ts`, which pins the asymmetry in both directions.
+ * Two sinks, deliberately unequal. `write` receives the whole redacted line,
+ * an error's stack included, for an operator already inside the process
+ * boundary. The OTLP path receives scalar fields only, because an exported
+ * record lands in an adopter's backend outside our erasure reach.
  */
 
 import { trace } from "@opentelemetry/api";
@@ -88,10 +75,9 @@ function redact(value: unknown, depth = 0): unknown {
   if (depth > 8) return "[TRUNCATED]";
   if (Array.isArray(value)) return value.map((item) => redact(item, depth + 1));
   if (value !== null && typeof value === "object") {
-    // Error objects serialize to {} otherwise; keep name/message/stack. This is the
-    // stdout line only: an Error redacts to an object, and only string, number and
-    // boolean fields become OTLP attributes (see scalarAttributes below), so no
-    // exception message or stack can reach an exported log record by this route.
+    // An Error serializes to `{}` otherwise. This reaches the stdout line only:
+    // an Error redacts to an object, and only scalars become OTLP attributes, so
+    // no exception message or stack can reach an exported record this way.
     if (value instanceof Error) {
       return { name: value.name, message: value.message, stack: value.stack };
     }

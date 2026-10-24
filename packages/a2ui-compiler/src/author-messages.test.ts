@@ -14,13 +14,10 @@ import type { A2UINode } from "./types.js";
 
 /**
  * Author-supplied validation messages (ADR-32) and boolean label overrides
- * (ADR-36) at the compiler seam, task 048.
- *
- * The golden corpus owns the byte-level contract (`golden-corpus.test.ts`: the
- * five pre-048 entries stay byte-identical, two appended entries exercise both
- * features). What this file owns is the *shape* of the forwarding: which prop
- * carries what, per-label and per-constraint fallback, key-order determinism,
- * and that the wire values never move.
+ * (ADR-36) at the compiler seam. The golden corpus owns the byte-level
+ * contract; this file owns the shape of the forwarding: which prop carries
+ * what, the per-label and per-constraint fallback, key-order determinism, and
+ * that the wire values never move.
  */
 
 const en = (value: string): { en: string } => ({ en: value });
@@ -37,7 +34,6 @@ function versionRecord(definition: Record<string, unknown>): QuestionVersionReco
   return parsed.value;
 }
 
-/** Publish a one-step form over the given question definitions. */
 function snapshotOf(definitions: readonly Record<string, unknown>[]): FrozenSnapshot {
   const records = definitions.map(versionRecord);
   const form = parseFormDefinition({
@@ -82,7 +78,6 @@ function walk(node: A2UINode, into: A2UINode[] = []): A2UINode[] {
   return into;
 }
 
-/** The compiled control node for one question, by its `name` prop. */
 function controlFor(definitions: readonly Record<string, unknown>[], name: string): A2UINode {
   const compiled = compileForm(snapshotOf(definitions), {});
   const document = compiled.documents[0];
@@ -129,8 +124,8 @@ describe("author-supplied validation messages (ADR-32)", () => {
 
   it("carries only the constraints the author decorated (per-constraint fallback)", () => {
     const node = controlFor([{ ...PLATE, messages: { maxLength: en("At most 8") } }], "q_plate");
-    // `required` and `minLength` are absent, so the portal falls back to its
-    // default catalog for those two and to the author's wording for maxLength.
+    // The undecorated constraints are absent, so the portal falls back to its
+    // own catalog for them.
     expect(Object.keys(node.props?.messages as Record<string, string>)).toEqual(["maxLength"]);
   });
 

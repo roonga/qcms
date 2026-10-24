@@ -1,5 +1,4 @@
-// The package's public barrel - the exact surface an external consumer imports.
-// No deep reach into ./compile.js or ./step-resolver.js internals.
+// The public barrel, so this file imports exactly what a consumer can.
 import {
   compileForm,
   compileFormWith,
@@ -20,17 +19,12 @@ import {
 import { describe, expect, it } from "vitest";
 
 /**
- * Step-resolver seam conformance (task 012). Proves the `StepResolver` seam
- * from task 011 (ARCHITECTURE §12) is implementable **from outside the package**
- * - everything here imports from the published `@roonga/qcms-a2ui-compiler` surface, no
- * deep `./compile.js`/`./step-resolver.js` reach into compiler internals. A
- * Phase-4 adaptive/agent resolver (ADR-25, authoring-time only) would sit
- * exactly where this test double sits: implement the interface, hand it to
- * `compileFormWith`, and the compiler routes every step through it while still
- * owning the version stamps.
+ * Proves the resolver seam (ARCHITECTURE §12) is implementable from outside the
+ * package: an adaptive resolver would sit exactly where this test double sits,
+ * and the compiler routes every step through it while still owning the stamps.
  */
 
-/** A tiny two-step snapshot built through the real publish path (`compileDraft`). */
+/** Built through the real publish path, so the snapshot is a genuine one. */
 function buildSnapshot(): FrozenSnapshot {
   const en = (value: string): { en: string } => ({ en: value });
   const rawQuestions = [
@@ -96,13 +90,12 @@ const snapshot = buildSnapshot();
 
 describe("StepResolver seam is implementable from the public surface", () => {
   it("routes every step through an externally-authored resolver double", () => {
-    // A stub standing in for a Phase-4 adaptive resolver, written against only
-    // the exported StepResolver / StepResolverContext types.
+    // Written against the exported types alone, as an external resolver would
+    // have to be.
     const seen: string[] = [];
     const stub: StepResolver = {
       resolveStep: (step: Step, context: StepResolverContext): A2UIDocument => {
         seen.push(step.stepId);
-        // The context carries everything a resolver needs - no I/O of its own.
         return {
           stepId: step.stepId,
           root: {
@@ -121,7 +114,7 @@ describe("StepResolver seam is implementable from the public surface", () => {
       { stepId: "stp_one", root: { type: "Text", props: { as: "h2" }, children: "first:One" } },
       { stepId: "stp_two", root: { type: "Text", props: { as: "h2" }, children: "rest:Two" } },
     ]);
-    // The compiler owns the version stamps, not the resolver.
+    // The compiler owns the stamps rather than the resolver.
     expect(compiled.compilerVersion).toBe("0.3.0");
     expect(compiled.a2uiSpecVersion).toBe("1.0.0-preview.7");
   });
