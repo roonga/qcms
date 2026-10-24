@@ -88,7 +88,7 @@ export const authTwoFactor = controlSchema.table("twoFactor", {
   userId: text("userId")
     .notNull()
     .references(() => authUser.id, { onDelete: "cascade" }),
-  /** The plugin's brute-force lockout state, which makes it part of SEC-1's throttling. */
+  /** `verified` marks a confirmed factor; the other two are the plugin's brute-force lockout state (SEC-1). */
   verified: boolean("verified").default(true),
   failedVerificationCount: integer("failedVerificationCount").default(0),
   lockedUntil: timestamp("lockedUntil"),
