@@ -342,6 +342,28 @@ export function isExcludedAppPath(path) {
 const GIT_CANDIDATES = ["/usr/bin/git", "/bin/git", "/usr/local/bin/git", "/opt/homebrew/bin/git"];
 
 /**
+ * The same question answered for Windows, where `check:templates` could not run at all
+ * without an override (issue #1126).
+ *
+ * Built from the environment rather than written out: a drive-letter literal is a
+ * machine-specific path, which `check:paths` forbids in committed text, and it would be
+ * wrong on a machine that installed elsewhere in any case.
+ *
+ * @param {NodeJS.ProcessEnv} environment
+ * @returns {string[]}
+ */
+export function windowsGitCandidates(environment) {
+  const roots = [
+    environment.ProgramFiles,
+    environment["ProgramFiles(x86)"],
+    environment.LOCALAPPDATA === undefined || environment.LOCALAPPDATA === ""
+      ? undefined
+      : join(environment.LOCALAPPDATA, "Programs"),
+  ].filter((root) => root !== undefined && root !== "");
+  return roots.map((root) => join(/** @type {string} */ (root), "Git", "cmd", "git.exe"));
+}
+
+/**
  * The override variable's name, so the check below and the message agree.
  *
  * Deliberately duplicated from `src/exec.ts`'s `BIN_OVERRIDE_ENV_VAR.git` rather than
@@ -381,10 +403,12 @@ export function checkedGitOverride(value) {
 function gitBinary() {
   const override = process.env[GIT_BIN_OVERRIDE_ENV_VAR];
   if (override !== undefined && override !== "") return checkedGitOverride(override);
-  const found = GIT_CANDIDATES.find((candidate) => existsSync(candidate));
+  const candidates =
+    process.platform === "win32" ? windowsGitCandidates(process.env) : GIT_CANDIDATES;
+  const found = candidates.find((candidate) => existsSync(candidate));
   if (found === undefined) {
     throw new Error(
-      `sync-templates: could not find git. Looked at: ${GIT_CANDIDATES.join(", ")}. ` +
+      `sync-templates: could not find git. Looked at: ${candidates.join(", ")}. ` +
         `Set ${GIT_BIN_OVERRIDE_ENV_VAR} to its absolute path.`,
     );
   }
