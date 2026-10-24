@@ -9,19 +9,14 @@ import { questionStatus } from "./enums.js";
 import { controlSchema } from "../schemas.js";
 
 /**
- * Question library identity. A `questionId` is stable forever and never reused
- * with a different meaning (R6); the human-facing `slug` is unique.
+ * Question library identity.
  *
- * `workspaceId` is the workspace that owns this question (ADR-41, task 068, criterion
- * 1), `NOT NULL` with no default for the reason `forms.workspaceId` is: a question
- * cannot exist without exactly one workspace and the column is the enforcement.
+ * A `questionId` is stable forever and never reused with a different meaning (R6).
  *
- * **Ownership is on this identity row and never on a version**, which is what makes
- * Q14's move one `UPDATE`: a question moves workspaces, every stored version is
- * untouched, and a form elsewhere that already pins one keeps serving it (ADR-02, R6).
- * Whether a **new** pin is allowed is a publish-time rule over this column and the
- * owning workspace's `isShared` flag, in `apps/api/src/features/workspaces/rules.ts`,
- * not a constraint here: the constraint would have to see a draft.
+ * Ownership is on this identity row and never on a version, so a question moves workspaces
+ * with one `UPDATE` and a form elsewhere that pins one keeps serving it. Whether a new pin
+ * is allowed is a publish-time rule in `apps/api/src/features/workspaces/rules.ts`, not a
+ * constraint here: a constraint would have to see a draft.
  */
 export const questions = controlSchema.table("questions", {
   questionId: text("question_id").$type<QuestionId>().primaryKey(),
@@ -33,13 +28,9 @@ export const questions = controlSchema.table("questions", {
 });
 
 /**
- * Versioned question definitions. `definition` is opaque domain JSONB (§2.2 of
- * `DOMAIN_SCHEMA.md`) that Postgres stores and indexes but never interprets.
- *
- * Immutability (I1): once `status = 'published'`, `definition` is frozen - a
- * BEFORE UPDATE trigger (`question_versions_freeze_published`, migration 0001)
- * rejects any change to it. See `packages/db/README.md` for the rationale
- * behind trigger-over-CHECK.
+ * Versioned question definitions. `definition` is opaque domain JSONB that Postgres stores
+ * and indexes but never interprets. Once `status = 'published'` it is frozen by
+ * `question_versions_freeze_published` (I1).
  */
 export const questionVersions = controlSchema.table(
   "question_versions",
