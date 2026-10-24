@@ -295,12 +295,12 @@ If the answers say load, say so in the report with the numbers and re-run on a q
 
 **A native Windows checkout runs `pnpm verify` and nothing heavier.** That is the whole rule, and the rest of this section is why and what to do instead (issue #1126). Cross-platform defects in the scripts and the unit tests were fixed; the three gates below were not ported, because what they need is not a shell difference.
 
-| Gate | Native Windows | Where it runs |
-| --- | --- | --- |
-| `pnpm verify` | yes | anywhere |
-| `pnpm verify:browser` | no | WSL or the dev container |
+| Gate                                     | Native Windows             | Where it runs            |
+| ---------------------------------------- | -------------------------- | ------------------------ |
+| `pnpm verify`                            | yes                        | anywhere                 |
+| `pnpm verify:browser`                    | no                         | WSL or the dev container |
 | `pnpm verify:browser:detached` / `:wait` | no, refused with a message | WSL or the dev container |
-| `QCMS_PORT_SEAT=<0-9> pnpm up:e2e` | no | WSL or the dev container |
+| `QCMS_PORT_SEAT=<0-9> pnpm up:e2e`       | no                         | WSL or the dev container |
 
 The three are POSIX by construction, not by accident. The detached runner puts the suite in a session of its own with `setsid` so it outlives the shell the harness kills, signals a **process group** to stop a suite and its dev servers together, and reads `/proc/<pid>/cwd` to say which worktree owns a port that is already held. Windows has no equivalent of any of the three, so `verify:browser:detached` **fails fast** on `win32` with a message naming WSL rather than failing several frames down on a missing `setsid`.
 

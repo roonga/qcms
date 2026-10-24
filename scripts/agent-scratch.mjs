@@ -112,6 +112,7 @@ export function resolveLane(directory, environment) {
       throw new Error(
         `could not run git: no executable found on PATH. Install git, or set ` +
           `QCMS_AGENT_LANE to name this lane without it.`,
+        { cause: error },
       );
     }
     const stderr = String(/** @type {{ stderr?: unknown }} */ (detail).stderr ?? "").trim();
@@ -119,6 +120,7 @@ export function resolveLane(directory, environment) {
       `git could not name the branch in ${directory}: ` +
         `${stderr === "" ? (detail.message ?? "no output") : stderr}. ` +
         `Run this from a worktree, or set QCMS_AGENT_LANE.`,
+      { cause: error },
     );
   }
   if (branch === "HEAD") return laneSlug(`detached-${git(["rev-parse", "--short", "HEAD"])}`);
