@@ -1,40 +1,13 @@
 #!/usr/bin/env node
 // @ts-check
 /**
- * Changeset gate (issue #55, folded into issue #19).
+ * Fails when the diff against the default branch touches a publishable package and no
+ * changeset added in that same diff names it. The publishable set is derived from each
+ * package.json's `private` field and the changesets `ignore` list, never hardcoded, so
+ * adding a package cannot make this gate stale.
  *
- * A publishable package that changes without a changeset ships to consumers with
- * no version bump and no changelog line (the gap found on PR #52). Every other
- * merge requirement is enforced by a script; this one used to live only in prose,
- * so it is the same defect class issue #19 tracks: a requirement outside the
- * enforced gate set.
- *
- * FAILS when the diff against the default branch touches a publishable package
- * and no changeset **added in that same diff** names the package.
- *
- * What it deliberately does NOT require a changeset for:
- *   - Private workspace packages (`apps/*`) - never published, so "app-only"
- *     diffs pass. The publishable set is DERIVED from each package.json's
- *     `private` field (plus `.changeset/config.json`'s `ignore` list), never
- *     hardcoded, so adding a package cannot make this gate go stale.
- *   - Markdown (`*.md`) anywhere - docs-only diffs pass, including a package's
- *     own README and its generated CHANGELOG.
- *   - Test files and test directories inside a publishable package: a test-only
- *     change alters nothing a consumer can call. The repo has merged both
- *     conventions (packages/db tests WITH a changeset in PR #59, @roonga/qcms-ui tests
- *     WITHOUT one in 30147c3); exempting is the only choice that contradicts
- *     neither, because a changeset that is not required is still allowed.
- *     Note `src/testing/` is NOT a test path: it is @roonga/qcms-db's exported
- *     `./testing` subpath, which consumers import.
- *
- * It compares COMMITTED state (merge-base..HEAD), like
- * `scripts/check-golden-append-only.mjs`, whose base-ref resolution this reuses:
- * uncommitted work in the tree is invisible to it. On the default branch itself
- * (empty diff), or when nothing under a publishable package changed, it passes
- * silently.
- *
- * Usage:  node scripts/check-changeset.mjs
- * Env:    DEFAULT_BRANCH (default "main") - the branch the diff is taken against.
+ * Markdown, test directories and colocated test files are exempt: they alter nothing a
+ * consumer can call. It compares committed state, so uncommitted work is invisible to it.
  */
 
 import { execFileSync } from "node:child_process";
@@ -44,16 +17,10 @@ import { pathToFileURL } from "node:url";
 
 const DEFAULT_BRANCH = process.env.DEFAULT_BRANCH ?? "main";
 
-/**
- * Paths that never require a changeset, even inside a publishable package,
- * because they are invisible to a consumer of the published package.
- */
 const EXEMPT_PATTERNS = [
-  // Docs, including package READMEs and the changeset-generated CHANGELOG.md.
   /\.md$/i,
-  // Test directories. `testing/` is intentionally absent (see the header note).
+  // `testing/` is intentionally absent: it is an exported subpath consumers import.
   /(^|\/)(__tests__|test|tests|e2e)\//,
-  // Colocated test files: foo.test.ts, foo.e2e.ts, foo.pw.ts, .tsx/.mjs variants.
   /\.(test|spec|e2e|pw)\.[cm]?[jt]sx?$/,
 ];
 
@@ -69,7 +36,6 @@ function tryGit(args) {
   }
 }
 
-/** Resolve a ref that points at the default branch tip, or undefined. */
 function resolveBaseRef() {
   for (const ref of [`origin/${DEFAULT_BRANCH}`, DEFAULT_BRANCH]) {
     if (tryGit(["rev-parse", "--verify", "--quiet", `${ref}^{commit}`]) !== undefined) {
@@ -79,14 +45,7 @@ function resolveBaseRef() {
   return undefined;
 }
 
-/**
- * The `packages:` entries of pnpm-workspace.yaml. A narrow reader for the one
- * shape this file has (a top-level `packages:` key over a list of quoted globs)
- * rather than a YAML dependency: it is a four-line file we own.
- *
- * @param {string} yaml
- * @returns {string[]}
- */
+/** A narrow reader rather than a YAML dependency: it is a four-line file we own. */
 export function parseWorkspaceGlobs(yaml) {
   const globs = [];
   let inPackages = false;
@@ -100,26 +59,19 @@ export function parseWorkspaceGlobs(yaml) {
     if (entry?.[1] !== undefined) {
       globs.push(entry[1]);
     } else if (line.trim() !== "" && !/^\s/.test(line)) {
-      break; // next top-level key
+      break;
     }
   }
   return globs;
 }
 
 /**
- * Expand the workspace globs to directories. Exported because
- * `scripts/image-dev-deps.mjs` derives the same workspace manifest set (issue #877) and
- * a second expander is how the two would come to disagree about which packages exist.
- * The message carries no script prefix for the same reason: two callers raise it.
+ * Exported because `scripts/image-dev-deps.mjs` derives the same workspace manifest set,
+ * and a second expander is how the two would come to disagree; its message carries no
+ * script prefix because two callers raise it.
  *
- * Only the two shapes this repo uses
- * are supported: a literal directory and a trailing `/*`. Anything else THROWS
- * rather than being skipped - a silently unexpanded glob would silently stop the
- * gate from guarding those packages.
- *
- * @param {string} root
- * @param {string[]} globs
- * @returns {string[]} repo-relative, posix-separated directories
+ * An unsupported glob shape throws rather than being skipped: a silently unexpanded glob
+ * would stop the gate guarding those packages.
  */
 export function expandGlobs(root, globs) {
   const dirs = [];
@@ -143,7 +95,6 @@ export function expandGlobs(root, globs) {
   return dirs;
 }
 
-/** Package names changesets is configured to ignore (`.changeset/config.json`). */
 function readIgnoredPackages(root) {
   const configPath = join(root, ".changeset", "config.json");
   if (!existsSync(configPath)) return [];
@@ -151,12 +102,6 @@ function readIgnoredPackages(root) {
   return Array.isArray(config.ignore) ? config.ignore : [];
 }
 
-/**
- * Every workspace package that is actually published, derived from `private`.
- *
- * @param {string} [root]
- * @returns {{ name: string, dir: string }[]}
- */
 export function findPublishablePackages(root = process.cwd()) {
   const globs = parseWorkspaceGlobs(readFileSync(join(root, "pnpm-workspace.yaml"), "utf8"));
   const ignored = new Set(readIgnoredPackages(root));
@@ -172,23 +117,14 @@ export function findPublishablePackages(root = process.cwd()) {
   return packages.sort((a, b) => a.name.localeCompare(b.name));
 }
 
-/** True when a changed path needs no changeset regardless of where it lives. */
 export function isExemptPath(filePath) {
   return EXEMPT_PATTERNS.some((pattern) => pattern.test(filePath));
 }
 
 /**
- * The package names a changeset file declares, read from its frontmatter.
- *
- * Narrow by design: `@changesets/parse` is in the dependency graph only as a
- * transitive dep of `@changesets/cli`, so under pnpm's strict layout it is not
- * resolvable from a root script, and adding a direct devDependency to parse a
- * machine-generated three-line frontmatter fails CONTRIBUTING's
- * minimal-dependency test. This reads exactly the `"name": bump` lines
- * `changeset add` writes and ignores everything else.
- *
- * @param {string} text
- * @returns {string[]}
+ * Narrow by design: `@changesets/parse` is only a transitive dependency, so under pnpm's
+ * strict layout it is not resolvable from a root script, and a direct devDependency for
+ * three lines of frontmatter fails the minimal-dependency rule.
  */
 export function parseChangesetPackages(text) {
   const lines = text.replaceAll("\r\n", "\n").split("\n");
@@ -202,13 +138,7 @@ export function parseChangesetPackages(text) {
   return names;
 }
 
-/**
- * One `git diff --name-status -M` line, split into its status code and paths
- * (a rename lists both the old and the new path).
- *
- * @param {string} raw
- * @returns {{ status: string, paths: string[] }[]}
- */
+/** A rename line lists both the old and the new path, and both matter. */
 function parseNameStatus(raw) {
   const changes = [];
   for (const line of raw.split("\n")) {
@@ -219,7 +149,6 @@ function parseNameStatus(raw) {
   return changes;
 }
 
-/** Packages whose non-exempt files changed, mapped to an example changed file. */
 function packagesNeedingAChangeset(changes, packages) {
   /** @type {Map<string, string[]>} */
   const needed = new Map();
@@ -237,10 +166,8 @@ function packagesNeedingAChangeset(changes, packages) {
 }
 
 /**
- * True for a `changeset version` release diff, which CONSUMES changesets: it
- * deletes `.changeset/*.md` and bumps each package's version and CHANGELOG.
- * Requiring a changeset there would fail the one PR whose whole job is to spend
- * them. No ordinary change deletes a changeset file.
+ * A release diff consumes changesets, so requiring one would fail the single pull request
+ * whose whole job is to spend them. No ordinary change deletes a changeset file.
  */
 function isReleaseDiff(changes) {
   return changes.some(
@@ -250,9 +177,8 @@ function isReleaseDiff(changes) {
 }
 
 /**
- * Package names declared by changesets ADDED OR MODIFIED IN THIS DIFF. A
- * changeset already sitting on the default branch (this repo carries a dozen
- * unreleased ones) must not satisfy the requirement for a new change.
+ * Added or modified in this diff only: a changeset already sitting on the default branch
+ * must not satisfy the requirement for a new change.
  */
 function packagesDeclaredInDiff(changes) {
   const declared = new Set();
@@ -270,8 +196,7 @@ function packagesDeclaredInDiff(changes) {
 function main() {
   const baseRef = resolveBaseRef();
   if (baseRef === undefined) {
-    // Same posture as check-golden-append-only: a checkout with no default
-    // branch to diff against (fresh clone, no remote) has nothing to compare.
+    // A checkout with no default branch to diff against has nothing to compare.
     console.warn(
       `check-changeset: no "${DEFAULT_BRANCH}" ref found; skipping (nothing to diff against).`,
     );

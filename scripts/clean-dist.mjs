@@ -1,26 +1,11 @@
 #!/usr/bin/env node
 // @ts-check
 /**
- * Remove the calling package's `dist` directory before it is rebuilt (issue #494).
- *
- * `tsc` overwrites what it emits and deletes nothing, so a file that a previous
- * configuration produced survives every later build. The shapes that produce one are
- * ordinary: a source file renamed or deleted, an `exclude` added to
- * `tsconfig.build.json`, a subpath export withdrawn. The stale `.js` and `.d.ts` stay
- * on disk, keep resolving, and keep type-checking, so nothing downstream reports a
- * problem.
- *
- * `--force` does not help, and that is the part worth stating: turbo's `outputs` glob
- * tars whatever matches `dist/**` when the task ENDS, so a forced rebuild re-caches
- * the stale artifact alongside the fresh one and then restores it into every other
- * worktree. Only removing the directory first makes `dist` a function of the current
- * source, which is what makes a cache entry mean anything.
- *
- * Wired into the `build` script of every package that emits, ahead of `tsc`, rather
- * than into a turbo task: turbo has no "clean before" hook, and a package's build
- * command is where its own build steps belong.
- *
- * Usage: node ../../scripts/clean-dist.mjs [directory]   (cwd = the package root)
+ * `tsc` deletes nothing, so output from an earlier configuration survives every later
+ * build and keeps resolving. `--force` makes it worse: turbo tars whatever matches the
+ * `outputs` glob when the task ends, so a forced rebuild re-caches the stale artifact
+ * and restores it elsewhere. Only removing the directory first makes `dist` a function
+ * of the current source.
  */
 
 import { existsSync, rmSync } from "node:fs";
@@ -32,18 +17,8 @@ import { pathToFileURL } from "node:url";
 const DEFAULT_TARGET = "dist";
 
 /**
- * Resolve the directory to remove, refusing anything that is not a plain relative
- * name inside a package root.
- *
- * The guards are deliberately blunt for a script whose whole job is a recursive
- * delete: it runs from a package directory with a name it was handed, so an absolute
- * path, a parent traversal, or a directory with no `package.json` beside it means the
- * caller is not what this script is for, and the right answer is to stop rather than
- * to guess.
- *
- * @param {string} packageRoot
- * @param {string} target
- * @returns {{ ok: true; path: string } | { ok: false; reason: string }}
+ * Deliberately blunt guards for a script whose job is a recursive delete: an absolute
+ * path, a parent traversal, or a missing sibling `package.json` means stop, not guess.
  */
 export function resolveTarget(packageRoot, target) {
   if (target === "" || isAbsolute(target) || target.split(/[/\\]/).includes("..")) {
@@ -58,7 +33,6 @@ export function resolveTarget(packageRoot, target) {
   return { ok: true, path: resolve(packageRoot, target) };
 }
 
-/** @returns {number} process exit code */
 function main() {
   const target = argv[2] ?? DEFAULT_TARGET;
   const resolved = resolveTarget(cwd(), target);

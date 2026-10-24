@@ -1,27 +1,15 @@
 #!/usr/bin/env node
 // @ts-check
 /**
- * Reject control characters in tracked text source (workshop retro, Stage 4).
- *
- * A NUL byte (0x00) once shipped in a `.ts` file and passed build, typecheck,
- * test, lint, and prettier - every gate tolerated it because it was used as a
- * *consistent* delimiter. Only `git diff` flagging the file as binary caught it,
- * and only by luck in review. A control char in source is unreviewable (git
- * renders the file as `Bin`) and a latent correctness hazard. This guard closes
- * the class: any disallowed control char in a tracked source file fails the build.
- *
- * Allowed: tab (0x09), line feed (0x0A), carriage return (0x0D). Everything else
- * in 0x00–0x1F plus DEL (0x7F) is rejected.
- *
- * Usage:  node scripts/check-no-control-chars.mjs
+ * Allowed: tab, line feed, carriage return. Everything else below 0x20, plus DEL, is
+ * rejected: a control character in source renders the file as binary in a diff, so it
+ * passes every other gate and cannot be reviewed.
  */
 
 import { execFileSync } from "node:child_process";
 import { readFileSync } from "node:fs";
 
-// On Windows, Node's execFile does not resolve `git` -> `git.exe` from PATH
-// (unlike a shell), so a bare "git" ENOENTs even when git is installed - the
-// local gate then can't run, only Linux CI. Resolve the platform binary name.
+// Node's execFile on Windows does not resolve `git` to `git.exe` the way a shell does.
 const GIT = process.platform === "win32" ? "git.exe" : "git";
 
 const SOURCE_GLOBS = ["*.ts", "*.tsx", "*.mjs", "*.mts", "*.js", "*.jsx", "*.json", "*.md"];

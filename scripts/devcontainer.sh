@@ -11,8 +11,6 @@
 #   stop      stop the container (deprecated, kept for compatibility)
 #   down      stop the container
 #
-# Exercising this path is also evidence for exit criterion 1, which is worded
-# against `devcontainer up` rather than the VS Code route.
 set -uo pipefail
 
 CONTAINER="qcms-dev-container"
@@ -25,7 +23,6 @@ die() {
   exit 2
 }
 
-# Prefer a global install; fall back to pnpm dlx so no global install is needed.
 devcontainer_cli() {
   if command -v devcontainer >/dev/null 2>&1; then
     devcontainer "$@"
@@ -34,10 +31,8 @@ devcontainer_cli() {
   fi
 }
 
-# Every subcommand below talks to Docker, so a missing CLI is answered once, here,
-# rather than left for each of them to improvise (issue #269). On the supported
-# Windows path this is nearly always Docker Desktop's WSL integration being off for
-# this distro, so the message says that instead of "command not found".
+# On the supported Windows path a missing CLI is nearly always Docker Desktop's WSL
+# integration being off for this distro, so the message says that.
 require_docker() {
   command -v docker >/dev/null 2>&1 || die "the docker CLI was not found on PATH.
                  On WSL2 this usually means Docker Desktop is not running, or its
@@ -45,15 +40,9 @@ require_docker() {
                  WSL integration). Elsewhere, install Docker or start the daemon."
 }
 
-# Both predicates test the EXIT STATUS as well as the output, which
-# `inside_target_container` below already did and these did not (issue #269).
-# Testing output alone reads any output as a result: WSL's command_not_found
-# handler writes its 228-byte "could not be found in this WSL 2 distro" message to
-# STDOUT, so `2>/dev/null` does not suppress it, the substitution captures it, and
-# `-n` is true. `status` then reported a running container on a machine with no
-# Docker at all, and `shell`/`run` skipped their clean "not running" diagnostic to
-# fail incoherently inside `docker exec`. The check has to be able to tell "no
-# output" from "output that happens to be an error".
+# The exit status must be tested as well as the output: WSL's command_not_found handler
+# writes to STDOUT, so `2>/dev/null` does not suppress it and output alone reads as a
+# result. These have to tell no output from output that happens to be an error.
 is_running() {
   local out
   out="$(docker ps -q --filter "name=^${CONTAINER}$" 2>/dev/null)" || return 1
@@ -65,24 +54,13 @@ exists() {
   [ -n "$out" ]
 }
 
-# The container mounts the host Docker socket so Testcontainers works (ADR-29),
-# which also hands anything running inside it the authority to stop that same
-# container - killing every session in there, with no surviving process able to
-# report why. That is not hypothetical: on 2026-08-01 the container recorded a
-# clean exit 0 and 4m38s of downtime because a test invoked `stop` for real
-# (issues #244 and #260), and the 137 the killed processes report reads exactly
-# like an out-of-memory kill, so it was misdiagnosed twice.
+# The mounted host Docker socket (ADR-29) lets anything inside the container stop that
+# same container, killing every session in it with nothing left able to report why, and
+# the 137 the killed processes report reads like an out-of-memory kill. So the
+# destructive verbs refuse from inside, at this one chokepoint.
 #
-# The destructive verbs therefore refuse from inside the target container. This
-# is a chokepoint every caller of this script passes through rather than a
-# convention each of them has to remember, which is the whole point: a rule only
-# works while everyone obeys it, and its failure mode here is silent and total.
-#
-# Detection is deliberately two-sided. The marker is authoritative, but
-# containerEnv does not reach an already-running container (the same trap
-# warn_if_stale exists for), so it only arrives on the next rebuild. Matching the
-# hostname against the container's own id covers every container created before
-# this landed, including the one this is landing from.
+# Detection is two-sided because the marker is authoritative but `containerEnv` only
+# reaches a container on its next rebuild, so the hostname match covers older ones.
 MARKER_ENV="QCMS_DEVCONTAINER"
 
 inside_target_container() {
@@ -91,15 +69,14 @@ inside_target_container() {
 
   local host id
   host="$(hostname 2>/dev/null)" || return 1
-  # An empty hostname would turn the prefix test below into a match against
-  # everything, so the guard would fire on the host and block legitimate use.
+  # An empty hostname would make the prefix test below match everything, firing the
+  # guard on the host.
   [ -n "$host" ] || return 1
   id="$(docker inspect -f '{{.Id}}' "$CONTAINER" 2>/dev/null)" || return 1
   [ -n "$id" ] || return 1
 
-  # Docker sets the container's hostname to its short id unless the config
-  # overrides it; this config does not. A prefix strip that changes the string
-  # means the id starts with our hostname, so we are that container.
+  # Docker sets the hostname to the container's short id unless the config overrides
+  # it, which this config does not.
   [ "${id#"$host"}" != "$id" ]
 }
 
@@ -112,23 +89,18 @@ refuse_from_inside() {
                  matching this hostname against the container id when that is not set."
 }
 
-# The workspace path inside the container is a property of the container, not of
-# wherever this script is invoked from - deriving it from the local directory
-# name is wrong the moment the two differ (a worktree, a second clone). Ask the
-# container, and skip the a2-react-aria sibling mount (ADR-22) this config also
-# creates under /workspaces.
+# Asked of the container, because deriving it from the local directory name is wrong
+# the moment the two differ (a worktree, a second clone). The sibling mount this config
+# also creates under /workspaces is skipped.
 workspace_dir() {
-  # Filtered with grep rather than a `hasPrefix` template: that function is not
-  # available in every Docker version's template engine and fails by returning
-  # nothing, which is indistinguishable from "no workspace mount".
+  # grep rather than a `hasPrefix` template: that function is missing from some Docker
+  # template engines and fails by returning nothing, which reads as "no workspace mount".
   docker inspect -f '{{range .Mounts}}{{println .Destination}}{{end}}' "$CONTAINER" 2>/dev/null |
     grep '^/workspaces/' | grep -v '^/workspaces/a2-react-aria$' | head -n 1
 }
 
 # `devcontainer up` silently reuses a running container and ignores changed
-# runArgs/appPort/containerEnv, so an edited config appears to apply and does
-# not. Comparing the config's mtime to the container's creation time is what
-# turns that silent no-op into a visible warning.
+# runArgs/appPort/containerEnv, so an edited config appears to apply and does not.
 config_is_newer() {
   is_running || return 1
   local created config_mtime
@@ -152,16 +124,13 @@ cmd_up() {
 }
 
 cmd_rebuild() {
-  # The refusal comes first, so it never depends on Docker answering; a container
-  # that could refuse always has a CLI anyway.
+  # Refuse first, so it never depends on Docker answering.
   inside_target_container && refuse_from_inside rebuild
   require_docker
-  # Remove by name rather than relying on `--remove-existing-container`. That
-  # flag finds the container through a `devcontainer.local_folder` label, and
-  # the two launchers disagree about the same folder: VS Code on Windows records
-  # a UNC path (\\wsl.localhost\...), the CLI under WSL2 records a POSIX one. So
-  # a container created in the editor is invisible to the CLI, nothing gets
-  # removed, and the fixed --name then collides. The name is unambiguous.
+  # By name, not `--remove-existing-container`: that flag matches on a
+  # `devcontainer.local_folder` label, and the editor records a UNC path
+  # (\\wsl.localhost\...) where the CLI under WSL2 records a POSIX one, so neither
+  # sees the other's container.
   if exists; then
     docker rm -f "$CONTAINER" >/dev/null 2>&1 && echo "removed existing $CONTAINER"
   fi
@@ -172,15 +141,13 @@ cmd_shell() {
   require_docker
   is_running || die "$CONTAINER is not running. Start it with: $0 up"
   warn_if_stale
-  # docker exec rather than `devcontainer exec`: it is faster, and containerEnv
-  # rides along either way. -u vscode matters - exec defaults to root, which
-  # writes root-owned files into the bind mount and breaks the next run.
+  # -u vscode is required: exec defaults to root, which writes root-owned files into
+  # the bind mount and breaks the next run.
   local ws
   ws="$(workspace_dir)"
   [ -n "$ws" ] || die "could not determine the workspace path inside $CONTAINER"
-  # gh auth is load-bearing for the loops (PR review, issue churn). The config is
-  # bind-mounted from the host, so an unauthenticated container almost always
-  # means the HOST is not logged in - say so before dropping into the shell.
+  # The gh config is bind-mounted from the host, so an unauthenticated container almost
+  # always means the host is not logged in.
   if ! docker exec -u vscode "$CONTAINER" sh -c 'command -v gh' >/dev/null 2>&1; then
     echo "WARNING: gh is not installed in $CONTAINER - the loops need it. Rebuild the container (the github-cli Feature provides it)." >&2
   elif ! docker exec -u vscode "$CONTAINER" gh auth status >/dev/null 2>&1; then
@@ -215,8 +182,7 @@ cmd_status() {
 }
 
 cmd_stop() {
-  # Guard before the is_running probe, so the refusal does not depend on the
-  # daemon answering: the point is that this path never reaches `docker stop`.
+  # Guard before the is_running probe, so this path never reaches `docker stop`.
   inside_target_container && refuse_from_inside stop
   require_docker
   is_running || {
