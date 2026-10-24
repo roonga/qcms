@@ -31,6 +31,14 @@ import { latestPublishedVersion, versionRailItems } from "@/lib/questions/versio
  *   the Header is for.
  * - **Sections:** the version list. Each row is `?v=` on the route the reader is already
  *   standing on.
+ *
+ *   **No count in the Header**, which the form rail does carry. The 2026-10-24 clarification
+ *   allows the collapsed Header one, and on this screen the number it could hold - how many
+ *   panels of the selected version carry an issue - exists only in the browser: the badges
+ *   come from the editor's live document through `lib/questions/editor-bridge.ts`, and this is
+ *   a server component so that the marked row and the rendered panel agree before anything
+ *   has hydrated. A total here would mean a client component in the Header for a number that
+ *   is zero until a save is refused. Left absent rather than faked.
  * - **Children:** the selected version's editor panels, nested inside its version row,
  *   which is what "nested under the current section only" asks for and what the builder's
  *   rail already does with a form's steps.
