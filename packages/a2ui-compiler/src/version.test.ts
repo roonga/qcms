@@ -5,12 +5,8 @@ import { describe, expect, it } from "vitest";
 
 import { A2UI_SPEC_VERSION, COMPILER_VERSION } from "./version.js";
 
-/**
- * Drift guards for the version stamps (ADR-18). The stamps are constants in
- * `version.ts` (the runtime never reads package.json or imports @a2ra/core),
- * so these tests keep them honest against their sources of truth: bumping
- * either package without updating the stamp fails the gate.
- */
+// The stamps are constants, the runtime reading neither manifest, so bumping
+// either package without updating its stamp has to fail here.
 function readJson(relativeToPackageRoot: string): { version: string } {
   const url = new URL(`../${relativeToPackageRoot}`, import.meta.url);
   return JSON.parse(readFileSync(fileURLToPath(url), "utf8")) as { version: string };
@@ -22,9 +18,8 @@ describe("version stamps", () => {
   });
 
   it("A2UI_SPEC_VERSION mirrors the installed @a2ra/core package version", () => {
-    // The pinned schema package (a test-only devDependency) - resolved through
-    // the package's own node_modules link, so this reflects what the schema
-    // validation in compile.test.ts actually ran against.
+    // Resolved through this package's own link, so it is what the schema
+    // validation actually ran against.
     expect(A2UI_SPEC_VERSION).toBe(readJson("node_modules/@a2ra/core/package.json").version);
   });
 });

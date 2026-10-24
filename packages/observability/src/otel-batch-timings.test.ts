@@ -2,21 +2,8 @@ import { describe, expect, it } from "vitest";
 
 import { batchLogExportTimings, batchSpanExportTimings } from "./otel-batch-timings.js";
 
-/**
- * What these cases are for (issue #901).
- *
- * The defect this module exists to close was invisible: `OTEL_BSP_SCHEDULE_DELAY=500`
- * had been set in the browser harness since task 054 and reached no processor, because
- * OpenTelemetry JS 2.x moved the env fallbacks out of the constructors these apps call.
- * Nothing failed, so nothing pointed at it; the only symptom was a telemetry poll with
- * a fifth of the margin its comment claimed.
- *
- * So the assertions below pin the two halves that silence can hide: that a value which
- * IS set arrives as a number a processor can be constructed with, and that an unset
- * variable resolves to the same default the SDK would have applied anyway, which is
- * what makes passing these options explicitly a no-op for every deployment that
- * configures nothing.
- */
+// The two halves silence can hide: a set value arrives as a number a processor
+// can be constructed with, and an unset one resolves to the SDK's own default.
 describe("batchSpanExportTimings", () => {
   it("falls back to the specification defaults when nothing is configured", () => {
     expect(batchSpanExportTimings({})).toEqual({
@@ -76,21 +63,8 @@ describe("batchLogExportTimings", () => {
     );
   });
 
-  /**
-   * Every rejected shape falls back rather than throwing, and the reason is a
-   * deliberate trade: a mistyped telemetry variable must not be able to stop a process
-   * from serving requests. The cases that matter are the ones a permissive parser would
-   * accept as plausible numbers - `parseInt("500ms")` is 500 and `parseInt("1e4")` is 1 -
-   * because those turn a typo into a timing nobody would question.
-   *
-   * `0` is the one case that is a rejection rather than a parse failure, and it is
-   * asserted here on purpose. The `@opentelemetry/sdk-trace-base` shim would apply it;
-   * this helper does not, because a zero delay stops batching rather than shortening it
-   * (one export request per tick, which is what a simple processor is for and what no
-   * QCMS process constructs). The floor is documented for operators in
-   * `docs/operations.md`, and `1` is accepted, so nothing here blocks a deployment that
-   * genuinely wants the promptest batch this pipeline offers.
-   */
+  // The cases that matter are the ones a permissive parser would read as
+  // plausible numbers, a typo otherwise becoming a timing nobody questions.
   it.each([
     ["not a number", "soon"],
     ["a unit suffix", "500ms"],

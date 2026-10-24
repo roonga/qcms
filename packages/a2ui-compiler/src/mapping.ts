@@ -4,50 +4,26 @@ import type { LocaleCode, LocalizedText, QuestionDefinition } from "@roonga/qcms
 import type { A2UINode } from "./types.js";
 
 /**
- * Question-type → A2UI component mapping (task 011, `docs/a2ui-mapping.md`).
- *
- * Every function here is a pure projection from one pinned {@link
- * QuestionDefinition} to a single A2UI control node whose `type` is a real
- * `@a2ra/core` node literal and whose props are a subset of that component's
- * strict schema. Constraint-derived props are **advisory client-side hints**;
- * server-side domain validation (`validateAnswer`, task 009) is the authority.
- *
- * Accessibility groundwork (028 contract): every control carries `label`, a
- * `description` when the question has help text, and a `name` = questionId. No
- * control sets `errorMessage` - that is the per-question error slot the renderer
- * fills from server validation, routed by `name`.
- *
- * A control MAY carry `messages` (task 048, ADR-32): the author's own wording per
- * constraint, resolved for the active locale. It is presentation payload the host
- * reads when it fills that error slot, never something the renderer or the kernel
- * evaluates. The prop is absent unless the author wrote one, which is what keeps
- * pre-048 content byte-identical (`authorMessages` below).
+ * Question-type to A2UI component mapping (`docs/a2ui-mapping.md`). A
+ * constraint-derived prop is an advisory hint; server-side validation is the
+ * authority, and no control sets `errorMessage`: that slot is the renderer's to
+ * fill from server validation, routed by `name`.
  */
 
 /** Resolves a {@link LocalizedText} to a display string for the active locale. */
 export type TextResolver = (text: LocalizedText) => string;
 
-/**
- * Above this option count a `singleChoice` renders as a `Select` rather than a
- * `RadioGroup` (`docs/a2ui-mapping.md`). A compiler constant, frozen into
- * output via `compilerVersion`.
- */
+/** Above this count a `singleChoice` compiles to a `Select`, not a `RadioGroup`. */
 export const SINGLE_CHOICE_SELECT_THRESHOLD = 7;
 
-/** The A2UI values a boolean question's two radios carry. */
+/** The wire values a boolean question's two radios carry. */
 export const BOOLEAN_TRUE_VALUE = "true";
 export const BOOLEAN_FALSE_VALUE = "false";
 
 /**
- * Yes/No child-label lexicon for boolean radios, keyed by the active locale's
- * language subtag with an English fallback (`docs/a2ui-mapping.md`). A compiler
- * constant frozen into output; gains entries alongside each new launch locale
- * (R7 - no second locale before Phase 4).
- *
- * The lexicon is the **default**, not the only source: a boolean question may
- * carry `yesLabel` / `noLabel` as authored `LocalizedText` (ADR-36), and each
- * label falls back here on its own - overriding "Yes" leaves "No" on the
- * lexicon. Wire values are untouched either way.
+ * The boolean child-label lexicon, by language subtag with an English fallback.
+ * A default, not the only source: authored labels override it one at a time
+ * (ADR-36), and the wire values never move.
  */
 type Affirmation = { readonly yes: string; readonly no: string };
 
@@ -59,11 +35,11 @@ export const BOOLEAN_AFFIRMATION: { readonly en: Affirmation } & Readonly<
 
 function affirmationFor(locale: LocaleCode): Affirmation {
   const language = locale.split("-")[0] ?? "";
-  // `.en` is a guaranteed key (typed above), so the fallback is total.
+  // `.en` is a guaranteed key, so the fallback is total.
   return BOOLEAN_AFFIRMATION[language] ?? BOOLEAN_AFFIRMATION.en;
 }
 
-/** Drop keys whose value is `undefined`, preserving insertion order (determinism). */
+/** Insertion order matters: the output is byte-compared. */
 function compact(props: Record<string, unknown>): Readonly<Record<string, unknown>> {
   const out: Record<string, unknown> = {};
   for (const [key, value] of Object.entries(props)) {
@@ -75,17 +51,10 @@ function compact(props: Record<string, unknown>): Readonly<Record<string, unknow
 }
 
 /**
- * The author-supplied validation messages for one question, resolved to display
- * strings for the active locale (ADR-32). `undefined` when the author supplied
- * none, so `compact` drops the prop entirely and a question without messages
- * compiles byte-for-byte as it did before task 048 (the golden corpus is the
- * proof).
- *
- * Keys are emitted in `@roonga/qcms-core`'s canonical order, never the authored
- * object's own key order, so the compiled document is a function of content
- * alone (ADR-18 byte comparison). The value is the *message*, not a template:
- * the kernel still owns the error codes, and the portal picks the message by the
- * `constraint` its 422 names.
+ * The author-supplied validation messages for one question, resolved for the
+ * active locale (ADR-32). `undefined` drops the prop, so a question without
+ * them compiles as before. Keys follow the kernel's canonical order, so the
+ * document is a function of content alone (ADR-18).
  */
 function authorMessages(
   question: QuestionDefinition,
@@ -103,7 +72,7 @@ function authorMessages(
   return Object.keys(resolved).length === 0 ? undefined : resolved;
 }
 
-/** Props shared by every top-level control: label, optional help, name, required hint. */
+/** Props shared by every top-level control. */
 function baseControlProps(
   question: QuestionDefinition,
   resolve: TextResolver,
@@ -125,12 +94,7 @@ function checkboxChild(value: string, label: string): A2UINode {
   return { type: "Checkbox", props: { value, label } };
 }
 
-/**
- * Compile one pinned question to its A2UI control node. The switch is
- * exhaustive over the seven-type union with a `never` default - adding a
- * question type without mapping it here is a build error, not a runtime
- * surprise.
- */
+/** Compile one pinned question to its A2UI control node. */
 export function questionToNode(
   question: QuestionDefinition,
   resolve: TextResolver,
@@ -174,9 +138,6 @@ export function questionToNode(
         }),
       };
     case "boolean": {
-      // Per-label fallback (ADR-36): each displayed label is the author's
-      // override if there is one, else this locale's lexicon entry. The wire
-      // values never move.
       const lexicon = affirmationFor(locale);
       const yes = question.yesLabel === undefined ? lexicon.yes : resolve(question.yesLabel);
       const no = question.noLabel === undefined ? lexicon.no : resolve(question.noLabel);

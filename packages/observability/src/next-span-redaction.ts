@@ -1,35 +1,14 @@
 /**
- * SEC-13: allowlist redaction for the Next apps' exported spans (task 054, ADR-34; shared
- * by Portal and Admin in task 062).
+ * Allowlist redaction for the Next apps' exported spans (SEC-13, ADR-34), the
+ * API's control over a different vocabulary. The secure-link token is in the
+ * URL, so the root span's name carries it too and the name is rewritten as well
+ * as the attribute values; both apps register the processor, a rule inert in one
+ * being safer than two that can drift apart.
  *
- * Same control as the API's (`apps/api/src/telemetry-redaction.ts`), applied to a
- * different span vocabulary: these spans come from Next.js and `@vercel/otel`, and one of
- * them carries something the API's never do.
- *
- * **The secure-link token is in the URL.** The respondent entry point is `/l/<token>`
- * (task 029), so Next's root span is named from the real pathname (`GET /l/<token>`,
- * exactly as the Next OTel guide documents) and its `http.target` / `url.path` attributes
- * hold the same string. A `lnk_` token is a credential: it may not leave the process in
- * any signal. So this module redacts the **span name** as well as the attribute values,
- * the one place any app rewrites a name rather than dropping a field. Only the Portal
- * serves that route, but both apps register the same processor: a rule that is inert in
- * one of them is safer than two processors that can drift apart.
- *
- * **`lnk_` is the only branded id this module rewrites.** The rest - `frm_`, `stp_`, `q_`,
- * `ses_`, and `ins_` since task 075 - are permitted pseudonymous correlators under SEC-13,
- * so a repeating-group instance id in a path or an attribute value travels untouched. What
- * must not travel is an instance **label**, which is authored `LocalizedText`, or an answer
- * value under a qualified field name; both are dropped by the key allowlist below without
- * being inspected.
- *
- * Everything else follows the API's rules: an allowlist over attribute keys (unknown keys
- * are dropped, not inspected), query strings removed whole, and `exception.message` /
- * `exception.stacktrace` never exported (the message is the one field where an answer
- * value can plausibly end up inside an error string; the stdout log keeps it, correlated
- * by `trace_id`).
- *
- * Registered FIRST in `registerOTel`'s `spanProcessors`, before the exporting processor,
- * so nothing unsanitized is ever queued.
+ * Otherwise the API's rules: an unknown key is dropped rather than inspected, a
+ * query string goes whole, and an exception's message and stack never export,
+ * the message being where an answer value can plausibly end up. Registered
+ * before the exporting processor, so nothing unsanitized is queued.
  */
 
 import type { Attributes } from "@opentelemetry/api";

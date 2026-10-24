@@ -3,35 +3,16 @@ import { afterEach, describe, expect, it } from "vitest";
 
 import { createJsonLogger } from "./logger.js";
 
-/**
- * The logger's own half of the SEC-13 log control.
- *
- * `otlp-log-allowlist.test.ts` covers the processor that runs after this one, and it
- * already proves an `err: { message, stack }` attribute is stripped before export. That
- * left the layer in front of it unasserted: `scalarAttributes()` copies only string,
- * number and boolean fields, so an `Error` (which `redact()` turns into an object) never
- * becomes an OTLP attribute in the first place. Nothing pinned that, so widening
- * `scalarAttributes` to serialize objects would have been caught only by the allowlist,
- * and then only for keys outside its `SAFE_ATTRIBUTES` set.
- *
- * The asymmetry these tests pin is the deliberate one: **stdout is rich, OTLP is poor.**
- * The same call produces a stdout line carrying the message and the stack, for the
- * operator who is already inside the process boundary, and an exported record carrying
- * neither, because that one leaves for a backend outside our erasure reach.
- */
+// The logger's own half of the SEC-13 control, in front of the allowlisting
+// processor: only scalar fields become attributes, so an error, which redaction
+// turns into an object, never becomes one at all.
 
 const ERROR_CANARY = "OTLP_LOGGER_ERROR_CANARY";
 const STACK_CANARY = "OTLP_LOGGER_STACK_CANARY";
 const NESTED_CANARY = "OTLP_LOGGER_NESTED_CANARY";
 
-/**
- * Drive the real logger and capture what it hands OpenTelemetry.
- *
- * Through the documented API seam (`logs.setGlobalLoggerProvider`) rather than by
- * exporting `scalarAttributes` for the test: the property under test is what the
- * production path emits, and a test that reaches past that path can pass while the path
- * itself is broken.
- */
+// Through the documented seam, not the internal helper: a test that reaches
+// past the production path can pass while that path is broken.
 function captureEmittedRecords(): LogRecord[] {
   const records: LogRecord[] = [];
   const logger: OtelLogger = {
@@ -61,21 +42,19 @@ describe("logger to OTLP attributes", () => {
     error.stack = `Error: ${ERROR_CANARY}\n    at ${STACK_CANARY} (redacted.ts:1:1)`;
     logger.error("unhandled error", { requestId: "req_1", status: 500, err: error });
 
-    // Positive control first. An absence assertion over a record that was never emitted,
-    // or that carries no attributes at all, would pass for entirely the wrong reason.
+    // An absence assertion over a record never emitted would pass for the
+    // wrong reason.
     expect(records).toHaveLength(1);
     const record = records[0]!;
     expect(record.body).toBe("unhandled error");
     expect(record.attributes?.requestId).toBe("req_1");
     expect(record.attributes?.status).toBe(500);
 
-    // The object field is dropped rather than serialized.
     expect(record.attributes).not.toHaveProperty("err");
     expect(JSON.stringify(record)).not.toContain(ERROR_CANARY);
     expect(JSON.stringify(record)).not.toContain(STACK_CANARY);
 
-    // And the contrast that makes the drop a decision rather than a loss: the same call's
-    // stdout line keeps both, next to the same requestId.
+    // The same call's stdout line keeps both, which makes the drop a decision.
     expect(lines).toHaveLength(1);
     expect(lines[0]).toContain(ERROR_CANARY);
     expect(lines[0]).toContain(STACK_CANARY);
@@ -100,7 +79,6 @@ describe("logger to OTLP attributes", () => {
 
     expect(records).toHaveLength(1);
     const record = records[0]!;
-    // Positive control: all three scalar kinds survive, so a wholesale drop is excluded.
     expect(record.attributes?.path).toBe("/forms");
     expect(record.attributes?.durationMs).toBe(12);
     expect(record.attributes?.ok).toBe(true);
@@ -109,7 +87,6 @@ describe("logger to OTLP attributes", () => {
     expect(record.attributes).not.toHaveProperty("tags");
     expect(JSON.stringify(record)).not.toContain(NESTED_CANARY);
 
-    // Again the contrast: stdout keeps the structure the export refuses.
     expect(lines[0]).toContain(NESTED_CANARY);
   });
 

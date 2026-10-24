@@ -1,108 +1,28 @@
 import type { LogRecordProcessor, ReadWriteLogRecord } from "@opentelemetry/sdk-logs";
 
 /**
- * The exported event vocabulary. An unlisted `msg` is replaced with
- * `application.event`, which is the correct fail direction for privacy (ADR-34) and a
- * silent one for observability: a new call site simply loses its body in the exported
- * signal. `./otlp-log-allowlist.coverage.test.ts` is what turns that silence into a red
- * - it scans every message literal in the workspace and requires each to be listed here
- * or recorded there as intentionally opaque (issue #490).
+ * The exported event vocabulary. An unlisted `msg` becomes `application.event`,
+ * the correct fail direction for privacy (ADR-34); the coverage test beside this
+ * file requires every message literal in the workspace to be listed here or
+ * recorded there as intentionally opaque. An entry is admissible only when its
+ * body is a constant declared at the call site and the attributes it sets carry
+ * no value a request or a model chose (SEC-8).
  */
 const SAFE_EVENTS = new Set([
-  // The break-glass that clears an administrator's second factor (issue #432).
-  // Admitted because it is the one signal that a factor was removed out of band:
-  // the command has no HTTP surface, so nothing else an observability backend can
-  // see records that it ran, and an operator who wants an alert on "somebody
-  // exercised the recovery path" has this event and nothing else.
-  //
-  // It carries **no attributes at all**, which is the whole of its privacy
-  // argument and is not an accident of the call site. The facts worth knowing
-  // about a reset are an email address and a user id, and this decision names
-  // direct identifiers as never belonging in any exported signal. They are on the
-  // `two_factor_resets` row instead, in the adopter's own database, under the
-  // erasure and retention controls that reach it - which the exported record's
-  // destination is outside of. So what leaves the process is the event name and
-  // its count, by construction rather than by the deletion below.
   "admin two-factor reset",
   "api.call",
   "auth.api.call",
-  // The two retention-sweep redaction records (issue #490). Both are the evidence that a
-  // redaction pass ran, which is the operationally interesting part, and both carry a
-  // count and nothing else: the sweep exists to destroy the bytes it is counting, so a
-  // call site that logged one of them would defeat itself long before this set saw it
-  // (`apps/api/src/schedulers/retention-sweep.ts`).
   "delivery response snippets redacted",
-  // Task 041's two assist records. Both are pass-level metrics an operator watches, and
-  // both are safe for the same reason `origin.belt.refused` is: the body is a constant
-  // declared at the call site, and every attribute either of them sets (`provider`,
-  // `promptVersion`, `steps`, `inputTokens`, `outputTokens`, `finishReason`,
-  // `toolRejected`, `toolErrors`, `tool`, `allowlisted`) is absent from SAFE_ATTRIBUTES
-  // and is therefore deleted below. So what leaves the process is the event name and its
-  // count, never a value.
-  //
-  // That last point is load-bearing for the second one rather than incidental. `tool` on
-  // a rejected call is a name a hostile MODEL chose, which is the one string in this
-  // slice an outside party can influence, and it does not travel. The name that does is
-  // the reason the record exists: an allowlist refusal is the only trace an attempt to
-  // publish, erase, mint a link or read an answer through the assistant leaves anywhere,
-  // and counting those is the whole point of 041's control.
   "draft assistant turn",
   "draft assistant tool call rejected",
-  // The third assist record (issue #818). It exists so a provider refusal an
-  // operator must act on - an account that cannot pay, a key the vendor has
-  // stopped honouring - leaves a trace, because the panel deliberately shows
-  // the operator no vendor detail at all. Safe for exactly the reason the two
-  // above are: the body is a constant declared at the call site, and its three
-  // attributes (`provider`, `retryable`, `statusCode`) are absent from
-  // SAFE_ATTRIBUTES and are deleted below. The vendor message that arrives with
-  // the failure is never one of them - it is not logged at all (SEC-8).
   "draft assistant provider failure",
-  // The accept path's two records (issue #823). Accepting a proposal creates library
-  // questions, so both halves of the outcome are things an operator counts: how often a
-  // proposal is accepted and how many question drafts it produced, and how often one is
-  // refused. `agent proposal refused` is deliberately ONE event covering every way an
-  // accept can be refused - a definition the authoring boundary rejects, an id the
-  // library has used before (R6), a slug already taken - told apart by a `reason`
-  // attribute rather than split across three names. They have the same consequence, the
-  // whole accept fails and nothing is written, and their combined rate is the signal:
-  // a configured model producing definitions this deployment cannot take, which is
-  // visible nowhere else.
-  //
-  // Safe for the reason the three above are, and one of them matters more here. Every
-  // attribute either sets (`formId`, `createdQuestions`, `questionId`, `reason`,
-  // `issues`) is absent from SAFE_ATTRIBUTES and is deleted below, so the event name and
-  // its count are all that leave the process. `questionId` on a refusal is the
-  // load-bearing case: it is an id a MODEL invented, read positionally off a definition
-  // that failed to parse, and it is exactly the kind of outside-influenced string that
-  // must not travel. It does not. Nor does the definition itself, which is never logged
-  // at all (SEC-8).
   "agent proposal accepted",
   "agent proposal refused",
   "handled error",
   "http exception",
   "listening",
-  // A CSRF-belt refusal, from either BFF: the portal's (issue #578) and the admin's
-  // (issue #620) emit the same event name and the same four fields. Admitted to the
-  // export vocabulary rather than collapsed to `application.event` because counting
-  // refusals is the entire point of the line, and what the count means differs by app:
-  // on the portal it is the accepted Fetch Metadata lockout rate an adopter needs to
-  // compare against the estimate, on the admin it is the only trace a cross-origin
-  // probe against the authentication routes leaves anywhere. Which app a record came
-  // from is the exported resource's `service.name`, not an attribute (`service` is a
-  // logger binding and is deleted below with everything else unlisted).
-  //
-  // Safe to export for the reason `apps/portal/lib/server/origin-belt-log.ts` and its
-  // admin twin both set out: every field on this event is a constant declared in those
-  // files, chosen by the request but never written by it.
   "origin.belt.refused",
   "outbox delivery pass",
-  // One environment's delivery pass failed and the loop stepped over it (ADR-40, Q2).
-  // The deliverer starts once per process and iterates the live environment set, so a
-  // pass that ended the whole sweep on one environment's blip would stop another's queue
-  // draining. Exported by name because "which environment's outbox is not moving" is the
-  // question this line exists to answer, and `application.event` answers none of it; the
-  // only field beside the error is `environment`, which is an operator's own name for a
-  // schema and carries no respondent content.
   "outbox delivery pass failed",
   "outbox payload answers redacted",
   "request",
@@ -110,36 +30,12 @@ const SAFE_EVENTS = new Set([
   "scheduler task failed",
   "shutdown complete",
   "shutting down",
-  // The configured environment set and `control.environments` disagree (ADR-40,
-  // criterion 6a). A boot-time misconfiguration an operator has to see by name: the body
-  // is built from environment NAMES only - never a connection string, never a credential
-  // (SEC-8) - and collapsing it to `application.event` would hide the one line that says
-  // why an environment is being served from nowhere. That one **refuses the boot**, so
-  // this record is the last thing the process writes.
   "the environment set and the configuration disagree",
-  // The check could not run at all, as against finding a disagreement. Its own line,
-  // because the two outcomes are handled opposite ways: a disagreement refuses the boot,
-  // and this is usually a database that is not up yet, so the process warns and binds.
-  // Collapsing it would leave an operator unable to tell "the sets disagree" from "the
-  // sets were never compared", which is the difference between a fault and an unknown. The
-  // body is the driver's error and no connection string (SEC-8).
   "could not check the environment set against control.environments",
   "unhandled error",
 ]);
 
 const SAFE_ATTRIBUTES = new Set([
-  // The four fields of `origin.belt.refused`, deliberately prefixed so that widening
-  // this set widens it for one event's classifications and not for a common word a
-  // future caller might hand a raw value under. Each holds a member of a closed
-  // vocabulary declared in `apps/portal/lib/server/origin-belt-log.ts` or in its admin
-  // twin: a path template, how `Sec-Fetch-Site` read, how `Origin` read, and what the
-  // refused party got back. None is copied from the request, so none can carry a
-  // token, a session id, an address or an attacker-chosen string.
-  //
-  // The two apps' vocabularies for these names are disjoint but not identical in size
-  // (`beltOutcome` has four members on the portal and two on the admin), which is a
-  // property of those modules rather than of this set: nothing here enumerates values,
-  // only names.
   "beltRoute",
   "beltFetchSite",
   "beltOrigin",
@@ -151,17 +47,8 @@ const SAFE_ATTRIBUTES = new Set([
   "durationMs",
   "code",
   "errorId",
-  // The environment a per-environment job's line is about (ADR-40, SEC-13; task 067).
-  // The deliverer and the retention sweep each start once per process and iterate the
-  // live set, so every count they log is a count **in** one environment, and a line that
-  // dropped the name would report that an outbox is not draining without saying which
-  // one. Two of the event names above already describe this field as the point of their
-  // record and it did not travel until now.
-  //
-  // Safe to export for the reason `scheduler` is: the value is an operator's own name for
-  // a schema, read out of `control.environments`, matching `^[a-z][a-z0-9]*$`, chosen by
-  // the deployment rather than by any request, and carrying no answer, no token and no
-  // identity. It is the log half of the same decision `qcms.environment` is on spans.
+  // An operator's own name for an environment or a schema, chosen by the
+  // deployment rather than by a request (ADR-40, SEC-13).
   "environment",
   "scheduler",
   "expiredCount",
@@ -184,8 +71,8 @@ function allowlist(record: ReadWriteLogRecord): void {
 }
 
 /**
- * SEC-13 runs synchronously before the batch processor can retain a record.
- * It exports no data itself; the next processor owns buffering and delivery.
+ * Runs synchronously, before the batch processor can retain a record (SEC-13).
+ * Exports nothing itself: the next processor owns buffering and delivery.
  */
 export function allowlistingLogRecordProcessor(): LogRecordProcessor {
   return {

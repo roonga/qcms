@@ -17,21 +17,14 @@ import type { A2UIDocument, CompiledForm } from "./types.js";
 import { A2UI_SPEC_VERSION, COMPILER_VERSION } from "./version.js";
 
 /**
- * `compileForm` - the pure projection from meaning to view (task 011,
- * ARCHITECTURE §3): a published {@link FrozenSnapshot} → one A2UI document per
- * step, stamped with the compiler and A2UI-spec versions (ADR-18, the stored
- * copy is served forever). Deterministic and side-effect free; depends on
- * `@roonga/qcms-core` types only - never `db`, never React, never a runtime
- * `@a2ra/core` import.
- *
- * Preconditions (a valid snapshot from `compileDraft`, task 008): every pinned
- * `QuestionRef` resolves within `snapshot.questions`, and every `LocalizedText`
- * carries the form's `defaultLocale` (publish invariants I2/I3). Violations are
- * caller bugs, not expected failures, so they throw rather than returning a
- * typed error (CONTRIBUTING: exceptions are for bugs only).
+ * The pure projection from meaning to view (ARCHITECTURE §3): one A2UI document
+ * per step, version-stamped because the stored copy is served forever (ADR-18).
+ * Depends on kernel types alone: never the database, never React, never a
+ * runtime `@a2ra/core` import. It presumes a published snapshot, so an
+ * unresolved pin or a missing default locale (I2, I3) throws (CONTRIBUTING).
  */
 
-/** Key a pin by identity + version (a question may be pinned at several versions). */
+/** A question may be pinned at several versions, so identity alone is no key. */
 function pinKey(questionId: string, version: number): string {
   return `${questionId} ${String(version)}`;
 }
@@ -64,11 +57,7 @@ function textResolver(locale: LocaleCode, defaultLocale: LocaleCode): TextResolv
   };
 }
 
-/**
- * Compile a snapshot through an explicit {@link StepResolver} - the seam entry
- * point. `compileForm` is this with the {@link staticStepResolver}; a Phase-4
- * adaptive resolver (or a test double) is injected here (`docs/agent-seam.md`).
- */
+/** The seam entry point: a resolver or test double is injected here. */
 export function compileFormWith(
   resolver: StepResolver,
   snapshot: FrozenSnapshot,
@@ -98,10 +87,7 @@ export function compileFormWith(
   };
 }
 
-/**
- * Compile a published snapshot to its A2UI documents (one per step, keyed by
- * `stepId`) using the launch static resolver.
- */
+/** Compile a published snapshot through the launch static resolver. */
 export function compileForm(
   snapshot: FrozenSnapshot,
   options: { locale?: LocaleCode },
