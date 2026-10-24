@@ -2,7 +2,6 @@ import { describe, expect, it } from "vitest";
 
 import { responseExportFileName } from "./file-name.js";
 
-/** The name carries the environment, and all three shapes carry it alike. */
 describe("responseExportFileName", () => {
   it("names the environment in every shape", () => {
     expect(
@@ -27,8 +26,8 @@ describe("responseExportFileName", () => {
   });
 
   it("tells two environments' exports of one form and version apart", () => {
-    // Otherwise these are one file name on an operator's desktop, and a report
-    // built from the wrong one looks exactly like one built from the right one.
+    // Otherwise these are one name on an operator's desktop, and a report built
+    // from the wrong file looks exactly like one built from the right one.
     const base = { formId: "frm_x", version: 1, extension: "csv" } as const;
     expect(responseExportFileName({ ...base, environment: "prod" })).not.toBe(
       responseExportFileName({ ...base, environment: "test" }),

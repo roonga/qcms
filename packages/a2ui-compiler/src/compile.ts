@@ -18,13 +18,10 @@ import { A2UI_SPEC_VERSION, COMPILER_VERSION } from "./version.js";
 
 /**
  * The pure projection from meaning to view (ARCHITECTURE §3): one A2UI document
- * per step, stamped with the compiler and spec versions, because the stored copy
- * is served forever (ADR-18). Depends on kernel types alone: never the database,
- * never React, never a runtime `@a2ra/core` import.
- *
- * It presumes a published snapshot, so a pin that does not resolve or a text
- * missing the default locale (I2, I3) is a caller bug and throws rather than
- * returning a typed error (CONTRIBUTING).
+ * per step, version-stamped because the stored copy is served forever (ADR-18).
+ * Depends on kernel types alone: never the database, never React, never a
+ * runtime `@a2ra/core` import. It presumes a published snapshot, so an
+ * unresolved pin or a missing default locale (I2, I3) throws (CONTRIBUTING).
  */
 
 /** A question may be pinned at several versions, so identity alone is no key. */
@@ -60,10 +57,7 @@ function textResolver(locale: LocaleCode, defaultLocale: LocaleCode): TextResolv
   };
 }
 
-/**
- * The seam entry point: an adaptive resolver or a test double is injected here
- * (`docs/agent-seam.md`).
- */
+/** The seam entry point: a resolver or test double is injected here. */
 export function compileFormWith(
   resolver: StepResolver,
   snapshot: FrozenSnapshot,

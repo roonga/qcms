@@ -1,18 +1,13 @@
-/**
- * Two policies over the same two protections, so the table runs against both:
- * whatever differs between the exports, the guard does not. Fixture text is
- * deliberately inert rather than a working spreadsheet payload, and no cell
- * content is logged (SEC-8).
- */
+// The table runs against both policies: whatever differs between the exports,
+// the guard does not. Fixture text is deliberately inert.
 
 import { describe, expect, it } from "vitest";
 
 import { csvField, csvFieldAlwaysQuoted } from "./index.js";
 
-/** Every character a spreadsheet may read as the start of a formula. */
 const DANGEROUS_LEADS = ["=", "+", "-", "@", "\t", "\r"] as const;
 
-/** The cell text as a spreadsheet sees it, with any quoting undone. */
+/** The cell as a spreadsheet sees it, with any quoting undone. */
 function cellText(emitted: string): string {
   if (!emitted.startsWith('"')) return emitted;
   return emitted.slice(1, -1).replaceAll('""', '"');
@@ -37,8 +32,7 @@ for (const { name, field } of POLICIES) {
       expect(cellText(field('=FIXTURE,"one"'))).toBe('\'=FIXTURE,"one"');
     });
 
-    // The positive control: a guard that mangled everything would pass the
-    // cases above.
+    // A guard that mangled everything would pass the cases above.
     it("leaves an ordinary value's text exactly as given", () => {
       for (const ordinary of ["no thank you", "2 + 2 is 4", "opt_a;opt_b", "a-b", "x@y", ""]) {
         expect(cellText(field(ordinary))).toBe(ordinary);
@@ -51,8 +45,8 @@ for (const { name, field } of POLICIES) {
   });
 
   describe(`${name}: the numeric exemption (issue #476)`, () => {
-    // A plain decimal cannot be evaluated as an expression, so guarding it
-    // protects nothing and turns a number the author wants to sum into text.
+    // Guarding a plain decimal protects nothing and turns a number the author
+    // wants to sum into text.
     const EXEMPT = ["-5", "-5.25", "-0", "-0.5", "5", "0", "42", "3.5"];
     for (const value of EXEMPT) {
       it(`leaves the plain number ${JSON.stringify(value)} unprefixed`, () => {
@@ -81,7 +75,6 @@ for (const { name, field } of POLICIES) {
     }
 
     it("discriminates -5 from -1+1 in one assertion", () => {
-      // The boundary the exemption turns on, asserted rather than assumed.
       expect(cellText(field("-5"))).toBe("-5");
       expect(cellText(field("-1+1"))).toBe("'-1+1");
     });
@@ -107,8 +100,8 @@ describe("the two quoting policies stay different", () => {
   });
 
   it("guarding never changes the quoting decision", () => {
-    // The apostrophe does not oblige quoting, so a guarded field is bare
-    // exactly where the same field would have been.
+    // The apostrophe does not oblige quoting, so the guard cannot move a
+    // field's quoting.
     expect(csvField("=FIXTURE_PAYLOAD")).toBe("'=FIXTURE_PAYLOAD");
     expect(csvField("=FIXTURE,PAYLOAD")).toBe('"\'=FIXTURE,PAYLOAD"');
   });

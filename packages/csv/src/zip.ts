@@ -1,37 +1,18 @@
 /**
- * A streaming ZIP container for multi-file exports: the long CSV shape for a
- * form with a repeating group is `responses.csv` plus one file per group, so it
- * downloads as a zip, while a form with no group downloads the single file it
- * always did and no existing pipeline moves.
+ * A streaming ZIP container for multi-file exports. Hand-written because it has
+ * to be fetch-pure (R4) and to stream: a library taking a buffer would undo the
+ * export's memory bound for exactly the forms that need a zip most.
  *
- * Hand-written rather than taken as a dependency because it has to be fetch-pure
- * (R4) and to stream: the response export is memory-bounded by contract, keyset
- * paging the reporting view, and a library that takes a buffer would undo that
- * for exactly the forms that need the zip most. It sits beside the field helpers
- * so the export's byte-level encoding stays one thing in one place.
+ * Every entry is stored, never deflated, and sets flag bit 3 with a trailing
+ * data descriptor (APPNOTE 4.3.9), since a CRC and the two sizes are unknown
+ * until the entry's last byte. The DOS timestamp is fixed rather than read from
+ * the clock, so two zips of the same data are byte-identical.
  *
- * Every entry is stored, never deflated. Compression would mean a second
- * encoder, a second mid-stream failure mode and an output size unknown until the
- * end, and the operator downloads over HTTP, where content encoding is the
- * transport's job.
- *
- * A local header has to carry a CRC and two sizes, none of them known until the
- * entry's last byte, so each entry sets flag bit 3, writes zeroes there, and
- * writes a data descriptor after the data (APPNOTE 4.3.9). Without it the writer
- * would have to know an entry's size before its first byte, which means
- * buffering the entry.
- *
- * Every entry takes the same fixed DOS timestamp, so two zips of the same data
- * are byte-identical and a golden test can assert bytes. The clock is
- * deliberately not consulted.
- *
- * The archive is non-ZIP64, so no entry and no archive may reach 4 GiB and an
- * archive holds at most 65,535 entries. The limit is checked rather than
- * assumed: exceeding it errors with a message naming the limit instead of
- * emitting a truncated archive a reader would silently misparse.
+ * Non-ZIP64: no entry or archive may reach 4 GiB and an archive holds at most
+ * 65,535 entries. Exceeding either errors rather than emitting an archive a
+ * reader would silently misparse.
  */
 
-/** Names are written UTF-8, which is what flag bit 11 announces. */
 const encoder = new TextEncoder();
 
 const LOCAL_HEADER_SIGNATURE = 0x04034b50;
@@ -39,13 +20,12 @@ const DATA_DESCRIPTOR_SIGNATURE = 0x08074b50;
 const CENTRAL_HEADER_SIGNATURE = 0x02014b50;
 const END_OF_CENTRAL_DIRECTORY_SIGNATURE = 0x06054b50;
 
-/** Version 2.0: stored entries with a data descriptor need nothing newer. */
+/** Stored entries with a data descriptor need nothing newer than 2.0. */
 const VERSION_NEEDED = 20;
-/** Bit 3 = sizes follow in a data descriptor; bit 11 = the name is UTF-8. */
+/** Bit 3: sizes follow in a data descriptor. Bit 11: the name is UTF-8. */
 const FLAGS = 0x0008 | 0x0800;
-/** Method 0 = stored. */
 const METHOD_STORED = 0;
-/** 1980-01-01 00:00 in DOS form, so an archive is a function of its data alone. */
+/** 1980-01-01 00:00, so an archive is a function of its data alone. */
 const DOS_TIME = 0;
 const DOS_DATE = 0x0021;
 
@@ -53,7 +33,7 @@ const UINT32_MAX = 0xffff_ffff;
 const UINT16_MAX = 0xffff;
 
 export interface ZipEntry {
-  /** The path inside the archive, forward slashes, UTF-8. */
+  /** The path inside the archive: forward slashes, UTF-8. */
   readonly name: string;
   /** An empty iterable is an empty file. */
   readonly content: AsyncIterable<Uint8Array> | Iterable<Uint8Array>;
@@ -68,8 +48,8 @@ interface WrittenEntry {
 }
 
 /**
- * The CRC-32 table (IEEE 802.3 polynomial, reflected), built on first use so
- * that a process which only serializes CSV fields never builds it.
+ * The CRC-32 table (IEEE 802.3 polynomial, reflected), built on first use so a
+ * process that only serializes CSV fields never builds it.
  */
 let crcTable: Uint32Array | undefined;
 
@@ -87,10 +67,7 @@ function table(): Uint32Array {
   return built;
 }
 
-/**
- * The running value is carried pre-inverted and inverted once at the end, which
- * is why {@link crcFinish} exists rather than this returning the final value.
- */
+/** Carries the running value pre-inverted; {@link crcFinish} inverts it once. */
 function crcUpdate(crc: number, chunk: Uint8Array): number {
   const lookup = table();
   let value = crc;
@@ -213,18 +190,11 @@ interface OpenEntry {
 /**
  * A ZIP archive of `entries`, as a web `ReadableStream` of bytes.
  *
- * One unit of work per `pull`, and that is the whole of the memory bound. A
- * `ReadableStream` applies backpressure by not calling `pull` again, and
- * `enqueue` never blocks, so a `pull` that walked a whole entry would queue
- * every page of that file the moment the first byte was asked for. Each `pull`
- * therefore does one thing: open the next entry, take one chunk, close the
- * entry, or finish the archive. Demand propagates one chunk at a time back to
- * whatever produces the content, which for the response export is one keyset
- * page per chunk.
- *
- * Entries are consumed in order and lazily, the next asked for only once the
- * previous is closed, which is what lets a caller make each entry its own pass
- * over a paged query without holding two.
+ * One unit of work per `pull`, which is the whole of the memory bound: `enqueue`
+ * never blocks, so a `pull` that walked a whole entry would queue every page of
+ * it on the first read. Entries are consumed lazily and in order, the next asked
+ * for only once the previous is closed, so a caller can make each entry its own
+ * pass over a paged query without holding two.
  */
 export function zipStream(
   entries: AsyncIterable<ZipEntry> | Iterable<ZipEntry>,
@@ -295,10 +265,9 @@ export function zipStream(
         await openNext(controller);
         return;
       }
-      // Exactly one non-empty chunk per `pull`. An empty chunk is skipped inside
-      // this call rather than returned from it, because a `pull` that enqueues
-      // nothing is not called again and the stream would stall with a read
-      // outstanding. Skipping costs nothing: an empty chunk is no bytes.
+      // An empty chunk is skipped inside this call rather than returned: a
+      // `pull` that enqueues nothing is not called again, so the stream would
+      // stall with a read outstanding.
       for (;;) {
         const step = await entry.content.next();
         if (step.done === true) {

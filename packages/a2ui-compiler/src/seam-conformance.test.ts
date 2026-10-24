@@ -1,4 +1,4 @@
-// The public barrel, so this file imports exactly what a consumer can.
+// The public barrel: this file may import only what a consumer can.
 import {
   compileForm,
   compileFormWith,
@@ -18,13 +18,8 @@ import {
 } from "@roonga/qcms-core";
 import { describe, expect, it } from "vitest";
 
-/**
- * Proves the resolver seam (ARCHITECTURE §12) is implementable from outside the
- * package: an adaptive resolver would sit exactly where this test double sits,
- * and the compiler routes every step through it while still owning the stamps.
- */
+// An adaptive resolver would sit exactly where this test double sits.
 
-/** Built through the real publish path, so the snapshot is a genuine one. */
 function buildSnapshot(): FrozenSnapshot {
   const en = (value: string): { en: string } => ({ en: value });
   const rawQuestions = [
@@ -90,8 +85,7 @@ const snapshot = buildSnapshot();
 
 describe("StepResolver seam is implementable from the public surface", () => {
   it("routes every step through an externally-authored resolver double", () => {
-    // Written against the exported types alone, as an external resolver would
-    // have to be.
+    // Exported types alone, as an external resolver would have to be.
     const seen: string[] = [];
     const stub: StepResolver = {
       resolveStep: (step: Step, context: StepResolverContext): A2UIDocument => {
@@ -114,7 +108,6 @@ describe("StepResolver seam is implementable from the public surface", () => {
       { stepId: "stp_one", root: { type: "Text", props: { as: "h2" }, children: "first:One" } },
       { stepId: "stp_two", root: { type: "Text", props: { as: "h2" }, children: "rest:Two" } },
     ]);
-    // The compiler owns the stamps rather than the resolver.
     expect(compiled.compilerVersion).toBe("0.3.0");
     expect(compiled.a2uiSpecVersion).toBe("1.0.0-preview.7");
   });

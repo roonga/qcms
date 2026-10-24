@@ -4,24 +4,16 @@ import type { LocaleCode, LocalizedText, QuestionDefinition } from "@roonga/qcms
 import type { A2UINode } from "./types.js";
 
 /**
- * Question-type to A2UI component mapping (`docs/a2ui-mapping.md`).
- *
- * A constraint-derived prop is an advisory client-side hint; server-side domain
- * validation is the authority.
- *
- * No control sets `errorMessage`: that is the per-question error slot the
- * renderer fills from server validation, routed by `name`. A control may carry
- * `messages` (ADR-32), which is presentation payload for that slot and never
- * something the renderer or the kernel evaluates.
+ * Question-type to A2UI component mapping (`docs/a2ui-mapping.md`). A
+ * constraint-derived prop is an advisory hint; server-side validation is the
+ * authority, and no control sets `errorMessage`: that slot is the renderer's to
+ * fill from server validation, routed by `name`.
  */
 
 /** Resolves a {@link LocalizedText} to a display string for the active locale. */
 export type TextResolver = (text: LocalizedText) => string;
 
-/**
- * Above this option count a `singleChoice` compiles to a `Select` rather than a
- * `RadioGroup`. A compiler constant, frozen into output by `compilerVersion`.
- */
+/** Above this count a `singleChoice` compiles to a `Select`, not a `RadioGroup`. */
 export const SINGLE_CHOICE_SELECT_THRESHOLD = 7;
 
 /** The wire values a boolean question's two radios carry. */
@@ -29,12 +21,9 @@ export const BOOLEAN_TRUE_VALUE = "true";
 export const BOOLEAN_FALSE_VALUE = "false";
 
 /**
- * The boolean child-label lexicon, keyed by the active locale's language subtag
- * with an English fallback. A compiler constant frozen into output.
- *
- * It is the default rather than the only source: a question may carry authored
- * labels (ADR-36), and each falls back here on its own, so overriding one leaves
- * the other on the lexicon. The wire values are untouched either way.
+ * The boolean child-label lexicon, by language subtag with an English fallback.
+ * A default, not the only source: authored labels override it one at a time
+ * (ADR-36), and the wire values never move.
  */
 type Affirmation = { readonly yes: string; readonly no: string };
 
@@ -50,7 +39,7 @@ function affirmationFor(locale: LocaleCode): Affirmation {
   return BOOLEAN_AFFIRMATION[language] ?? BOOLEAN_AFFIRMATION.en;
 }
 
-/** Insertion order is preserved, because the output is byte-compared. */
+/** Insertion order matters: the output is byte-compared. */
 function compact(props: Record<string, unknown>): Readonly<Record<string, unknown>> {
   const out: Record<string, unknown> = {};
   for (const [key, value] of Object.entries(props)) {
@@ -63,11 +52,9 @@ function compact(props: Record<string, unknown>): Readonly<Record<string, unknow
 
 /**
  * The author-supplied validation messages for one question, resolved for the
- * active locale (ADR-32). `undefined` when the author supplied none, so the
- * prop is dropped and such a question compiles byte-for-byte as before.
- *
- * Keys are emitted in the kernel's canonical order rather than the authored
- * object's, so the compiled document is a function of content alone (ADR-18).
+ * active locale (ADR-32). `undefined` drops the prop, so a question without
+ * them compiles as before. Keys follow the kernel's canonical order, so the
+ * document is a function of content alone (ADR-18).
  */
 function authorMessages(
   question: QuestionDefinition,
@@ -107,11 +94,7 @@ function checkboxChild(value: string, label: string): A2UINode {
   return { type: "Checkbox", props: { value, label } };
 }
 
-/**
- * Compile one pinned question to its A2UI control node. The switch is
- * exhaustive with a `never` default, so adding a question type without mapping
- * it is a build error.
- */
+/** Compile one pinned question to its A2UI control node. */
 export function questionToNode(
   question: QuestionDefinition,
   resolve: TextResolver,
@@ -155,8 +138,6 @@ export function questionToNode(
         }),
       };
     case "boolean": {
-      // Each label falls back on its own (ADR-36), and the wire values never
-      // move.
       const lexicon = affirmationFor(locale);
       const yes = question.yesLabel === undefined ? lexicon.yes : resolve(question.yesLabel);
       const no = question.noLabel === undefined ? lexicon.no : resolve(question.noLabel);

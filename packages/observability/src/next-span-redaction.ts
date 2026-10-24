@@ -1,27 +1,14 @@
 /**
- * Allowlist redaction for the Next apps' exported spans (SEC-13, ADR-34). The
- * same control as the API's, over a different span vocabulary, and one of these
- * spans carries something the API's never do.
+ * Allowlist redaction for the Next apps' exported spans (SEC-13, ADR-34), the
+ * API's control over a different vocabulary. The secure-link token is in the
+ * URL, so the root span's name carries it too and the name is rewritten as well
+ * as the attribute values; both apps register the processor, a rule inert in one
+ * being safer than two that can drift apart.
  *
- * The secure-link token is in the URL, so Next's root span is named from the
- * real pathname and its path attributes hold the same string. That token is a
- * credential and may not leave the process in any signal, so this module
- * rewrites the span name as well as the attribute values. Only one app serves
- * that route, and both register the processor: a rule inert in one of them is
- * safer than two processors that can drift apart.
- *
- * The link token is the only branded id rewritten here; the rest are permitted
- * pseudonymous correlators under SEC-13. An instance label, which is authored
- * text, and an answer value under a qualified field name are dropped by the key
- * allowlist without being inspected.
- *
- * Otherwise the API's rules: unknown attribute keys are dropped rather than
- * inspected, a query string is removed whole, and an exception's message and
- * stack trace are never exported, the message being the one field where an
- * answer value can plausibly end up. The stdout log keeps it, correlated by
- * trace id.
- *
- * Registered before the exporting processor, so nothing unsanitized is queued.
+ * Otherwise the API's rules: an unknown key is dropped rather than inspected, a
+ * query string goes whole, and an exception's message and stack never export,
+ * the message being where an answer value can plausibly end up. Registered
+ * before the exporting processor, so nothing unsanitized is queued.
  */
 
 import type { Attributes } from "@opentelemetry/api";

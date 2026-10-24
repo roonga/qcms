@@ -10,28 +10,15 @@ import { describe, expect, it } from "vitest";
 
 import { createJsonLogger } from "./logger.js";
 
-/**
- * The emitted line's key order, pinned rather than described. Every other
- * assertion over a log line parses it first, and both `JSON.parse` and
- * `toMatchObject` are order-blind, so a described order went unenforced and
- * reached the operator documentation wrong.
- *
- * The order is a contract for two reasons an order-blind assertion cannot cover:
- * the operator documentation prints example lines copied into a `jq` filter or
- * diffed against captured bytes, and the level and time leading every line is
- * what makes a raw log tail readable before anything parses it.
- *
- * These read the raw string from the sink, never a parsed object.
- */
+// The key order is a contract: `docs/operations.md` prints example lines copied
+// into a `jq` filter, and the level and time leading a line is what makes a raw
+// tail readable. Every other assertion parses first and is order-blind, so these
+// read the raw string from the sink.
 
 const FIXED_TIME = "2026-08-31T00:00:00.000Z";
 
-/**
- * A synchronous context manager, so `trace.getActiveSpan()` answers inside
- * `context.with`: the API package's default is a no-op under which the
- * correlation branch would be unreachable. Four lines of state beats pulling the
- * whole SDK into this package's devDependencies to activate one span.
- */
+// So `trace.getActiveSpan()` answers inside `context.with`: the API package's
+// default is a no-op, under which the correlation branch is unreachable.
 let currentContext: Context = ROOT_CONTEXT;
 const syncContextManager: ContextManager = {
   active: () => currentContext,
@@ -62,7 +49,6 @@ function capture(base?: Record<string, unknown>) {
   return { logger, lines };
 }
 
-/** In the order the serializer wrote them. */
 function keysOf(line: string): string[] {
   return Object.keys(JSON.parse(line) as Record<string, unknown>);
 }
@@ -84,8 +70,6 @@ describe("emitted line shape", () => {
   });
 
   it("puts msg last on a bare call too, not third", () => {
-    // A line with no bindings and no fields is the one case where the keys agree
-    // whatever the order, which is why the smallest example proves nothing.
     const { logger, lines } = capture();
     logger.warn("bare");
     expect(keysOf(lines[0]!)).toEqual(["level", "time", "msg"]);
@@ -93,16 +77,13 @@ describe("emitted line shape", () => {
   });
 
   it("places the trace correlation between the bindings and the fields", () => {
-    // The only part of the shape that appears conditionally, so it gets its own
-    // case rather than riding on the first test's ordering.
     const span = trace.wrapSpanContext({
       traceId: "0af7651916cd43dd8448eb211c80319c",
       spanId: "b7ad6b7169203331",
       traceFlags: TraceFlags.SAMPLED,
     });
     const { logger, lines } = capture({ service: "qcms-api" });
-    // The global context manager is process-wide state, so it is installed and
-    // removed inside this test: an assertion that threw would otherwise leave it
+    // Process-wide state: a throw here would otherwise leave the manager
     // installed for whatever ran next in this worker.
     context.setGlobalContextManager(syncContextManager);
     try {
@@ -125,8 +106,7 @@ describe("emitted line shape", () => {
   });
 
   it("emits one line per call with no trailing newline", () => {
-    // `write` is handed exactly one line, and adding the newline is the sink's
-    // job.
+    // `write` is handed one line; the newline is the sink's job.
     const { logger, lines } = capture();
     logger.info("first");
     logger.error("second");

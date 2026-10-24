@@ -36,10 +36,7 @@ describe("OTLP log allowlist", () => {
   });
 
   it("keeps the environment a per-environment job's line is about (task 067, SEC-13)", () => {
-    // Every count a per-environment job logs is a count in one environment, so a
-    // line without the name does not say which outbox is not draining. Safe for
-    // the reason `scheduler` is: the value is an operator's own name for a
-    // schema and names no respondent.
+    // An operator's own name for an environment, naming no respondent.
     const attributes: Record<string, unknown> = {
       environment: "test",
       redactedCount: 3,

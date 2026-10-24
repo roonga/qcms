@@ -12,13 +12,8 @@ import { compileForm } from "./compile.js";
 import { BOOLEAN_AFFIRMATION, BOOLEAN_FALSE_VALUE, BOOLEAN_TRUE_VALUE } from "./mapping.js";
 import type { A2UINode } from "./types.js";
 
-/**
- * Author-supplied validation messages (ADR-32) and boolean label overrides
- * (ADR-36) at the compiler seam. The golden corpus owns the byte-level
- * contract; this file owns the shape of the forwarding: which prop carries
- * what, the per-label and per-constraint fallback, key-order determinism, and
- * that the wire values never move.
- */
+// The golden corpus owns the byte-level contract; this file owns the shape of
+// the forwarding (ADR-32, ADR-36).
 
 const en = (value: string): { en: string } => ({ en: value });
 
@@ -124,8 +119,7 @@ describe("author-supplied validation messages (ADR-32)", () => {
 
   it("carries only the constraints the author decorated (per-constraint fallback)", () => {
     const node = controlFor([{ ...PLATE, messages: { maxLength: en("At most 8") } }], "q_plate");
-    // The undecorated constraints are absent, so the portal falls back to its
-    // own catalog for them.
+    // Absent, so the portal falls back to its own catalog for them.
     expect(Object.keys(node.props?.messages as Record<string, string>)).toEqual(["maxLength"]);
   });
 

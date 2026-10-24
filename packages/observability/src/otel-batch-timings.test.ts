@@ -2,16 +2,8 @@ import { describe, expect, it } from "vitest";
 
 import { batchLogExportTimings, batchSpanExportTimings } from "./otel-batch-timings.js";
 
-/**
- * The defect this module closes is invisible: a schedule delay set in the
- * environment reached no processor, nothing failed, and the only symptom was a
- * telemetry poll with a fraction of the margin it claimed.
- *
- * So these pin the two halves silence can hide: a value that is set arrives as a
- * number a processor can be constructed with, and an unset variable resolves to
- * the default the SDK would have applied anyway, which is what makes passing
- * these options explicit a no-op for a deployment that configures nothing.
- */
+// The two halves silence can hide: a set value arrives as a number a processor
+// can be constructed with, and an unset one resolves to the SDK's own default.
 describe("batchSpanExportTimings", () => {
   it("falls back to the specification defaults when nothing is configured", () => {
     expect(batchSpanExportTimings({})).toEqual({
@@ -71,17 +63,8 @@ describe("batchLogExportTimings", () => {
     );
   });
 
-  /**
-   * A rejected shape falls back rather than throwing, because a mistyped
-   * telemetry variable must not stop a process serving requests. The cases that
-   * matter are the ones a permissive parser would read as plausible numbers,
-   * since those turn a typo into a timing nobody would question.
-   *
-   * Zero is a rejection rather than a parse failure, and diverges from the
-   * upstream shim: a zero delay stops batching rather than shortening it. The
-   * floor is documented in `docs/operations.md`, and one is accepted, so nothing
-   * blocks a deployment that wants the promptest batch this pipeline offers.
-   */
+  // The cases that matter are the ones a permissive parser would read as
+  // plausible numbers, a typo otherwise becoming a timing nobody questions.
   it.each([
     ["not a number", "soon"],
     ["a unit suffix", "500ms"],

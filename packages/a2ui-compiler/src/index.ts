@@ -1,8 +1,7 @@
 /**
- * The `@roonga/qcms-a2ui-compiler` public surface: the pure projection from a
- * published snapshot to A2UI documents, plus the step-resolver seam
- * (ARCHITECTURE §12). The runtime is React-free and depends on kernel types
- * alone, never on a runtime `@a2ra/core` import.
+ * The pure projection from a published snapshot to A2UI documents, plus the
+ * step-resolver seam (ARCHITECTURE §12). React-free, and never a runtime
+ * `@a2ra/core` import.
  */
 export { compileForm, compileFormWith } from "./compile.js";
 

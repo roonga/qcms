@@ -1,10 +1,5 @@
-/**
- * The archive is parsed back by reading its own records rather than by shelling
- * out: the package has no dependencies and the record layout is the thing under
- * test, so a reader written against APPNOTE is the assertion. The central
- * directory and the data descriptors are cross-checked against each other,
- * which is what a real reader does first.
- */
+// The record layout is the thing under test, so the archive is parsed back by a
+// reader written against APPNOTE rather than by shelling out.
 
 import { describe, expect, it } from "vitest";
 
@@ -35,14 +30,13 @@ function text(name: string, body: string): ZipEntry {
   return { name, content: [encoder.encode(body)] };
 }
 
-/** What a reader takes from the end of the archive. */
 interface Parsed {
   readonly entries: ReadonlyArray<{ name: string; crc: number; size: number; body: string }>;
 }
 
 function parse(bytes: Uint8Array): Parsed {
   const view = new DataView(bytes.buffer, bytes.byteOffset, bytes.byteLength);
-  // The end record is the last 22 bytes, these archives carrying no comment.
+  // These archives carry no comment, so the end record is the last 22 bytes.
   const end = bytes.length - 22;
   expect(view.getUint32(end, true)).toBe(0x06054b50);
   const count = view.getUint16(end + 10, true);
@@ -96,14 +90,13 @@ describe("zipStream", () => {
   });
 
   it("computes the CRC-32 the format specifies", async () => {
-    // The standard's own check value, which pins this implementation against
+    // The standard's own check value, so this pins the implementation against
     // the standard rather than against itself.
     const bytes = await collect(zipStream([text("check.txt", "123456789")]));
     expect(parse(bytes).entries[0]!.crc).toBe(0xcbf4_3926);
   });
 
   it("joins an entry's chunks into one file", async () => {
-    // A sync generator, which the entry accepts, and which needs no await.
     function* chunked(): Iterable<Uint8Array> {
       yield encoder.encode("one,");
       yield encoder.encode("two,");
@@ -115,9 +108,8 @@ describe("zipStream", () => {
   });
 
   it("pulls each entry only when the previous one is written", async () => {
-    // The export makes each entry its own pass over a keyset-paged query, so
-    // asking for the next entry early would mean two live cursors and two
-    // pages in memory.
+    // Each entry is its own pass over a keyset-paged query, so asking early
+    // would mean two live cursors in memory.
     const order: string[] = [];
     function* entries(): Iterable<ZipEntry> {
       order.push("ask:1");
@@ -142,12 +134,9 @@ describe("zipStream", () => {
   });
 
   it("produces at most one chunk ahead of demand, so the memory bound is real", async () => {
-    // A `ReadableStream` applies backpressure only by withholding the next
-    // `pull`, since `enqueue` never blocks, so a `pull` that walked a whole
-    // entry would queue every page of that file on the first read.
-    //
-    // The generator counts its own yields, which makes this a demand test
-    // rather than an ordering one.
+    // `enqueue` never blocks, so a `pull` that walked a whole entry would queue
+    // every page of it on the first read. The generator counts its own yields,
+    // which makes this a demand test rather than an ordering one.
     let produced = 0;
     function* counted(): Iterable<Uint8Array> {
       for (let index = 0; index < 200; index += 1) {
@@ -157,18 +146,16 @@ describe("zipStream", () => {
     }
 
     const reader = zipStream([{ name: "big.csv", content: counted() }]).getReader();
-    // The first read is the local header, the one chunk the stream queued on
-    // construction, so nothing has been asked of the content yet.
+    // The local header is the one chunk queued on construction, so nothing has
+    // been asked of the content yet.
     const first = await reader.read();
     expect(first.value?.length).toBe(30 + "big.csv".length);
     expect(produced).toBe(0);
 
-    // Taking it lets one more `pull` run, which takes one chunk. Then nothing:
-    // no reader, no demand, no production.
+    // Taking it lets one more `pull` run. Then nothing: no demand, no work.
     await new Promise((resolve) => setTimeout(resolve, 100));
     expect(produced).toBe(1);
 
-    // One more read moves it by one, rather than by the rest of the file.
     await reader.read();
     await new Promise((resolve) => setTimeout(resolve, 100));
     expect(produced).toBe(2);
@@ -185,8 +172,7 @@ describe("zipStream", () => {
   it("writes UTF-8 names and says so in the flags", async () => {
     const bytes = await collect(zipStream([text("réponses.csv", "x")]));
     const view = new DataView(bytes.buffer);
-    // Flag bit 11 is what keeps a non-ASCII name readable to a reader rather
-    // than codepage-guessed.
+    // Flag bit 11 keeps a non-ASCII name from being codepage-guessed.
     expect(view.getUint16(6, true) & 0x0800).toBe(0x0800);
     expect(parse(bytes).entries[0]!.name).toBe("réponses.csv");
   });

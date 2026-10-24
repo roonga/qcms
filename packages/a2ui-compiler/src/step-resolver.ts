@@ -13,16 +13,12 @@ import { repeatGroupNode } from "./repeat-group.js";
 import type { A2UIDocument, A2UINode } from "./types.js";
 
 /**
- * The step-resolver seam (ARCHITECTURE §12), reserved for an adaptive resolver
- * implementing the same interface (`docs/agent-seam.md`). The seam is
- * compile-time: the serving path never sees an LLM (ADR-25) and serves the
- * stored document (ADR-18).
+ * The step-resolver seam (ARCHITECTURE §12, `docs/agent-seam.md`). Compile-time
+ * only: the serving path never sees an LLM (ADR-25) and serves the stored
+ * document (ADR-18).
  */
 
-/**
- * Everything a resolver needs to compile one step. The resolver does no I/O and
- * no lookups of its own, mirroring the kernel's R3 discipline.
- */
+/** Everything a resolver needs to compile one step; it does no I/O (R3). */
 export interface StepResolverContext {
   readonly snapshot: FrozenSnapshot;
   readonly locale: LocaleCode;
@@ -34,30 +30,19 @@ export interface StepResolverContext {
 
 /**
  * One call per step, returning that step's document. Deterministic for the
- * static implementation; an adaptive one may branch on answers threaded through
- * a richer context in a later version of this seam.
+ * static implementation; an adaptive one may branch on a richer context.
  */
 export interface StepResolver {
   readonly resolveStep: (step: Step, context: StepResolverContext) => A2UIDocument;
 }
 
 /**
- * The typography each heading level carries into the compiled document.
- *
- * The intent belongs in the document rather than in a renderer default, because
- * the document is stored and served forever (ADR-18): a renderer that changed
- * its default would silently restyle every published form, and a renderer that
- * is not ours has nothing to read the intent from. Without it a heading renders
- * at body size and weight, which axe cannot catch, since it checks that a
- * heading is one rather than that it looks like one.
- *
- * Each level differs from the next in both size and weight, which keeps the
- * hierarchy legible across the font faces the portal offers: a size step alone
- * reads differently between them in a way a weight step does not.
- *
- * The values are the `Text` schema's own enums rather than theme tokens,
- * because pointing them at tokens would mean editing a vendored component
- * (ADR-22).
+ * The typography each heading level carries into the compiled document, stated
+ * there rather than left to a renderer default: the document is served forever
+ * (ADR-18), and a renderer that is not ours has nothing else to read the intent
+ * from. Size and weight both step per level, so the hierarchy survives every
+ * font face the portal offers. The values are the `Text` schema's own enums,
+ * tokens meaning edits to a vendored component (ADR-22).
  */
 const HEADING_STYLE = {
   h1: { size: "2xl", weight: "bold" },
@@ -77,8 +62,7 @@ export const staticStepResolver: StepResolver = {
     }
     children.push(heading("h2", context.resolveText(step.title)));
     for (const item of step.items) {
-      // A group compiles to a template node the renderer clones per live
-      // instance: the compiler is answer-blind, so it cannot expand one.
+      // The compiler is answer-blind, so it cannot expand a group itself.
       if (isRepeatGroup(item)) {
         children.push(
           repeatGroupNode(item, context.resolveQuestion, context.resolveText, context.locale),
@@ -89,8 +73,7 @@ export const staticStepResolver: StepResolver = {
         questionToNode(context.resolveQuestion(item), context.resolveText, context.locale),
       );
     }
-    // The decoy is the last child of every step, which keeps it out of the
-    // natural field order a respondent follows.
+    // Last child of the step, out of the field order a respondent follows.
     children.push(honeypotNode());
     const root: A2UINode = {
       type: "Form",

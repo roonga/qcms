@@ -17,11 +17,8 @@ import { compileForm, compileFormWith } from "./compile.js";
 import type { StepResolver } from "./step-resolver.js";
 import type { A2UINode } from "./types.js";
 
-/**
- * One publishable form exercising every question type, both `singleChoice`
- * renderings and every constraint kind. Built through the real publish path, so
- * the compiler receives a genuine deep-frozen snapshot.
- */
+// Built through the real publish path, so the compiler receives a genuine
+// deep-frozen snapshot.
 function buildKitchenSinkSnapshot(): FrozenSnapshot {
   const en = (value: string): { en: string } => ({ en: value });
 
@@ -216,15 +213,10 @@ function walk(node: A2UINode, into: A2UINode[] = []): A2UINode[] {
   return into;
 }
 
-/**
- * Validates against the vendored strict parser (ADR-22), which throws on any
- * non-conforming node or prop.
- *
- * That package ships declaration files whose internal imports carry `.ts`
- * extensions, so its exported symbols resolve to `error` under type-aware lint
- * while `tsc` hides it behind `skipLibCheck`. The disable below is for that
- * upstream packaging defect alone.
- */
+// Validates against the vendored strict parser (ADR-22), which throws on any
+// non-conforming node or prop. That package's declaration files carry `.ts`
+// extensions in their internal imports, so its symbols resolve to `error` under
+// type-aware lint while `tsc` hides it behind `skipLibCheck`.
 function assertValidA2uiNode(node: A2UINode): void {
   // eslint-disable-next-line @typescript-eslint/no-unsafe-call -- upstream d.ts type-resolution defect (see above)
   parseNode(node);
@@ -369,16 +361,12 @@ describe("compileForm (kitchen-sink)", () => {
   });
 
   it("resolves through the default locale when options.locale has no explicit entry (R7)", () => {
-    // An unknown active locale resolves through the default one, so the output
-    // is identical to the default-locale compile.
     const withLocale = compileForm(snapshot, { locale: localeOf("fr") });
     expect(withLocale.documents).toEqual(compileForm(snapshot, {}).documents);
   });
 
   it("validates every compiled document against the pinned @a2ra/core schemas (exit criterion 5)", () => {
     const compiled = compileForm(snapshot, {});
-    // A clean pass over every document proves spec conformance mechanically
-    // rather than by eye.
     for (const doc of compiled.documents) {
       expect(() => {
         assertValidA2uiNode(doc.root);
@@ -396,7 +384,6 @@ describe("compileForm (kitchen-sink)", () => {
 
 describe("compileFormWith (step-resolver seam)", () => {
   it("routes every step through the injected resolver (proves the swap point)", () => {
-    // A stub standing in for an adaptive resolver.
     const stub: StepResolver = {
       resolveStep: (step) => ({
         stepId: step.stepId,
@@ -414,7 +401,6 @@ describe("compileFormWith (step-resolver seam)", () => {
         root: { type: "Text", props: { as: "h2" }, children: "stub:stp_history" },
       },
     ]);
-    // The stamps come from the compiler rather than the resolver.
     expect(compiled.compilerVersion).toBe("0.3.0");
   });
 });

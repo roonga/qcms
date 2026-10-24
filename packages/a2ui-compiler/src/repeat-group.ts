@@ -11,39 +11,22 @@ import { questionToNode, type TextResolver } from "./mapping.js";
 import type { A2UINode } from "./types.js";
 
 /**
- * The `RepeatGroup` template node (ADR-42, ADR-43).
- *
- * Compilation is answer-blind (ADR-14) and an instance count is
- * answer-dependent, so the compiler cannot expand a group. It emits this
- * template carrying each member control once with the bare `questionId` as its
- * `name`, and the renderer clones it per live instance and qualifies each
- * clone's name. That keeps the stored bytes the bytes published (ADR-18).
- *
- * A qcms-owned node type rather than an `@a2ra/core` registry component,
- * because nothing upstream describes a container cloned per instance and the
- * vendored component schemas are strict (ADR-22). The contract is documented in
- * `docs/a2ui-mapping.md` and carried by the golden corpus.
- *
- * The honeypot is appended to the step after this node (ADR-12), so it sits
- * outside the template and is never cloned with it.
+ * The `RepeatGroup` template node (ADR-42, ADR-43). Compilation is answer-blind
+ * (ADR-14), so the compiler emits each member control once and the renderer
+ * clones the template per live instance, qualifying each clone's name. A
+ * qcms-owned node type: nothing upstream describes such a container and the
+ * vendored schemas are strict (ADR-22), so `docs/a2ui-mapping.md` and the
+ * golden corpus carry the contract.
  */
 
 /** The node type the renderer expands into one group per live instance. */
 export const REPEAT_GROUP_NODE_TYPE = "RepeatGroup";
 
 /**
- * The lexicon the Add and Remove control names are built from, keyed by the
- * active locale's language subtag with an English fallback.
- *
- * A compiler lexicon constant frozen by `compilerVersion`, like the boolean
- * lexicon (ADR-36): the wording is part of the stored document, so a renderer
- * that is not ours has something to read and one that changes its defaults
- * cannot silently restyle a published form. Nothing authored supplies these
- * strings, so the lexicon is the whole source.
- *
- * `add` is resolved at compile time; `remove` keeps its placeholder, because the
- * instance label it names carries the live ordinal. The distinguishing words
- * come first, following APG's naming practice.
+ * The Add and Remove control names, by language subtag with an English fallback.
+ * Nothing authored supplies these, so the lexicon is the whole source and the
+ * wording travels in the stored document (ADR-36). `remove` keeps its
+ * placeholder, the instance label it names carrying the live ordinal.
  */
 type RepeatActions = { readonly add: string; readonly remove: string };
 
@@ -63,11 +46,10 @@ function actionsFor(locale: LocaleCode): RepeatActions {
 }
 
 /**
- * The singular noun an Add control is named for, taken from the instance-label
- * template with its placeholder removed. The instance label is the only authored
- * text naming one instance; the group's own label names the collection, so it
- * would read wrongly here. Whitespace is collapsed, so a placeholder removed
- * mid-template leaves no double space in the stored bytes.
+ * The singular noun an Add control is named for. The instance label is the only
+ * authored text naming one instance, the group's own label naming the
+ * collection. Whitespace is collapsed, a removed placeholder otherwise leaving
+ * a double space in the stored bytes.
  */
 export function addItemNoun(instanceLabel: string): string {
   return instanceLabel
@@ -82,17 +64,10 @@ function fill(template: string, placeholder: string, value: string): string {
 }
 
 /**
- * Compile one repeating group to its template node. Every prop is a function of
- * the pinned content alone (ADR-18).
- *
- * `instanceLabel` keeps its placeholder, because the ordinal is live state. Add
- * and Remove are emitted for an `open` source alone: a `fixed` group's size is
- * its author's and a `fromAnswer` group's is the count answer's. An absent `max`
- * means a bounded source omitted one, which publish refuses (SEC-16), so the
- * renderer may treat it as unbounded.
- *
- * Children are the member controls once each, with the bare `questionId` as
- * `name`, identical to the same question outside a group (ADR-42).
+ * Compile one repeating group to its template node; every prop is a function of
+ * the pinned content alone (ADR-18). Add and Remove are emitted for an `open`
+ * source alone, the other two sources being sized elsewhere. Children carry the
+ * bare `questionId` as `name`, as outside a group (ADR-42).
  */
 export function repeatGroupNode(
   group: RepeatGroup,
