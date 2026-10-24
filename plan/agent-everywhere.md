@@ -69,7 +69,7 @@ The same review's other blocking findings needed no ruling and are fixed in plac
 
 ### 1.6 The assistant's identity (Code Owner, 2026-10-24, issue #1129)
 
-The assistant has its own icon: **the Q of QCMS drawn as a speech bubble wearing a robot visor** with two points of light. The QCMS design system's AssistantIcon card is the reference. It is inline SVG on the theme tokens (`color-primary` for the bubble and the lights, `color-primary-foreground` for the visor), so it follows all four themes, both high-contrast ones included.
+The assistant has its own icon: **the Q of QCMS drawn as a speech bubble wearing a robot visor** with two points of light. The QCMS design system's AssistantIcon card, at design system version 16 (the ruled revision), is the reference. It is inline SVG on the theme tokens (`color-primary` for the bubble and the lights, `color-primary-foreground` for the visor), so it follows the admin's three appearance modes (Light, Dark and High contrast; `apps/admin/lib/appearance.ts`), and High contrast dark once issue #1123 lands.
 
 - **It replaces the word "Assistant"** in the panel header (the filled mark, 24 px) and beside assistant turns (the avatar, 20 px). Wherever it replaces the word, it carries the name: `role="img"` with `aria-label` from the catalog key `agent.title` ("Assistant") (sections 4.8 and 4.9).
 - **The launcher is the mark itself, with no disc behind it** (section 4.1).
@@ -175,7 +175,7 @@ The choice between float and dock is stored in a cookie the layout reads, the wa
 - **1.4.13 Content on Hover or Focus.** The launcher tooltip is dismissible with Escape, hoverable and persistent.
 - **4.1.3 Status Messages.** Streaming prose is **not** announced token by token. The panel's polite live region announces phase changes in plain language ("Searching the question library", "1 action to review") and one completion line per turn. The in-progress bubble carries `aria-busy="true"` until its segment ends. Announcements that must survive a route change go through the shell's `Announcer` (`layout.tsx:108-112`).
 - **1.4.1 Use of Color.** Card kinds, step states and the "agent proposed" marker carry text and an icon, never colour alone, as the current diff lines do (`assist-panel.tsx:573-579`).
-- **Contrast** follows the admin theme tokens, including the high-contrast dark theme (`plan/high-contrast-dark-plan.md`).
+- **Contrast** follows the admin theme tokens in its three appearance modes (Light, Dark and High contrast; `apps/admin/lib/appearance.ts`), and the high-contrast dark theme (`plan/high-contrast-dark-plan.md`) once issue #1123 lands.
 
 ### 4.6 Reduced motion
 
