@@ -35,6 +35,13 @@ The Code Owner decides ADR changes, scope changes, explicit human gates, destruc
 - Follow `docs/COMPONENT_GUIDELINES.md` when adding or changing an input control.
 - Follow `CONTRIBUTING.md` for dependencies, commits, PRs, and gates.
 
+## Writing style
+
+Applies to PR descriptions, PR and review comments, issues, commit messages, and code comments.
+
+- Keep it concise. Use bullet points, not paragraphs.
+- Code comments explain why, not what. Do not narrate what the code does.
+
 ## Verification
 
 - Run `pnpm verify` before landing a change.
@@ -58,3 +65,15 @@ The Code Owner decides ADR changes, scope changes, explicit human gates, destruc
 - Squash-merge through GitHub and serialize merges. Never force-push `main` or create a local squash on `main`.
 
 The detailed orchestration lives in `.claude/skills/`; the operator guide is `docs/DEVELOPER_GUIDE.md`.
+
+<!-- rtk-instructions v2 -->
+
+# Command output
+
+Command output here is condensed to save tokens, keeping every signal and
+dropping costly noise. Treat it as the complete result: run commands
+normally, and batch related commands into one call to avoid extra turns.
+Truncated results state their recovery path in their own output. Re-run a
+command as `rtk bypass <cmd>` only when its result is unusable: empty when
+output was clearly expected, contradicting its exit code, or garbled.
+<!-- /rtk-instructions -->
