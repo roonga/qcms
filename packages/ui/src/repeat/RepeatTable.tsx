@@ -5,49 +5,22 @@ import { totalLabelFor } from "./repeat-table-node.ts";
 import type { RepeatColumn, RepeatTableNode } from "./repeat-table.schema.ts";
 
 /**
- * The table presentation's `<table>` (task 077, ADR-43, Q10, plan section 4.5).
+ * The table presentation's `<table>`.
  *
- * ## A native `<table>`, never `role="grid"`
+ * A native `<table>` and never `role="grid"`: APG makes author-managed focus movement a
+ * defining property of that pattern, so with scripting off a grid is a tab trap.
+ * Nothing here may grow a roving tabindex or an edit mode; ADR-43 refuses both by name.
  *
- * APG states as a defining property of the grid pattern that it "Requires the author
- * to provide code that manages focus movement inside it", so with scripting off a
- * `role="grid"` renders as a tab-trap-shaped nothing and this surface's no-JS claim
- * is unqualified. APG also prefers the native element outright, its two optimal cell
- * designs exclude a text input, and the table reflows to cards on a phone where no
- * grid keyboard model exists at all. **One tab stop per cell is the documented cost
- * of that choice** and not a defect to mitigate with script: the mitigation is the
- * group's own `max`. Nothing in this file may grow a roving tabindex or an edit mode;
- * ADR-43 refuses both by name.
+ * The `<caption>` is the table's accessible name, which is why the expansion emits no
+ * heading node for a table-presented group. The `<tfoot>` total is presentation only:
+ * never an input, never posted, never stored, never exported.
  *
- * ## The structure, and what each part is for
- *
- * - A `<caption>` carrying the group's authored label, which is the table's
- *   accessible name. It is the only place that label appears, which is why the
- *   expansion emits no heading node for a table-presented group.
- * - A corner `<th scope="col">` naming the row-header column ("Asset"), then one
- *   `<th scope="col">` per member question carrying the question's own label, then
- *   the actions column's visually hidden header where the rows carry a Remove.
- * - `<tbody>`: one `RepeatRow` per live instance.
- * - `<tfoot>`: a column total for every `number` column, which is **presentation
- *   only** - computed, drawn, and never an input, never posted, never stored, never
- *   submitted and never exported. An author who needs it stored asks for it as a
- *   question (ADR-43's out-of-scope list).
- *
- * ## The scroll box, and the 136 pixels it cost somebody
- *
- * Above the card reflow the table lives in its own `overflow-x: auto` box, which is
- * the only element on a portal page permitted to scroll horizontally (1.4.10
- * Reflow). That box is `position: relative`, and so is every cell: this design puts
- * a visually hidden `<label>` in **every** cell, and a visually hidden label
- * positioned with `position: absolute` inside an `overflow-x: auto` box with no
- * positioned ancestor resolves against the initial containing block, lands past the
- * viewport edge and widens the **document** - which is exactly the horizontal page
- * scroll the portal forbids. It cost 136 unexplained pixels on a concept page and 863
- * on an admin table. The declarations live in `theme-components.css`; this comment is
- * here because the markup is what makes them load-bearing.
+ * The scroll box and every cell are `position: relative`, because this design puts a
+ * visually hidden `<label>` in every cell and one with no positioned ancestor resolves
+ * against the initial containing block and widens the document (1.4.10 Reflow). The
+ * declarations are in `theme-components.css`; the markup is what makes them so.
  */
 
-/** The sum of a numeric column's drawn cells, or `undefined` when none holds one. */
 function columnTotal(
   column: RepeatColumn,
   values: Readonly<Record<string, unknown>>,
@@ -78,8 +51,7 @@ export function RepeatTable({
   const values = useQcmsValues();
   const locale = useQcmsLocale();
   const totals = columns.map((column) => columnTotal(column, values));
-  // No numeric column means no total to draw, and an empty `<tfoot>` row of blank
-  // cells would be a row a respondent has to read past for nothing.
+  // An empty total row is a row a respondent reads past for nothing.
   const hasTotals = totals.some((total) => total !== undefined);
   const format = new Intl.NumberFormat(locale);
 
@@ -101,19 +73,16 @@ export function RepeatTable({
               >
                 {column.label}
                 {column.description === undefined ? null : (
-                  // The question's help text, once per column instead of once per cell.
-                  // Each input still carries its own `aria-describedby`, so this is a
-                  // visible home for a hint rather than its only encoding.
+                  // Each input keeps its own `aria-describedby`, so this is a
+                  // visible home for the hint rather than its only encoding.
                   <span className="qcms-repeat-table__colhint">{column.description}</span>
                 )}
               </th>
             ))}
             {actionsLabel === undefined ? null : (
               <th scope="col" className="qcms-repeat-table__actionshead">
-                {/* Named, not empty: an empty header cell tells a respondent reading
-                    the row nothing, and the wording is the compiler's own Remove
-                    lexicon with its `{label}` placeholder taken out, so there is no
-                    second source for it to drift from. */}
+                {/* Named, not empty: an empty header cell tells a respondent
+                    reading the row nothing. */}
                 <span className="qcms-repeat-table__hidden">{actionsLabel}</span>
               </th>
             )}
@@ -137,12 +106,9 @@ export function RepeatTable({
                   >
                     {total === undefined ? null : (
                       <>
-                        {/* The column's name, hidden above the reflow and shown in the
-                            card layout, where `scope` no longer associates anything
-                            because the header cells are gone. It is NOT `aria-hidden`:
-                            below the reflow it is the only thing naming this number,
-                            and above it the small redundancy with the column header is
-                            the cheaper of the two mistakes. */}
+                        {/* Hidden above the reflow and shown in the card layout,
+                            where the header cells are gone. Never `aria-hidden`:
+                            below the reflow it is the only thing naming this number. */}
                         <span className="qcms-repeat-table__cell-name">{column.label}</span>
                         <span className="qcms-repeat-table__total-value">
                           {format.format(total)}

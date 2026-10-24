@@ -3,84 +3,45 @@ import { createContext, useCallback, useContext } from "react";
 import type { NativeFormAction } from "./native-submit.ts";
 
 /**
- * The canonical answer encodings this renderer round-trips (task 002,
- * DOMAIN_SCHEMA §2.4), expressed structurally so `@roonga/qcms-ui` stays decoupled
- * from `@roonga/qcms-core` at runtime:
- *
- * | Question type        | Encoding                         | JS shape        |
- * |----------------------|----------------------------------|-----------------|
- * | shortText / longText | NFC string                       | `string`        |
- * | number               | finite IEEE double               | `number`        |
- * | date                 | ISO `YYYY-MM-DD`                 | `string`        |
- * | boolean              | JSON boolean                     | `boolean`       |
- * | singleChoice         | OptionId                         | `string`        |
- * | multiChoice          | OptionId[], deduplicated         | `readonly string[]` |
- *
- * The equivalence to `@roonga/qcms-core`'s `AnswerValue` schemas is asserted by the
- * conformance round-trip suite (which parses every emitted value with the core
- * parsers), not by a compile-time type dependency.
+ * The canonical answer encodings (DOMAIN_SCHEMA §2.4), expressed structurally so this
+ * package stays decoupled from the kernel at runtime: an NFC string for text, a finite
+ * double for a number, an ISO `YYYY-MM-DD` for a date, a JSON boolean, an OptionId for
+ * a single choice, and a deduplicated OptionId array for a multi choice. The
+ * round-trip suite asserts the equivalence that no type dependency enforces.
  */
 export type A2UIAnswerValue = string | number | boolean | readonly string[];
 
-/** Parent-owned answer map, keyed by questionId (the control's `name`). */
+/** Keyed by questionId, which is the control's compiled `name`. */
 export type A2UIValues = Readonly<Record<string, A2UIAnswerValue | undefined>>;
 
-/**
- * Parent-owned server-validation errors, keyed by questionId. Server errors are
- * the authority (SEC / task 009); the renderer surfaces them in each control's
- * error slot with the ARIA wiring react-aria supplies.
- */
+/** Keyed by questionId. Server errors are the authority. */
 export type A2UIErrors = Readonly<Record<string, string | undefined>>;
 
 export interface QcmsFieldContextValue {
   readonly values: A2UIValues;
   readonly errors: A2UIErrors;
   /**
-   * The form's own action when it is a function rather than a URL (task 073): a Next
-   * Server Action that applies the respondent's Add or Remove and re-renders the step
-   * in the same 200 response.
-   *
-   * It travels here rather than on the root `Form` node's props, and that is a
-   * constraint rather than a preference: a node's props are the stored document's
-   * data, validated by a Zod schema and serialisable by construction, so a function
-   * cannot ride there. This is the same seam `values` and `errors` already use.
+   * Travels here rather than on the root `Form` node's props, because a node's props
+   * are the stored document's serialisable data and a function cannot ride there.
    */
   readonly formAction?: NativeFormAction;
   /**
-   * Form-level hidden inputs the host needs in every post of this form (task 073),
-   * rendered as the form's first children.
-   *
-   * It exists because a Server Action must be a STABLE module-level reference. The
-   * obvious way to give an action a per-session argument is `action.bind(null, id)`,
-   * and passing that to `useActionState` hangs the server render: Next compares a bound
-   * reference's signature asynchronously, and in a server render that comparison never
-   * settles, so the response never arrives and the process accumulates promises until it
-   * dies with `RangeError: Map maximum size exceeded`. A hidden input carries the same
-   * value with no bound reference, which is also the plain-HTML way to give one form
-   * several pieces of context.
+   * A Server Action must be a stable module-level reference: passing
+   * `action.bind(null, id)` to `useActionState` hangs the server render, because the
+   * bound reference's signature comparison never settles. A hidden input carries the
+   * same value with no bound reference.
    */
   readonly formHiddenFields?: Readonly<Record<string, string>>;
-  /** Fires the canonical `AnswerValue` for `name` (or `undefined` when cleared). */
   readonly onChange: (name: string, value: A2UIAnswerValue | undefined) => void;
-  /** Fires when focus leaves the control (touched semantics; policy is 029/030). */
   readonly onBlur: (name: string) => void;
   readonly locale: string;
-  /**
-   * Native (no-JS) submit mode (task 044). When true, the control adapters render
-   * *uncontrolled* (a `defaultValue` seeded from `values`, no `onChange`) with a
-   * companion kind-tag hidden input, so their native form serialization carries
-   * the answer without JS. Default `false` keeps the controlled path (028/029)
-   * exactly as-is - the conformance suite renders with this unset.
-   */
+  /** When true the adapters render uncontrolled, so the browser serializes the answer. */
   readonly native: boolean;
 }
 
 /**
- * The controlled seam. `A2UIStepRenderer` is the only provider; the vendored
- * controls reach it through their qcms adapters (`registry.tsx`) keyed by the
- * compiled `name` prop (= questionId). Kept out of the a2ra `FormStateContext`
- * (that channel is label-keyed and write-only) so values flow *down* and change
- * events carry canonical shapes.
+ * Kept out of the a2ra `FormStateContext`, which is label-keyed and write-only, so
+ * values flow down and change events carry canonical shapes.
  */
 export const QcmsFieldContext = createContext<QcmsFieldContextValue | null>(null);
 
@@ -91,7 +52,7 @@ export interface QcmsField {
   readonly blur: () => void;
 }
 
-/** Read/write one field's controlled state by its compiled `name` (questionId). */
+/** One field's controlled state, by its compiled `name`. */
 export function useQcmsField(name: string | undefined): QcmsField {
   const ctx = useContext(QcmsFieldContext);
   if (ctx === null) {
@@ -113,21 +74,9 @@ export function useQcmsField(name: string | undefined): QcmsField {
 }
 
 /**
- * The whole parent-owned answer map (task 077).
- *
- * Every control reads its own field through {@link useQcmsField}, and that is the seam
- * a control should use. This one exists for a **presentation whose content is a
- * function of a column rather than of a field**: the table presentation's `<tfoot>`
- * total sums one column's drawn cells, and the number of those cells changes when the
- * respondent adds or removes a row.
- *
- * So it is not a convenience over `useQcmsField`, it is the only correct shape: a hook
- * per cell inside a loop whose length changes between renders is a rules-of-hooks
- * violation, and React would reconcile the wrong hook onto the wrong cell the first
- * time a row was removed. Reading the map once is one hook whatever the row count.
- *
- * The total it feeds is presentation only - never an input, never posted, never
- * stored, never submitted, never exported - so nothing here is a write path.
+ * A control should use {@link useQcmsField}. This is for a presentation whose content
+ * is a function of a column, such as a table total: a hook per cell inside a loop
+ * whose length changes between renders is a rules-of-hooks violation.
  */
 export function useQcmsValues(): A2UIValues {
   const ctx = useContext(QcmsFieldContext);
@@ -138,12 +87,8 @@ export function useQcmsValues(): A2UIValues {
 }
 
 /**
- * The render's BCP-47 locale, for a presentation that formats a number or picks a word
- * of its own (task 077: the column total's figures, and the word "Total").
- *
- * The portal names its own locale rather than inheriting the renderer's `en-US`
- * default (issue #729), so this is the same string react-aria formats against and a
- * total cannot be grouped differently from the cells above it.
+ * The same string react-aria formats against, so a computed total cannot be grouped
+ * differently from the cells above it.
  */
 export function useQcmsLocale(): string {
   const ctx = useContext(QcmsFieldContext);
@@ -153,7 +98,7 @@ export function useQcmsLocale(): string {
   return ctx.locale;
 }
 
-/** Whether the renderer is in native (no-JS) submit mode (task 044). */
+/** Whether the renderer is in native (no-JS) submit mode. */
 export function useQcmsNativeSubmit(): boolean {
   const ctx = useContext(QcmsFieldContext);
   if (ctx === null) {
@@ -162,10 +107,7 @@ export function useQcmsNativeSubmit(): boolean {
   return ctx.native;
 }
 
-/**
- * The form's action when the host supplied a function rather than a URL (task 073), or
- * `undefined` when the stored node's string `action` is what the form renders.
- */
+/** `undefined` when the stored node's string `action` is what the form renders. */
 export function useQcmsFormAction(): NativeFormAction | undefined {
   const ctx = useContext(QcmsFieldContext);
   if (ctx === null) {
@@ -174,10 +116,7 @@ export function useQcmsFormAction(): NativeFormAction | undefined {
   return ctx.formAction;
 }
 
-/**
- * The form-level hidden inputs the host asked for, or `undefined` when it asked for
- * none, which is every step with no repeating group.
- */
+/** `undefined` on every step with no repeating group. */
 export function useQcmsFormHiddenFields(): Readonly<Record<string, string>> | undefined {
   const ctx = useContext(QcmsFieldContext);
   if (ctx === null) {

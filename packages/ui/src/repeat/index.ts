@@ -1,11 +1,6 @@
 /**
- * The repeating-group half of the renderer (tasks 073 and 077, ADR-42, ADR-43): the
- * node types, the `__qop` wire vocabulary, the render-time expansion, and the
- * components the registry renders.
- *
- * Two presentations live here. **Stacked** (073) is one `RepeatInstance` card per live
- * instance. **Table** (077) is a native `<table>` - `RepeatTable`, `RepeatRow`,
- * `RepeatCell` - and never `role="grid"`.
+ * The repeating group (ADR-42, ADR-43). Two presentations: stacked, one card per live
+ * instance, and table, a native `<table>` and never `role="grid"`.
  */
 export { RepeatCell } from "./RepeatCell.tsx";
 export { RepeatGroup } from "./RepeatGroup.tsx";

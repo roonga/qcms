@@ -1,9 +1,4 @@
-/**
- * @roonga/qcms-ui public surface (task 028): the controlled A2UI step renderer built
- * on `@a2ra/core`'s `A2Renderer` over vendored a2-react-aria components
- * (ADR-22). This is the *only* renderer - portal serving and admin preview both
- * go through it, so preview fidelity is exact (ARCHITECTURE §6).
- */
+/** The controlled A2UI step renderer, over vendored a2-react-aria components (ADR-22). */
 export { A2UIStepRenderer } from "./A2UIStepRenderer.tsx";
 export type { A2UIStepDocument, A2UIStepRendererProps } from "./A2UIStepRenderer.tsx";
 
@@ -40,26 +35,16 @@ export type { AuthorMessages } from "./author-messages.ts";
 
 export { documentForVisible } from "./visible.ts";
 
-/**
- * The render-time `pattern` normalization (issue #29, PR #52), exported so an
- * authoring surface can offer its output as a suggestion rather than leaving
- * every render to repair the same string (issue #53). The renderer stays its
- * primary caller: stored documents are immutable and keep their original
- * pattern whatever an author does next (R1, ADR-18).
- */
+/** Public so an authoring surface can offer the rewrite rather than repair it per render. */
 export { compilesUnderV, toVSafePattern } from "./v-safe-pattern.ts";
 
 export { HoneypotSchema } from "./honeypot/honeypot.schema.ts";
 export type { HoneypotNode } from "./honeypot/honeypot.schema.ts";
 
 /**
- * The repeating group (task 073, ADR-42, ADR-43): the two node types, the `__qop`
- * wire vocabulary, the render-time expansion and the behaviour context.
- *
- * The node vocabulary is also published on the React-free `./repeat-node` subpath, as
- * `./native-submit` already is, because the portal's server-only BFF decoder reads
- * `__qop` off a form POST and a Server Component must not pull a client component
- * into its graph through a transitive import.
+ * The node vocabulary is also published on the React-free `./repeat-node` subpath,
+ * because a Server Component decoding `__qop` must not pull a client component in
+ * through a transitive import.
  */
 export {
   QcmsRepeatContext,
@@ -106,10 +91,8 @@ export {
 } from "./repeat/repeat-node.ts";
 export type { RosterOp, RosterOpRequest } from "./repeat/repeat-node.ts";
 /**
- * The table presentation's render-time vocabulary (task 077). `REPEAT_ROW_NODE_TYPE`
- * is the one a host needs by name: the portal's error summary reads an instance's
- * label off the expanded tree, and a table-presented group carries that label on its
- * row rather than on an instance card.
+ * `REPEAT_ROW_NODE_TYPE` is public because a table-presented group carries an
+ * instance's label on its row rather than on an instance card.
  */
 export {
   REPEAT_CELL_NODE_TYPE,
