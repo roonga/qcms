@@ -21,13 +21,8 @@ import {
 } from "./png-preview.mjs";
 
 /**
- * The committed-PNG preview (issue #415).
- *
- * Every fixture here is built in the test rather than committed. A binary fixture is
- * unreadable in a diff and unverifiable in review, and the encoder below is the honest
- * inverse of what the script does: it applies the scanline filters the decoder reverses,
- * so a round-trip through all five filter types is a real assertion about the decoder
- * rather than a re-run of the same code path with the filter byte set to zero.
+ * The encoder below applies the scanline filters the decoder reverses, so the round trip
+ * is an assertion about the decoder rather than a re-run of one code path.
  */
 
 const temporaryDirectories: string[] = [];
@@ -58,7 +53,6 @@ function crc32(bytes: Buffer): number {
   return (c ^ 0xffffffff) >>> 0;
 }
 
-/** One length-type-data-CRC chunk, with a real CRC so the fixtures are genuine PNGs. */
 function chunk(type: string, data: Buffer): Buffer {
   const length = Buffer.alloc(4);
   length.writeUInt32BE(data.length);
@@ -68,7 +62,6 @@ function chunk(type: string, data: Buffer): Buffer {
   return Buffer.concat([length, body, crc]);
 }
 
-/** The Paeth predictor again, on the encoding side, so the round-trip is a real one. */
 function paethEncode(a: number, b: number, c: number): number {
   const p = a + b - c;
   const pa = Math.abs(p - a);
@@ -85,7 +78,6 @@ interface PngSpec {
   samples: number[];
   bitDepth?: number;
   interlace?: number;
-  /** Filter type applied to every scanline. Defaults to 0 (None). */
   filter?: number;
 }
 
@@ -132,11 +124,7 @@ function encodePng(spec: PngSpec): Buffer {
   ]);
 }
 
-/**
- * A greyscale PNG whose IHDR says `width` x `height` while its inflated payload is
- * `payloadBytes` long. `encodePng` cannot express this: it derives the payload from the
- * header, which is the invariant under test.
- */
+/** `encodePng` cannot express this: it derives the payload from the header under test. */
 function mismatchedPayload(width: number, height: number, payloadBytes: number): Buffer {
   const header = Buffer.alloc(13);
   header.writeUInt32BE(width, 0);
@@ -151,7 +139,6 @@ function mismatchedPayload(width: number, height: number, payloadBytes: number):
   ]);
 }
 
-/** 16x16 truecolour: the left half black, the right half white. */
 function halfAndHalf(filter = 0): Buffer {
   const samples: number[] = [];
   for (let y = 0; y < 16; y += 1) {
@@ -169,7 +156,6 @@ function fileWith(bytes: Buffer | string, name = "fixture.png"): string {
   return path;
 }
 
-/** Run `main` and capture what it printed, so exit code and output are asserted together. */
 function run(args: string[]): { code: number; out: string[]; err: string[] } {
   const out: string[] = [];
   const err: string[] = [];
@@ -214,7 +200,6 @@ describe("decodePng", () => {
   });
 
   it("refuses indexed colour by name, rather than guessing at a palette", () => {
-    // No PLTE chunk: the refusal happens at IHDR, so the palette never comes up.
     const png = encodePng({ width: 2, height: 2, colourType: 3, samples: [0, 1, 1, 0] });
     expect(() => decodePng(png)).toThrow(/colour type 3 \(indexed-colour\)/);
   });
@@ -249,9 +234,6 @@ describe("decodePng", () => {
   });
 
   it("refuses an oversized image data stream rather than previewing its top-left corner", () => {
-    // The dangerous direction, and the one a `<` check waves through: the first 20 bytes
-    // decode cleanly, so a 4x4 payload behind a 2x2 IHDR would have printed a confident
-    // preview of one quarter of the image and exited 0.
     const png = mismatchedPayload(2, 2, 20);
     expect(() => decodePng(png)).toThrow(PngError);
     expect(() => decodePng(png)).toThrow(/image data is 20 bytes, expected exactly 6/);
@@ -304,8 +286,7 @@ describe("asciiPreview", () => {
       decodePng(encodePng({ width: 8, height: 8, colourType: 0, samples })),
       4,
     );
-    // Each cell covers 4x2 pixels, half of them black: a mean of 127.5, which lands
-    // mid-ramp. A decoder that sampled one pixel per cell would print `@` or a space.
+    // Each cell covers 4x2 pixels, half of them black: a mean of 127.5, mid-ramp.
     expect(preview.lines).toEqual([RAMP[4].repeat(4), RAMP[4].repeat(4)]);
   });
 });

@@ -1,3 +1,16 @@
+/**
+ * `.github/dependabot.yml` is the only thing keeping the `@codemirror/*` packages moving
+ * as one set: they are exact-pinned but depend on each other through `^6` ranges, so a
+ * bump that moves a subset lets pnpm resolve two copies of `@codemirror/view` and
+ * `next build` fails naming types rather than versions.
+ *
+ * Dependabot puts a dependency in the FIRST group it matches, and a dependency excluded
+ * by a group falls through to the next rather than ending the search, so declaration
+ * order is semantics here. That is what `firstMatchingGroup` models, and why the
+ * exclusion on the catch-all group is asserted separately.
+ * https://docs.github.com/en/code-security/dependabot/working-with-dependabot/dependabot-options-reference#groups--
+ * https://docs.github.com/en/code-security/tutorials/secure-your-dependencies/optimizing-pr-creation-version-updates
+ */
 import { readFileSync } from "node:fs";
 import { join } from "node:path";
 import { fileURLToPath } from "node:url";
@@ -6,144 +19,32 @@ import { describe, expect, it } from "vitest";
 
 import { trackedFilesUnder } from "./tracked-files.mjs";
 
-/**
- * The `codemirror` Dependabot group is load-bearing, so deleting or reordering it is a
- * red (issue #889, raised by the #880 reviewer; refs #712, #852).
- *
- * `.github/dependabot.yml` is the ONLY thing keeping the `@codemirror/*` packages moving
- * as one set. The failure it prevents is recorded at length beside the group itself: the
- * packages are exact-pinned but depend on each other through `^6` ranges, so a bump that
- * moves a subset lets pnpm resolve two copies of `@codemirror/view`, whose two
- * structurally identical `KeyBinding` types do not unify, and `next build` fails with a
- * message that names types rather than versions. PR #852 is the near miss.
- *
- * Before this file nothing failed if the group were deleted, renamed, or moved below
- * `minor-and-patch`: the next grouped bump would simply arrive as a subset again, and the
- * only evidence would be a red build in an unrelated pull request. The better-auth half
- * of the same arrangement has `pnpm check:vendor-pin` behind it; this half had nothing.
- *
- * ## The property, and where it comes from
- *
- * Dependabot assigns a dependency to ONE group: "If a dependency matches more than one
- * rule, it's included in the first group that it matches", and "If a dependency matches
- * both a pattern and an exclude-pattern, then it is excluded from the group"
- * (https://docs.github.com/en/code-security/dependabot/working-with-dependabot/dependabot-options-reference#groups--,
- * read 2026-09-18). So declaration ORDER is semantics here, not style, and the four facts
- * the config depends on are one derived property: for every `@codemirror/*` package this
- * workspace declares, at every update level, the first matching group is `codemirror`.
- *
- * The reference's `patterns` row says only "Define one or more patterns to include
- * dependencies with matching names", so two behaviours this file models come from the
- * tutorial that row links to, Example 1 of "Optimizing the creation of pull requests for
- * Dependabot version updates"
- * (https://docs.github.com/en/code-security/tutorials/secure-your-dependencies/optimizing-pr-creation-version-updates,
- * read 2026-09-18). Its three groups are `production-dependencies` and
- * `development-dependencies`, which declare `dependency-type` and NO `patterns`, then
- * `rubocop`, which declares `patterns: ["rubocop*"]`. Of that arrangement the tutorial
- * says: "Due to the ordering, production dependencies matching `rubocop*` will be
- * included in the `production-dependencies` group" - so a group with no `patterns`
- * claims everything its other criteria admit. And: "Development dependencies matching
- * the pattern `rubocop*` are excluded from the `development-dependencies` group.
- * Instead, development dependencies matching `rubocop*` will be included in the
- * `rubocop` group" - so an exclusion falls THROUGH to the next matching group rather
- * than ending the search, which is what `firstMatchingGroup` does below.
- *
- * Those two sentences are why the `@codemirror/*` exclusion on `minor-and-patch` is the
- * other half of the group above it, and why it is asserted separately below.
- *
- * ## What is derived and what is written down
- *
- * The package list is derived from the workspace manifests, and derived from git: the
- * workspace globs in `pnpm-workspace.yaml` become a path pattern, and
- * `trackedFilesUnder` answers which manifests match it. Never a directory walk, per
- * CONTRIBUTING's rule for a test that asserts a property of every X in the codebase
- * (issues #635, #641) - a walk reads a checkout's build output as source and asserts a
- * property of the machine. So a seventh `@codemirror/*` package added to any workspace
- * member without joining the pattern is a red here. Only the `@codemirror/` prefix is
- * written down, because it is the subject of the guard rather than an input to it.
- *
- * `pnpm-workspace.yaml` stays in the reader's hands deliberately: it is the authority on
- * which manifests Dependabot's npm updater can edit, and hard-coding `packages|apps` here
- * would lose `tooling/*` the moment a package there took a dependency. It adds no shape
- * the reader does not already need for `.github/dependabot.yml`.
- *
- * The scaffolding templates under `packages/create-qcms-app/templates/` declare the same
- * six and are deliberately NOT scanned by the derivation here: they are generated from
- * `apps/admin`, they are not workspace members, and a group cannot cover what the updater
- * does not edit (issue #834, `scripts/dependabot-changeset.mjs`).
- *
- * ## The templates are excluded in the config too, and that is why there is still one npm entry
- *
- * The sentence above was a claim about what Dependabot edits, and the sentence it is next to
- * was a claim about what Dependabot SCANS. Those came apart: the generated manifests were
- * being scanned, so a bump arrived twice, the second time against files whose contents are
- * derived and which `pnpm check:templates` requires to equal the real ones. The npm entry now
- * carries `exclude-paths` for the template tree, and the first `describe` below holds it
- * (issue #1050).
- *
- * **It is `exclude-paths` rather than a second `package-ecosystem: npm` entry, and the
- * refusal of a second entry below is therefore left exactly as it was.** That refusal is not
- * a style preference: this guard models ONE entry's groups, so a second entry's groups would
- * go unread, and a catch-all there can claim the `@codemirror/*` family while every line of
- * the entry above stays as it is. Teaching it to model two means resolving each entry's
- * directories against the manifests, which is machinery for an arrangement nothing needs -
- * and GitHub documents `exclude-paths` for precisely the case that tempted one ("exclude
- * automatic pull requests for manifests in selected subdirectories", 2025-08-26). So the
- * exclusion costs two lines on the entry that already exists, and the stronger invariant
- * stays: exactly one npm entry, fully modelled.
- *
- * ## Why here
- *
- * The `tooling` Vitest project runs from the repo root and outside turbo, so it always
- * reads the tree as it is - the same reason `scripts/check-origin-guards.test.ts` and
- * `scripts/check-bff-config-guards.test.ts` live here. The assertions are pure functions
- * over a parsed config, so each one is proved non-vacuous below by mutating an in-memory
- * copy and watching it fail. Two cases mutate the config TEXT instead, because a defect
- * in how the text becomes that model is invisible to a mutation of the model.
- */
-
 const REPO_ROOT = fileURLToPath(new URL("..", import.meta.url));
 
-/** The subject of the guard: the package family that must move as one set. */
 const FAMILY_PREFIX = "@codemirror/";
 
-/** The group that must claim that family. */
 const FAMILY_GROUP = "codemirror";
 
-/** The catch-all group it must sit above. */
 const CATCH_ALL_GROUP = "minor-and-patch";
 
-/** The update levels a version update can arrive at; the group must win at all three. */
 const UPDATE_TYPES = ["major", "minor", "patch"] as const;
 
-// ---------------------------------------------------------------------------
-// The smallest YAML reader this needs.
-//
-// No YAML parser is resolvable from this repository - none is declared anywhere in the
-// workspace - and the established answer here is to read the shape rather than add a
-// dependency for a two-property read (`scripts/check-docker-job-guards.mjs` says so in
-// as many words, and `scripts/check-ci-parity.mjs` does the same). This reader covers
-// the subset both `.github/dependabot.yml` and `pnpm-workspace.yaml` use: block
-// mappings, block sequences, flow sequences of scalars, and quoted scalars. It is
-// exercised by its own cases below, so a file that outgrows it fails loudly rather than
-// parsing to something plausible and wrong.
-// ---------------------------------------------------------------------------
+// No YAML parser is resolvable from this workspace, so this reads only the subset both
+// `.github/dependabot.yml` and `pnpm-workspace.yaml` use: block mappings, block
+// sequences, flow sequences of scalars and quoted scalars.
 
 type YamlNode = string | YamlNode[] | Map<string, YamlNode>;
 
 interface Line {
   /** Indent of the line's content; a sequence item's content sits two past its dash. */
   indent: number;
-  /** True when the line opened a sequence item. */
   startsItem: boolean;
   /** Indent of the dash itself, meaningful only when `startsItem`. */
   itemIndent: number;
   text: string;
 }
 
-/**
- * Drop a comment, respecting quotes so a `#` inside a pattern survives.
- */
+/** Quote-aware, so a `#` inside a pattern survives. */
 function stripComment(raw: string): string {
   let quote: string | undefined;
   for (let i = 0; i < raw.length; i += 1) {
@@ -182,13 +83,7 @@ function lex(source: string): Line[] {
   return lines;
 }
 
-/**
- * `key: value` split, or undefined when the line is a plain scalar.
- *
- * The key is unquoted: `"codemirror":` is a legal spelling of the same key, and a
- * maintainer who tidied the file that way should not get a red naming a group that is
- * still there.
- */
+/** The key is unquoted, because `"codemirror":` is a legal spelling of the same key. */
 function splitEntry(text: string): { key: string; value: string } | undefined {
   const match = /^([^\s:][^:]*):(?:\s+(.*))?$/.exec(text);
   if (match?.[1] === undefined) return undefined;
@@ -280,36 +175,26 @@ export function parseYaml(source: string): YamlNode {
   return parseValue(lines, childIndent(lines[0], 0));
 }
 
-// ---------------------------------------------------------------------------
-// The config, as the four facts see it.
-// ---------------------------------------------------------------------------
-
 interface Group {
   name: string;
   patterns: string[];
   excludePatterns: string[];
   /** Undefined means "every update level", which is what the codemirror group wants. */
   updateTypes: string[] | undefined;
-  /** Keys this model does not read; see `KNOWN_GROUP_KEYS`. */
   unknownKeys: string[];
 }
 
-/** One `updates:` entry: everything about it this guard claims to understand. */
 interface EcosystemEntry {
   directory: string;
   groups: Group[];
-  /** `exclude-paths` on the entry itself, which is not a group criterion (issue #1050). */
+  /** `exclude-paths` sits on the entry itself and is not a group criterion. */
   excludePaths: string[];
 }
 
 /**
- * The group criteria this model reads. Anything else is refused rather than ignored,
- * because the keys it would ignore change the answer: `applies-to` defaults to version
- * updates and can be set to `security-updates`, which would take the group out of the
- * path this guard is about, and `dependency-type` narrows a group the same way
- * `update-types` does (both are group criteria in Example 1 of the tutorial cited above).
- * Silently reading past either would leave the suite green while the config said
- * something else.
+ * An unlisted key is refused rather than ignored: `applies-to` and `dependency-type`
+ * would change which updates a group claims, so reading past one would leave the suite
+ * green while the config said something else.
  */
 const KNOWN_GROUP_KEYS = new Set(["patterns", "exclude-patterns", "update-types"]);
 
@@ -325,17 +210,8 @@ function asMap(node: YamlNode | undefined): Map<string, YamlNode> | undefined {
 }
 
 /**
- * EVERY `updates:` entry for one ecosystem, in declaration order, each with its groups in
- * declaration order.
- *
- * All of them rather than the first, because taking the first is the one way this guard
- * can be green while the config says otherwise: a second `package-ecosystem: npm` entry
- * carries its own `groups:`, and a catch-all there would claim the family for whatever
- * directory that entry covers. `groupProblems` refuses more than one instead of modelling
- * the pair; see the reason there.
- *
- * @param config parsed `.github/dependabot.yml`
- * @param ecosystem e.g. "npm"
+ * Every entry rather than the first: a second `package-ecosystem: npm` entry carries its
+ * own `groups:`, and a catch-all there could claim the family unread.
  */
 export function ecosystemEntries(config: YamlNode, ecosystem: string): EcosystemEntry[] {
   const updates = asMap(config)?.get("updates");
@@ -378,13 +254,7 @@ function matchesPattern(pattern: string, name: string): boolean {
   return new RegExp(`^${source}$`).test(name);
 }
 
-/**
- * The group Dependabot would put `name` in for an update of `updateType`, or undefined
- * when no group claims it and it arrives on its own.
- *
- * A group with no `patterns` claims everything at its update levels; see the file
- * comment for where that comes from.
- */
+/** A group with no `patterns` claims everything at its update levels. */
 export function firstMatchingGroup(
   groups: Group[],
   name: string,
@@ -401,13 +271,6 @@ export function firstMatchingGroup(
   return undefined;
 }
 
-/**
- * Every way the arrangement can be wrong, in one list so a mutation can be shown to
- * break exactly the assertion it should.
- *
- * @param groups the npm ecosystem's groups, in declaration order
- * @param packages the `@codemirror/*` packages this workspace declares
- */
 export function groupProblems(entries: EcosystemEntry[], packages: string[]): string[] {
   const problems: string[] = [];
 
@@ -421,11 +284,6 @@ export function groupProblems(entries: EcosystemEntry[], packages: string[]): st
   }
 
   // Exactly one npm entry, and it is refused rather than modelled when there are two.
-  // A second entry carries its own `groups:` for its own directories, so the arrangement
-  // below would describe part of the config while the rest went unread - the guard would
-  // assert less than the file says. Modelling both would mean resolving each entry's
-  // directories against the manifests, which is machinery for an arrangement this
-  // repository does not have: one npm entry at `/`, covering the whole pnpm workspace.
   if (entries.length === 0) {
     problems.push(
       ".github/dependabot.yml declares no `package-ecosystem: npm` entry, so nothing " +
@@ -446,8 +304,6 @@ export function groupProblems(entries: EcosystemEntry[], packages: string[]): st
 
   const groups = (entries[0] as EcosystemEntry).groups;
 
-  // A group criterion this model does not read changes the answer rather than decorating
-  // it, so it is a refusal (see `KNOWN_GROUP_KEYS`).
   for (const group of groups) {
     for (const key of group.unknownKeys) {
       problems.push(
@@ -513,18 +369,8 @@ export function groupProblems(entries: EcosystemEntry[], packages: string[]): st
   return problems;
 }
 
-// ---------------------------------------------------------------------------
-// Reading the repository.
-// ---------------------------------------------------------------------------
-
 /**
- * The path pattern that selects a workspace member's manifest, built from
- * `pnpm-workspace.yaml`'s own globs plus the root manifest.
- *
- * A pattern rather than a listing, because the listing comes from git: this is what gets
- * handed to `trackedFilesUnder`, which is how CONTRIBUTING requires a derived set to be
- * enumerated (issues #635, #641). The anchoring is what keeps the generated scaffolding
- * manifests out: `packages/create-qcms-app/templates/common/apps/admin/package.json` is
+ * The anchoring is what keeps the generated scaffolding manifests out: a template path is
  * four segments deeper than `packages/<member>/package.json` and does not match.
  */
 export function workspaceManifestPattern(workspaceYaml: string): RegExp {
@@ -540,7 +386,6 @@ export function workspaceManifestPattern(workspaceYaml: string): RegExp {
   return new RegExp(`^(?:${alternatives.join("|")})$`);
 }
 
-/** Every dependency name a manifest declares, in any of the four dependency fields. */
 export function declaredDependencies(manifestText: string): string[] {
   const manifest: Record<string, unknown> = JSON.parse(manifestText);
   const names = new Set<string>();
@@ -557,7 +402,6 @@ export function declaredDependencies(manifestText: string): string[] {
   return [...names];
 }
 
-/** The declared packages of one family, across every manifest, sorted and de-duplicated. */
 export function familyPackages(manifestTexts: string[], prefix: string): string[] {
   const names = new Set<string>();
   for (const text of manifestTexts) {
@@ -580,7 +424,6 @@ const manifestPaths = trackedFilesUnder(REPO_ROOT, {
 const manifestTexts = manifestPaths.map((path) => readRepoFile(path));
 const codemirrorPackages = familyPackages(manifestTexts, FAMILY_PREFIX);
 
-/** The one npm entry, which every assertion below is about. */
 const npmGroups: Group[] = npmEntries[0]?.groups ?? [];
 
 /** A mutation applied to a copy, so the repository's own config is never edited. */
@@ -602,18 +445,11 @@ function mutated(change: (groups: Group[]) => Group[]): EcosystemEntry[] {
   ];
 }
 
-/** The scaffolded tree whose generated manifests Dependabot must not scan (issue #1050). */
 const TEMPLATE_ROOT = "packages/create-qcms-app/templates/";
 
 /**
- * Whether `excludePaths` covers every path under {@link TEMPLATE_ROOT}.
- *
- * The patterns are matched the way GitHub documents `exclude-paths`: `**` recursive, `*`
- * one segment, relative to the entry's `directory`. So the question is not whether a
- * literal string is present - a reader could write the tree three equivalent ways - but
- * whether a manifest inside it is matched. The probes are the three real ones.
- *
- * @param excludePaths the entry's `exclude-paths` list
+ * Asks whether a manifest inside the tree is matched, not whether a literal string is
+ * present, because the tree can be written three equivalent ways.
  */
 export function templateExclusionProblems(excludePaths: string[]): string[] {
   const probes = ["admin", "api", "portal"].map(
@@ -632,12 +468,8 @@ export function templateExclusionProblems(excludePaths: string[]): string[] {
 }
 
 /**
- * `exclude-paths` globbing, which is NOT the `patterns` wildcard above.
- *
- * `patterns` matches package names with `*` meaning "any characters"; a path pattern has
- * segments, `*` stops at a `/` and `**` does not. Written out rather than reusing
- * `matchesPattern`, because collapsing the two would make `src/*` match `src/a/b` and the
- * reference says in as many words that it does not.
+ * Not the `patterns` wildcard above: a path pattern has segments, so `*` stops at a `/`
+ * and `**` does not. Collapsing the two would make `src/*` match `src/a/b`.
  */
 function matchesPathPattern(pattern: string, path: string): boolean {
   const escape = (part: string): string => part.replaceAll(/[.*+?^${}()|[\]\\]/g, String.raw`\$&`);
@@ -660,8 +492,8 @@ describe("the scaffolding templates stay out of Dependabot's npm scan (issue #10
   });
 
   it("reads the exclusion out of the config text rather than from a literal here", () => {
-    // The same reason the second-npm-entry case below mutates the TEXT: a defect in how
-    // `exclude-paths` becomes the list is invisible to a mutation of the list.
+    // Mutates the TEXT, because a defect in how `exclude-paths` becomes the list is
+    // invisible to a mutation of the list.
     expect(dependabotText).toContain("exclude-paths:");
     expect((npmEntries[0] as EcosystemEntry).excludePaths).toContain(`${TEMPLATE_ROOT}**`);
   });
@@ -671,8 +503,6 @@ describe("the scaffolding templates stay out of Dependabot's npm scan (issue #10
   });
 
   it("fails when the exclusion is narrowed to one directory level", () => {
-    // `*` stops at a separator, so this covers nothing under `common/apps/`. The case exists
-    // because the narrowed form reads like the right answer.
     expect(templateExclusionProblems([`${TEMPLATE_ROOT}*`]).join("\n")).toContain(
       "common/apps/admin/package.json",
     );
@@ -685,9 +515,6 @@ describe("the scaffolding templates stay out of Dependabot's npm scan (issue #10
 
 describe("the codemirror Dependabot group", () => {
   it("holds every @codemirror/* package the workspace declares, at every update level", () => {
-    // The whole guard, over the real config and the real manifests. Its own inputs are
-    // asserted too: a config that parsed to nothing, or a manifest scan that found
-    // nothing, would satisfy the property by having no subject.
     expect(npmEntries).toHaveLength(1);
     expect(npmGroups.map((group) => group.name)).toContain(FAMILY_GROUP);
     expect(codemirrorPackages.length).toBeGreaterThan(0);
@@ -695,9 +522,8 @@ describe("the codemirror Dependabot group", () => {
   });
 
   it("is what apps/admin actually depends on, not a list written down here", () => {
-    // The derivation reaches the manifest that matters. Nothing pins the count: a
-    // seventh package joining the family should pass here and be caught above only if
-    // the pattern misses it.
+    // Nothing pins the count, so a seventh package joining the family passes here and is
+    // caught above only if the pattern misses it.
     const admin = declaredDependencies(readRepoFile("apps/admin/package.json"));
     expect(admin.filter((name) => name.startsWith(FAMILY_PREFIX)).sort()).toStrictEqual(
       codemirrorPackages,
@@ -714,8 +540,6 @@ describe("the codemirror Dependabot group", () => {
   });
 
   it("fails when the group is reordered below the catch-all", () => {
-    // The silent one. Every group still exists and every pattern still matches; only the
-    // order moved, and at minor and patch the catch-all would claim the set first.
     const problems = groupProblems(
       mutated((groups) => [
         ...groups.filter((group) => group.name !== FAMILY_GROUP),
@@ -727,10 +551,8 @@ describe("the codemirror Dependabot group", () => {
   });
 
   it("fails when the catch-all stops excluding the family", () => {
-    // Order alone would still hold the set together here, so the first-match simulation
-    // stays quiet and this is the assertion that has to fire on its own. That is why the
-    // exclusion is checked explicitly rather than left to the simulation: it is the half
-    // that survives if someone later reorders the groups for readability.
+    // The exclusion is checked explicitly rather than left to the first-match simulation,
+    // because it is the half that survives a later reorder for readability.
     const problems = groupProblems(
       mutated((groups) =>
         groups.map((group) =>
@@ -750,9 +572,6 @@ describe("the codemirror Dependabot group", () => {
   });
 
   it("fails when a package of the family is not covered by the pattern", () => {
-    // A seventh @codemirror/* package added to the admin without joining the pattern is
-    // the same shape: here the pattern is narrowed instead, because the packages are
-    // read from the real manifests.
     const problems = groupProblems(
       mutated((groups) =>
         groups.map((group) =>
@@ -769,11 +588,8 @@ describe("the codemirror Dependabot group", () => {
   });
 
   it("fails when the config declares a second npm entry", () => {
-    // A TEXT mutation, not a mutation of the parsed group list, and deliberately so: this
-    // is the one defect the in-memory cases above cannot see, because it lives in how the
-    // text becomes that list rather than in the list. A second `package-ecosystem: npm`
-    // entry carries its own groups for its own directories, and a catch-all there can
-    // claim the family while every group above stays exactly as it is.
+    // A TEXT mutation, because this defect lives in how the text becomes the group list
+    // rather than in the list itself.
     const withSecondEntry = `${dependabotText}
   - package-ecosystem: npm
     directory: /apps/admin
@@ -791,10 +607,8 @@ describe("the codemirror Dependabot group", () => {
   });
 
   it("fails when a group declares a criterion this guard does not model", () => {
-    // The other text mutation, and the same shape as the one above: `applies-to` defaults
-    // to version updates, so setting it to `security-updates` would take the group off the
-    // path this guard is about while leaving its patterns untouched. `dependency-type` is
-    // the same kind of key. Refused rather than read past.
+    // `applies-to` defaults to version updates, so `security-updates` would take the
+    // group off the path this guard is about while leaving its patterns untouched.
     const withAppliesTo = dependabotText.replace(
       "      codemirror:\n        patterns:",
       "      codemirror:\n        applies-to: security-updates\n        patterns:",
@@ -819,12 +633,8 @@ describe("the codemirror Dependabot group", () => {
 });
 
 describe("better-auth stays out of every group", () => {
-  // Free to assert with the same machinery, and the same shape of defect (issue #606):
-  // better-auth must arrive ALONE because `docs/SECURITY_DESIGN.md`, the developer guide
-  // and the auth slice make version-specific claims about its compiled source.
-  // `pnpm check:vendor-pin` catches the prose drift afterwards; nothing until now caught
-  // the exclusion being dropped, which is what lets the bump hide in an 18-package table
-  // in the first place (PR #716, issue #483).
+  // better-auth must arrive alone, because `docs/SECURITY_DESIGN.md` and the auth slice
+  // make version-specific claims about its compiled source.
   const betterAuth = familyPackages(manifestTexts, "better-auth").concat(
     familyPackages(manifestTexts, "@better-auth/"),
   );
@@ -860,10 +670,6 @@ describe("better-auth stays out of every group", () => {
 });
 
 describe("the YAML subset reader", () => {
-  // The reader is the one thing here that could be wrong quietly: a config it mis-parses
-  // could satisfy every assertion above while the real file says something else. These
-  // pin the shapes `.github/dependabot.yml` and `pnpm-workspace.yaml` actually use.
-
   it("reads a sequence of mappings, nested sequences, and flow sequences", () => {
     const config = parseYaml(
       [
@@ -909,7 +715,7 @@ describe("the YAML subset reader", () => {
 
   it("ignores comments, including one that names a group or a pattern in prose", () => {
     // `.github/dependabot.yml` is mostly comment, and those comments quote the patterns
-    // and group names they explain. A reader that counted them would report an
+    // and group names they explain, so a reader that counted them would report an
     // arrangement the file does not have.
     const config = parseYaml(
       [
@@ -931,9 +737,6 @@ describe("the YAML subset reader", () => {
   });
 
   it("reads a quoted mapping key as the same key", () => {
-    // `"codemirror":` is a legal spelling. A reader that kept the quotes would red on a
-    // reformat that changed nothing, and send a maintainer looking for a group that is
-    // still there.
     const config = parseYaml(
       [
         "updates:",
@@ -958,8 +761,6 @@ describe("the YAML subset reader", () => {
     expect("package.json").toMatch(pattern);
     expect("packages/core/package.json").toMatch(pattern);
     expect("tooling/eslint-config/package.json").toMatch(pattern);
-    // Not a workspace member: an app the globs do not name, and the generated scaffolding
-    // manifest that declares the same six @codemirror/* packages.
     expect("apps/admin/package.json").not.toMatch(pattern);
     expect("packages/create-qcms-app/templates/common/apps/admin/package.json").not.toMatch(
       pattern,
@@ -967,9 +768,6 @@ describe("the YAML subset reader", () => {
   });
 
   it("selects the real workspace manifests, and only those", () => {
-    // The live derivation, asked of git rather than of the working directory
-    // (CONTRIBUTING, issues #635, #641). Nothing pins the count; what is pinned is that
-    // it reaches the manifest the family lives in and stops at the workspace boundary.
     expect(manifestPaths).toContain("apps/admin/package.json");
     expect(manifestPaths).toContain("package.json");
     expect(manifestPaths).not.toContain(

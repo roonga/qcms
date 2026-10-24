@@ -1,21 +1,6 @@
 /**
- * Every publishable manifest says it publishes publicly (issue #430).
- *
- * A scoped package defaults to **restricted** on npm. With no
- * `publishConfig.access`, the first `npm publish` of `@roonga/qcms-*` either fails outright
- * ("You must sign up for private packages" on a free organisation) or, on a paid
- * plan, silently publishes a private package no adopter can install. The second
- * outcome is the dangerous one, because it looks like success.
- *
- * `.changeset/config.json` already passes `--access public` for a changesets-driven
- * release, so this is defence in depth rather than the only control: it covers a
- * `pnpm publish` run by hand, and it is the copy that lives beside the package.
- *
- * The set is derived the way `scripts/check-changeset.mjs` derives it - `private`
- * plus the changesets `ignore` list - so a fifth publishable package is covered on
- * the commit that adds it, rather than when someone remembers. That is the point:
- * this defect and issue #156 before it were both found by reading, because nothing
- * in a repository that never publishes exercises a publish.
+ * A scoped package defaults to restricted on npm, so a manifest with no
+ * `publishConfig.access` can publish a private package that looks like a success.
  */
 import { execFileSync } from "node:child_process";
 import { readFileSync } from "node:fs";
@@ -33,16 +18,8 @@ interface Manifest {
 const REPO_ROOT = new URL("../", import.meta.url);
 
 /**
- * Package directories under `packages/`, read from Git rather than from a directory
- * walk (a walk also reads build output an earlier gate left behind, issue #629) and
- * never written out, so a new package is covered the day it is added.
- *
- * `:(glob)` is load-bearing. A plain `packages/*\/package.json` pathspec uses fnmatch
- * WITHOUT `FNM_PATHNAME`, so its `*` crosses `/` and the pattern also matches
- * `packages/create-qcms-app/templates/common/apps/api/package.json`: the three
- * manifests the scaffolding generator stamps (task 037) each read back as a fourth
- * copy of `create-qcms-app`. With `:(glob)`, `*` stops at a slash, which is what this
- * pattern was always meant to say. Deduplicating instead would have hidden it.
+ * `:(glob)` is load-bearing: a plain pathspec uses fnmatch without `FNM_PATHNAME`, so
+ * its wildcard crosses a slash and the template manifests read back as packages.
  */
 const PACKAGE_DIRS: readonly string[] = execFileSync(
   "git",
@@ -59,7 +36,6 @@ function readManifest(dir: string): Manifest {
   ) as Manifest;
 }
 
-/** Names changesets is configured to skip entirely. */
 function ignoredPackages(): readonly string[] {
   const config = JSON.parse(
     readFileSync(fileURLToPath(new URL(".changeset/config.json", REPO_ROOT)), "utf8"),
@@ -79,11 +55,6 @@ describe("publishable package manifests", () => {
   const publishable = publishablePackages();
 
   it("finds every package that publishes", () => {
-    // Guards the derivation: a filter that matched nothing would make the
-    // assertion below vacuous, which is the shape of defect this repository keeps
-    // meeting one level down. It is also what keeps the test below honest now that
-    // nothing under `packages/` is private: a package flipping to `private` silently
-    // fails HERE rather than quietly emptying the private-package check.
     expect(publishable.map(([, manifest]) => manifest.name).sort()).toEqual([
       "@roonga/qcms-a2ui-compiler",
       "@roonga/qcms-core",
@@ -109,12 +80,7 @@ describe("publishable package manifests", () => {
   );
 
   it("leaves private packages alone", () => {
-    // `publishConfig` on a package that never publishes is noise, and its presence
-    // would suggest a publishing intent that the `private` flag denies. There are no
-    // private packages under `packages/` today (`@roonga/qcms-csv` and `@roonga/qcms-observability`
-    // became installable for task 037), so this currently ranges over nothing. It is
-    // kept rather than deleted because the property is about the NEXT private package,
-    // and the assertion above is what stops the emptiness from being silent.
+    // Ranges over nothing today, and is kept for the next private package.
     for (const dir of PACKAGE_DIRS) {
       const manifest = readManifest(dir);
       if (manifest.private !== true) continue;

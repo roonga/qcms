@@ -18,16 +18,6 @@ import {
 import { parseChangesetPackages } from "./check-changeset.mjs";
 import { diffTrees } from "../packages/create-qcms-app/scripts/sync-templates.mjs";
 
-/**
- * Tests for the Dependabot helper (issues #421, #834).
- *
- * The helper's value is that its output satisfies the gates, so the assertions that
- * matter are round trips through the gates' own code: the rendered frontmatter is parsed
- * back by `check:changeset`'s reader, and the regenerated template tree is compared with
- * `check:templates`' own `diffTrees`. Everything else pins the judgements the helper
- * makes on its own - which moves earn a minor, and what it refuses to describe.
- */
-
 const manifest = (fields: Record<string, unknown>): string =>
   JSON.stringify({ name: "@roonga/qcms-db", version: "0.0.0", ...fields });
 
@@ -49,9 +39,6 @@ describe("manifestDependencyMoves", () => {
   });
 
   it("flags a change outside the dependency blocks", () => {
-    // The refusal case. A `files` or `exports` edit riding inside a bump is not
-    // dependency maintenance, and describing it as such is the failure mode that would
-    // make the generated changelog lie.
     const before = manifest({ dependencies: { pg: "^8.22.0" }, files: ["dist"] });
     const after = manifest({ dependencies: { pg: "^8.23.0" }, files: ["dist", "README.md"] });
     expect(manifestDependencyMoves(before, after).otherFieldsChanged).toBe(true);
@@ -60,9 +47,8 @@ describe("manifestDependencyMoves", () => {
 
 describe("bumpFor", () => {
   it("takes a minor when the peer contract moves", () => {
-    // The precedent is .changeset/deps-410-grouped-minor-and-patch.md: a peer range is
-    // what tells a consumer's package manager which versions satisfy the ask that
-    // @roonga/qcms-db/testing makes of it (issue #156), so moving it can require action.
+    // A peer range tells a consumer's package manager which versions satisfy the ask,
+    // so moving it can require action on their side.
     expect(bumpFor([{ field: "peerDependencies" }, { field: "devDependencies" }])).toBe("minor");
   });
 
@@ -109,8 +95,6 @@ describe("renderChangeset", () => {
   ]);
 
   it("is read back by the gate's own frontmatter parser", () => {
-    // The whole point: what this writes has to satisfy `check:changeset`, which reads
-    // frontmatter with parseChangesetPackages and nothing else.
     expect(parseChangesetPackages(rendered)).toStrictEqual(["@roonga/qcms-db", "@roonga/qcms-ui"]);
   });
 
@@ -121,13 +105,6 @@ describe("renderChangeset", () => {
   });
 });
 
-/**
- * The fixture diff: the portal's generated template manifest either side of the grouped
- * bump on PR #821, trimmed to the ranges that moved. That pull request is the recorded
- * reproduction of issue #834 - the bump edited `apps/portal/package.json`, nothing
- * regenerated the template beside it, and `check:templates` went red one gate after
- * `check:changeset` went green.
- */
 const TEMPLATE_BEFORE = JSON.stringify(
   {
     name: "portal",
@@ -158,8 +135,7 @@ describe("templateManifestApp", () => {
   it.each([
     // Generated, but not a manifest: a source file regenerating is not a dependency bump.
     `${TEMPLATES}/common/apps/portal/app/page.tsx`,
-    // A manifest, but not a generated one: this is the canonical app the templates
-    // are derived FROM, and it is already described as a private workspace package.
+    // A manifest, but the canonical app the templates are derived from.
     "apps/portal/package.json",
     // Hand-written rather than generated from an app.
     "packages/create-qcms-app/templates-static/README.md",
@@ -179,8 +155,6 @@ describe("templateManifestMoves", () => {
     );
 
     expect(refusal).toBeUndefined();
-    // One line per range, not one per app: the same bump lands in all three generated
-    // manifests, and three copies of a line describe it worse than one does.
     expect(moves).toStrictEqual([
       {
         field: "dependencies",
@@ -205,10 +179,6 @@ describe("templateManifestMoves", () => {
   });
 
   it("refuses when the regeneration rewrote something that is not a generated manifest", () => {
-    // The shape that must NOT be described as dependency maintenance: an app source
-    // file changed in the same branch, so re-syncing carries a code change into the
-    // scaffold. The helper says so and names the file rather than writing a changeset
-    // whose body would be false.
     const { moves, refusal } = templateManifestMoves(
       [{ path: PORTAL_TEMPLATE, before: TEMPLATE_BEFORE, after: TEMPLATE_AFTER }],
       [`${TEMPLATES}/common/apps/portal/app/page.tsx`],
@@ -270,9 +240,8 @@ function write(root: string, filePath: string, content: string): void {
 }
 
 function run(root: string, args: string[]): void {
-  // `as string`: every call site passes a literal argv whose first element is the
-  // program name, so args[0] is never undefined; `noUncheckedIndexedAccess` cannot see
-  // that, and a runtime guard would be unreachable code in a test helper.
+  // `as string`: every call site passes a literal argv, so `args[0]` is never undefined
+  // and a runtime guard would be unreachable.
   const result = spawnSync(args[0] as string, args.slice(1), { cwd: root, encoding: "utf8" });
   if (result.status !== 0) throw new Error(`${args.join(" ")} failed: ${result.stderr}`);
 }
@@ -283,11 +252,6 @@ function commit(root: string, message: string): void {
   run(root, ["git", ...identity, "commit", "-q", "-m", message]);
 }
 
-/**
- * A throwaway repository shaped like this one at the point PR #821 hit: a publishable
- * package whose manifest the bump edited, the private app the templates are generated
- * from, and the scaffolding package holding the template that has not caught up.
- */
 function makeBumpedRepo(): string {
   const root = mkdtempSync(join(tmpdir(), "dependabot-templates-"));
   repos.push(root);
@@ -319,24 +283,19 @@ function makeBumpedRepo(): string {
 describe("the one command a Dependabot bump needs (issue #834)", () => {
   it("regenerates the templates and names both packages in one changeset", async () => {
     const root = makeBumpedRepo();
-    // What the generator would produce from the bumped app, and what is on disk beside
-    // it: the stale template nobody re-synced. Injected rather than generated, because
-    // the real generator reads THIS repository's apps, not a fixture's.
+    // Injected rather than generated, because the real generator reads this
+    // repository's apps, not a fixture's.
     const generated = new Map([["common/apps/portal/package.json", TEMPLATE_AFTER]]);
     const onDisk = new Map([["common/apps/portal/package.json", TEMPLATE_BEFORE]]);
     const log = vi.spyOn(console, "log").mockImplementation(() => undefined);
-    // The helper names the file after `GITHUB_HEAD_REF` when it is set, because a
-    // workflow checkout is detached and `rev-parse --abbrev-ref HEAD` answers "HEAD"
-    // there. CI sets it for THIS pull request, so a test that reads the fixture's branch
-    // has to say so: without this the assertion below passes locally and fails on CI
-    // with the name of whatever branch the suite happens to be running on.
+    // Unset, or the helper names the file after this run's own `GITHUB_HEAD_REF` and
+    // the assertion below passes locally while failing on CI.
     vi.stubEnv("GITHUB_HEAD_REF", undefined);
 
     const status = await main(["--write"], {
       cwd: root,
       templates: generated,
       current: onDisk,
-      // Stands in for `pnpm qcms:sync-templates`: the same write, into the fixture.
       syncTemplates: () => {
         for (const [path, contents] of generated) write(root, `${TEMPLATES}/${path}`, contents);
       },
@@ -352,15 +311,10 @@ describe("the one command a Dependabot bump needs (issue #834)", () => {
     expect(written).toStrictEqual(["dependabot-npm-and-yarn-minor-and-patch-abc123.md"]);
     const body = readFileSync(join(root, ".changeset", written[0] as string), "utf8");
 
-    // Both halves of the bump, in one file: the package whose own manifest moved, and
-    // the scaffolding package whose generated template manifest moved with it. On
-    // PR #821 these were two hand-written changesets found one gate at a time.
     expect(parseChangesetPackages(body)).toStrictEqual(["@roonga/qcms-db", "create-qcms-app"]);
     expect(body).toContain("`pg` ^8.22.0 to ^8.23.0 (dependencies)");
     expect(body).toContain("`next` ^16.3.3 to ^16.3.4 (dependencies in apps/portal)");
 
-    // And `check:templates` is green, asked with the gate's own comparison: the tree on
-    // disk after the run is the tree the generator produces.
     const readBack = new Map(
       [...generated.keys()].map((path) => [
         path,
@@ -371,8 +325,6 @@ describe("the one command a Dependabot bump needs (issue #834)", () => {
   });
 
   it("names the changeset after GITHUB_HEAD_REF when a workflow checkout is detached", async () => {
-    // The reason that preference exists: a workflow checkout has no branch name to read,
-    // so every bot pull request would otherwise claim the same file name.
     const root = makeBumpedRepo();
     run(root, ["git", "checkout", "-q", "--detach"]);
     const generated = new Map([["common/apps/portal/package.json", TEMPLATE_AFTER]]);

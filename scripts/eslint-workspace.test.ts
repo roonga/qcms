@@ -8,58 +8,27 @@ import { afterAll, describe, expect, it } from "vitest";
 import { WORKSPACE_ROOT, eslintBin, rewriteArgs } from "./eslint-workspace.mjs";
 
 /**
- * Tests for the one-working-directory lint runner (issue #899).
- *
- * The defect this guards: `apps/portal/e2e/clear-paths.pw.ts` reported two
- * `sonarjs/no-forced-browser-interaction` errors when ESLint ran from the repository
- * root and zero when it ran from `apps/portal`, which is how `turbo run lint` invokes
- * it. The file was linted both times, under the same config; only the verdict differed.
- * Fourteen `eslint-plugin-sonarjs` rules activate only when a test framework is
- * declared in a `package.json` at or above the linted file, and that upward search
- * stops at `context.cwd`. QCMS declares `vitest` and `@playwright/test` in the root
- * manifest only, so from a package directory the search found neither and all fourteen
- * rules returned an empty visitor.
- *
- * So the central test lints ONE file twice and demands the same bytes back. It is
- * written against a fixture rather than against the real spec because the real spec now
- * carries two justified `eslint-disable-next-line` comments: it reports nothing from
- * either directory, which is the same answer a rule that never ran gives.
+ * Several `eslint-plugin-sonarjs` rules activate only when a test framework is declared
+ * in a `package.json` at or above the linted file, and that upward search stops at
+ * `context.cwd`. The frameworks are declared in the root manifest only, so the working
+ * directory decides the verdict.
  */
 
 const REPO_ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
 const RUNNER = path.join(REPO_ROOT, "scripts", "eslint-workspace.mjs");
 
 /**
- * Per-case budget for the cases that spawn ESLint. One cold ESLint run over this config
- * loads 279 sonarjs rules plus typescript-eslint, and the central case pays for two of
- * them, so the 5s default is not the right bound.
- *
- * The number is measured at both ends rather than guessed (issue #604). Idle, the two
- * cases take 4.6s and 2.0s. On the same 24-core host at load average 122, with several
- * other gate runs competing, they take 30.4s and 16.8s: a spawning test is bounded by
- * scheduling, not by its own work, so the honest budget is one that survives a busy
- * machine. 300s leaves roughly an order of magnitude over the worst measurement and
- * still fails fast against a genuine hang.
+ * A spawning case is bounded by host scheduling rather than by its own work, so the
+ * budget is an order of magnitude over the worst measurement on a loaded machine.
  */
 const SPAWN_TIMEOUT_MS = 300_000;
 
 const fixtureRoots: string[] = [];
 
 /**
- * A fixture tree shaped like `apps/portal/e2e/clear-paths.pw.ts`: a Playwright spec
- * that reaches the framework through a relative support module rather than importing
- * `@playwright/test` itself, and forces a click on the radio input react-aria keeps
- * visually hidden behind its label.
- *
- * The indirection is the whole point. A file that imports `@playwright/test` by name
- * activates the rule from any directory, so it could not show the divergence; the real
- * specs import `./support/gates.js`, and the manifest walk is the only signal left.
- *
- * It lives under the repository root, not in a system temp directory, for two reasons
- * the mechanism forces: the root flat config has to reach the file, and the nearest
- * `package.json` above it has to be the root one that declares `@playwright/test`.
- *
- * @returns the absolute fixture directory, registered for cleanup.
+ * Must live under the repository root, not a temp directory: the root flat config has to
+ * reach the file, and the nearest `package.json` above it has to be the root one. The
+ * spec reaches the framework indirectly, or the rule would fire from any directory.
  */
 function writeFixture(): string {
   const root = mkdtempSync(path.join(REPO_ROOT, ".lint-cwd-fixture-"));
@@ -89,13 +58,6 @@ function writeFixture(): string {
   return root;
 }
 
-/**
- * ESLint, as JSON, run from `cwd`.
- *
- * @param cwd the working directory to run from.
- * @param args the ESLint arguments, written relative to `cwd`.
- * @param viaRunner true to go through `scripts/eslint-workspace.mjs`.
- */
 function lint(
   cwd: string,
   args: string[],
@@ -114,7 +76,6 @@ interface LintMessage {
   readonly line: number;
 }
 
-/** @returns every rule id reported over every file in an ESLint JSON report. */
 function ruleIds(stdout: string): (string | null)[] {
   const report = JSON.parse(stdout) as { messages: LintMessage[] }[];
   return report.flatMap((file) => file.messages.map((message) => message.ruleId));
@@ -143,8 +104,6 @@ describe("moving lint targets to the workspace root", () => {
   });
 
   it("passes flags and their values through untouched", () => {
-    // `json` must not become `apps/portal/json`: a flag value read as a target is the
-    // near-miss that would make the runner lint the wrong tree.
     expect(rewriteArgs(["-f", "json", "."], path.join(WORKSPACE_ROOT, "apps/portal"))).toEqual([
       "-f",
       "json",
@@ -173,13 +132,9 @@ describe("one verdict per file, whatever the working directory", () => {
       });
       const fromFixture = lint(fixture, ["forced-interaction.pw.mjs"], { viaRunner: true });
 
-      // Non-vacuous first: if the rule stopped firing at the root, identical output would
-      // mean nothing, because "clean" and "never ran" are the same report.
       expect(ruleIds(fromRoot.stdout)).toEqual(["sonarjs/no-forced-browser-interaction"]);
       expect(fromRoot.status).toBe(1);
 
-      // The assertion the issue asks for: same file, same config, two directories, one
-      // answer, down to the JSON.
       expect(fromFixture.stdout).toEqual(fromRoot.stdout);
       expect(fromFixture.status).toBe(fromRoot.status);
     },
@@ -189,9 +144,6 @@ describe("one verdict per file, whatever the working directory", () => {
   it(
     "still reports it when the package directory declares no test framework",
     () => {
-      // The shape of `apps/portal`: a manifest that stops the upward search one directory
-      // below the root one, which is what silenced the rule before this fix. A bare
-      // `eslint` here returned an empty report; the runner must not.
       const fixture = writeFixture();
       writeFileSync(
         path.join(fixture, "package.json"),

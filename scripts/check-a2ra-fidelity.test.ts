@@ -12,17 +12,8 @@ import {
   vendoredFiles,
 } from "./check-a2ra-fidelity.mjs";
 
-/**
- * Tests for the ADR-22 vendoring fidelity gate (issue #189).
- *
- * The scan itself is the `check:a2ra-fidelity` step; these cover the helpers and, more
- * importantly, the failure directions. A fidelity gate that could only report OK would
- * be worse than none, because the reviewers this exists for would trust it.
- */
-
 const REPO_ROOT = fileURLToPath(new URL("../", import.meta.url));
 
-/** The manifest as committed, which is also the fixture for the comparison tests. */
 const manifest = JSON.parse(
   readFileSync(join(REPO_ROOT, "packages/ui/a2ra-manifest.json"), "utf8"),
 ) as {
@@ -42,8 +33,8 @@ describe("upstreamPin", () => {
   });
 
   it("refuses a registry URL that is not pinned to a full commit sha", () => {
-    // ADR-22 requires an immutable pin. A branch or tag name would leave the gate unable
-    // to say which upstream it checked, which is the failure it exists to prevent.
+    // ADR-22 requires an immutable pin: a branch or tag name leaves the gate unable to
+    // say which upstream it checked.
     const branch = JSON.stringify({
       componentsDir: "src/components/a2ui",
       registry: "https://raw.githubusercontent.com/roonga/a2-react-aria/main/registry",
@@ -78,7 +69,6 @@ describe("compare", () => {
   });
 
   it("reports a single changed byte", () => {
-    // The negative control, as a unit: one appended newline is a different hash.
     const actual = new Map([[entry.path, sha256("upstream\n")]]);
     const result = compare(fixture, actual);
     expect(result.changed).toHaveLength(1);
@@ -101,8 +91,6 @@ describe("compare", () => {
 
 describe("the committed manifest", () => {
   it("is generated for the pin a2ra.json names", () => {
-    // The staleness direction: a pin move that leaves the manifest behind must be red,
-    // because a manifest from another commit says nothing about this one.
     const pin = upstreamPin(readFileSync(join(REPO_ROOT, "packages/ui/a2ra.json"), "utf8"));
     expect(manifest.pin).toBe(pin.pin);
     expect(manifest.componentsDir).toBe(`packages/ui/${pin.componentsDir}`);
@@ -122,8 +110,7 @@ describe("the committed manifest", () => {
   });
 
   it("matches the working tree byte for byte", () => {
-    // The gate's own assertion, run here too so a drift fails `pnpm test` and not only
-    // `pnpm check:all`.
+    // Run here too, so a drift fails `pnpm test` and not only `pnpm check:all`.
     const root = join(REPO_ROOT, manifest.componentsDir);
     for (const file of manifest.files) {
       expect(sha256(readFileSync(join(root, file.path), "utf8")), file.path).toBe(file.sha256);

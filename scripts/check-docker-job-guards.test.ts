@@ -13,16 +13,6 @@ import {
   jobsIn,
 } from "./check-docker-job-guards.mjs";
 
-/**
- * Tests for the Docker-job guard lint (issue #155, deferred from #150).
- *
- * #155 asks for the bite to be proven rather than inspected, so every case below drives
- * a synthetic workflow through the real comparator: a Testcontainers job missing each
- * action in turn, a job nobody classified, an entry naming a job that no longer exists,
- * and a job wired to a guard its class says it does not need. The positive control is
- * the same comparator over the repository's own workflows, which must be silent.
- */
-
 const workflow = (body: string): string => ["name: X", "on: push", "jobs:", body].join("\n");
 
 const TESTCONTAINERS_JOB = [
@@ -35,7 +25,6 @@ const TESTCONTAINERS_JOB = [
   `      - uses: ./.github/actions/${ASSERT_ACTION}`,
 ].join("\n");
 
-/** The classification a correctly wired Testcontainers job would carry. */
 const GUARDED = {
   "x.yml#unit": { mirror: true, assert: true, prepull: false, why: "boots Testcontainers." },
 };
@@ -55,8 +44,8 @@ describe("jobsIn", () => {
   });
 
   it("does not mistake a run-body line for a job key", () => {
-    // A block scalar is indented deeper than the job key it sits under, so the shape
-    // read here cannot be produced by a shell script inside a step.
+    // A block scalar is indented deeper than its job key, so a shell script inside a
+    // step cannot produce the shape read here.
     const withScript = jobsIn(
       workflow(
         [
@@ -124,11 +113,6 @@ describe("compareGuards", () => {
   });
 
   it("bites when an image-building job is missing the pre-pull (issue #1050)", () => {
-    // The flag added for the Code Owner's 2026-10-11 ruling, proved in both directions
-    // like the two above it. It matters more than it looks: the GHCR mirror was DECLINED
-    // for the base image and the BuildKit frontend, so the retried pre-pull is the whole
-    // of their availability story, and a job that loses it stays green until Docker Hub
-    // has a bad five minutes.
     const buildsImages = {
       "x.yml#unit": {
         mirror: true,
@@ -141,9 +125,6 @@ describe("compareGuards", () => {
     const missing = compareGuards(jobsInKeyed(TESTCONTAINERS_JOB), buildsImages);
     expect(missing.join("\n")).toContain(PREPULL_ACTION);
 
-    // And silent once the job carries it. The Hub assertion is dropped from the fixture
-    // because this class does not take it: an image-building job pulls from Docker Hub on
-    // purpose, which is the whole reason it is outside the assertion.
     const wired = [TESTCONTAINERS_JOB, `      - uses: ./.github/actions/${PREPULL_ACTION}`]
       .join("\n")
       .split("\n")
@@ -153,11 +134,8 @@ describe("compareGuards", () => {
   });
 
   it("bites on a pre-pull a job's class says it does not need", () => {
-    // The other direction, and `images.yml#build` is why it is worth a case: it builds
-    // images and is deliberately classified `prepull: false`, because a docker-container
-    // driver builder keeps its own content store and cannot be served from the daemon's.
-    // Adding the action there would read as fixed while changing nothing, so it is
-    // refused rather than ignored.
+    // A docker-container driver builder keeps its own content store and cannot be served
+    // from the daemon's, so the pre-pull action there would read as fixed and change nothing.
     const wired = [TESTCONTAINERS_JOB, `      - uses: ./.github/actions/${PREPULL_ACTION}`].join(
       "\n",
     );
@@ -169,9 +147,6 @@ describe("compareGuards", () => {
   });
 
   it("passes over the repository's own workflows", () => {
-    // The no-false-positives control #155 asks for: green on the real tree, every job
-    // classified, every entry naming a job that exists. This is the same comparison the
-    // gate runs, so a workflow edited without its classification fails here too.
     const dir = fileURLToPath(new URL("../.github/workflows/", import.meta.url));
     const declared = readdirSync(dir)
       .filter((name) => name.endsWith(".yml") || name.endsWith(".yaml"))
@@ -188,7 +163,6 @@ describe("compareGuards", () => {
   });
 });
 
-/** The comparator takes `<workflow>#<job>` keys; the fixtures above are one file. */
 function jobsInKeyed(body: string): { job: string; actions: string[] }[] {
   return jobsIn(workflow(body)).map((entry) => ({ ...entry, job: `x.yml#${entry.job}` }));
 }
