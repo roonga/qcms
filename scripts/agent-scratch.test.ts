@@ -91,9 +91,11 @@ describe("resolveLane", () => {
   });
 
   it("refuses a directory that is not a working tree instead of guessing a lane", () => {
-    expect(() => resolveLane(temporaryDirectory("qcms-agent-scratch-plain-"), {})).toThrow(
-      /not a git working tree/,
-    );
+    // The message quotes git's own refusal and names the directory (issue #1126): a lane
+    // that reads "not a git working tree" when git never started looks in the wrong place.
+    const directory = temporaryDirectory("qcms-agent-scratch-plain-");
+    expect(() => resolveLane(directory, {})).toThrow(/git could not name the branch/);
+    expect(() => resolveLane(directory, {})).toThrow(/not a git repository/i);
   });
 });
 

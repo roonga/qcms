@@ -5,6 +5,7 @@ import { fileURLToPath } from "node:url";
 
 import { describe, expect, it } from "vitest";
 
+import { gitBinary } from "../../components/test-support/git-binary.ts";
 import {
   cellExpressions,
   maskLiteralsAndComments,
@@ -50,20 +51,6 @@ import {
  * abbreviation each live in exactly one file, so a second renderer cannot appear without
  * copying a class name this file counts.
  */
-
-/**
- * Absolute git path: a bare `git` would trip `sonarjs/no-os-command-from-path`, which is
- * workspace-wide. Probing known locations and failing by name keeps the miss readable.
- */
-const GIT_CANDIDATES = ["/usr/bin/git", "/usr/local/bin/git", "/bin/git"];
-
-function gitBinary(): string {
-  const found = GIT_CANDIDATES.find((candidate) => existsSync(candidate));
-  if (found === undefined) {
-    throw new Error(`no git binary at any of: ${GIT_CANDIDATES.join(", ")}`);
-  }
-  return found;
-}
 
 const ADMIN_ROOT = fileURLToPath(new URL("../..", import.meta.url));
 

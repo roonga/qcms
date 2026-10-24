@@ -485,7 +485,7 @@ function sleep(ms) {
  * seat-releasing signal handler all need a process that outlives the caller and knows
  * the suite's process group.
  *
- * @param {{ command?: string[]; directory?: string; environment?: NodeJS.ProcessEnv; out?: (line: string) => void; repoRoot?: string; confirmMs?: number }} options
+ * @param {{ command?: string[]; directory?: string; environment?: NodeJS.ProcessEnv; out?: (line: string) => void; repoRoot?: string; confirmMs?: number; platform?: NodeJS.Platform }} options
  * @returns {Promise<{ code: number; directory: string; pid?: number }>}
  */
 export async function startDetached({
@@ -497,7 +497,20 @@ export async function startDetached({
   },
   repoRoot = REPO_ROOT,
   confirmMs = START_CONFIRM_MS,
+  platform = process.platform,
 } = {}) {
+  // Refused rather than ported (issue #1126). The whole design is POSIX: a session of its
+  // own from `setsid`, a process group to signal, and `/proc/<pid>/cwd` to attribute a
+  // port's occupant. Windows has no equivalent of any of the three, so a port would be a
+  // different mechanism wearing this one's name.
+  if (platform === "win32") {
+    out("verify:browser:detached does not run on native Windows.");
+    out("It needs POSIX sessions, process groups and /proc, which Windows does not have.");
+    out("Run it from WSL or the dev container. Native Windows runs `pnpm verify` only.");
+    out("See docs/DEVELOPER_GUIDE.md, 'Windows and WSL'.");
+    return { code: EXIT_USAGE, directory };
+  }
+
   assertPortSeatChosen(repoRoot, "pnpm verify:browser:detached", environment[PORT_SEAT_ENV_VAR]);
 
   const laneDirectory = scratchPath({ directory, environment });

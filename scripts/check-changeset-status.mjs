@@ -77,6 +77,23 @@ export function classify({ code, output, baseBranchResolves }) {
 }
 
 /**
+ * How to invoke `pnpm exec changeset status`, per platform (issue #1126).
+ *
+ * `pnpm` on Windows is `pnpm.cmd`, and Node refuses to start a `.cmd` without a shell,
+ * so the Windows branch hands the whole line to one and lets `PATHEXT` resolve the shim.
+ * It is a single string rather than argv plus `shell`, which is deprecated (DEP0190).
+ * The POSIX branch is unchanged: argv, no shell.
+ *
+ * @param {NodeJS.Platform} platform
+ * @returns {{ command: string, args: string[], shell: boolean }}
+ */
+export function statusInvocation(platform) {
+  const args = ["exec", "changeset", "status"];
+  if (platform !== "win32") return { command: "pnpm", args, shell: false };
+  return { command: ["pnpm", ...args].join(" "), args: [], shell: true };
+}
+
+/**
  * @param {string} ref
  * @returns {boolean}
  */
@@ -97,10 +114,17 @@ function main() {
   const baseBranch = baseBranchFrom(readFileSync(".changeset/config.json", "utf8"));
   const baseBranchResolves = refResolves(baseBranch);
 
-  const run = spawnSync("pnpm", ["exec", "changeset", "status"], {
+  const invocation = statusInvocation(process.platform);
+  /** @type {import("node:child_process").SpawnSyncOptionsWithStringEncoding} */
+  const options = {
     encoding: "utf8",
     stdio: ["ignore", "pipe", "pipe"],
-  });
+    shell: invocation.shell,
+  };
+  // Argv is omitted entirely in the shell case, so DEP0190 never fires.
+  const run = invocation.shell
+    ? spawnSync(invocation.command, options)
+    : spawnSync(invocation.command, invocation.args, options);
   const output = `${run.stdout ?? ""}${run.stderr ?? ""}`;
   const verdict = classify({ code: run.status ?? 1, output, baseBranchResolves });
 

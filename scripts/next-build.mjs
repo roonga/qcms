@@ -398,6 +398,61 @@ export function resolveCommand(command, packageRoot, exists = existsSync) {
 }
 
 /**
+ * One argument, quoted for `cmd.exe`, which takes a doubled quote as a literal one.
+ *
+ * Always quoted rather than only when a space is present: `Program Files` and a profile
+ * name with a space both appear in these paths, and a rule with no exceptions is the one
+ * that cannot be wrong about which case it is in.
+ *
+ * @param {string} value
+ * @returns {string}
+ */
+function quoteForShell(value) {
+  return `"${value.replace(/"/g, '""')}"`;
+}
+
+/**
+ * What to hand `spawn`, per platform (issue #1126).
+ *
+ * `node_modules/.bin/next` is a POSIX shell script, so Windows cannot execute it; the
+ * shim it can run is `next.CMD`, and Node refuses to start a `.cmd` at all without a
+ * shell. The Windows branch therefore resolves the `.CMD` shim and asks for a shell, as
+ * one quoted string rather than argv plus `shell` (which is deprecated, DEP0190). The
+ * POSIX path is unchanged: the resolved script, no shell, argv passed through.
+ *
+ * A shell is asked for only where it is needed, because it costs the diagnosis: a shell
+ * reports a command it cannot find as its own exit 1, so `next-build: could not start`
+ * and its 127 are only reachable while Node does the spawning. So a Windows command that
+ * already names a path Node can execute is still spawned directly.
+ *
+ * @param {string} command
+ * @param {string[]} args
+ * @param {string} packageRoot
+ * @param {NodeJS.Platform} [platform]
+ * @param {(path: string) => boolean} [exists]
+ * @returns {{ command: string, args: string[], shell: boolean }}
+ */
+export function resolveSpawn(
+  command,
+  args,
+  packageRoot,
+  platform = nodeProcess.platform,
+  exists = existsSync,
+) {
+  if (platform !== "win32") {
+    return { command: resolveCommand(command, packageRoot, exists), args, shell: false };
+  }
+  const named = command.includes("/") || command.includes("\\");
+  if (named) {
+    if (!/\.(?:cmd|bat)$/i.test(command)) return { command, args, shell: false };
+    return { command: [command, ...args].map(quoteForShell).join(" "), args: [], shell: true };
+  }
+  const shim = join(packageRoot, "node_modules", ".bin", `${command}.CMD`);
+  const resolved = exists(shim) ? shim : command;
+  return { command: [resolved, ...args].map(quoteForShell).join(" "), args: [], shell: true };
+}
+
+/**
  * The signals a killer sends to ask for a clean stop, which this script passes on to
  * the build (issue #925 review).
  *
@@ -426,10 +481,17 @@ export const FORWARDED_SIGNALS = /** @type {const} */ (["SIGTERM", "SIGINT", "SI
  */
 function spawnAttempt(command, args) {
   return new Promise((resolveAttempt) => {
-    const child = spawn(resolveCommand(command, cwd()), args, {
+    const plan = resolveSpawn(command, args, cwd());
+    /** @type {import("node:child_process").SpawnOptions} */
+    const options = {
       stdio: ["inherit", "pipe", "pipe"],
       env: stdout.isTTY ? { ...env, FORCE_COLOR: env.FORCE_COLOR ?? "1" } : env,
-    });
+      shell: plan.shell,
+    };
+    // Argv is omitted entirely in the shell case, so DEP0190 never fires.
+    const child = plan.shell
+      ? spawn(plan.command, options)
+      : spawn(plan.command, plan.args, options);
     let output = "";
     /**
      * @param {Buffer} chunk

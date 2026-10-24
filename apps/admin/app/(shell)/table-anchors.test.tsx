@@ -7,6 +7,7 @@ import type { ReactNode } from "react";
 import { renderToStaticMarkup } from "react-dom/server";
 import { describe, expect, it, vi } from "vitest";
 
+import { gitBinary } from "../../components/test-support/git-binary.ts";
 import type { FormListItem, FormVersionSummary, PinnableQuestion } from "../../lib/forms/types.ts";
 import type { QuestionDefinitionView, QuestionListItem } from "../../lib/questions/types.ts";
 
@@ -307,20 +308,6 @@ describe("the library picker", () => {
     expect(pickerMarkup()).toContain('<th scope="col" class="qcms-cell--drop">Type</th>');
   });
 });
-
-/**
- * Absolute git path: a bare `git` would trip `sonarjs/no-os-command-from-path`, which is
- * workspace-wide. Probing known locations and failing by name keeps the miss readable.
- */
-const GIT_CANDIDATES = ["/usr/bin/git", "/usr/local/bin/git", "/bin/git"];
-
-function gitBinary(): string {
-  const found = GIT_CANDIDATES.find((candidate) => existsSync(candidate));
-  if (found === undefined) {
-    throw new Error(`no git binary at any of: ${GIT_CANDIDATES.join(", ")}`);
-  }
-  return found;
-}
 
 /**
  * The admin app's source files, as absolute paths: ask git, never walk the directory.

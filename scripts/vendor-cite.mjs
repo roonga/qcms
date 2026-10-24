@@ -394,6 +394,14 @@ function lineIndex(text) {
  * nobody asserted. A non-pnpm layout is handled by the direct `node_modules/<name>`
  * fallback, which is checked against the manifest's own version for the same reason.
  *
+ * On Windows pnpm truncates a store directory name to 60 characters, so the entry that
+ * holds the package can carry neither the version nor the whole name
+ * (`@better-auth+drizzle-adapte_<hash>`) and the prefix match above cannot see it. The
+ * second pass reads each candidate's own manifest instead, which keeps the exact-version
+ * guarantee without depending on the directory name at all. It is a fallback rather than
+ * the only rule because the prefix match answers in one `existsSync` on a tree with
+ * thousands of store entries.
+ *
  * @param {string} nodeModules path to a `node_modules` directory
  * @param {string} name package name
  * @param {string} version exact version
@@ -409,19 +417,35 @@ export function findPackageRoot(nodeModules, name, version) {
   } catch {
     entries = [];
   }
-  for (const entry of entries.sort()) {
+  const sorted = entries.sort();
+  for (const entry of sorted) {
     if (entry !== prefix && !entry.startsWith(`${prefix}_`)) continue;
     const root = join(store, entry, "node_modules", ...name.split("/"));
     if (existsSync(join(root, "package.json"))) return root;
   }
-  const direct = join(nodeModules, ...name.split("/"));
-  try {
-    const manifest = JSON.parse(readFileSync(join(direct, "package.json"), "utf8"));
-    if (manifest.version === version) return direct;
-  } catch {
-    // Not installed here either; the caller reports it once, with the version.
+  for (const entry of sorted) {
+    const root = join(store, entry, "node_modules", ...name.split("/"));
+    if (manifestVersion(root) === version) return root;
   }
+  const direct = join(nodeModules, ...name.split("/"));
+  if (manifestVersion(direct) === version) return direct;
   return null;
+}
+
+/**
+ * The `version` a package root's own manifest declares, or null when there is none.
+ *
+ * @param {string} root
+ * @returns {string | null}
+ */
+function manifestVersion(root) {
+  try {
+    const manifest = JSON.parse(readFileSync(join(root, "package.json"), "utf8"));
+    return typeof manifest.version === "string" ? manifest.version : null;
+  } catch {
+    // Not installed here; the caller reports the miss once, with the version.
+    return null;
+  }
 }
 
 /**

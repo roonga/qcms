@@ -3,7 +3,7 @@ import { fileURLToPath } from "node:url";
 
 import { describe, expect, it } from "vitest";
 
-import { baseBranchFrom, classify } from "./check-changeset-status.mjs";
+import { baseBranchFrom, classify, statusInvocation } from "./check-changeset-status.mjs";
 
 /**
  * Tests for the release-plan gate (issue #797).
@@ -65,5 +65,25 @@ describe("classify", () => {
     expect(
       classify({ code: 1, output: "some new changesets error", baseBranchResolves: false }),
     ).toBe("failed");
+  });
+});
+
+describe("statusInvocation", () => {
+  it("runs argv with no shell on POSIX", () => {
+    expect(statusInvocation("linux")).toEqual({
+      command: "pnpm",
+      args: ["exec", "changeset", "status"],
+      shell: false,
+    });
+  });
+
+  it("hands Windows one line and a shell, so PATHEXT can find pnpm.cmd", () => {
+    // Issue #1126: Node refuses to start a `.cmd` without a shell, and argv plus a
+    // shell is deprecated, so argv has to be empty here.
+    expect(statusInvocation("win32")).toEqual({
+      command: "pnpm exec changeset status",
+      args: [],
+      shell: true,
+    });
   });
 });
