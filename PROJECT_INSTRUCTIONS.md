@@ -50,10 +50,11 @@ Node LTS, pnpm, Turborepo, Zod, Hono, Next.js, Postgres, Drizzle, better-auth, `
 
 Code Owner, 2026-10-24. Applies to every comment an agent writes or touches.
 
-- Keep comments short.
+- The default is no comment. Write one only when a reader needs something the code itself cannot say: a non-obvious why, a safety or security constraint, or a workaround for an external bug.
+- License headers and lint-disable or `as` justifications stay.
+- A doc comment on a published API only where its name and types do not already say it. None is required.
 - Never restate what the code does.
 - No history: no ticket narratives, no "was X, now Y", no dates, no record of who ruled what, and no issue or PR numbers unless one is the only pointer to a non-obvious constraint.
-- Keep only a comment a reader needs and the code cannot say: a non-obvious why, a safety or security constraint, a workaround for an external bug, a required license header, a lint-disable justification, or a doc comment on a published package API.
 
 ## Work protocol
 

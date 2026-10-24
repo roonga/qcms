@@ -41,9 +41,8 @@ Applies to PR descriptions, PR and review comments, issues, commit messages, and
 
 - Keep it concise. Use bullet points, not paragraphs.
 - Code comments (Code Owner, 2026-10-24; full rule in `PROJECT_INSTRUCTIONS.md`):
-  - Keep them short and never restate what the code does.
-  - No history: no dates, rulings, "was X, now Y", or issue and PR numbers unless one is the only pointer to a non-obvious constraint.
-  - Keep only what a reader needs and the code cannot say: a non-obvious why, a safety or security constraint, an external-bug workaround, a license header, a lint-disable justification, or a published API doc comment.
+  - The default is no comment. Write one only when a reader needs something the code cannot say: a non-obvious why, a safety or security constraint, or an external-bug workaround. License headers and lint-disable justifications stay.
+  - Never restate the code. No history: no dates, rulings, "was X, now Y", or issue and PR numbers unless one is the only pointer to a non-obvious constraint.
 
 ## Verification
 
