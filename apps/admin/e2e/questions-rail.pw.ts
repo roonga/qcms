@@ -756,7 +756,19 @@ test("1117 states the live document's issue total in the rail's Header, and clea
 
   // AND IT CLEARS ON A SUCCESSFUL SAVE, which is the half that proves nothing here remembers
   // a count: the editor republishes with no issues and the island reads the same snapshot.
+  //
+  // The acceptance is asserted FIRST, through the editor's own success alert. Without it a
+  // refused second save fails this as "the count did not clear", which is the one reading of
+  // that failure that would send a reader to the island rather than to the save - and the
+  // first run of this test failed exactly there, with no way to tell the two apart.
   await setNumericConstraint(page, "Longest answer", "20");
   await page.getByRole("main").getByRole("button", { name: "Save draft" }).click();
+  await expect(
+    page.getByRole("main").getByText("Draft saved."),
+    "the second save is accepted",
+  ).toBeVisible({ timeout: 30_000 });
   await expect(count, "and a save that is accepted leaves no count behind").toHaveCount(0);
+  await expect(rail.locator("[data-rail-issues]"), "and no row keeps a badge either").toHaveCount(
+    0,
+  );
 });

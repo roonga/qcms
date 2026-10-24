@@ -448,6 +448,12 @@ test("the enrollment and recovery-code states have zero violations", async ({ pa
 });
 
 test("the authenticated shell states have zero violations", async ({ page }) => {
+  // NINE SCREENS, THREE AXE MODES EACH, IN ONE TEST. The sweep was five screens inside the
+  // file's default 60s budget and issue #1117 took it to nine, which timed out on the
+  // seventh `goto` - a failure that reads as a defect on that screen and is a budget. Spent
+  // on the loop rather than split into nine tests, because the sign-in above is what each of
+  // them would otherwise repeat.
+  test.setTimeout(300_000);
   await signInWithTotp(page, EMAIL, totpSecret);
   // EVERY SCREEN HAS A RAIL SINCE §7.0 (issue #1117), so every one of these states now
   // includes a `<form role="search">`, an `<aside>` landmark and a `<nav>` inside it that

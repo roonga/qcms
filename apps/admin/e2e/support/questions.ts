@@ -54,19 +54,33 @@ export async function openPanel(page: Page, panel: QuestionPanelName): Promise<v
 }
 
 /**
- * Open a panel **if this screen has one**, and do nothing at all if it does not.
+ * Open a panel **if this screen shows one at a time**, and do nothing at all if it does not.
  *
  * This is what the option and constraint helpers below call, and it is why none of their call
  * sites had to learn about panels. The same step runs on two screens with two shapes:
- * `/questions/new` has no rail and every panel on screen at once, so there is no row to press
- * and nothing to do; the detail screen has a rail and shows one panel, so the row has to be
- * pressed before the fields exist to be typed into.
+ * `/questions/new` shows every panel on screen at once, so there is nothing to open; the
+ * detail screen shows one panel, so the row has to be pressed before the fields exist to be
+ * typed into.
  *
  * Asking the DOM which of the two it is on, rather than taking a flag, is what keeps a helper
  * like `addOption` one helper. The alternative was a boolean threaded through every caller, and
  * the callers that forgot it failed as "the button is not there" five minutes later.
+ *
+ * ## What it asks the DOM, and why it changed (issue #1117)
+ *
+ * It used to ask whether a panel ROW existed, because `/questions/new` had no rail at all. It
+ * has one now (§7.0 ruling 1), and that rail's Sections are the document's panels as jump
+ * anchors - rows that scroll to a section already on screen rather than switching which
+ * section is on it. So the old question answered "yes, press it" on the creation screen, the
+ * press scrolled, no row became `aria-current` because none is selected there, and eight
+ * specs failed five lines later inside this helper.
+ *
+ * The question it asks now is the one it always meant: **is more than one panel on screen?**
+ * That is the distinction the helper cares about, it is read off the editor rather than off
+ * the rail, and it stays true whatever a rail row happens to look like.
  */
 async function ensurePanel(page: Page, panel: QuestionPanelName): Promise<void> {
+  if ((await page.locator("[data-question-panel]").count()) > 1) return;
   const row = page.locator(`[data-rail-panel="${panel}"]`);
   if ((await row.count()) === 0) return;
   if ((await row.getAttribute("aria-current")) === "page") return;

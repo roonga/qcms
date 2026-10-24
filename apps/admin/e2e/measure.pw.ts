@@ -327,7 +327,11 @@ test("675 spends one section-padding token on the bar and the column alike, at 1
   await signInWithTotp(page, EMAIL, totpSecret);
   await page.setViewportSize({ width: 1280, height: 900 });
   await page.goto("/webhooks");
-  await expect(page.locator(".qcms-rail"), "a screen with no rail").toHaveCount(0);
+  // THE NO-RAIL ASSERTION THAT USED TO STAND HERE IS GONE (§7.0 ruling 1, issue #1117):
+  // every screen has a rail, so there is no railless screen left to pick. It was never load
+  // bearing for this claim either - the subject is the PADDING the bar and the column each
+  // spend, which is a property of two elements rather than of what sits between them, and
+  // `e2e/rail-every-screen.pw.ts` is where the rail's own track is measured.
 
   const pads = await page.evaluate(() => {
     const bar = document.querySelector("header > div");

@@ -320,30 +320,45 @@ test("559 lets a short screen's rail reach the bottom of the shell (N2)", async 
   );
 });
 
-test("559 leaves a screen with no rail exactly as wide as it was", async ({ page }) => {
+test("1117 starts the column after the rail's track, on a screen that used to have none", async ({
+  page,
+}) => {
   test.setTimeout(300_000);
   await signInWithTotp(page, EMAIL, totpSecret);
   await page.setViewportSize({ width: 1280, height: 900 });
   await page.goto("/questions");
 
-  await expect(page.locator(".qcms-rail")).toHaveCount(0);
-  // The regression this guards is specific: a grid that declared its 240px track
-  // unconditionally would leave an empty one here and push the column right by 240px.
+  // THIS TEST HAS BEEN TURNED AROUND, which is worth reading rather than rewriting silently.
   //
-  // ISSUE 648 CHANGED WHAT "AS IT WAS" MEANS, and this test is the place that says so. It
-  // asserted equal gutters either side, because the column was centred; the column is now
-  // left-anchored on every screen, so equal gutters is exactly the thing that must NOT be
-  // true. The claim this test exists to make is untouched: no phantom track pushes a
-  // railless column right. Stated as "the column starts at the viewport's origin", which
-  // fails on a 240px phantom track just as loudly as the old assertion did and does not
-  // also re-assert a layout the app no longer has.
+  // It was "559 leaves a screen with no rail exactly as wide as it was", and the regression
+  // it guarded was specific and real at the time: a grid that declared its 240px track
+  // unconditionally would leave an EMPTY one on a railless screen and push that column right
+  // by 240px for nothing. `/questions` was the railless screen it measured.
+  //
+  // §7.0 ruling 1 (issue #1117) leaves no railless screen to measure: every screen has a
+  // rail, so a track with a rail in it is the correct answer here now and "no phantom track"
+  // has no case left to describe. What survives is the half that was never about the rail's
+  // absence - the column is LEFT-ANCHORED rather than centred (issue 648) - plus the new
+  // claim the ruling makes, which is the one the issue's acceptance states first: the column
+  // begins where the rail's track ends, and `e2e/rail-every-screen.pw.ts` is where that is
+  // measured across every screen rather than on this one.
+  await expect(page.locator(".qcms-rail")).toHaveCount(1);
   const offset = await page.evaluate(() => {
     const main = document.querySelector("main#main-content");
     if (main === null) throw new Error("the authenticated shell must be on screen");
+    const rail = document.querySelector(".qcms-rail");
+    if (rail === null) throw new Error("the rail must be on screen");
     const box = main.getBoundingClientRect();
-    return { left: box.left, right: document.documentElement.clientWidth - box.right };
+    return {
+      left: box.left,
+      railWidth: rail.getBoundingClientRect().width,
+      right: document.documentElement.clientWidth - box.right,
+    };
   });
-  expect(offset.left, "no phantom rail track pushes the column right").toBe(0);
+  expect(offset.left, "the column starts where the rail's track ends").toBeCloseTo(
+    offset.railWidth,
+    0,
+  );
   expect(offset.right, "and the column is left-anchored rather than centred").toBeGreaterThan(0);
 });
 
