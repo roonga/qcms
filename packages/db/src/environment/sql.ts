@@ -1,36 +1,6 @@
 /**
- * The per-environment generator (ADR-40, task 064).
- *
- * # Why a generator and not N copies of the SQL
- *
- * An environment is a schema, and every data-plane table, guard and foreign key exists
- * **once per environment**. drizzle-kit cannot express that: it diffs a schema source
- * against a snapshot and emits one set of tables, with no notion of N copies of the
- * same table in N schemas whose names come from a database row. So the per-environment
- * half of the baseline is hand-authored SQL - and hand-authored SQL copied twice is
- * hand-authored SQL that will differ on the third copy.
- *
- * This module is the answer. It reads the data-plane module
- * (`../schema/data/index.ts`) and emits one environment's objects from it, so:
- *
- *   - the **baseline** emits `test` and `prod` from here, checked in as SQL because a
- *     migration is a file the migrator reads, with `environment-sql.test.ts` asserting
- *     the checked-in text is still what this module produces;
- *   - the **environment command** emits every later environment from here, at run time;
- *   - and the **counts** are a consequence of the code rather than a paragraph to
- *     maintain. `environmentObjectNames` derives them, and the tests assert against the
- *     derivation rather than against a number somebody typed.
- *
- * The first draft of the design listed four of the twelve guards it then had, which is
- * exactly why the durable form is code.
- *
- * # What multiplies and what does not
- *
- * The **trigger functions stay single, in `control`**: a trigger in `data_test`
- * executes `control.answers_reject_update()`, so N triggers share one body. The
- * **control-plane tables** are one copy and are not this module's. The **reporting
- * views** are per environment (Q10) and are here, because they read one environment's
- * data-plane tables by name.
+ * The per-environment generator (ADR-40). Hand-written because drizzle-kit has no notion
+ * of N copies of one table in N schemas whose names come from a database row.
  */
 
 import { SQL, getTableName } from "drizzle-orm";
@@ -47,9 +17,6 @@ import {
   workspaceReportingViewNames,
   workspaceReportingViewStatements,
 } from "../reporting-views.js";
-// Aliased to the name this file's thirteen call sites already use: renaming them would
-// have been diff noise over a string function, and what mattered was removing the third
-// copy of the doubling rule (PR #1099's round-2 review, finding 6).
 import { sqlLiteral as literal } from "../sql-literal.js";
 import { ACCESS_AUDIT_TABLE } from "../schema/control/access-audit.js";
 import {
@@ -70,18 +37,14 @@ import {
 
 const dialect = new PgDialect();
 
-/** `forms` as `"forms"`. Postgres identifier quoting, with the doubling rule. */
+/** Postgres identifier quoting, with the doubling rule. */
 function quote(identifier: string): string {
   return `"${identifier.replaceAll('"', '""')}"`;
 }
 
 /**
- * A name drizzle types as optional but always sets for the objects this module reads.
- *
- * Throwing rather than defaulting: an index or a constraint with no name would be
- * emitted with an empty one, which Postgres would then name for us differently in every
- * environment - and the whole point of the derivation is that the names are the same
- * set everywhere and can be asserted back out of the catalogue.
+ * Throwing rather than defaulting: Postgres would name an unnamed constraint differently
+ * in every environment, and the derivation relies on one name set everywhere.
  */
 function requireName(name: string | undefined, what: string): string {
   if (name === undefined || name === "") {
@@ -91,29 +54,19 @@ function requireName(name: string | undefined, what: string): string {
 }
 
 /**
- * Render a schema-level `SQL` fragment - a CHECK predicate, an index predicate, an
- * index expression, a column default - to text.
- *
- * Parameters are **inlined**, because this is DDL: there is no statement to bind them
- * to. A fresh `SQL` wrapping the same chunks rather than `value.inlineParams()`, which
- * mutates the object the schema module exported and would leave every later reader of
- * that table looking at an altered fragment.
- *
- * Column references come out as `"table"."column"`, unqualified by schema, which is
- * what a constraint or an index on a table inside `data_<env>` needs: the range-table
- * entry in scope is the table itself.
+ * Parameters are inlined because DDL has no statement to bind them to, over a fresh `SQL`
+ * rather than `value.inlineParams()`, which would mutate the schema module's own object.
  */
 function render(value: SQL): string {
   return dialect.sqlToQuery(new SQL(value.queryChunks).inlineParams()).sql;
 }
 
-/** A column's type, with an enum type qualified into `control` where it lives. */
+/** Enum types live in `control`, so a column declared with one is qualified into it. */
 function columnType(column: PgColumn): string {
   const sqlType = column.getSQLType();
   return column.columnType === "PgEnumColumn" ? `${CONTROL_SCHEMA}.${quote(sqlType)}` : sqlType;
 }
 
-/** A column default as DDL text. */
 function columnDefault(value: unknown): string {
   if (value instanceof SQL) return render(value);
   if (typeof value === "string") return literal(value);
@@ -123,7 +76,6 @@ function columnDefault(value: unknown): string {
   throw new Error(`the per-environment generator cannot render a ${typeof value} column default`);
 }
 
-/** One column's line inside `CREATE TABLE`. */
 function columnDefinition(column: PgColumn): string {
   const parts = [quote(column.name), columnType(column)];
   if (column.primary) parts.push("PRIMARY KEY");
@@ -134,14 +86,13 @@ function columnDefinition(column: PgColumn): string {
   return `\t${parts.join(" ")}`;
 }
 
-/** One column reference inside an index, with its sort order when it is not the default. */
 function indexColumn(column: Partial<IndexedColumn | SQL>): string {
   if (column instanceof SQL) return render(column);
   const indexed = column as Partial<IndexedColumn>;
   const config = indexed.indexConfig;
   const order = config?.order === "desc" ? " DESC" : "";
-  // Postgres's own defaults: ASC implies NULLS LAST and DESC implies NULLS FIRST, so
-  // the clause is written only where it is not already what the sort order gives.
+  // ASC implies NULLS LAST and DESC implies NULLS FIRST, so the clause is written only
+  // where the sort order does not already give it.
   let nulls = "";
   if (config?.nulls === "first") nulls = " NULLS FIRST";
   else if (order !== "") nulls = " NULLS LAST";
@@ -151,23 +102,12 @@ function indexColumn(column: Partial<IndexedColumn | SQL>): string {
 /**
  * Every enum type a data-plane table's column is declared with.
  *
- * **The types are created once, in `control`, exactly as the trigger functions are**
- * (Code Owner, 2026-09-29, Q54). They are not per environment and are not part of the
- * per-environment set: `data_test.sessions` and `data_prod.sessions` both use
- * `control.access_mode`, so the closed set of values is one declaration and a change to
- * it is one migration rather than one per environment.
+ * The types are created once, in `control`, not per environment: every environment's
+ * `sessions` uses `control.access_mode`, so the closed set of values is one declaration.
  *
- * Writing a value of one needs **`USAGE` on the type**, and **no grant is emitted for it**:
- * Postgres grants type `USAGE` to `PUBLIC` by default, so every role holds it already and
- * a statement here would grant what is already held. The same is true of `EXECUTE` on the
- * trigger functions in `control`, which is why no function grant is emitted either. A
- * catalogue read that reports either privilege is reporting a **default** rather than a
- * grant this package made, and `03-db-least-privilege.e2e.ts` says so beside the assertion
- * so the reading is not mistaken for proof of a grant.
- *
- * The list is still derived and still exported, because the least-privilege suite asserts
- * the two names it expects and a third enum arriving unnoticed is what that assertion is
- * for.
+ * No type `USAGE` grant is emitted, and no `EXECUTE` grant on the trigger functions
+ * either: Postgres grants both to `PUBLIC` by default, so a statement here would grant
+ * what is already held. A catalogue read reporting either is reporting a default.
  */
 function dataPlaneEnumTypes(): string[] {
   const names = new Set<string>();
@@ -184,38 +124,27 @@ export const DATA_PLANE_ENUM_TYPES: readonly string[] = dataPlaneEnumTypes();
 
 /** The names of every object the generator emits for one environment. */
 export interface EnvironmentObjectNames {
-  /** The data-plane schema, `data_<env>`. */
   readonly schema: string;
-  /** The reporting view schema, `reporting_<env>`. */
   readonly reportingSchema: string;
-  /** The application role, `qcms_app_<env>`. */
   readonly role: string;
-  /** The data-plane tables, in creation order. */
+  /** In creation order. */
   readonly tables: readonly string[];
   /**
-   * Every guard: a trigger, a CHECK, a UNIQUE or an index on a data-plane table.
-   * These are the objects whose absence is **silent** - an environment missing
-   * `answers_reject_delete` has an erasable ledger and nothing says so - which is why
-   * they are counted apart from the foreign keys, whose absence fails on the first
-   * insert.
+   * Every trigger, CHECK, UNIQUE and index. Counted apart from the foreign keys because
+   * their absence is silent: an environment missing `answers_reject_delete` has an
+   * erasable ledger and nothing says so.
    */
   readonly guards: readonly string[];
-  /** Every foreign key declared on a data-plane table. */
   readonly foreignKeys: readonly string[];
-  /** The foreign keys that reference a table in this environment's own schema. */
+  /** Those referencing this environment's own schema. */
   readonly inPlaneForeignKeys: readonly string[];
-  /** The foreign keys that reference the single `control` copy. */
+  /** Those referencing the single `control` copy. */
   readonly crossingForeignKeys: readonly string[];
 }
 
 /**
- * Derive the per-environment object set from the data-plane module.
- *
- * **This is the derivation the counts come from.** Nothing here reads a number; the
- * tests compare `guards.length` and `foreignKeys.length` against what a `grep` of the
- * migration SQL finds, and against what `pg_constraint` and `pg_trigger` hold after the
- * baseline has run. A figure written into a document goes stale silently; this does
- * not.
+ * Derived rather than written down, so the tests compare against `pg_constraint` and
+ * `pg_trigger` instead of a typed-in count.
  */
 export function environmentObjectNames(environment: string): EnvironmentObjectNames {
   const guards: string[] = [];
@@ -237,7 +166,7 @@ export function environmentObjectNames(environment: string): EnvironmentObjectNa
     }
   }
   for (const trigger of DATA_PLANE_TRIGGERS) guards.push(trigger.name);
-  // Q46's thirteenth guard, the one whose text differs per environment.
+  // The one guard whose text differs per environment.
   guards.push(SESSION_ENVIRONMENT_CHECK);
 
   return {
@@ -252,7 +181,6 @@ export function environmentObjectNames(environment: string): EnvironmentObjectNa
   };
 }
 
-/** `CREATE TABLE data_<env>.<name> (...)`, with its checks, uniques and composite key. */
 function createTableSql(environment: string, table: PgTable): string {
   const schema = dataSchemaName(environment);
   const config = getTableConfig(table);
@@ -272,9 +200,9 @@ function createTableSql(environment: string, table: PgTable): string {
     lines.push(`\tCONSTRAINT ${quote(check.name)} CHECK (${render(check.value)})`);
   }
   if (getTableName(table) === "sessions") {
-    // Q46. The one guard whose predicate names the schema it sits in, so it cannot be
-    // declared on the Drizzle table beside the others. A CHECK passes on NULL, which is
-    // why `environment` is NOT NULL on the column above.
+    // The one guard whose predicate names the schema it sits in, so it cannot be declared
+    // on the Drizzle table beside the others. A CHECK passes on NULL, which is why
+    // `environment` is NOT NULL on the column above.
     lines.push(
       `\tCONSTRAINT ${quote(SESSION_ENVIRONMENT_CHECK)} ` +
         `CHECK ("sessions"."environment" = ${literal(environment)})`,
@@ -284,7 +212,6 @@ function createTableSql(environment: string, table: PgTable): string {
   return `CREATE TABLE ${quote(schema)}.${quote(getTableName(table))} (\n${lines.join(",\n")}\n);`;
 }
 
-/** Every `ALTER TABLE ... ADD CONSTRAINT ... FOREIGN KEY` for one environment. */
 function foreignKeySql(environment: string): string[] {
   const schema = dataSchemaName(environment);
   const statements: string[] = [];
@@ -293,11 +220,8 @@ function foreignKeySql(environment: string): string[] {
     for (const foreignKey of config.foreignKeys) {
       const reference = foreignKey.reference();
       const target = getTableName(reference.foreignTable);
-      // The half a generator gets wrong quietly: an in-plane key written once against
-      // `data_test` and copied can end up pointing at another environment's `sessions`,
-      // which is a cross-environment reference the search path would never reveal. The
-      // target schema is therefore derived per key, and criterion 1a asserts it back
-      // out of `pg_constraint`.
+      // Derived per key: a copied in-plane key can end up pointing at another
+      // environment's `sessions`, which the search path would never reveal.
       const targetSchema = DATA_PLANE_TABLE_NAMES.includes(target) ? schema : CONTROL_SCHEMA;
       const columns = reference.columns.map((column) => quote(column.name)).join(",");
       const targetColumns = reference.foreignColumns.map((column) => quote(column.name)).join(",");
@@ -313,7 +237,6 @@ function foreignKeySql(environment: string): string[] {
   return statements;
 }
 
-/** Every `CREATE INDEX` for one environment. */
 function indexSql(environment: string): string[] {
   const schema = dataSchemaName(environment);
   const statements: string[] = [];
@@ -335,7 +258,6 @@ function indexSql(environment: string): string[] {
   return statements;
 }
 
-/** Every `CREATE TRIGGER` for one environment, each executing its single body in `control`. */
 function triggerSql(environment: string): string[] {
   const schema = dataSchemaName(environment);
   return DATA_PLANE_TRIGGERS.map(
@@ -347,27 +269,7 @@ function triggerSql(environment: string): string[] {
   );
 }
 
-/**
- * The erasure-safe reporting views for one environment (Q10).
- *
- * One schema per environment holding the same two view names, so a BI tool connects to
- * one environment's schema and its queries are otherwise unchanged. `reporting_<env>`
- * is on **no search path**, so `queries/reporting.ts` reads it schema-qualified; that
- * is the one place in the package where a schema name is interpolated, and it is
- * interpolated from the connection's own environment.
- *
- * **The view bodies are task 075's generator, called with this environment's names.**
- * They are not written out here, and that is the whole point of 075 making them a
- * function of their schema names: a view whose SQL is a literal cannot be created under
- * a second schema name without copying it, and the copy is what drifts. The repeat
- * grain, `answers_flat.instance_id` and the `answer_group_instances` join therefore
- * reach every environment because they reach that one function, and task 067's
- * per-workspace split will call it the same way.
- *
- * The erasure guarantee is in the shape of those views rather than in a filter a caller
- * has to remember: an erased session is absent because its tombstone joins, and a
- * non-submitted one is absent because the status is checked there (ADR-17, I11).
- */
+/** `reporting_<env>` is on no search path, so readers must qualify it. */
 function reportingViewSql(environment: string): string[] {
   return [
     `CREATE SCHEMA ${quote(reportingSchemaName(environment))};`,
@@ -381,10 +283,6 @@ function reportingViewSql(environment: string): string[] {
 /**
  * Every statement that creates one environment's schemas, tables, guards, foreign keys
  * and reporting views, in dependency order.
- *
- * Returned as a list of statements rather than one blob, because the baseline joins
- * them with drizzle's `--> statement-breakpoint` and the environment command executes
- * them one at a time inside one transaction.
  */
 export function createEnvironmentStatements(environment: string): string[] {
   const schema = dataSchemaName(environment);
@@ -399,28 +297,13 @@ export function createEnvironmentStatements(environment: string): string[] {
 }
 
 /**
- * The grants for one environment (Q17, Q40, Q48, Q49, Q52), as statements.
+ * The grants for one environment. `qcms_app_<env>` gets DML on its own `data_<env>`, its
+ * own `reporting_<env>`, and on `control` only {@link CONTROL_READ_TABLES} plus one
+ * `UPDATE`, so a defect on the anonymous respondent path cannot rewrite a grant row or a
+ * staff session. `qcms_app_control` gets `INSERT` on `outbox` and nothing else.
  *
- * Read the shape off the three roles rather than off the statements:
- *
- *   - **`qcms_app_<env>`** holds DML on its own `data_<env>` and nothing in any other
- *     environment's; `USAGE` on its own `reporting_<env>` with `SELECT` on that
- *     schema's views and on no other environment's (Q52); and on `control` the named
- *     read list plus one `UPDATE`, so a defect on the anonymous respondent path cannot
- *     rewrite a grant row or a staff session. That list is **six** `SELECT`s, the sixth
- *     guarded on its table existing; see {@link CONTROL_READ_TABLES}.
- *   - **`qcms_app_control`** holds `INSERT` on this environment's `outbox` and **nothing
- *     else in any data schema** (Q49), because a release record and its `form.released`
- *     event commit in one transaction. `USAGE` on the schema is the unavoidable
- *     companion of that one grant: Postgres has no way to reach a table in a schema
- *     without it, and it conveys no access to any other table.
- *   - **`qcms_migrate`** is the owner and is untouched here.
- *
- * Every statement is **guarded on the role existing**, for the reason migration 0021's
- * revoke is: most databases this runs against have no `qcms_app%` role at all - a
- * Testcontainers harness and a single-credential development database both migrate as
- * one superuser - and an unguarded `GRANT` would fail on them and take the whole
- * migration with it.
+ * Every statement is guarded on the role existing: most databases this runs against have
+ * no `qcms_app%` role at all, and an unguarded `GRANT` would fail the whole migration.
  */
 export function grantEnvironmentStatements(environment: string): string[] {
   const schema = dataSchemaName(environment);
@@ -431,47 +314,22 @@ export function grantEnvironmentStatements(environment: string): string[] {
     `GRANT USAGE ON SCHEMA ${quote(schema)} TO ${quote(role)}`,
     `GRANT SELECT, INSERT, UPDATE, DELETE ON ALL TABLES IN SCHEMA ${quote(schema)} TO ${quote(role)}`,
     `GRANT USAGE ON ALL SEQUENCES IN SCHEMA ${quote(schema)} TO ${quote(role)}`,
-    // Q52: its own reporting views and no other environment's.
-    //
-    // `ALL TABLES` means the environment-wide pair ONLY BECAUSE OF WHEN THIS RUNS. It is a
-    // point-in-time grant over the tables that exist at that moment, and on every live
-    // path that is `responses` and `answers_flat` and nothing else: the baseline creates
-    // them and grants, and `createEnvironment` grants (`command.ts`) before it reconciles
-    // the environment's per-workspace views. Move the reconciliation above the grant pass
-    // and this line silently hands the application role every workspace's views, which
-    // Q52 and 067's `workspaceReportingStatements` put on the analysts' roles instead.
-    //
-    // A restore inverts the order for free, because the views come back inside the dump,
-    // which is why `revokeWorkspaceViewsFromEnvironmentRole` in `./reporting.ts` exists
-    // and is in `GRANT_SOURCES` after this pass. Narrowing this statement to the two views
-    // it means would be the other fix; the Code Owner ruled on 2026-10-23 (PR #1099, Q82)
-    // to keep the revoke-only source and leave shipped migrations untouched.
+    // `ALL TABLES` reaches the environment-wide pair only because of WHEN this runs: it
+    // is point-in-time, and on every live path the per-workspace views do not exist yet.
+    // Move the reconciliation above this pass and the application role silently gains
+    // every workspace's views. A restore inverts the order, which is what
+    // `revokeWorkspaceViewsFromEnvironmentRole` in `./reporting.ts` corrects.
     `GRANT USAGE ON SCHEMA ${quote(reporting)} TO ${quote(role)}`,
     `GRANT SELECT ON ALL TABLES IN SCHEMA ${quote(reporting)} TO ${quote(role)}`,
     `GRANT USAGE ON SCHEMA ${quote(CONTROL_SCHEMA)} TO ${quote(role)}`,
-    // The `control` reads of Q40 as amended by Q48: six, the sixth emitted below under
-    // its own guard because the baseline runs before the migration that creates it.
-    // `question_versions` is on the list because `getQuestionVersion` runs on every
-    // step served and every submission; without it every respondent request fails on
-    // permission.
+    // The guarded members are emitted below instead.
     ...CONTROL_READ_TABLES.filter(
       (table) => !CONTROL_READ_TABLES_GUARDED_ON_EXISTENCE.includes(table),
     ).map((table) => `GRANT SELECT ON ${quote(CONTROL_SCHEMA)}.${quote(table)} TO ${quote(role)}`),
-    // One-time link consumption (`consumeSecureLink`). Deliberately no `INSERT`: an
-    // environment role redeems and consumes a link, it never mints one. Minting runs on
-    // the control pool (Q53).
+    // No `INSERT`: an environment role consumes a link and never mints one.
     `GRANT UPDATE ON ${quote(CONTROL_SCHEMA)}.${quote("secure_links")} TO ${quote(role)}`,
-    // **No type grant and no function grant, deliberately** (Q54, and the probe behind
-    // `docs/operations.md`). Writing a value of `control.access_mode` needs `USAGE` on the
-    // type and firing a data-plane trigger needs `EXECUTE` on its function in `control`,
-    // and Postgres grants both to `PUBLIC` by default - so every role already holds them
-    // and a statement here would grant what is already held. An earlier draft emitted the
-    // type grant anyway, on the argument that a deployment which revoked type usage from
-    // `PUBLIC` would otherwise fail; that is a change to a cluster-wide default this recipe
-    // does not make and cannot see, and writing a grant nobody needs to make the catalogue
-    // read prettier is the kind of thing that makes a privilege model hard to audit. A role
-    // reported as holding type `USAGE` is reporting a default, which is what
-    // `03-db-least-privilege.e2e.ts` says beside its assertion.
+    // No type or function grant: Postgres grants both to `PUBLIC` by default, so a
+    // statement here would grant what is already held. See `DATA_PLANE_ENUM_TYPES`.
   ];
 
   const controlRoleGrants = [
@@ -481,56 +339,26 @@ export function grantEnvironmentStatements(environment: string): string[] {
 
   return [
     guardedOnRole(role, environmentGrants),
-    // `form_releases` is on the six-table read list and is created by task 065's
-    // migration, which is after the baseline this function also serves - so its grant is
-    // guarded on the table existing rather than left out. One emission has to be correct
-    // both before that migration and after it.
     ...CONTROL_READ_TABLES_GUARDED_ON_EXISTENCE.map((table) =>
       guardedOnRoleAndTable(role, CONTROL_SCHEMA, table, [
         `GRANT SELECT ON ${quote(CONTROL_SCHEMA)}.${quote(table)} TO ${quote(role)}`,
       ]),
     ),
-    // The SEC-15 access audit (task 069). The grant is owed **twice** and this is the
-    // second half: task 069's migration covers the environments that already exist when
-    // it runs, and this covers every environment created afterwards. Guarded on the table
-    // existing for the reason `form_releases` is - the baseline calls this function
-    // before the migration that creates it - and `INSERT` and nothing else, so an
-    // environment role may add a row and may not read, change or remove one (Q40, Q56).
+    // `INSERT` and nothing else, so an environment role may add an audit row and may not
+    // read, change or remove one (SEC-15).
     guardedOnRoleAndTable(role, CONTROL_SCHEMA, ACCESS_AUDIT_TABLE, [
       `GRANT INSERT ON ${quote(CONTROL_SCHEMA)}.${quote(ACCESS_AUDIT_TABLE)} TO ${quote(role)}`,
     ]),
     guardedOnRole(CONTROL_ROLE, controlRoleGrants),
-    // `two_factor_resets` stays migrate-only for EVERY `qcms_app%` role, the control
-    // role included (Q40, finding B). Emitted per environment as well as in the
-    // baseline so an environment created later cannot arrive holding it.
+    // Emitted here too, so an environment created later cannot arrive holding it.
     revokeMigrateOnlyStatement(),
   ];
 }
 
 /**
- * One (workspace, environment) reporting consumer: its two views and the read-only
- * role's grants (Q26, task 067).
- *
- * # What the role holds, and what makes criterion 7 true
- *
- * `USAGE` on **its own** `reporting_<env>` and `SELECT` on **exactly its own two views**.
- * Nothing else, anywhere: no `SELECT` on the schema's unfiltered `responses` and
- * `answers_flat`, which are the application's (Q52); no privilege on any `data_<env>`
- * table; nothing on `control`; and no `USAGE` at all on any other environment's reporting
- * schema, so another environment's views are unreachable before their rows are.
- *
- * Note what is deliberately **not** written: `GRANT SELECT ON ALL TABLES IN SCHEMA`. That
- * is the form the per-environment recipe used while there was one view set per schema,
- * and it is exactly the form that would hand a workspace's analysts every other
- * workspace's views the moment a second set appeared. The grant names the two views.
- *
- * # Why every statement is guarded on the role existing
- *
- * The same reason every other grant in this module is: a role that can log in needs a
- * credential, and an operator may provision these roles their own way. So the
- * reconciliation creates the role only when it is given a password, and the grants land
- * either way, guarded, exactly as `docs/operations.md`'s recipe already has an operator
- * run their provisioning first and the grants second.
+ * One (workspace, environment) reporting consumer: its views and its read-only role's
+ * grants, which name those views and nothing else, because `ALL TABLES IN SCHEMA` would
+ * hand a workspace's analysts every other workspace's views.
  */
 export function workspaceReportingStatements(input: {
   readonly environment: string;
@@ -548,21 +376,7 @@ export function workspaceReportingStatements(input: {
   ];
 }
 
-/**
- * The **grant half** of the pair above, on its own.
- *
- * Split out for the re-grant subcommand (issue #1094), which re-applies privileges and
- * must not do DDL. `pg_dump --no-privileges` loses the grants and keeps the views, so a
- * restore needs this half and nothing else - and a `regrant` that emitted the `CREATE OR
- * REPLACE VIEW` would quietly **create** a view set an operator had never asked for,
- * which is what the restore drill caught it doing: the view set for a workspace nobody had
- * run `qcms-db-environment reporting` for appeared out of a command whose name says it
- * grants. Reconciling the views is that subcommand's job and `docs/reporting-view.md`
- * already says to run it.
- *
- * One function and not a second copy of the grant text: {@link workspaceReportingStatements}
- * composes this with the view half, so the two emissions cannot differ.
- */
+/** The grant half alone, for the re-grant subcommand, which must do no DDL. */
 export function workspaceReportingGrantStatements(input: {
   readonly environment: string;
   readonly slug: string;
@@ -580,43 +394,13 @@ export function workspaceReportingGrantStatements(input: {
 }
 
 /**
- * The grants for a control-plane table created by a migration **after** the baseline
- * (ADR-40's grant table; task 065's `form_releases` is the first).
+ * The grants for a control-plane table created after the baseline, which its own
+ * migration must carry: the baseline's `ALL TABLES IN SCHEMA control` pass covers only
+ * the tables existing then, and there is no `ALTER DEFAULT PRIVILEGES` here, because a
+ * default has no per-table filter and so cannot carve out the break-glass audit.
  *
- * # Why a new control-plane table needs its own grants at all
- *
- * The baseline hands `qcms_app_control` its rights with `GRANT ... ON ALL TABLES IN
- * SCHEMA control`, which is a grant on the tables that exist **at that moment** and not
- * a standing rule, and task 064 deliberately set **no `ALTER DEFAULT PRIVILEGES`**: a
- * default is keyed on (role, schema, object type) with no per-table filter, so "every
- * table except the break-glass audit" is not expressible as one. A later table therefore
- * arrives with nobody granted on it, and the failure is found at **runtime** - a table
- * the running API cannot read - rather than by the migration, which succeeds.
- *
- * So a grant belongs to the migration that creates its table, which is migration 0021's
- * own rule and the shape task 069 uses for the SEC-15 audit.
- *
- * # What it emits, and the two roles it emits for
- *
- *   - **`qcms_app_control`** gets DML, which is what ADR-40's role table gives it on
- *     `control` outside the two audit carve-outs. Append-only, where a table is
- *     append-only, is a **trigger** rather than a narrower grant here, exactly as
- *     `control.form_versions` already does it: the record says DML, and a privilege
- *     model is easier to audit when the grant matches the record and the immutability is
- *     a guard with an error message.
- *   - **every `qcms_app_<env>`** gets `SELECT` when the table is on
- *     {@link CONTROL_READ_TABLES}, and nothing at all when it is not. The roles are
- *     enumerated from `control.environments` at migration time rather than written out,
- *     because the live set is a table and an operator may have created a third
- *     environment before this migration runs.
- *
- * Both halves are guarded on the role existing, for the reason migration 0021's revoke
- * is: most databases this runs against have no `qcms_app%` role at all, and an unguarded
- * `GRANT` would fail on them and take the whole migration with it.
- *
- * The statements are **checked in** as part of the migration, because a migration is a
- * file the migrator reads; `control-table-grants.test.ts` asserts the checked-in text is
- * still what this function emits.
+ * `qcms_app_control` gets DML; an environment role gets `SELECT` only when the table is on
+ * {@link CONTROL_READ_TABLES}.
  */
 export function grantControlTableStatements(table: string): string[] {
   const statements = [
@@ -631,42 +415,11 @@ export function grantControlTableStatements(table: string): string[] {
 }
 
 /**
- * The grants and the revokes for the SEC-15 access audit (Q40 as widened by Q56, SEC-15).
+ * The SEC-15 access audit's grants: `INSERT` for every application role, `SELECT` for the
+ * control role alone, and `UPDATE` and `DELETE` revoked from all of them so a credential
+ * serving traffic cannot rewrite the record of what it did.
  *
- * `grantControlTableStatements` above is the shape for an ordinary new control-plane
- * table: DML for the control role, and `SELECT` for the environment roles when the table
- * is on the read list. This table is neither, so it has its own emitter rather than an
- * option on that one.
- *
- * Four statements, and each is a decision rather than a tidy-up:
- *
- *   1. **`SELECT` and `INSERT` for `qcms_app_control`**, and no `UPDATE` or `DELETE`. The
- *      `SELECT` is the read a workspace owner and the installation administrator make
- *      through the authoring surface; the `INSERT` is Q56's, because a grant write and
- *      its audit row are both control-pool acts.
- *   2. **`INSERT` for every `qcms_app_<env>` in the live set**, enumerated from
- *      `control.environments` rather than written out, for the reason
- *      {@link grantControlReadToEnvironmentRolesStatement} enumerates: an operator may
- *      have created a third environment before this migration runs, and a response read
- *      in it has to be able to write its own audit row.
- *   3. **`UPDATE` and `DELETE` revoked from every `qcms_app%` role**, the control role
- *      included. It has to be a revoke rather than a narrower grant for statement 1's
- *      sake only in part: `GRANT ... ON ALL TABLES IN SCHEMA control` in the baseline is
- *      what hands the control role DML on the tables that existed then, and this table
- *      did not, so the revoke is what makes the rule hold for a role an operator creates
- *      later and grants their own way. It is written against the **prefix**, so an
- *      installation that creates `qcms_app_staging` next week gets the same control.
- *
- * **Both `INSERT` paths are plain inserts with no `RETURNING`**, and the reason is the
- * helper rather than either role's own grants: one helper writes both roles' audit rows
- * (`queries/access-audit.ts`), and `qcms_app_<env>` holds `INSERT` here and nothing else,
- * so a `RETURNING`, being a read, is refused for it. The rule is asserted as the
- * environment role, because asserting it as the control role would prove nothing - that
- * role holds `SELECT` here and the statement would succeed.
- *
- * The statements are **checked in** as part of the migration, because a migration is a
- * file the migrator reads; `control-table-grants.test.ts` asserts the checked-in text is
- * still what this function emits.
+ * An environment role therefore cannot use `RETURNING` on an audit insert.
  */
 export function grantAccessAuditStatements(): string[] {
   const table = `${quote(CONTROL_SCHEMA)}.${quote(ACCESS_AUDIT_TABLE)}`;
@@ -677,7 +430,6 @@ export function grantAccessAuditStatements(): string[] {
   ];
 }
 
-/** `INSERT` on the access audit to every environment role in the live set. */
 function grantAccessAuditInsertToEnvironmentRolesStatement(): string {
   const grant = `GRANT INSERT ON ${quote(CONTROL_SCHEMA)}.${quote(ACCESS_AUDIT_TABLE)} TO %I`;
   return `DO $$
@@ -696,15 +448,7 @@ END
 $$;`;
 }
 
-/**
- * Take `UPDATE` and `DELETE` on the access audit back from every `qcms_app%` role.
- *
- * The sibling of {@link revokeMigrateOnlyStatement}, and narrower: that one takes all
- * four privileges on `two_factor_resets`, because that table is migrate-only. Here the
- * application roles keep the writes they need - `INSERT` for both, `SELECT` for the
- * control role - and lose the two that would let a credential serving traffic rewrite the
- * record of what it did.
- */
+// Against the role prefix, so a role an operator creates later is covered too.
 function revokeAccessAuditWritesStatement(): string {
   return `DO $$
 DECLARE application_role text;
@@ -721,18 +465,9 @@ $$;`;
 }
 
 /**
- * `SELECT` on one `control` table to **every** environment role in the live set.
- *
- * A loop over `control.environments` rather than a statement per shipped name, for the
- * reason {@link revokeMigrateOnlyStatement} loops over `pg_roles`: there are as many
- * environment roles as there are environments, an operator may create more, and a list
- * written into a migration goes stale the first time they do. Looping over the
- * environments table rather than over `qcms_app%` roles is what keeps
- * `qcms_app_control` out of it - that role gets DML above, not a bare `SELECT`.
- *
- * The role may not exist for an environment that has a row (a database that migrates as
- * one superuser has no application role at all), so each iteration is guarded by the
- * `EXISTS` in the cursor rather than by a wrapper around the whole loop.
+ * A loop over `control.environments` rather than over `qcms_app%` roles, which is what
+ * keeps `qcms_app_control` out of it. A role may not exist for an environment that has a
+ * row, hence the `EXISTS` in the cursor.
  */
 function grantControlReadToEnvironmentRolesStatement(table: string): string {
   const grant = `GRANT SELECT ON ${quote(CONTROL_SCHEMA)}.${quote(table)} TO %I`;
@@ -753,14 +488,8 @@ $$;`;
 }
 
 /**
- * The `control` tables an environment role may read (Q40 as amended by Q48).
- *
- * **Six**, with `form_releases` the sixth: task 064 granted five because that table did
- * not exist yet, and task 065's migration creates it and grants it. The list is the
- * decision in both tasks, which is why the member arrived here ahead of its table rather
- * than being remembered later. Exported because
- * `apps/api/e2e/security/03-db-least-privilege.e2e.ts` asserts the list per role from the
- * catalogue, and a test that re-typed it would pass while the grant drifted.
+ * The `control` tables an environment role may read. Exported so the least-privilege
+ * suite asserts it against the catalogue rather than re-typing it.
  */
 export const CONTROL_READ_TABLES: readonly string[] = [
   "forms",
@@ -772,28 +501,16 @@ export const CONTROL_READ_TABLES: readonly string[] = [
 ];
 
 /**
- * The members of {@link CONTROL_READ_TABLES} whose grant is guarded on the table
- * existing, because this generator runs in places the table may not exist yet.
- *
- * `form_releases` is on it and stays on it now that task 065 has created the table. The
- * guard is not about which task is current: {@link grantEnvironmentStatements} is called
- * by the **baseline**, which runs before the migration that creates this table, and by
- * the **environment command**, which runs after it. One emission has to be correct in
- * both positions, and the guard is what makes it so.
- *
- * It is therefore **not** the list of tables an environment role does not hold `SELECT`
- * on. After task 065's migration every environment role holds all six, which is what the
- * least-privilege suite asserts.
+ * The members of {@link CONTROL_READ_TABLES} whose grant is guarded on the table existing,
+ * because {@link grantEnvironmentStatements} runs both before and after the migration that
+ * creates them. Not a list of tables an environment role lacks `SELECT` on.
  */
 export const CONTROL_READ_TABLES_GUARDED_ON_EXISTENCE: readonly string[] = ["form_releases"];
 
 /**
- * The tables an environment role must hold **no privilege of any kind** on (Q40).
- *
- * Identity, session, membership and grant tables. This is the property Q40 buys that
- * an API-layer check cannot: an environment pool has no grant on them at all, so a
- * defect on the anonymous respondent path fails on permission rather than rewriting a
- * grant. Exported for the same reason as the read list.
+ * The identity, session, membership and grant tables an environment role must hold no
+ * privilege of any kind on, so a defect on the anonymous respondent path fails on
+ * permission rather than rewriting a grant. Exported like the read list.
  */
 export const CONTROL_FORBIDDEN_TABLES: readonly string[] = [
   "user",
@@ -808,7 +525,6 @@ export const CONTROL_FORBIDDEN_TABLES: readonly string[] = [
   "teamMember",
 ];
 
-/** Wrap statements in the same guard, plus a check that the table exists yet. */
 function guardedOnRoleAndTable(
   role: string,
   schema: string,
@@ -826,7 +542,6 @@ END
 $$;`;
 }
 
-/** Wrap statements in the `DO $$ ... IF EXISTS (pg_roles) ... $$` guard 0021 established. */
 function guardedOnRole(role: string, statements: readonly string[]): string {
   const body = statements.map((statement) => `\t\tEXECUTE ${literal(statement)};`).join("\n");
   return `DO $$
@@ -839,25 +554,12 @@ $$;`;
 }
 
 /**
- * Take every privilege on `control.two_factor_resets` back from **every `qcms_app%`
- * role**, not from one literal name (Q40, finding B).
+ * Takes every privilege on `control.two_factor_resets` back from every `qcms_app%` role:
+ * that table records out-of-band clearing of an administrator's second factor, and an
+ * audit row a traffic-serving credential could rewrite proves nothing (SEC-10).
  *
- * That table records that somebody cleared an administrator's second factor out of
- * band. The credential that performs a reset is the migration role, and the point of
- * SEC-10's split is that the credential serving traffic is not that one, so an audit
- * row an application credential can `UPDATE` or `DELETE` proves nothing against the
- * attacker the split is drawn against. Migration 0021 named `qcms_app`; there are now
- * as many application roles as there are environments plus one, and naming them would
- * be a list that goes stale the first time an operator creates an environment.
- *
- * It has to be a revoke rather than a narrower grant: `GRANT ... ON ALL TABLES IN
- * SCHEMA` and `ALTER DEFAULT PRIVILEGES` are both keyed on (role, schema, object type)
- * with no per-table filter, so "every table except that one" is not expressible in
- * Postgres. The grant lands and is taken back.
- *
- * The SEC-15 access audit's own grants and revokes are **task 069's migration**, which
- * is the migration that creates that table, and {@link grantAccessAuditStatements} is
- * what emits them; this statement has nothing to act on there.
+ * A revoke rather than a narrower grant, because no Postgres grant form can carve one
+ * table out of a schema, so the grant lands and is taken back.
  */
 export function revokeMigrateOnlyStatement(): string {
   return `DO $$
@@ -875,16 +577,9 @@ $$;`;
 }
 
 /**
- * `DROP SCHEMA data_<env>` and its companions, for the environment **drop** command.
- *
- * Deliberately **not** `CASCADE` on a populated schema: the command refuses while any
- * form in the environment is open or any session exists, so by the time this runs the
- * schema holds no answer row. `CASCADE` here would otherwise take the answer ledger
- * without passing the `answers_reject_delete` trigger, which would be a third
- * whole-session deletion path, and ADR-17 says there are two.
- *
- * Nothing in a **migration** ever calls this. It is the command's, and the command is
- * the only caller, which is what keeps the baseline free of a `DROP` (Q41).
+ * Safe only because the drop command refuses while the environment holds any session:
+ * `CASCADE` over a populated schema would take the answer ledger without passing
+ * `answers_reject_delete`, a third whole-session deletion path where ADR-17 allows two.
  */
 export function dropEnvironmentStatements(environment: string): string[] {
   return [

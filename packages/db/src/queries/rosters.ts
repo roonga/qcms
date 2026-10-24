@@ -7,17 +7,10 @@ import type { Executor } from "./executor.js";
 import type { AssignableTo } from "./schema-drift.js";
 
 /**
- * One row of the append-only roster ledger (ADR-42, task 072): an instance was
- * minted (`added`) or a respondent removed it (`removed`). A database CHECK
- * (`answer_group_instances_event`, migration 0022) keeps the vocabulary to those
- * two words, so a reader that branches on `event` cannot meet a third.
+ * One row of the append-only roster ledger: an instance was `added` or `removed`.
  *
- * Hand-authored for the reason {@link AnswerRow} is (issue #5): the branded-id
- * columns resolve to a TypeScript `error` type through this package's emitted
- * `.d.ts` when consumed via `$inferSelect`, so consumers would see unsafe member
- * access. Keep every field in lockstep with the `answer_group_instances` table in
- * `schema/answer-group-instances.ts`; the drift guard below fails the build if
- * they diverge.
+ * Hand-authored because the branded-id columns degrade to an `error` type through this
+ * package's emitted `.d.ts` (issue #5).
  */
 export interface RosterEventRow {
   id: string;
@@ -25,19 +18,11 @@ export interface RosterEventRow {
   groupId: GroupId;
   instanceId: InstanceId;
   event: RosterEvent;
-  /**
-   * The one-time roster-operation token this row was written under (task 073,
-   * ADR-43), or `null` for a mint and for every row written before the column
-   * existed. See the table's own doc for why it is recorded rather than derived.
-   */
+  /** `null` when the write answered no respondent operation. */
   opToken: string | null;
   occurredAt: Date;
 }
 
-// Drift guard (issue #5), the twin of `_AnswerRowMatchesTable`: assert
-// RosterEventRow is structurally identical to what Drizzle infers from the
-// `answer_group_instances` table. `$inferSelect` resolves soundly here in the
-// package source; it only degrades through the emitted `.d.ts`.
 export type _RosterEventRowMatchesTable = AssignableTo<
   RosterEventRow,
   typeof answerGroupInstances.$inferSelect
@@ -45,66 +30,33 @@ export type _RosterEventRowMatchesTable = AssignableTo<
   AssignableTo<typeof answerGroupInstances.$inferSelect, RosterEventRow>;
 
 /**
- * One group's roster as the **table** records it, which is not yet the live
- * roster for two of the three count sources (ADR-42, `plan/repeating-groups-and-table-input.md`
- * section 5.2). Truncating this to the live set is the API's job and depends on
- * the group's count source; this read is count-blind on purpose, so the same
- * query serves all three and the derivation is one testable step above it.
+ * One group's roster as the table records it, which for two of the three count sources is
+ * not yet the live roster: truncating it is the caller's job.
  *
- * **Both lists hold each instance id at most once**, and that is a contract this
- * package owes rather than a property of the rows. The evaluator treats the
- * roster it is handed as trusted input, so an id appearing twice in one group
- * would give it duplicate `visible` entries for every member question of that
- * instance; the guarantee therefore lives here and at the derivation above, not
- * in the kernel. {@link readRosters} and {@link readRoster} hold it **by
- * construction**: an instance enters `minted` at its **first** `added` row and
- * never again, whatever the table holds, and `present` is a filter of `minted`.
- * A second `added` row for an instance already minted is therefore a no-op rather
- * than a duplicate, which is also what makes a replayed mint harmless.
+ * Both lists must hold each instance id at most once, because the evaluator treats the
+ * roster as trusted input.
  */
 export interface GroupRoster {
   /**
-   * Every instance **ever minted** for the group, in first-`added` order,
-   * removed ones included.
-   *
-   * This is the idempotency ground for minting: an `open` group that mints one
-   * instance on first serve and has it removed must not mint a replacement on
-   * the next serve, so "have we minted enough" is asked of what was ever minted
-   * rather than of what is still present.
+   * Every instance ever minted, removed ones included: the idempotency ground for
+   * minting, so a removed instance is not replaced on the next serve.
    */
   readonly minted: readonly InstanceId[];
   /**
-   * Every instance whose **latest event is `added`**, in first-`added` order:
-   * the event record's own live set. It is exactly the live roster of an `open`
-   * group, and the list a `fixed` or `fromAnswer` group's live roster is the
-   * first N of.
+   * Every instance whose latest event is `added`. This is an `open` group's live roster,
+   * and the list a `fixed` or `fromAnswer` group's is the first N of.
    */
   readonly present: readonly InstanceId[];
 }
 
-/** The empty roster, for a group with no row at all. */
 const EMPTY_ROSTER: GroupRoster = { minted: [], present: [] };
 
 /**
- * Append one `added` row per instance: the mint. INSERT only - the roster is
- * append-only (I5, ADR-42), and a `BEFORE UPDATE` trigger rejects UPDATE at the
- * database level as a backstop.
+ * Append one `added` row per instance: the mint. The caller supplies the ids, since which
+ * instances to mint is a decision about the live roster.
  *
- * The caller supplies the ids, because minting them is a decision about the live
- * roster (which the API owns) rather than a storage concern, and because a caller
- * that mints N in one call needs to know which N it got.
- *
- * `occurredAt` may be supplied to control ordering (tests, backfills); it
- * defaults to `now()`. Instances minted in one call share a timestamp, which is
- * why {@link readRosters} orders by `(occurred_at, instance_id)` rather than by
- * `occurred_at` alone.
- *
- * **Refuses a batch that repeats an id.** A mint is a statement that these
- * instances are new, so the same id twice in one call is a caller bug rather than
- * an expected failure, and it throws (CONTRIBUTING: exceptions are for bugs, typed
- * results for expected failures). The read above would swallow it - the second
- * `added` row would not re-enter `minted` - so refusing here is what keeps a bug
- * visible instead of silently half-applied.
+ * Throws on a batch that repeats an id: the reads would swallow it, so refusing here
+ * keeps the caller bug visible rather than half-applied.
  */
 export async function addInstances(
   exec: Executor,
@@ -112,7 +64,7 @@ export async function addInstances(
     sessionId: SessionId;
     groupId: GroupId;
     instanceIds: readonly InstanceId[];
-    /** The respondent operation this mint answers, when one did (task 073). */
+    /** The respondent operation this mint answers, when one did. */
     opToken?: string;
     occurredAt?: Date;
   },
@@ -139,14 +91,8 @@ export async function addInstances(
 }
 
 /**
- * Append one `removed` row: the respondent took an instance out of an `open`
- * group. An append, never a delete (I6 as ADR-42 reuses it): the instance's
- * answers stay in the ledger and are excluded by the roster, exactly as a hidden
- * question's answers are, and its removal is itself a recorded event.
- *
- * Removing an instance twice appends a second `removed` row and changes nothing:
- * the latest event was already `removed`. That is a no-op rather than an error
- * because the roster is a log, not a state machine with transitions to refuse.
+ * Append one `removed` row. The instance's answers stay in the ledger and are excluded by
+ * the roster. Removing twice is a no-op.
  */
 export async function removeInstance(
   exec: Executor,
@@ -154,7 +100,7 @@ export async function removeInstance(
     sessionId: SessionId;
     groupId: GroupId;
     instanceId: InstanceId;
-    /** The respondent operation this removal answers (task 073). */
+    /** The respondent operation this removal answers. */
     opToken?: string;
     occurredAt?: Date;
   },
@@ -174,32 +120,11 @@ export async function removeInstance(
 }
 
 /**
- * The full roster history for a session, oldest first - for audit and for the
- * erasure and retention assertions. Every event is preserved (the table is
- * append-only); use {@link readRosters} for the derived per-group lists.
+ * The full roster history for a session, oldest first.
  *
- * **Ordered to agree with {@link readRosters}, then made total.** The derived
- * reads order by `(occurred_at, instance_id)`, so this leads with the same two
- * columns: restricted to one group's `added` rows, this query returns them in
- * exactly the order the roster does, and an audit that contradicted the roster it
- * audits would read as a bug the first time 075 put them side by side. `id` is
- * appended only as the final tiebreaker, which the derived reads do not need and
- * this one does: they see at most one row per instance per group, while the ledger
- * also carries `removed` rows, so an instance minted and removed in the same
- * transaction gives two rows sharing both `occurred_at` and `instance_id`.
- *
- * **What `id` buys is determinism, not causal order** (issue #1033, corrected in
- * task 075). `id` is a random v4 uuid, so appending it makes this read return the
- * same sequence every time for the same rows, and it does **not** make an `added`
- * row sort before the `removed` row that followed it: for two rows sharing
- * `occurred_at` and `instance_id` the winner is whichever uuid happens to be
- * smaller. An earlier revision of this comment claimed the tiebreaker stopped an
- * audit printing a removal before its add, and that was wrong. Nothing here can
- * recover that order, because `occurred_at` defaults to the **transaction**
- * timestamp and the table carries no sequence (ADR-42 fixes its column set, and
- * the Code Owner ruled on 2026-10-01 that no ordering column is added). An audit
- * that needs mint-before-removal reads `event`, which says which is which;
- * `rosters.integration.test.ts` asserts the order this read does promise.
+ * The `id` tiebreaker buys determinism and not causal order: it does not make an `added`
+ * row sort before the `removed` row that followed it, and nothing here can, since
+ * `occurred_at` is the transaction timestamp. An audit that needs that order reads `event`.
  */
 export async function rosterLedger(
   exec: Executor,
@@ -217,39 +142,13 @@ export async function rosterLedger(
 }
 
 /**
- * Every repeating group this session has a roster row for, each as its minted and
- * present lists in first-`added` order.
+ * Every repeating group this session has a roster row for, each as its minted and present
+ * lists in first-`added` order.
  *
- * **The ordering tiebreaker is `instance_id`, and it is load-bearing.** A mint of
- * several instances in one call is one statement in one transaction, so every row
- * it writes shares a timestamp to the microsecond, and `occurred_at` alone is not
- * a total order over them. The table's column set is fixed by ADR-42 and carries
- * no sequence, so the tiebreaker has to come from a column that is there: within
- * one group `instance_id` is unique across `added` rows (an instance is minted
- * once), so `(occurred_at, instance_id)` is total and stable. Instances minted
- * together are interchangeable - all fresh, none answered - so ordering them by
- * id rather than by an unrecorded intent costs nothing and makes every later read
- * return the same roster, which is what a `fromAnswer` count lowered and raised
- * again depends on.
- *
- * **That argument covers one mint, and the write side owes the rest of it.**
- * `occurred_at` defaults to `now()`, which is the **transaction** timestamp and
- * not the statement's, so two separate mints for one group inside one transaction
- * do not produce two timestamps: the combined set sorts by `instance_id` alone,
- * and an `instance_id` is random, so the second batch interleaves with the first
- * instead of following it. Rows minted *together* are interchangeable and ordering
- * them by id costs nothing; rows minted in two calls are not, because the earlier
- * ones may already be answered. So the write side carries the contract **at most
- * one mint per group per transaction** - stated on `mintForServedGroup` in
- * `apps/api/src/features/responses/roster.ts`, together with what it protects: the
- * first-N guarantee that a lowered and re-raised `fromAnswer` count re-lives the
- * same instance. **Ruled: no ordering column is added** (Code Owner, 2026-10-01);
- * the contract is the mechanism, and task 073 carries an exit criterion that
- * asserts it.
- *
- * One query for the whole session rather than one per group: a step's rosters are
- * read together on every serve, and a per-group read would be N round trips for
- * the one index scan this takes.
+ * `occurred_at` is the transaction timestamp and the table carries no sequence, so the
+ * `instance_id` tiebreaker is what makes the order total. It is only stable within one
+ * mint, so the write side owes at most one mint per group per transaction, stated on
+ * `mintForServedGroup` in `apps/api/src/features/responses/roster.ts`.
  */
 export async function readRosters(
   exec: Executor,
@@ -269,8 +168,6 @@ export async function readRosters(
       asc(answerGroupInstances.instanceId),
     );
 
-  // Two passes over the rows, not two queries: the first fixes mint order, the
-  // second resolves each instance's latest event under that same ordering.
   const minted = new Map<GroupId, InstanceId[]>();
   const latest = new Map<string, RosterEvent>();
   for (const row of rows) {
@@ -325,20 +222,12 @@ export async function readRoster(
 }
 
 /**
- * Whether this session has already applied a roster-operation token (task 073,
- * ADR-43).
+ * Whether this session has already applied a roster-operation token, which is what makes
+ * a replayed no-JS roster post a no-op. Scoped to the session, so a token cannot be
+ * replayed into another one.
  *
- * The one line that makes a replayed `__qop` post a **no-op**. The no-JS roster
- * operation answers its POST with a 200 page rather than a 303, so a reload or a
- * Back can resubmit it; the rendered page minted a token into the button's value,
- * this read asks whether it has been spent, and a spent token returns the roster as
- * it stands instead of adding a second instance.
- *
- * **Scoped to the session**, so a token is meaningless outside the session it was
- * minted in and cannot be replayed into another one. The caller runs this and its
- * write inside the session's advisory lock, which is what makes "check then write"
- * one decision and is why no database constraint is needed (see the column's doc and
- * the 2026-09-30 ruling that keeps the roster's invariants in code).
+ * The caller must run this and its write inside the session's advisory lock, which is
+ * what makes check-then-write one decision and why no database constraint is needed.
  */
 export async function rosterOpApplied(
   exec: Executor,

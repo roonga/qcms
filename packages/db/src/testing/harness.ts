@@ -1,5 +1,5 @@
-// Must come first: neutralizes the Docker credential-helper lookup that
-// testcontainers performs at its own module-load. See the module's comment.
+// Must come first: neutralizes the Docker credential-helper lookup that testcontainers
+// performs at its own module load.
 import "./docker-auth-config.js";
 
 import { readFileSync } from "node:fs";
@@ -28,33 +28,15 @@ import {
 
 export type { DrainableConnection } from "./teardown.js";
 
-/**
- * The workspace a migrated harness database is seeded with (task 068).
- *
- * Re-exported here so a suite that calls `createForm` or `createQuestion` takes the id
- * from the harness it already imports rather than from the package root, and so the
- * harness's own seeding and the suites' use of it cannot name two different rows.
- */
+/** The workspace a migrated harness database is seeded with. */
 export { SEED_WORKSPACE_ID };
 
-// The effective-privilege map the restore gates compare for equality (issue #1094). Here
-// rather than in each suite because two of them live in different packages and a third
-// copy of a 60-line catalogue query is a third copy to keep correct.
+/** The effective-privilege map the restore gates compare for equality. */
 export { PRIVILEGE_MAP_SQL } from "./privilege-map.js";
 
 const { Client, Pool } = pg;
 
-/**
- * The Testcontainers surface this harness uses, loaded on first container boot.
- *
- * `@testcontainers/postgresql` and `testcontainers` are **optional peer
- * dependencies** of `@roonga/qcms-db` (issue #156). They are test-only, and a Docker
- * client is not something every consumer of the runtime surface should install,
- * so they are not pulled in by default. Importing them lazily is what keeps
- * `import { withTestDb } from "@roonga/qcms-db/testing"` from throwing in a consumer
- * that has not installed them: the failure moves to the first `startTestDb()`
- * call, where it can name both packages and the command that installs them.
- */
+/** Loaded on first container boot: both packages are optional peer dependencies. */
 interface TestcontainersApi {
   readonly PostgreSqlContainer: typeof import("@testcontainers/postgresql").PostgreSqlContainer;
   readonly getContainerRuntimeClient: typeof import("testcontainers").getContainerRuntimeClient;
@@ -62,71 +44,21 @@ interface TestcontainersApi {
 }
 
 /**
- * The started-container surface {@link TestDb} publishes, declared here rather than
- * re-exported from `@testcontainers/postgresql` (issues #382 and #407).
- *
- * ## Why a hand-written type for something upstream already names
- *
- * This is the only place a Testcontainers type reached the **exported** surface of this
- * module, and therefore the only thing that put the optional peers into the emitted
- * `.d.ts`. An adopter who installs `@roonga/qcms-db` and does not install the two optional peers
- * (which is the supported shape - they are `peerDependenciesMeta.optional`, and the whole
- * point of the lazy load below) then could not run `tsc` at all: six `TS2307`s naming
- * packages they were told they did not need, which is a wall in front of the actionable
- * runtime message {@link MISSING_TESTCONTAINERS_MESSAGE} was written for (#407).
- *
- * `skipLibCheck: true` would hide it, and hiding it for the default setting while leaving
- * it for `skipLibCheck: false` is the worse outcome of the two, because it looks resolved.
- * So the peers are removed from the declaration surface outright: the interfaces and the
- * `typeof import(...)` references above are module-internal and are erased from the
- * emitted declarations, and this is what takes their place on the exported one.
- *
- * ## What it costs, and what pins it
- *
- * The type is structural rather than upstream's nominal one, so it names only what a
- * consumer of this harness actually uses. `harness-types.test.ts` asserts a real
- * `StartedPostgreSqlContainer` is assignable to it, so the two cannot drift apart
- * unnoticed: that test lives in this repository, where the peers ARE installed.
+ * The started-container surface {@link TestDb} publishes. Hand-written and narrowed because
+ * naming an upstream type here would put the optional peers into the emitted `.d.ts`, where
+ * an adopter who did not install them could not typecheck.
  */
 export interface StartedTestPostgres {
-  /** Stream the container's server log. See {@link TestDb.container} for the use case. */
+  /** Stream the container's server log. */
   logs(options?: { since?: number; tail?: number }): Promise<Readable>;
-  /** The libpq connection string, as {@link TestDb.connectionUri} already carries it. */
+  /** The libpq connection string. */
   getConnectionUri(): string;
-  /**
-   * Run a command **inside** the container, for the one thing a connection cannot do:
-   * reach the server's own binaries.
-   *
-   * Added for `apps/api/e2e/security/04-db-restore-regrant.e2e.ts` (issue #1094), which
-   * takes a real `pg_dump` and restores it with `psql` to prove the re-grant repairs what
-   * `--no-privileges` dropped. A dump simulated over a connection would prove nothing: the
-   * defect **is** what `pg_dump` leaves out.
-   *
-   * Narrower than upstream's on purpose, exactly as `stop` below is: upstream takes
-   * `string[] | string` with an options object and resolves `{ output, stdout, stderr,
-   * exitCode }`, and naming either here would put a Testcontainers type back on the
-   * exported surface. A method accepting more and returning more is assignable to this
-   * one, which is what `harness-types.test.ts` asserts.
-   */
+  /** Run a command inside the container, to reach the server's own binaries. */
   exec(command: string[]): Promise<{ readonly exitCode: number; readonly output: string }>;
-  /**
-   * Do not call this directly - use {@link TestDb.teardown}, which is idempotent.
-   *
-   * Declared with no parameters and an `unknown` result on purpose. Upstream takes a
-   * `Partial<StopOptions>` and resolves a `StoppedTestContainer`, and naming either here
-   * would put a Testcontainers type back on the exported surface, which is the whole
-   * thing this interface exists to avoid. A method with fewer parameters accepts one with
-   * more optional ones, so the assignability test still passes and the harness's own
-   * `container.stop()` call still typechecks.
-   */
+  /** Do not call this directly - use {@link TestDb.teardown}, which is idempotent. */
   stop(): Promise<unknown>;
 }
 
-/**
- * What an adopter is told when the optional peers are absent, instead of Node's
- * bare `Cannot find package '@testcontainers/postgresql' imported from ...`,
- * which names one package, no version, and no remedy.
- */
 const MISSING_TESTCONTAINERS_MESSAGE = [
   "@roonga/qcms-db/testing could not load Testcontainers.",
   "  missing: @testcontainers/postgresql and/or testcontainers",
@@ -136,20 +68,13 @@ const MISSING_TESTCONTAINERS_MESSAGE = [
   "  also:    the harness needs a reachable Docker daemon once the packages are installed.",
 ].join("\n");
 
-/**
- * Wordings that mean "this package is not installed" rather than "this package
- * threw". Node says `Cannot find package 'x' imported from ...`; Vitest, which is
- * how the harness is actually consumed, resolves through Vite and says
- * `Could not resolve "x" imported by "@roonga/qcms-db"`. Both shapes have to be matched
- * or the adopter-facing message is only produced under one runner.
- */
+/** Node and Vite word this differently, and both have to match. */
 const MODULE_NOT_FOUND_MARKERS: readonly RegExp[] = [
   /cannot find (package|module)/i,
   /could not resolve/i,
   /failed to resolve/i,
 ];
 
-/** True when `error` is a module-resolution failure rather than a real fault inside the package. */
 function isModuleNotFound(error: unknown): boolean {
   if (!(error instanceof Error)) return false;
   const code: unknown = (error as { code?: unknown }).code;
@@ -158,12 +83,8 @@ function isModuleNotFound(error: unknown): boolean {
 }
 
 /**
- * Import the optional peers, converting "not installed" into an actionable error.
- *
- * Only a resolution failure is rewritten. A genuine fault inside either package
- * is rethrown untouched, so this never misattributes a Testcontainers bug as a
- * missing install (the same discipline as the reaper/Postgres split below).
- * Repeat calls are free: the ESM module registry caches both imports.
+ * Only a resolution failure is rewritten, so a genuine fault inside either package is never
+ * misattributed to a missing install.
  */
 async function loadTestcontainers(): Promise<TestcontainersApi> {
   try {
@@ -182,84 +103,33 @@ async function loadTestcontainers(): Promise<TestcontainersApi> {
   }
 }
 
-/**
- * The Postgres image the harness boots when nothing overrides it. Pinned to the
- * same major the compose dev stack uses; `-alpine` keeps pulls small and is
- * cached across runs. A contributor on a laptop needs nothing else: this is a
- * public Docker Hub image and the pull is anonymous.
- */
+/** The image booted when nothing overrides it, pinned to the compose stack's major. */
 export const DEFAULT_TEST_POSTGRES_IMAGE = "postgres:16-alpine";
 
 /**
- * The Postgres image the harness boots, resolved once at module load.
- *
- * `QCMS_TEST_POSTGRES_IMAGE` overrides the default with any other reference of
- * the same Postgres major (issue #74). CI points it at a GHCR mirror of the same
- * image, because anonymous Docker Hub pulls from shared GitHub runner IP ranges
- * are rate-limited and intermittently return HTTP 500, which failed the whole
- * `@roonga/qcms-db` suite twice in one day. Read at module load rather than per call so
- * every container in a run boots the same image; set it in the environment
- * before the test process starts.
+ * The image the harness boots. `QCMS_TEST_POSTGRES_IMAGE` overrides it with any other
+ * reference of the same Postgres major, and is read once at module load, so set it in the
+ * environment before the test process starts.
  */
 export const TEST_POSTGRES_IMAGE = resolveConfiguredImage() ?? DEFAULT_TEST_POSTGRES_IMAGE;
 
-/** The configured override, or undefined when unset or blank. */
 function resolveConfiguredImage(): string | undefined {
   const configured = process.env.QCMS_TEST_POSTGRES_IMAGE?.trim();
   return configured === undefined || configured.length === 0 ? undefined : configured;
 }
 
 /**
- * Hook budget for a `beforeAll`/`afterAll`/`beforeEach` that boots, seeds or tears
- * down a container-backed fixture.
+ * Hook budget for a `beforeAll`/`afterAll`/`beforeEach` that boots, seeds or tears down a
+ * container-backed fixture. Sized for a boot under contention, not an idle one.
  *
- * Every integration file needs one, because Vitest's default hook timeout is
- * nowhere near a container boot, and until issue #746 each file wrote out its own
- * `const BOOT_TIMEOUT = 120_000` (twenty-six of them, plus one bare `120_000` in
- * `apps/api/e2e/support/seed-fixtures.test.ts` that a search for the constant name
- * would have missed). Twenty-seven copies of a number is twenty-seven places to
- * miss when the number turns out to be wrong, so it lives here now, next to the
- * boot it is a budget for.
- *
- * **It governs both ends of the same wait**, through
- * {@link CONTAINER_STARTUP_TIMEOUT_MS}. Testcontainers' own wait strategy defaults
- * to 120s and would otherwise give up first, which is exactly what happened on the
- * gate run that followed the first version of this change: a `not bound after
- * 120000ms` failure from inside `.start()`, naming the ephemeral port Docker had
- * just mapped, while the hook that called it still held twice that budget unused. A
- * raise on one side alone is decoration.
- *
- * **Why 240s and not 120s.** A boot that takes longer than two minutes is a boot
- * under contention, not a broken one: on 2026-08-31 three untouched integration
- * files in three lanes failed this hook during a forced turbo run with 18 uncached
- * tasks booting containers at once, and each passed in seconds in isolation. The
- * work is serial per container (image lookup, daemon start, Postgres init, the
- * readiness poll) and every stage of it stretches with load, so the honest budget
- * is a multiple of the idle case rather than a tight bound on it. Doubling costs
- * nothing on a passing run - a hook timeout is only ever spent by a failing one -
- * and a genuinely stuck boot still fails in bounded time rather than hanging.
- *
- * This is deliberately NOT the per-test timeout. Tests that talk to an already
- * booted container keep their own, tighter budgets: a query that takes minutes is
- * a defect, and hiding that behind the boot's allowance is how a real hang becomes
- * a slow suite instead of a red one.
+ * Not a per-test timeout: tests against an already booted container keep tighter budgets, so
+ * a real hang stays red instead of becoming a slow suite.
  */
 export const CONTAINER_BOOT_TIMEOUT_MS = 240_000;
 
 /**
- * What {@link startContainer} hands Testcontainers' own wait strategy: the hook
- * budget less a margin, so the container gives up FIRST.
- *
- * The margin is the whole point. With the two budgets equal, which one expires
- * first is a race, and losing it costs the diagnosis: Vitest reports `Hook timed
- * out in 240000ms` and names nothing, while this harness's message names the image,
- * where it came from, the underlying cause and what to do about it. Observed on a
- * gate run - one suite died on the opaque form while the harness sat 30s away from
- * producing the useful one. So the container is always the first to speak.
- *
- * Same derivation discipline as `apps/portal/e2e/support/portal-server.test.ts`,
- * where each per-test timeout is its inner wait plus headroom for the same reason: a
- * wait that reaches its ceiling must fail on the message that explains it.
+ * Below the hook budget, so the container gives up first and the failure carries this
+ * harness's diagnostic message rather than Vitest's bare hook timeout.
  */
 const CONTAINER_STARTUP_TIMEOUT_MS = CONTAINER_BOOT_TIMEOUT_MS - 30_000;
 
@@ -268,56 +138,35 @@ export const MIGRATIONS_DIR = fileURLToPath(new URL("../../migrations", import.m
 
 /**
  * The environment the harness's connections resolve in unless a caller says otherwise.
- *
- * `prod` rather than `test`, because it is the environment with no address prefix and
- * no entry restrictions (Q21), so a suite that says nothing about environments is
- * exercising the ordinary respondent path rather than a special case.
+ * `prod` has no address prefix and no entry restrictions, so it is the ordinary path.
  */
 export const DEFAULT_TEST_ENVIRONMENT = "prod";
 
 /**
- * The libpq `options` string that puts a connection on one environment's search path.
- *
- * `data_<env>, control` with the data plane **first**, which is the order ADR-40 fixes:
- * a control-plane read can never be shadowed by an environment's copy, because the two
- * table-name sets are disjoint and `scripts/check-schema-disjoint.mjs` keeps them that
- * way. `public` is on no search path at all.
+ * The libpq `options` string that puts a connection on one environment's search path. Data
+ * plane first and no `public`, which is the order ADR-40 fixes.
  */
 export function searchPathOptions(environment: string): string {
   return `-c search_path=data_${environment},control`;
 }
 
+/** One booted container and the connections the harness opened against it. */
 export interface TestDb {
-  /**
-   * Drizzle handle bound to the full schema, backed by a connection **pool** -
-   * the same shape `serve.ts` builds in production. See {@link startTestDb} for
-   * why a pool rather than a single client.
-   */
+  /** Drizzle handle bound to the full schema, backed by a connection pool. */
   readonly db: NodePgDatabase<typeof schema>;
   /**
-   * A dedicated single node-postgres connection for raw SQL in tests. Separate
-   * from the pool behind {@link TestDb.db}, so it sees only committed state - do
-   * not use it to observe another connection's open transaction.
+   * A dedicated connection for raw SQL. It sees only committed state, so it cannot observe
+   * another connection's open transaction.
    */
   readonly client: pg.Client;
   /** libpq connection string for the container. */
   readonly connectionUri: string;
-  /**
-   * The started Postgres container, for harnesses that need to stream its server
-   * logs (e.g. the portal e2e's server-side log gate, task 045). Do not stop it
-   * directly - use {@link TestDb.teardown}.
-   */
+  /** The started container. Do not stop it directly - use {@link TestDb.teardown}. */
   readonly container: StartedTestPostgres;
   /**
-   * Hand a pool or client this test file opened against {@link TestDb.connectionUri} to
-   * the harness, so {@link TestDb.teardown} drains it before the container stops, and so a
-   * connection of its that dies cannot take the worker down (issue #888). Returns its
-   * argument: `const pool = testDb.register(new Pool({ ... }), "concurrency pool")`.
-   *
-   * Use it instead of a second `afterAll` that ends the connection. A local `afterAll`
-   * happens to run before the harness's today because Vitest finishes a nested suite
-   * before its parent, which is a convention rather than a guarantee the harness can hold
-   * anyone to - and it does nothing at all for a pool whose client is still checked out.
+   * Hand a pool or client this file opened against {@link TestDb.connectionUri} to the
+   * harness, so {@link TestDb.teardown} drains it before the container stops. Returns its
+   * argument. Use it instead of a second `afterAll`, which cannot guarantee the order.
    */
   register<T extends DrainableConnection>(connection: T, label: string): T;
   /** Drain every registered connection, then stop the container. Idempotent. */
@@ -328,62 +177,33 @@ interface StartOptions {
   /** Run the full migration set after connecting (default true). */
   readonly migrate?: boolean;
   /**
-   * Which environment the harness's own two connections resolve unqualified names in
-   * (default {@link DEFAULT_TEST_ENVIRONMENT}).
-   *
-   * Under ADR-40 the data plane is one schema per environment and every data-plane
-   * table is declared unqualified, so a connection that sets no `search_path` resolves
-   * `sessions` to nothing at all. The harness therefore connects with
-   * `data_<env>, control`, which is exactly what an API pool does, and every existing
-   * test that writes `insert into sessions ...` keeps meaning what it meant.
-   *
-   * Pass another environment to reach the other schema from the same container. A test
-   * that needs **two** environments at once opens its own second pool against
-   * {@link TestDb.connectionUri} with its own `options` and registers it with
-   * {@link TestDb.register}.
+   * Which environment the harness's connections resolve unqualified names in (default
+   * {@link DEFAULT_TEST_ENVIRONMENT}). A test that needs two at once opens its own second
+   * pool against {@link TestDb.connectionUri} and registers it.
    */
   readonly environment?: string;
   /**
-   * Boot a different image than {@link TEST_POSTGRES_IMAGE}. Exists so the
-   * harness's own tests can exercise the unpullable-image path; production test
-   * suites should leave it unset and use `QCMS_TEST_POSTGRES_IMAGE` instead, so
-   * every container in a run boots the same image.
+   * Boot a different image than {@link TEST_POSTGRES_IMAGE}. A test seam for the
+   * unpullable-image path; production suites use `QCMS_TEST_POSTGRES_IMAGE` instead.
    */
   readonly image?: string;
   /**
    * Bring up the Testcontainers infrastructure (the Ryuk reaper) instead of
-   * {@link bootTestcontainersInfrastructure}. A test seam, like {@link
-   * StartOptions.image}: a real forced reaper failure is not deterministic,
-   * because Testcontainers **reuses** any reaper already running on the machine,
-   * so a concurrently running test file would silently make the failure vanish.
-   * Production test suites leave this unset.
+   * {@link bootTestcontainersInfrastructure}. A test seam: Testcontainers reuses any reaper
+   * already running, so a real forced reaper failure is not deterministic.
    */
   readonly bootInfrastructure?: () => Promise<void>;
   /**
-   * Seed the one workspace every control-plane fixture needs (default true; task 068).
-   *
-   * `control.forms.workspace_id` and `control.questions.workspace_id` are `NOT NULL` with
-   * no default (ADR-41, criterion 1), so a migrated database holds no row a form or a
-   * question could be created against until a workspace exists. A real installation gets
-   * one from `pnpm qcms:create-admin`, which seeds it through better-auth's
-   * `createOrganization` so the first administrator also gets the `forms.owner` member row
-   * (ADR-41). A harness has no auth instance and no account, so it seeds the row directly
-   * with `ensureSeedWorkspace`, and {@link SEED_WORKSPACE_ID} is the id to pass to
-   * `createForm` and `createQuestion`.
-   *
-   * Pass `false` to get a migrated database with **no** workspace in it, which is what a
-   * suite about the seeding itself needs: with the row already there, "the bootstrap
-   * creates the first workspace" would assert nothing.
+   * Seed the one workspace every control-plane fixture needs (default true). Form and
+   * question `workspace_id` are `NOT NULL` with no default (ADR-41). Pass `false` for a
+   * migrated database with no workspace.
    */
   readonly seedWorkspace?: boolean;
 }
 
 /**
- * The Ryuk reaper reference Testcontainers will boot, for error messages only.
- *
- * testcontainers-node reads `RYUK_CONTAINER_IMAGE` lazily and otherwise uses a
- * version-pinned `testcontainers/ryuk` tag of its own. The pin is deliberately
- * not duplicated here: a stale copy in an error message is worse than no copy.
+ * Upstream's own version pin is deliberately not duplicated: a stale copy in an error
+ * message is worse than no copy.
  */
 function describeReaperImage(): string {
   const configured = process.env.RYUK_CONTAINER_IMAGE?.trim();
@@ -393,20 +213,9 @@ function describeReaperImage(): string {
 }
 
 /**
- * Bring up the Ryuk reaper (or reuse the one already running) before any
- * container of ours.
- *
- * Testcontainers does this itself inside `.start()`, *after* pulling the
- * requested image. Doing it first, explicitly, is what makes the two failure
- * modes distinguishable: once this has returned, the reaper is up, so any later
- * registry failure during `.start()` can only be the image we asked for. That is
- * the whole point (issue #150) - a reaper pull failure used to be reported as a
- * Postgres-image pull failure, sending the reader to check a mirror that was
- * working perfectly.
- *
- * `getReaper` short-circuits to a no-op reaper when `TESTCONTAINERS_RYUK_DISABLED`
- * is `true` (CI sets it - see `.github/actions/test-postgres-image`), so on CI
- * this touches no registry at all.
+ * Testcontainers would do this inside `.start()`, after pulling the requested image. Doing
+ * it first means any later registry failure during `.start()` can only be the Postgres
+ * image, so the two are not confused.
  */
 async function bootTestcontainersInfrastructure(): Promise<void> {
   const { getContainerRuntimeClient, getReaper } = await loadTestcontainers();
@@ -415,26 +224,9 @@ async function bootTestcontainersInfrastructure(): Promise<void> {
 }
 
 /**
- * Wordings that mean the Docker **daemon** could not be reached at all: no socket,
- * nothing listening on it, or no permission to open it. Matched case-insensitively
- * against the whole error chain, and matched FIRST (issue #171).
- *
- * Order is the whole point. `connection refused` and `context deadline exceeded`
- * are real registry wordings, so they belong in {@link PULL_FAILURE_MARKERS} - but
- * they are also exactly what a dead `/var/run/docker.sock` produces, and a
- * dead-socket failure classified as a pull sends the reader to check a registry,
- * a mirror and `QCMS_TEST_POSTGRES_IMAGE`, none of which are involved. That is the
- * same misattribution shape as issue #150, one layer down: the phase and the
- * connectivity of the daemon decide, and only then does the text.
- *
- * `Could not find a working container runtime strategy` is testcontainers-node's
- * own summary when every strategy failed to connect, which is the form the
- * failure usually reaches this file in.
- *
- * Every marker names the daemon or its socket. A bare errno is deliberately NOT
- * one: `connect ECONNREFUSED 127.0.0.1:1` is what a genuinely unpullable registry
- * reference produces, and a socket path or the daemon's own wording is the only
- * part of the text that separates the two.
+ * Matched before {@link PULL_FAILURE_MARKERS}: wordings like `connection refused` come from
+ * both a dead socket and a real registry failure. Every marker must name the daemon or its
+ * socket, never a bare errno, which an unpullable reference also produces.
  */
 const DAEMON_FAILURE_MARKERS: readonly RegExp[] = [
   /cannot connect to the docker daemon/i,
@@ -445,12 +237,8 @@ const DAEMON_FAILURE_MARKERS: readonly RegExp[] = [
 ];
 
 /**
- * Substrings that mark a container-start failure as an image-pull failure rather
- * than a Postgres or Docker-daemon problem. Matched case-insensitively against
- * the whole error chain, and only once {@link DAEMON_FAILURE_MARKERS} has ruled
- * out a daemon-connectivity failure. Docker surfaces registry trouble as an opaque
- * `(HTTP code 500) server error - Get "https://registry-1.docker.io/v2/": ...`,
- * so the HTTP-code shape has to be part of the signal.
+ * Checked only once {@link DAEMON_FAILURE_MARKERS} has ruled out a daemon failure. Docker
+ * surfaces registry trouble as an opaque HTTP 5xx, so that shape is part of the signal.
  */
 const PULL_FAILURE_MARKERS: readonly RegExp[] = [
   /\bpull\b/i,
@@ -465,16 +253,11 @@ const PULL_FAILURE_MARKERS: readonly RegExp[] = [
 ];
 
 /**
- * Images whose pull has already failed in this worker process, with the message
- * to replay. A registry that cannot serve the image for one test file cannot
- * serve it for the next, and every file that tries costs another pull timeout,
- * so the second and later attempts fail immediately (issue #74). Keyed by image
- * reference: a deliberately unpullable reference in one test never poisons the
- * real one.
+ * So later files fail immediately instead of each paying another pull timeout. Keyed by
+ * image reference, so a deliberately unpullable reference never poisons the real one.
  */
 const unpullableImages = new Map<string, string>();
 
-/** Flatten an error and its `cause` chain into one searchable string. */
 function describeCause(error: unknown): string {
   const parts: string[] = [];
   let current: unknown = error;
@@ -484,23 +267,19 @@ function describeCause(error: unknown): string {
       current = current.cause;
       continue;
     }
-    // A thrown non-Error: JSON keeps an object readable, and returns undefined
-    // only for values with no JSON form (a function, a symbol).
+    // A thrown non-Error: `JSON.stringify` returns undefined only for a value with no JSON
+    // form, such as a function or a symbol.
     parts.push(typeof current === "string" ? current : (JSON.stringify(current) ?? typeof current));
     current = undefined;
   }
   return parts.join(" <- ");
 }
 
-/** What a container-start failure actually was, decided daemon-first (issue #171). */
 type FailureKind = "daemon" | "pull" | "other";
 
 /**
- * Classify a flattened error chain.
- *
- * Daemon connectivity is asked about first, so the generic registry wordings in
- * {@link PULL_FAILURE_MARKERS} cannot claim a failure that never reached a
- * registry at all.
+ * Daemon connectivity is asked about first, so the generic registry wordings cannot claim a
+ * failure that never reached a registry.
  */
 function classifyFailure(detail: string): FailureKind {
   if (DAEMON_FAILURE_MARKERS.some((marker) => marker.test(detail))) return "daemon";
@@ -509,22 +288,15 @@ function classifyFailure(detail: string): FailureKind {
 }
 
 /**
- * The message for a failure that happened before any Postgres container was
- * asked for: Testcontainers' own infrastructure could not come up.
- *
- * It must not name the configured Postgres image or `QCMS_TEST_POSTGRES_IMAGE`,
- * because neither is involved. That misattribution is issue #150: a Ryuk pull
- * against Docker Hub failed while the GHCR Postgres mirror was working, and the
- * error sent the reader to check the mirror.
+ * Must not name the configured Postgres image or `QCMS_TEST_POSTGRES_IMAGE`: no Postgres
+ * container was asked for yet, so neither is involved.
  */
 function describeInfrastructureFailure(cause: unknown): string {
   const detail = describeCause(cause);
   const kind = classifyFailure(detail);
 
-  // A dead daemon socket is not a registry problem and names no image, so it gets
-  // its own message rather than a reaper-pull one with an image and a mirror knob
-  // in it (issue #171). Nothing in the Testcontainers stack works without a
-  // daemon, so this is also the failure to report first when it applies.
+  // A dead daemon socket is not a registry problem and names no image, so it gets its own
+  // message rather than a reaper-pull one with a mirror knob in it.
   if (kind === "daemon") return describeDaemonFailure(detail);
 
   return [
@@ -540,14 +312,7 @@ function describeInfrastructureFailure(cause: unknown): string {
   ].join("\n");
 }
 
-/**
- * The message for "there is no Docker to talk to", from either phase.
- *
- * It names no image and no registry on purpose: neither was reached. Before issue
- * #171 this text did not exist and the failure was reported as a pull of whichever
- * image the phase was about, which sent the reader to check a mirror that was
- * fine while the socket under their feet was dead.
- */
+/** Names no image and no registry on purpose: neither was reached. */
 function describeDaemonFailure(detail: string): string {
   return [
     "Could not REACH the Docker daemon - no container was started and no registry was contacted.",
@@ -563,21 +328,9 @@ function describeDaemonFailure(detail: string): string {
 }
 
 /**
- * Start the container, converting a failure into an error that names the image
- * and the registry problem.
- *
- * Without this, a pull failure throws Docker's opaque HTTP error from inside
- * `beforeAll`, the caller's `TestDb` is never assigned, and every `afterAll`
- * then throws `Cannot read properties of undefined (reading 'teardown')` - the
- * shape observed in CI, where 21 of the 24 reported errors were that cascade and
- * only 3 carried the actual cause (issue #74).
- *
- * Two failures, deliberately kept apart (issue #150). The Testcontainers
- * infrastructure comes up first, in its own step: if *that* fails, the image the
- * caller configured is not implicated and the message must not name it. Docker
- * reports a registry timeout as a bare `Get "https://registry-1.docker.io/v2/":
- * context deadline exceeded` with no image reference in it, so the phase the
- * failure came from is the only reliable signal about which image it was.
+ * The infrastructure comes up in its own step first because Docker reports a registry
+ * failure with no image reference in it: the phase is the only signal about which image
+ * failed.
  */
 async function startContainer(
   image: string,
@@ -585,15 +338,14 @@ async function startContainer(
 ): Promise<StartedTestPostgres> {
   const alreadyFailed = unpullableImages.get(image);
   if (alreadyFailed !== undefined) {
-    // A fresh snapshot rather than the one the original failure carried: the cached text
-    // is the diagnosis, and the machine has moved on since it was written.
+    // A fresh snapshot: the machine has moved on since the cached text was written.
     throw new Error(
       `${alreadyFailed}\n  note: not retried (this image already failed to pull)\n${hostSnapshotLine()}`,
     );
   }
 
-  // Deliberately outside both try blocks: a missing optional peer is neither a
-  // reaper failure nor an image-pull failure, and must not be described as one.
+  // Outside both try blocks: a missing optional peer is neither a reaper failure nor an
+  // image-pull failure, and must not be described as one.
   const { PostgreSqlContainer } = await loadTestcontainers();
 
   try {
@@ -603,13 +355,8 @@ async function startContainer(
   }
 
   try {
-    // The startup budget has to be raised HERE as well as on the calling hook, or
-    // raising the hook buys nothing (issue #746). Testcontainers' own wait strategy
-    // defaults to 120s, so under load it gave up first and the hook's larger budget
-    // was never reached: the failure arrived from inside `.start()` as a `not bound
-    // after 120000ms` on the ephemeral port Docker had just mapped, with the Vitest
-    // hook still holding time it could not use. The margin below the hook budget is
-    // what keeps the failure diagnosable - see CONTAINER_STARTUP_TIMEOUT_MS.
+    // Needed as well as the calling hook's budget: upstream's own default is shorter and
+    // would give up first, naming only an ephemeral port.
     return await new PostgreSqlContainer(image)
       .withStartupTimeout(CONTAINER_STARTUP_TIMEOUT_MS)
       .start();
@@ -617,9 +364,8 @@ async function startContainer(
     const detail = describeCause(cause);
     const kind = classifyFailure(detail);
 
-    // Same discrimination as the infrastructure phase, and with the same
-    // consequence for the cache below: a daemon that went away is not a property
-    // of this image, so it must not poison it for the rest of the run.
+    // A daemon that went away is not a property of this image, so it must not poison it in
+    // the cache below for the rest of the run.
     if (kind === "daemon") throw new Error(describeDaemonFailure(detail), { cause });
 
     const isPullFailure = kind === "pull";
@@ -638,37 +384,20 @@ async function startContainer(
         : "  fix:    check that a Docker daemon is running and reachable.",
     ].join("\n");
 
-    // The snapshot is appended to what is thrown, never to what is cached (issue #812).
-    // A boot that reaches the Testcontainers port-bind ceiling under load fails with a
-    // message naming an ephemeral port and nothing else, which is precisely the failure
-    // this line exists to explain; a snapshot frozen into the cache above would instead
-    // report the machine as it stood at some earlier test's failure.
+    // The snapshot is appended to what is thrown, never to what is cached: a frozen one
+    // would report the machine as it stood at an earlier test's failure.
     if (isPullFailure) unpullableImages.set(image, message);
     throw new Error(`${message}\n${hostSnapshotLine()}`, { cause });
   }
 }
 
 /**
- * Boot an isolated Postgres in a throwaway container and connect to it.
+ * Boot an isolated Postgres in a throwaway container and connect to it, migrated to head
+ * unless `migrate` says otherwise. One container per test file: call it in `beforeAll` and
+ * `teardown()` in `afterAll`.
  *
- * With `migrate: true` (default) the database is migrated to head via the
- * package-owned migration set - the same path adopters run with
- * `drizzle-kit migrate`. Intended for one container per test file (call in
- * `beforeAll`, `teardown()` in `afterAll`); tests within a file share the
- * migrated database and isolate by using distinct IDs.
- *
- * The Drizzle handle is built over a `pg.Pool`, exactly as `serve.ts` does in
- * production, and that is a correctness requirement rather than mere realism
- * (issue #30): drizzle's node-postgres driver issues a transaction's `BEGIN` and
- * `COMMIT` on whatever client it was handed, so a handle over a single
- * `pg.Client` puts *every* concurrent transaction on one connection. Two
- * overlapping transactions then emit `BEGIN, BEGIN, ..., COMMIT, COMMIT` on one
- * backend - Postgres warns ("there is already a transaction in progress" / "there
- * is no transaction in progress"), and, worse, the two logical transactions share
- * one physical transaction, so the first `COMMIT` ends both and any
- * `pg_advisory_xact_lock` they took is released early. A pool gives each
- * transaction its own connection, so per-session lock serialization (I5) behaves
- * under test as it does in production.
+ * The Drizzle handle is over a `pg.Pool` for correctness, not realism: on a single
+ * `pg.Client` two overlapping transactions would share one physical transaction.
  */
 export async function startTestDb(options: StartOptions = {}): Promise<TestDb> {
   const container = await startContainer(
@@ -678,52 +407,29 @@ export async function startTestDb(options: StartOptions = {}): Promise<TestDb> {
 
   const connectionUri = container.getConnectionUri();
 
-  // The single teardown for this container (issue #888). Every connection below is
-  // registered with it as it is opened, so the drain-then-stop order is a property of the
-  // harness rather than something each caller re-derives - including on the failure path,
-  // where `startTestDb` itself throws and no `afterAll` has a `TestDb` to tear down.
   const teardown = createHarnessTeardown(container);
 
   const environment = options.environment ?? DEFAULT_TEST_ENVIRONMENT;
-  // Before migrating, `data_<env>` does not exist yet - which is harmless: Postgres
-  // ignores a missing schema on the search path rather than refusing the connection,
-  // so the same `options` serves the migration and everything after it.
+  // Harmless before the migration: Postgres ignores a missing schema on the search path.
   const searchPath = searchPathOptions(environment);
 
   const client = new Client({ connectionString: connectionUri, options: searchPath });
-  // Registered BEFORE connecting: the `error` guard has to be attached before a connection
-  // exists to lose. This one connection is the whole of issue #888's fatal path - a 57P01
-  // on an unlistened `pg.Client` is an uncaught exception and takes the worker down,
-  // whereas the same event on the pool below is re-emitted where a listener already waits.
+  // Registered before connecting: the `error` guard must be attached before there is a
+  // connection to lose.
   teardown.register(client, "dedicated client");
   try {
     await client.connect();
   } catch (cause) {
-    // The first connection to a container that has just reported itself ready is where a
-    // host under load shows up next, and `timeout exceeded when trying to connect` names
-    // no more of the cause than the mid-suite drop does. So does its blunter sibling,
-    // `connect ECONNREFUSED 127.0.0.1:<port>` - a container that reported ready and then
-    // had nothing listening on the mapped port when this line ran (issue #939).
+    // pg's wording for a refused or timed-out connect names nothing about the machine.
     annotateWithHostSnapshot(cause);
     await stopAfterFailedStart(teardown);
     throw cause;
   }
 
   const pool = new Pool({ connectionString: connectionUri, options: searchPath });
-  // An idle pooled connection that dies (typically the container going away at teardown)
-  // emits `error` on the pool; node-postgres rethrows it as an unhandled error without a
-  // listener, which would red an unrelated test. `register` attaches that listener, and
-  // tracks what the pool hands out so a checkout left open at teardown cannot keep
-  // `pool.end()` pending past the hook timeout.
   teardown.register(pool, "pool");
 
-  // A connection that dies MID-suite is a different event from the one above: it rejects
-  // an in-flight query, reds the test that issued it, and says only `Connection
-  // terminated unexpectedly` - no Docker, no host, nothing about the ten other container
-  // boots that were queued on the same daemon (issue #812). These two calls append one
-  // line saying what the machine looked like. They rethrow the pg error untouched
-  // otherwise: no retry, no reconnect, and nothing added to a failure whose shape says
-  // the query itself was refused.
+  // Both halves: a transaction's statements run on a checked-out client, not on the pool.
   instrumentPool(pool);
   instrumentQueryable(client);
 
@@ -733,9 +439,7 @@ export async function startTestDb(options: StartOptions = {}): Promise<TestDb> {
     try {
       await migrate(db, { migrationsFolder: MIGRATIONS_DIR });
     } catch (cause) {
-      // Without this, a migration failure left the container running with both connections
-      // open and `testDb` never assigned, so the caller's `afterAll` had nothing to tear
-      // down and the eventual container stop landed on live connections.
+      // No `TestDb` reaches the caller, so no `afterAll` of theirs can tear this down.
       await stopAfterFailedStart(teardown);
       throw cause;
     }
@@ -764,20 +468,15 @@ export async function startTestDb(options: StartOptions = {}): Promise<TestDb> {
 }
 
 /**
- * Drain and stop after `startTestDb` has already decided to throw.
- *
- * The caller's error is the one worth reporting, so a teardown failure here becomes a
- * process warning rather than replacing it: `startTestDb` throws the original cause either
- * way. Swapping a boot failure for "the pool would not close" would hide the only fact the
- * caller can act on.
+ * A teardown failure here becomes a process warning rather than replacing the caller's
+ * error, which is the only fact they can act on.
  */
 async function stopAfterFailedStart(teardown: HarnessTeardown): Promise<void> {
   try {
     await teardown.run();
   } catch (teardownFailure) {
-    // `describeDrainFailure` rather than `.message`: a drain raises an `AggregateError`
-    // whose message is a constant, so logging the message alone would name no connection
-    // on the one path where nothing else reports it.
+    // `describeDrainFailure` rather than `.message`, which is a constant naming no
+    // connection.
     process.emitWarning(
       `@roonga/qcms-db/testing: teardown after a failed start: ${describeDrainFailure(teardownFailure)}`,
     );
@@ -803,11 +502,9 @@ interface JournalEntry {
 }
 
 /**
- * Read the migration journal and apply the SQL files whose index falls within
- * `[from, to]` (inclusive; defaults to the whole set), in order. Bypasses
- * Drizzle's own migration tracker so a test can apply migrations one at a time
- * and observe the schema *between* them - the "apply N, then N+1" forward path.
- * Not for production use; adopters use `drizzle-kit migrate`.
+ * Apply the migration SQL files whose journal index falls within `[from, to]` (inclusive,
+ * defaults to all), in order. Bypasses Drizzle's migration tracker, so a test can observe
+ * the schema between two migrations. Not for production use.
  */
 export async function applyMigrations(
   client: pg.Client,

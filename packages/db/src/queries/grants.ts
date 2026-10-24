@@ -10,59 +10,19 @@ import {
 import { environments } from "../schema/control/environments.js";
 import type { Executor } from "./executor.js";
 
-/**
- * Membership and grants, as rows (ADR-41, Q32, Q45; task 069).
- *
- * # Why QCMS writes these rows at all, when they are better-auth's tables
- *
- * Q45: **grants are written only through QCMS endpoints**, and the plugin's own team and
- * member write endpoints are refused for everyone, a `forms.owner` included. Two reasons
- * the two-path shape could not answer. The QCMS endpoints are where the validation and
- * the SEC-15 rows live, so a second path is a path on which a grant changes without an
- * audit row. And the plugin's **removal cascades** run inside the library, below any
- * endpoint QCMS could gate, so the only way to be sure a removal is audited is for no
- * removal to originate there.
- *
- * So the writes are here, in the package that owns the schema, and the API slice is what
- * validates and audits around them. The reads are here too, for the resolver, the
- * capability endpoint and the membership list.
- *
- * # The shape, read off ADR-41 rather than invented
- *
- *   - A **workspace** is an `organization` row (task 068).
- *   - **`forms.owner` is the `member` row's role**, which is the plugin's `creatorRole`.
- *   - **Every other grant is a `team`** whose typed additional fields carry one role and
- *     its scope: `environments` as a set or `all`, `forms` as a list or `all`. Team
- *     membership is the grant, so a user in three teams holds three grants.
- *   - **Every grant holder carries a `member` row with the empty role** (finding G),
- *     because the plugin's own team queries assume a team member is a member of the
- *     organisation the team belongs to. That row grants nothing;
- *     {@link ensureWorkspaceMember} is what writes it and {@link EMPTY_MEMBER_ROLE} is
- *     the name whose statements are empty.
- *
- * # Ids
- *
- * better-auth mints its own ids on the rows it writes; these rows are QCMS's, so they
- * carry a QCMS-minted id with a readable prefix. Nothing joins on the shape of an id and
- * no id is parsed - the prefix is for an operator reading a row in `psql`.
- */
+// Grants are written only through QCMS endpoints, never the plugin's own: those endpoints
+// are where the validation and the SEC-15 rows live, and the plugin's removal cascades
+// run below any endpoint QCMS could gate.
 
-/**
- * The `member` role whose statements are empty (Q32's configuration guards, finding G).
- *
- * The plugin's own default name, overridden in `features/auth/instance.ts` with an empty
- * statement set, so a row carrying it grants nothing at all and exists only to make the
- * person a member of the workspace.
- */
+/** A role whose statements are empty: a row carrying it grants nothing. */
 export const EMPTY_MEMBER_ROLE = "member";
 
-/** The `member` role that is a grant: ADR-41's workspace owner (Q32, Q38). */
+/** The one `member` role that is a grant: the workspace owner. */
 export const OWNER_MEMBER_ROLE = "forms.owner";
 
 /** The scope token meaning "every environment" or "every form". */
 const SCOPE_ALL = "all";
 
-/** A QCMS-minted id for a row in one of the plugin's tables. */
 function mintId(prefix: string): string {
   return `${prefix}_${crypto.randomUUID().replaceAll("-", "")}`;
 }
@@ -71,20 +31,19 @@ function mintId(prefix: string): string {
 export interface AccessGroupRow {
   readonly teamId: string;
   readonly workspaceId: string;
-  /** The stored name, `<environments>.<plane>.<role>[.<label>]` (Q37). */
+  /** The stored name, `<environments>.<plane>.<role>[.<label>]`. */
   readonly name: string;
-  /** One of Q38's six roles, minus `forms.owner`, which is the member row's. */
+  /** Any role but `forms.owner`, which is the member row's. */
   readonly role: string;
-  /** The environment scope: `["all"]`, or one or more environment names. */
+  /** `["all"]`, or one or more environment names. */
   readonly environments: readonly string[];
-  /** The form scope: `["all"]`, or one or more form ids (Q28). */
+  /** `["all"]`, or one or more form ids. */
   readonly forms: readonly string[];
-  /** Task C3's join key. Declared now, written by nothing in this task (Q39). */
+  /** The external directory join key, written only by the group sync path. */
   readonly externalGroupId: string | null;
   readonly createdAt: Date;
 }
 
-/** The columns {@link AccessGroupRow} carries, as one Drizzle projection. */
 const groupColumns = {
   teamId: authTeam.id,
   workspaceId: authTeam.organizationId,
@@ -100,35 +59,20 @@ const groupColumns = {
 export interface HeldGrant extends AccessGroupRow {
   readonly workspaceSlug: string;
   readonly workspaceName: string;
-  /** True while the workspace is archived, so a caller can see why nothing works. */
   readonly workspaceArchived: boolean;
 }
 
 /** What a caller holds in one workspace: the member row's role, and every team grant. */
 export interface Membership {
   readonly workspaceId: string;
-  /**
-   * The `member` row's role, or `undefined` when the caller has no member row at all.
-   *
-   * `forms.owner` is a grant; {@link EMPTY_MEMBER_ROLE} is not - it grants nothing and
-   * exists to make a team grant expressible (finding G).
-   */
+  /** `undefined` when the caller has no member row. {@link EMPTY_MEMBER_ROLE} is not a grant. */
   readonly memberRole: string | undefined;
-  /** Every team grant the caller holds in this workspace. */
   readonly grants: readonly AccessGroupRow[];
 }
 
 /**
- * Resolve one caller's membership in one workspace: the `member` row and the teams.
- *
- * The resolver's one read (SEC-3). Two statements rather than a join, because the member
- * row and the team rows answer different questions and a caller may hold either without
- * the other - an owner with no access group, and (until finding G's rule is enforced
- * everywhere) a team grant whose member row is what {@link ensureWorkspaceMember}
- * guarantees.
- *
- * Runs on the **control** pool: an environment role holds no privilege at all on
- * `member`, `team` or `teamMember` (Q40).
+ * Resolve one caller's membership in one workspace: the `member` row and the teams. Runs
+ * on the control pool, the only one with any privilege on these tables.
  */
 export async function resolveMembership(
   exec: Executor,
@@ -151,14 +95,7 @@ export async function resolveMembership(
   return { workspaceId, memberRole: members[0]?.role, grants };
 }
 
-/**
- * Every grant one caller holds, across every workspace.
- *
- * The capability endpoint's read (Q35): it is how everybody who is not an owner or the
- * installation administrator learns their own grants, since the membership list itself is
- * theirs alone to see. One statement, so a caller holding grants in five workspaces costs
- * one round trip rather than five.
- */
+/** Every grant one caller holds, across every workspace. */
 export async function listGrantsForUser(
   exec: Executor,
   userId: string,
@@ -187,13 +124,9 @@ export interface MemberWorkspace {
 }
 
 /**
- * Every workspace one caller has a `member` row in.
- *
- * The companion of {@link listGrantsForUser}: that one answers the team grants and this
- * one answers the member row, and a caller may hold either without the other - an owner
- * with no access group, and a grant holder whose member row carries the empty role
- * (finding G). The resolver needs both to decide an act, and the capability endpoint
- * needs both to answer a caller's own grants.
+ * Every workspace one caller has a `member` row in. A caller may hold this without a team
+ * grant or the other way round, so deciding an act needs both this and
+ * {@link listGrantsForUser}.
  */
 export async function listMemberWorkspacesForUser(
   exec: Executor,
@@ -223,10 +156,8 @@ export interface WorkspaceMemberRow {
 }
 
 /**
- * Every `member` row in one workspace, with the account's name and address.
- *
- * Readable by that workspace's **owners** and by the installation administrator, and by
- * nobody else (Q35). The API is what enforces the readership; this is the read.
+ * Every `member` row in one workspace. The API must restrict this to that workspace's
+ * owners and the installation administrator.
  */
 export async function listWorkspaceMembers(
   exec: Executor,
@@ -272,11 +203,8 @@ export async function getAccessGroup(
 }
 
 /**
- * Whether a stored name is already taken **in this workspace**.
- *
- * Uniqueness is per workspace and is the QCMS write path's, because the plugin does not
- * enforce it on team names (Q37 rule 4). The same name in another workspace is accepted,
- * which is what criterion 12 asserts on both halves.
+ * Whether a stored name is already taken in this workspace. Uniqueness is the write
+ * path's to enforce; the plugin does not enforce it on team names.
  */
 export async function isAccessGroupNameTaken(
   exec: Executor,
@@ -311,7 +239,7 @@ export async function listAccessGroupHolders(
     .orderBy(asc(authUser.email));
 }
 
-/** What {@link createAccessGroup} writes. The name is the caller's, already validated. */
+/** What {@link createAccessGroup} writes. */
 export interface NewAccessGroup {
   readonly workspaceId: string;
   readonly name: string;
@@ -321,15 +249,8 @@ export interface NewAccessGroup {
 }
 
 /**
- * Create one access group.
- *
- * The validation is the API slice's, because that is where the refusals have to be
- * legible and where the SEC-15 row is written. What this does is the one insert, with a
- * QCMS-minted id.
- *
- * **`externalGroupId` is not a parameter.** It is `input: false` and is written only by
- * the task C3 sync path (Q39), so there is no argument here for a caller to set it
- * through - which is the absence criterion 15 asserts.
+ * Create one access group; validation and the SEC-15 row are the caller's.
+ * `externalGroupId` is deliberately not a parameter: only the sync path may write it.
  */
 export async function createAccessGroup(
   exec: Executor,
@@ -352,13 +273,8 @@ export async function createAccessGroup(
 }
 
 /**
- * Re-scope or rename one access group.
- *
- * The role is **not** changeable: a different role is a different grant, and an update
- * that moved one would make "team membership is the grant" a statement about a row whose
- * meaning had changed under the people holding it. The API refuses the change and the
- * operator deletes the group and creates the one they meant, which is two audited acts
- * rather than one unaudited change of meaning.
+ * Re-scope or rename one access group. The role is deliberately not changeable: moving
+ * one would change what every holder holds without an audited act.
  */
 export async function updateAccessGroupScope(
   exec: Executor,
@@ -384,13 +300,9 @@ export async function updateAccessGroupScope(
 }
 
 /**
- * Remove one access group, and with it every grant it carried.
- *
- * `teamMember` references `team` with `ON DELETE cascade`, so the holders' rows go with
- * it - which is exactly the cascade Q45 says must not originate at a plugin endpoint.
- * Here it originates at a QCMS endpoint, which is what lets the revoke be audited: the
- * API reads the holders first, writes one SEC-15 `revoke` row per holder, and then calls
- * this inside the same transaction.
+ * Remove one access group, and with it every grant it carried. The caller must read the
+ * holders and write one SEC-15 `revoke` row each in the same transaction, or the cascade
+ * goes unaudited.
  */
 export async function deleteAccessGroup(exec: Executor, teamId: string): Promise<boolean> {
   const rows = await exec.delete(authTeam).where(eq(authTeam.id, teamId)).returning({
@@ -400,17 +312,9 @@ export async function deleteAccessGroup(exec: Executor, teamId: string): Promise
 }
 
 /**
- * Make somebody a member of a workspace with the **empty** role, unless they already have
- * a member row (finding G).
- *
- * Every grant holder carries one, because the plugin's own team endpoints and queries
- * assume the user is a member of the organisation the team belongs to, so a person
- * holding only a team grant and no member row is a shape the library does not model. The
- * row grants nothing on its own: criterion 17 asserts that a person holding it and no
- * team reaches exactly what an administrator with no grant reaches, which is nothing.
- *
- * **It never downgrades an owner.** An existing row is left exactly as it is, so adding a
- * `forms.owner` to an access group does not quietly take their ownership away.
+ * Make somebody a member with the empty role, unless they already have a member row.
+ * Every grant holder needs one, because the plugin's team queries assume it. Never
+ * downgrades an owner: an existing row is left exactly as it is.
  */
 export async function ensureWorkspaceMember(
   exec: Executor,
@@ -435,11 +339,8 @@ export async function ensureWorkspaceMember(
 }
 
 /**
- * Set a member row's role: `forms.owner`, or back to the empty role.
- *
- * The only grant that is not a team (Q32). Returns `undefined` when there is no member
- * row to set, so the API answers a 404 rather than silently creating one: a workspace
- * owner is somebody who was made a member first.
+ * Set a member row's role. Returns `undefined` when there is no member row, rather than
+ * creating one.
  */
 export async function setMemberRole(
   exec: Executor,
@@ -464,7 +365,7 @@ export async function countWorkspaceOwners(exec: Executor, workspaceId: string):
   return rows[0]?.total ?? 0;
 }
 
-/** Add one holder to an access group. The grant itself (Q32: team membership is the grant). */
+/** Add one holder to an access group: team membership is the grant. */
 export async function addAccessGroupHolder(
   exec: Executor,
   teamId: string,
@@ -481,15 +382,14 @@ export async function addAccessGroupHolder(
     id: mintId("tmm"),
     teamId,
     userId,
-    // The plugin's own uniqueness key, `input: false` and optional on its side. QCMS
-    // writes it so the pair is unique at the database as well as in the read above,
-    // which is what makes a double grant a constraint violation rather than two rows.
+    // The plugin's own uniqueness key, optional on its side. Written so a double grant
+    // is a constraint violation rather than two rows.
     membershipKey: `${teamId}:${userId}`,
   });
   return true;
 }
 
-/** Take one holder out of an access group. The revoke (Q56: it writes an audit row). */
+/** Take one holder out of an access group. The caller writes the SEC-15 revoke row. */
 export async function removeAccessGroupHolder(
   exec: Executor,
   teamId: string,
@@ -516,30 +416,19 @@ export async function holdsAccessGroup(
   return rows.length > 0;
 }
 
-/** One access group naming an environment, named in the drop command's refusal (Q44). */
+/** One access group naming an environment, as the drop command's refusal lists it. */
 export interface EnvironmentNamingGroup {
   readonly teamId: string;
   readonly workspaceSlug: string;
-  /** The stored name. The refusal prints the **derived** full name beside it. */
   readonly name: string;
 }
 
 /**
- * Every access group whose environment scope names this environment (Q24 with Q43, Q44).
+ * Every access group whose environment scope names this environment. The drop command
+ * must refuse while any group does, and never re-scope a grant itself.
  *
- * The access-group half of the environment drop check, which Q44 moved from task 064 to
- * this one because a team carrying an `environments` field exists only from here. The
- * command **refuses** while any group names the environment and **names those groups**,
- * so an operator sees which grants the drop would silence rather than discovering it
- * afterwards. It refuses and never archives (Q43): a command that quietly re-scoped a
- * grant an owner wrote would be editing the authorisation model as a side effect of an
- * operator act.
- *
- * **A group scoped to `all` is not a match**, and that is the ruling rather than an
- * omission: `all` names no environment, so dropping one does not silence that grant - it
- * narrows what `all` means, which is what `all` is for. Q61 draws the same line one
- * control over, where a grant scoped to `all` leaves the audit row's `environment` empty
- * because the act names none.
+ * A group scoped to `all` is not a match: dropping an environment narrows what `all`
+ * means rather than silencing the grant.
  */
 export async function listGroupsNamingEnvironment(
   exec: Executor,
@@ -557,13 +446,7 @@ export async function listGroupsNamingEnvironment(
     .orderBy(asc(authOrganization.slug), asc(authTeam.name));
 }
 
-/**
- * The live environment set, in the order of the rows in `control.environments`.
- *
- * Q42's ordering is "the order of the rows", and the rows carry a `position`, so this is
- * that order read once and handed to the name derivation rather than each call site
- * sorting for itself.
- */
+/** The live environment set, in `control.environments` row order. */
 export async function listEnvironmentNames(exec: Executor): Promise<readonly string[]> {
   const rows = await exec
     .select({ name: environments.name })
@@ -573,16 +456,8 @@ export async function listEnvironmentNames(exec: Executor): Promise<readonly str
 }
 
 /**
- * Turn the per-workspace seed setting on or off (Q39, Q57).
- *
- * `seedNewEditorsWithTestData` is `input: false` on the plugin's side, so no request body
- * sets it and this is its one write path. Returns the value as stored, or `undefined`
- * when there is no such workspace.
- *
- * Turning it on is an owner's deliberate act and **writes a SEC-15 row of kind
- * `setting`** (Q61). That row is the API slice's, written in the same transaction as this
- * update, because a setting change without its audit row is the one failure this control
- * may not have.
+ * Turn the per-workspace seed setting on or off, the setting's one write path. The caller
+ * must write the SEC-15 `setting` row in the same transaction.
  */
 export async function setSeedNewEditorsWithTestData(
   exec: Executor,
@@ -598,16 +473,9 @@ export async function setSeedNewEditorsWithTestData(
 }
 
 /**
- * Turn the per-workspace two-person switch on or off (Q13, Q30, Q51, Q56).
- *
- * `requireSecondApprover` is `input: false` on the plugin's side and **had no write path
- * at all** until task 069: task 068 declared it off by default and task 070 reads it for
- * the two-person rule at a `prod` release and a `prod` endpoint change. This task reads
- * it too, for Q56's self-grant rule, which is why the one switch gives an installation
- * the whole two-person posture.
- *
- * Turning it on or off **writes a SEC-15 row of kind `setting`** (Q61). That row is the
- * API slice's, written in the same transaction as this update.
+ * Turn the per-workspace two-person switch on or off; it covers `prod` releases, `prod`
+ * endpoint changes and the self-grant rule alike. The caller must write the SEC-15
+ * `setting` row in the same transaction.
  */
 export async function setRequireSecondApprover(
   exec: Executor,

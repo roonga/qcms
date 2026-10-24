@@ -8,9 +8,8 @@ import type { Executor } from "./executor.js";
 export type SubmissionRow = typeof submissions.$inferSelect;
 
 /**
- * Write the submission lock for a session - the audit boundary (I6, I9). One
- * row per session (the `session_id` primary key); the kernel owns building the
- * locked set and its content hash (task 009), this helper only persists it.
+ * Write the submission lock for a session, the audit boundary. The kernel owns building
+ * the locked set and its content hash.
  */
 export async function insertSubmission(
   exec: Executor,
@@ -19,7 +18,7 @@ export async function insertSubmission(
     contentHash: string;
     lockedAnswers: LockedSubmission;
     submittedAt?: Date;
-    /** Anti-abuse flag reason (task 020); omit/undefined for a clean submission. */
+    /** Anti-abuse flag reason; omit for a clean submission. */
     flaggedReason?: string;
   },
 ): Promise<SubmissionRow> {

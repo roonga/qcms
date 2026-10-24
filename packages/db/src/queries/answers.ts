@@ -9,90 +9,45 @@ import type { Executor } from "./executor.js";
 import type { AssignableTo } from "./schema-drift.js";
 
 /**
- * One row of the append-only answer ledger: either an **answer** (`retracted`
- * false, `value` present) or a **retraction** (`retracted` true, `value` null) -
- * ADR-33. A database CHECK keeps the two shapes mutually exclusive, so a reader
- * that branches on `retracted` (or calls {@link isRetraction}) can never mistake
- * one for the other. Nothing is ever stored inside `value` to mark a retraction:
- * `AnswerValue` stays free of nulls and sentinels, and the kernel never sees one.
+ * One row of the append-only answer ledger: an answer, or a retraction clearing one.
  *
- * Hand-authored (issue #5) because its branded-id columns (`session_id`,
- * `question_id`, `instance_id`) resolve to a TypeScript `error` type through this
- * package's emitted `.d.ts` when consumed via `$inferSelect` - the same
- * declaration-emit degradation the enum columns hit - so consumers would see
- * unsafe member access. Keep every field in lockstep with the `answers` table in
- * `schema/answers.ts`; the drift guard below fails the build if they diverge.
- * That guard is why `instanceId` could not be forgotten here when migration 0022
- * added the column: the two shapes are asserted mutually assignable at build time.
+ * Hand-authored rather than `$inferSelect` because the branded-id columns degrade to an
+ * `error` type through this package's emitted `.d.ts` (issue #5).
  */
 export interface AnswerRow {
   id: string;
   sessionId: SessionId;
   questionId: QuestionId;
-  /**
-   * Which instance of a repeating group this row answers, or `null` for a
-   * question outside every group (ADR-42, task 072). The ledger's grain is
-   * `(session, question, instance)`, and a null instance is an absence rather
-   * than a sentinel: it is what every row written before migration 0022 holds.
-   */
+  /** `null` for a question outside every repeating group. */
   instanceId: InstanceId | null;
   /** The canonical answer, or `null` on a retraction row. */
   value: AnswerValue | null;
-  /** True on a retraction row: this question was cleared at `answeredAt`. */
   retracted: boolean;
   answeredAt: Date;
 }
 
-/** A ledger row that retracts the question's answer rather than giving one. */
+/** A ledger row that retracts a question's answer rather than giving one. */
 export interface RetractionRow extends AnswerRow {
   value: null;
   retracted: true;
 }
 
-/**
- * Narrow a ledger row to a retraction. Audit and export readers use this to keep
- * a retraction visibly distinct from an answer instead of rendering a blank
- * value that reads like an answer of nothing (ADR-33).
- */
+/** Narrow a ledger row to a retraction. */
 export function isRetraction(row: AnswerRow): row is RetractionRow {
   return row.retracted;
 }
 
-// Drift guard (issue #5): assert AnswerRow is structurally identical to what
-// Drizzle infers from the `answers` table. `$inferSelect` resolves soundly here
-// in the package source; it only degrades through the emitted `.d.ts`.
+// `$inferSelect` is sound in package source and only degrades through the emitted
+// `.d.ts`, so it can police `AnswerRow` here.
 export type _AnswerRowMatchesTable = AssignableTo<AnswerRow, typeof answers.$inferSelect> &
   AssignableTo<typeof answers.$inferSelect, AnswerRow>;
 
 /**
- * Append one answer to the ledger. INSERT only - the ledger is append-only
- * (I5, R3); there is no update path here and a `BEFORE UPDATE` trigger rejects
- * UPDATE at the database level as a backstop. `answeredAt` may be supplied to
- * control ordering (tests, backfills); it defaults to `now()`.
+ * Append one answer to the ledger. To clear an answer, append a retraction instead.
  *
- * `instanceId` names the repeating-group instance this answer belongs to and is
- * omitted for a question outside every group (ADR-42), which is why it is
- * optional: every existing caller writes exactly the row it wrote before.
- *
- * **Caller obligation: an `instanceId` must already be live in the session's
- * roster.** This function cannot check it and deliberately does not try - it is
- * handed an id and a value, not a snapshot, and reading the roster here would put
- * a query on the hot path of every answer write including the ones outside every
- * group. The check belongs where the snapshot is already in hand: resolve the
- * group's live roster (`readRosters` in `./rosters.ts`, or the derivation in
- * `apps/api/src/features/responses/roster.ts`) and refuse an id that is not in it,
- * before calling this. Task 073 owns the routes and implements the check.
- *
- * What is at stake if it is skipped: a respondent posting a forged `ins_` value
- * gets rows appended under a key no roster lists. Nothing is disclosed and no
- * derived list moves, because every read is scoped to the session and resolves
- * against the roster, so this is unbounded append into the respondent's **own**
- * session rather than a boundary crossing. It still matters, because the ledger is
- * append-only and only an erasure clears it. The same obligation applies to
- * {@link retractAnswer}.
- *
- * To clear an answer, append a retraction with {@link retractAnswer} - never a
- * null or sentinel value here (`AnswerValue` admits neither).
+ * Caller obligation: an `instanceId` must already be live in the session's roster. This
+ * cannot check it, and skipping the check lets a respondent append rows under a forged
+ * instance id in their own session.
  */
 export async function appendAnswer(
   exec: Executor,
@@ -118,27 +73,9 @@ export async function appendAnswer(
 }
 
 /**
- * Append a retraction for one question: an explicit tombstone that resolves the
- * question to *unanswered* without touching any stored row (ADR-33, issue #95).
- * INSERT only, exactly like {@link appendAnswer} - the ledger stays append-only
- * (I5, R3), and the audit trail records that the respondent cleared the answer
- * rather than erasing that they ever gave one.
- *
- * Retracting a question that currently has no answer is legal (the caller may
- * not know), and simply leaves it unanswered; the API avoids appending a
- * meaningless tombstone in that case (see the submit-answer handler).
- *
- * **A retraction is per instance** (ADR-33's Note, ADR-42): naming an
- * `instanceId` clears that cell alone and leaves every other instance of the
- * same question answered, which is exactly what clearing one table cell needs.
- * The `answers_retraction_value` CHECK is unchanged and covers the new column by
- * construction. The caller obligation on {@link appendAnswer} applies here too:
- * the `instanceId` must already be live in the session's roster, and this function
- * cannot check it.
- *
- * Returns a {@link RetractionRow}, not a bare {@link AnswerRow}: this function can
- * only ever insert a tombstone, so the narrower type carries that invariant to its
- * callers instead of making each one re-derive it through {@link isRetraction}.
+ * Append a tombstone resolving one question, or one instance of it, to unanswered;
+ * retracting an unanswered question is legal. The caller obligation on
+ * {@link appendAnswer} applies here too.
  */
 export async function retractAnswer(
   exec: Executor,
@@ -160,44 +97,16 @@ export async function retractAnswer(
       ...(input.answeredAt ? { answeredAt: input.answeredAt } : {}),
     })
     .returning();
-  // The two discriminator fields are restated rather than type-asserted: this
-  // INSERT wrote exactly them, and the `answers_retraction_value` CHECK (migration
-  // 0009) forbids the database from returning any other shape, so the narrowing is
-  // a fact about this statement rather than a claim about an arbitrary row.
+  // Restated rather than cast: this INSERT wrote exactly these two fields.
   return { ...row!, value: null, retracted: true };
 }
 
 /**
- * The current answer for every cell in a session: the latest row per
- * `(questionId, instanceId)` by `answeredAt` (I5, ADR-42).
- * `DISTINCT ON (question_id, instance_id)` with an `answered_at DESC, id DESC`
- * ordering picks exactly one row per cell - the `id` tiebreaker keeps the choice
- * deterministic when two rows share a timestamp. Returns an `AnswerMap`
- * (`ReadonlyMap<AnswerKey, AnswerValue>`), the shape the kernel's evaluator
- * consumes: a bare `questionId` outside a repeating group and
- * `instanceId/questionId` inside one.
+ * The current answer for every cell in a session; a cell whose newest row is a retraction
+ * is omitted. Includes instances the live roster no longer lists, which the caller filters.
  *
- * **`instance_id` is one more key, not a filter.** Two answers to one question in
- * two instances are two current values, and before migration 0022 the DISTINCT ON
- * would have silently kept one of them - the same class of collision ADR-42 names
- * in `jsonb_object_agg`. A question outside every group has exactly one
- * `instance_id` value, NULL, so its resolution and its key are byte-identical to
- * what they were.
- *
- * NULL groups with NULL under `DISTINCT ON`, which is the behaviour this relies
- * on and is not the behaviour of `=`: Postgres treats NULLs as not distinct for
- * `DISTINCT` and `GROUP BY` while `NULL = NULL` is unknown. So the unrepeated
- * question's rows still collapse to one.
- *
- * A cell whose newest row is a **retraction** is omitted entirely (ADR-33), so the
- * kernel sees it as unanswered and required-validation fails as it should. The
- * filter runs *after* the DISTINCT ON, never before: excluding retractions from
- * the pick would resurrect the answer the respondent just cleared.
- *
- * This resolves every cell the ledger holds, including instances the live roster
- * no longer lists. Excluding a removed instance's answers is the roster's job and
- * runs above this read (I6, ADR-42): the answers stay in the ledger, and the
- * evaluator is handed the live roster beside them.
+ * The retraction filter must stay after the `DISTINCT ON`, or it resurrects the answer
+ * that was just cleared.
  */
 export async function latestAnswers(exec: Executor, sessionId: SessionId): Promise<AnswerMap> {
   const rows = await exec
@@ -212,8 +121,8 @@ export async function latestAnswers(exec: Executor, sessionId: SessionId): Promi
     .orderBy(answers.questionId, answers.instanceId, desc(answers.answeredAt), desc(answers.id));
   const current = new Map<AnswerKey, AnswerValue>();
   for (const row of rows) {
-    // `value === null` is implied by `retracted` (the CHECK constraint) and is
-    // re-tested only to keep the map's value type free of null.
+    // `value === null` is implied by `retracted`; re-tested only to keep the map's value
+    // type free of null.
     if (row.retracted || row.value === null) continue;
     current.set(answerKey(row.questionId, row.instanceId ?? undefined), row.value);
   }
@@ -221,14 +130,8 @@ export async function latestAnswers(exec: Executor, sessionId: SessionId): Promi
 }
 
 /**
- * The full answer history for a session, oldest first - for audit and export.
- * Every revision is preserved (the ledger is append-only); use `latestAnswers`
- * for the current value per question.
- *
- * Retractions are **included** (ADR-33): the point of the tombstone append is
- * that clearing an answer is a recorded event. Readers must branch on
- * `retracted` ({@link isRetraction}) so a retraction is never rendered as though
- * it were an answer.
+ * The full answer history for a session, oldest first. Retractions are included, so
+ * readers must branch on `retracted`.
  */
 export async function answerLedger(exec: Executor, sessionId: SessionId): Promise<AnswerRow[]> {
   return exec

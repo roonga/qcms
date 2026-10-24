@@ -7,15 +7,8 @@ import type { Executor } from "./executor.js";
 import type { AssignableTo } from "./schema-drift.js";
 
 /**
- * One row of `control.form_releases`. Hand-authored (issue #5), like `FormRow`.
- *
- * `$inferSelect` resolves soundly inside this package and degrades across the emitted
- * `.d.ts` for a table whose columns carry a `$type<>` brand, which `form_releases` does
- * through `FormId`: a consumer then sees an `error` type, `tsc` hides it under
- * `skipLibCheck`, and `typescript-eslint` surfaces it as an unsafe assignment in
- * `apps/api`. The drift guard below keeps this interface in lockstep with the table, so a
- * column added, dropped or retyped in `schema/control/releases.ts` stops compiling here
- * until this is brought back into step.
+ * One row of `control.form_releases`. Hand-authored because `$inferSelect` degrades
+ * through this package's emitted `.d.ts` for a `$type<>`-branded table (issue #5).
  */
 export interface FormReleaseRow {
   formId: FormId;
@@ -25,63 +18,32 @@ export interface FormReleaseRow {
   fromEnvironment: string | null;
   releasedBy: string;
   approvedBy: string | null;
-  /**
-   * Whether this row leaves the form **closed to new sessions in this environment**
-   * (Q18, task 066). The newest row for the pair is the answer, exactly as it is for
-   * the version.
-   */
+  /** The newest row for the pair is the answer, as it is for the version. */
   closed: boolean;
   releasedAt: Date;
 }
 
-// Both directions, so any column change in `schema/control/releases.ts` breaks this
-// instantiation until `FormReleaseRow` matches the table again.
 export type _FormReleaseRowMatchesTable = AssignableTo<
   FormReleaseRow,
   typeof formReleases.$inferSelect
 > &
   AssignableTo<typeof formReleases.$inferSelect, FormReleaseRow>;
 
-/**
- * A release row with the one thing the history needs that the row does not carry: that
- * it moved the environment **backwards** (ADR-40, criterion 4).
- */
+/** A release row plus whether it moved the environment backwards. */
 export interface FormReleaseHistoryRow extends FormReleaseRow {
-  /**
-   * The version this release replaced in that environment, or `null` when it was the
-   * environment's first release of the form.
-   */
+  /** `null` when this was the environment's first release of the form. */
   readonly replacedVersion: number | null;
-  /**
-   * Whether this release is a **rollback**: it released a version older than the one it
-   * replaced in that environment.
-   *
-   * **Derived, never typed** (ADR-40). An administrator rolling back during an incident
-   * is doing the one thing a release history has to be legible about, and a flag somebody
-   * ticks is a flag that can disagree with the two version numbers sitting beside it.
-   * There is no second mechanism and no second code path: rolling back is releasing an
-   * earlier version, and this is the reading of what that row means.
-   */
+  /** Derived, never stored: a stored flag could disagree with the version numbers. */
   readonly rollback: boolean;
 }
 
 /**
- * Record a release of a published version into one environment (ADR-40).
+ * Record a release of a published version into one environment. A promotion writes a row
+ * and copies nothing; `fromEnvironment` is `undefined` for a first release or a hotfix
+ * into its target.
  *
- * **Promotion writes a row and copies nothing.** `formId` and `version` are unchanged by
- * a promotion, which is what keeps the version history shared and the audit continuous
- * (R1, R6, ADR-02, ADR-18); `fromEnvironment` records the path when there was one, and is
- * `undefined` for a first release or a hotfix straight into its target (Q4).
- *
- * `sequence` is assigned by a scalar subquery in the same INSERT, exactly as
- * `insertFormVersion` assigns a version number, so two concurrent releases into one
- * environment cannot both claim the same place in the history: the composite primary key
- * `(form_id, environment, sequence)` is the backstop and the loser retries.
- *
- * **Call this inside the caller's transaction, beside the `form.released` enqueue** (Q49).
- * The event and the record commit or roll back together, so neither is ever observed
- * without the other; the API's release handler is the one caller and
- * `enqueueInEnvironment` is the other half.
+ * Call inside the caller's transaction, beside the `form.released` enqueue, so neither is
+ * ever observed without the other.
  */
 export async function insertFormRelease(
   exec: Executor,
@@ -117,29 +79,15 @@ export async function insertFormRelease(
 }
 
 /**
- * The form's state in one environment, as a screen and the respondent path read it
- * (Q18, task 066): which version is released there and whether intake is closed.
- *
- * Two readings of one row, which is why they are one type. `undefined` from
- * {@link getFormEnvironmentState} means the form has never been released there, which is
- * neither open-and-serving nor closed: nothing is released, so a start refuses with
- * `NO_PUBLISHED_VERSION` and a screen renders the status as `open` because nobody has
- * closed anything.
+ * Which version is released in one environment and whether intake is closed. `undefined`
+ * means never released there, which is neither open nor closed.
  */
 export interface FormEnvironmentState {
   readonly version: number;
   readonly closed: boolean;
 }
 
-/**
- * The form's released version **and** closed reading in one environment (Q18).
- *
- * The respondent path's one read: `start-session` needs both before it spends anything,
- * and asking twice would be two round trips for two columns of one row. Runs on an
- * **environment** pool there, which holds `SELECT` on `control.form_releases` (Q48's
- * six-table read list) and needs no new grant for the closed state, which is the reason
- * Q18 is built as a value of the release state rather than as a table beside it.
- */
+/** The form's released version and closed reading in one environment. */
 export async function getFormEnvironmentState(
   exec: Executor,
   formId: FormId,
@@ -149,17 +97,7 @@ export async function getFormEnvironmentState(
   return row === undefined ? undefined : { version: row.version, closed: row.closed };
 }
 
-/**
- * The newest release row per form in one environment, keyed by form id.
- *
- * What the admin's form library reads to render each row's status for the environment
- * the Q6 switcher has selected: one query for the whole list rather than one per form,
- * because the list is the one screen that asks the question N times.
- *
- * `distinct on (form_id)` with a descending `sequence` is the newest row per form, the
- * same reading {@link getReleasedVersion} takes for one form, and it is served by the
- * `form_releases_environment_idx` index whose leading column is the environment.
- */
+/** {@link getReleasedVersion}'s reading for every form in one environment, in one query. */
 export async function environmentStatesByForm(
   exec: Executor,
   environment: string,
@@ -179,21 +117,11 @@ export async function environmentStatesByForm(
 }
 
 /**
- * Close a form to new sessions **in one environment** (Q18, task 066), by appending a
- * release-state row that carries the released version forward with `closed` set.
+ * Close a form to new sessions in one environment, by appending a release-state row that
+ * carries the released version forward with `closed` set.
  *
- * An append rather than an update, because this table is append-only at the database
- * (`form_releases_reject_update`) and because the history is then the audit answer to
- * "who closed `prod` intake, and when" for free.
- *
- * Returns `undefined` when the form has nothing released in that environment. There is
- * no state to close: a start there already refuses with `NO_PUBLISHED_VERSION`, and a
- * row carrying no version is not expressible - `version` is `NOT NULL` and keyed into
- * `control.form_versions`. The caller turns that into a legible refusal.
- *
- * Idempotent in effect and not in rows: closing an already-closed environment appends a
- * second closed row. The caller refuses that case, so the history stays a record of acts
- * that changed something.
+ * Returns `undefined` when the form has nothing released there. The caller must also
+ * refuse closing an already-closed environment, which would otherwise append a second row.
  */
 export async function closeFormInEnvironment(
   exec: Executor,
@@ -202,7 +130,7 @@ export async function closeFormInEnvironment(
   return setClosedInEnvironment(exec, input.formId, input.environment, input.closedBy, true);
 }
 
-/** Reopen a closed form to new sessions in one environment (Q18). The mirror of close. */
+/** Reopen a closed form to new sessions in one environment. */
 export async function reopenFormInEnvironment(
   exec: Executor,
   input: { formId: FormId; environment: string; reopenedBy: string },
@@ -210,14 +138,8 @@ export async function reopenFormInEnvironment(
   return setClosedInEnvironment(exec, input.formId, input.environment, input.reopenedBy, false);
 }
 
-/**
- * The shared half of close and reopen: read the pair's newest row, append its twin with
- * the flag set as asked.
- *
- * **Call it inside a transaction when the refusal matters.** Both callers do: the read
- * and the append have to agree about what was released, or a release landing between
- * them would be closed over with the earlier version.
- */
+// Call inside a transaction: a release landing between the read and the append would be
+// closed over with the earlier version.
 async function setClosedInEnvironment(
   exec: Executor,
   formId: FormId,
@@ -232,34 +154,21 @@ async function setClosedInEnvironment(
     environment,
     version: current.version,
     releasedBy: actor,
-    // No source environment: nothing was promoted. `fromEnvironment` records a path a
-    // version took, and intake stopping is not one (Q4's null spelling).
     fromEnvironment: null,
-    // The approval belongs to the release it was given for, not to a later close
-    // (Q51, task 070). Carrying it forward would make the audit say a close was
-    // approved by somebody who approved a release.
+    // Carrying the approval forward would make the audit say a close was approved by
+    // somebody who only approved a release.
     approvedBy: null,
     closed,
   });
 }
 
 /**
- * The version released to one environment, or `undefined` when none is.
+ * The version released to one environment, which is what a new session resolves rather
+ * than the newest published version.
  *
- * **This replaces "the newest published version" on the respondent path** (ADR-40): what
- * a new session resolves is what is released *here*, so a version released to `test` and
- * not to `prod` is served in `test` and refused in `prod` (criterion 1). A session
- * already open is untouched, because it pins its version at start and nothing re-pins it
- * (ADR-07, invariant I4, Q5).
- *
- * The newest row for the pair is `max(sequence)`, which the primary key serves by a
- * backward index scan. Deliberately **not** `order by released_at`: two releases in one
- * microsecond would be indistinguishable that way, and which version is serving is the
- * one thing this read may not be ambiguous about.
- *
- * Runs on an **environment** pool on the respondent path, which holds `SELECT` on
- * `control.form_releases` (Q48's six-table read list, granted by this table's own
- * migration).
+ * Ordered by `sequence` and deliberately not by `released_at`: two releases in one
+ * microsecond would be indistinguishable, and which version is serving may not be
+ * ambiguous.
  */
 export async function getReleasedVersion(
   exec: Executor,
@@ -276,16 +185,8 @@ export async function getReleasedVersion(
 }
 
 /**
- * The release history of one form, newest first, with each rollback marked (criterion 4).
- *
- * Every environment's rows together, because "released version 4 after version 7" is read
- * beside "and `test` is on 8": an incident review asks what happened to this form, not
- * what happened to this form in one place. `environment` narrows it when a screen wants
- * one column.
- *
- * `replacedVersion` is `lag(version)` over the environment's own sequence, so the
- * rollback reading is computed in the one place the predecessor is cheap to reach rather
- * than by the caller re-joining the list to itself.
+ * The release history of one form, newest first, with each rollback marked. Every
+ * environment's rows unless `environment` narrows it.
  */
 export async function listFormReleases(
   exec: Executor,
@@ -317,27 +218,15 @@ export async function listFormReleases(
 
   return rows.map((row) => ({
     ...row,
-    // Postgres hands a window function's integer back through the driver; the cast keeps
-    // the comparison numeric whatever the driver's integer mode is.
+    // The cast keeps the comparison numeric whatever the driver's integer mode is.
     replacedVersion: row.replacedVersion === null ? null : Number(row.replacedVersion),
     rollback: row.replacedVersion !== null && Number(row.replacedVersion) > row.version,
   }));
 }
 
 /**
- * Every version of a form that has been released to **any** environment, at any time.
- *
- * The input to the version list's "released anywhere" filter, which is one of the two
- * presentation mitigations finding 2 accepted: every iteration an author tries in `dev`
- * is an immutable published version and R1 keeps it, so a week of iterating leaves a long
- * list. The churn is accepted rather than designed away - promotion is a record and not a
- * copy, and no cheaper mechanism keeps the audit promise - so what this serves is a
- * filter, and **the filter's default shows every version** so nothing is hidden by
- * surprise.
- *
- * "Was released", not "is released": a version released and then rolled away from is
- * still a version that reached an environment, and hiding it would make the filter a
- * worse answer than the unfiltered list.
+ * Every version of a form ever released to any environment. Was released, not is
+ * released: a version rolled away from still reached an environment.
  */
 export async function listReleasedVersions(exec: Executor, formId: FormId): Promise<number[]> {
   const rows = await exec
