@@ -1,0 +1,47 @@
+# 081 - Thinking: the operator setting, the reasoning events and the disclosure
+
+**Stage:** 8a (the agent; launch scope, on the launch gate) · **Apps/packages:** `apps/api` (`config.ts`, `features/forms/assist`: the provider mapping and the event mapping), `apps/admin` (the stream parser and the disclosure segment), `create-qcms-app` (the template mirror, the generated env example) · **Depends on:** 080 (the disclosure is one segment in the segment column 080 finishes). 082 does not depend on this task and this task does not depend on 082; both rework `assist-panel.tsx`, and all four tasks ship in one branch and one PR, where this task's commits precede 082's (Code Owner, 2026-10-24; 083's Delivery section). **Gates 038**, with 080, 082 and 083 (phases A to D of `plan/agent-everywhere.md`; Code Owner, 2026-10-19).
+**References:** `docs/agent-principle.md` (governing; cited, not restated) · **ADR-25** as amended (`docs/adr/admin.md`) · **SEC-17** (`docs/SECURITY_DESIGN.md` section 8d, the "Thinking (SEC-8)" paragraph) · **SEC-8** · **ADR-24** (configuration, not a flag; clients receive behaviour, not values) · `plan/agent-everywhere.md` sections 1.3 (Q16), 4.6, 4.9 (the thinking disclosure), 8 (thinking), 13 (phase B) and 14 · `docs/agent-authoring.md` · `docs/operations.md` (the generated env reference) · task 038 goal 7 · task 041 · issue #846
+
+## Context
+
+Provider reasoning is dropped today: `reasoning-start`, `reasoning-delta` and `reasoning-end` fall into `handlePart`'s `default` branch (`plan/agent-everywhere.md` section 2), and on the newer Anthropic models the provider returns progress notes between tool calls as thinking blocks rather than text, so a long tool-calling turn looks silent for no reason an operator can see. The seam that would carry the request for visible thinking exists and is never fed: `aiSdkDraftAssistant` accepts `providerOptions` and `selectDraftAssistant` constructs it without any.
+
+This task feeds that seam from one operator setting and carries the result to the panel as its own event, under SEC-8's rule that reasoning text is never logged, stored or replayed beyond what the provider itself requires. The plan cites the installed SDK versions it read (`ai` 7.0.136, `@ai-sdk/anthropic` 4.0.78, `@ai-sdk/openai` 4.0.91, `@ai-sdk/google` 4.0.93); the executor re-reads the installed types at implementation time and records in the PR what was checked, since a vendor option name is the kind of claim that goes stale.
+
+## The rulings that govern this task
+
+**Q16** (`QCMS_AGENT_THINKING` takes `off` or `summary`, default `off`). **SEC-8**, as SEC-17's thinking paragraph applies it: forwarded to the panel only under `summary`, never logged, never stored, never exported in telemetry, never replayed beyond the provider's own within-turn requirement. **ADR-24**: this is configuration read by the API alone, not a feature flag, and the admin never learns its value; the disclosure renders when reasoning events arrive. The SDK's top-level `reasoning` effort option stays at the provider default: this task sets visibility, not effort (section 8).
+
+## Deliverables
+
+- **The setting.** `QCMS_AGENT_THINKING` in `apps/api/src/config.ts`, typed and fail-fast like `QCMS_AGENT_MAX_STEPS`, values `off` and `summary`, default `off`, read only when the agent provider is not `none`. Its row in `scripts/env-reference.mjs` so the generated table in `docs/operations.md` and the scaffold's env example carry it and `env-reference.test.ts` stays green in both directions; forwarded by `docker-compose.yml` to the `api` service **only**, as PR #1064 forwards the other agent variables, with a line in `.env.compose.example`'s commented block.
+- **One mapping function** from the setting to the provider's options, feeding `selectDraftAssistant` into the `providerOptions` seam (section 8's table): `anthropic` gets adaptive thinking with summarized display, or the updates display on a model that supports it; `openai` gets an automatic reasoning summary; `google` gets included thoughts; `openai-compatible` requests nothing and whatever reasoning parts the endpoint emits are forwarded under `summary` and dropped under `off`; `fake` plays scripted reasoning parts. Under `off` the function returns no thinking option at all.
+- **Its own SSE event.** `handlePart` maps `reasoning-delta` to `{ type: "reasoning", delta }` and `reasoning-end` to `{ type: "reasoning-end" }` when the setting is `summary`, and to nothing when it is `off`, **even when a provider emits reasoning unasked**. `apps/admin/lib/forms/assist-stream.ts`'s mirrored union gains both variants; its parser already skips unknown ones.
+- **The disclosure** (section 4.9): a collapsed `<details>` labelled from the catalog ("Thinking"), one segment of the assistant turn in arrival order, with a running indicator while reasoning streams and "Thought for {n} s" afterwards. Its contents render as **plain text, never Markdown**. Under reduced motion the indicator has no shimmer (section 4.6). Nothing in the panel depends on the setting's value; it depends on whether the events came.
+- **SEC-8, enforced and tested.** No reasoning text reaches a logger, a span, an audit row or the replayed conversation; the per-turn log line gains only the provider's reasoning token count; the request schema's turn shape stays text turns only. The SDK's within-turn carrying of reasoning blocks between tool steps is the one replay the provider requires and the only one that exists.
+- **The fake provider's `reasoning` script**, which emits scripted reasoning parts carrying a sentinel string, so one script proves both halves: under `summary` the sentinel reaches the panel, under `off` it reaches nothing.
+- **Documentation.** The variable's row in `docs/agent-authoring.md` section 1's table and a cost note in section 7 (reasoning tokens are billed output, bounded by the step ceiling per turn and the per-principal limit across turns); `docs/operations.md` through the generator; `apps/api/src/features/forms/assist/README.md` for the script; `pnpm qcms:sync-templates` and a `create-qcms-app` changeset. This task edits no decision record: SEC-17's status line stays "decided, not built" until 083 completes.
+
+## Exit criteria
+
+1. With the default (`off`) and the `reasoning` script, no `reasoning` or `reasoning-end` frame appears on the wire and no disclosure renders, even though the scripted model emitted reasoning parts.
+2. With `summary`, the frames stream, the disclosure renders collapsed with its running indicator and then its duration, its contents are plain text (a Markdown construct in the script renders as the literal characters), and the sentinel is visible on opening it.
+3. A value other than `off` or `summary` stops boot with a message naming the variable and echoing no value; with the provider `none` the variable is not required and an unset value is `off`.
+4. A unit test per provider id asserts the mapping function's exact output under `summary` and its absence under `off`; `openai-compatible` requests nothing under either.
+5. The sentinel from the `reasoning` script is absent from captured log output, from exported span and log attributes, from the next turn's request body and from the conversation the panel replays, and the per-turn log line carries a reasoning token count and no text.
+6. `env-reference.test.ts` passes with the new row; the compose file forwards the variable to `api` and not to `admin`; `pnpm check:templates` passes.
+7. axe is green over the disclosure open and closed; under emulated reduced motion the indicator has no animation.
+8. 041's exit criteria and 080's criteria 1 to 9 stay green.
+
+## Files and areas
+
+`apps/api/src/config.ts` and `config.test.ts`; `apps/api/src/features/forms/assist/assistant.ts` (the mapping function, which may live in a sibling `thinking.ts`, and `handlePart`), `assistant.test.ts`, `types.ts`, `fake-model.ts`, `README.md`; `apps/admin/lib/forms/assist-stream.ts` and its test, `assist-turn.ts` and its test; `apps/admin/components/forms/assist-panel.tsx` and its test; `apps/admin/lib/i18n/en.ts`; `apps/admin/app/globals.css`; `apps/admin/e2e/agent-assist.pw.ts`; `scripts/env-reference.mjs`; `docker-compose.yml`; `.env.compose.example`; `docs/operations.md` (generated), `docs/agent-authoring.md`; the regenerated `packages/create-qcms-app/templates/` and `docs/ownership-seam.md`; a changeset.
+
+## Gates
+
+`pnpm verify` and `QCMS_PORT_SEAT=<0-9> pnpm verify:browser`, **required and not conditional** because this task changes `apps/admin` (`CONTRIBUTING.md`), run detached with `pnpm verify:browser:detached` and then `pnpm verify:browser:wait <dir>` in slices until it stops exiting 75, never in the foreground (issue #846). No migration lands here, so no forced Docker-backed run is owed. The compose change is a variable forwarded to one service; `QCMS_PORT_SEAT=<0-9> pnpm up:e2e` once, on a seat the browser suite is not using, confirms the stack still boots with and without the variable set.
+
+## Out of scope (binding)
+
+Reasoning effort or budget control (the SDK's top-level `reasoning` option stays at the provider default). A per-user or in-panel toggle: this is an operator setting and the admin never sees its value (ADR-24). Rendering reasoning as Markdown. Storing, logging or replaying reasoning text anywhere, under any setting (SEC-8). Any thinking content in `control.agent_actions` or an `action-result` turn (083). The launcher and the panel's modes (082). Any new dependency.

@@ -1,6 +1,6 @@
 # 038 - Launch-gate validation
 
-**Stage:** 8b (the launch gate) · **Scope:** whole product · **Depends on:** 036, **040**, **071 to 077** (stage 8c, repeating groups), **phases A to D of `plan/agent-everywhere.md`** (the agent on every admin screen; Code Owner, 2026-10-19; work orders not yet numbered) (and 037 if ready - ADR-19 fallback applies)
+**Stage:** 8b (the launch gate) · **Scope:** whole product · **Depends on:** 036, **040**, **071 to 077** (stage 8c, repeating groups), **phases A to D of `plan/agent-everywhere.md`** (the agent on every admin screen; Code Owner, 2026-10-19; work orders 080 to 083, one PR) (and 037 if ready - ADR-19 fallback applies)
 **References:** `PROJECT_GOAL.md` §4 · `IMPLEMENTATION_PLAN.md` Stage 8a (the agent), Stage 8b and Stage 8c exits · **ADR-19** · **ADR-42**, **ADR-43**, **SEC-16** (repeating groups, ruled into launch on 2026-09-29) · **`docs/agent-principle.md`**, **ADR-25** as amended and **SEC-17** (the agent, ruled onto the launch gate on 2026-10-19) · `plan/agent-everywhere.md` section 1.2
 
 ## Context
