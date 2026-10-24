@@ -114,7 +114,6 @@ export default async function ResponseDetailPage({
       <div className="flex flex-col gap-6">
         <FormPageHeader
           formId={form.data.formId}
-          slug={form.data.slug}
           section="responses"
           status={form.data.status}
           heading={responseHeading(sessionId)}
@@ -141,7 +140,6 @@ export default async function ResponseDetailPage({
     <div className="flex flex-col gap-6">
       <FormPageHeader
         formId={form.data.formId}
-        slug={form.data.slug}
         section="responses"
         status={form.data.status}
         heading={responseHeading(sessionId)}

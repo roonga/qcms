@@ -50,14 +50,21 @@ import {
  * into a client one, so the page composes all three and this component only decides which is
  * on screen.
  *
- * ## Why a URL fragment still selects a panel
+ * ## The URL fragment is how a panel is selected
  *
  * `components/account-menu.tsx` has linked to `/settings#change-password` since task 032 and
  * that link is part of that control's contract. A fragment is never sent to a server, so the
- * server cannot open on it; this reads it once after the first paint. Under the stacked
- * screen the fragment scrolled and under the panel screen it selects, and the URL contract is
- * unchanged either way. The query markers a POST redirects with are handled where they can
- * be, on the server, in `settingsSectionFromParams`.
+ * server cannot open on it; this reads it on mount and on every change after that.
+ *
+ * The listener is what §7.0 ruling 2.2 needs (issue #1116). The rail's rows were buttons
+ * calling `selectSettingsPanel` directly; they are anchors to these section ids now, so the
+ * fragment is the one channel between the rail and the panels and the account menu's link
+ * travels it like any other row. One mechanism rather than two, which is also why there is
+ * no click handler on a row to keep in step with this.
+ *
+ * The query markers a POST redirects with are handled where they can be, on the server, in
+ * `settingsSectionFromParams`. A fragment beats them, which is the right way round: the
+ * marker is where the reader LANDED and the fragment is what they have since chosen.
  */
 export function SettingsPanels({
   initial,
@@ -71,11 +78,18 @@ export function SettingsPanels({
   const selected = useSettingsPanel(initial);
 
   useEffect(() => {
-    const fromHash = settingsSectionFromHash(globalThis.location.hash);
-    if (fromHash !== undefined) selectSettingsPanel(fromHash);
-    // Module state outlives this route, so a choice made here must not follow the reader to
-    // their next visit and hide the panel that visit's URL asked for.
-    return resetSettingsPanel;
+    const read = (): void => {
+      const fromHash = settingsSectionFromHash(globalThis.location.hash);
+      if (fromHash !== undefined) selectSettingsPanel(fromHash);
+    };
+    read();
+    globalThis.addEventListener("hashchange", read);
+    return () => {
+      globalThis.removeEventListener("hashchange", read);
+      // Module state outlives this route, so a choice made here must not follow the reader
+      // to their next visit and hide the panel that visit's URL asked for.
+      resetSettingsPanel();
+    };
   }, []);
 
   return (

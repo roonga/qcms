@@ -51,12 +51,7 @@ export default async function FormPreviewPage({
 
   return (
     <div className="flex flex-col gap-6">
-      <FormPageHeader
-        formId={form.formId}
-        slug={form.slug}
-        section="preview"
-        status={form.status}
-      />
+      <FormPageHeader formId={form.formId} section="preview" status={form.status} />
       {form.draft === null ? (
         <p className="text-sm text-(--color-text-muted)">{t("forms.preview.noSteps")}</p>
       ) : (

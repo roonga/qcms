@@ -195,7 +195,9 @@ describe("the preview panel", () => {
 
   it("is the last row of the rail, after everything the author can edit", () => {
     withPreview("content");
-    const labels = screen.getAllByRole("button").map((node) => node.textContent ?? "");
+    // The rail's rows are links since §7.0 ruling 2.2 (issue #1116), so the rows are read
+    // off the link roles rather than the buttons.
+    const labels = screen.getAllByRole("link").map((node) => node.textContent ?? "");
     const rows = labels.filter((text) =>
       /^(Content|Constraints|Validation messages|Preview)/u.test(text),
     );
@@ -209,10 +211,10 @@ describe("the preview panel", () => {
     // Edit from the Content panel, then come back. The document lives in the component rather
     // than in the DOM, so walking between panels does not lose it - and the preview is now
     // showing a version the editor no longer matches.
-    fireEvent.click(screen.getByRole("button", { name: /^Content/u }));
+    fireEvent.click(screen.getByRole("link", { name: /^Content/u }));
     const label = await screen.findByRole("textbox", { name: "Label" });
     fireEvent.change(label, { target: { value: "Accidents in the last three years" } });
-    fireEvent.click(screen.getByRole("button", { name: /^Preview/u }));
+    fireEvent.click(screen.getByRole("link", { name: /^Preview/u }));
 
     await waitFor(() => {
       expect(screen.getByText(/last saved/u)).toBeTruthy();
@@ -256,14 +258,14 @@ describe("the preview panel", () => {
     );
 
     // Nothing typed yet, so the preview is not behind.
-    fireEvent.click(screen.getByRole("button", { name: /^Preview/u }));
+    fireEvent.click(screen.getByRole("link", { name: /^Preview/u }));
     await waitFor(() => {
       expect(screen.getByTestId("stub-preview")).toBeTruthy();
     });
     expect(screen.queryByText(/last saved/u)).toBeNull();
 
     // Save, and edit before it comes back.
-    fireEvent.click(screen.getByRole("button", { name: /^Content/u }));
+    fireEvent.click(screen.getByRole("link", { name: /^Content/u }));
     const label = await screen.findByRole("textbox", { name: "Label" });
     await act(async () => {
       fireEvent.click(screen.getByRole("button", { name: "Save draft" }));
@@ -278,7 +280,7 @@ describe("the preview panel", () => {
       await Promise.resolve();
     });
 
-    fireEvent.click(screen.getByRole("button", { name: /^Preview/u }));
+    fireEvent.click(screen.getByRole("link", { name: /^Preview/u }));
     await waitFor(() => {
       expect(
         screen.getByText(/last saved/u),
@@ -328,20 +330,20 @@ describe("the rail row and the column, in two React trees", () => {
     bothTrees();
     expect(screen.getByRole("textbox", { name: "Label" })).toBeTruthy();
 
-    fireEvent.click(screen.getByRole("button", { name: /^Constraints/u }));
+    fireEvent.click(screen.getByRole("link", { name: /^Constraints/u }));
 
     await waitFor(() => {
       expect(screen.getByRole("textbox", { name: "Smallest value" })).toBeTruthy();
     });
     expect(screen.queryByRole("textbox", { name: "Label" })).toBeNull();
-    expect(screen.getByRole("button", { name: /^Constraints/u }).getAttribute("aria-current")).toBe(
+    expect(screen.getByRole("link", { name: /^Constraints/u }).getAttribute("aria-current")).toBe(
       "page",
     );
   });
 
   it("writes the chosen panel into the address, so a reload keeps it", () => {
     bothTrees();
-    fireEvent.click(screen.getByRole("button", { name: /^Constraints/u }));
+    fireEvent.click(screen.getByRole("link", { name: /^Constraints/u }));
     expect(window.location.search).toBe("?panel=constraints");
     // Replaced rather than pushed: the panels are one screen's worth of one question, not five
     // places the reader went, so Back leaves the screen.
@@ -372,15 +374,15 @@ describe("the rail row and the column, in two React trees", () => {
         <RailStandIn selected="content" />
       </>,
     );
-    expect(screen.queryByRole("button", { name: /^Validation messages/u })).toBeNull();
+    expect(screen.queryByRole("link", { name: /^Validation messages/u })).toBeNull();
 
     fireEvent.click(screen.getByRole("checkbox", { name: "An answer is required" }));
 
     await waitFor(() => {
-      expect(screen.getByRole("button", { name: /^Validation messages/u })).toBeTruthy();
+      expect(screen.getByRole("link", { name: /^Validation messages/u })).toBeTruthy();
     });
     // And the Content row's own digest follows the same edit.
-    expect(screen.getByRole("button", { name: /^Content/u }).textContent).toContain("Required");
+    expect(screen.getByRole("link", { name: /^Content/u }).textContent).toContain("Required");
   });
 });
 
@@ -487,17 +489,17 @@ describe("where a refused save puts the author", () => {
 
     await waitFor(() => {
       expect(
-        screen.getByRole("button", { name: /^Content/u }).querySelector("[data-rail-issues]")
+        screen.getByRole("link", { name: /^Content/u }).querySelector("[data-rail-issues]")
           ?.textContent,
       ).toBe("1 issue");
     });
     expect(
-      screen.getByRole("button", { name: /^Constraints/u }).querySelector("[data-rail-issues]")
+      screen.getByRole("link", { name: /^Constraints/u }).querySelector("[data-rail-issues]")
         ?.textContent,
     ).toBe("2 issues");
     expect(
       screen
-        .getByRole("button", { name: /^Validation messages/u })
+        .getByRole("link", { name: /^Validation messages/u })
         .querySelector("[data-rail-issues]"),
       "a panel with nothing refused carries no all-clear either",
     ).toBeNull();

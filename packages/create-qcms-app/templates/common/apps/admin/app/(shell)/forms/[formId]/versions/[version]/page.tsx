@@ -94,7 +94,6 @@ export default async function FormVersionPage({
     <>
       <FormPageHeader
         formId={form.formId}
-        slug={form.slug}
         section="versions"
         status={form.status}
         heading={{

@@ -127,12 +127,6 @@ export interface RailGroups {
   readonly siblings: readonly RailItem[];
 }
 
-/** What the collapsed disclosure's summary says: the active item, and its count if it has one. */
-export interface RailSummary {
-  readonly text: string;
-  readonly issueCount: number;
-}
-
 /** The path each sibling screen lives at, relative to the form. The builder IS the form. */
 function sectionHref(base: string, section: RailSection): string {
   return section === "builder" ? base : `${base}/${section}`;
@@ -236,26 +230,24 @@ export function formSubtreeRail({
 }
 
 /**
- * What the collapsed summary says, and it is the FORM (issue 693).
+ * THE COLLAPSED HEADER'S TEXT AND COUNT ARE TWO READS NOW (issue #1116).
  *
- * Below `--bp-sidebar`, shut, that one line is the whole rail, so what it owes a reader is
- * the scope the rail belongs to. It used to name the active ITEM instead - a step label, a
- * section label, and the slug only as a fallback when neither was current - which made one
- * line mean three different things and put it out of step with the other two rails, both of
- * which name their scope. `plan/admin-shell-poc/admin-shell-poc.html` draws the form's name
- * on every screen of this rail, so the fallback was the one branch that matched the drawing.
+ * `railSummary` stood here and returned both at once - `{ text, issueCount }` - because the
+ * frame took a `summaryText` and a `summaryCount` and nothing else. §7.0's Header is five
+ * things rather than two (a back link, the subject, a status tag, the secondary lines and at
+ * most one count), so the caller composes it from {@link formDisplayName} and
+ * {@link railIssueTotal} directly and there is nothing left for a pair to hold.
  *
- * It also read as a repeat once #692 gave the section screens an `<h1>` of
- * `{section}: {slug}`: on `/versions` the summary said "Version history" directly above a
- * heading beginning with the same two words.
- *
- * The count moves with it. An active item's issue count beside the form's name would be two
- * unrelated facts on one line, so the badge is the FORM's total: what a shut rail can
- * usefully say about a form is how much is wrong with it.
+ * What the pair decided is unchanged and is worth keeping written down, because it is the
+ * sort of thing a later pass undoes. The line names the FORM (issue 693): below
+ * `--bp-sidebar`, shut, it is the whole rail, so what it owes a reader is the scope the rail
+ * belongs to. It used to name the active ITEM - a step label, a section label, the slug only
+ * as a fallback - which made one line mean three different things across eight screens. And
+ * the count is the FORM's total rather than the active item's, because an item's count beside
+ * the form's name would be two unrelated facts on one line; what a shut rail can usefully say
+ * about a form is how much is wrong with it. The 2026-10-24 clarification to §7.0 writes both
+ * of those into the contract: "the subject plus at most one count".
  */
-export function railSummary(groups: RailGroups, slug: string, title: string): RailSummary {
-  return { text: formDisplayName(title, slug), issueCount: railIssueTotal(groups) };
-}
 
 /**
  * What to CALL a form on screen: its title, or its slug when it has no title yet.

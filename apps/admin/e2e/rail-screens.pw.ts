@@ -456,7 +456,9 @@ test("561 puts every shared rail row in the same box on all three builder-family
       page.locator("[data-rail-item^='step:'], [data-rail-step-select]").first(),
     ).toBeVisible();
     const measured = await page
-      .locator("[data-rail-item], [data-rail-step-select], .qcms-rail-steps__add")
+      // `.qcms-rail__actions` is where Add step sits since §7.0 (issue #1116): it was
+      // `.qcms-rail-steps__add`, inside the step cluster under the list.
+      .locator("[data-rail-item], [data-rail-step-select], .qcms-rail__actions")
       .evaluateAll((nodes) =>
         nodes.map((node, index) => {
           const box = node.getBoundingClientRect();
@@ -464,7 +466,7 @@ test("561 puts every shared rail row in the same box on all three builder-family
           return {
             gap: previous === undefined ? null : Math.round(box.top - previous.bottom),
             height: Math.round(box.height),
-            isAdd: node.classList.contains("qcms-rail-steps__add"),
+            isAdd: node.classList.contains("qcms-rail__actions"),
           };
         }),
       );
@@ -475,14 +477,95 @@ test("561 puts every shared rail row in the same box on all three builder-family
           .soft([2, 8], `${screen} row ${String(index)} sits on the rail's rhythm`)
           .toContain(row.gap);
       }
-      // ONLY THE ADD CONTROL'S HEIGHT IS PINNED. A step row is a title that WRAPS when it
+      // ONLY THE ACTIONS PART'S HEIGHT IS PINNED. A step row is a title that WRAPS when it
       // is long, which `rail.pw.ts` requires outright, so a row taller than one line is
       // correct here and asserting 40 would forbid the behaviour the rail is meant to have.
       // The add control carries no title, so a 52px box could only ever be padding it gave
       // itself - which is exactly what it used to do.
       if (row.isAdd) {
-        expect.soft(row.height, `${screen}'s add control is one row tall`).toBe(40);
+        expect.soft(row.height, `${screen}'s actions part is one row tall`).toBe(40);
       }
     }
   }
+});
+
+test("1116 heads every form screen's rail the same way, and leaves no breadcrumb behind", async ({
+  page,
+}) => {
+  test.setTimeout(600_000);
+  await signInWithTotp(page, EMAIL, totpSecret);
+
+  // AT BOTH WIDTHS. §7.0 ruling 2.1 makes the Header a visible plain header above
+  // `--bp-sidebar` on EVERY rail - the form rail used to hide its summary there, because
+  // its first row carried the form's name too - and the 2026-10-24 clarification keeps the
+  // back link visible below the boundary, where the body is shut.
+  // Every Header this sweep reads, so the last assertion can be the one §7.0 is about:
+  // they are all the same line.
+  const headers: string[] = [];
+
+  for (const width of [1440, 390]) {
+    await page.setViewportSize({ width, height: 900 });
+    for (const screen of screens()) {
+      await page.goto(screen.path);
+      const rail = page.getByTestId("qcms-rail");
+      await expect.soft(rail, `${screen.path} at ${String(width)} carries the rail`).toBeVisible();
+
+      // THE WAY BACK (§7.0 ruling 3), labelled with the parent SCREEN's name. Visible with
+      // the disclosure shut, because it sits above it rather than inside the body.
+      await expect
+        .soft(
+          rail.getByRole("link", { name: "Forms", exact: true }),
+          `${screen.path} at ${String(width)} offers the way back to Forms`,
+        )
+        .toBeVisible();
+
+      // THE SUBJECT AND ITS ONE STATUS TAG. The form's name is in the Header at both widths
+      // now - the form rail used to hide its summary above `--bp-sidebar` - and the tag
+      // beside it is the form's open/closed status, the one thing §7.0 allows there and
+      // something no row of this rail carries.
+      //
+      // Compared against the FIRST screen's Header rather than against the slug, which is
+      // the stronger claim and the one §7.0 makes: ten screens of one form, one Header. The
+      // name itself is the form's title where it has one and its slug where it does not
+      // (`formDisplayName`), so pinning the string here would pin the fixture instead.
+      const summary = rail.locator("summary.qcms-rail__summary");
+      await expect
+        .soft(summary, `${screen.path} at ${String(width)} names the form in its Header`)
+        .toBeVisible();
+      const name = ((await summary.textContent()) ?? "").trim();
+      expect
+        .soft(name.length, `${screen.path} at ${String(width)} has a Header with text in it`)
+        .toBeGreaterThan(0);
+      headers.push(`${screen.path} @${String(width)}: ${name}`);
+      await expect
+        .soft(
+          summary.locator(".qcms-tag[data-status]"),
+          `${screen.path} at ${String(width)} states the form's status once`,
+        )
+        .toHaveCount(1);
+
+      // AND NO TRAIL IN THE CONTENT COLUMN. The breadcrumb was the first line of every one
+      // of these screens; the back link replaces it, and a trail restored beside it would
+      // be the form's name and the section's said twice on one screen.
+      //
+      // Located by the breadcrumb's own name rather than by counting navigations in the
+      // column: the responses screen has a legitimate one, its pager.
+      await expect
+        .soft(
+          page.locator('main#main-content [aria-label="Breadcrumb"]'),
+          `${screen.path} at ${String(width)} has no breadcrumb in its column`,
+        )
+        .toHaveCount(0);
+    }
+  }
+  await page.setViewportSize({ width: SIDEBAR, height: 900 });
+
+  // ONE HEADER, TWENTY READINGS. The chevron is `aria-hidden` and outside the text, so what
+  // is compared is the name and its status tag: the same line on all ten screens at both
+  // widths, which is what "the rail looks the same everywhere" means for the part a reader
+  // sees first.
+  const names = new Set(headers.map((entry) => entry.split(": ").slice(1).join(": ")));
+  expect([...names], `every screen's Header reads the same: ${headers.join(" | ")}`).toHaveLength(
+    1,
+  );
 });

@@ -68,12 +68,7 @@ export default async function FormVersionsPage({
 
   return (
     <div className="flex flex-col gap-6">
-      <FormPageHeader
-        formId={form.formId}
-        slug={form.slug}
-        section="versions"
-        status={form.status}
-      />
+      <FormPageHeader formId={form.formId} section="versions" status={form.status} />
       <p className="text-sm text-(--color-text-muted)">{t("forms.history.intro")}</p>
       <VersionHistory
         formId={form.formId}

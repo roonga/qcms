@@ -19,17 +19,46 @@ import type { QuestionPanel, QuestionPanelId } from "@/lib/questions/panels";
  * client document. Like the Settings rail's rows, what they switch is a panel of the one route
  * the reader is already standing on rather than an address they could open elsewhere.
  *
- * So they are **buttons**, which is the rule rather than an exception to it
- * (`docs/admin-constraints.md`: an anchor navigates, a button acts). Choosing Constraints
- * changes what the column beside the rail is showing; there is nothing to open in a new tab.
- * The version rows they nest under stay anchors for the same rule read the other way: a version
- * is a different address (`?v=3`) and middle-clicking one has to work.
+ * They were **buttons**, on the rule that an anchor navigates and a button acts
+ * (`docs/admin-constraints.md`), because choosing Constraints changes what the column beside
+ * the rail is showing rather than going anywhere. **§7.0 ruling 2.2 reverses that for rail
+ * rows specifically: "anchors to the subject's routes or same-page panels ... Never
+ * buttons"** (issue #1116). One rail with one kind of row is the point: an operator should
+ * not have to learn which rows of a rail can be middle-clicked.
  *
- * **The admin requires JavaScript** (Code Owner, 2026-09-27), so there is no fallback here and
- * none is wanted. Nothing renders a dead anchor for a reader who has none. That is a property
- * of the app rather than a concession this component negotiated: the Settings rail already
- * switches its panels the same way, and `docs/admin-constraints.md` puts the POCs in charge of
- * the design.
+ * So a row is an anchor onto the panel's own section id - `panel.anchorId`, the id the editor
+ * already puts on the open panel and the id the refused-save path moves focus to. One value
+ * for the row's `href` and the editor's anchor, rather than two that have to be kept equal.
+ *
+ * **What switches the panel is the click, and the address the switch writes is still
+ * `?panel=`.** `chooseQuestionPanel` replaces that parameter (`lib/questions/editor-bridge.
+ * ts`), which is what a reload and the server read, and the handler writes the fragment beside
+ * it so the whole address names the open panel. A row opened in a new tab arrives at an address
+ * carrying the parameter too.
+ *
+ * **THE DEFAULT IS PREVENTED, AND FOCUS IS THE REASON.** It was not, on the reasoning that the
+ * fragment should land in the bar by itself and the browser's scroll-into-view was harmless.
+ * The scroll was; the focus was not. The editor's panel section carries `tabIndex={-1}`, because
+ * it is where a refused save sends the author, so a same-page fragment navigation to it is a
+ * navigation to a FOCUSABLE element and the browser moves focus off the row. A reader walking
+ * the rail by keyboard pressed Enter on Constraints and landed in the panel, which is both the
+ * wrong place to continue from and a silent difference from the Settings rail, whose rows keep
+ * focus because the panels they name are ordinary `<div>`s and take none. Preventing the default
+ * and writing the fragment with `replaceState` makes the two rails behave alike: the address
+ * carries the fragment, the panel switches, and focus stays on the row the reader pressed
+ * (`e2e/questions-rail.pw.ts`, which is where this is asserted - jsdom performs no fragment
+ * navigation, so only a browser can see it).
+ *
+ * What the fragment does NOT do is select a panel on a cold load: the editor renders one panel
+ * at a time, so four of the five ids are not in the document, and a reader arriving on
+ * `#panel-constraints` alone gets the panel `?panel=` names. That is the honest limit of a
+ * fragment on a screen that renders one section, and the parameter is what the screen's own
+ * address contract has always been. **The admin requires JavaScript** (Code Owner, 2026-09-27;
+ * the standing correction of 2026-08-22 records that there is no no-JS requirement here), so
+ * the click handler is the whole mechanism rather than an enhancement over one.
+ *
+ * The version rows these nest under are anchors too, and were already: a version is a
+ * different address (`?v=3`).
  *
  * ## Why the rows exist before the editor has published anything
  *
@@ -46,9 +75,13 @@ import type { QuestionPanel, QuestionPanelId } from "@/lib/questions/panels";
  * **Code Owner, 2026-09-27: this rail wears the form builder's styling.** So a panel row is a
  * `.qcms-rail__link` with `data-rail-item`, the list is a `.qcms-rail__group` with
  * `data-rail-group`, and the badge is the same `.qcms-tag--draft` count the builder's step rows
- * carry. `data-rail-group` also opts this list into the builder's marker treatment - a tint and
- * a heavier weight, no accent edge - which is the right answer for a nested tree where a parent
- * row and a child row are both current at once, and which is why the rule exists there.
+ * carry.
+ *
+ * `data-rail-group` used to carry a second meaning here: it opted a list into the form rail's
+ * marker treatment, which removed the accent edge from every current row in a tree. §7.0 ruling
+ * 2 replaced that with one mark for every rail and a demoted PARENT row, so the attribute means
+ * only what it says - this is a group of rail rows - and the nesting is what the stylesheet
+ * reads (issue #1116).
  */
 export function QuestionPanelRows({
   panels,
@@ -70,7 +103,7 @@ export function QuestionPanelRows({
     // them apart. `aria-label` rather than a heading, for the reason the whole rail carries
     // none: it renders before `<main>`, so a heading here would sit above the screen's `<h1>`.
     <ul
-      className="qcms-rail__group qcms-question-rail__panels"
+      className="qcms-rail__group qcms-rail__group--panels"
       aria-label={t("questions.rail.panels")}
       data-rail-group="panels"
     >
@@ -78,9 +111,9 @@ export function QuestionPanelRows({
         const issueCount = counts?.get(panel.id) ?? 0;
         return (
           <li key={panel.id}>
-            <button
-              type="button"
-              className="qcms-rail__link qcms-rail__link--stacked qcms-question-rail__panel"
+            <a
+              href={`#${panel.anchorId}`}
+              className="qcms-rail__link qcms-rail__link--stacked"
               data-rail-item={`panel:${panel.id}`}
               // NO `aria-controls`, and that is a correction rather than an omission. The
               // Settings rail's rows carry one, because that screen renders all three of its
@@ -98,8 +131,21 @@ export function QuestionPanelRows({
               // the open panel up by it to move focus inside.
               aria-current={panel.id === open ? "page" : undefined}
               data-rail-panel={panel.id}
-              onClick={() => {
+              // PREVENTED, so the fragment lands without a navigation: the panel this names
+              // is a `tabIndex={-1}` focus destination for a refused save, so letting the
+              // browser navigate to it would take focus off the row a keyboard reader just
+              // pressed. The docblock above records that at length.
+              //
+              // `replaceState` rather than a push, and after `chooseQuestionPanel`, which has
+              // just replaced `?panel=`: reading `location` back here picks that up, so the
+              // two write one entry between them. The panels are one screen's worth of one
+              // question, not five places the reader went.
+              onClick={(event) => {
+                event.preventDefault();
                 chooseQuestionPanel(panel.id);
+                const url = new URL(window.location.href);
+                url.hash = panel.anchorId;
+                window.history.replaceState(null, "", `${url.pathname}${url.search}${url.hash}`);
               }}
             >
               <span className="qcms-rail__row">
@@ -119,7 +165,7 @@ export function QuestionPanelRows({
                   one being a line and the other a block. `.qcms-rail__sub` is that one
                   treatment, shared with the version rows. */}
               <span className="qcms-rail__sub">{panel.digest}</span>
-            </button>
+            </a>
           </li>
         );
       })}

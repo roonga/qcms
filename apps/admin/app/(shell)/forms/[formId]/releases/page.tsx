@@ -84,12 +84,7 @@ export default async function FormReleasesPage({
 
   return (
     <div className="flex flex-col gap-6">
-      <FormPageHeader
-        formId={form.formId}
-        slug={form.slug}
-        section="releases"
-        status={form.status}
-      />
+      <FormPageHeader formId={form.formId} section="releases" status={form.status} />
       <p className="text-sm text-(--color-text-muted)">{t("forms.releases.intro")}</p>
       {!history.ok && <Alert variant="error">{history.message}</Alert>}
       <ReleasePanel

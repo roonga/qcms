@@ -161,7 +161,7 @@ test.describe("admin operations: responses, erasure, webhooks", () => {
     await expect(answers.locator(`dt[data-question-id="${ACCIDENT}"]`)).not.toHaveText(ACCIDENT);
   });
 
-  test("the detail route is headed by the response, with the form left in the breadcrumb", async ({
+  test("the detail route is headed by the response, with the form left to the rail", async ({
     page,
   }) => {
     await signInWithTotp(page, EMAIL, totpSecret);
@@ -174,8 +174,19 @@ test.describe("admin operations: responses, erasure, webhooks", () => {
     await expect(page.getByTestId("qcms-response-detail")).toBeVisible();
     await expect(page.getByRole("heading", { level: 1 })).toHaveText(`Response ${revised}`);
 
-    // The form is still there, as context rather than as the subject.
-    await expect(page.locator('[aria-label="Breadcrumb"]')).toContainText(SLUG);
+    // The form is still there, as context rather than as the subject. That context is the
+    // rail's Header since §7.0 ruling 3 (issue #1116): the trail that used to carry it
+    // below the bar is gone from every railed screen, and the Header names the form and
+    // offers the way back to the list.
+    //
+    // Asserted as "a Header with a name in it", not as the slug: the Header shows what the
+    // author called the form and falls back to the slug only for a form nobody has named
+    // (`formDisplayName`), so naming the string here would pin the seeded fixture's title
+    // rather than this route's behaviour.
+    await expect(page.locator('[aria-label="Breadcrumb"]')).toHaveCount(0);
+    const rail = page.getByTestId("qcms-rail");
+    await expect(rail.locator("summary.qcms-rail__summary")).not.toBeEmpty();
+    await expect(rail.getByRole("link", { name: "Forms", exact: true })).toBeVisible();
 
     // Said once. The response id was an `<h2>` inside the detail body, and moving the
     // page heading onto it without removing that would have stated the same thing
@@ -185,7 +196,7 @@ test.describe("admin operations: responses, erasure, webhooks", () => {
     // The builder names its SCREEN, which reverses 679's exemption for that one route
     // (Code Owner, 2026-08-26). 679 kept the bare slug there because "the page's subject IS
     // the form"; the builder is two screens now and its step screen heads itself with the
-    // step, so the premise expired and the slug was being repeated from the breadcrumb
+    // step, so the premise expired and the slug was being repeated from the trail
     // above it. Still asserted rather than assumed, because the property worth protecting
     // is unchanged: this route's heading is its own, not the slug every section once shared.
     await page.goto(`/forms/${FORM_ID}`);
