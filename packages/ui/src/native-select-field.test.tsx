@@ -4,28 +4,15 @@ import { describe, expect, it } from "vitest";
 import { A2UIStepRenderer, type A2UIStepDocument } from "./A2UIStepRenderer.tsx";
 import { NATIVE_FIELD_ANSWERED_PREFIX, NATIVE_FIELD_KIND_PREFIX } from "./native-submit.ts";
 
-/**
- * The no-JS single-choice control above the compiler's option threshold.
- *
- * In native-submit mode such a question used to put a real `<select>` on the page
- * carrying the real options, inside a clipped `aria-hidden` container with
- * `tabindex="-1"`, behind a trigger only JavaScript can open. Nothing was missing from
- * the wire and everything was missing from the respondent, and a required one was
- * worse than unanswerable: the browser tries to report validity on the unfocusable
- * mirror, cannot, and abandons the whole step's submission.
- *
- * jsdom pins the markup contract: which element carries the name, whether a respondent
- * can see and reach it, what the browser will validate, and what the form serializes.
- * The browser half is asserted in the portal's own suite (ADR-23).
- *
- * The document is hand-written because no golden form compiles a `Select` at all,
- * which is what kept this control unobserved. The props are what the compiler emits
- * for a single choice above its threshold.
- */
+// jsdom pins the markup contract: which element carries the name, whether a respondent
+// can see and reach it, what the browser will validate, and what the form serializes.
+// The browser half is asserted in the portal's own suite (ADR-23).
+//
+// The document is hand-written because no golden form compiles a `Select` at all, which
+// is what kept this control unobserved.
 
 const QUESTION = "q_body_type";
 
-/** The nine compiled options, in authored order, as the compiler emits them. */
 const ITEMS = [
   { label: "Hatchback", value: "opt_hatchback" },
   { label: "Sedan", value: "opt_sedan" },
@@ -40,7 +27,6 @@ const ITEMS = [
 
 const NATIVE = { action: "/s/ses_abc/step", submitLabel: "Continue" } as const;
 
-/** A step holding one Select question with the given compiled props. */
 function selectDocument(props: Readonly<Record<string, unknown>>): A2UIStepDocument {
   return {
     stepId: "stp_select",
@@ -65,7 +51,6 @@ function renderNative(
   );
 }
 
-/** Every `<select>` on the step that would be posted under the question's name. */
 function postedSelects(container: HTMLElement): HTMLSelectElement[] {
   return [...container.querySelectorAll<HTMLSelectElement>(`select[name="${QUESTION}"]`)];
 }
@@ -77,8 +62,8 @@ describe("the no-JS single-choice select (issue #988)", () => {
   });
 
   it("puts the select where the respondent can see and reach it", () => {
-    // The defect in one assertion: the only element carrying the question's name used
-    // to be a `tabindex="-1"` select inside an `aria-hidden`, clipped container.
+    // The only element carrying the question's name used to be a `tabindex="-1"`
+    // select inside an `aria-hidden`, clipped container.
     const { container } = renderNative();
     const select = postedSelects(container)[0];
     expect(select.closest("[aria-hidden='true']")).toBeNull();
@@ -86,14 +71,12 @@ describe("the no-JS single-choice select (issue #988)", () => {
     expect(select.hasAttribute("tabindex")).toBe(false);
     expect(select.hasAttribute("hidden")).toBe(false);
     expect(select.disabled).toBe(false);
-    // And the JS-only trigger is gone.
     expect(container.querySelectorAll("[aria-haspopup='listbox']").length).toBe(0);
   });
 
   it("carries every compiled option, in authored order, under the option ids", () => {
     const { container } = renderNative();
     const select = postedSelects(container)[0];
-    // The placeholder, then the options.
     expect([...select.options].map((option) => option.value)).toEqual([
       "",
       ...ITEMS.map((item) => item.value),
@@ -104,9 +87,9 @@ describe("the no-JS single-choice select (issue #988)", () => {
   });
 
   it("selects an empty-valued placeholder when the question is unanswered", () => {
-    // Both jobs of the empty option depend on this: HTML holds a `required` select
-    // invalid while the selected option's value is empty, and it is the only gesture
-    // that returns an answered optional select to unanswered.
+    // HTML holds a `required` select invalid while the selected value is empty, and
+    // this is also the only gesture that returns an answered optional one to
+    // unanswered.
     const { container } = renderNative();
     const select = postedSelects(container)[0];
     expect(select.value).toBe("");
@@ -116,8 +99,7 @@ describe("the no-JS single-choice select (issue #988)", () => {
   });
 
   it("keeps the browser's own required check, because HTML can express this rule", () => {
-    // Browser validation stays wherever HTML carries the constraint, and "exactly one
-    // option chosen" is one it carries, unlike a required checkbox group.
+    // HTML carries "exactly one option chosen", unlike a required checkbox group.
     const { container } = renderNative();
     expect(postedSelects(container)[0].required).toBe(true);
   });
@@ -170,9 +152,8 @@ describe("the no-JS single-choice select (issue #988)", () => {
 
   it("posts an answered field returned to the placeholder empty, so the marker reads as a clear", () => {
     // A chosen Select option cannot be deselected on the scripted path
-    // (docs/COMPONENT_GUIDELINES.md), but a native select can be returned to its
-    // empty-valued placeholder, and that value beside the marker is what the BFF
-    // decodes as the ADR-33 retraction.
+    // (docs/COMPONENT_GUIDELINES.md), but a native one can return to its placeholder,
+    // and that value beside the marker is what the BFF decodes as the retraction.
     const { container } = renderNative({ [QUESTION]: "opt_wagon" });
     postedSelects(container)[0].value = "";
     const posted = new FormData(container.querySelector("form")!);
@@ -200,12 +181,10 @@ describe("the no-JS single-choice select (issue #988)", () => {
 
   it("leaves the scripted render alone: the vendored trigger and its clipped mirror", () => {
     const { container } = render(<A2UIStepRenderer document={REQUIRED_DOCUMENT} />);
-    // The vendored control, unchanged: a JS-driven trigger and its hidden mirror.
     expect(container.querySelector("[aria-haspopup='listbox']")).not.toBeNull();
     const mirror = postedSelects(container)[0];
     expect(mirror.getAttribute("tabindex")).toBe("-1");
     expect(mirror.closest("[aria-hidden='true']")).not.toBeNull();
-    // And none of the native fallback's markup is on that render.
     expect(container.querySelector(`label[for="${mirror.id}"]`)).toBeNull();
   });
 });

@@ -5,28 +5,18 @@ import { A2UIStepRenderer } from "./A2UIStepRenderer.tsx";
 import { withDemotedHeadings } from "./heading-demotion.ts";
 import { loadGoldenForms } from "./test-support/golden.ts";
 
-/**
- * Heading demotion for an embedded document.
- *
- * A compiled step carries the page outline it would have on the portal, so a route that
- * embeds one and keeps its own `<h1>` ends up with two: a document-outline defect, and
- * an ambiguous level-1 heading query for anything testing the route.
- *
- * These run over the real golden corpus rather than a hand-written fixture, because the
- * corpus is the renderer's conformance input (ADR-18) and the property worth pinning is
- * about every document the compiler produces.
- */
+// Over the real golden corpus rather than a hand-written fixture, because the property
+// worth pinning is about every document the compiler produces (ADR-18).
 
 const forms = loadGoldenForms();
 
-/** The first step of every golden form: the one carrying the form-title `h1`. */
+/* The first step of every golden form is the one carrying the form-title `h1`. */
 const firstSteps = forms.map(({ version, form, compiled }) => ({
   label: `${version}/${form}`,
   specVersion: compiled.a2uiSpecVersion,
   document: compiled.documents[0],
 }));
 
-/** One real compiled root, for the assertions about the function, not the corpus. */
 const SAMPLE_ROOT = firstSteps[0].document.root;
 
 describe("withDemotedHeadings", () => {
@@ -83,8 +73,6 @@ describe("A2UIStepRenderer heading levels over the golden corpus", () => {
   it.each(firstSteps)(
     "$label renders no h1 at all when embedded, so the host page owns the outline",
     ({ document, specVersion }) => {
-      // The host route keeps its own `h1`, naming the page's real subject, and the
-      // embedded document's headings start one level down.
       const { container } = render(
         <A2UIStepRenderer document={document} specVersion={specVersion} headingLevelOffset={1} />,
       );
@@ -96,8 +84,6 @@ describe("A2UIStepRenderer heading levels over the golden corpus", () => {
   it.each(firstSteps)(
     "$label keeps the same heading text, in the same order, when embedded",
     ({ document, specVersion }) => {
-      // Demotion is a renumbering, not an edit: moved text or a missing heading would
-      // stop the preview being a faithful record of the document.
       const read = (offset: number) => {
         const { container } = render(
           <A2UIStepRenderer

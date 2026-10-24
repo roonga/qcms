@@ -15,9 +15,7 @@ import { loadGoldenForms } from "./test-support/golden.ts";
 import { ControlledHost, useChanges } from "./test-support/host.tsx";
 import { SELECT_STEP } from "./test-support/select-step.ts";
 
-// Typing into each control fires the canonical AnswerValue shape for its question
-// type, asserted with the kernel's own parsers as the oracle rather than a
-// re-implementation. A stateful host makes the controls genuinely controlled.
+// The kernel's own parsers are the oracle, rather than a re-implementation.
 
 const kitchen = loadGoldenForms().find((f) => f.version === "v2" && f.form === "kitchen-sink");
 if (!kitchen) throw new Error("kitchen-sink v2 golden not found");
@@ -30,10 +28,8 @@ const stepAbout = stepById("stp_about");
 const stepHealth = stepById("stp_history");
 const stepCover = stepById("stp_cover");
 
-// These type into react-aria controls with `userEvent` in jsdom, so their cost scales
-// with the CPU share the runner gets rather than with any awaited delay, and on a
-// starved runner at least one crosses Vitest's 5s default. Same timeout as
-// keyboard.test.tsx, so the two files share one justification.
+// Cost scales with the CPU share the runner gets rather than with any awaited delay,
+// so on a starved runner at least one of these crosses Vitest's 5s default.
 describe(
   "controlled value round-trip → canonical AnswerValue (task 002 schemas)",
   { timeout: 30_000 },

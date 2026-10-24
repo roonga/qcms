@@ -2,12 +2,8 @@ import { within } from "@testing-library/react";
 import axe from "axe-core";
 import { computeAccessibleName } from "dom-accessibility-api";
 
-/**
- * A deterministic accessibility-tree outline rather than a DOM snapshot: every role a
- * step exposes with its computed accessible name, grouped by role in a fixed order.
- * It is the conformance snapshot, so it regresses when a control loses its label, a
- * heading level changes or a role disappears.
- */
+// Role queries rather than a DOM snapshot, so the conformance snapshot regresses on a
+// lost label, a changed heading level or a missing role, and on nothing else.
 const ROLE_ORDER = [
   "heading",
   "radiogroup",
@@ -46,11 +42,8 @@ export function a11yOutline(container: HTMLElement): A11yNode[] {
   return nodes;
 }
 
-/**
- * WCAG 2.1 and 2.2 A and AA axe violations for a rendered container. Scoped to the
- * success-criteria rules, because the best-practice and page-level ones do not apply
- * to a form fragment.
- */
+// Scoped to the success-criteria rules, because the best-practice and page-level ones
+// do not apply to a form fragment.
 export async function axeViolations(container: HTMLElement): Promise<axe.Result[]> {
   const results = await axe.run(container, {
     runOnly: {

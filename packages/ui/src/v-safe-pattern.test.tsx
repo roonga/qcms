@@ -9,30 +9,22 @@ import { type A2UIStepDocument, A2UIStepRenderer } from "./A2UIStepRenderer.tsx"
 import { loadGoldenSteps } from "./test-support/golden.ts";
 import { toVSafePattern } from "./v-safe-pattern.ts";
 
-/**
- * The browser compiles an HTML `pattern` attribute with the `v` flag, whose
- * character-class grammar rejects spellings the authored `u` flag accepts. A rejected
- * pattern logs an error and drops native validation entirely, which trips the
- * portal's browser-console gate.
- *
- * The invariant under test: every `pattern` value reaching the DOM compiles under
- * `new RegExp(value, "v")`, or is absent. Asserted by compiling the rendered
- * attribute rather than snapshotting a string, so it tracks the real browser rule
- * rather than a frozen expectation.
- */
+// Asserted by compiling the rendered attribute rather than snapshotting a string, so
+// it tracks the real browser rule rather than a frozen expectation. A rejected pattern
+// logs an error and drops native validation entirely, which trips the portal's
+// browser-console gate.
 
-/** A corpus pattern: valid under `u`, a SyntaxError under `v`. */
+/** Valid under `u`, a SyntaxError under `v`. */
 const CORPUS_PATTERN = "^[A-Za-z][A-Za-z .,'-]{0,99}$";
 
 /**
- * The per-step allowance behind `CORPUS_TIMEOUT_MS`: roughly sixteen times the
- * measured idle cost of rendering one golden step, which is the headroom a loaded
- * machine needs and no more, so a render that genuinely got an order of magnitude
- * slower per step still goes red.
+ * Roughly sixteen times the measured idle cost of rendering one golden step, which is
+ * the headroom a loaded machine needs and no more, so a render that genuinely got an
+ * order of magnitude slower per step still goes red.
  */
 const MS_PER_GOLDEN_STEP = 1_500;
 
-/** Scaled to the corpus, so appending a golden step raises the budget with it. */
+/** Scaled, so appending a golden step raises the budget with it. */
 const CORPUS_TIMEOUT_MS = loadGoldenSteps().length * MS_PER_GOLDEN_STEP;
 
 function compilesUnderV(value: string): boolean {
@@ -44,7 +36,6 @@ function compilesUnderV(value: string): boolean {
   }
 }
 
-/** Renders one shortText control carrying `pattern` and returns the DOM attribute. */
 function renderedPattern(pattern: string): string | null {
   const document: A2UIStepDocument = {
     stepId: "stp_pattern",
@@ -65,10 +56,9 @@ function renderedPattern(pattern: string): string | null {
 }
 
 /**
- * Pay for the first render once, before anything is timed against a budget: it
- * initialises jsdom's document, React's test renderer and the react-aria control
- * tree, a cost the file pays once and which would otherwise land on whichever test
- * renders first.
+ * The first render initialises jsdom's document, React's test renderer and the
+ * react-aria control tree, a cost the file pays once and which would otherwise land on
+ * whichever test happens to render first.
  */
 beforeAll(() => {
   renderedPattern("^[0-9]{4}$");
@@ -90,8 +80,8 @@ describe("toVSafePattern (issue #29)", () => {
     expect(toVSafePattern(undefined)).toBeUndefined();
   });
 
-  // A pattern the browser already accepts is handed through byte-identical, because
-  // rewriting one risks perturbing the `&&` and `--` operators `v` gives meaning to.
+  // Rewriting a working pattern risks perturbing the `&&` and `--` operators `v` gives
+  // meaning to.
   it.each([
     "^[0-9]{4}$",
     "^[A-Za-z]{2,3}$",
@@ -105,8 +95,8 @@ describe("toVSafePattern (issue #29)", () => {
     expect(toVSafePattern(pattern)).toBe(pattern);
   });
 
-  // Provably normalizable: each rewrite swaps a class literal for its escaped
-  // spelling, so the matched set is unchanged.
+  // Each rewrite swaps a class literal for its escaped spelling, so the matched set is
+  // unchanged.
   it.each([
     ["trailing class dash", "^[a-z-]+$", "^[a-z\\-]+$"],
     ["leading class dash", "^[-a-z]+$", "^[\\-a-z]+$"],
@@ -125,9 +115,9 @@ describe("toVSafePattern (issue #29)", () => {
     expect(compilesUnderV(expected)).toBe(true);
   });
 
-  // Where the rewrite is not provably safe, omit rather than guess: a mid-class dash
-  // after a completed range is a literal under `u` but indistinguishable from a range
-  // operator, so the attribute is dropped and the API remains the authority (R2).
+  // A mid-class dash after a completed range is a literal under `u` but
+  // indistinguishable from a range operator, so the attribute is dropped rather than
+  // guessed at and the API remains the authority (R2).
   it.each(["^[a-z-0-9]+$", "^[a-z-.]+$"])(
     "omits a pattern it cannot provably normalize: %s",
     (hostile) => {
@@ -136,8 +126,7 @@ describe("toVSafePattern (issue #29)", () => {
     },
   );
 
-  // The semantics-preservation claim, tested rather than asserted: the normalized
-  // pattern under `v` accepts and rejects exactly what the original did under `u`.
+  // The semantics-preservation claim, tested rather than asserted.
   it("normalization preserves u-mode semantics", () => {
     const samples = [
       "",
@@ -204,10 +193,6 @@ describe("rendered pattern attribute (issue #29)", () => {
     expect(renderedPattern("^[a-z-0-9]+$")).toBeNull();
   });
 
-  // The append-only golden corpus (ADR-18) is the renderer's conformance contract and
-  // what the portal serves, so every `pattern` it puts on the DOM has to satisfy the
-  // invariant, which is what keeps the browser-console gate green with no allowlist.
-  //
   // The budget is scaled per step rather than flat, because this renders every golden
   // step through the real renderer, so its cost grows every time one is appended. A
   // flat number sat close enough to Vitest's 5s default to fail under parallel lanes.
@@ -230,24 +215,17 @@ describe("rendered pattern attribute (issue #29)", () => {
         }
       }
       expect(offenders).toEqual([]);
-      // Guard against the assertion passing because nothing carried a pattern.
       expect(seen).toBeGreaterThan(0);
     },
     CORPUS_TIMEOUT_MS,
   );
 });
 
-/**
- * The two copies of the rule agree.
- *
- * The kernel owns the authoring-time normalization, because the API's question
- * boundary refuses a v-invalid pattern and offers the rewrite in the refusal. This
- * module restates it rather than importing it, because `@roonga/qcms-ui` must not
- * pull the kernel into the client bundle, and a restatement is only safe while
- * something proves the two still say the same thing.
- *
- * A test file may import the kernel; the shipped module may not.
- */
+// The renderer restates the kernel's rule rather than importing it, because this
+// package must not pull the kernel into the client bundle, and a restatement is only
+// safe while something proves the two still say the same thing. A test file may import
+// the kernel; the shipped module may not.
+
 describe("the kernel and the renderer normalize identically", () => {
   const CORPUS: readonly string[] = [
     CORPUS_PATTERN,
@@ -273,8 +251,7 @@ describe("the kernel and the renderer normalize identically", () => {
   });
 
   it("agrees that an absent pattern stays absent", () => {
-    // Only the renderer takes `undefined`, mapping an absent prop to an absent
-    // attribute; the kernel is only handed a pattern that exists.
+    // Only the renderer takes `undefined`; the kernel is only handed one that exists.
     expect(toVSafePattern(undefined)).toBeUndefined();
   });
 });

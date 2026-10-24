@@ -7,23 +7,11 @@ import { loadGoldenForms } from "./test-support/golden.ts";
 import { ControlledHost } from "./test-support/host.tsx";
 import { SELECT_STEP } from "./test-support/select-step.ts";
 
-/**
- * A control never changes between controlled and uncontrolled, and never serves a
- * second question.
- *
- * react-stately decides controlled against uncontrolled by `value !== undefined`
- * alone and warns when that decision changes. The direction that matters is back to
- * uncontrolled, because an uncontrolled control then serves its own last internal
- * value in place of the parent's absence. Two seams prevent it, and both are pinned
- * here: the discrete controls pass react-aria's own no-selection value, `null`, which
- * is controlled and unlike `""` keeps the roving tabindex and the option-key
- * contract; and each control is keyed by questionId, so re-targeting a mounted
- * control at another question is a remount rather than a carried-over state.
- *
- * jsdom is the layer that can see this (ADR-23): the warning is a dev-mode
- * `console.warn`, and both consequences are readable properties of the rendered
- * control rather than anything layout-dependent.
- */
+// react-stately decides controlled against uncontrolled by `value !== undefined` alone
+// and warns when that decision changes. The direction that matters is back to
+// uncontrolled, because it then serves its own last internal value in place of the
+// parent's absence. jsdom is the layer that can see it: the warning is a dev-mode
+// `console.warn` and both consequences are readable off the rendered control.
 
 const kitchen = loadGoldenForms().find((f) => f.version === "v2" && f.form === "kitchen-sink");
 if (!kitchen) throw new Error("kitchen-sink v2 golden not found");
@@ -39,18 +27,13 @@ const stepAbout = stepById("stp_about");
 const stepHistory = stepById("stp_history");
 const stepCover = stepById("stp_cover");
 
-/**
- * The same step document with one question renamed, so its control sits at exactly the
- * same tree index and React reconciles the two questions onto one mounted control.
- * Derived from the golden rather than hand-shaped, so the reconciliation is the real
- * one.
- */
+// Derived from the golden rather than hand-shaped, so the control sits at exactly the
+// same tree index and the reconciliation under test is the real one.
 function withRenamedQuestion(step: A2UIStepDocument, from: string, to: string): A2UIStepDocument {
   const rewritten = JSON.stringify(step).replaceAll(from, to);
   return JSON.parse(rewritten) as A2UIStepDocument;
 }
 
-/** react-stately's controlled/uncontrolled warnings, in order. */
 let flips: string[] = [];
 
 beforeEach(() => {
@@ -65,7 +48,6 @@ afterEach(() => {
   vi.restoreAllMocks();
 });
 
-/** Whether a radio or checkbox is currently selected. */
 function isChecked(element: HTMLElement): boolean {
   return (element as HTMLInputElement).checked;
 }
@@ -123,8 +105,7 @@ describe("answering a control does not flip it between controlled and uncontroll
 
     // The vendored DatePicker passes `value: string | null` through, so the adapter's
     // `NO_SELECTION` reaches react-aria and the date is controlled from the first
-    // render. The harm a flip could do is separately prevented by the remount key,
-    // asserted in the re-target suite below.
+    // render.
     expect(flips).toEqual([]);
   });
 });
@@ -133,8 +114,7 @@ describe("a projection never re-targets a mounted control at another question", 
   it("RadioGroup: an answered boolean does not carry its selection into the next question", async () => {
     const user = userEvent.setup();
     // "true"/"false" are also the new question's option values, so a control that kept
-    // its internal state would display the previous question's answer on a question
-    // nobody has answered.
+    // its state would display the previous question's answer on an unanswered one.
     const nextStep = withRenamedQuestion(
       stepHistory,
       "q_at_fault_accident",
@@ -152,10 +132,9 @@ describe("a projection never re-targets a mounted control at another question", 
 
   it("RadioGroup: the next question's group is still keyboard-reachable", async () => {
     const user = userEvent.setup();
-    // These two groups sit at the same tree index, so Continue re-targeted one mounted
-    // group at the other question and carried react-aria's `lastFocusedValue` across.
-    // No option of the new question has that value, so every radio dropped to
-    // tabIndex=-1: a required question no keyboard respondent could reach.
+    // These sit at the same tree index, so Continue re-targeted one mounted group at
+    // the other question and carried `lastFocusedValue` across. No option of the new
+    // question has that value, so every radio dropped to tabIndex=-1.
     const { rerender } = render(<ControlledHost document={stepHistory} />);
 
     await user.click(screen.getByRole("radio", { name: "Yes" }));
@@ -181,8 +160,6 @@ describe("a projection never re-targets a mounted control at another question", 
 
     rerender(<ControlledHost document={nextStep} />);
 
-    // Every segment shows its placeholder again, rather than the previous question's
-    // answer redisplayed by react-aria.
     expect(screen.getByRole("spinbutton", { name: /month/i }).textContent).toMatch(/mm/i);
     expect(screen.getByRole("spinbutton", { name: /year/i }).textContent).toMatch(/yyyy/i);
     expect(flips).toEqual([]);

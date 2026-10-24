@@ -5,28 +5,22 @@ import { describe, expect, it } from "vitest";
 import { loadGoldenForms } from "./test-support/golden.ts";
 import { ControlledHost } from "./test-support/host.tsx";
 
-/** RAC radio/checkbox render native inputs (`.checked`), falling back to aria-checked. */
+// RAC renders native inputs, so `.checked` is the primary read.
 function isChecked(element: HTMLElement): boolean {
   if (element instanceof HTMLInputElement) return element.checked;
   return element.getAttribute("aria-checked") === "true";
 }
 
-// Keyboard walkthrough over the kitchen-sink document: Tab order, radio arrow-key
-// selection, checkbox Space toggle. Conformance-verified rather than assumed of the
-// component library (ADR-22).
+// Conformance-verified rather than assumed of the component library (ADR-22).
 const kitchen = loadGoldenForms().find((f) => f.version === "v2" && f.form === "kitchen-sink");
 if (!kitchen) throw new Error("kitchen-sink v2 golden not found");
 const stepHealth = kitchen.compiled.documents.find((d) => d.stepId === "stp_history");
 if (!stepHealth) throw new Error("stp_history not found");
 
-// These drive real `userEvent` interaction through react-aria in jsdom, which is
-// CPU-bound: each simulated key dispatches a full event sequence and react-aria
-// re-renders. Cost therefore scales with the CPU share the runner gets, and on a
-// starved runner the slowest test crosses Vitest's 5s default while a warm machine
-// finishes the file in 1.5s. Which test crosses varies with load, so the budget
-// belongs to the file. There is nothing timing-sensitive to restructure: the cost is
-// arithmetic rather than an awaited delay. 30s leaves headroom while still failing a
-// genuine hang.
+// Cost scales with the CPU share the runner gets rather than with any awaited delay,
+// so on a starved runner the slowest test here crosses Vitest's 5s default while a warm
+// machine finishes the file in 1.5s. Which test crosses varies with load, so the budget
+// belongs to the file; do not replace it with a per-test one.
 describe("kitchen-sink keyboard walkthrough", { timeout: 30_000 }, () => {
   it("Tab visits every control in document order and never the honeypot", async () => {
     const user = userEvent.setup();
@@ -49,7 +43,6 @@ describe("kitchen-sink keyboard walkthrough", { timeout: 30_000 }, () => {
       expect(document.activeElement).toBe(element);
     }
 
-    // The honeypot input (tabindex=-1, inside aria-hidden) is never reachable.
     const honeypot = container.querySelector('input[name="website"]');
     expect(honeypot).not.toBeNull();
     expect(honeypot!.getAttribute("tabindex")).toBe("-1");

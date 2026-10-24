@@ -13,24 +13,13 @@ import {
 } from "./native-submit.ts";
 import { loadGoldenForms } from "./test-support/golden.ts";
 
-/**
- * The no-JS date control.
- *
- * Two defects stand behind it. The vendored DatePicker's form value was an
- * `<input type="text" hidden required>`, which `willValidate` is true for and the
- * browser cannot focus to report, so the whole step's submit was abandoned. The
- * `<input type="date">` that replaced it drew its parts in the browser's locale order,
- * so the server render and the hydrated react-aria DateField disagreed.
- *
- * jsdom pins the markup contract: which elements carry which names, their order, and
- * what the browser will validate. Whether the browser then submits is browser
- * behaviour (ADR-23) and is asserted in the portal's own suite.
- */
+// jsdom pins the markup contract: which elements carry which names, their order, and
+// what the browser will validate. Whether the browser then submits is browser behaviour
+// (ADR-23), asserted in the portal's own suite.
 
 const kitchenSink = loadGoldenForms().find((f) => f.version === "v1" && f.form === "kitchen-sink");
 if (!kitchenSink) throw new Error("v1 kitchen-sink golden not found");
 
-/** The fixture's required date question, and the step that holds it. */
 const DATE_QUESTION = "q_dob";
 const dateStep: A2UIStepDocument = kitchenSink.compiled.documents[0];
 
@@ -47,7 +36,6 @@ function renderNative(values?: Record<string, string>, locale = "en-GB") {
   );
 }
 
-/** The three boxes, in DOM order. */
 function boxes(container: HTMLElement): HTMLInputElement[] {
   return [...container.querySelectorAll<HTMLInputElement>("input[data-qcms-date-part]")];
 }
@@ -73,7 +61,7 @@ describe("assembleNativeDate / splitNativeDate", () => {
   it("is absence when every part is blank, and passes anything else through for the API", () => {
     expect(assembleNativeDate({ day: "", month: " ", year: "" })).toBeUndefined();
     expect(assembleNativeDate({})).toBeUndefined();
-    // A partial date is neither completed nor dropped here: the API refuses it (R2).
+    // Neither completed nor dropped here: the API refuses it (R2).
     expect(assembleNativeDate({ day: "5", year: "1990" })).toBe("1990--05");
     expect(assembleNativeDate({ day: "x", month: "5", year: "1990" })).toBe("1990-05-x");
   });
@@ -192,12 +180,9 @@ describe("the no-JS date control", () => {
   });
 });
 
-/**
- * The explicit calendar policy: one Gregorian, Latin-digit date on both renders,
- * whatever the operator's tag defaults to. Without it a non-Gregorian default drew the
- * same stored value as a different date once hydrated, while the no-JS boxes kept
- * showing and posting the Gregorian numbers.
- */
+// Without the forced calendar a non-Gregorian default drew the same stored value as a
+// different date once hydrated, while the no-JS boxes kept posting Gregorian numbers.
+
 describe("the calendar policy across both renders", () => {
   const NON_GREGORIAN = ["th-TH", "fa-IR", "zh-CN-u-ca-chinese", "en-US-u-ca-buddhist", "ar-EG"];
 
@@ -206,7 +191,6 @@ describe("the calendar policy across both renders", () => {
     expect(isoDateLocale("zh-CN-u-ca-chinese")).toBe("zh-CN-u-ca-gregory-nu-latn");
     expect(isoDateLocale("fa-IR-u-nu-arabext")).toBe("fa-IR-u-ca-gregory-nu-latn");
     expect(isoDateLocale("en-GB")).toBe("en-GB-u-ca-gregory-nu-latn");
-    // A string Intl cannot read is the caller's to refuse.
     expect(isoDateLocale("not a locale")).toBe("not a locale");
   });
 
@@ -233,7 +217,6 @@ describe("the calendar policy across both renders", () => {
       .map((segment) => ({ type: segment.dataset["type"] ?? "", text: segment.textContent ?? "" }));
     scripted.unmount();
 
-    // Same order on both renders, and the same Gregorian numbers in ASCII digits.
     expect(segments.map(({ type }) => type)).toEqual(nativeOrder);
     const scriptedParts: Record<string, string> = {};
     for (const { type, text } of segments) scriptedParts[type] = text;

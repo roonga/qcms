@@ -5,10 +5,8 @@ import { describe, expect, it } from "vitest";
 import { A2UIStepRenderer } from "./A2UIStepRenderer.tsx";
 import { loadGoldenForms } from "./test-support/golden.ts";
 
-// The honeypot decoy contract: the renderer emits a visually hidden, AT-invisible
-// input with no label, off-screen, `aria-hidden` and `tabindex="-1"`. Its axe pass
-// rides on the conformance suite; this asserts the DOM shape and the absence from the
-// accessibility tree.
+// The axe pass rides on the conformance suite; this is the DOM shape and the absence
+// from the accessibility tree.
 const minimal = loadGoldenForms().find((f) => f.version === "v2" && f.form === "minimal");
 if (!minimal) throw new Error("minimal v2 golden not found");
 const step = minimal.compiled.documents[0];
@@ -23,9 +21,7 @@ describe("Honeypot decoy rendering (task 026 contract)", () => {
 
     const wrapper = input!.parentElement!;
     expect(wrapper.getAttribute("aria-hidden")).toBe("true");
-    // Off-screen and clipped rather than `display: none`, so a naive bot still sees it.
-    // jsdom's CSSOM drops the legacy `clip` property, so the assertions below stand in
-    // for it.
+    // jsdom's CSSOM drops the legacy `clip` property, so these stand in for it.
     expect(wrapper.style.position).toBe("absolute");
     expect(wrapper.style.overflow).toBe("hidden");
     expect(wrapper.style.width).toBe("1px");
@@ -36,7 +32,6 @@ describe("Honeypot decoy rendering (task 026 contract)", () => {
     const { container } = render(<A2UIStepRenderer document={step} />);
     const input = container.querySelector('input[name="website"]') as HTMLInputElement;
     expect(computeAccessibleName(input)).toBe("");
-    // The only textbox exposed is the real question, never the decoy.
     const textboxes = screen.getAllByRole("textbox");
     expect(textboxes).toHaveLength(1);
     expect(textboxes[0]).not.toBe(input);

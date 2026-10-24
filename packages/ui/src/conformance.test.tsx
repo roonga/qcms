@@ -5,17 +5,13 @@ import { A2UIStepRenderer } from "./A2UIStepRenderer.tsx";
 import { a11yOutline, axeViolations } from "./test-support/a11y.ts";
 import { loadGoldenForms, loadGoldenSteps } from "./test-support/golden.ts";
 
-// The conformance contract (ADR-18): every golden document, every generation, renders
-// correctly. Cases are generated from the append-only corpus, so a new golden file or
-// generation is covered automatically.
+// Cases are generated from the append-only corpus, so a new golden file or generation
+// is covered automatically (ADR-18).
 const steps = loadGoldenSteps();
 const cases = steps.map((step) => [`${step.version}/${step.form}/${step.stepId}`, step] as const);
 
-/**
- * The generations on disk, read from the corpus rather than written down: the property
- * worth pinning is that the loader picked up all of them and that there is more than
- * one, not which ones exist.
- */
+// Read from the corpus rather than written down: the property worth pinning is that
+// the loader picked up all of them, not which ones exist.
 const generations = loadGoldenForms().map((form) => form.version);
 
 describe("A2UIStepRenderer conformance over the golden corpus", () => {

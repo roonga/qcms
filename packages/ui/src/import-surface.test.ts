@@ -3,9 +3,8 @@ import { dirname, join } from "node:path";
 
 import { describe, expect, it } from "vitest";
 
-// Import-surface guard (ADR-22): the shipped tree, qcms code and vendored sources
-// alike, imports only the a2ra stack and never a second component library. Test files
-// are exempt. This is the exhaustive allow-list; the eslint rule is the fast fence.
+// The exhaustive allow-list for ADR-22; the eslint rule is the fast fence. Test files
+// are exempt.
 const ALLOWED = new Set([
   "@a2ra/core",
   "react",

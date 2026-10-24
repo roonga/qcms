@@ -3,14 +3,9 @@ import { dirname, join } from "node:path";
 
 import type { A2UIStepDocument } from "../A2UIStepRenderer.tsx";
 
-/**
- * Loads the append-only golden corpus that is this renderer's conformance contract
- * (ADR-18). Every generation is loaded, not only the newest, and that is the contract
- * rather than thoroughness: a snapshot published under an older compiler is served
- * from its stored bytes forever (R1), so a renderer that stopped handling an older
- * generation would break documents still in the field. A new generation is added here
- * in the same change that seeds it.
- */
+// Every generation is loaded, not only the newest: a snapshot published under an older
+// compiler is served from its stored bytes forever (R1, ADR-18), so a renderer that
+// stopped handling one would break documents still in the field.
 export interface CompiledForm {
   readonly documents: readonly A2UIStepDocument[];
   readonly compilerVersion: string;
@@ -60,7 +55,6 @@ export function loadGoldenForms(): Array<{
   return forms;
 }
 
-/** Every step of every golden form, flattened for `it.each`. */
 export function loadGoldenSteps(): GoldenStep[] {
   const steps: GoldenStep[] = [];
   for (const { version, form, compiled } of loadGoldenForms()) {
@@ -78,13 +72,10 @@ export function loadGoldenSteps(): GoldenStep[] {
 }
 
 /**
- * A synthetic live roster for every `RepeatGroup` in one golden document, so a
- * corpus-driven suite renders a group's member controls instead of an empty group.
- *
- * A compiled `RepeatGroup` is a template, so with no roster the renderer correctly
- * draws the group's chrome and no instance. The ids are made up here because a roster
- * is session state no compiled document carries, and they take the real `ins_` shape
- * so a qualified field name built from one matches what the portal produces.
+ * Without a roster the renderer correctly draws a group's chrome and no instance, so a
+ * corpus-driven suite needs one to reach the member controls. The ids are invented
+ * because a roster is session state no compiled document carries, and they take the
+ * real shape so a qualified name built from one matches the portal's.
  */
 export function syntheticRoster(
   document: A2UIStepDocument,

@@ -1,25 +1,16 @@
-/**
- * The two automatic contrast blocks in `theme-components.css` keep their shape.
- *
- * The portal's browser suite measures what these rules do under real emulation, which
- * is the primary evidence. What a browser cannot show is the claims about what the
- * blocks may not contain, each of them a state the portal does not render on the happy
- * path or a property whose absence is the decision:
- *
- *  - No `forced-color-adjust` anywhere. Every colour in the portal that carries
- *    meaning has a system-colour pair saying the same thing inside the user's
- *    palette, so opting an element out would only take the user's choice away.
- *  - Only system colours under forced colours. A `var(--color-*)` or a hex there is
- *    not an error the browser reports: the declaration is forced away and the rule
- *    silently stops doing anything.
- *  - `prefers-contrast: more` moves edges and rings and nothing else. It runs with
- *    the palette intact, so a rule reaching a `--color-*` or `--type-*` token could
- *    lower a contrast pair or a WCAG 1.4.12 floor that is asserted only against the
- *    base blocks.
- *  - An invalid control keeps its danger edge, because trading the error signal for a
- *    contrast step is a bad trade. The portal renders one only behind a refused
- *    answer, so asserting the exclusion at the source is the more direct claim.
- */
+// The browser suite measures what these rules do; what it cannot show is the claims
+// about what the blocks may not contain, each of them a state the portal does not
+// render on the happy path or a property whose absence is the decision:
+//
+//  - no `forced-color-adjust`, because every colour that carries meaning has a
+//    system-colour pair and opting an element out only takes the user's choice away;
+//  - only system colours under forced colours, because anything else is forced away
+//    and the rule silently stops doing anything rather than erroring;
+//  - the `prefers-contrast` block moves edges and rings and nothing else, since it
+//    runs with the palette intact and a `--color-*` or `--type-*` token there could
+//    lower a pair or a floor that is asserted only against the base blocks;
+//  - an invalid control keeps its danger edge, rather than trading the error signal
+//    for a contrast step.
 
 import { readFileSync } from "node:fs";
 import { join } from "node:path";
@@ -28,11 +19,7 @@ import { describe, expect, it } from "vitest";
 
 const COMPONENTS_CSS = readFileSync(join(import.meta.dirname, "theme-components.css"), "utf8");
 
-/**
- * The body of the one `@media` block whose condition matches, brace-matched so
- * nested rules come back whole. A regex cannot do this: the block contains rule
- * bodies of its own.
- */
+/** Brace-matched, because the block contains rule bodies of its own. */
 function mediaBlock(css: string, condition: string): string {
   const header = `@media (${condition})`;
   const start = css.indexOf(header);
@@ -52,7 +39,6 @@ function mediaBlock(css: string, condition: string): string {
   throw new Error(`unterminated ${header} block`);
 }
 
-/** Every `property: value` declaration in a block, comments removed. */
 function declarations(block: string): readonly { property: string; value: string }[] {
   const withoutComments = block.replace(/\/\*[\s\S]*?\*\//gu, "");
   const bodies = [...withoutComments.matchAll(/\{([^{}]*)\}/gu)].map((match) => match[1] ?? "");
@@ -68,11 +54,7 @@ function declarations(block: string): readonly { property: string; value: string
   );
 }
 
-/**
- * Every selector in a block, comments removed. Split rather than matched: a
- * `([^{}]+)\{...\}` pattern is the shape the lint rule refuses for its
- * backtracking, and splitting on the braces says the same thing in linear time.
- */
+/** Split rather than matched, because that pattern is the shape the lint refuses. */
 function selectors(block: string): readonly string[] {
   const withoutComments = block.replace(/\/\*[\s\S]*?\*\//gu, "");
   return withoutComments
@@ -82,13 +64,11 @@ function selectors(block: string): readonly string[] {
 }
 
 /**
- * The system colours a forced-colours rule may name: the subset this sheet uses rather
- * than the whole CSS list, so a new keyword arrives with the rule that needs it and
- * the reason it is the right pair.
+ * The subset this sheet uses rather than the whole CSS list, so a new keyword arrives
+ * with the rule that needs it and the reason it is the right pair.
  */
 const SYSTEM_COLORS = ["Canvas", "CanvasText", "Highlight", "HighlightText", "GrayText"];
 
-/** Properties whose value is a colour, for the "system colours only" check. */
 const COLOR_PROPERTIES = ["color", "background-color", "border-color", "outline-color", "fill"];
 
 const FORCED = mediaBlock(COMPONENTS_CSS, "forced-colors: active");
@@ -96,8 +76,6 @@ const MORE = mediaBlock(COMPONENTS_CSS, "prefers-contrast: more");
 
 describe("forced-colors: active", () => {
   it("reads the disabled state off the element react-aria marks", () => {
-    // The rule once tested the indicator `div` for `[data-disabled]`, which react-aria
-    // puts on the `label[data-rac]` root instead, so that branch matched nothing.
     // Asserted at the stylesheet level because no fixture renders a disabled vendored
     // control: nothing in the renderer ever passes `isDisabled`.
     const disabled = selectors(FORCED).filter((selector) => selector.includes("data-disabled"));
@@ -177,9 +155,8 @@ describe("prefers-contrast: more", () => {
     const edgeRules = selectors(MORE).filter((selector) => selector.includes("[data-qcms-field]"));
     expect(edgeRules.length).toBeGreaterThan(1);
     for (const selector of edgeRules) {
-      // Asserted by shape rather than by literal, because the element carrying the
-      // invalid state is not always the one drawing the edge: an option row's lives on
-      // the `label[data-rac]` root while the border is on its indicator child.
+      // By shape rather than by literal, because the element carrying the invalid
+      // state is not always the one drawing the edge.
       expect(selector, `${selector} would flatten an invalid control's edge`).toMatch(
         /:not\([^)]*\[data-invalid\][^)]*\)/u,
       );
@@ -187,9 +164,8 @@ describe("prefers-contrast: more", () => {
   });
 
   it("steps the UNSELECTED option indicator up, and only that one", () => {
-    // This edge was once missing from the block, so the checkbox and radio indicators
-    // stayed near 1.5:1 while every other control stepped up. The rule has to reach the
-    // indicator and leave the three states whose edge colour is the state itself.
+    // The rule has to reach the indicator and leave the three states whose edge colour
+    // is the state itself; without it they stayed near 1.5:1.
     const indicator = selectors(MORE).filter((selector) => selector.includes("label[data-rac]"));
     expect(indicator, "no rule steps the option indicator's edge up").toHaveLength(1);
     for (const state of ["[data-selected]", "[data-indeterminate]", "[data-invalid]"]) {

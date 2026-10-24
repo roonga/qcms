@@ -5,30 +5,17 @@ import { A2UIStepRenderer, type A2UIStepDocument } from "./A2UIStepRenderer.tsx"
 import { NATIVE_FIELD_ANSWERED_PREFIX, NATIVE_FIELD_KIND_PREFIX } from "./native-submit.ts";
 import { loadGoldenForms } from "./test-support/golden.ts";
 
-/**
- * A required multi-choice group with scripting off.
- *
- * HTML has no "at least one of these" constraint, and react-aria encodes the rule by
- * putting native `required` on every checkbox and removing it on the re-render after
- * the first selection. A server-rendered page never re-renders, so every box kept the
- * attribute, and native `required` on a checkbox means that box must be checked: a
- * respondent who wanted one option could not pass the step.
- *
- * What replaces it is react-aria's own ARIA encoding of the same rule, reached through
- * the `validationBehavior` seam for this group's subtree alone, with the constraint
- * then enforced by the API's missing-required sweep and reported back onto the step.
- *
- * jsdom pins which attributes are on which element, which is the whole of what the
- * change does. Whether the browser then submits is browser behaviour (ADR-23) and is
- * asserted in the portal's own suite.
- */
+// HTML has no "at least one of these" constraint, so react-aria puts native `required`
+// on every checkbox and removes it on the re-render after the first selection. A
+// server-rendered page never re-renders, so a partial selection could not pass the
+// step. jsdom pins which attributes are on which element; whether the browser then
+// submits is browser behaviour (ADR-23), asserted in the portal's own suite.
 
 const kitchenSink = loadGoldenForms().find((f) => f.version === "v1" && f.form === "kitchen-sink");
 if (!kitchenSink) throw new Error("v1 kitchen-sink golden not found");
 
-/** The fixture's required multiChoice question, and the step that holds it. */
 const GROUP_QUESTION = "q_preexisting_conditions";
-/** Two required controls on the same step, whose browser validation must not move. */
+/** Their browser validation must not move. */
 const RADIO_QUESTION = "q_at_fault_accident";
 const NUMBER_QUESTION = "q_accident_count";
 
@@ -55,8 +42,8 @@ function boxes(container: HTMLElement): HTMLInputElement[] {
 
 describe("a required multi-choice group with no scripting (issue #974)", () => {
   it("renders every box WITHOUT the native required attribute", () => {
-    // Counted rather than asserted on one box: the attribute was on all of them, and
-    // one box left carrying it is the same dead end.
+    // Counted rather than asserted on one box: one box left carrying it is the same
+    // dead end.
     const all = boxes(renderNative().container);
     expect(all.length).toBeGreaterThan(1);
     expect(all.filter((box) => box.required)).toHaveLength(0);
@@ -65,8 +52,7 @@ describe("a required multi-choice group with no scripting (issue #974)", () => {
 
   it("still says the group is required, in the label and to assistive technology", () => {
     const { container } = renderNative();
-    // react-aria's ARIA encoding of "at least one", which is what the native attribute
-    // is swapped for rather than a consolation for losing it.
+    // What the native attribute is swapped for, rather than a consolation.
     expect(boxes(container).every((box) => box.getAttribute("aria-required") === "true")).toBe(
       true,
     );
@@ -81,9 +67,8 @@ describe("a required multi-choice group with no scripting (issue #974)", () => {
   });
 
   it("leaves every OTHER required control on the step validating natively", () => {
-    // The scope claim, proved rather than asserted: the seam is a context provider
-    // around this one group, so the two required controls beside it keep the native
-    // attribute, which is what keeps browser validation true everywhere else.
+    // The seam is a context provider around this one group, so the controls beside it
+    // keep the native attribute, which is what keeps browser validation true elsewhere.
     const { container } = renderNative();
     const radios = [
       ...container.querySelectorAll<HTMLInputElement>(
@@ -99,9 +84,8 @@ describe("a required multi-choice group with no scripting (issue #974)", () => {
   });
 
   it("drops the ARIA encoding too once the group holds an answer", () => {
-    // react-aria's own rule, unchanged by the seam: a group that holds a selection is
-    // satisfied, so it asks for nothing. Worth pinning because it is why a suite whose
-    // group is seeded never saw the defect.
+    // Unchanged by the seam, and why a suite whose group is seeded never saw the
+    // defect.
     const { container } = renderNative({ [GROUP_QUESTION]: ["opt_asthma"] });
     expect(boxes(container).some((box) => box.hasAttribute("aria-required"))).toBe(false);
     expect(boxes(container).some((box) => box.hasAttribute("required"))).toBe(false);
@@ -128,15 +112,13 @@ describe("a required multi-choice group with no scripting (issue #974)", () => {
   });
 
   it("leaves the scripted render's required encoding alone", () => {
-    // The one pair of attributes the fix moves, on the render it must not move them
-    // on. A whole-markup comparison would need the base's own output to diff against,
+    // A whole-markup comparison would need the base's own output to diff against,
     // which a single-head suite does not have.
     const before = render(<A2UIStepRenderer document={groupStep} />);
     const scripted = before.container.querySelector<HTMLElement>(
       `[data-qcms-field="${GROUP_QUESTION}"]`,
     );
     expect(scripted).not.toBeNull();
-    // Every box keeps the native attribute the scripted path removes on selection.
     const scriptedBoxes = [
       ...scripted!.querySelectorAll<HTMLInputElement>('input[type="checkbox"]'),
     ];
