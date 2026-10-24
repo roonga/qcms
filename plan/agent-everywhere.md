@@ -23,7 +23,7 @@ What the file settles, and this design therefore does not reopen:
 - **One plan, one Confirm** (point 3). A multi-step request is one plan card listing every step; one Confirm runs the steps in order and stops at the first failure. This supersedes the draft's "at most five cards per turn, no confirm-all" (Q20).
 - **Response metadata is allowed; answers are not** (point 4). The metadata point 4 lists may reach the model; answer values, the answer ledger and webhook payloads may not.
 
-The Code Owner also said, in their words: "I think we are micro-managing the agent." Earlier rulings of the same day stand: the drab UX becomes a Confluence/Rovo-style floating launcher and a floating or dockable panel on every admin screen, with visibly streamed responses and visible thinking; and every agent action is shown as a card with Confirm and Cancel.
+The Code Owner also said, in their words: "I think we are micro-managing the agent." Earlier rulings of the same day stand: the drab UX becomes a Confluence/Rovo-style floating launcher and a floating or dockable panel on every admin screen, with visibly streamed responses and visible thinking; and every agent action is shown as a card with Confirm and Cancel. The floating launcher and window were later replaced by a top-bar button and a panel docked by default (Code Owner, 2026-10-24, issue #1133; section 4.1).
 
 ### 1.2 Scope and the launch gate (Q1, Code Owner, 2026-10-19)
 
@@ -47,7 +47,7 @@ The Code Owner delegated the remaining questions to the conductor's recommended 
 | Q15 | **The conversation lives in memory only.**                                                                                                                                           |
 | Q16 | **`QCMS_AGENT_THINKING` takes `off` or `summary`, default `off`.**                                                                                                                   |
 | Q17 | **The project-level wording edits are accepted**, rewritten to cite `docs/agent-principle.md`.                                                                                       |
-| Q18 | **The launcher appears on every screen, including Settings.**                                                                                                                        |
+| Q18 | **The assistant's entry appears on every screen, including Settings**; since issue #1133 it is a top-bar button (section 4.1).                                                       |
 | Q19 | **10 turns per minute per user**, the existing default.                                                                                                                              |
 | Q20 | Superseded by principle point 3: **one plan, one Confirm** (section 4.10).                                                                                                           |
 
@@ -60,7 +60,7 @@ Some acts a user may perform exist only in the API: the installation administrat
 
 The review of the 080 to 083 work orders raised four questions, ruled as follows (Code Owner, 2026-10-24, recorded on PR #1109):
 
-- **The dock needs 1280 CSS px and wider** (section 4.2), so the content column keeps `--bp-compact` beside the rail of section 7.0 of `plan/admin-design-contracts.md` (recorded by #1120). The rail frame (issue #1116) is a dependency of 082.
+- **The dock needs 1280 CSS px and wider** (section 4.2), so the content column keeps `--bp-compact` beside the rail of section 7.0 of `plan/admin-design-contracts.md` (recorded by #1120). The rail frame (issue #1116) is a dependency of 082. _Superseded by issue #1133 (Code Owner, 2026-10-24, issue #1133): the panel docks by default from `--bp-sidebar`, and at 1024 to 1279 px the rail is hidden while it is open (section 4.2)._
 - **Pending approval is a step state, terminal for the plan** (section 4.10 rule 4), and the propose tool refuses a publish-then-release-to-`prod` plan while the second-approver switch is on.
 - **One SEC-15 `read` row per conversation for each distinct filter set** (section 10), not one per turn.
 - **The heading-row proposal marker** is part of the card rules (section 4.10).
@@ -104,7 +104,7 @@ And the one property that makes the confirm model cheap to reason about: **the t
 
 **Goals.**
 
-- A launcher and panel on every authenticated admin screen, floating by default and dockable, with a full-screen sheet on narrow viewports.
+- A top-bar button and a panel on every authenticated admin screen, the panel docked by default beside the content and expandable to the full area below the top bar, with a full-screen sheet on narrow viewports; no floating window (Code Owner, 2026-10-24, issue #1133).
 - Responses that visibly stream from the first second of a turn: narration before tools, a live step timeline in plain language, a streaming caret, and an optional thinking disclosure.
 - `docs/agent-principle.md`, implemented: every proposal is a card (one action) or a plan card (several, in order); nothing runs without Confirm; Confirm runs the screen's own server action as the signed-in user; a read-only user is offered no write.
 - No answer value, answer ledger row or webhook payload in any provider payload, enforced by what the read tools can structurally return, not by a prompt; response metadata flows freely.
@@ -121,56 +121,69 @@ And the one property that makes the confirm model cheap to reason about: **the t
 
 ## 4. UX
 
-### 4.1 The launcher
+### 4.1 The top-bar button
 
-A circular 48 CSS px button, fixed to the inline-end, block-end corner of the viewport, 24 px from both edges, carrying the assistant icon and an accessible name from the catalog ("Open the assistant").
-It is rendered once, by a client component mounted in the authenticated shell layout beside the `Announcer` (`apps/admin/app/(shell)/layout.tsx:108-112`), only when `agentAuthoringEnabled()` is true on the server, and on **every** `(shell)` screen, Settings included (Q18).
+_Recommended before issue #1133: a 48 CSS px floating launcher in the viewport's block-end, inline-end corner. Ruled (Code Owner, 2026-10-24, issue #1133): a top-bar button; the floating launcher is retired._
+
+**The assistant's entry is a button in the top bar's trailing group**, first in the group, before the environment chip and the account avatar. It is a 32 CSS px square button carrying the assistant's mark (issue #1129) at 24 px, `aria-hidden` because the button carries the name from the catalog ("Open the assistant"), with `aria-expanded` and `aria-controls` naming the panel. Hover and press shift the bubble to `color-primary-hover` and `color-primary-active`, and the 2px focus ring traces the button. Pressing it opens the panel docked (section 4.2), or closes it when open; it stays in the top bar in every state.
+It is rendered once, by a client component in the top bar of the authenticated shell layout (`apps/admin/app/(shell)/layout.tsx`), only when `agentAuthoringEnabled()` is true on the server, and on **every** `(shell)` screen, Settings included (Q18).
 With the flag off the component is not rendered at all, the same "absent rather than hidden" stance the builder prop takes today (`form-builder.tsx:167-173`).
 
-The launcher hides while the panel is docked (the dock has its own close button) and while the narrow-viewport sheet is open.
-It shows a status badge, never colour alone: "Working" while a turn runs with the panel closed, and "1 action to review" when a card is waiting.
+With the panel closed, a text status badge follows the button, never colour alone: "Working" while a turn runs, and "1 action to review" when a card is waiting (section 16, O3).
 
-### 4.2 Float, dock and sheet
+### 4.2 Dock, expanded and sheet
 
-| Mode      | When                                                                          | Geometry                                                                                                                                                                                                                                                                | Semantics                                                                                                          |
-| --------- | ----------------------------------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------ |
-| **Float** | default at and above `--bp-sidebar`                                           | 400 x 600 CSS px anchored above the launcher; min 320 x 400; max `min(50vw, 560px)` x `calc(100dvh - var(--admin-topbar-measured-h) - 48px)`; resizable from its top-start corner, by pointer, by keyboard on a focusable separator, or from a width menu (section 4.5) | non-modal `role="dialog"` with `aria-labelledby` on the panel title; focus is not trapped; the page stays operable |
-| **Dock**  | user choice at **1280 CSS px and wider**, remembered (Code Owner, 2026-10-24) | a third track of the shell body grid beside the 240 px rail, 400 px wide (320 to 560, resizable as the float is), full height below the top bar; the content column narrows rather than being overlaid and keeps at least `--bp-compact`                                | `<aside>` complementary landmark named by the panel title                                                          |
-| **Sheet** | always below `--bp-sidebar`                                                   | full viewport below the top bar                                                                                                                                                                                                                                         | modal `role="dialog"` with `aria-modal="true"` and a focus trap, because nothing behind it is reachable            |
+| Mode         | When                                                                                                   | Geometry                                                                                                                                                                                                                                                                                     | Semantics                                                                                                                            |
+| ------------ | ------------------------------------------------------------------------------------------------------ | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------ |
+| **Dock**     | the default whenever the panel opens at and above `--bp-sidebar` (Code Owner, 2026-10-24, issue #1133) | a track of the shell body grid at the inline end, full height below the top bar; 400 px by default, resizable 320 to 560 px on its edge, never taking the content column below `--bp-compact`; at 1024 to 1279 px the rail is hidden while the panel is open and the panel is at most 400 px | `role="complementary"` landmark named by the panel's name                                                                            |
+| **Expanded** | the header's Expand control, at and above `--bp-sidebar` (Code Owner, 2026-10-24, issue #1133)         | the whole area below the top bar; the rail and the content are hidden and `inert` until it returns to the dock                                                                                                                                                                               | modal `role="dialog"` with `aria-modal="true"` and a focus trap, because nothing behind it is visible; Escape returns it to the dock |
+| **Sheet**    | always below `--bp-sidebar`                                                                            | full viewport below the top bar                                                                                                                                                                                                                                                              | modal `role="dialog"` with `aria-modal="true"` and a focus trap, because nothing behind it is reachable                              |
+
+_Recommended before issue #1133: float by default, dock by choice at 1280 px and wider. Ruled (Code Owner, 2026-10-24, issue #1133): no float mode; docked by default; an expanded state._
 
 The dock is a grid track rather than an overlay because the shell body is already a two-track grid keyed off whether a rail is present (`layout.tsx:184-206`), and a track is the only geometry that cannot obscure page content.
-The choice between float and dock is stored in a cookie the layout reads, the way the appearance mode is (`layout.tsx:88`), so a dock renders docked on first paint rather than jumping after hydration.
+Whether the panel is open, and its width, are a cookie the layout reads, the way the appearance mode is (`layout.tsx:88`), so an open panel renders docked on first paint rather than jumping after hydration. The expanded state is not remembered, and the conversation stays in memory only (Q15).
+**The width never takes the content below `--bp-compact`** (Code Owner, 2026-10-24, issue #1133): the dock is at least 320 px and at most `min(560px, viewport - rail - 640px)`, where the rail is 240 px at 1280 px and wider and 0 px at 1024 to 1279 px (hidden, below), and at most 400 px in that range. At 1024 px that is 384 px; at 1280 px, 400 px; at 1440 px, 560 px.
+**One panel element changes role with its state:** `role="complementary"` docked, `role="dialog"` with `aria-modal="true"` expanded or as the sheet. It is a `<div>`, because an `<aside>` cannot take the dialog role.
 `plan/admin-mobile-stance.md` decides what "narrow" means for the admin; the sheet follows whatever breakpoint that stance names.
-**The dock needs 1280 CSS px** (Code Owner, 2026-10-24, review finding B4). Section 7.0 of `plan/admin-design-contracts.md` (recorded by #1120) puts a 240 px rail on every screen, so at `--bp-sidebar` (1024 px) a 400 px dock would leave 384 px of content, under `--bp-compact`. From 1280 px the content keeps at least 640 px. Between `--bp-sidebar` and 1280 px the Dock toggle is disabled with a tooltip saying why, and the float and the sheet still work; a remembered dock renders the float there and docks again when the window widens. The rail frame (issue #1116) is a dependency of 082.
+**The rail at 1024 to 1279 CSS px** (Code Owner, 2026-10-24, issue #1133; it replaces review finding B4's "dock needs 1280 CSS px"). Section 7.0 of `plan/admin-design-contracts.md` (recorded by #1120) puts a 240 px rail on every screen, and above `--bp-sidebar` its rule 8 gives the rail one reduced form only: hidden, by the operator's Hide sidebar toggle (issue #1119), with no icon strip. Rule 8 also leaves auto-hiding the rail while the assistant is open to its own ruling; issue #1133 is that ruling for 1024 to 1279 px. **Proposed interaction, pending confirmation (section 16, O1 and O2):**
+
+- Opening the panel below 1280 px hides the rail with #1119's hidden state, held only while the panel is open. It is never written to the operator's own Hide sidebar setting.
+- While it is hidden, the content heading row shows #1119's "Show sidebar" button as usual, with its filter count.
+- Closing the panel, or widening the window to 1280 px, restores the rail to the operator's own setting: shown, unless they had hidden it themselves.
+- At 1280 px and wider the rail stays beside the dock. Below `--bp-sidebar` the panel is the sheet, and the rail is its shut disclosure behind it.
+
+The rail frame (issue #1116) and the Hide sidebar toggle (issue #1119) are dependencies of 082.
+**Expanded** (Code Owner, 2026-10-24, issue #1133). The header's Expand control fills the area below the top bar with the conversation and back. The rail and the content are hidden and `inert` while it is expanded, so it is a modal dialog with a focus trap; Escape or the control returns it to the dock, with focus on the control.
 
 ### 4.3 Keyboard
 
 - **`Alt+Shift+A` opens or focuses the panel** (Q2, ruled). It is a modifier chord, so WCAG 2.2 SC 2.1.4 does not bind it; it avoids the CodeMirror JSON pane's `Ctrl+/`; it is not captured while a text input outside the panel has focus. It is printed in the launcher's tooltip and the panel's help.
-- **Escape** closes the float panel and the sheet and returns focus to the element that had it before the panel opened. In the dock, Escape moves focus back to the page without closing the dock. If a card's confirmation is mid-flight, Escape first cancels that card, never the turn.
+- **Escape** closes the sheet and returns focus to the top-bar button. In the dock, Escape moves focus back to the page without closing the dock. In the expanded state, Escape returns the panel to the dock (Code Owner, 2026-10-24, issue #1133). If a card's confirmation is mid-flight, Escape first cancels that card, never the turn.
 - **Stop** is a button in the composer while a turn runs; it aborts the request, which aborts the upstream call as today (`handler.ts:226-230`, `handler.ts:194-196`).
 - **Enter** sends; **Shift+Enter** is a newline. The composer is a multi-line text area, not the single-line `TextField` used today (`assist-panel.tsx:355-365`).
 
 ### 4.4 Focus management
 
-- Opening moves focus to the composer. Closing returns it as above.
+- Opening moves focus to the composer. Closing returns it to the top-bar button (Code Owner, 2026-10-24, issue #1133).
 - A turn ending does not move focus. A **card arriving** moves focus to the card's heading only when focus was already inside the panel; today's panel moves it unconditionally (`assist-panel.tsx:104-106`), which would yank a docked user out of the page.
 - After Confirm or Cancel, focus moves to the card's result line (Confirmed, Cancelled, Failed), which stays in the conversation as a record.
 - Navigation between screens keeps the panel open and never steals focus.
 
 ### 4.5 WCAG 2.2 AA
 
-- **2.4.11 Focus Not Obscured (Minimum).** The launcher and the float panel are fixed-position author content and can sit over a focused control. The shell already solves this class for the sticky top bar by measuring it and publishing a scroll padding (`layout.tsx:113-120`, `apps/admin/app/globals.css:342`), and a sticky footer once did the same at the block end (`globals.css:2343-2348`). The launcher and the float panel publish their own rectangles the same way, as `scroll-padding-block-end` and `scroll-padding-inline-end`, so the browser scrolls a newly focused control clear of them. The dock needs nothing, because it is a grid track. The Playwright suite asserts the criterion directly, the way `repeat-table.pw.ts` does (`docs/features/077-table-presentation.md:23`): with the panel floating, tab through each screen's controls and assert none is wholly covered.
-- **2.5.8 Target Size (Minimum).** Every icon button is at least 24 x 24 CSS px; the launcher is 48.
-- **2.5.7 Dragging Movements** (Code Owner, 2026-10-24, review finding B5). The float's corner and the dock's edge are each a focusable `role="separator"` with `aria-valuenow`, `aria-valuemin` and `aria-valuemax`: arrow keys change the width by 40 px, Home and End go to the bounds. The panel's Help menu offers Panel width: Narrow, Default, Wide (320, 400, 560 px) as the single-pointer alternative. The width is kept in the mode cookie.
+- **2.4.11 Focus Not Obscured (Minimum).** Nothing the assistant draws overlays page content (Code Owner, 2026-10-24, issue #1133). The top-bar button lives in the sticky top bar, whose height the shell already publishes as a scroll padding (`layout.tsx:113-120`, `apps/admin/app/globals.css:342`). The dock is a grid track, and the expanded state and the sheet are modal. The floating launcher's and float panel's scroll-padding publication goes with them. The Playwright suite still asserts the criterion directly, the way `repeat-table.pw.ts` does (`docs/features/077-table-presentation.md:23`): with the panel docked, tab through each screen's controls and assert none is wholly covered.
+- **2.5.8 Target Size (Minimum).** Every icon button is at least 24 x 24 CSS px; the top-bar button is 32.
+- **2.5.7 Dragging Movements** (Code Owner, 2026-10-24, review finding B5). The dock's edge is a focusable `role="separator"` (the float's corner handle went with the float; Code Owner, 2026-10-24, issue #1133) with `aria-valuenow`, `aria-valuemin` and `aria-valuemax`: arrow keys change the width by 40 px, Home and End go to the bounds. The panel's Help menu offers Panel width: Narrow, Default, Wide (320, 400, 560 px) as the single-pointer alternative. The width is kept in the panel cookie, within the clamp of section 4.2.
 - **1.4.10 Reflow.** At 320 CSS px the panel is the sheet; no horizontal scrolling except inside a code block.
-- **1.4.13 Content on Hover or Focus.** The launcher tooltip is dismissible with Escape, hoverable and persistent.
+- **1.4.13 Content on Hover or Focus.** The top-bar button's tooltip is dismissible with Escape, hoverable and persistent.
 - **4.1.3 Status Messages.** Streaming prose is **not** announced token by token. The panel's polite live region announces phase changes in plain language ("Searching the question library", "1 action to review") and one completion line per turn. The in-progress bubble carries `aria-busy="true"` until its segment ends. Announcements that must survive a route change go through the shell's `Announcer` (`layout.tsx:108-112`).
 - **1.4.1 Use of Color.** Card kinds, step states and the "agent proposed" marker carry text and an icon, never colour alone, as the current diff lines do (`assist-panel.tsx:573-579`).
 - **Contrast** follows the admin theme tokens, including the high-contrast dark theme (`plan/high-contrast-dark-plan.md`).
 
 ### 4.6 Reduced motion
 
-Under `prefers-reduced-motion: reduce`: no slide, scale or fade on open and close; the streaming caret is a static bar; the thinking indicator has no shimmer; the timeline's running state is an icon, not a spinner.
+Under `prefers-reduced-motion: reduce`: no slide, scale or fade on open, close, expand or return to the dock, and the rail hides and returns without motion (Code Owner, 2026-10-24, issue #1133); the streaming caret is a static bar; the thinking indicator has no shimmer; the timeline's running state is an icon, not a spinner.
 
 ### 4.7 Internationalisation
 
@@ -181,8 +194,8 @@ The model's own prose is whatever language it writes; nothing in the UI depends 
 
 ### 4.8 Header
 
-One compact row, 44 px tall: the title ("Assistant"), a context chip naming what the agent can see on this screen ("Form: Vehicle quote, draft"), then four icon buttons with catalog names and tooltips: **New conversation**, **Dock** or **Float** (a toggle with `aria-pressed`), **Help**, **Close**.
-The present text button (`assist-panel.tsx:208-212`) goes; collapse is replaced by close, since the launcher reopens.
+One compact row, 44 px tall: the title ("Assistant"), a context chip naming what the agent can see on this screen ("Form: Vehicle quote, draft"), then four icon buttons with catalog names and tooltips: **New conversation**, **Expand** (a toggle with `aria-pressed`, named "Expand the assistant"; it replaces the Dock or Float toggle, Code Owner, 2026-10-24, issue #1133), **Help**, **Close**.
+The present text button (`assist-panel.tsx:208-212`) goes; collapse is replaced by close, since the top-bar button reopens.
 
 ### 4.9 Conversation
 
@@ -458,7 +471,7 @@ On every screen, what is never given to the model is an answer value, an answer-
 | `workspaces`                                                     | the workspaces the user administers; the user's own grants                                                                                         | none                                                                                                          | none on this screen (navigation)                                                                                                                                                                                                                                                                                                                                                                       | C     |
 | `workspaces/[workspaceId]`                                       | members with names and emails, roles, access groups and their grants, workspace settings, the access audit                                         | none                                                                                                          | create or remove an access group; grant or revoke a group; set a member's role; save workspace settings (`workspaces/[workspaceId]/actions.ts:41`, `:66`, `:82`, `:102`, `:119`, `:139`), each under ADR-41's self-grant rule                                                                                                                                                                          | D     |
 | `settings`                                                       | the user's own account: name, email, two-factor state                                                                                              | none                                                                                                          | change password (hand-off); regenerate recovery codes (hand-off; codes to the user only); re-enrol two-factor (hand-off into the sign-out and sign-in flow the screen uses); sign out                                                                                                                                                                                                                  | D     |
-| `sign-in`, `two-factor/*`, `change-password` (outside `(shell)`) | no launcher: no signed-in user to act for                                                                                                          | none                                                                                                          | none                                                                                                                                                                                                                                                                                                                                                                                                   | n/a   |
+| `sign-in`, `two-factor/*`, `change-password` (outside `(shell)`) | no assistant button: no signed-in user to act for                                                                                                  | none                                                                                                          | none                                                                                                                                                                                                                                                                                                                                                                                                   | n/a   |
 
 ## 13. Phasing and proposed tasks
 
@@ -470,8 +483,8 @@ Compact header with icon buttons; bubbles and segments; the in-house Markdown re
 **B. Thinking.**
 `QCMS_AGENT_THINKING`, the provider mapping, the `reasoning` events, the disclosure, rows in `docs/agent-authoring.md` and `docs/operations.md` and the env reference, and the fake provider's reasoning scripts.
 
-**C. Launcher and panel on every screen, the form subtree first.**
-The shell-mounted launcher; float, dock and sheet; the admin screen table and its filesystem test; the API `SCREENS` registry with context builders; a second assist route for screens with no form (`POST /admin/assist`, the same limiter key, a route-policy row per screen cell); conversation continuity; the 2.4.11 scroll-padding publication.
+**C. Top-bar button and docked panel on every screen, the form subtree first** (Code Owner, 2026-10-24, issue #1133).
+The top-bar button; the dock (by default), the expanded state and the sheet, with the rail hidden at 1024 to 1279 px (Code Owner, 2026-10-24, issue #1133); the admin screen table and its filesystem test; the API `SCREENS` registry with context builders; a second assist route for screens with no form (`POST /admin/assist`, the same limiter key, a route-policy row per screen cell); conversation continuity.
 
 **D. Actions, screen by screen.**
 **D0 first:** `proposal-token.ts` with the derived key and the ordered step list, `provenance.ts` with the in-order and reference checks, the `control.agent_actions` migration with its grants and revokes, the grant filter over offered action kinds, the `action` and `plan` SSE events, the card and plan-card shell with the four rules of 4.10, the hand-off variant, the sequential runner with stop-at-first-failure and its per-step report, and the SEC-17 tests.
@@ -493,7 +506,7 @@ Registry and screen key-set tests; the grant filter per role (a `forms.viewer` i
 The screen table test; card and plan rendering from arguments (a model reason cannot change a title, hide an argument or hide a step); hand-off steps never carrying a token and only ever last; the sequential runner's stop-at-first-failure and its report; the result allowlists; the Markdown renderer's hostile inputs; the stream parser's new events; `messageForError` covering every new code.
 
 **Playwright (`apps/admin/e2e/`), against the fake provider.**
-The launcher on every `(shell)` page, Settings included, and on none outside it; `Alt+Shift+A`; Escape and focus return in float, dock and sheet; dock persisted with no layout jump; the narrow sheet; reduced motion emulated; streaming visible before the first tool completes; a confirm and a cancel path per action kind, alone and inside a plan, asserting the screen's own state changed and the audit rows exist; a three-step plan run end to end and one stopping at its second step, asserting the report and that step 3's state is unchanged; the erasure step requiring its typed confirmation; a hand-off step opening the screen's own field; a read-only user seeing no write proposal; the 2.4.11 assertion with the panel floating; axe on the launcher, the open panel, a streaming turn, the thinking disclosure and each card and plan state.
+The top-bar button on every `(shell)` page, Settings included, and on none outside it; `Alt+Shift+A`; Escape and focus return in the dock, the expanded state and the sheet; an open panel persisted with no layout jump; the rail hidden on opening at 1024 to 1279 px and restored on closing, with the operator's own Hide sidebar setting untouched; the narrow sheet; reduced motion emulated; streaming visible before the first tool completes; a confirm and a cancel path per action kind, alone and inside a plan, asserting the screen's own state changed and the audit rows exist; a three-step plan run end to end and one stopping at its second step, asserting the report and that step 3's state is unchanged; the erasure step requiring its typed confirmation; a hand-off step opening the screen's own field; a read-only user seeing no write proposal; the 2.4.11 assertion with the panel docked; axe on the top-bar button, the docked and expanded panel, a streaming turn, the thinking disclosure and each card and plan state.
 
 **Manual.** One NVDA and one VoiceOver pass over a full turn with a plan. A live-provider smoke stays env-gated and manual (`docs/features/041-agent-form-building.md:33`). Task 038's assisted run (section 1.2).
 
@@ -513,3 +526,9 @@ The principle and the rulings settle everything else. Two caps were added by the
 
 - **P1. One proposal per turn.** A turn ends with at most one card or one plan, and a second propose call in the same turn is refused with "put the steps in one plan". Recommended, because it makes "one plan, one Confirm" the only way a multi-action request reaches the user and removes a second card as a place to hide an act.
 - **P2. At most 25 steps per plan.** A payload bound, like the conversation cap (`schema.ts:27`), not a permission rule. Recommended, because a plan longer than that is unreadable on one card, and the reader of the card is the control.
+
+Issue #1133 (Code Owner, 2026-10-24, issue #1133) leaves three points that need a ruling rather than an invention:
+
+- **O1. Which rail state "collapsed" means at 1024 to 1279 px.** The issue says opening the panel collapses the page rail "to its collapsed form". Above `--bp-sidebar`, section 7.0 rule 8 gives the rail no collapsed form, only #1119's hidden state. Recommended: hide it with that state, held only while the panel is open, never written to the operator's setting, and restored on close (section 4.2).
+- **O2. Show sidebar while the panel holds the width.** At 1024 to 1279 px the rail, a 320 px panel and 640 px of content do not fit together. Recommended: pressing Show sidebar shows the rail and closes the panel; the conversation stays in memory, the top-bar button reopens it, and the live region says so.
+- **O3. Where the closed-panel status shows.** The retired launcher carried the "Working" and "1 action to review" badges. Recommended: a compact text badge immediately after the top-bar button, in the tag style, never colour alone (section 4.1).
