@@ -79,7 +79,7 @@ export function RailFilters({
       className="qcms-filters qcms-rail__filters"
       data-testid="qcms-rail-filters"
     >
-      <p className="qcms-rail__filters-title">
+      <p className="qcms-rail__filters-title" data-testid="qcms-rail-filters-title">
         <span>{t("rail.filters")}</span>
         {activeCount > 0 && (
           <span className="qcms-tag qcms-tag--draft" data-rail-filters-active={activeCount}>

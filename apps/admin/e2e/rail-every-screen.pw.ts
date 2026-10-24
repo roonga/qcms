@@ -170,8 +170,8 @@ test("1117 puts the list filters in the rail and nowhere else", async ({ page })
     // §7.0 ruling 2.4's two requirements that are markup rather than layout.
     await expect.soft(filters, `${path} is a search region`).toHaveAttribute("role", "search");
     await expect
-      .soft(page.getByTestId(screenRail(path)).getByText("Filters", { exact: true }))
-      .toBeVisible();
+      .soft(filters.getByTestId("qcms-rail-filters-title"), `${path} names the part`)
+      .toContainText("Filters");
   }
 });
 
