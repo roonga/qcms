@@ -33,9 +33,9 @@ export interface DocumentPosition {
 }
 
 /**
- * The order a respondent encounters questions in (ADR-16). A group expands into
- * a contiguous span of its members, which is the unit the forward-only rule
- * applies to; instances never multiply the order, so this stays answer-blind.
+ * The order a respondent encounters questions in (ADR-16). A group expands to a
+ * contiguous span, the unit the forward-only rule applies to; instances never
+ * multiply the order, so this stays answer-blind.
  */
 export function documentOrder(form: FormDefinition): readonly DocumentPosition[] {
   return form.steps.flatMap((step) =>
@@ -296,9 +296,8 @@ function checkRepeatCountOrder(
   return findings;
 }
 
-// One rule, one scope (ADR-03): a target inside a group beside one outside it
-// would be per-instance and whole-form at once, and splitting the rule in two is
-// always possible. A step target is whole-form by construction.
+// One rule, one scope (ADR-03): a mixed target set would be per-instance and
+// whole-form at once, and splitting such a rule in two is always possible.
 function checkTargetScopes(
   form: FormDefinition,
   groupOf: ReadonlyMap<QuestionId, GroupId>,
@@ -324,11 +323,9 @@ function checkTargetScopes(
   return findings;
 }
 
-// A nested pair parses and costs the product of the two maxima whatever the rule
-// targets, which escapes the evaluation budget entirely (SEC-16). Refusing it
-// makes every whole-group read a sibling rather than a multiplier. The refusal
-// covers `instanceCount` too, despite its constant cost, so that an author never
-// has to redo the calculation.
+// A nested pair costs the product of the two maxima and escapes the evaluation
+// budget (SEC-16). `instanceCount` is refused too, despite its constant cost, so
+// an author never has to redo the calculation.
 function checkOperatorNesting(form: FormDefinition): RuleGraphFinding[] {
   const findings: RuleGraphFinding[] = [];
   const walk = (rule: VisibilityRule, condition: Condition, outer: GroupId | undefined): void => {
@@ -367,11 +364,9 @@ function checkOperatorNesting(form: FormDefinition): RuleGraphFinding[] {
   return findings;
 }
 
-// A question inside a group has one answer per instance, so a bare reference is
-// meaningful only where an instance is in scope. Anything else is dead rather
-// than odd: the evaluator reads it as unanswered forever, so the rule publishes
-// cleanly and the question never appears. A rule whose targets straddle two
-// scopes is skipped, having no single scope to judge against.
+// A bare reference to a per-instance answer is meaningful only where an instance
+// is in scope; elsewhere the evaluator reads it as unanswered forever, so the
+// rule publishes cleanly and its target never appears.
 function checkScopedReferences(
   form: FormDefinition,
   groupOf: ReadonlyMap<QuestionId, GroupId>,
@@ -425,9 +420,7 @@ function checkScopedReferences(
 }
 
 // Such a rule costs the product of the two maxima on every evaluation (SEC-16).
-// A cost bound rather than an instance ceiling: two large groups publish when no
-// rule joins them. A group whose bounded source omitted `max` is skipped, that
-// draft already being refused.
+// A cost bound, not an instance ceiling: two large groups publish unjoined.
 function checkCrossGroupBudget(
   form: FormDefinition,
   groupOf: ReadonlyMap<QuestionId, GroupId>,

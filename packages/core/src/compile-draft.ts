@@ -140,10 +140,8 @@ function checkStructure(definition: FormDefinition): PublishError[] {
   return errors;
 }
 
-// `max` is required on every count source but `fixed`, there being no
-// installation-wide ceiling: without it a respondent sizes the loop and an
-// `open` group is an unbounded write path (SEC-16). How small it must be is
-// deliberately unchecked.
+// Without `max` a respondent sizes the loop and an `open` group becomes an
+// unbounded write path (SEC-16). How small it must be is deliberately unchecked.
 function checkRepeatBounds(group: RepeatGroup, stepId: StepId): PublishError[] {
   const errors: PublishError[] = [];
   const bounds = countBounds(group.count);
@@ -240,9 +238,8 @@ function checkTableColumnTypes(
   return errors;
 }
 
-// A record whose identity does not match the requested pin counts as
-// unresolvable, so a misbehaving lookup cannot smuggle the wrong content into an
-// immutable snapshot (R1).
+// A mismatched record counts as unresolvable, so a misbehaving lookup cannot
+// smuggle wrong content into an immutable snapshot (R1).
 function resolvePins(
   draft: DraftInput,
   resolved: Map<QuestionId, QuestionVersionRecord>,
@@ -282,8 +279,7 @@ function resolvePins(
 }
 
 // An option reference is `checkRuleTypes`'s, needing the pinned version's
-// options. A count source reports as a rule read does, being a read of a
-// question by the whole group.
+// options. A count source is a read by the whole group, so it reports alike.
 function checkRuleResolution(definition: FormDefinition): PublishError[] {
   const errors: PublishError[] = [];
   const pinned = new Set<QuestionId>(documentOrder(definition).map((entry) => entry.questionId));
@@ -423,8 +419,7 @@ function textSites(
 }
 
 // A multiChoice answer commits on group exit (ADR-31), so a same-step reveal
-// lands later than the author drew it. The draft is legal, hence a warning, and
-// a cross-step target is correct by the same reasoning.
+// lands later than the author drew it. Legal, hence a warning.
 function checkMultiChoiceSameStepTargets(
   definition: FormDefinition,
   resolved: ReadonlyMap<QuestionId, QuestionVersionRecord>,
@@ -453,9 +448,8 @@ function checkMultiChoiceSameStepTargets(
   return warnings;
 }
 
-// Such a pattern compiles under either regex flag and means different things
-// under each, with nothing failing downstream, so the authoring gate is the only
-// layer that can report it.
+// Such a pattern compiles under either flag with a different meaning and fails
+// nowhere downstream, so authoring is the only layer that can report it.
 function checkPatternAmbiguity(
   resolved: ReadonlyMap<QuestionId, QuestionVersionRecord>,
 ): PublishWarning[] {
@@ -516,10 +510,8 @@ function checkLocaleCompleteness(definition: FormDefinition, sites: readonly Tex
   return errors;
 }
 
-// Here rather than in `LocalizedText`: a published snapshot is re-parsed on the
-// serving path, so tightening the schema would stop an already-published form
-// from serving (R1). Every locale is checked, a blank translation reaching a
-// respondent as a nameless control just as a blank default label would.
+// Here rather than in `LocalizedText`: a snapshot is re-parsed on the serving
+// path, so a tighter schema would stop a published form from serving (R1).
 function checkBlankText(sites: readonly TextSite[]): PublishError[] {
   const errors: PublishError[] = [];
   for (const site of sites) {

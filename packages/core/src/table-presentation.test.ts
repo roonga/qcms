@@ -14,13 +14,6 @@ import {
   type QuestionVersionRecord,
 } from "./index.js";
 
-/**
- * The table presentation's column-type refusal (ADR-43). A file of its own
- * because the refusal is about a presentation rather than the group model:
- * every case publishes the same member list twice and differs only in
- * `presentation`.
- */
-
 interface Member {
   readonly id: string;
   readonly type: string;
@@ -33,8 +26,7 @@ function makeQuestion(id: string, type: string): QuestionDefinition {
     label: { en: id },
     required: false,
   };
-  // The choice types need options to parse at all, and the list's content is
-  // irrelevant to a type check.
+  // A choice type does not parse without options.
   if (type === "singleChoice" || type === "multiChoice") {
     raw.options = [{ optionId: "opt_a", label: { en: "A" } }];
   }
@@ -45,10 +37,7 @@ function makeQuestion(id: string, type: string): QuestionDefinition {
   return result.value;
 }
 
-/**
- * The count source is `fixed`, which is its own bound, so no case here trips
- * `REPEAT_MAX_MISSING` on the way to the refusal it is about.
- */
+// `fixed` is its own bound, so no case here trips `REPEAT_MAX_MISSING` first.
 function publishGroup(members: readonly Member[], presentation: string): readonly PublishError[] {
   const questions = members.map((member) => makeQuestion(member.id, member.type));
   const parsed = parseFormDefinition({
@@ -114,8 +103,7 @@ describe("TABLE_COLUMN_TYPES (Q12, the five allowed cell types)", () => {
     ]);
     expect(isTableColumnType("longText")).toBe(false);
     expect(isTableColumnType("multiChoice")).toBe(false);
-    // The predicate takes a string because the admin reads a library row whose
-    // type may be unknown, and it must not widen on one.
+    // Takes a string: the admin reads a library row whose type may be unknown.
     expect(isTableColumnType("table")).toBe(false);
   });
 
@@ -139,7 +127,6 @@ describe("TABLE_COLUMN_TYPE_NOT_ALLOWED (acceptance case 42)", () => {
         step: "stp_assets",
         type,
       });
-      // The refusal names where to send the author.
       expect(error.message).toContain("stacked");
       expect(error.message).toContain(type);
       expect(publishErrorLocation(error)).toBe(
@@ -171,8 +158,6 @@ describe("TABLE_COLUMN_TYPE_NOT_ALLOWED (acceptance case 42)", () => {
   it.each([["stacked"], ["perInstanceStep"]])(
     "leaves the same member list alone under the %s presentation",
     (presentation) => {
-      // A deliberate asymmetry: a stacked card gives a control a full row, so
-      // the refusal is about the presentation and nothing else.
       expect(
         publishGroup(
           [
@@ -187,8 +172,6 @@ describe("TABLE_COLUMN_TYPE_NOT_ALLOWED (acceptance case 42)", () => {
   );
 
   it("says nothing about a column the form does not pin, which is already reported", () => {
-    // An unresolved pin has no type to read, so a second error here would name
-    // a type nobody has.
     const parsed = parseFormDefinition({
       formId: "frm_assets",
       defaultLocale: "en",

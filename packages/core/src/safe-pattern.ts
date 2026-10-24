@@ -1,6 +1,5 @@
-// An authored pattern ends up on the JavaScript backtracking engine, so only
-// constructs that cannot backtrack catastrophically are accepted; the subset is
-// DOMAIN_SCHEMA §2.2. Deliberately conservative: some refused patterns are
+// Only constructs that cannot backtrack catastrophically are accepted
+// (DOMAIN_SCHEMA §2.2). Deliberately conservative: a refused pattern may be
 // harmless, but every accepted one is linear-time-safe.
 
 /** Maximum accepted pattern length. */
@@ -231,11 +230,9 @@ export function isSafePattern(pattern: string): boolean {
 }
 
 /**
- * True when a browser's `pattern`-attribute compiler (the `v` flag) accepts
- * this expression. Its character-class grammar is narrower than the `u`
- * semantics patterns are authored against, so a pattern that fails here still
- * validates answers on the server while the browser silently drops the native
- * client-side hint.
+ * True when a browser's `pattern` attribute (the `v` flag) accepts this
+ * expression. A pattern that fails here still validates on the server; the
+ * browser only drops the native client-side hint.
  */
 export function compilesUnderV(pattern: string): boolean {
   try {
@@ -247,16 +244,14 @@ export function compilesUnderV(pattern: string): boolean {
 }
 
 /**
- * `v`-reserved characters that a `u`-mode character class treats as ordinary
- * literals, and that both modes accept escaped. `-`, `\` and `]` need
- * positional reasoning and are handled by the walk instead.
+ * `v`-reserved characters that `u` treats as literals and both modes accept
+ * escaped. `-`, `\` and `]` need position, so the walk handles them.
  */
 const V_RESERVED_IN_CLASS: ReadonlySet<string> = new Set(["(", ")", "[", "{", "}", "/", "|"]);
 
 /**
  * `v`-mode `ClassSetReservedDoublePunctuator`s, reserved only when doubled.
- * Each is a literal in a `u`-mode class and escapable under `v`. `&` is reached
- * only for a pattern that already fails under `v`, so a working `&&`
+ * Only reached for a pattern that already fails under `v`, so a working `&&`
  * intersection is never rewritten.
  */
 const V_RESERVED_WHEN_DOUBLED: ReadonlySet<string> = new Set([..."&!#$%*+,.:;<=>?@^`~"]);
@@ -318,15 +313,9 @@ function respellClasses(pattern: string): string {
 }
 
 /**
- * The `v`-safe spelling of an authored pattern, or `undefined` when there is
- * none that provably preserves the matched set. A pattern that already compiles
- * under `v` is returned byte-identical, so a working `&&` or `--` class-set
- * operator is never disturbed.
- *
- * This is the authoring-time half. `@roonga/qcms-ui` restates it at render time
- * for stored documents, which keep their original `pattern` forever (R1,
- * ADR-18); that copy is not an import, because the renderer must not pull the
- * kernel into the client bundle, and a test asserts the two agree.
+ * The `v`-safe spelling of an authored pattern, or `undefined` when no spelling
+ * provably preserves the matched set. `@roonga/qcms-ui` restates this at render
+ * time rather than importing the kernel into the client bundle (ADR-18).
  */
 export function toVSafePattern(pattern: string): string | undefined {
   if (compilesUnderV(pattern)) return pattern;
@@ -334,29 +323,18 @@ export function toVSafePattern(pattern: string): string | undefined {
   return respelled !== pattern && compilesUnderV(respelled) ? respelled : undefined;
 }
 
-/**
- * The two `v`-mode class-set operators, which are ordinary literals in a
- * `u`-mode character class.
- */
+/** The two `v`-mode class-set operators; `u` reads both as literals. */
 export type ClassSetOperator = "&&" | "--";
 
 /**
  * The silent `u`/`v` divergence inside a character class, or `undefined` when
- * the pattern has none.
- *
- * `[a&&b]` compiles under both flags: under `u` it is the set `{a, &, b}` and
- * under `v` an empty intersection that can never match. Nothing downstream
- * reports it, because both readings are valid regular expressions, so authoring
- * time is the only layer that can raise it. `compileDraft` turns it into a
- * warning rather than a refusal, since the pattern may be what the author meant.
- *
- * Only a pattern that compiles under both flags is reported: a divergence needs
- * two readings to diverge between.
+ * the pattern has none. `[a&&b]` is `{a, &, b}` under `u` and an unmatchable
+ * intersection under `v`; both readings are valid, so nothing downstream can
+ * report it.
  */
 export function classSetAmbiguity(pattern: string): ClassSetOperator | undefined {
-  // Both readings have to exist for them to disagree, and this is a public
-  // export: `[\q{ab}&&\q{cd}]` is valid under `v` and invalid under `u`, so
-  // reporting it would name a divergence from a reading that does not exist.
+  // A divergence needs two readings: `[\q{ab}&&\q{cd}]` has no `u` reading to
+  // diverge from.
   try {
     new RegExp(pattern, "u");
     new RegExp(pattern, "v");
