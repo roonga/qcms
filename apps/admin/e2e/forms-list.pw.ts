@@ -22,11 +22,19 @@ import {
  * values to the API and reads them back out of the URL. What they cannot prove is that
  * the controls exist as controls: a vendored `Select` is a server-rendered button with a
  * hidden native `<select>` behind it, an author operates it by name, and the whole
- * toolbar is a `<form method="get">` whose Apply is a real navigation. So the assertions
+ * filter form is a `<form method="get">` whose Apply is a real navigation. So the assertions
  * here are the two properties a stubbed render cannot see - that pressing each control
  * and pressing Apply lands on a URL carrying that control's parameter, and that opening
  * such a URL cold reproduces the same view with the same controls showing the same
  * values.
+ *
+ * ## The controls are in the rail now, and that changed nothing here
+ *
+ * §7.0 ruling 4 (issue #1117) moved them out of the content column. Every locator below
+ * still resolves, which is the point worth stating rather than the coincidence it looks
+ * like: it is the same `<form class="qcms-filters">` over the same named controls, one
+ * column to the left, so a spec written about what an author presses did not have to be
+ * rewritten when the column changed.
  *
  * ## Why the fixtures are three forms and not one
  *
@@ -218,8 +226,10 @@ test("says something useful when the filters match nothing, and offers the way b
   await expect(page.getByText("No form matches this search.")).toBeVisible();
   await expect(page.getByTestId("qcms-forms-count")).toHaveCount(0);
 
-  // One control with that name, not two: the panel carries it while the toolbar's link
-  // stands down.
+  // One control with that name, not two. It used to be the panel's, with the toolbar's
+  // standing down; since issue #1117 the filters are in the rail and the clear link is
+  // there with them, which is the same property read the other way round - the way out of
+  // a filter is where the filter is.
   await page.getByRole("link", { name: "Clear filters" }).click();
   await expect(page).toHaveURL(/\/forms$/);
   await expect(page.getByRole("table", { name: "Form library" })).toBeVisible();

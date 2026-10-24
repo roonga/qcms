@@ -881,7 +881,8 @@ test("the type column and the type filter narrow the library (issue #218)", asyn
   await expect(page.getByRole("row").filter({ hasText: questionIdFor("date") })).toBeVisible();
   await expect(page.getByRole("row").filter({ hasText: questionIdFor("number") })).toHaveCount(0);
 
-  // And it is reachable from the toolbar, not just from a hand-written URL.
+  // And it is reachable from the control, not just from a hand-written URL - which is in
+  // the rail's Filters part since issue #1117, and is the same named control it was.
   await page.goto("/questions");
   const picker = page.getByRole("button", { name: /Type$/ });
   await picker.click();
