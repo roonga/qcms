@@ -1,6 +1,6 @@
 import { execFileSync } from "node:child_process";
 import { existsSync, mkdirSync, readFileSync, rmSync, writeFileSync } from "node:fs";
-import { join } from "node:path";
+import { join, sep } from "node:path";
 import { fileURLToPath } from "node:url";
 
 import type { ReactNode } from "react";
@@ -358,7 +358,9 @@ describe("the marker class and the retired handler", () => {
    * files the scan must reach: the stylesheet the marker lived in, and one component.
    */
   it("reaches the admin sources it is meant to scan", () => {
-    const relative = files.map((path) => path.slice(adminRoot.length + 1));
+    // Separators forced to `/`, which is the spelling the two names below are written in
+    // and the one git itself answers with (issue #1126).
+    const relative = files.map((path) => path.slice(adminRoot.length + 1).split(sep).join("/"));
     expect(relative).toContain("app/globals.css");
     expect(relative).toContain("components/kit.tsx");
     expect(relative.length).toBeGreaterThan(100);

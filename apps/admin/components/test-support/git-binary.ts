@@ -16,6 +16,12 @@ import { isAbsolute, join } from "node:path";
 export const GIT_BIN_OVERRIDE_ENV_VAR = "QCMS_GIT_BIN";
 
 /**
+ * Not `NodeJS.ProcessEnv`: Next's own types make `NODE_ENV` required on it, so a test
+ * fixture naming two variables would not be assignable.
+ */
+type Environment = Readonly<Record<string, string | undefined>>;
+
+/**
  * Absolute candidates, never a bare `git`: a bare name is a `PATH` lookup, which is what
  * `sonarjs/no-os-command-from-path` forbids workspace-wide.
  */
@@ -31,7 +37,7 @@ const POSIX_CANDIDATES = [
  * drive-letter literal here would be a machine-specific path, which `check:paths` forbids
  * in committed text and which is wrong on a machine that installed elsewhere anyway.
  */
-function windowsCandidates(environment: NodeJS.ProcessEnv): string[] {
+function windowsCandidates(environment: Environment): string[] {
   const systemWide = [environment.ProgramFiles, environment["ProgramFiles(x86)"]]
     .filter((root): root is string => root !== undefined && root !== "")
     .map((root) => join(root, "Git", "cmd", "git.exe"));
@@ -44,7 +50,7 @@ function windowsCandidates(environment: NodeJS.ProcessEnv): string[] {
 
 /** Everything that would be probed, in order, on this platform. */
 export function gitCandidates(
-  environment: NodeJS.ProcessEnv = process.env,
+  environment: Environment = process.env,
   platform: NodeJS.Platform = process.platform,
 ): readonly string[] {
   return platform === "win32" ? windowsCandidates(environment) : POSIX_CANDIDATES;
@@ -52,7 +58,7 @@ export function gitCandidates(
 
 /** The absolute path of git, or a named failure listing what was tried. */
 export function gitBinary(
-  environment: NodeJS.ProcessEnv = process.env,
+  environment: Environment = process.env,
   platform: NodeJS.Platform = process.platform,
 ): string {
   const override = environment[GIT_BIN_OVERRIDE_ENV_VAR];
