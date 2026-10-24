@@ -25,62 +25,25 @@ import { decodeStepForm } from "@/lib/server/step-form";
 import { defaultAnswerMessage, firstAnswerRejection } from "@/lib/validation-message";
 
 /**
- * BFF proxy: the no-JS whole-step form POST (task 044). A JavaScript-disabled
- * respondent submits the native `<form method="post">` the @roonga/qcms-ui renderer
- * emits in native-submit mode; this route decodes the form-encoded fields to
- * canonical answers, forwards each to the internal API's per-question endpoint
- * (the SAME endpoint the JS path uses), and - once the API says the flow is ready
- * - submits the session and redirects to the completion page. Every step is a
- * fresh page load (classic post/redirect/get), so branching re-renders naturally.
+ * The no-JS whole-step form POST.
  *
- * Strict BFF (R2): this handler does proxy + session/credential duty ONLY. It
- * performs NO validation authority and NO rule evaluation - the API validates
- * every answer, decides visibility, and owns the ready-to-submit and honeypot
- * checks. The decode step (`decodeStepForm`) is pure transport (form strings ->
- * canonical JSON), driven by the renderer's kind tags, not by any question
- * knowledge. It imports nothing from `@roonga/qcms-core` (enforced by the R2
- * import-surface test); `StepResponse` and `A2UIAnswerValue` are type-only.
- *
- * The honeypot decoy (026) rides in the form with no kind tag, so it lands in the
- * decoded `extras` and is forwarded verbatim into the session-submit body, where
- * the API's anti-abuse check reads it - exactly as on the JS path.
- *
- * A required question left blank is reported rather than silently reloaded (issue
- * #920). The API already refuses to store an empty answer and refuses to submit a
- * session with a required gap; what was missing was the respondent being told on
- * this transport. `missingOnPostedStep` carries the reasoning - it reads the API's
- * own `flowState.missingRequired` and decides nothing.
- *
- * Clearing works here too (issue #127). A field the renderer marked as holding an
- * answer, arriving empty, decodes to `null`, and `forwardAnswers` posts that to the
- * same `/answers` endpoint the scripted path posts its clears to, so it becomes the
- * same ADR-33 tombstone. It is not a special case in this handler: a retraction is
- * one more decoded answer, subject to the same authorization, visibility and error
- * handling as every other.
+ * Strict BFF (R2): the API validates every answer, decides visibility, and owns the
+ * ready-to-submit and honeypot checks. `decodeStepForm` is pure transport, driven by
+ * the renderer's kind tags rather than by any question knowledge.
  */
 
 /**
- * Redirect (303) back to the flow page so the server re-renders the step.
- *
- * **Under the environment's own prefix** (Q21, task 066). `proxy.ts` rewrote this
- * request's path, so `request.url` carries the unprefixed form and an unprefixed
- * redirect would send a `test` respondent to `prod`'s address - where their session does
- * not exist, because the sessions are a schema apart.
+ * Prefixed (Q21): `proxy.ts` rewrote this request's path, so `request.url` carries the
+ * unprefixed form and an unprefixed redirect would send a non-prod respondent to
+ * `prod`'s address, where their session does not exist.
  */
 async function backToStep(request: Request, sessionId: string): Promise<NextResponse> {
   const basePath = await currentBasePath();
   return NextResponse.redirect(new URL(`${basePath}/s/${sessionId}`, request.url), 303);
 }
 
-/**
- * BFF proxy: fetch one step's document + flow projection for the JS navigation
- * cursor (ADR-28, task 045). The controlled `StepFlow` calls
- * `GET /s/:id/step?step=<index>` on Continue/Back; the BFF attaches the session
- * bearer from the httpOnly cookie and forwards the cursor to the internal API,
- * returning its projection verbatim. Omitting `step` serves the first incomplete
- * step (used when a blocked Submit sends the respondent to the step that still
- * needs an answer). No rule evaluation happens here (R2) - the API owns it.
- */
+// Omitting `step` serves the first incomplete step, which is what a blocked Submit
+// needs (ADR-28).
 export async function GET(
   request: Request,
   ctx: { params: Promise<{ sessionId: string }> },
@@ -107,31 +70,18 @@ export async function GET(
   }
 }
 
-/** The outcome of forwarding a step's decoded answers to the API. */
 interface Forwarded {
-  /** Submitted values, kept so a re-render re-populates the form. */
   readonly values: Record<string, A2UIAnswerValue>;
-  /** Per-field typed validation errors (422s), for the error slots. */
   readonly errors: Record<string, string>;
-  /** Which constraint each 422 named, so the re-render can pick the author's wording. */
   readonly constraints: Record<string, string>;
-  /** The projection the API returned for the batch (its `readyToSubmit` is authoritative). */
   readonly last: StepResponse | undefined;
-  /** A non-recoverable API error (session lost/expired/5xx): re-render the page. */
   readonly fatal: boolean;
 }
 
 /**
- * Record one refused batch entry against the field it names.
- *
- * The API returns a refusal per entry rather than failing the request, so this is the
- * same three-outcome classification the per-answer loop had, minus the third: a 422 is
- * the respondent's to fix and fills that field's error slot (WCAG 3.3), and
- * `QUESTION_NOT_VISIBLE` is not a failure at all - a whole-step post carries fields
- * rendered before this round's own answers changed a branch, so a field this round just
- * hid is silently dropped, including a clear for it (issue #127). A fatal error is now
- * a failed REQUEST rather than a failed entry, which is what the `catch` around the
- * call handles.
+ * `QUESTION_NOT_VISIBLE` is not a failure: a whole-step post carries fields rendered
+ * before this round's own answers changed a branch, so a field this round hid is
+ * dropped, including a clear for it.
  */
 function recordBatchRejection(
   rejection: BatchRejection,
@@ -139,9 +89,6 @@ function recordBatchRejection(
   constraints: Record<string, string>,
 ): void {
   if (rejection.code === "QUESTION_NOT_VISIBLE") return;
-  // The answer key, which is the field's whole identity below the API: a bare
-  // questionId outside a repeating group and `instanceId/questionId` inside one. It is
-  // the string the error slot, the summary anchor and the field's own id all use.
   const field = fieldKey(rejection.questionId, rejection.instanceId);
   errors[field] = defaultAnswerMessage(
     firstAnswerRejection(rejection.details),
@@ -152,16 +99,9 @@ function recordBatchRejection(
 }
 
 /**
- * Whether a refused submission was refused for a repeating group's COUNT
- * (`REPEAT_COUNT_OUT_OF_RANGE`, ADR-42).
- *
- * The submit's 422 carries the kernel's whole sweep in `details.errors`, and this route
- * has always acted on none of it. A count refusal is the one entry with no field to
- * report against, so it becomes a page-level notice; everything else still returns the
- * respondent to the step, which is where the per-field report already is.
- *
- * It reads the shape rather than trusting it, because `details` crosses the BFF boundary
- * as `unknown`.
+ * A count refusal (ADR-42) is the one sweep entry with no field to report against, so
+ * it becomes a page-level notice. The shape is read rather than trusted, because
+ * `details` crosses the BFF boundary as `unknown`.
  */
 function isCountRefusal(details: unknown): boolean {
   if (typeof details !== "object" || details === null) return false;
@@ -175,7 +115,6 @@ function isCountRefusal(details: unknown): boolean {
   );
 }
 
-/** `ins_7k2/q_plate`, or the bare question id outside every group (ADR-42, Q15). */
 function fieldKey(questionId: string, instanceId?: string): string {
   return instanceId === undefined
     ? questionId
@@ -183,24 +122,11 @@ function fieldKey(questionId: string, instanceId?: string): string {
 }
 
 /**
- * Forward a step's decoded answers to the API's **batch** endpoint (task 073, Q20,
- * ADR-43): one request, one session lock, one flow evaluation.
+ * The batch endpoint (ADR-43) rather than one call per answer: one request, one session
+ * lock, one flow evaluation, which is what makes a repeating group's Continue affordable.
  *
- * **Why it changed.** This used to make one `POST /sessions/{id}/answers` per decoded
- * answer, sequentially, each taking the session's advisory lock and re-evaluating the
- * whole flow. That was fine for a step of six questions and is not fine for a repeating
- * group: nine passengers times six questions is fifty-four round trips and fifty-four
- * advisory locks for one Continue. The batch is the same answers, the same validation,
- * the same authority (R2 - the API is still the sole validator) and one call.
- *
- * A decoded `null` is a RETRACTION rather than a value (issue #127): the field was
- * marked as holding an answer and arrived empty, so the respondent cleared it. It rides
- * the batch as `value: null`, the same body the scripted path posts for the same
- * gesture, so both transports still reach one ledger semantics.
- *
- * **The rate limit is per entry, not per request** (SEC-16), so a 429 here means the
- * batch did not fit the window's remaining allowance and **nothing was applied** - the
- * caller re-renders with the values the respondent typed and no answer written.
+ * A decoded `null` is a retraction rather than a value. The rate limit is per entry, not
+ * per request (SEC-16), so a 429 means nothing was applied.
  */
 async function forwardAnswers(
   sessionId: string,
@@ -211,12 +137,8 @@ async function forwardAnswers(
   const errors: Record<string, string> = {};
   const constraints: Record<string, string> = {};
   for (const answer of answers) {
-    // A retraction is deliberately NOT recorded as a re-render value. The cookie
-    // exists to re-show what the API does not hold; here the API holds nothing
-    // precisely because this call succeeded, so leaving the key ABSENT lets the
-    // (now empty) stored answer show through and the field renders blank. Writing
-    // it would also have to survive JSON, where an `undefined` member vanishes -
-    // see `mergeStepValues` on why absent and cleared are different renders.
+    // A retraction is not recorded as a re-render value: leaving the key absent lets
+    // the now-empty stored answer show through and the field renders blank.
     if (answer.value !== null) values[answer.questionId] = answer.value as A2UIAnswerValue;
   }
   if (answers.length === 0) return { values, errors, constraints, last: undefined, fatal: false };
@@ -232,43 +154,17 @@ async function forwardAnswers(
     return { values, errors, constraints, last: result, fatal: false };
   } catch (error) {
     if (!(error instanceof ApiError)) throw error;
-    // Every refusal of the whole REQUEST is fatal to this round: a lost or expired
-    // session, a 5xx, or a 429 for a batch that did not fit the window. None of them
-    // wrote anything, so the caller re-renders the step with what the respondent typed.
+    // A refusal of the whole request wrote nothing, so the caller re-renders the step
+    // with what the respondent typed.
     return { values, errors, constraints, last: undefined, fatal: true };
   }
 }
 
 /**
- * The questions this post left without a required answer: the API's own
- * missing-required set, narrowed to the fields the posted form actually asked
- * (issue #920).
- *
- * ## What is and is not decided here
- *
- * Nothing about `required` is decided here. `missingRequired` is the kernel's
- * (`evaluateRules`, invariant I9), served on every projection, and the hydrated
- * `StepFlow` has always gated Continue and Submit on it. This is the same read for
- * the other transport: the no-JS round trip has no client state to carry the gate,
- * so the set travels in the re-render context instead and the step re-renders with
- * the messages beside the fields. The API refuses the submit either way - a
- * respondent who defeats the browser's `required` still gets `MISSING_REQUIRED`
- * from the submission sweep - so what changes is whether they are told, not whether
- * an empty required answer can be stored (it never could: the answer endpoint
- * refuses `""` and `[]` outright as `EMPTY_ANSWER_NOT_ALLOWED`).
- *
- * ## The two narrowings
- *
- * - **To this step.** `missingRequired` is flow-wide and cursor-independent, so
- *   unfiltered it would also name required questions on steps ahead - reported
- *   before the respondent has been shown them. The posted form's own kind tags say
- *   which questions were on the page, which is a fact about the post rather than a
- *   visibility judgement (`decodeStepForm`). A question a just-changed branch has
- *   only now revealed was not on the posted form, so it is not reported either: the
- *   respondent sees it appear, unanswered and unaccused.
- * - **Around a refusal.** A question the API refused with a 422 is also missing an
- *   answer, by construction. It already carries the kernel's own message, which
- *   says more than "this needs an answer", so it keeps it.
+ * Nothing about `required` is decided here: `missingRequired` is the kernel's, and this
+ * narrows it twice. To the posted fields, because the set is flow-wide and would
+ * otherwise accuse a respondent of a gap on a step they have not been shown. And around
+ * a 422, which is missing an answer by construction but already carries a better message.
  */
 function missingOnPostedStep(
   missingRequired: readonly string[],
@@ -282,13 +178,9 @@ function missingOnPostedStep(
 }
 
 /**
- * One fresh step read, or `undefined` when the API could not be reached.
- *
- * A failure is deliberately NOT fatal to the caller. It costs the round its
- * missing-required report and its readiness verdict, both of which are the API's to
- * give, and it costs the respondent nothing else: the refusals and the values they
- * typed are already in hand and are written regardless. Returning the absence rather
- * than throwing is what lets the caller keep those two facts apart.
+ * Returns the absence rather than throwing: a failed read costs the round its
+ * missing-required report and its readiness verdict, but the refusals and the values
+ * the respondent typed are written regardless.
  */
 async function projectionOrNone(
   sessionId: string,
@@ -306,14 +198,12 @@ export async function POST(
   ctx: { params: Promise<{ sessionId: string }> },
 ): Promise<NextResponse> {
   const { sessionId } = await ctx.params;
-  // SEC-9's CSRF belt (issue #487). This is the no-JS whole-step POST, so the
-  // refusal is the same 303 back to the flow page every other unusable request on
-  // this route gets: the respondent sees their step, not an error code.
+  // SEC-9's CSRF belt. The refusal is a 303 back to the flow page, as every other
+  // unusable request on this route gets: the respondent sees their step, not a code.
   if (!isSameOriginPost(request)) return await backToStep(request, sessionId);
 
   const token = await readSessionToken();
   if (token === undefined) {
-    // No session credential: let the flow page render its recovery state.
     return await backToStep(request, sessionId);
   }
 
@@ -331,17 +221,8 @@ export async function POST(
   );
 
   if (fatal) {
-    // The batch request itself was refused: a lost or expired session, a 5xx, or a 429
-    // for a batch that did not fit the window's remaining allowance (SEC-16). None of
-    // them wrote anything, and the values the respondent typed do not depend on the
-    // API having accepted them, so they are carried into the re-render rather than
-    // dropped to a transient failure - which is the silent reload issue #920 exists to
-    // remove, met here from the other side.
-    // With a NOTICE, which is the half this used to be missing (ruling Q29, 2026-10-02).
-    // The values come back either way, but a step that re-renders unchanged and says
-    // nothing is the silent reload issue #920 removed from the required-answer path: a
-    // respondent whose batch was refused by the rate limiter saw their own answers and no
-    // reason, and pressing Continue again produced the same silence.
+    // Nothing was written, so the typed values are carried into the re-render, with a
+    // notice: a step that re-renders unchanged and says nothing is a silent dead end.
     await writeStepContext({
       values,
       errors: {},
@@ -352,23 +233,17 @@ export async function POST(
     return await backToStep(request, sessionId);
   }
 
-  // The authoritative projection: the one the API returned for the last answer
-  // written, or a fresh read when this round wrote none (every field blank, or every
-  // answer refused). Its `missingRequired` and `readyToSubmit` are the API's, never
-  // recomputed here (R2).
+  // `missingRequired` and `readyToSubmit` are the API's, never recomputed here (R2).
   const projection = last ?? (await projectionOrNone(sessionId, token));
   const missingRequired =
     projection === undefined
       ? []
       : missingOnPostedStep(projection.flowState.missingRequired, fields, errors);
 
-  // Write the re-render context on EVERY path that returns the respondent to the
-  // step, including the one where the projection could not be read. The refusals and
-  // the values the respondent typed do not depend on that read - only the
-  // missing-required half does - and dropping them to a transient read failure is the
-  // silent reload this route exists to remove (reviewer finding, issue #920). Without
-  // a projection there is also nothing to judge readiness from, so the round ends
-  // here rather than submitting on a guess.
+  // The re-render context is written on every path back to the step, including the one
+  // where the projection could not be read: only the missing-required half depends on
+  // that read, and with no projection there is nothing to judge readiness from, so the
+  // round ends here rather than submitting on a guess.
   if (
     projection === undefined ||
     Object.keys(errors).length > 0 ||
@@ -386,17 +261,9 @@ export async function POST(
     await clearSessionToken();
     return NextResponse.redirect(new URL(`${await currentBasePath()}/done`, request.url), 303);
   } catch (error) {
-    // A submit that fails the API's final sweep (e.g. a missing required answer)
-    // returns the respondent to the step to complete it.
-    //
-    // **With a notice when the sweep refused a group's COUNT** (`REPEAT_COUNT_OUT_OF_RANGE`,
-    // ADR-42). That refusal has no field to hang a message on - it is about a group's size
-    // rather than a question - so without this the press returned the same step and said
-    // nothing, which is the silent dead end this route exists to remove. A respondent
-    // reaches it by removing instances below the group's `min`, which the roster operation
-    // deliberately allows so they can empty a group and rebuild it (ADR-43). The notice
-    // rides as a catalogue KEY exactly as Q29's does, so an unrecognised key renders
-    // nothing and a cookie from an earlier build cannot put a blank banner on the page.
+    // A count refusal has no field to hang a message on, so it needs the page-level
+    // notice or the press returns the same step in silence. The notice rides as a
+    // catalogue key, so a cookie from an earlier build cannot render a blank banner.
     if (error instanceof ApiError && isCountRefusal(error.details)) {
       await writeStepContext({
         values,
