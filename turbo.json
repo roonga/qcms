@@ -1,82 +1,29 @@
 {
   "$schema": "https://turbo.build/schema.json",
-  // NO MANAGED `AGENTS.md` AT THE REPOSITORY ROOT (Code Owner, 2026-10-10, issue #1050).
-  // This is the **(b) half of issue #431**: #431 asked whether a dependency that writes
-  // agent instructions into this repository should be ignored (a) or switched off (b), and
-  // (b) is the answer for the case that has an opt-out. turbo 2.11 maintains a managed
-  // block in a root `AGENTS.md` "before repository-scoped commands when an AI agent is
-  // detected"; `agentGuidance: false` stops that at source.
-  //
-  // Why this repository does not want it. QCMS is agent-driven end to end, and its
-  // instruction hierarchy is deliberate and reviewed: `CLAUDE.md`, `PROJECT_INSTRUCTIONS.md`,
-  // `CONTRIBUTING.md`, `.claude/skills/`. A root `AGENTS.md` is loaded as directory-scoped
-  // instructions by every executor and reviewer that works here, so leaving it generated
-  // means an upstream package co-authors the rules, and re-authors them on every upgrade.
-  // Measured on 2026-10-10 at turbo 2.11.7: `CLAUDECODE=1 pnpm exec turbo run typecheck`
-  // writes 1341 bytes of it beginning "This is NOT the Turborepo you know", and with this
-  // setting the same command writes nothing.
-  //
-  // `.gitignore` keeps its `/AGENTS.md` rule, and that is not redundant: turbo's own
-  // documentation says opting out "does not delete an existing `AGENTS.md` file or
-  // Turborepo block", so a checkout that ran turbo before this landed still has one on
-  // disk. The rule's comment there records that (b) was taken.
+  // Stops turbo maintaining a managed block in a root `AGENTS.md`. That file is loaded as
+  // directory-scoped instructions here, so leaving it generated lets an upstream package
+  // co-author this repository's agent rules, and re-author them on every upgrade.
   "agentGuidance": false,
-  // `scripts/eslint-workspace.mjs` belongs here for the same reason `eslint.config.js`
-  // does: every package's `lint` task now runs through it, and it lives outside every
-  // package, so without this entry editing it would leave `turbo run lint` replaying a
-  // cached verdict from the previous behaviour (issue #899).
+  // `scripts/eslint-workspace.mjs` sits outside every package but every `lint` task runs
+  // through it, so without the entry `turbo run lint` replays a pre-change verdict.
   "globalDependencies": [
     "eslint.config.js",
     "scripts/eslint-workspace.mjs",
     ".prettierrc*",
     "tsconfig.base.json"
   ],
-  // Bound how many package tasks run at once. turbo's default of 10 multiplies
-  // with each test task's own Vitest worker pool. Paired with `maxWorkers` in
-  // vitest.config.ts, which explains the measurements and the tradeoff: this cuts
-  // process count and oversubscription, not peak CPU. A percentage keeps it
-  // proportional on a small CI runner. Measured: 25% cost 30% more wall time for
-  // no further benefit, so 50% is the chosen point.
+  // turbo's default of 10 multiplies with each test task's own Vitest worker pool. Paired
+  // with `maxWorkers` in vitest.config.ts; this cuts process count, not peak CPU.
   "concurrency": "50%",
-  // turbo 2.x runs tasks in **strict** env mode by default: a task sees only the
-  // variables declared here plus turbo's own defaults. Every Testcontainers and
-  // Docker knob this repo documents was therefore invisible to `turbo run test`,
-  // silently. That is not theoretical - it is how `postgres:16-alpine` kept being
-  // pulled from Docker Hub inside the `verify` job long after issue #74 pointed
-  // QCMS_TEST_POSTGRES_IMAGE at a GHCR mirror: the variable reached the job, not
-  // the Vitest process, so the harness asked for the default reference, which was
-  // not the pre-pulled one, and Docker went to Hub for it. The `api-e2e` and
-  // `browser-e2e` jobs never had the bug because they invoke Vitest and Playwright
-  // directly, without turbo (issue #150).
+  // turbo runs tasks in strict env mode: a task sees only what is declared here, so an
+  // undeclared knob is stripped silently. passThrough rather than `env` because these
+  // choose where identical work happens, and hashing them would miss the cache for
+  // byte-identical results. Prove a new knob arrives by giving it an unusable value and
+  // checking the task fails.
   //
-  // passThrough rather than `env`: these choose *where* an identical image comes
-  // from and whether a cleanup sidecar runs, so they must not be part of the task
-  // hash - hashing them would miss the cache on every machine that resolves a
-  // different mirror, for byte-identical results.
-  //
-  // Verify a new knob actually arrives with an unpullable value: if
-  // `QCMS_TEST_POSTGRES_IMAGE=localhost:1/nope pnpm exec turbo run test
-  // --filter @roonga/qcms-db --force` PASSES, the variable is being stripped.
-  // The `OTEL_*` knobs (task 054 / ADR-34) are deliberately NOT listed below, and
-  // that is the safe direction of the strict-env trap rather than an oversight. No
-  // turbo-run task needs them: the unit and integration suites never start an SDK
-  // (they assert the gate instead), and the traced proof lives in the Playwright
-  // suite, which runs without turbo and sets `OTEL_EXPORTER_OTLP_ENDPOINT` itself
-  // (pointed at its own in-test receiver, `apps/portal/e2e/support/otlp-receiver.ts`).
-  // Passing them through would mean a developer who exports an endpoint for the
-  // local trace viewer silently turns exporting on inside `pnpm test`. If a future
-  // turbo-run task ever must read one, add it here and prove it arrives the way the
-  // Postgres-image note below describes.
-  //
-  // `QCMS_PORT_SEAT` (issue #255) is listed for exactly the reason above. It picks
-  // both the `7Sxx` and `17Sxx` blocks this machine seat binds (docs/PORTS.md), and
-  // the portal project's unit tests read it through
-  // `apps/portal/e2e/support/harness-config.ts`. Without the passthrough a seat
-  // running `QCMS_PORT_SEAT=1 pnpm test` would see seat 0 inside Vitest and seat 1
-  // everywhere else, which is the same silent-divergence class the whole issue is
-  // about. It is passThrough rather than `env` because the seat chooses *where*
-  // identical work binds, not what the work computes: hashing it would miss the cache
-  // on every seat for byte-identical results.
+  // `OTEL_*` is deliberately absent: passing it through would turn exporting on inside
+  // `pnpm test` for anyone who has an endpoint exported for a local trace viewer. The
+  // Playwright suite runs without turbo and sets its own.
   "globalPassThroughEnv": [
     "QCMS_PORT_SEAT",
     "QCMS_TEST_POSTGRES_IMAGE",
@@ -88,15 +35,9 @@
     "DOCKER_AUTH_CONFIG"
   ],
   "tasks": {
-    // The probe task behind `scripts/turbo-passthrough-env.test.ts` (issue #154). It
-    // prints what actually reached a task turbo ran, which is the only way to observe
-    // strict env mode from outside: a test that reads `process.env` inside Vitest is
-    // running on the wrong side of the boundary that strips the variable.
-    //
-    // A root task (`//#`) so no workspace package carries a script it does not own, and
-    // `"cache": false` because the whole value of the run is that it EXECUTED - a
-    // replayed log would report a previous run's environment, which is the same
-    // false-green shape the test exists to catch.
+    // Prints what actually reached a task turbo ran, which is the only way to observe
+    // strict env mode from outside. A root task so no package owns a script for it, and
+    // uncached because a replayed log would report an earlier run's environment.
     "//#env-arrival": {
       "cache": false
     },
@@ -104,36 +45,12 @@
       "dependsOn": ["^build"],
       "outputs": ["dist/**"]
     },
-    // An `outputs` glob must match only files the build itself writes: turbo tars
-    // whatever matches when the task ends, and a later cache hit restores that over
-    // whatever is on disk, in any worktree (issue #57).
-    //
-    // `next build` writes `apps/portal/.next`. Two subdirectories under it are
-    // carved back out:
-    //   - `dev` is a dev server's live working directory. Since issue #54 the
-    //     portal's dev phase writes `.next-dev` instead (see next.config.ts), so
-    //     nothing writes `.next/dev` here any more, but the glob still named it, and
-    //     residue left by an older checkout or a stray `next dev` was being tarred
-    //     into the shared artifact and restored elsewhere: measured at 277 MB of dev
-    //     Turbopack cache and a dev log, against a 16 MB build. A planted marker file
-    //     under `.next/dev` was overwritten by a cache hit before this exclusion and
-    //     survives one after it.
-    //   - `cache` is Next's incremental cache between builds (a `.tsbuildinfo` from
-    //     the build's typecheck), not build product, and it is where a running
-    //     server would keep any data or image cache. Excluding it keeps a cache hit
-    //     from putting an older copy over a newer one.
-    // `next build` type-checks before it emits, over `apps/portal/tsconfig.json` - the
-    // same program the portal's `typecheck` task builds, with the same undeclared reach
-    // into `@roonga/qcms-db`, `@roonga/qcms-csv` and `@roonga/qcms-a2ui-compiler` (the
-    // note on `qcms-portal#typecheck` below has the full derivation). So `build` needs
-    // the same edges, and issue #810 is what that costs when it does not have them: a
-    // portal build failing with 40-odd TS2307s because `@roonga/qcms-db#build` was
-    // sitting between its `clean-dist` and its `tsc` at the moment the portal's checker
-    // read that `dist`. Issue #796 is the same gap seen from the typecheck side.
-    //
-    // `scripts/turbo-build-order.test.ts` now derives this class for `build` as well as
-    // for `typecheck` and `lint`, so the next missing edge fails structurally rather
-    // than as one more race.
+    // An `outputs` glob must match only what the build writes: turbo tars whatever matches,
+    // and a later cache hit restores that over whatever is on disk, in any worktree.
+    // `.next/dev` is a dev server's working directory and `.next/cache` is Next's
+    // incremental cache, so neither may be restored over newer local state. `next build`
+    // type-checks the same program as `qcms-portal#typecheck`, so it needs that task's
+    // extra edges too (the reason is on that task).
     "qcms-portal#build": {
       "dependsOn": [
         "^build",
@@ -143,19 +60,9 @@
       ],
       "outputs": [".next/**", "!.next/cache/**", "!.next/dev/**"]
     },
-    // The admin (task 031) writes `apps/admin/.next` and needs the same entry for the
-    // same reasons, plus one of its own: without it the generic `build` task's
-    // `dist/**` glob applies, matches nothing the admin produces, and turbo warns
-    // "no output files found" on every run while caching none of the build. The
-    // carve-outs mirror the portal's - `dev` because a stray dev directory under
-    // `.next` would be tarred into the shared artifact and restored over live dev
-    // state in any worktree (issue #54/#57), `cache` because Next's incremental cache
-    // is not build product and a hit must not put an older copy over a newer one.
-    // The admin's build carries the two edges its typecheck and lint carry, for the
-    // reason the note on `qcms-admin#typecheck` gives: `next build` type-checks the same
-    // program, so it reads the same two dists the admin's own manifest names neither of.
-    // Not observed as a failing run the way the portal's was (#810), and that is the
-    // point of a derived gate rather than a per-race fix.
+    // Without this entry the generic `build` task's `dist/**` glob matches nothing the
+    // admin writes, so turbo caches none of the build. Carve-outs and extra edges for the
+    // reasons on `qcms-portal#build`.
     "qcms-admin#build": {
       "dependsOn": ["^build", "@roonga/qcms-db#build", "@roonga/qcms-a2ui-compiler#build"],
       "outputs": [".next/**", "!.next/cache/**", "!.next/dev/**"]
@@ -163,33 +70,12 @@
     "test": {
       "dependsOn": ["build"]
     },
-    // The one test task in this repository whose real inputs are the whole workspace
-    // (issue #825). `packages/observability/src/otlp-log-allowlist.coverage.test.ts`
-    // resolves the repository root from its own module URL and walks every workspace
-    // member's `src` and `lib`, so that a new log message literal anywhere is either
-    // admitted to the OTLP export vocabulary or written down as deliberately opaque.
-    //
-    // Its CACHE KEY, though, was this package plus its dependencies, and the dependency
-    // arrow points the wrong way: `@roonga/qcms-observability` is imported BY the apps it
-    // scans, so no amount of `dependsOn` reaches them. A lane adding a log call in
-    // `apps/api/src` therefore changed nothing this task hashed, turbo replayed
-    // "cache hit, replaying logs", and `pnpm verify` was green locally on a warm cache
-    // while CI failed cold on the same commit. Confirmed live during PR #824, with both
-    // green local verifies logging a replay for this exact task while the new literals
-    // were unclassified.
-    //
-    // That is the #560 shape one level up: there a task read `dist` directories its graph
-    // did not order, here a task reads source files its cache key does not cover. A gate
-    // whose real inputs exceed its cache key does not fail late, it passes wrongly.
-    //
-    // The four globs mirror the scan's own reach (`SOURCE_ROOTS` x `SOURCE_DIRS` in that
-    // file), and `scripts/turbo-scan-inputs.test.ts` derives both sides and fails if they
-    // drift apart, so widening the walk cannot silently outrun the cache key again.
-    // `$TURBO_DEFAULT$` keeps the package's own files, which the globs do not name.
-    //
-    // The cost is real and is the point: this task now misses the cache whenever any app
-    // or package source changes, which is most commits. It is a sub-second Vitest project,
-    // and the alternative is a gate that reports on a tree it did not read.
+    // This suite walks every workspace member's `src` and `lib`, but its cache key would
+    // be this package and its dependencies, and the arrow points the wrong way: it is
+    // imported BY the apps it scans, so no `dependsOn` reaches them and turbo replays a
+    // green for a tree it never read. `scripts/turbo-scan-inputs.test.ts` fails if these
+    // globs and the scan's own reach drift apart. `$TURBO_DEFAULT$` keeps the package's
+    // own files, which the globs do not name.
     "@roonga/qcms-observability#test": {
       "dependsOn": ["build"],
       "inputs": [
@@ -203,71 +89,28 @@
     "typecheck": {
       "dependsOn": ["^build"]
     },
-    // Lint depends on build for the same reason typecheck does, and it was the one
-    // task that never said so (issue #560). ESLint runs with typed rules here
-    // (`parserOptions.projectService` in `eslint.config.js`), so
-    // `@typescript-eslint/no-unsafe-*` reads the same declaration files `tsc` does.
-    // With no `dependsOn` at all, `turbo run lint --filter=<pkg>` in a tree whose
-    // `dist/` directories are not present resolved every workspace import to `error`
-    // and reported unsafe-assignment violations that say nothing about the code. It
-    // only ever passed because `pnpm verify` runs `pnpm build` first and because a
-    // shared turbo cache replayed a green from a machine that had built.
+    // ESLint runs typed rules here (`parserOptions.projectService` in `eslint.config.js`),
+    // so it reads the same `dist` declaration files `tsc` does. Without this edge every
+    // workspace import resolves to `error` in an unbuilt tree.
     "lint": {
       "dependsOn": ["^build"]
     },
-    // The admin's two program-shaped tasks need TWO packages the admin itself does
-    // not depend on, so `^build` cannot reach them (issue #560, root cause of #632
-    // and of item 1 in #387).
-    //
-    // `apps/admin/tsconfig.json` includes `**/*.ts`, which takes in the Playwright
-    // harness under `apps/admin/e2e/`. Two of those files import apps/api SOURCE by
-    // relative path (`e2e/support/ops.ts` and `e2e/support/admin-account.ts` reach
-    // `../../../api/e2e/support/*` and `../../../api/src/*`), so the admin's tsc
-    // program transitively contains the API's source tree, which imports `@roonga/qcms-db`
-    // and `@roonga/qcms-a2ui-compiler`. Both resolve through `apps/api/node_modules`, and
-    // both publish their types from `dist`, so an unbuilt tree gives 30-odd
-    // "Cannot find module '@roonga/qcms-db'" errors and the implicit-`any` cascade behind
-    // them - in a package whose own manifest names neither.
-    //
-    // Declared here rather than by adding the two to `apps/admin/package.json`: the
-    // admin imports neither, and task 056 deliberately left it with no database
-    // client of its own (see the note in `apps/admin/e2e/support/admin-account.ts`),
-    // which a manifest dependency would quietly undo. This is a build-order fact
-    // about the admin's typecheck program, and this is where build order lives.
+    // Both program-shaped tasks below: `apps/admin/tsconfig.json` takes in the Playwright
+    // harness, which imports apps/api source by relative path, so the program transitively
+    // reads two dists the admin's own manifest names neither of and `^build` cannot reach.
+    // Declared here rather than as manifest dependencies, which would undo the admin
+    // having no database client of its own.
     "qcms-admin#typecheck": {
       "dependsOn": ["^build", "@roonga/qcms-db#build", "@roonga/qcms-a2ui-compiler#build"]
     },
     "qcms-admin#lint": {
       "dependsOn": ["^build", "@roonga/qcms-db#build", "@roonga/qcms-a2ui-compiler#build"]
     },
-    // The portal's two program-shaped tasks have exactly the same undeclared reach as
-    // the admin's, and never saying so is issue #765.
-    //
-    // `apps/portal/tsconfig.json` includes `**/*.ts`, which takes in the Playwright
-    // harness under `apps/portal/e2e/`. `e2e/support/api-server.ts` and
-    // `e2e/support/api-process-entry.ts` import apps/api SOURCE by relative path, so
-    // the portal's tsc program transitively contains the API's source tree, which
-    // imports `@roonga/qcms-db`, `@roonga/qcms-csv` and `@roonga/qcms-a2ui-compiler`. All three publish
-    // their types from `dist`, and the portal's own manifest names none of them.
-    //
-    // Undeclared, that is a latent build-order bug of the #560 shape. What turned it
-    // into a FLAKE is that since issue #494 every emitting package's build removes its
-    // own `dist` before `tsc` runs. With no edge, `qcms-portal#typecheck` starts as
-    // soon as `@roonga/qcms-ui` and `@roonga/qcms-observability` are built, while `@roonga/qcms-db#build` -
-    // pulled into the same run by some OTHER filter - is sitting between its
-    // `clean-dist` and its `tsc`, so the portal's tsc reads a `dist` that is not there.
-    // That is why `pnpm exec turbo run typecheck --filter=qcms-admin
-    // --filter=qcms-portal --force` failed with 40-odd TS2307s while either filter
-    // ALONE was green: alone, nothing asks for `@roonga/qcms-db#build`, the previous build's
-    // `dist` is never removed, and the undeclared read quietly succeeds. The clean is
-    // not the defect - it is what made a missing edge observable.
-    //
-    // Declared here rather than by adding the three to `apps/portal/package.json`: the
-    // portal holds no database credential and reaches the API over the internal
-    // network (R2, ADR-35), and a manifest dependency on `@roonga/qcms-db` would quietly undo
-    // that. This is a build-order fact about the portal's typecheck program, and this
-    // is where build order lives. `apps/e2e` takes the other route for the same
-    // problem, with its reason written in `apps/e2e/tsconfig.json`.
+    // Both tasks below have the admin's undeclared reach: the portal's tsconfig takes in
+    // its Playwright harness, which imports apps/api source by relative path, so the
+    // program reads three dists the portal's manifest names none of. Declared here rather
+    // than as manifest dependencies, which would undo the portal holding no database
+    // credential (R2, ADR-35).
     "qcms-portal#typecheck": {
       "dependsOn": [
         "^build",
@@ -284,12 +127,9 @@
         "@roonga/qcms-csv#build"
       ]
     },
-    // `apps/e2e` declares `@roonga/qcms-db` as a devDependency (the reason is in its
-    // tsconfig), which reaches `@roonga/qcms-core` and `@roonga/qcms-a2ui-compiler` through that
-    // package's own `^build`. It reaches neither `@roonga/qcms-csv` nor `@roonga/qcms-observability`,
-    // and its one spec consumes both through `../admin/e2e/support/*` and the API
-    // source behind it. Two missing edges of the portal's class, found by the same
-    // derived check rather than by a third failing run.
+    // `apps/e2e` reaches `@roonga/qcms-core` and `@roonga/qcms-a2ui-compiler` through its
+    // `@roonga/qcms-db` devDependency, but not these two, which its one spec consumes
+    // through the admin harness and the API source behind it.
     "qcms-e2e#typecheck": {
       "dependsOn": ["^build", "@roonga/qcms-csv#build", "@roonga/qcms-observability#build"]
     },
