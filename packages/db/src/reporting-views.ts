@@ -1,91 +1,20 @@
 /**
- * The `reporting` view set as a **generator** rather than as a literal migration
- * body (task 075, ADR-42, ADR-10, `docs/reporting-view.md`).
+ * The `reporting` view set, generated per environment and per workspace rather than
+ * written into one migration, where a second schema name would need a copy that drifts
+ * (ADR-42, `docs/reporting-view.md`).
  *
- * ## Why a generator
+ * An answer outside a group keeps its `questionId -> value` entry; an answer inside one is
+ * carried under one key per group id, holding an ordered array of `{"instance_id":
+ * "ins_...", "<questionId>": value, ...}`. A bare `jsonb_object_agg` over `questionId`
+ * would silently drop all but one answer per repeating group.
  *
- * Under ADR-40 the data plane is a schema per environment and the view set goes
- * with it (`reporting_<env>`), and after task 068 there is a view set per
- * workspace as well. A view whose SQL is a literal string inside one migration
- * cannot be created a second time under a second schema name without copying it,
- * and a copy is what drifts. So the DDL is a function of its schema names, the
- * migration body is this function's output, and {@link reportingViewColumns} is
- * the one list `docs/reporting-view.md`'s drift test compares the live catalogue
- * against. Tasks 064 and 067 call the same function with their own names.
- *
- * ## What changed in 075, and why it had to
- *
- * `reporting.responses.answers` was built with
- * `jsonb_object_agg(item ->> 'questionId', item -> 'value')`. Two locked answers
- * for one `questionId` is exactly what a repeating group produces (ADR-42), and
- * `jsonb_object_agg` **silently keeps one of them** - no error, no warning. That
- * is the data-loss window this task closes, and it is why 075 sits before the
- * two remaining presentations in the build order.
- *
- * The shape ruled for it (Q18, Code Owner, 2026-09-29):
- *
- * - every answer **outside** a group keeps its `questionId -> value` entry, so a
- *   form with no group produces a **byte-identical** `answers` object;
- * - every answer **inside** a group is carried under **one key per group id**,
- *   holding an ordered array of `{"instance_id": "ins_...", "<questionId>": value, ...}`;
- * - `reporting.answers_flat` gains a nullable `instance_id` and its grain becomes
- *   `(session, questionId, instanceId)`. Appending a column is a **minor**
- *   `@roonga/qcms-db` release under the documented stability promise.
- *
- * ## Where the group id comes from, and why it is the roster and not the definition
- *
- * A `LockedAnswer` is `{questionId, instanceId?, value}` (task 071): it names the
- * instance and **not** the group. Two tables could supply the missing half, and
- * the choice matters because losing an answer here is the thing this change
- * exists to stop:
- *
- * - **`answer_group_instances`** (chosen). A mint wrote one row per instance id
- *   for this session, so `instance_id -> group_id` is total over every instance
- *   id a locked answer can name, and it is a single indexed lookup on the
- *   session. It is also **data-plane only**, which keeps `reporting_<env>`
- *   reading `data_<env>` and nothing else when task 064 splits the schemas.
- * - `form_versions.definition`, walked for `items[].groupId`. Equally total, but
- *   it puts a control-plane join inside a per-environment view and re-walks a
- *   JSONB definition once per exported row.
- *
- * Totality is what makes the inner join below safe: `prepareSubmission` sets
- * `instanceId` only for a question the evaluator expanded from a group, and an
- * instance id exists only because a mint recorded it. Erasure and the retention
- * purge delete the roster rows and the submission in one transaction, so the two
- * cannot fall out of step in one direction either.
- *
- * ## Ordering, and which list is the live one
- *
- * The locked submission is already in document order for questions and roster
- * order for instances (ADR-42, section 5.3 of the plan), and `canonicalJson`
- * preserves array order. So order is recovered from the submission's own `WITH
- * ORDINALITY` positions rather than from a second read of the roster, which would
- * be a second source of truth for an order the submission already froze.
- *
- * **The instance list comes from `flowState.visible`, not from `answers`.** An
- * instance a respondent added and left blank is still live - that is what makes
- * "Add passenger" a thing a respondent can see happen - so a group whose members
- * are all optional can hold a live instance with no locked answer at all. Deriving
- * the list from `answers` would drop that instance and shift every later
- * instance's ordinal by one in the long CSV shape. `visible` carries one entry per
- * (visible question, live instance), which is the submission's own record of what
- * it showed, so it is both complete and already in the right order.
- *
- * **It is therefore "live and shown" rather than "live", and the gap is one case.**
- * An instance **all** of whose member questions are hidden by a rule has no
- * `visible` entry, so it is absent here exactly as its answers would be (I6) and
- * the ordinals after it close up. A group with one unconditional member question
- * cannot reach that state, and nothing in the locked submission records an instance
- * that contributed nothing to it, so the alternative would be re-deriving liveness
- * from the roster and the count source at read time - a second evaluator inside a
- * view. `docs/reporting-view.md` states the qualifier for a consumer.
- * `jsonb_array_length(answers -> '<groupId>')` is the count of instances live and
- * shown.
+ * The group id comes from `answer_group_instances`, which is total over every instance id
+ * a locked answer can name and is data-plane only; that totality is what makes the inner
+ * join below safe. The instance list comes from `flowState.visible`, since an instance a
+ * respondent added and left blank is still live, so it is "live and shown" rather than
+ * "live".
  */
 
-// The one copy of the SQL doubling rule. This module's own copy was the oldest of three
-// (PR #1099's round-2 review, finding 6); the helper imports nothing, so this file still
-// pulls in no schema, driver or `node:` module.
 import { sqlLiteral } from "./sql-literal.js";
 
 /** A view in the reporting schema, with its documented column list in order. */
@@ -95,12 +24,8 @@ export interface ReportingViewContract {
 }
 
 /**
- * The documented column list of each reporting view, in ordinal order.
- *
- * `instance_id` is **appended** to `answers_flat` rather than inserted beside
- * `question_id`: column order is not part of the stability promise, but
- * "appended" is the shape the promise calls a minor change, and a consumer
- * selecting `*` keeps the positions it had.
+ * Each reporting view's documented column list, in ordinal order. A new column is appended
+ * rather than inserted, so a consumer selecting `*` keeps the positions it had.
  */
 export const reportingViewColumns: readonly ReportingViewContract[] = [
   {
@@ -127,25 +52,20 @@ export interface ReportingViewSchemas {
   readonly reporting: string;
   /**
    * The schema holding `submissions`, `sessions`, `erasure_tombstones` and
-   * `answer_group_instances` (later `data_<env>`). Omitted leaves them
-   * unqualified, which is what the launch schema does: one data plane on the
+   * `answer_group_instances`. Omitted leaves them unqualified, for one data plane on the
    * connection's search path.
    */
   readonly data?: string | undefined;
 }
 
-/** `"reporting"."responses"`, or `"responses"` when no schema is given. */
 function qualified(schema: string | undefined, table: string): string {
   return schema === undefined ? `"${table}"` : `"${schema}"."${table}"`;
 }
 
 /**
- * `CREATE VIEW "<reporting>"."responses"`: one row per submitted, non-erased
- * session, answers in a single JSONB object.
- *
- * Row inclusion is unchanged and stays **in the view**: `sessions.status =
- * 'submitted'` plus the `erasure_tombstones` anti-join, so no consumer query can
- * read a non-submitted or erased response (ADR-17, `docs/reporting-view.md`).
+ * Row inclusion stays in the view - the submitted-only predicate plus the
+ * `erasure_tombstones` anti-join - so no consumer query can read a non-submitted or
+ * erased response (ADR-17).
  */
 function responsesView(schemas: ReportingViewSchemas): string {
   const submissions = qualified(schemas.data, "submissions");
@@ -223,18 +143,13 @@ WHERE "s"."status" = 'submitted'
 }
 
 /**
- * `CREATE VIEW "<reporting>"."answers_flat"`: the long projection, one row per
- * `(submitted session, questionId, instanceId)`.
+ * Derived from `responses`, so it inherits that view's row inclusion and there is no
+ * second exclusion rule to keep in step.
  *
- * Still derived from `reporting.responses`, so it inherits that view's row
- * inclusion exactly and there is no second exclusion rule to keep in step.
- *
- * **Telling a group array from a multiChoice array.** Both are JSONB arrays under
- * a key, so the split is structural rather than by key spelling: a group's value
- * is an array of **objects**, while a multiChoice value is an array of option id
- * **strings**. `jsonb_typeof(value -> 0) IS DISTINCT FROM 'object'` is written
- * with `IS DISTINCT FROM` because `-> 0` on a non-array is SQL NULL, and a plain
- * `<>` there would make the whole predicate NULL and drop every scalar answer.
+ * A group array and a multiChoice array are told apart structurally, since both are JSONB
+ * arrays under a key: a group's value is an array of objects, a multiChoice value an
+ * array of option id strings. `IS DISTINCT FROM` because `-> 0` on a non-array is SQL
+ * NULL, and a plain `<>` would make the whole predicate NULL and drop every scalar answer.
  */
 function answersFlatView(schemas: ReportingViewSchemas): string {
   return `CREATE VIEW ${qualified(schemas.reporting, "answers_flat")} AS
@@ -275,25 +190,16 @@ CROSS JOIN LATERAL (
 }
 
 /**
- * The statements that create the reporting view set, in dependency order
- * (`answers_flat` reads `responses`).
- *
- * `CREATE SCHEMA` is deliberately **not** here: migration 0003 created the
- * launch schema and task 064's baseline creates one per environment, so the
- * schema's lifecycle belongs to whoever owns the environment rather than to the
- * view bodies.
+ * The reporting view set, in dependency order. No `CREATE SCHEMA`: the schema's lifecycle
+ * belongs to whoever owns the environment.
  */
 export function reportingViewStatements(schemas: ReportingViewSchemas): readonly string[] {
   return [responsesView(schemas), answersFlatView(schemas)];
 }
 
 /**
- * The statements that **replace** an existing reporting view set with the current
- * one: drop the dependent view first, then recreate both.
- *
- * `DROP` rather than `CREATE OR REPLACE`, because replacing a view may not change
- * its column list and `answers_flat` gains one. `IF EXISTS` so the same body can
- * run against a schema that has no view set yet.
+ * Replaces an existing reporting view set. `DROP` rather than `CREATE OR REPLACE`, because
+ * replacing a view may not change its column list.
  */
 export function replaceReportingViewStatements(schemas: ReportingViewSchemas): readonly string[] {
   return [
@@ -304,119 +210,43 @@ export function replaceReportingViewStatements(schemas: ReportingViewSchemas): r
 }
 
 /**
- * A migration body: the replacement statements joined with drizzle-kit's own
- * statement separator, so a committed migration file is byte-comparable against
- * this generator (`reporting-views.test.ts` asserts exactly that, which is what
- * keeps the generator and the applied SQL one thing).
+ * A migration body, joined with drizzle-kit's own statement separator so a committed
+ * migration file is byte-comparable against this generator.
  */
 export function reportingViewMigrationSql(schemas: ReportingViewSchemas): string {
   return `${replaceReportingViewStatements(schemas).join("\n--> statement-breakpoint\n")}\n`;
 }
 
 /**
- * One workspace's view set inside one environment's reporting schema (Q26, task 067).
- *
- * # Why a filtered projection rather than a second copy of the view body
- *
- * Q26 gives each environment's schema **a view set per workspace**, every set with its
- * own read-only role, because this is the one place in the design where the
- * authorisation model is expressed in database grants rather than in an API check: a
- * reporting consumer writes their own SQL against a role an operator granted, so a check
- * in a handler would hold against nobody.
- *
- * The obvious way to build one is to emit the whole of {@link reportingViewStatements}
- * again with a `WHERE` added. That would put the erasure anti-join, the submitted-only
- * predicate and the repeat-group aggregation in N+1 places, and the one of those that
- * cannot be allowed to drift is the **row inclusion**: a per-workspace view that lost the
- * tombstone anti-join would serve an erased respondent's answers to an analyst, which is
- * the shape of the data-loss defect task 075 existed to fix one view over.
- *
- * So a workspace's views **select from the unprefixed views** and add nothing but the
- * filter. Row inclusion stays in one body, the repeat shape reaches every workspace
- * because it reaches that body, and what a workspace's set adds is exactly one predicate
- * a reader can check.
- *
- * # Why the filter is the workspace id and the name is the slug
- *
- * `control.forms.workspace_id` is the ownership (task 068) and an id is stable, so the
- * predicate reads it. The **view name** carries the slug, because the name is what a BI
- * tool's connection and an analyst's query hold and `home_responses` is the name Q26
- * writes. The two halves cannot disagree, because the generator takes both and the
- * reconciliation that calls it reads them off one row.
- *
- * # Why a cross-schema read is sound here
- *
- * The body reads `control.forms`, which the consumer role holds **no privilege on**. That
- * is Postgres's own rule working for this design rather than against it: privileges on a
- * view's underlying relations are checked against the view's **owner**, `qcms_migrate`, so
- * the role reads exactly the rows the view defines and reaches neither `control.forms` nor
- * the unfiltered views it is built from. Criterion 7 asserts both halves against a real
- * Postgres.
+ * One workspace's view set inside one environment's reporting schema. Its views select
+ * from the unprefixed pair and add nothing but the workspace filter, so the row inclusion
+ * stays in one body: a per-workspace view that lost the tombstone anti-join would serve an
+ * erased respondent's answers to an analyst.
  */
 export interface WorkspaceReportingViews {
-  /** The schema the views are created in, `reporting_<env>`. */
+  /** `reporting_<env>`. */
   readonly reporting: string;
-  /** The workspace's slug, which names the views. */
+  /** Names the views. */
   readonly slug: string;
-  /** The workspace's id, which filters them. */
+  /** Filters them. */
   readonly workspaceId: string;
   /** The control-plane schema holding `forms`. */
   readonly control: string;
 }
 
 /**
- * `CREATE OR REPLACE VIEW` for one workspace's pair, in dependency order.
+ * One workspace's pair, replaced in place so an adopter's BI tool keeps its connection and
+ * the reconciliation stays idempotent.
  *
- * **`CREATE OR REPLACE` rather than a drop and a create**, for two reasons pointing the
- * same way. Q67 (Code Owner, 2026-10-17) forbids any migration dropping a view, and
- * although this runs from an operator command rather than from a migration, the reason
- * behind that rule holds here too: these views are what an adopter's BI tool is connected
- * to. And replacing is what makes the reconciliation **idempotent**, which is what lets
- * an operator run it after every workspace they create without first working out what
- * already exists.
+ * `WITH (security_barrier = true)` is the privilege boundary and a plain view is not one:
+ * the planner may push a consumer's qual below the view's own filter and evaluate it
+ * against the rows the view exists to hide, which a data-dependent error (a non-leakproof
+ * `int4div`), a `COST 1` function in `pg_temp`, or a forced plan shape via the `USERSET`
+ * `join_collapse_limit` can each report without any privilege. Revoking `TEMP` would not
+ * be enough: the division probe needs no function at all.
  *
- * The column list is written out rather than `SELECT *`, so the catalogue carries the
- * documented columns in the documented order and `docs/reporting-view.md`'s drift test
- * reads the same list for a workspace's view as for the one it projects.
- *
- * # `security_barrier` is the control, and a plain view is not one
- *
- * **A plain view's `WHERE` is not a privilege boundary in PostgreSQL**, and this is the
- * one place in the design where that distinction decides whether a grant holds. The
- * planner may push a qual the consumer wrote *below* the view's own filter and evaluate it
- * against the rows the view exists to hide, and a qual can report what it saw in three
- * ways that need no privilege at all:
- *
- *   - a **data-dependent error**: `WHERE 1 / (CASE WHEN form_id = 'frm_other' THEN 0 ELSE
- *     1 END) = 1` raises `division by zero` only if a row of the other workspace reached
- *     it, and `int4div` is not `leakproof` precisely because it can;
- *   - a **cheap function** in `pg_temp` (`TEMP` on the database belongs to `PUBLIC` by
- *     default) declared `COST 1`, which the planner prefers to evaluate first and which
- *     can `RAISE NOTICE` every value it is handed;
- *   - the same function under `join_collapse_limit = 1` and `from_collapse_limit = 1`,
- *     both `USERSET`, so any role may choose the plan shape that pushes it down.
- *
- * The review of PR #1093 ran all three as `qcms_reporting_prod_home` against this
- * generator's output and read the **other** workspace's answers, session ids, form ids,
- * versions and access modes. `WITH (security_barrier = true)` closed all three and left the
- * legitimate read unchanged.
- *
- * `CREATE OR REPLACE VIEW` accepts `WITH`, so the reconciliation applies the option to a
- * view that already exists and **nothing is dropped**: Q67 stays intact and no BI tool's
- * connection breaks.
- *
- * # Why the option is not on the unfiltered pair as well
- *
- * `reporting_<env>.responses` and `answers_flat` are granted to `qcms_app_<env>` and to no
- * consumer (Q52). That role holds DML on its own `data_<env>`, so it can read every row
- * those views omit straight from the tables: the views are a projection for it, never a
- * boundary, and there is nothing for a barrier to defend. What a barrier would do there is
- * forbid pushdown on the application's own hot read path - the response list, the detail
- * and the export - for no privilege gained. The boundary is the outer view, which is where
- * the grant is, and that is where the option goes.
- *
- * Revoking `TEMP` on the database would not be enough on its own: the division probe needs
- * no function at all.
+ * The option is deliberately not on the unfiltered pair, which only `qcms_app_<env>` may
+ * read and which is a projection for that role rather than a boundary.
  */
 export function workspaceReportingViewStatements(views: WorkspaceReportingViews): string[] {
   const predicate =

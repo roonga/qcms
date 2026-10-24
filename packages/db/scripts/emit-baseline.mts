@@ -1,19 +1,7 @@
 #!/usr/bin/env node
-/**
- * Write the hand-authored half of the baseline migration from the schema modules.
- *
- * The generated half above it is `drizzle-kit generate`'s and is never touched here:
- * this script finds the marker, keeps everything before it, and replaces everything
- * from it onward with what `src/environment/baseline.ts` currently emits.
- *
- * Run it after changing the **data-plane** schema module, the per-environment generator
- * or the grants. `baseline.test.ts` fails until you have, which is the point: the
- * checked-in SQL and the module that produces it cannot drift, and the counts in the
- * plan and in ADR-40 are checked against the derivation rather than the other way
- * round.
- *
- *     pnpm --filter @roonga/qcms-db db:emit-baseline
- */
+// pnpm --filter @roonga/qcms-db db:emit-baseline
+//
+// Everything above the marker is `drizzle-kit generate`'s and is never touched here.
 import { readFileSync, writeFileSync } from "node:fs";
 import { fileURLToPath } from "node:url";
 

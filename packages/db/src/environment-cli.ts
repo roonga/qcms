@@ -1,43 +1,7 @@
 #!/usr/bin/env node
-/**
- * `qcms-db-environment` - create or drop an environment (ADR-40, Q1, Q24, Q42).
- *
- * ```
- * # Create `dev`, with its own role and credential.
- * DATABASE_URL=postgres://qcms_migrate:...@host:5432/qcms \
- *   qcms-db-environment create dev --password "$DEV_APP_PASSWORD"
- *
- * # Create it without a role, for an operator who provisions roles their own way.
- * DATABASE_URL=... qcms-db-environment create dev
- *
- * # Drop it. Refuses while it holds a session or an open form.
- * DATABASE_URL=... qcms-db-environment drop dev
- *
- * # Re-apply every grant and revoke, for every environment in the live set. The step a
- * # RESTORE needs, because `pg_dump --no-privileges` carries no grant (issue #1094).
- * DATABASE_URL=... qcms-db-environment regrant
- * ```
- *
- * ## Why a command and not an endpoint
- *
- * Creating an environment is DDL, and no application role holds DDL (SEC-10). So this
- * runs under the **migration** credential, from a shell, and **refuses the application
- * credential** by testing schema ownership rather than a role name - the shape
- * `qcms:reset-2fa` already uses, and for the same reason: a deployment that renamed its
- * roles would pass a name test connected as exactly the credential the guard is for.
- *
- * ## After creating one, restart the API
- *
- * The **credential** for a new environment is a per-environment entry in the typed
- * configuration (ADR-24) and arrives through the process environment, so a running
- * process knows nothing about an environment created under it. ADR-24 parses
- * configuration at boot and fails fast, so a reload path would be a new capability in
- * that decision rather than an implementation detail of this one. Restart is also the
- * honest operational story: the operator has just run a command with the migration
- * credential and is already in a change window. This command says so on success.
- *
- * Node built-ins are allowed here: this is a process boundary, not handler scope (R4).
- */
+// DATABASE_URL=... qcms-db-environment create|drop|reporting|regrant [...]
+//
+// Node built-ins are allowed here: this is a process boundary, not handler scope (R4).
 import process from "node:process";
 
 import { drizzle } from "drizzle-orm/node-postgres";
@@ -55,10 +19,8 @@ import { describeError } from "./environment/describe-error.js";
 import { regrantEnvironments, unreappliedNote } from "./environment/regrant.js";
 import { reconcileWorkspaceReporting } from "./environment/reporting.js";
 
-/** The executor shape the command's helpers take. */
 type Exec = Parameters<typeof ownsControlSchema>[0];
 
-/** `create`: the environment, its objects, its role and its settings. */
 async function runCreate(exec: Exec, parsed: ParsedArgs): Promise<number> {
   const created = await createEnvironment(exec, {
     name: parsed.name,
@@ -106,9 +68,7 @@ async function runReporting(exec: Exec, parsed: ParsedArgs): Promise<number> {
     pair === undefined ? {} : { create: pair },
   );
   for (const row of report.pairs) {
-    // The views always exist after this run; the role is the operator's, so the line says
-    // which it is and whether it is there, because a grant guarded on a missing role is a
-    // grant that silently did not land.
+    // The role is reported because a grant guarded on a missing one silently did not land.
     process.stdout.write(
       `${row.reportingSchema}: ${row.views.join(", ")} ` +
         `-> ${row.role}${row.roleExists ? "" : " (role not created yet)"}` +
@@ -121,17 +81,10 @@ async function runReporting(exec: Exec, parsed: ParsedArgs): Promise<number> {
       "pair(s). Grant a pair's role to an analyst's login and point their tool at " +
       "that schema; `docs/reporting-view.md` is the contract they read.\n",
   );
-  // A refusal is a pair that does not exist, which is a configuration fault an operator
-  // has to act on, so it is not a success.
+  // A refusal is a pair that does not exist: a configuration fault, not a success.
   return report.refusals.length === 0 ? 0 : 1;
 }
 
-/**
- * `regrant`: re-apply every grant and revoke in the model, for every environment.
- *
- * The step a restore needs. See `environment/regrant.ts` for why the dump cannot carry
- * them and why re-running `migrate` does not help (issue #1094).
- */
 async function runRegrant(exec: Exec): Promise<number> {
   const report = await regrantEnvironments(exec);
   const lines = report.passes.map((pass) => {
@@ -146,8 +99,7 @@ async function runRegrant(exec: Exec): Promise<number> {
       unreappliedNote(),
   );
   if (report.publicCreateGrantedToPublic) {
-    // A finding rather than a failure: the re-grant did what it can, and this needs a
-    // credential that owns `public`, which the migration role is not.
+    // A finding rather than a failure: fixing it needs a credential owning `public`.
     process.stderr.write(
       "WARNING: PUBLIC still holds CREATE on schema `public`. Run " +
         "`REVOKE CREATE ON SCHEMA public FROM PUBLIC` as a superuser or the database " +
@@ -162,7 +114,6 @@ async function runRegrant(exec: Exec): Promise<number> {
   return 0;
 }
 
-/** `drop`: narrowly, and reporting the refusal rather than a bare no. */
 async function runDrop(exec: Exec, name: string): Promise<number> {
   const refused = await dropEnvironment(exec, name);
   if (refused !== undefined) {
@@ -177,12 +128,10 @@ async function runDrop(exec: Exec, name: string): Promise<number> {
   return 0;
 }
 
-/** The SEC-10 guard and the chosen subcommand, on one connection. */
 async function run(exec: Exec, parsed: ParsedArgs): Promise<number> {
   const connected = await ownsControlSchema(exec);
   if (!connected.owns) {
-    // Never the connection string: it carries the password and this line goes to a
-    // terminal an operator may paste into an issue (SEC-8).
+    // Never the connection string: it carries the password (SEC-8).
     process.stderr.write(
       `qcms-db environment failed: ${connected.role} does not own the control schema. ` +
         "This command runs DDL and must use the migration credential, never an " +
@@ -204,9 +153,7 @@ async function main(): Promise<number> {
   }
   const parsed = result.args;
 
-  // `reporting` and `regrant` name no environment of their own: each acts on the whole
-  // live set, and the `--environment` of `reporting`'s one-pair form names a row that
-  // already exists and has therefore already passed this rule.
+  // `reporting --environment` names a row that already exists and so already passed this.
   const named = parsed.action !== "reporting" && parsed.action !== "regrant";
   const refusal = named ? refuseEnvironmentName(parsed.name) : undefined;
   if (refusal !== undefined) {
@@ -222,10 +169,8 @@ async function main(): Promise<number> {
 
   const pool = new pg.Pool({ connectionString: databaseUrl });
   try {
-    // `drizzle(pool)` with no schema is a handle this package's `Executor` alias describes
-    // structurally but does not match nominally: the alias is the schema-bound type the
-    // query helpers take, and nothing this command calls reads a declared table through
-    // it. The same cast `migrate.ts` makes, for the same reason.
+    // `drizzle(pool)` with no schema matches `Executor` structurally but not nominally,
+    // and nothing this command calls reads a declared table through it.
     return await run(drizzle(pool) as unknown as Exec, parsed);
   } catch (error) {
     process.stderr.write(`qcms-db environment failed: ${describeError(error)}\n`);
