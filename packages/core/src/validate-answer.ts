@@ -13,31 +13,19 @@ import { err, ok, type Result } from "./errors.js";
 import { optionIdsOf, type QuestionDefinition } from "./question-definition.js";
 
 /**
- * Answer validation (task 009, DOMAIN_SCHEMA §2.4 + §2.2 constraints).
+ * Answer validation (DOMAIN_SCHEMA §2.4 and the §2.2 constraints). Every failed
+ * constraint is returned rather than only the first, so the portal can render
+ * the full list beside the input.
  *
- * `validateAnswer` pairs an unknown value with its question: first the value
- * is parsed against the canonical encoding for the question's type (task 002
- * - text is NFC-normalized, multiChoice deduplicated), then **every**
- * constraint on the definition (task 003) is checked. All failed constraints
- * are returned, never just the first - the portal renders the full list next
- * to the input.
+ * `required` is deliberately not checked here: presence is a flow and
+ * submission concern (I9) rather than a property of a value.
  *
- * `required` is deliberately *not* checked here: presence is a flow/submission
- * concern (`prepareSubmission`, invariant I9), not a property of a value.
- * `EMPTY_ANSWER_NOT_ALLOWED` is not an exception to that - it does not ask
- * whether the question was answered, it refuses `""` and `[]` as *encodings*
- * of an answer for every question, required or not (ADR-33, below).
- *
- * Error contract: `{ code, constraint, message }`. `code` is the stable
- * localization key (the portal's shell catalog maps it later - codes are the
- * contract, messages are the built-in fallback); `constraint` names which
- * constraint failed (`"encoding"` for the parse stage). Messages may quote
- * constraint bounds (definition content) but never the submitted value
- * (SECURITY_DESIGN: answer values are never logged).
+ * `code` is the stable localization key and the actual contract; `message` is
+ * the built-in fallback. A message may quote a constraint bound, which is
+ * definition content, but never the submitted value (SECURITY_DESIGN).
  */
 
-/** Which check failed: a constraint key from the definition, or `"encoding"`
- * for the canonical-encoding parse stage, or `"options"` for membership. */
+/** The constraint that failed, with `"encoding"` for the parse stage. */
 export const ValidationConstraint = z.enum([
   "encoding",
   "minLength",
@@ -53,13 +41,10 @@ export const ValidationConstraint = z.enum([
 export type ValidationConstraint = z.infer<typeof ValidationConstraint>;
 
 /**
- * Closed union of validation error codes - the UI localization contract.
- * The `INVALID_*_ANSWER` members are the task-002 parse codes (the encoding
- * stage reuses them so a value that fails the same schema fails with the same
- * code everywhere); most of the rest map one-to-one onto the §2.2 constraints.
- * `EMPTY_ANSWER_NOT_ALLOWED` is the one code with no constraint behind it: it
- * carries ADR-33's "empty text and empty selections are absence, not answers"
- * (see {@link emptyAnswerError}).
+ * The UI localization contract. The encoding stage reuses the `INVALID_*`
+ * parse codes, so a value failing the same schema fails with the same code
+ * everywhere. `EMPTY_ANSWER_NOT_ALLOWED` is the one code with no constraint
+ * behind it; see {@link emptyAnswerError}.
  */
 export const ValidationErrorCode = z.enum([
   "EMPTY_ANSWER_NOT_ALLOWED",
@@ -81,7 +66,6 @@ export const ValidationErrorCode = z.enum([
 ]);
 export type ValidationErrorCode = z.infer<typeof ValidationErrorCode>;
 
-/** One failed check, suitable for direct UI display next to the input. */
 export const ValidationError = z.object({
   code: ValidationErrorCode,
   constraint: ValidationConstraint,
@@ -97,7 +81,6 @@ function failure(
   return { code, constraint, message };
 }
 
-/** The encoding-stage failure for each question type (task-002 codes). */
 function encodingError(question: QuestionDefinition): ValidationError {
   switch (question.type) {
     case "shortText":
@@ -129,35 +112,23 @@ function encodingError(question: QuestionDefinition): ValidationError {
 }
 
 /**
- * ADR-33's rule at the ingest boundary: **empty text and empty selections are
- * absence, not answers**, so `""` and `[]` are refused rather than stored.
+ * ADR-33 at the ingest boundary: empty text and empty selections are absence
+ * rather than answers, so they are refused rather than stored. The rule lives
+ * here, in front of every caller of the kernel, rather than at the control
+ * boundary alone, where a direct API post of `""` could satisfy `required`
+ * while holding nothing.
  *
- * Until this check existed the rule was enforced only at the control boundary
- * (the renderer's `absentIfEmptyText` / `absentIfNoSelection` and the no-JS
- * decoder), which left a hole one layer down: a direct API post of `""` or `[]`
- * was accepted, stored, and then *satisfied* `required` while holding nothing.
- * The rule belongs here because it is a single-value rule (R5), which puts it in
- * front of every caller of the kernel rather than in front of the two clients
- * that already got it right.
+ * It rejects and never rewrites the post into a retraction: clearing an answer
+ * has one spelling on the wire, a literal `null`, and the message names it so
+ * the fix is in the response.
  *
- * It **rejects**; it never quietly rewrites the post into a retraction. Clearing
- * an answer has one spelling on the wire - a literal `null` body value (ADR-33,
- * `POST /sessions/{id}/answers`) - and a client that meant to clear should say
- * so, not have an empty value reinterpreted for it. The message names that
- * spelling so the fix is in the response; it quotes no value (SECURITY_DESIGN:
- * answer values are never echoed, and there is nothing to echo here anyway).
+ * Reported as an `"encoding"` constraint and returned alone rather than joined
+ * to the constraint sweep, because the value is not a legal answer of this type
+ * at all. A `minSelected: 1` question would otherwise say "select at least 1"
+ * beside it, which reads as "select more" when nothing was selected.
  *
- * Reported as an `"encoding"` constraint: like the parse codes, it says the
- * value is not a legal answer of this question's type at all, which is also why
- * it is not authorable (ADR-32 - no author wrote a constraint to produce it) and
- * why it is returned alone rather than joined to the constraint sweep. A
- * `minSelected: 1` question would otherwise report "select at least 1" beside
- * it, which reads as "select more" when the answer is "that was never a
- * selection".
- *
- * Whitespace-only text is deliberately NOT refused here. Issue #128's ruling
- * keeps stored values faithful: `" "` is stored as typed and is denied
- * *presence* instead (`isBlankAnswerValue`), so it cannot satisfy `required`.
+ * Whitespace-only text is deliberately not refused here: it is stored as typed
+ * and denied presence instead ({@link isBlankAnswerValue}).
  */
 function emptyAnswerError(): ValidationError {
   return failure(
@@ -168,9 +139,8 @@ function emptyAnswerError(): ValidationError {
 }
 
 /**
- * Length constraints count UTF-16 code units of the NFC-normalized canonical
- * string - the same unit as JS `String.length` and HTML `maxlength`, so what
- * the kernel enforces is what the portal input shows.
+ * Lengths count UTF-16 code units of the canonical string, the same unit as
+ * HTML `maxlength`, so the kernel enforces what the portal input shows.
  */
 function checkTextConstraints(
   value: string,
@@ -209,16 +179,14 @@ function checkTextConstraints(
 }
 
 /**
- * Patterns run under the `u` flag, exactly as validated by the safe-pattern
- * subset at definition parse (task 003 - every accepted pattern is
- * linear-time-safe on the backtracking engine, so `.test` here cannot be a
- * ReDoS vector). Patterns are tested as authored - not implicitly anchored;
- * authors write `^...$` when they mean the whole value.
+ * Patterns run under the `u` flag, the flag the safe-pattern subset validated
+ * them against, so every accepted pattern is linear-time-safe here and this
+ * `.test` cannot be a ReDoS vector. They are tested as authored and never
+ * implicitly anchored.
  *
- * An uncompilable pattern is unreachable through `parseQuestionDefinition`
- * (PATTERN_INVALID at parse), but `validateAnswer` is total over its input
- * types: a hand-constructed definition with a broken pattern reports
- * PATTERN_MISMATCH rather than throwing (the value cannot be shown to match).
+ * A pattern that does not compile is unreachable through
+ * `parseQuestionDefinition`, but this stays total: a hand-constructed
+ * definition reports a mismatch rather than throwing.
  */
 function matchesPattern(value: string, pattern: string): boolean {
   try {
@@ -228,8 +196,8 @@ function matchesPattern(value: string, pattern: string): boolean {
   }
 }
 
-/** min/max bounds for number (numeric order) and date (lexicographic order
- * over the canonical fixed-width YYYY-MM-DD encoding = calendar order). */
+/** A date compares lexicographically, which over the canonical fixed-width
+ * encoding is calendar order. */
 function checkBounds(
   value: number | string,
   min: number | string | undefined,
@@ -247,10 +215,8 @@ function checkBounds(
 }
 
 /**
- * Validate an unknown value as an answer to `question`: parse against the
- * canonical encoding for the question's type, then check every constraint.
- * Returns the canonical value (NFC-normalized text, deduplicated multiChoice)
- * or **all** failed constraints. Never throws; never checks `required`.
+ * Validate an unknown value as an answer to `question`, returning the canonical
+ * value or every failed constraint. Never throws, and never checks `required`.
  */
 export function validateAnswer(
   question: QuestionDefinition,
@@ -320,8 +286,8 @@ export function validateAnswer(
       }
       const errors: ValidationError[] = [];
       const known = new Set(optionIdsOf(question));
-      // One membership error regardless of how many selections are unknown:
-      // the constraint failed once (and the ids must not be echoed).
+      // One membership error however many selections are unknown: the
+      // constraint failed once, and the ids must not be echoed.
       if (parsed.data.some((optionId) => !known.has(optionId))) {
         errors.push(
           failure(
@@ -331,7 +297,7 @@ export function validateAnswer(
           ),
         );
       }
-      // Selection counts apply to the canonical (deduplicated) selection.
+      // Counts apply to the canonical, deduplicated selection.
       const { minSelected, maxSelected } = question.constraints;
       if (minSelected !== undefined && parsed.data.length < minSelected) {
         errors.push(

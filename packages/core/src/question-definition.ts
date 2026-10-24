@@ -13,18 +13,15 @@ import {
 } from "./validation-message.js";
 
 /**
- * Question definitions (task 003, DOMAIN_SCHEMA §2.2, ADR-02, R6).
- *
- * `questionId` is identity (stable forever, never reused); `version` is
- * content. The seven-type union is closed per core release - adding a type is
- * a versioned core change, and the exhaustive helpers below make sure the
- * build breaks until every switch handles it.
+ * Question definitions (DOMAIN_SCHEMA §2.2, ADR-02, R6). `questionId` is
+ * identity and is never reused; `version` is content. The type union is closed
+ * per core release, and the exhaustive helpers below break the build until
+ * every switch handles a new member.
  */
 
 /**
- * Closed union of typed error codes for definition parsing. Validators are
- * all-errors-not-first (CONTRIBUTING): a parse failure carries every issue,
- * each with its code and path.
+ * Typed error codes for definition parsing. A parse failure carries every
+ * issue with its code and path, never only the first (CONTRIBUTING).
  */
 export const QuestionDefinitionErrorCode = z.enum([
   "INVALID_QUESTION_DEFINITION",
@@ -46,8 +43,8 @@ export type QuestionDefinitionError = z.infer<typeof QuestionDefinitionError>;
 
 type IssuePath = readonly (string | number)[];
 
-/** Module-typed wrapper over the shared coded-issue plumbing: only members of
- * QuestionDefinitionErrorCode can be attached here (typos are compile errors). */
+/** Narrows the shared coded-issue plumbing to this module's codes, so a typo
+ * is a compile error. */
 function addCodedIssue(
   ctx: z.core.$RefinementCtx,
   code: QuestionDefinitionErrorCode,
@@ -57,11 +54,7 @@ function addCodedIssue(
   addSharedCodedIssue(ctx, code, message, path);
 }
 
-/**
- * Declared before the union that references it (v1 of the schema doc had the
- * order reversed - a temporal-dead-zone error if transcribed literally).
- * `optionId` is stable within the question; rules reference these (R6).
- */
+/** `optionId` is stable within its question, and rules reference it (R6). */
 export const ChoiceOption = z
   .object({
     optionId: OptionId,
@@ -84,18 +77,16 @@ export const QuestionBase = z.object({
   required: z.boolean().default(false),
   /**
    * Author-supplied validation messages, one optional {@link LocalizedText} per
-   * constraint (task 048, ADR-32). Additive-optional and versioned with the
-   * question (R6): content stored before 048 parses unchanged, and an absent
-   * key inherits the portal's default. Which keys are *legal* for a given
-   * question is a publish check, not a parse one - see
-   * {@link authoredMessageKeys} and `compileDraft`'s `ORPHAN_MESSAGE_KEY`.
+   * constraint (ADR-32). An absent key inherits the portal's default. Which
+   * keys are legal for a question is a publish check rather than a parse one;
+   * see {@link authoredMessageKeys}.
    */
   messages: ValidationMessages.optional(),
 });
 export type QuestionBase = z.infer<typeof QuestionBase>;
 
-/** Reject duplicate optionIds within one question. Duplicates across
- * questions are fine - optionIds are scoped to their question. */
+/** Duplicates across questions are fine, since an optionId is scoped to its
+ * own question. */
 function checkUniqueOptionIds(options: readonly ChoiceOption[], ctx: z.core.$RefinementCtx): void {
   const seen = new Set<string>();
   options.forEach((option, index) => {
@@ -111,9 +102,8 @@ function checkUniqueOptionIds(options: readonly ChoiceOption[], ctx: z.core.$Ref
   });
 }
 
-/** min/max pairs are homogeneous per question type: numbers for number
- * questions, canonical YYYY-MM-DD strings for date questions (lexicographic
- * order over that encoding is calendar order). */
+/** A min/max pair is homogeneous per question type, and lexicographic order
+ * over the canonical date encoding is calendar order. */
 function exceeds(a: number | string, b: number | string): boolean {
   return typeof a === "number" && typeof b === "number" ? a > b : String(a) > String(b);
 }
@@ -183,8 +173,6 @@ const DateQuestion = QuestionBase.extend({
   type: z.literal("date"),
   constraints: z
     .object({
-      // Canonical timezone-less YYYY-MM-DD (task 002); lexicographic order
-      // over this encoding is calendar order, so string compare is correct.
       min: DateAnswerValue.optional(),
       max: DateAnswerValue.optional(),
     })
@@ -203,15 +191,10 @@ const DateQuestion = QuestionBase.extend({
 const BooleanQuestion = QuestionBase.extend({
   type: z.literal("boolean"),
   /**
-   * The two displayed labels, as authored content (task 048, ADR-36). Each is
-   * independently optional and falls back on its own to the compiler's
-   * `BOOLEAN_AFFIRMATION` lexicon entry for the active locale, so overriding
-   * "Yes" leaves "No" on the lexicon.
-   *
-   * Presentation payload only: the wire values stay `BOOLEAN_TRUE_VALUE` /
-   * `BOOLEAN_FALSE_VALUE`, the answer stays a boolean, and no rule, export or
-   * report changes meaning. Additive-optional and versioned with the question
-   * (R6) - content stored before 048 parses unchanged.
+   * The two displayed labels, as authored content (ADR-36). Each falls back on
+   * its own to the compiler's lexicon, so overriding "Yes" leaves "No" on it.
+   * Presentation only: the wire values and the boolean answer do not change, so
+   * no rule, export or report changes meaning.
    */
   yesLabel: LocalizedText.optional(),
   noLabel: LocalizedText.optional(),
@@ -253,8 +236,8 @@ const MultiChoiceQuestion = QuestionBase.extend({
       ["constraints", "maxSelected"],
     );
   }
-  // minSelected <= maxSelected <= options.length is a chain; when maxSelected
-  // is absent the transitive bound still applies directly to minSelected.
+  // The transitive bound still applies directly to minSelected when
+  // maxSelected is absent.
   if (minSelected !== undefined && minSelected > optionCount) {
     addCodedIssue(
       ctx,
@@ -266,10 +249,9 @@ const MultiChoiceQuestion = QuestionBase.extend({
 });
 
 /**
- * The closed discriminated union of the seven launch question types
- * (DOMAIN_SCHEMA §2.2). Constraint refinements run inside the matched
- * variant, so a failed parse reports every violated refinement with its
- * typed code and path.
+ * The closed union of question types (DOMAIN_SCHEMA §2.2). Constraint
+ * refinements run inside the matched variant, so a failed parse reports every
+ * violated refinement with its typed code and path.
  */
 export const QuestionDefinition = z.discriminatedUnion("type", [
   ShortTextQuestion,
@@ -284,9 +266,8 @@ export type QuestionDefinition = z.infer<typeof QuestionDefinition>;
 
 export type QuestionType = QuestionDefinition["type"];
 
-// `satisfies Record<QuestionType, true>` is a compile-time exhaustiveness
-// check: adding a union member without listing it here breaks the build, as
-// does listing a type that no longer exists.
+// The `satisfies` clause is the exhaustiveness check: adding a union member
+// without listing it here breaks the build, as does listing a stale one.
 const QUESTION_TYPE_SET = {
   shortText: true,
   longText: true,
@@ -307,9 +288,8 @@ function assertNeverQuestionType(definition: never): never {
 }
 
 /**
- * OptionIds carried by a definition ([] for non-choice types). The switch is
- * exhaustive over the discriminant with a `never` default - adding a question
- * type without handling it here is a build error, not a runtime surprise.
+ * OptionIds carried by a definition. The switch is exhaustive with a `never`
+ * default, so adding a question type without handling it is a build error.
  */
 export function optionIdsOf(definition: QuestionDefinition): readonly OptionId[] {
   switch (definition.type) {
@@ -330,10 +310,9 @@ export function optionIdsOf(definition: QuestionDefinition): readonly OptionId[]
 
 /**
  * The constraint-shaped fields of one definition, keyed by their
- * {@link ValidationMessageKey}. `undefined` (or `false`, for the boolean
- * `integer` flag) means the constraint is not active on this question. The
- * switch is exhaustive over the discriminant with a `never` default - adding a
- * question type without deciding its message keys is a build error.
+ * {@link ValidationMessageKey}. `undefined`, or `false` for a boolean flag,
+ * means the constraint is not active here. The switch is exhaustive with a
+ * `never` default, so a new question type must decide its message keys.
  */
 function constraintBag(
   definition: QuestionDefinition,
@@ -355,8 +334,8 @@ function constraintBag(
     }
     case "boolean":
     case "singleChoice":
-      // Neither type carries a constraint an author could decorate; `required`
-      // is added by `authoredMessageKeys` for every type.
+      // Neither type carries a constraint an author could decorate, and
+      // `required` is added by `authoredMessageKeys` for every type.
       return {};
     case "multiChoice": {
       const { minSelected, maxSelected } = definition.constraints;
@@ -369,16 +348,13 @@ function constraintBag(
 }
 
 /**
- * The constraint keys this question **carries**, and therefore the only keys an
- * author-supplied message map may use (ADR-32). In canonical
+ * The constraint keys this question carries, and therefore the only keys an
+ * author-supplied message map may use (ADR-32), in canonical
  * {@link VALIDATION_MESSAGE_KEYS} order.
  *
- * "Carries" is stricter than "the type could have": a `shortText` with no
- * `minLength` set can never produce a `LENGTH_BELOW_MIN` error, so a message for
- * `minLength` on it could never be shown. Publish reports such a key as
- * `ORPHAN_MESSAGE_KEY` rather than storing a message no respondent will ever
- * read, and the authoring editor renders a message field only for the keys this
- * function returns.
+ * Carrying a constraint is stricter than the type permitting one: a `shortText`
+ * with no `minLength` can never produce that error, so a message for it could
+ * never be shown and publish reports the key as orphaned.
  */
 export function authoredMessageKeys(
   definition: QuestionDefinition,
@@ -394,9 +370,8 @@ export function authoredMessageKeys(
 }
 
 /**
- * The shape the library stores per question version (DOMAIN_SCHEMA §4.2):
- * `questionId` is identity, `version` is content. Immutability of published
- * versions is enforced by storage + publish (tasks 013/021), not here.
+ * The shape the library stores per question version (DOMAIN_SCHEMA §4.2).
+ * Immutability of a published version is enforced by storage and publish.
  */
 export const QuestionVersionRecord = z.object({
   questionId: QuestionId,
@@ -413,9 +388,8 @@ function toDefinitionErrors(
 }
 
 /**
- * Parse an unknown value as a QuestionDefinition. All-errors-not-first:
- * every violated refinement is reported, each with its typed code and path.
- * Structural failures carry INVALID_QUESTION_DEFINITION.
+ * Parse an unknown value as a QuestionDefinition. Every violated refinement is
+ * reported with its typed code and path, never only the first.
  */
 export function parseQuestionDefinition(
   value: unknown,
@@ -431,9 +405,8 @@ export function isQuestionDefinition(value: unknown): value is QuestionDefinitio
 }
 
 /**
- * Parse an unknown value as a QuestionVersionRecord. Record-level structural
- * failures carry INVALID_QUESTION_VERSION_RECORD; issues inside the embedded
- * definition keep their own codes, with paths rooted at ["definition", ...].
+ * Parse an unknown value as a QuestionVersionRecord. An issue inside the
+ * embedded definition keeps its own code, with a path rooted at "definition".
  */
 export function parseQuestionVersionRecord(
   value: unknown,

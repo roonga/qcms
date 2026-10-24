@@ -114,7 +114,7 @@ describe("mintSecureLink / verifySecureLink", () => {
 
   it("throws on minting an invalid payload (programming bug, not a Result)", async () => {
     const key = await importCompactTokenKey(keyBytes(1));
-    // Type-level fine (expiresAt is a string), runtime-invalid (not ISO 8601).
+    // Type-correct, since the field is a string, and runtime-invalid.
     const invalid = { ...CLAIMS, expiresAt: "tomorrow" };
     await expect(mintSecureLink(invalid, key)).rejects.toThrow(/not valid LinkClaims/);
   });

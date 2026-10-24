@@ -79,35 +79,30 @@ describe("checkSafePattern", () => {
 });
 
 /**
- * Compile a pattern through a variable rather than a literal.
- *
- * The subject of these tests is a pattern the two regex flags read differently,
- * which is by construction something ESLint's `no-invalid-regexp` and sonarjs's
- * duplicate-character-class rules exist to flag. Passing the source through a
- * binding keeps the assertions honest - they still run the real engine - while
- * leaving nothing for a static rule to misread as a defect.
+ * Compiles through a binding rather than a literal, so the lint rules that
+ * exist to flag an ambiguous character class have nothing to misread, while the
+ * assertions still run the real engine.
  */
 function compiled(pattern: string, flags: string): RegExp {
   return new RegExp(pattern, flags);
 }
 
-/** The corpus of divergent patterns, named so the assertions read as prose. */
 const AMBIGUOUS_AMP = "[a&&b]";
 /** `&&` in a class that `v` refuses outright, so there is no second reading. */
 const V_INVALID_AMP = "[a&&b-]";
 
 describe("classSetAmbiguity (issue #53)", () => {
   it("reports '&&' inside a character class, which means two things at once", () => {
-    // Compiles under both flags: `{a, &, b}` under `u`, and the intersection of
-    // `{a}` and `{b}` (empty, so unmatchable) under `v`.
+    // Compiles under both flags: a three-member set under `u`, an empty and so
+    // unmatchable intersection under `v`.
     expect(compiled(AMBIGUOUS_AMP, "u").test("&")).toBe(true);
     expect(compiled(AMBIGUOUS_AMP, "v").test("&")).toBe(false);
     expect(classSetAmbiguity(`^${AMBIGUOUS_AMP}+$`)).toBe("&&");
   });
 
   it("reports '--' inside a character class", () => {
-    // `[!--0]` is the range `!`..`-` plus `0` under `u`, and a class-set
-    // difference under `v`. Both compile, so nothing downstream complains.
+    // A range plus a literal under `u`, a class-set difference under `v`. Both
+    // compile, so nothing downstream complains.
     expect(classSetAmbiguity("^[!--0]+$")).toBe("--");
   });
 
@@ -125,20 +120,17 @@ describe("classSetAmbiguity (issue #53)", () => {
   });
 
   it("is silent for a pattern that does not compile under 'v' at all", () => {
-    // No browser reading to disagree with: the render-time normalize-or-omit
-    // path (issue #52) owns this case, not the ambiguity advisory.
+    // No browser reading to disagree with, so the render-time
+    // normalize-or-omit path owns this case rather than the advisory.
     expect(compiled(V_INVALID_AMP, "u").source).toBe(V_INVALID_AMP);
     expect(() => compiled(V_INVALID_AMP, "v")).toThrow();
     expect(classSetAmbiguity(V_INVALID_AMP)).toBeUndefined();
   });
 
   it("is silent for a pattern that does not compile under 'u' at all", () => {
-    // The mirror case, and the one the guard was added for: `\q{...}` is
-    // `v`-only syntax, so this has a browser reading and no kernel reading. The
-    // `&&` inside it is unambiguously the intersection operator, and naming a
-    // divergence would name one from a reading that does not exist.
-    // `compileDraft` never reaches here with such a pattern (checkSafePattern
-    // compiles under `u` first), but this is a public export.
+    // `\q{...}` is `v`-only syntax, so this has a browser reading and no kernel
+    // one, and naming a divergence would name it from a reading that does not
+    // exist.
     const U_INVALID_AMP = "[\\q{ab}&&\\q{cd}]";
     expect(() => compiled(U_INVALID_AMP, "u")).toThrow();
     expect(compiled(U_INVALID_AMP, "v").source).toBe(U_INVALID_AMP);
@@ -151,11 +143,9 @@ describe("classSetAmbiguity (issue #53)", () => {
 });
 
 /**
- * The three patterns this repository's own fixtures carry that a browser
- * refuses (issue #53). They are named here rather than read off disk because
- * this is the kernel's test and two of the three files belong to other
- * packages; the API's boundary test posts the same three fresh, which is what
- * proves reject-new-only actually bites.
+ * The patterns this repository's own fixtures carry that a browser refuses.
+ * Named here rather than read off disk, because two of the three files belong
+ * to other packages.
  */
 const FIXTURE_V_INVALID: readonly { readonly where: string; readonly pattern: string }[] = [
   {
@@ -171,7 +161,7 @@ const FIXTURE_V_INVALID: readonly { readonly where: string; readonly pattern: st
 
 describe("compilesUnderV and toVSafePattern (issues #52, #53)", () => {
   it.each(FIXTURE_V_INVALID)("$where is refused by a browser's compiler", ({ pattern }) => {
-    // These parse and serve perfectly well; a browser is what rejects them.
+    // These parse and serve perfectly well; a browser is what refuses them.
     expect(checkSafePattern(pattern)).toBeUndefined();
     expect(compilesUnderV(pattern)).toBe(false);
   });
@@ -183,7 +173,7 @@ describe("compilesUnderV and toVSafePattern (issues #52, #53)", () => {
       expect(suggestion).toBeDefined();
       expect(suggestion).not.toBe(pattern);
       expect(compilesUnderV(suggestion as string)).toBe(true);
-      // Same matched set: the rewrite only escapes literals `v` reserves.
+      // The matched set is unchanged, since the rewrite only escapes literals.
       const before = compiled(pattern, "u");
       const after = compiled(suggestion as string, "u");
       for (const sample of ["Ann-Marie O'Neil", "ABC-123", "", "-", "a", "ZZ9"]) {
@@ -193,15 +183,15 @@ describe("compilesUnderV and toVSafePattern (issues #52, #53)", () => {
   );
 
   it("returns a pattern a browser already accepts byte-identical", () => {
-    // The guarantee that keeps a working `&&` intersection from being rewritten.
+    // This is what keeps a working `&&` intersection from being rewritten.
     expect(toVSafePattern("^[a-z]{2,10}$")).toBe("^[a-z]{2,10}$");
     expect(toVSafePattern(AMBIGUOUS_AMP)).toBe(AMBIGUOUS_AMP);
   });
 
   it("gives up rather than guess when the rewrite would not be provably safe", () => {
     // A mid-class dash is a range operator under `u`, so escaping it could
-    // change the matched set. Omission is the correct degradation: the API is
-    // the validation authority (R2), a wrong pattern is not.
+    // change the matched set. Omitting the hint is the correct degradation,
+    // since the API is the validation authority (R2).
     expect(compilesUnderV("^[a-z-A]+$")).toBe(false);
     expect(toVSafePattern("^[a-z-A]+$")).toBeUndefined();
   });

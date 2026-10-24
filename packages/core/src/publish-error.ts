@@ -9,16 +9,10 @@ import type { QuestionVersionRecord } from "./question-definition.js";
 import { ValidationMessageKey } from "./validation-message.js";
 
 /**
- * The typed publish error model (task 004, DOMAIN_SCHEMA §4.1). This is the
- * contract `compileDraft` (008) returns and the admin UI (034) renders
- * verbatim: a closed discriminated union on `code`, each variant carrying a
- * human `message` and a *structured* path (domain locations like
- * `{ step, question }`, not positional indices - the draft may be re-ordered
- * between validate and render, the IDs still resolve).
- *
- * Publish reports are always complete: `PublishResult.err` carries **all**
- * errors, never first-only. The checks that *produce* these errors are tasks
- * 005 (rule content) and 008 (publish invariants) - out of scope here.
+ * The typed publish error model (DOMAIN_SCHEMA §4.1): a closed union on `code`,
+ * each variant carrying a human `message` and a structured domain path rather
+ * than positional indices, so a draft re-ordered between validate and render
+ * still resolves. Publish reports are always complete, never first-only.
  */
 export const PublishErrorCode = z.enum([
   "DANGLING_QUESTION_REF",
@@ -26,29 +20,14 @@ export const PublishErrorCode = z.enum([
   "DANGLING_STEP_REF",
   "UNPUBLISHED_QUESTION_PIN",
   "LOCALE_INCOMPLETE",
-  // A LocalizedText entry whose value is whitespace only (issue #366): the
-  // schema stays permissive so published snapshots keep parsing (R1), so the
-  // publish gate is where a blank label is refused.
   "BLANK_LOCALIZED_TEXT",
   "RULE_BACKWARD_TARGET",
   "RULE_CYCLE",
   "RULE_DEPTH_EXCEEDED",
   "RULE_TYPE_MISMATCH",
   "DUPLICATE_QUESTION_IN_FORM",
-  // Parse-level sibling of DUPLICATE_QUESTION_IN_FORM (the minimum set
-  // already includes that one): compileDraft accepts a raw draft, so its
-  // report must be able to carry the form's parse-level refinements too.
   "DUPLICATE_STEP_ID",
-  // An author-supplied validation message keyed by a constraint the question
-  // does not carry (task 048, ADR-32): a message no respondent could ever see.
   "ORPHAN_MESSAGE_KEY",
-  // The repeating group's publish invariants (task 071, ADR-42). All nine are
-  // ordinary members of this union and are reported alongside the others rather
-  // than short-circuiting. There is deliberately **no**
-  // `REPEAT_MAX_ABOVE_CEILING`: the Code Owner's ruling of 2026-09-29 (Q14)
-  // removed the installation-wide instance ceiling, so publish checks that a
-  // `max` is declared and coherent with `min`, and never that it is small
-  // enough.
   "DUPLICATE_GROUP_ID",
   "REPEAT_NESTING_NOT_ALLOWED",
   "REPEAT_MAX_MISSING",
@@ -58,16 +37,10 @@ export const PublishErrorCode = z.enum([
   "INSTANCE_LABEL_PLACEHOLDER_UNKNOWN",
   "RULE_TARGETS_SPAN_SCOPES",
   "REPEAT_EVALUATION_BUDGET_EXCEEDED",
-  // The four the Code Owner ruled on 2026-09-29 (Q24 to Q26), each closing a
-  // shape that published cleanly and could never fire.
   "DANGLING_GROUP_REF",
   "REPEAT_OPERATOR_NESTING_NOT_ALLOWED",
   "RULE_READS_GROUP_WITHOUT_OPERATOR",
   "REPEAT_COUNT_INSIDE_GROUP",
-  // A member question whose type the `table` presentation does not admit as a
-  // column (Q12, task 077, ADR-43). It is a refusal about a PRESENTATION rather
-  // than about a group: the same member list published under the stacked
-  // presentation is legal, which is why the message names that presentation.
   "TABLE_COLUMN_TYPE_NOT_ALLOWED",
 ]);
 export type PublishErrorCode = z.infer<typeof PublishErrorCode>;
@@ -75,13 +48,11 @@ export type PublishErrorCode = z.infer<typeof PublishErrorCode>;
 const message = z.string().min(1);
 
 /**
- * One variant per code, each with the path shape that locates that failure.
- * Optional keys mean "where applicable": e.g. a dangling question reference
- * may come from a step pin or from a rule condition; a locale gap without
- * step/question/option keys is the form title itself.
+ * One variant per code, each with the path shape that locates that failure. An
+ * optional key means "where applicable": a locale gap with no step, question or
+ * option key is the form title itself.
  */
 export const PublishError = z.discriminatedUnion("code", [
-  // A pinned or rule-referenced questionId that does not exist.
   z.object({
     code: z.literal("DANGLING_QUESTION_REF"),
     message,
@@ -91,41 +62,33 @@ export const PublishError = z.discriminatedUnion("code", [
       rule: RuleId.optional(),
     }),
   }),
-  // A rule references an optionId the pinned question version does not carry.
   z.object({
     code: z.literal("DANGLING_OPTION_REF"),
     message,
     path: z.object({ rule: RuleId, question: QuestionId, option: OptionId }),
   }),
-  // A rule's show-target names a stepId that is not in the form.
   z.object({
     code: z.literal("DANGLING_STEP_REF"),
     message,
     path: z.object({ rule: RuleId, step: StepId }),
   }),
-  // A pin references a question version that is not published (R1).
   z.object({
     code: z.literal("UNPUBLISHED_QUESTION_PIN"),
     message,
     path: z.object({ step: StepId, question: QuestionId, version: z.number().int().positive() }),
   }),
-  // A LocalizedText is missing the form's defaultLocale (invariant I3).
   z.object({
     code: z.literal("LOCALE_INCOMPLETE"),
     message,
     path: z.object({
       locale: LocaleCode,
       step: StepId.optional(),
-      // A repeating group's own label and instance-label template are authored
-      // text like any other, so both text checks reach them (ADR-42).
       group: GroupId.optional(),
       question: QuestionId.optional(),
       option: OptionId.optional(),
     }),
   }),
-  // A LocalizedText entry carries only whitespace (issue #366). The path is
-  // the LOCALE_INCOMPLETE path: the same locations, a different verdict about
-  // the value found there.
+  // Same locations as LOCALE_INCOMPLETE, a different verdict about the value.
   z.object({
     code: z.literal("BLANK_LOCALIZED_TEXT"),
     message,
@@ -137,33 +100,27 @@ export const PublishError = z.discriminatedUnion("code", [
       option: OptionId.optional(),
     }),
   }),
-  // A rule target does not appear strictly after every question its
-  // condition references (ADR-16 forward-only).
   z.object({
     code: z.literal("RULE_BACKWARD_TARGET"),
     message,
     path: z.object({ rule: RuleId, target: z.union([QuestionId, StepId]) }),
   }),
-  // A cycle in the reads→shows graph (ADR-16); the path lists the rules on it.
   z.object({
     code: z.literal("RULE_CYCLE"),
     message,
     path: z.object({ rules: z.array(RuleId).min(1) }),
   }),
-  // Condition nesting deeper than the cap of 8 (DOMAIN_SCHEMA §3).
   z.object({
     code: z.literal("RULE_DEPTH_EXCEEDED"),
     message,
     path: z.object({ rule: RuleId }),
   }),
-  // A condition operator applied to a question type it is not valid for
-  // (e.g. contains on a non-multiChoice question, ADR-21).
   z.object({
     code: z.literal("RULE_TYPE_MISMATCH"),
     message,
     path: z.object({ rule: RuleId, question: QuestionId }),
   }),
-  // A question pinned more than once; the path names the later occurrence.
+  // The path names the later occurrence.
   z.object({
     code: z.literal("DUPLICATE_QUESTION_IN_FORM"),
     message,
@@ -174,68 +131,50 @@ export const PublishError = z.discriminatedUnion("code", [
     message,
     path: z.object({ step: StepId }),
   }),
-  // A question supplies a validation message for a constraint it does not
-  // carry (ADR-32); the path names the question and the offending key.
   z.object({
     code: z.literal("ORPHAN_MESSAGE_KEY"),
     message,
     path: z.object({ question: QuestionId, constraint: ValidationMessageKey }),
   }),
-  // A groupId used more than once in the form (ADR-42). Form-scoped ids are
-  // permanent within a form the way a stepId is, so a duplicate is malformed.
   z.object({
     code: z.literal("DUPLICATE_GROUP_ID"),
     message,
     path: z.object({ group: GroupId, step: StepId }),
   }),
-  // A repeating group inside a repeating group (ADR-42, Q13): a hard depth of
-  // one. Refused at parse as well, where a nested group matches neither member
-  // of the step item union; this variant is what a definition constructed
-  // without the parser is reported with.
+  // Refused at parse too; this variant reports a definition built without the
+  // parser.
   z.object({
     code: z.literal("REPEAT_NESTING_NOT_ALLOWED"),
     message,
     path: z.object({ group: GroupId, step: StepId }),
   }),
-  // A `fromAnswer` or `open` count source with no `max` (ADR-42, Q4 as amended
-  // by Q14). With no installation-wide ceiling the group's own `max` is the
-  // only bound there is, so it is required on every source that is not `fixed`.
   z.object({
     code: z.literal("REPEAT_MAX_MISSING"),
     message,
     path: z.object({ group: GroupId, step: StepId }),
   }),
-  // A group whose `min` is above its `max`: a range no instance count can sit
-  // in.
   z.object({
     code: z.literal("REPEAT_MIN_ABOVE_MAX"),
     message,
     path: z.object({ group: GroupId, step: StepId }),
   }),
-  // A `fromAnswer` count question that does not precede the group's whole span
-  // in document order (ADR-16 as amended).
   z.object({
     code: z.literal("REPEAT_COUNT_BACKWARD_REF"),
     message,
     path: z.object({ group: GroupId, question: QuestionId }),
   }),
-  // A `fromAnswer` count source pointing at a question that is not a `number`.
   z.object({
     code: z.literal("REPEAT_COUNT_NOT_A_NUMBER"),
     message,
     path: z.object({ group: GroupId, question: QuestionId }),
   }),
-  // An `instanceLabel` template carrying a placeholder other than `{n}`
-  // (ADR-42, Q6). A template with no placeholder at all is legal - a group of
-  // one has nothing to number.
   z.object({
     code: z.literal("INSTANCE_LABEL_PLACEHOLDER_UNKNOWN"),
     message,
     path: z.object({ group: GroupId, locale: LocaleCode, placeholder: z.string() }),
   }),
-  // One rule's `show` list straddling a group boundary (ADR-03 as amended): the
-  // rule would be per-instance and whole-form at once. `"form"` is the scope of
-  // every target outside every group, step targets included.
+  // `"form"` is the scope of every target outside every group, step targets
+  // included.
   z.object({
     code: z.literal("RULE_TARGETS_SPAN_SCOPES"),
     message,
@@ -244,57 +183,33 @@ export const PublishError = z.discriminatedUnion("code", [
       scopes: z.array(z.union([GroupId, z.literal("form")])).min(2),
     }),
   }),
-  // A cross-group whole-group operator whose `max_H x max_G` exceeds
-  // REPEAT_EVALUATION_BUDGET (ADR-16 as amended). A cost bound on one rule
-  // shape, never a cap on either group's size.
   z.object({
     code: z.literal("REPEAT_EVALUATION_BUDGET_EXCEEDED"),
     message,
     path: z.object({ rule: RuleId, targetGroup: GroupId, readGroup: GroupId }),
   }),
-  // A whole-group operator naming a group the form does not declare (Q24,
-  // Code Owner, 2026-09-29). It is the group-shaped sibling of
-  // DANGLING_QUESTION_REF, and it exists for the same reason: without it the
-  // rule publishes cleanly, `anyInstance` and `everyInstance` over the unknown
-  // group are false forever, `instanceCount` reads zero, and nothing anywhere
-  // tells the author why the question they gated never appears.
   z.object({
     code: z.literal("DANGLING_GROUP_REF"),
     message,
     path: z.object({ rule: RuleId, group: GroupId }),
   }),
-  // A whole-group operator inside another whole-group operator's condition
-  // (Q25, Code Owner, 2026-09-29), including the same group nested in itself
-  // and nesting reached through `and`, `or` or `not`. Nesting multiplies the
-  // per-instance walks, so a nested pair costs the product of their maxima
-  // whatever the rule targets, which is precisely what the evaluation budget
-  // exists to bound and cannot bound while nesting is unlimited.
   z.object({
     code: z.literal("REPEAT_OPERATOR_NESTING_NOT_ALLOWED"),
     message,
     path: z.object({ rule: RuleId, outerGroup: GroupId, innerGroup: GroupId }),
   }),
-  // A bare reference to a question inside a group, from a rule that is not
-  // evaluated inside that group (Q26, Code Owner, 2026-09-29). Such a question
-  // has one answer per instance, so the reference has no single value to read
-  // and the evaluator resolves it to nothing for every respondent.
   z.object({
     code: z.literal("RULE_READS_GROUP_WITHOUT_OPERATOR"),
     message,
     path: z.object({ rule: RuleId, question: QuestionId, group: GroupId }),
   }),
-  // A `fromAnswer` count question that itself sits inside a repeating group
-  // (Q26, Code Owner, 2026-09-29): its answer is per instance, so there is no
-  // single count for the group it sizes to read.
   z.object({
     code: z.literal("REPEAT_COUNT_INSIDE_GROUP"),
     message,
     path: z.object({ group: GroupId, question: QuestionId }),
   }),
-  // A member question of a `table`-presented group whose type is not one of the
-  // five allowed cell types (Q12, task 077). `type` is carried on the path so the
-  // admin can say which type was refused without re-resolving the pin, and the
-  // message names the stacked presentation as the author's way forward.
+  // `type` is on the path so the admin can name the refused type without
+  // re-resolving the pin.
   z.object({
     code: z.literal("TABLE_COLUMN_TYPE_NOT_ALLOWED"),
     message,
@@ -312,32 +227,23 @@ export type PublishError = z.infer<typeof PublishError>;
 export type PublishErrorOf<C extends PublishErrorCode> = Extract<PublishError, { code: C }>;
 
 /**
- * What `compileDraft` (008, `compile-draft.ts`) returns on success
- * (DOMAIN_SCHEMA §4.1): the validated definition *plus* the resolved
- * `QuestionVersionRecord` per pin (in document order - the snapshot is
- * self-contained, R1), deep-frozen, stamped with the evaluation-semantics
- * version it was validated under (ADR-16) and the snapshot schema version.
- * The storage row (013) adds compiled A2UI and its version stamps around it;
- * core never attaches compiled output (011/022's job).
+ * What a successful publish freezes (DOMAIN_SCHEMA §4.1): the definition plus
+ * the question version each pin resolved to, so the snapshot is
+ * self-contained (R1), stamped with the semantics and schema versions it was
+ * validated under. Compiled A2UI is attached outside core.
  */
 export type FrozenSnapshot = {
   readonly definition: FormDefinition;
-  /** The pinned question versions the definition resolved against, one per
-   * distinct pin, in document order. */
+  /** One per distinct pin, in document order. */
   readonly questions: readonly QuestionVersionRecord[];
   readonly semanticsVersion: number;
   readonly schemaVersion: number;
 };
 
 /**
- * What a *successful* publish yields (issue #123): the frozen snapshot, plus
- * every advisory the checks raised on the way.
- *
- * The warnings ride the success branch rather than a channel of their own, and
- * that placement is the contract: a warning is by definition something that
- * did not stop the publish, so a result carrying warnings always carries a
- * snapshot too. A caller that only reads `snapshot` behaves exactly as it did
- * before the channel existed.
+ * The frozen snapshot plus every advisory the checks raised. Warnings ride the
+ * success branch rather than a channel of their own, because a warning did not
+ * stop the publish, so a result carrying warnings always carries a snapshot.
  */
 export type PublishOutcome = {
   readonly snapshot: FrozenSnapshot;
@@ -346,9 +252,8 @@ export type PublishOutcome = {
 };
 
 /**
- * The publish contract (DOMAIN_SCHEMA §4.1): `ok({ snapshot, warnings })` when
- * every invariant holds, otherwise `err` with **all** publish errors - atomic,
- * nothing persisted, never first-only.
+ * The publish contract (DOMAIN_SCHEMA §4.1): atomic, and on failure every
+ * publish error rather than the first.
  */
 export type PublishResult = Result<PublishOutcome, readonly PublishError[]>;
 
@@ -359,8 +264,7 @@ function assertNeverPublishError(error: never): never {
 
 /**
  * Where a `LocalizedText` verdict was reached, written for a human. Shared by
- * the two codes that report on one: a missing default locale and a blank one
- * name the same sites and differ only in what was found there.
+ * the two codes that report on one, which name the same sites.
  */
 function textSite(path: {
   readonly step?: StepId | undefined;
@@ -379,9 +283,8 @@ function textSite(path: {
 
 /**
  * Human-readable location of a publish error, rendered from its structured
- * path (the admin UI's default presentation next to the message). The switch
- * is exhaustive over the code union with a `never` default - adding a code
- * without handling it here is a build error, not a runtime surprise.
+ * path. The switch is exhaustive with a `never` default, so adding a code
+ * without handling it here is a build error rather than a runtime surprise.
  */
 export function publishErrorLocation(error: PublishError): string {
   switch (error.code) {

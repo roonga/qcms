@@ -44,7 +44,6 @@ function makeQuestion(definition: unknown): QuestionDefinition {
   return result.value;
 }
 
-/** Resolver over the task-003 question fixtures (what the fixture forms pin). */
 function fixtureResolver(): ResolveQuestion {
   const byId = new Map<string, QuestionDefinition>();
   for (const file of readdirSync(path.join(FIXTURES_DIR, "questions", "valid"))) {
@@ -54,15 +53,13 @@ function fixtureResolver(): ResolveQuestion {
   return (questionId) => byId.get(questionId);
 }
 
-// Casts justified: test ids are known-valid `q_*`/`opt_*` literals matching the
-// branded patterns; branding once here keeps call sites free of Result unwraps.
+// Casts justified: known-valid literals matching the branded patterns, branded
+// once here so no call site needs a Result unwrap.
 const asQuestionId = (id: string): QuestionId => id as QuestionId;
 const asOptionId = (id: string): OptionId => id as OptionId;
 
-/** A multiChoice AnswerValue (OptionId[]) from option-id literals. */
 const opts = (...ids: string[]): AnswerValue => ids.map(asOptionId);
 
-/** Shorthand question descriptor for building test forms. */
 interface TestQuestion {
   id: string;
   type: string;
@@ -75,7 +72,6 @@ interface TestSetup {
   resolve: ResolveQuestion;
 }
 
-/** Build a parsed form plus a resolver from step descriptors and raw rules. */
 function build(steps: readonly [string, readonly TestQuestion[]][], rules: unknown[]): TestSetup {
   const byId = new Map<string, QuestionDefinition>();
   for (const [, questions] of steps) {
@@ -140,7 +136,6 @@ function visibleIds(state: FlowState): readonly string[] {
   return state.visible.map((entry) => entry.questionId);
 }
 
-/** One boolean question `q_a` gating a target `q_b` via the given rule(s). */
 function gate(
   rules: unknown[],
   target: TestQuestion = { id: "q_b", type: "shortText" },
@@ -667,15 +662,14 @@ describe("semantic 2 - blank text is absence (issue #128)", () => {
   it("blank text evaluates as unanswered for the `answered` operator", () => {
     const setup = blankSetup();
     // The gated question stays hidden, so a blank answer is not merely
-    // uncounted - it does not exist as far as any rule is concerned.
+    // uncounted: no rule can see it at all.
     expect(visibleIds(evalOk(setup, answersOf([["q_a", "   "]])))).toEqual(["q_a"]);
     expect(visibleIds(evalOk(setup, answersOf([["q_a", "Ada"]])))).toEqual(["q_a", "q_b"]);
   });
 
   it("blank text is absent for the value operators too, not only `answered`", () => {
-    // One definition of presence for every operator: `equals ""` is not
-    // satisfied by the value that no longer counts as an answer, and
-    // `notEquals` stays false on absence (semantic 2) rather than flipping true.
+    // One definition of presence for every operator, so `notEquals` stays
+    // false on absence rather than flipping true.
     const withRule = (rule: unknown): TestSetup =>
       build(
         [
@@ -708,9 +702,8 @@ describe("semantic 2 - blank text is absence (issue #128)", () => {
   });
 
   it("blankness is a text rule: the other canonical encodings are untouched", () => {
-    // `0`, `false` and an empty multiChoice selection are values, not blanks.
-    // `[]` is refused at the ingest boundary by validateAnswer instead; making
-    // it absent here as well would be a second, undecided semantics change.
+    // An empty selection is refused at the ingest boundary instead, so making
+    // it absent here too would be a second, undecided semantics change.
     const others = build(
       [
         [
@@ -738,7 +731,7 @@ describe("semantic 2 - blank text is absence (issue #128)", () => {
 
   it("a date and a singleChoice answer can never be blank by construction", () => {
     // The predicate needs no question type because no other canonical string
-    // encoding has a whitespace-only spelling - this pins that reasoning.
+    // encoding has a whitespace-only spelling.
     const typed = build(
       [
         [
@@ -795,8 +788,8 @@ describe("totality - typed errors on malformed input", () => {
 
   it("a version-1 snapshot evaluates identically to its bare definition", () => {
     const { form, resolve } = wellFormed();
-    // `questions` is empty on purpose: evaluateRules resolves pins through its
-    // injected lookup, not the snapshot's embedded records.
+    // `questions` is empty on purpose: pins resolve through the injected
+    // lookup rather than the snapshot's embedded records.
     const snapshot: FrozenSnapshot = {
       definition: form,
       questions: [],
@@ -822,7 +815,7 @@ describe("totality - typed errors on malformed input", () => {
   it("a malformed answer value is MALFORMED_ANSWER_VALUE and never echoed", () => {
     const setup = wellFormed();
     const answers = new Map([
-      // Cast justified: deliberately non-canonical value to exercise MALFORMED_ANSWER_VALUE.
+      // Cast justified: a deliberately non-canonical value.
       [asQuestionId("q_a"), { secret: "hunter2" } as unknown as AnswerValue],
     ]);
     const error = evalErr(setup, answers);
@@ -844,9 +837,8 @@ describe("totality - typed errors on malformed input", () => {
   });
 
   it("a backward (publish-invalid) reference reads as unanswered, deterministically", () => {
-    // q_b's rule reads q_c which sits *after* it - publish rejects this
-    // (RULE_BACKWARD_TARGET), but evaluation stays total: the unsettled
-    // reference is unanswered, so the rule is false.
+    // Publish refuses a rule reading a later question, but evaluation stays
+    // total: the unsettled reference is unanswered, so the rule is false.
     const setup = build(
       [
         [
@@ -909,8 +901,7 @@ describe("insurance fixture (exit criterion 3)", () => {
   });
 
   it("the stale hidden answer does not affect any later condition", () => {
-    // The fixture extended with a downstream question gated on q_accident_count
-    // (fixture file untouched - extension happens in-memory).
+    // Extended in memory, so the fixture file stays untouched.
     const raw = readJson("forms", "valid", "insurance.json") as {
       steps: { items: { questionId: string; version: number }[] }[];
       rules: unknown[];
@@ -967,8 +958,6 @@ describe("kitchen-sink fixture", () => {
   });
 });
 
-// --- Property tests (exit criterion 1) -------------------------------------
-
 type GenType = "boolean" | "number" | "shortText" | "date" | "singleChoice" | "multiChoice";
 
 const OPTION_IDS = ["opt_a", "opt_b", "opt_c"] as const;
@@ -1010,7 +999,6 @@ function answerValueArb(type: GenType): fc.Arbitrary<AnswerValue> {
   }
 }
 
-/** A type-correct leaf condition over question `index` of the given type. */
 function leafConditionArb(index: number, type: GenType): fc.Arbitrary<unknown> {
   const questionId = `q_g${String(index)}`;
   const answered = fc.constant({ op: "answered", questionId });
@@ -1072,8 +1060,7 @@ function conditionArb(index: number, type: GenType): fc.Arbitrary<unknown> {
   );
 }
 
-/** Rules whose condition references an earlier question than their target
- * (forward-only, as publish guarantees). */
+/** Forward-only, as publish guarantees. */
 function rulesArb(questions: readonly GenQuestion[]): fc.Arbitrary<unknown[]> {
   if (questions.length < 2) {
     return fc.constant([]);

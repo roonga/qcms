@@ -32,7 +32,6 @@ function loadForm(file: string): FormDefinition {
   return result.value;
 }
 
-/** Build a parsed form from steps of `stepId -> questionIds` plus raw rules. */
 function makeForm(steps: readonly [string, readonly string[]][], rules: unknown[]): FormDefinition {
   const result = parseFormDefinition({
     formId: "frm_test",
@@ -67,7 +66,6 @@ function makeQuestion(definition: unknown): QuestionDefinition {
   return result.value;
 }
 
-/** Resolver over the task-003 question fixtures (what the forms pin). */
 function fixtureResolver(): ResolveQuestion {
   const byId = new Map<string, QuestionDefinition>();
   for (const file of readdirSync(path.join(FIXTURES_DIR, "questions", "valid"))) {
@@ -386,7 +384,7 @@ describe("checkRuleTypes", () => {
         path: { rule: "rul_t", question: "q_single", option: "opt_zz" },
       }),
     ]);
-    // A plain string that is not OptionId-shaped is a type mismatch, not a
+    // A string that is not option-id shaped is a type mismatch rather than a
     // dangling reference.
     expect(check({ op: "equals", questionId: "q_single", value: "basic" })).toEqual([
       expect.objectContaining({ code: "RULE_TYPE_MISMATCH" }),
@@ -398,7 +396,7 @@ describe("checkRuleTypes", () => {
 
   it("treats multiChoice equals as whole-answer set equality (ADR-21)", () => {
     expect(check({ op: "equals", questionId: "q_multi", value: ["opt_x", "opt_y"] })).toEqual([]);
-    // A single optionId is not a multiChoice answer - use contains.
+    // A single optionId is not a multiChoice answer; `contains` is.
     expect(check({ op: "equals", questionId: "q_multi", value: "opt_x" })).toEqual([
       expect.objectContaining({ code: "RULE_TYPE_MISMATCH" }),
     ]);

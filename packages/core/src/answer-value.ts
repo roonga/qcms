@@ -5,41 +5,26 @@ import { OptionId } from "./ids.js";
 import { parseWithCode } from "./internal/parse.js";
 
 /**
- * Canonical AnswerValue encodings (task 002, DOMAIN_SCHEMA §2.4).
- *
- * One canonical encoding per question type, decided before the evaluator
- * exists because these freeze into snapshots, ledger rows, exports, and rule
- * comparisons:
- *
- * | Question type          | Encoding                                        |
- * |------------------------|-------------------------------------------------|
- * | shortText / longText   | NFC-normalized string (normalized on parse)     |
- * | number                 | finite IEEE double                              |
- * | date                   | timezone-less ISO `YYYY-MM-DD`, real calendar   |
- * | boolean                | JSON boolean                                    |
- * | singleChoice           | OptionId                                        |
- * | multiChoice            | OptionId[], deduplicated, order-preserving      |
+ * Canonical AnswerValue encodings, one per question type (DOMAIN_SCHEMA §2.4).
+ * They freeze into snapshots, ledger rows, exports and rule comparisons.
  */
 
 /**
- * shortText / longText: NFC-normalized string. Non-NFC input is normalized on
- * parse, never rejected - equality and storage always see one byte form.
+ * NFC-normalized string. Non-NFC input is normalized on parse rather than
+ * refused, so equality and storage always see one byte form.
  *
- * The encoding is not trimmed and has no `.min(1)`: what a respondent typed is
- * what is stored. The two rules that make an empty or whitespace-only string
- * not an *answer* live one layer up, so that storage stays faithful -
- * `validateAnswer` refuses `""` at the ingest boundary (ADR-33) and
- * {@link isBlankAnswerValue} withholds presence from a blank value (issue #128).
+ * Not trimmed and with no `.min(1)`: what a respondent typed is what is stored.
+ * The rules that make an empty or whitespace-only string not an answer live one
+ * layer up, in `validateAnswer` and {@link isBlankAnswerValue}, so that storage
+ * stays faithful.
  */
 export const TextAnswerValue = z.string().transform((value) => value.normalize("NFC"));
 export type TextAnswerValue = z.infer<typeof TextAnswerValue>;
 
 /**
- * number: finite IEEE double. NaN and ±Infinity are rejected at the encoding;
- * the `integer` constraint is validation (task 009), not encoding.
+ * Finite IEEE double. The `integer` constraint is validation, not encoding, and
+ * `z.number()` already refuses NaN and infinities, so no refinement is needed.
  */
-// `z.number()` already rejects NaN and ±Infinity in Zod 4, so the previous
-// `.finite()` refinement (now deprecated) was a redundant no-op.
 export const NumberAnswerValue = z.number();
 export type NumberAnswerValue = z.infer<typeof NumberAnswerValue>;
 
@@ -50,7 +35,7 @@ function isLeapYear(year: number): boolean {
 
 const DAYS_PER_MONTH = [31, 28, 31, 30, 31, 30, 31, 31, 30, 31, 30, 31] as const;
 
-/** True when `YYYY-MM-DD` names a real calendar date (rejects 2026-02-30). */
+/** True when `YYYY-MM-DD` names a real calendar date. */
 function isRealCalendarDate(iso: string): boolean {
   const year = Number(iso.slice(0, 4));
   const month = Number(iso.slice(5, 7));
@@ -63,9 +48,9 @@ function isRealCalendarDate(iso: string): boolean {
 }
 
 /**
- * date: timezone-less ISO `YYYY-MM-DD`, validated as a real calendar date.
- * No time, no offset - respondent-local dates by design. Ordering over this
- * encoding is lexicographic, which is correct for fixed-width ISO dates.
+ * Timezone-less ISO `YYYY-MM-DD`: no time and no offset, so a date is
+ * respondent-local by design. Lexicographic order over this fixed-width
+ * encoding is calendar order.
  */
 export const DateAnswerValue = z
   .string()
@@ -73,27 +58,24 @@ export const DateAnswerValue = z
   .refine(isRealCalendarDate, { message: "Not a real calendar date" });
 export type DateAnswerValue = z.infer<typeof DateAnswerValue>;
 
-/** boolean: JSON boolean. */
 export const BooleanAnswerValue = z.boolean();
 export type BooleanAnswerValue = z.infer<typeof BooleanAnswerValue>;
 
-/** singleChoice: the selected OptionId. */
 export const SingleChoiceAnswerValue = OptionId;
 export type SingleChoiceAnswerValue = z.infer<typeof SingleChoiceAnswerValue>;
 
 /**
- * multiChoice: OptionId[], deduplicated on parse (first occurrence wins),
- * order-preserving. The canonical form is always duplicate-free; equality over
- * it is set equality (ADR-21, `valuesEqual`).
+ * Deduplicated on parse, first occurrence winning, so the canonical form is
+ * always duplicate-free and equality over it is set equality (ADR-21).
  */
 export const MultiChoiceAnswerValue = z.array(OptionId).transform((ids) => [...new Set(ids)]);
 export type MultiChoiceAnswerValue = z.infer<typeof MultiChoiceAnswerValue>;
 
 /**
- * The union of canonical encodings. Untagged by design - the wire/storage form
- * is the raw JSON value; pairing a value with its question type is the job of
- * `validateAnswer` (task 009). Date and singleChoice values are strings and
- * thus indistinguishable from text without the question - that is expected.
+ * The union of canonical encodings, untagged by design: the wire and storage
+ * form is the raw JSON value, and pairing a value with its question type is
+ * `validateAnswer`'s job. A date and a singleChoice are therefore
+ * indistinguishable from text here, which is expected.
  */
 export const AnswerValue = z.union([
   TextAnswerValue,
@@ -104,9 +86,8 @@ export const AnswerValue = z.union([
 export type AnswerValue = z.infer<typeof AnswerValue>;
 
 /**
- * Operand type for the DSL's ordered operators (`gt/gte/lt/lte`):
- * finite number or canonical date string. Cross-type comparison is a typed
- * error here and unreachable post-publish (rule type-checking, task 005/008).
+ * Operand type for the ordered operators. Cross-type comparison is a typed
+ * error here and unreachable post-publish, where rule type-checking refuses it.
  */
 export const Comparable = z.union([NumberAnswerValue, DateAnswerValue]);
 export type Comparable = z.infer<typeof Comparable>;
@@ -156,7 +137,6 @@ export function isComparable(value: unknown): value is Comparable {
   return Comparable.safeParse(value).success;
 }
 
-/** Total order result for `compareValues`. */
 export type Ordering = -1 | 0 | 1;
 
 function orderingOf<T extends number | string>(a: T, b: T): Ordering {
@@ -169,15 +149,7 @@ function orderingOf<T extends number | string>(a: T, b: T): Ordering {
   return 0;
 }
 
-/**
- * Ordered comparison for the DSL's `gt/gte/lt/lte` (task 002).
- * Numbers compare numerically; dates compare lexicographically on the
- * canonical `YYYY-MM-DD` encoding (equivalent to calendar order).
- * Number-vs-date is `COMPARE_TYPE_MISMATCH`; any operand that is not a
- * Comparable (booleans, arrays, non-date strings, non-finite numbers) is
- * `NOT_COMPARABLE`. Error messages never echo answer values (SEC).
- */
-/** The ordered kind of a comparable operand, or `undefined` if not comparable. */
+/** Error messages here never echo answer values (SECURITY_DESIGN). */
 function comparableKind(value: AnswerValue): "number" | "date" | undefined {
   if (!isComparable(value)) {
     return undefined;
@@ -214,36 +186,27 @@ export function compareValues(a: AnswerValue, b: AnswerValue): Result<Ordering> 
 }
 
 /**
- * A **blank** answer is a text value that is empty or whitespace-only (issue
- * #128; Code Owner ruling "required means non-blank", 2026-08-31).
+ * A blank answer is a text value that is empty or whitespace-only.
  *
- * Blankness is a *presence* question, not an encoding one. The stored value is
- * never rewritten - the ruling's option 2 keeps a respondent's `" "` verbatim in
- * the ledger and in exports - but a blank value does not count as an answer for
- * the tests that ask "has this question been answered?": `evaluateRules` (the
- * `answered` operator and the required accounting) and `prepareSubmission`'s I9
- * sweep. A required question is therefore not satisfiable with the space bar.
+ * Blankness is a presence question rather than an encoding one: the stored value
+ * is kept verbatim in the ledger and in exports, but it does not count as an
+ * answer wherever presence is tested, so a required question cannot be
+ * satisfied with the space bar.
  *
- * Only text can be blank. `date` and `singleChoice` values are strings too, but
- * their canonical encodings (`YYYY-MM-DD`, a non-empty `OptionId`) have no
- * whitespace-only spelling, so this predicate is exact without being told the
- * question type - which is what lets the evaluator apply it over a bare
- * `AnswerMap`. `[]` is deliberately not blank here: the ruling names text, and
- * the empty selection is refused at the boundary instead (`validateAnswer`).
- *
- * `String.prototype.trim` is the whitespace definition - the ECMAScript
- * WhiteSpace plus LineTerminator set - so a non-breaking space and an
- * ideographic space are blank exactly as a plain space is.
+ * Only text can be blank. A `date` and a `singleChoice` are strings too, but
+ * their canonical encodings have no whitespace-only spelling, so the predicate
+ * is exact without knowing the question type, which is what lets the evaluator
+ * apply it over a bare `AnswerMap`. An empty selection is not blank here; it is
+ * refused at the boundary by `validateAnswer` instead.
  */
 export function isBlankAnswerValue(value: AnswerValue): boolean {
   return typeof value === "string" && value.trim() === "";
 }
 
 /**
- * Canonical value equality used by `equals`/`notEquals`/`in` (ADR-21):
- * strict equality on scalars (strings compared after NFC normalization),
- * set equality for multiChoice arrays (order- and duplicate-insensitive).
- * Values of different canonical types are never equal.
+ * Canonical value equality (ADR-21): strict on scalars, with strings compared
+ * after NFC normalization, and set equality for a multiChoice array. Values of
+ * different canonical types are never equal.
  */
 export function valuesEqual(a: AnswerValue, b: AnswerValue): boolean {
   if (Array.isArray(a) || Array.isArray(b)) {

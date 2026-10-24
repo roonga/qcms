@@ -1,13 +1,6 @@
 /**
- * @roonga/qcms-core public surface (task 002: IDs, LocalizedText, canonical
- * AnswerValue, error primitives · task 003: question definitions · task 004:
- * form definitions and the typed publish error model · task 005: rules DSL
- * and dependency-graph analysis · task 006: the forward-pass rules evaluator,
- * ADR-16 · task 008: `compileDraft`, the publish aggregate · task 009:
- * `validateAnswer` and `prepareSubmission`, the submission lock · task 010:
- * purpose-tagged compact tokens and secure links, SEC-2/SEC-7). Pure
- * functions over immutable data - no I/O beyond WebCrypto, no dependencies
- * beyond zod (R3).
+ * The `@roonga/qcms-core` public surface: pure functions over immutable data,
+ * with no I/O beyond WebCrypto and no dependency beyond zod (R3).
  */
 export { QcmsError, ok, err, qcmsError, type Result } from "./errors.js";
 

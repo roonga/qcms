@@ -7,7 +7,7 @@ import {
   verifyCompactToken,
 } from "./index.js";
 
-/** Deterministic ≥32-byte key material for tests (never a real secret). */
+/** Deterministic test key material, never a real secret. */
 function keyBytes(fill: number): Uint8Array<ArrayBuffer> {
   return new Uint8Array(COMPACT_TOKEN_MIN_KEY_BYTES).fill(fill);
 }
@@ -33,7 +33,7 @@ function encodePayload(payload: Record<string, unknown>): string {
   return toBase64Url(JSON.stringify(payload));
 }
 
-/** Forge a token over arbitrary payload text with a *genuine* signature. */
+/** Forges a token over arbitrary payload text with a genuine signature. */
 async function forgeToken(key: CryptoKey, payloadText: string): Promise<string> {
   const segment = toBase64Url(payloadText);
   const signature = await crypto.subtle.sign("HMAC", key, new TextEncoder().encode(segment));
@@ -106,7 +106,7 @@ describe("signCompactToken / verifyCompactToken", () => {
 
   it("rejects garbage input as MALFORMED", async () => {
     const key = await importCompactTokenKey(keyBytes(1));
-    // "abcde" is base64url-charset-valid but length-invalid: atob throws.
+    // The last entry is charset-valid but length-invalid, so decoding throws.
     for (const garbage of [
       "",
       "not-a-token",
@@ -141,9 +141,8 @@ describe("signCompactToken / verifyCompactToken", () => {
   });
 
   it("rejects a correctly signed non-JSON payload as MALFORMED", async () => {
-    // Signature-first ordering: forge a token whose payload is not JSON but
-    // whose signature is genuine (even a key holder cannot make the kernel
-    // accept a non-claims payload).
+    // The signature is genuine, so not even a key holder can make the kernel
+    // accept a non-claims payload.
     const key = await importCompactTokenKey(keyBytes(1));
     const result = await verifyCompactToken(
       "session",

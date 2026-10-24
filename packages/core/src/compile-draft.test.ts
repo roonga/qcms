@@ -36,7 +36,6 @@ function loadForm(file: string): FormDefinition {
   return result.value;
 }
 
-/** Build a parsed form from steps of `stepId -> questionIds` plus raw rules. */
 function makeForm(
   steps: readonly [string, readonly string[]][],
   rules: readonly unknown[],
@@ -93,9 +92,7 @@ function record(definition: QuestionDefinition, version = 1): QuestionVersionRec
   return { questionId: definition.questionId, version, definition };
 }
 
-/** In-memory question store: resolution plus the published-version set the
- * caller would load (versions listed in `unpublished` resolve but are not
- * published - the §4.2 QDraft case). */
+/** A version listed in `unpublished` resolves but is not published. */
 function makeStore(
   records: readonly QuestionVersionRecord[],
   unpublished: readonly string[] = [],
@@ -117,8 +114,6 @@ function makeStore(
   };
 }
 
-/** Store over the task-003 question fixtures, published at versions 1 and 2
- * (the form fixtures pin q_at_fault_accident@2 and everything else @1). */
 function fixtureStore(): Pick<DraftInput, "resolveQuestion" | "publishedQuestionVersions"> {
   const records: QuestionVersionRecord[] = [];
   for (const file of readdirSync(path.join(FIXTURES_DIR, "questions", "valid"))) {
@@ -158,7 +153,6 @@ function at<T>(items: readonly T[], index: number): T {
   return item;
 }
 
-/** Two-step base draft: q_a (boolean) then q_b (shortText), all published. */
 function twoStepDraft(
   rules: readonly unknown[],
   overrides: Record<string, unknown> = {},
@@ -191,7 +185,6 @@ describe("compileDraft - success path", () => {
       expect(snapshot.definition).toEqual(definition);
       expect(snapshot.semanticsVersion).toBe(SEMANTICS_VERSION);
       expect(snapshot.schemaVersion).toBe(SNAPSHOT_SCHEMA_VERSION);
-      // Resolved records are embedded per pin, in document order.
       expect(
         snapshot.questions.map((entry) => `${entry.questionId}@${String(entry.version)}`),
       ).toEqual(
@@ -238,7 +231,6 @@ describe("compileDraft - success path", () => {
     const snapshot = snapshotOf(compileDraft(draft));
     expect(Object.isFrozen(draft.definition)).toBe(false);
     expect(snapshot.definition).not.toBe(draft.definition);
-    // Editing the draft afterwards does not leak into the snapshot.
     (draft.definition.title as Record<string, string>)["en"] = "edited";
     expect(snapshot.definition.title).toEqual({ en: "Test" });
   });
@@ -272,7 +264,6 @@ describe("compileDraft - each invariant violated alone yields only its error", (
     const errors = errorsOf(
       compileDraft({
         ...draft,
-        // Misbehaving lookup: answers the q_b pin with version 7's content.
         resolveQuestion: (questionId, version) =>
           questionId === "q_b"
             ? record(textQ("q_b"), 7)
@@ -396,9 +387,8 @@ describe("compileDraft - each invariant violated alone yields only its error", (
   });
 
   it("RULE_CYCLE: a reads→shows cycle (with its structurally unavoidable backward edge)", () => {
-    // Any cycle must contain at least one backward edge in document order, so
-    // the two ADR-16 findings co-occur by construction; both are graph errors
-    // of the same invariant (I10) and nothing else fires.
+    // Any cycle contains a backward edge in document order, so the two
+    // findings co-occur by construction.
     const errors = errorsOf(
       compileDraft(
         twoStepDraft([
@@ -437,9 +427,8 @@ describe("compileDraft - each invariant violated alone yields only its error", (
     for (let i = 0; i < CONDITION_MAX_DEPTH; i += 1) {
       when = { op: "not", condition: when };
     }
-    // Cast justified: parseFormDefinition rejects an over-deep rule at parse,
-    // so a definition carrying one can only be hand-built; compileDraft must
-    // still report it (the type does not prove the refinements ran).
+    // Cast justified: parse refuses an over-deep rule, so such a definition can
+    // only be hand-built, and publish must still report it.
     const definition = {
       ...base.definition,
       rules: [{ ruleId: "rul_deep", when, show: ["q_b"] }],
@@ -575,7 +564,6 @@ describe("compileDraft - each invariant violated alone yields only its error", (
 });
 
 describe("compileDraft - author-supplied validation messages (ADR-32, task 048)", () => {
-  /** A shortText question with `minLength` set and the given message map. */
   const plate = (messages: Record<string, unknown>): QuestionDefinition =>
     textQ("q_b", { required: true, constraints: { minLength: 3 }, messages });
 
@@ -709,7 +697,6 @@ describe("compileDraft - boolean label overrides (ADR-36, task 048)", () => {
 
 describe("compileDraft - error accumulation", () => {
   it("a draft violating three invariants reports all three in one result", () => {
-    // I2 (dangling pin) + I2 (dangling step target) + I3 (locale) at once.
     const draft = twoStepDraft(
       [{ ruleId: "rul_one", when: { op: "answered", questionId: "q_a" }, show: ["stp_missing"] }],
       { title: { fr: "Essai" } },
@@ -816,9 +803,8 @@ describe("compileDraft - blank authored text (issue #366)", () => {
   });
 
   it("the LocalizedText schema itself stays permissive (R1: published snapshots keep parsing)", () => {
-    // The rule is a publish gate, not a type tightening: a stored snapshot
-    // containing a blank label is re-parsed on the serving path and must still
-    // parse. Proving the schema still accepts it is the point.
+    // A publish gate rather than a type tightening: a stored snapshot holding a
+    // blank label is re-parsed on the serving path and must still parse.
     expect(() => textQ("q_b", { label: { en: "   " } })).not.toThrow();
   });
 });
@@ -826,7 +812,6 @@ describe("compileDraft - blank authored text (issue #366)", () => {
 describe("compileDraft - warnings (issue #123)", () => {
   const CHOICES = "q_choices";
 
-  /** Two steps: a multiChoice and a text question on step one, one on step two. */
   function multiChoiceDraft(rules: readonly unknown[]): DraftInput {
     return {
       definition: makeForm(

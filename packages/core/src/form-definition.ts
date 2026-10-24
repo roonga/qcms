@@ -8,28 +8,19 @@ import { isRepeatGroup, Step, type StepItem } from "./step.js";
 import { VisibilityRule } from "./visibility-rule.js";
 
 /**
- * Form definitions (task 004, DOMAIN_SCHEMA §2.3, ADR-02, ADR-11).
+ * Form definitions (DOMAIN_SCHEMA §2.3, ADR-02, ADR-11): ordered steps of
+ * pinned question references plus visibility rules. A draft may float, a
+ * snapshot never does.
  *
- * A form is ordered steps of pinned question references plus visibility
- * rules. Pins are `{questionId, version}` pairs - question-level versioning
- * (ADR-02) with launch-minimal UX (manual pinning): drafts may float,
- * snapshots never do.
- *
- * Parsing enforces *parse-level* refinements only: unique `stepId`s, a
- * question pinned at most once per form, and every rule entry being valid
- * under the rules DSL (task 005, `visibility-rule.ts` - including the
- * condition nesting-depth cap, RULE_DEPTH_EXCEEDED). Cross-entity publish
- * invariants (dangling refs, locale completeness, rule graph checks) are
- * task 008's `compileDraft`.
+ * Parsing enforces parse-level refinements only; the cross-entity publish
+ * invariants are `compileDraft`'s.
  */
 
 /**
- * Closed union of typed error codes for form-definition parsing. Validators
- * are all-errors-not-first (CONTRIBUTING): a parse failure carries every
- * issue, each with its code and path. The duplicate codes and
- * RULE_DEPTH_EXCEEDED are shared strings with `PublishErrorCode` -
- * `compileDraft` (008) surfaces the same violations verbatim in its publish
- * report when handed a raw draft.
+ * Typed error codes for form-definition parsing. A parse failure carries every
+ * issue with its code and path (CONTRIBUTING). The codes shared with
+ * `PublishErrorCode` are deliberately the same strings, so publish surfaces the
+ * same violation verbatim when handed a raw draft.
  */
 export const FormDefinitionErrorCode = z.enum([
   "INVALID_FORM_DEFINITION",
@@ -43,8 +34,8 @@ export type FormDefinitionErrorCode = z.infer<typeof FormDefinitionErrorCode>;
 export const FormDefinitionError = QcmsError.extend({ code: FormDefinitionErrorCode });
 export type FormDefinitionError = z.infer<typeof FormDefinitionError>;
 
-/** Module-typed wrapper over the shared coded-issue plumbing: only members of
- * FormDefinitionErrorCode can be attached here (typos are compile errors). */
+/** Narrows the shared coded-issue plumbing to this module's codes, so a typo
+ * is a compile error. */
 function addCodedIssue(
   ctx: z.core.$RefinementCtx,
   code: FormDefinitionErrorCode,
@@ -54,26 +45,17 @@ function addCodedIssue(
   addSharedCodedIssue(ctx, code, message, path);
 }
 
-/**
- * `QuestionRef` and `Step` moved to `step.ts` in task 071, where the repeating
- * group that may now sit in a step's item list lives beside them. They are
- * re-exported here so every existing importer of this module is unaffected.
- */
+/** Re-exported from `step.ts`, where the repeating group lives beside them. */
 export { QuestionRef, Step } from "./step.js";
 
 /**
- * The form aggregate (DOMAIN_SCHEMA §2.3). Parse-level refinements: unique
- * `stepId`s and a `questionId` pinned at most once across all steps -
- * duplicates make rule targeting and answer keying ambiguous, so they are
- * malformed input, not merely unpublishable.
+ * The form aggregate (DOMAIN_SCHEMA §2.3). A duplicate `stepId` or a question
+ * pinned twice makes rule targeting and answer keying ambiguous, so it is
+ * malformed input rather than merely unpublishable.
  *
- * There is no per-form navigation escape here. Task 045 reserved an unhonored
- * `advanceOnComplete` boolean and the Code Owner removed it on 2026-08-31
- * (ADR-28, issue #725): "answering never changes the rendered step by itself"
- * is the contract, and auto-advance returns as a decision with a behaviour
- * behind it rather than as a key nothing reads. Nothing carried the field, and
- * this object strips unknown keys rather than rejecting them, so a document
- * that somehow holds the old key still parses.
+ * There is deliberately no per-form navigation escape: answering never changes
+ * the rendered step by itself (ADR-28), so auto-advance would return as a
+ * decision with a behaviour behind it rather than as a key nothing reads.
  */
 export const FormDefinition = z
   .object({
@@ -88,11 +70,8 @@ export const FormDefinition = z
     const seenQuestions = new Set<string>();
     const seenGroups = new Set<string>();
 
-    /** One pinned question, wherever it sits: a step's item list or a group's.
-     * `DUPLICATE_QUESTION_IN_FORM` reaches inside groups (ADR-42), so a
-     * question is either repeated or not in a given form and the refinement's
-     * stated reason - unambiguous answer keying - holds under the instance-
-     * qualified key exactly as it did under the bare one. */
+    // Reaches inside groups, so a question is either repeated or not in a given
+    // form and answer keying stays unambiguous under the instance-qualified key.
     const pin = (questionId: string, where: string, path: readonly (string | number)[]): void => {
       if (seenQuestions.has(questionId)) {
         addCodedIssue(
@@ -143,9 +122,8 @@ export const FormDefinition = z
 export type FormDefinition = z.infer<typeof FormDefinition>;
 
 /**
- * Parse an unknown value as a FormDefinition. All-errors-not-first: every
- * violated refinement is reported, each with its typed code and path.
- * Structural failures carry INVALID_FORM_DEFINITION.
+ * Parse an unknown value as a FormDefinition, reporting every violated
+ * refinement with its typed code and path rather than only the first.
  */
 export function parseFormDefinition(
   value: unknown,

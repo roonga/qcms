@@ -3,9 +3,9 @@ import { describe, expect, it } from "vitest";
 import { PublishWarning, PublishWarningCode, publishWarningLocation } from "./index.js";
 
 /**
- * The warning model's own contract test, the sibling of `publish-error.test.ts`
- * (issue #123). Same three properties: the enum and the union stay in lockstep,
- * every code has a sample, and every sample renders a location.
+ * The warning model's contract, the sibling of `publish-error.test.ts`: the
+ * enum and the union stay in lockstep, every code has a sample, and every
+ * sample renders a location.
  */
 type MutuallyAssignable<A, B> = [A] extends [B] ? ([B] extends [A] ? true : never) : never;
 const codesInLockstep: MutuallyAssignable<PublishWarning["code"], PublishWarningCode> = true;

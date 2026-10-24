@@ -5,24 +5,20 @@ import { err, ok, type Result } from "./errors.js";
 import { FormId, LinkId } from "./ids.js";
 
 /**
- * Secure links (task 010, SEC-2, ARCHITECTURE §7): signed, expiring,
- * single-form tokens - the first purpose (`"link"`) on the compact-token
- * machinery. The kernel mints and verifies over supplied key material only;
- * key storage/rotation is the shell's (024), and one-time consumption and
- * revocation are storage's (013/018) - *a signature alone is never
- * sufficient; the `secure_links` row must agree*. Token format documented in
+ * Secure links (SEC-2): signed, expiring, single-form tokens on the
+ * compact-token machinery. The token format is documented in
  * `docs/secure-links.md`.
  *
- * No PII ever goes in a token: claims are opaque IDs and an expiry, nothing
- * else (SEC-2).
+ * A signature alone is never sufficient: the `secure_links` row must agree, so
+ * one-time consumption and revocation stay storage's.
+ *
+ * No PII ever goes in a token: the claims are opaque ids and an expiry.
  */
 
 /**
- * What a secure link asserts (Zod is the source of truth - SEC-2):
- * which form it opens, which minted-link row it is (`linkId`, so storage can
- * revoke and enforce one-time use), when it stops working, and whether it is
- * single-use. `oneTime` is carried in the token for the verifier's UX; the
- * atomic consumption check itself lives on the `secure_links` row (018).
+ * What a secure link asserts, with this schema as the source of truth (SEC-2).
+ * `oneTime` is carried for the verifier's UX; the atomic consumption check
+ * lives on the `secure_links` row.
  */
 export const LinkClaims = z.object({
   formId: FormId,
@@ -33,9 +29,8 @@ export const LinkClaims = z.object({
 export type LinkClaims = z.infer<typeof LinkClaims>;
 
 /**
- * Why a secure link failed verification: the compact-token failures plus
- * `WRONG_FORM` (token is genuine but for a different form than the caller
- * expected).
+ * The compact-token failures plus `WRONG_FORM`, where the token is genuine but
+ * for a different form than the caller expected.
  */
 export const LinkErrorCode = z.enum([...CompactTokenErrorCode.options, "WRONG_FORM"]);
 export type LinkErrorCode = z.infer<typeof LinkErrorCode>;
@@ -47,10 +42,9 @@ export const LinkError = z.object({
 export type LinkError = z.infer<typeof LinkError>;
 
 /**
- * Mint a secure-link token for a form (admin feature; the shell supplies the
- * current `QCMS_LINK_KEYS` signing key). The payload is validated against
- * `LinkClaims` first - minting takes trusted author input, so an invalid
- * payload is a programming bug and throws rather than returning a Result.
+ * Mint a secure-link token for a form. Minting takes trusted author input, so
+ * an invalid payload is a programming bug and throws rather than returning a
+ * typed error.
  */
 export async function mintSecureLink(payload: LinkClaims, key: CryptoKey): Promise<string> {
   const claims = LinkClaims.safeParse(payload);
@@ -63,14 +57,10 @@ export async function mintSecureLink(payload: LinkClaims, key: CryptoKey): Promi
 }
 
 /**
- * Verify a secure-link token against the `QCMS_LINK_KEYS` list (newest
- * first - rotation) at time `now`. Failure order: `MALFORMED` →
- * `BAD_SIGNATURE` → `WRONG_PURPOSE` (SEC-7 cross-purpose rejection) →
- * `EXPIRED` → `MALFORMED` (signed claims that are not `LinkClaims`) →
- * `WRONG_FORM` (only when the caller passes `expectedFormId`).
+ * Verify a secure-link token against the key list, newest first, at `now`.
  *
- * A verified result means the *signature and claims* are good; callers must
- * still consult the `secure_links` row for revocation/one-time state (018).
+ * A verified result means the signature and claims are good; the caller must
+ * still consult the `secure_links` row for revocation and one-time state.
  */
 export async function verifySecureLink(
   token: string,

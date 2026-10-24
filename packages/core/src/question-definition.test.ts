@@ -21,7 +21,6 @@ function readJson(...segments: string[]): unknown {
   return JSON.parse(readFileSync(path.join(FIXTURES_DIR, ...segments), "utf8"));
 }
 
-/** Shape of every fixture under fixtures/questions/invalid/. */
 const InvalidFixture = z.object({
   description: z.string().min(1),
   expected: z.object({
@@ -151,7 +150,7 @@ describe("optionId scoping (R6)", () => {
     expect(single.ok).toBe(true);
     expect(multi.ok).toBe(true);
     if (single.ok && multi.ok) {
-      // Both fixtures deliberately carry opt_none - scoped per question.
+      // Both fixtures carry the same optionId on purpose: ids are per question.
       expect(optionIdsOf(single.value)).toContain("opt_none");
       expect(optionIdsOf(multi.value)).toContain("opt_none");
     }

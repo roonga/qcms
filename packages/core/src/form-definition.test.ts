@@ -19,7 +19,6 @@ function readJson(...segments: string[]): unknown {
   return JSON.parse(readFileSync(path.join(FIXTURES_DIR, ...segments), "utf8"));
 }
 
-/** Shape of every fixture under fixtures/forms/invalid/. */
 const InvalidFixture = z.object({
   description: z.string().min(1),
   expected: z.object({
@@ -40,7 +39,6 @@ function parseValid(file: string) {
   return result.value;
 }
 
-/** questionId -> type map of the task-003 question fixtures the forms pin. */
 function questionFixtureTypes(): Map<string, string> {
   const types = new Map<string, string>();
   for (const file of readdirSync(path.join(FIXTURES_DIR, "questions", "valid"))) {

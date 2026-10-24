@@ -15,13 +15,9 @@ import {
 } from "./index.js";
 
 /**
- * Author-supplied validation messages and boolean label overrides (task 048,
- * ADR-32 / ADR-36).
- *
- * The load-bearing properties are additivity (existing content is untouched -
- * `question-definition.test.ts` owns the round-trip half) and the closed key
- * set: a message may only decorate a constraint the question actually carries,
- * which is what `authoredMessageKeys` answers for publish and for the editor.
+ * Author-supplied validation messages and boolean label overrides (ADR-32,
+ * ADR-36). The load-bearing properties are additivity and the closed key set: a
+ * message may only decorate a constraint the question carries.
  */
 
 function question(definition: unknown): QuestionDefinition {
@@ -40,8 +36,8 @@ describe("additivity: content stored before task 048", () => {
   it.each(files)("%s parses with none of the new fields present", (file) => {
     const raw = JSON.parse(readFileSync(path.join(QUESTION_FIXTURES, file), "utf8")) as unknown;
     const parsed = question(raw);
-    // Absent, not `undefined`: the parsed object must not gain a key, or every
-    // serialization of stored content would change shape.
+    // The key is absent rather than undefined, or every serialization of
+    // stored content would change shape.
     expect("messages" in parsed).toBe(false);
     expect("yesLabel" in parsed).toBe(false);
     expect("noLabel" in parsed).toBe(false);
@@ -57,19 +53,19 @@ describe("additivity: content stored before task 048", () => {
 
 describe("ValidationMessageKey", () => {
   it("is the constraint set an author writes, which is not the runtime constraint set", () => {
-    // `required` is authored but is never a runtime ValidationConstraint
-    // (presence is a flow concern, checked by prepareSubmission).
+    // `required` is authored but is never a runtime constraint, because
+    // presence is a flow concern.
     const runtime = new Set<string>(ValidationConstraint.options);
     expect(runtime.has("required")).toBe(false);
     expect(VALIDATION_MESSAGE_KEYS).toContain("required");
-    // Every other authored key IS a runtime constraint, so a 422's `constraint`
-    // field addresses an authored message directly.
+    // Every other authored key is a runtime constraint, so a 422's
+    // `constraint` field addresses an authored message directly.
     for (const key of VALIDATION_MESSAGE_KEYS) {
       if (key === "required") continue;
       expect(runtime.has(key)).toBe(true);
     }
-    // The runtime-only members are deliberately not authorable: neither is a
-    // constraint anybody wrote on the definition.
+    // The runtime-only members are not authorable, neither being a constraint
+    // anybody wrote on the definition.
     const authorable = new Set<string>(VALIDATION_MESSAGE_KEYS);
     expect([...runtime].filter((c) => !authorable.has(c)).sort()).toEqual(["encoding", "options"]);
   });

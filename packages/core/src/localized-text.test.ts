@@ -9,7 +9,6 @@ import {
   resolveText,
 } from "./index.js";
 
-/** Test helper: parse a locale we know is valid, or fail loudly. */
 function locale(code: string) {
   const result = parseLocaleCode(code);
   if (!result.ok) {
@@ -18,7 +17,6 @@ function locale(code: string) {
   return result.value;
 }
 
-/** Test helper: parse a LocalizedText we know is valid, or fail loudly. */
 function text(value: unknown) {
   const result = parseLocalizedText(value);
   if (!result.ok) {

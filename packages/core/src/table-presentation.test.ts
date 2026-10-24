@@ -15,15 +15,10 @@ import {
 } from "./index.js";
 
 /**
- * The table presentation's column-type refusal (task 077, ADR-43, Q12 second
- * half, ruled 2026-09-29). Acceptance case 42 of
- * `plan/repeating-groups-and-table-input.md` section 11.
- *
- * It is a file of its own rather than a block inside `repeat-group.test.ts`
- * because the refusal is about a **presentation** rather than about the group
- * model: every case here publishes the same member list twice and differs only in
- * `presentation`, which is the whole shape of the ruling and reads badly as an
- * appendix to the parse and graph cases.
+ * The table presentation's column-type refusal (ADR-43). A file of its own
+ * because the refusal is about a presentation rather than the group model:
+ * every case publishes the same member list twice and differs only in
+ * `presentation`.
  */
 
 interface Member {
@@ -38,8 +33,8 @@ function makeQuestion(id: string, type: string): QuestionDefinition {
     label: { en: id },
     required: false,
   };
-  // The two choice types need options to parse at all; the list's content is
-  // irrelevant to a type check, so one option is the honest minimum.
+  // The choice types need options to parse at all, and the list's content is
+  // irrelevant to a type check.
   if (type === "singleChoice" || type === "multiChoice") {
     raw.options = [{ optionId: "opt_a", label: { en: "A" } }];
   }
@@ -51,10 +46,8 @@ function makeQuestion(id: string, type: string): QuestionDefinition {
 }
 
 /**
- * Publish one step holding one group of `members` under `presentation`, returning
- * the complete error list. The group's count source is `fixed`, which declares its
- * own bound, so no case here trips `REPEAT_MAX_MISSING` on the way to the one
- * refusal it is about.
+ * The count source is `fixed`, which is its own bound, so no case here trips
+ * `REPEAT_MAX_MISSING` on the way to the refusal it is about.
  */
 function publishGroup(members: readonly Member[], presentation: string): readonly PublishError[] {
   const questions = members.map((member) => makeQuestion(member.id, member.type));
@@ -121,8 +114,8 @@ describe("TABLE_COLUMN_TYPES (Q12, the five allowed cell types)", () => {
     ]);
     expect(isTableColumnType("longText")).toBe(false);
     expect(isTableColumnType("multiChoice")).toBe(false);
-    // Not a question type at all: the predicate takes a string because the admin
-    // reads a library row whose type may be unknown, and it must not widen on one.
+    // The predicate takes a string because the admin reads a library row whose
+    // type may be unknown, and it must not widen on one.
     expect(isTableColumnType("table")).toBe(false);
   });
 
@@ -146,7 +139,7 @@ describe("TABLE_COLUMN_TYPE_NOT_ALLOWED (acceptance case 42)", () => {
         step: "stp_assets",
         type,
       });
-      // The refusal has somewhere to send the author, and says where by name.
+      // The refusal names where to send the author.
       expect(error.message).toContain("stacked");
       expect(error.message).toContain(type);
       expect(publishErrorLocation(error)).toBe(
@@ -178,10 +171,8 @@ describe("TABLE_COLUMN_TYPE_NOT_ALLOWED (acceptance case 42)", () => {
   it.each([["stacked"], ["perInstanceStep"]])(
     "leaves the same member list alone under the %s presentation",
     (presentation) => {
-      // The asymmetry Q12 creates on purpose: a stacked card gives a control a
-      // full row, so nothing about a textarea or a checkbox group is cramped in
-      // it, and this is the publish-level proof that the refusal is about the
-      // presentation and about nothing else.
+      // A deliberate asymmetry: a stacked card gives a control a full row, so
+      // the refusal is about the presentation and nothing else.
       expect(
         publishGroup(
           [
@@ -196,8 +187,8 @@ describe("TABLE_COLUMN_TYPE_NOT_ALLOWED (acceptance case 42)", () => {
   );
 
   it("says nothing about a column the form does not pin, which is already reported", () => {
-    // A member whose pin does not resolve has no type to read, so inventing a
-    // second error here would name a type nobody has. `resolvePins` owns it.
+    // An unresolved pin has no type to read, so a second error here would name
+    // a type nobody has.
     const parsed = parseFormDefinition({
       formId: "frm_assets",
       defaultLocale: "en",

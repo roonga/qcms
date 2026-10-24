@@ -4,10 +4,8 @@ import { err, ok, qcmsError, type Result } from "./errors.js";
 import { parseWithCode } from "./internal/parse.js";
 
 /**
- * Locale codes are a deliberate BCP-47 subset (ADR-11): a lowercase language
- * (`en`) or language-REGION (`en-AU`). Launch UX only ever writes/reads the
- * form's defaultLocale; the shape makes more languages a feature, not a
- * migration (full BCP-47 richness is out of scope until then).
+ * A deliberate BCP-47 subset (ADR-11): a lowercase language, optionally with a
+ * region. The shape makes more languages a feature rather than a migration.
  */
 export const LocaleCode = z
   .string()
@@ -23,9 +21,8 @@ export function isLocaleCode(value: unknown): value is LocaleCode {
 }
 
 /**
- * Every human-readable field is a locale map (ADR-11), e.g.
- * `{ "en": "Date of birth" }`. Publish validates completeness for the form's
- * defaultLocale only (invariant I3, task 008).
+ * Every human-readable field is a locale map (ADR-11). Publish validates
+ * completeness for the form's default locale only (I3).
  */
 export const LocalizedText = z.record(LocaleCode, z.string().min(1));
 export type LocalizedText = z.infer<typeof LocalizedText>;
@@ -38,9 +35,9 @@ export function isLocalizedText(value: unknown): value is LocalizedText {
 }
 
 /**
- * Resolve a display string: exact locale → default locale → typed error.
- * No language-only fallback (`en-AU` does not fall back to `en`) - the launch
- * subset keeps resolution deterministic and dumb by design.
+ * Resolve a display string: exact locale, then default locale, then a typed
+ * error. There is deliberately no language-only fallback, so resolution stays
+ * deterministic.
  */
 export function resolveText(
   text: LocalizedText,
