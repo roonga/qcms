@@ -63,9 +63,13 @@ import type { QuestionPanel, QuestionPanelId } from "@/lib/questions/panels";
  * **Code Owner, 2026-09-27: this rail wears the form builder's styling.** So a panel row is a
  * `.qcms-rail__link` with `data-rail-item`, the list is a `.qcms-rail__group` with
  * `data-rail-group`, and the badge is the same `.qcms-tag--draft` count the builder's step rows
- * carry. `data-rail-group` also opts this list into the builder's marker treatment - a tint and
- * a heavier weight, no accent edge - which is the right answer for a nested tree where a parent
- * row and a child row are both current at once, and which is why the rule exists there.
+ * carry.
+ *
+ * `data-rail-group` used to carry a second meaning here: it opted a list into the form rail's
+ * marker treatment, which removed the accent edge from every current row in a tree. §7.0 ruling
+ * 2 replaced that with one mark for every rail and a demoted PARENT row, so the attribute means
+ * only what it says - this is a group of rail rows - and the nesting is what the stylesheet
+ * reads (issue #1116).
  */
 export function QuestionPanelRows({
   panels,

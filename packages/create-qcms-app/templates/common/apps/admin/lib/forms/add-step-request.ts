@@ -70,6 +70,23 @@ export function requestAddStep(): void {
 }
 
 /**
+ * Forget every request made so far, so a control mounting next opens nothing.
+ *
+ * MODULE STATE OUTLIVES A ROUTE, which is the defect `resetSettingsPanel` exists for one
+ * module over (`lib/settings-panel.ts`), and this store had it: the count is read against a
+ * per-mount ref, so a control that unmounted with one request behind it and then mounted
+ * again - walking from the builder to Preview and back, say - saw a number it had not seen
+ * and opened a dialog nobody had asked for. The control clears it as it unmounts, which is
+ * what makes "a new number means open it now" true of this page's life rather than of the
+ * bundle's.
+ */
+export function resetAddStepRequests(): void {
+  if (requests === 0) return;
+  requests = 0;
+  for (const listener of listeners) listener();
+}
+
+/**
  * How many times a step has been asked for in this page's life.
  *
  * The caller watches the value change rather than reading it as a state: a new number means

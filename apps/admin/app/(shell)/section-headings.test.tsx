@@ -145,9 +145,7 @@ describe("the section routes name their section in the h1 (issue 679)", () => {
   it("gives the sections a different heading each, which was the defect", () => {
     const headings = SECTIONS.map(([section]) =>
       headingText(
-        renderToStaticMarkup(
-          <FormPageHeader formId="frm_alpha" section={section} status="open" />,
-        ),
+        renderToStaticMarkup(<FormPageHeader formId="frm_alpha" section={section} status="open" />),
       ),
     );
 
@@ -164,9 +162,7 @@ describe("the section routes name their section in the h1 (issue 679)", () => {
       <FormPageHeader formId="frm_alpha" section={section} status="open" />,
     );
 
-    expect(markup.slice(0, markup.indexOf("<h1")), "nothing leads the heading").not.toContain(
-      name,
-    );
+    expect(markup.slice(0, markup.indexOf("<h1")), "nothing leads the heading").not.toContain(name);
     expect(markup).not.toContain("<nav");
     // And the heading is VISIBLE now, which is the consequence of the same change: it was
     // hidden from 2026-08-26 only because the breadcrumb above it had just said the word.

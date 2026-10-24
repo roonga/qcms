@@ -126,7 +126,9 @@ describe("the rail's markup", () => {
     const html = await render(LINKS);
     const actions = html.slice(html.indexOf('class="qcms-rail__actions"'));
     expect(actions).toContain("stub-actions");
-    expect(html.indexOf("stub-actions")).toBeGreaterThan(html.indexOf('data-rail-group="sections"'));
+    expect(html.indexOf("stub-actions")).toBeGreaterThan(
+      html.indexOf('data-rail-group="sections"'),
+    );
   });
 
   it("orders the tree with each step nested inside the Form row", async () => {

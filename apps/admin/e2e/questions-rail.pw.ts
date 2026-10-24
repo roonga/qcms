@@ -4,6 +4,7 @@ import { expect, test } from "../../portal/e2e/support/gates.js";
 
 import { createTestAdmin, uniqueAdminEmail } from "./support/admin-account.js";
 import { enrollNewAdmin, signInWithTotp } from "./support/flow.js";
+import { waitForHydration } from "./support/hydration.js";
 import { field, openPanel, setNumericConstraint } from "./support/questions.js";
 import { createQuestionRailFixture, type QuestionRailFixture } from "./support/question-rail.js";
 
@@ -638,4 +639,40 @@ test("1116 gives the parent of the current row no fill, so one row reads as sele
     expect(parent.weight, `${parent.item} is a parent, at weight 600`).toBe("600");
     expect(parent.edge, `${parent.item} keeps the edge transparent`).toBe("2px");
   }
+});
+
+test("1116 opens a panel from the keyboard, which is what an anchor row owes", async ({ page }) => {
+  test.setTimeout(300_000);
+  await signInWithTotp(page, EMAIL, totpSecret);
+  await page.setViewportSize({ width: 1280, height: 900 });
+  await page.goto(detailPath());
+
+  // §7.0 ruling 2.2 made these rows anchors, where they were buttons, and the one thing that
+  // genuinely changes when a control's element changes is what the keyboard does to it. Only a
+  // browser can say: jsdom implements no default action for Enter on a link, so a keyboard
+  // assertion next door in `question-editor-panels.test.tsx` would pass on a handler nobody
+  // could reach.
+  //
+  // **Space no longer activates these rows.** On a button it did; on a link it scrolls the
+  // page, which is the browser's behaviour for a link and not something to paper over. Enter
+  // is the key an anchor answers to, and it is the one asserted here.
+  const rail = page.getByTestId("qcms-question-rail");
+  const constraints = rail.locator('[data-rail-panel="constraints"]');
+  const content = rail.locator('[data-rail-panel="content"]');
+  await waitForHydration(page);
+  await expect(content).toHaveAttribute("aria-current", "page");
+
+  await constraints.focus();
+  await expect(constraints).toBeFocused();
+  await page.keyboard.press("Enter");
+
+  // The mark moves and the column follows, which is the whole of the switch: both trees read
+  // one value, so a row that marked itself without the column moving would be two opinions.
+  await expect(constraints).toHaveAttribute("aria-current", "page");
+  await expect(content).not.toHaveAttribute("aria-current", "page");
+  await expect(field(page, "Shortest answer")).toBeVisible();
+  await expect(field(page, "Label"), "one panel at a time").toHaveCount(0);
+  // Focus stays on the row the reader pressed: nothing was navigated to, so moving it would
+  // take them away from the list they are walking.
+  await expect(constraints).toBeFocused();
 });

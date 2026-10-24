@@ -13,23 +13,19 @@ import { textOf } from "@/lib/questions/definition";
  * route, so a trail rendered once per route said "Form details" while the reader was looking
  * at a step's questions, and a trail that names somewhere you are not is worse than no trail.
  * §7.0 ruling 3 retired the breadcrumb on every form screen in favour of the rail Header's
- * back link, so the component went - and the builder's own `<h1>` still needs this answer,
- * from one place, or the heading and the rail's marked row would be two opinions about which
- * screen is showing.
+ * back link, so the component went - and the builder's own `<h1>` still needs this answer.
  *
- * Pure, and in `lib/` for that reason: the caller is a client component and this reads
- * nothing but what it is handed.
- */
-/**
- * What to call the screen the builder is showing.
- *
- * Exported and pure so the heading can say the same thing the crumb does, from the same
- * lookup. They were two, which is how a screen ends up answering to two names - the crumb
- * read "Form details" while the reader was looking at a step.
+ * **From one place, which is the whole reason it is exported.** The heading and the rail's
+ * marked row both resolve the screen's name through this function; two lookups is how a screen
+ * ends up answering to two names, which is what it did before - the rail read "Form details"
+ * while the crumb read "Builder".
  *
  * `undefined` is the answer for the frame before React attaches, and it is not a fallback: the
  * builder opens on the form's details, and without the bridge nothing can change that, so
  * "Form details" is simply true.
+ *
+ * Pure, and in `lib/` for that reason: the caller is a client component and this reads
+ * nothing but what it is handed.
  */
 export function currentScreenName(
   selection: BuilderSelection | undefined,

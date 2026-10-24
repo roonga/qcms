@@ -4,7 +4,7 @@ import Link from "next/link";
 import { useEffect, useRef, useState } from "react";
 
 import { Button, Dialog, TextField } from "@/components/kit";
-import { useAddStepRequests } from "@/lib/forms/add-step-request";
+import { resetAddStepRequests, useAddStepRequests } from "@/lib/forms/add-step-request";
 import { useBuilderRail } from "@/lib/forms/builder-bridge";
 import { t } from "@/lib/i18n/en";
 
@@ -63,6 +63,13 @@ export function RailAddStep({ builderHref }: { readonly builderHref: string }) {
     setNewTitle("");
     setAdding(true);
   }, [requests]);
+
+  // AND THE COUNT IS THIS MOUNT'S, not the bundle's. The store is a module, so it outlives
+  // this route: a control that unmounted with a request behind it would mount again - walking
+  // from the builder to Preview and back - find a number its fresh `seen` ref had never seen,
+  // and open a dialog nobody asked for. Cleared on the way out, which is the same thing
+  // `resetSettingsPanel` does for the Settings panel switch.
+  useEffect(() => resetAddStepRequests, []);
 
   // ARRIVING FROM ANOTHER FORM SCREEN'S ADD STEP, which is an anchor to the builder
   // carrying the fragment above. Reading it here rather than plumbing a prop down from the

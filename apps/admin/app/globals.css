@@ -2409,9 +2409,15 @@ div:has(> [role="dialog"] [data-qcms-dialog="wide"]) {
 }
 @variant compact {
   /* THREE TRACKS, which is what the pair added: the heading and the save note on the
-     first, Save on the second, and the lifecycle control on the third. Both `auto`
-     tracks collapse to nothing when their cell is empty, so a frozen version's row is
-     the same two-track row it was before the pair arrived. */
+     first, Save on the second, and the lifecycle control on the third.
+
+     An EMPTY `auto` track is zero wide, and its column gap is not: a frozen version
+     renders neither Save nor a lifecycle control, so its heading row still carries
+     the two 1rem gaps between the three tracks. That is 2rem of trailing space on a
+     row whose first track is `1fr` and therefore absorbs none of it - invisible,
+     because nothing is drawn in it, and stated here rather than claimed away. The
+     earlier wording said both tracks "collapse to nothing", which is true of the
+     track and false of the gap. */
   .qcms-question-head {
     grid-template-columns: 1fr auto auto;
     column-gap: 1rem;
@@ -2990,17 +2996,22 @@ div:has(> [role="dialog"] [data-qcms-dialog="wide"]) {
 }
 
 /* ===========================================================================
-   THE RAIL - `plan/admin-design-contracts.md` §7, issue 559.
+   THE RAIL - `plan/admin-design-contracts.md` §7.0, issues 559 and #1116.
 
-   WHAT IS SHARED AND WHAT IS NOT. §7a keeps a second rail on Settings and is
-   explicit that it is a DIFFERENT component which merely "share[s] the grid
-   column, the 240px width, the `--bp-sidebar` collapse behaviour and the
-   anchors-not-buttons rule - and nothing else". That sentence is the reason the
-   geometry lives here as `qcms-rail*` classes while the CONTENT lives in two
-   separate components: `components/forms/form-subtree-rail.tsx` for §7 and,
-   when it is built, a distinctly named Settings component for §7a. Sharing a
-   stylesheet block is not sharing a contract, and nothing in this block knows
-   or cares what the rail carries.
+   ONE RAIL, AND THIS BLOCK IS ALL OF ITS GEOMETRY. The paragraph that stood here
+   said the opposite at length: §7a kept a second rail on Settings and was
+   explicit that it was a DIFFERENT component sharing "the grid column, the 240px
+   width, the `--bp-sidebar` collapse behaviour and the anchors-not-buttons rule
+   - and nothing else", so the geometry lived here while the content lived in
+   separately named components that must never be unified. §7.0 unified them
+   (Code Owner, 2026-10-24): one frame with one anatomy, on every screen that has
+   a rail. `components/rail-frame.tsx` is that frame, and the three callers hand
+   it their parts.
+
+   What is still true of this block is narrower and worth keeping: it knows the
+   column, the width, the collapse and the row, and it does not know what any
+   screen's rail CARRIES. A rule that needed to name one screen's rail would be
+   the tell that the anatomy had stopped being one.
 
    THE COLUMN IS CONDITIONAL, and `:has()` is why there is no empty track on the
    screens that have no rail. (A count stood here and went stale twice as rails

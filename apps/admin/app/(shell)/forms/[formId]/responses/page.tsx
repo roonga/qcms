@@ -108,13 +108,7 @@ export default async function FormResponsesPage({
   }
   const form = detail.data;
 
-  const header = (
-    <FormPageHeader
-      formId={form.formId}
-      section="responses"
-      status={form.status}
-    />
-  );
+  const header = <FormPageHeader formId={form.formId} section="responses" status={form.status} />;
 
   // A statement about the address bar, so it is true whether or not the list loaded.
   const ignoredNotice = ignored.length > 0 && (

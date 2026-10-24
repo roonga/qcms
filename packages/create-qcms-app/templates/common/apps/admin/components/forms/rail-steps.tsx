@@ -559,9 +559,6 @@ function GroupRow({
   );
 }
 
-
-
-
 /** The commands that do not apply at this position, so the menu greys them out. */
 function disabledCommands(position: number, total: number): string[] {
   const disabled: string[] = [];
