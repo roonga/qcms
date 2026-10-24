@@ -67,6 +67,14 @@ The review of the 080 to 083 work orders raised four questions, ruled as follows
 
 The same review's other blocking findings needed no ruling and are fixed in place: the environment bound per step in the token (section 7.4), links only to page routes (section 4.9), resizing without dragging (section 4.5), and `exp` checked on step 0 (section 7.4).
 
+### 1.6 The assistant's identity (Code Owner, 2026-10-24, issue #1129)
+
+The assistant has its own icon: **the Q of QCMS drawn as a speech bubble wearing a robot visor** with two points of light. The QCMS design system's AssistantIcon card, at design system version 16 (the ruled revision), is the reference. It is inline SVG on the theme tokens (`color-primary` for the bubble and the lights, `color-primary-foreground` for the visor), so it follows the admin's three appearance modes (Light, Dark and High contrast; `apps/admin/lib/appearance.ts`), and High contrast dark once issue #1123 lands.
+
+- **It replaces the word "Assistant"** in the panel header (the filled mark, 24 px) and beside assistant turns (the avatar, 20 px). Wherever it replaces the word, it carries the name: `role="img"` with `aria-label` from the catalog key `agent.title` ("Assistant") (sections 4.8 and 4.9).
+- **The launcher is the mark itself, with no disc behind it** (section 4.1).
+- **The visor glows while the assistant works**, driven by the same state as the polite live region, so motion is never the only signal; under reduced motion it is a static glow (sections 4.6 and 4.9).
+
 ## 2. Where it stands today
 
 **Text already streams end to end.**
@@ -123,7 +131,8 @@ And the one property that makes the confirm model cheap to reason about: **the t
 
 ### 4.1 The launcher
 
-A circular 48 CSS px button, fixed to the inline-end, block-end corner of the viewport, 24 px from both edges, carrying the assistant icon and an accessible name from the catalog ("Open the assistant").
+A 48 CSS px button, fixed to the inline-end, block-end corner of the viewport, 24 px from both edges, with an accessible name from the catalog ("Open the assistant").
+**The button is the assistant's mark, with no disc behind it** (Code Owner, 2026-10-24, issue #1129; section 1.6). The filled mark, about 44 px, sits inside the 48 px button and is `aria-hidden`, because the button carries the name. Hover and press shift the bubble to `color-primary-hover` and `color-primary-active`. The 2px focus ring traces the 48 px button. The bubble holds 6.0:1 or better against the page in Light and Dark, so no disc is needed to meet the 3:1 non-text floor (WCAG 1.4.11). While a turn runs, the mark's visor glows as in section 4.9.
 It is rendered once, by a client component mounted in the authenticated shell layout beside the `Announcer` (`apps/admin/app/(shell)/layout.tsx:108-112`), only when `agentAuthoringEnabled()` is true on the server, and on **every** `(shell)` screen, Settings included (Q18).
 With the flag off the component is not rendered at all, the same "absent rather than hidden" stance the builder prop takes today (`form-builder.tsx:167-173`).
 
@@ -166,11 +175,11 @@ The choice between float and dock is stored in a cookie the layout reads, the wa
 - **1.4.13 Content on Hover or Focus.** The launcher tooltip is dismissible with Escape, hoverable and persistent.
 - **4.1.3 Status Messages.** Streaming prose is **not** announced token by token. The panel's polite live region announces phase changes in plain language ("Searching the question library", "1 action to review") and one completion line per turn. The in-progress bubble carries `aria-busy="true"` until its segment ends. Announcements that must survive a route change go through the shell's `Announcer` (`layout.tsx:108-112`).
 - **1.4.1 Use of Color.** Card kinds, step states and the "agent proposed" marker carry text and an icon, never colour alone, as the current diff lines do (`assist-panel.tsx:573-579`).
-- **Contrast** follows the admin theme tokens, including the high-contrast dark theme (`plan/high-contrast-dark-plan.md`).
+- **Contrast** follows the admin theme tokens in its three appearance modes (Light, Dark and High contrast; `apps/admin/lib/appearance.ts`), and the high-contrast dark theme (`plan/high-contrast-dark-plan.md`) once issue #1123 lands.
 
 ### 4.6 Reduced motion
 
-Under `prefers-reduced-motion: reduce`: no slide, scale or fade on open and close; the streaming caret is a static bar; the thinking indicator has no shimmer; the timeline's running state is an icon, not a spinner.
+Under `prefers-reduced-motion: reduce`: no slide, scale or fade on open and close; the streaming caret is a static bar; the thinking indicator has no shimmer; the timeline's running state is an icon, not a spinner; the mark's visor keeps a **static glow** while a turn runs, and its lights do not pulse (Code Owner, 2026-10-24, issue #1129).
 
 ### 4.7 Internationalisation
 
@@ -181,15 +190,16 @@ The model's own prose is whatever language it writes; nothing in the UI depends 
 
 ### 4.8 Header
 
-One compact row, 44 px tall: the title ("Assistant"), a context chip naming what the agent can see on this screen ("Form: Vehicle quote, draft"), then four icon buttons with catalog names and tooltips: **New conversation**, **Dock** or **Float** (a toggle with `aria-pressed`), **Help**, **Close**.
+One compact row, 44 px tall: **the assistant's mark at 24 px in place of the title word** (Code Owner, 2026-10-24, issue #1129; section 1.6). It is `role="img"` with `aria-label` from `agent.title` ("Assistant") and is the element the panel's `aria-labelledby` points at, so the dialog or `<aside>` keeps the name "Assistant". Then a context chip naming what the agent can see on this screen ("Form: Vehicle quote, draft"), then four icon buttons with catalog names and tooltips: **New conversation**, **Dock** or **Float** (a toggle with `aria-pressed`), **Help**, **Close**.
 The present text button (`assist-panel.tsx:208-212`) goes; collapse is replaced by close, since the launcher reopens.
 
 ### 4.9 Conversation
 
-- **Bubbles.** User turns right-aligned in a filled bubble; assistant turns left-aligned, full width, unfilled, with a small avatar. Each assistant turn is a column of **segments** in arrival order: prose, a step timeline, a thinking disclosure, cards.
+- **Bubbles.** User turns right-aligned in a filled bubble; assistant turns left-aligned, full width, unfilled, with **the assistant's mark at 20 px as the avatar** in place of the word, `role="img"` named by `agent.title` (Code Owner, 2026-10-24, issue #1129). Each assistant turn is a column of **segments** in arrival order: prose, a step timeline, a thinking disclosure, cards.
 - **Markdown through an in-house safe subset (Q14).** A small renderer in `apps/admin/lib/agent/markdown.tsx` that parses a closed subset (paragraphs, line breaks, emphasis, strong, inline code, fenced code, ordered and unordered lists, headings mapped to bold paragraphs, and links) into React elements, so it **cannot emit raw HTML** because it never builds HTML from strings. **No images**: an image is the classic exfiltration channel, a URL the browser fetches without a click. Links render as links only when their path matches an admin **page** route in the screen table (`apps/admin/lib/agent/screens.ts`; a closed list in 080 until 082 lands), with no query string, and as plain text otherwise; a route handler is never a link target, so a link cannot start the `forms/[formId]/export` download that only an export card may start (Code Owner, 2026-10-24, review finding B3). Anything outside the subset renders as literal text. The admin CSP already limits `img-src` to `'self' data:` and `connect-src` to `'self'` (`apps/admin/lib/server/csp.ts:46`, `csp.ts:49`), which is defence in depth here. The renderer gets its own unit tests, including hostile inputs (HTML tags, `javascript:` links, image syntax, reference-style links, nested emphasis bombs).
 - **Streaming caret** after the last character of the segment currently streaming; it disappears on `text-end` (`ai` 7.0.136 `dist/index.d.ts:3177-3181`) or turn end.
 - **Step timeline.** One row per tool step: an icon, a plain-language label from the catalog, and a state (running, done, failed). Read tools read "Reading {what}", propose tools "Preparing an action for you to confirm". A failed step the model then corrected (today's `toolErrors`, `assistant.ts:220-223`) shows as failed then done. The row appears on `tool-input-start`, not on the parsed call (section 9).
+- **The mark while the assistant works** (Code Owner, 2026-10-24, issue #1129). While a turn runs, the visor of the header mark and of the launcher glows softly and its two lights pulse in turn (1.4 s). The glow is driven by the same turn state as the polite live region, which says "Thinking" in words, so motion is never the only signal (WCAG 1.4.1, 4.1.3). It stops when the turn ends or is stopped. Under reduced motion the glow is static (section 4.6). With the panel closed, the launcher's "Working" badge stays. This is separate from the thinking disclosure below, which shows reasoning text.
 - **Thinking disclosure.** When the operator setting allows it (section 8), a collapsed `<details>` labelled "Thinking", with a running indicator while reasoning streams and "Thought for {n} s" afterwards. Its contents render as plain text, never Markdown.
 
 ### 4.10 Cards and plans
