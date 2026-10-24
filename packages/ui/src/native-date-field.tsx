@@ -12,33 +12,17 @@ import {
 /**
  * The date question's control in native (no-JS) submit mode.
  *
- * The vendored DatePicker cannot serve this path: its segments are driven entirely by
- * key handlers, and its `<input type="text" hidden required>` validation mirror is
- * `willValidate` but unfocusable, so Chrome abandons the submission outright. A required
- * date was therefore unsubmittable without scripting.
+ * The vendored DatePicker cannot serve it: its segments are driven by key handlers and
+ * its validation mirror is `willValidate` but unfocusable, so the browser abandons the
+ * submission outright and a required date was unsubmittable.
  *
- * What this renders instead is a `<fieldset>` holding a day, a month and a year box, in
- * the order the configured locale writes a date. A single `<input type="date">` draws
- * its parts in the BROWSER's locale and no markup moves them, so the server render and
- * the hydrated one disagreed whenever browser and deployment did; three boxes are the
- * only native markup whose order the server decides, and one labelled box per part is
- * the established accessible pattern for a memorable date.
+ * Three boxes rather than one `<input type="date">`, which draws its parts in the
+ * browser's locale with no markup able to move them, so the server render and the
+ * hydrated one disagreed whenever browser and deployment did. One labelled box per part
+ * is also the established accessible pattern for a memorable date.
  *
- * Each box posts under its own prefixed name and the field is tagged `date`, so the BFF
- * joins the three into the same `YYYY-MM-DD` string the scripted path posts, without
- * knowing the question (R2). An all-blank field posts nothing, which keeps the
- * answered-marker clear rule working.
- *
- * `minValue` / `maxValue` are not carried: three boxes have no native way to state a day
- * bound, so the API refuses an out-of-range day after the round trip, which is the no-JS
- * principle of functional without rapid feedback. `required` is carried on every box.
- *
- * `Intl.DisplayNames` names each part in the configured locale, the same language
- * react-aria announces its own segments in under the same `I18nProvider`.
- *
- * ADR-22 keeps the vendored components byte-identical upstream, so a no-JS fallback
- * cannot live inside one. This consumes the vendored control's own style map instead, so
- * both renderings of a question share a label, slots and the ADR-30 token palette.
+ * `minValue` / `maxValue` are not carried, because three boxes have no native way to
+ * state a day bound, so the API refuses an out-of-range day after the round trip.
  */
 export interface NativeDateFieldProps {
   /** The questionId; each box posts under it with its part prefix. */
@@ -50,18 +34,16 @@ export interface NativeDateFieldProps {
   readonly isDisabled?: boolean;
   readonly isReadOnly?: boolean;
   readonly isInvalid?: boolean;
-  /** ISO day bounds from the question's constraints. Enforced by the API, not here. */
+  /** Enforced by the API, not here. */
   readonly minValue?: string;
   readonly maxValue?: string;
-  /** The stored answer this field is seeded with; uncontrolled from there on. */
+  /** Seeded once; uncontrolled from there on. */
   readonly defaultValue?: string;
 }
 
-/**
- * One box, matching the vendored `group` classes minus their `data-*` state variants,
- * which have no meaning on a native input: invalid is `aria-invalid` and disabled is the
- * real attribute.
- */
+// Matches the vendored `group` classes, minus `data-*` state variants that have no
+// meaning on a native input.
+
 const INPUT_CLASS = [
   "flex items-center min-h-11 border border-(--color-border) rounded px-2 py-1",
   "bg-(--color-surface) text-sm text-(--color-text)",
@@ -105,8 +87,8 @@ export function NativeDateField({
   const descriptionId = `${fieldId}-description`;
   const errorId = `${fieldId}-error`;
   const seeded = splitNativeDate(defaultValue);
-  // Both slots are named when both are drawn, so a screen reader announces the
-  // hint and the refusal rather than one of them (WCAG 3.3.2, 3.3.1).
+  // Both ids when both are drawn, or a screen reader hears the hint or the refusal
+  // rather than both (WCAG 3.3.2, 3.3.1).
   const describedBy =
     [
       description === undefined ? undefined : descriptionId,

@@ -6,8 +6,8 @@ export type A2NodeInput = {
   children?: A2NodeInput | A2NodeInput[] | string;
 };
 
-// The envelope only, deliberately not composed with the per-component schemas, so
-// it stays open to unknown component types at render time.
+// Deliberately not composed with the per-component schemas, so it stays open to
+// unknown component types at render time.
 export const A2NodeSchema: z.ZodType<A2NodeInput> = z.lazy(() =>
   z.object({
     type: z.string().min(1),

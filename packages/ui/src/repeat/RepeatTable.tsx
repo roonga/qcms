@@ -5,31 +5,22 @@ import { totalLabelFor } from "./repeat-table-node.ts";
 import type { RepeatColumn, RepeatTableNode } from "./repeat-table.schema.ts";
 
 /**
- * The table presentation's `<table>` (ADR-43).
+ * The table presentation's `<table>`.
  *
- * A native `<table>` and never `role="grid"`: APG gives as a defining property of the
- * grid pattern that it requires author code to manage focus movement inside it, so
- * with scripting off a grid is a tab trap and this surface's no-JS claim would be
- * qualified. One tab stop per cell is the documented cost of that choice rather than a
- * defect to mitigate with script, and the group's own `max` is what bounds it. Nothing
- * here may grow a roving tabindex or an edit mode; ADR-43 refuses both by name.
+ * A native `<table>` and never `role="grid"`: APG makes author-managed focus movement a
+ * defining property of that pattern, so with scripting off a grid is a tab trap.
+ * Nothing here may grow a roving tabindex or an edit mode; ADR-43 refuses both by name.
  *
- * The `<caption>` carries the group's authored label and is the table's accessible
- * name, which is why the expansion emits no heading node for a table-presented group.
- * The `<tfoot>` total is presentation only: computed, drawn, and never an input, never
- * posted, never stored, never submitted and never exported. An author who needs it
- * stored asks for it as a question.
+ * The `<caption>` is the table's accessible name, which is why the expansion emits no
+ * heading node for a table-presented group. The `<tfoot>` total is presentation only:
+ * never an input, never posted, never stored, never exported.
  *
- * Above the card reflow the table lives in its own `overflow-x: auto` box, the only
- * element on a portal page permitted to scroll horizontally (1.4.10 Reflow). That box
- * is `position: relative`, and so is every cell, because this design puts a visually
- * hidden `<label>` in every cell and one with no positioned ancestor resolves against
- * the initial containing block, lands past the viewport edge and widens the document.
- * The declarations are in `theme-components.css`; this note is here because the markup
- * is what makes them load-bearing.
+ * The scroll box and every cell are `position: relative`, because this design puts a
+ * visually hidden `<label>` in every cell and one with no positioned ancestor resolves
+ * against the initial containing block and widens the document (1.4.10 Reflow). The
+ * declarations are in `theme-components.css`; the markup is what makes them so.
  */
 
-/** The sum of a numeric column's drawn cells, or `undefined` when none holds one. */
 function columnTotal(
   column: RepeatColumn,
   values: Readonly<Record<string, unknown>>,
@@ -60,8 +51,7 @@ export function RepeatTable({
   const values = useQcmsValues();
   const locale = useQcmsLocale();
   const totals = columns.map((column) => columnTotal(column, values));
-  // An empty `<tfoot>` row of blank cells would be a row a respondent reads past for
-  // nothing.
+  // An empty total row is a row a respondent reads past for nothing.
   const hasTotals = totals.some((total) => total !== undefined);
   const format = new Intl.NumberFormat(locale);
 
@@ -83,9 +73,8 @@ export function RepeatTable({
               >
                 {column.label}
                 {column.description === undefined ? null : (
-                  // Once per column instead of once per cell. Each input still
-                  // carries its own `aria-describedby`, so this is a visible home for
-                  // the hint rather than its only encoding.
+                  // Each input keeps its own `aria-describedby`, so this is a
+                  // visible home for the hint rather than its only encoding.
                   <span className="qcms-repeat-table__colhint">{column.description}</span>
                 )}
               </th>

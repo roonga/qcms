@@ -1,19 +1,11 @@
 /**
- * Writes the two artifacts derived from the font manifest: `src/fonts.css` and
- * `src/fonts/NOTICE.md`.
+ * Writes `src/fonts.css` and `src/fonts/NOTICE.md` from the font manifest.
  *
  *   pnpm --filter @roonga/qcms-ui fonts:generate
  *
- * Both outputs are committed, so the portal imports the stylesheet with no build
- * step and no network, and `src/font-registry.test.ts` fails if either has drifted
- * from the manifest.
- *
- * It lives outside `src/` on purpose: `src/import-surface.test.ts` allows only the
- * a2-react-aria stack in the shipped tree, and this tool needs `node:fs`.
- *
- * The package script pipes both outputs through Prettier, since the root lint gate
- * checks formatting and Prettier reflows a long custom-property value. The CSS
- * drift test therefore compares content with whitespace normalized.
+ * Both outputs are committed, so the portal imports the stylesheet with no build step
+ * and no network. It lives outside `src/` because the import-surface test allows only
+ * the a2-react-aria stack in the shipped tree and this needs `node:fs`.
  */
 
 import { statSync, writeFileSync } from "node:fs";
@@ -25,11 +17,8 @@ import type { FontEntry } from "../src/font-registry.ts";
 const SRC = join(import.meta.dirname, "..", "src");
 const FONT_DIR = join(SRC, "fonts");
 
-/**
- * Total committed bytes of one entry's faces, counting each file once: a variable
- * font declares several faces over one file, so counting per face would report bytes
- * that are not on disk.
- */
+// Each file once: a variable font declares several faces over one, so counting per
+// face would report bytes that are not on disk.
 function bytesOf(entry: FontEntry): number {
   const files = new Set(entry.faces.map((face) => face.file));
   return [...files].reduce((total, file) => total + statSync(join(FONT_DIR, file)).size, 0);
@@ -37,7 +26,6 @@ function bytesOf(entry: FontEntry): number {
 
 const thousands = (n: number): string => n.toLocaleString("en-US");
 
-/** What a redistributor needs to know before the tables. */
 const PREAMBLE: readonly string[] = [
   "# Self-hosted font notices (`@roonga/qcms-ui`)",
   "",
@@ -59,7 +47,6 @@ const PREAMBLE: readonly string[] = [
   "",
 ];
 
-/** One entry's summary row. */
 function summaryRow(entry: FontEntry): string {
   const weights = entry.faces.map((face) => face.weight).join(", ");
   return (
@@ -68,13 +55,11 @@ function summaryRow(entry: FontEntry): string {
   );
 }
 
-/** One entry's copyright notice, or nothing when there is no webfont to cover. */
 function noticeBlock(entry: FontEntry): readonly string[] {
   if (entry.copyright === null) return [];
   return [`**${entry.label}** (${entry.license})`, "", `> ${entry.copyright}`, ""];
 }
 
-/** One group: its summary table, then a notice block per entry. */
 function groupSection(group: string, entries: readonly FontEntry[]): readonly string[] {
   return [
     `## ${group}`,
@@ -88,10 +73,9 @@ function groupSection(group: string, entries: readonly FontEntry[]): readonly st
 }
 
 /**
- * The redistribution notice. OFL-1.1 section 2 and Apache-2.0 section 4(a) each
- * require the license text and the copyright notice to travel with the bytes, so
- * this file plus the two `LICENSE-*.txt` files beside the binaries are what
- * discharges that obligation for a QCMS deployment.
+ * OFL-1.1 section 2 and Apache-2.0 section 4(a) each require the license text and the
+ * copyright notice to travel with the bytes, so this output plus the two
+ * `LICENSE-*.txt` files beside the binaries are what discharge that obligation.
  */
 function renderNotice(): string {
   const sections = FONT_GROUPS.flatMap((group) => {

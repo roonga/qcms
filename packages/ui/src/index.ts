@@ -1,8 +1,4 @@
-/**
- * `@roonga/qcms-ui` public surface: the controlled A2UI step renderer, built on
- * `@a2ra/core`'s `A2Renderer` over vendored a2-react-aria components (ADR-22). It is
- * the only renderer, so admin preview fidelity is exact (ARCHITECTURE §6).
- */
+/** The controlled A2UI step renderer, over vendored a2-react-aria components (ADR-22). */
 export { A2UIStepRenderer } from "./A2UIStepRenderer.tsx";
 export type { A2UIStepDocument, A2UIStepRendererProps } from "./A2UIStepRenderer.tsx";
 
@@ -39,23 +35,16 @@ export type { AuthorMessages } from "./author-messages.ts";
 
 export { documentForVisible } from "./visible.ts";
 
-/**
- * The render-time `pattern` normalization, exported so an authoring surface can offer
- * its output as a suggestion rather than leaving every render to repair the same string.
- * Stored documents keep their original pattern whatever an author does next (R1, ADR-18).
- */
+/** Public so an authoring surface can offer the rewrite rather than repair it per render. */
 export { compilesUnderV, toVSafePattern } from "./v-safe-pattern.ts";
 
 export { HoneypotSchema } from "./honeypot/honeypot.schema.ts";
 export type { HoneypotNode } from "./honeypot/honeypot.schema.ts";
 
 /**
- * The repeating group (ADR-42, ADR-43): the node types, the `__qop` wire vocabulary,
- * the render-time expansion and the behaviour context.
- *
  * The node vocabulary is also published on the React-free `./repeat-node` subpath,
- * because the portal's server-only BFF decoder reads `__qop` off a form POST and a
- * Server Component must not pull a client component in through a transitive import.
+ * because a Server Component decoding `__qop` must not pull a client component in
+ * through a transitive import.
  */
 export {
   QcmsRepeatContext,
@@ -102,9 +91,8 @@ export {
 } from "./repeat/repeat-node.ts";
 export type { RosterOp, RosterOpRequest } from "./repeat/repeat-node.ts";
 /**
- * The table presentation's render-time vocabulary. `REPEAT_ROW_NODE_TYPE` is the one a
- * host needs by name: a table-presented group carries an instance's label on its row
- * rather than on an instance card, and the portal's error summary reads it there.
+ * `REPEAT_ROW_NODE_TYPE` is public because a table-presented group carries an
+ * instance's label on its row rather than on an instance card.
  */
 export {
   REPEAT_CELL_NODE_TYPE,

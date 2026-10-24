@@ -2,16 +2,11 @@ import type { A2Node } from "@a2ra/core";
 
 import { qualifiedFieldName } from "./repeat-node.ts";
 
-/**
- * The node-walking helpers the repeat expansions share. Both presentations clone the
- * same template and need the same operations, so they live here, where one layout
- * cannot drift from another's idea of what a cloned control is.
- */
+// Shared by both presentations, so one layout cannot drift from the other's idea of
+// what a cloned control is.
 
-/**
- * Split in two so each function has one declared result type: a single conditional
- * chain over this union is where a mapped text body would silently become a node.
- */
+// Split in two so each function has one declared result type: a single conditional
+// chain over this union is where a mapped text body would silently become a node.
 function mapNodeChildren(
   children: A2Node | A2Node[],
   map: (child: A2Node) => A2Node,
@@ -43,13 +38,9 @@ export function numberProp(node: A2Node, key: string): number | undefined {
 }
 
 /**
- * Rewrite one member control's `name` to its qualified form, recursively, so a control
- * whose own children carry no name is copied unchanged beneath it.
- *
- * Only the `name` prop moves: every other compiled prop is stored content and is
- * carried across untouched, which is what makes an instance's control identical to
- * the same question outside a group (ADR-42: a question does not know it is
- * repeated).
+ * Only the `name` prop moves: every other compiled prop is stored content carried
+ * across untouched, which is what makes an instance's control identical to the same
+ * question outside a group (ADR-42: a question does not know it is repeated).
  */
 export function qualifyNames(node: A2Node, instanceId: string): A2Node {
   const mapped = mapChildren(node.children, (child) => qualifyNames(child, instanceId));

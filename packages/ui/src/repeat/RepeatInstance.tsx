@@ -6,29 +6,19 @@ import { ROSTER_OP_FIELD, rosterOpValue } from "./repeat-node.ts";
 import type { RepeatInstanceNode } from "./repeat.schema.ts";
 
 /**
- * One live instance of a repeating group (ADR-43).
+ * One live instance, as a `<fieldset>` whose `<legend>` holds the instance heading.
  *
- * A `<fieldset>` whose `<legend>` holds a heading carrying the resolved instance
- * label, which is the WAI forms tutorial's own worked example and technique H71's
- * rule of thumb for a group inside a larger form.
+ * The heading sits inside the legend so one element both names the fieldset and is
+ * reachable by heading navigation, with the label spoken once: repeating the text has
+ * it read with every control in the group on some screen readers.
  *
- * The heading is inside the legend so one element does two jobs: `<legend>`'s content
- * model admits heading content, so the heading gives the fieldset its accessible name
- * and is reachable by heading navigation with the label spoken once. Repeating the
- * text would have it read with every control in the group on some screen readers.
+ * Its `tabindex="-1"` and `id` are the two focus mechanisms a roster operation needs,
+ * the no-JS one being `autofocus` rather than a fragment, since a 200 answering a POST
+ * leaves the browser on the POST's own URL.
  *
- * The heading carries `tabindex="-1"` and `id={instanceId}`, the two focus mechanisms
- * a roster operation needs: the scripted path moves focus to it, and the no-JS path
- * lands on it by `autofocus` on the same 200 re-render, never a fragment, since a 200
- * answering a POST leaves the browser on the POST's own URL. The id is the bare
- * instance id; the field ids beneath it are the qualified names.
- *
- * Remove is named "Remove Vehicle 3" rather than the reverse, because APG's naming
- * practice puts the distinguishing words first. Without scripting it is a named
- * `__qop` submit button on the step's own form carrying `formnovalidate`, which stops
- * the browser refusing the press because another instance has a blank required field.
- * That is safe only because the post writes no answer (ADR-43): validation is deferred
- * to Continue, not skipped.
+ * Remove carries `formnovalidate`, so the browser does not refuse the press because
+ * another instance has a blank required field. That is safe only because the post
+ * writes no answer (ADR-43): validation is deferred to Continue, not skipped.
  */
 export function RepeatInstance({
   groupId,

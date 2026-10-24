@@ -3,23 +3,13 @@ import type { A2Node } from "@a2ra/core";
 import { REPEAT_INSTANCE_NODE_TYPE } from "./repeat/repeat-node.ts";
 
 /**
- * Render-time heading demotion for an embedded compiled document.
- *
- * A compiled step carries its own outline, so a page that already has an `<h1>` and
- * embeds the document ends up with two: an outline defect for a screen-reader user
- * navigating by heading level. The document is stored, immutable content (R1, ADR-18)
- * and cannot know what page it will be shown inside, so the page is the only party that
- * can renumber, and the guest yields rather than the chrome.
- *
- * Only the `as` prop moves. `size`, `weight` and colour stay as compiled, because an
- * admin preview promises what a respondent saw. The stored bytes are never touched.
+ * The document is stored, immutable content (R1, ADR-18) and cannot know what page it
+ * will be shown inside, so the embedding page renumbers rather than dropping its own
+ * `<h1>`. Only the `as` prop moves: `size` and `weight` stay as compiled, because an
+ * admin preview promises what a respondent saw.
  */
 
-/**
- * The heading levels the A2UI `Text` schema accepts, in order. Demotion clamps at the
- * end: `h4` stays `h4` rather than becoming an `h5` the schema would reject, so a deeply
- * nested embed degrades to a flat tail instead of a document the renderer refuses.
- */
+/** Clamped at the last level, because the schema would reject an `h5`. */
 const HEADING_LEVELS = ["h1", "h2", "h3", "h4"] as const;
 
 type HeadingLevel = (typeof HEADING_LEVELS)[number];
@@ -28,7 +18,6 @@ function isHeadingLevel(value: unknown): value is HeadingLevel {
   return typeof value === "string" && (HEADING_LEVELS as readonly string[]).includes(value);
 }
 
-/** The level `level` becomes after `by` steps of demotion, clamped at the last level. */
 function demotedLevel(level: HeadingLevel, by: number): HeadingLevel {
   const index = Math.min(HEADING_LEVELS.indexOf(level) + by, HEADING_LEVELS.length - 1);
   return HEADING_LEVELS[index] ?? HEADING_LEVELS[HEADING_LEVELS.length - 1];
@@ -50,20 +39,16 @@ function mapChildren(
 }
 
 /**
- * Return a render-time copy of `root` whose `Text` headings are `by` levels lower.
- *
- * `by <= 0` returns the input unchanged and allocates nothing, so a caller can pass a
- * computed offset without branching. A `Text` node with no `as`, or with a non-heading
- * `as` (`p`, `span`, `label`), is left alone: only a heading has a level to demote.
+ * A render-time copy of `root` whose `Text` headings are `by` levels lower. `by <= 0`
+ * allocates nothing, so a caller can pass a computed offset unbranched.
  */
 export function withDemotedHeadings(root: A2Node, by: number): A2Node {
   if (by <= 0) return root;
 
   const demote = (node: A2Node): A2Node => {
     const children = mapChildren(node.children, demote);
-    // A repeat instance's label is a heading carried as a prop rather than a `Text` node,
-    // because it lives inside the instance's `<legend>` with the focus handle. Same rule,
-    // same clamp.
+    // An instance's label is a heading carried as a prop because it lives inside the
+    // `<legend>` with the focus handle.
     const headingAs: unknown = node.props?.headingAs;
     if (node.type === REPEAT_INSTANCE_NODE_TYPE && isHeadingLevel(headingAs)) {
       return {

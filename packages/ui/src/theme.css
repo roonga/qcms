@@ -1,18 +1,9 @@
 /*
- * QCMS design tokens: the four-group token contract (ADR-30).
- * Contract documentation: docs/theming.md.
+ * The ADR-30 token contract. Contract documentation: docs/theming.md.
  *
- * Every visual decision the portal makes resolves from a custom property declared
- * here, in four groups: --color-*, the typography tokens (--font-fallback-*,
- * --font-portal, --font-mono, --type-*), --space-* and --radius-*. The vendored
- * components resolve --color-* directly in their own utility strings, since ADR-22
- * keeps those files byte-identical upstream; the rest reach them through the
- * qcms-owned `theme-components.css`, so a host imports both sheets.
- *
- * Every block is anchored on `:is(:root, [data-qcms-theme-scope])` (ADR-38), so a
- * themed subtree is expressible without giving up the document-level form. Never
- * soften it to `:where()`: that is specificity 0 and would re-rank every block
- * below against an adopter's own `:root` overrides. The knobs ride the anchor:
+ * Never soften the `:is(:root, [data-qcms-theme-scope])` anchor (ADR-38) to
+ * `:where()`: that is specificity 0 and would re-rank every block below against an
+ * adopter's own `:root` overrides. The knobs ride the anchor:
  *   mode    anchor class:     (none) = Light   .dark = Dark   .hc = High-contrast
  *   theme   anchor attribute: (absent) or [data-theme="slate"] = the default
  *                             [data-theme="harbor"|"sand"|"plum"] = alternates
@@ -20,75 +11,47 @@
  *   density anchor class:     (none) = Comfortable  .density-compact / -spacious
  *   font    anchor class:     .font-<registry key> (declared by fonts.css)
  *
- * The default theme lives in the bare anchor blocks and an alternate only
- * overrides under the anchor plus [data-theme="x"], so setting the attribute
- * switches and removing it restores the default.
- *
- * The palettes are the theme-palette design deliverable, copied verbatim and never
- * re-derived. Every text and background pair meets WCAG 2.2 AA in Light and Dark
- * and AAA body contrast in High-contrast; `theme-tokens.test.ts` recomputes the
- * ratios from this file, so a value that drifts fails the build.
+ * Every text and background pair meets WCAG 2.2 AA in Light and Dark and AAA body
+ * contrast in High-contrast; `theme-tokens.test.ts` recomputes the ratios from this
+ * file, so a value that drifts fails the build.
  */
 
-/* ==========================================================================
-   GROUP 2 - TYPOGRAPHY.
-   The five WCAG 1.4.12 floors are numeric requirements carried by tokens, not
-   guidance: body >= 16px, line-height >= 1.5, letter-spacing >= 0.12em,
-   word-spacing >= 0.16em, paragraph spacing >= 2em. No mode, theme or density
-   level may lower one; `theme-tokens.test.ts` asserts each floor. The generated
-   `fonts.css` imports after this file and each of its blocks sets --font-portal
-   and nothing else, so no font selection can reach a floor.
-
-   The three --font-fallback-* values are the only literal font-family lists in
-   the product, and `scripts/check-font-tokens.mjs` fails the build when a second
-   one is written down under apps/ or packages/ui/src/.
-   ========================================================================== */
+/* WCAG 1.4.12 floors, which nothing may lower: body >= 16px, line-height >= 1.5,
+   letter-spacing >= 0.12em, word-spacing >= 0.16em, paragraph spacing >= 2em.
+   The three --font-fallback-* values are the only literal font-family lists in the
+   product, and `scripts/check-font-tokens.mjs` fails the build on a second one. */
 :is(:root, [data-qcms-theme-scope]) {
-  /*
-   * The sans tail, for when the primary face is missing, refused or still
-   * downloading. Two entries are positional rather than preferential:
-   * `system-ui` is never first and never alone, because it resolves from the OS
-   * locale rather than the content language and used to short-circuit the rest
-   * of the list for non-Latin text (Mozilla bug 1724907); and the emoji and
-   * symbol faces come after the generic on purpose, since they are consulted per
-   * glyph for codepoints no earlier face has.
-   */
+  /* Two entries are positional: `system-ui` is never first and never alone, because
+     it resolves from the OS locale rather than the content language and used to
+     short-circuit the rest of the list for non-Latin text (Mozilla bug 1724907);
+     the emoji faces follow the generic, being consulted per glyph. */
   --font-fallback-sans:
     ui-sans-serif, system-ui, -apple-system, "Segoe UI", Roboto, "Helvetica Neue", "Noto Sans",
     "Liberation Sans", Arial, sans-serif, "Apple Color Emoji", "Segoe UI Emoji", "Segoe UI Symbol",
     "Noto Color Emoji";
 
-  /* The serif tail, same shape: UI generic, named faces, generic last. */
   --font-fallback-serif: ui-serif, Georgia, Cambria, "Times New Roman", Times, serif;
 
-  /* The mono tail. No emoji entries: the mono token renders reference codes and
-     rule values, which are ASCII. */
   --font-fallback-mono:
     ui-monospace, SFMono-Regular, "SF Mono", Menlo, "Cascadia Code", "Roboto Mono", Consolas,
     "Liberation Mono", monospace;
 
-  /* The respondent's body face: the tail alone by default, which is what makes
-     the registry's System entry a no-download entry rather than a special case.
-     An override names the family and keeps the tail. */
+  /* The tail alone, which is what makes the System entry a no-download entry. */
   --font-portal: var(--font-fallback-sans);
 
-  /* Declaring this here also repoints Tailwind's own `font-mono` utility at the
-     token, so the utility and the variable cannot disagree. */
+  /* Also repoints Tailwind's `font-mono` utility, so the two cannot disagree. */
   --font-mono: var(--font-fallback-mono);
 
-  /* Body and label sit at the 16px floor. Hint text is the one smaller step and
-     is never the sole carrier of meaning. */
+  /* Hint text is the one sub-floor step, and never the sole carrier of meaning. */
   --type-body: 1rem;
   --type-label: 1rem;
   --type-hint: 0.875rem;
   --type-step-title: clamp(1.55rem, 3.5vw, 1.85rem);
 
-  /* Tabular figures, applied whatever font is selected: numbers a respondent
-     types or scans must not change width as they change value, or a digit
-     correction reads as a layout jump. Families without the feature ignore it. */
+  /* Numbers must not change width as they change value, or a digit correction
+     reads as a layout jump. Families without the feature ignore it. */
   --type-numeric: "tnum";
 
-  /* Spacing of text (the 1.4.12 floors). */
   --type-line-height: 1.5;
   --type-title-line-height: 1.25;
   --type-letter-spacing: 0.12em;
@@ -96,24 +59,11 @@
   --type-paragraph-spacing: 2em;
 }
 
-/* ==========================================================================
-   GROUP 3 - SPACING. Chrome only, so no contrast ratio depends on this group.
-   --space-control-h is also the WCAG 2.5.8 target-size floor (>= 24px).
-
-   Density is the respondent's runtime control over this group and the only axis
-   that moves these five values. A density level may set the five --space-*
-   tokens and nothing else: never a --type-* token, which carries a WCAG 1.4.12
-   floor, and never --space-control-h below 24px. Both are asserted by
-   `theme-tokens.test.ts` and re-measured on rendered controls per density by the
-   portal's browser suite.
-
-   Viewport is a second axis on one token, --space-section-pad, because the step
-   card carries a single p-(--space-section-pad) and no Tailwind variant, making
-   its phone padding a token decision rather than a markup one. The blocks are
-   written mobile-first and the one media block raises all three density levels
-   at the `sm` breakpoint. Every constraint above holds at both ends, and
-   `theme-tokens.test.ts` resolves the sheet at each.
-   ========================================================================== */
+/* --space-control-h is the WCAG 2.5.8 target-size floor (>= 24px).
+   A density level may set these five tokens and nothing else: never a --type-*
+   token, which carries a 1.4.12 floor, and never --space-control-h below 24px.
+   Only --space-section-pad also moves with the viewport, and every constraint holds
+   at both ends of that breakpoint. */
 :is(:root, [data-qcms-theme-scope]) {
   --space-control-h: 44px;
   --space-control-pad-x: 0.9rem;
@@ -122,8 +72,7 @@
   --space-stack: 0.5rem;
 }
 
-/* Compact: more of a long form on screen at once. 36px controls still clear
-   2.5.8 by 12px, and the option rows come out at 36px too. */
+/* 36px controls still clear 2.5.8 by 12px, option rows included. */
 :is(:root, [data-qcms-theme-scope]).density-compact {
   --space-control-h: 36px;
   --space-control-pad-x: 0.7rem;
@@ -132,8 +81,7 @@
   --space-stack: 0.375rem;
 }
 
-/* Spacious: larger targets and more separation, for coarse pointers, tremor, and
-   anyone who finds a dense form hard to track. */
+/* For coarse pointers, tremor, and anyone who finds a dense form hard to track. */
 :is(:root, [data-qcms-theme-scope]).density-spacious {
   --space-control-h: 52px;
   --space-control-pad-x: 1.1rem;
@@ -142,14 +90,9 @@
   --space-stack: 0.75rem;
 }
 
-/* At and above the `sm` breakpoint the card gets roomier padding, keeping the
-   same 0.7x and 1.33x either side of Comfortable that the narrow values use, so
-   choosing Compact on a phone is still a visible choice.
-
-   Only --space-section-pad moves with the viewport: control height is about
-   fingers rather than screens and the gaps are already relative units. Written
-   min-width, so the narrow value is what a viewport gets when no media query
-   resolves. */
+/* Keeps the same 0.7x and 1.33x either side of Comfortable that the narrow values
+   use, so choosing Compact on a phone is still a visible choice. Written min-width,
+   so the narrow value is what a viewport gets when no media query resolves. */
 @media (min-width: 40rem) {
   :is(:root, [data-qcms-theme-scope]) {
     --space-section-pad: 2.25rem;
@@ -164,13 +107,10 @@
   }
 }
 
-/* ==========================================================================
-   GROUP 4 - RADIUS. A theme-level setting, not a respondent control: the
-   deployment picks one preset. Geometry only, so no contrast impact.
+/* A theme-level setting, not a respondent control: the deployment picks one preset.
      --radius-control  buttons / inputs / selects / option rows
      --radius-card     step card / panels / banners / popovers
-     --radius-sm       checkboxes / chips
-   ========================================================================== */
+     --radius-sm       checkboxes / chips */
 :is(:root, [data-qcms-theme-scope]) {
   --radius-control: 6px;
   --radius-card: 10px;
@@ -194,11 +134,6 @@
   --radius-card: 20px;
   --radius-sm: 8px;
 }
-
-/* ==========================================================================
-   GROUP 1 - COLOR. Four themes, each authored Light and Dark, then one shared
-   High-contrast mode-layer. Values are the design deliverable, verbatim.
-   ========================================================================== */
 
 /* slate - the shipped default */
 
@@ -520,17 +455,10 @@
   --color-overlay: rgb(0 0 0 / 0.6);
 }
 
-/* ==========================================================================
-   HIGH-CONTRAST - one universal mode-layer, never a palette per theme. A theme
-   contributes only its accent, so a new theme gets HC by adding one AAA-safe
-   accent block.
-
-   Source order here is load-bearing: these blocks are emitted after every light
-   and dark block, so the shared `.hc` block, at the same (0,2,0) as a theme's
-   light block, wins on order alone, while the accent overrides (0,3,0) win on
-   specificity. The heavy borders, flat surfaces and heavy focus HC also needs
-   are CSS rather than token values and live in theme-components.css.
-   ========================================================================== */
+/* One universal mode-layer; a theme contributes only its accent.
+   Source order is load-bearing: these blocks come after every light and dark block,
+   so the shared `.hc` block, at the same (0,2,0) as a theme's light block, wins on
+   order alone, while the accent overrides (0,3,0) win on specificity. */
 
 :is(:root, [data-qcms-theme-scope]).hc {
   --color-primary: #0b453d;

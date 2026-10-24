@@ -1,27 +1,18 @@
 /**
- * The declarative font registry (ADR-30 group 2). Contract: docs/theming.md.
- *
- * This file is the manifest, and `src/fonts.css` is generated from it by
- * `renderFontsCss()`; `font-registry.test.ts` fails when the two disagree. Adding or
- * removing a font is a one-entry change here plus, for an addition, the `woff2` next to
- * it in `src/fonts/`.
+ * Contract: docs/theming.md. `src/fonts.css` is generated from this manifest.
  *
  * Every font is self-hosted, so a portal makes no external request for a typeface:
- * nothing for a CSP to allow (SEC-9) and nothing that makes CI depend on a third party.
+ * nothing for a CSP to allow (SEC-9).
  *
- * Licensing: every family is open-licensed and MIT-redistributable, each entry carries
- * its upstream copyright notice verbatim, and the license texts those notices refer to
- * ship beside the binaries, as OFL-1.1 and Apache-2.0 each require of a redistribution.
+ * Every family must stay open-licensed and MIT-redistributable, with its upstream
+ * copyright notice verbatim on the entry and the license texts beside the binaries,
+ * which is what OFL-1.1 and Apache-2.0 each require of a redistribution.
  *
- * An entry sets exactly one token, `--font-portal`. It may never touch a `--type-*`
- * value: those carry the WCAG 1.4.12 floors and no font selection may lower one.
- *
- * The shipped `woff2` files are Latin subsets, so other scripts fall back through the
- * entry's shared fallback token. Which non-Latin scripts QCMS self-hosts is not owned
- * here.
+ * An entry may never touch a `--type-*` value: those carry the WCAG 1.4.12 floors and
+ * no font selection may lower one.
  */
 
-/** Display order of the groups, and the order the generated CSS is emitted in. */
+/** Display order, and the order the generated CSS is emitted in. */
 export const FONT_GROUPS = [
   "System",
   "Accessibility",
@@ -33,54 +24,44 @@ export const FONT_GROUPS = [
 
 export type FontGroup = (typeof FONT_GROUPS)[number];
 
-/**
- * The license of a shipped family, as an SPDX identifier or expression. Nothing outside
- * this allow-list may be added without the CONTRIBUTING license check.
- */
+/** Nothing outside this allow-list may be added without the CONTRIBUTING check. */
 export type FontLicense = "OFL-1.1" | "Apache-2.0" | "OFL-1.1 OR Apache-2.0";
 
-/** One self-hosted static weight: the file sits at `src/fonts/<file>`. */
+/** The file sits at `src/fonts/<file>`. */
 export interface FontFace {
   readonly weight: number;
   readonly file: string;
 }
 
-/** One registry entry: the whole unit of add and remove. */
 export interface FontEntry {
-  /** CSS-class-safe token: the class is `font-<key>`. */
+  /** The generated class is `font-<key>`, so this must be CSS-class-safe. */
   readonly key: string;
-  /** Respondent-facing name (`family` for a webfont, a plain label for System). */
   readonly label: string;
-  /** The `font-family` name the `@font-face` declares, or `null` for System. */
+  /** `null` for System, which declares no `@font-face`. */
   readonly family: string | null;
   readonly group: FontGroup;
-  /** The full `--font-portal` value: the family first, then the fallback stack. */
   readonly stack: string;
-  /** Self-hosted weights, empty for System (which downloads nothing). */
+  /** Empty for System, which downloads nothing. */
   readonly faces: readonly FontFace[];
   readonly license: FontLicense | null;
-  /** The upstream copyright notice, verbatim; `null` only for System. */
+  /** Verbatim from upstream; `null` only for System. */
   readonly copyright: string | null;
   readonly note: string;
 }
 
 /**
- * The three fallback tails, as token references rather than literal family lists. The
- * lists live in one place, the base anchor block of `theme.css`, and
- * `scripts/check-font-tokens.mjs` fails the build on a second copy.
- *
- * Because these are `var()` references, `fonts.css` works only when `theme.css` is
- * imported first; an adopter who imports `fonts.css` alone gets a `font-family` that is
- * invalid at computed-value time rather than a silent wrong font.
+ * Token references rather than literal lists: the lists live only in `theme.css` and
+ * `scripts/check-font-tokens.mjs` fails the build on a second copy. Being `var()`
+ * references, they also make `fonts.css` invalid at computed-value time rather than
+ * silently wrong when a host imports it without `theme.css`.
  */
 const SANS_TAIL = "var(--font-fallback-sans)";
 const SERIF_TAIL = "var(--font-fallback-serif)";
 const MONO_TAIL = "var(--font-fallback-mono)";
 
-/** The System entry's key. It is always present and can never be curated away. */
+/** Always present; it can never be curated away. */
 export const SYSTEM_FONT_KEY = "system";
 
-/** The System entry: whatever the respondent's device already has, no download. */
 const SYSTEM_ENTRY: FontEntry = {
   key: SYSTEM_FONT_KEY,
   label: "System default",
@@ -99,18 +80,13 @@ interface WebfontSpec {
   readonly group: Exclude<FontGroup, "System">;
   readonly tail: string;
   readonly weights: readonly number[];
-  /**
-   * Set for a variable font, where upstream serves one file covering every weight: all
-   * declared weights then point at it. Without this, each weight gets its own
-   * `<key>-<weight>.woff2`.
-   */
+  /** Set for a variable font, whose one file covers every declared weight. */
   readonly file?: string;
   readonly license: FontLicense;
   readonly copyright: string;
   readonly note: string;
 }
 
-/** One self-hosted family: derives the stack and the per-weight file names. */
 function webfont(spec: WebfontSpec): FontEntry {
   return {
     key: spec.key,
@@ -129,11 +105,9 @@ function webfont(spec: WebfontSpec): FontEntry {
 }
 
 /**
- * The shipped registry.
- *
  * The Accessibility faces ship 400 and 700 because weight itself carries legibility for
  * low-vision and dyslexic readers. Every other family ships 400 only, to keep the
- * self-hosted payload small, and the browser synthesises bold.
+ * payload small, and the browser synthesises bold.
  */
 export const FONT_REGISTRY: readonly FontEntry[] = [
   SYSTEM_ENTRY,
@@ -154,7 +128,7 @@ export const FONT_REGISTRY: readonly FontEntry[] = [
     group: "Accessibility",
     tail: SANS_TAIL,
     weights: [400, 700],
-    // Variable upstream: one file carries the whole wght axis, so both faces point at it.
+    // One file carries the whole wght axis upstream, so both faces point at it.
     file: "lexend-variable.woff2",
     license: "OFL-1.1",
     copyright:
@@ -384,18 +358,15 @@ export const FONT_REGISTRY: readonly FontEntry[] = [
   }),
 ];
 
-/** The registry entry for a key, or `undefined` when the key is not shipped. */
+/** `undefined` when the key is not shipped. */
 export function fontByKey(key: string): FontEntry | undefined {
   return FONT_REGISTRY.find((entry) => entry.key === key);
 }
 
 /**
- * The respondent-facing subset an operator has curated, in registry order.
- *
  * An empty or all-unknown selection means offer everything, never offer nothing, and an
  * unknown key is ignored rather than fatal, so a typo cannot take a deployment down.
- * System is always in the result: it is the only entry guaranteed to render with no
- * download.
+ * System is always in the result, being the only entry that needs no download.
  */
 export function fontChoices(keys?: readonly string[]): readonly FontEntry[] {
   const wanted = new Set((keys ?? []).filter((key) => fontByKey(key) !== undefined));
@@ -409,10 +380,7 @@ export function fontClass(key: string): string {
   return `font-${key}`;
 }
 
-/**
- * The scope carrier every generated block is anchored on (ADR-38). Never `:where()`,
- * whose specificity is 0: `:is()` keeps this anchor at exactly `:root`'s (0,1,0).
- */
+/** ADR-38. Never `:where()`, whose specificity is 0; `:is()` keeps this at `:root`'s. */
 const SCOPE_ANCHOR = ":is(:root, [data-qcms-theme-scope])";
 
 const CSS_HEADER = `/*
@@ -465,7 +433,6 @@ export function renderFontsCss(entries: readonly FontEntry[] = FONT_REGISTRY): s
   return parts.join("");
 }
 
-/** One entry: its license notice, its faces, then the selector block. */
 function renderEntry(entry: FontEntry): string {
   const notice =
     entry.license === null

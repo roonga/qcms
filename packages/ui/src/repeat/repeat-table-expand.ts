@@ -14,69 +14,44 @@ import type { RepeatColumn } from "./repeat-table.schema.ts";
 import { keepControl, qualifyNames, stringProp } from "./repeat-walk.ts";
 
 /**
- * The table presentation's render-time expansion (ADR-43).
+ * ADR-42 adds no question type here: every cell is an ordinary question with an
+ * ordinary `AnswerValue`, so validation, retraction, the rules DSL, the ledger grain
+ * and the export grain all work unchanged, and this is a layout rather than a control.
  *
- * `presentation: "table"` lays instances out as rows and member questions as columns.
- * ADR-42 adds no question type: every cell is an ordinary question with an ordinary
- * `AnswerValue`, so validation, retraction, the rules DSL, the ledger grain, the
- * export grain and the reporting view all work unchanged, and this is a layout rather
- * than an input control.
- *
- * It is a native `<table>` and never `role="grid"`, because APG gives as a defining
- * property of the grid pattern that it requires author code to manage focus movement
- * inside it, so with scripting off a grid is a tab trap and this surface's no-JS
- * claim would be qualified. The documented cost is one tab stop per cell, which is
- * the expected behaviour of the ruled choice rather than a defect to mitigate with
- * script; the group's own `max` is what bounds it (SEC-16 sets no
- * installation-wide ceiling, so the count is the author's decision).
- *
- * The cell count is structural, which is why a cell is a node: a per-instance rule
- * can hide a member question in one instance and not another, and a short row shears
- * every later column off its header, so a hidden member leaves its `RepeatCell`
- * behind with no child.
+ * A native `<table>` and never `role="grid"`: APG makes author-managed focus movement
+ * a defining property of that pattern, so with scripting off a grid is a tab trap. One
+ * tab stop per cell is the documented cost of the ruled choice, bounded by the group's
+ * own `max` (SEC-16 sets no installation-wide ceiling).
  */
 
 /** What the group's own expansion knows and this one needs. */
 export interface RepeatTableInput {
   readonly groupId: string;
-  /** The group's authored label: the `<caption>`, and nothing else. */
+  /** Becomes the `<caption>`, and nothing else. */
   readonly label: string;
-  /** The instance-label template, `{n}` intact. */
+  /** `{n}` intact. */
   readonly instanceLabelTemplate: string;
-  /** The compiled "Remove {label}" template, when the group offers a removal. */
   readonly removeLabelTemplate?: string;
-  /** Whether this group's instances may be removed at all (`countSource: "open"`). */
   readonly removable: boolean;
-  /** The live roster, in roster order. */
+  /** In roster order. */
   readonly instances: readonly string[];
-  /** The group's member controls, once each, with the bare `questionId` as `name`. */
+  /** The member controls, once each, with the bare `questionId` as `name`. */
   readonly template: readonly A2Node[];
-  /** The visible qualified field names, when the host has a flow projection. */
+  /** Qualified names, when the host has a flow projection. */
   readonly visible?: ReadonlySet<string>;
-  /** The one-time operation token this render mints into its `__qop` values. */
   readonly opToken?: string;
 }
 
-/**
- * Relabel one cloned control to its cell's own name.
- *
- * A real `<label>` per cell is the only encoding that survives both layouts, so the
- * label is rewritten rather than supplemented: above the reflow the CSS clips it and
- * the visible headers are what a sighted respondent reads, and below the reflow the
- * same element is shown outright because the headers are gone. Nothing enters the
- * accessibility tree at one width and leaves it at another.
- *
- * A control with no `label` prop is left alone rather than given one: the compiler
- * labels every question, so this is a template that is not a question and inventing a
- * name for it would be worse than leaving it.
- */
+// Rewritten rather than supplemented, so nothing enters the accessibility tree at one
+// width and leaves it at another: above the reflow the CSS clips it and the visible
+// headers are what a sighted respondent reads, below it the same element is shown. A
+// control with no `label` is not a question, so inventing a name would be worse.
 function relabelCell(node: A2Node, rowLabel: string): A2Node {
   const label = stringProp(node, "label");
   if (label === undefined) return node;
   return { ...node, props: { ...node.props, label: cellLabelFor(rowLabel, label) } };
 }
 
-/** The columns, in template order, read off the group's own member controls. */
 function columnsOf(input: RepeatTableInput): readonly RepeatColumn[] {
   return input.template.map((control) => {
     const questionId = stringProp(control, "name") ?? "";
@@ -95,7 +70,6 @@ function columnsOf(input: RepeatTableInput): readonly RepeatColumn[] {
   });
 }
 
-/** One row: its props, and one `RepeatCell` per column whatever a rule hid. */
 function rowNode(input: RepeatTableInput, instanceId: string, index: number): A2Node {
   const resolved = instanceLabelFor(input.instanceLabelTemplate, index + 1);
   const props: Record<string, unknown> = {
@@ -123,13 +97,9 @@ function rowNode(input: RepeatTableInput, instanceId: string, index: number): A2
 }
 
 /**
- * The single `RepeatTable` node a table-presented group expands to, whose children are
- * one `RepeatRow` per live instance in roster order.
- *
- * The group's own label becomes the `<caption>` and is not also emitted as a heading
- * node the way the stacked presentation emits one: a caption is the table's accessible
- * name and is announced on entering it, so a heading above it would say the
- * collection's name twice for no navigational gain.
+ * The group's label becomes the `<caption>` and no heading node, unlike the stacked
+ * presentation: a caption is the table's accessible name, so a heading above it would
+ * say the collection's name twice for no navigational gain.
  */
 export function repeatTableNode(input: RepeatTableInput): A2Node {
   const actionsLabel =

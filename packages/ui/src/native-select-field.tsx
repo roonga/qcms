@@ -4,42 +4,22 @@ import type { SelectItem } from "./components/a2ui/select/index.ts";
 import { getSelectStyles } from "./components/a2ui/select/select.styles.ts";
 
 /**
- * The single-choice question's control in native (no-JS) submit mode, for a question
- * whose option count compiles to a `Select` rather than a `RadioGroup`.
+ * The single-choice control in native (no-JS) submit mode, for a question whose option
+ * count compiles to a `Select`.
  *
- * The vendored Select cannot serve this path. What the respondent sees is a button
- * whose popover listbox only JavaScript can open, and the real `<select>` that carries
- * the value sits in a clipped, `aria-hidden`, `tabindex="-1"` container meant for
- * autofill. So the question is both invisible and inoperable, and a required one is
- * worse: the browser cannot report validity on an unfocusable control and abandons the
- * whole step's submission, which made every step behind it unreachable.
+ * The vendored Select cannot serve it: the value rides a `<select>` clipped inside an
+ * `aria-hidden`, `tabindex="-1"` container behind a trigger only JavaScript can open,
+ * so the question is invisible and inoperable, and the browser cannot report validity
+ * on an unfocusable control, abandoning the whole step's submission.
  *
- * This renders one real, visible, focusable `<select>` under the question's own name,
- * built from the compiled `items` in authored order. A native select rather than a
- * stack of radios, because the compiler already decided this question is a select and
- * the answer encoding is the OptionId either way.
+ * The empty-valued first option does two jobs: HTML holds a `required` select invalid
+ * while the selected value is empty, so an untouched question never POSTs; and it is
+ * the question's only clear gesture, since a chosen option cannot be deselected on the
+ * scripted path (docs/COMPONENT_GUIDELINES.md), so posting it beside the answered
+ * marker is what the BFF reads as the ADR-33 retraction.
  *
- * The field is tagged `string` and the BFF passes the posted value through verbatim, so
- * the chosen OptionId reaches the API as the same bytes the scripted path posts. HTML
- * can express "one option chosen" for a select, so browser validation stays here,
- * unlike the required multi-choice group where the rule has no HTML encoding.
- *
- * The first option is always `<option value="">`, selectable rather than `disabled`,
- * and it does two jobs:
- *
- * 1. It makes a required select refusable: HTML holds a `required` select invalid while
- *    its selected option's value is empty, so an untouched question never POSTs.
- * 2. It is the question's only clear gesture. A chosen radio or Select option cannot be
- *    deselected on the scripted path (docs/COMPONENT_GUIDELINES.md), but a native select
- *    can be returned to its placeholder, so the empty value posts beside the question's
- *    answered marker and the BFF reads the pair as the ADR-33 retraction.
- *
- * ADR-22 keeps the vendored components byte-identical upstream, so a no-JS fallback
- * cannot live inside one. This consumes the vendored control's own style map instead, so
- * both renderings of a question share a label, slots and the ADR-30 token palette.
- *
- * Nothing here sets `appearance: none`: the browser's own disclosure arrow is the
- * affordance that says this opens a list, and there is no script to draw a replacement.
+ * Nothing sets `appearance: none`: the browser's disclosure arrow is the affordance
+ * that says this opens a list, and there is no script to draw a replacement.
  */
 export interface NativeSelectFieldProps {
   /** The questionId, which is the posted field name. */
@@ -50,22 +30,17 @@ export interface NativeSelectFieldProps {
   readonly isRequired?: boolean;
   readonly isDisabled?: boolean;
   readonly isInvalid?: boolean;
-  /** The compiled options, in authored order. */
+  /** In authored order. */
   readonly items?: readonly SelectItem[];
-  /** The unselected option's text; the vendored control's own default wording. */
   readonly placeholder?: string;
-  /** OptionIds the compiled node marks unselectable. */
   readonly disabledKeys?: readonly string[];
-  /** The stored answer this field is seeded with; uncontrolled from there on. */
+  /** Seeded once; uncontrolled from there on. */
   readonly defaultValue?: string;
 }
 
-/**
- * The select's own box, matching the vendored `trigger` classes minus their interaction
- * variants, which have no meaning here: invalid is `aria-invalid` and disabled is the
- * real attribute. `block` rather than the trigger's `flex`, because a `<select>` lays
- * its own content out and the browser draws the disclosure arrow inside the same box.
- */
+// Matches the vendored `trigger` classes, minus interaction variants with no meaning
+// here. `block` rather than its `flex`, because a `<select>` lays its own content out.
+
 const SELECT_CLASS = [
   "block w-full min-w-40 min-h-11 rounded border px-3 py-2 text-sm",
   "border-(--color-border) bg-(--color-background) text-(--color-text)",
@@ -75,13 +50,10 @@ const SELECT_CLASS = [
 ].join(" ");
 
 /**
- * The unselected option's wording when the compiled node names none.
- *
- * It restates the vendored control's own default, which ADR-22 forbids editing, so the
- * two renderings of one question say the same thing. That makes it a hardcoded English
- * user-facing string, which ADR-27 would otherwise send to the message catalogue:
- * localizing it needs either a compiler and golden-corpus change or an upstream one,
- * and until then matching the control beside it is the smaller wrong.
+ * Restates the vendored control's own default, which ADR-22 forbids editing, so both
+ * renderings of a question say the same thing. That makes it a hardcoded user-facing
+ * string which ADR-27 would otherwise localize, and localizing it needs a compiler and
+ * golden-corpus change or an upstream one.
  */
 export const NATIVE_SELECT_PLACEHOLDER = "Select an option";
 
@@ -102,8 +74,8 @@ export function NativeSelectField({
   const selectId = useId();
   const descriptionId = `${selectId}-description`;
   const errorId = `${selectId}-error`;
-  // Both slots are named when both are drawn, so a screen reader announces the
-  // hint and the refusal rather than one of them (WCAG 3.3.2, 3.3.1).
+  // Both ids when both are drawn, or a screen reader hears the hint or the refusal
+  // rather than both (WCAG 3.3.2, 3.3.1).
   const describedBy =
     [
       description === undefined ? undefined : descriptionId,
@@ -130,8 +102,8 @@ export function NativeSelectField({
         id={selectId}
         name={name}
         className={SELECT_CLASS}
-        // "" rather than `undefined`, so an unanswered question selects the
-        // empty-valued placeholder and a required one is refused by the browser.
+        // Not `undefined`, or an unanswered question would not select the
+        // empty-valued placeholder and a required one would not be refused.
         defaultValue={defaultValue ?? ""}
         required={isRequired}
         disabled={isDisabled}

@@ -4,13 +4,10 @@ import type { HoneypotNode } from "./honeypot.schema.ts";
 
 type HoneypotProps = NonNullable<HoneypotNode["props"]>;
 
-/**
- * The visually hidden decoy container. Off-screen and clipped rather than
- * `display: none`, so a naive form-filler still sees a fillable input while
- * assistive technology does not: the wrapper is `aria-hidden` and the input carries
- * no label and no accessible name. `tabIndex={-1}` keeps it out of the tab order,
- * which also satisfies axe's `aria-hidden-focus` rule.
- */
+// Clipped rather than `display: none`, so a naive form-filler still sees a fillable
+// input while assistive technology does not. `tabIndex={-1}` keeps it out of the tab
+// order, which also satisfies axe's `aria-hidden-focus` rule.
+
 const HIDDEN_CONTAINER_STYLE: CSSProperties = {
   position: "absolute",
   width: "1px",

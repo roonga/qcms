@@ -1,23 +1,12 @@
 import { z } from "zod";
 
 /**
- * The qcms-side node-prop extension for author-supplied validation messages (ADR-32).
+ * The ADR-32 `messages` prop lives in a wrapper rather than in the schemas because
+ * every vendored props object is `.strict()` and ADR-22 freezes them byte-identical.
  *
- * The author's per-constraint wording rides on the control node as a `messages` prop,
- * but every `@a2ra/core` control props object is `.strict()` and the vendored schemas
- * must stay byte-identical upstream (ADR-22), so the wiring lives here: the registry
- * registers `withAuthorMessages(VendoredSchema)` instead. No control consumes the prop;
- * the host reads it out of the compiled document and feeds the resolved string into the
- * field's error slot.
- */
-
-/**
- * A resolved author message map: constraint key -> display string for the active
- * locale.
- *
- * The key set mirrors `@roonga/qcms-core`'s `ValidationMessageKey`, restated rather
- * than imported because `@roonga/qcms-ui` must not pull the kernel into the client
- * bundle. The golden corpus is what proves the two still agree.
+ * The key set mirrors the kernel's `ValidationMessageKey`, restated rather than
+ * imported because this package must not pull the kernel into the client bundle; the
+ * golden corpus proves the two still agree.
  */
 export const AuthorMessagesSchema = z
   .object({
@@ -44,7 +33,6 @@ export function authorMessagesOf(props: unknown): AuthorMessages | undefined {
   return parsed.success ? parsed.data : undefined;
 }
 
-/** The same node with its qcms-only `messages` prop removed. */
 function withoutAuthorMessages(node: unknown): unknown {
   if (typeof node !== "object" || node === null) return node;
   const props = (node as { props?: unknown }).props;
@@ -54,10 +42,7 @@ function withoutAuthorMessages(node: unknown): unknown {
   return { ...(node as Record<string, unknown>), props: rest };
 }
 
-/**
- * A registry schema that accepts the ADR-32 `messages` prop on top of a vendored
- * control schema, validating both halves and reporting every issue from either.
- */
+/** Wraps a vendored control schema so it also accepts the `messages` prop. */
 export function withAuthorMessages(vendored: z.ZodType): z.ZodType<unknown> {
   return z.unknown().superRefine((node, ctx) => {
     const props =

@@ -6,21 +6,13 @@ import { ROSTER_OP_FIELD, rosterOpValue } from "./repeat-node.ts";
 import type { RepeatRowNode } from "./repeat-table.schema.ts";
 
 /**
- * One live instance as a table row (ADR-43).
+ * One live instance as a table row. The `<th scope="row">` carries the focus handle,
+ * landing by `autofocus` without scripting rather than a fragment, since a 200
+ * answering a POST leaves the browser on the POST's own URL.
  *
- * The `<th scope="row">` carries the resolved instance label and the two focus
- * mechanisms a roster operation needs, `id={instanceId}` and `tabindex="-1"`: the
- * scripted path moves focus to it and the no-JS path lands on it by `autofocus` on the
- * 200 that answers the `__qop` POST. Never a fragment: a 200 answering a POST leaves
- * the browser on the POST's own URL, and the flush algorithm skips `autofocus`
- * outright when the document has a fragment target.
- *
- * It is a `<th>` rather than a `<td>` holding a span, because the row's identifying
- * cell is its header: `scope="row"` is what associates every cell in the row with it
- * for 1.3.1, and it is what the card reflow turns into the card's own heading.
- *
- * Remove rides the same mechanism as the stacked presentation's, including the shared
- * `.qcms-repeat__button`, so the 2.5.8 target-size floor is one declaration for both.
+ * A `<th>` rather than a `<td>` holding a span: `scope="row"` is what associates every
+ * cell in the row with it for 1.3.1, and what the card reflow turns into the card's
+ * heading.
  */
 export function RepeatRow({
   groupId,

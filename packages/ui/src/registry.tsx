@@ -56,27 +56,16 @@ import {
 import { toVSafePattern } from "./v-safe-pattern.ts";
 
 /**
- * Controlled qcms adapters over the vendored a2-react-aria controls.
- *
  * `A2Renderer` passes a node's compiled JSON props to its component and has no channel
- * for the parent-owned value or error, so each adapter reaches the controlled state
- * through `useQcmsField(name)` and translates the control's raw value to and from the
- * canonical `AnswerValue` encoding for its question type. The vendored components stay
- * byte-identical upstream (ADR-22), so all qcms wiring lives here.
+ * for the parent-owned value or error, so every adapter reaches the controlled state
+ * through `useQcmsField` instead. The vendored components stay byte-identical upstream
+ * (ADR-22), so all qcms wiring lives here.
  *
  * Every adapter reports an emptied control as `undefined`, so one respondent gesture
- * has one meaning at this seam and the host posts a single ADR-33 retraction at the
- * control's ADR-31 commit moment.
+ * has one meaning at this seam and the host posts one ADR-33 retraction.
  *
- * In native (no-JS) submit mode the adapters render the same vendored control
- * uncontrolled, seeded from `values` with no `onChange`, so native form serialization
- * carries the answer, plus the hidden `FieldMarkers` the BFF decodes with. The
- * controlled branch is unchanged, so the conformance snapshots are undisturbed.
- *
- * Three adapters render a different control in native mode (DatePicker, NumberField,
- * Select), because the vendored control's form value does not live in the element the
- * respondent operates, so nothing they do without scripting reaches the wire. A fourth,
- * the CheckboxGroup, keeps the vendored control and swaps its required encoding. Each
+ * Three adapters render a different control in native mode, because the vendored
+ * control's form value does not live in the element the respondent operates; each
  * carries its own reason below.
  */
 
@@ -85,62 +74,34 @@ function isStringArray(value: A2UIAnswerValue | undefined): value is readonly st
 }
 
 /**
- * An emptied control reports absence, never an answer of nothing (ADR-33).
- *
- * Nothing in the UI distinguishes emptied from never answered: an empty text box is the
- * pristine rendering, so the respondent cannot mean the empty value as a value, and only
- * an authored option can say that. An empty post is not a way to say cleared either:
- * where a constraint rejects it the post 422s, so the respondent sees a refusal while
- * the server keeps the old answer and Continue advances on it.
- *
- * The kernel backs this rather than depending on it, refusing `""` and `[]` outright, so
- * an adapter that forgot to convert fails loudly at the API. `undefined` for a question
- * with no stored answer is a server-side no-op, so this never manufactures a tombstone.
+ * Absence, never an answer of nothing (ADR-33): an empty text box is the pristine
+ * rendering, so the respondent cannot mean the empty value as a value, and posting it
+ * would 422 against any constraint while the server kept the old answer.
  */
 function absentIfEmptyText(value: string): string | undefined {
   return value === "" ? undefined : value.normalize("NFC");
 }
 
-/** The multiChoice counterpart: an empty selection is absence, not an empty set. */
 function absentIfNoSelection(values: readonly string[]): readonly string[] | undefined {
-  // Canonical multiChoice is deduplicated; RAC never emits duplicates, but dedupe
-  // defensively to keep the encoding canonical.
+  // Canonical multiChoice is deduplicated. RAC never emits duplicates; this keeps the
+  // encoding canonical whatever it emits.
   const selected = [...new Set(values)];
   return selected.length > 0 ? selected : undefined;
 }
 
 /**
- * The controlled "nothing is selected" value for the single-value controls (RadioGroup,
- * Select, DatePicker), as `null` rather than `undefined` or `""`.
- *
- * react-stately decides controlled against uncontrolled by `value !== undefined` alone,
- * so `undefined` is uncontrolled, and while uncontrolled it serves its own last internal
- * value in place of the parent's absence.
- *
- * `null` is react-aria's own spelling of no selection for these controls, and it keeps
- * two properties a bare `""` would break:
- *
- * - Roving tabindex: `useRadio` narrows the group's tab stop to the selected radio only
- *   when `selectedValue != null`, so with `""` nothing matches and the whole group
- *   becomes keyboard-unreachable.
- * - Option-key validity: the select's key lookup is guarded by `selectedKey != null`,
- *   whereas `""` is looked up as an invalid key.
+ * Not `undefined`, which react-stately reads as uncontrolled, after which it serves its
+ * own last internal value in place of the parent's absence. Not `""` either: that
+ * matches no radio, so a group becomes keyboard-unreachable, and it is looked up as an
+ * invalid option key.
  */
 const NO_SELECTION = null;
 
 /**
- * The hidden companions that travel with one answer field in native mode, so the BFF
- * can decode the form-encoded post without knowing the question (R2).
- *
- * `__qk__<id>` carries the transport kind, because a form posts strings and the API
- * expects a JSON boolean, number, string or array. `__qa__<id>` marks the question as
- * currently answered, because a native form posts an emptied field exactly as it posts a
- * never-touched one: a marked field arriving empty is the respondent clearing it, and
- * the BFF posts the same ADR-33 retraction the scripted path does.
- *
- * Presence is read from the same `values` the control is seeded from, so this restates
- * an already visible signal rather than adding state. Both inputs are `type="hidden"`:
- * no box, no tab stop, no accessible name.
+ * Lets the BFF decode the post without knowing the question (R2). `__qk__` carries the
+ * transport kind; `__qa__` marks the question as answered, so a marked field arriving
+ * empty is the respondent clearing it. Presence is read from the same `values` the
+ * control is seeded from, so this restates a visible signal rather than adding state.
  */
 function FieldMarkers({ name, kind }: { readonly name?: string; readonly kind: NativeFieldKind }) {
   // Called before the early return, because a conditional hook is not allowed.
@@ -161,17 +122,12 @@ function FieldMarkers({ name, kind }: { readonly name?: string; readonly kind: N
 }
 
 /**
- * Wraps one control to supply a touched-semantics `onBlur(name)` and a stable
- * focus-target handle for the question, neither of which the vendored controls offer.
- *
- * It is a `display:contents` wrapper, so it adds no box and no role and the
- * accessibility tree is unchanged, carrying `id={name}` and `data-qcms-field={name}`.
- * The `id` lets a host target the question for focus (error-summary jump links, focus
- * recovery when a branch change removes the focused question) without guessing at each
- * control type's internal DOM. Blur ignores focus moves that stay inside the control.
- *
- * The wrapper element is handed to `onBlur` so an adapter can inspect what its control
- * currently displays at the commit moment, which the DatePicker adapter needs.
+ * The vendored controls neither forward `onBlur` nor expose a questionId-keyed node, so
+ * this supplies both. `display: contents` adds no box and no role, leaving the
+ * accessibility tree unchanged, and the `id` lets a host target the question for focus
+ * without guessing at each control type's internal DOM. Blur ignores focus moves that
+ * stay inside the control, and the wrapper is handed to `onBlur` so an adapter can
+ * inspect what its control displays at the commit moment.
  */
 function FieldBlur({
   name,
@@ -195,19 +151,11 @@ function FieldBlur({
 }
 
 /**
- * Every adapter below keys its vendored control by the question's `name`, so one
- * mounted control serves exactly one question.
- *
- * `A2Renderer` keys a node's children by array index, so swapping in another step's
- * document, or pruning a question out of the current one, reconciles the control at
- * index i onto whatever sat there before: a mounted control starts serving a different
- * question. The parent-owned value follows, but the vendored control's internal state
- * does not, and that state is visible. A RadioGroup carried the previous question's
- * `lastFocusedValue` across, leaving every radio at `tabIndex=-1` and the question
- * unreachable by keyboard or screen reader; the DatePicker carries a stale date.
- *
- * Keying by questionId makes that re-target a remount, and the key is stable for the
- * life of a question, so nothing remounts while the respondent is answering.
+ * Every adapter keys its control by the question's `name`, because `A2Renderer` keys
+ * children by array index: a step swap or a branch prune otherwise reconciles a mounted
+ * control onto a different question, and the vendored control's internal state follows
+ * where the parent-owned value does not. A RadioGroup carried a `lastFocusedValue`
+ * across, leaving every radio at `tabIndex=-1` and the question keyboard-unreachable.
  */
 
 type TextFieldProps = NonNullable<TextFieldNode["props"]>;
@@ -217,9 +165,8 @@ function TextFieldField(props: Readonly<TextFieldProps>) {
   const modeProps: Partial<ComponentProps<typeof TextField>> = native
     ? { defaultValue: typeof field.value === "string" ? field.value : undefined }
     : {
-        // "" when the parent holds no answer, so the control stays controlled through a
-        // clear: `undefined` takes react-aria's uncontrolled path and redisplays the
-        // cleared text.
+        // Not `undefined`, which takes react-aria's uncontrolled path and redisplays
+        // the cleared text.
         value: typeof field.value === "string" ? field.value : "",
         onChange: (v: string) => field.setValue(absentIfEmptyText(v)),
       };
@@ -228,10 +175,9 @@ function TextFieldField(props: Readonly<TextFieldProps>) {
       <TextField
         key={props.name}
         {...props}
-        // Browsers compile the HTML `pattern` attribute with the `v` flag, which rejects
-        // class-literal spellings the authored `u` flag accepts. Normalize where that is
-        // provably semantics-preserving, otherwise drop the hint: the API is the
-        // validation authority (R2).
+        // Browsers compile `pattern` with the `v` flag, which rejects class-literal
+        // spellings the authored `u` flag accepts. The API is the authority (R2), so an
+        // unnormalizable pattern is dropped rather than rendered and logged as invalid.
         pattern={toVSafePattern(props.pattern)}
         {...modeProps}
         isInvalid={field.error != null}
@@ -269,42 +215,29 @@ function TextAreaField(props: Readonly<TextAreaProps>) {
 type NumberFieldProps = NonNullable<NumberFieldNode["props"]>;
 
 /**
- * The `Intl.NumberFormat` options an integer number question renders with, rather than
- * react-aria's default.
+ * react-aria reads the format, not `step`, when deciding what the field accepts and
+ * what software keyboard to ask for, and its default admits three fraction digits, so
+ * an integer-only question accepted fractions while typing.
  *
- * react-aria reads the format, not `step`, when deciding what the field accepts and what
- * software keyboard to ask for, and its default format admits three fraction digits, so
- * an integer-only question accepted "2.5" while typing and offered a decimal keypad.
- *
- * It also fixes a hydration mismatch: `@react-aria/numberfield` derives `inputMode` from
- * the resolved format and from platform detection that reads `navigator`, so with
- * fraction digits allowed it asks for `decimal` on touch while a server render, having no
- * `navigator`, always emits `numeric`. With no fraction digits every platform branch
- * leaves `inputMode` at `numeric` and both renders agree by construction.
- *
- * `inputMode` for a question that admits fractions, and `aria-roledescription` on any
- * number question, are still environment-derived and not reachable from here: the
- * vendored control forwards a fixed prop list, `useNumberField` sets both after
- * spreading the caller's props, and only a prop on the `<Input>` would win, which needs
- * an upstream passthrough (ADR-22). `number-input-mode.test.tsx` holds a self-arming
- * marker for each.
+ * It also settles a hydration mismatch: `inputMode` is derived from the format and from
+ * platform detection that reads `navigator`, so with fraction digits allowed it asks
+ * for `decimal` on touch while a server render, having no `navigator`, emits `numeric`.
+ * With no fraction digits every platform branch leaves it at `numeric`.
  */
 const INTEGER_NUMBER_FORMAT: Intl.NumberFormatOptions = { maximumFractionDigits: 0 };
 
 /**
- * Whether a compiled NumberField admits fractional input, read from `step` alone: the
- * compiler emits `step: 1` for an integer-constrained question and nothing otherwise, so
- * a missing or non-integral step is the fractional case.
+ * The compiler emits `step: 1` for an integer-constrained question and nothing
+ * otherwise, so a missing or non-integral step is the fractional case.
  */
 export function numberFieldAdmitsFractions(step: number | undefined): boolean {
   return step === undefined || !Number.isInteger(step);
 }
 
 /**
- * Native mode renders a different control here: the vendored NumberField splits one
- * question across an unnamed visible text input and a JavaScript-synced hidden input
- * that carries the form value, so with scripting off keystrokes are never serialized.
- * `NativeNumberField` carries the wire contract.
+ * The vendored NumberField splits one question across an unnamed visible text input and
+ * a JavaScript-synced hidden input carrying the form value, so with scripting off
+ * keystrokes are never serialized.
  */
 function NumberFieldField(props: Readonly<NumberFieldProps>) {
   const field = useQcmsField(props.name);
@@ -351,16 +284,11 @@ function NumberFieldField(props: Readonly<NumberFieldProps>) {
 }
 
 /**
- * Whether the segmented date input inside `container` currently displays a complete
- * date.
- *
- * A DOM read of react-aria's documented `data-placeholder` and `data-type` styling
- * hooks is the only signal available: react-aria emits `onChange` when a date becomes
- * complete and when every segment is cleared, and nothing in between, so a complete
- * date backspaced to a partial one is invisible to the controlled value.
- *
- * A container with no segments reports complete: absence of evidence never manufactures
- * a retraction.
+ * A DOM read of react-aria's documented styling hooks is the only signal available:
+ * `onChange` fires when a date becomes complete and when every segment is cleared, and
+ * never in between, so a complete date backspaced to a partial one is invisible to the
+ * controlled value. No segments at all reports complete, so absence of evidence never
+ * manufactures a retraction.
  */
 function dateInputIsComplete(container: HTMLElement): boolean {
   const segments = Array.from(container.querySelectorAll<HTMLElement>("[data-type]"));
@@ -372,11 +300,10 @@ function dateInputIsComplete(container: HTMLElement): boolean {
 type DatePickerProps = NonNullable<DatePickerNode["props"]>;
 
 /**
- * Native mode renders a different control here: the vendored DatePicker is a row of
- * JS-driven spinbutton segments a no-JS respondent cannot type into, and its form value
- * rides on a `hidden required` input the browser tries to report validity on and cannot
- * focus, so a required date made the browser refuse the whole step's submit.
- * `NativeDateField` carries the wire contract.
+ * The vendored DatePicker is a row of JS-driven spinbutton segments a no-JS respondent
+ * cannot type into, and its form value rides on a `hidden required` input the browser
+ * tries to report validity on and cannot focus, so a required date made the browser
+ * refuse the whole step's submit.
  */
 function DatePickerField(props: Readonly<DatePickerProps>) {
   const field = useQcmsField(props.name);
@@ -387,11 +314,7 @@ function DatePickerField(props: Readonly<DatePickerProps>) {
   // are typing, so entry is undisturbed.
   const [clearedGeneration, setClearedGeneration] = useState(0);
 
-  /**
-   * The ADR-31 date commit moment: commit whatever the control shows, which is either a
-   * complete date already reported through `onChange` or the clear it could not report,
-   * an ADR-33 retraction of the stored answer.
-   */
+  /** The ADR-31 commit moment, where the clear `onChange` cannot report is observed. */
   const commit = (container: HTMLElement): void => {
     if (typeof field.value === "string" && !dateInputIsComplete(container)) {
       setClearedGeneration((generation) => generation + 1);
@@ -448,16 +371,14 @@ type RadioGroupProps = NonNullable<RadioGroupNode["props"]> & { readonly childre
 function RadioGroupField(props: RadioGroupProps) {
   const field = useQcmsField(props.name);
   const native = useQcmsNativeSubmit();
-  // boolean and singleChoice questions both compile to RadioGroup, carrying
-  // "true"/"false" and OptionIds respectively, so the value shape is what decides
-  // whether onChange emits a JSON boolean or an OptionId. Native mode keeps `undefined`,
-  // because the vendored control seeds a2ra's form state from any defined
+  // boolean and singleChoice both compile to RadioGroup, so the value shape is what
+  // decides whether onChange emits a JSON boolean or an OptionId. Native mode keeps
+  // `undefined`, because the vendored control seeds form state from any defined
   // `defaultValue`.
   //
-  // A RadioGroup has no clear gesture: a selected radio cannot be toggled off and
-  // react-aria emits no change for any attempt. An author who wants "prefer not to say"
-  // gives the question that option, which is a real answer. So the only path back to
-  // unanswered is whole-session erasure (ADR-33).
+  // There is no clear gesture: a selected radio cannot be toggled off and react-aria
+  // emits no change for any attempt, so the only path back to unanswered is
+  // whole-session erasure (ADR-33).
   let controlValue: string | undefined;
   if (field.value === undefined) {
     controlValue = undefined;
@@ -497,30 +418,18 @@ type CheckboxGroupProps = NonNullable<CheckboxGroupNode["props"]> & {
 };
 
 /**
- * How a required multi-choice group states its rule in native (no-JS) submit mode.
+ * HTML has no "at least one of these" constraint, and react-aria encodes it by putting
+ * native `required` on every checkbox and removing it on the re-render after the first
+ * selection. A server-rendered page never re-renders, so every box kept it, and native
+ * `required` on a checkbox means that box must be checked: the browser refused the
+ * submit for any partial selection. The ARIA encoding replaces it here, and the API
+ * reports a blank group after the round trip.
  *
- * HTML has no "at least one of these" constraint. react-aria encodes it by putting
- * native `required` on every checkbox and removing it once something is selected, but
- * that removal is a re-render, so the server-rendered HTML freezes `required` on all of
- * them, and native `required` on a checkbox means that box must be checked. The browser
- * then refused the submit for any partial selection, making every later step
- * unreachable without scripting.
- *
- * So the boxes render with react-aria's ARIA encoding instead, and a blank group is
- * reported by the server after the round trip. Browser validation is unchanged wherever
- * HTML can carry the rule; it is dropped here because HTML cannot carry this one.
- *
- * `validationBehavior` is react-aria's own switch between the two encodings, resolved
- * per checkbox from `props ?? FormContext ?? "native"`, which rules out the three other
- * seams: on the vendored `CheckboxGroup` it loses to the value each RAC `Checkbox`
- * resolves for itself; on each `Checkbox` it is unreachable, since the boxes are
- * compiled child nodes this adapter does not own; and dropping `isRequired` would take
- * the label marker and the ARIA encoding with it. Hence a `FormContext` over this
- * group's subtree alone, with every other control on the step unaffected.
- *
- * Only the value is overridden rather than merged with an enclosing `FormContext`: the
- * only other thing that context carries is `validationErrors`, which QCMS does not use,
- * since errors reach a control through `useQcmsField`.
+ * `validationBehavior` resolves per checkbox from `props ?? FormContext ?? "native"`,
+ * which rules out the other seams: on the group it loses to each `Checkbox`'s own
+ * value, the boxes are compiled child nodes this adapter cannot reach, and dropping
+ * `isRequired` would take the label marker with it. Hence a context over this subtree
+ * alone, overriding only the value, since the rest of that context is unused here.
  */
 const NATIVE_GROUP_VALIDATION = { validationBehavior: "aria" } as const;
 
@@ -530,8 +439,7 @@ function CheckboxGroupField(props: CheckboxGroupProps) {
   const modeProps: Partial<ComponentProps<typeof CheckboxGroup>> = native
     ? { defaultValue: isStringArray(field.value) ? [...field.value] : undefined }
     : {
-        // [] when the parent holds no answer, so the group stays controlled through a
-        // clear, as with the TextField above.
+        // Not `undefined`, as with the TextField above.
         value: isStringArray(field.value) ? [...field.value] : [],
         onChange: (values: string[]) => field.setValue(absentIfNoSelection(values)),
       };
@@ -559,12 +467,10 @@ function CheckboxGroupField(props: CheckboxGroupProps) {
 type SelectProps = NonNullable<SelectNode["props"]>;
 
 /**
- * Native mode renders a different control here. Nothing is missing from the wire: the
- * vendored Select does render a real `<select>` under the question's own name, but
- * inside a clipped `aria-hidden` container with `tabindex="-1"`, behind a trigger only
- * JavaScript can open, so the question can be neither seen nor operated, and a required
- * one made the browser abandon the step's submission on an unfocusable invalid control.
- * `NativeSelectField` carries the wire contract and the empty-valued placeholder option.
+ * The vendored Select does render a real `<select>` under the question's own name, but
+ * inside a clipped `aria-hidden` container behind a trigger only JavaScript can open,
+ * so the question can be neither seen nor operated, and a required one made the browser
+ * abandon the step's submission on an unfocusable invalid control.
  */
 function SelectField(props: Readonly<SelectProps>) {
   const field = useQcmsField(props.name);
@@ -592,13 +498,11 @@ function SelectField(props: Readonly<SelectProps>) {
   }
 
   const modeProps: Partial<ComponentProps<typeof Select>> = {
-    // NO_SELECTION when unselected: "" is not a valid option key and breaks RAC's
-    // selection manager.
+    // "" is not a valid option key and breaks RAC's selection manager.
     value: typeof field.value === "string" ? field.value : NO_SELECTION,
-    // The vendored Select has no clear gesture, but `onSelectionChange` is typed
-    // `Key | null` upstream, so the empty case is accepted and reported as absence:
-    // were react-aria ever to emit one it reaches the API as an ADR-33 retraction
-    // rather than a `null` travelling as though it were an `AnswerValue`.
+    // No clear gesture exists, but `onSelectionChange` is typed `Key | null` upstream,
+    // so the empty case is reported as absence rather than travelling as an
+    // `AnswerValue`.
     onChange: (v: string | null) => field.setValue(v === null || v === "" ? undefined : v),
   };
   return (
@@ -615,21 +519,15 @@ function SelectField(props: Readonly<SelectProps>) {
 }
 
 /**
- * The lean, explicit registry: only the components the compiler emits plus the
- * qcms-owned nodes. Never `defaultRegistry` (ADR-22), so the surface stays small and
- * auditable, and `strict` makes the renderer validate every node before rendering it.
- *
- * Each question control's schema is wrapped in `withAuthorMessages` (ADR-32), because
- * the vendored props objects are `.strict()` and a node carrying the author's `messages`
- * prop would not validate otherwise. The choice leaves and structural nodes never carry
- * it: a message belongs to a question, and a question is one control.
+ * Never `defaultRegistry` (ADR-22), so the surface stays small and auditable. The
+ * question controls are wrapped in `withAuthorMessages` because the vendored props
+ * objects are `.strict()`; the choice leaves and structural nodes never carry messages.
  */
 function buildV1Registry(): ComponentRegistry {
   return createRegistry(
     {
-      // The qcms adapter rather than the vendored `Form` directly, only because a form's
-      // action may be a function (ADR-43 as amended). It delegates to the vendored
-      // component whenever no function action is supplied.
+      // An adapter only because a form's action may be a function (ADR-43 as amended);
+      // it delegates to the vendored component otherwise.
       Form: { component: FormField, schema: FormSchema },
       Flex: { component: Flex, schema: FlexSchema },
       Text: { component: Text, schema: TextSchema },
@@ -646,18 +544,16 @@ function buildV1Registry(): ComponentRegistry {
       Checkbox: { component: Checkbox, schema: CheckboxSchema },
       Select: { component: SelectField, schema: withAuthorMessages(SelectSchema) },
       Honeypot: { component: Honeypot, schema: HoneypotSchema },
-      // The repeating group (ADR-42, ADR-43). `RepeatGroup` is the compiler's template
-      // node; `RepeatInstance` exists only after `expandRepeatGroups` clones it per live
-      // instance, so the stored bytes never carry one. Both are qcms-owned node types
-      // because nothing upstream describes a container cloned per instance and the
-      // vendored props objects are `.strict()` (ADR-22).
+      // `RepeatInstance` exists only after the expansion clones the template, so the
+      // stored bytes never carry one. Both are qcms-owned because nothing upstream
+      // describes a container cloned per instance and the vendored props are
+      // `.strict()` (ADR-22).
       RepeatGroup: { component: RepeatGroup, schema: RepeatGroupSchema },
       RepeatInstance: { component: RepeatInstance, schema: RepeatInstanceSchema },
-      // The table presentation's render-time node types (ADR-43). A native `<table>` has
-      // a fixed element nesting and the a2ra renderer adds no wrapper of its own, so
-      // each cell element needs a node. They are not the vendored `Table`, which renders
-      // `role="grid"` and manages focus with script: ADR-43 refuses that, so what the
-      // vendored component contributes here is its style map rather than its markup.
+      // A native `<table>` has a fixed element nesting and the a2ra renderer adds no
+      // wrapper of its own, so each cell element needs a node. Not the vendored
+      // `Table`, which renders `role="grid"` and manages focus with script, which
+      // ADR-43 refuses.
       RepeatTable: { component: RepeatTable, schema: RepeatTableSchema },
       RepeatRow: { component: RepeatRow, schema: RepeatRowSchema },
       RepeatCell: { component: RepeatCell, schema: RepeatCellSchema },
@@ -670,10 +566,8 @@ function buildV1Registry(): ComponentRegistry {
 const V1_REGISTRY = buildV1Registry();
 
 /**
- * `specVersion` dispatch seam (ADR-18). Every published A2UI spec version must keep
- * rendering; the corpus is a single generation today, so every version resolves to the
- * v1 registry. A future breaking version branches here, rendered alongside v1 rather
- * than migrating stored snapshots.
+ * Every published A2UI spec version must keep rendering (ADR-18), so a future breaking
+ * version branches here rather than migrating stored snapshots.
  */
 export function registryForSpecVersion(specVersion?: string): ComponentRegistry {
   // eslint-disable-next-line sonarjs/void-use -- discards an as-yet-unused parameter; the ADR-18 spec-version dispatch seam
