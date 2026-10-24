@@ -1,24 +1,17 @@
 /**
- * The font registry, measured rather than asserted (task 052, exit criteria 1+2).
+ * The font registry, measured rather than asserted, so the browser suite only has to
+ * prove that the shipped CSS reaches a rendered page. What this pins:
  *
- * What this suite proves about the manifest itself, so the browser suite only has
- * to prove that the shipped CSS reaches a rendered page:
- *
- *  - every declared face is a REAL woff2 committed in this repository (the `wOF2`
- *    magic number is checked, so a placeholder or a 404-page-saved-as-a-font
- *    fails here rather than rendering as a silent fallback in production);
- *  - `fonts.css` is exactly what the manifest renders, which is what makes
- *    add/remove a ONE-ENTRY change: a hand edit to the CSS, or a manifest edit
- *    without a regenerate, fails;
- *  - adding or removing one entry changes nothing but that entry's own blocks
- *    (demonstrated by rendering a mutated registry and diffing);
- *  - System is present, downloads nothing, and cannot be curated away;
- *  - every family carries a permissive license from the allow-list AND its
- *    upstream copyright notice, and both license texts ship beside the binaries;
- *  - a font entry sets `--font-portal` and NOTHING else, which is the structural
- *    reason no font selection can lower a WCAG 1.4.12 floor. The floors are
- *    re-measured on rendered text under every shipped font by
- *    `apps/portal/e2e/fonts.pw.ts`.
+ *  - every declared face is a real woff2 committed here, checked by its magic number,
+ *    so a placeholder fails here rather than rendering as a silent fallback;
+ *  - `fonts.css` is exactly what the manifest renders, which is what makes add and
+ *    remove a one-entry change;
+ *  - adding or removing one entry changes nothing but that entry's own blocks;
+ *  - System is present, downloads nothing and cannot be curated away;
+ *  - every family carries a permissive license from the allow-list and its upstream
+ *    copyright notice, and both license texts ship beside the binaries;
+ *  - an entry sets `--font-portal` and nothing else, which is the structural reason no
+ *    font selection can lower a WCAG 1.4.12 floor.
  */
 
 import { createHash } from "node:crypto";
@@ -48,9 +41,9 @@ const NOTICE = readFileSync(join(FONT_DIR, "NOTICE.md"), "utf8");
 const ALLOWED_LICENSES = new Set(["OFL-1.1", "Apache-2.0"]);
 
 /**
- * The only three tails an entry may end in (issue #27). The lists themselves are
- * declared once, in `theme.css`; an entry references one, so a tail improvement
- * reaches all 23 entries at once instead of 23 copies drifting apart.
+ * The only three tails an entry may end in. The lists are declared once, in
+ * `theme.css`, and an entry references one, so a tail improvement reaches every entry
+ * instead of copies drifting apart.
  */
 const TAIL_TOKENS = [
   "var(--font-fallback-sans)",
@@ -58,7 +51,7 @@ const TAIL_TOKENS = [
   "var(--font-fallback-mono)",
 ];
 
-/** The groups the task requires, and the members it names explicitly. */
+/** The required groups, and the members named explicitly. */
 const REQUIRED_MEMBERS: Readonly<Record<string, readonly string[]>> = {
   System: [SYSTEM_FONT_KEY],
   Accessibility: ["atkinson", "lexend", "opendyslexic"],
@@ -67,10 +60,9 @@ const REQUIRED_MEMBERS: Readonly<Record<string, readonly string[]>> = {
 };
 
 /**
- * Formatting is Prettier's business (the root `lint` runs `prettier --check .`,
- * and Prettier reflows a long custom-property value onto a continuation line);
- * content is the manifest's. Comparing whitespace-normalized text keeps the drift
- * guard exact about content without duplicating Prettier's line breaking.
+ * Formatting is Prettier's business and content is the manifest's, so comparing
+ * whitespace-normalized text keeps the drift guard exact about content without
+ * duplicating Prettier's line breaking.
  */
 function normalize(css: string): string {
   return css.replaceAll(/\s+/gu, " ").trim();
@@ -82,15 +74,13 @@ function stripComments(css: string): string {
 }
 
 /**
- * Every RULE of a stylesheet, comments and group banners stripped and whitespace
- * normalized. Comparing rule sets is what makes the add/remove assertions exact:
- * the diff is the entry's own blocks and nothing else, with no dependence on where
- * a comment happened to sit.
+ * Every rule of a stylesheet, comments stripped and whitespace normalized, so the
+ * add and remove assertions diff an entry's own blocks and nothing else, with no
+ * dependence on where a comment happened to sit.
  */
 function rules(css: string): readonly string[] {
-  // Scanned with indexOf rather than a regex: a `selector { body }` pattern reads
-  // naturally but backtracks (sonarjs/super-linear-regex), and these stylesheets
-  // have no nested blocks, so a linear scan is both simpler and exact.
+  // Scanned rather than matched: a `selector { body }` pattern backtracks
+  // (sonarjs/super-linear-regex), and these stylesheets have no nested blocks.
   const text = stripComments(css);
   const out: string[] = [];
   for (let index = 0; index < text.length;) {
@@ -114,9 +104,9 @@ function firstDeclaration(css: string, name: string): string | undefined {
 }
 
 /**
- * The scope carrier every generated block is anchored on (ADR-38, task 060). It is
- * spelled out here rather than imported so that a generator change which silently
- * drops the carrier - or softens it to `:where()` - fails this suite loudly.
+ * The scope carrier every generated block is anchored on (ADR-38), spelled out rather
+ * than imported so a generator change that drops it, or softens it to `:where()`,
+ * fails this suite loudly.
  */
 const SCOPE_ANCHOR = ":is(:root, [data-qcms-theme-scope])";
 
@@ -157,7 +147,7 @@ describe("the manifest is well formed", () => {
       const keys = FONT_REGISTRY.filter((entry) => entry.group === group).map((e) => e.key);
       for (const member of members) expect(keys, `${group} is missing ${member}`).toContain(member);
     }
-    // Every declared group is actually populated - no empty optgroup for 053.
+    // Every declared group is populated, so a respondent never meets an empty one.
     for (const group of FONT_GROUPS) {
       expect(
         FONT_REGISTRY.some((entry) => entry.group === group),
@@ -173,9 +163,8 @@ describe("the manifest is well formed", () => {
       if (entry.family !== null) {
         expect(entry.stack.startsWith(`"${entry.family}", `), entry.key).toBe(true);
       }
-      // Issue #27: an entry may not spell a fallback list out. It ends in one of
-      // the three tail tokens, so the list lives in exactly one place and every
-      // entry inherits a change to it.
+      // An entry may not spell a fallback list out: it ends in one of the three tail
+      // tokens, so the list lives in one place and every entry inherits a change.
       expect(
         TAIL_TOKENS,
         `${entry.key} tail is "${tail}", not a --font-fallback-* token`,
@@ -184,13 +173,12 @@ describe("the manifest is well formed", () => {
   });
 
   it("every tail token theme.css declares resolves to a list ending in a CSS generic", () => {
-    // The reference above is only as good as what it points at, so the tokens are
-    // resolved against the shipped sheet and the resolved list is what gets checked.
-    // css-fonts-4 2.1 encourages a generic family last for robustness, and it is the
-    // only entry a user's own per-script font preference can answer.
+    // The reference is only as good as what it points at, so the tokens are resolved
+    // against the shipped sheet. A generic family last is what a user's own per-script
+    // font preference can answer.
     const generics = new Set(["sans-serif", "serif", "monospace", "cursive", "fantasy"]);
-    // Consulted per glyph for codepoints no earlier face carries, so they sit AFTER
-    // the generic on purpose (Bootstrap 5 Reboot does the same).
+    // Consulted per glyph for codepoints no earlier face carries, so they sit after
+    // the generic on purpose.
     const symbolFaces = new Set([
       '"Apple Color Emoji"',
       '"Segoe UI Emoji"',
@@ -263,11 +251,10 @@ describe("every declared face is a real, committed woff2", () => {
     }
   });
 
-  // Ships each distinct set of bytes exactly once. Upstream serves some families
-  // (Lexend) as a VARIABLE font, where the css2 API returns the same file for every
-  // requested weight: naively saving it per weight silently commits the same bytes
-  // twice. The manifest points both faces at one file instead, and this is the
-  // guard that keeps the next such family from slipping through.
+  // Each distinct set of bytes ships once. A variable font serves every weight from
+  // one file, so saving it per weight would commit the same bytes twice; the manifest
+  // points the faces at one file and this is what keeps the next one from slipping
+  // through.
   it("commits no two byte-identical font files", () => {
     const byDigest = new Map<string, string[]>();
     for (const name of readdirSync(FONT_DIR).filter((entry) => entry.endsWith(".woff2"))) {
@@ -321,8 +308,8 @@ describe("licensing is complete and permissive", () => {
     }
   });
 
-  // The obligation OFL-1.1 (section 2) and Apache-2.0 (section 4a) actually place
-  // on a redistribution: the copyright notice travels with the bytes.
+  // The obligation OFL-1.1 and Apache-2.0 each place on a redistribution: the
+  // copyright notice travels with the bytes.
   it("reproduces every upstream copyright notice verbatim in NOTICE.md", () => {
     for (const entry of FONT_REGISTRY) {
       if (entry.copyright === null) continue;
@@ -345,9 +332,8 @@ describe("fonts.css is generated from the manifest", () => {
       const url = /url\("(?<url>[^"]+)"\)/u.exec(face)?.groups?.url ?? "";
       expect(url, `absolute or remote font URL: ${url}`).toMatch(/^\.\/fonts\/[\w-]+\.woff2$/u);
     }
-    // The whole point: no RULE in this stylesheet can reach off-origin. (The
-    // comments legitimately carry upstream project URLs in the copyright notices,
-    // so the check is on the CSS with comments stripped.)
+    // No rule in this stylesheet may reach off-origin. The comments legitimately
+    // carry upstream project URLs, so the check is on the CSS with them stripped.
     expect(stripComments(FONTS_CSS)).not.toMatch(/https?:\/\//u);
   });
 
@@ -388,7 +374,7 @@ describe("add and remove are one-entry manifest changes", () => {
     const before = rules(renderFontsCss(FONT_REGISTRY));
     const after = rules(renderFontsCss([...FONT_REGISTRY, ADDED]));
     const added = after.filter((rule) => !before.includes(rule));
-    // Exactly two rules appear: its @font-face and its scoped .font-probefont block.
+    // Two rules appear: its @font-face and its scoped class block.
     expect(added).toEqual([
       '@font-face { font-family: "Probe Font"; font-style: normal; font-weight: 400;' +
         ' font-display: swap; src: url("./fonts/probefont-400.woff2") format("woff2"); }',

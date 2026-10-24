@@ -9,15 +9,14 @@ import { axeViolations } from "./test-support/a11y.ts";
 import { loadGoldenForms } from "./test-support/golden.ts";
 
 /**
- * The no-JS implicit-submission default (local UX list P3).
+ * The no-JS implicit-submission default.
  *
- * Without scripting, Enter in a text, number or date field presses the form's default
- * button, which HTML defines as the first submit button in tree order. The real
- * Continue is appended last, after every `__qop` Remove and the group's Add, so on a
- * repeating step Enter used to remove the first instance or add one. A hidden copy of
- * Continue now comes first. These cases pin that it precedes every roster button, that
- * it mirrors the real control, that a respondent cannot meet it, and that nothing else
- * moves: a step with no group and the scripted path render exactly as before.
+ * Without scripting, Enter in a field presses the form's default button, which HTML
+ * defines as the first submit button in tree order. The real Continue is appended
+ * last, after every roster button, so on a repeating step Enter used to remove or add
+ * an instance. A hidden copy of Continue comes first instead. These cases pin that it
+ * precedes every roster button, mirrors the real control, cannot be met by a
+ * respondent, and changes nothing on a step with no group or on the scripted path.
  */
 
 const ACTION = "/s/ses_1/step";
@@ -62,7 +61,7 @@ describe("the implicit-submission default on a repeating step (local UX list P3)
     const first = buttons[0];
     expect(first.hasAttribute("data-qcms-implicit-submit")).toBe(true);
     for (const button of roster) expect(precedes(first, button)).toBe(true);
-    // The real control is still the last one, where a respondent reaches it.
+    // The real control is still last, where a respondent reaches it.
     const real = buttons.at(-1)!;
     expect(real.hasAttribute("data-qcms-implicit-submit")).toBe(false);
     expect(buttons.filter((b) => b.hasAttribute("data-qcms-implicit-submit"))).toHaveLength(1);
@@ -77,8 +76,7 @@ describe("the implicit-submission default on a repeating step (local UX list P3)
     const buttons = submitButtons(container);
     const hidden = buttons[0];
     const real = buttons.at(-1)!;
-    // The single readiness-labelled button (ADR-28 as amended 2026-08-31): whatever label
-    // the host passes, the copy carries the same one.
+    // Whatever label the host passes, the copy carries the same one.
     expect(hidden.textContent).toBe("Submit");
     expect(real.textContent).toBe("Submit");
     expect(hidden.getAttribute("name")).toBe(real.getAttribute("name"));
@@ -116,8 +114,8 @@ describe("the implicit-submission default on a repeating step (local UX list P3)
     const { container } = renderStacked({ action: ACTION, submitLabel: "Continue" });
     const form = container.querySelector("form")!;
     // Implicit submission is a synthetic click on the default button, so the click is
-    // what is recorded. The submission itself is then refused by constraint validation,
-    // because other required members are blank, which is Continue's behaviour too.
+    // what is recorded; the submission is then refused by constraint validation,
+    // because other required members are blank, as Continue would be.
     const pressed: HTMLElement[] = [];
     form.addEventListener(
       "click",

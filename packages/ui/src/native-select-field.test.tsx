@@ -5,31 +5,22 @@ import { A2UIStepRenderer, type A2UIStepDocument } from "./A2UIStepRenderer.tsx"
 import { NATIVE_FIELD_ANSWERED_PREFIX, NATIVE_FIELD_KIND_PREFIX } from "./native-submit.ts";
 
 /**
- * The no-JS single-choice control above the compiler's option threshold (issue #988).
+ * The no-JS single-choice control above the compiler's option threshold.
  *
- * The defect these pin: in native-submit mode a `singleChoice` question with more
- * than seven options put a real `<select>` on the page carrying the real options -
- * and put it inside a clipped container that is `aria-hidden="true"` with
- * `tabindex="-1"` on the select, behind a visible `<button aria-haspopup="listbox">`
- * only JavaScript can open. Nothing was missing from the wire; everything was
- * missing from the respondent. A required one was worse than unanswerable: the
- * browser tries to report validity on the unfocusable mirror, cannot, and abandons
- * the whole step's submission.
+ * In native-submit mode such a question used to put a real `<select>` on the page
+ * carrying the real options, inside a clipped `aria-hidden` container with
+ * `tabindex="-1"`, behind a trigger only JavaScript can open. Nothing was missing from
+ * the wire and everything was missing from the respondent, and a required one was
+ * worse than unanswerable: the browser tries to report validity on the unfocusable
+ * mirror, cannot, and abandons the whole step's submission.
  *
- * jsdom can pin the MARKUP contract - which element carries the name, whether a
- * respondent can see and reach it, what the browser will validate, and what the form
- * serializes - which is the whole of what the fix changes. Whether Chrome then
- * refuses a blank required select, and what a respondent can operate with scripting
- * genuinely off, is browser behaviour (ADR-23) and is asserted in
- * `apps/portal/e2e/no-js-select.pw.ts`.
+ * jsdom pins the markup contract: which element carries the name, whether a respondent
+ * can see and reach it, what the browser will validate, and what the form serializes.
+ * The browser half is asserted in the portal's own suite (ADR-23).
  *
- * The document is hand-written rather than loaded from a corpus because no golden
- * form compiles a `Select` at all: every committed single-choice question has four
- * options (`packages/a2ui-compiler/golden/`), which is what kept this whole control
- * unobserved. The props below are exactly what `questionToNode` emits for a
- * singleChoice above `SINGLE_CHOICE_SELECT_THRESHOLD`
- * (`packages/a2ui-compiler/src/mapping.ts`); the e2e vehicle kitchen-sink fixture now
- * carries such a question, which is what lets the browser spec reach one.
+ * The document is hand-written because no golden form compiles a `Select` at all,
+ * which is what kept this control unobserved. The props are what the compiler emits
+ * for a single choice above its threshold.
  */
 
 const QUESTION = "q_body_type";
@@ -86,10 +77,8 @@ describe("the no-JS single-choice select (issue #988)", () => {
   });
 
   it("puts the select where the respondent can see and reach it", () => {
-    // The defect in one assertion. Before the fix the only element carrying the
-    // question's name was a `tabindex="-1"` select inside an `aria-hidden`,
-    // `position: fixed; clip: rect(0px)` container, so the question was invisible,
-    // untabbable and - being unfocusable while invalid - unsubmittable when required.
+    // The defect in one assertion: the only element carrying the question's name used
+    // to be a `tabindex="-1"` select inside an `aria-hidden`, clipped container.
     const { container } = renderNative();
     const select = postedSelects(container)[0];
     expect(select.closest("[aria-hidden='true']")).toBeNull();
@@ -97,15 +86,14 @@ describe("the no-JS single-choice select (issue #988)", () => {
     expect(select.hasAttribute("tabindex")).toBe(false);
     expect(select.hasAttribute("hidden")).toBe(false);
     expect(select.disabled).toBe(false);
-    // And the JS-only trigger the respondent used to be left with is gone.
+    // And the JS-only trigger is gone.
     expect(container.querySelectorAll("[aria-haspopup='listbox']").length).toBe(0);
   });
 
   it("carries every compiled option, in authored order, under the option ids", () => {
     const { container } = renderNative();
     const select = postedSelects(container)[0];
-    // The placeholder, then the nine options: the question is above the compiler's
-    // seven-option threshold, which is the only reason it is a Select at all.
+    // The placeholder, then the options.
     expect([...select.options].map((option) => option.value)).toEqual([
       "",
       ...ITEMS.map((item) => item.value),
@@ -116,9 +104,9 @@ describe("the no-JS single-choice select (issue #988)", () => {
   });
 
   it("selects an empty-valued placeholder when the question is unanswered", () => {
-    // Both jobs of the empty option depend on this: HTML's own rule makes a
-    // `required` select invalid while the selected option's value is "", and it is
-    // the only gesture that can return an answered optional select to unanswered.
+    // Both jobs of the empty option depend on this: HTML holds a `required` select
+    // invalid while the selected option's value is empty, and it is the only gesture
+    // that returns an answered optional select to unanswered.
     const { container } = renderNative();
     const select = postedSelects(container)[0];
     expect(select.value).toBe("");
@@ -128,9 +116,8 @@ describe("the no-JS single-choice select (issue #988)", () => {
   });
 
   it("keeps the browser's own required check, because HTML can express this rule", () => {
-    // The #920 ruling keeps browser validation wherever HTML carries the constraint,
-    // and "exactly one option chosen" is one it carries - unlike the required
-    // checkbox group of #974, where the attribute had to go.
+    // Browser validation stays wherever HTML carries the constraint, and "exactly one
+    // option chosen" is one it carries, unlike a required checkbox group.
     const { container } = renderNative();
     expect(postedSelects(container)[0].required).toBe(true);
   });
@@ -182,11 +169,10 @@ describe("the no-JS single-choice select (issue #988)", () => {
   });
 
   it("posts an answered field returned to the placeholder empty, so the marker reads as a clear", () => {
-    // The gesture that did not exist before: `docs/COMPONENT_GUIDELINES.md` records
-    // that a chosen Select option cannot be deselected, which is still true of the
-    // scripted control. A native select with an empty-valued placeholder can be
-    // returned to it, and the empty value beside the `__qa__` marker is what the BFF
-    // decodes as the ADR-33 retraction (issue #127).
+    // A chosen Select option cannot be deselected on the scripted path
+    // (docs/COMPONENT_GUIDELINES.md), but a native select can be returned to its
+    // empty-valued placeholder, and that value beside the marker is what the BFF
+    // decodes as the ADR-33 retraction.
     const { container } = renderNative({ [QUESTION]: "opt_wagon" });
     postedSelects(container)[0].value = "";
     const posted = new FormData(container.querySelector("form")!);
@@ -214,8 +200,7 @@ describe("the no-JS single-choice select (issue #988)", () => {
 
   it("leaves the scripted render alone: the vendored trigger and its clipped mirror", () => {
     const { container } = render(<A2UIStepRenderer document={REQUIRED_DOCUMENT} />);
-    // The vendored control, byte-for-byte what it was: a JS-driven trigger button and
-    // the hidden select mirror it keeps its form value on.
+    // The vendored control, unchanged: a JS-driven trigger and its hidden mirror.
     expect(container.querySelector("[aria-haspopup='listbox']")).not.toBeNull();
     const mirror = postedSelects(container)[0];
     expect(mirror.getAttribute("tabindex")).toBe("-1");

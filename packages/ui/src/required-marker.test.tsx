@@ -8,18 +8,15 @@ import { cellLabelFor } from "./repeat/repeat-table-node.ts";
 import { loadGoldenSteps, syntheticRoster } from "./test-support/golden.ts";
 
 /**
- * A required question is perceivable as required BEFORE its error fires (issue #99).
+ * A required question is perceivable as required before its error fires.
  *
- * The marker is rendered by each vendored control inside its own `<Label>`, not by
- * the adapter, so this is a property of the vendored set rather than of
- * `registry.tsx`: a control that shipped without the marker was silently missing it
- * for every required question of that type. The DatePicker was exactly that case,
- * fixed upstream in a2-react-aria and arriving here through the `a2ra.json` pin.
+ * The marker is rendered by each vendored control inside its own label rather than by
+ * the adapter, so this is a property of the vendored set: a control that ships without
+ * one is silently missing it for every required question of that type.
  *
- * The set of required controls is DERIVED from the golden corpus rather than written
- * down (CONTRIBUTING: a property of "every X" derives its X), so a corpus generation
- * that introduces a required question of a new type is covered the day it lands
- * instead of quietly falling outside a hard-coded list.
+ * The set of required controls is derived from the golden corpus rather than written
+ * down, so a generation that introduces a required question of a new type is covered
+ * the day it lands instead of falling outside a hard-coded list.
  */
 
 interface RequiredControl {
@@ -40,23 +37,18 @@ interface GroupScope {
 }
 
 /**
- * Every `isRequired` node of one compiled step, with the label it renders and the
- * name it renders UNDER.
+ * Every `isRequired` node of one compiled step, with the label it renders and the name
+ * it renders under.
  *
  * A required question inside a repeating group renders once per live instance under
- * its **qualified** name (`ins_.../q_plate`, task 073), so the walk carries the
- * instance of whichever group it is inside. That is the whole point of qualifying
- * here rather than exempting the group: the property this suite pins - every required
- * control renders its marker - has to hold for a control inside an instance card too,
- * and it would silently stop being checked if a group's members were skipped.
+ * its qualified name, so the walk carries the instance of whichever group it is
+ * inside: the property pinned here has to hold for a control inside an instance card
+ * too, and it would silently stop being checked if a group's members were skipped.
  *
- * **The table presentation also rewrites a member's label** to its cell's own name,
- * "Vehicle 1, Registration plate" (task 077): a real label per cell is the only
- * encoding that survives the card reflow, so the renderer relabels the clone. The
- * scope therefore carries the row label too, and the expectation is the label the
- * renderer emits rather than the one the template stored. Without it this suite read
- * the template's label, found the cell's, and reported a missing marker that was
- * there - which is exactly the shape of failure a derived case list exists to avoid.
+ * The table presentation also rewrites a member's label to its cell's own name, since
+ * a real label per cell is the only encoding that survives the card reflow, so the
+ * scope carries the row label and the expectation is the label the renderer emits
+ * rather than the one the template stored.
  */
 function requiredControlsIn(
   node: unknown,
@@ -83,8 +75,8 @@ function propsOf(record: Record<string, unknown>): Record<string, unknown> {
   return typeof props === "object" && props !== null ? (props as Record<string, unknown>) : {};
 }
 
-/** The scope of the group this node IS, when it is a group: its first live instance,
- * and the row label a `table` presentation prefixes each cell's label with. */
+/** The scope of the group this node is: its first live instance, and the row label a
+ * table presentation prefixes each cell's label with. */
 function groupScopeOf(
   record: Record<string, unknown>,
   props: Record<string, unknown>,
@@ -96,7 +88,7 @@ function groupScopeOf(
   const presentation: unknown = props["presentation"];
   const template: unknown = props["instanceLabel"];
   // `typeof` first so the comparison is string-to-string: a node's props are
-  // `unknown`-valued, and comparing `unknown` to a literal is what the lint refuses.
+  // `unknown`-valued and comparing that to a literal is what the lint refuses.
   const isTable = typeof presentation === "string" && presentation === "table";
   const rowLabel =
     isTable && typeof template === "string" ? instanceLabelFor(template, 1) : undefined;
@@ -148,42 +140,31 @@ const cases: Case[] = loadGoldenSteps().flatMap((step) => {
 });
 
 /**
- * The controls whose marker is NOT hidden from assistive technology: none of them,
- * since the pin moved past roonga/a2-react-aria#78 (issue #789).
+ * The controls whose marker is not hidden from assistive technology: none of them.
  *
- * Six of the seven vendored controls already wrapped the marker in
- * `aria-hidden="true"`, so a screen reader announces the field's required STATE
- * (`aria-required`) and not a literal asterisk. The vendored `NumberField` did not,
- * so its computed accessible name ended in " *" - visible in the conformance
- * snapshot as `"How many? *"`. It was found while diagnosing #99, reported rather
- * than patched here because ADR-22 freezes the vendored tree byte-for-byte, and
- * fixed upstream in the pass this exception was written to survive.
+ * Every vendored control wraps the marker in `aria-hidden`, so a screen reader
+ * announces the field's required state rather than a literal asterisk. One did not,
+ * and its accessible name ended in an asterisk; ADR-22 freezes the vendored tree, so
+ * it was fixed upstream.
  *
- * The set stays, empty, rather than being deleted along with the assertions reading
- * it: it is what makes "no control leaks its marker" an exhaustive claim over the
- * corpus-derived set instead of a sentence, and a control that regresses names
- * itself in a diff.
+ * The set stays, empty, rather than being deleted with the assertions reading it: it
+ * is what makes "no control leaks its marker" an exhaustive claim over the
+ * corpus-derived set, and a control that regresses names itself in a diff.
  */
 const MARKER_IN_ACCESSIBLE_NAME = new Set<string>();
 
 /**
- * The controls that convey required only VISUALLY: none of them, for the same
- * reason.
+ * The controls that convey required only visually: none of them.
  *
- * react-aria-components puts `aria-required` on the element carrying the control's
- * semantics for the single-value controls, and a `CheckboxGroup` got only
- * `data-required="true"` - a styling hook, invisible to assistive technology - so a
- * required multiChoice announced nothing about being required until its error fired.
- * The cause was in the vendored `Checkbox`, which defaulted `isRequired` to `false`
- * and passed it down: react-aria resolves a group item's required state as
- * `props.isRequired ?? state.isRequired`, so the literal `false` won over the group
- * and the group's own required state reached none of its items.
+ * A `CheckboxGroup` once got only `data-required`, a styling hook invisible to
+ * assistive technology, because the vendored `Checkbox` defaulted `isRequired` to
+ * `false` and react-aria resolves a group item's required state as
+ * `props.isRequired ?? state.isRequired`, so the literal won over the group.
  *
- * ARIA does not allow `aria-required` on `role="group"`, so the upstream fix does not
- * put it there. Each checkbox carries it instead (or `required`, under native
- * validation) for exactly as long as nothing in the group is selected, which is
- * react-aria's own encoding of "at least one" - which is why the assertion below
- * searches the whole field wrapper rather than the group element.
+ * ARIA does not allow `aria-required` on `role="group"`, so each checkbox carries it
+ * instead, for as long as nothing in the group is selected, which is react-aria's own
+ * encoding of "at least one" and why the assertion below searches the whole field
+ * wrapper rather than the group element.
  */
 const REQUIRED_STATE_NOT_EXPOSED = new Set<string>();
 
@@ -221,10 +202,9 @@ describe("every required control renders the required marker (issue #99)", () =>
       );
       const markers = markersIn(fieldWrapper(container, control.name));
       expect(markers).toHaveLength(1);
-      // Inside the label, beside the label text, exactly as the six controls that
-      // already had it: an adapter-level marker rendered outside the label span
-      // would satisfy "a marker exists" while reading differently to a screen
-      // reader walking the label, which is why #99 rejected the adapter seam.
+      // Inside the label, beside the label text: a marker rendered outside the label
+      // span would satisfy "a marker exists" while reading differently to a screen
+      // reader walking the label, which is why the adapter seam was rejected.
       expect(markers[0]?.parentElement?.textContent).toBe(`${control.label} *`);
     },
   );
@@ -237,17 +217,14 @@ describe("every required control renders the required marker (issue #99)", () =>
       );
       const wrapper = fieldWrapper(container, control.name);
 
-      // The required STATE, which is what assistive technology reports. RAC sets it
-      // from `isRequired` on whatever element carries the control's semantics: the
-      // input for the text-shaped controls, each date segment for the DatePicker,
-      // the group for the RadioGroup, and each item for the CheckboxGroup, whose
-      // group element cannot carry it. Searching the whole field wrapper is what
-      // lets one assertion cover all four placements.
+      // The required state, which is what assistive technology reports. RAC sets it on
+      // whatever element carries the control's semantics, which differs per control
+      // type, so searching the whole field wrapper is what lets one assertion cover
+      // every placement.
       const required = wrapper.querySelectorAll("[aria-required='true'], [required]");
       expect(required.length > 0).toBe(true);
 
-      // And the NAME still reads as the question, with the asterisk hidden - except
-      // for the one control documented above.
+      // And the name still reads as the question, with the asterisk hidden.
       const labelled = wrapper.querySelector<HTMLElement>("[aria-labelledby], [id]");
       expect(labelled).not.toBeNull();
       const named = Array.from(wrapper.querySelectorAll<HTMLElement>("*"))
@@ -260,10 +237,9 @@ describe("every required control renders the required marker (issue #99)", () =>
   );
 
   it("pins exactly which controls leak the marker into their accessible name", () => {
-    // One case per control TYPE: the property is per-control-type and the corpus
-    // repeats each type across generations and forms, so rendering all 70-odd
-    // cases here would cost seconds to prove nothing the first of each does not.
-    // The per-case assertions above already cover every case individually.
+    // One case per control type: the property is per type and the corpus repeats each
+    // type across generations and forms, so rendering every case would cost seconds to
+    // prove nothing the first of each does not.
     const byType = new Map(cases.map((c) => [c.control.type, c]));
     const leaking = new Set<string>();
     for (const { step, specVersion, control, rosters } of byType.values()) {
@@ -278,10 +254,9 @@ describe("every required control renders the required marker (issue #99)", () =>
   });
 
   it("pins exactly which controls convey required only visually", () => {
-    // The companion exact-set assertion to the one above, and the reason the
-    // per-case check is a plain `toBe(true)`: the exception is stated once, here,
-    // where a regression names the control rather than reddening seventy cases.
-    // One case per control TYPE, for the reason given above.
+    // The companion exact-set assertion, and the reason the per-case check is a plain
+    // `toBe(true)`: the exception is stated once, here, where a regression names the
+    // control rather than reddening every case.
     const byType = new Map(cases.map((c) => [c.control.type, c]));
     const visualOnly = new Set<string>();
     for (const { step, specVersion, control, rosters } of byType.values()) {

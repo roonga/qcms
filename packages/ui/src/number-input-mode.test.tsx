@@ -6,53 +6,36 @@ import { A2UIStepRenderer, type A2UIStepDocument } from "./A2UIStepRenderer.tsx"
 import { numberFieldAdmitsFractions } from "./registry.tsx";
 
 /**
- * What a NumberField's `<input>` says about itself is the SAME on the server render and
- * on the client's first render, for the number questions QCMS compiles (issue #151), and
- * where it is still NOT the same, a marker here says so (issue #945).
+ * What a NumberField's `<input>` says about itself is the same on the server render and
+ * on the client's first render, and where it is still not, a marker below says so.
  *
- * The defect this suite guards: reloading a portal step that holds a NumberField logged a
- * React hydration attribute mismatch on every touch client, and the differing attribute
- * was `inputMode` - `decimal` from the client against `numeric` from the server.
- * `useNumberField` chooses it from the resolved number format AND from platform detection
- * that reads `navigator`, which a server render does not have, so a format admitting
- * fraction digits made the two renders disagree. `registry.tsx` now states
- * `maximumFractionDigits: 0` for an integer-constrained question (the `step: 1` the
- * compiler emits for one), which removes the fraction digits from the format and leaves
- * every platform branch at `numeric`.
+ * Reloading a portal step holding a NumberField logged a React hydration attribute
+ * mismatch on every touch client: `useNumberField` chooses `inputMode` from the
+ * resolved number format and from platform detection that reads `navigator`, which a
+ * server render does not have, so a format admitting fraction digits made the two
+ * renders disagree. The adapter now states `maximumFractionDigits: 0` for an
+ * integer-constrained question, which leaves every platform branch at `numeric`.
  *
- * `inputMode` is not the only attribute on that input whose value the environment decides,
- * which is why this file reads two. `aria-roledescription` comes from the same hook and
- * the same absent `navigator` (set unless `isIOS()`), so the server emits "Number field"
- * and an iOS client emits nothing, for the very integer question the fix above settles.
- * Both residuals need the same upstream change and are held below as `it.fails` markers,
- * tracked by #945.
+ * `aria-roledescription` on the same input comes from the same hook and the same
+ * absent `navigator`, so the server emits it and an iOS client emits nothing. Both
+ * residuals need the same upstream change and are held below as markers.
  *
- * Why this layer. The browser proof is `apps/portal/e2e/resume.pw.ts`, which reloads such
- * a step under the console gate and is the assertion the issue asked for; it can only test
- * the one question the kitchen-sink fixture holds, on the platforms the Chromium projects
- * emulate. No project in `playwright.config.ts` is WebKit or iOS, so the iOS-only
- * difference is not observable there AT ALL, and a jsdom platform override is the only
- * place this repository can see it today. jsdom also puts the same adapter through both
- * renders for both kinds of question in milliseconds, which is what pins the RULE rather
- * than the one case.
+ * jsdom is the only layer that can see this: no Playwright project here is WebKit or
+ * iOS, and jsdom puts the same adapter through both renders for both kinds of question
+ * in milliseconds, which pins the rule rather than the one case.
  *
- * How a server render is reproduced without a server. The only environment input to these
- * decisions is `window.navigator`: react-aria's platform helpers return false for every
- * platform when `window.navigator == null`, which is exactly the branch Node takes, so
- * removing `navigator` for the duration of `renderToStaticMarkup` puts the renderer in the
- * server's position rather than merely approximating it. The client renders with the real
- * navigator reporting an overridden platform, because a real device is where the two
- * answers diverge.
+ * A server render is reproduced by removing `navigator` for the duration of the static
+ * render, because react-aria's platform helpers return false for every platform when
+ * it is absent, which is exactly the branch Node takes.
  *
- * One caveat worth stating, because it is what makes the markers below useful beyond their
- * own subjects: react-aria memoizes its platform answers EXCEPT under `NODE_ENV=test`,
- * which is how these tests get to change platform between renders. Were that memoization
- * ever active here, every render in this file would read the first platform probed, both
- * residual cases would agree by accident, and Vitest would red the run with "Expect test
- * to fail". So the markers are also this suite's canary for its own mechanism.
+ * One caveat, which is what makes the markers useful beyond their own subjects:
+ * react-aria memoizes its platform answers except under `NODE_ENV=test`, which is how
+ * these tests change platform between renders. Were that memoization active here both
+ * residual cases would agree by accident and the markers would fail, so they are also
+ * this suite's canary for its own mechanism.
  */
 
-/** The Android user agent family the `mobile-chromium` Playwright project emulates. */
+/** The Android user agent family the mobile Playwright project emulates. */
 const ANDROID_USER_AGENT =
   "Mozilla/5.0 (Linux; Android 13; Pixel 7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Mobile Safari/537.36";
 
@@ -62,16 +45,13 @@ const IPHONE_PLATFORM = "iPhone";
 const REAL_NAVIGATOR: Navigator = window.navigator;
 
 /**
- * Run `body` with the REAL navigator reporting `overrides`, restoring it however `body`
+ * Run `body` with the real navigator reporting `overrides`, restoring it however `body`
  * ends.
  *
  * An own property shadowing a prototype getter, rather than a substitute navigator
- * object. `userAgent` and `platform` are getters on jsdom's `Navigator.prototype` and
- * jsdom brand-checks their receiver, so neither a spread copy (which would report
- * neither) nor an object inheriting from the real one (`'get platform' called on an
- * object that is not a valid instance of Navigator`) survives contact with it. Defining
- * the property on the genuine navigator and deleting it afterwards leaves every other
- * read exactly as it was.
+ * object: `userAgent` and `platform` are getters on jsdom's `Navigator.prototype` and
+ * jsdom brand-checks their receiver, so neither a spread copy nor an object inheriting
+ * from the real one survives contact with it.
  */
 function withPlatform<T>(overrides: Readonly<Record<string, string>>, body: () => T): T {
   for (const [property, value] of Object.entries(overrides)) {
@@ -87,9 +67,8 @@ function withPlatform<T>(overrides: Readonly<Record<string, string>>, body: () =
 }
 
 /**
- * Run `body` with no `navigator` at all, restoring it however `body` ends. react-aria's
- * platform helpers return false for every platform when `window.navigator == null`,
- * which is the branch a Node render takes.
+ * Run `body` with no `navigator` at all, restoring it however `body` ends, which is the
+ * branch a Node render takes.
  */
 function withoutNavigator<T>(body: () => T): T {
   Object.defineProperty(window, "navigator", { value: undefined, configurable: true });
@@ -110,9 +89,8 @@ function numberStep(props: Readonly<Record<string, unknown>>): A2UIStepDocument 
 
 /**
  * The field's editable input. Exactly one input in the rendered step carries
- * `inputmode` (the NumberField's own hidden form input does not), so a second match
- * means the render changed shape and the assertions below would be reading the wrong
- * element.
+ * `inputmode`, so a second match means the render changed shape and the assertions
+ * below would be reading the wrong element.
  */
 function soleInput(root: ParentNode): Element {
   const withInputMode = root.querySelectorAll("input[inputmode]");
@@ -122,9 +100,8 @@ function soleInput(root: ParentNode): Element {
 }
 
 /**
- * The two attributes on that input whose value `useNumberField` derives from the
- * environment, read together because they are one hydration question rather than two:
- * React compares every attribute of the element in one pass, so either one differing
+ * The two attributes whose value `useNumberField` derives from the environment, read
+ * together because React compares every attribute in one pass, so either one differing
  * is the same logged mismatch.
  */
 interface EnvironmentAttributes {
@@ -159,7 +136,7 @@ function clientAttributes(
   });
 }
 
-/** An integer question, exactly as `a2ui-compiler` emits one (kitchen sink's "How many?"). */
+/** An integer question, exactly as the compiler emits one. */
 const INTEGER_QUESTION = numberStep({
   label: "How many?",
   name: "q_accident_count",
@@ -197,29 +174,22 @@ describe("a NumberField's inputMode survives hydration", () => {
 });
 
 /**
- * The two residuals, as markers that arm themselves rather than allowlist entries (#151
- * forbids silencing one), tracked by issue #945.
+ * The two residuals, as markers that arm themselves rather than allowlist entries.
  *
- * Neither can be pinned from here, and the reason is one reason for both: the vendored
- * control takes a fixed prop list and forwards only `placeholder` and `className` to its
- * `<Input>`; react-aria's `useNumberField` spreads a caller's props and THEN sets both
- * `inputMode` and `aria-roledescription` from its own computation; and
- * `packages/ui/src/components/a2ui/**` stays byte-identical to upstream (ADR-22). Only a
- * prop on the `<Input>` itself wins, because that is where react-aria-components merges a
- * caller's props over the field's context. So both need the same upstream passthrough in
- * the sibling a2-react-aria checkout plus a pin move here, which is what #945 asks for.
+ * Neither can be pinned from here, for one reason: the vendored control forwards a
+ * fixed prop list, `useNumberField` sets both attributes after spreading a caller's
+ * props, and the vendored sources stay byte-identical upstream (ADR-22). Only a prop on
+ * the `<Input>` itself wins, which needs an upstream passthrough plus a pin move.
  *
- * `it.fails` RUNS the body and requires it to fail. The day the passthrough lands and this
- * adapter uses it, the body passes and Vitest reds the run with "Expect test to fail", so
- * the marker has to be removed deliberately. Its limit is the same as the Playwright
- * marker this file replaced: ANY failure satisfies it, so each body holds one assertion
- * and nothing else.
+ * `it.fails` runs the body and requires it to fail, so the day the passthrough lands
+ * the body passes and the run goes red, and the marker has to be removed deliberately.
+ * Any failure satisfies it, so each body holds one assertion and nothing else.
  */
 describe("the residuals that need an upstream passthrough (issue #945)", () => {
   /**
-   * A question that ADMITS fractions resolves `decimal` on a touch client against the
-   * server's `numeric`. No fixture form has such a question, so no browser spec can reach
-   * it; this is the only layer that observes it at all.
+   * A question that admits fractions resolves `decimal` on a touch client against the
+   * server's `numeric`. No fixture form has such a question, so no browser spec reaches
+   * it.
    */
   it.fails("a question that admits fractions does NOT agree on inputMode yet", () => {
     expect(clientAttributes(FRACTIONAL_QUESTION, { userAgent: ANDROID_USER_AGENT }).inputMode).toBe(
@@ -228,12 +198,9 @@ describe("the residuals that need an upstream passthrough (issue #945)", () => {
   });
 
   /**
-   * `aria-roledescription` on the SAME input, for the very integer question the fix above
-   * settles: `useNumberField` sets it to "Number field" unless `isIOS()`, so the server
-   * emits it and an iPhone client emits nothing. Android agrees with the server, which is
-   * why it prints as unchanged context in the browser log and why no Chromium project in
-   * `playwright.config.ts` can see it. Every iOS reload of that step still logs the
-   * mismatch this repository's gates cannot reach, and that is the half #945 carries.
+   * `aria-roledescription` on the same input: `useNumberField` sets it unless the client
+   * is iOS, so the server emits it and an iPhone client emits nothing. Android agrees
+   * with the server, which is why no Chromium project can see it.
    */
   it.fails("an integer question does NOT agree on aria-roledescription on an iPhone", () => {
     expect(clientAttributes(INTEGER_QUESTION, { platform: IPHONE_PLATFORM }).roleDescription).toBe(
@@ -243,13 +210,10 @@ describe("the residuals that need an upstream passthrough (issue #945)", () => {
 });
 
 /**
- * The helper's own contract, at its two documented edges.
- *
- * `step` is the only trace an integer constraint leaves in the compiled props, so what
- * counts as an integral step is the whole of the rule the adapter applies. The jsdom
- * renders above exercise `step: 1` and a missing step; these pin the edges those renders
- * do not reach, including a non-integral step that nothing compiles today but an authored
- * document could carry.
+ * The helper's own contract at its edges. `step` is the only trace an integer constraint
+ * leaves in the compiled props, so what counts as an integral step is the whole of the
+ * rule. The renders above exercise `step: 1` and a missing step; these pin the edges
+ * they do not reach, including a non-integral step an authored document could carry.
  */
 describe("numberFieldAdmitsFractions", () => {
   it.each([

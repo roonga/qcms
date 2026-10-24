@@ -1,11 +1,9 @@
 import type { A2UIStepDocument } from "../A2UIStepRenderer.tsx";
 
 /**
- * The one question type no golden document exercises: `singleChoice` with more
- * options than the compiler's Select threshold, which compiles to a `Select`
- * rather than a `RadioGroup` (`docs/a2ui-mapping.md`). A tiny synthetic fixture -
- * not a golden, just a test input - shared by the round-trip suite (the Select
- * emits an OptionId) and the clear-path suite (the Select has no clear gesture).
+ * The one question type no golden document exercises: a `singleChoice` with more
+ * options than the compiler's Select threshold, so it compiles to a `Select` rather
+ * than a `RadioGroup`. A synthetic test input, not a golden.
  */
 export const SELECT_STEP: A2UIStepDocument = {
   stepId: "stp_select",

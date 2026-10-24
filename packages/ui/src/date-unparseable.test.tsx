@@ -5,22 +5,16 @@ import { A2UIStepRenderer, type A2UIStepDocument } from "./A2UIStepRenderer.tsx"
 import { loadGoldenForms } from "./test-support/golden.ts";
 
 /**
- * A stored value the date parser cannot read renders an EMPTY picker, never a
- * render-time exception (issue #549).
+ * A stored value the date parser cannot read renders an empty picker, never a
+ * render-time exception.
  *
- * The vendored `DatePicker` used to bind `value ? parseDate(value) : undefined`, and
- * `@internationalized/date`'s `parseDate` THROWS on anything that is not a valid ISO
- * day. So any caller binding a value it had not already validated got a crash where
- * it expected a validation problem: issue #521 was a whole-screen 500 on
- * `?from=nope`, not a malformed query forwarded to the API. The guard is upstream in
- * a2-react-aria (ADR-22 keeps this repo's copy byte-identical) and arrives here
- * through the `a2ra.json` pin.
+ * `@internationalized/date`'s `parseDate` throws on anything that is not a valid ISO
+ * day, so a caller binding an unvalidated value got a whole-screen crash where it
+ * expected a validation problem. The guard is upstream in a2-react-aria and arrives
+ * here through the pin (ADR-22 keeps this repo's copy byte-identical).
  *
- * The adapter is what makes this reachable: it passes the parent's stored answer
- * straight through as a string, so the class of bad value this covers is "whatever
- * the host has in its `values` map", which is not something `@roonga/qcms-ui` validates.
- *
- * jsdom is the right layer (ADR-23): a throw during render is not layout-dependent.
+ * The adapter is what makes it reachable, because it passes the parent's stored
+ * answer straight through as a string and `@roonga/qcms-ui` validates none of it.
  */
 
 const kitchen = loadGoldenForms().find((f) => f.version === "v3" && f.form === "kitchen-sink");
@@ -30,17 +24,13 @@ if (!stepAbout) throw new Error("stp_about not found");
 const step: A2UIStepDocument = stepAbout;
 const specVersion = kitchen.compiled.a2uiSpecVersion;
 
-/**
- * Values a host could plausibly hold for a date question and that `parseDate`
- * rejects: a free-text leftover, a localized spelling, a datetime, an
- * out-of-range day, and the empty string.
- */
+/** Values a host could plausibly hold for a date question and `parseDate` rejects. */
 const UNPARSEABLE = ["nope", "17/05/1990", "1990-05-17T00:00:00Z", "1990-13-45", ""];
 
 describe("an unparseable stored date renders unselected instead of throwing", () => {
   it.each(UNPARSEABLE)("survives %j as the stored answer", (stored) => {
-    // A render-time throw in this component surfaces as a 500 on the whole screen,
-    // so a thrown error is the failure being pinned, not a caught one.
+    // A render-time throw here surfaces as a 500 on the whole screen, so the throw is
+    // the failure being pinned rather than a caught error.
     expect(() =>
       render(
         <A2UIStepRenderer
@@ -52,8 +42,7 @@ describe("an unparseable stored date renders unselected instead of throwing", ()
       ),
     ).not.toThrow();
 
-    // Unselected, not partially filled: every editable segment shows its
-    // placeholder, which is what "no answer" looks like to a respondent.
+    // Unselected rather than partially filled: every segment shows its placeholder.
     expect(screen.getByRole("spinbutton", { name: /month/i }).textContent).toMatch(/mm/i);
     expect(screen.getByRole("spinbutton", { name: /day/i }).textContent).toMatch(/dd/i);
     expect(screen.getByRole("spinbutton", { name: /year/i }).textContent).toMatch(/yyyy/i);

@@ -11,37 +11,29 @@ function isChecked(element: HTMLElement): boolean {
   return element.getAttribute("aria-checked") === "true";
 }
 
-// Keyboard walkthrough (exit criterion 4) over the kitchen-sink document:
-// forward Tab order across every control, radio arrow-key selection, checkbox
-// Space toggle - the interactions component libraries "usually" supply but this
-// task conformance-verifies rather than assumes (a2ui-mapping.md / ADR-22).
+// Keyboard walkthrough over the kitchen-sink document: Tab order, radio arrow-key
+// selection, checkbox Space toggle. Conformance-verified rather than assumed of the
+// component library (ADR-22).
 const kitchen = loadGoldenForms().find((f) => f.version === "v2" && f.form === "kitchen-sink");
 if (!kitchen) throw new Error("kitchen-sink v2 golden not found");
 const stepHealth = kitchen.compiled.documents.find((d) => d.stepId === "stp_history");
 if (!stepHealth) throw new Error("stp_history not found");
 
-// Every test here drives real `userEvent` interaction through react-aria in
-// jsdom, which is CPU-bound work: each simulated key dispatches a full event
-// sequence and react-aria re-renders the RadioGroup/CheckboxGroup on every one.
-// Cost therefore scales with the CPU share the runner gets. On a starved runner
-// (one core shared with ~26 busy processes) the slowest test in this file crosses
-// Vitest's 5000ms default while the rest land in the 2-5s range, on a file a warm
-// machine finishes in 1.5s - which is how issue #61's flake appeared under CI
-// load. Which test crosses varies with load, and in practice it is "Tab visits
-// every control" rather than the "radio arrow keys" case the issue happened to
-// catch, so the budget belongs to the file and not to one test. There is nothing
-// timing-sensitive to restructure either: the cost is arithmetic, not an awaited
-// delay (`userEvent.setup({ delay: null })` was measured and changed nothing).
-// 30s leaves clear headroom over the worst starved observation while still
-// failing a genuine hang, the same trade the Testcontainers e2e project makes
-// with its 120s (see the root vitest.config.ts).
+// These drive real `userEvent` interaction through react-aria in jsdom, which is
+// CPU-bound: each simulated key dispatches a full event sequence and react-aria
+// re-renders. Cost therefore scales with the CPU share the runner gets, and on a
+// starved runner the slowest test crosses Vitest's 5s default while a warm machine
+// finishes the file in 1.5s. Which test crosses varies with load, so the budget
+// belongs to the file. There is nothing timing-sensitive to restructure: the cost is
+// arithmetic rather than an awaited delay. 30s leaves headroom while still failing a
+// genuine hang.
 describe("kitchen-sink keyboard walkthrough", { timeout: 30_000 }, () => {
   it("Tab visits every control in document order and never the honeypot", async () => {
     const user = userEvent.setup();
     const { container } = render(<ControlledHost document={stepHealth} />);
 
-    // Roving-tabindex RadioGroup exposes one tab stop (the first radio); the
-    // NumberField, each Checkbox, and the TextArea are each their own tab stop.
+    // A roving-tabindex RadioGroup exposes one tab stop; every other control is its
+    // own.
     const expected = [
       screen.getByRole("radio", { name: "Yes" }),
       screen.getByRole("textbox", { name: /how many/i }),

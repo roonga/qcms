@@ -26,18 +26,11 @@ import { loadGoldenForms } from "./test-support/golden.ts";
 import { documentForVisible } from "./visible.ts";
 
 /**
- * The repeating group in the renderer (task 073, ADR-42, ADR-43).
- *
- * This is the layer the two hardest halves of the task meet at: the compiler's
- * `RepeatGroup` **template** is expanded here, per live instance, and the `__qop`
- * buttons the no-JS roster operation rides on are rendered here. Every document
- * driven below comes from the golden corpus rather than being hand-written, so the
- * shapes asserted are the shapes the compiler actually emits (`golden/v4/`).
- *
- * Acceptance cases proved or part-proved here: 34 (one honeypot on a ten-instance
- * step, the DOM half), 37 (one input per row, the structural half), 38 (`longText`
- * and `multiChoice` inside a group), and the decoder-independent half of 30 (a form
- * carries at most one `__qop` entry, because only the pressed button contributes).
+ * The repeating group in the renderer (ADR-42, ADR-43): the compiler's `RepeatGroup`
+ * template is expanded here, per live instance, and the `__qop` buttons the no-JS
+ * roster operation rides on are rendered here. Every document comes from the golden
+ * corpus rather than being hand-written, so the shapes asserted are the shapes the
+ * compiler emits.
  */
 
 const OPEN_GROUP = "repeat-open-group";
@@ -51,7 +44,7 @@ function goldenStep(form: string, stepId: string): { document: A2UIStepDocument;
   return { document, spec: golden.compiled.a2uiSpecVersion };
 }
 
-/** Instance ids shaped exactly like the API's (`packages/core/src/ids.ts`). */
+/** Instance ids shaped exactly like the API's. */
 function instances(count: number, prefix = "a"): string[] {
   return Array.from({ length: count }, (_unused, index) => `ins_${prefix}${String(index + 1)}`);
 }
@@ -64,9 +57,8 @@ function names(container: HTMLElement): string[] {
 
 describe("the qualified field name", () => {
   it("is the kernel's answer key, separator and all", () => {
-    // The renderer does not depend on `@roonga/qcms-core` (the import-surface test keeps it
-    // that way), so `INSTANCE_NAME_SEPARATOR` is spelled twice. This is the assertion
-    // that keeps the two spellings one contract.
+    // The renderer does not depend on the kernel, so the separator is spelled twice.
+    // This is what keeps the two spellings one contract.
     expect(qualifiedFieldName("ins_7k2", "q_passport")).toBe(
       answerKey("q_passport" as QuestionId, "ins_7k2" as InstanceId),
     );
@@ -83,8 +75,8 @@ describe("the qualified field name", () => {
   });
 
   it("does not expand a dollar sequence in a replacement", () => {
-    // `String.replace` expands `$&` and `$1` inside a replacement STRING, and an
-    // ordinal is a digit; both substitutions therefore use a function.
+    // A replacement string expands `$&` and `$1` and an ordinal is a digit, so both
+    // substitutions use a function.
     expect(instanceLabelFor("$& {n} $1", 2)).toBe("$& 2 $1");
     expect(removeLabelFor("Remove {label}", "$& Vehicle")).toBe("Remove $& Vehicle");
   });
@@ -134,8 +126,8 @@ describe("expansion clones the template per live instance", () => {
       expect(json).toContain(`"${qualifiedFieldName(instanceId, "q_rep_plate")}"`);
       expect(json).toContain(`"Vehicle ${String(index + 1)}"`);
     }
-    // The bare template name is gone: the qualified name is the field's whole
-    // identity below the API, so nothing downstream ever sees `q_rep_plate` alone.
+    // The qualified name is the field's whole identity below the API, so nothing
+    // downstream ever sees the bare template name.
     expect(json).not.toContain('"name":"q_rep_plate"');
     // Roster order, not id order.
     const first = json.indexOf(roster[0]);
@@ -161,8 +153,8 @@ describe("expansion clones the template per live instance", () => {
   it("renders no instance and no member control with no roster", () => {
     const { document, spec } = goldenStep(OPEN_GROUP, "stp_fleet");
     const { container } = render(<A2UIStepRenderer document={document} specVersion={spec} />);
-    // The group's chrome is there (a stored document drawn verbatim by the admin's
-    // version view must not blow up), and the question outside the group still is.
+    // The group's chrome is there, because a stored document drawn verbatim by the
+    // admin's version view must not blow up.
     expect(container.querySelector("[data-qcms-repeat-group]")).not.toBeNull();
     expect(names(container)).toEqual(["q_rep_fleet_name"]);
   });
@@ -170,10 +162,8 @@ describe("expansion clones the template per live instance", () => {
   it("prunes per instance against the qualified visible set", () => {
     const { document, spec } = goldenStep(OPEN_GROUP, "stp_fleet");
     const roster = instances(2);
-    // `q_rep_service_date` is visible in instance 1 and hidden in instance 2, which
-    // is exactly what a rule targeting inside a group produces: it is evaluated once
-    // per live instance, so the visible set is per instance and the bare name is not
-    // a thing the API ever sends.
+    // A rule targeting inside a group is evaluated once per live instance, so the
+    // visible set is per instance and the API never sends a bare name.
     const visible = new Set([
       "q_rep_fleet_name",
       qualifiedFieldName(roster[0], "q_rep_plate"),
@@ -195,7 +185,7 @@ describe("expansion clones the template per live instance", () => {
     ]);
   });
 
-  // --- the per-instance step view (task 076, ADR-28 as amended 2026-09-29) ---------
+  // The per-instance step view (ADR-28 as amended).
 
   it("draws one instance for a per-instance step view, keeping its roster ordinal", () => {
     const { document, spec } = goldenStep(OPEN_GROUP, "stp_fleet");
@@ -210,8 +200,8 @@ describe("expansion clones the template per live instance", () => {
         }}
       />,
     );
-    // Vehicle 2 alone, and still called Vehicle 2: the ordinal is its place in the FULL
-    // roster, never its place in a one-element list.
+    // One instance, still carrying its ordinal in the full roster rather than its
+    // place in a one-element list.
     expect(container.querySelectorAll("[data-qcms-instance]")).toHaveLength(1);
     expect(screen.getByRole("heading", { name: "Vehicle 2" })).toBeTruthy();
     expect(names(container).filter((name) => name.startsWith("ins_"))).toEqual([
@@ -219,8 +209,8 @@ describe("expansion clones the template per live instance", () => {
       qualifiedFieldName(roster[1], "q_rep_service_date"),
       qualifiedFieldName(roster[1], "q_rep_odometer"),
     ]);
-    // The step's own question is on the page: a view narrows the step to one instance of
-    // the paginating group and to nothing else.
+    // A view narrows the step to one instance of the paginating group and nothing
+    // else, so the step's own question is still on the page.
     expect(names(container)).toContain("q_rep_fleet_name");
   });
 
@@ -244,14 +234,14 @@ describe("expansion clones the template per live instance", () => {
     };
     expect(addOn(roster[0])).toBe(false);
     expect(addOn(roster[1])).toBe(false);
-    // No Add markup at all rather than a disabled button: a disabled Add reads as "this
+    // No Add markup at all rather than a disabled button, which would read as "this
     // group is full" to a respondent whose group is not.
     expect(addOn(roster[2])).toBe(true);
   });
 
   it("leaves a stacked group on the same step untouched by the narrowing", () => {
-    // A step may hold a paginating group beside a stacked one. Only the group the view
-    // names is narrowed; every instance of the other belongs on every page.
+    // Only the group the view names is narrowed; every instance of a stacked group
+    // beside it belongs on every page.
     const { document, spec } = goldenStep(COUNT_SOURCES, "stp_drivers");
     const roster = instances(2);
     const { container } = render(
@@ -282,19 +272,18 @@ describe("expansion clones the template per live instance", () => {
         nativeSubmit={{ action: "/s/ses_1/step", submitLabel: "Continue" }}
       />,
     );
-    // One instance drawn, nine live, `max: 9`: the Add is offered on the last view and
-    // disabled, because it is the ROSTER that is full and not the page.
+    // The Add is offered on the last view and disabled, because it is the roster that
+    // is full rather than the page.
     const add = container.querySelector<HTMLButtonElement>('[data-qcms-repeat-action="add"]');
     expect(add?.disabled).toBe(true);
   });
 
-  // --- issue #1041: a host that expands BEFORE pruning -------------------------------
+  // A host that expands before pruning.
 
   it("prunes an already-expanded instance against the visible set", () => {
-    // The hydrated portal's ordering: expand once with the roster, hand the same whole
-    // tree to `commitMoments` and the error summary, and let the renderer's own pass
-    // apply the visible set. Until this worked, a member hidden in one instance by a
-    // per-instance rule stayed on screen on that path and on no other.
+    // The hydrated portal's ordering: expand once with the roster, hand the whole tree
+    // to the commit-moment walk and the error summary, and let the renderer's own pass
+    // apply the visible set.
     const { document } = goldenStep(OPEN_GROUP, "stp_fleet");
     const roster = instances(2);
     const expanded = expandRepeatGroups(document.root, { rosters: { grp_vehicles: roster } });
@@ -316,8 +305,7 @@ describe("expansion clones the template per live instance", () => {
         repeat={{ rosters: { grp_vehicles: roster }, visible }}
       />,
     );
-    // Instance 2's hidden date is gone and its plate stayed; both instances still exist,
-    // so the second pass pruned without re-expanding.
+    // Both instances still exist, so the second pass pruned without re-expanding.
     expect(container.querySelectorAll("[data-qcms-instance]")).toHaveLength(2);
     expect(names(container)).toEqual([
       "q_rep_fleet_name",
@@ -350,8 +338,8 @@ describe("expansion clones the template per live instance", () => {
 
   it("documentForVisible keeps the template whole, because it cannot prune it", () => {
     const { document } = goldenStep(OPEN_GROUP, "stp_fleet");
-    // Only the qualified names are in the visible set, so pruning the template by
-    // name would delete every member control before the renderer could clone one.
+    // Only qualified names are in the visible set, so pruning the template by name
+    // would delete every member control before the renderer could clone one.
     const pruned = documentForVisible(document, ["q_rep_fleet_name"]);
     expect(JSON.stringify(pruned)).toContain('"q_rep_plate"');
   });
@@ -383,24 +371,20 @@ describe("the instance card (plan section 4.3, Q11, Q12)", () => {
       expect(card).not.toBeNull();
       const legend = card!.querySelector("legend");
       expect(legend).not.toBeNull();
-      // The heading is INSIDE the legend: one element naming the group and reachable
-      // by heading navigation, with the label spoken once rather than twice.
+      // The heading is inside the legend: one element naming the group and reachable
+      // by heading navigation, with the label spoken once.
       const heading = legend!.querySelector("h4");
       expect(heading?.textContent).toBe(`Vehicle ${String(index + 1)}`);
-      // The two focus mechanisms Q11 needs: the scripted landing and the fragment.
+      // The two focus mechanisms a roster operation needs.
       expect(heading?.id).toBe(instanceId);
       expect(heading?.getAttribute("tabindex")).toBe("-1");
     }
   });
 
   /**
-   * The server-rendered HTML for a native step, which is what the `autofocus` assertions
-   * below have to read.
-   *
-   * `render()` cannot answer them: on the client React applies `autoFocus` by CALLING
-   * focus() on the mounted node and writes no attribute at all, so a client render of a
-   * correctly wired tree has zero `[autofocus]` elements. The no-JS case IS the server's
-   * HTML, so that is what this renders.
+   * The server-rendered HTML, which is what the `autofocus` assertions below read: on
+   * the client React applies `autoFocus` by calling focus() and writes no attribute, so
+   * a client render of a correctly wired tree has zero `[autofocus]` elements.
    */
   function nativeMarkup(roster: readonly string[], autofocusId: string): string {
     const { document, spec } = goldenStep(OPEN_GROUP, "stp_fleet");
@@ -415,11 +399,9 @@ describe("the instance card (plan section 4.3, Q11, Q12)", () => {
   }
 
   /**
-   * Every start tag in a markup string carrying the `autofocus` attribute.
-   *
-   * Split on `<` and tested per tag rather than matched with one expression over the whole
-   * document, because an expression with two unbounded `[^>]*` around the attribute
-   * backtracks super-linearly on a long line and the lint gate refuses it.
+   * Every start tag carrying the `autofocus` attribute. Split and tested per tag rather
+   * than matched over the whole document, because an expression with two unbounded
+   * `[^>]*` around the attribute backtracks super-linearly and the lint gate refuses it.
    */
   function autofocusTags(markup: string): string[] {
     const tags: string[] = [];
@@ -432,14 +414,13 @@ describe("the instance card (plan section 4.3, Q11, Q12)", () => {
   }
 
   it("marks the autofocus target the host named, and nothing else", () => {
-    // The no-JS landing after an Add or a Remove is an `autofocus` attribute on that
-    // instance's heading, which is a 200-to-a-POST's only option: the response leaves the
-    // browser on the POST's own URL and that URL carries no fragment (Q11, Q28).
+    // The no-JS landing is an `autofocus` attribute on that instance's heading, which
+    // is a 200-to-a-POST's only option: the response leaves the browser on the POST's
+    // own URL and that URL carries no fragment.
     //
-    // Asserted on the RENDERED ATTRIBUTE rather than on the prop, because the way this
+    // Asserted on the rendered attribute rather than the prop, because the way this
     // broke was a renderer that accepted `autofocusId` and never put it in the repeat
-    // context: the action returned the right id, the page rendered, and the focus move
-    // was silently gone with nothing else looking wrong.
+    // context, losing the focus move with nothing else looking wrong.
     const roster = instances(2);
     const second = roster[1] ?? "";
     const marked = autofocusTags(nativeMarkup(roster, second));
@@ -447,14 +428,14 @@ describe("the instance card (plan section 4.3, Q11, Q12)", () => {
     const tag = marked[0] ?? "";
     expect(tag).toContain(`id="${second}"`);
     expect(tag.startsWith("<h4")).toBe(true);
-    // Two autofocus targets in one document leave which one wins to the browser, so the
-    // first instance's heading must not be marked as well.
+    // Two autofocus targets leave which one wins to the browser, so the first
+    // instance's heading must not be marked as well.
     expect(tag).not.toContain(roster[0] ?? "");
   });
 
   it("marks the group's Add button when that is where the host sends focus", () => {
-    // A REPLAYED no-JS post minted nothing, so the landing is the Add button: the
-    // instance the first post created is already on the page and focus has not moved.
+    // A replayed post minted nothing, so the landing is the Add button: the instance
+    // the first post created is already on the page.
     const marked = autofocusTags(nativeMarkup(instances(1), addButtonId("grp_vehicles")));
     expect(marked).toHaveLength(1);
     expect(marked[0] ?? "").toContain('data-qcms-repeat-action="add"');
@@ -496,25 +477,21 @@ describe("the instance card (plan section 4.3, Q11, Q12)", () => {
     );
     const headings = Array.from(container.querySelectorAll("legend h4"));
     expect(headings.map((h) => h.textContent)).toEqual(["Vehicle 1", "Vehicle 2"]);
-    // "Vehicle 2" is now the instance that used to be third: the ordinal is
-    // presentation and the id is identity (ADR-42, R6 one level down).
+    // The ordinal is presentation and the id is identity (ADR-42).
     expect(headings[1]?.id).toBe(roster[2]);
   });
 
   it("puts one input per row: every control is a direct child of the single column", () => {
-    // Case 37's structural half. The layout rule itself is one declaration in
-    // `theme-components.css` (`grid-template-columns: 1fr`, no media query anywhere
-    // that widens it), and the browser suite asserts the geometry at 390 and at the
-    // widest project; what a jsdom test can prove is the structure the rule needs:
-    // every control sits in the one-column container and nothing wraps two of them.
+    // The layout rule is one declaration in `theme-components.css` and the browser
+    // suite asserts the geometry. What jsdom can prove is the structure that rule
+    // needs: every control sits in the one-column container and nothing wraps two.
     const { container } = renderOpen(1);
     const column = container.querySelector<HTMLElement>(".qcms-repeat__fields");
     expect(column).not.toBeNull();
     const fields = Array.from(column!.querySelectorAll<HTMLElement>("[data-qcms-field]"));
     expect(fields).toHaveLength(3);
     for (const field of fields) {
-      // `display: contents` wrappers, so the control's own box is the grid item; the
-      // wrapper's parent is the column itself.
+      // `display: contents` wrappers, so the control's own box is the grid item.
       expect(field.parentElement).toBe(column);
     }
   });
@@ -600,8 +577,8 @@ describe("the roster controls", () => {
       `remove:grp_vehicles:${roster[1]}:op_7f3`,
       "add:grp_vehicles:op_7f3",
     ]);
-    // Every one of them skips browser validation, which is safe ONLY because the
-    // post writes no answer (ADR-43, the ruling of 2026-09-30).
+    // Every one skips browser validation, which is safe only because the post writes
+    // no answer (ADR-43).
     for (const button of ops) {
       expect(button.type).toBe("submit");
       expect(button.hasAttribute("formnovalidate")).toBe(true);
@@ -609,11 +586,10 @@ describe("the roster controls", () => {
   });
 
   it("carries at most one __qop entry on the wire (case 30, the renderer half)", () => {
-    // A `<button name value>` contributes its name and value only when it is the
-    // button that submitted the form, so a whole-step POST carries exactly one
-    // `__qop` entry or none. Asserted at the transport: the buttons are the ONLY
-    // elements carrying that name, and none of them is an input that would serialize
-    // whether pressed or not.
+    // A `<button name value>` contributes its pair only when it is the submitter, so
+    // a whole-step POST carries one `__qop` entry or none. Asserted at the transport:
+    // the buttons are the only elements carrying that name, and none is an input that
+    // would serialize unpressed.
     const { container } = renderGroup({ count: 3, native: true });
     const named = Array.from(container.querySelectorAll(`[name="${ROSTER_OP_FIELD}"]`));
     expect(named).toHaveLength(4);
@@ -658,7 +634,7 @@ describe("the roster controls", () => {
 
   it("names the remove control with the distinguishing words first", () => {
     renderGroup({ count: 3, onRemove: () => undefined });
-    // APG's naming practice: "Remove Vehicle 3", never "Vehicle 3 remove".
+    // APG's naming practice puts the distinguishing words first.
     expect(screen.getByRole("button", { name: "Remove Vehicle 3" })).toBeDefined();
   });
 
@@ -669,13 +645,13 @@ describe("the roster controls", () => {
     });
     const region = scripted.container.querySelector('[role="status"]');
     expect(region?.getAttribute("aria-live")).toBe("polite");
-    // A whole sentence, never a changing number (4.1.3's own Understanding).
+    // A whole sentence, never a changing number (4.1.3's Understanding).
     expect(region?.textContent).toBe("Vehicle 3 added");
     scripted.unmount();
 
     const native = renderGroup({ count: 2, native: true });
-    // Without scripting 4.1.3 does not apply: the criterion scopes out a message
-    // delivered via a change in context, and a whole-page POST and re-render is one.
+    // Without scripting 4.1.3 does not apply: it scopes out a message delivered via a
+    // change in context, and a whole-page POST and re-render is one.
     expect(native.container.querySelector('[role="status"]')).toBeNull();
   });
 });
@@ -688,9 +664,9 @@ describe("an embedded document renumbers both repeat headings exactly once", () 
     });
     const demoted = withDemotedHeadings(expanded, 1);
     const json = JSON.stringify(demoted);
-    // The group's label is a `Text` heading and moves h3 -> h4; the instance's is a
-    // `RepeatInstance` prop and is clamped at h4, which is the documented tail
-    // behaviour of the demotion list rather than a second rule.
+    // The group's label is a `Text` heading and moves; the instance's is a prop and is
+    // clamped at the last level, which is the demotion list's tail behaviour rather
+    // than a second rule.
     expect(json).toContain('"as":"h4","size":"lg"');
     expect(json).toContain('"headingAs":"h4"');
   });
