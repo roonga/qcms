@@ -360,7 +360,12 @@ describe("the marker class and the retired handler", () => {
   it("reaches the admin sources it is meant to scan", () => {
     // Separators forced to `/`, which is the spelling the two names below are written in
     // and the one git itself answers with (issue #1126).
-    const relative = files.map((path) => path.slice(adminRoot.length + 1).split(sep).join("/"));
+    const relative = files.map((path) =>
+      path
+        .slice(adminRoot.length + 1)
+        .split(sep)
+        .join("/"),
+    );
     expect(relative).toContain("app/globals.css");
     expect(relative).toContain("components/kit.tsx");
     expect(relative.length).toBeGreaterThan(100);
