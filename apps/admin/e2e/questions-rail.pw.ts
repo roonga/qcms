@@ -685,3 +685,78 @@ test("1116 opens a panel from the keyboard, which is what an anchor row owes", a
   await expect(page).toHaveURL(/#panel-constraints$/u);
   await expect(page).toHaveURL(/panel=constraints/u);
 });
+
+test("1117 leaves a modified click to the browser, so a panel row opens in a new tab", async ({
+  page,
+}) => {
+  test.setTimeout(300_000);
+  await signInWithTotp(page, EMAIL, totpSecret);
+  await page.setViewportSize({ width: 1280, height: 900 });
+  await page.goto(detailPath());
+
+  // THE FOLLOW-UP #1127's REVIEW FOUND. Ruling 2.2 made these rows anchors, and the handler
+  // that switches the panel called `preventDefault` unconditionally - so Ctrl, Cmd or Shift
+  // with a click switched the panel in place, while the Settings rail's rows, which carry no
+  // handler, opened a tab. One rail with one kind of row is the point of the ruling, and an
+  // operator should not have to learn which rows of it answer a modifier.
+  //
+  // Only a browser can see this: the guard reads `event.ctrlKey` and the behaviour it
+  // restores is the browser's own default, which jsdom does not perform.
+  const rail = page.getByTestId("qcms-question-rail");
+  const constraints = rail.locator('[data-rail-panel="constraints"]');
+  const content = rail.locator('[data-rail-panel="content"]');
+  await waitForHydration(page);
+  await expect(content).toHaveAttribute("aria-current", "page");
+
+  const opened = page.context().waitForEvent("page");
+  // Ctrl on every platform this suite runs on, and the modifier the guard tests first. The
+  // Cmd and Shift halves are the same branch of the same condition; asserting one of the
+  // three in a browser is what proves the branch is reached at all.
+  await constraints.click({ modifiers: ["ControlOrMeta"] });
+  const tab = await opened;
+  await tab.close();
+
+  // NOTHING MOVED HERE, which is the assertion the defect would fail: the panel did not
+  // switch, the mark did not move, and the address this tab is on is untouched.
+  await expect(content, "the original tab keeps its panel").toHaveAttribute("aria-current", "page");
+  await expect(constraints).not.toHaveAttribute("aria-current", "page");
+  await expect(page).not.toHaveURL(/panel=constraints/u);
+});
+
+test("1117 states the live document's issue total in the rail's Header, and clears it on a save", async ({
+  page,
+}) => {
+  test.setTimeout(300_000);
+  await signInWithTotp(page, EMAIL, totpSecret);
+  await page.setViewportSize({ width: 1280, height: 900 });
+  await page.goto(detailPath());
+
+  const rail = page.getByTestId("qcms-question-rail");
+  const count = rail.getByTestId("qcms-rail-summary-count");
+  // NOTHING BEFORE THERE IS ANYTHING TO SAY. The count is a client island reading the
+  // editor's live document (Code Owner ruling on issue #1117), and it renders nothing before
+  // hydration and nothing while the total is zero - a rail with no refusal behind it has no
+  // all-clear to fabricate.
+  await waitForHydration(page);
+  await expect(count, "no count on a document with no issues").toHaveCount(0);
+
+  // The same refusal the panel-badge test uses: shortest above longest, which the kernel
+  // addresses at ["constraints","minLength"].
+  await openPanel(page, "constraints");
+  await setNumericConstraint(page, "Shortest answer", "10");
+  await setNumericConstraint(page, "Longest answer", "5");
+  await page.getByRole("main").getByRole("button", { name: "Save draft" }).click();
+
+  await expect(count, "a refused save states the total in the Header").toHaveText("1 issue");
+  // One number, from one place: the Header's total is the sum of the badges under it, so a
+  // Header saying one thing and the rows another would be the rail disagreeing with itself.
+  await expect(rail.locator('[data-rail-panel="constraints"] [data-rail-issues]')).toHaveText(
+    "1 issue",
+  );
+
+  // AND IT CLEARS ON A SUCCESSFUL SAVE, which is the half that proves nothing here remembers
+  // a count: the editor republishes with no issues and the island reads the same snapshot.
+  await setNumericConstraint(page, "Longest answer", "20");
+  await page.getByRole("main").getByRole("button", { name: "Save draft" }).click();
+  await expect(count, "and a save that is accepted leaves no count behind").toHaveCount(0);
+});

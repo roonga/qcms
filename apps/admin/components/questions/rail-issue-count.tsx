@@ -56,5 +56,7 @@ export function QuestionRailIssueCount() {
   // The same two catalog entries the per-panel badges use. One wording for one device: a
   // Header reading "3 problems" over rows reading "2 issues" would be two names for one
   // fact.
-  return <RailCount>{tPlural("questions.rail.issuesOne", "questions.rail.issues", total)}</RailCount>;
+  return (
+    <RailCount>{tPlural("questions.rail.issuesOne", "questions.rail.issues", total)}</RailCount>
+  );
 }

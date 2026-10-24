@@ -449,7 +449,25 @@ test("the enrollment and recovery-code states have zero violations", async ({ pa
 
 test("the authenticated shell states have zero violations", async ({ page }) => {
   await signInWithTotp(page, EMAIL, totpSecret);
-  for (const path of ["/questions", "/forms", "/responses", "/webhooks", "/settings"]) {
+  // EVERY SCREEN HAS A RAIL SINCE §7.0 (issue #1117), so every one of these states now
+  // includes a `<form role="search">`, an `<aside>` landmark and a `<nav>` inside it that
+  // was not there before - and four of the nine are screens this sweep had never visited.
+  // The three that matter to axe are the ones the rail's own files write out: the Filters
+  // part's title is a paragraph rather than a heading (the rail renders before `<main>`, so
+  // a heading in it is a `heading-order` violation on every railed screen at once), the back
+  // link is a sibling of `<summary>` rather than inside it (nested interactive content), and
+  // a panel row carries no `aria-controls` for an id the document does not hold.
+  for (const path of [
+    "/questions",
+    "/questions/new",
+    "/forms",
+    "/forms/new",
+    "/responses",
+    "/responses/erasures",
+    "/webhooks",
+    "/workspaces",
+    "/settings",
+  ]) {
     await page.goto(path);
     await expectNoViolations(page, `shell ${path}`);
   }

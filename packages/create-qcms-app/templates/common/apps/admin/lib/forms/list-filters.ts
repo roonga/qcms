@@ -34,6 +34,18 @@ export interface FormListFilters {
    * filter can hide a form, so only they count here.
    */
   readonly isFiltered: boolean;
+  /**
+   * How many of the list's filters are set, for the rail's active count (§7.0 ruling 2.4,
+   * issue #1117).
+   *
+   * The same two the {@link isFiltered} note names, counted rather than or-ed, and the sort
+   * is excluded for the same reason: a count that included it would read "1 active" on an
+   * unfiltered library whose order an author had changed, beside a clear link that would
+   * change nothing. So `activeCount > 0` and `isFiltered` are the same statement, and both
+   * are kept because the screen asks the first question of the rail and the second of its
+   * own empty state.
+   */
+  readonly activeCount: number;
 }
 
 /** The first value of a repeated param, or `undefined`. */
@@ -65,10 +77,12 @@ export function readFormListFilters(
 ): FormListFilters {
   const status = parseStatus(params["status"]);
   const search = firstValue(params["q"]) ?? "";
+  const activeCount = (status === undefined ? 0 : 1) + (search.trim() === "" ? 0 : 1);
   return {
     status,
     sort: parseSort(params["sort"]),
     search,
-    isFiltered: status !== undefined || search.trim() !== "",
+    isFiltered: activeCount > 0,
+    activeCount,
   };
 }

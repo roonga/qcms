@@ -6,7 +6,7 @@ import { requireAdminSession } from "@/lib/server/session";
 /**
  * The webhook operations screen's rail (§7.0, Code Owner 2026-10-24; issue #1117).
  *
- * It exported `NoRailSection` until §7.0 gave every screen a rail.
+ * It exported the no-section stub until §7.0 gave every screen a rail.
  *
  * ## The one read, which is not a second one
  *

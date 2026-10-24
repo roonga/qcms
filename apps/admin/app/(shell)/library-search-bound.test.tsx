@@ -68,6 +68,7 @@ vi.mock("@/lib/server/questions", () => ({
 }));
 vi.mock("@/lib/server/forms", () => ({
   listForms: () => Promise.resolve({ ok: true, data: [FORM_ROW] }),
+  listAllForms: () => Promise.resolve({ ok: true, data: [FORM_ROW] }),
 }));
 
 /** The tables are a separate concern; stubbing them keeps this about the toolbar. */
@@ -78,14 +79,17 @@ vi.mock("./forms/forms-table", () => ({
   FormsTable: () => <div data-testid="qcms-forms-table-stub" />,
 }));
 
+// THE RAILS, not the pages: both search boxes moved into the rail's Filters part with
+// §7.0 ruling 4 (issue #1117). The bound is the same claim about the same control, read
+// one column to the left.
 async function renderQuestions(): Promise<string> {
-  const { default: Page } = await import("./questions/page.tsx");
-  return renderToStaticMarkup(await Page({ searchParams: Promise.resolve({}) }));
+  const { default: Rail } = await import("./@rail/questions/page.tsx");
+  return renderToStaticMarkup(await Rail({ searchParams: Promise.resolve({}) }));
 }
 
 async function renderForms(): Promise<string> {
-  const { default: Page } = await import("./forms/page.tsx");
-  return renderToStaticMarkup(await Page({ searchParams: Promise.resolve({}) }));
+  const { default: Rail } = await import("./@rail/forms/page.tsx");
+  return renderToStaticMarkup(await Rail({ searchParams: Promise.resolve({}) }));
 }
 
 /**
@@ -95,8 +99,8 @@ async function renderForms(): Promise<string> {
  * budget on its own (CONTRIBUTING, issue 503).
  */
 beforeAll(async () => {
-  await import("./questions/page.tsx");
-  await import("./forms/page.tsx");
+  await import("./@rail/questions/page.tsx");
+  await import("./@rail/forms/page.tsx");
 }, 60_000);
 
 beforeEach(() => {

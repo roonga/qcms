@@ -5,7 +5,7 @@ import { requireAdminSession } from "@/lib/server/session";
 /**
  * The question library's rail (§7.0, Code Owner 2026-10-24; issue #1117).
  *
- * This file exported `NoRailSection` until §7.0: the screen had no rail, on
+ * This file exported the no-section stub until §7.0: the screen had no rail, on
  * `plan/admin-ux-audit.md` §5.4's reasoning that one here would repeat the page's own body.
  * The ruling keeps that objection and answers it - the rail carries no row per question, it
  * carries the screen's FILTERS and its creating action, which the content column used to

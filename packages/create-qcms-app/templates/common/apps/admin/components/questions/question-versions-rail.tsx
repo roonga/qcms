@@ -4,6 +4,7 @@ import type { ReactNode } from "react";
 import { OperatorDay } from "@/components/operator-time";
 import { PublishedOnDay } from "@/components/questions/published-on-day";
 import { QuestionPanelRows } from "@/components/questions/question-panel-rows";
+import { QuestionRailIssueCount } from "@/components/questions/rail-issue-count";
 import { StatusTag } from "@/components/questions/status-tag";
 import { RailFrame } from "@/components/rail-frame";
 import { t, tPlural } from "@/lib/i18n/en";
@@ -32,13 +33,14 @@ import { latestPublishedVersion, versionRailItems } from "@/lib/questions/versio
  * - **Sections:** the version list. Each row is `?v=` on the route the reader is already
  *   standing on.
  *
- *   **No count in the Header**, which the form rail does carry. The 2026-10-24 clarification
- *   allows the collapsed Header one, and on this screen the number it could hold - how many
- *   panels of the selected version carry an issue - exists only in the browser: the badges
- *   come from the editor's live document through `lib/questions/editor-bridge.ts`, and this is
- *   a server component so that the marked row and the rendered panel agree before anything
- *   has hydrated. A total here would mean a client component in the Header for a number that
- *   is zero until a save is refused. Left absent rather than faked.
+ *   **The Header DOES carry a count, as a client island** (Code Owner ruling on issue #1117).
+ *   #1116 left it out, and the reason it gave was sound as far as it went: the number lives
+ *   in the editor's live document through `lib/questions/editor-bridge.ts`, and this file is a
+ *   server component precisely so that the marked row and the rendered panel agree before
+ *   anything has hydrated. The ruling settles it the other way and names the shape - the
+ *   count alone is a client island in the frame's `count` slot, and everything else here
+ *   stays server-rendered. `components/questions/rail-issue-count.tsx` is that island and
+ *   records what it shows and does not show.
  * - **Children:** the selected version's editor panels, nested inside its version row,
  *   which is what "nested under the current section only" asks for and what the builder's
  *   rail already does with a form's steps.
@@ -120,6 +122,12 @@ export function QuestionVersionsRail({
          name is the one line in a rail that ellipses. */
       title={<span className="qcms-rail__id">{questionId}</span>}
       testId="qcms-question-rail"
+      /* The one count the Header carries, as a client island: the live document's issue
+         total (Code Owner, issue #1117). Passed unconditionally because the island decides
+         for itself whether there is anything to draw - it renders nothing before hydration
+         and nothing while the total is zero, which is a judgement about a value only the
+         browser has and therefore not one this server component can make. */
+      count={<QuestionRailIssueCount />}
       {...(selectedVersion === undefined
         ? {}
         : { tag: <StatusTag status={selectedVersion.status} /> })}

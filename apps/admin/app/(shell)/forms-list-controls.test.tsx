@@ -12,7 +12,9 @@ import { beforeAll, beforeEach, describe, expect, it, vi } from "vitest";
  *    is the argument the page hands it. A browser test can only see the rows that came
  *    back, which would pass just as happily if this screen filtered them itself.
  * 2. **The controls come back from the URL.** A filtered library is a link, which is only
- *    true if reopening the link re-renders the toolbar showing the same three values.
+ *    true if reopening the link re-renders the controls showing the same three values. They
+ *    are in the rail since issue #1117 (§7.0 ruling 4), so this claim is read off the
+ *    `@rail` slot now; the claim itself is unchanged.
  * 3. **Which empty panel appears.** "Nothing in the library yet" and "no form matches"
  *    are different sentences with different actions, and choosing between them is a
  *    decision about `isFiltered` rather than about row count alone.
@@ -81,6 +83,24 @@ async function renderForms(searchParams: Record<string, string | string[]> = {})
   return renderToStaticMarkup(await Page({ searchParams: Promise.resolve(searchParams) }));
 }
 
+/**
+ * The rail beside that column, which is where the three controls live since issue #1117.
+ *
+ * §7.0 ruling 4 moved the filters out of the content column, so claim 2 above - "the
+ * controls come back from the URL" - is now a claim about the `@rail` slot. It is rendered
+ * here rather than in a file of its own because the three claims this file makes are one
+ * behaviour read at three points: what the page asked the API for, what the controls show,
+ * and which empty panel appeared. Splitting the middle one into its own file would leave two
+ * files reading the same `searchParams` through the same function and asserting halves of one
+ * answer.
+ *
+ * The slot reads no data of its own, which is why nothing extra had to be stubbed for it.
+ */
+async function renderRail(searchParams: Record<string, string | string[]> = {}): Promise<string> {
+  const { default: Rail } = await import("./@rail/forms/page.tsx");
+  return renderToStaticMarkup(await Rail({ searchParams: Promise.resolve(searchParams) }));
+}
+
 /** What the page asked the API for on its most recent render. */
 function askedFor(): unknown {
   return askedFilters;
@@ -128,37 +148,72 @@ describe("the form library sends its filters to the API rather than applying the
   });
 });
 
-describe("the toolbar is a native GET form whose values come back from the URL", () => {
+describe("the rail's Filters part is a native GET form whose values come back from the URL", () => {
   it("submits by navigation, so Apply needs no handler this screen hydrates", async () => {
-    const markup = await renderForms({});
+    const markup = await renderRail({});
 
     // A GET form with no `action`: it submits to the route it is on, which is what makes
-    // Apply a plain navigation rather than a handler this screen has to hydrate.
+    // Apply a plain navigation rather than a handler this screen has to hydrate. The move
+    // into the rail changed the column it renders in and nothing about that property.
     expect(markup).toMatch(/<form[^>]*method="get"/u);
     expect(markup).not.toMatch(/<form[^>]*\baction=/u);
   });
 
-  it("labels every control, and names the group the three of them form", async () => {
-    const markup = await renderForms({});
+  it("is the search region the contract names, with the part's own title", async () => {
+    const markup = await renderRail({});
 
-    expect(markup).toContain("forms.filter.legend");
-    for (const key of ["forms.filter.search", "forms.filter.status", "forms.filter.sort"]) {
-      expect(markup).toContain(key);
-    }
+    // §7.0 ruling 2.4: the filters sit in `<form role="search">` with a "Filters" heading.
+    expect(markup).toMatch(/<form[^>]*role="search"/u);
+    expect(markup).toContain("rail.filters");
+    expect(markup).toContain('data-testid="qcms-rail-filters"');
+  });
+
+  it("labels every control, in the ruled order", async () => {
+    const markup = await renderRail({});
+
+    // Search, status, then sort (§7.0 ruling 2.4), asserted as positions rather than as
+    // presence: the order is the part of this that is contract rather than markup.
+    const order = ["forms.filter.search", "forms.filter.status", "forms.filter.sort"].map((key) =>
+      markup.indexOf(key),
+    );
+    expect(order.every((at) => at >= 0)).toBe(true);
+    expect(order).toEqual([...order].sort((a, b) => a - b));
   });
 
   it("restores the search term into the field it came from", async () => {
-    const markup = await renderForms({ q: "vehicle" });
+    const markup = await renderRail({ q: "vehicle" });
 
     expect(markup).toMatch(/value="vehicle"/u);
   });
 
   it("offers exactly the four orders the API guarantees", async () => {
-    const markup = await renderForms({});
+    const markup = await renderRail({});
 
     for (const key of ["slug-asc", "slug-desc", "published-desc", "published-asc"]) {
       expect(markup).toContain(`forms.filter.sort.${key}`);
     }
+  });
+
+  it("counts the filters in force, and does not count the sort among them", async () => {
+    // The count the part shows beside its title and the Header shows below
+    // `--bp-sidebar`. A sort hides no row, so counting it would claim the library was
+    // narrowed when it is only reordered.
+    expect(await renderRail({ sort: "published-asc" })).not.toContain("rail.filters.active");
+    expect(await renderRail({ q: "vehicle" })).toContain("rail.filters.activeOne");
+    expect(await renderRail({ q: "vehicle", status: "open" })).toContain("rail.filters.active");
+  });
+
+  it("shows the clear link only once a filter is set", async () => {
+    expect(await renderRail({})).not.toContain("rail.filters.clear");
+    expect(await renderRail({ status: "open" })).toContain("rail.filters.clear");
+  });
+
+  it("carries the creating action, and the content column keeps its own", async () => {
+    // §7.0's table gives this rail one Action. Both links exist on the screen and that is
+    // the §3 rule rather than a duplicate: the column's link stands down only when the
+    // unfiltered-empty panel is carrying it instead.
+    expect(await renderRail({})).toContain('href="/forms/new"');
+    expect(await renderForms({})).toContain('href="/forms/new"');
   });
 });
 
@@ -196,9 +251,11 @@ describe("the three list states, and the panel each one shows", () => {
 
     expect(markup).toContain("forms.empty.filtered");
     expect(markup).not.toContain("forms.empty.title");
-    // One "Clear filters", not two: the toolbar's link stands down while the panel
-    // carries the action, the way the question library's does.
-    expect(markup.match(/forms\.filter\.clear/gu)).toHaveLength(1);
+    // NO CLEAR LINK IN THIS COLUMN SINCE ISSUE #1117. The panel used to carry it as its
+    // CTA; the rail carries the filters now, and the control that undoes them goes with
+    // them - one "Clear filters" on the screen rather than the two that would be
+    // ambiguous to anyone navigating by name.
+    expect(markup).not.toContain("rail.filters.clear");
     // And the header keeps offering creation, because the library is not empty.
     expect(markup).toContain("forms.new");
   });
@@ -211,11 +268,11 @@ describe("the three list states, and the panel each one shows", () => {
     expect(markup).toContain("forms.empty.title");
   });
 
-  it("shows the toolbar's clear link when a filter is on and rows came back", async () => {
+  it("renders the table when a filter is on and rows came back", async () => {
     const markup = await renderForms({ status: "open" });
 
-    expect(markup).toContain("forms.filter.clear");
     expect(markup).toContain('data-testid="qcms-forms-table-stub"');
+    expect(markup).not.toContain("forms.empty.");
   });
 
   it("renders no count and no table when the read fails", async () => {

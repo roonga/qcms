@@ -33,8 +33,14 @@ import type { QuestionPanel, QuestionPanelId } from "@/lib/questions/panels";
  * **What switches the panel is the click, and the address the switch writes is still
  * `?panel=`.** `chooseQuestionPanel` replaces that parameter (`lib/questions/editor-bridge.
  * ts`), which is what a reload and the server read, and the handler writes the fragment beside
- * it so the whole address names the open panel. A row opened in a new tab arrives at an address
- * carrying the parameter too.
+ * it so the whole address names the open panel.
+ *
+ * **A row opened in a new tab arrives on the panel the address names, not on this one.** The
+ * sentence here used to claim the parameter travelled with it, and it does not: the `href` is
+ * a bare fragment, so a modified click opens this URL with whatever `?panel=` it already
+ * carries. That is the honest limit of a fragment on a screen that renders one section, and
+ * it is the same limit the paragraph below records for a cold load. What matters is that a
+ * modified click does what the browser's does - see the guard on the handler.
  *
  * **THE DEFAULT IS PREVENTED, AND FOCUS IS THE REASON.** It was not, on the reasoning that the
  * fragment should land in the bar by itself and the browser's scroll-into-view was harmless.
@@ -140,7 +146,21 @@ export function QuestionPanelRows({
               // just replaced `?panel=`: reading `location` back here picks that up, so the
               // two write one entry between them. The panels are one screen's worth of one
               // question, not five places the reader went.
+              //
+              // AND NOT PREVENTED FOR A MODIFIED CLICK (follow-up from the #1127 review,
+              // issue #1117). It was prevented unconditionally, so Ctrl, Cmd or Shift with a
+              // click switched the panel in place instead of opening a tab or a window -
+              // while the Settings rail's rows, which are plain anchors, still opened one.
+              // One rail with one kind of row is the point of §7.0 ruling 2.2, and an
+              // operator should not have to learn which rows of it answer a modifier.
+              //
+              // The primary-button test is the other half of the same rule: a middle click
+              // arrives here as `auxclick` in modern browsers rather than as `click`, but a
+              // browser or an assistive layer that does deliver it as one must not have its
+              // default taken either. `event.button === 0` is the only button a plain
+              // activation uses, and a keyboard Enter reports 0 too.
               onClick={(event) => {
+                if (event.metaKey || event.ctrlKey || event.shiftKey || event.button !== 0) return;
                 event.preventDefault();
                 chooseQuestionPanel(panel.id);
                 const url = new URL(window.location.href);

@@ -36,7 +36,11 @@ export interface WorkspaceRailRow {
  * A server component. The list arrives from the slot, which reads it through the memoized
  * `listWorkspaces` the page reads.
  */
-export function WorkspacesRail({ workspaces }: { readonly workspaces: readonly WorkspaceRailRow[] }) {
+export function WorkspacesRail({
+  workspaces,
+}: {
+  readonly workspaces: readonly WorkspaceRailRow[];
+}) {
   return (
     <RailFrame
       subject={t("membership.area.title")}

@@ -19,6 +19,9 @@ describe("readFormListFilters", () => {
       sort: "slug-asc",
       search: "",
       isFiltered: false,
+      // The rail's active count (issue #1117). Zero and `isFiltered: false` are the same
+      // statement, which is why they are read out of one arithmetic rather than two tests.
+      activeCount: 0,
     });
   });
 
@@ -29,6 +32,9 @@ describe("readFormListFilters", () => {
         sort: "published-desc",
         search: "vehicle",
         isFiltered: true,
+        // TWO, not three: the sort is in the URL and is not a filter, because it hides no
+        // row. The rail's count says what is narrowing the library (issue #1117).
+        activeCount: 2,
       },
     );
   });

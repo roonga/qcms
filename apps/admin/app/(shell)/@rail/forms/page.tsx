@@ -6,7 +6,7 @@ import { requireAdminSession } from "@/lib/server/session";
  * The form library's rail (§7.0, Code Owner 2026-10-24; issue #1117).
  *
  * The sibling of `@rail/questions/page.tsx` and the same three decisions: it exported
- * `NoRailSection` until §7.0 gave every screen a rail, it reads the query rather than
+ * the no-section stub until §7.0 gave every screen a rail, it reads the query rather than
  * performing a read of its own, and it reads it through the one function the page reads it
  * through (`readFormListFilters`), because the rail and the table are two React trees
  * rendered from one URL and a second parse is how they start disagreeing.

@@ -1,21 +1,6 @@
 import { RailFrame } from "@/components/rail-frame";
 import { t } from "@/lib/i18n/en";
-
-/**
- * One workspace's four panels, as the rail's Sections.
- *
- * Each is a same-page anchor onto the heading id the panel already renders, so nothing in
- * `components/membership/` had to grow an id for a rail to point at. The order is the ruled
- * one and it is also the page's own order, which is the rule `app/(shell)/AGENTS.md` states:
- * a rail row carries the name its screen carries, so a row reading "Members" sits above the
- * panel headed "Members".
- */
-const PANELS = [
-  { anchor: "qcms-members-heading", labelKey: "membership.members.heading" },
-  { anchor: "qcms-access-groups-heading", labelKey: "membership.groups.heading" },
-  { anchor: "qcms-workspace-settings-heading", labelKey: "membership.settings.heading" },
-  { anchor: "qcms-audit-heading", labelKey: "membership.audit.heading" },
-] as const;
+import { WORKSPACE_RAIL_PANELS } from "@/lib/membership/rail-panels";
 
 /**
  * The workspace detail screen's parts of the one rail (`plan/admin-design-contracts.md` §7.0,
@@ -26,7 +11,11 @@ const PANELS = [
  *
  * - **Header:** the way back to Workspaces, which ruling 3 makes the Header's job, and the
  *   workspace's name - so the content column's own "All workspaces" link is gone.
- * - **Sections:** the four panels, as same-page anchors.
+ * - **Sections:** the four panels, as same-page anchors onto the heading ids the panels
+ *   already render, so nothing in `components/membership/` had to grow an id for a rail to
+ *   point at. Which four and which ids is `lib/membership/rail-panels.ts`, with the gate
+ *   beside it that checks each fragment resolves - a fragment matching nothing fails
+ *   silently, and the other end of that equality is a file this rail does not own.
  * - **Filters** and **Actions:** none. Every act on this screen writes a grant or a setting,
  *   and §7.0 ruling 5 keeps a write out of the rail: they stay in the panel that performs
  *   them, beside what they change.
@@ -52,7 +41,7 @@ export function WorkspaceRail({ name }: { readonly name: string }) {
       testId="qcms-workspace-rail"
       sections={
         <ul className="qcms-rail__group" data-rail-group="sections">
-          {PANELS.map((panel) => (
+          {WORKSPACE_RAIL_PANELS.map((panel) => (
             <li key={panel.anchor}>
               <a
                 href={`#${panel.anchor}`}

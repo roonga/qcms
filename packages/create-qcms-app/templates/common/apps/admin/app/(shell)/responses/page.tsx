@@ -3,6 +3,7 @@ import type { Metadata } from "next";
 
 import { Alert } from "@/components/kit";
 import { t } from "@/lib/i18n/en";
+import { readResponsesIndexFilters } from "@/lib/ops/list-filters";
 import { pageMetadata } from "@/lib/page-title";
 import { listForms } from "@/lib/server/forms";
 import { requireAdminSession } from "@/lib/server/session";
@@ -20,10 +21,30 @@ export function generateMetadata(): Metadata {
  * response list - the API has no route for one, and inventing a client-side merge
  * would give an operator a count and a page number that describe nothing the server
  * agrees with.
+ *
+ * ## The one filter, and where it lives (issue #1117)
+ *
+ * §7.0's table gives this screen one: a search over the forms in the way-in list. It is
+ * `GET /admin/forms`'s own `search` parameter, so the filtering stays where the data is, and
+ * it travels in the URL like every other filter in this app - an operator who works one
+ * form's responses every morning can bookmark the narrowed way in.
+ *
+ * The control is in the rail (`components/ops/responses-index-rail.tsx`), and both trees read
+ * the address through the same `readResponsesIndexFilters` rather than parsing it twice.
+ *
+ * A filtered list that matches nothing says so with the same sentence an installation with no
+ * forms gets, and that is the one honest compromise here: `ops.area.responses.noForms` claims
+ * nothing about why the list is empty beyond there being nothing in it, and the rail's own
+ * clear link is on screen beside it carrying the way out.
  */
-export default async function ResponsesPage() {
+export default async function ResponsesPage({
+  searchParams,
+}: {
+  readonly searchParams: Promise<Record<string, string | string[] | undefined>>;
+}) {
   const session = await requireAdminSession();
-  const forms = await listForms(session);
+  const { search } = readResponsesIndexFilters(await searchParams);
+  const forms = await listForms(session, { search });
 
   return (
     <div className="flex flex-col gap-6">

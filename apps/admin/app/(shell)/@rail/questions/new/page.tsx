@@ -25,5 +25,9 @@ import { requireAdminSession } from "@/lib/server/session";
  */
 export default async function NewQuestionRailSlot() {
   await requireAdminSession();
-  return <NewQuestionRail panels={questionPanels(blankDefinition("shortText", ""), { locale: appLocale() })} />;
+  return (
+    <NewQuestionRail
+      panels={questionPanels(blankDefinition("shortText", ""), { locale: appLocale() })}
+    />
+  );
 }

@@ -5,7 +5,7 @@ import { requireAdminSession } from "@/lib/server/session";
 /**
  * The workspaces screen's rail (§7.0, Code Owner 2026-10-24; issue #1117).
  *
- * It exported `NoRailSection` until §7.0, and `lib/rail-routes.test.ts` carried the reason:
+ * It exported the no-section stub until §7.0, and `lib/rail-routes.test.ts` carried the reason:
  * a rail here would repeat the page's own body. §7.0's table rules the other way for this one
  * screen, and `components/membership/workspaces-rail.tsx` records what makes it different
  * from the two library screens.

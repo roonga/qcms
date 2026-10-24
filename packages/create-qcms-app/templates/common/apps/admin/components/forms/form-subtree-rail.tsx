@@ -1,7 +1,7 @@
 import Link from "next/link";
 import type { ReactNode } from "react";
 
-import { RailFrame } from "@/components/rail-frame";
+import { RailCount, RailFrame } from "@/components/rail-frame";
 import {
   formDisplayName,
   formSubtreeRail,
@@ -105,7 +105,7 @@ export function FormSubtreeRail({
       // them. Spread rather than passed as `undefined`: `exactOptionalPropertyTypes` treats
       // an explicit undefined and an absent property as different things, and the absent
       // one is what "this form has no issues" means.
-      {...(issues > 0 ? { count: issueCountLabel(issues) } : {})}
+      {...(issues > 0 ? { count: <RailCount>{issueCountLabel(issues)}</RailCount> } : {})}
       {...(actions === undefined ? {} : { actions })}
       sections={
         /* One list, with the steps nested inside the Form row rather than stacked above

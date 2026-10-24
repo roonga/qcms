@@ -110,9 +110,8 @@ export async function listForms(
  * down, and the same shape `getForm` and `getQuestion` carry a `cache()` for.
  */
 export const listAllForms: (session: AdminSession) => Promise<ApiResult<readonly FormListItem[]>> =
-  cache(
-    async (session: AdminSession): Promise<ApiResult<readonly FormListItem[]>> =>
-      listForms(session),
+  cache(async (session: AdminSession): Promise<ApiResult<readonly FormListItem[]>> =>
+    listForms(session),
   );
 
 /** `POST /admin/forms` - the identity and its empty first draft, in one call. */

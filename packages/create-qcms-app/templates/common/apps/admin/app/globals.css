@@ -3398,6 +3398,60 @@ div:has(> [role="dialog"] [data-qcms-dialog="wide"]) {
   background-color: var(--color-surface-hover);
 }
 
+/* THE FILTERS PART (§7.0 ruling 2.4, issue #1117), which is the screens' filter
+   toolbar moved out of the content column and stood up in a 240px track.
+
+   It keeps `.qcms-filters` for its own column rhythm, so the only thing added here
+   is what a 240px track needs that a full-width card did not: the controls stack
+   rather than wrap in a row, and they take the rail's inline padding so they line
+   up with the rows above them rather than with the column's edge. `.qcms-filters__row`
+   is deliberately not used - a wrapping flex line is what a toolbar wanted, and in
+   this track every field would wrap to its own line anyway, through a rule that also
+   gives each one a 10rem floor the track cannot honour. */
+.qcms-rail__filters {
+  padding-inline: 0.5rem;
+  padding-block-start: 0.75rem;
+  margin-block-start: 0.5rem;
+  border-block-start: 1px solid var(--color-border);
+}
+:root.hc .qcms-rail__filters {
+  border-color: var(--color-border-strong);
+}
+/* The part's visible title and its active count, on one line. A paragraph rather than
+   a heading, because this column renders before `<main>` and a heading here would sit
+   above the screen's own `<h1>`; `components/rail-filters.tsx` writes that out. The
+   count never truncates, exactly as the Header's does not. */
+.qcms-rail__filters-title {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  margin: 0;
+  font-size: 0.8125rem;
+  font-weight: 700;
+  color: var(--color-text);
+}
+.qcms-rail__filters-title > .qcms-tag {
+  flex-shrink: 0;
+}
+/* Apply, and the clear link that appears beside it only once a filter is set. The
+   button fills the track so it reads as the part's own control rather than as a word
+   floating at one end of it, and the link sits under it rather than beside it: at
+   240px the two side by side put "Clear filters" on a second line of its own anyway,
+   wrapped mid-phrase. */
+.qcms-rail__filters-apply {
+  display: flex;
+  flex-direction: column;
+  align-items: stretch;
+  gap: 0.5rem;
+}
+.qcms-rail__filters-apply > button {
+  justify-content: center;
+}
+.qcms-rail__filters-apply > a {
+  align-self: start;
+  font-size: 0.8125rem;
+}
+
 /* The builder's own screens, as a block: everything the Form row contains is one thing,
    and the six sibling ROUTES below it are another. Without this the tree was one flat run
    of rows at 2px each, with nothing to say which of them stay on this page. */

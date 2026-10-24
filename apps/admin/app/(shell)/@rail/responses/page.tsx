@@ -5,7 +5,7 @@ import { requireAdminSession } from "@/lib/server/session";
 /**
  * The responses index's rail (§7.0, Code Owner 2026-10-24; issue #1117).
  *
- * It exported `NoRailSection` until §7.0 gave every screen a rail. It reads the query and
+ * It exported the no-section stub until §7.0 gave every screen a rail. It reads the query and
  * performs no read of its own: the Sections are one fixed route and the Filters part shows
  * what the address asked for, so there is nothing to load - which is what keeps this screen
  * at one request (`lib/server/request-reads.test.ts` counts them).

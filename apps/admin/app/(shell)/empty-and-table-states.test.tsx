@@ -183,6 +183,9 @@ vi.mock("@/lib/server/questions", () => ({
 }));
 vi.mock("@/lib/server/forms", () => ({
   listForms: () => Promise.resolve(formsResult),
+  // The webhook screen and its rail both read the library, through the memoized
+  // wrapper that lets them share one round trip (issue #1117).
+  listAllForms: () => Promise.resolve(formsResult),
   getForm: () => Promise.resolve(formDetailResult),
 }));
 vi.mock("@/lib/server/webhook-ops", () => ({
@@ -274,9 +277,9 @@ async function renderForms(searchParams: Record<string, string> = {}): Promise<s
  * The forms read on this page is pinned successful and empty by `beforeEach`, so the only
  * alert the assertions below can be seeing is the dead-letter queue's own.
  */
-async function renderWebhooks(): Promise<string> {
+async function renderWebhooks(searchParams: Record<string, string> = {}): Promise<string> {
   const { default: Page } = await import("./webhooks/page.tsx");
-  return renderToStaticMarkup(await Page());
+  return renderToStaticMarkup(await Page({ searchParams: Promise.resolve(searchParams) }));
 }
 
 /**
@@ -363,12 +366,14 @@ describe("the library screens' empty state (issue 514)", () => {
 
     expect(html).toMatch(EMPTY_PANEL);
     expect(html).toContain("questions.empty.filtered");
-    // §3: the filtered variant keeps the panel and the clear-filters CTA, and drops the
-    // explanatory sentence.
+    // §3: the filtered variant keeps the panel and drops the explanatory sentence.
     expect(html).not.toContain("questions.empty.body");
-    // §3's CTA, and the only control on the screen carrying it: the filter card's own
-    // reset stands down while the panel is showing, so the name is unambiguous.
-    expect(html.match(/questions\.filter\.clear/g)).toHaveLength(1);
+    // NO CLEAR-FILTERS CTA HERE SINCE ISSUE #1117. The filters are in the rail and so is
+    // the one control that undoes them, which is the whole reason this assertion flipped:
+    // the rail's link is on screen beside this panel, and a second control with the same
+    // accessible name is what §3's "the panel OFFERS the way out" rule was avoiding in the
+    // first place. The rail's own coverage asserts the link appears when a filter is set.
+    expect(html).not.toContain("rail.filters.clear");
     // A filtered library is not an empty one, so the header's creating action stays.
     expect(html).toContain('href="/questions/new"');
   });

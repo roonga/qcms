@@ -98,6 +98,9 @@ vi.mock("@/lib/server/session", () => ({
 }));
 vi.mock("@/lib/server/forms", () => ({
   listForms: () => Promise.resolve(formsResult),
+  // The webhook screen and its rail both read the library, through the memoized
+  // wrapper that lets them share one round trip (issue #1117).
+  listAllForms: () => Promise.resolve(formsResult),
 }));
 vi.mock("@/lib/server/questions", () => ({
   listQuestions: () => Promise.resolve(questionsResult),
@@ -237,12 +240,15 @@ describe("the new-form route (issue 685)", () => {
     expect(markup).toContain('data-field="defaultLocale"');
   });
 
-  it("heads the screen with its own name and a way back to the list", async () => {
+  it("heads the screen with its own name, and leaves the way back to the rail", async () => {
     const markup = await renderNewForm();
 
     expect(markup).toMatch(/<h1[^>]*>forms\.create\.title<\/h1>/u);
-    expect(hrefs(markup)).toContain("/forms");
-    expect(markup).toContain("forms.backToList");
+    // THE BACK LINK IS NOT IN THIS COLUMN ANY MORE (§7.0 ruling 3, issue #1117): the rail's
+    // Header carries it on every screen, and `@rail/forms/new/page.tsx` is where this one
+    // went. A link here as well would be two ways back on one screen, which is the
+    // duplication the ruling removed from the whole app at once.
+    expect(hrefs(markup)).not.toContain("/forms");
   });
 
   it("says what the permanent id will be, where the choice that mints it is made", async () => {
