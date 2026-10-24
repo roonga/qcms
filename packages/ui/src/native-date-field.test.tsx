@@ -13,26 +13,13 @@ import {
 } from "./native-submit.ts";
 import { loadGoldenForms } from "./test-support/golden.ts";
 
-/**
- * The no-JS date control (issue #920; segment order by the Code Owner ruling of
- * 2026-10-19).
- *
- * The defect #920 pinned: in native-submit mode the DatePicker's form value was an
- * `<input type="text" hidden required>`, which `willValidate` is true for and which
- * the browser cannot focus to report the failure, so Chrome abandoned the whole
- * step's submit. The defect 2026-10-19 pinned: the fallback that fixed it was an
- * `<input type="date">`, drawn in the BROWSER's locale order, so the server render and
- * the hydrated react-aria DateField (drawn in the configured locale) disagreed.
- *
- * jsdom can pin the MARKUP contract - which elements carry which names, their order,
- * what the browser will validate. Whether Chrome then submits the form is browser
- * behaviour (ADR-23), asserted in `apps/portal/e2e/no-js-required.pw.ts`.
- */
+// jsdom pins the markup contract: which elements carry which names, their order, and
+// what the browser will validate. Whether the browser then submits is browser behaviour
+// (ADR-23), asserted in the portal's own suite.
 
 const kitchenSink = loadGoldenForms().find((f) => f.version === "v1" && f.form === "kitchen-sink");
 if (!kitchenSink) throw new Error("v1 kitchen-sink golden not found");
 
-/** The fixture's required date question, and the step that holds it. */
 const DATE_QUESTION = "q_dob";
 const dateStep: A2UIStepDocument = kitchenSink.compiled.documents[0];
 
@@ -49,7 +36,6 @@ function renderNative(values?: Record<string, string>, locale = "en-GB") {
   );
 }
 
-/** The three boxes, in DOM order. */
 function boxes(container: HTMLElement): HTMLInputElement[] {
   return [...container.querySelectorAll<HTMLInputElement>("input[data-qcms-date-part]")];
 }
@@ -75,7 +61,7 @@ describe("assembleNativeDate / splitNativeDate", () => {
   it("is absence when every part is blank, and passes anything else through for the API", () => {
     expect(assembleNativeDate({ day: "", month: " ", year: "" })).toBeUndefined();
     expect(assembleNativeDate({})).toBeUndefined();
-    // A partial date is not completed or dropped here: the API refuses it (R2).
+    // Neither completed nor dropped here: the API refuses it (R2).
     expect(assembleNativeDate({ day: "5", year: "1990" })).toBe("1990--05");
     expect(assembleNativeDate({ day: "x", month: "5", year: "1990" })).toBe("1990-05-x");
   });
@@ -194,13 +180,9 @@ describe("the no-JS date control", () => {
   });
 });
 
-/**
- * The explicit calendar policy: one Gregorian, Latin-digit date on both renders, whatever
- * the operator's tag defaults to (review of PR #1077). Before it, `th-TH` drew 1990 as the
- * Buddhist 2533 once hydrated, `fa-IR` drew 27/2/1369 in Persian digits, and a
- * `-u-ca-chinese` extension changed the parts and their order, while the no-JS boxes kept
- * showing and posting the Gregorian numbers.
- */
+// Without the forced calendar a non-Gregorian default drew the same stored value as a
+// different date once hydrated, while the no-JS boxes kept posting Gregorian numbers.
+
 describe("the calendar policy across both renders", () => {
   const NON_GREGORIAN = ["th-TH", "fa-IR", "zh-CN-u-ca-chinese", "en-US-u-ca-buddhist", "ar-EG"];
 
@@ -209,7 +191,6 @@ describe("the calendar policy across both renders", () => {
     expect(isoDateLocale("zh-CN-u-ca-chinese")).toBe("zh-CN-u-ca-gregory-nu-latn");
     expect(isoDateLocale("fa-IR-u-nu-arabext")).toBe("fa-IR-u-ca-gregory-nu-latn");
     expect(isoDateLocale("en-GB")).toBe("en-GB-u-ca-gregory-nu-latn");
-    // A string Intl cannot read is the caller's to refuse, not this function's.
     expect(isoDateLocale("not a locale")).toBe("not a locale");
   });
 
@@ -236,7 +217,6 @@ describe("the calendar policy across both renders", () => {
       .map((segment) => ({ type: segment.dataset["type"] ?? "", text: segment.textContent ?? "" }));
     scripted.unmount();
 
-    // Same order on both renders, and the same Gregorian numbers in ASCII digits.
     expect(segments.map(({ type }) => type)).toEqual(nativeOrder);
     const scriptedParts: Record<string, string> = {};
     for (const { type, text } of segments) scriptedParts[type] = text;

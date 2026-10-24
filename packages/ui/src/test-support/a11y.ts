@@ -2,13 +2,8 @@ import { within } from "@testing-library/react";
 import axe from "axe-core";
 import { computeAccessibleName } from "dom-accessibility-api";
 
-/**
- * A deterministic accessibility-tree outline built from testing-library role
- * queries (NOT a DOM snapshot): every landmark role a step exposes, paired with
- * its computed accessible name, grouped by role in a fixed order. This is the
- * conformance snapshot - it regresses if a control loses its label, a heading
- * level changes, or a role disappears.
- */
+// Role queries rather than a DOM snapshot, so the conformance snapshot regresses on a
+// lost label, a changed heading level or a missing role, and on nothing else.
 const ROLE_ORDER = [
   "heading",
   "radiogroup",
@@ -32,8 +27,7 @@ export function a11yOutline(container: HTMLElement): A11yNode[] {
     for (const element of scope.queryAllByRole(role)) {
       const name = computeAccessibleName(element);
       if (role === "group" && name.trim() === "") {
-        // Skip unlabelled structural groups (e.g. NumberField's stepper group);
-        // labelled groups (CheckboxGroup) carry the question label.
+        // Unlabelled groups are structural; a labelled one carries the question label.
         continue;
       }
       if (role === "heading") {
@@ -48,20 +42,16 @@ export function a11yOutline(container: HTMLElement): A11yNode[] {
   return nodes;
 }
 
-/**
- * WCAG 2.1/2.2 A + AA axe violations for a rendered container. Scoped to the
- * WCAG success-criteria rules; best-practice/page-level rules (region,
- * page-has-heading-one, …) do not apply to a form fragment. color-contrast is
- * reported as `incomplete` under jsdom (no layout) and never as a violation.
- */
+// Scoped to the success-criteria rules, because the best-practice and page-level ones
+// do not apply to a form fragment.
 export async function axeViolations(container: HTMLElement): Promise<axe.Result[]> {
   const results = await axe.run(container, {
     runOnly: {
       type: "tag",
       values: ["wcag2a", "wcag2aa", "wcag21a", "wcag21aa", "wcag22aa"],
     },
-    // color-contrast needs real layout/canvas (unavailable in jsdom) - it is a
-    // browser-only check that rides on Playwright + the Lighthouse gate (030).
+    // color-contrast needs real layout, which jsdom has none of, so it rides on the
+    // browser gate instead.
     rules: { "color-contrast": { enabled: false } },
   });
   return results.violations;

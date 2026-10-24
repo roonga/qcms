@@ -4,35 +4,12 @@ import { describe, expect, it } from "vitest";
 import * as kit from "./kit.ts";
 import { axeViolations } from "./test-support/a11y.ts";
 
-/**
- * A smoke test for the `@roonga/qcms-ui/kit` surface (task 031).
- *
- * Deliberately shallow, and the reason matters: these components are **vendored
- * upstream source** (ADR-22), so their behaviour and their component-level
- * accessibility are tested in `a2-react-aria`, and re-asserting that here would
- * duplicate a suite this repo does not own. Re-testing it would also be the wrong
- * pressure - it would make an upstream refinement look like a QCMS regression.
- *
- * What is genuinely ours, and therefore what this covers:
- *
- * 1. **The export list is real.** `kit.ts` is a hand-written barrel over paths that
- *    the a2ra CLI owns, so a rename upstream, a missed file, or a typo in a
- *    re-export is a QCMS defect. Every export is checked to be a callable
- *    component.
- * 2. **Each primitive renders at all, standalone.** `Breadcrumb` still has no consumer
- *    until tasks 033-035, so without this a broken vendoring would sit undetected for
- *    two tasks and then surface as someone else's bug. Rendering them once here is the
- *    cheapest possible tripwire.
- * 3. **No axe violations in their default rendering.** The admin's own axe gate runs
- *    in a real browser over real screens; this is the earlier, faster signal for a
- *    primitive nothing has wired up yet.
- *
- * `Dialog` is rendered in its trigger form (closed), which is its mounted state: the
- * open state is a react-aria overlay with layout behaviour that belongs in Playwright,
- * not jsdom (ADR-23).
- */
+// Deliberately shallow: the components are vendored upstream source tested upstream,
+// so re-asserting their behaviour here would duplicate a suite this repo does not own
+// and make an upstream refinement look like a QCMS regression. What is ours is the
+// barrel, hand-written over paths the a2ra CLI owns, so a rename upstream or a typo in
+// a re-export is a QCMS defect.
 
-/** The primitives the admin kit promises, each with the minimal props it needs. */
 const PRIMITIVES = [
   ["Alert", <kit.Alert variant="info">Something happened.</kit.Alert>],
   [
@@ -56,9 +33,8 @@ const PRIMITIVES = [
       <kit.TextField label="Name" name="name" />
     </kit.Form>,
   ],
-  // The vendored `Menu` renders its own trigger and stays closed until pressed, which
-  // is its mounted state - the open popover is react-aria overlay layout and belongs in
-  // Playwright (ADR-23), the same call `Dialog` above makes.
+  // Closed is its mounted state; the open popover is overlay layout and belongs in
+  // Playwright (ADR-23).
   [
     "Menu",
     <kit.Menu
@@ -89,8 +65,7 @@ const PRIMITIVES = [
         { id: "slug", label: "Slug" },
         { id: "status", label: "Status" },
       ]}
-      // `data`, keyed by column id - not `cells`. Getting this wrong is the exact
-      // mistake this test exists to catch before task 035 hits it.
+      // `data`, keyed by column id, never `cells`.
       rows={[{ id: "r1", data: { slug: "auto-quote", status: "published" } }]}
     />,
   ],
@@ -100,23 +75,10 @@ const PRIMITIVES = [
 
 describe("@roonga/qcms-ui/kit surface", () => {
   it("exports exactly the admin kit primitives, all callable", () => {
-    // Pinned rather than counted: a primitive silently disappearing from the barrel
-    // would otherwise only show up as a build error in a later task.
-    //
-    // Only the plain function exports are listed. The tab and combobox primitives are
-    // re-exported react-aria-components and most of them arrive as forwardRef or
-    // context objects rather than functions, so they never reach this filter. That is a
-    // property of how react-aria packages them, not a statement about which of them
-    // matter.
-    //
-    // `MenuTrigger` used to appear here beside the vendored `Menu`, because the admin
-    // topbar composed the popup primitives directly. Issue #234 closed that: upstream
-    // ships the trigger, header, class-name and item slots the topbar needed, every
-    // admin menu is the vendored `Menu`, and the primitives left this barrel with them.
-    //
-    // `I18nProvider` is not a primitive but the locale boundary the admin wraps its
-    // shell in (`QCMS_LOCALE`, Code Owner ruling 2026-10-19), so it is listed here and
-    // not in the render matrix below.
+    // Pinned rather than counted, so a primitive disappearing from the barrel fails
+    // here rather than as a build error later. Only the plain function exports are
+    // listed: the re-exported react-aria-components primitives mostly arrive as
+    // forwardRef or context objects and never reach this filter.
     const exported = Object.entries(kit).filter(([, value]) => typeof value === "function");
     expect(new Set(exported.map(([name]) => name))).toEqual(
       new Set([
@@ -140,8 +102,7 @@ describe("@roonga/qcms-ui/kit surface", () => {
   });
 
   it("exposes no A2UI document schema (those belong to the renderer, not the kit)", () => {
-    // An admin screen must not be able to grow an A2UI document by reaching for a
-    // schema here: `registryForSpecVersion` on the root export is the only door.
+    // `registryForSpecVersion` on the root export is the only door to the renderer.
     const leaked = Object.keys(kit).filter((name) => name.endsWith("Schema"));
     expect(leaked).toEqual([]);
   });

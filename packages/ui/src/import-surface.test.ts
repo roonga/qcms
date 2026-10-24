@@ -3,11 +3,8 @@ import { dirname, join } from "node:path";
 
 import { describe, expect, it } from "vitest";
 
-// Import-surface guard (exit criterion 5, ADR-22): the shipped renderer bundle
-// - the qcms code AND the vendored a2-react-aria sources - imports ONLY the
-// a2ra stack. No second component library, ever. Test files are exempt (they
-// legitimately use @roonga/qcms-core, testing-library, axe, node); everything else is
-// scanned. This is the exhaustive allow-list; the eslint rule is the fast fence.
+// The exhaustive allow-list for ADR-22; the eslint rule is the fast fence. Test files
+// are exempt.
 const ALLOWED = new Set([
   "@a2ra/core",
   "react",
@@ -19,7 +16,7 @@ const ALLOWED = new Set([
   "zod",
 ]);
 
-// Robust whether Vitest runs from the repo root or the package dir.
+// Vitest may run from the repo root or the package dir.
 function findUiSrc(): string {
   const marker = "A2UIStepRenderer.tsx";
   const direct = join(process.cwd(), "src");
@@ -54,10 +51,9 @@ function shippedSourceFiles(dir: string): string[] {
 }
 
 const IMPORT_RE = /\b(?:import|export)\b[^"'`]*?\bfrom\s*["']([^"']+)["']/g;
-// The `(?<!@)` is load-bearing: a CSS `@import "@roonga/qcms-ui/theme.css";` inside a
-// string literal (font-registry.ts builds the generated stylesheet's header
-// comment, which documents exactly that) is not a JavaScript import, and without
-// the lookbehind it is reported as a forbidden dependency.
+// The `(?<!@)` is load-bearing: a CSS `@import` inside a string literal is not a
+// JavaScript import, and without the lookbehind it is reported as a forbidden
+// dependency.
 const SIDE_EFFECT_RE = /(?<!@)\bimport\s*["']([^"']+)["']/g;
 
 function bareSpecifiers(source: string): string[] {

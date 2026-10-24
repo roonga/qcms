@@ -1,20 +1,7 @@
-/**
- * The token contract, measured rather than asserted (task 051, ADR-30).
- *
- * This suite reads `theme.css` itself, resolves the cascade the way a browser
- * would for every theme x mode combination, and then COMPUTES the WCAG 2.2
- * relative-luminance contrast ratio of every critical pair from the shipped
- * values. A palette edit that drops a pair below its target fails here instead of
- * reaching a respondent, and the numbers in `docs/theming.md` and the design
- * deliverable can never quietly diverge from the CSS.
- *
- * Targets (from the design deliverable): Light and Dark are AA - 4.5:1 for body
- * text, 3:1 for UI, borders and focus. High-contrast is the AAA layer - 7:1 for
- * every text pair, 3:1 for UI.
- *
- * The typography group is checked the same way: the five WCAG 1.4.12 floors are
- * numeric requirements, so the token values are parsed and compared, not trusted.
- */
+// Reads `theme.css` and computes the WCAG 2.2 contrast ratio of every critical pair
+// from the shipped values, so a palette edit that drops a pair below its target fails
+// here rather than reaching a respondent. Targets: AA in Light and Dark, 4.5:1 for body
+// text and 3:1 for UI; AAA in High-contrast, 7:1 for text.
 
 import { readFileSync } from "node:fs";
 import { join } from "node:path";
@@ -27,25 +14,15 @@ const THEMES = ["slate", "harbor", "sand", "plum"] as const;
 type Theme = (typeof THEMES)[number];
 type Mode = "light" | "dark" | "hc";
 
-/**
- * The scope carrier every block in `theme.css` is anchored on (ADR-38, task 060).
- * `:root` and `[data-qcms-theme-scope]` are both (0,1,0) and `:is()` takes its most
- * specific argument, so the anchor weighs exactly what the bare `:root` it replaced
- * weighed. `the specificity model` below asserts that rather than trusting it.
- */
+// Both arguments are (0,1,0) and `:is()` takes its most specific one, so the ADR-38
+// anchor weighs exactly what a bare `:root` would. The model below asserts that.
+
 const SCOPE_ANCHOR = ":is(:root, [data-qcms-theme-scope])";
 
 /**
- * A CSS specificity, as the (id, class, type) triple the specification defines:
- * `.a` counts in the middle column, so do attribute selectors and plain
- * pseudo-classes, `#a` in the first, element names and pseudo-elements in the last.
- *
- * This replaces a hand-rolled model that counted `.` and `[` characters in the
- * selector string and returned a single number. That model was wrong in the way
- * that matters here: it cannot tell `:is()` (most specific argument) from
- * `:where()` (always zero), and it fed the theme x mode resolution that the WCAG
- * ratios below are computed FROM - so a re-ranking would have certified the wrong
- * colour pairs while the suite stayed green, rather than failing.
+ * A model that counts `.` and `[` characters cannot tell `:is()` from `:where()`, and
+ * this feeds the resolution the WCAG ratios are computed from, so a re-ranking would
+ * certify the wrong colour pairs while the suite stayed green.
  */
 type Specificity = readonly [number, number, number];
 
@@ -58,14 +35,13 @@ function plus(a: Specificity, b: Specificity): Specificity {
   return [a[0] + b[0], a[1] + b[1], a[2] + b[2]];
 }
 
-/** Negative when `a` loses to `b`, zero when the cascade falls through to order. */
+/** Zero when the cascade falls through to source order. */
 function compareSpecificity(a: Specificity, b: Specificity): number {
   return a[0] - b[0] || a[1] - b[1] || a[2] - b[2];
 }
 
 const NAME_CHARACTER = /[\w-]/u;
 
-/** The index just past the identifier starting at `from`. */
 function endOfName(selector: string, from: number): number {
   let index = from;
   while (index < selector.length && NAME_CHARACTER.test(selector[index])) index += 1;
@@ -73,9 +49,8 @@ function endOfName(selector: string, from: number): number {
 }
 
 /**
- * The index just past the balanced group opening at `from`. The sheet's selectors
- * carry no bracket or parenthesis inside a quoted string, so nesting depth alone
- * is enough; `parseBlocks` asserts the anchor shape, which is what keeps it so.
+ * The sheet's selectors carry no bracket or parenthesis inside a quoted string, so
+ * nesting depth alone is enough, and the anchor-shape assertion keeps it so.
  */
 function endOfGroup(selector: string, from: number, open: string, close: string): number {
   let depth = 0;
@@ -86,7 +61,7 @@ function endOfGroup(selector: string, from: number, open: string, close: string)
   return selector.length;
 }
 
-/** Split a selector list on its top-level commas (never one inside `:is(...)`). */
+/** Top-level commas only, never one inside `:is(...)`. */
 function splitList(list: string): readonly string[] {
   const parts: string[] = [];
   let depth = 0;
@@ -104,7 +79,7 @@ function splitList(list: string): readonly string[] {
   return parts.map((part) => part.trim()).filter((part) => part.length > 0);
 }
 
-/** The weight of the most specific selector in a list, which is what `:is()` takes. */
+/** What `:is()` takes. */
 function mostSpecific(list: string): Specificity {
   let best = ZERO;
   for (const part of splitList(list)) {
@@ -119,10 +94,8 @@ interface Step {
   readonly next: number;
 }
 
-/** Functional pseudo-classes that take the weight of their most specific argument. */
 const MATCHING_FUNCTIONS = new Set([":is", ":not", ":has"]);
 
-/** One pseudo-class or pseudo-element starting at `at`. */
 function pseudoAt(selector: string, at: number): Step {
   if (selector.startsWith("::", at)) {
     return { weight: TYPE, next: endOfName(selector, at + 2) };
@@ -137,7 +110,7 @@ function pseudoAt(selector: string, at: number): Step {
   return { weight: CLASS, next: groupEnd };
 }
 
-/** One simple selector (or a combinator, which weighs nothing) starting at `at`. */
+/** A combinator weighs nothing. */
 function stepAt(selector: string, at: number): Step {
   const character = selector[at];
   if (character === "#") return { weight: ID, next: endOfName(selector, at + 1) };
@@ -148,7 +121,7 @@ function stepAt(selector: string, at: number): Step {
   return { weight: ZERO, next: at + 1 };
 }
 
-/** The specificity of one complex selector, per CSS Selectors Level 4 section 17. */
+/** Per CSS Selectors Level 4 section 17. */
 function specificityOf(selector: string): Specificity {
   let total = ZERO;
   let index = 0;
@@ -163,26 +136,21 @@ function specificityOf(selector: string): Specificity {
 interface Block {
   readonly index: number;
   readonly selector: string;
-  /** `null` = applies to every theme (the bare anchor default blocks). */
+  /** `null` applies to every theme. */
   readonly theme: Theme | null;
-  /** `null` = applies to every mode (a light block also matches dark, as in CSS). */
+  /** `null` applies to every mode, as a light block also matches dark in CSS. */
   readonly mode: Mode | null;
-  /** A corners preset class (`radius-pill`), or `null` for the base blocks. */
   readonly corners: string | null;
-  /** A density level class (`density-compact`), or `null` for the base blocks. */
   readonly density: string | null;
   /**
-   * The `@media` condition the rule sits inside, or `null` at the top level of the
-   * sheet. Only one condition exists today - the `--space-section-pad` breakpoint
-   * (issue #188) - and `the spacing group` asserts that, so a second one cannot be
-   * added without also deciding what it means for the resolution below.
+   * Only one condition exists, and the spacing group asserts that, so a second cannot
+   * be added without deciding what it means for the resolution below.
    */
   readonly media: string | null;
   readonly specificity: Specificity;
   readonly tokens: Readonly<Record<string, string>>;
 }
 
-/** The custom properties declared in one block body, `--name: value` per entry. */
 function parseDeclarations(body: string): Record<string, string> {
   const tokens: Record<string, string> = {};
   for (const line of body.split(";")) {
@@ -195,7 +163,6 @@ function parseDeclarations(body: string): Record<string, string> {
   return tokens;
 }
 
-/** The mode a selector selects, or `null` when it applies to every mode. */
 function modeOf(selector: string): Mode | null {
   if (selector.includes(".hc")) return "hc";
   if (selector.includes(".dark")) return "dark";
@@ -203,16 +170,13 @@ function modeOf(selector: string): Mode | null {
 }
 
 /**
- * Collect the style rules in one nesting level, recursing into an at-rule body so a
- * rule inside `@media` is captured with the condition that gates it rather than
- * silently dropped. Dropping was the previous behaviour and it was the dangerous
- * one: a media block whose declarations vanish from the parse cannot fail any guard
- * in this file, so the sheet could grow a viewport that lowers a floor and stay
- * green. Rules keep source order across levels, which is what the cascade needs.
+ * A rule inside `@media` is captured with the condition that gates it rather than
+ * dropped: a media block whose declarations vanish from the parse cannot fail any guard
+ * here, so the sheet could grow a viewport that lowers a floor and stay green. Rules
+ * keep source order across levels, which is what the cascade needs.
  *
- * Scanned brace by brace rather than split on `}`: the sheet nests now, and a
- * `selector {body}` regex over the whole file is the shape ESLint rejects for
- * backtracking.
+ * Scanned brace by brace, because a `selector {body}` regex over a nesting sheet is
+ * the shape the lint rejects.
  */
 function collectRules(css: string, media: string | null, out: Block[]): void {
   let index = 0;
@@ -245,10 +209,9 @@ function collectRules(css: string, media: string | null, out: Block[]): void {
 }
 
 /**
- * Parse a sheet into cascade-ordered blocks. Comments are stripped first, and
- * EVERY rule is captured rather than only those whose selector starts with the
- * anchor - so a block that quietly loses the scope carrier is picked up here and
- * fails `the scope carrier` guard below instead of vanishing from the resolution.
+ * Every rule is captured, not only those whose selector starts with the anchor, so a
+ * block that loses the carrier fails the guard below instead of vanishing from the
+ * resolution.
  */
 function parseBlocks(css: string): readonly Block[] {
   const blocks: Block[] = [];
@@ -259,20 +222,12 @@ function parseBlocks(css: string): readonly Block[] {
 const BLOCKS = parseBlocks(THEME_CSS);
 
 /**
- * The token values in force for one theme x mode, resolved the way the browser
- * resolves them: every block whose selector matches contributes, ordered by
- * specificity and then by source order. That ordering is why the shared `.hc`
- * layer (equally specific, emitted last) beats a theme's light block.
+ * Resolved the way a browser does, by specificity then source order, which is why the
+ * equally specific `.hc` layer emitted last beats a theme's light block.
  *
- * The corners and density blocks are excluded because neither class is on the
- * root in this resolution: this is the Subtle / Comfortable baseline, and each of
- * those two groups is asserted separately against its own blocks below. Leaving
- * either one in would silently apply the LAST preset in source order to every
- * contrast and floor assertion in the file.
- *
- * A rule inside `@media` is excluded for the same reason and resolved separately by
- * `the spacing group`: this is the narrow baseline, and a viewport override applied
- * unconditionally here would be an override no viewport actually has.
+ * The corners, density and `@media` blocks are excluded because none of them applies in
+ * this baseline, and each is asserted separately below; leaving one in would apply the
+ * last preset in source order to every contrast and floor assertion in the file.
  */
 function resolveFrom(
   blocks: readonly Block[],
@@ -296,7 +251,6 @@ function resolve(theme: Theme, mode: Mode): Readonly<Record<string, string>> {
   return resolveFrom(BLOCKS, theme, mode);
 }
 
-/** sRGB relative luminance (WCAG 2.x definition). */
 function luminance(hex: string): number {
   const value = hex.trim().replace("#", "");
   expect(value, `token value ${hex} is not a 6-digit hex colour`).toMatch(/^[0-9a-f]{6}$/iu);
@@ -307,13 +261,12 @@ function luminance(hex: string): number {
   return 0.2126 * channels[0] + 0.7152 * channels[1] + 0.0722 * channels[2];
 }
 
-/** WCAG contrast ratio, rounded down to 2dp so a reported number never flatters. */
+/** Rounded down to 2dp, so a reported number never flatters. */
 function contrast(foreground: string, background: string): number {
   const [lighter, darker] = [luminance(foreground), luminance(background)].sort((a, b) => b - a);
   return Math.floor(((lighter + 0.05) / (darker + 0.05)) * 100) / 100;
 }
 
-/** The critical pairs, as `[foreground, background, label]`. */
 const TEXT_PAIRS = [
   ["--color-text", "--color-background", "text / background"],
   ["--color-text", "--color-surface", "text / surface"],
@@ -337,7 +290,6 @@ const UI_PAIRS = [
 ] as const;
 
 const MODES: readonly Mode[] = ["light", "dark", "hc"];
-/** Body-text target per mode: AA everywhere, AAA in the High-contrast layer. */
 const TEXT_TARGET: Readonly<Record<Mode, number>> = { light: 4.5, dark: 4.5, hc: 7 };
 const UI_TARGET = 3;
 
@@ -357,10 +309,8 @@ describe("the scope carrier and the specificity model it is measured with", () =
     expect(specificityOf(":root")).toStrictEqual([0, 1, 0]);
   });
 
-  // The property ADR-38 turns on, and the one the old character-counting model
-  // could not express: `:is()` takes its most specific argument, `:where()` is
-  // always zero. Softening the anchor to `:where()` would drop every block in the
-  // sheet to specificity 0 and silently re-rank it against an adopter's `:root`.
+  // Softening the anchor to `:where()` would drop every block in the sheet to
+  // specificity 0 and re-rank it against an adopter's `:root`.
   it("takes :is() from its most specific argument and :where() as zero", () => {
     expect(specificityOf(":is(p, .a.b)")).toStrictEqual([0, 2, 0]);
     expect(specificityOf(":not(.a, #b)")).toStrictEqual([1, 0, 0]);
@@ -368,7 +318,6 @@ describe("the scope carrier and the specificity model it is measured with", () =
     expect(specificityOf(`${SCOPE_ANCHOR}[data-theme="harbor"].hc`)).toStrictEqual([0, 3, 0]);
   });
 
-  // Exit criterion 2, asserted rather than assumed: the rewrite moved no selector.
   it("scores every anchored selector exactly as its pre-rewrite :root form scored", () => {
     for (const block of BLOCKS) {
       const asRoot = block.selector.replace(SCOPE_ANCHOR, ":root");
@@ -376,10 +325,8 @@ describe("the scope carrier and the specificity model it is measured with", () =
     }
   });
 
-  // What `docs/theming.md` records as load-bearing: the shared `.hc` layer and a
-  // theme's own light block are EQUALLY specific, so only source order separates
-  // them. If this ever came out non-zero, the ordering guarantee below would be
-  // decided by specificity instead and the comment in `theme.css` would be a lie.
+  // Only source order separates these two. Non-zero here and the ordering guarantee
+  // below would be decided by specificity instead, and the sheet's own note wrong.
   it("leaves the shared .hc layer exactly as specific as a theme's light block", () => {
     const shared = specificityOf(`${SCOPE_ANCHOR}.hc`);
     const themed = specificityOf(`${SCOPE_ANCHOR}[data-theme="harbor"]`);
@@ -388,13 +335,9 @@ describe("the scope carrier and the specificity model it is measured with", () =
   });
 
   /**
-   * The same blocks re-emitted with the shared `.hc` layer BEFORE the light/dark
-   * blocks: a sheet that is valid CSS, declares identical values, and is wrong.
-   *
-   * Re-emitted from the top-level rules only. What this proves is a claim about the
-   * colour layer's source order, and the media block carries no colour; flattening
-   * it to the top level would make the re-emitted sheet say something the real one
-   * does not, for no gain in the property under test.
+   * A sheet that is valid CSS, declares identical values, and is wrong. From the
+   * top-level rules only, because the claim is about the colour layer's source order
+   * and flattening the media block would make it say something the real sheet does not.
    */
   function misordered(): readonly Block[] {
     const sheet = BLOCKS.filter((block) => block.media === null);
@@ -412,11 +355,9 @@ describe("the scope carrier and the specificity model it is measured with", () =
     );
   }
 
-  // Exit criterion 3's proof obligation: a green suite is not evidence, a suite
-  // shown capable of going red is. Feed the resolver a deliberately mis-ordered
-  // sheet and it must produce the WRONG answer - which is what makes its answer on
-  // the real sheet worth something. Both HC guarantees this file certifies (black
-  // on white, and one shared layer across themes) collapse under the mis-ordering.
+  // A green suite is not evidence; one shown capable of going red is. Fed a
+  // mis-ordered sheet the resolver must produce the wrong answer, which is what makes
+  // its answer on the real sheet worth something.
   it("resolves a deliberately mis-ordered sheet to the wrong palette", () => {
     expect(resolve("harbor", "hc")["--color-text"]).toBe("#000000");
 
@@ -500,23 +441,19 @@ describe("typography group: the WCAG 1.4.12 floors are carried by tokens", () =>
   const base = resolve("slate", "light");
   const rem = (value: string): number => Number.parseFloat(value.replace("rem", "")) * 16;
 
-  /** Prettier reflows a long custom-property value, so compare on content. */
+  /** Prettier reflows a long value, so compare on content. */
   const flat = (value: string): string => value.replaceAll(/\s+/gu, " ").trim();
 
   it("declares the family tokens, and both delegate their tail to one token", () => {
-    // Issue #27: the family tokens carry a family and NOTHING else. The fallback
-    // list they end in is declared once, as --font-fallback-*, so a respondent on
-    // a device without the primary face gets the same deliberate tail on either
-    // surface and a tail improvement cannot reach one and miss the other.
+    // The fallback list is declared once, so a tail improvement cannot reach one
+    // surface and miss another.
     expect(base["--font-portal"]).toBe("var(--font-fallback-sans)");
     expect(base["--font-mono"]).toBe("var(--font-fallback-mono)");
   });
 
   it("every fallback tail names a CSS generic, last except for symbol faces", () => {
-    // css-fonts-4 2.1 encourages a generic family last for robustness: it is the
-    // only entry that can serve a script none of the named faces cover, because a
-    // user's own per-script font preference answers it. The emoji and symbol faces
-    // that follow it are consulted per GLYPH for codepoints nothing earlier has.
+    // The only entry that can serve a script none of the named faces cover, because a
+    // user's own per-script preference answers it.
     const symbolFaces = new Set([
       '"Apple Color Emoji"',
       '"Segoe UI Emoji"',
@@ -542,12 +479,9 @@ describe("typography group: the WCAG 1.4.12 floors are carried by tokens", () =>
   });
 
   it("the sans tail does not lead with system-ui", () => {
-    // system-ui resolves from the OS/UI locale rather than the content language,
-    // so it is a CJK UI face on a CJK-locale machine and its Latin glyphs are
-    // oversized; as a generic it also used to short-circuit the rest of the list
-    // for non-Latin text (Mozilla bug 1724907, csswg-drafts issue 3658). It stays
-    // in the list, because Firefox has no ui-sans-serif, but never in front and
-    // never alone.
+    // It resolves from the OS locale rather than the content language and used to
+    // short-circuit the rest of the list for non-Latin text (Mozilla bug 1724907). It
+    // stays, because Firefox has no `ui-sans-serif`, but never in front or alone.
     const families = flat(base["--font-fallback-sans"] ?? "").split(", ");
     expect(families[0]).toBe("ui-sans-serif");
     expect(families).toContain("system-ui");
@@ -580,9 +514,8 @@ describe("typography group: the WCAG 1.4.12 floors are carried by tokens", () =>
     expect(Number.parseFloat(base["--type-paragraph-spacing"])).toBeGreaterThanOrEqual(2);
   });
 
-  // Task 052: numeric controls get tabular figures from a token, so the feature is
-  // unconditional across the font registry and an adopter can turn it off in one
-  // place. `font-registry.test.ts` proves theme-components.css consumes it.
+  // A token, so the feature is unconditional across the registry and an adopter can
+  // turn it off in one place.
   it("declares the tabular-figures token, and no mode or theme turns it off", () => {
     expect(base["--type-numeric"]).toBe('"tnum"');
     for (const theme of THEMES) {
@@ -616,23 +549,13 @@ describe("spacing group: the three density levels x the two viewports", () => {
     "--space-section-pad",
     "--space-stack",
   ] as const;
-  /** Compact and Spacious are classes; Comfortable is the base block. */
   const DENSITY_CLASSES = ["density-compact", "density-spacious"] as const;
 
-  /**
-   * The one breakpoint the sheet has (issue #188): Tailwind's `sm`, so the token
-   * turns over at the same width the step card's old `sm:p-8` turned over at.
-   */
   const BREAKPOINT = "@media (min-width: 40rem)";
-  /** Below the breakpoint no media rule applies; at or above it, that one does. */
   const VIEWPORTS = ["narrow", "wide"] as const;
   type Viewport = (typeof VIEWPORTS)[number];
 
-  /**
-   * The five spacing values in force at one density level and one viewport (task
-   * 053, then issue #188). Resolved from the blocks rather than read off one of
-   * them, because two now contribute at the wide end and the later one wins.
-   */
+  /** Resolved rather than read off one block, because two contribute at the wide end. */
   function at(density: string | null, viewport: Viewport): Readonly<Record<string, string>> {
     const applicable = BLOCKS.filter(
       (block) =>
@@ -663,11 +586,9 @@ describe("spacing group: the three density levels x the two viewports", () => {
     }
   });
 
-  // The boundary that keeps density out of the other three groups. A density level
-  // that could set a --type-* token could lower a WCAG 1.4.12 floor, and one that
-  // could set a --color-* token could break a contrast pair; both are asserted
-  // elsewhere in this file against the base blocks only, so the guarantee those
-  // assertions give is only as good as this one.
+  // A density level that could set a --type-* token could lower a 1.4.12 floor and one
+  // that could set a --color-* token could break a contrast pair, and both are asserted
+  // elsewhere against the base blocks only.
   it("a density level sets ONLY spacing tokens (never a type, colour or radius value)", () => {
     for (const block of BLOCKS.filter((candidate) => candidate.density !== null)) {
       for (const token of Object.keys(block.tokens)) {
@@ -679,13 +600,9 @@ describe("spacing group: the three density levels x the two viewports", () => {
     }
   });
 
-  // The same boundary for the viewport axis, and the reason the WCAG floors this
-  // file certifies survive issue #188. Every floor assertion above resolves the
-  // sheet at the narrow end; a media query that could set a --type-* or --color-*
-  // token could therefore move a floor or a contrast pair at a width nothing here
-  // measures. Restricting the media block to the spacing group is what makes
-  // "checked once" honest, and it is why only ONE condition is permitted: a second
-  // one would need its own decision about which end of it the floors are read at.
+  // Every floor assertion above resolves the sheet at the narrow end, so a media query
+  // that could set a --type-* or --color-* token could move a floor at a width nothing
+  // here measures. That is why only one condition is permitted.
   it("the sheet has exactly one media query, and it sets ONLY spacing tokens", () => {
     const conditions = new Set(
       BLOCKS.map((block) => block.media).filter((media) => media !== null),
@@ -713,13 +630,10 @@ describe("spacing group: the three density levels x the two viewports", () => {
     }
   });
 
-  // Density is a monotonic scale, not three unrelated presets: Compact is smaller
-  // than Comfortable is smaller than Spacious on every token. This is what makes
-  // the control a meaningful choice rather than three arbitrary looks, and it
-  // catches a value edited in the wrong block. Checked at BOTH ends of the
-  // breakpoint, which is the property issue #188's decision turns on: a narrow
-  // override that flattened two levels together would leave a respondent on a
-  // phone choosing between two looks that render the same.
+  // A monotonic scale rather than three unrelated presets, which is what makes the
+  // control a meaningful choice and catches a value edited in the wrong block. Both
+  // ends, because a narrow override that flattened two levels would leave a respondent
+  // on a phone choosing between two looks that render the same.
   it("the three levels are ordered Compact < Comfortable < Spacious at both viewports", () => {
     for (const viewport of VIEWPORTS) {
       const levels = [
@@ -737,10 +651,7 @@ describe("spacing group: the three density levels x the two viewports", () => {
     }
   });
 
-  // Issue #188 itself: the step card's padding is smaller on a phone than at the
-  // breakpoint, at every density, and --space-section-pad is the only token that
-  // moves. The narrow Comfortable value is the p-5 the card carried before task
-  // 051, so this is a restoration rather than a new number.
+  // --space-section-pad is the only token that moves with the viewport.
   it("only --space-section-pad moves with the viewport, and only downward on a phone", () => {
     for (const density of [null, ...DENSITY_CLASSES]) {
       const narrow = at(density, "narrow");
