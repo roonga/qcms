@@ -8,9 +8,8 @@ import type { Executor } from "./executor.js";
 export type WebhookRow = typeof webhooks.$inferSelect;
 
 /**
- * Insert a configured webhook (SEC-6, task 024). `secretEncrypted` is opaque
- * AES-GCM ciphertext produced by the shell - this layer never sees the plaintext
- * secret and never logs the row.
+ * Insert a configured webhook. `secretEncrypted` is opaque ciphertext (SEC-6): this layer
+ * never sees the plaintext secret and must never log the row.
  */
 export async function insertWebhook(
   exec: Executor,
@@ -35,7 +34,7 @@ export async function insertWebhook(
   return row!;
 }
 
-/** List every webhook configured for a form, newest first (active and inactive). */
+/** List every webhook configured for a form, active and inactive, newest first. */
 export async function listWebhooks(exec: Executor, formId: FormId): Promise<WebhookRow[]> {
   return exec
     .select()
@@ -44,7 +43,7 @@ export async function listWebhooks(exec: Executor, formId: FormId): Promise<Webh
     .orderBy(desc(webhooks.createdAt));
 }
 
-/** Read one webhook by id, scoped to its form (or `undefined`). */
+/** Read one webhook by id, scoped to its form, or `undefined`. */
 export async function getWebhook(
   exec: Executor,
   formId: FormId,
@@ -59,10 +58,8 @@ export async function getWebhook(
 }
 
 /**
- * Update a webhook's mutable fields (url, encrypted secret, active flag),
- * stamping `updatedAt`. Only the provided fields change. Scoped to the form so a
- * stray id cannot mutate another form's config. Returns the updated row, or
- * `undefined` when no such webhook exists for the form.
+ * Update a webhook's mutable fields; only the provided ones change. Scoped to the form so
+ * a stray id cannot mutate another form's config.
  */
 export async function updateWebhook(
   exec: Executor,
@@ -91,10 +88,8 @@ export async function updateWebhook(
 }
 
 /**
- * Soft-deactivate a webhook: clear `active` and stamp `deactivatedAt`/`updatedAt`
- * without deleting the row (delivery history survives). Idempotent - a second
- * deactivate of an already-inactive webhook still matches the row and re-stamps.
- * Returns the row, or `undefined` when no such webhook exists for the form.
+ * Soft-deactivate a webhook without deleting the row, so its delivery history survives.
+ * A second deactivate re-stamps.
  */
 export async function deactivateWebhook(
   exec: Executor,

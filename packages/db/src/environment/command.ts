@@ -1,40 +1,3 @@
-/**
- * The operator commands that create and drop an environment (ADR-40, Q1, Q24, Q42).
- *
- * # Why this is a command and never an HTTP endpoint
- *
- * Creating an environment is **DDL**: a schema, seven tables, thirteen guards, seven
- * foreign keys, a view set, a role and its grants. No application role holds DDL and
- * none ever will (SEC-10), so this runs under the migration credential, from a shell,
- * by an operator - never by an administrator and never over HTTP. It is the shape
- * `qcms:reset-2fa` already uses, and it refuses the application credential by the same
- * test: **schema ownership**, not a role name, because a deployment that renamed its
- * roles would pass a name test connected as exactly the credential the guard exists
- * for.
- *
- * # The name is refused by three rules, not one (Q42)
- *
- * An environment's name is a URL path segment and a Postgres identifier at once, so:
- *
- *   1. it matches **`^[a-z][a-z0-9]*$`** - no hyphen, because an access-group name
- *      joins a set of environments with hyphens and `dev-test` has to read as two
- *      names; no underscore, because `data_<env>` and `reporting_<env>` join on one and
- *      `data_my_env` would be ambiguous about where the prefix ends;
- *   2. it is **length-checked against the longest identifier derived from it**, with
- *      the limit computed from the prefix list rather than written as a constant,
- *      because Postgres truncates an identifier over 63 bytes **silently** and two such
- *      names could then collide with each other with no error anywhere;
- *   3. it is not one of the **reserved** names of section 3.
- *
- * The refusal names the derived identifier that would not fit rather than quoting a
- * bare number, because an operator who has been refused needs to know what to shorten.
- *
- * **The combined-set ordering half of Q42 is task 069's.** This command creates one
- * environment at a time and never writes a set; 069's grant write path is what stores an
- * access-group name carrying one, normalises it on write and refuses an out-of-order
- * one.
- */
-
 import { sql } from "drizzle-orm";
 
 import { accessGroupFullName } from "../access-groups.js";
@@ -56,37 +19,22 @@ import {
   grantEnvironmentStatements,
 } from "./sql.js";
 
-/** The character rule (Q42). */
+/**
+ * No hyphen, because an access-group name joins a set of environments with hyphens; no
+ * underscore, because `data_<env>` joins on one and `data_my_env` would be ambiguous.
+ */
 export const ENVIRONMENT_NAME_PATTERN = /^[a-z][a-z0-9]*$/;
 
-/**
- * Postgres truncates an identifier longer than `NAMEDATALEN - 1` bytes, silently.
- * 63 with the default `NAMEDATALEN` of 64.
- */
+/** Postgres truncates an identifier over `NAMEDATALEN - 1` bytes silently. */
 const MAX_IDENTIFIER_BYTES = 63;
 
-/**
- * The environment a drop may never remove (Q24).
- *
- * `prod` is also reserved as a *name* below, for a different reason: it is the
- * unprefixed address shape, so a prefixed `prod` would be a second spelling of one
- * thing. The two rules land on the same word and are not the same rule.
- */
+/** The one environment a drop may never remove. */
 export const UNDROPPABLE_ENVIRONMENT = "prod";
 
 /**
- * Names the command refuses, derived from what each surface already serves at its root.
- *
- * `scripts/reserved-environment-names.test.ts` derives the same set from the portal's
- * route directory and the API's route table and fails when this list no longer covers
- * it, which is what keeps a hand-kept copy from going stale the first time somebody adds
- * a root route. The list lives here rather than being computed at run time because
- * `@roonga/qcms-db` cannot import either application.
- *
- * A few entries are already unreachable under the character rule - `link-error` carries
- * a hyphen, `_next` an underscore. They stay, because the set is derived from the routes
- * rather than filtered against another rule, and a derived set that quietly drops its
- * own members is a set somebody has to re-derive before they can trust it.
+ * Each collides with a route, a schema name or the `prod` address shape. Hand-kept
+ * because `@roonga/qcms-db` cannot import either application;
+ * `scripts/reserved-environment-names.test.ts` fails when this list stops covering them.
  */
 export const RESERVED_ENVIRONMENT_NAMES: readonly string[] = [
   // Portal root segments (`apps/portal/app`), plus Next's own.
@@ -104,65 +52,39 @@ export const RESERVED_ENVIRONMENT_NAMES: readonly string[] = [
   "sessions",
   "erasures",
   "outbox",
-  // Task 065's. `GET /admin/environments` serves the live set to the admin's switcher,
-  // and an environment named `environments` would make `/environments/...` two addresses.
   "environments",
   "releases",
-  // Task 068's. `GET /admin/workspaces` and the two ownership moves sit at this root, so
-  // an environment named `workspaces` would make `/workspaces/...` two addresses the way
-  // `environments` would. The derivation test in `scripts/` is what asked for this entry.
   "workspaces",
-  // Task 069's. `GET /admin/me/access` is the capability answer every caller reads, so
-  // an environment named `me` would make `/me/...` two addresses. The same derivation
-  // test asked for this one.
   "me",
   "health",
   "ready",
   "internal",
   "admin",
   "api",
-  // The schema names (Q23). `data` would give `data_data`, which is legal and
-  // unreadable; `control`, `reporting` or `public` would give `data_control` and the
-  // like, which is worse, because the name then reads as though the schema held the
-  // control plane.
+  // The schema names, which the `data_<env>` prefix would make ambiguous.
   "data",
   "control",
   "reporting",
   "public",
-  // The address rule itself: prod is the unprefixed shape, so a prefixed `prod` would be
-  // a second spelling of one thing. Written as a literal rather than as
-  // `UNDROPPABLE_ENVIRONMENT`, though the two are the same word: they are two different
-  // rules that happen to land on it, and this list is read as data by
-  // `scripts/reserved-environment-names.test.ts`, which checks it against the routes.
+  // A literal rather than `UNDROPPABLE_ENVIRONMENT`: the same word, a different rule.
   "prod",
 ];
 
 /**
- * The longest environment name that fits every identifier derived from it.
- *
- * **Derived from the prefix list, never written as a constant.** A literal goes stale
- * the first time somebody adds a longer prefix, and it goes stale *silently*, because a
- * too-generous limit fails only at the truncation it was meant to prevent. Task 067 adds
- * the per-(workspace, environment) reporting role's prefix here when it names one (Q26);
- * if that prefix is the longest, this number drops and nothing else changes.
+ * Derived from the prefix list rather than written as a constant: a too-generous literal
+ * fails only at the silent truncation it was meant to prevent.
  */
 export function maxEnvironmentNameLength(): number {
   const longest = Math.max(...ENVIRONMENT_NAME_PREFIXES.map((prefix) => prefix.length));
   return MAX_IDENTIFIER_BYTES - longest;
 }
 
-/** The identifier the name is interpolated into that runs out of room first. */
 function longestDerivedIdentifier(name: string): string {
   const prefixes = [...ENVIRONMENT_NAME_PREFIXES].sort((a, b) => b.length - a.length);
   return `${prefixes[0] ?? ""}${name}`;
 }
 
-/**
- * Why this name is refused, or `undefined` when it is acceptable.
- *
- * One string rather than a thrown error, so the CLI can print it and the tests can
- * assert on it without unwrapping.
- */
+/** Why this name is refused, or `undefined` when it is acceptable. */
 export function refuseEnvironmentName(name: string): string | undefined {
   if (!ENVIRONMENT_NAME_PATTERN.test(name)) {
     return (
@@ -185,14 +107,9 @@ export function refuseEnvironmentName(name: string): string | undefined {
 }
 
 /**
- * Whether the connected role owns the control plane, which is the SEC-10 guard.
- *
- * **Ownership rather than a role name**, exactly as `readConnectedRole` argues for the
- * break-glass: matching `current_user = 'qcms_app'` reads as a guard while asserting
- * nothing, because a deployment that named its roles differently would pass a name test
- * connected as the application credential. Ownership is the property the role split is
- * made of, and `pg_has_role(..., 'USAGE')` rather than an equality on the owner oid, so
- * membership in the owning role counts and a superuser passes.
+ * The SEC-10 guard. Ownership rather than a role name, because a deployment that renamed
+ * its roles would pass a name test; `pg_has_role` rather than an equality on the owner
+ * oid, so membership in the owning role counts and a superuser passes.
  */
 export async function ownsControlSchema(exec: Executor): Promise<{
   readonly role: string;
@@ -209,17 +126,16 @@ export async function ownsControlSchema(exec: Executor): Promise<{
   return { role: row?.role ?? "unknown", owns: row?.owns ?? false };
 }
 
-/** The per-environment settings an operator may set when creating one (Q11). */
+/** Each overrides an installation-wide value; `undefined` keeps it. */
 export interface EnvironmentSettings {
-  /** Overrides the installation-wide challenge provider; `undefined` keeps it. */
   readonly challengeProvider?: string;
-  /** Overrides `QCMS_DELIVERY_SNIPPET_TTL_MS`; `undefined` keeps it. */
+  /** Overrides `QCMS_DELIVERY_SNIPPET_TTL_MS`. */
   readonly deliverySnippetTtlMs?: number;
-  /** Overrides `QCMS_OUTBOX_PAYLOAD_TTL_MS`; `undefined` keeps it. */
+  /** Overrides `QCMS_OUTBOX_PAYLOAD_TTL_MS`. */
   readonly outboxPayloadTtlMs?: number;
 }
 
-/** What creating an environment produced, for the command to report. */
+/** The names a created environment got, for the command to report. */
 export interface CreatedEnvironment {
   readonly name: string;
   readonly schema: string;
@@ -229,18 +145,8 @@ export interface CreatedEnvironment {
 }
 
 /**
- * Create one environment: its schemas, its per-environment objects, its row in the live
- * set, its role's grants and its settings.
- *
- * **One transaction**, so a half-created environment is not a state an operator has to
- * clean up: Postgres runs DDL transactionally, which is the property that makes this
- * safe to retry after a failure.
- *
- * The **role** is created here only when a password is given, because a role that can
- * log in needs a credential and this command is the first place in the design that has
- * one to hand. Without a password the grants still land, guarded on the role existing -
- * so an operator who provisions roles their own way runs their provisioning first and
- * this second, exactly as the SEC-10 recipe already has them do.
+ * Without a password no role is created, but the grants still land, guarded on the role
+ * existing, for an operator who provisions roles their own way.
  */
 export async function createEnvironment(
   exec: Executor,
@@ -260,37 +166,22 @@ export async function createEnvironment(
 
   return exec.transaction(async (tx) => {
     if (input.password !== undefined) {
-      // `createLoginRole` lets **Postgres** quote both the identifier and the credential,
-      // over real bind parameters. The `DO` block this used to be could not work at all -
-      // a `DO` body is a string literal, so the `$1` inside it was text and the bind
-      // failed - and it had no test behind it until task 067 met the same shape and added
-      // one; that module's documentation carries the whole account.
       await createLoginRole(tx, environmentRoleName(input.name), input.password);
     }
 
-    // DDL cannot be parameterized: a schema, a table and a constraint name are
-    // identifiers, and Postgres has no bind parameter for one. What makes these
-    // statements safe is what they are BUILT from rather than how they are sent: every
-    // identifier comes from `src/schema/data/`, which is source code, interpolated with
-    // one environment name that has already passed `refuseEnvironmentName` above -
-    // `^[a-z][a-z0-9]*$`, length-checked, and not reserved. There is no other input.
+    // DDL cannot be parameterized. What makes these safe is what they are built from:
+    // every identifier comes from `src/schema/data/`, interpolated with one environment
+    // name that passed `refuseEnvironmentName` above. There is no other input.
     for (const statement of createEnvironmentStatements(input.name)) {
       // check-security-hygiene: allow generated DDL over a name already refused unless it matches ^[a-z][a-z0-9]*$
       await tx.execute(sql.raw(statement));
     }
-    // The grants, and the migrate-only revokes with them, so a role created here cannot
-    // arrive holding `two_factor_resets` (Q40). Both are guarded on the role existing.
     for (const statement of grantEnvironmentStatements(input.name)) {
       // check-security-hygiene: allow generated GRANT statements over the same refused name
       await tx.execute(sql.raw(statement));
     }
-    // Every existing workspace's reporting view set, and its read-only role's grants, in
-    // the environment being created (Q26, task 067). It is here as well as in the
-    // reconciliation because of the rule that bit tasks 065 and 069: there is no `ALTER
-    // DEFAULT PRIVILEGES` anywhere in this design, so an object a later environment needs
-    // has to be emitted by whatever creates the environment and not only by whatever
-    // creates the object. The grants are guarded on each role existing, which for a
-    // brand-new environment is none of them yet.
+    // Emitted here as well as in the reconciliation: there is no `ALTER DEFAULT
+    // PRIVILEGES` in this design, so a new environment would otherwise lack these.
     for (const statement of await workspaceReportingStatementsForEnvironment(tx, input.name)) {
       // check-security-hygiene: allow generated DDL over a slug and an environment name already refused
       await tx.execute(sql.raw(statement));
@@ -319,84 +210,27 @@ export async function createEnvironment(
   });
 }
 
-/**
- * Why a drop was refused: the open forms, the session count and the access groups that
- * name the environment, never a bare no.
- */
+/** Why a drop was refused, naming every blocker rather than a bare no. */
 export interface DropRefusal {
   readonly reason: string;
   readonly openForms: readonly string[];
   readonly sessionCount: number;
   /**
-   * How many release records name this environment (Q68, 065's schema).
-   *
-   * **Not a new rule** - the database already refused this drop - and that is the whole
-   * reason it is counted here. Q68 (Code Owner, 2026-10-17) records that the refusal is
-   * **permanent and intended**: the audit trail of what was served where outlives the
-   * environment's usefulness, so there is nothing here to loosen later. `control.form_releases.environment` is a foreign key into
-   * `control.environments`, and the history rejects DELETE, so an environment anything
-   * was ever released to cannot be dropped **at all**: the delete of the `environments`
-   * row violates that key, with no sanctioned door to the rows holding it. Counting the
+   * The database already refuses this drop: `control.form_releases.environment` is a
+   * foreign key into `control.environments` and the history rejects DELETE. Counting the
    * rows turns a constraint violation into a refusal that says what happened.
    */
   readonly releaseCount: number;
-  /**
-   * The access groups whose environment scope names this environment, as the derived
-   * full name `<workspace>.<team>` (Q37), so an operator reads which grants the drop
-   * would silence (Q43, Q44).
-   *
-   * Empty on every other refusal, and empty on a refusal from a database whose `team`
-   * table has no row - which is every refusal before task 069 wrote one.
-   */
+  /** The derived `<workspace>.<team>`, never a stored name. */
   readonly accessGroups: readonly string[];
 }
 
 /**
- * Drop an environment, narrowly (Q24 with Q43 and Q44).
+ * The narrowness is a safety constraint: `DROP SCHEMA ... CASCADE` over a populated schema
+ * would take the answer ledger without passing the `answers_reject_delete` trigger, a
+ * third whole-session deletion path where ADR-17 allows two.
  *
- * `prod` can **never** be dropped. A non-prod environment can be dropped **only when
- * every form in it is closed and it holds zero sessions**, and this refuses otherwise,
- * **naming the open forms and the session count** rather than reporting a bare refusal,
- * because an operator who has been refused needs to know what to do next. It **refuses
- * and never archives** (Q43): an archive would be this command silently editing state an
- * operator wrote.
- *
- * **The access-group half of the check is this task's** (Q44, task 069): the drop refuses
- * while any access group's environment scope **names** this environment, and the refusal
- * carries those groups by their derived full name `<workspace>.<team>` the way
- * `dev:seed:clear` names what it leaves, so an operator sees which grants the drop would
- * silence rather than discovering it afterwards. **It refuses and never archives** (Q43):
- * a command that quietly re-scoped a grant an owner wrote would be editing the
- * authorisation model as a side effect of an operator act. The operator removes or
- * re-scopes the groups first, then drops.
- *
- * **A group scoped to `all` does not block**, deliberately. `all` names no environment,
- * so dropping one narrows what `all` means rather than silencing that grant - which is
- * what `all` is for, and the same line Q61 draws one control over, where a grant scoped to
- * `all` leaves the audit row's `environment` empty because the act names none.
- *
- * ## Why the narrowness is the whole point
- *
- * `DROP SCHEMA ... CASCADE` would take the answer ledger **without passing the
- * `answers_reject_delete` trigger**, so a wider drop would be a third whole-session
- * deletion path and ADR-17 says there are two. Under this rule a drop can only ever
- * remove an empty schema, so no door is added. An operator empties a `dev` environment
- * through retention, which is a sanctioned door, and not by dropping the schema out from
- * under it.
- *
- * ## What "every form in it is closed" means
- *
- * The closed state is **per form and environment** (Q18, task 066), so this reads **this
- * environment's own** state: a form is open here when the newest `control.form_releases`
- * row for the (form, environment) pair does not say closed. Before 066 it read
- * `forms.status`, which was installation-wide, so "open" and "open here" collapsed into
- * one and the query narrowed by sessions to compensate.
- *
- * It still narrows by sessions, and now for its own reason rather than as a stand-in: the
- * refusal exists to name what an operator has to act on, and a form released here with no
- * data here is not something they have to close before a drop that would remove nothing.
- * The session count beside it is the other half of the refusal, so a form with data is
- * named either way.
+ * A group scoped to `all` does not block, since `all` names no environment.
  */
 export async function dropEnvironment(
   exec: Executor,
@@ -442,10 +276,7 @@ export async function dropEnvironment(
   `);
   const open = openForms.rows.map((row) => row.form_id);
 
-  // The release history, counted so the refusal below can say so. The database refuses
-  // this drop whatever this command does - see `DropRefusal.releaseCount` - so what is
-  // bought here is a legible refusal in place of a foreign-key violation, and nothing
-  // about whether the drop happens.
+  // Counted only so the refusal is legible; see `DropRefusal.releaseCount`.
   const releases = await exec.execute<{ count: number }>(
     sql`select count(*)::int as count
           from ${sql.identifier(CONTROL_SCHEMA)}.form_releases
@@ -453,17 +284,12 @@ export async function dropEnvironment(
   );
   const releaseCount = releases.rows[0]?.count ?? 0;
 
-  // The access-group half (Q44). Read through `listGroupsNamingEnvironment`, so the one
-  // `environments` predicate lives beside the rows it reads rather than being written a
-  // second time here.
   const naming = await listGroupsNamingEnvironment(exec, name);
   const groups = naming.map((group) => accessGroupFullName(group.workspaceSlug, group.name));
 
   if (sessionCount > 0 || open.length > 0 || releaseCount > 0 || groups.length > 0) {
-    // One refusal per blocker, joined, because an operator who has been refused needs to
-    // know every thing standing in the way rather than the first of them: two of these
-    // are repairable (close the forms, re-scope the groups) and one is not (Q68), and
-    // reading only the repairable one would send somebody to do work that cannot help.
+    // Every blocker, not the first: one of them is unrepairable, so reporting only a
+    // repairable one would send somebody to do work that cannot help.
     const reasons: string[] = [];
     if (sessionCount > 0 || open.length > 0) {
       reasons.push(
@@ -496,8 +322,6 @@ export async function dropEnvironment(
   }
 
   await exec.transaction(async (tx) => {
-    // Two `DROP SCHEMA` statements over a name that is a row in `control.environments`
-    // and has passed the character rule; identifiers cannot be bound as parameters.
     for (const statement of dropEnvironmentStatements(name)) {
       // check-security-hygiene: allow DROP SCHEMA over a name read from control.environments
       await tx.execute(sql.raw(statement));

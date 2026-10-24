@@ -8,23 +8,10 @@ import {
 } from "../schema/control/endpoint-proposals.js";
 import type { Executor } from "./executor.js";
 
-/**
- * The pending `prod` endpoint change: its writes and its reads (Q30, Q51; task 070).
- *
- * Every statement here runs on the **control** pool, because the proposal is control-plane
- * state (`schema/control/endpoint-proposals.ts` says why) and `qcms_app_control` is the only
- * application role with any privilege on the table. The one step that is not here is the
- * **apply**, which writes `data_<env>.webhooks` on that environment's own pool.
- *
- * # Why the state transitions are conditional updates and not read-then-write
- *
- * {@link confirmEndpointProposal} and {@link withdrawEndpointProposal} both carry their
- * precondition in the `WHERE` clause and answer `undefined` when it did not hold. Two
- * confirmations racing would otherwise both read a pending row, both decide they were first,
- * and both apply - and the second would overwrite a production endpoint with a value its own
- * confirmer never saw. One `UPDATE` with `confirmed_at is null` in its predicate makes the
- * database pick the winner, and the loser gets a 409.
- */
+// State transitions carry their precondition in the `WHERE` clause and answer
+// `undefined` when it did not hold, so the database picks the winner of a race. A
+// read-then-write would let two confirmations both apply, the second overwriting a
+// production endpoint with a value its confirmer never saw.
 
 /** One proposal row as the API reads it. */
 export interface EndpointProposalRow {
@@ -45,7 +32,6 @@ export interface EndpointProposalRow {
   readonly withdrawnAt: Date | null;
 }
 
-/** The columns every read selects, so one shape reaches the API from every query here. */
 const COLUMNS = {
   proposalId: webhookEndpointProposals.proposalId,
   formId: webhookEndpointProposals.formId,
@@ -64,7 +50,7 @@ const COLUMNS = {
   withdrawnAt: webhookEndpointProposals.withdrawnAt,
 } as const;
 
-/** Launder the `kind` text column, which the CHECK pins, into the union. */
+// Laundering the `kind` text column, whose values the CHECK already pins, into the union.
 function row(value: {
   readonly kind: string;
   readonly formId: string;
@@ -74,14 +60,9 @@ function row(value: {
 }
 
 /**
- * Store a proposed change pending.
- *
- * **Call inside the caller's transaction, beside its SEC-15 row** (Q61): a proposal that
- * exists without the audit row recording who proposed it is the one failure this control may
- * not have, which is the reasoning task 069 uses for a grant one plane over.
- *
- * The unique index `webhook_endpoint_proposals_one_pending` refuses a second pending change
- * to the same endpoint, and the caller turns that into a 409 rather than a 500.
+ * Store a proposed change pending. Call inside the caller's transaction, beside its
+ * SEC-15 row: a proposal without the audit row recording who proposed it is the one
+ * failure this control may not have.
  */
 export async function insertEndpointProposal(
   exec: Executor,
@@ -130,13 +111,8 @@ export async function getEndpointProposal(
 }
 
 /**
- * The proposals for one form in one environment that **nobody has resolved yet**, newest
- * first, plus the confirmed ones whose apply has not landed.
- *
- * The second half is not tidiness: a confirmation whose apply failed leaves a row saying
- * `confirmed_at` with `applied_at` null, the endpoint is **not** live, and the screen has to
- * show it or the operator reads an endpoint list that is simply missing their change. A
- * withdrawn proposal and a fully applied one are history and are read from the audit.
+ * Unresolved proposals for one form in one environment, newest first. Confirmed ones
+ * whose apply has not landed are included, because their endpoint is not live yet.
  */
 export async function listOpenEndpointProposals(
   exec: Executor,
@@ -159,15 +135,9 @@ export async function listOpenEndpointProposals(
 }
 
 /**
- * Whether one endpoint already has an **open** change, which is what the propose path
- * checks before it mints an id.
- *
- * Open means *not yet applied and not withdrawn*, which is the same predicate the
- * `webhook_endpoint_proposals_one_open` index carries and for the reason that index records:
- * a confirmed proposal whose endpoint write did not land can still be resumed, so it keeps
- * the endpoint claimed. A read that only asked about *pending* ones would let a second
- * proposal be created and applied beside it, and resuming the first would then overwrite
- * the second with a value nobody had agreed to last.
+ * Whether one endpoint already has an open change: not yet applied and not withdrawn.
+ * Asking only about pending ones would let a second proposal be applied beside a
+ * confirmed one that can still be resumed.
  */
 export async function hasPendingEndpointProposal(
   exec: Executor,
@@ -190,21 +160,11 @@ export async function hasPendingEndpointProposal(
 }
 
 /**
- * Claim a pending proposal for one confirming account, or answer `undefined`.
+ * Claim a pending proposal for one confirming account, or `undefined` when it was not
+ * pending. The confirming account may never be the proposing one.
  *
- * `undefined` means the proposal was not pending: already confirmed, already withdrawn, or
- * not there at all. The caller cannot tell those apart from this answer and does not need
- * to - it reads the row to say which, and the three are one 409 to a caller who raced.
- *
- * **The confirming account is never the proposing one.** The predicate says so as well as
- * the handler, and the `webhook_endpoint_proposals_second_account` CHECK says so a third
- * time: this is the one rule the whole mechanism exists for, so it is written at every layer
- * that could enforce it rather than at the one that happens to run first.
- *
- * Claiming happens **before** the apply and in the same transaction as the confirmation's
- * SEC-15 row, which is the conservative order: a failure after this leaves a row that says
- * somebody confirmed and `applied_at` null, with the endpoint not yet live. The other order
- * would leave production personal data flowing to a new URL with nothing recording who
+ * Claim before the apply, in the same transaction as the confirmation's SEC-15 row: the
+ * other order would leave production data flowing to a new URL with nothing recording who
  * agreed to it.
  */
 export async function confirmEndpointProposal(
@@ -234,12 +194,8 @@ export async function confirmEndpointProposal(
 }
 
 /**
- * Stamp a confirmed proposal as applied, once the endpoint write has landed in
- * `data_<env>.webhooks`.
- *
- * Separate from the confirmation because the two commit on **different pools**: the
- * proposal is control-plane state and the endpoint is the environment's, so one transaction
- * cannot hold both. The column is what makes the gap legible rather than silent.
+ * Stamp a confirmed proposal as applied, once the endpoint write has landed. Separate
+ * from the confirmation because the two commit on different pools.
  */
 export async function markEndpointProposalApplied(
   exec: Executor,
@@ -259,30 +215,13 @@ export async function markEndpointProposalApplied(
 }
 
 /**
- * Withdraw an **open** proposal - pending, or confirmed with its apply not yet landed - or
- * answer `undefined` when there was nothing open to withdraw.
+ * Withdraw an open proposal, or answer `undefined` when there was nothing open to
+ * withdraw. Either account may withdraw.
  *
- * Either account may withdraw: the proposer changing their mind and a second approver
- * refusing the change are the same act on the row, and which it was is in the audit.
- *
- * # Why a confirmed proposal can be withdrawn
- *
- * It could not at first, and the predicate said so while two comments and an admin button
- * said the opposite (PR #1100's review, finding 3). The direction chosen is the one that
- * leaves an operator a way out: a confirmation whose endpoint write never landed holds the
- * endpoint claimed through the `one_open` index, so with no withdrawal for that state a
- * persistently failing apply would mean **no new proposal for that endpoint is ever
- * accepted** and only a successful resume could clear it. That is a wedge with no operator
- * door, which is worse than the thing the narrower predicate was protecting.
- *
- * It is safe because the endpoint was never changed: nothing is live to unpick, which is
- * exactly what `applied_at is null` means. An **applied** proposal is a different matter
- * and stays un-withdrawable, here and in the `one_outcome` CHECK: the change is live, and
- * reversing it is a new proposal with its own second approver.
- *
- * The row keeps both accounts afterwards - `confirmed_by` and `withdrawn_by` - because the
- * record is that somebody agreed and somebody then gave up on it, and losing the first half
- * would make the audit disagree with the SEC-15 rows beside it.
+ * A confirmed proposal is withdrawable because `applied_at is null` means nothing went
+ * live, and the `one_open` index would otherwise let a persistently failing apply block
+ * every new proposal for that endpoint. An applied one is not: reversing a live change
+ * needs its own second approver.
  */
 export async function withdrawEndpointProposal(
   exec: Executor,
