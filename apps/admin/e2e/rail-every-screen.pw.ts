@@ -4,7 +4,6 @@ import { expect, test } from "../../portal/e2e/support/gates.js";
 
 import { createTestAdmin, uniqueAdminEmail } from "./support/admin-account.js";
 import { enrollNewAdmin, signInWithTotp } from "./support/flow.js";
-import { openRail } from "./support/forms.js";
 
 /**
  * A rail on every authenticated screen, and the list filters inside it (§7.0 of
@@ -224,9 +223,13 @@ test("1117 shuts the rail below --bp-sidebar into a summary naming the subject a
   // wrote down.
   await page.setViewportSize({ width: SIDEBAR - 1, height: 900 });
   await page.goto("/questions?status=draft&q=smoking");
-  await openRail(page);
 
+  // `data-ready` rather than `openRail`, which would open it: the server ships the rail
+  // open because that is the only answer the first painted frame can carry, and
+  // `components/rail-disclosure.tsx` sets this attribute once it has read the media query.
+  // Reading `open` before then races hydration and always sees the server's answer.
   const disclosure = page.locator("details.qcms-rail__disclosure");
+  await expect(disclosure).toHaveAttribute("data-ready", "");
   expect(
     await disclosure.evaluate((element) => (element as HTMLDetailsElement).open),
     "the rail is shut below the boundary",
@@ -247,7 +250,7 @@ test("1117 shuts the rail below --bp-sidebar into a summary naming the subject a
   // the body open, which is ruling 2.1 and the reversal #1116 recorded.
   await page.setViewportSize({ width: SIDEBAR, height: 900 });
   await page.goto("/questions?status=draft&q=smoking");
-  await openRail(page);
+  await expect(disclosure).toHaveAttribute("data-ready", "");
   expect(
     await disclosure.evaluate((element) => (element as HTMLDetailsElement).open),
     "and open at and above it",
