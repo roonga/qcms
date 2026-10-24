@@ -1,32 +1,18 @@
 /*
  * QCMS design tokens: the four-group token contract (ADR-30).
+ * Contract documentation: docs/theming.md.
  *
- * Every visual decision the respondent portal makes resolves from a CSS custom
- * property declared in this file. There are exactly four groups:
+ * Every visual decision the portal makes resolves from a custom property declared
+ * here, in four groups: --color-*, the typography tokens (--font-fallback-*,
+ * --font-portal, --font-mono, --type-*), --space-* and --radius-*. The vendored
+ * components resolve --color-* directly in their own utility strings, since ADR-22
+ * keeps those files byte-identical upstream; the rest reach them through the
+ * qcms-owned `theme-components.css`, so a host imports both sheets.
  *
- *   1. color        --color-*   palette, per theme x mode
- *   2. typography   --font-fallback-* + --font-portal + --font-mono + --type-*
- *                   the fallback tails, the two family tokens, and the type scale
- *   3. spacing      --space-*   control height, paddings, gaps, rhythm
- *   4. radius       --radius-*  control / card / small-control corners
- *
- * The vendored a2-react-aria components resolve --color-* directly in their own
- * Tailwind utility strings (ADR-22 keeps those files byte-for-byte upstream);
- * spacing, radius and the type scale reach them through `theme-components.css`,
- * which is the qcms-owned CSS layer over the same tokens. Import both:
- *
- *   @import "@roonga/qcms-ui/theme.css";             // the tokens (this file)
- *   @import "@roonga/qcms-ui/theme-components.css";  // components consume them
- *
- * SELECTOR CONVENTION
- * Every block below is anchored on `:is(:root, [data-qcms-theme-scope])` (the
- * scope carrier, ADR-38): the token set applies to the document root OR to any
- * element carrying `data-qcms-theme-scope`, so a themed subtree is expressible
- * without giving up the document-level form. The two arguments are both (0,1,0)
- * and `:is()` takes its most specific argument, so the anchor is exactly as
- * specific as the bare `:root` it replaced and no rule can flip. Never soften it
- * to `:where()`: that is specificity 0 and would re-rank every block below
- * against an adopter's own `:root` overrides. The knobs then ride the anchor:
+ * Every block is anchored on `:is(:root, [data-qcms-theme-scope])` (ADR-38), so a
+ * themed subtree is expressible without giving up the document-level form. Never
+ * soften it to `:where()`: that is specificity 0 and would re-rank every block
+ * below against an adopter's own `:root` overrides. The knobs ride the anchor:
  *   mode    anchor class:     (none) = Light   .dark = Dark   .hc = High-contrast
  *   theme   anchor attribute: (absent) or [data-theme="slate"] = the default
  *                             [data-theme="harbor"|"sand"|"plum"] = alternates
@@ -34,122 +20,72 @@
  *   density anchor class:     (none) = Comfortable  .density-compact / -spacious
  *   font    anchor class:     .font-<registry key> (declared by fonts.css)
  *
- * The portal stamps `data-qcms-theme-scope` on its <html>, so the document-root
- * case and the scoped case are the same code path there. The default theme
- * (Slate Teal) lives in the bare anchor blocks; an alternate only overrides under
- * the anchor plus [data-theme="x"], so setting the attribute is enough to switch
- * and removing it restores the default.
+ * The default theme lives in the bare anchor blocks and an alternate only
+ * overrides under the anchor plus [data-theme="x"], so setting the attribute
+ * switches and removing it restores the default.
  *
- * SOURCE OF TRUTH FOR THE COLOUR VALUES
- * The palettes below are the theme-palette design deliverable (plan/theme-palettes:
- * THEMES.md documents every pair, tokens.css holds the authored values). They are
- * copied here verbatim, never re-derived. Every text/background pair meets WCAG
- * 2.2 AA in Light and Dark and AAA (7:1) body contrast in High-contrast; the
- * ratios are recomputed from THIS file by `theme-tokens.test.ts`, so a value that
- * drifts below its target fails the build rather than shipping.
- *
- * Contract documentation: docs/theming.md.
+ * The palettes are the theme-palette design deliverable, copied verbatim and never
+ * re-derived. Every text and background pair meets WCAG 2.2 AA in Light and Dark
+ * and AAA body contrast in High-contrast; `theme-tokens.test.ts` recomputes the
+ * ratios from this file, so a value that drifts fails the build.
  */
 
 /* ==========================================================================
-   GROUP 2 - TYPOGRAPHY. --font-fallback-* are the tails, --font-portal and
-   --font-mono are the families that consume them, --type-* is the scale.
-   The five WCAG 1.4.12 floors are NUMERIC REQUIREMENTS carried by tokens, not
+   GROUP 2 - TYPOGRAPHY.
+   The five WCAG 1.4.12 floors are numeric requirements carried by tokens, not
    guidance: body >= 16px, line-height >= 1.5, letter-spacing >= 0.12em,
-   word-spacing >= 0.16em, paragraph spacing >= 2em. Nothing (no mode, no theme,
-   no density level) may lower them; `theme-tokens.test.ts` asserts each floor.
-   The declarative font registry that swaps --font-portal (task 052) lives in
-   `font-registry.ts` and ships as the generated `fonts.css`: each entry is one
-   `:is(:root, [data-qcms-theme-scope]).font-<key>` block that sets --font-portal
-   and NOTHING else, so no font selection can reach a floor. Import fonts.css
-   after this file.
+   word-spacing >= 0.16em, paragraph spacing >= 2em. No mode, theme or density
+   level may lower one; `theme-tokens.test.ts` asserts each floor. The generated
+   `fonts.css` imports after this file and each of its blocks sets --font-portal
+   and nothing else, so no font selection can reach a floor.
 
-   THE FALLBACK TAILS ARE DECLARED HERE AND NOWHERE ELSE (issue #27). The three
-   --font-fallback-* values below are the ONLY literal font-family lists in the
-   product: --font-portal, --font-mono, the app face (--font-admin) and all 23
-   registry entries end in one of them, and `scripts/check-font-tokens.mjs` fails
-   the build when a second list is written down anywhere under apps/ or
-   packages/ui/src/. Before that gate there were three divergent sans tails and
-   two divergent mono tails in the repository, each edited on its own.
+   The three --font-fallback-* values are the only literal font-family lists in
+   the product, and `scripts/check-font-tokens.mjs` fails the build when a second
+   one is written down under apps/ or packages/ui/src/.
    ========================================================================== */
 :is(:root, [data-qcms-theme-scope]) {
   /*
-   * THE SANS TAIL. What a respondent gets when the primary face is missing,
-   * refused, or still downloading. Read it left to right:
-   *
-   *   ui-sans-serif   the CSS Fonts 4 generic for the system's sans UI face
-   *                   (css-fonts-4 2.1.5). Honoured by Chromium and WebKit.
-   *   system-ui       the same intent for Firefox, which has no ui-sans-serif.
-   *                   It is deliberately NOT the first entry and never the only
-   *                   one: system-ui resolves from the OS/UI locale rather than
-   *                   the content language, so on a CJK-locale machine it is a
-   *                   CJK UI face whose Latin glyphs are oversized, and it used
-   *                   to short-circuit the rest of the list for non-Latin text
-   *                   (Mozilla bug 1724907, csswg-drafts issue 3658).
-   *   -apple-system   the Apple platforms' own alias, for older WebKit.
-   *   "Segoe UI"      Windows.
-   *   Roboto          Android and most Chrome OS builds.
-   *   "Helvetica Neue", "Noto Sans", "Liberation Sans", Arial
-   *                   the broad-coverage named faces a desktop Linux or an older
-   *                   machine actually has. Noto Sans in particular is the widest
-   *                   glyph coverage most Linux distributions ship by default.
-   *   sans-serif      the generic. css-fonts-4 2.1 encourages a generic last so
-   *                   the user's own per-script font preference can answer, which
-   *                   is the only entry in this list that can serve a script the
-   *                   named faces do not cover.
-   *   emoji/symbol    AFTER the generic on purpose, as Bootstrap 5's Reboot does:
-   *                   these are consulted per GLYPH, for codepoints no earlier
-   *                   face has. Without them a respondent whose UI font carries
-   *                   no emoji sees a .notdef box in authored content.
-   *
-   * This is a fallback baseline, not multi-script coverage: the shipped webfonts
-   * are Latin subsets, and deciding which scripts QCMS self-hosts is the open
-   * half of issue #27.
+   * The sans tail, for when the primary face is missing, refused or still
+   * downloading. Two entries are positional rather than preferential:
+   * `system-ui` is never first and never alone, because it resolves from the OS
+   * locale rather than the content language and used to short-circuit the rest
+   * of the list for non-Latin text (Mozilla bug 1724907); and the emoji and
+   * symbol faces come after the generic on purpose, since they are consulted per
+   * glyph for codepoints no earlier face has.
    */
   --font-fallback-sans:
     ui-sans-serif, system-ui, -apple-system, "Segoe UI", Roboto, "Helvetica Neue", "Noto Sans",
     "Liberation Sans", Arial, sans-serif, "Apple Color Emoji", "Segoe UI Emoji", "Segoe UI Symbol",
     "Noto Color Emoji";
 
-  /* The serif tail, same shape: UI generic, named faces, generic last. Consumed
-     by the registry's Traditional & Corporate entries. */
+  /* The serif tail, same shape: UI generic, named faces, generic last. */
   --font-fallback-serif: ui-serif, Georgia, Cambria, "Times New Roman", Times, serif;
 
-  /* The mono tail. The union of what the portal and the app each used to spell
-     out separately, so unifying them dropped no platform: SFMono-Regular is the
-     PostScript name, "SF Mono" the installed name, and Cascadia Code ships with
-     Windows Terminal. No emoji entries here - the mono token renders reference
-     codes and rule values, which are ASCII. */
+  /* The mono tail. No emoji entries: the mono token renders reference codes and
+     rule values, which are ASCII. */
   --font-fallback-mono:
     ui-monospace, SFMono-Regular, "SF Mono", Menlo, "Cascadia Code", "Roboto Mono", Consolas,
     "Liberation Mono", monospace;
 
-  /* The respondent's body face. Brand-neutral by default: the tail alone, which
-     is what makes the registry's System entry a no-download entry rather than a
-     special case. A theme, a registry entry or an adopter overrides the FAMILY
-     and keeps the tail by ending in var(--font-fallback-sans). */
+  /* The respondent's body face: the tail alone by default, which is what makes
+     the registry's System entry a no-download entry rather than a special case.
+     An override names the family and keeps the tail. */
   --font-portal: var(--font-fallback-sans);
 
-  /* Monospace text on either surface: the portal's submission reference, the
-     app's ids, hashes and rule values. Declaring it here also repoints Tailwind's
-     own `font-mono` utility at this token, so the utility and the variable cannot
-     disagree (the utility is how `completion-view.tsx` asks for monospace). */
+  /* Declaring this here also repoints Tailwind's own `font-mono` utility at the
+     token, so the utility and the variable cannot disagree. */
   --font-mono: var(--font-fallback-mono);
 
-  /* Sizes. Body and label sit AT the 16px floor; hint text is the one smaller
-     step and stops at 14px, and is never the sole carrier of meaning. */
+  /* Body and label sit at the 16px floor. Hint text is the one smaller step and
+     is never the sole carrier of meaning. */
   --type-body: 1rem;
   --type-label: 1rem;
   --type-hint: 0.875rem;
   --type-step-title: clamp(1.55rem, 3.5vw, 1.85rem);
 
-  /* Numeric figures. Numbers a respondent types or scans - a number answer, the
-     day/month/year segments of a date - must line up in columns and must not
-     change width as they change value, or a digit correction looks like a layout
-     jump. `tnum` (tabular figures) is applied to those controls REGARDLESS of the
-     selected font: most of the registry's families ship the feature and honour
-     it, the rest ignore it harmlessly, and no font selection can turn it off.
-     Consumed by theme-components.css; the registry is task 052. */
+  /* Tabular figures, applied whatever font is selected: numbers a respondent
+     types or scans must not change width as they change value, or a digit
+     correction reads as a layout jump. Families without the feature ignore it. */
   --type-numeric: "tnum";
 
   /* Spacing of text (the 1.4.12 floors). */
@@ -161,37 +97,22 @@
 }
 
 /* ==========================================================================
-   GROUP 3 - SPACING. Chrome only: control height, paddings, gaps, rhythm. A
-   spacing token never carries colour, so no contrast ratio depends on this
-   group. --space-control-h is also the WCAG 2.5.8 target-size floor (>= 24px).
+   GROUP 3 - SPACING. Chrome only, so no contrast ratio depends on this group.
+   --space-control-h is also the WCAG 2.5.8 target-size floor (>= 24px).
 
-   DENSITY is the respondent runtime control over this group (task 053), and it
-   is the ONLY axis that moves these five values. Comfortable is the base below,
-   so it needs no class; Compact and Spacious are the two root classes.
+   Density is the respondent's runtime control over this group and the only axis
+   that moves these five values. A density level may set the five --space-*
+   tokens and nothing else: never a --type-* token, which carries a WCAG 1.4.12
+   floor, and never --space-control-h below 24px. Both are asserted by
+   `theme-tokens.test.ts` and re-measured on rendered controls per density by the
+   portal's browser suite.
 
-   The hard boundary: a density level may set the five --space-* tokens and
-   NOTHING else. In particular it may never touch a --type-* token, because those
-   carry the WCAG 1.4.12 floors, and it may never take --space-control-h below
-   24px, because that token is the WCAG 2.5.8 target-size floor. Both are
-   asserted by `theme-tokens.test.ts` over this file, and re-measured on rendered
-   controls per density by `apps/portal/e2e/appearance.pw.ts`.
-
-   VIEWPORT is the second axis on ONE of the five tokens, --space-section-pad
-   (issue #188, Code Owner decision 2026-09-02). The step card carries a single
-   p-(--space-section-pad) and no Tailwind variant, so the card's phone padding
-   is a token decision rather than a markup one: the blocks below are written
-   mobile-first, and the one @media block at the end of the group raises all
-   three density levels to their wide values at Tailwind's `sm` breakpoint
-   (40rem / 640px). The narrow Comfortable value, 1.25rem, is the p-5 the card
-   carried before task 051, so the phone layout this file ships is the phone
-   layout that was reviewed.
-
-   The same three constraints hold at BOTH ends of the breakpoint, and
-   `theme-tokens.test.ts` now resolves the sheet at each end rather than once:
-   the @media block may set spacing tokens only (so no viewport can reach a
-   1.4.12 floor, which is a --type-* value and is declared nowhere inside a
-   media query), --space-control-h clears 24px at every density x viewport, and
-   Compact < Comfortable < Spacious still holds narrow as well as wide.
+   Viewport is a second axis on one token, --space-section-pad, because the step
+   card carries a single p-(--space-section-pad) and no Tailwind variant, making
+   its phone padding a token decision rather than a markup one. The blocks are
+   written mobile-first and the one media block raises all three density levels
+   at the `sm` breakpoint. Every constraint above holds at both ends, and
+   `theme-tokens.test.ts` resolves the sheet at each.
    ========================================================================== */
 :is(:root, [data-qcms-theme-scope]) {
   --space-control-h: 44px;
@@ -201,10 +122,8 @@
   --space-stack: 0.5rem;
 }
 
-/* Compact: for respondents who want more of a long form on screen at once, and
-   the escape hatch on a narrow phone. 36px controls still clear 2.5.8 by 12px
-   (the option rows, whose target is the whole label row, come out at 36px too:
-   a 24px line box plus 6px of --space-stack above and below). */
+/* Compact: more of a long form on screen at once. 36px controls still clear
+   2.5.8 by 12px, and the option rows come out at 36px too. */
 :is(:root, [data-qcms-theme-scope]).density-compact {
   --space-control-h: 36px;
   --space-control-pad-x: 0.7rem;
@@ -223,19 +142,14 @@
   --space-stack: 0.75rem;
 }
 
-/* At and above Tailwind's `sm` breakpoint the card gets the roomier padding the
-   flat token shipped: 24px / 36px / 48px. The three levels stay a scale a
-   respondent can feel at either end - the narrow steps are 14px / 20px / 28px,
-   the same 0.7x and 1.33x either side of Comfortable that the wide values use,
-   so choosing Compact on a phone is still a visible choice.
+/* At and above the `sm` breakpoint the card gets roomier padding, keeping the
+   same 0.7x and 1.33x either side of Comfortable that the narrow values use, so
+   choosing Compact on a phone is still a visible choice.
 
-   Only --space-section-pad moves with the viewport. The other four tokens have
-   no width story: control height and the target-size floor are about fingers,
-   not screens, and the gaps are already relative units. Adding them here would
-   put a second unreviewed layout at every width for no stated need.
-
-   Written min-width, so the narrow value above is the default a viewport gets
-   when no media query resolves at all. */
+   Only --space-section-pad moves with the viewport: control height is about
+   fingers rather than screens and the gaps are already relative units. Written
+   min-width, so the narrow value is what a viewport gets when no media query
+   resolves. */
 @media (min-width: 40rem) {
   :is(:root, [data-qcms-theme-scope]) {
     --space-section-pad: 2.25rem;
@@ -251,9 +165,8 @@
 }
 
 /* ==========================================================================
-   GROUP 4 - RADIUS. Corners are a THEME-level setting (brand character), not a
-   respondent control: the deployment picks one preset. Subtle is the base; the
-   other three are root classes. Geometry only, so again no contrast impact.
+   GROUP 4 - RADIUS. A theme-level setting, not a respondent control: the
+   deployment picks one preset. Geometry only, so no contrast impact.
      --radius-control  buttons / inputs / selects / option rows
      --radius-card     step card / panels / banners / popovers
      --radius-sm       checkboxes / chips
@@ -283,11 +196,11 @@
 }
 
 /* ==========================================================================
-   GROUP 1 - COLOR. Four themes, each authored Light and Dark, then ONE shared
+   GROUP 1 - COLOR. Four themes, each authored Light and Dark, then one shared
    High-contrast mode-layer. Values are the design deliverable, verbatim.
    ========================================================================== */
 
-/* ---------- slate - Slate Teal (the shipped default) ---------- */
+/* slate - the shipped default */
 
 :is(:root, [data-qcms-theme-scope]) {
   --color-primary: #2c6e63;
@@ -367,7 +280,7 @@
   --color-overlay: rgb(0 0 0 / 0.6);
 }
 
-/* ---------- harbor - corporate blue ---------- */
+/* harbor */
 
 :is(:root, [data-qcms-theme-scope])[data-theme="harbor"] {
   --color-primary: #1f5eb8;
@@ -447,7 +360,7 @@
   --color-overlay: rgb(0 0 0 / 0.6);
 }
 
-/* ---------- sand - warm neutral / terracotta ---------- */
+/* sand */
 
 :is(:root, [data-qcms-theme-scope])[data-theme="sand"] {
   --color-primary: #a24e2c;
@@ -527,7 +440,7 @@
   --color-overlay: rgb(0 0 0 / 0.6);
 }
 
-/* ---------- plum - deep violet ---------- */
+/* plum */
 
 :is(:root, [data-qcms-theme-scope])[data-theme="plum"] {
   --color-primary: #6d28a8;
@@ -608,20 +521,15 @@
 }
 
 /* ==========================================================================
-   HIGH-CONTRAST - ONE universal mode-layer, never a palette per theme.
-   Pure #000 text and borders on #fff surfaces, flattened neutrals, fixed AAA
-   semantic colours, one universal focus ring. A theme contributes ONLY its
-   accent (--color-primary + hover/active/foreground), which links and primary UI
-   pick up, so each theme keeps a whisper of brand while everything else is
-   identical. A NEW theme gets HC for free by adding one AAA-safe accent block.
-   Order matters and is load-bearing: these blocks are emitted AFTER every
-   light/dark block, so the shared `.hc` block (specificity 0,2,0 - the anchor
-   contributes 0,1,0 and the class another) beats a theme's light block (also
-   0,2,0, the anchor plus [data-theme=x]) on SOURCE ORDER alone, and the accent
-   overrides (0,3,0) beat it on specificity. The scope-carrier rewrite (ADR-38)
-   moved both sides by exactly zero, so this ordering survives it untouched.
-   The heavy borders / flat surfaces / heavy focus that HC also needs are CSS,
-   not token values: they live in theme-components.css.
+   HIGH-CONTRAST - one universal mode-layer, never a palette per theme. A theme
+   contributes only its accent, so a new theme gets HC by adding one AAA-safe
+   accent block.
+
+   Source order here is load-bearing: these blocks are emitted after every light
+   and dark block, so the shared `.hc` block, at the same (0,2,0) as a theme's
+   light block, wins on order alone, while the accent overrides (0,3,0) win on
+   specificity. The heavy borders, flat surfaces and heavy focus HC also needs
+   are CSS rather than token values and live in theme-components.css.
    ========================================================================== */
 
 :is(:root, [data-qcms-theme-scope]).hc {
@@ -663,7 +571,7 @@
   --color-overlay: rgb(0 0 0 / 0.7);
 }
 
-/* The per-theme AAA accent, the ONLY thing HC varies. slate is the block above. */
+/* The per-theme AAA accent, the only thing HC varies; slate is the block above. */
 
 :is(:root, [data-qcms-theme-scope])[data-theme="harbor"].hc {
   --color-primary: #0a3a8a;

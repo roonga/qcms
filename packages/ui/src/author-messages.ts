@@ -1,37 +1,23 @@
 import { z } from "zod";
 
 /**
- * The qcms-side node-prop extension for author-supplied validation messages
- * (task 048, ADR-32).
+ * The qcms-side node-prop extension for author-supplied validation messages (ADR-32).
  *
- * ADR-32 puts the author's per-constraint wording on the control node as an
- * optional `messages` prop, which collides with a property of the vendored
- * schemas: every `@a2ra/core` control props object is `.strict()`, and
- * `A2Renderer` validates each node against its registry schema before rendering
- * it (an unknown prop is a thrown error, not an ignored key). The vendored
- * schemas must stay byte-identical upstream (ADR-22, clean `a2ra diff`), so the
- * qcms wiring lives here instead, exactly as the controlled adapters do: the
- * registry registers `withAuthorMessages(VendoredSchema)` for each control the
- * compiler can emit messages on.
- *
- * What that wrapper does is validate the node in two halves - the `messages`
- * prop against {@link AuthorMessagesSchema}, and the node *without* it against
- * the vendored schema, which therefore still sees exactly the upstream shape.
- * The prop is never consumed by a control: the host reads it out of the compiled
- * document (the portal's `questionMessages`) and feeds the resolved string into
- * the field's error slot. The vendored components destructure their props
- * explicitly, so the extra key they receive is inert.
+ * The author's per-constraint wording rides on the control node as a `messages` prop,
+ * but every `@a2ra/core` control props object is `.strict()` and the vendored schemas
+ * must stay byte-identical upstream (ADR-22), so the wiring lives here: the registry
+ * registers `withAuthorMessages(VendoredSchema)` instead. No control consumes the prop;
+ * the host reads it out of the compiled document and feeds the resolved string into the
+ * field's error slot.
  */
 
 /**
- * A resolved author message map: constraint key -> display string for the
- * active locale (the compiler resolved the `LocalizedText` at publish time).
+ * A resolved author message map: constraint key -> display string for the active
+ * locale.
  *
- * The key set mirrors `@roonga/qcms-core`'s `ValidationMessageKey`. It is restated
- * rather than imported because `@roonga/qcms-ui` is a browser package that must not
- * pull the kernel into the client bundle; `packages/a2ui-compiler` is what pairs
- * the two, and the golden corpus rendered by `conformance.test.tsx` is what
- * proves they still agree.
+ * The key set mirrors `@roonga/qcms-core`'s `ValidationMessageKey`, restated rather
+ * than imported because `@roonga/qcms-ui` must not pull the kernel into the client
+ * bundle. The golden corpus is what proves the two still agree.
  */
 export const AuthorMessagesSchema = z
   .object({
@@ -80,9 +66,8 @@ export function withAuthorMessages(vendored: z.ZodType): z.ZodType<unknown> {
       typeof props === "object" && props !== null
         ? (props as { messages?: unknown }).messages
         : undefined;
-    // Re-issued as `custom` with the failing schema's own message and path: the
-    // point is a readable "Invalid props for X" from `A2Renderer`, and zod's
-    // per-code issue types are not re-addable verbatim across schemas.
+    // Re-issued as `custom` because zod's per-code issue types are not re-addable
+    // verbatim across schemas.
     const reissue = (error: z.ZodError, prefix: readonly PropertyKey[]): void => {
       for (const issue of error.issues) {
         ctx.addIssue({

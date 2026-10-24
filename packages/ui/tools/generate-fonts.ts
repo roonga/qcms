@@ -1,24 +1,19 @@
 /**
- * Writes the two artifacts derived from the font manifest (task 052):
- * `src/fonts.css` and `src/fonts/NOTICE.md`.
+ * Writes the two artifacts derived from the font manifest: `src/fonts.css` and
+ * `src/fonts/NOTICE.md`.
  *
  *   pnpm --filter @roonga/qcms-ui fonts:generate
  *
- * The manifest (`src/font-registry.ts`) is the single place a font is added or
- * removed. Both outputs are committed - the portal `@import`s the stylesheet with
- * no build step and no network, and the notice is what a redistributor reads - and
- * `src/font-registry.test.ts` fails if either has drifted from the manifest. That
- * pairing is what makes add/remove a ONE-ENTRY change rather than an edit in three
- * places.
+ * Both outputs are committed, so the portal imports the stylesheet with no build
+ * step and no network, and `src/font-registry.test.ts` fails if either has drifted
+ * from the manifest.
  *
- * Lives outside `src/` on purpose: `src/import-surface.test.ts` allows only the
+ * It lives outside `src/` on purpose: `src/import-surface.test.ts` allows only the
  * a2-react-aria stack in the shipped tree, and this tool needs `node:fs`.
  *
- * The package script pipes both outputs through Prettier, because the repo's root
- * `lint` includes `prettier --check .` and Prettier reflows a long
- * custom-property value onto a continuation line. The CSS drift test therefore
- * compares content with whitespace normalized: formatting is Prettier's business,
- * content is the manifest's.
+ * The package script pipes both outputs through Prettier, since the root lint gate
+ * checks formatting and Prettier reflows a long custom-property value. The CSS
+ * drift test therefore compares content with whitespace normalized.
  */
 
 import { statSync, writeFileSync } from "node:fs";
@@ -31,9 +26,9 @@ const SRC = join(import.meta.dirname, "..", "src");
 const FONT_DIR = join(SRC, "fonts");
 
 /**
- * Total committed bytes of one entry's self-hosted faces, counting each FILE once.
- * A variable font (Lexend) declares two faces over one file, and counting per face
- * would report bytes that are not on disk.
+ * Total committed bytes of one entry's faces, counting each file once: a variable
+ * font declares several faces over one file, so counting per face would report bytes
+ * that are not on disk.
  */
 function bytesOf(entry: FontEntry): number {
   const files = new Set(entry.faces.map((face) => face.file));
@@ -42,7 +37,7 @@ function bytesOf(entry: FontEntry): number {
 
 const thousands = (n: number): string => n.toLocaleString("en-US");
 
-/** The fixed preamble: what a redistributor needs to know before the tables. */
+/** What a redistributor needs to know before the tables. */
 const PREAMBLE: readonly string[] = [
   "# Self-hosted font notices (`@roonga/qcms-ui`)",
   "",

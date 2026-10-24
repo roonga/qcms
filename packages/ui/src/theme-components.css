@@ -1,57 +1,36 @@
 /*
  * QCMS component token layer: the CSS that makes the vendored a2-react-aria
- * controls consume the spacing, radius and typography groups of the token
- * contract, plus the High-contrast mode scaffold. Companion to `theme.css`
- * (which holds the token VALUES); import both, this one after it:
- *
- *   @import "@roonga/qcms-ui/theme.css";
- *   @import "@roonga/qcms-ui/theme-components.css";
- *   @import "@roonga/qcms-ui/fonts.css";          // the font registry (task 052)
- *
- * WHY A SEPARATE LAYER AND NOT AN EDIT TO THE COMPONENTS
- * The `src/components/a2ui/*` sources are vendored upstream and kept
- * byte-for-byte so `a2ra diff` stays clean (ADR-22). Their Tailwind strings
- * already resolve `--color-*` on their own, but their spacing, radius and font
- * sizes are literal utilities (`px-3`, `rounded`, `text-sm`). Reaching those
- * through the token contract (ADR-30) therefore happens HERE, in qcms-owned CSS
- * over the DOM those components render, and never by editing a vendored file.
- *
- * Two mechanisms, both deliberate:
- *
- *  1. `@theme` (Tailwind v4) repoints the two sub-16px steps of the Tailwind type
- *     scale at the QCMS type tokens. `text-sm` (14px) and `text-xs` (12px) are
- *     below the WCAG 1.4.12 floors, and they are used by the vendored labels,
- *     descriptions and error slots as well as by the shells' own chrome, so
- *     fixing the scale itself fixes every one of them from the tokens.
- *  2. Plain, UNLAYERED rules for radius and spacing. Tailwind's utilities live in
- *     `@layer utilities`, and unlayered author CSS beats any layer regardless of
- *     specificity, so these win over `rounded` / `px-3` without `!important` and
- *     without depending on Tailwind internals.
- *
- * The selectors anchor on markup qcms or react-aria owns, never on a vendored
- * Tailwind class string: `[data-qcms-field]` is the per-question wrapper
- * `registry.tsx` renders, and `[data-rac]` marks a react-aria-components element.
- *
- * SCOPE CARRIER (ADR-38)
- * Every rule below is a descendant of `[data-qcms-theme-scope]`, and the
- * High-contrast rules are anchored on that attribute rather than on `:root`. This
- * sheet is the one place where the carrier is the SOLE anchor rather than an
- * alternative to `:root`, and the difference is deliberate: these rules describe
- * treatment over `[data-rac]` elements, which every host that uses the same
- * component kit renders too, so prefixing `:is(:root, [data-qcms-theme-scope])`
- * would contain nothing (every such element already descends from the document
- * root). Making the attribute the sole carrier makes containment real, which is
- * what lets the QCMS app import this sheet without restyling its own control
- * layer. The portal stamps the attribute on its <html>, so the whole sheet keeps
- * applying there exactly as before.
- *
- * The `@theme` block above is the one part that CANNOT be scoped: Tailwind theme
- * variables are global to a build by construction. A host that imports this sheet
- * takes the raised `text-sm` / `text-xs` steps app-wide, or re-pins them in its
- * own later `@theme` block.
- *
- * Requires Tailwind v4 in the consuming build (the components need it anyway).
+ * controls consume the spacing, radius and typography token groups, plus the
+ * High-contrast scaffold. Companion to `theme.css`, which holds the values, and
+ * imported after it. Requires Tailwind v4 in the consuming build.
  * Contract documentation: docs/theming.md.
+ *
+ * It is a separate layer because the vendored sources are kept byte-identical
+ * upstream (ADR-22): their Tailwind strings resolve `--color-*` on their own, but
+ * their spacing, radius and font sizes are literal utilities, so reaching those
+ * through the token contract (ADR-30) happens here, over the DOM they render,
+ * and never by editing a vendored file.
+ *
+ * Two mechanisms:
+ *
+ *  1. `@theme` repoints Tailwind's two sub-16px type steps at the QCMS tokens,
+ *     because `text-sm` and `text-xs` are below the WCAG 1.4.12 floors and the
+ *     vendored labels, descriptions and error slots all use them.
+ *  2. Plain, unlayered rules for radius and spacing. Tailwind's utilities live in
+ *     `@layer utilities` and unlayered author CSS beats any layer whatever its
+ *     specificity, so these win without `!important` and without depending on
+ *     Tailwind internals.
+ *
+ * Selectors anchor on markup qcms or react-aria owns, never on a vendored
+ * Tailwind class string: `[data-qcms-field]` is the per-question wrapper the
+ * registry renders, and `[data-rac]` marks a react-aria-components element.
+ *
+ * Every rule is a descendant of `[data-qcms-theme-scope]` (ADR-38), and here the
+ * carrier is the sole anchor rather than an alternative to `:root`: these rules
+ * describe treatment over `[data-rac]` elements, which every host using the same
+ * kit renders too, so adding `:root` would contain nothing. The `@theme` block is
+ * the one part that cannot be scoped, since Tailwind theme variables are global
+ * to a build, so a host either takes the raised steps app-wide or re-pins them.
  */
 
 /* --------------------------------------------------------------------------
@@ -73,15 +52,10 @@
    RADIUS + SPACING: the vendored controls consume the token groups.
    -------------------------------------------------------------------------- */
 
-/* Text-entry controls: the free-text input, the long-text textarea and the no-JS
-   single-choice fallback's native `<select>` (issue #988), which draws the same
-   box the vendored select's trigger button draws below. The visually-hidden
-   checkbox/radio inputs and the hidden native-submit inputs are excluded - they
-   draw nothing.
-
-   The vendored Select's own hidden `<select>` mirror is matched too and is
-   harmless: it is clipped to 1x1 inside an `aria-hidden` container, so a radius
-   and a min-height on it are never painted. */
+/* Text-entry controls. The visually hidden checkbox and radio inputs and the
+   hidden native-submit inputs are excluded, since they draw nothing. The
+   vendored Select's own hidden `<select>` mirror is matched and is harmless: it
+   is clipped inside an `aria-hidden` container, so nothing here is painted. */
 [data-qcms-theme-scope]
   [data-qcms-field]
   :is(input:not([type="radio"], [type="checkbox"], [type="hidden"], [hidden]), textarea, select) {
@@ -90,11 +64,9 @@
   padding-inline: var(--space-control-pad-x);
 }
 
-/* Composite controls that draw ONE box around several parts: the number field
-   (its own direct-child input, flanked by steppers) and the date field (a row of
-   spinbutton segments). The `:has()` tests distinguish them from a checkbox
-   group, which react-aria also renders with `role="group"` but which is a stack
-   of option rows, not a control box. */
+/* Composite controls that draw one box around several parts. The `:has()` tests
+   distinguish them from a checkbox group, which react-aria also renders with
+   `role="group"` but which is a stack of option rows, not a control box. */
 [data-qcms-theme-scope]
   [data-qcms-field]
   [role="group"][data-rac]:is(:has(> input), :has([role="spinbutton"])) {
@@ -102,8 +74,8 @@
   min-height: var(--space-control-h);
 }
 
-/* The number field's inner input sits INSIDE that box, so it must not draw a
-   second one; the steppers keep their own joined-corner treatment. */
+/* The number field's inner input sits inside that box, so it must not draw a
+   second one. */
 [data-qcms-theme-scope] [data-qcms-field] [role="group"][data-rac] > input {
   border-radius: 0;
   min-height: 0;
@@ -114,12 +86,10 @@
   border-radius: var(--radius-sm);
 }
 
-/* The select's trigger button (the only `aria-haspopup` control the renderer
-   produces). Its popover is portalled to the document body, so the popover and
-   its options are matched below without the field wrapper in the selector - but
-   still inside the scope carrier, which is the whole document in the portal. A
-   host that mounts the carrier on a container rather than on <html> must portal
-   its popovers inside that container for these two rules to reach them. */
+/* The select's trigger button. Its popover is portalled to the document body, so
+   the popover and its options are matched below without the field wrapper in the
+   selector. A host that mounts the carrier on a container rather than on <html>
+   must portal its popovers inside that container for those rules to reach. */
 [data-qcms-theme-scope] [data-qcms-field] button[data-rac][aria-haspopup] {
   border-radius: var(--radius-control);
   min-height: var(--space-control-h);
@@ -135,12 +105,10 @@
   padding-inline: var(--space-control-pad-x);
 }
 
-/* The vendored `Menu`'s popover and its rows (task 032), matched without the field
-   wrapper for the same reason the listbox above is: `MenuTrigger` portals the popover
-   to the body, so it is never a descendant of the field it belongs to. The radius and the
-   inline padding are the only things claimed here - a menu row's colour, weight and
-   focus treatment are the component's own, and a host that wants the design card's
-   shapes styles its own classes rather than reaching in through these selectors. */
+/* The vendored `Menu`'s popover and rows, matched without the field wrapper for
+   the same reason the listbox above is. Radius and inline padding are the only
+   things claimed: a row's colour, weight and focus treatment are the
+   component's own. */
 [data-qcms-theme-scope] [data-rac]:has(> [role="menu"]) {
   border-radius: var(--radius-card);
 }
@@ -152,14 +120,13 @@
   padding-inline: var(--space-control-pad-x);
 }
 
-/* Checkbox indicator: a small square. The radio indicator stays a circle, so it
-   is deliberately not matched here. */
+/* Checkbox indicator. The radio indicator stays a circle, so it is not matched. */
 [data-qcms-theme-scope] [data-qcms-field] label[data-rac]:has(input[type="checkbox"]) > div {
   border-radius: var(--radius-sm);
 }
 
-/* Option rows (checkbox / radio) take the stack token as vertical padding, which
-   is also what keeps their hit target comfortably above the WCAG 2.5.8 floor. */
+/* Option rows take the stack token as vertical padding, which is also what keeps
+   their hit target above the WCAG 2.5.8 floor. */
 [data-qcms-theme-scope] [data-qcms-field] label[data-rac] {
   padding-block: var(--space-stack);
 }
@@ -175,18 +142,12 @@
 }
 
 /* --------------------------------------------------------------------------
-   TABULAR FIGURES. Numeric controls get `font-feature-settings: "tnum"` from the
-   `--type-numeric` token, whatever font the registry has selected (task 052).
-   Digits then share one advance width, so a number answer and the day / month /
-   year segments of a date stay column-aligned and do not shift as the respondent
-   corrects a digit. Families without the feature ignore it, which is why this is
-   unconditional rather than per-font, and it is a TOKEN so an adopter can turn it
-   off in one place instead of hunting selectors.
-
-   Same anchors the rules above use, so nothing depends on a vendored Tailwind
-   class string: the number field's inner input, the date field's spinbutton
-   segments, the no-JS date fallback's day, month and year boxes (which are
-   `inputmode="numeric"`), and any input the renderer marks numeric.
+   TABULAR FIGURES, from the `--type-numeric` token whatever font is selected.
+   Digits then share one advance width, so a number answer and a date's segments
+   stay column-aligned and do not shift as a respondent corrects a digit.
+   Families without the feature ignore it, which is why this is unconditional
+   rather than per-font, and it is a token so an adopter can turn it off in one
+   place instead of hunting selectors.
    -------------------------------------------------------------------------- */
 [data-qcms-theme-scope]
   [data-qcms-field]
@@ -201,11 +162,10 @@
 }
 
 /* --------------------------------------------------------------------------
-   HIGH-CONTRAST mode scaffold (ADR-30). One theme-agnostic layer, never a
-   palette per theme: the token VALUES for `.hc` live once in theme.css, and the
-   treatment that is CSS rather than a value lives here. Heavy black borders,
-   flat surfaces, a heavy focus ring. A new theme inherits all of it and
-   contributes only its AAA accent.
+   HIGH-CONTRAST mode scaffold (ADR-30). One theme-agnostic layer: the `.hc`
+   token values live once in theme.css, and the treatment that is CSS rather
+   than a value lives here. A new theme inherits all of it and contributes only
+   its AAA accent.
    -------------------------------------------------------------------------- */
 
 /* HC is a light-on-dark-text mode, not Dark: tell the UA so form controls and
@@ -214,8 +174,7 @@
   color-scheme: light;
 }
 
-/* Heavy borders on every control edge. `--color-border-strong` is pure black in
-   the HC layer, so this is the "heavy black border" treatment. */
+/* Heavy borders on every control edge; `--color-border-strong` is black in HC. */
 [data-qcms-theme-scope].hc
   [data-qcms-field]
   :is(
@@ -235,10 +194,8 @@
   border-color: var(--color-border-strong);
 }
 
-/* Flat surfaces: any Tailwind shadow utility is neutralized in HC, wherever it
-   sits (the vendored popover, a shell's step card). Matching the utility class
-   is intentional here - flatness is a blanket mode rule, not a per-component
-   one. */
+/* Flat surfaces. Matching the utility class is intentional: flatness is a
+   blanket mode rule, not a per-component one. */
 [data-qcms-theme-scope].hc [class*="shadow-"] {
   box-shadow: none;
 }
@@ -265,36 +222,26 @@
 }
 
 /* --------------------------------------------------------------------------
-   PREFERS-CONTRAST: MORE (issue #28).
+   The user-agent-driven half of the contrast story, and deliberately not the
+   `.hc` mode above: that one is a choice that swaps the whole palette, this one
+   is a system setting that only steps the existing palette's edges up. Nothing
+   here changes a colour value, so no text pair moves and no 1.4.12 floor can be
+   reached. Two moves, and only two:
 
-   The user-agent-driven half of the contrast story, and deliberately NOT the
-   `.hc` mode above: that one is a respondent CHOICE (or a deployment default)
-   that swaps the whole palette, this one is a system setting the respondent
-   made once, outside the browser, and it only steps the existing palette's
-   edges up. Nothing here changes a colour VALUE, so no text pair moves and no
-   1.4.12 floor can be reached.
+   1. Control edges take `--color-border-strong` instead of `--color-border`:
+      the higher-contrast half of one authored pair, which
+      `theme-tokens.test.ts` asserts clears 3:1 in every theme and mode, so this
+      is a step onto a proven ratio rather than a new colour.
+   2. The focus ring gains a pixel, matching the weight `.hc` uses.
 
-   Two moves, and only two:
-
-   1. Control edges take `--color-border-strong` instead of `--color-border`.
-      Those two are the higher- and lower-contrast half of one authored pair,
-      and `theme-tokens.test.ts` asserts the strong half clears 3:1 against its
-      background in every theme x mode. So this is a step onto a ratio that is
-      already proven rather than a new colour.
-   2. The focus ring gains a pixel (2px -> 3px), matching the weight `.hc` uses.
-
-   An INVALID control is excluded from the edge rule on purpose. Its border is
-   `--color-danger`, which is meaning rather than chrome, and flattening it to
-   the neutral strong border would trade a contrast step for the loss of the
-   error signal. `.hc` does flatten it, because there the palette really is two
-   colours and the error text carries the meaning instead; here the palette is
-   intact and there is nothing to trade.
+   An invalid control is excluded from the edge rule on purpose: its border is
+   `--color-danger`, which is meaning rather than chrome, so flattening it would
+   trade a contrast step for the loss of the error signal.
    -------------------------------------------------------------------------- */
 @media (prefers-contrast: more) {
-  /* `button[data-rac][aria-haspopup]` rather than every RAC button, because the
-     select trigger is the only one that draws an edge: the number field's
-     steppers sit inside the group's box and carry no border of their own, so
-     naming them would set a colour on a zero-width edge. */
+  /* The select trigger rather than every RAC button, because it is the only one
+     that draws an edge: the number field's steppers carry no border of their
+     own, so naming them would set a colour on a zero-width edge. */
   [data-qcms-theme-scope]
     [data-qcms-field]
     :is(
@@ -307,18 +254,13 @@
     border-color: var(--color-border-strong);
   }
 
-  /* The checkbox and radio indicator, which is the one edge whose STATE lives on
-     a different element: react-aria keeps `data-selected`, `data-indeterminate`
-     and `data-invalid` on the `label[data-rac]` root, so the exclusions ride the
-     label and the border rides its indicator child.
-
-     The three excluded states are excluded for exactly the reason the invalid
-     control above is: a selected or indeterminate indicator's edge is
-     `--color-primary` and an invalid one's is `--color-danger`, and in each case
-     the colour IS the state rather than chrome. What is left is the unselected
-     indicator, which is the control that needed the step-up most - at
-     `--color-border` it sits near 1.5:1 against the surface, where every other
-     control was already stepping to about 4.4:1. */
+  /* The checkbox and radio indicator, the one edge whose state lives on another
+     element: react-aria keeps `data-selected`, `data-indeterminate` and
+     `data-invalid` on the `label[data-rac]` root, so the exclusions ride the
+     label and the border rides its indicator child. Those three states are
+     excluded for the reason the invalid control above is: the colour is the
+     state rather than chrome. What is left is the unselected indicator, which
+     needed the step-up most, at near 1.5:1 against the surface. */
   [data-qcms-theme-scope]
     [data-qcms-field]
     label[data-rac]:not([data-selected], [data-indeterminate], [data-invalid])
@@ -352,27 +294,15 @@
 }
 
 /* --------------------------------------------------------------------------
-   Repeating group, stacked presentation (task 073, ADR-42, ADR-43, Q12).
+   Repeating group, stacked presentation (ADR-42, ADR-43).
 
-   THE RULING THIS SECTION IMPLEMENTS: one input per row. A single column inside
-   an instance card, with NO two fields side by side at any width - not at a
-   desktop width, not in the admin preview, not for two short fields. It is a
-   Code Owner ruling of 2026-09-30 and not a default, so it is written as one
-   declaration a reviewer can check rather than as a grid that happens to be one
-   column at the widths anybody looked at. Two reasons, and the first decides it:
-   a side-by-side pair inside a repeated card makes the reading order and the tab
-   order diverge from the visual order the moment a rule hides one of the pair in
-   one instance and not in another, which is exactly what per-instance branching
-   does; and one column everywhere is one layout to prove rather than two, which
-   is the same reasoning `playwright.config.ts` encodes by running every spec on
-   the phone project.
-
-   THE LEGEND TRAP, found while building the concept pages rather than reasoned
-   about. With the card's border on the `<fieldset>`, a `<legend>` renders in the
-   fieldset's legend slot and CUTS that border. `float: left; width: 100%` takes
-   the legend out of the slot and puts it inside the card as an ordinary block,
-   while it stays the fieldset's accessible name. The `::after` clears the float
-   so the fields start below it.
+   One input per row: a single column inside an instance card, with no two fields
+   side by side at any width. It is a ruling rather than a default, so it is
+   written as one declaration a reviewer can check. A side-by-side pair inside a
+   repeated card makes the reading order and the tab order diverge from the
+   visual order the moment a rule hides one of the pair in one instance and not
+   another, which is exactly what per-instance branching does, and one column
+   everywhere is one layout to prove rather than two.
 
    The card, the gaps and the radii are all tokens (ADR-30), so density and the
    corners preset reach a repeat card like every other surface.
@@ -382,9 +312,9 @@
   display: flex;
   flex-direction: column;
   gap: var(--space-field-gap);
-  /* The containing block for the status region below, which is positioned out of flow.
-     Without it that region resolves against the initial containing block, which is the
-     trap that cost 136 unexplained pixels of document width on a concept page. */
+  /* The containing block for the status region below, which is positioned out of
+     flow. Without it that region resolves against the initial containing block
+     and widens the document. */
   position: relative;
 }
 
@@ -394,28 +324,21 @@
   border: 1px solid var(--color-border);
   border-radius: var(--radius-card);
   min-inline-size: 0;
-  /* `flow-root` rather than the fieldset's default, and for one specific reason: a
-     `<legend>` gets the fieldset's special legend slot only while the fieldset is
-     `display: block`, and a legend in that slot CUTS the card's border. Any other display
-     value puts the legend back in normal flow, where it is an ordinary block, and the
-     card's border stays whole. */
+  /* `flow-root` rather than the fieldset's default: a `<legend>` gets the
+     fieldset's legend slot only while the fieldset is `display: block`, and a
+     legend in that slot cuts the card's border. */
   display: flow-root;
 }
 
-/* Full width so the heading reads as a block at the top of the card while the element
-   stays the fieldset's `<legend>`, and therefore its accessible name.
+/* Full width so the heading reads as a block at the top of the card while the
+   element stays the fieldset's `<legend>`, and therefore its accessible name.
 
-   NOT FLOATED, and that is the whole point of this comment, because floating it is the
-   obvious way to do this and it breaks the card from the inside. A float of `width: 100%`
-   leaves no room beside itself, and the fields below are a GRID, which establishes its own
-   formatting context and therefore sits BESIDE floats rather than under them. The grid
-   resolved to zero width, every field overflowed it, the document's content became wider
-   than the device, and Chromium's mobile layout zoomed the whole page out to fit (0.75 on a
-   Pixel 7, a layout viewport of 546px against a 412px device). That is a 1.4.10 reflow
-   failure on its own, and it also made the group's Add button unclickable, because under a
-   page scale a click point computed in layout pixels lands somewhere else entirely: every
-   press was reported as "fieldset intercepts pointer events", naming a card that was never
-   in the way. Keep the legend in normal flow. */
+   Keep it in normal flow and never float it, which is the obvious way to do this
+   and breaks the card from the inside: a float of `width: 100%` leaves no room
+   beside itself, and the fields below are a grid, which sits beside floats
+   rather than under them. The grid then resolves to zero width, every field
+   overflows it, the document becomes wider than the device, and the mobile
+   layout zooms the whole page out, which is a 1.4.10 reflow failure. */
 [data-qcms-theme-scope] .qcms-repeat__legend {
   display: block;
   width: 100%;
@@ -435,32 +358,23 @@
   outline-offset: 2px;
 }
 
-/* ONE INPUT PER ROW. A single column at every width; the track is fixed at one column
-   deliberately, with no media query anywhere that widens it.
+/* One input per row: the track is fixed at one column deliberately, with no media
+   query anywhere that widens it.
 
-   `minmax(0, 1fr)` and not `1fr`, and the difference is the whole card's behaviour on a
-   phone. `1fr` means `minmax(auto, 1fr)`, and that `auto` floor is the item's MIN-CONTENT
-   width, so the widest field in the group sets a floor the column cannot go below. A date
-   question is three spinbuttons and a calendar button in a row, which is wide, so the floor
-   came out at about 619px: wider than a 412px phone. The page then has a min-content width
-   it cannot meet, Chromium's mobile emulation zooms the whole document out to fit (0.67 on a
-   Pixel 7), and that is a 1.4.10 reflow failure, not a cosmetic one. `minmax(0, 1fr)` lets
-   the column shrink and the fields wrap inside it.
-
-   It also cost a day of debugging, which is worth recording because the symptom named
-   something else entirely. Under that page scale Playwright's click point and its hit test
-   disagree by the scale factor, so every press of the group's Add button was reported as
-   "fieldset intercepts pointer events" with the arithmetic landing the click inside the card
-   above. The page scale was the cause; the fieldset was a bystander. */
+   `minmax(0, 1fr)` and not `1fr`, because `1fr` means `minmax(auto, 1fr)` and
+   that `auto` floor is the item's min-content width, so the widest field sets a
+   floor the column cannot go below. A date control is three spinbuttons and a
+   calendar button in a row, so the floor came out wider than a phone, the page
+   got a min-content width it cannot meet, and the mobile layout zoomed the whole
+   document out: a 1.4.10 reflow failure rather than a cosmetic one. */
 [data-qcms-theme-scope] .qcms-repeat__fields {
   display: grid;
   grid-template-columns: minmax(0, 1fr);
   gap: var(--space-field-gap);
 }
 
-/* A grid item's automatic minimum is its min-content size, which is the same blowout one
-   level down: the column may shrink, and the field inside it has to be allowed to shrink
-   with it. */
+/* A grid item's automatic minimum is its min-content size, which is the same
+   blowout one level down: the field has to shrink with its column. */
 [data-qcms-theme-scope] .qcms-repeat__fields > * {
   min-inline-size: 0;
 }
@@ -476,8 +390,8 @@
   margin-block-start: 0;
 }
 
-/* Add and Remove sit at the portal's control-height floor, which is 44px at the
-   default density and clears WCAG 2.5.8's 24px minimum at every density. */
+/* Add and Remove sit at the control-height floor, which clears WCAG 2.5.8's 24px
+   minimum at every density. */
 [data-qcms-theme-scope] .qcms-repeat__button {
   min-height: var(--space-control-h);
   padding-inline: var(--space-control-pad-x);
@@ -485,11 +399,9 @@
   border-radius: var(--radius-control);
   background-color: var(--color-surface);
   color: var(--color-text);
-  /* A visually hidden label inside a positioned box resolves against the initial
-     containing block and widens the DOCUMENT, which is the horizontal page
-     scroll the portal forbids. One declaration prevents it, and it is here
-     rather than only in the table presentation because this button may carry one
-     too. */
+  /* A visually hidden label with no positioned ancestor resolves against the
+     initial containing block and widens the document, which is the horizontal
+     page scroll the portal forbids. This button may carry one. */
   position: relative;
 }
 
@@ -510,56 +422,49 @@
 }
 
 /* --------------------------------------------------------------------------
-   Repeating group, TABLE presentation (task 077, ADR-43, Q10, plan section 4.5).
+   Repeating group, table presentation (ADR-43).
 
-   A NATIVE `<table>` AND NEVER `role="grid"`. APG states as a defining property
-   of the grid pattern that it "Requires the author to provide code that manages
-   focus movement inside it", so with scripting off a grid is a tab-trap-shaped
-   nothing and this surface's no-JS claim is unqualified. Nothing in this section
-   may grow a roving tabindex or an edit mode; the markup that goes with it is in
-   `repeat/RepeatTable.tsx`, `RepeatRow.tsx` and `RepeatCell.tsx`.
+   A native `<table>` and never `role="grid"`. APG gives as a defining property
+   of the grid pattern that it requires author code to manage focus movement
+   inside it, so with scripting off a grid is a tab trap and this surface's no-JS
+   claim is unqualified. Nothing here may grow a roving tabindex or an edit mode.
 
-   THE 136 PIXELS. `position: relative` on the scroll box and on every cell is
-   not an incidental declaration, because this design puts a visually hidden
-   `<label>` in EVERY cell. A visually hidden label positioned with
-   `position: absolute` inside an `overflow-x: auto` box with no positioned
-   ancestor resolves against the initial containing block, lands past the viewport
-   edge and widens the DOCUMENT, which is exactly the horizontal page scroll the
-   portal forbids (1.4.10 Reflow). It cost 136 unexplained pixels on a concept
-   page and 863 on an admin table, and it is caught by a width assertion rather
-   than by axe, which is why the assertion exists.
+   `position: relative` on the scroll box and on every cell is load-bearing,
+   because this design puts a visually hidden `<label>` in every cell: one with
+   no positioned ancestor resolves against the initial containing block, lands
+   past the viewport edge and widens the document, which is the horizontal page
+   scroll the portal forbids (1.4.10 Reflow). A width assertion catches it; axe
+   does not.
 
-   THE SCROLL BOX IS THE ONLY ELEMENT ON A PORTAL PAGE PERMITTED TO SCROLL
-   HORIZONTALLY, and only above the card reflow. Below it there is nothing to
-   scroll, because a card is one column wide.
+   The scroll box is the only element on a portal page permitted to scroll
+   horizontally, and only above the card reflow, below which a card is one
+   column wide.
    -------------------------------------------------------------------------- */
 
 [data-qcms-theme-scope] .qcms-repeat-table {
-  /* The containing block for every hidden label beneath it. See above. */
+  /* The containing block for every hidden label beneath it. */
   position: relative;
   overflow-x: auto;
   inline-size: 100%;
-  /* NO BLOCK-SIZE CONSTRAINT, and nothing here may add one without reading the
-     2.4.11 paragraph below first: `overflow-x: auto` makes this box a scroll
-     container in BOTH axes, so constraining its height creates a vertical
-     scrollport inside a form step, and that is the geometry a `position: sticky`
-     header needs in order to come to rest over a focused cell. */
+  /* No block-size constraint, and nothing may add one without reading the
+     no-pinning note below: `overflow-x: auto` makes this a scroll container in
+     both axes, so constraining its height creates a vertical scrollport inside
+     a form step, which is the geometry a sticky header needs in order to come to
+     rest over a focused cell. */
 }
 
 [data-qcms-theme-scope] .qcms-repeat-table__table {
   inline-size: 100%;
-  /* `separate` with zero spacing rather than `collapse`, so each cell owns its own
-     border box: the per-cell `position: relative` below is what contains every
-     visually hidden label (see THE 136 PIXELS), and a collapsed border does not
-     paint on a positioned cell. */
+  /* `separate` with zero spacing rather than `collapse`, so each cell owns its
+     border box: the per-cell `position: relative` below contains every hidden
+     label, and a collapsed border does not paint on a positioned cell. */
   border-collapse: separate;
   border-spacing: 0;
 }
 
-/* The group's own label, and the table's accessible name. It is the ONLY place
+/* The group's own label, and the table's accessible name. It is the only place
    that label appears, which is why the expansion emits no heading node for a
-   table-presented group: a heading carrying the same words above a caption says
-   the collection's name twice for no navigational gain. */
+   table-presented group. */
 [data-qcms-theme-scope] .qcms-repeat-table__caption {
   text-align: start;
   font-weight: 600;
@@ -567,49 +472,33 @@
 }
 
 [data-qcms-theme-scope] .qcms-repeat-table__table :is(th, td) {
-  /* The containing block for this cell's hidden label. See THE 136 PIXELS. */
+  /* The containing block for this cell's hidden label. */
   position: relative;
   padding: var(--space-stack);
   text-align: start;
   vertical-align: top;
   border-block-end: 1px solid var(--color-border);
   /* A cell may shrink below its content's min-content width, for the same reason
-     the stacked presentation's grid track is `minmax(0, 1fr)`: a date control is
-     three spinbuttons and a calendar button in a row, and a floor at its
-     min-content width gives the page a width it cannot meet, at which point
-     Chromium's mobile emulation zooms the whole document out and that is a 1.4.10
-     failure rather than a cosmetic one (task 073 measured 0.75 on a Pixel 7). */
+     the stacked presentation's grid track is `minmax(0, 1fr)`: a floor at a date
+     control's min-content width gives the page a width it cannot meet, and the
+     mobile layout then zooms the document out, a 1.4.10 failure. */
   min-inline-size: 0;
 }
 
-/* NOTHING IN THIS TABLE IS PINNED, and that is a ruling rather than an omission
-   (Code Owner, 2026-10-03, on the review of task 077).
-
-   The first version of this section pinned the header row and the total footer
-   with `position: sticky`. Both declarations were INERT: `position: sticky`
-   resolves against the nearest scrollport, which is the `overflow-x: auto` box
-   above, and that box's block size is its content's, so it never scrolls on the
-   block axis and neither cell ever detached. The header scrolled off the top of
-   the viewport with the page exactly as a static one does, and deleting both
-   blocks changed no test - which is how the review found them.
-
-   So the pin is gone rather than made real, and 2.4.11 Focus Not Obscured is
-   satisfied the simpler way: with nothing pinned, nothing can come to rest over a
-   focused cell. Making it real would have meant constraining this box's height to
-   create the scrollport, which puts a vertical scroller inside a form step, and
-   then discharging the very obscuring risk the pin introduces with a
-   `scroll-padding-block` nobody can prove is larger than every theme's control
-   height. The pin's benefit is bounded by the group's own `max`, which SEC-16
-   leaves to the author, and the card reflow already drops the header on a phone.
+/* Nothing in this table is pinned, and that is a ruling rather than an omission.
+   With nothing pinned, nothing can come to rest over a focused cell, which
+   satisfies 2.4.11 Focus Not Obscured the simple way. A real pin would mean
+   constraining this box's height to create the scrollport, putting a vertical
+   scroller inside a form step, and then discharging the obscuring risk the pin
+   introduces with a `scroll-padding-block` nobody can prove exceeds every
+   theme's control height.
 
    The same reasoning is why the row-header column is not pinned inline-start,
-   which is the one pin this layout's horizontal scroll box could actually
-   support: a focused cell the browser scrolls under a pinned first column IS
-   obscured, and discharging that needs `scroll-padding-inline-start` equal to
-   that column's width, which nothing in CSS knows.
-
-   `apps/portal/e2e/repeat-table.pw.ts` records the consequence for the case-44
-   assertion and keeps an assertion that would catch a future pin. */
+   the one pin this layout's horizontal scroll box could support: a focused cell
+   scrolled under a pinned first column is obscured, and discharging that needs a
+   `scroll-padding-inline-start` equal to that column's width, which nothing in
+   CSS knows. The portal's browser suite keeps an assertion that would catch a
+   future pin. */
 [data-qcms-theme-scope] .qcms-repeat-table__table thead :is(th, td) {
   background-color: var(--color-surface);
   font-weight: 600;
@@ -622,7 +511,7 @@
   border-block-start: 2px solid var(--color-border-strong);
 }
 
-/* The column's help text, under its label in the header rather than in every cell. */
+/* The column's help text, in the header rather than in every cell. */
 [data-qcms-theme-scope] .qcms-repeat-table__colhint {
   display: block;
   margin-block-start: var(--space-stack);
@@ -637,67 +526,56 @@
   white-space: nowrap;
 }
 
-/* Q11 moves focus to the row header after an add or a removal, and without
-   scripting the same landing is `autofocus` on it, so a focus destination with no
-   visible indicator would fail 2.4.7. */
+/* Focus lands on the row header after an add or a removal, by `autofocus` without
+   scripting, so a destination with no visible indicator would fail 2.4.7. */
 [data-qcms-theme-scope] .qcms-repeat-table__rowhead:focus-visible {
   outline: 2px solid var(--color-primary);
   outline-offset: 2px;
 }
 
-/* FIGURE-WIDTH DIGITS ON A NUMERIC COLUMN, header and total included. The inputs
-   inside the cells already take `--type-numeric` from the sweep further up this
-   sheet, through `[data-qcms-field]`; a column header and a computed total are
-   text rather than controls, so they are not in that selector and would otherwise
-   be the two cells in the column whose digits did not line up. */
+/* Figure-width digits on a numeric column, header and total included: the cells'
+   inputs already take `--type-numeric` through `[data-qcms-field]` further up,
+   but a header and a computed total are text rather than controls, so they would
+   otherwise be the two cells whose digits did not line up. */
 [data-qcms-theme-scope] .qcms-repeat-table__cell--num {
   font-feature-settings: var(--type-numeric);
 }
 
-/* EVERY CELL CARRIES A REAL `<label>`, CLIPPED HERE AND SHOWN AT THE REFLOW.
+/* Every cell carries a real `<label>`, clipped here and shown at the reflow.
 
-   `scope` and `headers` associate a CELL with its header cells, which serves
-   1.3.1 for the table's structure, and no source found claims they contribute to
-   the INPUT's accessible name - and the input is what a respondent's assistive
-   technology is on while they type (H44, APG's naming practice). The reflow then
-   removes the header cells altogether, so a name that came from a header
-   relationship would go with them. So the label is real in both layouts and only
-   its painting changes, which is what keeps the accessibility tree identical at
-   every width.
+   `scope` and `headers` associate a cell with its header cells, which serves
+   1.3.1 for the table's structure, but nothing says they contribute to the
+   input's accessible name, and the input is what a respondent's assistive
+   technology is on while they type (H44). The reflow then removes the header
+   cells altogether, so a name taken from a header relationship would go with
+   them. The label is therefore real in both layouts and only its painting
+   changes, which keeps the accessibility tree identical at every width.
 
-   ONE DOCUMENTED GAP, recorded rather than argued around: H44 says a hidden label
-   satisfies 1.3.1 and 4.1.2 but that for 3.3.2 Labels or Instructions "the label
-   element must be visible", and no W3C source found states that a visible
-   `<th>` column header discharges 3.3.2 for the input in the cell beneath it.
-   That is an INFERENCE, and task 030's manual screen-reader pass is where it is
-   tested rather than asserted. Do not write it down as a claim.
+   One documented gap: H44 says a hidden label satisfies 1.3.1 and 4.1.2, but
+   that for 3.3.2 the label element must be visible, and no W3C source states
+   that a visible column header discharges 3.3.2 for the input beneath it. That
+   is an inference, tested by a manual screen-reader pass rather than asserted.
 
-   The clip is the same recipe `.qcms-repeat__status` uses: 1px, `overflow:
-   hidden`, `clip-path: inset(50%)`, which keeps the element in the accessibility
-   tree where `display: none` and `visibility: hidden` would both remove it. */
-/* THE SELECTOR CHAIN IS `[data-qcms-field] > * > …`, AND THE DEPTH IS THE WHOLE
-   POINT. `[data-qcms-field]` is the `display: contents` wrapper the registry puts
-   round one question, and its single element child is the control's own root, so
-   this reaches a control's own label and hint and nothing nested inside it. Three
-   things it must NOT reach, each of which it did at some point while this was
-   being written and each of which a render test now refuses:
+   The clip keeps the element in the accessibility tree, where `display: none`
+   and `visibility: hidden` would both remove it. */
+/* The depth of the `[data-qcms-field] > * > ...` chain is the whole point:
+   `[data-qcms-field]` is the `display: contents` wrapper round one question and
+   its single element child is the control's own root, so this reaches that
+   control's own label and hint and nothing nested inside it. Three things it must
+   not reach, each refused by a render test:
 
-     - an OPTION's label. A `Radio` and a `Checkbox` each render a `<label>` round
-       their own input, and a `boolean` or `singleChoice` column is a cell full of
-       them; clipping those leaves a choice column whose options have no names.
-     - a DATE SEGMENT. The day, month and year are `<span role="spinbutton" id>`
-       elements and the first of them is its parent's first child, so a selector
-       written one level shallower clipped the month.
-     - an ERROR MESSAGE. Clipping a field error would be a 3.3.1 failure.
+     - an option's label. A `Radio` and a `Checkbox` each render a `<label>` round
+       their own input, so clipping those leaves a choice column whose options
+       have no names.
+     - a date segment. The day, month and year are spinbutton spans and the first
+       is its parent's first child, so a shallower selector clipped the month.
+     - an error message, whose clipping would be a 3.3.1 failure.
 
-   The question's own label is `:is(label, span):first-child` because the vendored
-   controls disagree about the element and both answers are correct: react-aria
-   renders a `<label for>` for a labelable control (TextField, NumberField, and the
-   qcms native fallbacks) and a `<span>` wired by `aria-labelledby` for a grouped
-   one (DatePicker, RadioGroup), since `<label for>` cannot name a group. The no-JS
-   date fallback is a `<fieldset>`, so its question label is a `<legend>` (the
-   2026-10-19 segment-order ruling); each of its three boxes keeps its own visible
-   part label. */
+   The label is `:is(label, span, legend):first-child` because the vendored
+   controls disagree about the element and each answer is correct: react-aria
+   renders a `<label for>` for a labelable control and a `<span>` wired by
+   `aria-labelledby` for a grouped one, since `<label for>` cannot name a group,
+   and the no-JS date fallback is a `<fieldset>` whose label is its `<legend>`. */
 [data-qcms-theme-scope] .qcms-repeat-table__hidden,
 [data-qcms-theme-scope] .qcms-repeat-table__cell-name,
 [data-qcms-theme-scope]
@@ -705,11 +583,9 @@
   [data-qcms-field]
   > *
   > :is(label, span, legend):first-child,
-/* The hint, clipped for the same reason the label is: it is identical in every cell
-   of a column, and the column header carries it once. `slot="description"` is
-   react-aria's own anchor; `data-qcms-hint` is the qcms native fallbacks' spelling
-   of the same thing. The input keeps its `aria-describedby` either way, so nothing
-   is taken out of the accessibility tree. */
+/* The hint, clipped for the same reason the label is: it is identical in every
+   cell of a column and the header carries it once. The input keeps its
+   `aria-describedby` either way, so nothing leaves the accessibility tree. */
 [data-qcms-theme-scope] .qcms-repeat-table__cell [data-qcms-field] > * > [slot="description"],
 [data-qcms-theme-scope] .qcms-repeat-table__cell [data-qcms-field] > * > [data-qcms-hint] {
   position: absolute;
@@ -735,29 +611,24 @@
 }
 
 /* --------------------------------------------------------------------------
-   THE CARD REFLOW (1.4.10 Reflow), one card per row.
+   The card reflow (1.4.10 Reflow), one card per row.
 
-   WHY 40rem AND NOT 390px. The plan designs the reflow at 390px and the phone
-   project this suite runs every spec on is a Pixel 7 at 412px, so the boundary
-   has to be above both; the tablet project is 768px and has room for a table, so
-   it has to be below that. 40rem (640px) is the whole of the interval's
-   reasoning, and it is the same step the admin's own compact breakpoint uses.
+   40rem is bounded either side: the phone project every spec runs on is 412px
+   and the design targets 390px, so the boundary must be above both, while the
+   tablet project at 768px has room for a table and must be below it.
 
-   `display: block` on the table parts is what produces the cards, and it has a
-   consequence that is the POINT rather than a side effect: the elements stop
-   being a table in the accessibility tree, the header cells stop being headers,
-   and every cell's own `<label>` becomes the only thing naming its input. That is
-   why the label is real at both widths. The WAI tables tutorial asks for exactly
-   this: "On small screens ... responsive tables often change format. Ensure that
-   the structural relationship is available in all formats."
+   `display: block` on the table parts is what produces the cards, and its
+   consequence is the point rather than a side effect: the elements stop being a
+   table in the accessibility tree, the header cells stop being headers, and
+   every cell's own `<label>` becomes the only thing naming its input. That is
+   why the label is real at both widths.
 
    The column headers are `display: none` here rather than clipped, because their
-   text is already in each cell's label and reading the whole header row before
-   the first card would be the duplication the labels exist to avoid.
+   text is already in each cell's label.
    -------------------------------------------------------------------------- */
 @media (max-width: 40rem) {
   [data-qcms-theme-scope] .qcms-repeat-table {
-    /* Nothing overflows a one-column card, so there is no scroll box to be the
+    /* Nothing overflows a one-column card, so no scroll box has to be an
        exception to the portal's no-horizontal-scroll rule. */
     overflow-x: visible;
   }
@@ -783,16 +654,15 @@
   }
 
   [data-qcms-theme-scope] .qcms-repeat-table__table :is(th, td) {
-    /* `relative` is still the containing block for this cell's hidden label, which
-       is visible here but still positioned by the rule above it. */
+    /* Still the containing block for this cell's label, which is visible here but
+       still positioned by the rule above. */
     position: relative;
     padding: 0;
     border: 0;
     margin-block-end: var(--space-field-gap);
   }
 
-  /* The card's own heading: the same `<th scope="row">` that is the row header
-     above the reflow, and the same `autofocus` landing. */
+  /* The card's own heading: the same row header, and the same focus landing. */
   [data-qcms-theme-scope] .qcms-repeat-table__rowhead {
     font-weight: 600;
     margin-block-end: var(--space-stack);
@@ -815,9 +685,9 @@
     white-space: normal;
   }
 
-  /* The actions column header stays clipped: the buttons under it are each named
-     in full ("Remove Asset 3"), so a visible "Remove" above them would name the
-     column twice over in a layout that has no columns. */
+  /* The actions column header stays clipped: each button under it is already
+     named in full, so a visible header would name the column twice over in a
+     layout that has no columns. */
   [data-qcms-theme-scope] .qcms-repeat-table__actions {
     text-align: start;
     margin-block-end: 0;
@@ -831,57 +701,39 @@
 }
 
 /* --------------------------------------------------------------------------
-   FORCED COLORS / Windows High Contrast Mode (issue #28).
+   Forced colors / Windows High Contrast Mode.
 
-   Under `forced-colors: active` the user agent replaces the palette with the
-   user's own: `color`, `background-color`, `border-color`, `outline-color`,
-   `fill` and `stroke` are forced to system colours, and `box-shadow`,
-   `text-shadow` and non-`url()` `background-image` are forced to `none`. An
-   author declaration is honoured only when its value is a system colour
-   keyword, which is why every value below is one.
+   Under forced colours the user agent replaces the palette with the user's own
+   and forces `box-shadow`, `text-shadow` and non-`url()` background images to
+   `none`. An author declaration is honoured only when its value is a system
+   colour keyword, which is why every value below is one.
 
-   That default is right for most of this sheet - text, surfaces and plain
-   edges land on Canvas / CanvasText and read fine - so this block is a short
-   list of the specific places where the automatic result LOSES something,
-   never a second design:
+   That default is right for most of this sheet, so this block is a short list of
+   the places where the automatic result loses something, never a second design:
 
-   1. **An edge that is drawn as a shadow, or given up on focus.** The vendored
-      text field, textarea and number field carry `focus:border-transparent`
-      plus a Tailwind `ring-*`, and a `ring` is a box-shadow. Forced colours
-      delete the shadow, so a focused control was left with no boundary at all.
-      Restating the border colour puts the edge back; it is unlayered, so it
-      wins over the layered `focus:border-transparent` utility without
-      `!important`.
-   2. **A focus ring that must not be a shadow.** Same reason, one level up:
-      the ring is redrawn as a real `outline` in `Highlight`.
-   3. **A state that is only a background fill.** The radio's dot, the date
-      segment being edited and the focused row of a listbox or menu are each a
-      filled rectangle with no border and no glyph, so forcing the fill to
-      Canvas erases the state itself rather than only its colour. Each is
-      restated with a system pair.
-   4. **A rule drawn as a filled box.** The number field's dividers and a menu
-      separator are `w-px`/`h-px` elements with a background and no border.
-   5. **Disabled.** `opacity` is not forced, so a disabled control stays faded,
-      but faded CanvasText is not the signal the platform uses. GrayText is.
-      Nothing in the compiled form renders a disabled control today (neither
-      `packages/a2ui-compiler` nor `registry.tsx` passes `isDisabled`), so this
-      rule is ahead of its callers; the portal's own Continue and Back buttons
-      are the disabled control a respondent does meet, and they take the same
-      treatment in `apps/portal/app/globals.css`.
+   1. An edge drawn as a shadow, or given up on focus. The vendored text field,
+      textarea and number field pair `focus:border-transparent` with a Tailwind
+      `ring-*`, which is a box-shadow, so a focused control was left with no
+      boundary at all. Restating the border colour unlayered puts the edge back.
+   2. A focus ring that must not be a shadow: redrawn as a real `outline`.
+   3. A state that is only a background fill. The radio's dot, the date segment
+      being edited and a focused listbox or menu row are each a filled rectangle
+      with no border and no glyph, so forcing the fill to Canvas erases the state
+      itself rather than only its colour.
+   4. A rule drawn as a filled box: the number field's dividers and a menu
+      separator are one-pixel elements with a background and no border.
+   5. Disabled. `opacity` is not forced, so a disabled control stays faded, but
+      faded CanvasText is not the signal the platform uses; GrayText is.
 
-   NOTHING HERE USES `forced-color-adjust: none`, and that is a decision rather
-   than an omission. Every colour in the portal that carries meaning - selected,
-   checked, focused, invalid, disabled - has a system-colour pair that expresses
-   the same meaning inside the user's palette, so opting an element out of that
-   palette would only take the user's choice away. MDN's own rule for the
-   property is that it may support a contrast requirement, never override one.
-   The one thing that would need it is a swatch whose exact colour IS the
-   content, and the portal renders none.
+   Nothing here uses `forced-color-adjust: none`, and that is a decision: every
+   colour in the portal that carries meaning has a system-colour pair expressing
+   the same meaning inside the user's palette, so opting an element out would
+   only take the user's choice away. The one thing that would need it is a swatch
+   whose exact colour is the content, and the portal renders none.
 
-   Checked checkboxes need no rule: the indicator's tick is an SVG drawn in
-   `currentColor`, which forces to CanvasText inside a Canvas box, so the
-   checked state survives on its own. The radio has no glyph, which is exactly
-   why it needs rule 3.
+   Checked checkboxes need no rule: the tick is an SVG in `currentColor`, which
+   forces to CanvasText inside a Canvas box. The radio has no glyph, which is why
+   it needs rule 3.
    -------------------------------------------------------------------------- */
 @media (forced-colors: active) {
   /* 1. Every control edge stays drawn, at rest and while focused. */
@@ -948,14 +800,10 @@
 
   /* 5. Disabled reads as the platform's disabled, not as faded body text.
 
-     Read the state off the element react-aria puts it ON, which is not always
-     the element that DRAWS the edge. `input`, `textarea`, `button` and the field
-     group each carry their own `:disabled` / `[data-disabled]`. An option row
-     does not: `react-aria-components` marks the `label[data-rac]` root
-     (CheckboxButton and RadioButton both emit `data-disabled` there) and the
-     indicator is a plain child with only class names on it. The first cut of
-     this rule tested the indicator for the attribute, so it matched nothing at
-     all and the disabled indicator stayed at CanvasText. */
+     Read the state off the element react-aria puts it on, which is not always
+     the element that draws the edge: `input`, `textarea`, `button` and the field
+     group each carry their own, but an option row's lives on the
+     `label[data-rac]` root while the indicator is a plain child. */
   [data-qcms-theme-scope]
     [data-qcms-field]
     :is(input, textarea, button, [role="group"]):is(

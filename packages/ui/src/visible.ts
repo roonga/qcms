@@ -4,34 +4,25 @@ import { REPEAT_GROUP_NODE_TYPE } from "./repeat/repeat-node.ts";
 /**
  * Project a compiled step document onto an authoritative visible set.
  *
- * The API serves the FULL compiled step document (ADR-18: the stored audit copy,
- * never a recompilation) plus a `visibleQuestions` list, which is the forward
- * pass's result (ADR-16). The renderer draws whatever tree it is handed, so
- * something has to drop the questions the flow says are not visible. This is that
- * something, and it is presentation over an authoritative projection - never a
- * re-evaluation of rules, which neither frontend is allowed to perform (R2).
+ * The API serves the full compiled step document (ADR-18) plus the forward pass's
+ * `visibleQuestions` list (ADR-16), and the renderer draws whatever tree it is handed,
+ * so something has to drop the questions the flow says are hidden. This is presentation
+ * over an authoritative projection, never a re-evaluation of rules (R2).
  *
- * It lives in `@roonga/qcms-ui` rather than in either app because **both** consumers
- * need the identical projection: the portal serving a respondent (task 029) and
- * the admin previewing a draft (task 034). Preview fidelity is the reason
- * `@roonga/qcms-ui` exists at all (ARCHITECTURE §6), and a second copy of this function
- * is exactly how "what the author saw" and "what the respondent got" would
- * quietly diverge - the same argument that keeps `A2UIStepRenderer` singular.
+ * It lives in `@roonga/qcms-ui` because both the portal and the admin preview need the
+ * identical projection, and a second copy is how what the author saw and what the
+ * respondent got would quietly diverge (ARCHITECTURE §6).
  *
- * A node is a question control iff it carries a string `name` prop (the
- * questionId, per the a2ui mapping); such a node is dropped unless its name is in
- * the visible set. Layout and text nodes (no `name`) are always kept, with their
- * children pruned recursively. The root is never a question node, so it survives.
+ * A node is a question control exactly when it carries a string `name` prop, and such a
+ * node is dropped unless its name is in the visible set. Layout and text nodes are kept
+ * with their children pruned recursively.
  *
- * **A `RepeatGroup` template is kept whole and pruned nowhere here** (task 073,
- * ADR-42, ADR-43), and that is a necessity rather than an exemption. A rule whose
- * target is inside a group is evaluated once per **live instance**, so a member
- * question can be visible in instance 1 and hidden in instance 2; the visible set is
- * therefore a set of **qualified** names (`ins_7k2/q_plate`) and a template's bare
- * `q_plate` can never be in it. Pruning here would delete every member control before
- * the renderer had a chance to clone one. `expandRepeatGroups` prunes each clone
- * against this same set instead, where the instance is known, which is exactly what
- * "the qualified name is the field's whole identity below the API" means at this seam.
+ * A `RepeatGroup` template is kept whole out of necessity: a rule inside a group is
+ * evaluated once per live instance, so the visible set holds qualified names
+ * (`ins_7k2/q_plate`) and a template's bare `q_plate` can never be in it. Pruning here
+ * would delete every member control before the renderer could clone one.
+ * `expandRepeatGroups` prunes each clone against the same set, where the instance is
+ * known.
  */
 
 interface MutableNode {
@@ -46,8 +37,8 @@ function questionName(node: MutableNode): string | undefined {
 }
 
 function pruneNode(node: MutableNode, visible: ReadonlySet<string>): MutableNode | null {
-  // A repeating group's members are pruned per instance by the renderer's expansion,
-  // against the qualified names this set actually holds. See the docblock above.
+  // A group's members are pruned per instance by the renderer's expansion, against the
+  // qualified names this set actually holds.
   if (node.type === REPEAT_GROUP_NODE_TYPE) return { ...node };
   const name = questionName(node);
   if (name !== undefined && !visible.has(name)) return null;

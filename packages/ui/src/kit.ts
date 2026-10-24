@@ -1,74 +1,29 @@
 /**
- * `@roonga/qcms-ui/kit` - the shared admin UI kit (task 031).
+ * `@roonga/qcms-ui/kit` - the shared admin UI kit.
  *
- * The admin app's own screens are **ordinary React** (ARCHITECTURE §6): A2UI
- * documents and `A2Renderer` appear in the admin only inside the preview pane
- * (task 034), never for the admin's own chrome. But ADR-22 allows exactly one
- * component stack across both frontends, and vendored a2-react-aria sources live
- * in **this** package and nowhere else. So the admin's tables, forms, dialogs and
- * alerts come from here: the same vendored files the A2UI renderer uses, exported
- * on their own subpath as plain React components.
+ * Admin screens are ordinary React (ARCHITECTURE §6), but ADR-22 allows one component
+ * stack across both frontends and the vendored a2-react-aria sources live in this
+ * package alone, so the admin's controls come from here: the same vendored files the
+ * A2UI renderer uses, exported on their own subpath as plain React components.
  *
- * Task 032 adds the four input primitives the question editor needs (`Select`,
- * `Checkbox`, `NumberField`, `DatePicker`). They are the same vendored files the
- * renderer already maps A2UI nodes onto, so an operator authoring a `number`
- * constraint types into literally the component a respondent will answer with.
- * Nothing was vendored to add them: they were already here, reachable only by the
- * renderer's registry, and the barrel is what makes them reachable by an admin
- * screen as well.
+ * Two restraints hold:
  *
- * That is the whole content of this module, and the restraint is deliberate:
+ * - No wrappers. Every export is the vendored component itself, so an admin screen and
+ *   a rendered A2UI step get the same implementation and the same token-driven styling.
+ *   A QCMS-flavoured wrapper layer would be a second design language by accretion.
+ * - No schemas. `*Schema` exports and `*Node` types belong to the A2UI document format,
+ *   and re-exporting them here would invite an admin screen to grow a document.
+ *   `registryForSpecVersion` stays the only door to the renderer.
  *
- * - **No wrappers.** Every export is the vendored component itself, so an admin
- *   screen and a rendered A2UI step get literally the same implementation and the
- *   same token-driven styling. A QCMS-flavoured wrapper layer would be a second
- *   design language by accretion, which is what ADR-22 exists to prevent.
- * - **No schemas.** The `*Schema` exports and `*Node` types belong to the A2UI
- *   document format; admin screens pass props, so re-exporting them here would
- *   invite an admin screen to grow an A2UI document. `registryForSpecVersion` (the
- *   root export) stays the only door to the renderer.
+ * Styling is Tailwind utilities over the four ADR-30 token groups, so a host must load
+ * `@roonga/qcms-ui/theme.css`, or its own file defining the same custom properties.
  *
- * Styling is Tailwind utilities over the four ADR-30 token groups, single-sourced
- * upstream, so the host app must load `@roonga/qcms-ui/theme.css` (or its own file that
- * defines the same custom properties) for these to render as intended.
+ * Everything here is interactive react-aria, so a Next.js consumer imports it from a
+ * `"use client"` module.
  *
- * Everything here is interactive react-aria (hooks, context), so a Next.js
- * consumer imports it from a `"use client"` module. The admin does that once, in
- * `components/kit.tsx`, and its server components import from there.
- *
- * ## The menu, and the primitives that used to sit beside it (issue #234)
- *
- * Task 032 rebuilt the admin topbar's trailing group as two popup menus: an
- * icon-only appearance trigger and a circular initials avatar. `menu` was vendored
- * from the pinned registry for it, and the topbar then did **not** compose it,
- * because its props could not express what the frozen design card
- * (`plan/admin-theme/ds-navbar.html`) asks for: a trigger that is an SVG glyph or an
- * initials disc, a menu with its own `aria-label`, a checked row carrying a check
- * glyph beside its text, a non-interactive "Signed in as" header, and a separator.
- * ADR-22 forbids editing a vendored file to reach them, so this module re-exported
- * `react-aria-components`' `MenuTrigger`, `Popover`, `Menu`, `MenuItem` and
- * `Separator` under menu-flavoured names and four admin surfaces composed those.
- *
- * That was legal and it was still a divergence: the registry component was bypassed
- * exactly where a design system most wants to be the single source of the shape.
- * ADR-22's rule for a shortfall in a vendored component is to fix it upstream and
- * never fork it here, so it was filed as a cross-repo pair - `roonga/a2-react-aria#75`
- * upstream, `roonga/qcms#234` here - and upstream now ships the slots: `trigger`,
- * `menuLabel`, `header`, `classNames`, and an item that can carry a `ReactNode`
- * label, a `textValue`, an `href` or a `separator` kind.
- *
- * **So the primitives are gone from this barrel and every admin menu is the vendored
- * `Menu`.** The keyboard contract the card documents (Enter, Space or Arrow Down
- * opens; arrows navigate; Escape closes and returns focus) is unchanged, because it
- * was always `MenuTrigger`'s and the vendored component is a thin composition of
- * exactly the primitives that were exported here. What changes is that there is one
- * door to a menu instead of two, and that the shapes a QCMS screen needs are now
- * upstream's own API rather than this repository's local assembly of them.
- *
- * `classNames` is what makes that possible without a variant layer growing here: a
- * host names the classes for the trigger, popover, menu, item, header and separator
- * slots, and its names REPLACE the component's defaults. The admin's `.qcms-menu*`
- * rules in `apps/admin/app/globals.css` land on exactly the elements they did before.
+ * Where a vendored component falls short, ADR-22's route is to fix it upstream and never
+ * fork it here. `classNames` is what keeps a variant layer from growing in this package:
+ * a host names the classes for each slot and its names replace the component's defaults.
  */
 
 export { Alert } from "./components/a2ui/alert/index.ts";
@@ -96,49 +51,32 @@ export { Text } from "./components/a2ui/text/index.ts";
 export { TextField } from "./components/a2ui/text-field/index.ts";
 
 /**
- * The tab primitives, by the route the menu primitives used to take and for the reason
- * the block above records.
+ * The tab primitives. The pinned registry has no `Tabs` to vendor and ADR-22's lint
+ * fence allows react-aria-components as the alternative, so a host needing the APG tabs
+ * pattern (roving tabindex, arrow-key movement, `aria-controls` to the panel, and the
+ * "tab 2 of 3, selected" announcement) composes it from the stack's own foundation
+ * rather than hand-rolling that keyboard contract per screen.
  *
- * The pinned registry has no `Tabs` to vendor, and ADR-22's lint fence names the
- * alternative explicitly: "use the vendored components (src/components/a2ui) **or**
- * react-aria-components". So a host that needs the APG tabs pattern - a roving tabindex,
- * arrow-key movement between tabs, `aria-controls` wired to the panel, and the "tab 2 of
- * 3, selected" announcement that comes with the roles - composes it from the stack's own
- * foundation here rather than hand-rolling that keyboard contract per screen.
- *
- * Unstyled on purpose, exactly as the menu primitives are: the host supplies class names,
- * so no variant layer accumulates in this package for a component the registry may later
- * ship its own opinion about. Closing the gap upstream is the ADR-22 route if one arrives.
+ * Unstyled on purpose: the host supplies class names, so no variant layer accumulates
+ * here for a component the registry may later ship its own opinion about.
  */
 export { Tab, TabList, TabPanel, Tabs } from "react-aria-components";
 /**
- * react-aria's locale boundary, so a consuming app can name the locale its kit
- * controls format and order dates in (`QCMS_LOCALE`, Code Owner ruling 2026-10-19)
- * instead of inheriting the browser's, which differs between the server render and
- * the hydrated one.
+ * react-aria's locale boundary, so a consuming app can name the locale its kit controls
+ * format and order dates in instead of inheriting the browser's, which differs between
+ * the server render and the hydrated one.
  */
 export { I18nProvider } from "react-aria-components";
 
 /**
- * The combobox primitives: a text input that FILTERS a list, by the same route and for the
- * same reason as the menu and tab primitives above.
+ * The combobox primitives: a text input that filters a list, by the same route as the
+ * tab primitives above. The pinned registry ships a `select` and no combobox, and a
+ * picker over a list too long to scan is the APG combobox pattern, which carries a
+ * roving `aria-activedescendant`, the "N results available" announcement and the
+ * input-to-listbox relationship a hand-rolled filter over a `Select` would get wrong.
  *
- * The pinned a2-react-aria registry ships a `select` and no combobox (checked against the
- * `a2ra.json` pin), so there is nothing to vendor and ADR-22's own wording names the
- * alternative: "use the vendored components (src/components/a2ui) **or**
- * react-aria-components". A picker over a list too long to scan is not a Select with extra
- * steps - it is the APG combobox pattern, which carries a roving `aria-activedescendant`,
- * the "N results available" announcement and the input-to-listbox relationship that a
- * hand-rolled filter over a `Select` would have to reinvent and would get subtly wrong.
- *
- * Aliased, because the bare names collide with the vendored components and with the menu
- * block above: `Input`, `ListBox`, `Popover` and `Button` are generic in
- * react-aria-components and specific here.
- *
- * Unstyled on purpose, exactly as the menu and tab primitives are: the host supplies class
- * names, so no variant layer accumulates in this package for a component the registry may
- * later ship its own opinion about. Closing the gap upstream is the ADR-22 route if one
- * arrives.
+ * Aliased because the bare names collide with the vendored components. Unstyled on
+ * purpose, like the tab primitives.
  */
 export {
   Button as ComboBoxButton,

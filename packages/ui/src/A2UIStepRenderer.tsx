@@ -31,54 +31,34 @@ export interface A2UIStepRendererProps {
   readonly errors?: A2UIErrors;
   /** Fires the canonical `AnswerValue` for a control (or `undefined` when cleared). */
   readonly onChange?: (name: string, value: A2UIAnswerValue | undefined) => void;
-  /** Fires when focus leaves a control (touched semantics; policy is 029/030). */
+  /** Fires when focus leaves a control (touched semantics). */
   readonly onBlur?: (name: string) => void;
   /** BCP-47 locale for react-aria formatting/announcements. Text is already resolved at compile time. */
   readonly locale?: string;
   /** The document's `a2uiSpecVersion` - selects the render generation (ADR-18 seam). */
   readonly specVersion?: string;
   /**
-   * Opt into native (no-JS) submit mode (task 044): render a real
-   * `<form method="post" action=...>` with uncontrolled, natively-serializing
-   * controls and a real submit control, so a JavaScript-disabled respondent can
-   * POST the step. Absent (the default) leaves the controlled path (028/029)
-   * unchanged. This is a render-time capability only; the stored compiled
-   * document is never mutated (ADR-18).
+   * Opt into native (no-JS) submit mode: a real `<form method="post" action=...>` with
+   * uncontrolled, natively-serializing controls, so a JavaScript-disabled respondent
+   * can POST the step. Render-time only; the stored document is never mutated (ADR-18).
    */
   readonly nativeSubmit?: NativeSubmitOptions;
   /**
-   * Lower the document's own headings by this many levels, for a host that EMBEDS the
-   * document in a page that already has an `<h1>` (issue #537).
-   *
-   * A compiled step carries its own outline - the form title as `h1`, the step title as
-   * `h2` - which is right when the document is the page, as it is on the portal. An admin
-   * preview or version view is a document inside a page, and rendering it untouched gives
-   * that page two `<h1>`s: a document-outline defect, and an ambiguous
-   * `getByRole("heading", { level: 1 })` for anything testing the route.
-   *
-   * `1` is the answer for every current embed (the host page's `h1` is the page, the
-   * document's headings start at `h2`). Absent or `0` leaves the document's own levels
-   * alone, which is what the portal wants.
-   *
-   * Render-time only, and only the `as` prop moves: `size` and `weight` are left as
-   * compiled so the embed still shows what a respondent sees. The stored document is
-   * never mutated (ADR-18). See `heading-demotion.ts` for why this side of the contract
-   * yields rather than the host chrome.
+   * Lower the document's own headings by this many levels, for a host that embeds the
+   * document in a page that already has an `<h1>`. A compiled step carries its own
+   * outline, so an untouched embed gives the page two `<h1>`s. `1` suits every current
+   * embed; absent or `0` leaves the compiled levels alone, which is what the portal
+   * wants. Render-time only, and only the `as` prop moves (ADR-18).
    */
   readonly headingLevelOffset?: number;
   /**
-   * The repeating-group render (task 073, ADR-42, ADR-43).
+   * The repeating-group render (ADR-42, ADR-43).
    *
-   * A compiled `RepeatGroup` is a **template** carrying its member controls once: the
-   * compiler is answer-blind and an instance count is answer-dependent, so the
-   * expansion happens here, at render time, from the live roster the API's step
-   * projection supplies. `rosters` and `visible` are that projection; `opToken` is the
-   * one-time token this render mints into its `__qop` buttons; `onAdd`, `onRemove` and
-   * `status` are the scripted path's behaviour and are absent without scripting.
-   *
-   * Absent (the default) still expands, with no roster: a document carrying a group
-   * then renders the group's chrome and no instance, which is what an admin version
-   * view of a stored document should show. A document with no group is untouched.
+   * A compiled `RepeatGroup` is a template carrying its member controls once, because
+   * the compiler is answer-blind and an instance count is answer-dependent, so the
+   * expansion happens here from the live roster. `onAdd`, `onRemove` and `status` are
+   * the scripted path and are absent without scripting. Absent, the group renders its
+   * chrome and no instance, which is what an admin version view should show.
    */
   readonly repeat?: RepeatExpansion & QcmsRepeatContextValue;
 }
@@ -88,16 +68,13 @@ const NO_ERRORS: A2UIErrors = Object.freeze({});
 const noop = (): void => {};
 
 /**
- * The shared, controlled A2UI step renderer (task 028) - the *only* renderer,
- * so admin preview fidelity equals what the respondent gets (ARCHITECTURE §6).
+ * The shared, controlled A2UI step renderer, and the only one, so admin preview
+ * fidelity equals what the respondent gets (ARCHITECTURE §6).
  *
- * Controlled: the parent owns `values` and `errors`; this component owns no
- * fetch and no state beyond the vendored controls' ephemeral input. It composes
- * a2ra's `A2Renderer` over an explicit `createRegistry` of the vendored
- * components (never `defaultRegistry`, ADR-22). Client-side constraint hints in
- * the document are advisory; the authoritative errors are the server ones the
- * parent passes, surfaced in each control's error slot with the ARIA wiring
- * react-aria supplies.
+ * The parent owns `values` and `errors`. Constraint hints in the document are
+ * advisory; the server errors the parent passes are authoritative, surfaced in each
+ * control's error slot. The registry is always an explicit `createRegistry` of the
+ * vendored components, never `defaultRegistry` (ADR-22).
  */
 export function A2UIStepRenderer({
   document,
@@ -112,14 +89,13 @@ export function A2UIStepRenderer({
   repeat,
 }: A2UIStepRendererProps) {
   const registry = registryForSpecVersion(specVersion);
-  // Every control and the no-JS date fallback read the SAME tag, with the Gregorian
-  // calendar and Latin digits forced (`isoDateLocale`): a date answer is an ISO day, so
-  // a locale whose default calendar differs (th-TH, fa-IR, a `-u-ca-` extension) must not
-  // draw it as another date on one render and not the other.
+  // Every control and the no-JS date fallback must read the same tag with the Gregorian
+  // calendar and Latin digits forced: a date answer is an ISO day, so a locale whose
+  // default calendar differs must not draw it as another date on one render only.
   const locale = useMemo(() => isoDateLocale(requestedLocale), [requestedLocale]);
   const native = nativeSubmit !== undefined;
-  // The form's action travels in the context when it is a function (task 073): a node's
-  // props are stored, serialisable data, so a Server Action cannot ride there.
+  // The action travels in the context when it is a function: a node's props are stored,
+  // serialisable data, so a Server Action cannot ride there.
   const formAction = nativeSubmit?.formAction;
   const formHiddenFields = nativeSubmit?.hiddenFields;
   const ctx = useMemo<QcmsFieldContextValue>(
@@ -135,22 +111,11 @@ export function A2UIStepRenderer({
     }),
     [values, errors, onChange, onBlur, locale, native, formAction, formHiddenFields],
   );
-  // Render-time only (ADR-18): in native mode the root Form gains action/method and a
-  // submit control, and an embedding host can lower the document's own heading levels.
-  // The stored `document.root` bytes are never mutated by either.
-  //
-  // Demotion runs first, so it sees only the compiled document's own headings. The
-  // submit control carries no heading and the order is therefore not load-bearing today,
-  // but reversing it would make the appended node's future contents subject to a
-  // transform that is meant to be about stored content alone.
-  //
-  // The repeat expansion runs FIRST, and that order is load-bearing rather than
-  // incidental. It is the only transform that reads the stored template, it computes
-  // its own heading levels from `headingLevelOffset` for the one heading it emits as a
-  // node prop rather than as a `Text` node (`RepeatInstance.headingAs`, which
-  // `withDemotedHeadings` then leaves alone), and the `Text` heading it emits for the
-  // group's own label must be in the tree before demotion so that an embedded preview
-  // renumbers it like every other compiled heading.
+  // Render-time only (ADR-18): the stored `document.root` bytes are never mutated.
+  // Order is load-bearing. The repeat expansion is the only transform that reads the
+  // stored template, and the `Text` heading it emits for the group label must be in the
+  // tree before demotion so an embedded preview renumbers it like any compiled heading;
+  // demotion in turn must see only the compiled document's own headings.
   const root = useMemo(() => {
     const expanded = expandRepeatGroups(document.root, repeat ?? {});
     const demoted = withDemotedHeadings(expanded, headingLevelOffset);
@@ -162,11 +127,8 @@ export function A2UIStepRenderer({
       ...(repeat?.onRemove !== undefined ? { onRemove: repeat.onRemove } : {}),
       ...(repeat?.status !== undefined ? { status: repeat.status } : {}),
       ...(repeat?.busyGroupId !== undefined ? { busyGroupId: repeat.busyGroupId } : {}),
-      // The focus destination after a roster operation. On the no-JS path it becomes an
-      // `autofocus` attribute on that instance's heading, which is the ruled landing
-      // (Q11, Q28), so leaving it out of this object silently loses the focus move with
-      // nothing else looking wrong: the action still returns the id and the page still
-      // renders. It did exactly that until a spec read the rendered attribute.
+      // On the no-JS path this becomes `autofocus` on that instance's heading, the ruled
+      // landing after a roster operation; omitting it loses the focus move silently.
       ...(repeat?.autofocusId !== undefined ? { autofocusId: repeat.autofocusId } : {}),
     }),
     [repeat?.onAdd, repeat?.onRemove, repeat?.status, repeat?.busyGroupId, repeat?.autofocusId],

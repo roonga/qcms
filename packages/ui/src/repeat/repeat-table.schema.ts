@@ -7,36 +7,30 @@ import {
 } from "./repeat-table-node.ts";
 
 /**
- * Schemas for the three table-presentation node types (task 077, ADR-43).
+ * Schemas for the table-presentation node types (ADR-43).
  *
- * All three are **render-time only**: {@link repeatTableNode} produces them from a
- * stored `RepeatGroup` template and the live roster, so a stored document can never
- * carry one and nothing here has to validate a stored shape. That is the one way
- * these differ from `RepeatGroupSchema`, which covers both shapes because the admin's
- * version view draws a stored document verbatim.
+ * All of them are render-time only, produced from a stored `RepeatGroup` template and
+ * the live roster, so nothing here has to validate a stored shape. That is the one way
+ * they differ from `RepeatGroupSchema`.
  *
- * They are qcms-owned node types rather than `@a2ra/core` registry components, on the
- * `Honeypot` and `RepeatInstance` precedent: the vendored `Table` is a react-aria
- * `Table`, which renders `role="grid"` and manages focus with script, and ADR-43
- * refuses that outright. What the vendored component contributes is its style map, not
- * its markup.
+ * They are qcms-owned node types rather than `@a2ra/core` registry components because
+ * the vendored `Table` renders `role="grid"` and manages focus with script, which
+ * ADR-43 refuses. What that component contributes here is its style map, not its
+ * markup.
  */
 
 /** One column of the table: a member question, as a header cell and a cell per row. */
 const RepeatColumnSchema = z
   .object({
-    /** The member question's bare id. Also `data-qcms-column` on every cell. */
+    /** The member question's bare id, also `data-qcms-column` on every cell. */
     questionId: z.string(),
     /** The column header's text: the member question's own compiled label. */
     label: z.string(),
     /**
-     * The member question's own help text, drawn under the column header.
-     *
-     * It is on the HEADER and clipped in the cells, because it is identical in every
-     * cell of a column: a three-row table would otherwise repeat "As printed on the
-     * plate, without spaces" three times. Each input keeps its own
-     * `aria-describedby`, so nothing leaves the accessibility tree, and at the card
-     * reflow the header is gone and the per-cell hint becomes visible instead.
+     * The member question's own help text, drawn under the column header and clipped
+     * in the cells, because it is identical in every cell of a column. Each input
+     * keeps its own `aria-describedby`, so nothing leaves the accessibility tree, and
+     * at the card reflow the per-cell hint becomes visible instead.
      */
     description: z.string().optional(),
     /**
@@ -45,12 +39,11 @@ const RepeatColumnSchema = z
      */
     numeric: z.boolean().optional(),
     /**
-     * The qualified field names this render DREW for the column
-     * (`ins_7k2/q_as_value`), which is what the total is summed over.
-     *
-     * The drawn set rather than the roster, because a per-instance rule can hide a
-     * member in one instance and not in another: totalling a cell the respondent
-     * cannot see would report a number the page does not show.
+     * The qualified field names this render drew for the column, which is what the
+     * total is summed over. The drawn set rather than the roster, because a
+     * per-instance rule can hide a member in one instance and not another, and
+     * totalling a cell the respondent cannot see would report a number the page does
+     * not show.
      */
     totalFields: z.array(z.string()).optional(),
   })
@@ -70,7 +63,8 @@ export const RepeatTableSchema = z.object({
       columns: z.array(RepeatColumnSchema),
       /**
        * The actions column's header text, present exactly when the rows carry a
-       * Remove control. Visually hidden; an empty `<th>` is what it may not be.
+       * Remove control. Visually hidden, because an empty `<th>` is what it may not
+       * be.
        */
       actionsLabel: z.string().optional(),
     })

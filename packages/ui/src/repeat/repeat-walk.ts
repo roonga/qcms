@@ -3,24 +3,14 @@ import type { A2Node } from "@a2ra/core";
 import { qualifiedFieldName } from "./repeat-node.ts";
 
 /**
- * The node-walking helpers the repeat expansions share (tasks 073, 077).
- *
- * They were inside `repeat-expand.ts` while the stacked presentation was the only
- * one. The table presentation clones the same template into a different element
- * nesting and needs exactly the same four operations - read a prop, copy a child
- * list, qualify a control's `name`, decide whether a clone survives this instance's
- * visible set - so they live here, where one presentation's layout cannot drift from
- * another's idea of what a cloned control is.
+ * The node-walking helpers the repeat expansions share. Both presentations clone the
+ * same template and need the same operations, so they live here, where one layout
+ * cannot drift from another's idea of what a cloned control is.
  */
 
 /**
- * Map a node's `children` union. A text body and an absent body are returned as they
- * are; a single child is mapped; an array is mapped elementwise.
- *
- * Split in two, exactly as `heading-demotion.ts` splits the same walk, so each
- * function has one declared result type: a single conditional chain over this union
- * is the shape the lint refuses, and for a good reason - it is the place a mapped
- * text body would silently become a node.
+ * Split in two so each function has one declared result type: a single conditional
+ * chain over this union is where a mapped text body would silently become a node.
  */
 function mapNodeChildren(
   children: A2Node | A2Node[],
@@ -53,15 +43,13 @@ export function numberProp(node: A2Node, key: string): number | undefined {
 }
 
 /**
- * Rewrite one member control's `name` to its qualified form, recursively, so a
- * control whose own children carry no name (a `RadioGroup`'s `Radio` leaves, a
- * `CheckboxGroup`'s `Checkbox` leaves) is copied unchanged beneath it.
+ * Rewrite one member control's `name` to its qualified form, recursively, so a control
+ * whose own children carry no name is copied unchanged beneath it.
  *
- * Only the `name` prop moves. Every other compiled prop - `label`, `description`,
- * `isRequired`, the constraint hints, the author's `messages` - is the stored
- * content and is carried across untouched, which is what makes an instance's control
- * identical to the same question outside a group (ADR-42: a question does not know
- * that it is repeated).
+ * Only the `name` prop moves: every other compiled prop is stored content and is
+ * carried across untouched, which is what makes an instance's control identical to
+ * the same question outside a group (ADR-42: a question does not know it is
+ * repeated).
  */
 export function qualifyNames(node: A2Node, instanceId: string): A2Node {
   const mapped = mapChildren(node.children, (child) => qualifyNames(child, instanceId));

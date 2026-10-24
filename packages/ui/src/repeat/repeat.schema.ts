@@ -3,22 +3,17 @@ import { z } from "zod";
 import { REPEAT_GROUP_NODE_TYPE, REPEAT_INSTANCE_NODE_TYPE } from "./repeat-node.ts";
 
 /**
- * Schemas for the two repeat node types (task 073, ADR-42, ADR-43).
+ * Schemas for the repeat node types (ADR-42, ADR-43).
  *
- * `RepeatGroup` is a **qcms-specific node type**, not an `@a2ra/core` registry
- * component, on the `Honeypot` precedent: nothing upstream describes a container
- * whose children are cloned per live instance, and the vendored component props
- * objects are `.strict()` (ADR-22, the vendored bytes never move).
+ * `RepeatGroup` is a qcms-specific node type rather than an `@a2ra/core` registry
+ * component: nothing upstream describes a container whose children are cloned per
+ * live instance, and the vendored props objects are `.strict()` (ADR-22).
  *
- * **One schema covers both the stored shape and the expanded one**, and that is
- * deliberate rather than lax. The compiler emits the template - `groupId`, `label`,
- * `instanceLabel`, `presentation`, `countSource`, `min`, and `max`, `addLabel` and
- * `removeLabel` where they apply - and `expandRepeatGroups` adds the render-time
- * facts (`instanceCount`, `canAdd`, `opToken`). Both shapes are rendered by the same
- * component through the same registry, and a stored document that reaches the
- * renderer unexpanded (the admin's version view draws a stored document verbatim)
- * has to validate too, or the registry's `strict` mode refuses the page rather than
- * showing an empty group.
+ * One schema covers both the stored shape and the expanded one, deliberately. The
+ * compiler emits the template and `expandRepeatGroups` adds the render-time facts,
+ * both are rendered by the same component through the same registry, and a stored
+ * document that reaches the renderer unexpanded, as the admin's version view does,
+ * has to validate too or `strict` mode refuses the page.
  */
 
 const PRESENTATIONS = ["stacked", "perInstanceStep", "table"] as const;
@@ -43,7 +38,7 @@ export const RepeatGroupSchema = z.object({
       addLabel: z.string().optional(),
       /** `open` only: "Remove {label}", the placeholder filled per instance. */
       removeLabel: z.string().optional(),
-      // --- Added by `expandRepeatGroups` at render time; never stored. ---
+      // Added at render time by the expansion; never stored.
       /** How many live instances this render drew. */
       instanceCount: z.number().optional(),
       /** False at `max`, or on a count source whose size is not the respondent's. */
@@ -67,7 +62,7 @@ export const RepeatInstanceSchema = z.object({
   props: z
     .object({
       groupId: z.string(),
-      /** The opaque `ins_` id. Never a visible label; it is in names, ids and anchors. */
+      /** The opaque `ins_` id, never a visible label: it is in names, ids and anchors. */
       instanceId: z.string(),
       /** The resolved instance label ("Vehicle 2"): legend, heading and focus target. */
       label: z.string(),

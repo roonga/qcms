@@ -70,7 +70,7 @@ const COLUMNS = [
  * paint selector the same way and for the same reason.
  */
 const CLIP_SELECTOR = [
-  ".qcms-repeat-table__cell [data-qcms-field] > * > :is(label, span):first-child",
+  ".qcms-repeat-table__cell [data-qcms-field] > * > :is(label, span, legend):first-child",
   '.qcms-repeat-table__cell [data-qcms-field] > * > [slot="description"]',
   ".qcms-repeat-table__cell [data-qcms-field] > * > [data-qcms-hint]",
 ].join(",");

@@ -1,50 +1,27 @@
 /**
- * The declarative font registry (task 052, ADR-30 group 2).
+ * The declarative font registry (ADR-30 group 2). Contract: docs/theming.md.
  *
- * THIS FILE IS THE MANIFEST. Adding or removing a font is a one-entry change
- * here plus (for an addition) the `woff2` next to it in `src/fonts/`; everything
- * else is derived:
+ * This file is the manifest, and `src/fonts.css` is generated from it by
+ * `renderFontsCss()`; `font-registry.test.ts` fails when the two disagree. Adding or
+ * removing a font is a one-entry change here plus, for an addition, the `woff2` next to
+ * it in `src/fonts/`.
  *
- *   - `src/fonts.css` is GENERATED from this array by `renderFontsCss()`
- *     (`pnpm --filter @roonga/qcms-ui fonts:generate` writes it), and
- *     `font-registry.test.ts` fails if the committed CSS and this manifest
- *     disagree, so the two can never drift;
- *   - the portal's curation config (`QCMS_PORTAL_FONTS` / `QCMS_PORTAL_FONT` in
- *     `apps/portal/lib/server/theme.ts`) validates against these keys;
- *   - task 053's respondent font control renders `fontChoices()`.
+ * Every font is self-hosted, so a portal makes no external request for a typeface:
+ * nothing for a CSP to allow (SEC-9) and nothing that makes CI depend on a third party.
  *
- * EVERY FONT IS SELF-HOSTED. The `woff2` binaries are committed under
- * `src/fonts/`, so a portal makes ZERO external requests for a typeface: no CDN,
- * no build-time fetch, nothing for a CSP to allow (SEC-9) and nothing that can
- * make CI depend on a third-party host. `apps/portal/e2e/fonts.pw.ts` proves the
- * request count in a real browser.
+ * Licensing: every family is open-licensed and MIT-redistributable, each entry carries
+ * its upstream copyright notice verbatim, and the license texts those notices refer to
+ * ship beside the binaries, as OFL-1.1 and Apache-2.0 each require of a redistribution.
  *
- * LICENSING. Every family is open-licensed and MIT-redistributable. Each entry
- * carries its upstream copyright notice verbatim, and the license texts the
- * notices refer to ship beside the binaries (`src/fonts/LICENSE-OFL-1.1.txt`,
- * `src/fonts/LICENSE-Apache-2.0.txt`), which is what OFL-1.1 and Apache-2.0 each
- * require of a redistribution. `src/fonts/NOTICE.md` is the human-readable roll-up.
+ * An entry sets exactly one token, `--font-portal`. It may never touch a `--type-*`
+ * value: those carry the WCAG 1.4.12 floors and no font selection may lower one.
  *
- * WHAT A FONT MAY AND MAY NOT CHANGE. A registry entry sets exactly one token,
- * `--font-portal`. It may not touch a `--type-*` value, because those carry the
- * WCAG 1.4.12 floors (body >= 16px, line-height >= 1.5, letter-spacing >= 0.12em,
- * word-spacing >= 0.16em, paragraph spacing >= 2em) and no font selection is
- * allowed to lower one. The generated CSS is asserted to declare nothing but
- * `--font-portal` per block, and the browser suite re-measures every floor under
- * every shipped font.
- *
- * SCRIPT COVERAGE. The shipped `woff2` files are the Latin subsets, so text
- * outside Latin falls back glyph-by-glyph through the entry's fallback stack.
- * That stack is now a single shared token (`--font-fallback-sans` and its two
- * siblings in `theme.css`, issue #27) rather than a literal list copied onto
- * every entry, and it names the broad-coverage and emoji faces a device is
- * likely to have. Deciding which non-Latin scripts QCMS SELF-HOSTS is still open
- * and is NOT owned here.
- *
- * Contract documentation: docs/theming.md.
+ * The shipped `woff2` files are Latin subsets, so other scripts fall back through the
+ * entry's shared fallback token. Which non-Latin scripts QCMS self-hosts is not owned
+ * here.
  */
 
-/** Display order of the groups (also the order the generated CSS is emitted in). */
+/** Display order of the groups, and the order the generated CSS is emitted in. */
 export const FONT_GROUPS = [
   "System",
   "Accessibility",
@@ -57,10 +34,8 @@ export const FONT_GROUPS = [
 export type FontGroup = (typeof FONT_GROUPS)[number];
 
 /**
- * The license of a shipped family, as an SPDX identifier or expression. Both
- * OFL-1.1 and Apache-2.0 are permissive and compatible with QCMS's MIT
- * redistribution; nothing else may be added without the CONTRIBUTING license
- * check, and `font-registry.test.ts` enforces the allow-list.
+ * The license of a shipped family, as an SPDX identifier or expression. Nothing outside
+ * this allow-list may be added without the CONTRIBUTING license check.
  */
 export type FontLicense = "OFL-1.1" | "Apache-2.0" | "OFL-1.1 OR Apache-2.0";
 
@@ -70,9 +45,9 @@ export interface FontFace {
   readonly file: string;
 }
 
-/** One registry entry. This is the whole unit of add/remove. */
+/** One registry entry: the whole unit of add and remove. */
 export interface FontEntry {
-  /** CSS-class-safe token: the class is `font-<key>`, and 053's select value. */
+  /** CSS-class-safe token: the class is `font-<key>`. */
   readonly key: string;
   /** Respondent-facing name (`family` for a webfont, a plain label for System). */
   readonly label: string;
@@ -90,28 +65,13 @@ export interface FontEntry {
 }
 
 /**
- * The three fallback tails, as TOKEN REFERENCES rather than literal family lists
- * (issue #27).
+ * The three fallback tails, as token references rather than literal family lists. The
+ * lists live in one place, the base anchor block of `theme.css`, and
+ * `scripts/check-font-tokens.mjs` fails the build on a second copy.
  *
- * The lists themselves live in exactly one place, the base anchor block of
- * `theme.css`, so an entry here inherits every future improvement to the tail
- * instead of pinning a copy of it on the day the entry was added. That matters
- * because a tail is the whole answer to "what does a respondent see when the
- * webfont is missing": three divergent copies of it used to exist in this
- * repository, and `scripts/check-font-tokens.mjs` now fails the build on a
- * second one. Each tail ends in a CSS generic family (css-fonts-4 2.1 encourages
- * one last), which `font-registry.test.ts` re-checks by resolving these tokens
- * against `theme.css` rather than trusting the reference.
- *
- * `SANS_TAIL` is byte-identical to the `--font-portal` value the base anchor
- * block declares, which is what makes System a no-download entry rather than a
- * special case.
- *
- * ORDERING REQUIREMENT. Because these are `var()` references, `fonts.css` only
- * works when `theme.css` is imported before it - which the contract already
- * required, since a `.font-<key>` block has to override the base `--font-portal`
- * to do anything at all. An adopter who imports `fonts.css` alone gets a
- * `font-family` that is invalid at computed-value time, not a silent wrong font.
+ * Because these are `var()` references, `fonts.css` works only when `theme.css` is
+ * imported first; an adopter who imports `fonts.css` alone gets a `font-family` that is
+ * invalid at computed-value time rather than a silent wrong font.
  */
 const SANS_TAIL = "var(--font-fallback-sans)";
 const SERIF_TAIL = "var(--font-fallback-serif)";
@@ -140,11 +100,9 @@ interface WebfontSpec {
   readonly tail: string;
   readonly weights: readonly number[];
   /**
-   * Set for a VARIABLE font, where upstream serves one file that covers every
-   * weight: all the declared weights then point at this single file, exactly as
-   * Google Fonts' own css2 output does (two `@font-face` rules, one `src`). The
-   * browser downloads it once and instantiates the `wght` axis per rule. Without
-   * this, each weight gets its own `<key>-<weight>.woff2`.
+   * Set for a variable font, where upstream serves one file covering every weight: all
+   * declared weights then point at it. Without this, each weight gets its own
+   * `<key>-<weight>.woff2`.
    */
   readonly file?: string;
   readonly license: FontLicense;
@@ -173,21 +131,13 @@ function webfont(spec: WebfontSpec): FontEntry {
 /**
  * The shipped registry.
  *
- * Families, keys, weights, groups and licenses come from the font design
- * deliverable (`plan/theme-palettes/fonts_config.py`), and the binaries are the
- * Latin `woff2` subsets that deliverable retrieved. Two things the deliverable
- * does not carry are authored here: the Monospace group, and the fallback stack
- * on every entry.
- *
- * Weights follow the deliverable's rule: the Accessibility faces ship 400 and
- * 700 because weight itself carries legibility for low-vision and dyslexic
- * readers, and every other family ships 400 only to keep the self-hosted payload
- * small. Bold text in the other families is synthesised by the browser.
+ * The Accessibility faces ship 400 and 700 because weight itself carries legibility for
+ * low-vision and dyslexic readers. Every other family ships 400 only, to keep the
+ * self-hosted payload small, and the browser synthesises bold.
  */
 export const FONT_REGISTRY: readonly FontEntry[] = [
   SYSTEM_ENTRY,
 
-  // --- Accessibility: 400 + 700, because weight carries legibility here. ---
   webfont({
     key: "atkinson",
     family: "Atkinson Hyperlegible",
@@ -204,10 +154,7 @@ export const FONT_REGISTRY: readonly FontEntry[] = [
     group: "Accessibility",
     tail: SANS_TAIL,
     weights: [400, 700],
-    // Lexend is a VARIABLE font upstream: one file carries the whole wght axis,
-    // and Google's css2 returns the same URL for 400 and 700. Shipping it once and
-    // pointing both faces at it is upstream's own arrangement, and it is why this
-    // is the only entry with an explicit file name.
+    // Variable upstream: one file carries the whole wght axis, so both faces point at it.
     file: "lexend-variable.woff2",
     license: "OFL-1.1",
     copyright:
@@ -226,7 +173,6 @@ export const FONT_REGISTRY: readonly FontEntry[] = [
     note: "weighted letterforms for dyslexia",
   }),
 
-  // --- Popular ---
   webfont({
     key: "inter",
     family: "Inter",
@@ -243,11 +189,8 @@ export const FONT_REGISTRY: readonly FontEntry[] = [
     group: "Popular",
     tail: SANS_TAIL,
     weights: [400],
-    // The deliverable records Apache-2.0; upstream has since relicensed Roboto
-    // under OFL-1.1 (google/fonts now ships `ofl/roboto/OFL.txt`). Both grants
-    // are permissive and MIT-compatible and BOTH license texts ship beside the
-    // binaries, so the redistribution is covered whichever one applies to these
-    // bytes. This is the only entry that is not a single identifier.
+    // Dual-stated because upstream relicensed from Apache-2.0 to OFL-1.1: both texts
+    // ship beside the binaries, so the redistribution is covered either way.
     license: "OFL-1.1 OR Apache-2.0",
     copyright:
       "Copyright 2011 The Roboto Project Authors (https://github.com/googlefonts/roboto-classic)",
@@ -297,7 +240,6 @@ export const FONT_REGISTRY: readonly FontEntry[] = [
     note: "wide geometric sans",
   }),
 
-  // --- Playful & Kids ---
   webfont({
     key: "andika",
     family: "Andika",
@@ -352,7 +294,6 @@ export const FONT_REGISTRY: readonly FontEntry[] = [
     note: "casual handwriting",
   }),
 
-  // --- Traditional & Corporate ---
   webfont({
     key: "merriweather",
     family: "Merriweather",
@@ -419,7 +360,6 @@ export const FONT_REGISTRY: readonly FontEntry[] = [
     note: "neutral sans of the US Web Design System",
   }),
 
-  // --- Monospace: authored here; the design deliverable has no Monospace group. ---
   webfont({
     key: "jetbrainsmono",
     family: "JetBrains Mono",
@@ -450,18 +390,12 @@ export function fontByKey(key: string): FontEntry | undefined {
 }
 
 /**
- * The respondent-facing subset an operator has curated, in registry order, with
- * System guaranteed present.
+ * The respondent-facing subset an operator has curated, in registry order.
  *
- * The curation contract, which the portal's `QCMS_PORTAL_FONTS` reads and task
- * 053's control renders:
- *
- *   - an empty or all-unknown selection means "offer everything" (the shipped
- *     default), never "offer nothing";
- *   - an unknown key is ignored rather than fatal, matching the rest of the
- *     presentation config: a typo must not take a deployment down;
- *   - System is ALWAYS in the result and cannot be curated away, because it is
- *     the only entry guaranteed to render without a download.
+ * An empty or all-unknown selection means offer everything, never offer nothing, and an
+ * unknown key is ignored rather than fatal, so a typo cannot take a deployment down.
+ * System is always in the result: it is the only entry guaranteed to render with no
+ * download.
  */
 export function fontChoices(keys?: readonly string[]): readonly FontEntry[] {
   const wanted = new Set((keys ?? []).filter((key) => fontByKey(key) !== undefined));
@@ -476,10 +410,8 @@ export function fontClass(key: string): string {
 }
 
 /**
- * The scope carrier every generated block is anchored on (ADR-38). `:root` and
- * `[data-qcms-theme-scope]` are both specificity (0,1,0) and `:is()` takes its
- * most specific argument, so this anchor is exactly as specific as the bare
- * `:root` it replaced. Never `:where()`, which is specificity 0.
+ * The scope carrier every generated block is anchored on (ADR-38). Never `:where()`,
+ * whose specificity is 0: `:is()` keeps this anchor at exactly `:root`'s (0,1,0).
  */
 const SCOPE_ANCHOR = ":is(:root, [data-qcms-theme-scope])";
 
@@ -517,8 +449,8 @@ const CSS_HEADER = `/*
  * `:is(:root, [data-qcms-theme-scope]).font-<key>` block per entry that sets
  * `--font-portal` and nothing else.
  *
- * Exported so an adopter who extends the manifest can regenerate the stylesheet
- * with their own entries appended, rather than hand-writing `@font-face` rules.
+ * Exported so an adopter who extends the manifest can regenerate the stylesheet with
+ * their own entries appended, rather than hand-writing `@font-face` rules.
  */
 export function renderFontsCss(entries: readonly FontEntry[] = FONT_REGISTRY): string {
   const parts: string[] = [CSS_HEADER];

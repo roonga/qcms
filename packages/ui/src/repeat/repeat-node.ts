@@ -1,48 +1,42 @@
 /**
- * The two repeat node types and the wire vocabulary the roster operation rides on
- * (task 073, ADR-42, ADR-43).
+ * The repeat node types and the wire vocabulary a roster operation rides on
+ * (ADR-42, ADR-43).
  *
- * This module is **React-free and dependency-free on purpose**, exactly as
- * `native-submit.ts` is: the portal's server-only BFF decoder imports the `__qop`
- * vocabulary from it, and a Server Component must not pull a client component into
- * its graph through a transitive import.
+ * React-free and dependency-free on purpose: the portal's server-only BFF decoder
+ * imports the `__qop` vocabulary from here, and a Server Component must not pull a
+ * client component into its graph through a transitive import.
  */
 
 /**
  * The compiler's template node: one repeating group, carrying its member controls
- * **once** with the bare `questionId` as each `name`
- * (`@roonga/qcms-a2ui-compiler`'s `repeat-group.ts`).
+ * once with the bare `questionId` as each `name`.
  */
 export const REPEAT_GROUP_NODE_TYPE = "RepeatGroup";
 
 /**
- * One live instance of a group, produced by {@link expandRepeatGroups} at render
- * time and never by the compiler. It is the `Honeypot` and `SubmitButton`
- * precedent's third case: a qcms-owned node type the stored bytes never carry.
+ * One live instance of a group, produced at render time and never by the compiler:
+ * a qcms-owned node type the stored bytes never carry.
  */
 export const REPEAT_INSTANCE_NODE_TYPE = "RepeatInstance";
 
 /**
  * The separator between an instance id and a question id in a field name:
- * `ins_7k2/q_passport` (Q15, ruled 2026-09-29; `ANSWER_KEY_SEPARATOR` in
- * `@roonga/qcms-core`).
+ * `ins_7k2/q_passport`.
  *
- * It is spelled here rather than imported because this package does not depend on
- * the kernel, and `@roonga/qcms-ui`'s import-surface test keeps it that way. The two
- * constants are one contract and a test asserts they agree.
+ * Spelled here rather than imported, because this package does not depend on the
+ * kernel and the import-surface test keeps it that way. It and the kernel's
+ * `ANSWER_KEY_SEPARATOR` are one contract, and a test asserts they agree.
  */
 export const INSTANCE_NAME_SEPARATOR = "/";
 
 /**
- * The reserved form-field name a roster operation posts under: the **fourth**
- * reserved prefix on the no-JS wire, beside `__qk__`, `__qa__` and the honeypot's
- * `website`.
+ * The reserved form-field name a roster operation posts under, beside `__qk__`,
+ * `__qa__` and the honeypot's `website`.
  *
- * A `<button name value>` contributes its name and value to the form data set **only
- * when it is the button that submitted the form**, which is what lets one step form
- * carry several distinct operations with no scripting at all (ADR-43, Q9). So a
- * whole-step POST carries every field on the step plus **at most one** `__qop`
- * entry, or none.
+ * A `<button name value>` contributes its pair to the form data set only when it is
+ * the button that submitted the form, which is what lets one step form carry several
+ * distinct operations with no scripting (ADR-43). So a whole-step POST carries every
+ * field on the step plus at most one `__qop` entry.
  */
 export const ROSTER_OP_FIELD = "__qop";
 
@@ -53,12 +47,11 @@ export type RosterOp = (typeof ROSTER_OPS)[number];
 /**
  * One decoded `__qop` value.
  *
- * `token` is the **one-time operation token** the rendered page minted into the
- * button's value (ADR-43). The API records it with the roster row it writes, so a
- * replayed post - a reload of the 200 re-render, or a Back that resubmits - applies
- * nothing and returns the roster it already has. It is not a credential: it is
- * scoped to the session it was minted in, it is worthless to anyone who cannot
- * already post to that session, and refusing a replay is its only job.
+ * `token` is the one-time operation token the rendered page minted into the button's
+ * value (ADR-43). The API records it with the roster row it writes, so a replayed
+ * post applies nothing and returns the roster it already has. It is not a
+ * credential: it is scoped to the session it was minted in and refusing a replay is
+ * its only job.
  */
 export interface RosterOpRequest {
   readonly op: RosterOp;
@@ -81,11 +74,10 @@ export function rosterOpValue(request: RosterOpRequest): string {
  * Decode a `__qop` value, or `undefined` when it is not one.
  *
  * Total over hostile input: a respondent can type any bytes into the form, so this
- * refuses anything that is not exactly the shape {@link rosterOpValue} writes. The
- * ids are checked only for **shape** here (non-empty, separator-free); whether a
- * group exists in the pinned form version and whether an instance belongs to this
- * session are the API's to decide, and it decides them against the snapshot and the
- * roster rather than against a regular expression.
+ * refuses anything that is not exactly the shape {@link rosterOpValue} writes. Only
+ * shape is checked here; whether a group exists in the pinned version and whether an
+ * instance belongs to this session are the API's to decide, against the snapshot and
+ * the roster rather than against a regular expression.
  */
 export function parseRosterOpValue(raw: string): RosterOpRequest | undefined {
   const parts = raw.split(":");
@@ -101,15 +93,11 @@ export function parseRosterOpValue(raw: string): RosterOpRequest | undefined {
 }
 
 /**
- * The field name one question carries inside one instance:
- * `ins_7k2/q_passport`.
+ * The field name one question carries inside one instance: `ins_7k2/q_passport`.
  *
- * **This is the field's whole identity everywhere below the API** (ADR-43). Every
- * place that keys on `name` today - `documentForVisible`'s pruning, the portal's
- * `commitMoments`, the `FieldBlur` wrapper's `id` and `data-qcms-field`, each
- * adapter's `key`, the `__qk__` and `__qa__` markers, the BFF decoder and the error
- * summary's anchors - keeps keying on one opaque string, and none of them learns
- * that instances exist.
+ * This is the field's whole identity everywhere below the API (ADR-43), so every
+ * place that keys on `name` keeps keying on one opaque string and none of them
+ * learns that instances exist.
  */
 export function qualifiedFieldName(instanceId: string, questionId: string): string {
   return `${instanceId}${INSTANCE_NAME_SEPARATOR}${questionId}`;
@@ -119,17 +107,15 @@ export function qualifiedFieldName(instanceId: string, questionId: string): stri
 export const INSTANCE_ORDINAL_PLACEHOLDER = "{n}";
 
 /**
- * Resolve an instance label from its template and the instance's **live** one-based
+ * Resolve an instance label from its template and the instance's live one-based
  * ordinal: "Vehicle {n}" at ordinal 2 is "Vehicle 2".
  *
- * The ordinal is the instance's position in the live roster and is recomputed after
- * a removal, so it is presentation and never identity (ADR-42): the `ins_` id is
- * what joins. A template carrying no `{n}` is legal (a group of one) and resolves to
- * itself.
+ * The ordinal is recomputed after a removal, so it is presentation and never
+ * identity (ADR-42): the `ins_` id is what joins. A template carrying no `{n}` is
+ * legal and resolves to itself.
  *
- * The replacement is a **function** rather than a string, because `String.replace`
- * expands `$&`, `$1` and their friends inside a replacement string and an ordinal is
- * a digit.
+ * The replacement is a function rather than a string, because a replacement string
+ * expands `$&` and `$1` and an ordinal is a digit.
  */
 export function instanceLabelFor(template: string, ordinal: number): string {
   const text = String(ordinal);
@@ -139,23 +125,19 @@ export function instanceLabelFor(template: string, ordinal: number): string {
 /** The `{label}` placeholder the compiled `removeLabel` carries. */
 export const REMOVE_LABEL_PLACEHOLDER = "{label}";
 
-/** "Remove {label}" at "Vehicle 2" is "Remove Vehicle 2" (APG: distinguishing words first). */
+/** "Remove {label}" at "Vehicle 2" is "Remove Vehicle 2". */
 export function removeLabelFor(template: string, instanceLabel: string): string {
   return template.replaceAll(REMOVE_LABEL_PLACEHOLDER, () => instanceLabel);
 }
 
 /**
- * The DOM id of a group's Add control: the third focus destination after a removal
- * (Q11), when the removed instance was the only one and the button is the only
- * candidate left on the page.
+ * The DOM id of a group's Add control: the focus destination after a removal that
+ * emptied the group, when the button is the only candidate left on the page.
  *
- * It lives in this module rather than beside the component that renders it because a
- * **server** module needs it: the no-JS Server Action computes the focus destination
- * and hands it back for the re-render, and a `"use server"` module that reached for the
- * component barrel would pull the whole React renderer into the server graph. Next
- * refuses that outright ("You're importing a module that depends on `useState` into a
- * React Server Component module"), which is the failure this placement prevents rather
- * than a style it follows.
+ * It lives here rather than beside the component that renders it because a server
+ * module needs it: the no-JS Server Action computes the focus destination, and a
+ * `"use server"` module that reached for the component barrel would pull the React
+ * renderer into the server graph, which Next refuses outright.
  */
 export function addButtonId(groupId: string): string {
   return `qcms-repeat-add-${groupId}`;
