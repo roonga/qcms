@@ -40,7 +40,10 @@ The Code Owner decides ADR changes, scope changes, explicit human gates, destruc
 Applies to PR descriptions, PR and review comments, issues, commit messages, and code comments.
 
 - Keep it concise. Use bullet points, not paragraphs.
-- Code comments explain why, not what. Do not narrate what the code does.
+- Code comments (Code Owner, 2026-10-24; full rule in `PROJECT_INSTRUCTIONS.md`):
+  - Keep them short and never restate what the code does.
+  - No history: no dates, rulings, "was X, now Y", or issue and PR numbers unless one is the only pointer to a non-obvious constraint.
+  - Keep only what a reader needs and the code cannot say: a non-obvious why, a safety or security constraint, an external-bug workaround, a license header, a lint-disable justification, or a published API doc comment.
 
 ## Verification
 
