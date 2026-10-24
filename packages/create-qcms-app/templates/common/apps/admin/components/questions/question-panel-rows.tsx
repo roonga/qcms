@@ -30,12 +30,24 @@ import type { QuestionPanel, QuestionPanelId } from "@/lib/questions/panels";
  * already puts on the open panel and the id the refused-save path moves focus to. One value
  * for the row's `href` and the editor's anchor, rather than two that have to be kept equal.
  *
- * **What switches the panel is still the click, and the address the switch writes is still
+ * **What switches the panel is the click, and the address the switch writes is still
  * `?panel=`.** `chooseQuestionPanel` replaces that parameter (`lib/questions/editor-bridge.
- * ts`), which is what a reload and the server read; the fragment rides along beside it. The
- * default is deliberately not prevented, so the fragment lands in the bar and the browser
- * scrolls the open panel into view - and a row opened in a new tab arrives at an address that
- * carries the parameter too.
+ * ts`), which is what a reload and the server read, and the handler writes the fragment beside
+ * it so the whole address names the open panel. A row opened in a new tab arrives at an address
+ * carrying the parameter too.
+ *
+ * **THE DEFAULT IS PREVENTED, AND FOCUS IS THE REASON.** It was not, on the reasoning that the
+ * fragment should land in the bar by itself and the browser's scroll-into-view was harmless.
+ * The scroll was; the focus was not. The editor's panel section carries `tabIndex={-1}`, because
+ * it is where a refused save sends the author, so a same-page fragment navigation to it is a
+ * navigation to a FOCUSABLE element and the browser moves focus off the row. A reader walking
+ * the rail by keyboard pressed Enter on Constraints and landed in the panel, which is both the
+ * wrong place to continue from and a silent difference from the Settings rail, whose rows keep
+ * focus because the panels they name are ordinary `<div>`s and take none. Preventing the default
+ * and writing the fragment with `replaceState` makes the two rails behave alike: the address
+ * carries the fragment, the panel switches, and focus stays on the row the reader pressed
+ * (`e2e/questions-rail.pw.ts`, which is where this is asserted - jsdom performs no fragment
+ * navigation, so only a browser can see it).
  *
  * What the fragment does NOT do is select a panel on a cold load: the editor renders one panel
  * at a time, so four of the five ids are not in the document, and a reader arriving on
@@ -119,12 +131,21 @@ export function QuestionPanelRows({
               // the open panel up by it to move focus inside.
               aria-current={panel.id === open ? "page" : undefined}
               data-rail-panel={panel.id}
-              // NOT prevented: the fragment is meant to land in the address bar, and the
-              // browser's own scroll-into-view on it is harmless - the panel it names is
-              // either the one about to render at the top of the column or not in the
-              // document at all.
-              onClick={() => {
+              // PREVENTED, so the fragment lands without a navigation: the panel this names
+              // is a `tabIndex={-1}` focus destination for a refused save, so letting the
+              // browser navigate to it would take focus off the row a keyboard reader just
+              // pressed. The docblock above records that at length.
+              //
+              // `replaceState` rather than a push, and after `chooseQuestionPanel`, which has
+              // just replaced `?panel=`: reading `location` back here picks that up, so the
+              // two write one entry between them. The panels are one screen's worth of one
+              // question, not five places the reader went.
+              onClick={(event) => {
+                event.preventDefault();
                 chooseQuestionPanel(panel.id);
+                const url = new URL(window.location.href);
+                url.hash = panel.anchorId;
+                window.history.replaceState(null, "", `${url.pathname}${url.search}${url.hash}`);
               }}
             >
               <span className="qcms-rail__row">

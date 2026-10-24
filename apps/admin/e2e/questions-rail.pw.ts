@@ -672,7 +672,16 @@ test("1116 opens a panel from the keyboard, which is what an anchor row owes", a
   await expect(content).not.toHaveAttribute("aria-current", "page");
   await expect(field(page, "Shortest answer")).toBeVisible();
   await expect(field(page, "Label"), "one panel at a time").toHaveCount(0);
-  // Focus stays on the row the reader pressed: nothing was navigated to, so moving it would
-  // take them away from the list they are walking.
+  // FOCUS STAYS ON THE ROW, which is the half this test was written for and the half the
+  // first build got wrong. The panel the fragment names is a `tabIndex={-1}` destination for a
+  // refused save, so the anchor's native same-page navigation moved focus into it and a reader
+  // walking the rail by keyboard was dropped into the panel. The Settings rows never had the
+  // problem - the panels they name are ordinary `<div>`s and take no focus - and
+  // `settings-rail.pw.ts` asserts the same thing there, so the two rails now behave alike.
   await expect(constraints).toBeFocused();
+  // And the address still carries the fragment, written by `replaceState` rather than by the
+  // navigation that was prevented. Both halves, because one without the other is the bug:
+  // focus kept by dropping the fragment would make the row's `href` decoration.
+  await expect(page).toHaveURL(/#panel-constraints$/u);
+  await expect(page).toHaveURL(/panel=constraints/u);
 });
