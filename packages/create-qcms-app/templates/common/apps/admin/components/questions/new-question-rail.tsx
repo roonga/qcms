@@ -69,8 +69,13 @@ export function NewQuestionRail({ panels }: { readonly panels: readonly Question
            same row chrome: a `.qcms-rail__link--stacked` with the panel's name, its issue
            badge and its digest underneath. A reader who has used the detail screen's rail
            should not have to learn a second kind of row here. */
+        // `qcms-rail__group` WITHOUT the `--panels` modifier, which is the one difference
+        // from the detail rail's list: that modifier indents, because there the panel rows
+        // are nested CHILDREN under a version row. Here they are the Sections part at the
+        // top level, so an indent would set this rail's rows out of line with every other
+        // rail's.
         <ul
-          className="qcms-rail__group qcms-rail__group--panels"
+          className="qcms-rail__group"
           aria-label={t("questions.rail.panels")}
           data-rail-group="panels"
         >
