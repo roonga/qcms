@@ -10,7 +10,10 @@ This is a single-seat repository. The root session is the conductor: it plans, s
 - Use `dev-task` for ad-hoc development, diagnostics, and long-running checks.
 - Use `task-reviewer` for an independent review of the exact PR head. A reviewer reports findings but never fixes them.
 - Keep the conductor responsive. Delegate work that is broad or expected to run for several minutes.
-- Subagents default to Opus (`.claude/agents/*.md`). Pass a Fable model override at dispatch only when the judgement is the deliverable: a first-round review of a security-sensitive or ADR-adjacent change, or a design call the Code Owner will rule on. Routine lanes stay on the default: delta re-reviews, rebases and renumbers, docs sweeps, CSS and theme changes, monitoring, and mechanical fixes (Code Owner, 2026-09-10, issue #867).
+- Subagents default to Opus (`.claude/agents/*.md`); the model is chosen per dispatch (Code Owner, 2026-10-24, issue #1146):
+  - **Sonnet** override: delta re-reviews that confirm a rebase or small fix changed nothing else, status and CI monitoring, comment and docs sweeps, rebases and renumbers, small design-system card edits, mechanical fixes. Every sweep PR still gets an independent review confirming only comments changed.
+  - **Opus** (default): implementation, first-round reviews, and anything not listed for Sonnet.
+  - **Fable** override: first-round reviews of security-sensitive or ADR-adjacent changes, and design calls the Code Owner will rule on.
 
 The Code Owner decides ADR changes, scope changes, explicit human gates, destructive operations, and ambiguous security acceptance. Prepare a recommendation and evidence, then ask. Never simulate a human decision.
 
