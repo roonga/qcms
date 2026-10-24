@@ -37,11 +37,12 @@ The Code Owner decides ADR changes, scope changes, explicit human gates, destruc
 
 ## Writing style
 
-Applies to PR descriptions, PR and review comments, issues, commit messages, and code comments.
+Code Owner, 2026-10-24; the full rules are "Code comments" and "Written text" in `PROJECT_INSTRUCTIONS.md`.
 
-- Keep it concise. Use bullet points, not paragraphs.
-- Code comments (Code Owner, 2026-10-24; full rule in `PROJECT_INSTRUCTIONS.md`):
-  - The default is no comment. Write one only when a reader needs something the code cannot say: a non-obvious why, a safety or security constraint, or an external-bug workaround. License headers and lint-disable justifications stay.
+- PR descriptions, PR and issue comments, reviews, issues and commit bodies: concise, short bullet points, no narrative, no restating the diff, no history.
+  - A PR body is `## Summary` (a few bullets) and `## Test plan` (gates run, one line each), nothing else unless a ruling or risk needs calling out.
+- Code comments: the default is no comment. Write one only when a reader needs something the code cannot say: a non-obvious why, a safety or security constraint, or an external-bug workaround. License headers and lint-disable justifications stay.
+  - JSDoc on exported package APIs stays, one short line or a few at most, saying what the name and types do not.
   - Never restate the code. No history: no dates, rulings, "was X, now Y", or issue and PR numbers unless one is the only pointer to a non-obvious constraint.
 
 ## Verification
