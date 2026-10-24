@@ -6,12 +6,9 @@ import { useEffect, useRef, useState } from "react";
 import { TURNSTILE_ORIGIN } from "@/lib/turnstile";
 
 /**
- * Cloudflare Turnstile widget shell (026's challenge seam, ADR-24). Rendered ONLY
- * when `QCMS_FLAG_CHALLENGE_PROVIDER=turnstile` (the ChallengeSlot gates it), so
- * with the default `none` this module is never loaded and its script origin never
- * appears (SEC-9). The solved token is written to the hidden `challengeToken`
- * input inside the entry form; the BFF forwards it to the API's challenge
- * verifier (the real authority - the portal never verifies).
+ * Cloudflare Turnstile widget shell (ADR-24). `ChallengeSlot` gates it, so with the
+ * default provider this module is never loaded and its script origin never appears
+ * (SEC-9). The API verifies the token; the portal never does.
  */
 export function TurnstileWidget({ siteKey }: { readonly siteKey: string }) {
   const [token, setToken] = useState("");
@@ -31,7 +28,6 @@ export function TurnstileWidget({ siteKey }: { readonly siteKey: string }) {
         className="cf-turnstile"
         data-sitekey={siteKey}
         data-callback="qcmsTurnstileCallback"
-        // The widget calls the named global; we bridge it to React state below.
         suppressHydrationWarning
       />
       <TurnstileBridge onToken={setToken} />
@@ -40,7 +36,8 @@ export function TurnstileWidget({ siteKey }: { readonly siteKey: string }) {
   );
 }
 
-/** Bridges Turnstile's global data-callback to React state without inline JS. */
+// Bridges Turnstile's global data-callback to React state without inline JS, which the
+// CSP would refuse.
 function TurnstileBridge({ onToken }: { readonly onToken: (token: string) => void }) {
   useEffect(() => {
     const win = window as unknown as { qcmsTurnstileCallback?: (token: string) => void };

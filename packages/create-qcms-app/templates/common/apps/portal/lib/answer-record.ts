@@ -3,103 +3,58 @@ import type { A2UIAnswerValue, A2UIErrors, A2UIValues } from "@roonga/qcms-ui";
 import type { CommitMoment } from "./visible";
 
 /**
- * The flow's record of what the server has said about each answer: the value it
- * holds, and the value it refused (issue #122).
+ * The flow's record of what the server has said about each answer: the value it holds,
+ * and the value it refused.
  *
- * Both halves are decision rules rather than rendering, and both are wrong in
- * ways that are invisible on screen, so they live here as pure functions the
- * `answer-record.test.ts` slice can drive through whole sequences: `step-flow.tsx`
- * holds the record in a ref, replaces it through these functions, and derives the
- * displayed field errors from them.
- *
- * The record's one job is suppressing a post that would say nothing new: a
- * control that committed on change must not re-post the identical value when
- * focus later leaves it, and a resumed control must not post a `null` retraction
- * of an answer the respondent never touched (issue #146). What makes that safe is
- * WHEN the record is written: on the post's ISSUE, not on its resolution, with a
- * rollback if the post is refused (see `withIssued` / `withRollback`).
+ * Its one job is suppressing a post that would say nothing new. What makes that safe is
+ * when the record is written: on the post's issue rather than its resolution, with a
+ * rollback if the post is refused.
  */
 
 /**
- * What the server holds, per question, as a comparable key. A record entry is
- * absent when the question has no stored answer; the key `"null"` means the
+ * An absent entry means the question has no stored answer; the key `"null"` means the
  * server holds an explicit retraction (ADR-33), which is a different state.
  */
 export type PostedRecord = Readonly<Record<string, string | undefined>>;
 
-/** One question's refused answer: the message to show, and the value refused. */
 export interface RejectedAnswer {
   readonly message: string;
   /** The `answerKey` of the value the server rejected. */
   readonly key: string;
 }
 
-/** Every question whose last post was refused, keyed by questionId. */
 export type RejectedAnswers = Readonly<Record<string, RejectedAnswer | undefined>>;
 
 /**
- * One answer value as a comparable key.
+ * JSON for its shape fidelity rather than as a wire format: absence has to stay distinct
+ * from every real value, and it encodes as `null`, which no real answer can collide with
+ * because every string is quoted.
  *
- * JSON is used for its shape fidelity, not as a wire format: absence must stay
- * distinct from every real value (issue #98 settled that an emptied control means
- * absence, and #95 made that a tombstone append), and a multiChoice selection has
- * to compare element-wise. Absence encodes as `null` - the same body the
- * retraction posts - and no real `A2UIAnswerValue` can collide with it, because
- * every string is quoted: the shortText answer `"null"` encodes as `"\"null\""`.
- *
- * **Arrays are sorted into a copy before encoding (issue #167).** A multiChoice
- * value is a SET to the kernel (ADR-21: `valuesEqual` compares option ids
- * order-insensitively), so a key that read `["a","b"]` and `["b","a"]` as
- * different answers gave the client and the server different notions of "the same
- * answer". Nothing writes a different order today - every writer traces back to
- * the checkbox adapter, which emits in document order - so the only consequence
- * was one redundant append to the append-only ledger, never a wrong or a lost
- * answer. Canonicalizing here is what stops the next writer having to rediscover
- * that the two notions differed.
- *
- * The copy is deliberate: the argument is the value on screen, and sorting it in
- * place would reorder the respondent's selection in the rendered control.
- *
- * The sort is the ONLY canonicalization. Object key order, string normalization
- * and number formatting stay untouched on purpose: this key exists to agree with
- * what the server stores, and a client that folded together values the server
- * keeps apart would suppress a post the ledger wants. So the key is now CLOSER to
- * `valuesEqual` rather than equal to it, and the residue is worth naming rather
- * than leaving as "nearly equal": `valuesEqual` compares strings after NFC
- * normalization, and it treats a duplicated option id as the same set (the
- * canonical `MultiChoiceAnswerValue` is duplicate-free). Neither is reachable
- * from this client - the renderer emits NFC text and the checkbox adapter cannot
- * emit a duplicate - and folding either one here would mean this key deciding
- * something the server's canonical form decides, which is exactly the coupling
- * the single-seam design avoids.
+ * A multiChoice value is a set to the kernel (ADR-21), so it is sorted before encoding,
+ * or the client and the server would differ on what the same answer is. The sort is the
+ * only canonicalization: this key exists to agree with what the server stores, and
+ * folding together values the server keeps apart would suppress a post the ledger wants.
  */
 export function answerKey(value: A2UIAnswerValue | undefined): string {
-  // Sorted into a COPY: `value` is the value currently rendered in the control.
+  // Sorted into a copy: `value` is the value currently rendered in the control, and
+  // sorting in place would reorder the respondent's selection.
   if (isSelection(value)) return JSON.stringify([...value].sort());
   return JSON.stringify(value ?? null);
 }
 
 /**
- * A typed `Array.isArray`: the only array shape an `A2UIAnswerValue` has is a
- * multiChoice selection. Written as a predicate because bare `Array.isArray`
- * narrows a `readonly string[]` member to `any[]`, and spreading that is an
- * unchecked `any` the lint rules refuse (the same reason `@roonga/qcms-ui`'s registry
- * carries `isStringArray`).
+ * A predicate rather than a bare `Array.isArray`, which narrows a `readonly string[]`
+ * member to `any[]`, and spreading that is an unchecked `any` the lint rules refuse.
  */
 function isSelection(value: A2UIAnswerValue | undefined): value is readonly string[] {
   return Array.isArray(value);
 }
 
 /**
- * The record for a set of answers the server holds, in `answerKey` encoding.
- *
- * Seeding this alongside the displayed values is what makes a resumed control
- * inert until the respondent actually changes something (issue #146): without it,
- * focus entering and leaving an untouched control looked like a fresh commit of
- * an emptied field and posted a `null` retraction of an answer the server
- * legitimately held. It also restores the other direction: a resumed `completion`
- * control (the date) whose value the respondent clears is only recognisable as
- * retracting a *previously answered* question by comparing against this record.
+ * Seeding this alongside the displayed values is what makes a resumed control inert
+ * until the respondent changes something: without it, focus entering and leaving an
+ * untouched control posts a `null` retraction of an answer the server legitimately
+ * holds. It also makes a resumed control's clear recognisable as a retraction.
  */
 export function recordedAnswers(held: A2UIValues): PostedRecord {
   const recorded: Record<string, string> = {};
@@ -110,19 +65,16 @@ export function recordedAnswers(held: A2UIValues): PostedRecord {
 }
 
 /**
- * The record updated with the answers a freshly served step reports the server
- * holding. Merged over, never swapped in: a question the response carries is the
- * ledger's word on it, and one it does not carry leaves the existing entry alone,
- * so a value this client posted on another step is not forgotten.
+ * Merged over, never swapped in: a question the response does not carry leaves its
+ * existing entry alone, so a value this client posted on another step is not forgotten.
  */
 export function withServerHeld(record: PostedRecord, held: A2UIValues): PostedRecord {
   return { ...record, ...recordedAnswers(held) };
 }
 
 /**
- * Whether this exact value is already recorded for this question, so committing
- * it would be a redundant append. True also while a post carrying it is still in
- * flight, which is the point: `withIssued` records at issue time.
+ * True also while a post carrying the value is still in flight, which is the point:
+ * `withIssued` records at issue time.
  */
 export function isRecorded(
   record: PostedRecord,
@@ -133,10 +85,9 @@ export function isRecorded(
 }
 
 /**
- * Whether the server is known to hold a real answer for this question, as opposed
- * to no answer at all or an explicit retraction. What separates a `completion`
- * control's clear that RETRACTS a stored answer (post it) from a never-answered
- * control the respondent left empty (post nothing) - ADR-31 amended x ADR-33.
+ * A real answer, as opposed to no answer at all or an explicit retraction. It is what
+ * separates a clear that retracts a stored answer, which posts, from a never-answered
+ * control the respondent left empty, which does not (ADR-33).
  */
 export function holdsAnswer(record: PostedRecord, name: string): boolean {
   const key = record[name];
@@ -144,35 +95,18 @@ export function holdsAnswer(record: PostedRecord, name: string): boolean {
 }
 
 /**
- * Whether focus leaving a control is a commit worth posting (issue #168).
+ * Whether focus leaving a control is a commit worth posting. Two rules, both about a
+ * post having to assert something:
  *
- * The renderer reports focus leaving the WHOLE control, which is ADR-31's `blur`
- * moment for number, longText and shortText and its `groupExit` for a multiChoice.
- * Two rules decide, and both are about the same thing - a post must assert
- * something:
+ * - an empty `completion` control commits nothing, because a never-finished date is not
+ *   an answer and the one `null` it can post is the ADR-33 retraction, which arrives
+ *   through the change event once editing ends;
+ * - an empty control that holds no answer commits nothing either, whatever its moment,
+ *   because a retraction needs something to retract. It cost a round trip per control a
+ *   respondent tabbed through, plus a 422 whenever the question was required.
  *
- * - An **empty `completion` control** (the date) commits nothing here. A partial or
- *   never-finished date is not an answer, and the one `null` such a control can
- *   post is the ADR-33 retraction, which arrives through the change event once
- *   editing ends.
- * - An **empty control that holds no answer** commits nothing either, whatever its
- *   moment. A retraction needs something to retract: asserting "this question is
- *   now unanswered" about a question that was never answered says nothing the
- *   server does not already know, and the server treats it as a no-op anyway. What
- *   it cost was a round trip per control a respondent tabs through, plus a 422 and
- *   its `console.error` whenever the question was required.
- *
- * Extracted as a pure function rather than left inline in `step-flow.tsx`, because
- * this is the rule that decides whether a network call happens and it is wrong in
- * ways nothing on screen shows. The record it reads is the optimistic one, seeded
- * from the answers the server served the step with (issue #146) and re-merged on
- * every navigation, so the answer is correct on a RESUMED mount and not only on a
- * fresh one. An in-flight post counts as held (`withIssued` records at issue time)
- * and a refused one does not (`withRollback`, issue #169), so a real retraction is
- * never suppressed.
- *
- * A non-empty value always commits: `isRecorded` in the caller is what suppresses a
- * redundant repeat of it, and that is a different question from this one.
+ * A non-empty value always commits; suppressing a redundant repeat is `isRecorded`'s job
+ * in the caller.
  */
 export function commitsOnFocusExit(
   record: PostedRecord,
@@ -186,15 +120,10 @@ export function commitsOnFocusExit(
 }
 
 /**
- * The record with this question's value marked as posted, called when the post is
- * ISSUED (issue #122).
- *
- * Recording on resolution left a window in which the answer was in flight and the
- * record still held the previous value, so a blur arriving inside it re-posted the
- * same answer: two appends for one gesture, and a second `busy` flip racing the
- * Continue guard. That window is reachable from an ordinary gesture since ADR-31
- * made boolean and singleChoice commit on `change` - the selection issues the
- * post, and the respondent's hand is already moving to Continue.
+ * Called when the post is issued. Recording on resolution instead left a window in which
+ * the answer was in flight and the record still held the previous value, so a blur
+ * arriving inside it re-posted the same answer; an ordinary gesture reaches it, because
+ * a selection issues its post while the respondent's hand is already moving to Continue.
  */
 export function withIssued(
   record: PostedRecord,
@@ -205,13 +134,9 @@ export function withIssued(
 }
 
 /**
- * The record with this question's value marked as HELD BY THE SERVER, called when
- * a post is accepted (issue #169).
- *
- * Identical arithmetic to `withIssued`, deliberately kept as its own name because
- * the two write different records: `withIssued` writes the optimistic one that
- * dedupes posts, this one writes the confirmed one that `withRollback` restores
- * from. Conflating them is the defect #169 records.
+ * Identical arithmetic to `withIssued`, kept as its own name because the two write
+ * different records: that one the optimistic record that dedupes posts, this one the
+ * confirmed record `withRollback` restores from.
  */
 export function withConfirmed(
   confirmed: PostedRecord,
@@ -222,30 +147,17 @@ export function withConfirmed(
 }
 
 /**
- * The record with an issued post's optimistic entry undone, called when that post
- * was NOT accepted.
+ * Undoes an issued post's optimistic entry when the post was not accepted, without
+ * which a refused value would be remembered as held and the retry deduped into silence.
+ * It restores absence when the server holds nothing, because no entry is what tells a
+ * `completion` clear that the question was never answered.
  *
- * Without this, recording on issue would be worse than recording on resolution: a
- * refused value would be remembered as held, and the respondent could never retry
- * it (the retry would be deduped into silence, which matters the moment the same
- * body could succeed later - a transient failure, a changed constraint). The
- * restore has to restore ABSENCE when the server holds nothing, because "no entry"
- * is what tells a `completion` clear that the question was never answered.
+ * Conditional, compare and swap: if the record no longer holds `key`, a newer post has
+ * been issued since and this stale rollback must not clobber it.
  *
- * The rollback is conditional (compare and swap): if the record no longer holds
- * `key`, a newer post for this question has been issued since and its entry is the
- * current truth, so this stale rollback must not clobber it.
- *
- * **What it restores comes from `confirmed`, never from `record` (issue #169).**
- * The rollback's contract is "restore what was true before this post", and the only
- * keys that were ever true are the ones the server seeded or accepted. Reading the
- * value the optimistic record happened to hold when this post was issued breaks
- * that on two overlapping refusals of the same question: post A records X, post B
- * is issued before A resolves and captures X as its predecessor, both are refused,
- * and B's rollback reinstates X - a value the server refused. The record then
- * claims the client holds X, so re-entering X is deduped into silence until a
- * navigation's `withServerHeld` merge heals it. Taking the predecessor from the
- * confirmed record makes that unrepresentable rather than merely unlikely.
+ * What it restores comes from `confirmed`, never from `record`, because only the keys
+ * the server seeded or accepted were ever true. With two overlapping refusals of one
+ * question, the optimistic record's predecessor is the first post's refused value.
  */
 export function withRollback(
   record: PostedRecord,
@@ -261,19 +173,15 @@ export function withRollback(
   return next;
 }
 
-/** No field errors: one frozen object, so an error-free render is referentially stable. */
+// One frozen object, so an error-free render is referentially stable.
 const NO_ERRORS: A2UIErrors = Object.freeze({});
 
 /**
- * The field errors to display, derived from the refusals and the values on screen
- * (issue #122).
- *
- * A rejection message describes ONE value: the one the server refused. So it is
- * shown exactly while the field still holds that value, and the edit that replaces
- * the value is what clears it. The alternative - clearing on the next accepted post
- * - leaves the message up while the respondent types the correction, and leaves it
- * up forever when the correction restores the value the server already holds,
- * because that commit is deduped and no accepted post for the field ever arrives.
+ * A rejection message describes one value, so it is shown exactly while the field still
+ * holds that value and the edit replacing it is what clears it. Clearing on the next
+ * accepted post instead leaves the message up while the respondent types, and leaves it
+ * up for ever when the correction restores a value the server already holds, since that
+ * commit is deduped and no accepted post ever arrives.
  */
 export function visibleErrors(rejected: RejectedAnswers, values: A2UIValues): A2UIErrors {
   let shown: Record<string, string> | undefined;
@@ -285,7 +193,6 @@ export function visibleErrors(rejected: RejectedAnswers, values: A2UIValues): A2
   return shown ?? NO_ERRORS;
 }
 
-/** The refusals with this question's entry dropped (its post was accepted). */
 export function withoutRejection(rejected: RejectedAnswers, name: string): RejectedAnswers {
   if (rejected[name] === undefined) return rejected;
   const next = { ...rejected };
@@ -293,7 +200,6 @@ export function withoutRejection(rejected: RejectedAnswers, name: string): Rejec
   return next;
 }
 
-/** The refusals with this question's post recorded as refused. */
 export function withRejection(
   rejected: RejectedAnswers,
   name: string,
