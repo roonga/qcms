@@ -129,7 +129,7 @@ _Recommended before issue #1133: a 48 CSS px floating launcher in the viewport's
 It is rendered once, by a client component in the top bar of the authenticated shell layout (`apps/admin/app/(shell)/layout.tsx`), only when `agentAuthoringEnabled()` is true on the server, and on **every** `(shell)` screen, Settings included (Q18).
 With the flag off the component is not rendered at all, the same "absent rather than hidden" stance the builder prop takes today (`form-builder.tsx:167-173`).
 
-With the panel closed, a text status badge follows the button, never colour alone: "Working" while a turn runs, and "1 action to review" when a card is waiting (section 16, O3).
+With the panel closed, its badges are short text immediately after the button, never colour or motion alone: "Working" while a turn runs, and "1 action to review" when a card is waiting (ruling O3, Code Owner, 2026-10-24, issue #1133).
 
 ### 4.2 Dock, expanded and sheet
 
@@ -146,10 +146,10 @@ Whether the panel is open, and its width, are a cookie the layout reads, the way
 **The width never takes the content below `--bp-compact`** (Code Owner, 2026-10-24, issue #1133): the dock is at least 320 px and at most `min(560px, viewport - rail - 640px)`, where the rail is 240 px at 1280 px and wider and 0 px at 1024 to 1279 px (hidden, below), and at most 400 px in that range. At 1024 px that is 384 px; at 1280 px, 400 px; at 1440 px, 560 px.
 **One panel element changes role with its state:** `role="complementary"` docked, `role="dialog"` with `aria-modal="true"` expanded or as the sheet. It is a `<div>`, because an `<aside>` cannot take the dialog role.
 `plan/admin-mobile-stance.md` decides what "narrow" means for the admin; the sheet follows whatever breakpoint that stance names.
-**The rail at 1024 to 1279 CSS px** (Code Owner, 2026-10-24, issue #1133; it replaces review finding B4's "dock needs 1280 CSS px"). Section 7.0 of `plan/admin-design-contracts.md` (recorded by #1120) puts a 240 px rail on every screen, and above `--bp-sidebar` its rule 8 gives the rail one reduced form only: hidden, by the operator's Hide sidebar toggle (issue #1119), with no icon strip. Rule 8 also leaves auto-hiding the rail while the assistant is open to its own ruling; issue #1133 is that ruling for 1024 to 1279 px. **Proposed interaction, pending confirmation (section 16, O1 and O2):**
+**The rail at 1024 to 1279 CSS px** (Code Owner, 2026-10-24, issue #1133; it replaces review finding B4's "dock needs 1280 CSS px"). Section 7.0 of `plan/admin-design-contracts.md` (recorded by #1120) puts a 240 px rail on every screen, and above `--bp-sidebar` its rule 8 gives the rail one reduced form only: hidden, by the operator's Hide sidebar toggle (issue #1119), with no icon strip. Rule 8 also leaves auto-hiding the rail while the assistant is open to its own ruling; issue #1133 is that ruling for 1024 to 1279 px. **Ruled (O1 and O2, Code Owner, 2026-10-24, issue #1133):**
 
 - Opening the panel below 1280 px hides the rail with #1119's hidden state, held only while the panel is open. It is never written to the operator's own Hide sidebar setting.
-- While it is hidden, the content heading row shows #1119's "Show sidebar" button as usual, with its filter count.
+- While it is hidden, the content heading row shows #1119's "Show sidebar" button as usual, with its filter count. In this range, pressing it shows the rail and closes the panel (O2); the conversation stays in memory, the top-bar button reopens it, and the polite live region says the assistant closed to show the sidebar.
 - Closing the panel, or widening the window to 1280 px, restores the rail to the operator's own setting: shown, unless they had hidden it themselves.
 - At 1280 px and wider the rail stays beside the dock. Below `--bp-sidebar` the panel is the sheet, and the rail is its shut disclosure behind it.
 
@@ -527,8 +527,8 @@ The principle and the rulings settle everything else. Two caps were added by the
 - **P1. One proposal per turn.** A turn ends with at most one card or one plan, and a second propose call in the same turn is refused with "put the steps in one plan". Recommended, because it makes "one plan, one Confirm" the only way a multi-action request reaches the user and removes a second card as a place to hide an act.
 - **P2. At most 25 steps per plan.** A payload bound, like the conversation cap (`schema.ts:27`), not a permission rule. Recommended, because a plan longer than that is unreadable on one card, and the reader of the card is the control.
 
-Issue #1133 (Code Owner, 2026-10-24, issue #1133) leaves three points that need a ruling rather than an invention:
+Issue #1133 left three points for a ruling; all three were **ruled as recommended** (Code Owner, 2026-10-24, issue #1133):
 
-- **O1. Which rail state "collapsed" means at 1024 to 1279 px.** The issue says opening the panel collapses the page rail "to its collapsed form". Above `--bp-sidebar`, section 7.0 rule 8 gives the rail no collapsed form, only #1119's hidden state. Recommended: hide it with that state, held only while the panel is open, never written to the operator's setting, and restored on close (section 4.2).
-- **O2. Show sidebar while the panel holds the width.** At 1024 to 1279 px the rail, a 320 px panel and 640 px of content do not fit together. Recommended: pressing Show sidebar shows the rail and closes the panel; the conversation stays in memory, the top-bar button reopens it, and the live region says so.
-- **O3. Where the closed-panel status shows.** The retired launcher carried the "Working" and "1 action to review" badges. Recommended: a compact text badge immediately after the top-bar button, in the tag style, never colour alone (section 4.1).
+- **O1. Which rail state "collapsed" means at 1024 to 1279 px.** The issue says opening the panel collapses the page rail "to its collapsed form". Above `--bp-sidebar`, section 7.0 rule 8 gives the rail no collapsed form, only #1119's hidden state. Ruled: from 1024 to 1279 px, opening the assistant puts the rail in #1119's hidden state, held only while the panel is open and never written to the operator's setting; closing the panel restores it (section 4.2).
+- **O2. Show sidebar while the panel holds the width.** At 1024 to 1279 px the rail, a 320 px panel and 640 px of content do not fit together. Ruled: in that range, Show sidebar shows the rail and closes the panel; the conversation stays in memory, the top-bar button reopens it, and the live region says so (section 4.2).
+- **O3. Where the closed-panel status shows.** The retired launcher carried the "Working" and "1 action to review" badges. Ruled: with the panel closed, its badges are short text after the top-bar button, in the tag style, never colour or motion alone (section 4.1).
