@@ -5,11 +5,10 @@
  * observed by and no more. Two classifications, both fail-safe:
  *
  *   - **`plan_only`**: every changed path is in the fast-lane set - the `plan/`
- *     scratch tree, MARKDOWN under `.claude/` (the agent and skill definitions, not
- *     the settings file and not a hook script), and the three root instruction files.
- *     Those changes skip the application build, the unit suites and all three
- *     end-to-end jobs, but `check:plan` still runs every gate that reads any of those
- *     paths. See {@link isPlanOnly}.
+ *     scratch tree, all of `.claude/`, Markdown under `docs/`, and the three root
+ *     instruction files. Those changes skip the application build, the unit suites and
+ *     all three end-to-end jobs, but `check:plan` still runs every gate that reads any
+ *     of those paths. See {@link isPlanOnly}.
  *   - **`admin_only`**: every changed path is under `apps/admin/`, `docs/` or the
  *     fast-lane set, so nothing in the diff can reach a portal-rendered surface. See
  *     {@link isAdminOnly}.
@@ -123,24 +122,78 @@ export const FAST_LANE_PREFIXES = [PLAN_PREFIX, ".claude/"];
  */
 export const FAST_LANE_FILES = ["CLAUDE.md", "PROJECT_INSTRUCTIONS.md", "CONTRIBUTING.md"];
 
+/**
+ * The documentation tree, whose MARKDOWN is on the lane (Code Owner, 2026-10-24,
+ * issue #1139). Not a bare prefix, because `docs/` holds generated artifacts that are
+ * code: `docs/openapi/*.json` is the API contract `apps/api/src/openapi-document.test.ts`
+ * rebuilds and compares, and a build is the cost the lane exists to avoid.
+ */
+export const DOCS_PREFIX = "docs/";
+
+/** The one extension the docs rule admits, matched exactly: not `.mdx`, not `.MD`. */
+export const MARKDOWN_SUFFIX = ".md";
+
+/**
+ * Markdown under `docs/` that is NOT on the lane, because something the lane does not
+ * run reads it.
+ *
+ * `docs/SECURITY_DESIGN.md` §3.2 tabulates the authorization matrix and
+ * `apps/api/e2e/security/matrix-coverage.e2e.ts` parses that section at RUNTIME, failing
+ * when a row is added or reworded without matching probes. That test is the `api-e2e`
+ * required context, which the lane reports green without running, and it cannot move into
+ * `check:plan`: it imports the probe surfaces from the same e2e tree. So a reword of §3.2
+ * on the lane would merge green and redden main's own push run, which always takes the
+ * full suite. The ruling's stated grounds were that nothing outside the lane reads
+ * `docs/`; this is the one file where that does not hold, so it keeps the full run until
+ * the Code Owner says otherwise.
+ *
+ * Measured over the tracked tree with the scan `scripts/ci-plan-only.test.ts` describes:
+ * 46 non-comment quoted occurrences of a `docs/` path under `apps/`, `packages/` and
+ * `tooling/`, of which this is the only read of a `docs/**` Markdown file. The others are
+ * operator-facing remedy messages, assertions on those messages, backticked prose in
+ * trailing comments, and the `docs/openapi/*.json` artifacts the prefix rule already
+ * excludes. `docs/ownership-seam.md` is read by `packages/create-qcms-app`'s
+ * `sync-templates.mjs`, which the lane DOES run, as `check:templates` inside `check:all`.
+ */
+export const DOCS_OFF_LANE = ["docs/SECURITY_DESIGN.md"];
+
+/**
+ * Is this one path Markdown under `docs/`?
+ *
+ * Prefix WITH its separator and suffix matched exactly, so `docs.md` (no separator),
+ * `docs-x/a.md` (a different directory), `docs/a.mdx`, `docs/a.MD` (gates match `.md`
+ * case-sensitively) and `docs/a.md/evil.sh` (a directory named like a file) all keep the
+ * full run.
+ *
+ * @param {string} path repo-relative, exactly as git recorded it.
+ * @returns {boolean}
+ */
+export function isDocsMarkdown(path) {
+  if (!path.startsWith(DOCS_PREFIX)) return false;
+  if (!path.endsWith(MARKDOWN_SUFFIX)) return false;
+  return !DOCS_OFF_LANE.includes(path);
+}
+
 /** How many changed paths the log prints before it truncates. */
 const LOG_LIMIT = 40;
 
 /**
  * Is this one path in the fast-lane set?
  *
- * Two rules, of two deliberately different shapes: a directory prefix carrying its
- * separator, and equality. Nothing here matches on an extension. An intermediate version
- * of this file admitted only Markdown under `.claude/`, which is why the tests still
- * carry the shapes that rule had to get right (`.claude/x.md/evil.sh`, `.claude/x.MD`):
- * they are all on the lane now, and the cases are kept because they pin that the
- * classification no longer depends on a suffix at all.
+ * Three rules, of three deliberately different shapes: a directory prefix carrying its
+ * separator, equality, and prefix-plus-exact-extension for `docs/`. Only the last one
+ * looks at a suffix, and only because `docs/` holds generated artifacts the lane cannot
+ * prove. An intermediate version of this file admitted only Markdown under `.claude/`,
+ * which is why the tests still carry the shapes that rule had to get right
+ * (`.claude/x.md/evil.sh`, `.claude/x.MD`): those are all on the lane now, and the cases
+ * are kept because they pin that `.claude/` does not depend on a suffix.
  *
  * @param {string} path repo-relative, exactly as git recorded it.
  * @returns {boolean}
  */
 export function isFastLanePath(path) {
   if (FAST_LANE_PREFIXES.some((prefix) => path.startsWith(prefix))) return true;
+  if (isDocsMarkdown(path)) return true;
   return FAST_LANE_FILES.includes(path);
 }
 
@@ -174,7 +227,9 @@ export function isPlanOnly(files) {
  *
  * The fast-lane directories are spread in rather than retyped, and the root instruction
  * files reach this classification through {@link isFastLanePath}, so the two lists cannot
- * answer differently about one path. That pins an invariant a test asserts over the sets:
+ * answer differently about one path. `docs/` is a bare prefix here and a Markdown-only
+ * rule on the fast lane, which keeps the invariant in the right direction: the wide lane
+ * admits strictly more of that tree than the narrow one. That pins an invariant a test asserts over the sets:
  * every path on the fast lane is admin-only too. A path the narrow lane lets skip the
  * browser suite ENTIRELY must also be one the wide lane lets narrow it, or an admin PR
  * carrying a `CLAUDE.md` tweak pays for the whole portal suite while the same tweak alone
@@ -332,7 +387,11 @@ function main() {
     return;
   }
 
-  const fastLaneScope = [...FAST_LANE_PREFIXES, ...FAST_LANE_FILES].join(", ");
+  const fastLaneScope = [
+    ...FAST_LANE_PREFIXES,
+    `${DOCS_PREFIX}**${MARKDOWN_SUFFIX} (except ${DOCS_OFF_LANE.join(", ")})`,
+    ...FAST_LANE_FILES,
+  ].join(", ");
   const outsidePlan = files.filter((path) => !isFastLanePath(path));
   report(
     "plan_only",
