@@ -5,52 +5,25 @@ import { OptionId } from "./ids.js";
 import { parseWithCode } from "./internal/parse.js";
 
 /**
- * Canonical AnswerValue encodings (task 002, DOMAIN_SCHEMA §2.4).
- *
- * One canonical encoding per question type, decided before the evaluator
- * exists because these freeze into snapshots, ledger rows, exports, and rule
- * comparisons:
- *
- * | Question type          | Encoding                                        |
- * |------------------------|-------------------------------------------------|
- * | shortText / longText   | NFC-normalized string (normalized on parse)     |
- * | number                 | finite IEEE double                              |
- * | date                   | timezone-less ISO `YYYY-MM-DD`, real calendar   |
- * | boolean                | JSON boolean                                    |
- * | singleChoice           | OptionId                                        |
- * | multiChoice            | OptionId[], deduplicated, order-preserving      |
- */
-
-/**
- * shortText / longText: NFC-normalized string. Non-NFC input is normalized on
- * parse, never rejected - equality and storage always see one byte form.
- *
- * The encoding is not trimmed and has no `.min(1)`: what a respondent typed is
- * what is stored. The two rules that make an empty or whitespace-only string
- * not an *answer* live one layer up, so that storage stays faithful -
- * `validateAnswer` refuses `""` at the ingest boundary (ADR-33) and
- * {@link isBlankAnswerValue} withholds presence from a blank value (issue #128).
+ * NFC-normalized on parse rather than refused, so equality and storage see one
+ * byte form. Neither trimmed nor non-empty: what makes an empty or
+ * whitespace-only string not an answer lives a layer up, so storage stays
+ * faithful to what a respondent typed.
  */
 export const TextAnswerValue = z.string().transform((value) => value.normalize("NFC"));
 export type TextAnswerValue = z.infer<typeof TextAnswerValue>;
 
-/**
- * number: finite IEEE double. NaN and ±Infinity are rejected at the encoding;
- * the `integer` constraint is validation (task 009), not encoding.
- */
-// `z.number()` already rejects NaN and ±Infinity in Zod 4, so the previous
-// `.finite()` refinement (now deprecated) was a redundant no-op.
+/** `z.number()` already refuses NaN and infinities, so no refinement is added. */
 export const NumberAnswerValue = z.number();
 export type NumberAnswerValue = z.infer<typeof NumberAnswerValue>;
 
-/** Gregorian leap-year rule (proleptic). */
+// Proleptic Gregorian.
 function isLeapYear(year: number): boolean {
   return year % 4 === 0 && (year % 100 !== 0 || year % 400 === 0);
 }
 
 const DAYS_PER_MONTH = [31, 28, 31, 30, 31, 30, 31, 31, 30, 31, 30, 31] as const;
 
-/** True when `YYYY-MM-DD` names a real calendar date (rejects 2026-02-30). */
 function isRealCalendarDate(iso: string): boolean {
   const year = Number(iso.slice(0, 4));
   const month = Number(iso.slice(5, 7));
@@ -63,9 +36,8 @@ function isRealCalendarDate(iso: string): boolean {
 }
 
 /**
- * date: timezone-less ISO `YYYY-MM-DD`, validated as a real calendar date.
- * No time, no offset - respondent-local dates by design. Ordering over this
- * encoding is lexicographic, which is correct for fixed-width ISO dates.
+ * Timezone-less, so a date is respondent-local by design, and lexicographic
+ * order over this fixed-width encoding is calendar order.
  */
 export const DateAnswerValue = z
   .string()
@@ -73,27 +45,19 @@ export const DateAnswerValue = z
   .refine(isRealCalendarDate, { message: "Not a real calendar date" });
 export type DateAnswerValue = z.infer<typeof DateAnswerValue>;
 
-/** boolean: JSON boolean. */
 export const BooleanAnswerValue = z.boolean();
 export type BooleanAnswerValue = z.infer<typeof BooleanAnswerValue>;
 
-/** singleChoice: the selected OptionId. */
 export const SingleChoiceAnswerValue = OptionId;
 export type SingleChoiceAnswerValue = z.infer<typeof SingleChoiceAnswerValue>;
 
-/**
- * multiChoice: OptionId[], deduplicated on parse (first occurrence wins),
- * order-preserving. The canonical form is always duplicate-free; equality over
- * it is set equality (ADR-21, `valuesEqual`).
- */
+/** Deduplicated on parse, so equality over it is set equality (ADR-21). */
 export const MultiChoiceAnswerValue = z.array(OptionId).transform((ids) => [...new Set(ids)]);
 export type MultiChoiceAnswerValue = z.infer<typeof MultiChoiceAnswerValue>;
 
 /**
- * The union of canonical encodings. Untagged by design - the wire/storage form
- * is the raw JSON value; pairing a value with its question type is the job of
- * `validateAnswer` (task 009). Date and singleChoice values are strings and
- * thus indistinguishable from text without the question - that is expected.
+ * Untagged by design, the wire form being the raw JSON value, so pairing a value
+ * with its question type is `validateAnswer`'s job.
  */
 export const AnswerValue = z.union([
   TextAnswerValue,
@@ -103,11 +67,7 @@ export const AnswerValue = z.union([
 ]);
 export type AnswerValue = z.infer<typeof AnswerValue>;
 
-/**
- * Operand type for the DSL's ordered operators (`gt/gte/lt/lte`):
- * finite number or canonical date string. Cross-type comparison is a typed
- * error here and unreachable post-publish (rule type-checking, task 005/008).
- */
+/** The operand type for the ordered operators. */
 export const Comparable = z.union([NumberAnswerValue, DateAnswerValue]);
 export type Comparable = z.infer<typeof Comparable>;
 
@@ -156,7 +116,6 @@ export function isComparable(value: unknown): value is Comparable {
   return Comparable.safeParse(value).success;
 }
 
-/** Total order result for `compareValues`. */
 export type Ordering = -1 | 0 | 1;
 
 function orderingOf<T extends number | string>(a: T, b: T): Ordering {
@@ -169,15 +128,7 @@ function orderingOf<T extends number | string>(a: T, b: T): Ordering {
   return 0;
 }
 
-/**
- * Ordered comparison for the DSL's `gt/gte/lt/lte` (task 002).
- * Numbers compare numerically; dates compare lexicographically on the
- * canonical `YYYY-MM-DD` encoding (equivalent to calendar order).
- * Number-vs-date is `COMPARE_TYPE_MISMATCH`; any operand that is not a
- * Comparable (booleans, arrays, non-date strings, non-finite numbers) is
- * `NOT_COMPARABLE`. Error messages never echo answer values (SEC).
- */
-/** The ordered kind of a comparable operand, or `undefined` if not comparable. */
+// No message below echoes an answer value (SECURITY_DESIGN).
 function comparableKind(value: AnswerValue): "number" | "date" | undefined {
   if (!isComparable(value)) {
     return undefined;
@@ -214,36 +165,19 @@ export function compareValues(a: AnswerValue, b: AnswerValue): Result<Ordering> 
 }
 
 /**
- * A **blank** answer is a text value that is empty or whitespace-only (issue
- * #128; Code Owner ruling "required means non-blank", 2026-08-31).
- *
- * Blankness is a *presence* question, not an encoding one. The stored value is
- * never rewritten - the ruling's option 2 keeps a respondent's `" "` verbatim in
- * the ledger and in exports - but a blank value does not count as an answer for
- * the tests that ask "has this question been answered?": `evaluateRules` (the
- * `answered` operator and the required accounting) and `prepareSubmission`'s I9
- * sweep. A required question is therefore not satisfiable with the space bar.
- *
- * Only text can be blank. `date` and `singleChoice` values are strings too, but
- * their canonical encodings (`YYYY-MM-DD`, a non-empty `OptionId`) have no
- * whitespace-only spelling, so this predicate is exact without being told the
- * question type - which is what lets the evaluator apply it over a bare
- * `AnswerMap`. `[]` is deliberately not blank here: the ruling names text, and
- * the empty selection is refused at the boundary instead (`validateAnswer`).
- *
- * `String.prototype.trim` is the whitespace definition - the ECMAScript
- * WhiteSpace plus LineTerminator set - so a non-breaking space and an
- * ideographic space are blank exactly as a plain space is.
+ * Whether a value is empty or whitespace-only text. Presence rather than
+ * encoding: the value is stored verbatim but does not satisfy `required`. No
+ * other canonical encoding has a whitespace-only spelling, so this is exact
+ * without the question type, which is what lets the evaluator apply it over a
+ * bare answer map. An empty selection is refused by `validateAnswer` instead.
  */
 export function isBlankAnswerValue(value: AnswerValue): boolean {
   return typeof value === "string" && value.trim() === "";
 }
 
 /**
- * Canonical value equality used by `equals`/`notEquals`/`in` (ADR-21):
- * strict equality on scalars (strings compared after NFC normalization),
- * set equality for multiChoice arrays (order- and duplicate-insensitive).
- * Values of different canonical types are never equal.
+ * Equality for the value operators (ADR-21): strict on scalars, NFC-normalized
+ * on strings, set equality on a multiChoice array.
  */
 export function valuesEqual(a: AnswerValue, b: AnswerValue): boolean {
   if (Array.isArray(a) || Array.isArray(b)) {

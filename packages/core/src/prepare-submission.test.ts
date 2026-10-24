@@ -45,8 +45,6 @@ function makeQuestion(definition: unknown): QuestionDefinition {
   return result.value;
 }
 
-/** Compile a form fixture against the task-003 question fixtures (published
- * at versions 1 and 2 - the forms pin q_at_fault_accident@2, everything else @1). */
 function fixtureSnapshot(file: string): FrozenSnapshot {
   const records: QuestionVersionRecord[] = [];
   const published = new Map<QuestionId, Set<number>>();
@@ -70,11 +68,10 @@ function fixtureSnapshot(file: string): FrozenSnapshot {
   return result.value.snapshot;
 }
 
-// Casts justified: test ids are known-valid `q_*`/`opt_*` literals matching
-// the branded patterns; branding once here keeps call sites free of unwraps.
+// Casts justified: known-valid literals matching the branded patterns, branded
+// once here so no call site needs a Result unwrap.
 const asQuestionId = (id: string): QuestionId => id as QuestionId;
 
-/** A multiChoice AnswerValue (OptionId[]) from option-id literals. */
 const opts = (...ids: string[]): AnswerValue => ids as AnswerValue;
 
 function answersOf(entries: readonly [string, AnswerValue][]): AnswerMap {
@@ -102,7 +99,6 @@ async function errorsOf(
 
 const insurance = () => fixtureSnapshot("insurance.json");
 
-/** The questionId a submission error names (FLOW_EVALUATION_FAILED has none). */
 const idOf = (error: SubmissionError): string | null =>
   "questionId" in error ? error.questionId : null;
 
@@ -121,7 +117,6 @@ describe("prepareSubmission - the I9 sweep on the insurance fixture", () => {
     ]);
     expect(locked.flowState.complete).toBe(true);
     expect(locked.contentHash).toMatch(/^[0-9a-f]{64}$/);
-    // The output parses against its own schema (Zod as source of truth).
     expect(LockedSubmission.safeParse(locked).success).toBe(true);
   });
 
@@ -131,7 +126,6 @@ describe("prepareSubmission - the I9 sweep on the insurance fixture", () => {
       ["MISSING_REQUIRED", "q_at_fault_accident"],
     ]);
 
-    // q_at_fault_accident=true reveals the required follow-up.
     const partial = await errorsOf(insurance(), answersOf([["q_at_fault_accident", true]]));
     expect(partial.map((error) => [error.code, idOf(error)])).toEqual([
       ["MISSING_REQUIRED", "q_accident_count"],
@@ -139,17 +133,12 @@ describe("prepareSubmission - the I9 sweep on the insurance fixture", () => {
   });
 
   it("a hidden required question does NOT block submit (I6 beats I9)", async () => {
-    // q_accident_count is required in its pinned definition, but q_at_fault_accident=false
-    // hides it - the sweep only covers *visible* required questions.
     const locked = await lockedOf(insurance(), answersOf([["q_at_fault_accident", false]]));
     expect(locked.answers).toEqual([{ questionId: "q_at_fault_accident", value: false }]);
     expect(locked.flowState.complete).toBe(true);
   });
 
   it("a hidden answered question is excluded from the locked set (I6)", async () => {
-    // The DOMAIN_SCHEMA §6 stale-answer story: answered while visible, then
-    // hidden by changing q_at_fault_accident. The orphaned answer stays in the input
-    // (and the ledger) but never reaches the submission.
     const input = answersOf([
       ["q_at_fault_accident", false],
       ["q_accident_count", 20],
@@ -157,7 +146,6 @@ describe("prepareSubmission - the I9 sweep on the insurance fixture", () => {
     expect(input.has(asQuestionId("q_accident_count"))).toBe(true); // assertable in input
     const locked = await lockedOf(insurance(), input);
     expect(locked.answers.map((entry) => entry.questionId)).toEqual(["q_at_fault_accident"]);
-    // A hidden answer also does not perturb the hash: same as never given.
     const withoutOrphan = await lockedOf(insurance(), answersOf([["q_at_fault_accident", false]]));
     expect(locked.contentHash).toBe(withoutOrphan.contentHash);
   });
@@ -181,7 +169,6 @@ describe("prepareSubmission - the I9 sweep on the insurance fixture", () => {
       "VALUE_BELOW_MIN",
       "NOT_AN_INTEGER",
     ]);
-    // Never echo the answer value (SEC).
     expect(JSON.stringify(errors)).not.toContain("-1.5");
   });
 
@@ -195,7 +182,6 @@ describe("prepareSubmission - the I9 sweep on the insurance fixture", () => {
         ["q_aa_drifted", 2],
       ]),
     );
-    // Unknown ids sorted (they have no document position).
     expect(errors.map((error) => [error.code, idOf(error)])).toEqual([
       ["UNKNOWN_QUESTION", "q_aa_drifted"],
       ["UNKNOWN_QUESTION", "q_zz_drifted"],
@@ -265,7 +251,6 @@ describe("prepareSubmission - kitchen-sink (all seven types lock canonically)", 
 describe("prepareSubmission - blank text does not satisfy required (issue #128)", () => {
   const kitchenSink = () => fixtureSnapshot("kitchen-sink.json");
 
-  /** Every kitchen-sink required answer, with q_full_name (shortText) overridden. */
   const withFullName = (value: AnswerValue): AnswerMap =>
     answersOf([
       ["q_full_name", value],
@@ -288,8 +273,6 @@ describe("prepareSubmission - blank text does not satisfy required (issue #128)"
   });
 
   it("the sweep agrees with the flow state it was evaluated under", async () => {
-    // Both presence tests read the same predicate, so a respondent can never be
-    // told "ready to submit" by the flow and "required missing" by the lock.
     const blank = await prepareSubmission(kitchenSink(), withFullName(" "));
     expect(blank.ok).toBe(false);
     const answered = await lockedOf(kitchenSink(), withFullName("Ada Lovelace"));
@@ -298,21 +281,17 @@ describe("prepareSubmission - blank text does not satisfy required (issue #128)"
   });
 
   it("a blank OPTIONAL answer is left out of the locked set, never sealed as an answer", async () => {
-    // q_medical_history is the optional longText: a blank value is absence, so
-    // it must not reach the content hash as an answer of nothing.
     const withBlankOptional = new Map(withFullName("Ada Lovelace"));
     withBlankOptional.set(asQuestionId("q_medical_history"), "   ");
     const locked = await lockedOf(kitchenSink(), withBlankOptional);
     expect(locked.answers.map((answer) => answer.questionId)).not.toContain("q_medical_history");
-    // ...and it hashes exactly as the submission that simply omitted it.
     const omitted = await lockedOf(kitchenSink(), withFullName("Ada Lovelace"));
     expect(locked.contentHash).toBe(omitted.contentHash);
   });
 
   it("text padded around content still answers, and locks verbatim (no trim on the value)", async () => {
-    // Trailing padding on both text questions: the presence test trims, the
-    // stored and locked value does not (issue #128 option 2). The shortText
-    // fixture's pattern requires a leading letter, so the padding is on the end.
+    // The padding is trailing because the fixture's pattern requires a leading
+    // letter.
     const padded = new Map(withFullName("Ada Lovelace "));
     padded.set(asQuestionId("q_medical_history"), "  Asthma  ");
     const locked = await lockedOf(kitchenSink(), padded);
@@ -351,8 +330,6 @@ describe("canonicalJson", () => {
 
 describe("contentHash - stability (exit criterion 3)", () => {
   it("computeContentHash of {} is the well-known SHA-256 of the two bytes '{}'", async () => {
-    // A cross-implementation anchor: independently verifiable with any
-    // sha256 tool. Guards both the canonicalization and the hex encoding.
     expect(await computeContentHash({})).toBe(
       "44136fa355b3678a1146ad16f7e8649e94fb4fc21fe77e8310c060f61caaff8a",
     );
@@ -408,8 +385,7 @@ describe("contentHash - stability (exit criterion 3)", () => {
       contentHash: string;
     };
     const locked = await lockedOf(insurance(), answersOf(Object.entries(golden.answers)));
-    // Committed once; a mismatch on any machine or Node version is a
-    // canonicalization drift, which would corrupt the audit boundary.
+    // A mismatch is canonicalization drift, which corrupts the audit boundary.
     expect(locked.contentHash).toBe(golden.contentHash);
   });
 });

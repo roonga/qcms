@@ -20,47 +20,22 @@ import {
 } from "./step.js";
 import type { Condition, VisibilityRule } from "./visibility-rule.js";
 
-/**
- * Rule dependency-graph machinery (task 005, ADR-16, invariant I10). Pure
- * functions over a parsed `FormDefinition` - no I/O (R3). `compileDraft`
- * (008) runs these at publish; the admin editor (033) runs them live.
- *
- * ADR-16 makes single-forward-pass evaluation sound by rejecting at publish:
- * - `RULE_BACKWARD_TARGET` - a rule target at or before any question its
- *   condition references, in document order (targets must appear strictly
- *   after every referenced question);
- * - `RULE_CYCLE` - a cycle in the reads→shows digraph.
- *
- * Dangling references (a rule reading or targeting a question/step not in the
- * form, or an optionId a pinned question version does not carry) are publish
- * invariants of 008 (`DANGLING_QUESTION_REF`/`DANGLING_STEP_REF`); the graph
- * functions here skip unresolvable ids rather than double-report them -
- * except `DANGLING_OPTION_REF`, which is this module's to find because only
- * the type check looks inside option references.
- */
+// An unresolvable id is skipped rather than double-reported, dangling
+// references being `compileDraft`'s. `DANGLING_OPTION_REF` is the exception,
+// only the type check below looking inside an option reference.
 
-/** One question's position in the form: which step it sits in, and which
- * repeating group when it is inside one. Positions are unique per question
- * (parse rejects duplicate pins, inside a group as well as outside). */
+/** One question's position in the form, unique per question. */
 export interface DocumentPosition {
   readonly stepId: StepId;
   readonly questionId: QuestionId;
-  /** The repeating group whose span this position belongs to, when it is inside
-   * one (ADR-42). Absent for a question outside every group. */
+  /** Absent for a question outside every group. */
   readonly groupId?: GroupId;
 }
 
 /**
- * The flat document order of a form: every `(stepId, questionId)` pair, in the
- * order a respondent encounters them (ADR-16 evaluation order).
- *
- * **A repeating group expands into a contiguous span of its member questions,
- * in order** (ADR-16 as amended 2026-09-29). The span is the unit the
- * forward-only rule applies to: a rule targeting inside the group may read
- * questions before the group and questions earlier within the same instance,
- * while a rule reading the **whole** group must target after the whole span.
- * Instances do not multiply the order - the span is static and the roster is a
- * runtime input - which is what keeps `documentOrder` answer-blind.
+ * The order a respondent encounters questions in (ADR-16). A group expands to a
+ * contiguous span, the unit the forward-only rule applies to; instances never
+ * multiply the order, so this stays answer-blind.
  */
 export function documentOrder(form: FormDefinition): readonly DocumentPosition[] {
   return form.steps.flatMap((step) =>
@@ -76,16 +51,9 @@ export function documentOrder(form: FormDefinition): readonly DocumentPosition[]
   );
 }
 
-/**
- * Every id a condition reads, split by kind.
- *
- * **The group branches here are the ones this module could not do without.**
- * The default branch reads `condition.questionId`, which none of the three
- * whole-group operators carries, so without these cases a group operator reads
- * nothing at all: `analyzeRuleGraph` and the cycle graph both consume this
- * function, and forward-only rule 2 would silently not apply to the very rule
- * shape it was written for (ADR-03's amendment says so in terms).
- */
+// The whole-group operators need their own branches: none carries a
+// `questionId`, so without them a group operator reads nothing and the
+// forward-only rule silently stops applying to it.
 function collectReferences(
   condition: Condition,
   out: { readonly questions: QuestionId[]; readonly groups: GroupId[] },
@@ -113,25 +81,20 @@ function collectReferences(
   }
 }
 
-/** Every questionId the rule's condition reads (recursive, through the
- * whole-group operators' nested conditions too), deduplicated, in
- * first-encounter order. */
+/** Deduplicated, in first-encounter order. */
 export function ruleReferences(rule: VisibilityRule): readonly QuestionId[] {
   const raw = { questions: [] as QuestionId[], groups: [] as GroupId[] };
   collectReferences(rule.when, raw);
   return [...new Set(raw.questions)];
 }
 
-/** Every repeating group the rule's condition reads **as a whole** through
- * `anyInstance`, `everyInstance` or `instanceCount`, deduplicated, in
- * first-encounter order (ADR-42). */
+/** The groups the condition reads as a whole, in first-encounter order. */
 export function ruleGroupReferences(rule: VisibilityRule): readonly GroupId[] {
   const raw = { questions: [] as QuestionId[], groups: [] as GroupId[] };
   collectReferences(rule.when, raw);
   return [...new Set(raw.groups)];
 }
 
-/** Every question a step holds, group members included, in document order. */
 function questionsByStep(form: FormDefinition): Map<StepId, readonly QuestionId[]> {
   const byStep = new Map<StepId, QuestionId[]>();
   for (const { stepId, questionId } of documentOrder(form)) {
@@ -146,10 +109,8 @@ function questionsByStep(form: FormDefinition): Map<StepId, readonly QuestionId[
 }
 
 /**
- * The rule's expanded targets, deduplicated, in declaration order: a
- * `QuestionId` target stands for itself, a `StepId` target expands to all of
- * that step's questions. A `StepId` not present in the form expands to
- * nothing (008 reports it as `DANGLING_STEP_REF`).
+ * The rule's targets with each step target expanded, in declaration order. A
+ * `StepId` absent from the form expands to nothing, `compileDraft` reporting it.
  */
 export function ruleTargets(form: FormDefinition, rule: VisibilityRule): readonly QuestionId[] {
   const byStep = questionsByStep(form);
@@ -175,8 +136,7 @@ export type RuleGraphFinding = PublishErrorOf<
   | "RULE_READS_GROUP_WITHOUT_OPERATOR"
 >;
 
-/** The half-open span a repeating group occupies in document order: `[from,
- * to]`, inclusive, as indices into {@link documentOrder}. */
+// Inclusive, and indices into `documentOrder`.
 interface GroupSpan {
   readonly group: RepeatGroup;
   readonly from: number;
@@ -203,25 +163,15 @@ function groupSpans(form: FormDefinition): ReadonlyMap<GroupId, GroupSpan> {
   return spans;
 }
 
-/** reads→shows edge: `from` is read by a rule that shows `to`. */
+// `from` is read by a rule that shows `to`.
 interface Edge {
   readonly to: QuestionId;
   readonly rule: VisibilityRule;
 }
 
 /**
- * Publish-time graph analysis (ADR-16, I10). Returns **all** findings, never
- * first-only:
- *
- * - `RULE_BACKWARD_TARGET` - one finding per offending `show` entry (the raw
- *   target, a step target being backward when any of its questions is at or
- *   before any referenced question);
- * - `RULE_CYCLE` - one finding per strongly connected component of the
- *   reads→shows digraph containing a cycle, listing the rules on it in
- *   declaration order.
- *
- * Ids that do not resolve within the form are skipped here (008's dangling
- * checks own those).
+ * Publish-time graph analysis (ADR-16, I10): every finding, not just the first.
+ * An id that does not resolve within the form is skipped.
  */
 export function analyzeRuleGraph(form: FormDefinition): readonly RuleGraphFinding[] {
   const findings: RuleGraphFinding[] = [];
@@ -237,16 +187,8 @@ export function analyzeRuleGraph(form: FormDefinition): readonly RuleGraphFindin
   findings.push(...checkScopedReferences(form, groupOf));
   findings.push(...checkCrossGroupBudget(form, groupOf, spans));
 
-  // Backward targets: every target must sit strictly after every referenced
-  // question in document order.
-  //
-  // With a repeating group the same arithmetic covers all three readings of
-  // ADR-16's amendment, which is why there is no second check here. A rule
-  // targeting inside group G reads the whole of G when it uses a whole-group
-  // operator, so a referenced GROUP contributes the last index of its span
-  // rather than a single position; a reference to a question inside G
-  // contributes that question's own index, so "a later position inside the
-  // instance" is backward by exactly the comparison that was already here.
+  // A referenced group contributes the last index of its span, so this one
+  // comparison covers the group readings too.
   for (const rule of form.rules) {
     const referencePositions = [
       ...ruleReferences(rule).map((questionId) => position.get(questionId)),
@@ -274,13 +216,10 @@ export function analyzeRuleGraph(form: FormDefinition): readonly RuleGraphFindin
     }
   }
 
-  // Cycles in the reads→shows digraph (questions as nodes; an edge per
-  // (referenced question, expanded target) pair, labeled with its rule).
   const adjacency = new Map<QuestionId, Edge[]>();
   for (const rule of form.rules) {
-    // A whole-group operator reads every question in that group's span, so each
-    // of them is a node the rule reads - otherwise a cycle running through a
-    // group operator would be invisible to Tarjan's.
+    // A whole-group operator reads every question in the span, or a cycle
+    // running through it would be invisible to Tarjan's.
     const groupReads = ruleGroupReferences(rule).flatMap((groupId) => {
       const span = spans.get(groupId);
       return span === undefined ? [] : span.group.items.map((item) => item.questionId);
@@ -318,18 +257,8 @@ export function analyzeRuleGraph(form: FormDefinition): readonly RuleGraphFindin
   return findings;
 }
 
-/**
- * Forward-only rule 3 (ADR-16 as amended 2026-09-29): a `fromAnswer` count
- * source is a read of its count question **by the whole group**, so that
- * question must precede the group's whole span. A count question inside the
- * group it sizes, or after it, is `REPEAT_COUNT_BACKWARD_REF`.
- *
- * A count question that is not pinned in the form at all is skipped here, the
- * way every other dangling reference is. `compileDraft`'s `checkRuleResolution`
- * reports it as `DANGLING_QUESTION_REF`; that was a claim about a check that
- * did not exist until task 071's review, and such a draft published with no
- * error at all until it was made true.
- */
+// A count source is a read by the whole group, so its question must precede the
+// whole span (ADR-16). An unpinned one is `compileDraft`'s to report.
 function checkRepeatCountOrder(
   form: FormDefinition,
   position: ReadonlyMap<QuestionId, number>,
@@ -346,11 +275,8 @@ function checkRepeatCountOrder(
     if (countAt === undefined || span === undefined) {
       continue;
     }
-    // A count question that itself sits inside a group has one answer per
-    // instance, so there is no single count for the group it sizes to read
-    // (Q26, Code Owner, 2026-09-29). It is refused whichever group it sits in,
-    // its own included, and a count question inside the group it sizes is
-    // additionally backward, which the check below reports on its own terms.
+    // Inside any group it has one answer per instance, so there is no single
+    // count for the group it sizes to read.
     const countGroup = groupOf.get(group.count.questionId);
     if (countGroup !== undefined) {
       findings.push({
@@ -370,23 +296,8 @@ function checkRepeatCountOrder(
   return findings;
 }
 
-/**
- * One rule, one scope (ADR-03 as amended 2026-09-29).
- *
- * `VisibilityRule.show` is an array, so a rule listing one target inside a
- * group and another outside it would be per-instance and whole-form at once,
- * and there is no reading that makes it one thing. Evaluating it per target
- * would make one rule mean two things and make the admin's scope chip a lie, so
- * **every `show` target of one rule must share one scope** and a mixed list is
- * refused with `RULE_TARGETS_SPAN_SCOPES` naming both scopes. Splitting it into
- * two rules is always possible, because the condition is copyable and the split
- * changes nothing about what either rule means.
- *
- * A `StepId` target is whole-form scope by construction and never per-instance:
- * a step target conditions the **step** (evaluator semantic 4) rather than its
- * questions individually, which is the same reading the evaluator has always
- * had of it.
- */
+// One rule, one scope (ADR-03): a mixed target set would be per-instance and
+// whole-form at once, and splitting such a rule in two is always possible.
 function checkTargetScopes(
   form: FormDefinition,
   groupOf: ReadonlyMap<QuestionId, GroupId>,
@@ -412,31 +323,9 @@ function checkTargetScopes(
   return findings;
 }
 
-/**
- * A whole-group operator may not sit inside another one's condition (Q25, Code
- * Owner, 2026-09-29).
- *
- * **Why it is a refusal rather than a bigger sum.** The condition schema is
- * recursive, so `anyInstance(G, anyInstance(H, c))` parses, and its cost is
- * `max_G x max_H` **whatever the rule targets** - the outer walk runs once per
- * live instance of G and each of those walks the whole of H. The evaluation
- * budget charges a rule's target group against each group it reads, so a nested
- * pair escaped it entirely: two groups at `max: 5000` under one nested rule
- * published, and cost twenty-five million leaf evaluations on every answer
- * write, every step read and every submit, with the respondent setting the live
- * counts. That is the exact shape the budget exists to refuse.
- *
- * The refusal covers **every** nesting: through `and`, `or` and `not`, and the
- * same group nested in itself (`anyInstance(G, everyInstance(G, c))`), which is
- * quadratic in one group's own maximum. `instanceCount` is refused inside
- * another operator too, although its own cost is constant, because the rule is
- * "a whole-group operator reads a whole group, and one rule reads each group it
- * names once" rather than a cost calculation an author has to redo.
- *
- * With nesting gone, every whole-group read in a rule is a sibling of the
- * others rather than a multiplier of them, which is what makes the pairwise
- * budget a real bound on a rule (SEC-16).
- */
+// A nested pair costs the product of the two maxima and escapes the evaluation
+// budget (SEC-16). `instanceCount` is refused too, despite its constant cost, so
+// an author never has to redo the calculation.
 function checkOperatorNesting(form: FormDefinition): RuleGraphFinding[] {
   const findings: RuleGraphFinding[] = [];
   const walk = (rule: VisibilityRule, condition: Condition, outer: GroupId | undefined): void => {
@@ -475,30 +364,9 @@ function checkOperatorNesting(form: FormDefinition): RuleGraphFinding[] {
   return findings;
 }
 
-/**
- * Every reference to a question inside a repeating group is made from inside
- * that group (Q26, Code Owner, 2026-09-29).
- *
- * A question inside a group has **one answer per instance**, so a bare
- * reference to it is only meaningful where an instance is in scope. Two ways in
- * put an instance in scope, and only two: the rule's own `show` targets sit
- * inside that group, which makes the whole rule per-instance; or the reference
- * sits inside an `anyInstance` or `everyInstance` over that group, which walks
- * the instances itself.
- *
- * Anything else is dead on arrival rather than merely odd. The evaluator
- * resolves such a reference to no key at all and reads it as unanswered for
- * every respondent, forever, so the author sees a rule that publishes cleanly
- * and a question that never appears. **A rule targeting inside group H reading
- * a member of a different group G is the same defect** and is refused under the
- * same code: H's instance is in scope, G's is not, and the plan's section 3.4
- * gives a reference a per-instance reading only "to a question that is also
- * inside G".
- *
- * A rule whose `show` list straddles two scopes is skipped here, because
- * `RULE_TARGETS_SPAN_SCOPES` already refuses it and there is no single scope to
- * judge its references against.
- */
+// A bare reference to a per-instance answer is meaningful only where an instance
+// is in scope; elsewhere the evaluator reads it as unanswered forever, so the
+// rule publishes cleanly and its target never appears.
 function checkScopedReferences(
   form: FormDefinition,
   groupOf: ReadonlyMap<QuestionId, GroupId>,
@@ -551,23 +419,8 @@ function checkScopedReferences(
   return findings;
 }
 
-/**
- * The cross-group cost budget (ADR-16 as amended 2026-09-29, and
- * {@link REPEAT_EVALUATION_BUDGET}).
- *
- * A rule whose target sits inside group H and whose condition applies a
- * whole-group operator over a **different** group G is evaluated once per live
- * instance of H, and each of those evaluations walks the whole of G, so its
- * cost is `max_H x max_G`. Above the budget it is refused with
- * `REPEAT_EVALUATION_BUDGET_EXCEEDED` naming both groups, both maxima and the
- * product.
- *
- * It is a **cost bound and not an instance ceiling**: it caps no group's `max`,
- * and two groups whose product exceeds it publish happily when no rule joins
- * them. A group whose bounded source omitted `max` is skipped here, because
- * `REPEAT_MAX_MISSING` is already refusing that draft and a second finding
- * about an absent number would say nothing more.
- */
+// Such a rule costs the product of the two maxima on every evaluation (SEC-16).
+// A cost bound, not an instance ceiling: two large groups publish unjoined.
 function checkCrossGroupBudget(
   form: FormDefinition,
   groupOf: ReadonlyMap<QuestionId, GroupId>,
@@ -609,10 +462,7 @@ function checkCrossGroupBudget(
   return findings;
 }
 
-/**
- * Tarjan's strongly-connected-components, returning only components that
- * contain a cycle: size > 1, or a single node with a self-loop.
- */
+// Tarjan's, returning only components that contain a cycle.
 function cyclicComponents(
   adjacency: ReadonlyMap<QuestionId, readonly Edge[]>,
 ): readonly (readonly QuestionId[])[] {
@@ -678,28 +528,13 @@ function cyclicComponents(
 
 export type RuleTypeFinding = PublishErrorOf<"RULE_TYPE_MISMATCH" | "DANGLING_OPTION_REF">;
 
-/** Lookup from questionId to the definition its pin resolves to. Passed in so
- * this package stays I/O-free (R3): the caller (008's compileDraft, 033's
- * editor) owns resolving pins against its question store. Return `undefined`
- * for an unresolvable id - the reference is skipped here and reported as
- * `DANGLING_QUESTION_REF` by 008. */
+/** Injected so this package stays I/O-free (R3). Return `undefined` for an
+ * unresolvable id, which `compileDraft` reports. */
 export type ResolveQuestion = (questionId: QuestionId) => QuestionDefinition | undefined;
 
 /**
- * Type-compatibility check of every condition against the resolved question
- * definitions (DOMAIN_SCHEMA §3, ADR-21). Returns all findings, deduplicated:
- *
- * - `gt/gte/lt/lte` only against `number`/`date` questions, with a value of
- *   the question's type (cross-type ordering is unreachable post-publish -
- *   §2.4);
- * - `equals`/`notEquals`/`in` values must match the referenced question's
- *   canonical `AnswerValue` type; on choice questions the value(s) must be
- *   declared `optionId`s (multiChoice `equals` compares whole answers - an
- *   `OptionId[]` - by set equality, never containment);
- * - `contains`/`containsAny` only against `multiChoice` questions and only
- *   with declared `optionId`s (ADR-21).
- *
- * Messages name ids, operators, and types - never the compared values.
+ * Checks every condition against the resolved definitions (ADR-21). A message
+ * names ids, operators and types, never the compared values.
  */
 export function checkRuleTypes(
   form: FormDefinition,
@@ -729,7 +564,6 @@ export function checkRuleTypes(
     });
   };
 
-  /** equals/notEquals/in value against the question's canonical encoding. */
   const checkValue = (
     rule: VisibilityRule,
     question: QuestionDefinition,
@@ -773,8 +607,7 @@ export function checkRuleTypes(
         }
         return;
       case "multiChoice": {
-        // Whole-answer set equality (ADR-21): the value is an OptionId[];
-        // membership tests use contains/containsAny instead.
+        // Whole-answer set equality (ADR-21); membership is contains.
         if (!Array.isArray(value) || !value.every((entry) => isOptionId(entry))) {
           mismatch(
             "an array of declared optionIds (set equality; use contains/containsAny for membership)",
@@ -800,12 +633,7 @@ export function checkRuleTypes(
           checkCondition(rule, child);
         });
         return;
-      // The two whole-group operators that carry a nested condition recurse
-      // exactly as `not` does. They must branch here rather than fall through:
-      // neither carries a `questionId`, so the default branch below would
-      // resolve `undefined` and check nothing. `instanceCount` carries no
-      // nested condition and reads no question at all, so it is a leaf with
-      // nothing to type-check (ADR-42).
+      // Must branch rather than fall through: neither carries a `questionId`.
       case "not":
       case "anyInstance":
       case "everyInstance":
@@ -818,7 +646,7 @@ export function checkRuleTypes(
     }
     const question = resolveQuestion(condition.questionId);
     if (question === undefined) {
-      return; // DANGLING_QUESTION_REF is 008's finding.
+      return; // DANGLING_QUESTION_REF is compileDraft's finding.
     }
     switch (condition.op) {
       case "equals":

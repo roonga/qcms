@@ -2,11 +2,8 @@ import type { z } from "zod";
 
 import { err, ok, qcmsError, type Result } from "../errors.js";
 
-/**
- * Internal bridge from Zod's safeParse to the kernel's typed Result shape:
- * every public `parseX` helper fails with a stable qcms error code instead of
- * leaking ZodError as control flow across the package boundary.
- */
+// So a public parse helper fails with a stable code rather than leaking a
+// ZodError as control flow across the package boundary.
 export function parseWithCode<S extends z.ZodType>(
   schema: S,
   code: string,

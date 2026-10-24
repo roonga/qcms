@@ -15,15 +15,11 @@ import {
   type PublishResult,
 } from "./index.js";
 
-/**
- * Compile-time lockstep check: the discriminated union's `code` literals and
- * the PublishErrorCode enum are mutually assignable. Drifting either way (a
- * variant without an enum member, or vice versa) turns this into `never`.
- */
+// Drift either way between the union's literals and the enum turns this into
+// `never`, so the assignment below stops compiling.
 type MutuallyAssignable<A, B> = [A] extends [B] ? ([B] extends [A] ? true : never) : never;
 const codesInLockstep: MutuallyAssignable<PublishError["code"], PublishErrorCode> = true;
 
-/** One representative instance per code, with the location the admin renders. */
 const samples: { raw: unknown; location: string }[] = [
   {
     raw: {
@@ -150,7 +146,6 @@ const samples: { raw: unknown; location: string }[] = [
     },
     location: 'validation message "minLength" of question "q_at_fault_accident"',
   },
-  // The nine repeating-group codes (task 071, ADR-42).
   {
     raw: {
       code: "DUPLICATE_GROUP_ID",
@@ -223,7 +218,6 @@ const samples: { raw: unknown; location: string }[] = [
     },
     location: 'rule "rul_infant" from group "grp_holdings" over group "grp_passengers"',
   },
-  // The four the Code Owner ruled on 2026-09-29 (Q24 to Q26).
   {
     raw: {
       code: "DANGLING_GROUP_REF",
@@ -344,8 +338,6 @@ describe("PublishResult contract", () => {
     if (result.ok) {
       expect(result.value.snapshot.semanticsVersion).toBe(1);
       expect(result.value.snapshot.definition.formId).toBe("frm_minimal");
-      // Warnings ride the success branch (#123), so a publish that raised none
-      // still carries the array and no caller has to test for its absence.
       expect(result.value.warnings).toEqual([]);
     }
   });

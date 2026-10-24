@@ -3,60 +3,17 @@ import { z } from "zod";
 import { err, ok, type Result } from "./errors.js";
 import { canonicalJson } from "./prepare-submission.js";
 
-/**
- * Purpose-tagged compact tokens (task 010, SEC-2/SEC-7, ARCHITECTURE §7).
- *
- * A compact token is the kernel's minimal signed-claims shape:
- *
- *     base64url(canonicalJson(claims ∪ { purpose })) "." base64url(HMAC-SHA256)
- *
- * The HMAC is computed over the UTF-8 bytes of the encoded payload segment
- * (like a JWT signs its encoded segments), with WebCrypto `crypto.subtle`
- * only - fetch-pure (R4), so the same code runs in Node and on edge runtimes.
- *
- * ## Why not a JWT library
- *
- * A signed compact token ≈ a JWT, deliberately hand-rolled (task 010):
- * mainstream JWT libraries pull Node-only dependencies (`node:crypto`,
- * `Buffer`) which would break R4's fetch-purity, and they ship algorithm
- * agility (`alg` headers, RSA/ECDSA paths, `none`) that this kernel must
- * never accept - the qcms token inventory (SEC-7) is HMAC-SHA256 only, so
- * there is no header segment and no algorithm negotiation surface at all.
- *
- * ## Purposes and keys (SEC-7)
- *
- * Every token carries a `purpose` claim baked into the signed payload;
- * verification demands an exact match and each purpose gets its **own** key
- * list (`QCMS_LINK_KEYS` vs `QCMS_SESSION_KEYS` - supplied by the shell,
- * task 024). Both controls hold independently: even if an operator reuses a
- * key across purposes, the purpose claim still rejects cross-use
- * (`WRONG_PURPOSE`).
- *
- * ## Rotation
- *
- * `verifyCompactToken` accepts multiple keys: the **first** entry is the
- * current signing key, all entries verify, and candidates are tried in list
- * order (newest first). Rotation = prepend a new key, keep the old one until
- * every outstanding token has expired, then drop it. Key generation and
- * storage are shell concerns (task 024); the kernel only consumes
- * `CryptoKey`s.
- *
- * .NET mapping: like hand-rolling `JwtSecurityTokenHandler`'s HS256 path with
- * `IncrementalHash`-free, misuse-resistant primitives - except signature
- * comparison is delegated to `crypto.subtle.verify`, which is constant-time
- * (never compare digest bytes manually - timing side channel).
- */
+// Hand-rolled rather than taken from a JWT library: the mainstream ones pull
+// Node-only dependencies that would break fetch-purity (R4) and ship algorithm
+// agility this kernel must never accept. The inventory is HMAC-SHA256 only
+// (SEC-7), so there is no header segment and no negotiation surface at all.
 
-/**
- * The closed set of token purposes in the SEC-7 inventory. `"link"` is the
- * secure-link token (this task); `"session"` is the respondent session token
- * (task 018, same machinery, distinct keys).
- */
+/** Each purpose has its own key list (SEC-7). */
 export const TOKEN_PURPOSES = ["link", "session"] as const;
 export const TokenPurpose = z.enum(TOKEN_PURPOSES);
 export type TokenPurpose = z.infer<typeof TokenPurpose>;
 
-/** Why a compact token failed verification (closed union, task 010). */
+/** Why a compact token failed verification. */
 export const CompactTokenErrorCode = z.enum([
   "MALFORMED",
   "BAD_SIGNATURE",
@@ -71,35 +28,24 @@ export const CompactTokenError = z.object({
 });
 export type CompactTokenError = z.infer<typeof CompactTokenError>;
 
-/**
- * Claims a caller supplies when signing: any JSON-serializable record.
- * `purpose` is reserved - the machinery writes it, callers never do.
- * `expiresAt`, when present, is the standard expiry claim (ISO 8601 UTC)
- * checked by `verifyCompactToken`.
- */
+/** `purpose` is reserved and `expiresAt` is the expiry verification checks. */
 export type CompactTokenClaims = Record<string, unknown>;
 
-/**
- * Signed-payload envelope: the purpose tag every token must carry plus the
- * optional standard expiry claim; purpose-specific claims pass through
- * (a loose object) for the caller to parse with its own schema.
- */
+// Loose, so purpose-specific claims pass through for the caller to parse.
 const CompactTokenPayload = z.looseObject({
   purpose: TokenPurpose,
   expiresAt: z.iso.datetime().optional(),
 });
 
-/** HMAC-SHA256 - the only algorithm compact tokens ever use (SEC-7). */
+/** The only algorithm compact tokens ever use (SEC-7). */
 export const COMPACT_TOKEN_KEY_ALGORITHM = { name: "HMAC", hash: "SHA-256" } as const;
 
-/** SEC-7 floor: signing keys are ≥ 32 random bytes. */
+/** SEC-7 floor on signing-key length. */
 export const COMPACT_TOKEN_MIN_KEY_BYTES = 32;
 
 /**
- * Import raw key bytes (from the shell's key-list env, task 024) as a
- * non-extractable HMAC-SHA256 `CryptoKey` usable with the sign/verify
- * functions here. Throws on keys shorter than 32 bytes - a weak key is a
- * deployment bug, not an expected failure.
+ * Imports as non-extractable, and throws below the SEC-7 floor, a weak key
+ * being a deployment bug rather than an expected failure.
  */
 export async function importCompactTokenKey(
   rawKey: Uint8Array<ArrayBuffer> | ArrayBuffer,
@@ -127,7 +73,7 @@ function toBase64Url(bytes: Uint8Array): string {
   return btoa(binary).replaceAll("+", "-").replaceAll("/", "_").replace(/=+$/, "");
 }
 
-/** Decode a base64url segment; `undefined` for anything off-alphabet. */
+/** `undefined` for anything off-alphabet. */
 function fromBase64Url(segment: string): Uint8Array<ArrayBuffer> | undefined {
   if (!BASE64URL_PATTERN.test(segment)) {
     return undefined;
@@ -148,12 +94,9 @@ function fromBase64Url(segment: string): Uint8Array<ArrayBuffer> | undefined {
 }
 
 /**
- * Sign `claims` for `purpose` with the current signing key. The purpose is
- * written into the payload before signing, so it is covered by the HMAC and
- * cannot be re-tagged. Claims must not carry their own `purpose` (reserved -
- * a collision is a programming bug, hence throw not Result). Claims are
- * serialized with the package-wide `canonicalJson`, so signing is
- * deterministic regardless of input key order.
+ * The purpose goes into the payload before signing, so the HMAC covers it and a
+ * token cannot be re-tagged. A caller's own `purpose` claim throws, being a
+ * programming bug.
  */
 export async function signCompactToken(
   purpose: TokenPurpose,
@@ -175,16 +118,9 @@ export async function signCompactToken(
 }
 
 /**
- * Verify a compact token for an expected purpose against a key list (newest
- * first - rotation, SEC-7). Check order: shape → signature (constant-time,
- * via `crypto.subtle.verify`, over every key until one matches) → purpose →
- * expiry. Nothing decoded from the payload is trusted before the signature
- * check passes. A token is valid strictly *before* `expiresAt`; at or after
- * it, `EXPIRED`.
- *
- * On success the returned claims are the signed payload minus the `purpose`
- * tag (already checked); callers parse them with their purpose's own schema
- * (e.g. `LinkClaims`).
+ * Verify against a key list, newest first, so rotation is prepending a key
+ * (SEC-7). Nothing decoded is trusted before the signature check passes, so the
+ * order is shape, signature, purpose, expiry.
  */
 export async function verifyCompactToken(
   purpose: TokenPurpose,
@@ -206,8 +142,8 @@ export async function verifyCompactToken(
   const message = new TextEncoder().encode(payloadSegment);
   let signatureValid = false;
   for (const key of keys) {
-    // crypto.subtle.verify recomputes the HMAC and compares in constant time
-    // - never compare digest bytes manually (timing side channel).
+    // Compares in constant time. Never compare digest bytes by hand: that is a
+    // timing side channel.
     if (
       await crypto.subtle.verify(COMPACT_TOKEN_KEY_ALGORITHM.name, key, signatureBytes, message)
     ) {

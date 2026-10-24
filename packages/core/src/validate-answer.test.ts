@@ -56,7 +56,6 @@ function errorsOf(definition: QuestionDefinition, value: unknown): readonly Vali
   return result.error;
 }
 
-/** Assert exactly these (code, constraint) pairs, in order. */
 function expectErrors(
   errors: readonly ValidationError[],
   expected: readonly [ValidationErrorCode, ValidationConstraint][],
@@ -83,9 +82,7 @@ describe("validateAnswer - shortText", () => {
   });
 
   it("keeps whitespace-only text verbatim: blankness is presence, not validity (#128)", () => {
-    // Issue #128 chose faithful storage, so `" "` validates and is stored as
-    // typed. It is denied *presence* elsewhere (isBlankAnswerValue), which is
-    // what stops it satisfying a required question.
+    // `isBlankAnswerValue` is what denies such a value presence.
     expect(valueOf(question("shortText"), " ")).toBe(" ");
     expect(valueOf(question("longText"), "\t\n")).toBe("\t\n");
   });
@@ -138,8 +135,8 @@ describe("validateAnswer - shortText", () => {
   });
 
   it("an uncompilable pattern (unreachable via parse) fails closed as PATTERN_MISMATCH", () => {
-    // Cast justified: constructing the definition parseQuestionDefinition
-    // would reject, to exercise validateAnswer's totality contract.
+    // Cast justified: a definition parse would refuse, to exercise the
+    // totality contract.
     const broken = {
       ...question("shortText"),
       constraints: { pattern: "(unclosed" },
@@ -298,7 +295,6 @@ describe("validateAnswer - multiChoice", () => {
   });
 
   it("selection counts apply to the deduplicated canonical selection", () => {
-    // Three raw entries, two distinct - within maxSelected 2.
     expect(valueOf(choice, ["opt_a", "opt_a", "opt_b"])).toEqual(["opt_a", "opt_b"]);
   });
 
@@ -310,8 +306,6 @@ describe("validateAnswer - multiChoice", () => {
     ]);
   });
 });
-
-// --- ADR-33: an empty value is not an answer --------------------------------
 
 describe("validateAnswer - empty text and empty selections (ADR-33)", () => {
   const EMPTY: readonly [ValidationErrorCode, ValidationConstraint][] = [
@@ -328,13 +322,8 @@ describe("validateAnswer - empty text and empty selections (ADR-33)", () => {
   });
 
   it("refuses regardless of the question's own constraints, and alone", () => {
-    // The point of returning alone: a minSelected:1 question would otherwise
-    // also report "select at least 1", which reads as "select more" when the
-    // real answer is "that was never a selection".
     expectErrors(errorsOf(question("multiChoice", { minSelected: 1 }, OPTIONS), []), EMPTY);
     expectErrors(errorsOf(question("shortText", { minLength: 3 }), ""), EMPTY);
-    // ...and where nothing constrains the value either, so the refusal is the
-    // rule itself and not a constraint reached by accident.
     expectErrors(errorsOf(question("longText"), ""), EMPTY);
   });
 
@@ -344,15 +333,10 @@ describe("validateAnswer - empty text and empty selections (ADR-33)", () => {
   });
 
   it("refuses the empty value, never converts it to a retraction", () => {
-    // The kernel has no way to express "cleared"; it returns err. Only the API's
-    // explicit `null` body value takes the tombstone branch (ADR-33), so an
-    // empty post can never become a silent retraction.
     expect(validateAnswer(question("shortText"), "").ok).toBe(false);
   });
 
   it("leaves every other empty-adjacent value alone", () => {
-    // Only text and multiChoice have an "empty" spelling. `0`, `false` and a
-    // whitespace string are real values and stay valid.
     expect(valueOf(question("number"), 0)).toBe(0);
     expect(valueOf(question("boolean"), false)).toBe(false);
     expect(valueOf(question("shortText"), " ")).toBe(" ");

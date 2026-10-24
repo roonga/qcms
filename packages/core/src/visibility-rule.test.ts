@@ -20,7 +20,6 @@ function readJson(...segments: string[]): unknown {
   return JSON.parse(readFileSync(path.join(FIXTURES_DIR, ...segments), "utf8"));
 }
 
-/** A condition tree of exactly the given depth: a leaf wrapped in `not`s. */
 function nested(depth: number): unknown {
   let condition: unknown = { op: "answered", questionId: "q_a" };
   for (let level = 1; level < depth; level += 1) {
@@ -42,34 +41,9 @@ function expectRejects(condition: unknown, code?: string): void {
   }
 }
 
-/**
- * **ADR-03: the operator set is closed, and changing it is a deliberate edit.**
- *
- * ADR-03 makes branching a closed, typed DSL whose new operators are versioned core
- * changes. Its own note flagged that nothing enforced the "versioned" half: no operator
- * set was written down anywhere, so an operator could be added to
- * {@link Condition} in one diff and nobody would be asked about it. A closed set that
- * nothing pins is a convention, not a decision.
- *
- * This is the pin, in the spirit of `packages/a2ui-compiler/src/version.test.ts`: a
- * constant that has to be edited by hand, checked against the thing it mirrors.
- *
- * The list is **sixteen** operators since task 071 (ADR-03 as amended 2026-09-29):
- * `anyInstance`, `everyInstance` and `instanceCount` read a whole repeating group and
- * carry a `groupId` rather than a `questionId`.
- *
- * `satisfies Record<Condition["op"], ...>` makes the table exhaustive in **both**
- * directions at compile time - a new operator in the union is a missing key here, and a
- * key the union does not carry is an excess property - and the assertions below add the
- * runtime half: the schema accepts each of these and refuses anything else. So an
- * operator change costs a typecheck failure, a test edit, and a changeset conversation,
- * which is what "versioned core change" was supposed to mean.
- *
- * The admin keeps a parallel copy of this set (R2 stops it importing the kernel as a
- * value), and `apps/admin/lib/forms/condition.ts` pins that copy to the same union with
- * a type-only import. The two halves together are what close the ADR's note: neither
- * side can move without the other going red.
- */
+// Edited by hand, so adding an operator costs a typecheck failure and a test
+// edit (ADR-03). The admin keeps a parallel copy pinned to the same union, so
+// neither side can move alone.
 const OPERATOR_SAMPLES = {
   equals: { op: "equals", questionId: "q_a", value: true },
   notEquals: { op: "notEquals", questionId: "q_a", value: 3 },
@@ -84,9 +58,6 @@ const OPERATOR_SAMPLES = {
   and: { op: "and", conditions: [{ op: "answered", questionId: "q_a" }] },
   or: { op: "or", conditions: [{ op: "answered", questionId: "q_a" }] },
   not: { op: "not", condition: { op: "answered", questionId: "q_a" } },
-  // The three whole-group operators (ADR-42, ADR-03 as amended 2026-09-29). They took
-  // the list from thirteen to sixteen, which is exactly the deliberate edit this table
-  // exists to force.
   anyInstance: {
     op: "anyInstance",
     groupId: "grp_pax",
@@ -98,17 +69,12 @@ const OPERATOR_SAMPLES = {
     condition: { op: "answered", questionId: "q_a" },
   },
   instanceCount: { op: "instanceCount", groupId: "grp_pax", compare: "gte", value: 5 },
-  // `unknown` rather than a sample shape: the point of the table is its KEY set, and a
-  // per-operator value type would make each sample fight the union it is testing.
+  // `unknown`, or each sample would fight the union under test.
 } satisfies Record<Condition["op"], unknown>;
 
 describe("ADR-03: the closed operator set", () => {
   it("is exactly these sixteen operators", () => {
-    // Spelled out rather than derived, on purpose: this line is the tripwire. A diff that
-    // changes it is a diff someone has to explain, which is the whole point of a closed
-    // DSL whose operators are versioned core changes. It went from thirteen to sixteen in
-    // task 071 under ADR-03's amendment, and `apps/admin/lib/forms/condition.ts` carries
-    // the matching edit in the same change because neither side can move alone.
+    // Spelled out rather than derived: this list is the tripwire.
     expect(Object.keys(OPERATOR_SAMPLES)).toEqual([
       "equals",
       "notEquals",

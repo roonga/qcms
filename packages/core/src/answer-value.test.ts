@@ -21,7 +21,6 @@ import {
   type Result,
 } from "./index.js";
 
-/** Test helper: unwrap an ok Result or fail loudly. */
 function unwrap<T>(result: Result<T, QcmsError>): T {
   if (!result.ok) {
     throw new Error(`expected ok, got ${result.error.code}: ${result.error.message}`);
@@ -29,7 +28,6 @@ function unwrap<T>(result: Result<T, QcmsError>): T {
   return result.value;
 }
 
-/** Test helper: assert failure and return the typed error. */
 function unwrapErr<T>(result: Result<T, QcmsError>): QcmsError {
   if (result.ok) {
     throw new Error("expected a typed error, got ok");
@@ -37,7 +35,6 @@ function unwrapErr<T>(result: Result<T, QcmsError>): QcmsError {
   return result.error;
 }
 
-/** Test helper: branded OptionId from a known-good literal. */
 function oid(value: string): OptionId {
   return unwrap(parseOptionId(value));
 }
@@ -152,7 +149,7 @@ describe("rejections carry typed error codes", () => {
 });
 
 describe("compareValues", () => {
-  /** Arbitrary valid canonical date via epoch-day, spanning years ~54–9999. */
+  // Built from an epoch day, so every generated value is a real date.
   const isoDate = fc
     .integer({ min: -700_000, max: 2_932_896 })
     .map((epochDay) => new Date(epochDay * 86_400_000).toISOString().slice(0, 10));
