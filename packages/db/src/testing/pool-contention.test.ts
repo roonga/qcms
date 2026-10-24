@@ -1,10 +1,4 @@
-/**
- * The mid-suite annotation, against fake pools and fake errors (issue #812).
- *
- * No Docker and no database: what is under test is the decision - which rejections get a
- * host snapshot, which are left exactly as they arrived, and the guarantee that nothing
- * here can turn a failing query into a passing one.
- */
+/** Fake pools and fake errors: no Docker and no database. */
 
 import { describe, expect, it, vi } from "vitest";
 
@@ -20,16 +14,9 @@ import {
 const SNAPSHOT = "  host: load 18.42/12.10/9.03 over 8 cpus (2.30 per cpu)";
 const line = () => SNAPSHOT;
 
-/** The exact text issue #812 was filed for. */
 const TERMINATED = "Connection terminated unexpectedly";
 
-/**
- * The exact text issue #939 was filed for, as `pg` raises it.
- *
- * Measured rather than guessed: a `pg.Client` pointed at a closed local port throws an
- * `Error` with this message and `code: "ECONNREFUSED"`, no `cause` and no mention of
- * Docker. The port is the ephemeral one Testcontainers mapped, so it differs every run.
- */
+/** Verbatim as `pg` raises it, down to the ephemeral port. */
 const REFUSED = "connect ECONNREFUSED 127.0.0.1:34517";
 
 describe("isContentionShaped", () => {
@@ -43,8 +30,6 @@ describe("isContentionShaped", () => {
       "read ECONNRESET",
       "socket hang up",
       "not bound after 210000ms",
-      // Issue #939: a container that reported itself ready with nothing listening on the
-      // mapped port yet. Refused below the protocol, so no answering database produces it.
       REFUSED,
       "connect ECONNREFUSED ::1:34517",
     ]) {
@@ -53,9 +38,6 @@ describe("isContentionShaped", () => {
   });
 
   it("does not match a database that answered and said no", () => {
-    // The line that keeps the annotation honest. A constraint violation is unambiguously
-    // the code's problem, and a host snapshot beside it is noise that teaches a reader to
-    // skip the snapshot in the case where it matters.
     for (const text of [
       'null value in column "question_id" violates not-null constraint',
       'relation "responses" does not exist',
@@ -67,7 +49,6 @@ describe("isContentionShaped", () => {
   });
 
   it("keeps every marker anchored to a wording rather than to a substring of a word", () => {
-    // Guards a later edit that widens a pattern into something a query error can match.
     expect(MID_SUITE_CONTENTION_MARKERS.length).toBeGreaterThan(0);
     for (const marker of MID_SUITE_CONTENTION_MARKERS) {
       expect(marker.test("SELECT 1"), String(marker)).toBe(false);
@@ -85,8 +66,8 @@ describe("annotateWithHostSnapshot", () => {
   });
 
   it("keeps the error object, so a caller's code and instanceof still hold", () => {
-    // Mutating rather than wrapping is deliberate: pg errors carry `code` and `severity`
-    // that callers read, and a wrapper would either lose them or have to forge them.
+    // pg errors carry `code` and `severity` that callers read, so a wrapper would
+    // have to forge them.
     const error = Object.assign(new Error(TERMINATED), { code: "57P01", severity: "FATAL" });
 
     annotateWithHostSnapshot(error, line);
@@ -115,9 +96,6 @@ describe("annotateWithHostSnapshot", () => {
   });
 
   it("annotates a refused connect, which says nothing about the host on its own", () => {
-    // Issue #939. This is the shape a boot takes when the port Testcontainers mapped has
-    // nothing behind it, and until it was a marker it arrived bare: no stack worth
-    // reading, no load line, and nothing to separate it from a defect in the branch.
     const error = Object.assign(new Error(REFUSED), { code: "ECONNREFUSED" });
 
     annotateWithHostSnapshot(error, line);
@@ -133,7 +111,6 @@ describe("annotateWithHostSnapshot", () => {
   });
 });
 
-/** A `pg.Pool` stand-in: enough surface for the wrapper, none of the driver. */
 function fakePool(behaviour: {
   query?: () => unknown;
   connect?: () => unknown;
@@ -163,7 +140,6 @@ describe("instrumentQueryable", () => {
   });
 
   it("still fails the query it annotated", async () => {
-    // The whole rule of this module in one assertion: it adds a line, it never rescues.
     const queryable = fakePool({ query: () => Promise.reject(new Error(TERMINATED)) });
     instrumentQueryable(queryable, line);
 
@@ -171,8 +147,8 @@ describe("instrumentQueryable", () => {
   });
 
   it("leaves the callback overload's return value alone", () => {
-    // `query(text, values, callback)` returns `undefined`, not a promise. Wrapping what is
-    // not thenable would change what a caller receives.
+    // `query(text, values, callback)` returns `undefined`, not a promise, and wrapping
+    // what is not thenable would change what a caller receives.
     const queryable = fakePool({ query: () => undefined });
     instrumentQueryable(queryable, line);
 
@@ -209,9 +185,7 @@ describe("instrumentPool", () => {
   });
 
   it("annotates a query issued on a client the pool handed out", async () => {
-    // Drizzle runs every `db.transaction()` on a checked-out client rather than on the
-    // pool, so a pool wrapper that stopped at `query` would miss most of the traffic the
-    // integration suites generate.
+    // Drizzle runs every `db.transaction()` on a checked-out client, not on the pool.
     const client = { query: () => Promise.reject(new Error(TERMINATED)) };
     const pool = fakePool({ connect: () => Promise.resolve(client) });
     instrumentPool(pool, line);

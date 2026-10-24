@@ -1,17 +1,4 @@
-/**
- * Outbox payload retention (issue #329), driven against the 013 Testcontainers
- * harness DB. Requires Docker.
- *
- * `outbox.payload` for a `response.submitted` event is the respondent's whole locked
- * answer set: QCMS's own second copy of the ledger, kept so a delivery can be
- * re-sent. Task 059 made erasure reach that copy, but erasure is a request somebody
- * has to make; until this sweep there was nothing at all for the ordinary case, so
- * every response ever submitted left its answers in plaintext `jsonb` indefinitely.
- *
- * These tests assert the observable effect - the answers are gone, the envelope and
- * the delivery record are not, and nothing in flight was stranded to get there -
- * rather than that a sweep exists.
- */
+/** Driven against the Testcontainers harness DB. Requires Docker. */
 
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 
@@ -23,9 +10,7 @@ import {
   startTestDb,
   type TestDb,
 } from "../testing/harness.js";
-// Deep import on purpose: the budget is deliberately not on the package's public
-// surface, and deriving the boundary from the constant is what keeps this test on the
-// right side of it when the number moves.
+// Deep import on purpose: the budget is not on the package's public surface.
 import { ANTI_JOIN_CANDIDATE_BUDGET } from "./outbox.js";
 import {
   claimDue,
@@ -56,11 +41,8 @@ afterAll(async () => {
   await testDb?.teardown();
 }, CONTAINER_BOOT_TIMEOUT_MS);
 
-/** Long before any horizon these tests use: the shape of the back catalogue. */
 const LONG_AGO = new Date("2026-01-02T03:04:05.000Z");
-/** The sweep horizon: `now` (2026-08-06) minus the 30-day default. */
 const HORIZON = new Date("2026-07-07T00:00:00.000Z");
-/** After the horizon: still inside the redelivery window. */
 const RECENT = new Date("2026-07-20T00:00:00.000Z");
 
 interface Seeded {
@@ -71,12 +53,6 @@ interface Seeded {
 
 let seq = 0;
 
-/**
- * A form, one active webhook, and one queued event. `answers: false` seeds a
- * `form.released` event instead: the same lifecycle, no respondent content.
- * `repeat: true` seeds the payload shape a repeating form enqueues (task 075): the
- * `answers` member is a `LockedAnswer[]` whose entries may carry an `instanceId`.
- */
 async function seedEvent(options: { answers?: boolean; repeat?: boolean } = {}): Promise<Seeded> {
   seq += 1;
   const formId = FormId.parse(`frm_retain_${seq}`);
@@ -118,7 +94,6 @@ async function seedEvent(options: { answers?: boolean; repeat?: boolean } = {}):
   return { outboxId: event.id, webhookId, formId };
 }
 
-/** Materialize one delivery for this event, against a second endpoint if asked. */
 async function addDelivery(seeded: Seeded, suffix = ""): Promise<string> {
   const webhookId = `${seeded.webhookId}${suffix}`;
   if (suffix !== "") {
@@ -138,17 +113,12 @@ async function addDelivery(seeded: Seeded, suffix = ""): Promise<string> {
   return res.rows[0]!.id;
 }
 
-/** Drive a delivery to its dead letter through the real backoff path. */
 async function deadLetter(deliveryId: string, at: Date): Promise<void> {
   for (let i = 0; i < OUTBOX_MAX_ATTEMPTS; i++) {
     await recordDeliveryFailure(testDb.db, deliveryId, "http_500", at);
   }
 }
 
-/**
- * Raw row reads, so the assertions are about the database rather than about a
- * helper. `testDb.client` parses timestamptz into a `Date`.
- */
 async function outboxRow(outboxId: string): Promise<{
   eventType: string;
   payload: Record<string, unknown>;
@@ -182,13 +152,8 @@ describe("redactAgedOutboxPayloads (issue #329)", () => {
 
     expect(result.redactedCount).toBeGreaterThanOrEqual(1);
     const after = await outboxRow(seeded.outboxId);
-    // The answers are gone...
     expect(after.payload).not.toHaveProperty("answers");
-    // ...and the row says so, rather than reading as an event that never had any.
     expect(after.payloadRedactedAt).not.toBeNull();
-    // Existence without content: the envelope and the event type survive, so the
-    // audit question "did this response's event exist, and where did it go" is still
-    // answerable.
     expect(after.eventType).toBe("response.submitted");
     expect(after.payload).toEqual({
       sessionId: `ses_retain_${seq}`,
@@ -197,8 +162,6 @@ describe("redactAgedOutboxPayloads (issue #329)", () => {
       submittedAt: "2026-01-02T03:04:05.000Z",
       contentHash: "0".repeat(64),
     });
-    // And the delivery record is untouched: it is value-free and it is the answer to
-    // "was this person's data sent anywhere".
     const delivery = await testDb.client.query<{ delivered_at: Date | null }>(
       `select delivered_at from webhook_deliveries where id = $1`,
       [deliveryId],
@@ -207,10 +170,6 @@ describe("redactAgedOutboxPayloads (issue #329)", () => {
   });
 
   it("drops a repeat payload's instances with the same one-key drop (task 075, case 52)", async () => {
-    // The sweep's half of Q19. It redacts by `payload - 'answers'`, exactly as erasure
-    // does, so it is complete for a repeating form only while every repeated value sits
-    // inside that key. A sibling member holding instance ids, a roster or a count would
-    // survive this drop and still satisfy migration 0016's CHECK.
     const seeded = await seedEvent({ repeat: true });
     const deliveryId = await addDelivery(seeded);
     await markDeliveryDelivered(testDb.db, deliveryId, LONG_AGO);
@@ -228,7 +187,6 @@ describe("redactAgedOutboxPayloads (issue #329)", () => {
     expect(remaining).not.toContain("ins_");
     expect(remaining).not.toContain("Lovelace");
     expect(remaining).not.toContain("ABC123");
-    // No count either: the only number left is the form version.
     expect(Object.values(after.payload).filter((value) => typeof value === "number")).toEqual([1]);
   });
 
@@ -246,10 +204,6 @@ describe("redactAgedOutboxPayloads (issue #329)", () => {
   });
 
   it("never redacts an event that has not been consumed, however old it is", async () => {
-    // An event still waiting for its first fan-out - a deliverer that was stopped for
-    // a month, say. Redacting it would silently drop a submission that never went
-    // anywhere: a stuck queue is an operations problem, not a retention one, and the
-    // claim query skips redacted rows, so this would strand it permanently.
     const seeded = await seedEvent();
 
     await redactAgedOutboxPayloads(testDb.db, HORIZON);
@@ -260,10 +214,6 @@ describe("redactAgedOutboxPayloads (issue #329)", () => {
   });
 
   it("waits for a delivery that is still pending, then redacts once it settles", async () => {
-    // The harm the fan-out half of the predicate prevents. `claimDueDeliveries` joins
-    // this payload and skips redacted rows, so redacting while a delivery is still
-    // sendable would leave that delivery reading "pending" on the operator dashboard
-    // forever while nothing ever sends it.
     const seeded = await seedEvent();
     const settled = await addDelivery(seeded);
     const pending = await addDelivery(seeded, "_b");
@@ -273,7 +223,6 @@ describe("redactAgedOutboxPayloads (issue #329)", () => {
     await redactAgedOutboxPayloads(testDb.db, HORIZON);
 
     expect((await outboxRow(seeded.outboxId)).payload["answers"]).toBeDefined();
-    // Still claimable, which is the point: the sweep took nothing out from under it.
     const claimed = await claimDueDeliveries(testDb.db, 50, new Date(Date.now() + 1000));
     expect(claimed.some((d) => d.deliveryId === pending)).toBe(true);
 
@@ -284,9 +233,6 @@ describe("redactAgedOutboxPayloads (issue #329)", () => {
   });
 
   it("restarts the window when an operator redelivers a dead letter", async () => {
-    // The window is the redelivery window, so exercising the capability reopens it.
-    // A reset clears the delivery's terminal timestamps, which is exactly what the
-    // predicate reads.
     const seeded = await seedEvent();
     const deliveryId = await addDelivery(seeded);
     await deadLetter(deliveryId, LONG_AGO);
@@ -299,13 +245,6 @@ describe("redactAgedOutboxPayloads (issue #329)", () => {
   });
 
   it("covers rows that predate the control - no backfill migration needed", async () => {
-    // The rows a deployment already holds when it upgrades, which are the data this
-    // issue is about. The predicate is over `delivered_at`, `dead_lettered_at` and
-    // `cancelled_at` - columns every such row already carries, written long before
-    // this control existed - so the first sweep after an upgrade reaches the whole
-    // back catalogue and a row from years back is *more* eligible than one written
-    // today. A control that only governed rows created after it shipped would have
-    // left exactly the data the issue names.
     const ancient = await seedEvent();
     const ancientDelivery = await addDelivery(ancient);
     await markDeliveryDelivered(testDb.db, ancientDelivery, new Date("2020-01-01T00:00:00.000Z"));
@@ -324,8 +263,6 @@ describe("redactAgedOutboxPayloads (issue #329)", () => {
   });
 
   it("redacts a dead-lettered fan-out whose redelivery window has closed", async () => {
-    // Nobody fixed the consumer within the window. The dead letter stays on the
-    // dashboard as the audit record; what it no longer carries is the answers.
     const seeded = await seedEvent();
     const deliveryId = await addDelivery(seeded);
     await deadLetter(deliveryId, LONG_AGO);
@@ -334,16 +271,12 @@ describe("redactAgedOutboxPayloads (issue #329)", () => {
     await redactAgedOutboxPayloads(testDb.db, HORIZON);
 
     expect((await outboxRow(seeded.outboxId)).payload).not.toHaveProperty("answers");
-    // And the refusal the operator meets is the one rule the scheduler also reads.
     expect(await redeliveryRefusalFor(testDb.db, seeded.formId, deliveryId)).toBe(
       "payloadRedacted",
     );
   });
 
   it("redacts an event that fanned out to nobody", async () => {
-    // A form with no active webhook still enqueues the event, and materialize
-    // consumes it with zero delivery rows. Those payloads are the quietest half of
-    // the leak: no delivery ever existed to make anyone look at them.
     const seeded = await seedEvent();
     await markDelivered(testDb.db, seeded.outboxId, LONG_AGO);
 
@@ -353,9 +286,6 @@ describe("redactAgedOutboxPayloads (issue #329)", () => {
   });
 
   it("does not mark an event that never carried answers", async () => {
-    // `form.released` holds no respondent content. Marking it would claim a removal
-    // that never happened, and make "was this redacted?" unanswerable for the rows
-    // where it matters.
     const seeded = await seedEvent({ answers: false });
     await markDelivered(testDb.db, seeded.outboxId, LONG_AGO);
 
@@ -379,40 +309,10 @@ describe("redactAgedOutboxPayloads (issue #329)", () => {
   });
 });
 
-/**
- * The sweep redacts the same rows above its candidate budget as below it (issue #781).
- *
- * The sweep has two strategies. Below the budget it names its candidates, which is
- * what makes the planner probe `webhook_deliveries` per row instead of reading it
- * whole; above it, it issues the single statement it always did, because past that
- * size one read of the deliveries table beats one probe per candidate. Both are meant
- * to select exactly the same rows, and every other test in this file sits far below
- * the budget, so the fallback was reached by nothing.
- *
- * That is the branch worth pinning rather than the fast one: it is the branch a
- * production database meets exactly once, on the first pass after an upgrade, over the
- * entire back catalogue, and it is the branch whose failure mode is silent - a sweep
- * that redacted the probed subset instead of the backlog would report a plausible
- * count and leave answers behind.
- */
 describe("redactAgedOutboxPayloads above its candidate budget (issue #781)", () => {
-  /**
-   * Two more than the budget, not one, and the difference is the whole test.
-   *
-   * The probe reads `budget + 1` rows, so at exactly `budget + 1` eligible rows the
-   * two strategies are indistinguishable: the fallback would redact all of them and so
-   * would the fast path, because the probe happens to have fetched every one. At
-   * `budget + 2` the probe can only ever name `budget + 1` of them, so a run that took
-   * the fast path leaves one row behind and this fails.
-   */
+  /** The probe reads `budget + 1` rows, so `+ 1` would not separate the two strategies. */
   const SEEDED_ROWS = ANTI_JOIN_CANDIDATE_BUDGET + 2;
 
-  /**
-   * One statement, no per-row round trips: this is 10,002 rows and the point of the
-   * test is the branch, not the insert. No form, webhook or delivery is needed -
-   * `outbox` carries no foreign key, and a row with no delivery at all is the simplest
-   * thing the anti-join passes.
-   */
   async function seedBacklog(): Promise<string[]> {
     const res = await testDb.client.query<{ id: string }>(
       `insert into outbox (event_type, payload, created_at, delivered_at)
@@ -434,19 +334,8 @@ describe("redactAgedOutboxPayloads above its candidate budget (issue #781)", () 
   }
 
   /**
-   * 60 s explicitly, rather than Vitest's inherited 5 s default (issue #855).
-   *
-   * Standalone this case takes about 0.2 s (190 ms measured 2026-09-10; 586 ms on the
-   * host that filed the issue). What it spends that on is a 10,002-row insert into a
-   * containerised Postgres, so the cost scales with whatever else the machine is
-   * doing rather than with the branch under test: under a fully parallel `pnpm verify`
-   * on a loaded host it reached 6019 ms and failed on the 5 s default, then passed in
-   * isolation. Seeding fewer rows is not available as the fix - `SEEDED_ROWS` is
-   * derived from the budget this test exists to exceed, and one row fewer stops
-   * telling the two strategies apart - so the budget moves instead. 60 s is about a
-   * hundred times the slowest standalone measurement, which is the margin
-   * CONTRIBUTING asks for (issues #603, #604): far enough from the work that host
-   * load cannot reach it, and still short enough that a genuinely hung sweep fails.
+   * 60 s rather than Vitest's 5 s default: the 10,002-row insert costs whatever the
+   * host is otherwise doing, and it overran 5 s under a parallel verify.
    */
   it("redacts the whole backlog, not the subset the probe could name", async () => {
     const ids = await seedBacklog();
@@ -454,11 +343,6 @@ describe("redactAgedOutboxPayloads above its candidate budget (issue #781)", () 
 
     const result = await redactAgedOutboxPayloads(testDb.db, HORIZON);
 
-    // Every seeded row, not a count: a count can be right while the wrong rows moved,
-    // and `redactedCount` alone would also absorb anything an earlier suite left
-    // eligible. Asked of the database rather than of the helper, and in the form the
-    // `outbox_redacted_payload_has_no_answers` CHECK stands for - the marker is set
-    // AND the answers are gone, which is the pair a half-applied redaction breaks.
     const leftBehind = await testDb.client.query<{ id: string }>(
       `select id from outbox
        where id = any($1::uuid[])
@@ -470,20 +354,6 @@ describe("redactAgedOutboxPayloads above its candidate budget (issue #781)", () 
   }, 60_000);
 });
 
-/**
- * The invariant the marker stands for, enforced by the database (issue #329,
- * migration `0016`).
- *
- * `payload_redacted_at` is read as proof that the answers are gone: a row carrying
- * it is skipped by `claimDue`, by `claimDueDeliveries`, by the redeliver endpoint,
- * and by every future run of the sweep. So a writer that stamped the marker without
- * dropping `answers` would leave the whole answer set in a row nothing ever looks at
- * again - the leak this control exists to close, reappearing through the control
- * itself. The two halves are written together by `outboxPayloadRedactionColumns()`
- * today, but that is a call-site convention, and a convention cannot fail when a
- * future writer breaks it. Hence a CHECK constraint, and hence these tests, which
- * watch it refuse and then measure what it is refusing.
- */
 describe("outbox_redacted_payload_has_no_answers (issue #329)", () => {
   it("refuses a row marked redacted while its answers are still there", async () => {
     const seeded = await seedEvent();
@@ -494,35 +364,26 @@ describe("outbox_redacted_payload_has_no_answers (issue #329)", () => {
       ]),
     ).rejects.toThrow(/outbox_redacted_payload_has_no_answers/);
 
-    // Refused, not partially applied: the row is exactly as it was.
     const row = await outboxRow(seeded.outboxId);
     expect(row.payloadRedactedAt).toBeNull();
     expect(row.payload["answers"]).toBeDefined();
   });
 
   it("allows every row shape the outbox actually writes", async () => {
-    // The constraint has to refuse precisely one combination and no more, or it would
-    // break the live queue, the answer-free event types, or the redaction itself.
     const live = await seedEvent();
     expect((await outboxRow(live.outboxId)).payload["answers"]).toBeDefined();
 
-    // 1. Answers, no marker: every live `response.submitted` event.
     await markDelivered(testDb.db, live.outboxId, LONG_AGO);
     expect((await outboxRow(live.outboxId)).payloadRedactedAt).toBeNull();
 
-    // 2. No answers, no marker: `form.released`, and any adopter event type.
     const answerFree = await seedEvent({ answers: false });
     expect((await outboxRow(answerFree.outboxId)).payloadRedactedAt).toBeNull();
 
-    // 3. No answers, marker set: what both redaction paths write.
     await redactAgedOutboxPayloads(testDb.db, HORIZON);
     const swept = await outboxRow(live.outboxId);
     expect(swept.payload).not.toHaveProperty("answers");
     expect(swept.payloadRedactedAt).not.toBeNull();
 
-    // 4. And an answer-free payload can still be re-written without the marker: the
-    //    constraint is one-directional, so nothing about the ordinary event types
-    //    needs to know it exists.
     await testDb.client.query(
       `update outbox set payload = payload || '{"note":"x"}' where id = $1`,
       [answerFree.outboxId],
@@ -534,8 +395,6 @@ describe("outbox_redacted_payload_has_no_answers (issue #329)", () => {
     const seeded = await seedEvent();
     await markDelivered(testDb.db, seeded.outboxId, LONG_AGO);
 
-    // Drop the guard and produce exactly the row a careless future writer would: the
-    // marker set, the answers still in the payload.
     await testDb.client.query(
       `alter table outbox drop constraint outbox_redacted_payload_has_no_answers`,
     );
@@ -544,9 +403,6 @@ describe("outbox_redacted_payload_has_no_answers (issue #329)", () => {
         seeded.outboxId,
       ]);
 
-      // Now no control will ever look at it again. The sweep filters on the marker,
-      // so even a horizon in the far future steps over the row, and the answers stay
-      // in the database for good.
       await redactAgedOutboxPayloads(testDb.db, new Date("2099-01-01T00:00:00.000Z"));
       const leaked = await outboxRow(seeded.outboxId);
       expect(leaked.payload["answers"]).toEqual({ q_name: "Ada Lovelace", q_age: 36 });
@@ -560,8 +416,6 @@ describe("outbox_redacted_payload_has_no_answers (issue #329)", () => {
       );
     }
 
-    // With the guard back, that row cannot be created at all - and the sweep, which
-    // writes both halves together, still reaches this one.
     await expect(
       testDb.client.query(`update outbox set payload_redacted_at = now() where id = $1`, [
         seeded.outboxId,
@@ -572,22 +426,7 @@ describe("outbox_redacted_payload_has_no_answers (issue #329)", () => {
   });
 });
 
-/**
- * The redaction guard on the outbox-level redelivery helper (issue #433).
- *
- * `resetForRedelivery` clears `delivered_at` and `dead_lettered_at`; `claimDue`
- * declines to claim *on* `payload_redacted_at`. Without a predicate joining those two
- * facts, resetting a redacted event moved it into the one state the whole file exists
- * to prevent: reading as pending, claimed by nobody, revisited by nothing. Erasure
- * has been able to produce a redacted event since 059; this sweep widens the
- * population from "sessions someone asked to erase" to "every event past the window",
- * which is what makes the latent case worth closing.
- *
- * The pair is the same idiom the delivery level uses: the refusal helper names the
- * reason, the reset reports the absence, and the caller reads them in that order.
- */
 describe("resetForRedelivery redaction guard (issue #433)", () => {
-  /** The columns a reset writes, read raw so the assertions are about the database. */
   async function resetState(outboxId: string): Promise<{
     deliveredAt: Date | null;
     deadLetteredAt: Date | null;
@@ -620,7 +459,6 @@ describe("resetForRedelivery redaction guard (issue #433)", () => {
     };
   }
 
-  /** Drive an event to its dead letter through the real backoff path. */
   async function deadLetterEvent(outboxId: string, at: Date): Promise<void> {
     for (let i = 0; i < OUTBOX_MAX_ATTEMPTS; i++) {
       await recordFailure(testDb.db, outboxId, "http_500", at);
@@ -628,8 +466,6 @@ describe("resetForRedelivery redaction guard (issue #433)", () => {
   }
 
   it("resets an intact dead letter and leaves it claimable", async () => {
-    // The guard has to have something it lets through, or it would pass by refusing
-    // everything and the manual-redeliver action would be dead.
     const seeded = await seedEvent();
     await deadLetterEvent(seeded.outboxId, LONG_AGO);
     expect((await resetState(seeded.outboxId)).payloadRedactedAt).toBeNull();
@@ -650,9 +486,6 @@ describe("resetForRedelivery redaction guard (issue #433)", () => {
     await deadLetterEvent(seeded.outboxId, LONG_AGO);
     await redactAgedOutboxPayloads(testDb.db, HORIZON);
 
-    // The fixture is real before anything is asserted about the refusal: this row
-    // exists and it is genuinely redacted. A missing row would refuse for the wrong
-    // reason and the test would pass having proved nothing.
     const before = await resetState(seeded.outboxId);
     expect(before.payloadRedactedAt).not.toBeNull();
     expect(before.deadLetteredAt).toEqual(LONG_AGO);
@@ -663,8 +496,6 @@ describe("resetForRedelivery redaction guard (issue #433)", () => {
     const reset = await resetForRedelivery(testDb.db, seeded.outboxId, new Date());
 
     expect(reset).toBeUndefined();
-    // Field by field, not as a whole object: a refusal that half-applied would strand
-    // the row just as thoroughly as one that applied.
     const after = await resetState(seeded.outboxId);
     expect(after.deadLetteredAt).toEqual(before.deadLetteredAt);
     expect(after.deliveredAt).toEqual(before.deliveredAt);
@@ -675,9 +506,6 @@ describe("resetForRedelivery redaction guard (issue #433)", () => {
   });
 
   it("refuses a redacted delivered event without clearing delivered_at", async () => {
-    // The other terminal timestamp, and the one #329 produces most of: an event the
-    // materialize pass consumed, whose answers aged out afterwards. Clearing it would
-    // put a consumed event back on the queue as unconsumed.
     const seeded = await seedEvent();
     await markDelivered(testDb.db, seeded.outboxId, LONG_AGO);
     await redactAgedOutboxPayloads(testDb.db, HORIZON);
@@ -693,10 +521,6 @@ describe("resetForRedelivery redaction guard (issue #433)", () => {
   });
 
   it("never leaves a redacted event reading as pending", async () => {
-    // The acceptance criterion stated as the operator sees it. Before the guard the
-    // reset succeeded, the row went `delivered_at = null, dead_lettered_at = null`,
-    // and `claimDue` still skipped it on `payload_redacted_at` - pending on the
-    // dashboard, invisible to the deliverer, forever.
     const seeded = await seedEvent();
     await deadLetterEvent(seeded.outboxId, LONG_AGO);
     await redactAgedOutboxPayloads(testDb.db, HORIZON);
@@ -705,17 +529,12 @@ describe("resetForRedelivery redaction guard (issue #433)", () => {
     await resetForRedelivery(testDb.db, seeded.outboxId, at);
 
     const after = await resetState(seeded.outboxId);
-    // Either it is still terminal, or it is claimable. It is never neither.
     expect(after.deadLetteredAt).not.toBeNull();
     const due = await claimDue(testDb.db, 200, new Date(at.getTime() + 1000));
     expect(due.some((r) => r.id === seeded.outboxId)).toBe(false);
   });
 
   it("distinguishes a refusal from an id that does not exist", async () => {
-    // The property the pair exists for. `undefined` from the refusal helper alone is
-    // ambiguous by design - it means "may be redelivered" and "no such event" - so
-    // the caller reads the two helpers in order, exactly as the redeliver handler
-    // does one level down. Refused and absent differ in the first answer.
     const absent = "00000000-0000-0000-0000-000000000000";
     const seeded = await seedEvent();
     await deadLetterEvent(seeded.outboxId, LONG_AGO);
