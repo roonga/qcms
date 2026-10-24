@@ -114,9 +114,9 @@ function startWrapper(stubSource: string, port: string): Wrapper {
     env: {
       ...process.env,
       ADMIN_PORT: port,
-      // Quoted: the wrapper runs this through a shell, and both halves hold a path with
-      // spaces on Windows (`C:\Program Files\nodejs\node.exe`, and a temp dir under a
-      // profile name that may contain one).
+      // Quoted: the wrapper runs this through a shell, and on Windows both halves hold a
+      // path that can contain a space (the Node install directory, and a temp directory
+      // under a profile name).
       QCMS_ADMIN_SERVER_COMMAND: `"${process.execPath}" "${stub}"`,
       QCMS_ADMIN_SERVER_LOG: join(dir, "admin.log"),
     },
