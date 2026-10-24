@@ -82,14 +82,13 @@ afterAll(async () => {
   await testDb?.teardown();
 }, CONTAINER_BOOT_TIMEOUT_MS);
 
-// The domain JSONB is opaque to Postgres; tests store empty documents.
+// The domain JSONB is opaque to Postgres, so these casts hand it empty documents.
 const emptyDef = {} as unknown as FormDefinition;
 const emptyCompiled = {} as unknown as CompiledForm;
 const emptyQuestionDef = { any: "shape" } as unknown as Parameters<
   typeof createQuestionVersion
 >[1]["definition"];
 
-/** Seed a form + one published form_version so sessions/answers have valid FKs. */
 async function seedPublishedForm(id: string): Promise<{ formId: FormId; version: number }> {
   const formId = FormId.parse(id);
   await createForm(testDb.db, {
@@ -173,14 +172,10 @@ describe("questions helpers", () => {
       definition: nextDef,
     });
     expect(updated?.definition).toEqual({ edited: true });
-    // No such (questionId, version) → no match → undefined.
     expect(
       await updateDraftDefinition(testDb.db, { questionId, version: 99, definition: nextDef }),
     ).toBeUndefined();
 
-    // Published row: the storage guard matches no draft, so the helper is a no-op
-    // that returns undefined and never reaches the freeze trigger; the stored
-    // definition is unchanged.
     await publishQuestionVersion(testDb.db, { questionId, version: 1 });
     const overwriteDef = { edited: "again" } as unknown as Parameters<
       typeof updateDraftDefinition
@@ -192,9 +187,6 @@ describe("questions helpers", () => {
       edited: true,
     });
 
-    // Deprecated row: the exact gap issue #8 closes (the trigger only fires on
-    // published, so before the guard this silently overwrote). Now: no match,
-    // undefined, definition untouched.
     const questionId2 = QuestionId.parse("q_editdeprecated");
     await createQuestion(testDb.db, {
       workspaceId: SEED_WORKSPACE_ID,
@@ -219,10 +211,7 @@ describe("questions helpers", () => {
   });
 
   it("the freeze trigger still backstops a raw definition write to a published row (SEC storage backstop)", async () => {
-    // The helper now guards with WHERE status='draft', so the freeze trigger is
-    // unreachable through it. It remains the storage backstop for any *other*
-    // write path: prove it still fires on a direct UPDATE of a published row's
-    // definition. drizzle wraps the pg error, so "immutable" is on the cause.
+    // Drizzle wraps the pg error, so "immutable" is on the cause.
     const questionId = QuestionId.parse("q_rawfreeze");
     await createQuestion(testDb.db, {
       workspaceId: SEED_WORKSPACE_ID,
@@ -268,9 +257,6 @@ describe("questions helpers", () => {
   });
 
   it("reads many questions' versions in one call, grouped and oldest first", async () => {
-    // The read that replaced a loop over `listQuestionVersions` (issue #684). Three
-    // properties, and the third is why the ordering is part of the contract rather than
-    // incidental: a caller partitions this in one pass and never sorts.
     const first = QuestionId.parse("q_bulk_one");
     const second = QuestionId.parse("q_bulk_two");
     const absent = QuestionId.parse("q_bulk_missing");
@@ -291,8 +277,6 @@ describe("questions helpers", () => {
 
     const rows = await listVersionsForQuestions(testDb.db, [first, second, absent]);
 
-    // Only the two that exist, every version of each, and the published-under-a-draft
-    // shape the form builder exists to see: v1 published, v2 draft on top of it.
     expect(rows.map((row) => [row.questionId, row.version, row.status])).toEqual([
       [first, 1, "published"],
       [first, 2, "draft"],
@@ -305,14 +289,8 @@ describe("questions helpers", () => {
   });
 
   it("reports questionId use in the library and in an answer ledger, as two halves (R6)", async () => {
-    // **R6 is one rule asked on two planes since ADR-40.** It used to be one `union all`
-    // over `control.questions` and `answers`, and that statement cannot exist any more: the
-    // authoring connection's search path is `control` alone and its role holds no read on
-    // any data-plane table, which is the property Q40 exists to buy. So the library half is
-    // `isQuestionIdTaken` on the control plane, the ledger half is
-    // `isQuestionIdInAnswerLedger` on an environment's own pool, and
-    // `apps/api/src/features/questions/create.ts` runs the second once per environment in
-    // the live set (Q1).
+    // The authoring role holds no read on any data-plane table, so the two halves
+    // cannot be one statement.
     const questionId = QuestionId.parse("q_taken");
     expect(await isQuestionIdTaken(testDb.db, questionId)).toBe(false);
     await createQuestion(testDb.db, {
@@ -322,8 +300,6 @@ describe("questions helpers", () => {
     });
     expect(await isQuestionIdTaken(testDb.db, questionId)).toBe(true);
 
-    // An id surviving ONLY in the answer ledger - its question deprecated or erased - is
-    // still refused, which is the half the split had to keep working.
     const { formId, version } = await seedPublishedForm("frm_taken");
     const sessionId = SessionId.parse("ses_taken");
     await createSession(testDb.db, {
@@ -338,12 +314,8 @@ describe("questions helpers", () => {
     await appendAnswer(testDb.db, { sessionId, questionId: historic, value: "x" });
     expect(await isQuestionIdInAnswerLedger(testDb.db, historic)).toBe(true);
 
-    // And the library half does NOT see it, which is what makes the second call necessary
-    // rather than belt and braces: a caller that dropped it would reuse this id silently.
     expect(await isQuestionIdTaken(testDb.db, historic)).toBe(false);
 
-    // The ledger half is scoped to the connection's own environment, so an id the library
-    // holds but no respondent ever answered is absent from it.
     expect(await isQuestionIdInAnswerLedger(testDb.db, questionId)).toBe(false);
   });
 });
@@ -400,7 +372,6 @@ describe("forms helpers", () => {
   });
 
   it("defaults the per-form abuse settings and round-trips overrides (task 026)", async () => {
-    // Column defaults: challenge off, no min-time override (config default applies).
     const plainId = FormId.parse("frm_abuse_default");
     await createForm(testDb.db, {
       workspaceId: SEED_WORKSPACE_ID,
@@ -412,7 +383,6 @@ describe("forms helpers", () => {
     expect(plain?.challengeRequired).toBe(false);
     expect(plain?.minSubmitMs).toBeNull();
 
-    // Overrides set at create time survive the read.
     const gatedId = FormId.parse("frm_abuse_gated");
     await createForm(testDb.db, {
       workspaceId: SEED_WORKSPACE_ID,
@@ -436,7 +406,6 @@ describe("forms helpers", () => {
       defaultLocale: "en",
     });
 
-    // One key at a time: the other column keeps its value rather than resetting.
     expect(
       (await updateFormSettings(testDb.db, formId, { challengeRequired: true }))?.minSubmitMs,
     ).toBeNull();
@@ -444,16 +413,13 @@ describe("forms helpers", () => {
     expect(withFloor?.challengeRequired).toBe(true);
     expect(withFloor?.minSubmitMs).toBe(4_000);
 
-    // `null` is a value, not an omission: it restores the deployment default.
     expect(
       (await updateFormSettings(testDb.db, formId, { minSubmitMs: null }))?.minSubmitMs,
     ).toBeNull();
 
-    // An empty patch is a legal no-op read, not a SQL error.
     const untouched = await updateFormSettings(testDb.db, formId, {});
     expect(untouched?.challengeRequired).toBe(true);
 
-    // Settings live on the identity row, so they are visible to every reader of it.
     expect((await getForm(testDb.db, formId))?.challengeRequired).toBe(true);
   });
 });
@@ -477,8 +443,6 @@ describe("sessions helpers and the form-version pin (I4)", () => {
     await markSubmitted(testDb.db, sessionId);
 
     const after = await getSession(testDb.db, sessionId);
-    // Behavioral proof of the structural pin: every mutating helper ran, the
-    // pin is unchanged.
     expect(after?.formVersion).toBe(version);
     expect(after?.status).toBe("submitted");
   });
@@ -538,9 +502,7 @@ describe("secure links helpers", () => {
     expect(
       (await revokeSecureLink(testDb.db, linkId, formId, DEFAULT_TEST_ENVIRONMENT))?.revokedAt,
     ).toBeInstanceOf(Date);
-    // Revoked links cannot be consumed.
     expect(await consumeSecureLink(testDb.db, linkId, new Date())).toBeUndefined();
-    // Idempotent revoke.
     expect(
       await revokeSecureLink(testDb.db, linkId, formId, DEFAULT_TEST_ENVIRONMENT),
     ).toBeUndefined();
@@ -569,21 +531,14 @@ describe("secure links helpers", () => {
       expiresAt: new Date(Date.now() + 86_400_000),
     });
 
-    // The fixture is real: without this the negative below could pass against a
-    // link that simply does not exist, which proves nothing about the scope.
     expect((await getSecureLink(testDb.db, linkId))?.formId).toBe(ownerForm);
 
-    // Negative: naming the wrong form matches no row, and leaves the link intact.
     expect(
       await revokeSecureLink(testDb.db, linkId, otherForm, DEFAULT_TEST_ENVIRONMENT),
     ).toBeUndefined();
-    // And naming the wrong ENVIRONMENT matches no row either (task 066), by the same
-    // mechanism: the environment joins the update's `where` clause, so a link in another
-    // environment is not revocable from here any more than one in another form is.
     expect(await revokeSecureLink(testDb.db, linkId, ownerForm, "test")).toBeUndefined();
     expect((await getSecureLink(testDb.db, linkId))?.revokedAt).toBeNull();
 
-    // Positive: the owning form revokes it.
     expect(
       (await revokeSecureLink(testDb.db, linkId, ownerForm, DEFAULT_TEST_ENVIRONMENT))?.revokedAt,
     ).toBeInstanceOf(Date);
@@ -623,9 +578,8 @@ describe("secure links helpers", () => {
         environment: DEFAULT_TEST_ENVIRONMENT,
         linkId: LinkId.parse(`lnk_list_${tag}`),
         formId,
-        // Distinct createdAt ordering is defaultNow(); insert order is a→b→c, so
-        // the list should surface them newest-first (c, b, a). Space the inserts
-        // enough that defaultNow() differs.
+        // `createdAt` is `defaultNow()`, so the inserts are spaced enough for it to
+        // differ between rows.
         expiresAt: new Date(Date.now() + (i + 1) * 3_600_000),
       });
       await new Promise((r) => setTimeout(r, 5));
@@ -633,7 +587,6 @@ describe("secure links helpers", () => {
     const rows = await listSecureLinks(testDb.db, formId, DEFAULT_TEST_ENVIRONMENT);
     expect(rows).toHaveLength(3);
     expect(rows.every((r) => r.formId === formId)).toBe(true);
-    // Another form's links never leak in.
     expect(
       await listSecureLinks(testDb.db, FormId.parse("frm_link"), DEFAULT_TEST_ENVIRONMENT),
     ).not.toContainEqual(expect.objectContaining({ linkId: "lnk_list_a" }));
@@ -660,7 +613,6 @@ describe("webhooks helpers (task 024, SEC-6)", () => {
     expect(created.deactivatedAt).toBeNull();
     expect(created.secretEncrypted).toBe("v1.CIPHERTEXT_ONE");
 
-    // A second webhook on the same form - multiple webhooks per form allowed.
     await insertWebhook(testDb.db, {
       webhookId: "whk_two",
       formId,
@@ -671,13 +623,11 @@ describe("webhooks helpers (task 024, SEC-6)", () => {
     const listed = await listWebhooks(testDb.db, formId);
     expect(listed).toHaveLength(2);
 
-    // Scoped read: an id under the wrong form is not found.
     expect(await getWebhook(testDb.db, FormId.parse("frm_link"), "whk_one")).toBeUndefined();
     expect((await getWebhook(testDb.db, formId, "whk_one"))?.url).toBe(
       "https://consumer.example.test/hook",
     );
 
-    // Rotate the encrypted secret + change url; updatedAt advances.
     const rotated = await updateWebhook(testDb.db, formId, "whk_one", {
       secretEncrypted: "v1.CIPHERTEXT_ROTATED",
       url: "https://consumer.example.test/hook-v2",
@@ -686,7 +636,6 @@ describe("webhooks helpers (task 024, SEC-6)", () => {
     expect(rotated?.secretEncrypted).toBe("v1.CIPHERTEXT_ROTATED");
     expect(rotated?.url).toBe("https://consumer.example.test/hook-v2");
 
-    // Soft-deactivate: active flips false, deactivatedAt stamped, row survives.
     const deactivated = await deactivateWebhook(testDb.db, formId, "whk_one", new Date());
     expect(deactivated?.active).toBe(false);
     expect(deactivated?.deactivatedAt).toBeInstanceOf(Date);
@@ -782,24 +731,17 @@ describe("answers helpers", () => {
       answeredAt: new Date(t0 + 3000),
     });
     expect(tombstone.retracted).toBe(true);
-    // The narrowed `RetractionRow` return is the contract, not merely the runtime
-    // shape (issue #98): these two annotations fail to compile if `retractAnswer`
-    // ever widens back to `AnswerRow`, so a caller can read the discriminator
-    // without re-narrowing through `isRetraction`.
+    // These annotations fail to compile if `retractAnswer` widens back to `AnswerRow`.
     const retractedValue: null = tombstone.value;
     const retractedFlag: true = tombstone.retracted;
     expect(retractedValue).toBeNull();
     expect(retractedFlag).toBe(true);
 
-    // The kernel's view: the retracted question is UNANSWERED, and the earlier
-    // revision is not resurrected. Its neighbour is untouched.
     const latest = await latestAnswers(testDb.db, sessionId);
     expect(latest.has(qDate)).toBe(false);
     expect(latest.size).toBe(1);
     expect(latest.get(qKeep)).toBe("kept");
 
-    // The audit view: nothing was erased. Every revision plus the retraction,
-    // oldest first, with the retraction distinguishable without inference.
     const ledger = await answerLedger(testDb.db, sessionId);
     expect(ledger).toHaveLength(4);
     expect(ledger.map((r) => [r.questionId, r.value, r.retracted])).toEqual([
@@ -810,8 +752,6 @@ describe("answers helpers", () => {
     ]);
     expect(ledger.filter(isRetraction)).toHaveLength(1);
 
-    // Answering again after a retraction restores the question (the tombstone is
-    // a revision, not a lock).
     await appendAnswer(testDb.db, {
       sessionId,
       questionId: qDate,
@@ -832,9 +772,6 @@ describe("answers helpers", () => {
       accessMode: "anonymous",
       expiresAt: new Date(Date.now() + 86_400_000),
     });
-    // A retraction that carries a value would let a reader mistake it for an
-    // answer; an answer with no value would be an invisible retraction. The
-    // database refuses both, so no reader has to trust the writer.
     await expect(
       testDb.client.query(
         `insert into answers (session_id, question_id, value, retracted) values ($1, $2, $3, true)`,
@@ -888,7 +825,6 @@ describe("outbox helpers", () => {
     const delivered = await markDelivered(testDb.db, event.id);
     expect(delivered?.deliveredAt).toBeInstanceOf(Date);
 
-    // Delivered rows are no longer claimed.
     const dueAfter = await claimDue(testDb.db, 50, new Date(Date.now() + 1000));
     expect(dueAfter.some((r) => r.id === event.id)).toBe(false);
   });
@@ -909,13 +845,11 @@ describe("outbox helpers", () => {
     expect(row?.attempts).toBe(10);
     expect(row?.deadLetteredAt).toEqual(from);
 
-    // Dead-lettered rows surface for the admin view and are excluded from claims.
     const deadLetters = await listDeadLetters(testDb.db);
     expect(deadLetters.some((r) => r.id === event.id)).toBe(true);
     const dueWhileDead = await claimDue(testDb.db, 50, new Date(Date.now() + 1000));
     expect(dueWhileDead.some((r) => r.id === event.id)).toBe(false);
 
-    // Manual redelivery resets it.
     const reset = await resetForRedelivery(testDb.db, event.id);
     expect(reset?.attempts).toBe(0);
     expect(reset?.deadLetteredAt).toBeNull();
@@ -930,24 +864,20 @@ describe("outbox helpers", () => {
   });
 });
 
-// ---------------------------------------------------------------------------
-// Concurrency: genuine concurrent transactions against the live database via a
-// connection pool (the single harness Client cannot run overlapping work).
-// ---------------------------------------------------------------------------
+// Genuine concurrency needs a pool: the single harness Client cannot run
+// overlapping work.
 describe("concurrency (live, pooled connections)", () => {
   let pool: pg.Pool;
   let db: NodePgDatabase<typeof schema>;
 
   beforeAll(() => {
-    // Registered with the harness rather than ended in a local `afterAll` (issue #888):
-    // one teardown drains every connection and only then stops the container.
+    // Registered with the harness so teardown drains it before the container stops.
     pool = testDb.register(
       new Pool({
         connectionString: testDb.connectionUri,
         max: 8,
-        // The same search path the harness gives its own connections (ADR-40): every
-        // data-plane table is declared unqualified, so a pool that sets none resolves
-        // `answers` to nothing at all.
+        // Data-plane tables are declared unqualified, so a pool that sets no search
+        // path resolves them to nothing.
         options: searchPathOptions(DEFAULT_TEST_ENVIRONMENT),
       }),
       "queries concurrency pool",
@@ -981,10 +911,10 @@ describe("concurrency (live, pooled connections)", () => {
     );
 
     const ledger = await answerLedger(testDb.db, sessionId);
-    expect(ledger).toHaveLength(N); // every concurrent append landed
+    expect(ledger).toHaveLength(N);
     const latest = await latestAnswers(testDb.db, sessionId);
     expect(latest.size).toBe(1);
-    expect(latest.get(qId)).toBe(`v${N - 1}`); // the newest answered_at wins
+    expect(latest.get(qId)).toBe(`v${N - 1}`);
   });
 
   it("consumeSecureLink: exactly one of two concurrent consumers wins", async () => {
@@ -1025,8 +955,8 @@ describe("concurrency (live, pooled connections)", () => {
     const idSet = new Set(ids);
     const due = new Date(Date.now() + 1000);
 
-    // Barrier: hold both transactions open (locks held) until both have claimed,
-    // so SKIP LOCKED must hand them disjoint rows.
+    // Both transactions hold their locks until both have claimed, so SKIP LOCKED
+    // must hand them disjoint rows.
     let resolveA!: () => void;
     let resolveB!: () => void;
     const aClaimed = new Promise<void>((r) => (resolveA = r));
@@ -1048,7 +978,7 @@ describe("concurrency (live, pooled connections)", () => {
     await Promise.all([txA, txB]);
 
     const overlap = claimedA.filter((id) => claimedB.includes(id));
-    expect(overlap).toEqual([]); // no row claimed by both
-    expect(new Set([...claimedA, ...claimedB])).toEqual(idSet); // all six claimed exactly once
+    expect(overlap).toEqual([]);
+    expect(new Set([...claimedA, ...claimedB])).toEqual(idSet);
   });
 });
