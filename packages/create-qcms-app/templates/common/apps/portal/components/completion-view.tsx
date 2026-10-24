@@ -3,11 +3,6 @@ import { LocalDateTime } from "@/components/local-time";
 import { PortalShell } from "@/components/portal-shell";
 import { t } from "@/lib/i18n/en";
 
-/**
- * Completion receipt (screen contract `/done`): a success card showing the submit
- * response's `submittedAt` and `contentHash`, and "you may close this page" copy.
- * The reference (content hash) is selectable so a respondent can copy it.
- */
 export function CompletionView({
   submittedAt,
   contentHash,
@@ -17,7 +12,6 @@ export function CompletionView({
 }) {
   return (
     <PortalShell>
-      {/* This root's hydration signal (issue #159). */}
       <HydrationMarker />
       <div className="flex flex-col gap-5">
         <span
@@ -38,9 +32,6 @@ export function CompletionView({
             <dt className="text-xs font-medium text-(--color-text-muted)">
               {t("completion.submittedAt")}
             </dt>
-            {/* The receipt's one locale-dependent value (ADR-27). Formatted in the
-                deployment's QCMS_LOCALE and shown on the respondent's own clock with the
-                zone named, UTC until the page hydrates (Code Owner, 2026-10-19). */}
             <dd className="text-sm text-(--color-text)" data-testid="submitted-at">
               <LocalDateTime iso={submittedAt} />
             </dd>

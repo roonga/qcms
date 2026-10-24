@@ -23,48 +23,19 @@ import type { StepContext } from "@/lib/server/route-helpers";
 import type { StepResponse } from "@/lib/server/api";
 
 /**
- * The no-JS step view (task 044): the progressive-enhancement fallback the SSR
- * paints when JavaScript is unavailable. It renders the current step inside the
- * @roonga/qcms-ui renderer's opt-in native-submit mode - a real
- * `<form method="post" action="/s/:id/step">` with natively-serializing controls
- * and a real submit control - so a respondent with JS disabled can complete and
- * submit the form, one page reload per POST.
+ * The no-JS step view: the fallback the SSR paints, in the renderer's native-submit
+ * mode, so a respondent with no scripting can complete the form one reload per POST.
  *
- * When JS runs, `ProgressiveStep` swaps this for the existing controlled
- * `StepFlow` (029/030) after hydration, so there is exactly one form live at a
- * time and no double-submit. This component owns no fetch and no rule logic; the
- * whole-step BFF route and the API do all the work.
- *
- * `StepResponse` / `StepContext` are imported type-only, so no server module
- * reaches the client bundle (the R2 import-surface test enforces this). The one
- * value import from a server module is the **Server Action** below, which is what a
- * `"use server"` module is for: React sends a reference, never the code.
- *
- * ## The repeating group, and why this view holds a Server Action (task 073)
- *
- * A step carrying a repeating group has one form and two destinations. Continue posts
- * to the whole-step BFF route and gets a 303, unchanged. An **Add or Remove** posts to
- * `rosterOperation`, a Next Server Action, which applies the roster operation, commits
- * no answer, and lets Next re-render this step in the **same 200 response** - which is
- * what carries the respondent's typed values back with no cookie and no redirect
- * (ADR-43 as amended, Code Owner 2026-10-01). `useActionState` is how the returned
- * values reach the render: React renders that state server-side, before any hydration,
- * which is exactly the no-JS case.
- *
- * The action is attached to the FORM and Continue carries a plain URL `formaction`, so
- * React is nowhere near the `__qop` buttons: those stay ordinary
- * `<button name value formnovalidate>` markup, which is the ruled mechanism (Q9) and
- * needs no framework behaviour to serialize.
- *
- * **A step with no repeating group is rendered exactly as before**: no action is
- * passed, the form keeps its string `action`, and nothing about the seven no-JS specs
- * moves.
+ * A step carrying a repeating group has one form and two destinations: Continue posts to
+ * the whole-step BFF route, and an Add or Remove posts to the `rosterOperation` Server
+ * Action, which re-renders this step in the same 200 response and so carries the typed
+ * values back with no cookie and no redirect (ADR-43 as amended). The action is attached
+ * to the form and Continue carries a plain URL `formaction`, so the `__qop` buttons stay
+ * ordinary markup that needs no framework behaviour to serialize (Q9).
  */
 
-/**
- * The per-field messages to display: the author's message for the constraint the
- * API refused each answer on, else the default the BFF route already resolved.
- */
+// The author's message for the constraint the API refused on, else the default the BFF
+// route resolved.
 function authoredErrors(
   stepDocument: A2UIStepDocument | null,
   context: StepContext | undefined,
@@ -81,14 +52,6 @@ function authoredErrors(
   return resolved;
 }
 
-/**
- * The page chrome's progress line for this render: how far along, out of how many
- * **views**, and the name of the instance this page is when it is one (task 076, ADR-27).
- *
- * Its own function rather than three lines inside the view, because the view is already at
- * the cognitive-complexity ceiling the lint enforces and this is the one computation in it
- * that is about the chrome rather than about the form.
- */
 function viewProgress(
   initial: StepResponse,
   rosters: Readonly<Record<string, readonly string[]>>,
@@ -96,18 +59,15 @@ function viewProgress(
 ): { readonly current: number; readonly total: number; readonly label?: string } {
   const current = initial.progress.stepIndex + 1;
   const total = initial.progress.totalVisibleSteps;
-  // Read off the STORED document's template, so it is the same substitution the renderer
-  // makes, and absent on every page that is not a per-instance one.
+  // Read off the stored document's template, so it is the same substitution the renderer
+  // makes.
   const label = viewInstanceLabel(instanceLabelTemplates(stepDocument), rosters, initial.view);
   return label === undefined ? { current, total } : { current, total, label };
 }
 
 /**
- * The page-level notice for a catalogue key the re-render context carries, or `undefined`.
- *
- * A KEY and never a sentence, because the catalogue is where the portal's wording lives
- * and a cookie from an earlier build must not be able to put arbitrary text on the page.
- * An unrecognised key renders nothing, which is what keeps that true as keys are added.
+ * The context carries a catalogue key and never a sentence, so a cookie from an earlier
+ * build cannot put arbitrary text on the page; an unrecognised key renders nothing.
  */
 function noticeFor(key: string | undefined): string | undefined {
   if (key === "step.notSaved") return t("step.notSaved");
@@ -126,25 +86,15 @@ export function NativeStep({
   readonly initial: StepResponse;
   readonly context?: StepContext | undefined;
   /**
-   * The environment's address prefix: `""` for `prod` and `/<env>` for every other
-   * (Q21, task 066).
-   *
-   * **A prop and not a derivation.** A client component cannot read the request header
-   * the proxy resolved the environment on, and reading it back out of
-   * `window.location` would make every address below depend on parsing the one the
-   * browser happens to be at. The page that already knows it passes it down, so a
-   * `fetch` from a `test` session's page reaches `test`'s route rather than `prod`'s -
-   * which would answer, and would answer about a session that is a schema away.
+   * A prop and not a derivation: a client component cannot read the request header the
+   * proxy resolved the environment on, and parsing `window.location` would make every
+   * address below depend on the one the browser happens to be at (Q21).
    */
   readonly basePath: string;
   /**
-   * The one-time roster-operation token this page render minted (task 073, ADR-43).
-   *
-   * Minted on the server, once per page render, and passed down rather than generated
-   * here: this component renders on the server and again on the client before
-   * `ProgressiveStep` swaps it, and a value generated in the component would differ
-   * between the two. The API records it with the roster row it writes, so a post that
-   * arrives twice applies once.
+   * Passed down rather than generated here: this component renders on the server and
+   * again on the client before `ProgressiveStep` swaps it, and a value generated in the
+   * component would differ between the two.
    */
   readonly opToken: string;
 }) {
@@ -152,34 +102,19 @@ export function NativeStep({
   const readyToSubmit = initial.flowState.readyToSubmit;
   const submitLabel = readyToSubmit ? t("action.submit") : t("action.continue");
 
-  // The Server Action for this step's Add and Remove (task 073). `useActionState` is what
-  // carries the action's returned values into the render, and React renders that state
-  // server-side before any hydration, which is the whole of the no-JS case. The action id
-  // React writes into the form is recalculated on every build, so a page held across a
-  // deploy posts a stale one: `app/s/[sessionId]/error.tsx` is what turns that into a page
-  // saying so rather than a framework error.
-  //
-  // NOT `rosterOperation.bind(null, sessionId)`, and this is the one line in the file that
-  // must not be "simplified" back. A bound reference handed to `useActionState` HANGS THE
-  // SERVER RENDER: Next compares a bound action's signature asynchronously, that comparison
-  // never settles inside a render, so the POST never gets a response and the process
-  // accumulates promises until it dies with `RangeError: Map maximum size exceeded`. It
-  // presents as the Add button doing nothing and then the whole server going away. The
-  // session rides as a hidden input instead (`__qsid`, below), which is how plain HTML has
-  // always given one form its context, and the action reads it out of the form data.
+  // Never `rosterOperation.bind(null, sessionId)`: a bound reference handed to
+  // `useActionState` hangs the server render, because Next compares a bound action's
+  // signature asynchronously and that comparison never settles inside a render, so the
+  // POST never gets a response and the process dies accumulating promises. The session
+  // rides as a hidden input instead and the action reads it out of the form data.
   const [rosterState, rosterFormAction] = useActionState(rosterOperation, NO_ROSTER_ACTION);
   const locale = useAppLocale();
 
   const stepDocument = initial.step as unknown as A2UIStepDocument | null;
   const repeating = stepDocument !== null && hasRepeatGroup(stepDocument.root);
-  // The author's wording wins over the default the BFF resolved, per constraint
-  // (task 048, ADR-32). The route carries the CONSTRAINT rather than the final
-  // string because only this render holds the compiled document the messages ride
-  // on. A question the author left alone keeps the message the route produced.
+  // The route carries the constraint rather than the final string, because only this
+  // render holds the compiled document the author's messages ride on (ADR-32).
   const refused: A2UIErrors = authoredErrors(stepDocument, context);
-  // Required questions the API reports as still unanswered on the step just posted
-  // (issue #920). The kernel decides required-ness and the API serves the set; this
-  // render only shows it, the way the hydrated flow already shows it.
   const missing = missingOnStep(
     context?.missingRequired ?? [],
     initial.flowState.visibleQuestions,
@@ -187,14 +122,8 @@ export function NativeStep({
   );
   const visibleSet = new Set(initial.flowState.visibleQuestions);
   const rosters = rosterMap(initial.rosters);
-  // The per-instance step view this page is, or `undefined` for every ordinary page
-  // (task 076). The API named it; the only thing the portal does with it is draw one
-  // instance of a roster it was handed in full, and put the group's Add control on the
-  // last view alone (`expandRepeatGroups`). Without scripting there is **no Back**
-  // (ADR-28's 2026-08-31 amendment), so the server chose this view: the first whose
-  // instance is incomplete.
   // Spread into both the pre-expansion and the renderer's own `repeat` prop, so the two
-  // cannot narrow differently; empty for every page that is not a per-instance one.
+  // cannot narrow differently.
   const narrowed = viewNarrowing(initial.view);
   const viewProp = narrowed === undefined ? {} : { view: narrowed };
   const progress = viewProgress(initial, rosters, stepDocument);
@@ -211,48 +140,22 @@ export function NativeStep({
       ? null
       : { stepId: stepDocument.stepId, root: expanded };
 
-  // The expanded document, so an authored "required" message on a question INSIDE a group
+  // The expanded document, so an authored required message on a question inside a group
   // is found: `missing` names those fields by their qualified name, which only the
   // expanded tree carries.
   const errors: A2UIErrors = { ...refused, ...requiredFieldErrors(expandedDocument, missing) };
-  // The answers the API holds for this step (issue #146) under the just-submitted
-  // ones from the no-JS re-render cookie. The cookie has to win, including when it
-  // CLEARS a field: see `mergeStepValues`, which owns that three-way behaviour and
-  // is tested for it (issue #327).
-  // Three layers, outermost last, and the order is the order of authority: the answers
-  // the API holds for this step (issue #146), then the just-submitted ones from the
-  // Continue re-render cookie (which has to win even when it CLEARS a field - see
-  // `mergeStepValues`, issue #327), then the values an Add or Remove carried back in
-  // its own 200. The last is the most recent thing the respondent typed and the API
-  // holds none of it, because that post writes no answer.
-  //
-  // The outermost layer is a plain spread rather than a third `mergeStepValues` call,
-  // and the difference is real: that helper exists to propagate an own property whose
-  // value is `undefined`, because a cookie entry mapped to `undefined` is a CLEAR. The
-  // action's values carry no clears at all - a cleared field is simply absent from
-  // them, since nothing was written and the API still holds the old answer - so there
-  // is nothing here for that behaviour to preserve.
+  // Three layers, outermost last, in order of authority: what the API holds, then the
+  // Continue re-render cookie (which wins even when it clears a field, which is what
+  // `mergeStepValues` is for), then the values an Add or Remove carried back in its own
+  // 200. The outermost is a plain spread because the action's values carry no clears: a
+  // cleared field is simply absent from them, nothing having been written.
   const values: A2UIValues = {
     ...mergeStepValues(initial.values, context?.values),
     ...rosterState.values,
   };
-  // The summary entries, composed by the module both portal paths share
-  // (`lib/error-summary.ts`): each entry names its own question by label, or by
-  // its position among this step's visible questions when the document carried no
-  // label, so no two links can have the same accessible name (WCAG 3.3.1, issues
-  // #21 and #326). This path once emitted the bare per-field message for a
-  // label-less question, which two questions sharing one author message (ADR-32)
-  // could collide on.
-  // The EXPANDED document, and it is shared deliberately. The renderer expands a
-  // `RepeatGroup` template per live instance and qualifies each clone's `name`, and the
-  // error summary has to read the same names to find a field's label, its position and
-  // its instance label. Expanding once here and handing the same tree to both is what
-  // keeps the anchors, the labels and the rendered ids one set of strings; the
-  // renderer's own expansion is idempotent, so passing it an expanded document leaves
-  // it alone.
-  // `stepSummaryEntries` is the one composition both paths draw, so a refused answer and
-  // a missing required question are named the same way here and on the hydrated path
-  // (issues #21, #326, local UX list P7).
+  // Each entry names its own question, so no two links can share an accessible name
+  // (WCAG 3.3.1), and the expanded document is shared with the renderer so the anchors,
+  // the labels and the rendered ids stay one set of strings.
   const errorEntries = stepSummaryEntries(
     expandedDocument,
     refused,
@@ -260,19 +163,14 @@ export function NativeStep({
     initial.flowState.visibleQuestions,
   );
 
-  // A page-level notice for a round trip that wrote nothing and has nothing per field to
-  // say: a refused batch (ruling Q29). It is a KEY in the cookie, looked up here, because
-  // the catalogue is where the portal's wording lives; an unrecognised key renders nothing,
-  // so a cookie from an earlier build cannot put a blank banner on the page.
   const notice = noticeFor(context?.notice);
 
   return (
     <PortalShell progress={progress}>
       <div className="flex flex-col gap-6">
         {notice === undefined ? null : (
-          // `role="alert"`, like the error summary beside it: the respondent arrived at a
-          // freshly rendered page, so this is the one thing on it they did not ask for and
-          // it has to be announced rather than only painted.
+          // Announced, not only painted: the respondent arrived at a freshly rendered
+          // page and this is the one thing on it they did not ask for.
           <div
             role="alert"
             data-testid="step-notice"
@@ -294,8 +192,6 @@ export function NativeStep({
             <ul className="mt-2 flex flex-col gap-1">
               {errorEntries.map((entry) => (
                 <li key={entry.questionId}>
-                  {/* A plain in-page anchor: no-JS jump to the field, whose wrapper
-                      carries id={questionId} (the 030 focus handle). */}
                   <a
                     href={`#${entry.questionId}`}
                     className="text-sm text-(--color-danger-fg) underline"
@@ -319,19 +215,16 @@ export function NativeStep({
             document={expandedDocument}
             values={values}
             errors={errors}
-            // The same QCMS_LOCALE the scripted view passes (issue #729, Code Owner
-            // 2026-10-19). Here it also orders the no-JS date field's day, month and year
-            // boxes, which is what keeps the order fixed across hydration.
+            // The same tag the scripted view passes, which is what keeps the no-JS date
+            // field's segment order fixed across hydration.
             locale={locale}
             specVersion={initial.a2uiSpecVersion}
             nativeSubmit={{
               action,
               submitLabel,
               submitClassName: buttonClass("primary"),
-              // The Server Action goes on the FORM only when this step actually has a
-              // group to add to or remove from. A step without one keeps the string
-              // action it always had, so nothing about the seven no-JS specs moves and
-              // no page grows a framework entry point it has no use for.
+              // Only when the step has a group: a step without one keeps its string
+              // action and grows no framework entry point it has no use for.
               ...(repeating
                 ? { formAction: rosterFormAction, hiddenFields: { [SESSION_FIELD]: sessionId } }
                 : {}),
@@ -340,9 +233,6 @@ export function NativeStep({
               rosters,
               visible: visibleSet,
               opToken,
-              // The same narrowing the pre-expansion above already applied. The
-              // renderer's own expansion is idempotent, so this is what keeps the two
-              // in step if a document ever reaches it unexpanded.
               ...viewProp,
               ...(rosterState.autofocusId !== undefined
                 ? { autofocusId: rosterState.autofocusId }
@@ -350,8 +240,8 @@ export function NativeStep({
             }}
           />
         ) : (
-          // The flow is already complete (e.g. a resumed, fully-answered session):
-          // a bare native form so the respondent can still POST the submit.
+          // The flow is already complete, so a bare native form is all the respondent
+          // needs to POST the submit.
           <form method="post" action={action} className="flex flex-col gap-6">
             <p className="text-sm leading-relaxed text-(--color-text-muted)">
               {t("flow.submitReady")}
