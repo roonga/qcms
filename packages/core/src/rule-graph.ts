@@ -20,33 +20,22 @@ import {
 } from "./step.js";
 import type { Condition, VisibilityRule } from "./visibility-rule.js";
 
-/**
- * Rule dependency-graph machinery (ADR-16, I10). Pure functions over a parsed
- * `FormDefinition`, so the kernel stays I/O-free (R3).
- *
- * Unresolvable ids are skipped here rather than double-reported: dangling
- * references are `compileDraft`'s findings. `DANGLING_OPTION_REF` is the
- * exception, because only the type check below looks inside an option
- * reference.
- */
+// An unresolvable id is skipped rather than double-reported, dangling
+// references being `compileDraft`'s. `DANGLING_OPTION_REF` is the exception,
+// only the type check below looking inside an option reference.
 
-/** One question's position in the form. Unique per question, since parse
- * rejects duplicate pins inside a group as well as outside. */
+/** One question's position in the form, unique per question. */
 export interface DocumentPosition {
   readonly stepId: StepId;
   readonly questionId: QuestionId;
-  /** The repeating group this position belongs to, absent outside one. */
+  /** Absent for a question outside every group. */
   readonly groupId?: GroupId;
 }
 
 /**
- * The flat document order of a form: every `(stepId, questionId)` pair in the
- * order a respondent encounters them (ADR-16 evaluation order).
- *
- * A repeating group expands into a contiguous span of its members, and the span
- * is the unit the forward-only rule applies to. Instances do not multiply the
- * order, because the span is static and the roster is a runtime input, which is
- * what keeps this function answer-blind.
+ * The order a respondent encounters questions in (ADR-16). A group expands into
+ * a contiguous span of its members, which is the unit the forward-only rule
+ * applies to; instances never multiply the order, so this stays answer-blind.
  */
 export function documentOrder(form: FormDefinition): readonly DocumentPosition[] {
   return form.steps.flatMap((step) =>
@@ -62,12 +51,9 @@ export function documentOrder(form: FormDefinition): readonly DocumentPosition[]
   );
 }
 
-/**
- * Every id a condition reads, split by kind. The whole-group operators need
- * their own branches: none carries a `questionId`, so without them a group
- * operator would read nothing and the forward-only rule would silently not
- * apply to it.
- */
+// The whole-group operators need their own branches: none carries a
+// `questionId`, so without them a group operator reads nothing and the
+// forward-only rule silently stops applying to it.
 function collectReferences(
   condition: Condition,
   out: { readonly questions: QuestionId[]; readonly groups: GroupId[] },
@@ -95,16 +81,14 @@ function collectReferences(
   }
 }
 
-/** Every questionId the rule's condition reads, deduplicated, in
- * first-encounter order. */
+/** Deduplicated, in first-encounter order. */
 export function ruleReferences(rule: VisibilityRule): readonly QuestionId[] {
   const raw = { questions: [] as QuestionId[], groups: [] as GroupId[] };
   collectReferences(rule.when, raw);
   return [...new Set(raw.questions)];
 }
 
-/** Every repeating group the rule's condition reads as a whole, deduplicated,
- * in first-encounter order. */
+/** The groups the condition reads as a whole, in first-encounter order. */
 export function ruleGroupReferences(rule: VisibilityRule): readonly GroupId[] {
   const raw = { questions: [] as QuestionId[], groups: [] as GroupId[] };
   collectReferences(rule.when, raw);
@@ -125,8 +109,8 @@ function questionsByStep(form: FormDefinition): Map<StepId, readonly QuestionId[
 }
 
 /**
- * The rule's expanded targets, deduplicated, in declaration order. A `StepId`
- * absent from the form expands to nothing, since `compileDraft` reports it.
+ * The rule's targets with each step target expanded, in declaration order. A
+ * `StepId` absent from the form expands to nothing, `compileDraft` reporting it.
  */
 export function ruleTargets(form: FormDefinition, rule: VisibilityRule): readonly QuestionId[] {
   const byStep = questionsByStep(form);
@@ -152,7 +136,7 @@ export type RuleGraphFinding = PublishErrorOf<
   | "RULE_READS_GROUP_WITHOUT_OPERATOR"
 >;
 
-/** The inclusive span a group occupies, as indices into {@link documentOrder}. */
+// Inclusive, and indices into `documentOrder`.
 interface GroupSpan {
   readonly group: RepeatGroup;
   readonly from: number;
@@ -179,16 +163,15 @@ function groupSpans(form: FormDefinition): ReadonlyMap<GroupId, GroupSpan> {
   return spans;
 }
 
-/** reads→shows edge: `from` is read by a rule that shows `to`. */
+// `from` is read by a rule that shows `to`.
 interface Edge {
   readonly to: QuestionId;
   readonly rule: VisibilityRule;
 }
 
 /**
- * Publish-time graph analysis (ADR-16, I10). Returns all findings rather than
- * stopping at the first. Ids that do not resolve within the form are skipped,
- * since `compileDraft`'s dangling checks own those.
+ * Publish-time graph analysis (ADR-16, I10): every finding, not just the first.
+ * An id that does not resolve within the form is skipped.
  */
 export function analyzeRuleGraph(form: FormDefinition): readonly RuleGraphFinding[] {
   const findings: RuleGraphFinding[] = [];
@@ -204,9 +187,8 @@ export function analyzeRuleGraph(form: FormDefinition): readonly RuleGraphFindin
   findings.push(...checkScopedReferences(form, groupOf));
   findings.push(...checkCrossGroupBudget(form, groupOf, spans));
 
-  // Every target must sit strictly after every referenced question in document
-  // order. A referenced group contributes the last index of its span, so one
-  // comparison covers the group readings too and no second check is needed.
+  // A referenced group contributes the last index of its span, so this one
+  // comparison covers the group readings too.
   for (const rule of form.rules) {
     const referencePositions = [
       ...ruleReferences(rule).map((questionId) => position.get(questionId)),
@@ -236,9 +218,8 @@ export function analyzeRuleGraph(form: FormDefinition): readonly RuleGraphFindin
 
   const adjacency = new Map<QuestionId, Edge[]>();
   for (const rule of form.rules) {
-    // A whole-group operator reads every question in that group's span, so each
-    // is a node the rule reads; otherwise a cycle running through a group
-    // operator would be invisible to Tarjan's.
+    // A whole-group operator reads every question in the span, or a cycle
+    // running through it would be invisible to Tarjan's.
     const groupReads = ruleGroupReferences(rule).flatMap((groupId) => {
       const span = spans.get(groupId);
       return span === undefined ? [] : span.group.items.map((item) => item.questionId);
@@ -276,12 +257,8 @@ export function analyzeRuleGraph(form: FormDefinition): readonly RuleGraphFindin
   return findings;
 }
 
-/**
- * A `fromAnswer` count source is a read of its count question by the whole
- * group, so the question must precede the group's whole span (ADR-16). A count
- * question not pinned in the form is skipped here, like every other dangling
- * reference, and reported by `compileDraft`.
- */
+// A count source is a read by the whole group, so its question must precede the
+// whole span (ADR-16). An unpinned one is `compileDraft`'s to report.
 function checkRepeatCountOrder(
   form: FormDefinition,
   position: ReadonlyMap<QuestionId, number>,
@@ -298,8 +275,8 @@ function checkRepeatCountOrder(
     if (countAt === undefined || span === undefined) {
       continue;
     }
-    // A count question inside any group has one answer per instance, so there
-    // is no single count for the group it sizes to read.
+    // Inside any group it has one answer per instance, so there is no single
+    // count for the group it sizes to read.
     const countGroup = groupOf.get(group.count.questionId);
     if (countGroup !== undefined) {
       findings.push({
@@ -319,15 +296,9 @@ function checkRepeatCountOrder(
   return findings;
 }
 
-/**
- * One rule, one scope (ADR-03). A rule listing one target inside a group and
- * another outside it would be per-instance and whole-form at once, with no
- * reading that makes it one thing, so a mixed list is refused. Splitting it in
- * two is always possible, since the condition is copyable.
- *
- * A `StepId` target is whole-form scope by construction: a step target
- * conditions the step rather than its questions individually.
- */
+// One rule, one scope (ADR-03): a target inside a group beside one outside it
+// would be per-instance and whole-form at once, and splitting the rule in two is
+// always possible. A step target is whole-form by construction.
 function checkTargetScopes(
   form: FormDefinition,
   groupOf: ReadonlyMap<QuestionId, GroupId>,
@@ -353,20 +324,11 @@ function checkTargetScopes(
   return findings;
 }
 
-/**
- * A whole-group operator may not sit inside another one's condition.
- *
- * The condition schema is recursive, so a nested pair parses, and it costs the
- * product of the two maxima whatever the rule targets. The evaluation budget
- * charges a rule's target group against each group it reads, so a nested pair
- * escapes it entirely (SEC-16). Refusing nesting makes every whole-group read
- * in a rule a sibling rather than a multiplier, which is what makes that
- * pairwise budget a real bound.
- *
- * The refusal covers nesting through `and`, `or` and `not`, a group nested in
- * itself, and `instanceCount` despite its constant cost, so that an author
- * never has to redo the cost calculation.
- */
+// A nested pair parses and costs the product of the two maxima whatever the rule
+// targets, which escapes the evaluation budget entirely (SEC-16). Refusing it
+// makes every whole-group read a sibling rather than a multiplier. The refusal
+// covers `instanceCount` too, despite its constant cost, so that an author never
+// has to redo the calculation.
 function checkOperatorNesting(form: FormDefinition): RuleGraphFinding[] {
   const findings: RuleGraphFinding[] = [];
   const walk = (rule: VisibilityRule, condition: Condition, outer: GroupId | undefined): void => {
@@ -405,22 +367,11 @@ function checkOperatorNesting(form: FormDefinition): RuleGraphFinding[] {
   return findings;
 }
 
-/**
- * Every reference to a question inside a repeating group is made from inside
- * that group. Such a question has one answer per instance, so a bare reference
- * is meaningful only where an instance is in scope: either the rule's own
- * targets sit inside that group, or the reference sits inside an `anyInstance`
- * or `everyInstance` over it.
- *
- * Anything else is dead rather than merely odd: the evaluator resolves it to no
- * key and reads it as unanswered forever, so the rule publishes cleanly and the
- * question never appears. A rule targeting inside one group while reading a
- * member of another is the same defect.
- *
- * A rule whose targets straddle two scopes is skipped, since
- * `RULE_TARGETS_SPAN_SCOPES` already refuses it and there is no single scope to
- * judge its references against.
- */
+// A question inside a group has one answer per instance, so a bare reference is
+// meaningful only where an instance is in scope. Anything else is dead rather
+// than odd: the evaluator reads it as unanswered forever, so the rule publishes
+// cleanly and the question never appears. A rule whose targets straddle two
+// scopes is skipped, having no single scope to judge against.
 function checkScopedReferences(
   form: FormDefinition,
   groupOf: ReadonlyMap<QuestionId, GroupId>,
@@ -473,16 +424,10 @@ function checkScopedReferences(
   return findings;
 }
 
-/**
- * The cross-group cost budget ({@link REPEAT_EVALUATION_BUDGET}, SEC-16). A
- * rule targeting inside one group while reading the whole of another costs the
- * product of their maxima on every evaluation.
- *
- * It is a cost bound rather than an instance ceiling: it caps no group's `max`,
- * and two large groups publish when no rule joins them. A group whose bounded
- * source omitted `max` is skipped, since `REPEAT_MAX_MISSING` already refuses
- * that draft.
- */
+// Such a rule costs the product of the two maxima on every evaluation (SEC-16).
+// A cost bound rather than an instance ceiling: two large groups publish when no
+// rule joins them. A group whose bounded source omitted `max` is skipped, that
+// draft already being refused.
 function checkCrossGroupBudget(
   form: FormDefinition,
   groupOf: ReadonlyMap<QuestionId, GroupId>,
@@ -524,10 +469,7 @@ function checkCrossGroupBudget(
   return findings;
 }
 
-/**
- * Tarjan's strongly-connected-components, returning only components that
- * contain a cycle: size above one, or a single node with a self-loop.
- */
+// Tarjan's, returning only components that contain a cycle.
 function cyclicComponents(
   adjacency: ReadonlyMap<QuestionId, readonly Edge[]>,
 ): readonly (readonly QuestionId[])[] {
@@ -593,15 +535,13 @@ function cyclicComponents(
 
 export type RuleTypeFinding = PublishErrorOf<"RULE_TYPE_MISMATCH" | "DANGLING_OPTION_REF">;
 
-/** Lookup from questionId to the definition its pin resolves to, injected so
- * this package stays I/O-free (R3). Return `undefined` for an unresolvable id:
- * the reference is skipped here and reported by `compileDraft`. */
+/** Injected so this package stays I/O-free (R3). Return `undefined` for an
+ * unresolvable id, which `compileDraft` reports. */
 export type ResolveQuestion = (questionId: QuestionId) => QuestionDefinition | undefined;
 
 /**
- * Type-compatibility check of every condition against the resolved question
- * definitions (DOMAIN_SCHEMA §3, ADR-21). Returns all findings, deduplicated.
- * Messages name ids, operators and types, never the compared values.
+ * Checks every condition against the resolved definitions (ADR-21). A message
+ * names ids, operators and types, never the compared values.
  */
 export function checkRuleTypes(
   form: FormDefinition,
@@ -674,8 +614,7 @@ export function checkRuleTypes(
         }
         return;
       case "multiChoice": {
-        // Whole-answer set equality (ADR-21); membership tests use
-        // contains/containsAny instead.
+        // Whole-answer set equality (ADR-21); membership is contains.
         if (!Array.isArray(value) || !value.every((entry) => isOptionId(entry))) {
           mismatch(
             "an array of declared optionIds (set equality; use contains/containsAny for membership)",
@@ -701,8 +640,7 @@ export function checkRuleTypes(
           checkCondition(rule, child);
         });
         return;
-      // These must branch rather than fall through: neither carries a
-      // `questionId`, so the default branch would resolve nothing.
+      // Must branch rather than fall through: neither carries a `questionId`.
       case "not":
       case "anyInstance":
       case "everyInstance":

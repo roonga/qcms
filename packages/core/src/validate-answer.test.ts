@@ -82,8 +82,7 @@ describe("validateAnswer - shortText", () => {
   });
 
   it("keeps whitespace-only text verbatim: blankness is presence, not validity (#128)", () => {
-    // Storage is faithful, so a whitespace-only value validates and is stored
-    // as typed; `isBlankAnswerValue` is what denies it presence.
+    // `isBlankAnswerValue` is what denies such a value presence.
     expect(valueOf(question("shortText"), " ")).toBe(" ");
     expect(valueOf(question("longText"), "\t\n")).toBe("\t\n");
   });
@@ -323,12 +322,8 @@ describe("validateAnswer - empty text and empty selections (ADR-33)", () => {
   });
 
   it("refuses regardless of the question's own constraints, and alone", () => {
-    // Returned alone, or a `minSelected: 1` question would also report "select
-    // at least 1", which reads as "select more" when nothing was selected.
     expectErrors(errorsOf(question("multiChoice", { minSelected: 1 }, OPTIONS), []), EMPTY);
     expectErrors(errorsOf(question("shortText", { minLength: 3 }), ""), EMPTY);
-    // Also where nothing constrains the value, so the refusal is the rule
-    // itself rather than a constraint reached by accident.
     expectErrors(errorsOf(question("longText"), ""), EMPTY);
   });
 
@@ -338,14 +333,10 @@ describe("validateAnswer - empty text and empty selections (ADR-33)", () => {
   });
 
   it("refuses the empty value, never converts it to a retraction", () => {
-    // Only the API's explicit `null` body value takes the tombstone branch, so
-    // an empty post can never become a silent retraction.
     expect(validateAnswer(question("shortText"), "").ok).toBe(false);
   });
 
   it("leaves every other empty-adjacent value alone", () => {
-    // Only text and multiChoice have an empty spelling; zero, false and a
-    // whitespace string are real values.
     expect(valueOf(question("number"), 0)).toBe(0);
     expect(valueOf(question("boolean"), false)).toBe(false);
     expect(valueOf(question("shortText"), " ")).toBe(" ");

@@ -4,21 +4,13 @@ import { CompactTokenErrorCode, signCompactToken, verifyCompactToken } from "./c
 import { err, ok, type Result } from "./errors.js";
 import { FormId, LinkId } from "./ids.js";
 
-/**
- * Secure links (SEC-2): signed, expiring, single-form tokens on the
- * compact-token machinery. The token format is documented in
- * `docs/secure-links.md`.
- *
- * A signature alone is never sufficient: the `secure_links` row must agree, so
- * one-time consumption and revocation stay storage's.
- *
- * No PII ever goes in a token: the claims are opaque ids and an expiry.
- */
+// A signature alone is never sufficient: the `secure_links` row must agree, so
+// one-time consumption and revocation stay storage's. No PII goes in a token,
+// the claims being opaque ids and an expiry (SEC-2).
 
 /**
- * What a secure link asserts, with this schema as the source of truth (SEC-2).
- * `oneTime` is carried for the verifier's UX; the atomic consumption check
- * lives on the `secure_links` row.
+ * What a secure link asserts. `oneTime` is carried for the verifier's UX; the
+ * atomic consumption check lives on the stored row.
  */
 export const LinkClaims = z.object({
   formId: FormId,
@@ -28,10 +20,7 @@ export const LinkClaims = z.object({
 });
 export type LinkClaims = z.infer<typeof LinkClaims>;
 
-/**
- * The compact-token failures plus `WRONG_FORM`, where the token is genuine but
- * for a different form than the caller expected.
- */
+/** The compact-token failures plus a genuine token for the wrong form. */
 export const LinkErrorCode = z.enum([...CompactTokenErrorCode.options, "WRONG_FORM"]);
 export type LinkErrorCode = z.infer<typeof LinkErrorCode>;
 
@@ -41,11 +30,7 @@ export const LinkError = z.object({
 });
 export type LinkError = z.infer<typeof LinkError>;
 
-/**
- * Mint a secure-link token for a form. Minting takes trusted author input, so
- * an invalid payload is a programming bug and throws rather than returning a
- * typed error.
- */
+/** Minting takes trusted input, so an invalid payload throws. */
 export async function mintSecureLink(payload: LinkClaims, key: CryptoKey): Promise<string> {
   const claims = LinkClaims.safeParse(payload);
   if (!claims.success) {
@@ -57,10 +42,8 @@ export async function mintSecureLink(payload: LinkClaims, key: CryptoKey): Promi
 }
 
 /**
- * Verify a secure-link token against the key list, newest first, at `now`.
- *
  * A verified result means the signature and claims are good; the caller must
- * still consult the `secure_links` row for revocation and one-time state.
+ * still consult the stored row for revocation and one-time state.
  */
 export async function verifySecureLink(
   token: string,

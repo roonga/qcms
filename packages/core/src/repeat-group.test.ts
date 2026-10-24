@@ -44,14 +44,6 @@ import {
   type VisibilityRule,
 } from "./index.js";
 
-/**
- * The repeating group in the kernel (ADR-42, ADR-03, ADR-16, SEC-16): the parse
- * refusals, the publish refusals, the graph readings and the submission sweep.
- * Frozen per-instance semantics belong to the golden corpus instead, so the
- * evaluator cases here are the ones whose point is a property rather than a
- * `FlowState`.
- */
-
 // Casts justified: known-valid literals matching the branded patterns, branded
 // once here so no call site needs a Result unwrap.
 const asQuestionId = (id: string): QuestionId => id as QuestionId;
@@ -208,8 +200,6 @@ describe("the step item union (ADR-42)", () => {
     const [plain, group] = form.steps[0]?.items ?? [];
     expect(plain !== undefined && !isRepeatGroup(plain)).toBe(true);
     expect(group !== undefined && isRepeatGroup(group)).toBe(true);
-    // The union is discriminated by disjoint required keys, so no existing form
-    // definition has to gain a tag.
     expect(JSON.stringify(form.steps[0]?.items)).not.toContain('"kind"');
   });
 
@@ -258,8 +248,7 @@ describe("the step item union (ADR-42)", () => {
   });
 
   it("case 7: a group inside a group is refused at parse", () => {
-    // Hand-written, because the builder cannot express a shape the schema has
-    // no member for.
+    // Hand-written: the builder cannot express a shape the schema refuses.
     const result = parseFormDefinition({
       formId: "frm_test",
       defaultLocale: "en",
@@ -291,15 +280,11 @@ describe("the step item union (ADR-42)", () => {
     });
     expect(result.ok).toBe(false);
     if (!result.ok) {
-      // The path points inside the nested group rather than at the outer one's
-      // absent `questionId`, which is what the union-branch flattening buys.
       expect(result.error[0]?.path).toEqual(["steps", 0, "items", 0, "items", 0, "questionId"]);
     }
   });
 
   it("refuses a step item carrying BOTH a questionId and a groupId, at parse", () => {
-    // Without this the union matches its first member, strips the `groupId` as
-    // unknown and silently drops a group the author wrote.
     const result = parseFormDefinition({
       formId: "frm_test",
       defaultLocale: "en",
@@ -440,8 +425,6 @@ describe("the three whole-group operators (ADR-03 as amended)", () => {
       },
       show: ["q_gate"],
     } as unknown as VisibilityRule;
-    // A walker's default branch reads `condition.questionId`, which none of the
-    // three carries, so without their own branches the rule is never checked.
     expect(ruleReferences(rule)).toEqual(["q_dob", "q_trip"]);
     expect(ruleGroupReferences(rule)).toEqual(["grp_pax", "grp_other"]);
   });
@@ -553,7 +536,6 @@ describe("publish: the count source (cases 8, 9, 10)", () => {
         ],
       ]),
     ).toEqual(["REPEAT_MAX_MISSING"]);
-    // A fixed count is its own bound, so it carries no max and publishes.
     expect(
       publishCodes([["stp_pax", [{ ...PAX_GROUP, count: { source: "fixed", count: 3 } }]]]),
     ).toEqual([]);
@@ -566,8 +548,6 @@ describe("publish: the count source (cases 8, 9, 10)", () => {
   });
 
   it("case 8: a count question INSIDE the group it sizes is refused on both counts", () => {
-    // The span starts at the count question, so it is backward, and the
-    // question is answered once per instance, so there is no single count.
     const codes = publishCodes([
       [
         "stp_pax",
@@ -612,12 +592,9 @@ describe("publish: the count source (cases 8, 9, 10)", () => {
   });
 
   it("case 10: there is no installation-wide ceiling, asserted as a positive case", () => {
-    // A large group publishes, and nothing in core is consulted to decide it:
-    // the only bound is the author's own max.
     expect(
       publishCodes([["stp_pax", [{ ...PAX_GROUP, count: { source: "open", min: 0, max: 5000 } }]]]),
     ).toEqual([]);
-    // The budget is a cost bound on one rule shape, never an instance ceiling.
     expect(REPEAT_EVALUATION_BUDGET).toBe(10_000);
   });
 });
@@ -627,7 +604,6 @@ describe("publish: the instance label (ADR-42, Q6)", () => {
     expect(
       publishCodes([["stp_pax", [{ ...PAX_GROUP, instanceLabel: { en: "Passenger {index}" } }]]]),
     ).toEqual(["INSTANCE_LABEL_PLACEHOLDER_UNKNOWN"]);
-    // A group of one has nothing to number, so no placeholder is legal.
     expect(
       publishCodes([["stp_pax", [{ ...PAX_GROUP, instanceLabel: { en: "The passenger" } }]]]),
     ).toEqual([]);
@@ -729,7 +705,6 @@ describe("publish: the whole-group read is a read of the whole span (case 14)", 
       groupId: "grp_pax",
       condition: { op: "answered", questionId: "q_dob" },
     };
-    // `q_fare` sits inside grp_pax's own span, so it is not strictly after it.
     expect(
       publishCodes(
         [
@@ -738,8 +713,6 @@ describe("publish: the whole-group read is a read of the whole span (case 14)", 
         ],
         [{ ruleId: "rul_any", when: readsGroup, show: ["q_fare"] }],
       ),
-      // Backward and a cycle: the whole-group read reaches every question in
-      // the span, so a target inside it is a self-loop too.
     ).toEqual(["RULE_BACKWARD_TARGET", "RULE_CYCLE"]);
     expect(
       publishCodes(
@@ -806,14 +779,10 @@ describe("publish: the cross-group evaluation budget (case 16)", () => {
   });
 
   it("publishes two groups far above the budget when NO rule joins them", () => {
-    // The budget bounds a rule shape, never an instance count (SEC-16).
     expect(codesOf(publish(build(twoGroups(5000, 5000), [])).errors)).toEqual([]);
   });
 
   it("publishes two groups far above the budget when the form HAS per-instance rules", () => {
-    // Charging a rule that targets inside a group against every other group in
-    // the form would turn the budget into an instance ceiling. This rule reads
-    // only its own instance, so it costs one max rather than a product.
     expect(
       publishCodes(
         [
@@ -853,8 +822,6 @@ describe("publish: the cross-group evaluation budget (case 16)", () => {
   });
 
   it("does not charge a rule for reading the group it targets", () => {
-    // Inside-out is one walk per live instance rather than a product, so a
-    // per-instance rule is not quadratic.
     expect(
       publishCodes(
         [
@@ -885,7 +852,6 @@ describe("publish: the cross-group evaluation budget (case 16)", () => {
           },
         ],
       ),
-      // Refused for being backward inside its own span, not for the budget.
     ).toEqual(["RULE_BACKWARD_TARGET", "RULE_CYCLE"]);
   });
 });
@@ -915,7 +881,6 @@ describe("publish: the group a rule names must exist (Q24, 2026-09-29)", () => {
         ),
       );
       const finding = errors.find((error) => error.code === "DANGLING_GROUP_REF");
-      // Without this the rule publishes cleanly and can never fire.
       expect(finding, JSON.stringify(when)).toBeDefined();
       if (finding?.code === "DANGLING_GROUP_REF") {
         expect(finding.path).toEqual({ rule: "rul_ghost", group: "grp_nope" });
@@ -952,8 +917,6 @@ describe("publish: whole-group operators may not nest (Q25, 2026-09-29)", () => 
   const answeredG = { op: "answered", questionId: "q_g1" };
 
   it("refuses the two-group nest that escaped the budget entirely", () => {
-    // The budget charges a rule's target group against each group it reads, and
-    // this rule's target is outside every group, so nothing would be charged.
     const { errors } = publish(
       build(twoGroupsAndGate(5000), [
         {
@@ -1032,8 +995,6 @@ describe("publish: whole-group operators may not nest (Q25, 2026-09-29)", () => 
   });
 
   it("refuses the three-group shape whose every PAIR is within budget", () => {
-    // Two nested groups targeting inside a third: every pair is within budget
-    // and the whole rule is two orders of magnitude above it.
     const codes = publishCodes(
       [
         ...twoGroupsAndGate(100).slice(0, 2),
@@ -1064,8 +1025,6 @@ describe("publish: whole-group operators may not nest (Q25, 2026-09-29)", () => 
   });
 
   it("publishes two whole-group reads that are SIBLINGS rather than nested", () => {
-    // With nesting gone a rule's whole-group reads add rather than multiply,
-    // which is what makes the pairwise budget a real bound.
     expect(
       publishCodes(twoGroupsAndGate(100), [
         {
@@ -1118,16 +1077,12 @@ describe("publish: a reference needs a single value (Q26, 2026-09-29)", () => {
         question: "q_dob",
         group: "grp_pax",
       });
-      // The message has to tell the author what to do, because the shape looks
-      // right.
       expect(finding.message).toContain("anyInstance");
       expect(finding.message).toContain("everyInstance");
     }
   });
 
   it("refuses the same reference from a rule targeting inside a DIFFERENT group", () => {
-    // The rule's own group is in scope and the read group is not, so there is
-    // still no single value to read.
     expect(
       publishCodes(steps, [
         {
@@ -1211,8 +1166,6 @@ describe("publish: a definition built without the parser still reports by name",
     if (group === undefined || !isRepeatGroup(group)) {
       throw new Error("the test form lost its group");
     }
-    // The type does not prove the refinements ran, which is why
-    // `checkStructure` re-checks them.
     const nested = {
       ...form,
       steps: [
@@ -1241,9 +1194,8 @@ describe("publish: a definition built without the parser still reports by name",
 
 describe("the version stamps (ADR-42's consequences)", () => {
   it("moves SNAPSHOT_SCHEMA_VERSION to 2 and holds SEMANTICS_VERSION at 1", () => {
-    // The evaluator implements one semantics version at a time and refuses any
-    // other stamp, so bumping it would make every published snapshot fail at
-    // serve, answer and submit rather than preserve it.
+    // The evaluator refuses any other stamp, so bumping this would fail every
+    // published snapshot.
     expect(SNAPSHOT_SCHEMA_VERSION).toBe(2);
     expect(SEMANTICS_VERSION).toBe(1);
     const { snapshot } = publish(build([["stp_pax", [PAX_GROUP]]], []));
@@ -1271,8 +1223,8 @@ describe("the per-instance forward pass (cases 3, 11, 13)", () => {
   it("case 3: a form with no group carries none of the four new keys", () => {
     const plain = build([["stp_one", [{ id: "q_trip", type: "shortText" }]]], []);
     const state = evalOk(plain, answersOf([["q_trip", "Sydney"]]));
-    // Deep equality rather than a key-by-key check: an extra key present as
-    // `undefined` would pass the latter and fail a golden.
+    // Deep equality, since a key present as `undefined` would pass a
+    // key-by-key check and fail a golden.
     expect(state).toEqual({
       visible: [{ stepId: "stp_one", questionId: "q_trip" }],
       visibleSteps: ["stp_one"],
@@ -1330,16 +1282,13 @@ describe("the per-instance forward pass (cases 3, 11, 13)", () => {
         condition: { op: "not", condition: { op: "answered", questionId: "q_dob" } },
       },
     };
-    // Over an empty group the two expressions disagree, so neither may be
-    // implemented as a rewrite of the other.
     expect(evaluate(every, [])).toBe(false);
     expect(evaluate(notAnyNot, [])).toBe(true);
   });
 
   it("treats a group question read with no instance in scope as unanswered, never a throw", () => {
-    // Publish refuses this shape, and the evaluator stays total over it anyway:
-    // the totality contract is about unvalidated input, so it may not depend on
-    // a publish gate.
+    // Publish refuses this shape; the totality contract is about unvalidated
+    // input, so it may not depend on a publish gate.
     const withRule = build(
       [
         ["stp_pax", [PAX_GROUP]],
@@ -1357,11 +1306,7 @@ describe("the per-instance forward pass (cases 3, 11, 13)", () => {
 
   it("omits the roster argument entirely and evaluates a group as empty", () => {
     const state = evalOk(setup(), answersOf([["ins_a/q_dob", "1990-05-01"]]));
-    // No instance is live, so no key is built and the answer above is never
-    // canonicalized.
     expect(state.visible).toEqual([{ stepId: "stp_after", questionId: "q_gate" }]);
-    // The optional fields are present because the form has a group: their
-    // presence is decided by the definition, never by the roster.
     expect(state.rosters).toEqual([{ groupId: "grp_pax", instances: [] }]);
   });
 
@@ -1394,10 +1339,6 @@ describe("the per-instance forward pass (cases 3, 11, 13)", () => {
     ]);
   });
 
-  // The view list is derived from the roster, so a rule hiding a member changes
-  // what that instance's page holds and never whether it exists. The cursor is
-  // an index into this list, so a list an answer could shorten would renumber
-  // the pages ahead of the respondent (ADR-28).
   it("keeps one view per live instance when a rule hides a member inside the group", () => {
     const gated: TestGroup = {
       groupId: "grp_pax",
@@ -1409,7 +1350,6 @@ describe("the per-instance forward pass (cases 3, 11, 13)", () => {
     };
     const paginated = build(
       [["stp_pax", [{ ...gated, presentation: "perInstanceStep" }]]],
-      // Per instance, so `q_fare` shows only where that instance is answered.
       [{ ruleId: "rul_fare", when: { op: "answered", questionId: "q_dob" }, show: ["q_fare"] }],
     );
     const views = [
@@ -1418,7 +1358,6 @@ describe("the per-instance forward pass (cases 3, 11, 13)", () => {
     ];
     const none = evalOk(paginated, answersOf([]), rosterOf([["grp_pax", ["ins_a", "ins_b"]]]));
     expect(none.visibleStepViews).toEqual(views);
-    // Same views, same order, same length, so the cursor did not move.
     const one = evalOk(
       paginated,
       answersOf([["ins_a/q_dob", "1990-05-01"]]),
@@ -1437,10 +1376,6 @@ describe("the per-instance forward pass (cases 3, 11, 13)", () => {
     });
   });
 
-  // A step holding two `perInstanceStep` groups is not a shape any presentation
-  // defines, so the first paginates it and the second is drawn inside each of
-  // its pages. The API's `paginatingGroup` reads the same way, which keeps the
-  // cursor and the list it indexes talking about one group.
   it("paginates a step on the FIRST perInstanceStep group when it holds two", () => {
     const second: TestGroup = {
       groupId: "grp_bags",
@@ -1467,18 +1402,12 @@ describe("the per-instance forward pass (cases 3, 11, 13)", () => {
         ["grp_bags", ["ins_x", "ins_y", "ins_z"]],
       ]),
     );
-    // Two views from the first group, never three from the second or six from
-    // both.
     expect(state.visibleStepViews).toEqual([
       { stepId: "stp_pax", instanceId: "ins_a" },
       { stepId: "stp_pax", instanceId: "ins_b" },
     ]);
   });
 
-  // Holding a group is enough to list a step-visible step, because the group's
-  // own chrome is content a respondent can act on. Otherwise such a step is
-  // unreachable: nothing is visible while the roster is empty, and the roster is
-  // minted on the first serve of that very step.
   it("lists a group-bearing step even when every member is rule-hidden", () => {
     const hidden = build(
       [
@@ -1500,7 +1429,6 @@ describe("the per-instance forward pass (cases 3, 11, 13)", () => {
     );
     expect(state.visible).toEqual([{ stepId: "stp_gate", questionId: "q_gate" }]);
     expect(state.visibleSteps).toEqual(["stp_gate", "stp_pax"]);
-    // It has a view, so the cursor can reach it.
     expect(state.visibleStepViews).toEqual([
       { stepId: "stp_gate", instanceId: null },
       { stepId: "stp_pax", instanceId: "ins_a" },
@@ -1509,9 +1437,6 @@ describe("the per-instance forward pass (cases 3, 11, 13)", () => {
   });
 
   it("serves a group-bearing step whose roster is empty as the current step", () => {
-    // `currentStep` has to move, or a cursor-less serve skips the step and the
-    // mint never happens. Ordered by document position, so an earlier empty
-    // group wins over a later unanswered question.
     const groupFirst = build(
       [
         ["stp_pax", [PAX_GROUP]],
@@ -1528,8 +1453,6 @@ describe("the per-instance forward pass (cases 3, 11, 13)", () => {
     ]);
   });
 
-  // A step rule still hides a step, group or no group: a group's chrome is
-  // content rather than an exemption.
   it("still hides a group-bearing step that a step rule hides", () => {
     const gated = build(
       [
@@ -1635,8 +1558,6 @@ describe("prepareSubmission with a repeating group (cases 17, 19, 20, 21)", () =
       label: { en: "Note" },
       constraints: { maxLength: 4 },
     });
-    // `validateAnswer` knows nothing about where a question sits, which is why
-    // a table is a presentation rather than a question type.
     const empty = validateAnswer(definition, "");
     expect(empty.ok).toBe(false);
     if (!empty.ok) {
@@ -1656,8 +1577,6 @@ describe("prepareSubmission with a repeating group (cases 17, 19, 20, 21)", () =
   });
 
   it("case 21: clearing one cell leaves its siblings untouched", async () => {
-    // A retraction is the absence of that one key, so no sibling cell and no
-    // other instance moves.
     const optional: TestGroup = {
       groupId: "grp_pax",
       items: [{ id: "q_note", type: "shortText" }],
@@ -1682,8 +1601,6 @@ describe("prepareSubmission with a repeating group (cases 17, 19, 20, 21)", () =
   it("keeps a group-less form's locked answers free of an instanceId key", async () => {
     const plain = build([["stp_one", [{ id: "q_trip", type: "shortText" }]]], []);
     const { locked } = await lock(plain, answersOf([["q_trip", "Sydney"]]));
-    // The key is absent rather than undefined: either would hash the same, but
-    // a reader of a locked submission should not have to know that.
     expect(locked).toEqual([{ questionId: "q_trip", value: "Sydney" }]);
     expect(JSON.stringify(locked)).not.toContain("instanceId");
   });
@@ -1710,8 +1627,6 @@ describe("prepareSubmission with a repeating group (cases 17, 19, 20, 21)", () =
 
 describe("the condition type is closed over the group operators", () => {
   it("cannot be narrowed to a question-bearing node by accident", () => {
-    // The group operators carry no `questionId`, which is what every condition
-    // walker has to branch on.
     const condition: Condition = {
       op: "instanceCount",
       groupId: asGroupId("grp_pax"),

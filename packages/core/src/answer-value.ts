@@ -5,37 +5,25 @@ import { OptionId } from "./ids.js";
 import { parseWithCode } from "./internal/parse.js";
 
 /**
- * Canonical AnswerValue encodings, one per question type (DOMAIN_SCHEMA §2.4).
- * They freeze into snapshots, ledger rows, exports and rule comparisons.
- */
-
-/**
- * NFC-normalized string. Non-NFC input is normalized on parse rather than
- * refused, so equality and storage always see one byte form.
- *
- * Not trimmed and with no `.min(1)`: what a respondent typed is what is stored.
- * The rules that make an empty or whitespace-only string not an answer live one
- * layer up, in `validateAnswer` and {@link isBlankAnswerValue}, so that storage
- * stays faithful.
+ * NFC-normalized on parse rather than refused, so equality and storage see one
+ * byte form. Neither trimmed nor non-empty: what makes an empty or
+ * whitespace-only string not an answer lives a layer up, so storage stays
+ * faithful to what a respondent typed.
  */
 export const TextAnswerValue = z.string().transform((value) => value.normalize("NFC"));
 export type TextAnswerValue = z.infer<typeof TextAnswerValue>;
 
-/**
- * Finite IEEE double. The `integer` constraint is validation, not encoding, and
- * `z.number()` already refuses NaN and infinities, so no refinement is needed.
- */
+/** `z.number()` already refuses NaN and infinities, so no refinement is added. */
 export const NumberAnswerValue = z.number();
 export type NumberAnswerValue = z.infer<typeof NumberAnswerValue>;
 
-/** Gregorian leap-year rule (proleptic). */
+// Proleptic Gregorian.
 function isLeapYear(year: number): boolean {
   return year % 4 === 0 && (year % 100 !== 0 || year % 400 === 0);
 }
 
 const DAYS_PER_MONTH = [31, 28, 31, 30, 31, 30, 31, 31, 30, 31, 30, 31] as const;
 
-/** True when `YYYY-MM-DD` names a real calendar date. */
 function isRealCalendarDate(iso: string): boolean {
   const year = Number(iso.slice(0, 4));
   const month = Number(iso.slice(5, 7));
@@ -48,9 +36,8 @@ function isRealCalendarDate(iso: string): boolean {
 }
 
 /**
- * Timezone-less ISO `YYYY-MM-DD`: no time and no offset, so a date is
- * respondent-local by design. Lexicographic order over this fixed-width
- * encoding is calendar order.
+ * Timezone-less, so a date is respondent-local by design, and lexicographic
+ * order over this fixed-width encoding is calendar order.
  */
 export const DateAnswerValue = z
   .string()
@@ -64,18 +51,13 @@ export type BooleanAnswerValue = z.infer<typeof BooleanAnswerValue>;
 export const SingleChoiceAnswerValue = OptionId;
 export type SingleChoiceAnswerValue = z.infer<typeof SingleChoiceAnswerValue>;
 
-/**
- * Deduplicated on parse, first occurrence winning, so the canonical form is
- * always duplicate-free and equality over it is set equality (ADR-21).
- */
+/** Deduplicated on parse, so equality over it is set equality (ADR-21). */
 export const MultiChoiceAnswerValue = z.array(OptionId).transform((ids) => [...new Set(ids)]);
 export type MultiChoiceAnswerValue = z.infer<typeof MultiChoiceAnswerValue>;
 
 /**
- * The union of canonical encodings, untagged by design: the wire and storage
- * form is the raw JSON value, and pairing a value with its question type is
- * `validateAnswer`'s job. A date and a singleChoice are therefore
- * indistinguishable from text here, which is expected.
+ * Untagged by design, the wire form being the raw JSON value, so pairing a value
+ * with its question type is `validateAnswer`'s job.
  */
 export const AnswerValue = z.union([
   TextAnswerValue,
@@ -85,10 +67,7 @@ export const AnswerValue = z.union([
 ]);
 export type AnswerValue = z.infer<typeof AnswerValue>;
 
-/**
- * Operand type for the ordered operators. Cross-type comparison is a typed
- * error here and unreachable post-publish, where rule type-checking refuses it.
- */
+/** The operand type for the ordered operators. */
 export const Comparable = z.union([NumberAnswerValue, DateAnswerValue]);
 export type Comparable = z.infer<typeof Comparable>;
 
@@ -149,7 +128,7 @@ function orderingOf<T extends number | string>(a: T, b: T): Ordering {
   return 0;
 }
 
-/** Error messages here never echo answer values (SECURITY_DESIGN). */
+// No message below echoes an answer value (SECURITY_DESIGN).
 function comparableKind(value: AnswerValue): "number" | "date" | undefined {
   if (!isComparable(value)) {
     return undefined;
@@ -186,27 +165,19 @@ export function compareValues(a: AnswerValue, b: AnswerValue): Result<Ordering> 
 }
 
 /**
- * A blank answer is a text value that is empty or whitespace-only.
- *
- * Blankness is a presence question rather than an encoding one: the stored value
- * is kept verbatim in the ledger and in exports, but it does not count as an
- * answer wherever presence is tested, so a required question cannot be
- * satisfied with the space bar.
- *
- * Only text can be blank. A `date` and a `singleChoice` are strings too, but
- * their canonical encodings have no whitespace-only spelling, so the predicate
- * is exact without knowing the question type, which is what lets the evaluator
- * apply it over a bare `AnswerMap`. An empty selection is not blank here; it is
- * refused at the boundary by `validateAnswer` instead.
+ * Whether a value is empty or whitespace-only text. Presence rather than
+ * encoding: the value is stored verbatim but does not satisfy `required`. No
+ * other canonical encoding has a whitespace-only spelling, so this is exact
+ * without the question type, which is what lets the evaluator apply it over a
+ * bare answer map. An empty selection is refused by `validateAnswer` instead.
  */
 export function isBlankAnswerValue(value: AnswerValue): boolean {
   return typeof value === "string" && value.trim() === "";
 }
 
 /**
- * Canonical value equality (ADR-21): strict on scalars, with strings compared
- * after NFC normalization, and set equality for a multiChoice array. Values of
- * different canonical types are never equal.
+ * Equality for the value operators (ADR-21): strict on scalars, NFC-normalized
+ * on strings, set equality on a multiChoice array.
  */
 export function valuesEqual(a: AnswerValue, b: AnswerValue): boolean {
   if (Array.isArray(a) || Array.isArray(b)) {

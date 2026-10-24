@@ -32,38 +32,28 @@ import { VALIDATION_MESSAGE_KEYS } from "./validation-message.js";
 import { CONDITION_MAX_DEPTH, conditionDepth } from "./visibility-rule.js";
 
 /**
- * The publish aggregate (DOMAIN_SCHEMA §4.1, I1-I3, I10, R1): one atomic, pure
- * call returning either a deep-frozen snapshot or every typed error at once.
- * The caller supplies every lookup, because core does no I/O (R3).
- */
-
-/**
- * The structural version of the {@link FrozenSnapshot} shape, stamped into
- * every snapshot. Increment it when the shape changes: stored snapshots are
- * immutable (R1), so readers interpret old rows by this stamp, never by
- * migration.
+ * The structural version of the {@link FrozenSnapshot} shape, stamped into every
+ * snapshot. A stored snapshot is immutable (R1), so a reader interprets an old
+ * row by this stamp rather than by migration.
  */
 export const SNAPSHOT_SCHEMA_VERSION = 2;
 
 /**
- * Resolve a `{questionId, version}` pin to the stored question version, or
- * `undefined` when none exists. Must be a pure lookup over state the caller
- * loaded up front, so that publish stays deterministic.
+ * Resolves a pin to its stored question version. Must be a pure lookup over
+ * state the caller loaded up front, so that publish stays deterministic.
  */
 export type ResolveQuestionVersion = (
   questionId: QuestionId,
   version: number,
 ) => QuestionVersionRecord | undefined;
 
-/** Everything publish needs, supplied by the caller (R3). */
+/** Everything publish needs, supplied by the caller because core does no I/O. */
 export interface DraftInput {
   readonly definition: FormDefinition;
-  /** Pin resolution over the caller's question store. */
   readonly resolveQuestion: ResolveQuestionVersion;
   /**
-   * Which versions of each question are published. A pin that resolves but is
-   * absent here is `UNPUBLISHED_QUESTION_PIN`: only immutable content may be
-   * snapshotted (R1). Enforcing the lifecycle itself is storage's job.
+   * A pin that resolves but is absent here is refused: only immutable content
+   * may be snapshotted (R1). Enforcing the lifecycle itself is storage's job.
    */
   readonly publishedQuestionVersions: ReadonlyMap<QuestionId, ReadonlySet<number>>;
 }
@@ -79,11 +69,8 @@ function deepFreeze<T>(value: T): T {
   return value;
 }
 
-/**
- * Re-checks `FormDefinition`'s parse-level refinements with structured domain
- * paths, because the type does not prove the refinements ran and the publish
- * report must be complete even for a hand-constructed definition.
- */
+// Re-checked here because the type does not prove the refinements ran, and the
+// report must be complete even for a hand-constructed definition.
 function checkStructure(definition: FormDefinition): PublishError[] {
   const errors: PublishError[] = [];
   const seenSteps = new Set<StepId>();
@@ -153,14 +140,10 @@ function checkStructure(definition: FormDefinition): PublishError[] {
   return errors;
 }
 
-/**
- * A group's instance-count bounds are declared and coherent (ADR-42, SEC-16).
- *
- * `max` is required on every count source but `fixed`, because there is no
- * installation-wide ceiling: without it, a `fromAnswer` group lets the
- * respondent size the loop and an `open` group is an unbounded write path into
- * an append-only ledger. How small a `max` must be is deliberately unchecked.
- */
+// `max` is required on every count source but `fixed`, there being no
+// installation-wide ceiling: without it a respondent sizes the loop and an
+// `open` group is an unbounded write path (SEC-16). How small it must be is
+// deliberately unchecked.
 function checkRepeatBounds(group: RepeatGroup, stepId: StepId): PublishError[] {
   const errors: PublishError[] = [];
   const bounds = countBounds(group.count);
@@ -182,12 +165,8 @@ function checkRepeatBounds(group: RepeatGroup, stepId: StepId): PublishError[] {
   return errors;
 }
 
-/**
- * The instance-label template carries `{n}`, the live one-based ordinal, and
- * nothing else (ADR-42). No placeholder at all is legal; any other placeholder
- * is refused because nothing substitutes it and the respondent reads the
- * braces. Every locale is checked, since a translation fails the same way.
- */
+// Any other placeholder is refused because nothing substitutes it and the
+// respondent reads the braces; every locale fails the same way.
 function checkInstanceLabel(group: RepeatGroup): PublishError[] {
   const errors: PublishError[] = [];
   for (const [locale, template] of Object.entries(group.instanceLabel)) {
@@ -205,12 +184,8 @@ function checkInstanceLabel(group: RepeatGroup): PublishError[] {
   return errors;
 }
 
-/**
- * A `fromAnswer` count source points at a `number` question. It needs the
- * resolved pin, so it sits with the other resolution-dependent checks rather
- * than with the structural ones. A count question the form does not pin is
- * skipped here and reported by `checkRuleResolution`.
- */
+// Needs the resolved pin, so it cannot sit with the structural checks. A count
+// question the form does not pin is reported by `checkRuleResolution`.
 function checkRepeatCountTypes(
   definition: FormDefinition,
   resolved: ReadonlyMap<QuestionId, QuestionVersionRecord>,
@@ -235,15 +210,8 @@ function checkRepeatCountTypes(
   return errors;
 }
 
-/**
- * Every column of a `table`-presented group is an allowed cell type (ADR-43).
- * It needs the resolved pin, so it sits beside {@link checkRepeatCountTypes}.
- *
- * Reported per column rather than per group, because a publish report is always
- * complete (DOMAIN_SCHEMA §4.1). It fires on the presentation alone: the same
- * members under `stacked` or `perInstanceStep` publish untouched. A member the
- * form does not pin is skipped, since `resolvePins` already reports it.
- */
+// Reported per column rather than per group, because a publish report is always
+// complete. An unpinned member is skipped, `resolvePins` reporting it.
 function checkTableColumnTypes(
   definition: FormDefinition,
   resolved: ReadonlyMap<QuestionId, QuestionVersionRecord>,
@@ -272,20 +240,17 @@ function checkTableColumnTypes(
   return errors;
 }
 
-/**
- * Every `QuestionRef` resolves to a stored, published version (I2, R1). A
- * record whose identity does not match the requested pin counts as
- * unresolvable, so a misbehaving lookup cannot smuggle the wrong content into
- * an immutable snapshot.
- */
+// A record whose identity does not match the requested pin counts as
+// unresolvable, so a misbehaving lookup cannot smuggle the wrong content into an
+// immutable snapshot (R1).
 function resolvePins(
   draft: DraftInput,
   resolved: Map<QuestionId, QuestionVersionRecord>,
 ): PublishError[] {
   const errors: PublishError[] = [];
   for (const step of draft.definition.steps) {
-    // A question does not know it is repeated, so a group member's pin
-    // resolves exactly like a step's own (ADR-42).
+    // A question does not know it is repeated, so a member's pin resolves like
+    // a step's own (ADR-42).
     const pins = step.items.flatMap((item) => (isRepeatGroup(item) ? item.items : [item]));
     for (const item of pins) {
       const record = draft.resolveQuestion(item.questionId, item.version);
@@ -316,12 +281,9 @@ function resolvePins(
   return errors;
 }
 
-/**
- * Rule reference and target resolution within the form (I2). Option references
- * are `checkRuleTypes`'s, since they need the pinned version's options. A
- * `fromAnswer` count source reports `DANGLING_QUESTION_REF` like a rule read,
- * because a count source is a read of a question by the whole group.
- */
+// An option reference is `checkRuleTypes`'s, needing the pinned version's
+// options. A count source reports as a rule read does, being a read of a
+// question by the whole group.
 function checkRuleResolution(definition: FormDefinition): PublishError[] {
   const errors: PublishError[] = [];
   const pinned = new Set<QuestionId>(documentOrder(definition).map((entry) => entry.questionId));
@@ -381,13 +343,10 @@ function checkRuleResolution(definition: FormDefinition): PublishError[] {
   return errors;
 }
 
-/**
- * One authored `LocalizedText` in the draft. Enumerated once and consumed by
- * both text checks, so the two verdicts cannot drift apart.
- */
+// Enumerated once and consumed by both text checks, so the two verdicts cannot
+// drift apart.
 interface TextSite {
   readonly text: LocalizedText;
-  /** How the report names this text, e.g. `Question "q_dob" label`. */
   readonly subject: string;
   readonly path: {
     readonly step?: StepId;
@@ -397,11 +356,8 @@ interface TextSite {
   };
 }
 
-/**
- * Every authored text on one pinned question version. The compile-time
- * resolver throws on a missing default locale, so a gap has to surface as a
- * publish error rather than as a compiler crash later.
- */
+// The compile-time resolver throws on a missing default locale, so a gap has to
+// surface as a publish error rather than as a compiler crash later.
 function questionTextSites(question: QuestionDefinition): TextSite[] {
   const sites: TextSite[] = [];
   const path = { question: question.questionId };
@@ -431,7 +387,6 @@ function questionTextSites(question: QuestionDefinition): TextSite[] {
   return sites;
 }
 
-/** Every authored text in the form and in its pinned versions, report order. */
 function textSites(
   definition: FormDefinition,
   resolved: ReadonlyMap<QuestionId, QuestionVersionRecord>,
@@ -444,8 +399,7 @@ function textSites(
       subject: `Step "${step.stepId}" title`,
       path: { step: step.stepId },
     });
-    // A group's own two texts are subject to the same verdicts as every other
-    // authored text, and walking pinned questions alone would miss them.
+    // Walking pinned questions alone would miss a group's own two texts.
     for (const item of step.items) {
       if (!isRepeatGroup(item)) {
         continue;
@@ -468,12 +422,9 @@ function textSites(
   return sites;
 }
 
-/**
- * Advisory: a rule reading a multiChoice answer and targeting a question on the
- * same step. A multiChoice answer commits on group exit (ADR-31), so the reveal
- * lands later than the author drew it. The draft is legal, hence a warning. A
- * cross-step target is correct by the same reasoning and does not warn.
- */
+// A multiChoice answer commits on group exit (ADR-31), so a same-step reveal
+// lands later than the author drew it. The draft is legal, hence a warning, and
+// a cross-step target is correct by the same reasoning.
 function checkMultiChoiceSameStepTargets(
   definition: FormDefinition,
   resolved: ReadonlyMap<QuestionId, QuestionVersionRecord>,
@@ -502,12 +453,9 @@ function checkMultiChoiceSameStepTargets(
   return warnings;
 }
 
-/**
- * Advisory: a shortText `pattern` whose character class carries an unescaped
- * `&&` or `--`. Both compile under either regex flag and mean different things
- * under each, with nothing failing downstream, so the authoring gate is the
- * only layer that can report it. See `classSetAmbiguity`.
- */
+// Such a pattern compiles under either regex flag and means different things
+// under each, with nothing failing downstream, so the authoring gate is the only
+// layer that can report it.
 function checkPatternAmbiguity(
   resolved: ReadonlyMap<QuestionId, QuestionVersionRecord>,
 ): PublishWarning[] {
@@ -528,11 +476,8 @@ function checkPatternAmbiguity(
   return warnings;
 }
 
-/**
- * Author-supplied validation messages decorate a constraint the question
- * carries (ADR-32). A message keyed by a constraint it does not carry can never
- * reach a respondent, so it is reported rather than left as dead content.
- */
+// A message keyed by a constraint the question does not carry can never reach a
+// respondent, so it is reported rather than left as dead content (ADR-32).
 function checkAuthoredMessages(
   resolved: ReadonlyMap<QuestionId, QuestionVersionRecord>,
 ): PublishError[] {
@@ -555,10 +500,7 @@ function checkAuthoredMessages(
   return errors;
 }
 
-/**
- * Default-locale completeness (I3). Only the default locale is checked, since
- * every other locale resolves through it (ADR-11).
- */
+// Only the default locale is checked, every other resolving through it (ADR-11).
 function checkLocaleCompleteness(definition: FormDefinition, sites: readonly TextSite[]) {
   const locale: LocaleCode = definition.defaultLocale;
   const errors: PublishError[] = [];
@@ -574,17 +516,10 @@ function checkLocaleCompleteness(definition: FormDefinition, sites: readonly Tex
   return errors;
 }
 
-/**
- * No authored text is whitespace only.
- *
- * The rule lives here rather than in `LocalizedText`, which stays
- * `z.string().min(1)`: published snapshots are re-parsed on the serving path,
- * so a tightened schema would stop an already-published form from serving,
- * breaking R1. Reject what can be authored next, leave what is stored serving.
- *
- * Every locale is checked, since a blank translation reaches a respondent as a
- * nameless control exactly as a blank default label does.
- */
+// Here rather than in `LocalizedText`: a published snapshot is re-parsed on the
+// serving path, so tightening the schema would stop an already-published form
+// from serving (R1). Every locale is checked, a blank translation reaching a
+// respondent as a nameless control just as a blank default label would.
 function checkBlankText(sites: readonly TextSite[]): PublishError[] {
   const errors: PublishError[] = [];
   for (const site of sites) {
@@ -603,15 +538,9 @@ function checkBlankText(sites: readonly TextSite[]): PublishError[] {
 }
 
 /**
- * The atomic publish call (DOMAIN_SCHEMA §4.1): validate every publish
- * invariant, accumulating all errors rather than stopping at the first, and on
- * success return the deep-frozen `FrozenSnapshot`.
- *
- * Warnings describe a form that publishes correctly but probably does not
- * behave as its author drew it, so they never refuse a publish.
- *
- * The snapshot is a deep-frozen clone, leaving the caller's draft mutable: only
- * the snapshot is immutable (I1). Pure and deterministic (I7).
+ * The atomic publish call (DOMAIN_SCHEMA §4.1): every invariant, every error at
+ * once, and on success a deep-frozen clone, so the caller's draft stays mutable
+ * and only the snapshot is immutable (I1). A warning never refuses a publish.
  */
 export function compileDraft(draft: DraftInput): PublishResult {
   const { definition } = draft;
@@ -634,9 +563,8 @@ export function compileDraft(draft: DraftInput): PublishResult {
     return err(errors);
   }
 
-  // Advisories are computed only once the draft is publishable: a warning
-  // describes a snapshot that exists, and mixing the two channels would blur
-  // the distinction they exist to keep.
+  // Only once the draft is publishable: a warning describes a snapshot that
+  // exists.
   const warnings: PublishWarning[] = [
     ...checkMultiChoiceSameStepTargets(definition, resolved),
     ...checkPatternAmbiguity(resolved),

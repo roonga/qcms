@@ -3,12 +3,9 @@ import { z } from "zod";
 import type { Result } from "./errors.js";
 import { parseWithCode } from "./internal/parse.js";
 
-/**
- * Branded ID types. The prefixes are settled project-wide and an ID is never
- * reused with a different meaning (R6). Branding makes them nominal at compile
- * time, so a FormId cannot be passed where a QuestionId is expected even though
- * both are strings.
- */
+// Branded so the ids are nominal at compile time, one kind not being assignable
+// to another although all are strings. An id is never reused with a different
+// meaning (R6).
 const idPattern = (prefix: string): RegExp => new RegExp(`^${prefix}_[a-z0-9_]+$`);
 
 export const QuestionId = z.string().regex(idPattern("q")).brand<"QuestionId">();
@@ -32,66 +29,42 @@ export type SessionId = z.infer<typeof SessionId>;
 export const LinkId = z.string().regex(idPattern("lnk")).brand<"LinkId">();
 export type LinkId = z.infer<typeof LinkId>;
 
-/**
- * A repeating group's id: form-scoped and permanent within a form the way a
- * `StepId` is, and never the name of anything a respondent reads.
- */
+/** Form-scoped, permanent within a form, and never read by a respondent. */
 export const GroupId = z.string().regex(idPattern("grp")).brand<"GroupId">();
 export type GroupId = z.infer<typeof GroupId>;
 
 /**
- * One instance of a repeating group: session-scoped, minted once, never reused
- * across sessions and never renumbered within one.
- *
- * The id is never a label. It reaches a respondent only in markup they would
- * have to view the source for, never in a heading, legend, label, message or
- * caption. The ordinal they do read is presentation only and is recomputed
- * after a removal, which is why the id and not the ordinal is the identity: an
- * ordinal used as a key would re-target a removed instance's answers at the
- * instance that took its place.
+ * Session-scoped, minted once, never reused or renumbered, and never a label a
+ * respondent reads. The ordinal they do read is recomputed after a removal, so
+ * using it as a key would re-target a removed instance's answers.
  */
 export const InstanceId = z.string().regex(idPattern("ins")).brand<"InstanceId">();
 export type InstanceId = z.infer<typeof InstanceId>;
 
 /**
- * The separator between an instance id and a question id in an answer key.
- *
- * It is safe because no branded id may contain it, so the encoding parses
- * without a schema. It is also a legal HTML `id` and fragment, and needs
- * `CSS.escape` in a selector.
+ * No branded id may contain it, so an answer key parses without a schema. It is
+ * a legal HTML `id` and fragment, and needs `CSS.escape` in a selector.
  */
 export const ANSWER_KEY_SEPARATOR = "/";
 
-/** One question inside one instance of a group. */
 export const InstanceAnswerKey = z
   .string()
   .regex(/^ins_[a-z0-9_]+\/q_[a-z0-9_]+$/)
   .brand<"InstanceAnswerKey">();
 export type InstanceAnswerKey = z.infer<typeof InstanceAnswerKey>;
 
-/**
- * How an answer is addressed (ADR-42). A question outside every repeating group
- * keeps the bare `questionId`; one inside a group is keyed by its instance too.
- */
+/** A question outside every group keeps the bare `questionId` (ADR-42). */
 export type AnswerKey = QuestionId | InstanceAnswerKey;
 
-/**
- * The key an answer is stored and evaluated under.
- *
- * Cast justified: both halves are branded ids whose patterns exclude the
- * separator, so the result matches {@link InstanceAnswerKey} by construction
- * and re-parsing it would only re-prove that on the evaluator's hot path.
- */
+// Cast justified: both halves are branded ids whose patterns exclude the
+// separator, so the result matches the key pattern by construction.
 export function answerKey(questionId: QuestionId, instanceId?: InstanceId): AnswerKey {
   return instanceId === undefined
     ? questionId
     : (`${instanceId}${ANSWER_KEY_SEPARATOR}${questionId}` as InstanceAnswerKey);
 }
 
-/**
- * Split an answer key back into its parts. Total: a key that is not
- * instance-qualified comes back as a bare question id, whatever it holds.
- */
+/** A key that is not instance-qualified comes back as a bare question id. */
 export function answerKeyParts(key: AnswerKey): {
   readonly instanceId?: InstanceId;
   readonly questionId: QuestionId;

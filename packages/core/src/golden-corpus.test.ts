@@ -25,18 +25,14 @@ import {
   type RosterMap,
 } from "./index.js";
 
-/**
- * Golden evaluator corpus runner: the regression net for the frozen evaluation
- * semantics (I7). Format and change policy are in `golden/evaluator/CORPUS.md`,
- * and `pnpm test:golden-drift` runs this file as the CI drift guard.
- */
+// The format and the change policy are `golden/evaluator/CORPUS.md`, and
+// `pnpm test:golden-drift` runs this file as the CI drift guard.
 
 const PACKAGE_DIR = fileURLToPath(new URL("../", import.meta.url));
 const CORPUS_DIR = path.join(PACKAGE_DIR, "golden", "evaluator");
 
-/** Values are validated as canonical encodings here, but the raw JSON values
- * are what the evaluator is handed, because its own canonicalization is part of
- * the surface under test. */
+// The evaluator is handed the raw JSON values, its own canonicalization being
+// part of the surface under test.
 const Scenario = z.object({
   description: z.string().min(1),
   form: z.string().min(1),
@@ -51,7 +47,6 @@ function readJson(filePath: string): unknown {
   return JSON.parse(readFileSync(filePath, "utf8"));
 }
 
-/** A questionId duplicated across the two question sets is a corpus bug. */
 function corpusResolver(): ResolveQuestion {
   const byId = new Map<string, QuestionDefinition>();
   const questionDirs = [
@@ -73,7 +68,6 @@ function corpusResolver(): ResolveQuestion {
   return (questionId) => byId.get(questionId);
 }
 
-/** A `form` ref is a path relative to the package root. */
 function loadForm(ref: string, cache: Map<string, FormDefinition>): FormDefinition {
   const cached = cache.get(ref);
   if (cached !== undefined) {
@@ -93,10 +87,9 @@ function loadForm(ref: string, cache: Map<string, FormDefinition>): FormDefiniti
 interface LoadedScenario {
   file: string;
   scenario: z.infer<typeof Scenario>;
-  /** Raw, pre-canonical answer values, exactly as authored in the JSON. */
   answers: AnswerMap;
-  /** `undefined` for a scenario that declares no roster, so the evaluator is
-   * called without the argument at all. */
+  // `undefined` for a scenario with no roster, so the evaluator is called
+  // without the argument at all.
   rosters: RosterMap | undefined;
 }
 

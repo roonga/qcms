@@ -1,13 +1,7 @@
-/**
- * RE2-safe `pattern` subset for shortText constraints; the subset itself is
- * documented in DOMAIN_SCHEMA §2.2.
- *
- * There is no RE2 runtime here (R3) and an authored pattern ends up on the
- * JavaScript backtracking engine, so the kernel accepts only constructs that
- * cannot backtrack catastrophically and refuses the rest at parse time. The
- * composite-group rules are deliberately conservative: some refused patterns
- * are harmless, but every accepted pattern is linear-time-safe.
- */
+// An authored pattern ends up on the JavaScript backtracking engine, so only
+// constructs that cannot backtrack catastrophically are accepted; the subset is
+// DOMAIN_SCHEMA §2.2. Deliberately conservative: some refused patterns are
+// harmless, but every accepted one is linear-time-safe.
 
 /** Maximum accepted pattern length. */
 export const SAFE_PATTERN_MAX_LENGTH = 256;
@@ -24,7 +18,7 @@ export interface SafePatternIssue {
 }
 
 interface GroupFrame {
-  /** True when the group body contains an alternation or any quantifier. */
+  // True when the body contains an alternation or any quantifier.
   composite: boolean;
 }
 
@@ -36,8 +30,7 @@ function invalid(message: string): SafePatternIssue {
   return { code: "PATTERN_INVALID", message };
 }
 
-/** Returns the index just past `}` and the effective maximum, which is
- * Infinity for an open-ended `{n,}`. */
+// The maximum is Infinity for an open-ended `{n,}`.
 function parseBraceQuantifier(
   pattern: string,
   start: number,
@@ -63,16 +56,13 @@ function parseBraceQuantifier(
   return { end: close + 1, max };
 }
 
-/**
- * Check a pattern against the safe subset. Returns `undefined` when the pattern
- * is accepted, otherwise the typed issue.
- */
+/** `undefined` when the pattern is accepted. */
 export function checkSafePattern(pattern: string): SafePatternIssue | undefined {
   if (pattern.length > SAFE_PATTERN_MAX_LENGTH) {
     return unsupported(`Pattern exceeds ${SAFE_PATTERN_MAX_LENGTH} characters`);
   }
   try {
-    // The `u` flag enforces strict syntax, so the scanner below only ever sees
+    // The `u` flag enforces strict syntax, so the scanner below only sees
     // valid patterns.
     new RegExp(pattern, "u");
   } catch {
@@ -143,8 +133,7 @@ export function checkSafePattern(pattern: string): SafePatternIssue | undefined 
         break;
       }
       case "[": {
-        // A character class is a single atom, so nothing inside it is syntax
-        // here.
+        // A character class is one atom, so nothing inside it is syntax here.
         i += pattern[i + 1] === "^" ? 2 : 1;
         while (i < pattern.length && pattern[i] !== "]") {
           i += pattern[i] === "\\" ? 2 : 1;
@@ -166,8 +155,7 @@ export function checkSafePattern(pattern: string): SafePatternIssue | undefined 
           if (third === "<" && (pattern[i + 3] === "=" || pattern[i + 3] === "!")) {
             return unsupported("Lookbehind assertions are not supported");
           }
-          // A named group's name is consumed as ordinary literals, which is
-          // harmless here.
+          // A named group's name is consumed as literals, harmlessly.
           i += 3;
         } else {
           i += 1;
@@ -182,8 +170,7 @@ export function checkSafePattern(pattern: string): SafePatternIssue | undefined 
         if (closed === undefined || frames.length === 0) {
           return invalid("Unbalanced group");
         }
-        // A composite inner group makes the enclosing body composite too, so
-        // `((a+)b)*` is treated exactly like `(a+b)*`.
+        // A composite inner group makes the enclosing body composite too.
         if (closed.composite) {
           current().composite = true;
         }
@@ -239,7 +226,6 @@ export function checkSafePattern(pattern: string): SafePatternIssue | undefined 
   return undefined;
 }
 
-/** True when the pattern is inside the documented safe subset. */
 export function isSafePattern(pattern: string): boolean {
   return checkSafePattern(pattern) === undefined;
 }

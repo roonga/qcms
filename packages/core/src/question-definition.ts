@@ -12,17 +12,7 @@ import {
   type ValidationMessageKey,
 } from "./validation-message.js";
 
-/**
- * Question definitions (DOMAIN_SCHEMA §2.2, ADR-02, R6). `questionId` is
- * identity and is never reused; `version` is content. The type union is closed
- * per core release, and the exhaustive helpers below break the build until
- * every switch handles a new member.
- */
-
-/**
- * Typed error codes for definition parsing. A parse failure carries every
- * issue with its code and path, never only the first (CONTRIBUTING).
- */
+/** A parse failure carries every issue, never only the first (CONTRIBUTING). */
 export const QuestionDefinitionErrorCode = z.enum([
   "INVALID_QUESTION_DEFINITION",
   "INVALID_QUESTION_VERSION_RECORD",
@@ -43,8 +33,7 @@ export type QuestionDefinitionError = z.infer<typeof QuestionDefinitionError>;
 
 type IssuePath = readonly (string | number)[];
 
-/** Narrows the shared coded-issue plumbing to this module's codes, so a typo
- * is a compile error. */
+// Narrowed to this module's codes, so a typo is a compile error.
 function addCodedIssue(
   ctx: z.core.$RefinementCtx,
   code: QuestionDefinitionErrorCode,
@@ -54,14 +43,14 @@ function addCodedIssue(
   addSharedCodedIssue(ctx, code, message, path);
 }
 
-/** `optionId` is stable within its question, and rules reference it (R6). */
+/** An `optionId` is stable within its question, and rules reference it (R6). */
 export const ChoiceOption = z
   .object({
     optionId: OptionId,
     label: LocalizedText,
   })
   .superRefine((option, ctx) => {
-    // LocalizedText entries are non-empty strings, so one key is enough.
+    // Entries are non-empty strings, so one key is enough.
     if (Object.keys(option.label).length === 0) {
       addCodedIssue(ctx, "OPTION_LABEL_EMPTY", "Option label needs at least one locale entry", [
         "label",
@@ -76,17 +65,14 @@ export const QuestionBase = z.object({
   help: LocalizedText.optional(),
   required: z.boolean().default(false),
   /**
-   * Author-supplied validation messages, one optional {@link LocalizedText} per
-   * constraint (ADR-32). An absent key inherits the portal's default. Which
-   * keys are legal for a question is a publish check rather than a parse one;
-   * see {@link authoredMessageKeys}.
+   * One optional message per constraint (ADR-32); an absent key inherits the
+   * portal's default. Which keys are legal is a publish check.
    */
   messages: ValidationMessages.optional(),
 });
 export type QuestionBase = z.infer<typeof QuestionBase>;
 
-/** Duplicates across questions are fine, since an optionId is scoped to its
- * own question. */
+// Duplicates across questions are fine, an optionId being question-scoped.
 function checkUniqueOptionIds(options: readonly ChoiceOption[], ctx: z.core.$RefinementCtx): void {
   const seen = new Set<string>();
   options.forEach((option, index) => {
@@ -102,8 +88,7 @@ function checkUniqueOptionIds(options: readonly ChoiceOption[], ctx: z.core.$Ref
   });
 }
 
-/** A min/max pair is homogeneous per question type, and lexicographic order
- * over the canonical date encoding is calendar order. */
+// Lexicographic order over the canonical date encoding is calendar order.
 function exceeds(a: number | string, b: number | string): boolean {
   return typeof a === "number" && typeof b === "number" ? a > b : String(a) > String(b);
 }
@@ -191,10 +176,8 @@ const DateQuestion = QuestionBase.extend({
 const BooleanQuestion = QuestionBase.extend({
   type: z.literal("boolean"),
   /**
-   * The two displayed labels, as authored content (ADR-36). Each falls back on
-   * its own to the compiler's lexicon, so overriding "Yes" leaves "No" on it.
-   * Presentation only: the wire values and the boolean answer do not change, so
-   * no rule, export or report changes meaning.
+   * Authored labels (ADR-36), each falling back on its own to the compiler's
+   * lexicon. Presentation only: the wire values and the answer do not change.
    */
   yesLabel: LocalizedText.optional(),
   noLabel: LocalizedText.optional(),
@@ -236,8 +219,7 @@ const MultiChoiceQuestion = QuestionBase.extend({
       ["constraints", "maxSelected"],
     );
   }
-  // The transitive bound still applies directly to minSelected when
-  // maxSelected is absent.
+  // The transitive bound still applies when maxSelected is absent.
   if (minSelected !== undefined && minSelected > optionCount) {
     addCodedIssue(
       ctx,
@@ -250,8 +232,7 @@ const MultiChoiceQuestion = QuestionBase.extend({
 
 /**
  * The closed union of question types (DOMAIN_SCHEMA §2.2). Constraint
- * refinements run inside the matched variant, so a failed parse reports every
- * violated refinement with its typed code and path.
+ * refinements run inside the matched variant, so a failed parse reports each.
  */
 export const QuestionDefinition = z.discriminatedUnion("type", [
   ShortTextQuestion,
@@ -266,8 +247,7 @@ export type QuestionDefinition = z.infer<typeof QuestionDefinition>;
 
 export type QuestionType = QuestionDefinition["type"];
 
-// The `satisfies` clause is the exhaustiveness check: adding a union member
-// without listing it here breaks the build, as does listing a stale one.
+// The `satisfies` clause is the exhaustiveness check in both directions.
 const QUESTION_TYPE_SET = {
   shortText: true,
   longText: true,
@@ -279,7 +259,7 @@ const QUESTION_TYPE_SET = {
 } as const satisfies Record<QuestionType, true>;
 
 /** The closed set of question types, in DOMAIN_SCHEMA §2.2 order. */
-// Cast justified: Object.keys of a Record<QuestionType, true> literal.
+// Cast justified: `Object.keys` of a `Record<QuestionType, true>` literal.
 export const QUESTION_TYPES = Object.keys(QUESTION_TYPE_SET) as readonly QuestionType[];
 
 /* v8 ignore next 5 -- compile-time never-exhaustiveness guard; unreachable */
@@ -287,10 +267,7 @@ function assertNeverQuestionType(definition: never): never {
   throw new Error(`Unhandled question type: ${String((definition as { type?: unknown }).type)}`);
 }
 
-/**
- * OptionIds carried by a definition. The switch is exhaustive with a `never`
- * default, so adding a question type without handling it is a build error.
- */
+/** Empty for a non-choice type. */
 export function optionIdsOf(definition: QuestionDefinition): readonly OptionId[] {
   switch (definition.type) {
     case "shortText":
@@ -308,12 +285,8 @@ export function optionIdsOf(definition: QuestionDefinition): readonly OptionId[]
   }
 }
 
-/**
- * The constraint-shaped fields of one definition, keyed by their
- * {@link ValidationMessageKey}. `undefined`, or `false` for a boolean flag,
- * means the constraint is not active here. The switch is exhaustive with a
- * `never` default, so a new question type must decide its message keys.
- */
+// `undefined`, or `false` for a boolean flag, means the constraint is inactive.
+// The `never` default makes a new question type decide its message keys.
 function constraintBag(
   definition: QuestionDefinition,
 ): Partial<Record<ValidationMessageKey, unknown>> {
@@ -334,8 +307,8 @@ function constraintBag(
     }
     case "boolean":
     case "singleChoice":
-      // Neither type carries a constraint an author could decorate, and
-      // `required` is added by `authoredMessageKeys` for every type.
+      // Neither carries a constraint an author could decorate, and `required`
+      // is added for every type by the caller.
       return {};
     case "multiChoice": {
       const { minSelected, maxSelected } = definition.constraints;
@@ -348,13 +321,9 @@ function constraintBag(
 }
 
 /**
- * The constraint keys this question carries, and therefore the only keys an
- * author-supplied message map may use (ADR-32), in canonical
- * {@link VALIDATION_MESSAGE_KEYS} order.
- *
- * Carrying a constraint is stricter than the type permitting one: a `shortText`
- * with no `minLength` can never produce that error, so a message for it could
- * never be shown and publish reports the key as orphaned.
+ * The only keys an author-supplied message map may use (ADR-32), in canonical
+ * order. Stricter than what the type permits: a constraint the question does
+ * not carry can never produce its error, so publish reports such a key.
  */
 export function authoredMessageKeys(
   definition: QuestionDefinition,
@@ -370,8 +339,8 @@ export function authoredMessageKeys(
 }
 
 /**
- * The shape the library stores per question version (DOMAIN_SCHEMA §4.2).
- * Immutability of a published version is enforced by storage and publish.
+ * What the library stores per question version (DOMAIN_SCHEMA §4.2).
+ * Immutability of a published version is storage's and publish's to enforce.
  */
 export const QuestionVersionRecord = z.object({
   questionId: QuestionId,
@@ -387,10 +356,7 @@ function toDefinitionErrors(
   return toCodedErrors(QuestionDefinitionErrorCode, error, fallback);
 }
 
-/**
- * Parse an unknown value as a QuestionDefinition. Every violated refinement is
- * reported with its typed code and path, never only the first.
- */
+/** Reports every violated refinement, never only the first. */
 export function parseQuestionDefinition(
   value: unknown,
 ): Result<QuestionDefinition, readonly QuestionDefinitionError[]> {
@@ -404,10 +370,7 @@ export function isQuestionDefinition(value: unknown): value is QuestionDefinitio
   return QuestionDefinition.safeParse(value).success;
 }
 
-/**
- * Parse an unknown value as a QuestionVersionRecord. An issue inside the
- * embedded definition keeps its own code, with a path rooted at "definition".
- */
+/** An issue inside the embedded definition keeps its own code and path. */
 export function parseQuestionVersionRecord(
   value: unknown,
 ): Result<QuestionVersionRecord, readonly QuestionDefinitionError[]> {

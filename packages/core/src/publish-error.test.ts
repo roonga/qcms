@@ -15,10 +15,8 @@ import {
   type PublishResult,
 } from "./index.js";
 
-/**
- * Compile-time lockstep check: drift either way between the union's `code`
- * literals and the enum turns this into `never`.
- */
+// Drift either way between the union's literals and the enum turns this into
+// `never`, so the assignment below stops compiling.
 type MutuallyAssignable<A, B> = [A] extends [B] ? ([B] extends [A] ? true : never) : never;
 const codesInLockstep: MutuallyAssignable<PublishError["code"], PublishErrorCode> = true;
 
@@ -340,8 +338,6 @@ describe("PublishResult contract", () => {
     if (result.ok) {
       expect(result.value.snapshot.semanticsVersion).toBe(1);
       expect(result.value.snapshot.definition.formId).toBe("frm_minimal");
-      // Warnings ride the success branch, so a publish that raised none still
-      // carries the array and no caller has to test for its absence.
       expect(result.value.warnings).toEqual([]);
     }
   });

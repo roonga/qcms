@@ -92,7 +92,7 @@ function record(definition: QuestionDefinition, version = 1): QuestionVersionRec
   return { questionId: definition.questionId, version, definition };
 }
 
-/** A version listed in `unpublished` resolves but is not published. */
+// A version listed in `unpublished` resolves but is not published.
 function makeStore(
   records: readonly QuestionVersionRecord[],
   unpublished: readonly string[] = [],
@@ -387,8 +387,6 @@ describe("compileDraft - each invariant violated alone yields only its error", (
   });
 
   it("RULE_CYCLE: a reads→shows cycle (with its structurally unavoidable backward edge)", () => {
-    // Any cycle contains a backward edge in document order, so the two
-    // findings co-occur by construction.
     const errors = errorsOf(
       compileDraft(
         twoStepDraft([
@@ -803,8 +801,6 @@ describe("compileDraft - blank authored text (issue #366)", () => {
   });
 
   it("the LocalizedText schema itself stays permissive (R1: published snapshots keep parsing)", () => {
-    // A publish gate rather than a type tightening: a stored snapshot holding a
-    // blank label is re-parsed on the serving path and must still parse.
     expect(() => textQ("q_b", { label: { en: "   " } })).not.toThrow();
   });
 });

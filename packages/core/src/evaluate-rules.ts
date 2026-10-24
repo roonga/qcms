@@ -19,37 +19,24 @@ import { isRepeatGroup, questionGroups, repeatGroups } from "./step.js";
 import type { Condition, VisibilityRule } from "./visibility-rule.js";
 
 /**
- * Pure, total, deterministic rule evaluation (ADR-16, I6/I7). The normative
- * semantics are DOMAIN_SCHEMA §3, frozen as {@link SEMANTICS_VERSION}.
- */
-
-/**
- * The evaluation-semantics version stamped into snapshots (ADR-16). Any change
- * to the frozen semantics increments it, so an old snapshot never evaluates
- * silently under new rules.
+ * The semantics version stamped into snapshots; the semantics themselves are
+ * DOMAIN_SCHEMA §3. An old snapshot never evaluates under new rules (ADR-16).
  */
 export const SEMANTICS_VERSION = 1;
 
-/**
- * The current answers, latest-per-question. A map rather than a ledger, so
- * evaluation never depends on insertion order.
- */
+/** The current answers, latest-per-question. */
 export type AnswerMap = ReadonlyMap<AnswerKey, AnswerValue>;
 
 /**
- * The live instances of each repeating group, in roster order (ADR-42). The
- * caller derives liveness; this map is contractually live and ordered, and
- * order is meaning here, so a roster is never set-compared.
- *
- * It is passed in rather than derived from the answer keys so that an instance
- * the respondent added but has not answered still exists.
+ * The live instances of each repeating group, in roster order (ADR-42). Order is
+ * meaning, so a roster is never set-compared, and liveness is the caller's to
+ * derive: an instance added but unanswered still exists.
  */
 export type RosterMap = ReadonlyMap<GroupId, readonly InstanceId[]>;
 
 /**
- * Typed error codes for evaluation. All are unreachable on publish-validated
- * input, and are returned rather than thrown on unvalidated input. Messages
- * and paths name ids only: answer values are never exposed (SECURITY_DESIGN).
+ * Evaluation error codes, unreachable on publish-validated input. A message
+ * names ids only: answer values are never exposed (SECURITY_DESIGN).
  */
 export const EvalErrorCode = z.enum([
   "INVALID_FORM_DEFINITION",
@@ -66,13 +53,9 @@ export { evalError as EvalError };
 export type EvalError = z.infer<typeof evalError>;
 
 /**
- * The evaluator's output (DOMAIN_SCHEMA §3): what is visible, where the
- * respondent should be, and whether the response is submittable. Every array
- * is in document then roster order.
- *
- * A repeated required question is listed once in `answeredRequired` and
- * `missingRequired`, missing when any live instance of it is unanswered; the
- * per-instance detail is in the optional arrays below.
+ * The evaluator's output (DOMAIN_SCHEMA §3). Every array is in document then
+ * roster order, and a repeated required question is listed once, missing when
+ * any live instance of it is unanswered.
  */
 export const FlowState = z.object({
   visible: z.array(
@@ -83,32 +66,25 @@ export const FlowState = z.object({
   answeredRequired: z.array(QuestionId),
   missingRequired: z.array(QuestionId),
   complete: z.boolean(),
-  // Every field below is optional and absent for a form with no repeating
-  // group, so the six fields above keep their exact contents for such a form.
-  // Do not collapse these parallel arrays into widened versions of those six:
-  // the shape is frozen at this `SEMANTICS_VERSION` and multi-version
-  // evaluation owns that change (ADR-16).
-  /** One entry per step view. A step paginated by a `perInstanceStep` group
-   * contributes one view per live instance; every other visible step
-   * contributes one view with a null instance (ADR-28). */
+  // Do not collapse these into widened versions of the six fields above: the
+  // shape is frozen at this `SEMANTICS_VERSION` (ADR-16).
+  /** One entry per step view: a `perInstanceStep` group contributes one per live
+   * instance, any other visible step one with a null instance (ADR-28). */
   visibleStepViews: z
     .array(z.object({ stepId: StepId, instanceId: InstanceId.nullable() }))
     .optional(),
-  /** The per-instance detail behind `missingRequired`. `instanceId` is null for
-   * a question outside every group, so the account is complete. */
+  /** `instanceId` is null outside every group, so the account is complete. */
   missingRequiredInstances: z
     .array(z.object({ questionId: QuestionId, instanceId: InstanceId.nullable() }))
     .optional(),
-  /** The per-instance detail behind `answeredRequired`; same shape. */
   answeredRequiredInstances: z
     .array(z.object({ questionId: QuestionId, instanceId: InstanceId.nullable() }))
     .optional(),
-  /** The live roster this evaluation used, per group. */
   rosters: z.array(z.object({ groupId: GroupId, instances: z.array(InstanceId) })).optional(),
 });
 export type FlowState = z.infer<typeof FlowState>;
 
-/** Names the rule, operator and question, never the compared values. */
+// Names the rule, operator and question, never the compared values.
 function typeMismatch(rule: VisibilityRule, op: string, questionId: QuestionId): EvalError {
   return {
     code: "CONDITION_TYPE_MISMATCH",
@@ -155,15 +131,12 @@ function assertNeverCondition(condition: never): never {
 }
 
 /**
- * Evaluate a snapshot's visibility rules against the current answers.
+ * Evaluate a snapshot's visibility rules against the current answers. Never
+ * throws: malformed or unresolvable input returns a typed error.
  *
- * @param resolveQuestion Pure lookup from pinned `questionId` to its resolved
- * definition, injected to keep the kernel I/O-free (R3). Determinism (I7) is
- * over the resolved definitions, so it must not vary per call.
- * @param rosters The already-derived live roster ({@link RosterMap}). Omitted,
- * it is the empty map.
- *
- * Never throws: malformed or unresolvable input returns a typed `EvalError`.
+ * @param resolveQuestion Pure lookup, injected to keep the kernel I/O-free (R3);
+ * determinism is over its results, so it must not vary per call.
+ * @param rosters Defaults to the empty map.
  */
 export function evaluateRules(
   snapshot: FrozenSnapshot | FormDefinition,
@@ -183,8 +156,7 @@ export function evaluateRules(
   const groupOf = questionGroups(form.steps);
   const rosterOf = (groupId: GroupId): readonly InstanceId[] => rosters?.get(groupId) ?? [];
 
-  // Reported all-at-once in document order, so the error never depends on
-  // answer-map iteration order.
+  // Reported in document order, so the error never depends on map iteration.
   const definitions = new Map<QuestionId, QuestionDefinition>();
   const unresolved: QuestionId[] = [];
   for (const { questionId } of order) {
@@ -203,9 +175,8 @@ export function evaluateRules(
     });
   }
 
-  // No key is built for an instance the roster does not list, which is the
-  // removal semantic at this layer: a removed instance's answers never settle,
-  // so they leave every condition and the required accounting (I6).
+  // Building no key for an unlisted instance is the removal semantic: a removed
+  // instance's answers never settle, so they leave every condition (I6).
   const keys: { readonly key: AnswerKey; readonly questionId: QuestionId }[] = [];
   for (const entry of order) {
     if (entry.groupId === undefined) {
@@ -217,9 +188,8 @@ export function evaluateRules(
     }
   }
 
-  // A blank text answer is dropped here rather than special-cased downstream,
-  // so `answered`, every value operator and the required accounting share one
-  // definition of presence. The ledger value itself is untouched.
+  // Dropping a blank answer here gives `answered`, the value operators and the
+  // required accounting one definition of presence. The ledger is untouched.
   const canonical = new Map<AnswerKey, AnswerValue>();
   const malformed: QuestionId[] = [];
   for (const { key, questionId } of keys) {
@@ -244,9 +214,8 @@ export function evaluateRules(
     });
   }
 
-  // A StepId target conditions the step, never its questions individually:
-  // step-level and question-level visibility are separate layers that AND
-  // together, so a StepId target is whole-form scope and never per-instance.
+  // A StepId target conditions the step rather than its questions, so the two
+  // layers AND together and a StepId target is never per-instance.
   const stepRules = new Map<StepId, VisibilityRule[]>();
   const questionRules = new Map<QuestionId, VisibilityRule[]>();
   for (const rule of form.rules) {
@@ -259,14 +228,12 @@ export function evaluateRules(
     }
   }
 
-  // An answer participates in condition evaluation only once its key is
-  // settled visible (I6): a hidden or not-yet-walked reference reads as
-  // unanswered.
+  // An answer participates only once its key is settled visible (I6), so a
+  // hidden or not-yet-walked reference reads as unanswered.
   const settled = new Set<AnswerKey>();
 
-  // Scope is implicit and by position (ADR-42). A reference into a group that
-  // is not in scope has no forward-only reading, so it resolves to `undefined`
-  // and reads as unanswered rather than throwing.
+  // A reference into a group not in scope has no forward-only reading, so it
+  // resolves to `undefined` and reads as unanswered rather than throwing.
   type InstanceScope = ReadonlyMap<GroupId, InstanceId>;
   const NO_SCOPE: InstanceScope = new Map();
   const withInstance = (
@@ -354,10 +321,8 @@ export function evaluateRules(
       }
       case "everyInstance": {
         const live = rosterOf(condition.groupId);
-        // An empty roster is FALSE by decision, not by a fold's identity
-        // (ADR-42). So `everyInstance(G, c)` is not equivalent to
-        // `not(anyInstance(G, not c))`, which is true over an empty G, and
-        // neither may be implemented as a rewrite of the other.
+        // FALSE by decision rather than by a fold's identity (ADR-42), so
+        // `everyInstance` is not a rewrite of `not(anyInstance(not c))`.
         if (live.length === 0) {
           return ok(false);
         }
@@ -462,16 +427,16 @@ export function evaluateRules(
       }
     }
     settled.add(answerKey(questionId, instanceId));
-    // The `instanceId` key is absent rather than undefined outside a group, so
-    // a form with no repeating group stays deep-equal to its frozen output.
+    // Absent rather than undefined outside a group, so a form with no group
+    // stays deep-equal to its frozen output.
     visible.push(
       instanceId === undefined ? { stepId, questionId } : { stepId, questionId, instanceId },
     );
     return undefined;
   };
 
-  // Collected after the step-level gate below, so a step rule still hides a
-  // group-bearing step: a group's chrome is content, not an exemption.
+  // Collected after the step gate, so a step rule still hides a group-bearing
+  // step: a group's chrome is content rather than an exemption.
   const groupBearingShown = new Set<StepId>();
   for (const step of form.steps) {
     const targetingStep = stepRules.get(step.stepId);
@@ -482,7 +447,7 @@ export function evaluateRules(
       }
       if (!shown.value) {
         // A hidden step settles none of its questions, so their answers stay
-        // excluded downstream whatever the per-question rules say.
+        // excluded whatever the per-question rules say.
         continue;
       }
     }
@@ -495,7 +460,7 @@ export function evaluateRules(
         }
         continue;
       }
-      // Member-major, so the whole walk stays in document then roster order.
+      // Member-major, so the walk stays in document then roster order.
       const live = rosterOf(item.groupId);
       for (const member of item.items) {
         for (const instanceId of live) {
@@ -513,12 +478,8 @@ export function evaluateRules(
     }
   }
 
-  // A repeated question is listed once and counts as missing when any live
-  // instance of it is unanswered, which is what makes `complete` the
-  // precondition submit needs: I9 requires every instance.
   const withVisibleQuestion = new Set(visible.map((entry) => entry.stepId));
-  // Order comes from the form rather than from the walk, because the union of
-  // two sets has none of its own.
+  // Order comes from the form, because the union of two sets has none.
   const visibleSteps = form.steps
     .map((step) => step.stepId)
     .filter((stepId) => withVisibleQuestion.has(stepId) || groupBearingShown.has(stepId));
@@ -561,10 +522,9 @@ export function evaluateRules(
   const answeredRequired = requiredOrder.filter((questionId) => !requiredMissing.has(questionId));
   const missingRequired = requiredOrder.filter((questionId) => requiredMissing.has(questionId));
 
-  // A step holding a group with an empty roster has no visible question, so it
-  // must still count as incomplete: landing on it is what mints the roster.
-  // Document position decides, or a later step's unanswered question would win
-  // over an earlier empty group.
+  // A step whose group has an empty roster has no visible question and must
+  // still count as incomplete, since landing on it mints the roster. Document
+  // position decides, or a later unanswered question beats an earlier group.
   const firstIncompleteStep =
     visibleSteps.find(
       (stepId) =>
@@ -594,18 +554,10 @@ export function evaluateRules(
   });
 }
 
-/**
- * The cursor's page list (ADR-28): one entry per view, which is a step except
- * where a `perInstanceStep` group paginates it into one view per live instance.
- *
- * Per-instance visibility never prunes the list. The cursor is an index into
- * it, so a view that vanished because an answer hid a member would renumber a
- * later instance's page and slide the respondent onto it, breaking ADR-28's
- * rule that answering never moves the rendered page by itself.
- *
- * Only the first `perInstanceStep` group in a step paginates it;
- * `paginatingGroup` in the serve-step handler reads the same way.
- */
+// Per-instance visibility never prunes this list: the cursor is an index into
+// it, so a vanishing view would renumber a later page and slide the respondent
+// onto it (ADR-28). Only the first `perInstanceStep` group in a step paginates
+// it, which is how the serve-step handler reads it too.
 function stepViews(
   form: FormDefinition,
   visibleSteps: readonly StepId[],

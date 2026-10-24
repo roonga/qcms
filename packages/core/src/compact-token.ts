@@ -3,28 +3,12 @@ import { z } from "zod";
 import { err, ok, type Result } from "./errors.js";
 import { canonicalJson } from "./prepare-submission.js";
 
-/**
- * Purpose-tagged compact tokens (SEC-2, SEC-7):
- *
- *     base64url(canonicalJson(claims and purpose)) "." base64url(HMAC-SHA256)
- *
- * Hand-rolled rather than taken from a JWT library, because the mainstream ones
- * pull Node-only dependencies that would break fetch-purity (R4) and ship
- * algorithm agility this kernel must never accept. The inventory is
- * HMAC-SHA256 only, so there is no header segment and no algorithm negotiation
- * surface at all.
- *
- * Every token carries its `purpose` inside the signed payload, and each purpose
- * has its own key list. The two controls hold independently: reusing a key
- * across purposes still fails the purpose check.
- *
- * Verification accepts a key list, newest first, so rotation is prepending a
- * key and dropping the old one once every outstanding token has expired. Key
- * generation and storage are the shell's.
- */
+// Hand-rolled rather than taken from a JWT library: the mainstream ones pull
+// Node-only dependencies that would break fetch-purity (R4) and ship algorithm
+// agility this kernel must never accept. The inventory is HMAC-SHA256 only
+// (SEC-7), so there is no header segment and no negotiation surface at all.
 
-/** The closed set of token purposes in the SEC-7 inventory, each with its own
- * key list. */
+/** Each purpose has its own key list (SEC-7). */
 export const TOKEN_PURPOSES = ["link", "session"] as const;
 export const TokenPurpose = z.enum(TOKEN_PURPOSES);
 export type TokenPurpose = z.infer<typeof TokenPurpose>;
@@ -44,17 +28,10 @@ export const CompactTokenError = z.object({
 });
 export type CompactTokenError = z.infer<typeof CompactTokenError>;
 
-/**
- * Claims a caller supplies when signing. `purpose` is reserved: the machinery
- * writes it and a caller never does. `expiresAt` is the standard expiry claim
- * `verifyCompactToken` checks.
- */
+/** `purpose` is reserved and `expiresAt` is the expiry verification checks. */
 export type CompactTokenClaims = Record<string, unknown>;
 
-/**
- * Purpose-specific claims pass through as a loose object, for the caller to
- * parse with its own schema.
- */
+// Loose, so purpose-specific claims pass through for the caller to parse.
 const CompactTokenPayload = z.looseObject({
   purpose: TokenPurpose,
   expiresAt: z.iso.datetime().optional(),
@@ -67,9 +44,8 @@ export const COMPACT_TOKEN_KEY_ALGORITHM = { name: "HMAC", hash: "SHA-256" } as 
 export const COMPACT_TOKEN_MIN_KEY_BYTES = 32;
 
 /**
- * Import raw key bytes as a non-extractable `CryptoKey`. Throws on a key below
- * the SEC-7 floor, because a weak key is a deployment bug rather than an
- * expected failure.
+ * Imports as non-extractable, and throws below the SEC-7 floor, a weak key
+ * being a deployment bug rather than an expected failure.
  */
 export async function importCompactTokenKey(
   rawKey: Uint8Array<ArrayBuffer> | ArrayBuffer,
@@ -118,10 +94,9 @@ function fromBase64Url(segment: string): Uint8Array<ArrayBuffer> | undefined {
 }
 
 /**
- * Sign `claims` for `purpose`. The purpose is written into the payload before
- * signing, so it is covered by the HMAC and cannot be re-tagged. A caller's own
- * `purpose` claim throws rather than returning an error, being a programming
- * bug. Serialization is canonical, so signing is deterministic.
+ * The purpose goes into the payload before signing, so the HMAC covers it and a
+ * token cannot be re-tagged. A caller's own `purpose` claim throws, being a
+ * programming bug.
  */
 export async function signCompactToken(
   purpose: TokenPurpose,
@@ -143,13 +118,9 @@ export async function signCompactToken(
 }
 
 /**
- * Verify a compact token for an expected purpose against a key list, newest
- * first (SEC-7). Nothing decoded from the payload is trusted before the
- * signature check passes, so the order is shape, signature, purpose, expiry. A
- * token is valid strictly before `expiresAt`.
- *
- * On success the claims are the payload minus the already-checked `purpose`,
- * for the caller to parse with its purpose's own schema.
+ * Verify against a key list, newest first, so rotation is prepending a key
+ * (SEC-7). Nothing decoded is trusted before the signature check passes, so the
+ * order is shape, signature, purpose, expiry.
  */
 export async function verifyCompactToken(
   purpose: TokenPurpose,
@@ -171,8 +142,8 @@ export async function verifyCompactToken(
   const message = new TextEncoder().encode(payloadSegment);
   let signatureValid = false;
   for (const key of keys) {
-    // `crypto.subtle.verify` compares in constant time. Never compare digest
-    // bytes by hand: that is a timing side channel.
+    // Compares in constant time. Never compare digest bytes by hand: that is a
+    // timing side channel.
     if (
       await crypto.subtle.verify(COMPACT_TOKEN_KEY_ALGORITHM.name, key, signatureBytes, message)
     ) {

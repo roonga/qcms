@@ -2,6 +2,7 @@
  * The `@roonga/qcms-core` public surface: pure functions over immutable data,
  * with no I/O beyond WebCrypto and no dependency beyond zod (R3).
  */
+
 export { QcmsError, ok, err, qcmsError, type Result } from "./errors.js";
 
 export {

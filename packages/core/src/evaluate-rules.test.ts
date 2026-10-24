@@ -234,7 +234,6 @@ describe("semantic 2 - unanswered and hidden references", () => {
       { ruleId: "rul_gate", when: { op: "answered", questionId: "q_a" }, show: ["q_b"] },
     ]);
     expect(visibleIds(evalOk(answeredGate, answersOf([])))).toEqual(["q_a"]);
-    // answered is true for any present answer, including falsy ones.
     expect(visibleIds(evalOk(answeredGate, answersOf([["q_a", false]])))).toEqual(["q_a", "q_b"]);
   });
 
@@ -271,7 +270,6 @@ describe("semantic 2 - unanswered and hidden references", () => {
       ["q_a", false],
       ["q_b", 20],
     ]);
-    // q_b is hidden, so its stale answer must not satisfy rul_bc.
     expect(visibleIds(evalOk(setup, stale))).toEqual(["q_a"]);
     const active = answersOf([
       ["q_a", true],
@@ -327,12 +325,10 @@ describe("semantic 3 - operator evaluation", () => {
         },
       ],
     );
-    // Order-insensitive.
     expect(visibleIds(evalOk(setup, answersOf([["q_a", opts("opt_b", "opt_a")]])))).toEqual([
       "q_a",
       "q_b",
     ]);
-    // A subset is not equal.
     expect(visibleIds(evalOk(setup, answersOf([["q_a", opts("opt_a")]])))).toEqual(["q_a"]);
   });
 
@@ -413,7 +409,6 @@ describe("semantic 3 - operator evaluation", () => {
       [["stp_one", [{ id: "q_a", type: "number" }, target]]],
       [{ ruleId: "rul_gate", when: { op: "equals", questionId: "q_a", value: 5 }, show: ["q_b"] }],
     );
-    // Text answer against a number condition value: unequal, not an error.
     const state = evalOk(setup, answersOf([["q_a", "5"]]));
     expect(visibleIds(state)).toEqual(["q_a"]);
   });
@@ -425,7 +420,6 @@ describe("semantic 3 - operator evaluation", () => {
     const error = evalErr(setup, answersOf([["q_a", true]]));
     expect(error.code).toBe("CONDITION_TYPE_MISMATCH");
     expect(error.path).toEqual(["rul_gate", "q_a"]);
-    // Answer values are never echoed (SECURITY_DESIGN).
     expect(error.message).not.toContain("true");
   });
 
@@ -468,7 +462,6 @@ describe("semantic 4 - step-level visibility", () => {
         show: ["stp_two"],
       },
     ]);
-    // Step hidden: both of its questions gone, including untargeted q_c.
     expect(visibleIds(evalOk(stepTargeted, answersOf([["q_a", false]])))).toEqual(["q_a", "q_d"]);
     expect(evalOk(stepTargeted, answersOf([["q_a", false]])).visibleSteps).toEqual([
       "stp_one",
@@ -478,7 +471,6 @@ describe("semantic 4 - step-level visibility", () => {
     const questionTargeted = twoStep([
       { ruleId: "rul_q", when: { op: "equals", questionId: "q_a", value: true }, show: ["q_b"] },
     ]);
-    // Only q_b is conditional; its sibling q_c stays visible.
     expect(visibleIds(evalOk(questionTargeted, answersOf([["q_a", false]])))).toEqual([
       "q_a",
       "q_c",
@@ -493,7 +485,6 @@ describe("semantic 4 - step-level visibility", () => {
         when: { op: "equals", questionId: "q_a", value: true },
         show: ["stp_two"],
       },
-      // This rule is true, but it cannot resurrect a question of a hidden step.
       { ruleId: "rul_q", when: { op: "answered", questionId: "q_a" }, show: ["q_b"] },
     ]);
     expect(visibleIds(evalOk(setup, answersOf([["q_a", false]])))).toEqual(["q_a", "q_d"]);
@@ -504,7 +495,6 @@ describe("semantic 4 - step-level visibility", () => {
       { ruleId: "rul_step", when: { op: "answered", questionId: "q_a" }, show: ["stp_two"] },
       { ruleId: "rul_q", when: { op: "equals", questionId: "q_a", value: true }, show: ["q_b"] },
     ]);
-    // Step shown (answered), but q_b's own rule is false.
     expect(visibleIds(evalOk(setup, answersOf([["q_a", false]])))).toEqual(["q_a", "q_c", "q_d"]);
     expect(visibleIds(evalOk(setup, answersOf([["q_a", true]])))).toEqual([
       "q_a",
@@ -547,7 +537,6 @@ describe("semantic 4 - step-level visibility", () => {
     );
     const state = evalOk(setup, answersOf([["q_a", false]]));
     expect(state.visibleSteps).toEqual(["stp_one"]);
-    // The only visible question is answered, so nothing is current.
     expect(state.currentStep).toBeNull();
   });
 });
@@ -564,7 +553,6 @@ describe("semantic 5 - currentStep, required accounting, completeness", () => {
     );
 
   it("currentStep prefers the first step with a missing required question", () => {
-    // stp_one has an unanswered optional question, but required wins.
     const state = evalOk(threeStep(), answersOf([]));
     expect(state.currentStep).toBe("stp_two");
     expect(state.missingRequired).toEqual(["q_b", "q_c"]);
@@ -629,7 +617,6 @@ describe("semantic 5 - currentStep, required accounting, completeness", () => {
 });
 
 describe("semantic 2 - blank text is absence (issue #128)", () => {
-  /** A required shortText source gating an optional shortText on a later step. */
   const blankSetup = (): TestSetup =>
     build(
       [
@@ -661,15 +648,11 @@ describe("semantic 2 - blank text is absence (issue #128)", () => {
 
   it("blank text evaluates as unanswered for the `answered` operator", () => {
     const setup = blankSetup();
-    // The gated question stays hidden, so a blank answer is not merely
-    // uncounted: no rule can see it at all.
     expect(visibleIds(evalOk(setup, answersOf([["q_a", "   "]])))).toEqual(["q_a"]);
     expect(visibleIds(evalOk(setup, answersOf([["q_a", "Ada"]])))).toEqual(["q_a", "q_b"]);
   });
 
   it("blank text is absent for the value operators too, not only `answered`", () => {
-    // One definition of presence for every operator, so `notEquals` stays
-    // false on absence rather than flipping true.
     const withRule = (rule: unknown): TestSetup =>
       build(
         [
@@ -702,8 +685,7 @@ describe("semantic 2 - blank text is absence (issue #128)", () => {
   });
 
   it("blankness is a text rule: the other canonical encodings are untouched", () => {
-    // An empty selection is refused at the ingest boundary instead, so making
-    // it absent here too would be a second, undecided semantics change.
+    // An empty selection is refused at the ingest boundary instead.
     const others = build(
       [
         [
@@ -730,8 +712,6 @@ describe("semantic 2 - blank text is absence (issue #128)", () => {
   });
 
   it("a date and a singleChoice answer can never be blank by construction", () => {
-    // The predicate needs no question type because no other canonical string
-    // encoding has a whitespace-only spelling.
     const typed = build(
       [
         [
@@ -788,8 +768,7 @@ describe("totality - typed errors on malformed input", () => {
 
   it("a version-1 snapshot evaluates identically to its bare definition", () => {
     const { form, resolve } = wellFormed();
-    // `questions` is empty on purpose: pins resolve through the injected
-    // lookup rather than the snapshot's embedded records.
+    // `questions` is empty because pins resolve through the injected lookup.
     const snapshot: FrozenSnapshot = {
       definition: form,
       questions: [],
@@ -837,8 +816,7 @@ describe("totality - typed errors on malformed input", () => {
   });
 
   it("a backward (publish-invalid) reference reads as unanswered, deterministically", () => {
-    // Publish refuses a rule reading a later question, but evaluation stays
-    // total: the unsettled reference is unanswered, so the rule is false.
+    // Publish refuses this shape, and evaluation stays total over it anyway.
     const setup = build(
       [
         [
@@ -901,7 +879,6 @@ describe("insurance fixture (exit criterion 3)", () => {
   });
 
   it("the stale hidden answer does not affect any later condition", () => {
-    // Extended in memory, so the fixture file stays untouched.
     const raw = readJson("forms", "valid", "insurance.json") as {
       steps: { items: { questionId: string; version: number }[] }[];
       rules: unknown[];
@@ -1060,7 +1037,7 @@ function conditionArb(index: number, type: GenType): fc.Arbitrary<unknown> {
   );
 }
 
-/** Forward-only, as publish guarantees. */
+// Forward-only, as publish guarantees.
 function rulesArb(questions: readonly GenQuestion[]): fc.Arbitrary<unknown[]> {
   if (questions.length < 2) {
     return fc.constant([]);
@@ -1150,10 +1127,8 @@ describe("properties (fast-check)", () => {
     fc.assert(
       fc.property(caseArb, (generated) => {
         const setup = setupOf(generated);
-        // Never throws; on publish-shaped input it also never errs.
         const result = evaluateRules(setup.form, answersOf(generated.entries), setup.resolve);
         expect(result.ok).toBe(true);
-        // A version-1 snapshot wrapper changes nothing.
         const snapshot: FrozenSnapshot = {
           definition: setup.form,
           questions: [],

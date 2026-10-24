@@ -12,18 +12,9 @@ import {
 import { err, ok, type Result } from "./errors.js";
 import { optionIdsOf, type QuestionDefinition } from "./question-definition.js";
 
-/**
- * Answer validation (DOMAIN_SCHEMA §2.4 and the §2.2 constraints). Every failed
- * constraint is returned rather than only the first, so the portal can render
- * the full list beside the input.
- *
- * `required` is deliberately not checked here: presence is a flow and
- * submission concern (I9) rather than a property of a value.
- *
- * `code` is the stable localization key and the actual contract; `message` is
- * the built-in fallback. A message may quote a constraint bound, which is
- * definition content, but never the submitted value (SECURITY_DESIGN).
- */
+// `code` is the contract and `message` the built-in fallback. A message may
+// quote a constraint bound, which is definition content, but never the
+// submitted value (SECURITY_DESIGN).
 
 /** The constraint that failed, with `"encoding"` for the parse stage. */
 export const ValidationConstraint = z.enum([
@@ -41,10 +32,8 @@ export const ValidationConstraint = z.enum([
 export type ValidationConstraint = z.infer<typeof ValidationConstraint>;
 
 /**
- * The UI localization contract. The encoding stage reuses the `INVALID_*`
- * parse codes, so a value failing the same schema fails with the same code
- * everywhere. `EMPTY_ANSWER_NOT_ALLOWED` is the one code with no constraint
- * behind it; see {@link emptyAnswerError}.
+ * The localization contract. The encoding stage reuses the parse codes, so a
+ * value failing one schema fails with the same code everywhere.
  */
 export const ValidationErrorCode = z.enum([
   "EMPTY_ANSWER_NOT_ALLOWED",
@@ -111,25 +100,13 @@ function encodingError(question: QuestionDefinition): ValidationError {
   }
 }
 
-/**
- * ADR-33 at the ingest boundary: empty text and empty selections are absence
- * rather than answers, so they are refused rather than stored. The rule lives
- * here, in front of every caller of the kernel, rather than at the control
- * boundary alone, where a direct API post of `""` could satisfy `required`
- * while holding nothing.
- *
- * It rejects and never rewrites the post into a retraction: clearing an answer
- * has one spelling on the wire, a literal `null`, and the message names it so
- * the fix is in the response.
- *
- * Reported as an `"encoding"` constraint and returned alone rather than joined
- * to the constraint sweep, because the value is not a legal answer of this type
- * at all. A `minSelected: 1` question would otherwise say "select at least 1"
- * beside it, which reads as "select more" when nothing was selected.
- *
- * Whitespace-only text is deliberately not refused here: it is stored as typed
- * and denied presence instead ({@link isBlankAnswerValue}).
- */
+// Empty text and an empty selection are absence rather than answers (ADR-33),
+// refused here in front of every caller of the kernel, since at the control
+// boundary alone a direct post could satisfy `required` while holding nothing.
+// It never rewrites the post into a retraction: clearing has one spelling on the
+// wire, which the message names. Returned alone, or a `minSelected: 1` question
+// would also say "select at least 1", reading as "select more". Whitespace-only
+// text is not refused here; `isBlankAnswerValue` denies it presence instead.
 function emptyAnswerError(): ValidationError {
   return failure(
     "EMPTY_ANSWER_NOT_ALLOWED",
@@ -138,10 +115,8 @@ function emptyAnswerError(): ValidationError {
   );
 }
 
-/**
- * Lengths count UTF-16 code units of the canonical string, the same unit as
- * HTML `maxlength`, so the kernel enforces what the portal input shows.
- */
+// Lengths count UTF-16 code units of the canonical string, the unit HTML
+// `maxlength` uses, so the kernel enforces what the input shows.
 function checkTextConstraints(
   value: string,
   constraints: {
@@ -178,16 +153,10 @@ function checkTextConstraints(
   return errors;
 }
 
-/**
- * Patterns run under the `u` flag, the flag the safe-pattern subset validated
- * them against, so every accepted pattern is linear-time-safe here and this
- * `.test` cannot be a ReDoS vector. They are tested as authored and never
- * implicitly anchored.
- *
- * A pattern that does not compile is unreachable through
- * `parseQuestionDefinition`, but this stays total: a hand-constructed
- * definition reports a mismatch rather than throwing.
- */
+// The `u` flag is the one the safe-pattern subset validated against, so this
+// `.test` cannot be a ReDoS vector. Tested as authored, never implicitly
+// anchored, and a pattern that does not compile reports a mismatch rather than
+// throwing, so this stays total over a hand-constructed definition.
 function matchesPattern(value: string, pattern: string): boolean {
   try {
     return new RegExp(pattern, "u").test(value);
@@ -196,8 +165,7 @@ function matchesPattern(value: string, pattern: string): boolean {
   }
 }
 
-/** A date compares lexicographically, which over the canonical fixed-width
- * encoding is calendar order. */
+// A date compares lexicographically, which over its encoding is calendar order.
 function checkBounds(
   value: number | string,
   min: number | string | undefined,
@@ -215,8 +183,8 @@ function checkBounds(
 }
 
 /**
- * Validate an unknown value as an answer to `question`, returning the canonical
- * value or every failed constraint. Never throws, and never checks `required`.
+ * Returns the canonical value or every failed constraint, never only the first.
+ * Never throws, and never checks `required`, presence being a flow concern (I9).
  */
 export function validateAnswer(
   question: QuestionDefinition,
@@ -286,8 +254,7 @@ export function validateAnswer(
       }
       const errors: ValidationError[] = [];
       const known = new Set(optionIdsOf(question));
-      // One membership error however many selections are unknown: the
-      // constraint failed once, and the ids must not be echoed.
+      // One error however many are unknown, and the ids are not echoed.
       if (parsed.data.some((optionId) => !known.has(optionId))) {
         errors.push(
           failure(
@@ -297,7 +264,6 @@ export function validateAnswer(
           ),
         );
       }
-      // Counts apply to the canonical, deduplicated selection.
       const { minSelected, maxSelected } = question.constraints;
       if (minSelected !== undefined && parsed.data.length < minSelected) {
         errors.push(

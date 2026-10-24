@@ -41,15 +41,9 @@ function expectRejects(condition: unknown, code?: string): void {
   }
 }
 
-/**
- * The pin on ADR-03's closed operator set: a table edited by hand, so adding an
- * operator costs a typecheck failure, a test edit and a conversation, which is
- * what a versioned core change means.
- *
- * The `satisfies` clause makes it exhaustive in both directions at compile
- * time, and the assertions below add the runtime half. The admin keeps a
- * parallel copy pinned to the same union, so neither side can move alone.
- */
+// Edited by hand, so adding an operator costs a typecheck failure and a test
+// edit (ADR-03). The admin keeps a parallel copy pinned to the same union, so
+// neither side can move alone.
 const OPERATOR_SAMPLES = {
   equals: { op: "equals", questionId: "q_a", value: true },
   notEquals: { op: "notEquals", questionId: "q_a", value: 3 },
@@ -75,14 +69,12 @@ const OPERATOR_SAMPLES = {
     condition: { op: "answered", questionId: "q_a" },
   },
   instanceCount: { op: "instanceCount", groupId: "grp_pax", compare: "gte", value: 5 },
-  // `unknown` rather than a per-operator value type: the table is about its key
-  // set, and a typed value would make each sample fight the union under test.
+  // `unknown`, or each sample would fight the union under test.
 } satisfies Record<Condition["op"], unknown>;
 
 describe("ADR-03: the closed operator set", () => {
   it("is exactly these sixteen operators", () => {
-    // Spelled out rather than derived on purpose: this list is the tripwire, so
-    // a diff that changes it is one somebody has to explain.
+    // Spelled out rather than derived: this list is the tripwire.
     expect(Object.keys(OPERATOR_SAMPLES)).toEqual([
       "equals",
       "notEquals",

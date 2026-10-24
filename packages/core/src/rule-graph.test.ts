@@ -242,7 +242,6 @@ describe("analyzeRuleGraph", () => {
     const cycles = findings.filter((finding) => finding.code === "RULE_CYCLE");
     expect(cycles).toHaveLength(1);
     expect(cycles[0]?.path.rules.slice().sort()).toEqual(["rul_one", "rul_two"]);
-    // A cycle necessarily contains a backward edge too.
     expect(findings.some((finding) => finding.code === "RULE_BACKWARD_TARGET")).toBe(true);
   });
 
@@ -384,8 +383,6 @@ describe("checkRuleTypes", () => {
         path: { rule: "rul_t", question: "q_single", option: "opt_zz" },
       }),
     ]);
-    // A string that is not option-id shaped is a type mismatch rather than a
-    // dangling reference.
     expect(check({ op: "equals", questionId: "q_single", value: "basic" })).toEqual([
       expect.objectContaining({ code: "RULE_TYPE_MISMATCH" }),
     ]);
@@ -396,7 +393,6 @@ describe("checkRuleTypes", () => {
 
   it("treats multiChoice equals as whole-answer set equality (ADR-21)", () => {
     expect(check({ op: "equals", questionId: "q_multi", value: ["opt_x", "opt_y"] })).toEqual([]);
-    // A single optionId is not a multiChoice answer; `contains` is.
     expect(check({ op: "equals", questionId: "q_multi", value: "opt_x" })).toEqual([
       expect.objectContaining({ code: "RULE_TYPE_MISMATCH" }),
     ]);

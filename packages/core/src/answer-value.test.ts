@@ -149,7 +149,7 @@ describe("rejections carry typed error codes", () => {
 });
 
 describe("compareValues", () => {
-  /** Arbitrary valid canonical date via epoch-day, spanning years ~54–9999. */
+  // Built from an epoch day, so every generated value is a real date.
   const isoDate = fc
     .integer({ min: -700_000, max: 2_932_896 })
     .map((epochDay) => new Date(epochDay * 86_400_000).toISOString().slice(0, 10));

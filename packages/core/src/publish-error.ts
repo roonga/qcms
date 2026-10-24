@@ -9,10 +9,9 @@ import type { QuestionVersionRecord } from "./question-definition.js";
 import { ValidationMessageKey } from "./validation-message.js";
 
 /**
- * The typed publish error model (DOMAIN_SCHEMA §4.1): a closed union on `code`,
- * each variant carrying a human `message` and a structured domain path rather
- * than positional indices, so a draft re-ordered between validate and render
- * still resolves. Publish reports are always complete, never first-only.
+ * The publish error model (DOMAIN_SCHEMA §4.1). A path is a structured domain
+ * location rather than positional indices, so a draft re-ordered between
+ * validate and render still resolves.
  */
 export const PublishErrorCode = z.enum([
   "DANGLING_QUESTION_REF",
@@ -47,11 +46,7 @@ export type PublishErrorCode = z.infer<typeof PublishErrorCode>;
 
 const message = z.string().min(1);
 
-/**
- * One variant per code, each with the path shape that locates that failure. An
- * optional key means "where applicable": a locale gap with no step, question or
- * option key is the form title itself.
- */
+/** A locale gap with no step, question or option key is the form title. */
 export const PublishError = z.discriminatedUnion("code", [
   z.object({
     code: z.literal("DANGLING_QUESTION_REF"),
@@ -88,7 +83,6 @@ export const PublishError = z.discriminatedUnion("code", [
       option: OptionId.optional(),
     }),
   }),
-  // Same locations as LOCALE_INCOMPLETE, a different verdict about the value.
   z.object({
     code: z.literal("BLANK_LOCALIZED_TEXT"),
     message,
@@ -120,7 +114,6 @@ export const PublishError = z.discriminatedUnion("code", [
     message,
     path: z.object({ rule: RuleId, question: QuestionId }),
   }),
-  // The path names the later occurrence.
   z.object({
     code: z.literal("DUPLICATE_QUESTION_IN_FORM"),
     message,
@@ -141,8 +134,7 @@ export const PublishError = z.discriminatedUnion("code", [
     message,
     path: z.object({ group: GroupId, step: StepId }),
   }),
-  // Refused at parse too; this variant reports a definition built without the
-  // parser.
+  // Refused at parse too; this reports a definition built without the parser.
   z.object({
     code: z.literal("REPEAT_NESTING_NOT_ALLOWED"),
     message,
@@ -173,8 +165,7 @@ export const PublishError = z.discriminatedUnion("code", [
     message,
     path: z.object({ group: GroupId, locale: LocaleCode, placeholder: z.string() }),
   }),
-  // `"form"` is the scope of every target outside every group, step targets
-  // included.
+  // `"form"` is the scope of every target outside a group, step targets too.
   z.object({
     code: z.literal("RULE_TARGETS_SPAN_SCOPES"),
     message,
@@ -223,14 +214,12 @@ export const PublishError = z.discriminatedUnion("code", [
 ]);
 export type PublishError = z.infer<typeof PublishError>;
 
-/** The variant of PublishError carrying a given code. */
 export type PublishErrorOf<C extends PublishErrorCode> = Extract<PublishError, { code: C }>;
 
 /**
- * What a successful publish freezes (DOMAIN_SCHEMA §4.1): the definition plus
- * the question version each pin resolved to, so the snapshot is
- * self-contained (R1), stamped with the semantics and schema versions it was
- * validated under. Compiled A2UI is attached outside core.
+ * What a successful publish freezes: the definition plus the version each pin
+ * resolved to, so the snapshot is self-contained (R1), stamped with the versions
+ * it was validated under. Compiled A2UI is attached outside core.
  */
 export type FrozenSnapshot = {
   readonly definition: FormDefinition;
@@ -241,20 +230,15 @@ export type FrozenSnapshot = {
 };
 
 /**
- * The frozen snapshot plus every advisory the checks raised. Warnings ride the
- * success branch rather than a channel of their own, because a warning did not
- * stop the publish, so a result carrying warnings always carries a snapshot.
+ * Warnings ride the success branch rather than a channel of their own: one did
+ * not stop the publish, so a result carrying warnings carries a snapshot.
  */
 export type PublishOutcome = {
   readonly snapshot: FrozenSnapshot;
-  /** Non-blocking advisories about a draft that is nonetheless publishable. */
   readonly warnings: readonly PublishWarning[];
 };
 
-/**
- * The publish contract (DOMAIN_SCHEMA §4.1): atomic, and on failure every
- * publish error rather than the first.
- */
+/** Atomic, and on failure every publish error rather than the first. */
 export type PublishResult = Result<PublishOutcome, readonly PublishError[]>;
 
 /* v8 ignore next 3 -- compile-time never-exhaustiveness guard; unreachable */
@@ -262,10 +246,7 @@ function assertNeverPublishError(error: never): never {
   throw new Error(`Unhandled publish error code: ${String((error as { code?: unknown }).code)}`);
 }
 
-/**
- * Where a `LocalizedText` verdict was reached, written for a human. Shared by
- * the two codes that report on one, which name the same sites.
- */
+// Shared by the two codes that report on a text, which name the same sites.
 function textSite(path: {
   readonly step?: StepId | undefined;
   readonly group?: GroupId | undefined;
@@ -281,11 +262,7 @@ function textSite(path: {
   return "form title";
 }
 
-/**
- * Human-readable location of a publish error, rendered from its structured
- * path. The switch is exhaustive with a `never` default, so adding a code
- * without handling it here is a build error rather than a runtime surprise.
- */
+/** Exhaustive, so adding a code without a location here is a build error. */
 export function publishErrorLocation(error: PublishError): string {
   switch (error.code) {
     case "DANGLING_QUESTION_REF": {

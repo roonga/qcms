@@ -16,21 +16,9 @@ import { documentOrder } from "./rule-graph.js";
 import { countBounds, repeatGroups } from "./step.js";
 import { validateAnswer, ValidationError } from "./validate-answer.js";
 
-/**
- * The submission lock (DOMAIN_SCHEMA §4.3, ADR-07, I6/I9): the audit boundary
- * that sweeps every visible required question for a valid answer, excludes a
- * hidden question's answer from the locked set, and seals the result under a
- * content hash.
- *
- * Pure over its inputs (R3) and fetch-pure (R4): hashing uses WebCrypto, which
- * is why the signature is async.
- *
- * `contentHash` is the lowercase-hex SHA-256 of the UTF-8 bytes of
- * `canonicalJson({ answers, flowState })`, the locked submission minus the hash
- * itself, so any holder can re-derive and verify it. Canonical JSON sorts
- * object keys at every depth and keeps array order, which is meaning here, so
- * equal submissions hash equally whatever the input key order.
- */
+// `contentHash` is the lowercase-hex SHA-256 of the UTF-8 bytes of
+// `canonicalJson({ answers, flowState })`, the locked submission minus the hash
+// itself, so any holder can re-derive and verify it.
 
 /** The closed contract the submit slice returns to the portal. */
 export const SubmissionErrorCode = z.enum([
@@ -39,8 +27,7 @@ export const SubmissionErrorCode = z.enum([
   "UNKNOWN_QUESTION",
   "FLOW_EVALUATION_FAILED",
   // A submission error rather than a validation one: an instance count is a
-  // property of the roster, and `validateAnswer` knows nothing about where a
-  // question sits, which is what lets a table cell validate like any answer.
+  // property of the roster, and `validateAnswer` is position-blind.
   "REPEAT_COUNT_OUT_OF_RANGE",
 ]);
 export type SubmissionErrorCode = z.infer<typeof SubmissionErrorCode>;
@@ -48,21 +35,18 @@ export type SubmissionErrorCode = z.infer<typeof SubmissionErrorCode>;
 const message = z.string().min(1);
 
 /**
- * One submission failure. Reported complete rather than first-only, in document
- * order, then `UNKNOWN_QUESTION` entries sorted by questionId, since an unknown
- * id has no document position. Messages name ids only, never answer values
- * (SECURITY_DESIGN).
+ * One submission failure, in document order and then by questionId for an
+ * unknown id, which has no document position. A message names ids only, never
+ * answer values (SECURITY_DESIGN).
  */
 export const SubmissionError = z.discriminatedUnion("code", [
-  // One entry per `(instance, question)` inside a group, because a required
-  // question is required in every live instance.
+  // One entry per instance inside a group: required means required in each.
   z.object({
     code: z.literal("MISSING_REQUIRED"),
     message,
     questionId: QuestionId,
     instanceId: InstanceId.optional(),
   }),
-  // `errors` carries the full per-constraint list for display.
   z.object({
     code: z.literal("INVALID_ANSWER"),
     message,
@@ -70,7 +54,6 @@ export const SubmissionError = z.discriminatedUnion("code", [
     instanceId: InstanceId.optional(),
     errors: z.array(ValidationError).min(1),
   }),
-  // Defence against ledger drift.
   z.object({
     code: z.literal("UNKNOWN_QUESTION"),
     message,
@@ -83,14 +66,14 @@ export const SubmissionError = z.discriminatedUnion("code", [
     groupId: GroupId,
     count: z.number().int().min(0),
   }),
-  // Unreachable on a published snapshot; returned rather than thrown so the
-  // sweep stays total.
+  // Unreachable on a published snapshot, and returned rather than thrown so
+  // the sweep stays total.
   z.object({ code: z.literal("FLOW_EVALUATION_FAILED"), message, cause: EvalError }),
 ]);
 export type SubmissionError = z.infer<typeof SubmissionError>;
 
-/** One locked answer. The `instanceId` key is absent rather than undefined
- * outside a group, which keeps a non-repeating form's `contentHash` stable. */
+/** `instanceId` is absent rather than undefined outside a group, which keeps a
+ * non-repeating form's `contentHash` stable. */
 export const LockedAnswer = z.object({
   questionId: QuestionId,
   instanceId: InstanceId.optional(),
@@ -100,7 +83,7 @@ export type LockedAnswer = z.infer<typeof LockedAnswer>;
 
 /**
  * What submit locks (§4.3): the canonical answers of visible questions only
- * (I6), the flow state they were validated under, and the hash sealing both.
+ * (I6), the flow state they were validated under, and the hash over both.
  */
 export const LockedSubmission = z.object({
   answers: z.array(LockedAnswer),
@@ -110,14 +93,13 @@ export const LockedSubmission = z.object({
 export type LockedSubmission = z.infer<typeof LockedSubmission>;
 
 /**
- * Serialize plain JSON data with object keys sorted at every depth, which is
- * the canonical form `prepareSubmission` hashes. Arrays keep their order, and
- * `undefined` members are omitted as `JSON.stringify` omits them.
+ * The canonical form the content hash is taken over: object keys sorted at
+ * every depth, array order kept, `undefined` members omitted.
  */
 export function canonicalJson(value: unknown): string {
   if (value === null || typeof value !== "object") {
-    // ECMAScript fully specifies primitive serialization, so this is
-    // deterministic across platforms and runtime versions.
+    // Primitive serialization is fully specified, so this is deterministic
+    // across platforms and runtime versions.
     return JSON.stringify(value) ?? "null";
   }
   if (Array.isArray(value)) {
@@ -133,8 +115,8 @@ export function canonicalJson(value: unknown): string {
 }
 
 /**
- * Lowercase-hex SHA-256 of `canonicalJson(content)` via WebCrypto (R4).
- * Exported so a caller can re-derive and verify a stored submission's hash.
+ * Lowercase-hex SHA-256 over the canonical form, via WebCrypto (R4). Exported
+ * so a caller can re-derive and verify a stored submission's hash.
  */
 export async function computeContentHash(content: unknown): Promise<string> {
   const bytes = new TextEncoder().encode(canonicalJson(content));
@@ -143,15 +125,10 @@ export async function computeContentHash(content: unknown): Promise<string> {
 }
 
 /**
- * Validate and lock a submission against a published snapshot (the I9 sweep).
- *
- * Having an answer means having a non-blank one, so an empty or whitespace-only
- * text value fails a required question and stays out of the locked set rather
- * than being sealed into the hash. A hidden question's answer is neither
- * validated nor locked (I6), so an orphaned answer never blocks submit.
- *
- * Errors are complete rather than first-only. No resolver is injected, because
- * the snapshot embeds its pinned definitions. Async only for WebCrypto.
+ * Validate and lock a submission against a published snapshot (the I9 sweep),
+ * returning every error rather than the first. Having an answer means having a
+ * non-blank one, and a hidden question's answer is neither validated nor locked
+ * (I6), so an orphaned answer never blocks submit. Async only for WebCrypto.
  */
 export async function prepareSubmission(
   snapshot: FrozenSnapshot,
@@ -162,10 +139,9 @@ export async function prepareSubmission(
     snapshot.questions.map((record) => [record.questionId, record.definition]),
   );
 
-  // Drift is judged on the question half of the key alone. An answer naming an
-  // instance the roster no longer lists is a removed instance rather than
-  // drift: it stays in the ledger and leaves the locked set like a hidden
-  // question's answer (I6).
+  // Judged on the question half of the key alone: an answer naming an unlisted
+  // instance is a removal rather than drift, and leaves the locked set as a
+  // hidden question's answer does (I6).
   const pinned = new Set(documentOrder(snapshot.definition).map((entry) => entry.questionId));
   const unknown = [...answers.keys()]
     .map((key) => answerKeyParts(key))
@@ -199,9 +175,8 @@ export async function prepareSubmission(
     if (definition === undefined) {
       continue;
     }
-    // Presence rather than map membership: a blank answer holds nothing. The
-    // sweep reads the same predicate the evaluator dropped the entry with, so
-    // `flowState.missingRequired` and MISSING_REQUIRED cannot disagree.
+    // The same presence predicate the evaluator used, so the flow state and
+    // this sweep cannot disagree about what is answered.
     const answer = answers.get(answerKey(questionId, instanceId));
     const named = instanceId === undefined ? "" : ` in instance "${instanceId}"`;
     if (answer === undefined || isBlankAnswerValue(answer)) {
@@ -215,9 +190,8 @@ export async function prepareSubmission(
       }
       continue;
     }
-    // `validateAnswer` is deliberately position-blind, so a cell inside a
-    // table-presented group validates by the same call as a standalone
-    // question. That is what makes a table a presentation rather than a type.
+    // Position-blind, so a table cell validates by the same call a standalone
+    // question does, which is what makes a table a presentation.
     const validated = validateAnswer(definition, answer);
     if (validated.ok) {
       locked.push({
@@ -246,11 +220,8 @@ export async function prepareSubmission(
   return ok({ answers: locked, flowState, contentHash });
 }
 
-/**
- * Every group's live instance count sits within the bounds its form declares.
- * The count comes from the caller's roster rather than from the answers,
- * because an instance with no answer at all is still live.
- */
+// The count comes from the roster rather than the answers, an instance with no
+// answer at all still being live.
 function checkRepeatCounts(
   snapshot: FrozenSnapshot,
   rosters: RosterMap | undefined,

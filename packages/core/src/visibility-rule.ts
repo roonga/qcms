@@ -5,32 +5,22 @@ import { QcmsError, err, ok, type Result } from "./errors.js";
 import { GroupId, OptionId, QuestionId, RuleId, StepId } from "./ids.js";
 import { addCodedIssue as addSharedCodedIssue, toCodedErrors } from "./internal/coded-issues.js";
 
-/**
- * The rules DSL (DOMAIN_SCHEMA §3, ADR-03, semantics per ADR-16).
- *
- * Closed is the feature: it makes publish-time validation against pinned
- * question versions possible, keeps evaluation deterministic and auditable, and
- * lets a visual builder emit the format later (ADR-19). A new operator is a
- * versioned core change.
- */
+// The operator set is closed so that publish-time validation against pinned
+// versions is possible and evaluation stays auditable (ADR-03); a new operator
+// is a versioned core change.
 
 /** Maximum condition nesting depth (DOMAIN_SCHEMA §3). */
 export const CONDITION_MAX_DEPTH = 8;
 
 /**
- * The condition tree, declared by hand because the schema is recursive and
- * `z.lazy` needs the annotation. The `z.ZodType<Condition>` annotation on the
- * schema keeps type and schema from drifting.
+ * The condition tree, declared by hand because `z.lazy` needs the annotation.
  *
- * Three operators read a whole repeating group and so carry a `groupId` rather
- * than a `questionId` (ADR-42). The inside-out direction needs no syntax: a
- * rule targeting inside a group is evaluated once per live instance.
+ * Three operators read a whole group and carry a `groupId` rather than a
+ * `questionId`; the inside-out direction needs no syntax, a rule targeting
+ * inside a group being evaluated once per live instance (ADR-42).
  *
- * `everyInstance` over a group with no live instance is FALSE by decision
- * rather than vacuously true (ADR-42). So `everyInstance(G, c)` is not
- * equivalent to `not(anyInstance(G, not c))` on an empty G, and nothing in the
- * evaluator, the admin or a golden scenario may treat one as a rewrite of the
- * other.
+ * `everyInstance` over an empty group is FALSE by decision rather than vacuously
+ * true, so nothing may treat it as `not(anyInstance(not c))`.
  */
 export type Condition =
   | { op: "equals"; questionId: QuestionId; value: AnswerValue }
@@ -55,16 +45,12 @@ export type Condition =
       value: number;
     };
 
-/** `instanceCount` reuses these names as a field rather than introducing a
- * second comparison vocabulary (ADR-03). */
+/** Reused as a field, rather than a second comparison vocabulary (ADR-03). */
 export const INSTANCE_COUNT_COMPARISONS = ["equals", "gt", "gte", "lt", "lte"] as const;
 export const InstanceCountComparison = z.enum(INSTANCE_COUNT_COMPARISONS);
 export type InstanceCountComparison = z.infer<typeof InstanceCountComparison>;
 
-/**
- * Typed error codes for rule parsing. `RULE_DEPTH_EXCEEDED` is deliberately the
- * same string as in `PublishErrorCode`, so publish surfaces it verbatim.
- */
+/** The depth code is deliberately the same string publish uses. */
 export const VisibilityRuleErrorCode = z.enum([
   "INVALID_CONDITION",
   "INVALID_VISIBILITY_RULE",
@@ -75,8 +61,7 @@ export type VisibilityRuleErrorCode = z.infer<typeof VisibilityRuleErrorCode>;
 export const VisibilityRuleError = QcmsError.extend({ code: VisibilityRuleErrorCode });
 export type VisibilityRuleError = z.infer<typeof VisibilityRuleError>;
 
-/** Narrows the shared coded-issue plumbing to this module's codes, so a typo
- * is a compile error. */
+// Narrowed to this module's codes, so a typo is a compile error.
 function addCodedIssue(
   ctx: z.core.$RefinementCtx,
   code: VisibilityRuleErrorCode,
@@ -86,8 +71,8 @@ function addCodedIssue(
   addSharedCodedIssue(ctx, code, message, path);
 }
 
-/** Carries no depth refinement, so the exported {@link Condition} can check the
- * cap once at the root rather than re-walking every nested node. */
+// No depth refinement here, so the cap is checked once at the root rather than
+// re-walked at every nested node.
 const ConditionNode: z.ZodType<Condition> = z.lazy(() =>
   z.discriminatedUnion("op", [
     z.object({ op: z.literal("equals"), questionId: QuestionId, value: AnswerValue }),
@@ -98,8 +83,8 @@ const ConditionNode: z.ZodType<Condition> = z.lazy(() =>
     z.object({ op: z.literal("lt"), questionId: QuestionId, value: Comparable }),
     z.object({ op: z.literal("lte"), questionId: QuestionId, value: Comparable }),
     z.object({ op: z.literal("answered"), questionId: QuestionId }),
-    // multiChoice only (ADR-21), enforced by `checkRuleTypes` against the
-    // resolved definitions rather than at parse.
+    // multiChoice only (ADR-21), enforced against the resolved definitions
+    // rather than at parse.
     z.object({ op: z.literal("contains"), questionId: QuestionId, value: OptionId }),
     z.object({
       op: z.literal("containsAny"),
@@ -109,8 +94,8 @@ const ConditionNode: z.ZodType<Condition> = z.lazy(() =>
     z.object({ op: z.literal("and"), conditions: z.array(ConditionNode).min(1) }),
     z.object({ op: z.literal("or"), conditions: z.array(ConditionNode).min(1) }),
     z.object({ op: z.literal("not"), condition: ConditionNode }),
-    // These carry a `groupId` and no `questionId`, so a condition walker whose
-    // default branch reads `condition.questionId` silently reads `undefined`.
+    // A `groupId` and no `questionId`, so a walker whose default branch reads
+    // `condition.questionId` silently reads `undefined`.
     z.object({ op: z.literal("anyInstance"), groupId: GroupId, condition: ConditionNode }),
     z.object({ op: z.literal("everyInstance"), groupId: GroupId, condition: ConditionNode }),
     z.object({
@@ -122,17 +107,13 @@ const ConditionNode: z.ZodType<Condition> = z.lazy(() =>
   ]),
 );
 
-/**
- * Nesting depth of a condition tree, leaves counting as 1. Exported for the
- * admin editor's live validation.
- */
+/** Leaves count as one. Exported for the admin editor's live validation. */
 export function conditionDepth(condition: Condition): number {
   switch (condition.op) {
     case "and":
     case "or":
       return 1 + Math.max(...condition.conditions.map(conditionDepth));
-    // A nested condition under a whole-group operator counts toward the cap;
-    // `instanceCount` carries none and is a leaf.
+    // A nested condition counts toward the cap; `instanceCount` is a leaf.
     case "not":
       return 1 + conditionDepth(condition.condition);
     case "anyInstance":
@@ -157,11 +138,9 @@ export const Condition: z.ZodType<Condition> = ConditionNode.superRefine((condit
 });
 
 /**
- * A visibility rule (DOMAIN_SCHEMA §3). A targeted item is hidden by default
- * and shown when at least one targeting rule matches (ADR-16); an item no rule
- * targets is unconditionally visible. Whether targets resolve, sit forward of
- * the condition's references and type-check are publish invariants rather than
- * parse concerns.
+ * A targeted item is hidden by default and shown when a targeting rule matches;
+ * an untargeted item is unconditionally visible (ADR-16). Whether targets
+ * resolve, sit forward and type-check are publish invariants.
  */
 export const VisibilityRule = z.object({
   ruleId: RuleId,
@@ -170,10 +149,7 @@ export const VisibilityRule = z.object({
 });
 export type VisibilityRule = z.infer<typeof VisibilityRule>;
 
-/**
- * Parse an unknown value as a Condition, reporting every issue with its typed
- * code and path rather than only the first.
- */
+/** Reports every issue rather than only the first. */
 export function parseCondition(value: unknown): Result<Condition, readonly VisibilityRuleError[]> {
   const result = Condition.safeParse(value);
   return result.success
@@ -185,10 +161,7 @@ export function isCondition(value: unknown): value is Condition {
   return Condition.safeParse(value).success;
 }
 
-/**
- * Parse an unknown value as a VisibilityRule. A depth violation inside `when`
- * keeps its own code and path.
- */
+/** A depth violation inside `when` keeps its own code and path. */
 export function parseVisibilityRule(
   value: unknown,
 ): Result<VisibilityRule, readonly VisibilityRuleError[]> {

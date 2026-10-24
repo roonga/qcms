@@ -78,31 +78,24 @@ describe("checkSafePattern", () => {
   });
 });
 
-/**
- * Compiles through a binding rather than a literal, so the lint rules that
- * exist to flag an ambiguous character class have nothing to misread, while the
- * assertions still run the real engine.
- */
+// Through a binding rather than a literal, so the lint rules that flag an
+// ambiguous character class have nothing to misread.
 function compiled(pattern: string, flags: string): RegExp {
   return new RegExp(pattern, flags);
 }
 
 const AMBIGUOUS_AMP = "[a&&b]";
-/** `&&` in a class that `v` refuses outright, so there is no second reading. */
+// A class `v` refuses outright, so there is no second reading.
 const V_INVALID_AMP = "[a&&b-]";
 
 describe("classSetAmbiguity (issue #53)", () => {
   it("reports '&&' inside a character class, which means two things at once", () => {
-    // Compiles under both flags: a three-member set under `u`, an empty and so
-    // unmatchable intersection under `v`.
     expect(compiled(AMBIGUOUS_AMP, "u").test("&")).toBe(true);
     expect(compiled(AMBIGUOUS_AMP, "v").test("&")).toBe(false);
     expect(classSetAmbiguity(`^${AMBIGUOUS_AMP}+$`)).toBe("&&");
   });
 
   it("reports '--' inside a character class", () => {
-    // A range plus a literal under `u`, a class-set difference under `v`. Both
-    // compile, so nothing downstream complains.
     expect(classSetAmbiguity("^[!--0]+$")).toBe("--");
   });
 
@@ -120,17 +113,14 @@ describe("classSetAmbiguity (issue #53)", () => {
   });
 
   it("is silent for a pattern that does not compile under 'v' at all", () => {
-    // No browser reading to disagree with, so the render-time
-    // normalize-or-omit path owns this case rather than the advisory.
     expect(compiled(V_INVALID_AMP, "u").source).toBe(V_INVALID_AMP);
     expect(() => compiled(V_INVALID_AMP, "v")).toThrow();
     expect(classSetAmbiguity(V_INVALID_AMP)).toBeUndefined();
   });
 
   it("is silent for a pattern that does not compile under 'u' at all", () => {
-    // `\q{...}` is `v`-only syntax, so this has a browser reading and no kernel
-    // one, and naming a divergence would name it from a reading that does not
-    // exist.
+    // `\q{...}` is `v`-only syntax, so there is no kernel reading to diverge
+    // from.
     const U_INVALID_AMP = "[\\q{ab}&&\\q{cd}]";
     expect(() => compiled(U_INVALID_AMP, "u")).toThrow();
     expect(compiled(U_INVALID_AMP, "v").source).toBe(U_INVALID_AMP);
@@ -142,11 +132,8 @@ describe("classSetAmbiguity (issue #53)", () => {
   });
 });
 
-/**
- * The patterns this repository's own fixtures carry that a browser refuses.
- * Named here rather than read off disk, because two of the three files belong
- * to other packages.
- */
+// Named here rather than read off disk, two of the three fixture files
+// belonging to other packages.
 const FIXTURE_V_INVALID: readonly { readonly where: string; readonly pattern: string }[] = [
   {
     where: "core fixtures/questions/valid/short-text.json",
@@ -161,7 +148,6 @@ const FIXTURE_V_INVALID: readonly { readonly where: string; readonly pattern: st
 
 describe("compilesUnderV and toVSafePattern (issues #52, #53)", () => {
   it.each(FIXTURE_V_INVALID)("$where is refused by a browser's compiler", ({ pattern }) => {
-    // These parse and serve perfectly well; a browser is what refuses them.
     expect(checkSafePattern(pattern)).toBeUndefined();
     expect(compilesUnderV(pattern)).toBe(false);
   });
@@ -173,7 +159,6 @@ describe("compilesUnderV and toVSafePattern (issues #52, #53)", () => {
       expect(suggestion).toBeDefined();
       expect(suggestion).not.toBe(pattern);
       expect(compilesUnderV(suggestion as string)).toBe(true);
-      // The matched set is unchanged, since the rewrite only escapes literals.
       const before = compiled(pattern, "u");
       const after = compiled(suggestion as string, "u");
       for (const sample of ["Ann-Marie O'Neil", "ABC-123", "", "-", "a", "ZZ9"]) {
@@ -183,7 +168,6 @@ describe("compilesUnderV and toVSafePattern (issues #52, #53)", () => {
   );
 
   it("returns a pattern a browser already accepts byte-identical", () => {
-    // This is what keeps a working `&&` intersection from being rewritten.
     expect(toVSafePattern("^[a-z]{2,10}$")).toBe("^[a-z]{2,10}$");
     expect(toVSafePattern(AMBIGUOUS_AMP)).toBe(AMBIGUOUS_AMP);
   });
