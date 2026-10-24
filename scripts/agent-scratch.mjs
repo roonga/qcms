@@ -103,9 +103,22 @@ export function resolveLane(directory, environment) {
   let branch;
   try {
     branch = git(["rev-parse", "--abbrev-ref", "HEAD"]);
-  } catch {
+  } catch (error) {
+    // A spawn failure and a refusal from git are different defects with different fixes,
+    // and reporting both as "not a git working tree" sent one lane looking at the wrong
+    // one (issue #1126). `ENOENT` here means git could not be started at all.
+    const detail = /** @type {NodeJS.ErrnoException} */ (error);
+    if (detail.code === "ENOENT") {
+      throw new Error(
+        `could not run git: no executable found on PATH. Install git, or set ` +
+          `QCMS_AGENT_LANE to name this lane without it.`,
+      );
+    }
+    const stderr = String(/** @type {{ stderr?: unknown }} */ (detail).stderr ?? "").trim();
     throw new Error(
-      `not a git working tree: ${directory}. Run this from a worktree, or set QCMS_AGENT_LANE.`,
+      `git could not name the branch in ${directory}: ` +
+        `${stderr === "" ? (detail.message ?? "no output") : stderr}. ` +
+        `Run this from a worktree, or set QCMS_AGENT_LANE.`,
     );
   }
   if (branch === "HEAD") return laneSlug(`detached-${git(["rev-parse", "--short", "HEAD"])}`);

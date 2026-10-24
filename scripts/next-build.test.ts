@@ -15,6 +15,7 @@ import {
   parseLockHolderPids,
   positiveNumber,
   resolveCommand,
+  resolveSpawn,
   stripAnsi,
 } from "./next-build.mjs";
 import { trackedFilesUnder } from "./tracked-files.mjs";
@@ -317,6 +318,52 @@ describe("arguments and resolution", () => {
     expect(resolveCommand("next", dir)).toBe(local);
     expect(resolveCommand("next", tempDir())).toBe("next");
     expect(resolveCommand("./tool", dir)).toBe("./tool");
+  });
+
+  it("spawns the POSIX script directly and the Windows shim through a shell", () => {
+    const dir = tempDir();
+    mkdirSync(join(dir, "node_modules", ".bin"), { recursive: true });
+    const script = join(dir, "node_modules", ".bin", "next");
+    const shim = join(dir, "node_modules", ".bin", "next.CMD");
+    writeFileSync(script, "", "utf8");
+    writeFileSync(shim, "", "utf8");
+
+    // Issue #1126. POSIX runs the extensionless script with no shell at all; Windows
+    // cannot execute that file and cannot start a `.cmd` without one.
+    expect(resolveSpawn("next", ["build"], dir, "linux")).toEqual({
+      command: script,
+      args: ["build"],
+      shell: false,
+    });
+    expect(resolveSpawn("next", ["build"], dir, "win32")).toEqual({
+      command: `"${shim}" "build"`,
+      args: [],
+      shell: true,
+    });
+  });
+
+  it("falls back to a PATH lookup on Windows when no shim is installed", () => {
+    expect(resolveSpawn("next", ["build"], tempDir(), "win32")).toEqual({
+      command: `"next" "build"`,
+      args: [],
+      shell: true,
+    });
+  });
+
+  it("spawns a Windows command that already names an executable path directly", () => {
+    // No shell where none is needed, because a shell would report a missing command as
+    // its own exit 1 and take the wrapper's 127 and its message with it.
+    const dir = tempDir();
+    expect(resolveSpawn(join(dir, "tool.exe"), ["build"], dir, "win32")).toEqual({
+      command: join(dir, "tool.exe"),
+      args: ["build"],
+      shell: false,
+    });
+    expect(resolveSpawn(join(dir, "tool.CMD"), ["build"], dir, "win32")).toEqual({
+      command: `"${join(dir, "tool.CMD")}" "build"`,
+      args: [],
+      shell: true,
+    });
   });
 
   it("keeps a usable bound, and falls back to the default for an unusable one", () => {

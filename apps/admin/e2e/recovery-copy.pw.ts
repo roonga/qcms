@@ -69,8 +69,10 @@ test("copies every visible code to the clipboard and says so", async ({ page, co
 
   // The property the button exists for. Not "something was copied": the exact set, in order,
   // one per line, so a paste into a password manager is the same ten codes the operator saw.
+  // Line endings are normalised, not asserted: a Windows clipboard hands back CRLF
+  // whatever the page wrote, and the property here is the set and its order.
   const clipboard = await page.evaluate(() => navigator.clipboard.readText());
-  expect(clipboard).toBe(codes.join("\n"));
+  expect(clipboard.replace(/\r\n/g, "\n")).toBe(codes.join("\n"));
 
   // SEC-13: the codes are on the clipboard, and nowhere a log can reach. The shared browser
   // console gate in `support/gates.ts` already reds the run on a console error; this asserts
