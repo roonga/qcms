@@ -1,10 +1,3 @@
-/**
- * The environment surface of `@roonga/qcms-db`, exported separately from the runtime
- * query vocabulary.
- *
- * It is its own entry point because the API's configuration parser needs one name
- * derivation from it at **boot**, before any pool exists, and pulling the whole schema
- * graph and Drizzle in for one string would make the configuration module depend on the
- * database it is configuring.
- */
+// A separate entry point so the API's configuration parser can derive one name at boot
+// without pulling in the schema graph and Drizzle.
 export { environmentDatabaseUrlVariableName } from "./naming.js";

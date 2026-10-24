@@ -1,47 +1,8 @@
 /**
- * Creating a login role, which is the one statement in this package that carries a
- * credential (SEC-8, SEC-10).
- *
- * # The password never reaches a statement, so nothing can log it
- *
- * `CREATE ROLE` takes an identifier and a literal and **neither can be a bind parameter**,
- * so a credential has to end up inside statement text somewhere. That text is logged in at
- * least three places nobody chose: drizzle wraps a failed statement in a
- * `DrizzleQueryError` whose message is `Failed query: <sql>\nparams: <params>`, the
- * environment command prints an error's message to an operator's terminal, and the
- * **server** records the statement in its own log, because `log_min_error_statement`
- * defaults to `error`. PR #1093's review reproduced all three: a `--password` run printed
- * `PASSWORD 'SUPERSECRETPW2'` on stderr and left the same line in the Postgres log.
- *
- * So the plaintext is not what goes into the statement. This module computes the
- * **SCRAM-SHA-256 verifier** for the password and sends that, which PostgreSQL documents as
- * supported and stores as-is: "If the presented password string is already in
- * MD5-encrypted or SCRAM-encrypted format, then it is stored as-is regardless of
- * `password_encryption`" (PostgreSQL 16, `CREATE ROLE`, the `PASSWORD` clause; and the
- * `password_encryption` entry in Server Configuration). The verifier is a salted,
- * 4096-iteration PBKDF2 digest, so a statement carrying it is not a statement carrying the
- * password: the operator's terminal, drizzle's error and the server log all get the
- * verifier, and the credential itself never leaves this function.
- *
- * That is the same thing `libpq`'s `PQencryptPasswordConn` does for `psql`'s `\\password`,
- * and for the same stated reason.
- *
- * # And a refusal still cannot carry the statement
- *
- * Belt as well as braces, because the verifier is not a secret but the role name and the
- * driver's complaint are all an operator needs: every statement here runs inside
- * {@link refuseWithoutStatement}, which rethrows an error carrying the subject, the act and
- * the **driver's** message, and never drizzle's wrapper, its `params`, or any `cause` the
- * command's own `describeError` would unwrap into the terminal.
- *
- * # Why the role may need a credential this connection cannot create
- *
- * `qcms_migrate` is created `LOGIN` only and holds no `CREATEROLE` (`docker-compose.yml`,
- * and `03-db-least-privilege.e2e.ts` asserts it deliberately), so `--password` run under
- * the migration credential is refused by the server. That is correct and documented rather
- * than worked around: roles are cluster-level and the recipe in `docs/operations.md` has a
- * superuser create them. What this module guarantees is that the refusal an operator reads
- * names the role and the reason and nothing else.
+ * The plaintext password must never reach statement text, which drizzle's error, the
+ * command's stderr and the server's own log all record (SEC-8). So this module sends the
+ * SCRAM-SHA-256 verifier, which PostgreSQL stores as-is, and every statement runs inside
+ * {@link refuseWithoutStatement}.
  */
 
 import { sql } from "drizzle-orm";
@@ -55,14 +16,9 @@ const SCRAM_ITERATIONS = 4096;
 const SCRAM_SALT_BYTES = 16;
 
 /**
- * The bytes a password contributes to its verifier.
- *
- * **Printable ASCII only, and a refusal otherwise.** PostgreSQL applies SASLprep to the
- * password on both sides of an authentication, and the verifier has to be computed over the
- * same normalised form or the role simply cannot log in. SASLprep is the identity on
- * printable ASCII, which is what a credential out of a secret store is, so this covers
- * every case the recipe produces and refuses the one case it would get subtly wrong rather
- * than storing a verifier nobody can authenticate against.
+ * Printable ASCII only: PostgreSQL applies SASLprep on both sides of an authentication,
+ * and SASLprep is the identity only on printable ASCII, so anything else would store a
+ * verifier nobody can authenticate against.
  */
 function passwordBytes(password: string): Uint8Array<ArrayBuffer> {
   if (!/^[\x20-\x7e]+$/.test(password)) {
@@ -74,19 +30,19 @@ function passwordBytes(password: string): Uint8Array<ArrayBuffer> {
         "`CREATE ROLE ... LOGIN PASSWORD ...` as a superuser.",
     );
   }
-  // Copied into a buffer-backed view: `TextEncoder` is typed over `ArrayBufferLike`, and
-  // WebCrypto's `BufferSource` is not satisfied by a `SharedArrayBuffer`-backed one.
+  // `TextEncoder` is typed over `ArrayBufferLike`, and WebCrypto's `BufferSource` is not
+  // satisfied by a `SharedArrayBuffer`-backed one.
   return copy(new TextEncoder().encode(password));
 }
 
-/** A `Uint8Array` over a plain `ArrayBuffer`, which is what WebCrypto's types ask for. */
+/** WebCrypto's types ask for a plain `ArrayBuffer` backing. */
 function copy(bytes: Uint8Array): Uint8Array<ArrayBuffer> {
   const out = new Uint8Array(bytes.byteLength);
   out.set(bytes);
   return out;
 }
 
-/** `Uint8Array` to base64, without Node's `Buffer` so this module needs no `node:` import. */
+/** Hand-rolled so this module needs no `node:` import (R4). */
 function base64(bytes: Uint8Array): string {
   let binary = "";
   for (const byte of bytes) binary += String.fromCharCode(byte);
@@ -94,14 +50,8 @@ function base64(bytes: Uint8Array): string {
 }
 
 /**
- * The PostgreSQL SCRAM-SHA-256 stored secret for one password:
- * `SCRAM-SHA-256$<iterations>:<salt>$<StoredKey>:<ServerKey>`.
- *
- * The derivation is RFC 5802's: `SaltedPassword = PBKDF2(password, salt, i)`,
- * `ClientKey = HMAC(SaltedPassword, "Client Key")`, `StoredKey = SHA256(ClientKey)`,
- * `ServerKey = HMAC(SaltedPassword, "Server Key")`. WebCrypto rather than `node:crypto`,
- * so the one module in this package that touches a credential depends on nothing
- * platform-specific (R4's spirit, and the same choice the API makes for its own hashing).
+ * PostgreSQL's stored-secret format, `SCRAM-SHA-256$<iterations>:<salt>$<key>:<key>`, over
+ * RFC 5802's derivation. WebCrypto rather than `node:crypto` (R4).
  */
 async function scramVerifier(password: string): Promise<string> {
   const salt = crypto.getRandomValues(new Uint8Array(SCRAM_SALT_BYTES));
@@ -138,20 +88,10 @@ async function scramVerifier(password: string): Promise<string> {
 }
 
 /**
- * Run one statement, and on failure rethrow an error that names the act, its subject and
- * the **driver's** complaint, with no statement text, no bind parameters and no `cause`.
- *
- * No `cause`, deliberately: `environment-cli.ts`'s `describeError` appends a cause's
- * message to the line it prints, so attaching drizzle's wrapper would put the statement
- * back on the terminal through the very helper that is supposed to summarise it.
- *
- * **Exported because it is the one wrapper, not one of two** (PR #1099's review, finding
- * 1). The re-grant subcommand had the identical defect on its own path - it attached
- * drizzle's wrapper as a `cause`, and the full `DO $$ ... GRANT ...` reached stderr
- * through `describeError` - and the fix is to call this rather than to write a second
- * copy of the same reasoning. `subject` is free text ("the role qcms_app_dev", "the
- * control role's DML on control") so one wrapper serves both; `role.ts`'s own callers
- * pass `the role <name>`, which keeps their messages byte-identical to 067's.
+ * Rethrows naming the act, its subject and the driver's complaint, with no statement
+ * text, no bind parameters and no `cause`: `describeError` appends a cause's message to
+ * the line it prints, so attaching drizzle's wrapper would put the statement back on an
+ * operator's terminal (SEC-8).
  */
 export async function refuseWithoutStatement<T>(
   act: string,
@@ -161,36 +101,22 @@ export async function refuseWithoutStatement<T>(
   try {
     return await run();
   } catch (error: unknown) {
-    // drizzle wraps the driver error as its `cause`; that inner message is the useful one
-    // ("permission denied to create role") and is the only part of the failure that is
-    // safe to repeat.
+    // drizzle's `cause` holds the driver's own message, the only part safe to repeat.
     const inner = error instanceof Error ? error.cause : undefined;
     const because = inner instanceof Error ? inner.message : "the database refused it";
-    // Attaching the caught error is the defect this function exists to fix. drizzle's
-    // wrapper message is `Failed query: <sql>\nparams: <params>`, and
-    // `environment-cli.ts`'s `describeError` appends a cause's message to the line it
-    // prints, so a `cause` here would put the statement and its parameters back on an
-    // operator's terminal (SEC-8, PR #1093's review, finding 2). The driver's own
-    // complaint is repeated instead, which is the part that is safe and the part that
-    // tells the operator what to do.
     // eslint-disable-next-line preserve-caught-error -- a `cause` would re-leak the statement
     throw new Error(`could not ${act} ${subject}: ${because.replaceAll(/\s+/g, " ").trim()}`);
   }
 }
 
 /**
- * `CREATE ROLE <role> LOGIN PASSWORD <verifier>`, unless the role already exists.
+ * Idempotent, and an existing role's password is deliberately not reset: silently
+ * rotating a credential other systems connect with would be a side effect nobody asked
+ * for.
  *
- * Idempotent, because both callers are commands an operator may run twice: the environment
- * command after a failure, and the reporting reconciliation after every workspace they
- * create. An existing role is left exactly as it is - **its password is not reset** - since
- * silently rotating a credential other systems are connecting with would be a side effect
- * nobody asked for.
- *
- * The role name is quoted by **Postgres**, through `format('%I', ...)` over a bind
- * parameter, so nothing here has to be correct about identifier escaping. The verifier goes
- * through `%L` the same way. Both are cast to `text` explicitly, because `format` is
- * variadic over `any` and Postgres cannot infer a placeholder's type from it.
+ * The role name and the verifier are quoted by Postgres, through `format('%I'/'%L', ...)`
+ * over bind parameters, so nothing here has to be correct about escaping. Both are cast
+ * to `text`, because `format` is variadic over `any` and cannot infer a parameter's type.
  */
 export async function createLoginRole(
   exec: Executor,
@@ -204,8 +130,6 @@ export async function createLoginRole(
   );
   if (existing.rows[0]?.found === true) return;
 
-  // Computed before anything is sent, so a password this function cannot represent is
-  // refused without a round trip.
   const verifier = await scramVerifier(password);
 
   const built = await refuseWithoutStatement("build the statement for", `the role ${role}`, () =>

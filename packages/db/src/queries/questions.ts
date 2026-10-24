@@ -7,40 +7,26 @@ import type { Executor } from "./executor.js";
 import type { AssignableTo } from "./schema-drift.js";
 
 /**
- * The `questions` library-identity row. Hand-authored (issue #5) because its
- * branded-id column (`question_id`) resolves to a TypeScript `error` type through
- * this package's emitted `.d.ts` when consumed via `$inferSelect` - the same
- * declaration-emit degradation the enum columns hit. Keep every field in lockstep
- * with the `questions` table in `schema/questions.ts`; the drift guard below
- * fails the build if they diverge.
+ * The `questions` library-identity row. Hand-authored because its branded-id column
+ * degrades to an `error` type through this package's emitted `.d.ts` (issue #5).
  */
 export interface QuestionRow {
   questionId: QuestionId;
   slug: string;
-  /** The workspace that owns this question (ADR-41, task 068). Never null. */
+  /** The workspace that owns this question. Never null. */
   workspaceId: string;
   createdAt: Date;
 }
 
-// Drift guard (issue #5): assert QuestionRow is structurally identical to what
-// Drizzle infers from the `questions` table.
 export type _QuestionRowMatchesTable = AssignableTo<QuestionRow, typeof questions.$inferSelect> &
   AssignableTo<typeof questions.$inferSelect, QuestionRow>;
 
-/**
- * Question version lifecycle. Derived from the `questionStatus` pgEnum
- * (schema/enums.ts) so the union tracks the DB enum automatically - never
- * re-typed as literals.
- */
+/** Question version lifecycle, derived from the `questionStatus` pgEnum. */
 export type QuestionStatus = (typeof questionStatus.enumValues)[number];
 
 /**
- * The `question_versions` row. Hand-authored (issue #5) because the table is
- * enum-bearing (`status`), and Drizzle's `$inferSelect` degrades to a TypeScript
- * `error` type across this package's emitted `.d.ts` boundary - see
- * `schema-drift.ts`. Keep every field in lockstep with the `question_versions`
- * table in `schema/questions.ts`; the drift guard below fails the build if they
- * diverge.
+ * The `question_versions` row. Hand-authored because the enum-bearing table's
+ * `$inferSelect` degrades through this package's emitted `.d.ts` (issue #5).
  */
 export interface QuestionVersionRow {
   questionId: QuestionId;
@@ -50,10 +36,6 @@ export interface QuestionVersionRow {
   publishedAt: Date | null;
 }
 
-// Drift guard (issue #5): assert QuestionVersionRow is structurally identical to
-// what Drizzle infers from the `question_versions` table. Both directions must
-// hold, so any column added, dropped, or retyped in schema/questions.ts breaks
-// this instantiation until QuestionVersionRow is updated to match.
 export type _QuestionVersionRowMatchesTable = AssignableTo<
   QuestionVersionRow,
   typeof questionVersions.$inferSelect
@@ -71,11 +53,8 @@ export interface QuestionSummary {
 }
 
 /**
- * Insert a question library identity (R6: `questionId` is stable forever).
- *
- * `workspaceId` is required and has no default, for the reason `createForm`'s is
- * (criterion 1): a question belongs to exactly one workspace and the column is what
- * enforces it. The API resolves which one.
+ * Insert a question library identity. A `questionId` is stable forever and is never
+ * reused with a different meaning.
  */
 export async function createQuestion(
   exec: Executor,
@@ -93,23 +72,9 @@ export async function createQuestion(
 }
 
 /**
- * Move a question to another workspace: **one `UPDATE` on the identity row, touching no
- * version** (Q14, ADR-41's Note of 2026-09-26).
- *
- * That is the whole of the move, and the two halves of Q14's grandfathering follow from
- * it rather than from anything written here. A form in another workspace that already
- * pins one of this question's versions **keeps serving**, because the version it pins is
- * immutable content that this statement does not reach (ADR-02, R1), and a `questionId`
- * never changes meaning (R6). It also **keeps that pin in its next draft**, because the
- * publish-time rule grandfathers a placement that was already in the previous published
- * version; that is the half an implementation drops, and it lives in
- * `apps/api/src/features/forms/handler.ts` with the deprecated-pin gate rather than here.
- *
- * What is refused is a **new** pin from another workspace onto a question outside the
- * shared workspace, through the same path that refuses a pin to a `deprecated` version,
- * so an author meets one mechanism rather than two.
- *
- * Returns the updated row, or `undefined` when no such question exists.
+ * Move a question to another workspace, touching no version, so a form elsewhere that
+ * already pins one keeps serving. Grandfathering that pin into the next draft is the
+ * publish-time rule's job, in `apps/api/src/features/forms/handler.ts`.
  */
 export async function moveQuestionToWorkspace(
   exec: Executor,
@@ -125,12 +90,8 @@ export async function moveQuestionToWorkspace(
 }
 
 /**
- * Append the next draft version of a question. The version number is assigned
- * atomically by a scalar subquery in the same INSERT statement, so it is
- * correct within (or without) an outer transaction; the composite primary key
- * `(questionId, version)` is the backstop - a concurrent duplicate fails the PK
- * rather than double-assigning. Concurrent version creation for the *same*
- * question is a rare authoring race; on the PK conflict the caller retries.
+ * Append the next draft version of a question, numbering it atomically. A concurrent
+ * duplicate fails the primary key, and the caller retries.
  */
 export async function createQuestionVersion(
   exec: Executor,
@@ -148,9 +109,8 @@ export async function createQuestionVersion(
 }
 
 /**
- * Mark a version published and stamp `publishedAt`. Allowed by the freeze
- * trigger because `definition` is untouched (I1). Returns `undefined` if the
- * `(questionId, version)` does not exist.
+ * Mark a version published and stamp `publishedAt`. The freeze trigger permits it only
+ * while `definition` is untouched.
  */
 export async function publishQuestionVersion(
   exec: Executor,
@@ -169,7 +129,7 @@ export async function publishQuestionVersion(
   return row;
 }
 
-/** Mark a version deprecated (no new pins may reference it; §4.2). */
+/** Mark a version deprecated: no new pins may reference it. */
 export async function deprecateQuestionVersion(
   exec: Executor,
   input: { questionId: QuestionId; version: number },
@@ -214,7 +174,7 @@ export async function getQuestion(
   return row;
 }
 
-/** Every stored version of one question, oldest first (the detail view). */
+/** Every stored version of one question, oldest first. */
 export async function listQuestionVersions(
   exec: Executor,
   questionId: QuestionId,
@@ -226,20 +186,7 @@ export async function listQuestionVersions(
     .orderBy(questionVersions.version);
 }
 
-/**
- * Every stored version of MANY questions in one read, ordered by question and then
- * oldest version first (issue #684).
- *
- * The sibling above answers the same question for one id, and calling it in a loop is
- * exactly what this replaces: the form builder needs every pinnable version of the whole
- * library, so the loop's cost is one round trip per question in it, and both the HTTP
- * layer above and this one were paying it. Grouping is left to the caller, which is why
- * the order is `(questionId, version)` rather than the caller's own row order: a single
- * pass over this result partitions it, and no caller has to sort.
- *
- * An empty id list short-circuits rather than issuing `IN ()`, which is not valid SQL in
- * every dialect and is a query with no answer to give in any of them.
- */
+/** Every stored version of many questions, ordered so one pass partitions the result. */
 export async function listVersionsForQuestions(
   exec: Executor,
   questionIds: readonly QuestionId[],
@@ -253,20 +200,12 @@ export async function listVersionsForQuestions(
 }
 
 /**
- * Overwrite a **draft** version's `definition` in place. Shape-preserving
- * persistence only (R5): the caller enforces the draft-only rule and validates
- * the definition through the kernel before calling. The `WHERE status = 'draft'`
- * predicate is the storage-layer guard (defense-in-depth, issue #8): the write
- * matches only a draft row, so a `published` **or** `deprecated` version is left
- * untouched and the call returns `undefined` - the helper's name is truthful and
- * the deprecated-row gap is closed at the storage layer, not just in the handler.
+ * Overwrite a draft version's `definition` in place, returning `undefined` when no draft
+ * matched. The caller must validate the definition through the kernel first.
  *
- * This is stricter than, and sits in front of, the
- * `question_versions_freeze_published` trigger (migration 0001): that trigger
- * only fires on `OLD.status = 'published'`, so it never covered `deprecated`
- * rows; it remains the backstop for any *other* write path that bypasses this
- * helper. Returns the updated row, or `undefined` when no **draft**
- * `(questionId, version)` matched (nonexistent, published, or deprecated).
+ * The `status = 'draft'` predicate is stricter than the
+ * `question_versions_freeze_published` trigger, which fires only on a published row and
+ * so never covered a deprecated one.
  */
 export async function updateDraftDefinition(
   exec: Executor,
@@ -287,22 +226,16 @@ export async function updateDraftDefinition(
 }
 
 /**
- * List every question with a summary of its latest version (highest `version`).
- * Questions with no version yet are omitted (there is nothing to summarize).
+ * List every question with a summary of its latest version. Questions with no version
+ * yet are omitted.
  */
 export async function listQuestions(
   exec: Executor,
   options: { readonly workspaceIds?: readonly string[] } = {},
 ): Promise<QuestionSummary[]> {
-  // `workspaceIds` narrows the library list to the workspaces the caller holds
-  // `question: read` in (task 069, ADR-41), which is the confidentiality boundary between
-  // two groups sharing one installation. **The shared question library is the caller's
-  // to add**, not this helper's: finding 10 makes it a read surface to every workspace's
-  // editors, and the API is where that workspace id is looked up and put on the list, so
-  // one rule lives in one place rather than half of it here.
-  //
-  // `undefined` is the whole installation; an **empty** list is an empty result rather
-  // than the whole table, which is the fail-closed direction.
+  // The confidentiality boundary: `undefined` is the whole installation, and an empty
+  // list must stay empty rather than widen to every workspace. Adding the shared
+  // library's workspace id is the caller's job.
   const base = exec
     .selectDistinctOn([questions.questionId], {
       questionId: questions.questionId,
@@ -328,27 +261,10 @@ export async function listQuestions(
 export interface QuestionOwnership {
   readonly questionId: QuestionId;
   readonly workspaceId: string;
-  /** Whether the owning workspace is the installation's shared question library. */
   readonly workspaceIsShared: boolean;
 }
 
-/**
- * The owning workspace of many questions in one read, with each owner's shared flag
- * (ADR-41, task 068).
- *
- * The input to the publish-time pin rule, which needs two facts per pinned question - who
- * owns it, and whether that owner is the org-wide library - and needs them for every pin
- * in a draft at once. One read with a join rather than a read per pin: `loadQuestionLookups`
- * in the forms slice already pays one round trip per pinned question for the versions, and
- * a second loop beside it would double that for two columns.
- *
- * `innerJoin` rather than a left join: `questions.workspace_id` is `NOT NULL` with a
- * foreign key, so a question with no owning workspace row is not a state the database
- * permits, and a left join would invite a caller to write a branch for it.
- *
- * An empty id list short-circuits rather than issuing `IN ()`, as `listVersionsForQuestions`
- * does one function up.
- */
+/** The two facts the publish-time pin rule needs, for many questions in one read. */
 export async function listQuestionOwnership(
   exec: Executor,
   questionIds: readonly QuestionId[],
@@ -367,34 +283,11 @@ export async function listQuestionOwnership(
 }
 
 /**
- * Whether a `questionId` has ever been used in the **library** (R6: an id is stable
- * forever and never reused with a different meaning).
+ * The library half of the id-reuse check, split from the ledger half because the control
+ * role deliberately holds no read on any data-plane table.
  *
- * # Why this is two functions since ADR-40
- *
- * R6's check spans **both planes**, and after ADR-40 no single connection can see both.
- * The library half reads `control.questions`; the ledger half reads `answers`, a
- * **data-plane** table with one copy per environment. Authoring runs on the control pool,
- * whose `search_path` is `control` alone and whose role deliberately holds no read on any
- * data-plane table - "an author never reads production personal data" is the property Q40
- * exists to buy. So the single `union all` this used to be could not survive the split: it
- * did not resolve `answers` at all, and had it resolved it would have been refused on
- * permission.
- *
- * Widening `qcms_app_control` to read `answers` is not the way out, and this package will
- * not offer it. What replaces it is the enumeration rule (Q1): the caller asks the library
- * once on the control pool and each environment's own ledger on that environment's own
- * pool, where the grant already exists. `apps/api/src/features/questions/create.ts` is
- * that caller.
- *
- * # Why two connections rather than one transaction is sound here
- *
- * This is a **pre-check that widens a refusal**, not the invariant. What stops two
- * questions sharing an id is `control.questions`' primary key, inside the caller's
- * transaction. The ledger half exists so that an id surviving *only* in an answer ledger -
- * its question deprecated or erased - is still refused, and an id in that state is by
- * construction not one being created concurrently. So reading it outside the transaction
- * costs nothing that was ever guaranteed.
+ * Only a pre-check that widens a refusal: `control.questions`' primary key, inside the
+ * caller's transaction, is what stops two questions sharing an id.
  *
  * @see isQuestionIdInAnswerLedger for the data-plane half.
  */
@@ -408,17 +301,9 @@ export async function isQuestionIdTaken(exec: Executor, questionId: QuestionId):
 }
 
 /**
- * Whether a `questionId` appears in **this connection's** answer ledger (R6, the
- * data-plane half of {@link isQuestionIdTaken}).
- *
- * `answers` is unqualified, so the connection's `search_path` decides which environment's
- * ledger is read and this helper can never name one it was not handed a pool for. A caller
- * that has to cover the whole live set calls it once per environment, which is Q1's
- * enumeration rule rather than a loop somebody chose.
- *
- * Kept apart from the library half rather than folded into one helper taking two
- * executors: the two run on different connections under different roles, and a signature
- * that hid that would read as though one statement still did both.
+ * The data-plane half of {@link isQuestionIdTaken}. `answers` is unqualified, so the
+ * connection's `search_path` decides which environment is read and this can never name
+ * one it was not handed a pool for; covering the live set means one call per environment.
  */
 export async function isQuestionIdInAnswerLedger(
   exec: Executor,

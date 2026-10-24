@@ -6,20 +6,13 @@ import { accessMode, sessionStatus, sessions } from "../schema/index.js";
 import type { Executor } from "./executor.js";
 import type { AssignableTo } from "./schema-drift.js";
 
-/**
- * How a respondent reached a session, and the session lifecycle status. Both
- * unions are derived from their pgEnum definitions (schema/enums.ts) so they
- * track the DB enums automatically - never re-typed as literals.
- */
+/** How a respondent reached a session, and the session lifecycle status. */
 export type AccessMode = (typeof accessMode.enumValues)[number];
 export type SessionStatus = (typeof sessionStatus.enumValues)[number];
 
 /**
- * The `sessions` row. Hand-authored (issue #5) because `sessions` is enum-bearing
- * (`access_mode`, `status`), and Drizzle's `$inferSelect` degrades to a
- * TypeScript `error` type across this package's emitted `.d.ts` boundary - see
- * `schema-drift.ts`. Keep every field in lockstep with the `sessions` table in
- * `schema/sessions.ts`; the drift guard below fails the build if they diverge.
+ * The `sessions` row. Hand-authored because the enum-bearing table's `$inferSelect`
+ * degrades through this package's emitted `.d.ts` (issue #5).
  */
 export interface SessionRow {
   sessionId: SessionId;
@@ -27,39 +20,24 @@ export interface SessionRow {
   formVersion: number;
   accessMode: AccessMode;
   linkId: LinkId | null;
-  /**
-   * The environment this session lives in, pinned to its own schema by the per-schema
-   * `CHECK (environment = '<env>')` and carried into the composite link key (Q46).
-   */
+  /** Pinned to its own schema by the per-schema `CHECK (environment = '<env>')`. */
   environment: string;
   status: SessionStatus;
   expiresAt: Date;
   createdAt: Date;
 }
 
-// Drift guard (issue #5): assert SessionRow is structurally identical to what
-// Drizzle infers from the `sessions` table. Both directions must hold, so any
-// column added, dropped, or retyped in schema/sessions.ts breaks this
-// instantiation until SessionRow is updated to match.
 export type _SessionRowMatchesTable = AssignableTo<SessionRow, typeof sessions.$inferSelect> &
   AssignableTo<typeof sessions.$inferSelect, SessionRow>;
 
 /**
- * Create a respondent session, **pinning** `(formId, formVersion)` at creation.
- * There is deliberately no helper that mutates `formVersion` after this - the
- * pin is structural, which is how Invariant I4 ("a session never migrates form
- * versions") is enforced: the only write path that sets `form_version` is this
- * insert, so a session can never move to another version (R1).
+ * Create a respondent session, pinning `(formId, formVersion)`. The only write path that
+ * sets `form_version`, which is what makes "a session never migrates form versions"
+ * structural.
  *
- * **`environment` is required and must be the environment this connection's pool
- * serves** (Q46). The row lands in `data_<env>` by search path, and the per-schema
- * `CHECK (environment = '<env>')` refuses it if the two disagree - which is the point:
- * a mismatch is a constraint violation rather than a row that quietly claims to be
- * somewhere it is not. When `linkId` is set, the composite foreign key additionally
- * requires the link's own row to name the same environment, so a link minted for one
- * environment cannot start a session in another however the request reached the
- * handler. A **public session has a NULL `linkId`** and skips that key by design; the
- * CHECK still pins it.
+ * `environment` must be the one this connection's pool serves, or the per-schema CHECK
+ * refuses the row. With `linkId` set, the composite foreign key also requires the link to
+ * name the same environment; a public session has a NULL `linkId` and skips that key.
  */
 export async function createSession(
   exec: Executor,
@@ -89,15 +67,8 @@ export async function createSession(
 }
 
 /**
- * Read a session **within one form**, or `undefined` (issue #305).
- *
- * The scoped counterpart to {@link getSession}, for the admin operations that act
- * on a session a caller named by id. The form is part of the `where`, not an
- * assertion made afterwards, so a session belonging to another form is a row the
- * query does not return: the operation takes its ordinary not-found path and a
- * caller cannot tell "someone else's session" from "no such session".
- *
- * Use this, not `getSession`, wherever the session id arrived from a client.
+ * Read a session within one form, so a caller cannot tell someone else's session from no
+ * such session. Use this, not {@link getSession}, wherever the id came from a client.
  */
 export async function getSessionInForm(
   exec: Executor,
@@ -125,7 +96,7 @@ export async function getSession(
   return row;
 }
 
-/** Transition a session to `in_progress` (status only - the pin is untouched). */
+/** Transition a session to `in_progress`. */
 export async function markInProgress(
   exec: Executor,
   sessionId: SessionId,
@@ -138,7 +109,7 @@ export async function markInProgress(
   return row;
 }
 
-/** Transition a session to `submitted` (status only - the pin is untouched). */
+/** Transition a session to `submitted`. */
 export async function markSubmitted(
   exec: Executor,
   sessionId: SessionId,
@@ -151,11 +122,7 @@ export async function markSubmitted(
   return row;
 }
 
-/**
- * Expire every non-terminal session (`created`/`in_progress`) whose `expiresAt`
- * is at or before `now`. Drives the retention sweep (task 015). Returns the
- * expired rows.
- */
+/** Expire every non-terminal session whose `expiresAt` is at or before `now`. */
 export async function expireSessions(exec: Executor, now: Date): Promise<SessionRow[]> {
   return exec
     .update(sessions)
