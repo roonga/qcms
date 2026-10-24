@@ -51,6 +51,15 @@ export interface FormRailData {
    * a form created and not yet named - which is why this is not optional-and-absent.
    */
   readonly title: string;
+  /**
+   * Whether the form is open or closed, which the rail's Header states as its one status
+   * tag (`plan/admin-design-contracts.md` §7.0, issue #1116).
+   *
+   * Read from the form rather than from the draft, because closing a form is a decision
+   * about the FORM: a closed form still has a draft, and the rail says so above the rows
+   * that lead into it rather than leaving the reader to find out on the builder.
+   */
+  readonly status: "open" | "closed";
   /** The form's steps, or empty when the form has no draft to read them from. */
   readonly steps: readonly DraftStep[];
   /** Issues per step id. Empty when there is no verdict, never a stand-in for zero. */
@@ -75,7 +84,14 @@ export async function loadFormRail(
   const form = detail.data;
   const draft = form.draft;
   if (draft === null) {
-    return { formId: form.formId, slug: form.slug, title: "", steps: [], issueCounts: new Map() };
+    return {
+      formId: form.formId,
+      slug: form.slug,
+      title: "",
+      status: form.status,
+      steps: [],
+      issueCounts: new Map(),
+    };
   }
   // Memoized per request (`lib/server/form-verdict.ts`), so the rules screen beside this
   // rail shares the one dry run rather than paying for a second of the same call.
@@ -84,6 +100,7 @@ export async function loadFormRail(
     formId: form.formId,
     slug: form.slug,
     title: textOf(draft.title, form.defaultLocale),
+    status: form.status,
     steps: draft.steps,
     issueCounts: verdict === undefined ? new Map() : stepIssueCounts(verdict.issues, draft),
   };

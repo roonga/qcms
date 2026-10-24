@@ -2,6 +2,7 @@ import type { Metadata } from "next";
 import { notFound } from "next/navigation";
 
 import { Alert, Card } from "@/components/kit";
+import { VersionLifecycleActions } from "@/components/questions/lifecycle-actions";
 import { QuestionEditor } from "@/components/questions/question-editor";
 import { QuestionPreview } from "@/components/questions/question-preview";
 import { QuestionSave } from "@/components/questions/question-save";
@@ -14,7 +15,7 @@ import { appLocale, previewPortalTheme } from "@/lib/server/config";
 import { getPreview, getQuestion } from "@/lib/server/questions";
 import { requireAdminSession } from "@/lib/server/session";
 
-import { saveDraftAction } from "../actions";
+import { lifecycleAction, saveDraftAction } from "../actions";
 
 /**
  * The browser-tab title for this route (issue #536).
@@ -100,6 +101,10 @@ export default async function QuestionDetailPage({
   // Resolved through the one function the rail's slot also calls, so the address and the
   // rendered panel cannot be read off two different lists (`lib/questions/panels.ts`).
   const { panel } = questionPanelState(selected.definition, query, appLocale());
+  // The newest version, which is what "New version" would mint next and what the lifecycle
+  // dialogs name. The rail's slot reads the same list for the same reason.
+  const latestVersion =
+    detail.data.versions[detail.data.versions.length - 1]?.version ?? selected.version;
 
   return (
     // THE 720px EDITOR COLUMN (issue 668). `question-editor-poc.html` puts a single
@@ -146,14 +151,40 @@ export default async function QuestionDetailPage({
           <StatusTag status={selected.status} />
         </div>
         <QuestionSave mode="edit" />
+        {/* THE LIFECYCLE PAIR, IN THIS ROW BESIDE SAVE (§7.0 ruling 5, issue #1116).
+            Publish and Deprecate were in the rail, stacked above the version list, from
+            issue 650 until the 2026-10-24 ruling took every lifecycle and destructive
+            action out of every rail and into the content heading row. At most one of the
+            two is ever offered - a draft publishes, a published version deprecates - and
+            this row already holds one control's height whether or not a control is in it,
+            which is what keeps the heading from moving as a reader walks the version list.
+
+            AFTER `QuestionSave` in document order, which is the one thing about the
+            placement that is not free: the save note is the first half of that component
+            and contract §6 wants a linear read to reach the statement on the way to the
+            control it describes. So the pair sits after both, and the stylesheet places it
+            in the row's last column.
+
+            `lifecycleAction` is the same server action the rail's New version posts to, so
+            there is still one `POST` and one revalidation for the three intents. */}
+        <div className="qcms-question-head__lifecycle">
+          <VersionLifecycleActions
+            action={lifecycleAction}
+            questionId={detail.data.questionId}
+            version={selected.version}
+            status={selected.status}
+            latestVersion={latestVersion}
+          />
+        </div>
       </div>
 
-      {/* The version list, the lifecycle actions, the back link and the question's own details
-          all used to sit in this column. They are the rail's now - the first two since issue
-          650, which is where the screen's POC draws them, and the last two since 2026-09-27
-          (Code Owner). None of them is repeated here, because a navigation or a fact rendered
-          twice on one screen is two surfaces that can disagree:
-          `app/(shell)/@rail/questions/[questionId]/page.tsx`. */}
+      {/* The version list, the back link and the question's own details all used to sit in
+          this column. They are the rail's now - the first since issue 650, which is where
+          the screen's POC draws it, and the other two since 2026-09-27 (Code Owner). None of
+          them is repeated here, because a navigation or a fact rendered twice on one screen
+          is two surfaces that can disagree:
+          `app/(shell)/@rail/questions/[questionId]/page.tsx`. The lifecycle pair went the
+          other way on 2026-10-24 and is in the heading row above. */}
 
       <div className="qcms-card">
         <Card padding="md" radius="md" border>

@@ -1,4 +1,5 @@
 import { FormSubtreeRail } from "@/components/forms/form-subtree-rail";
+import { RailAddStep } from "@/components/forms/rail-add-step";
 import { RailSteps } from "@/components/forms/rail-steps";
 import type { RailCurrent, RailItem } from "@/lib/forms/subtree-rail";
 import { loadFormRail } from "@/lib/server/form-rail";
@@ -44,9 +45,9 @@ import { requireAdminSession } from "@/lib/server/session";
  * detail route marks the section it lives under, which is the same answer the app already
  * gave on the same URLs: the section strip this rail replaced (`form-tabs.tsx`, retired by
  * issue 561) marked the version-history row as `aria-current="page"` on `/versions/3` from
- * task 034 onward, and `FormPageHeader` still builds its last breadcrumb crumb, and since
- * issue 679 the section half of its `<h1>`, from the same section name. Deciding
- * differently here would have made one screen say two things.
+ * task 034 onward, and `FormPageHeader` still builds its `<h1>` from the same section name
+ * (its breadcrumb went with §7.0 ruling 3, issue #1116, and the way back is this rail's
+ * Header now). Deciding differently here would have made one screen say two things.
  */
 export async function FormRailSlot({
   params,
@@ -68,12 +69,19 @@ export async function FormRailSlot({
       formId={rail.formId}
       slug={rail.slug}
       title={rail.title}
+      status={rail.status}
       steps={rail.steps}
       issueCounts={rail.issueCounts}
       current={current}
       renderSteps={(item: RailItem, steps: readonly RailItem[]) => (
         <RailSteps item={item} serverItems={steps} />
       )}
+      // THE ACTIONS PART (§7.0, issue #1116). Add step is a client component on all eight
+      // screens for one reason: on the builder it has to reach the draft in the browser,
+      // and on the other seven it has to render the anchor that lands there. Handed in as a
+      // node, like the steps above it, so this slot stays the only place that knows the
+      // rail has a client half.
+      actions={<RailAddStep builderHref={`/forms/${encodeURIComponent(rail.formId)}`} />}
     />
   );
 }

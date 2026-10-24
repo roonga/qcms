@@ -93,13 +93,13 @@ regeneration and `git add` the result rather than merging two sets of counts.
 
 <!-- BEGIN GENERATED: ownership-seam (pnpm qcms:sync-templates) -->
 
-### Scaffolded paths (461 files common to both shapes)
+### Scaffolded paths (463 files common to both shapes)
 
 | Path                                                                 | Files |
 | -------------------------------------------------------------------- | ----- |
 | `(project root)`                                                     | 8     |
-| `apps/`                                                              | 450   |
-| `apps/admin/`                                                        | 269   |
+| `apps/`                                                              | 452   |
+| `apps/admin/`                                                        | 271   |
 | `apps/admin/app/`                                                    | 76    |
 | `apps/admin/app/(shell)/`                                            | 58    |
 | `apps/admin/app/(shell)/@rail/`                                      | 24    |
@@ -170,8 +170,8 @@ regeneration and `git add` the result rather than merging two sets of counts.
 | `apps/admin/components/ops/`                                         | 9     |
 | `apps/admin/components/questions/`                                   | 12    |
 | `apps/admin/components/test-support/`                                | 2     |
-| `apps/admin/lib/`                                                    | 95    |
-| `apps/admin/lib/forms/`                                              | 27    |
+| `apps/admin/lib/`                                                    | 97    |
+| `apps/admin/lib/forms/`                                              | 29    |
 | `apps/admin/lib/i18n/`                                               | 2     |
 | `apps/admin/lib/membership/`                                         | 1     |
 | `apps/admin/lib/ops/`                                                | 10    |
@@ -241,7 +241,7 @@ regeneration and `git add` the result rather than merging two sets of counts.
 
 ### QCMS-internal references in the scaffolded source
 
-`2919` lines across `406` scaffolded files cite a QCMS issue, ADR, SEC control, plan task or repository path.
+`2943` lines across `408` scaffolded files cite a QCMS issue, ADR, SEC control, plan task or repository path.
 
 These are comments, and they stay (issue #457, tier 3). They are the engineering
 rationale for code you now own, which is worth more to you than a tidy file, and
@@ -256,7 +256,7 @@ rather than documented: the images no longer claim to be built from this
 repository, and no scaffolded message names a script your project does not define.
 
 <details>
-<summary>Every scaffolded file (461)</summary>
+<summary>Every scaffolded file (463)</summary>
 
 ```
 .dockerignore
@@ -355,7 +355,6 @@ apps/admin/components/forms/agent-provenance-tag.tsx
 apps/admin/components/forms/assist-icon-button.tsx
 apps/admin/components/forms/assist-markdown.tsx
 apps/admin/components/forms/assist-panel.tsx
-apps/admin/components/forms/builder-breadcrumb.tsx
 apps/admin/components/forms/condition-editor.tsx
 apps/admin/components/forms/condition-json-pane.tsx
 apps/admin/components/forms/draft-preview.tsx
@@ -370,6 +369,7 @@ apps/admin/components/forms/link-state-tag.tsx
 apps/admin/components/forms/operand-control.tsx
 apps/admin/components/forms/ownership-grid.tsx
 apps/admin/components/forms/public-form-link.tsx
+apps/admin/components/forms/rail-add-step.tsx
 apps/admin/components/forms/rail-steps.tsx
 apps/admin/components/forms/release-panel.tsx
 apps/admin/components/forms/rule-targets.tsx
@@ -438,6 +438,7 @@ apps/admin/lib/auth-failure-message.ts
 apps/admin/lib/builder-notice.ts
 apps/admin/lib/entity-id.ts
 apps/admin/lib/environment.ts
+apps/admin/lib/forms/add-step-request.ts
 apps/admin/lib/forms/assist-diff.ts
 apps/admin/lib/forms/assist-markdown.ts
 apps/admin/lib/forms/assist-stream.ts
@@ -460,6 +461,7 @@ apps/admin/lib/forms/publish.ts
 apps/admin/lib/forms/releases.ts
 apps/admin/lib/forms/rule-sentence.ts
 apps/admin/lib/forms/rule-targets.ts
+apps/admin/lib/forms/screen-name.ts
 apps/admin/lib/forms/settings.ts
 apps/admin/lib/forms/subtree-rail.ts
 apps/admin/lib/forms/table-columns.ts

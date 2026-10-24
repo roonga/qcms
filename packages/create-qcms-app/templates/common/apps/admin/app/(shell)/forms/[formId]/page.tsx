@@ -3,7 +3,6 @@ import type { Metadata } from "next";
 import { notFound } from "next/navigation";
 
 import { Alert } from "@/components/kit";
-import { BuilderBreadcrumb } from "@/components/forms/builder-breadcrumb";
 import { FormActions } from "@/components/forms/form-actions";
 import { CONCURRENT_NOTICE_COOKIE, isConcurrentNoticeDismissed } from "@/lib/builder-notice";
 import { shownEnvironment } from "@/lib/environment";
@@ -125,15 +124,16 @@ export default async function FormBuilderPage({
 
   return (
     <div className="flex flex-col gap-6">
-      {/* The breadcrumb stays on both of the builder's screens, because it is about the
-          ROUTE and the route does not change when the rail switches what the column is
-          showing. What follows it - the form's name, its identity line and where its draft
-          came from - is about the form, so it is handed to the builder and rendered on the
-          form's own screen (Code Owner, 2026-08-26). It used to stand above both, so a
-          reader working on a step read four lines of form metadata above that step's
-          questions every time. */}
-      <BuilderBreadcrumb formId={form.formId} slug={form.slug} />
+      {/* THE BREADCRUMB IS GONE FROM THIS SCREEN TOO (§7.0 ruling 3, issue #1116). It
+          stood here because it was about the ROUTE, which does not change when the rail
+          switches what the column is showing, and its last crumb named the screen through
+          `currentScreenName`. The way back is the rail Header's back link now, and that
+          function is `lib/forms/screen-name.ts` - still the one answer the builder's own
+          `<h1>` and the rail's marked row both read.
 
+          What followed it - the form's name, its identity line and where its draft came
+          from - is about the form, so it is handed to the builder and rendered on the
+          form's own screen (Code Owner, 2026-08-26). */}
       {!library.ok && (
         <Alert variant="warning">
           {t("forms.error.libraryFailed", { message: library.message })}

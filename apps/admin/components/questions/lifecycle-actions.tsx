@@ -10,31 +10,30 @@ import type { QuestionStatus } from "@/lib/questions/types";
 /**
  * Publish, new version, deprecate (task 032; screen contract "lifecycle actions").
  *
- * ## Where these render, and why it is a column
+ * ## Two components now, because the three controls live in two places (§7.0, issue #1116)
  *
- * In the rail, pinned above the version list, which is where the screen's own POC draws them
- * (`plan/admin-shell-poc/question-editor-poc.html`, issue 650). Its reason is worth keeping
- * beside the code: the version list is the one thing on this screen that grows without bound,
- * so an action anchored below it would drift further down the rail with every version the
- * question accumulates, while up here it stays at a fixed place a hand can learn.
+ * They were one block, stacked in the rail above the version list, which is where this
+ * screen's POC draws them (`plan/admin-shell-poc/question-editor-poc.html`, issue 650). The
+ * 2026-10-24 ruling splits them by KIND rather than by taste: "lifecycle actions live in the
+ * content heading row only ... the rail never holds a lifecycle or destructive action", and
+ * "New version stays in the rail as a structural action".
  *
- * So the buttons stack rather than sitting in a row, and each fills the 240px track: they are
- * in a column now, and a wrapped row of three would read as a paragraph of controls. The
- * width comes from `app/globals.css` rather than from a prop, because the vendored `Button`
- * takes a variant and a size and no class name, and wrapping it here to add one would be the
- * start of a second design language outside `packages/ui` (ADR-22).
+ * So {@link NewVersionAction} is the rail's Actions part and {@link VersionLifecycleActions}
+ * is the screen's heading row, beside Save. The POC's reason for pinning the block above the
+ * version list is answered rather than overruled: the list is the one thing on this screen
+ * that grows without bound, and the Actions part sits at the foot of the rail, so the one
+ * control left there is the one that is offered whatever the selected version's status and
+ * never moves as an author walks the list.
  *
- * **The block wears the builder's add-step treatment (Code Owner, 2026-09-27)**, which is the
- * ruling that this rail is styled like the form builder's. `.qcms-rail-steps__block` is the
- * geometry `components/forms/rail-steps.tsx`'s Add step control already had - a full-track
- * control at the rail's own rhythm - and the dashed rule that used to close this block went
- * with it: the builder separates a cluster with space rather than with a line.
+ * Publish and Deprecate in the heading row also put them where the form screens put theirs,
+ * which is what "the rail looks and behaves the same everywhere" costs: a reader who has
+ * learned where a consequential action lives on one screen finds it in the same place here.
  *
- * New version is `ghost` for the reason `rail-steps.tsx` records about Add step: the kit's
- * `secondary` is a solid slate fill, so in a column of quiet rows it read as the loudest thing
- * on the screen and as the primary action of the whole screen, which it is not. Publish and
- * Deprecate keep their variants - they are the consequential actions this screen is about, and
- * the POC colours them.
+ * New version is `ghost` for the reason `rail-add-step.tsx` records about Add step: the kit's
+ * `secondary` is a solid slate fill, so in a column of quiet rows it read as the loudest
+ * thing on the screen and as the primary action of the whole screen, which it is not. Publish
+ * and Deprecate keep their variants - they are the consequential actions this screen is
+ * about, and the POC colours them.
  *
  * ## The confirmations are the teaching surface
  *
@@ -61,37 +60,76 @@ import type { QuestionStatus } from "@/lib/questions/types";
 
 type Intent = "publish" | "newVersion" | "deprecate";
 
-export function LifecycleActions({
-  action,
-  questionId,
-  version,
-  status,
-  latestVersion,
-}: {
+/** What both components need to post one of the three intents. */
+interface LifecycleProps {
   readonly action: (state: MutationState, formData: FormData) => Promise<MutationState>;
   readonly questionId: string;
   readonly version: number;
   readonly status: QuestionStatus;
   readonly latestVersion: number;
-}) {
-  const [open, setOpen] = useState<Intent | null>(null);
-  const next = latestVersion + 1;
+}
+
+/**
+ * New version, in the rail's Actions part.
+ *
+ * Offered whatever the selected version's status, which is why it is the one control that
+ * can live at a fixed place in the rail: nothing above or below it appears and disappears
+ * as an author walks the version list.
+ */
+export function NewVersionAction({
+  action,
+  questionId,
+  version,
+  latestVersion,
+}: Omit<LifecycleProps, "status">) {
+  const [open, setOpen] = useState(false);
 
   return (
-    <div className="qcms-rail-steps__block qcms-question-rail__lifecycle">
-      {/* New version first, and that is the POC's order rather than a ranking of the three.
-          It is the one control that is offered whatever the selected version's status, so
-          first is the only position it can hold without the buttons below it moving as an
-          author walks the version list. */}
+    <>
       <Button
         variant="ghost"
         size="sm"
         onPress={() => {
-          setOpen("newVersion");
+          setOpen(true);
         }}
       >
         {t("questions.action.newVersion")}
       </Button>
+      {open && (
+        <ConfirmDialog
+          action={action}
+          intent="newVersion"
+          questionId={questionId}
+          version={version}
+          next={latestVersion + 1}
+          onClose={() => {
+            setOpen(false);
+          }}
+        />
+      )}
+    </>
+  );
+}
+
+/**
+ * Publish and Deprecate, in the screen's one heading row (§7.0 ruling 5, issue #1116).
+ *
+ * At most one of them is ever rendered: a draft can be published and a published version can
+ * be deprecated, and a deprecated one offers neither. The row holds one control's height
+ * whether or not a control is in it (`app/globals.css`), so the heading does not move as a
+ * reader walks from a draft to a frozen version - the same rule Save already relies on.
+ */
+export function VersionLifecycleActions({
+  action,
+  questionId,
+  version,
+  status,
+  latestVersion,
+}: LifecycleProps) {
+  const [open, setOpen] = useState<Intent | null>(null);
+
+  return (
+    <>
       {status === "draft" && (
         <Button
           variant="primary"
@@ -114,20 +152,19 @@ export function LifecycleActions({
           {t("questions.action.deprecate", { version })}
         </Button>
       )}
-
       {open !== null && (
         <ConfirmDialog
           action={action}
           intent={open}
           questionId={questionId}
           version={version}
-          next={next}
+          next={latestVersion + 1}
           onClose={() => {
             setOpen(null);
           }}
         />
       )}
-    </div>
+    </>
   );
 }
 

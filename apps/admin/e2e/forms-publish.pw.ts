@@ -87,6 +87,9 @@ let formId = "";
 /** The form's slug, which is also the portal's entry path for it. */
 const FORM_SLUG = `e2e-pub-insurance-${RUN}`;
 
+/** What the author calls this form, which is what the rail's Header shows (issue #1116). */
+const FORM_TITLE = "Vehicle insurance";
+
 test.beforeAll(async () => {
   await createTestAdmin(EMAIL);
 });
@@ -121,7 +124,7 @@ test("publishes a draft and reports what it froze (exit criterion 1)", async ({ 
   await publishQuestion(page, ACCIDENT_COUNT, "Number");
   await publishQuestion(page, CLAIM_NOTES, "Long text");
 
-  formId = await createForm(page, FORM_SLUG, "Vehicle insurance");
+  formId = await createForm(page, FORM_SLUG, FORM_TITLE);
 
   await addStep(page, "Driving history");
   await pinQuestion(page, questionIdFor(AT_FAULT), 1);
@@ -363,7 +366,8 @@ test("history renders the stored compiled document and never previews (exit crit
   // The list's heading names the SECTION, and only the section (Code Owner, 2026-08-26).
   // Issue 679 made it "{section}: {slug}" to end five sibling sections sharing one heading,
   // and five section names do that on their own; the slug half was repeating the breadcrumb
-  // directly above it.
+  // then directly above it, which §7.0 ruling 3 has since replaced with the rail Header's
+  // back link (issue #1116).
   //
   // `.first()` is belt and braces now rather than a workaround. It was a workaround: the
   // detail route rendered the stored document's own form-title `<h1>` beside the chrome's,
@@ -374,7 +378,7 @@ test("history renders the stored compiled document and never previews (exit crit
   await expect(page.locator("h1").first()).toHaveText("Version history");
   await expect(
     page.locator("h1").first(),
-    "the form's name is the breadcrumb's job",
+    "the form's name is the rail Header's job",
   ).not.toContainText(FORM_SLUG);
 
   await page.getByRole("link", { name: "View v1" }).click();
@@ -382,7 +386,7 @@ test("history renders the stored compiled document and never previews (exit crit
 
   // Issue #510: one version is not the form. This route's `<h1>` used to be the form's
   // slug, identical to the list's and to every other section's, and nothing in the page
-  // chrome named the version at all. The form stays in the breadcrumb as context.
+  // chrome named the version at all. The form stays in the rail's Header as context.
   await expect(page.locator("h1").first()).toHaveText("Version 1");
 
   // Issue #537: and it is the ONLY top-level heading. The stored document supplies a
@@ -408,7 +412,18 @@ test("history renders the stored compiled document and never previews (exit crit
   // down. An assertion that only counted `h1`s would pass against a preview that had lost
   // its headings entirely.
   expect(await versionView.locator("h2").count()).toBeGreaterThan(0);
-  await expect(page.locator('[aria-label="Breadcrumb"]')).toContainText(FORM_SLUG);
+  // THE FORM'S NAME IS THE RAIL'S, not a breadcrumb's (§7.0 ruling 3, issue #1116). The
+  // trail that used to carry it on this route is gone; the rail one column over names the
+  // form at both widths, and the way back is its Header's link.
+  //
+  // The TITLE rather than the slug, which is the Header's own rule (`formDisplayName`): what
+  // an author called the form is what a person recognises, and the slug is only the fallback
+  // for a form nobody has named. The retired breadcrumb carried the slug, because a crumb is
+  // a path.
+  await expect(page.locator('[aria-label="Breadcrumb"]')).toHaveCount(0);
+  const rail = page.getByTestId("qcms-rail");
+  await expect(rail).toContainText(FORM_TITLE);
+  await expect(rail.getByRole("link", { name: "Forms", exact: true })).toBeVisible();
   // Said once: the body's own "Viewing v1" heading went when the page took the subject.
   await expect(page.getByRole("heading", { name: /^Version 1$|^Viewing v1$/u })).toHaveCount(1);
 

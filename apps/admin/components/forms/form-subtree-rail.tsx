@@ -3,9 +3,10 @@ import type { ReactNode } from "react";
 
 import { RailFrame } from "@/components/rail-frame";
 import {
+  formDisplayName,
   formSubtreeRail,
   issueCountLabel,
-  railSummary,
+  railIssueTotal,
   type RailCurrent,
   type RailItem,
 } from "@/lib/forms/subtree-rail";
@@ -13,16 +14,25 @@ import type { DraftStep } from "@/lib/forms/types";
 import { t } from "@/lib/i18n/en";
 
 /**
- * The form-subtree rail (`plan/admin-design-contracts.md` §7, issue 559).
+ * The form subtree's parts of the one rail (`plan/admin-design-contracts.md` §7.0 and §7.1,
+ * issues 559 and #1116).
  *
- * Navigation within one form's subtree, and nothing else: the form's children (its steps,
- * with per-step issue badges), a divider, then the form's siblings (Builder, Preview,
- * Versions, Links, Responses, Webhooks). What goes in each group and where each row points
- * is decided in `lib/forms/subtree-rail.ts`; this file is the markup for that answer.
+ * What goes in each group and where each row points is decided in
+ * `lib/forms/subtree-rail.ts`; this file is the markup for that answer, handed to
+ * `components/rail-frame.tsx` as the five parts the one anatomy has.
+ *
+ * - **Header:** back to Forms, the form's display name, and the form's open/closed status.
+ *   The name is no longer said twice: the frame used to hide this rail's summary above
+ *   `--bp-sidebar` because the Form row carried the name too, and §7.0's Header carries a
+ *   back link and a tag that no row has, so it stays at every width (issue #1116).
+ * - **Sections:** the form's sibling routes, with its steps nested inside the Form row.
+ * - **Actions:** Add step, which is the one structural action this subtree has. It used to
+ *   sit inside the step cluster, under the list; §7.0 puts a structural action in the
+ *   Actions part, and `components/forms/rail-add-step.tsx` is what moved there.
  *
  * ## What it does not carry, and why each absence is load-bearing
  *
- * - **The steps are nested in the Form row**, not stacked above the six sections, which is
+ * - **The steps are nested in the Form row**, not stacked above the sibling routes, which is
  *   what `plan/admin-shell-poc/admin-shell-poc.html` draws and what the data model says: a
  *   form's steps belong to the form's own screen rather than being a seventh peer of its
  *   sibling routes (Code Owner, 2026-08-25).
@@ -31,15 +41,8 @@ import { t } from "@/lib/i18n/en";
  *   route of their own resolves every one of them to nothing, and takes the publish
  *   rejection list with them. `rules-screen-poc.html` draws it as a rail route; it is
  *   wrong.
- *
- * ## Distinctly named, on purpose
- *
- * §7a's condition on keeping a Settings rail was that it be "a distinct component from the
- * form-subtree rail, named distinctly in the code, so no future reader can mistake one for
- * the other or 'unify' them". `FormSubtreeRail` is that name on this side. The shared
- * quarter of the two - the column, the width, the collapse, anchors-not-buttons - is
- * `components/rail-frame.tsx` and `app/globals.css`, neither of which knows what a rail
- * carries.
+ * - **No lifecycle action.** Publish and Close belong to the form's own heading row, which
+ *   is where the builder already renders them (§7.0 ruling 5).
  *
  * A server component, and it needs to be nothing else: which item is current is a fact
  * about the route that renders it, so it arrives as a prop instead of being read from the
@@ -50,16 +53,20 @@ export function FormSubtreeRail({
   formId,
   slug,
   title,
+  status,
   steps,
   issueCounts,
   current,
   renderSteps,
+  actions,
 }: {
   readonly formId: string;
-  /** The form's own name, and the summary's fallback. */
+  /** The form's own name, and the Header's fallback. */
   readonly slug: string;
   /** The form's own title, or `""`. The rail shows it in place of the slug. */
   readonly title: string;
+  /** The form's open/closed status, which the Header states as its one tag. */
+  readonly status: "open" | "closed";
   readonly steps: readonly DraftStep[];
   /** Per-step issue counts from the API's verdict, or empty when there is none (R2). */
   readonly issueCounts: ReadonlyMap<string, number>;
@@ -70,42 +77,52 @@ export function FormSubtreeRail({
    *
    * A render prop rather than an import, so this file stays a server component that knows
    * nothing about client state: the builder's slot hands in the interactive list and every
-   * other screen passes nothing and gets the anchors. Same seam
-   * `components/questions/question-versions-rail.tsx` uses for its lifecycle actions, and
+   * other screen passes nothing and gets the anchors. Same seam the Actions part uses, and
    * for the same reason.
    */
   readonly renderSteps?: (item: RailItem, steps: readonly RailItem[]) => ReactNode;
+  /** The Actions part: Add step, which only a client component can render on the builder. */
+  readonly actions?: ReactNode;
 }) {
   const groups = formSubtreeRail({ formId, slug, title, steps, issueCounts, current });
-  const summary = railSummary(groups, slug, title);
+  const issues = railIssueTotal(groups);
+  const name = formDisplayName(title, slug);
 
   return (
     <RailFrame
-      modifier="form"
-      label={t("forms.rail.label", { slug })}
-      summaryText={summary.text}
-      // Spread rather than passed as `undefined`: `exactOptionalPropertyTypes` treats an
-      // explicit undefined and an absent property as different things, and the absent one
-      // is what "this item has no count" means.
-      {...(summary.issueCount > 0 ? { summaryCount: issueCountLabel(summary.issueCount) } : {})}
-    >
-      {/* One list, with the steps nested inside the Form row rather than stacked above
-          the whole thing (Code Owner, 2026-08-25, and `plan/admin-shell-poc/
-          admin-shell-poc.html`, which draws exactly this). A form's steps belong TO the
-          form's own screen, so a flat group above six sibling routes said they were a
-          seventh peer of them; nested, the tree says what the data model says.
-
-          The divider went with the flattening. §7's "one divider between two groups"
-          described two groups, and there is one list now. */}
-      <RailGroup
-        label={t("forms.rail.sections")}
-        items={groups.siblings}
-        kind="sections"
-        steps={groups.children}
-        stepsUnder="section:builder"
-        {...(renderSteps === undefined ? {} : { renderSteps })}
-      />
-    </RailFrame>
+      subject={name}
+      back={{ href: "/forms", label: t("forms.title") }}
+      title={name}
+      tag={
+        <span className={`qcms-tag qcms-tag--form-${status}`} data-status={status}>
+          {t(`forms.status.${status}`)}
+        </span>
+      }
+      // THE COLLAPSED HEADER'S ONE COUNT (§7.0, clarified 2026-10-24): the form's issue
+      // total, not the selected row's. The summary used to carry whichever row was current
+      // and that row's count, so at 390 the one line of the rail said a different thing on
+      // each of the eight screens; the subject and its total say the same thing on all of
+      // them. Spread rather than passed as `undefined`: `exactOptionalPropertyTypes` treats
+      // an explicit undefined and an absent property as different things, and the absent
+      // one is what "this form has no issues" means.
+      {...(issues > 0 ? { count: issueCountLabel(issues) } : {})}
+      {...(actions === undefined ? {} : { actions })}
+      sections={
+        /* One list, with the steps nested inside the Form row rather than stacked above
+           the whole thing (Code Owner, 2026-08-25, and `plan/admin-shell-poc/
+           admin-shell-poc.html`, which draws exactly this). A form's steps belong TO the
+           form's own screen, so a flat group above six sibling routes said they were a
+           seventh peer of them; nested, the tree says what the data model says. */
+        <RailGroup
+          label={t("forms.rail.sections")}
+          items={groups.siblings}
+          kind="sections"
+          steps={groups.children}
+          stepsUnder="section:builder"
+          {...(renderSteps === undefined ? {} : { renderSteps })}
+        />
+      }
+    />
   );
 }
 

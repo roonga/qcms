@@ -19,12 +19,12 @@ import type {
  * the rail carries. This file pins the things that are only true of the rendered element, and
  * each is a clause a future change could break without breaking anything else:
  *
- * - **Anchors for the versions, buttons for the panels.** A version row goes to another
- *   address, so it has to be middle-clickable and openable in a new tab; a panel row switches
- *   what the column beside the rail shows on the screen the reader is already standing on, so
- *   there is nothing to open (`docs/admin-constraints.md`: an anchor navigates, a button acts).
- *   Getting either the wrong way round is invisible until someone tries to open a version in a
- *   tab, or until a panel row navigates out from under a half-typed label.
+ * - **Anchors for both kinds of row** (§7.0 ruling 2.2, issue #1116). A version row goes to
+ *   another address and always was one; a panel row was a `<button>`, on the rule that an
+ *   anchor navigates and a button acts, and the ruling settles it the other way for a rail row
+ *   so that one rail has one kind of row. Its `href` is the panel's own section id, which is
+ *   the id the editor puts on the open panel, so the fragment is an address a reader can copy
+ *   rather than a decoration.
  * - **The panel rows are nested inside the SELECTED version's row.** A panel row opens a panel
  *   of the editor, and the editor is showing one version. Rows under every version would be
  *   rows that cannot do what they say.
@@ -32,7 +32,9 @@ import type {
  *   its keyboard operation and its announced state for free; something rebuilt out of a
  *   `<button>` and `aria-expanded` would look identical and be a different promise.
  * - **The back link is outside the disclosure.** Inside it, it is reachable only by expanding
- *   a navigation, because below `--bp-sidebar` the body is shut.
+ *   a navigation, because below `--bp-sidebar` the body is shut. It is not inside the
+ *   `<summary>` either, where §7.0 draws the Header's parts: a `<summary>` is exposed as a
+ *   button, and a link inside one is nested interactive content.
  * - **No headings.** The rail renders before `<main>` in document order, so a heading here
  *   would sit above the screen's `<h1>` and be a `heading-order` violation on this screen in
  *   all three modes (`e2e/a11y-axe.pw.ts` says so). The POC draws the group's name as a
@@ -57,9 +59,11 @@ import type {
  *
  * The rail's own tree is real, panel rows included: they are a client component, and on the
  * server their store publishes nothing, so what renders is the panels this test hands in. The
- * lifecycle actions are NOT rendered here even in stub form beyond a marker element: they are
- * a react-aria `Dialog` subtree, which `renderToStaticMarkup` yields the empty string for
- * (issue 628), and they are exercised where a browser is (`e2e/questions-lifecycle.pw.ts`).
+ * Actions part is NOT rendered here even in stub form beyond a marker element: `NewVersionAction`
+ * is a react-aria `Dialog` subtree, which `renderToStaticMarkup` yields the empty string for
+ * (issue 628), and it is exercised where a browser is (`e2e/questions-lifecycle.pw.ts`) - which
+ * is also where the lifecycle pair's move OUT of this rail and into the screen's heading row is
+ * asserted (§7.0 ruling 5).
  */
 
 vi.mock("next/link", () => ({
@@ -155,9 +159,15 @@ async function renderedText(): Promise<string> {
 }
 
 describe("the question rail's markup", () => {
-  it("takes the shared rail column, under a name of its own", async () => {
+  it("takes the one rail frame, with no class of its own beside it", async () => {
     const html = await render();
-    expect(html).toContain('class="qcms-rail qcms-question-rail"');
+    // One geometry class and no per-rail modifier: three rails wore three (`qcms-rail
+    // qcms-question-rail`, `qcms-rail qcms-settings-rail`, `qcms-rail--form`) until §7.0
+    // made the anatomy one. The test handle stays, because a screen's coverage needs to
+    // find its own rail.
+    expect(html).toContain('class="qcms-rail"');
+    expect(html).not.toContain("qcms-rail qcms-question-rail");
+    expect(html).not.toContain("qcms-question-rail__");
     expect(html).toContain('data-testid="qcms-question-rail"');
   });
 
@@ -178,8 +188,13 @@ describe("the question rail's markup", () => {
     expect(summary, "the version is the heading's job now").not.toContain("Version");
   });
 
-  it("is a navigation landmark named after the question it belongs to", async () => {
-    expect(await render()).toContain('<nav aria-label="Versions of q_smoking_status">');
+  it("is an aside named for the question, holding a nav named for its sections", async () => {
+    const html = await render();
+    // The column is complementary content about the subject; the version list inside it is
+    // the navigation. It was a `<nav>` all the way out, which made the panel switches, the
+    // facts and the actions part of a navigation landmark too (§7.0 ruling 2).
+    expect(html).toMatch(/^<aside class="qcms-rail" aria-label="q_smoking_status"/u);
+    expect(html).toContain('<nav aria-label="q_smoking_status sections">');
   });
 
   it("carries no heading, because the rail renders above the screen's h1", async () => {
@@ -191,13 +206,16 @@ describe("the question rail's markup", () => {
     // Below `--bp-sidebar` the disclosure's body is shut, so a back link inside it would be
     // reachable only by expanding a navigation first.
     expect(html.indexOf('href="/questions"')).toBeLessThan(html.indexOf("<details"));
-    expect(html).toContain('class="qcms-question-rail__back"');
-    expect(html).toContain("Back to questions");
+    expect(html).toContain('class="qcms-rail__back"');
+    // "Questions" - the parent SCREEN's name, which is what §7.0 asks a back link to say,
+    // rather than the sentence "Back to questions" this link used to carry. The glyph
+    // beside it is decorative.
+    expect(html).toContain("Questions");
   });
 
   it("states the question's own details under its id, as a description list", async () => {
     const html = await render();
-    expect(html).toContain('<dl class="qcms-question-rail__details">');
+    expect(html).toContain('<dl class="qcms-rail__facts">');
     expect(html).toContain("<dt>Slug</dt>");
     expect(html).toContain("smoking-status</dd>");
     expect(html).toContain("<dt>Created</dt>");
@@ -218,7 +236,9 @@ describe("the question rail's markup", () => {
   });
 
   it("makes every version row an anchor that goes somewhere", async () => {
-    const anchors = [...(await render()).matchAll(/<a href="([^"]+)"/gu)].map((match) => match[1]);
+    const anchors = [...(await render()).matchAll(/<a href="(\/[^"]*)"/gu)].map(
+      (match) => match[1],
+    );
     expect(anchors).toStrictEqual([
       "/questions",
       "/questions/q_smoking_status?v=3",
@@ -227,7 +247,19 @@ describe("the question rail's markup", () => {
     ]);
   });
 
-  it("makes every panel row a button, under the selected version and only it", async () => {
+  it("makes every panel row an anchor onto the panel's own section id", async () => {
+    // §7.0 ruling 2.2: a rail row is an anchor, never a button. The fragment is
+    // `panel.anchorId`, which is the id the editor puts on the panel it renders and the id
+    // a refused save moves focus to, so the row's `href` and the editor's own anchor are
+    // one value rather than two that have to be kept equal.
+    const html = await render();
+    expect(html).not.toContain("<button");
+    for (const panel of PANELS) {
+      expect(html).toContain(`href="#${panel.anchorId}"`);
+    }
+  });
+
+  it("puts the panel rows under the selected version and only it", async () => {
     const html = await render(2);
     const rows = [...html.matchAll(/data-rail-panel="([^"]+)"/gu)].map((match) => match[1]);
     // One set of rows, not one per version: the editor is showing one version.
@@ -266,6 +298,9 @@ describe("the question rail's markup", () => {
     // are gone.
     const html = await render();
     expect(html).toContain('data-rail-group="versions"');
+    // The panel list carries it too since #1116: it used to be withheld deliberately,
+    // because `[data-rail-group]` was the selector that removed a current row's accent edge
+    // in the form rail, and §7.0 demotes the PARENT of the current row instead.
     expect(html).toContain('data-rail-group="panels"');
     expect(html).toContain('class="qcms-rail__link qcms-rail__link--stacked"');
     expect(html).toContain('class="qcms-rail__row"');
@@ -276,6 +311,12 @@ describe("the question rail's markup", () => {
       "qcms-question-rail__version",
       "qcms-question-rail__panel-row",
       "qcms-question-rail__panel-digest",
+      // And the four this rail kept until #1116, which are `qcms-rail__*` now because the
+      // anatomy is one: the mono subject id, the fact lines, the digest, the back link.
+      "qcms-question-rail__summary-id",
+      "qcms-question-rail__details",
+      "qcms-question-rail__digest",
+      "qcms-question-rail__back",
     ]) {
       expect(html, `${retired} has a builder equivalent now`).not.toContain(retired);
     }
@@ -311,10 +352,24 @@ describe("the question rail's markup", () => {
     expect(await render(1, [version(1, "draft", null)])).toContain("1 version, none published");
   });
 
-  it("renders the actions it is handed, above the list, and nothing when handed none", async () => {
+  it("renders the actions it is handed, in the Actions part under the list", async () => {
+    // BELOW the sections now, not above them (§7.0 ruling 2: Header, Sections, Children,
+    // Filters, Actions, always in that order). The lifecycle block used to be pinned above
+    // the version list because that list grows without bound and an action under it would
+    // drift down the rail with every version; the ruling answers that by taking the
+    // lifecycle pair out of the rail altogether and leaving one structural action here.
     const withActions = await render();
-    expect(withActions.indexOf("stub-actions")).toBeLessThan(withActions.indexOf("<nav"));
+    expect(withActions.indexOf("<nav")).toBeLessThan(withActions.indexOf("stub-actions"));
+    expect(withActions).toContain('<div class="qcms-rail__actions">');
     expect(await render(3, VERSIONS, null)).not.toContain("stub-actions");
+  });
+
+  it("states the selected version's status in the Header, as its one tag", async () => {
+    // §7.0's table gives this rail's Header the question id and a status. One tag: the
+    // frame takes a single node, and the version rows carry their own further down.
+    const header = (await render(2)).slice(0, (await render(2)).indexOf("qcms-rail__facts"));
+    expect(header).toContain('data-status="published"');
+    expect([...header.matchAll(/class="qcms-tag/gu)]).toHaveLength(1);
   });
 
   it("badges no panel before a save has been refused", async () => {

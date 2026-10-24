@@ -53,12 +53,14 @@ jobs:
   # The fast-lane classifier. A pull request whose every changed path is in the
   # fast-lane set - `plan/` (the committed planning/scratch area, not a workspace),
   # all of `.claude/` (agent and skill definitions, the settings file and any hook
-  # script, by ruling: Code Owner, 2026-09-19, issue #873) and the three root
+  # script, by ruling: Code Owner, 2026-09-19, issue #873), Markdown under `docs/`
+  # bar one named file (Code Owner, 2026-10-24, issue #1139) and the three root
   # instruction files -
   # cannot break build, typecheck, lint, the unit suites or any of the three
   # end-to-end suites, yet it used to cost the full ~20-minute matrix: PR #524 was
-  # prose-only and paid it twice on one head, and PR #868 (`.claude/` plus
-  # `CLAUDE.md`) paid about an hour across two pushes, nearly all of it browser-e2e.
+  # prose-only and paid it twice on one head, PR #868 (`.claude/` plus `CLAUDE.md`)
+  # paid about an hour across two pushes, and #1130 and #1132 were docs-only and paid
+  # about 45 minutes each, nearly all of it browser-e2e.
   #
   # The lane is not "these files look harmless". Everything that READS one of those
   # paths runs in `pnpm check:plan`, which the `verify` job below runs instead of the
