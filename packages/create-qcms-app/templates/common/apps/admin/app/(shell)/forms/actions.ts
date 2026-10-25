@@ -20,9 +20,11 @@ import type {
 import { formIdFromSlug } from "@/lib/forms/draft";
 import { t } from "@/lib/i18n/en";
 import { messageForFormCode } from "@/lib/forms/errors";
-import type { DraftForm } from "@/lib/forms/types";
+import { readState, type ReadState } from "@/lib/read-state";
+import type { DraftForm, FormVersionSnapshot } from "@/lib/forms/types";
 import {
   createForm,
+  getFormVersion,
   previewCondition,
   previewDraft,
   publishForm,
@@ -422,6 +424,18 @@ export async function publishFormAction(formId: string): Promise<PublishState> {
  * action, because there is no second mechanism: the API derives the marking from the
  * release's predecessor and reports it, and the screen says so afterwards.
  */
+/** Review the exact published version in the environment the confirmation shows. */
+export async function reviewFormVersionAction(
+  formId: string,
+  shown: string | undefined,
+  version: number,
+): Promise<ReadState<FormVersionSnapshot>> {
+  const session = await requireAdminSession();
+  const check = await confirmShownEnvironment(session, shown);
+  if (!check.ok) return { ok: false };
+  return readState(await getFormVersion(session, formId, version));
+}
+
 export async function releaseVersionAction(
   formId: string,
   shown: string | undefined,

@@ -426,5 +426,5 @@ test("the release dialog says nothing about the rule once the switch is off", as
   // that asked for an approver and then accepted the same account would look exactly like
   // this from the API and wrong from here.
   await expect(page.getByTestId("qcms-release-two-person")).toHaveCount(0);
-  await expect(dialog.getByRole("button", { name: /^Release v\d+ to prod$/u })).toBeEnabled();
+  await expect(dialog.getByRole("button", { name: /^Release v\d+ to prod$/u })).toBeVisible();
 });

@@ -12,7 +12,8 @@ import { getForm } from "@/lib/server/forms";
 import { listReleases } from "@/lib/server/releases";
 import { requireAdminSession } from "@/lib/server/session";
 
-import { releaseVersionAction } from "../../actions";
+import { previewPortalTheme } from "@/lib/server/config";
+import { releaseVersionAction, reviewFormVersionAction } from "../../actions";
 
 /** The browser-tab title for this route (issue #536): the section, and the form it belongs to. */
 export async function generateMetadata({
@@ -90,6 +91,12 @@ export default async function FormReleasesPage({
       <ReleasePanel
         formId={form.formId}
         workflow={form.workflow}
+        reviewVersion={
+          form.workflow?.enabled && environment === "prod"
+            ? reviewFormVersionAction.bind(null, form.formId, environment)
+            : undefined
+        }
+        defaultTheme={previewPortalTheme()}
         releases={history.ok ? history.data : []}
         versions={form.versions.map((version) => version.version)}
         environments={environments}

@@ -93,13 +93,13 @@ regeneration and `git add` the result rather than merging two sets of counts.
 
 <!-- BEGIN GENERATED: ownership-seam (pnpm qcms:sync-templates) -->
 
-### Scaffolded paths (467 files common to both shapes)
+### Scaffolded paths (468 files common to both shapes)
 
 | Path                                                                 | Files |
 | -------------------------------------------------------------------- | ----- |
 | `(project root)`                                                     | 8     |
-| `apps/`                                                              | 456   |
-| `apps/admin/`                                                        | 274   |
+| `apps/`                                                              | 457   |
+| `apps/admin/`                                                        | 275   |
 | `apps/admin/app/`                                                    | 77    |
 | `apps/admin/app/(shell)/`                                            | 58    |
 | `apps/admin/app/(shell)/@rail/`                                      | 24    |
@@ -164,8 +164,8 @@ regeneration and `git add` the result rather than merging two sets of counts.
 | `apps/admin/app/two-factor/recovery-codes/`                          | 2     |
 | `apps/admin/app/two-factor/recovery-codes/confirm/`                  | 1     |
 | `apps/admin/app/two-factor/recovery/verify/`                         | 1     |
-| `apps/admin/components/`                                             | 93    |
-| `apps/admin/components/forms/`                                       | 37    |
+| `apps/admin/components/`                                             | 94    |
+| `apps/admin/components/forms/`                                       | 38    |
 | `apps/admin/components/membership/`                                  | 5     |
 | `apps/admin/components/ops/`                                         | 9     |
 | `apps/admin/components/questions/`                                   | 12    |
@@ -256,7 +256,7 @@ rather than documented: the images no longer claim to be built from this
 repository, and no scaffolded message names a script your project does not define.
 
 <details>
-<summary>Every scaffolded file (467)</summary>
+<summary>Every scaffolded file (468)</summary>
 
 ```
 .dockerignore
@@ -374,6 +374,7 @@ apps/admin/components/forms/public-form-link.tsx
 apps/admin/components/forms/rail-add-step.tsx
 apps/admin/components/forms/rail-steps.tsx
 apps/admin/components/forms/release-panel.tsx
+apps/admin/components/forms/release-version-review.tsx
 apps/admin/components/forms/rule-targets.tsx
 apps/admin/components/forms/rule-test-bench.tsx
 apps/admin/components/forms/rule-wizard.tsx

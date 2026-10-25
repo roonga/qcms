@@ -13,6 +13,7 @@ import { requireAdminSession } from "@/lib/server/session";
 import { previewPortalTheme, secureCookies } from "@/lib/server/config";
 import {
   releaseVersionAction,
+  reviewFormVersionAction,
   publishFormAction,
   publishAndReleaseAction,
   setFormStatusAction,
@@ -72,6 +73,8 @@ export async function FormProductionReview({
           environments={environments}
           selectedEnvironment={environment}
           workflow={workflow}
+          reviewVersion={reviewFormVersionAction.bind(null, form.formId, environment)}
+          defaultTheme={previewPortalTheme()}
           release={releaseVersionAction.bind(null, form.formId, environment)}
           twoPerson={{
             required: form.requiresSecondApprover,

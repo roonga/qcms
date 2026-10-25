@@ -165,6 +165,9 @@ describe("environment-bound publishing", () => {
     expect(within(dialog).getByRole("link", { name: "Review v2" }).getAttribute("href")).toBe(
       "/forms/frm_intake/versions/2",
     );
+    expect(within(dialog).getByTestId("qcms-release-replacement").textContent).toContain(
+      "v2 will replace v1 in prod.",
+    );
     await user.click(within(dialog).getByRole("button", { name: /Version to release$/u }));
     expect(screen.queryByRole("option", { name: "v3" })).toBeNull();
     await user.click(screen.getByRole("option", { name: "v2" }));

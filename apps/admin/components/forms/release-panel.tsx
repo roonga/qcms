@@ -4,6 +4,10 @@ import { useState, useTransition } from "react";
 import Link from "next/link";
 import type { FormPublishingWorkflow } from "@/lib/forms/types";
 
+import { ReleaseVersionReview } from "@/components/forms/release-version-review";
+import type { FormVersionSnapshot } from "@/lib/forms/types";
+import type { ReadState } from "@/lib/read-state";
+import type { PreviewTheme } from "@/lib/preview-theme";
 import { EmptyState } from "@/components/empty-state";
 import { Alert, Button, Dialog, Select } from "@/components/kit";
 import { OperatorDay } from "@/components/operator-time";
@@ -105,6 +109,16 @@ function releaseSource(
   return environment === "prod" && reachedTest ? "test" : undefined;
 }
 
+function replacementMessage(
+  current: number | undefined,
+  version: number,
+  environment: string,
+): string {
+  if (current === version) return t("forms.workflow.alreadyReleased", { version, environment });
+  if (current === undefined) return t("forms.workflow.firstRelease", { version, environment });
+  return t("forms.workflow.replacesVersion", { version, current, environment });
+}
+
 function releaseConfirm(
   pending: boolean,
   enabled: boolean,
@@ -125,7 +139,12 @@ export function ReleasePanel({
   twoPerson,
   workflow,
   formId,
+  reviewVersion,
+  defaultTheme = "slate",
 }: {
+  readonly reviewVersion?:
+    ((version: number) => Promise<ReadState<FormVersionSnapshot>>) | undefined;
+  readonly defaultTheme?: PreviewTheme;
   readonly formId?: string;
   readonly workflow?: FormPublishingWorkflow | undefined;
   /** The whole history, newest first, every environment. */
@@ -155,6 +174,7 @@ export function ReleasePanel({
   };
 }) {
   const [isOpen, setOpen] = useState(false);
+  const [reviewedVersion, setReviewedVersion] = useState<number>();
   const environment = selectedEnvironment;
   const candidates =
     workflow === undefined
@@ -182,7 +202,7 @@ export function ReleasePanel({
   }
 
   const current = currentReleaseByEnvironment(releases);
-  const currentVersion = current.get(environment)?.version;
+  const currentVersion = current.get(environment)?.version ?? workflow?.currentVersion ?? undefined;
   // The warning the dialog shows before anything is pressed. Derived the same way the API
   // derives the marking afterwards, from the version it is replacing - so the operator is
   // told it is a rollback by the screen that is about to do it, not only by the row that
@@ -299,6 +319,7 @@ export function ReleasePanel({
               setState(IDLE_RELEASE);
               setVersion(initialVersion);
               setSource(NO_SOURCE);
+              setReviewedVersion(undefined);
               setOpen(true);
             }}
           >
@@ -437,6 +458,17 @@ export function ReleasePanel({
             <p className="text-sm text-(--color-text-muted)">
               {t("forms.releases.dialogBody", { environment })}
             </p>
+            <p data-testid="qcms-release-replacement">
+              {replacementMessage(currentVersion, version, environment)}
+            </p>
+            {reviewVersion !== undefined && (
+              <ReleaseVersionReview
+                version={version}
+                read={reviewVersion}
+                defaultTheme={defaultTheme}
+                onReady={setReviewedVersion}
+              />
+            )}
             {/* Q6's restatement, and the one sentence on this screen that exists because an
                 act against the wrong environment is not undoable. */}
             <p className="text-sm font-semibold" data-testid="qcms-release-environment">
@@ -480,6 +512,8 @@ export function ReleasePanel({
                 // those are still the API's to answer.
                 isDisabled={
                   isPending ||
+                  (reviewVersion !== undefined && reviewedVersion !== version) ||
+                  (workflow?.enabled === true && currentVersion === version) ||
                   blockedByRule ||
                   (gatedByRule && author === null) ||
                   workflow?.canRelease === false

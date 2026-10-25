@@ -36,7 +36,8 @@ flowchart TD
 In the test/prod workflow, production offers existing versions previously
 released to test, plus previously deployed production versions for rollback. Draft
 editing and publishing are available in test. Release dialogs use the top navigation's
-environment and have no target-environment selector. A test release does not itself
+environment and have no target-environment selector. Production confirmation shows the
+selected version's stored content and names the production version it replaces. A test release does not itself
 prove that manual testing passed. The diagram assumes intake is open in both environments.
 
 For Docker, set `QCMS_PORTAL_ENVIRONMENTS=test` in `.env` and recreate the portal

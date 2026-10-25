@@ -18,6 +18,7 @@ import {
   toggleTarget,
   waitForSaveAfter,
 } from "../admin/e2e/support/forms.js";
+import { waitForHydration as waitForAdminHydration } from "../admin/e2e/support/hydration.js";
 import { waitForHydration as waitForPortalHydration } from "../portal/e2e/support/hydration.js";
 import { confirmLifecycle, createDraft, fillDate } from "../admin/e2e/support/questions.js";
 import { FULL_STACK_ADMIN_URL, FULL_STACK_PORTAL_URL } from "./support/full-stack-config.js";
@@ -290,6 +291,7 @@ test.describe.serial("conditional form journey", () => {
       page,
     }) => {
       await page.goto(`/forms/${formId}/links`);
+      await waitForAdminHydration(page);
       await page.getByRole("button", { name: "Mint links", exact: true }).click();
       await fillDate(page, "Expires", "12312030");
       await page

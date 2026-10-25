@@ -1629,6 +1629,12 @@ export const messages = {
   "forms.workflow.noChanges": "No unpublished changes. Edit the draft before publishing again.",
   "forms.workflow.intake": "Intake",
   "forms.workflow.testCandidate": "This version was released to test.",
+  "forms.workflow.firstRelease": "v{version} will be the first version released to {environment}.",
+  "forms.workflow.replacesVersion": "v{version} will replace v{current} in {environment}.",
+  "forms.workflow.reviewLoading": "Loading the stored content of v{version}...",
+  "forms.workflow.reviewFailed":
+    "The published version could not be loaded. Close this confirmation and try again.",
+  "forms.workflow.alreadyReleased": "v{version} is already released to {environment}.",
   "forms.workflow.publish": "Publish to {environment}",
   "forms.workflow.publishTitle": "Create v{version} and release it to {environment}?",
   "forms.workflow.noPublishPermission":
