@@ -143,7 +143,7 @@ test("a destructive confirmation names the environment it is about", async ({ pa
 
   // The combined publish-and-release action names it in the button itself, so the operator
   // reads which environment they are about to put a version in front of before they press.
-  await expect(page.getByRole("button", { name: "Publish and release…" })).toBeVisible();
+  await expect(page.getByRole("button", { name: "Publish to test" })).toBeVisible();
 });
 
 test("a dialog never acts in an environment another tab switched to", async ({ page }) => {

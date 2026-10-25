@@ -1,5 +1,6 @@
 import { expect, type Locator, type Page } from "@playwright/test";
 
+import { chooseEnvironment } from "./environment.js";
 import { fillStable } from "./flow.js";
 import { waitForHydration } from "./hydration.js";
 
@@ -63,6 +64,16 @@ export function field(page: Page, name: string): Locator {
  */
 export async function createForm(page: Page, slug: string, title: string): Promise<string> {
   await page.goto("/forms/new");
+  const switchToTest = page.getByRole("button", { name: "Switch to test", exact: true });
+  if (await switchToTest.isVisible()) {
+    await waitForHydration(page);
+    await switchToTest.click();
+    await expect(page.getByTestId("qcms-environment-switcher")).toHaveAttribute(
+      "data-environment",
+      "test",
+    );
+  }
+
   await fillStable(field(page, "Slug"), slug);
   await fillStable(field(page, "Title"), title);
   await Promise.all([
@@ -142,13 +153,16 @@ export async function openRail(page: Page): Promise<void> {
 export async function releaseNewestVersion(
   page: Page,
   formId: string,
-  environment = "prod",
+  environment: "test" | "prod" = "prod",
 ): Promise<void> {
   await page.goto(`/forms/${encodeURIComponent(formId)}/releases`);
+  await chooseEnvironment(page, environment);
   await page.getByRole("button", { name: "Release a version…" }).click();
   const dialog = page.getByRole("alertdialog");
   await expect(dialog).toBeVisible();
-  await dialog.getByRole("button", { name: `Release to ${environment}` }).click();
+  await dialog
+    .getByRole("button", { name: new RegExp(`^Release (?:v[0-9]+ )?to ${environment}$`, "u") })
+    .click();
   await expect(page.getByTestId("qcms-release-status")).toContainText(environment);
 }
 

@@ -3,6 +3,7 @@ import type { Download, Locator, Page, Request } from "@playwright/test";
 import { PORTAL_PORT } from "../../portal/e2e/support/harness-config.js";
 import { expect, test } from "../../portal/e2e/support/gates.js";
 
+import { TEST_ENVIRONMENT_STORAGE, chooseEnvironment } from "./support/environment.js";
 import { createTestAdmin, uniqueAdminEmail } from "./support/admin-account.js";
 import { domShape, headingTags, withDemotedHeadings } from "./support/dom-shape.js";
 import { activeElementId, enrollNewAdmin, signInWithTotp } from "./support/flow.js";
@@ -49,6 +50,8 @@ import { confirmLifecycle, createDraft, fillDate, optionIds } from "./support/qu
  * that has not been reached. It is also the arrangement ADR-16's forward pass makes
  * meaningful, since the target sits after the question the condition reads.
  */
+
+test.use({ storageState: TEST_ENVIRONMENT_STORAGE });
 
 test.describe.configure({ mode: "serial" });
 
@@ -162,7 +165,7 @@ test("publishes a draft and reports what it froze (exit criterion 1)", async ({ 
   // selection on this route; since issue #669 the rule work happened on
   // `/forms/{formId}/rules`, so this is a navigation back to the screen Publish is on.
   await page.goto(`/forms/${formId}`);
-  await page.getByRole("button", { name: "Publish", exact: true }).click();
+  await page.getByRole("button", { name: "Publish to test", exact: true }).click();
 
   // The confirmation reads the author's own work back to them: what freezes, what
   // happens to sessions already under way (R1), and what the next edit does.
@@ -171,12 +174,16 @@ test("publishes a draft and reports what it froze (exit criterion 1)", async ({ 
   await expect(page.getByTestId("qcms-freeze-summary")).toHaveText(
     "Freezes 2 steps, 3 pinned questions, 1 rule.",
   );
-  await expect(dialog).toContainText("finish on the version they started");
+  await expect(dialog).toContainText("New sessions in test start on it");
 
-  await dialog.getByRole("button", { name: "Publish v1" }).click();
+  await dialog.getByRole("button", { name: "Publish to test" }).click();
   await expect(dialog).toBeHidden();
-  await expect(page.getByText("Published as v1.")).toBeVisible({ timeout: 30_000 });
-  await expect(page.getByRole("link", { name: "View version history" })).toBeVisible();
+  await expect(page.getByText("Published as v1 and released to test.")).toBeVisible({
+    timeout: 30_000,
+  });
+  await expect(
+    page.getByTestId("qcms-form-actions-status").getByRole("link", { name: "Links", exact: true }),
+  ).toBeVisible();
 });
 
 test("releases a published version to an environment and records it (task 065)", async ({
@@ -189,13 +196,14 @@ test("releases a published version to an environment and records it (task 065)",
   await signInWithTotp(page, EMAIL, totpSecret);
 
   await page.goto(`/forms/${formId}/releases`);
+  await chooseEnvironment(page, "prod");
   await expect(page.locator("h1").first()).toHaveText("Releases");
 
   // Nothing is released yet, and the screen says so for every environment rather than
   // leaving a row out: "not released in prod" is the answer an operator most needs.
   const now = page.getByTestId("qcms-released-now");
   await expect(now.locator('tr[data-environment="prod"]')).toContainText("Nothing released");
-  await expect(now.locator('tr[data-environment="test"]')).toContainText("Nothing released");
+  await expect(now.locator('tr[data-environment="test"]')).toContainText("v1");
 
   await page.getByRole("button", { name: "Release a version…" }).click();
   const dialog = page.getByRole("alertdialog");
@@ -208,7 +216,7 @@ test("releases a published version to an environment and records it (task 065)",
   // Q6's restatement, on the act that decides what a respondent is served. It is in the
   // dialog's body and on its confirm button, not inferable from a control elsewhere.
   await expect(dialog.getByTestId("qcms-release-environment")).toContainText("prod");
-  await dialog.getByRole("button", { name: "Release to prod" }).click();
+  await dialog.getByRole("button", { name: "Release v1 to prod" }).click();
 
   await expect(page.getByTestId("qcms-release-status")).toContainText(
     "v1 is now released to prod.",
@@ -216,7 +224,7 @@ test("releases a published version to an environment and records it (task 065)",
   await expect(now.locator('tr[data-environment="prod"]')).toContainText("v1");
   // And `test`, where nothing was released, is untouched: a release reaches one environment,
   // which is the property the API suite asserts from both sides.
-  await expect(now.locator('tr[data-environment="test"]')).toContainText("Nothing released");
+  await expect(now.locator('tr[data-environment="test"]')).toContainText("v1");
 
   // The history answers who, when and from where. No source environment, because there was
   // none: a release with no prior release anywhere is allowed and is recorded as such (Q4).
@@ -467,10 +475,10 @@ test("a refused publish lists every issue and each one moves focus (exit criteri
   // than to any of its parts, so getting to them is a screen switch from wherever you were.
   await page.goto(`/forms/${formId}`);
   await openFormDetails(page);
-  await page.getByRole("button", { name: "Publish", exact: true }).click();
+  await page.getByRole("button", { name: "Publish to test", exact: true }).click();
   await page
     .getByRole("alertdialog")
-    .getByRole("button", { name: /^Publish v/ })
+    .getByRole("button", { name: "Publish to test", exact: true })
     .click();
 
   const rejected = page.getByTestId("qcms-publish-rejected");
@@ -557,6 +565,7 @@ test("mints, copies, exports and revokes a secure link (exit criterion 1)", asyn
   await context.grantPermissions(["clipboard-read", "clipboard-write"]);
   await signInWithTotp(page, EMAIL, totpSecret);
   await page.goto(`/forms/${formId}/links`);
+  await chooseEnvironment(page, "prod");
 
   await expect(page.getByTestId("qcms-links-empty")).toBeVisible();
   await page.getByRole("button", { name: "Mint links" }).click();
@@ -671,6 +680,7 @@ test("closes the form to new sessions and reopens it (deliverable: close/reopen)
   test.setTimeout(120_000);
   await signInWithTotp(page, EMAIL, totpSecret);
   await page.goto(`/forms/${formId}`);
+  await chooseEnvironment(page, "prod");
 
   // Per (form, environment) since task 066 (Q18), so every label names it. This form was
   // released to `prod` by the release case earlier in this file, which is what gives it

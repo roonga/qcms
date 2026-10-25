@@ -1,3 +1,4 @@
+import { TEST_ENVIRONMENT_STORAGE } from "./support/environment.js";
 import type { Page } from "@playwright/test";
 
 import { expect, test } from "../../portal/e2e/support/gates.js";
@@ -29,6 +30,8 @@ import {
  * one the rail turns at, so a rail that collapsed at 1000 or at 1100 would be a third
  * boundary nobody wrote down.
  */
+
+test.use({ storageState: TEST_ENVIRONMENT_STORAGE });
 
 test.describe.configure({ mode: "serial" });
 

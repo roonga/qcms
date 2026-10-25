@@ -625,6 +625,11 @@ describe("the closed state is per environment (criterion 5, Q18)", () => {
       semanticsVersion: "1",
     });
 
+    await app.request(`/admin/forms/${formId}/releases`, {
+      method: "POST",
+      headers: adminHeaders(),
+      body: JSON.stringify({ environment: "test", version: 2 }),
+    });
     const released = await app.request(`/admin/forms/${formId}/releases`, {
       method: "POST",
       headers: adminHeaders(),

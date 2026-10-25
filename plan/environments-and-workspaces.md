@@ -831,3 +831,25 @@ A new ADR (enterprise identity) and a Note on ADR-06 are the artifacts, written 
 ## 10. Non-goals
 
 Multi-tenancy (R7, ADR-04). A second database, a second deployment, a second API process, or replication between environments. Per-workspace configuration, theming or ports. **A seventh role for de-identified or anonymised response data**: that need is served by Q26's reporting views, which are already per workspace and per environment with a read-only role of their own, so it is a grant in the database rather than a role in the model. Per-environment configuration beyond the two settings Q11 names. A workspace segment in any URL. An environment visible in a token, as opposed to in a path. Deleting a workspace. Copying a version between environments, in any form: promotion is a record, and a copy would break R1, R6 and ADR-18 at once.
+
+## 11. Form publishing workflow amendment, 2026-10-26
+
+The agreed direction for deployments serving both test and prod is documented in
+[Form publishing workflow: test to production](form-publishing-workflow.md).
+This amendment supersedes the earlier UI choice between
+library-only publishing and combined publishing for that workflow:
+
+- Draft authoring happens in test. **Publish to test** creates and releases a version
+  atomically, using the existing combined endpoint.
+- The operator switches the top navigation to prod before releasing an existing
+  version verified in test. Prod offers published-version review rather than draft
+  authoring. A promotion creates no new version.
+- Release dialogs have no target selector. Actions use the environment shown by the
+  top navigation and reject stale-tab confirmations.
+- Production eligibility requires prior release in test, with previously deployed
+  prod versions retained for rollback. This changes the earlier allowance for a first
+  release directly to prod in a test/prod deployment; the implementation must amend
+  ADR-40 and its integration tests explicitly.
+- Workspace permissions, the optional second-person rule, shared immutable versions
+  and session pins remain the underlying model. Prod-only deployments are outside
+  this amendment.

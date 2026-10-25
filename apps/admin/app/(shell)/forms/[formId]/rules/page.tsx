@@ -1,5 +1,5 @@
 import type { Metadata } from "next";
-import { notFound } from "next/navigation";
+import { notFound, redirect } from "next/navigation";
 
 import { FormPageHeader } from "@/components/forms/form-page-header";
 import { RulesScreen } from "@/components/forms/rules-screen";
@@ -78,6 +78,8 @@ export default async function FormRulesPage({
     return <Alert variant="error">{detail.message}</Alert>;
   }
   const form = detail.data;
+  if (form.workflow?.enabled && !form.workflow.canEdit)
+    redirect(`/forms/${encodeURIComponent(formId)}`);
   // The engine's verdict on the stored draft, so a reader who arrived from an issue link
   // sees the issue on the rule they were sent to rather than a clean table. Memoized per
   // request, so it is the same dry run the rail beside this screen already runs

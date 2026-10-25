@@ -82,7 +82,8 @@ export async function loadFormRail(
   const detail = await getForm(session, formId);
   if (!detail.ok) return null;
   const form = detail.data;
-  const draft = form.draft;
+  const immutable = form.workflow?.enabled === true && !form.workflow.canEdit;
+  const draft = immutable ? (form.releasedDefinition ?? null) : form.draft;
   if (draft === null) {
     return {
       formId: form.formId,
@@ -95,7 +96,7 @@ export async function loadFormRail(
   }
   // Memoized per request (`lib/server/form-verdict.ts`), so the rules screen beside this
   // rail shares the one dry run rather than paying for a second of the same call.
-  const verdict = await formVerdict(session, form.formId, draft);
+  const verdict = immutable ? undefined : await formVerdict(session, form.formId, draft);
   return {
     formId: form.formId,
     slug: form.slug,

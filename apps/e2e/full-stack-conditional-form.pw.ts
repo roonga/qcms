@@ -18,7 +18,8 @@ import {
   toggleTarget,
   waitForSaveAfter,
 } from "../admin/e2e/support/forms.js";
-import { confirmLifecycle, createDraft } from "../admin/e2e/support/questions.js";
+import { waitForHydration as waitForPortalHydration } from "../portal/e2e/support/hydration.js";
+import { confirmLifecycle, createDraft, fillDate } from "../admin/e2e/support/questions.js";
 import { FULL_STACK_ADMIN_URL, FULL_STACK_PORTAL_URL } from "./support/full-stack-config.js";
 
 const REPOSITORY_ROOT = fileURLToPath(new URL("../../", import.meta.url));
@@ -190,6 +191,7 @@ test.describe.serial("conditional form journey", () => {
     await expect(page.getByRole("heading", { name: "Questions" })).toBeVisible();
     // Keep the real post-enrolment session while each later checkpoint runs
     // in its own fresh browser context.
+    await page.context().addCookies([{ name: "qcms-environment", value: "test", url: ADMIN_URL }]);
     await page.context().storageState({ path: authStatePath });
   });
 
@@ -267,7 +269,7 @@ test.describe.serial("conditional form journey", () => {
 
     test("publishes the conditional form", async ({ page }) => {
       await openFormBuilder(page);
-      await page.getByRole("button", { name: "Publish", exact: true }).click();
+      await page.getByRole("button", { name: "Publish to test", exact: true }).click();
       const publish = page.getByRole("alertdialog");
       await expect(publish).toBeVisible();
       // A SERVER READ-BACK BEFORE THE FREEZE (issue 748). This page loaded the draft the
@@ -278,8 +280,47 @@ test.describe.serial("conditional form journey", () => {
       await expect(page.getByTestId("qcms-freeze-summary")).toHaveText(
         "Freezes 2 steps, 7 pinned questions, 4 rules.",
       );
-      await publish.getByRole("button", { name: "Publish v1" }).click();
-      await expect(page.getByText("Published as v1.")).toBeVisible({ timeout: 30_000 });
+      await publish.getByRole("button", { name: "Publish to test" }).click();
+      await expect(page.getByText("Published as v1 and released to test.")).toBeVisible({
+        timeout: 30_000,
+      });
+    });
+
+    test("verifies the published version through a test link before production promotion", async ({
+      page,
+    }) => {
+      await page.goto(`/forms/${formId}/links`);
+      await page.getByRole("button", { name: "Mint links", exact: true }).click();
+      await fillDate(page, "Expires", "12312030");
+      await page
+        .getByRole("dialog")
+        .getByRole("button", { name: "Mint for test", exact: true })
+        .click();
+      const minted = page.getByTestId("qcms-minted-links");
+      await expect(minted).toBeVisible();
+      const link = new URL(await minted.locator("code").innerText());
+      expect(link.origin).toBe(PORTAL_URL);
+      expect(link.pathname).toMatch(/^\/test\/l\//u);
+      await page.goto(link.href);
+      await expect(page).toHaveURL(
+        (url) => url.origin === PORTAL_URL && url.pathname.startsWith("/test/s/ses_"),
+      );
+      await expect(page.getByText(questionLabel("Short text"))).toBeVisible();
+      await waitForPortalHydration(page);
+      const answered = page.waitForResponse(
+        (response) =>
+          response.request().method() === "POST" &&
+          new URL(response.url()).pathname.startsWith("/test/s/") &&
+          response.url().endsWith("/answers") &&
+          response.status() === 200,
+      );
+      await page.getByText("Yes", { exact: true }).click();
+      await answered;
+      await continueOrSubmit(page);
+      await expect(page.getByRole("textbox", { name: questionLabel("Number") })).toBeVisible();
+      await continueOrSubmit(page);
+      await expect(page).toHaveURL(`${PORTAL_URL}/test/done`);
+      await expect(page.getByTestId("content-hash")).toHaveText(/^[0-9a-f]{64}$/u);
     });
 
     test("releases the published version, which is what puts it in front of a respondent", async ({

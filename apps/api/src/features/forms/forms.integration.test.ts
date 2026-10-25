@@ -38,6 +38,7 @@ import {
   getDraft,
   getSession,
   listFormVersions,
+  insertFormRelease,
   listQuestionVersions,
   moveQuestionToWorkspace,
   publishQuestionVersion,
@@ -1853,10 +1854,16 @@ describe("GET /admin/forms - search, status filter and sort", () => {
     expect(
       (
         await listPost("/forms/frm_lst_bravo/publish-and-release", {
-          environment: DEFAULT_TEST_ENVIRONMENT,
+          environment: "test",
         })
       ).status,
     ).toBe(200);
+    await insertFormRelease(testDb.db, {
+      formId: FormId.parse("frm_lst_bravo"),
+      environment: DEFAULT_TEST_ENVIRONMENT,
+      version: 1,
+      releasedBy: "list-fixture",
+    });
     expect(
       (await listPost("/forms/frm_lst_bravo/close", { environment: DEFAULT_TEST_ENVIRONMENT }))
         .status,

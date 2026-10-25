@@ -8,7 +8,6 @@ import { openDbHandle } from "../../api/e2e/support/index.js";
 import { readFixtures } from "../../portal/e2e/support/fixtures.js";
 import { createTestAdmin, uniqueAdminEmail } from "./support/admin-account.js";
 import { enrollNewAdmin, signInWithTotp } from "./support/flow.js";
-import { chooseOption } from "./support/forms.js";
 import { waitForHydration } from "./support/hydration.js";
 
 /**
@@ -394,7 +393,7 @@ test("the release dialog carries the rule's notice with the switch on", async ({
 
   await page.getByRole("button", { name: "Release a version" }).click();
   const dialog = page.getByTestId("qcms-release-dialog");
-  await chooseOption(dialog, "Environment", "prod");
+  await expect(dialog.getByRole("button", { name: /Environment$/u })).toHaveCount(0);
 
   // **The notice renders, in production, with the switch on.** The fixture's versions were
   // seeded without a publishing account, so the reading here is the "cannot be checked"
@@ -420,12 +419,12 @@ test("the release dialog says nothing about the rule once the switch is off", as
   await page.goto(`/forms/${FORM_ID}/releases`);
   await page.getByRole("button", { name: "Release a version" }).click();
   const dialog = page.getByTestId("qcms-release-dialog");
-  await chooseOption(dialog, "Environment", "prod");
+  await expect(dialog.getByRole("button", { name: /Environment$/u })).toHaveCount(0);
 
   // Criterion 3, in the browser: the same account, the same version, the same environment,
   // and with the switch off the screen says nothing about any of it. An implementation
   // that asked for an approver and then accepted the same account would look exactly like
   // this from the API and wrong from here.
   await expect(page.getByTestId("qcms-release-two-person")).toHaveCount(0);
-  await expect(dialog.getByRole("button", { name: "Release to prod" })).toBeEnabled();
+  await expect(dialog.getByRole("button", { name: /^Release v\d+ to prod$/u })).toBeEnabled();
 });

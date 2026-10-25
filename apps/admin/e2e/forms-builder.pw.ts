@@ -3,6 +3,7 @@ import type { Page } from "@playwright/test";
 import { families } from "../../portal/e2e/support/font-families.js";
 import { expect, test } from "../../portal/e2e/support/gates.js";
 
+import { TEST_ENVIRONMENT_STORAGE } from "./support/environment.js";
 import { createTestAdmin, uniqueAdminEmail } from "./support/admin-account.js";
 import { enrollNewAdmin, fillStable, signInWithTotp } from "./support/flow.js";
 import {
@@ -72,6 +73,8 @@ import {
  *
  * `fillStable` throughout, for the reason issue #210 records.
  */
+
+test.use({ storageState: TEST_ENVIRONMENT_STORAGE });
 
 test.describe.configure({ mode: "serial" });
 

@@ -82,6 +82,7 @@ import {
   listForms,
   listQuestionOwnership,
   listFormVersions,
+  listFormReleases,
   listQuestionVersions,
   getFormEnvironmentState,
   type QuestionStatus,
@@ -98,6 +99,9 @@ import { workspaceFilterFor } from "../membership/context.js";
 import { approvalForRelease } from "../membership/two-person.js";
 import type { ApiEnv } from "../../openapi.js";
 import { recordRelease } from "../releases/release.js";
+import { usesTestWorkflow, productionVersions, testReleaseRequired } from "../releases/workflow.js";
+import { resolveGrants, holdsInstallationClaim } from "../membership/resolver.js";
+import { decideAccess } from "../membership/policy.js";
 import { resolveWorkspaceForNewObject } from "../workspaces/resolve.js";
 import { mayPinQuestion } from "../workspaces/rules.js";
 import type {
@@ -814,6 +818,45 @@ export function makeGetFormHandler(deps: Deps): RouteHandler<typeof getFormRoute
       requireEnvironment(deps, c.get("requestEnvironment") ?? deps.databases.defaultEnvironment),
     );
 
+    const environment = c.get("requestEnvironment") ?? deps.databases.defaultEnvironment;
+    const workflowEnabled = usesTestWorkflow(deps.databases.names);
+    const principal = c.get("adminPrincipal");
+    const membership =
+      principal === undefined
+        ? undefined
+        : await resolveGrants(deps.databases.control, {
+            userId: principal.userId,
+            workspaceId: form.workspaceId,
+            claim: holdsInstallationClaim(principal.role),
+          });
+    const allows = (resource: "form" | "release", action: string): boolean =>
+      membership !== undefined &&
+      decideAccess({
+        ...membership,
+        request: { resource, action, environment, formId },
+      }).allowed;
+    const releases = await listFormReleases(deps.databases.control, formId);
+    const eligible =
+      workflowEnabled && environment === "prod"
+        ? [...productionVersions(releases)]
+        : versions.map((v) => v.version);
+    const preferred = releases.find(
+      (r) => r.environment === (workflowEnabled && environment === "prod" ? "test" : environment),
+    );
+    const workflow = {
+      enabled: workflowEnabled,
+      environment,
+      canEdit: allows("form", "write") && !(workflowEnabled && environment === "prod"),
+      canPublish:
+        allows("form", "publish") &&
+        allows("release", "create") &&
+        !(workflowEnabled && environment === "prod"),
+      canRelease: allows("release", "create"),
+      eligibleVersions: eligible,
+      preferredVersion: preferred?.version ?? eligible[0] ?? null,
+      currentVersion: environmentState?.version ?? null,
+    };
+
     // The draft the editor opens: the open draft if one exists, otherwise seeded
     // from the latest published version (§4.1 "new draft opened, seeded from vN")
     // - a read-time convenience, not persisted until the author saves (PUT).
@@ -837,6 +880,8 @@ export function makeGetFormHandler(deps: Deps): RouteHandler<typeof getFormRoute
         status: environmentState?.closed === true ? ("closed" as const) : ("open" as const),
         draft,
         draftSource,
+        releasedDefinition:
+          versions.find((v) => v.version === environmentState?.version)?.definition ?? null,
         draftAgentAssisted: openDraft?.agentAssisted ?? false,
         draftUpdatedAt: openDraft?.updatedAt.toISOString() ?? null,
         versions: versions.map((v) => ({
@@ -867,6 +912,7 @@ export function makeGetFormHandler(deps: Deps): RouteHandler<typeof getFormRoute
         // anything, and the workspace row it comes from is an owner's to read (Q35) while
         // the account that needs to be told is the approver's.
         requiresSecondApprover: workspace?.requireSecondApprover ?? false,
+        workflow,
       },
       200,
     );
@@ -1909,6 +1955,8 @@ export function makePublishAndReleaseFormHandler(
       releasedBy: principal.userId,
     });
 
+    if (usesTestWorkflow(deps.databases.names) && environment === "prod")
+      throw testReleaseRequired();
     const frozen = await freezeDraft(deps, formId);
 
     const result = await deps.databases.control.transaction(async (tx) => {

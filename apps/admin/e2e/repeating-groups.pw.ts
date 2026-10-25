@@ -3,6 +3,7 @@ import type { Locator, Page } from "@playwright/test";
 import { PORTAL_PORT } from "../../portal/e2e/support/harness-config.js";
 import { expect, test } from "../../portal/e2e/support/gates.js";
 
+import { TEST_ENVIRONMENT_STORAGE } from "./support/environment.js";
 import { createTestAdmin, uniqueAdminEmail } from "./support/admin-account.js";
 import {
   domShape,
@@ -68,6 +69,8 @@ import { confirmLifecycle, createDraft } from "./support/questions.js";
  * task (077 merged as PR #1038), so the walk is the fifth test below and the wiring it drives is
  * the one branch `group-panel.tsx` gained for it.
  */
+
+test.use({ storageState: TEST_ENVIRONMENT_STORAGE });
 
 test.describe.configure({ mode: "serial" });
 
@@ -214,10 +217,10 @@ test("defines a group, walks all three count sources, and round-trips through sa
   // `REPEAT_MAX_MISSING` naming the group rather than the form.
   await waitForSaved(page);
   await openFormDetails(page);
-  await page.getByRole("button", { name: "Publish", exact: true }).click();
+  await page.getByRole("button", { name: "Publish to test", exact: true }).click();
   await page
     .getByRole("alertdialog")
-    .getByRole("button", { name: /^Publish v/ })
+    .getByRole("button", { name: "Publish to test", exact: true })
     .click();
   const rejected = page.getByTestId("qcms-publish-rejected");
   await expect(rejected).toBeVisible({ timeout: 30_000 });
@@ -454,10 +457,10 @@ test("expands a group through the portal's own renderer (case 61)", async ({ pag
   // two rules authored above are legal, so this is the first clean publish of it.
   await page.goto(`/forms/${formId}`);
   await openFormDetails(page);
-  await page.getByRole("button", { name: "Publish", exact: true }).click();
+  await page.getByRole("button", { name: "Publish to test", exact: true }).click();
   await page
     .getByRole("alertdialog")
-    .getByRole("button", { name: /^Publish v/ })
+    .getByRole("button", { name: "Publish to test", exact: true })
     .click();
   await expect(page.getByText(/^Published as v/)).toBeVisible({ timeout: 60_000 });
 
@@ -726,10 +729,10 @@ test("filters the column picker to the allowed cell types, and says why (case 62
   // reaches it is the one added before the presentation changed.
   await waitForSaveAfter(page, beforeTable);
   await openFormDetails(page);
-  await page.getByRole("button", { name: "Publish", exact: true }).click();
+  await page.getByRole("button", { name: "Publish to test", exact: true }).click();
   await page
     .getByRole("alertdialog")
-    .getByRole("button", { name: /^Publish v/ })
+    .getByRole("button", { name: "Publish to test", exact: true })
     .click();
   const rejected = page.getByTestId("qcms-publish-rejected");
   await expect(rejected).toBeVisible({ timeout: 30_000 });

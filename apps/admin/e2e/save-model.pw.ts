@@ -1,5 +1,6 @@
 import { expect, test } from "../../portal/e2e/support/gates.js";
 
+import { TEST_ENVIRONMENT_STORAGE } from "./support/environment.js";
 import { createTestAdmin, uniqueAdminEmail } from "./support/admin-account.js";
 import { enrollNewAdmin, fillStable, signInWithTotp } from "./support/flow.js";
 import {
@@ -44,6 +45,8 @@ import { confirmLifecycle, createDraft } from "./support/questions.js";
  * an issue badge later. So the strip is asserted to carry none of the panel's vocabulary,
  * which is the assertion that fails the day someone helpfully adds "2 issues" to it.
  */
+
+test.use({ storageState: TEST_ENVIRONMENT_STORAGE });
 
 test.describe.configure({ mode: "serial" });
 

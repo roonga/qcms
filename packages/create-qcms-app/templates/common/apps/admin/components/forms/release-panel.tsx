@@ -1,6 +1,8 @@
 "use client";
 
 import { useState, useTransition } from "react";
+import Link from "next/link";
+import type { FormPublishingWorkflow } from "@/lib/forms/types";
 
 import { EmptyState } from "@/components/empty-state";
 import { Alert, Button, Dialog, Select } from "@/components/kit";
@@ -91,6 +93,29 @@ function twoPersonSentence(input: {
   return t("forms.releases.twoPersonSecond", { environment: input.environment });
 }
 
+function releaseSource(
+  releases: readonly ReleaseRecord[],
+  version: number | undefined,
+  environment: string,
+  enabled: boolean,
+  source: string,
+): string | undefined {
+  if (!enabled) return source === NO_SOURCE ? undefined : source;
+  const reachedTest = releases.some((row) => row.environment === "test" && row.version === version);
+  return environment === "prod" && reachedTest ? "test" : undefined;
+}
+
+function releaseConfirm(
+  pending: boolean,
+  enabled: boolean,
+  version: number,
+  environment: string,
+): string {
+  if (pending) return t("forms.releases.pending");
+  if (enabled) return t("forms.workflow.release", { version, environment });
+  return t("forms.releases.confirm", { environment });
+}
+
 export function ReleasePanel({
   releases,
   versions,
@@ -98,7 +123,11 @@ export function ReleasePanel({
   selectedEnvironment,
   release,
   twoPerson,
+  workflow,
+  formId,
 }: {
+  readonly formId?: string;
+  readonly workflow?: FormPublishingWorkflow | undefined;
   /** The whole history, newest first, every environment. */
   readonly releases: readonly ReleaseRecord[];
   /** Every published version of this form, newest first. */
@@ -107,11 +136,7 @@ export function ReleasePanel({
   readonly environments: readonly string[];
   /** The operator's switcher selection, which is what the dialog opens on. */
   readonly selectedEnvironment: string;
-  readonly release: (input: {
-    environment: string;
-    version: number;
-    fromEnvironment?: string;
-  }) => Promise<ReleaseState>;
+  readonly release: (input: { version: number; fromEnvironment?: string }) => Promise<ReleaseState>;
   /**
    * The two-person rule for production, where the workspace has turned it on (Q13, Q30,
    * Q51; task 070).
@@ -130,11 +155,31 @@ export function ReleasePanel({
   };
 }) {
   const [isOpen, setOpen] = useState(false);
-  const [environment, setEnvironment] = useState(selectedEnvironment);
-  const [version, setVersion] = useState(versions[0]);
+  const environment = selectedEnvironment;
+  const candidates =
+    workflow === undefined
+      ? versions
+      : versions.filter((v) => workflow.eligibleVersions.includes(v));
+  const initialVersion = workflow?.preferredVersion ?? candidates[0];
+  const [version, setVersion] = useState(initialVersion);
   const [source, setSource] = useState<string>(NO_SOURCE);
+  const sourceEnvironment = releaseSource(
+    releases,
+    version,
+    environment,
+    workflow?.enabled === true,
+    source,
+  );
   const [state, setState] = useState<ReleaseState>(IDLE_RELEASE);
   const [isPending, startTransition] = useTransition();
+
+  // A refreshed tab must never retarget a confirmation that was already open.
+  const [shownEnvironment, setShownEnvironment] = useState(selectedEnvironment);
+  if (shownEnvironment !== selectedEnvironment) {
+    setShownEnvironment(selectedEnvironment);
+    setOpen(false);
+    setState(IDLE_RELEASE);
+  }
 
   const current = currentReleaseByEnvironment(releases);
   const currentVersion = current.get(environment)?.version;
@@ -158,9 +203,8 @@ export function ReleasePanel({
     if (version === undefined) return;
     startTransition(() => {
       void release({
-        environment,
         version,
-        ...(source === NO_SOURCE ? {} : { fromEnvironment: source }),
+        ...(sourceEnvironment === undefined ? {} : { fromEnvironment: sourceEnvironment }),
       })
         .then((next) => {
           setState(next);
@@ -244,11 +288,16 @@ export function ReleasePanel({
             variant="primary"
             size="md"
             // No environments is the set the shell could not read (A12): nothing to aim at.
-            isDisabled={versions.length === 0 || environments.length === 0 || isPending}
+            isDisabled={
+              candidates.length === 0 ||
+              environments.length === 0 ||
+              selectedEnvironment === "" ||
+              isPending ||
+              workflow?.canRelease === false
+            }
             onPress={() => {
               setState(IDLE_RELEASE);
-              setEnvironment(selectedEnvironment);
-              setVersion(versions[0]);
+              setVersion(initialVersion);
               setSource(NO_SOURCE);
               setOpen(true);
             }}
@@ -332,6 +381,11 @@ export function ReleasePanel({
         )}
       </div>
 
+      {workflow?.canRelease === false && (
+        <p>{t("forms.workflow.noReleasePermission", { environment })}</p>
+      )}
+      {candidates.length === 0 && <p>{t("forms.workflow.noCandidate", { environment })}</p>}
+
       {isOpen && version !== undefined && (
         <Dialog
           isOpen
@@ -344,40 +398,42 @@ export function ReleasePanel({
         >
           <div className="flex flex-col gap-4" data-testid="qcms-release-dialog">
             <Select
-              label={t("forms.releases.environment")}
-              value={environment}
-              onChange={(next) => {
-                setEnvironment(next);
-              }}
-              items={environments.map((name) => ({ label: name, value: name }))}
-            />
-            <Select
               label={t("forms.releases.version")}
               value={String(version)}
               onChange={(next) => {
                 setVersion(Number(next));
               }}
-              items={versions.map((candidate) => ({
+              items={candidates.map((candidate) => ({
                 label: t("forms.version.value", { version: candidate }),
                 value: String(candidate),
               }))}
             />
-            {/* The source environment records the path and authorises nothing (Q4): there
-                is no ordering requirement, so "nowhere" is a first-class choice and a
-                hotfix straight to `prod` is the ordinary shape of one. */}
-            <Select
-              label={t("forms.releases.fromEnvironment")}
-              value={source}
-              onChange={(next) => {
-                setSource(next);
-              }}
-              items={[
-                { label: t("forms.releases.fromNone"), value: NO_SOURCE },
-                ...environments
-                  .filter((name) => name !== environment)
-                  .map((name) => ({ label: name, value: name })),
-              ]}
-            />
+            {workflow?.enabled !== true && (
+              <Select
+                label={t("forms.releases.fromEnvironment")}
+                value={source}
+                onChange={(next) => {
+                  setSource(next);
+                }}
+                items={[
+                  { label: t("forms.releases.fromNone"), value: NO_SOURCE },
+                  ...environments
+                    .filter((name) => name !== environment)
+                    .map((name) => ({ label: name, value: name })),
+                ]}
+              />
+            )}
+            {workflow?.enabled && sourceEnvironment === "test" && (
+              <p>{t("forms.workflow.testCandidate")}</p>
+            )}
+            {(formId ?? releases[0]?.formId) !== undefined && (
+              <Link
+                className="qcms-text-link"
+                href={`/forms/${encodeURIComponent(formId ?? releases[0]?.formId ?? "")}/versions/${String(version)}`}
+              >
+                {t("forms.workflow.reviewVersion", { version })}
+              </Link>
+            )}
             <p className="text-sm text-(--color-text-muted)">
               {t("forms.releases.dialogBody", { environment })}
             </p>
@@ -422,12 +478,15 @@ export function ReleasePanel({
                 // teaches the rule by refusing. Every other refusal the rule can raise
                 // depends on the caller's grants, which this screen does not hold, so
                 // those are still the API's to answer.
-                isDisabled={isPending || blockedByRule}
+                isDisabled={
+                  isPending ||
+                  blockedByRule ||
+                  (gatedByRule && author === null) ||
+                  workflow?.canRelease === false
+                }
                 onPress={run}
               >
-                {isPending
-                  ? t("forms.releases.pending")
-                  : t("forms.releases.confirm", { environment })}
+                {releaseConfirm(isPending, workflow?.enabled === true, version, environment)}
               </Button>
               <Button
                 variant="ghost"

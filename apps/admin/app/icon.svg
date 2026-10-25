@@ -1,0 +1,5 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 32 32" fill="none" role="img" aria-label="QCMS">
+  <rect width="32" height="32" rx="7" fill="#1f6feb" />
+  <circle cx="15" cy="15" r="6.5" stroke="#ffffff" stroke-width="2.5" />
+  <line x1="18.5" y1="18.5" x2="23" y2="23" stroke="#ffffff" stroke-width="2.5" stroke-linecap="round" />
+</svg>

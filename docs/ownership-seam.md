@@ -93,14 +93,14 @@ regeneration and `git add` the result rather than merging two sets of counts.
 
 <!-- BEGIN GENERATED: ownership-seam (pnpm qcms:sync-templates) -->
 
-### Scaffolded paths (463 files common to both shapes)
+### Scaffolded paths (467 files common to both shapes)
 
 | Path                                                                 | Files |
 | -------------------------------------------------------------------- | ----- |
 | `(project root)`                                                     | 8     |
-| `apps/`                                                              | 452   |
-| `apps/admin/`                                                        | 271   |
-| `apps/admin/app/`                                                    | 76    |
+| `apps/`                                                              | 456   |
+| `apps/admin/`                                                        | 274   |
+| `apps/admin/app/`                                                    | 77    |
 | `apps/admin/app/(shell)/`                                            | 58    |
 | `apps/admin/app/(shell)/@rail/`                                      | 24    |
 | `apps/admin/app/(shell)/@rail/forms/`                                | 13    |
@@ -164,8 +164,8 @@ regeneration and `git add` the result rather than merging two sets of counts.
 | `apps/admin/app/two-factor/recovery-codes/`                          | 2     |
 | `apps/admin/app/two-factor/recovery-codes/confirm/`                  | 1     |
 | `apps/admin/app/two-factor/recovery/verify/`                         | 1     |
-| `apps/admin/components/`                                             | 91    |
-| `apps/admin/components/forms/`                                       | 35    |
+| `apps/admin/components/`                                             | 93    |
+| `apps/admin/components/forms/`                                       | 37    |
 | `apps/admin/components/membership/`                                  | 5     |
 | `apps/admin/components/ops/`                                         | 9     |
 | `apps/admin/components/questions/`                                   | 12    |
@@ -177,9 +177,9 @@ regeneration and `git add` the result rather than merging two sets of counts.
 | `apps/admin/lib/ops/`                                                | 10    |
 | `apps/admin/lib/questions/`                                          | 8     |
 | `apps/admin/lib/server/`                                             | 27    |
-| `apps/api/`                                                          | 107   |
-| `apps/api/src/`                                                      | 104   |
-| `apps/api/src/features/`                                             | 72    |
+| `apps/api/`                                                          | 108   |
+| `apps/api/src/`                                                      | 105   |
+| `apps/api/src/features/`                                             | 73    |
 | `apps/api/src/features/auth/`                                        | 5     |
 | `apps/api/src/features/forms/`                                       | 12    |
 | `apps/api/src/features/forms/assist/`                                | 9     |
@@ -187,7 +187,7 @@ regeneration and `git add` the result rather than merging two sets of counts.
 | `apps/api/src/features/membership/`                                  | 9     |
 | `apps/api/src/features/outbox/`                                      | 3     |
 | `apps/api/src/features/questions/`                                   | 4     |
-| `apps/api/src/features/releases/`                                    | 4     |
+| `apps/api/src/features/releases/`                                    | 5     |
 | `apps/api/src/features/responses/`                                   | 19    |
 | `apps/api/src/features/responses/admin/`                             | 4     |
 | `apps/api/src/features/responses/serve-step/`                        | 3     |
@@ -256,7 +256,7 @@ rather than documented: the images no longer claim to be built from this
 repository, and no scaffolded message names a script your project does not define.
 
 <details>
-<summary>Every scaffolded file (463)</summary>
+<summary>Every scaffolded file (467)</summary>
 
 ```
 .dockerignore
@@ -326,6 +326,7 @@ apps/admin/app/change-password/page.tsx
 apps/admin/app/change-password/submit/route.ts
 apps/admin/app/globals.css
 apps/admin/app/healthz/route.ts
+apps/admin/app/icon.svg
 apps/admin/app/layout.tsx
 apps/admin/app/page.tsx
 apps/admin/app/sign-in/page.tsx
@@ -361,6 +362,7 @@ apps/admin/components/forms/draft-preview.tsx
 apps/admin/components/forms/form-actions.tsx
 apps/admin/components/forms/form-builder.tsx
 apps/admin/components/forms/form-page-header.tsx
+apps/admin/components/forms/form-production-review.tsx
 apps/admin/components/forms/form-settings-panel.tsx
 apps/admin/components/forms/form-subtree-rail.tsx
 apps/admin/components/forms/group-panel.tsx
@@ -382,6 +384,7 @@ apps/admin/components/forms/rules-table.tsx
 apps/admin/components/forms/save-notices.tsx
 apps/admin/components/forms/secure-links.tsx
 apps/admin/components/forms/step-editor.tsx
+apps/admin/components/forms/switch-to-test.tsx
 apps/admin/components/forms/table-column-view.tsx
 apps/admin/components/forms/validation-panel.tsx
 apps/admin/components/forms/version-history.tsx
@@ -583,6 +586,7 @@ apps/api/src/features/releases/handler.ts
 apps/api/src/features/releases/release.ts
 apps/api/src/features/releases/route.ts
 apps/api/src/features/releases/schema.ts
+apps/api/src/features/releases/workflow.ts
 apps/api/src/features/responses/admin/csv.ts
 apps/api/src/features/responses/admin/handler.ts
 apps/api/src/features/responses/admin/route.ts

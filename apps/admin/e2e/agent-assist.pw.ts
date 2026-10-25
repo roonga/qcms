@@ -2,6 +2,7 @@ import type { Page } from "@playwright/test";
 
 import { expect, test } from "../../portal/e2e/support/gates.js";
 
+import { TEST_ENVIRONMENT_STORAGE } from "./support/environment.js";
 import { createTestAdmin, uniqueAdminEmail } from "./support/admin-account.js";
 import { enrollNewAdmin, fillStable, signInWithTotp } from "./support/flow.js";
 import {
@@ -42,6 +43,8 @@ import { confirmLifecycle, createDraft } from "./support/questions.js";
  * proposal - and therefore the diff, the publish and the preview branch below -
  * deterministic rather than dependent on spec ordering.
  */
+
+test.use({ storageState: TEST_ENVIRONMENT_STORAGE });
 
 test.describe.configure({ mode: "serial" });
 
@@ -173,15 +176,17 @@ test("publishes the accepted draft through the unchanged human flow (exit criter
   // draft rather than of the tab that accepted the proposal.
   await expect(page.getByTestId("qcms-builder-provenance")).toBeVisible({ timeout: 30_000 });
 
-  await page.getByRole("button", { name: "Publish", exact: true }).click();
+  await page.getByRole("button", { name: "Publish to test", exact: true }).click();
   const dialog = page.getByRole("alertdialog");
   await expect(dialog).toBeVisible();
   // The publish confirmation carries it too (041 deliverable).
   await expect(page.getByTestId("qcms-publish-provenance")).toBeVisible();
 
-  await dialog.getByRole("button", { name: "Publish v1" }).click();
+  await dialog.getByRole("button", { name: "Publish to test" }).click();
   await expect(dialog).toBeHidden();
-  await expect(page.getByText("Published as v1.")).toBeVisible({ timeout: 60_000 });
+  await expect(page.getByText("Published as v1 and released to test.")).toBeVisible({
+    timeout: 60_000,
+  });
 });
 
 test("walks the proposed branch in the preview pane (exit criterion 3)", async ({ page }) => {

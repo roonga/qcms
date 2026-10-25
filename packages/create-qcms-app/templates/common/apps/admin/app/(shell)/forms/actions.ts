@@ -424,14 +424,20 @@ export async function publishFormAction(formId: string): Promise<PublishState> {
  */
 export async function releaseVersionAction(
   formId: string,
+  shown: string | undefined,
   input: {
-    readonly environment: string;
     readonly version: number;
     readonly fromEnvironment?: string;
   },
 ): Promise<ReleaseState> {
   const session = await requireAdminSession();
-  const result = await releaseVersion(session, formId, input);
+  const check = await confirmShownEnvironment(session, shown);
+  if (!check.ok) return { status: "error", message: check.message };
+  const result = await releaseVersion(session, formId, {
+    version: input.version,
+    ...(input.fromEnvironment === undefined ? {} : { fromEnvironment: input.fromEnvironment }),
+    environment: check.environment,
+  });
   if (!result.ok) return { status: "error", message: result.message };
   // The release screen, the version list and the form's own header all describe what is
   // released, so the whole subtree is re-read rather than one route of it.
