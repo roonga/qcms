@@ -1,6 +1,6 @@
 # Form publishing workflow: test to production
 
-Status: implemented; verification in progress. Updated 2026-10-26.
+Status: implemented. Updated 2026-10-26.
 
 This amends the form-authoring UX in [the environments plan](environments-and-workspaces.md)
 for deployments serving both `test` and `prod`. It keeps one shared draft and one
