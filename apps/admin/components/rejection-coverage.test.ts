@@ -77,6 +77,9 @@ const HANDLERS: Readonly<Record<string, readonly string[]>> = {
   // may or may not have landed in production is the one state an operator must not be
   // left guessing about.
   "forms/release-panel.tsx": ["release (forms/release-panel-rejects.test.tsx)"],
+  "forms/release-version-review.tsx": [
+    "read the immutable candidate (forms/release-version-review.test.tsx)",
+  ],
   "forms/public-form-link.tsx": [
     "copy the public address (forms/public-form-link-rejects.test.tsx)",
   ],
@@ -154,12 +157,13 @@ describe("the rejection handlers of the admin's forms and ops components", () =>
     expect(found).toStrictEqual(declared);
   });
 
-  it("number sixteen, of which twelve are action rejections (nine at issue #352)", () => {
+  it("number seventeen, of which thirteen are action rejections (nine at issue #352)", () => {
     const entries = Object.values(HANDLERS).flat();
     // Fifteen since task 065: the combined publish-and-release action and the release
     // panel's own each added one. **Sixteen since task 070**, whose pending-change panel
-    // drives a confirm and a withdraw through one handler.
-    expect(entries).toHaveLength(16);
+    // drives a confirm and a withdraw through one handler. Seventeen with the immutable
+    // release-candidate loader, whose failed read keeps production confirmation disabled.
+    expect(entries).toHaveLength(17);
 
     // Three clipboard chains: a refusal the operator can act on, or silence.
     const clipboard = entries.filter((entry) => entry.startsWith("copy"));
@@ -177,7 +181,7 @@ describe("the rejection handlers of the admin's forms and ops components", () =>
     // panel's own release are both action rejections. **Twelve since task 070**: a
     // confirmation of a pending production endpoint change is one too, and it is the one
     // whose silence would be worst - an operator left wondering whether a production
-    // endpoint just moved.
-    expect(entries.length - clipboard.length - parse.length).toBe(12);
+    // endpoint just moved. Thirteen with the candidate snapshot read.
+    expect(entries.length - clipboard.length - parse.length).toBe(13);
   });
 });
