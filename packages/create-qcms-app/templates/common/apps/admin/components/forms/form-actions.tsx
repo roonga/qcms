@@ -418,7 +418,11 @@ export function FormActions({
           }}
         >
           <div className="flex flex-col gap-4" data-testid="qcms-publish-release-dialog">
-            {agentAssisted && <AgentProvenanceTag />}
+            {agentAssisted && (
+              <div data-testid="qcms-publish-provenance">
+                <AgentProvenanceTag />
+              </div>
+            )}
             <p className="text-sm text-(--color-text)" data-testid="qcms-freeze-summary">
               {t("forms.publish.freezes", {
                 steps: tPlural(

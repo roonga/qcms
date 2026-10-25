@@ -47,11 +47,7 @@ async function chooseEnvironment(page: Page, environment: "test" | "prod"): Prom
   await expect(switcher).toHaveAttribute("data-environment", environment);
 }
 
-async function releaseVersion(
-  page: Page,
-  environment: "test" | "prod",
-  fromEnvironment?: "test",
-): Promise<void> {
+async function releaseVersion(page: Page, environment: "test" | "prod"): Promise<void> {
   await waitForHydration(page);
   await page.getByRole("button", { name: "Release a version…" }).click();
   const dialog = page.getByRole("alertdialog");
@@ -63,9 +59,7 @@ async function releaseVersion(
     }),
   ).toHaveCount(0);
   await chooseOption(dialog, "Version to release", "v1");
-  if (fromEnvironment !== undefined) {
-    await expect(dialog).toContainText("This version was released to test.");
-  }
+  await expect(dialog).toContainText("This version was released to test.");
   await dialog.getByRole("button", { name: `Release v1 to ${environment}`, exact: true }).click();
   await expect(dialog).toBeHidden();
   await expect(page.getByTestId("qcms-release-status")).toContainText(
@@ -183,7 +177,7 @@ test("publishes a draft, verifies it in test, then promotes the same version to 
   await expect(page.getByRole("button", { name: /Publish/u })).toHaveCount(0);
   await expect(page.getByRole("textbox", { name: "Title", exact: true })).toHaveCount(0);
   await page.goto(`/forms/${formId}/releases`);
-  await releaseVersion(page, "prod", "test");
+  await releaseVersion(page, "prod");
   for (const environment of ["test", "prod"]) {
     await expect(released.locator(`tr[data-environment="${environment}"]`)).toContainText("v1");
   }
