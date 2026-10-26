@@ -3,7 +3,7 @@ import type { Locator, Page } from "@playwright/test";
 import { PORTAL_PORT } from "../../portal/e2e/support/harness-config.js";
 import { expect, test } from "../../portal/e2e/support/gates.js";
 
-import { TEST_ENVIRONMENT_STORAGE } from "./support/environment.js";
+import { chooseEnvironment, TEST_ENVIRONMENT_STORAGE } from "./support/environment.js";
 import { createTestAdmin, uniqueAdminEmail } from "./support/admin-account.js";
 import {
   domShape,
@@ -567,6 +567,7 @@ test("expands a group through the portal's own renderer (case 61)", async ({ pag
   await portal.close();
 
   // --- the author's side ----------------------------------------------------
+  await chooseEnvironment(page, "test");
   await page.goto(`/forms/${formId}/preview`);
   const surface = page.getByTestId("qcms-preview-surface");
   await expect(surface.getByText("E2E Number question")).toBeVisible({ timeout: 60_000 });

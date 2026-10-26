@@ -275,6 +275,12 @@ test("559 lets a short screen's rail reach the bottom of the shell (N2)", async 
   await page.goto(linksPath());
   await expect(page.getByTestId("qcms-rail")).toBeVisible();
 
+  await expect
+    .poll(async () => {
+      const state = await scrollState(page);
+      return Math.abs(state.barHeight - state.barToken);
+    })
+    .toBeLessThan(1);
   const filled = await page.evaluate(() => {
     const rail = document.querySelector('[data-testid="qcms-rail"]');
     const main = document.querySelector("main#main-content");
@@ -415,7 +421,7 @@ const scrollState = async (
     // The token resolved to pixels, by letting the browser resolve it: it is a `calc`
     // over another custom property, so reading the string would prove nothing.
     const probe = document.createElement("div");
-    probe.style.blockSize = getComputedStyle(root).getPropertyValue("--admin-topbar-h");
+    probe.style.blockSize = "var(--admin-topbar-measured-h, var(--admin-topbar-h))";
     probe.style.position = "absolute";
     root.append(probe);
     const barToken = probe.getBoundingClientRect().height;
@@ -441,12 +447,19 @@ test("pins the rail to the viewport below the bar, at the height the token claim
   await page.goto(linksPath());
   await expect(page.getByTestId("qcms-rail")).toBeVisible();
 
+  await expect
+    .poll(async () => {
+      const state = await scrollState(page);
+      return Math.abs(state.barHeight - state.barToken);
+    })
+    .toBeLessThan(1);
   const at = await scrollState(page);
-  // THE ONE NUMBER THIS DESIGN DEPENDS ON. The rail's sticky offset and its height are
-  // both `--admin-topbar-h`, which is derived from `--admin-control-h` rather than
-  // measured off the bar. If the two ever disagree the rail slides under the bar or
-  // leaves a gap below it, and neither is loud - so the drift fails here instead.
-  expect(at.barHeight, "the bar is exactly what the token derives").toBeCloseTo(at.barToken, 0);
+  // The effective value includes the test banner inside the sticky header. A derived
+  // single-row height would leave the rail behind the banner and beyond the viewport.
+  expect(at.barHeight, "the effective height includes the entire header").toBeCloseTo(
+    at.barToken,
+    0,
+  );
   expect(at.railTop, "the rail starts where the bar ends").toBeCloseTo(at.barHeight, 0);
   expect(at.railBottom, "and ends on the bottom of the screen").toBeCloseTo(900, 0);
 });

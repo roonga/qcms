@@ -335,10 +335,9 @@ html {
      label, a second locale or a different density - where the height is a fact the browser
      already holds.
 
-     ONLY THE SCROLL PADDING READS THE MEASURED VALUE. The rail's sticky offset and its own
-     height still spend `--admin-topbar-h`, and must: both live inside `@variant sidebar`,
-     where the bar is one row by construction, and both are LAYOUT, so feeding them a number
-     that arrives after first paint would trade a scrolling defect for a visible jump. */
+     The rail uses this measured height too: the environment banner is inside the sticky
+     header and adds height even at desktop widths. The derived fallback covers the
+     initial render until the observer publishes the complete header height. */
   scroll-padding-block-start: var(--admin-topbar-measured-h, var(--admin-topbar-h));
   /* NO `scrollbar-gutter: stable`, and it was tried (Code Owner, 2026-08-26). The form's
      own screen scrolls and its Preview does not, so moving between them makes the page
@@ -3086,9 +3085,9 @@ div:has(> [role="dialog"] [data-qcms-dialog="wide"]) {
        height is then the viewport minus the bar, so the rail ends on the screen's
        bottom edge on a short screen and a long one alike. */
     position: sticky;
-    inset-block-start: var(--admin-topbar-h);
+    inset-block-start: var(--admin-topbar-measured-h, var(--admin-topbar-h));
     align-self: start;
-    block-size: calc(100dvh - var(--admin-topbar-h));
+    block-size: calc(100dvh - var(--admin-topbar-measured-h, var(--admin-topbar-h)));
     overflow-y: auto;
     border-block-end: none;
     border-inline-end: 1px solid var(--color-border);
