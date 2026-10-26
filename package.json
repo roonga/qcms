@@ -101,7 +101,7 @@
     "otplib": "^13.5.0",
     "prettier": "^3.9.10",
     "tsx": "^4.23.15",
-    "turbo": "^2.11.8",
+    "turbo": "^2.11.10",
     "typescript": "^6.0.3",
     "typescript-eslint": "^8.71.2",
     "vitest": "^5.0.5"
