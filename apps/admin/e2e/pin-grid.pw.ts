@@ -2,6 +2,7 @@ import type { Page } from "@playwright/test";
 
 import { expect, test } from "../../portal/e2e/support/gates.js";
 
+import { TEST_ENVIRONMENT_STORAGE } from "./support/environment.js";
 import { createTestAdmin, uniqueAdminEmail } from "./support/admin-account.js";
 import { enrollNewAdmin, signInWithTotp } from "./support/flow.js";
 import { addOption, confirmLifecycle, createDraft, useRowMenu } from "./support/questions.js";
@@ -146,6 +147,8 @@ async function openBuilder(page: Page): Promise<void> {
   await page.goto(builderPath);
   await openStep(page, "Driving history");
 }
+
+test.use({ storageState: TEST_ENVIRONMENT_STORAGE });
 
 test.describe.configure({ mode: "serial" });
 

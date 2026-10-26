@@ -49,6 +49,7 @@ import type { ApiEnv } from "../../openapi.js";
 import { holdsInstallationClaim } from "../membership/resolver.js";
 import { approvalForRelease } from "../membership/two-person.js";
 import { recordRelease } from "./release.js";
+import { requireProductionCandidate } from "./workflow.js";
 import type { environmentSetRoute, releaseHistoryRoute, releaseVersionRoute } from "./route.js";
 
 // --- typed failures (envelope codes the admin app keys off) -----------------
@@ -215,6 +216,14 @@ export function makeReleaseVersionHandler(
       author: version.publishedBy,
       releasedBy: principal.userId,
     });
+
+    await requireProductionCandidate(
+      deps.databases.control,
+      deps.databases.names,
+      environment,
+      formId,
+      body.version,
+    );
 
     // **The `ALREADY_RELEASED` check runs inside the transaction**, with the read that
     // decides the response's `replacedVersion` and `rollback`. It was outside, which left

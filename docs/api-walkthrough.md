@@ -75,8 +75,16 @@ curl -sX PUT "$API/admin/forms/frm_auto_quote/draft" \
                  "items":[{"questionId":"q_at_fault_accident","version":2},{"questionId":"q_accident_count","version":1}]}],
        "rules":[{"ruleId":"rul_accident_followup","when":{"op":"equals","questionId":"q_at_fault_accident","value":true},"show":["q_accident_count"]}]}}'
 
-# Publish → { "version": 1, "publishedAt": "…" }
-curl -sX POST "$API/admin/forms/frm_auto_quote/publish" -H "x-qcms-internal-token: $INT" -H "x-qcms-admin-session: $ADM"
+# Publish and release to test atomically.
+curl -sX POST "$API/admin/forms/frm_auto_quote/publish-and-release" \
+  -H "x-qcms-internal-token: $INT" -H "x-qcms-admin-session: $ADM" -H 'content-type: application/json' \
+  -d '{"environment":"test"}'
+
+# Verify v1 using a link minted with environment "test" (its URL contains /test/l/).
+# Then release the SAME version to prod, using a prod approver account where required.
+curl -sX POST "$API/admin/forms/frm_auto_quote/releases" \
+  -H "x-qcms-internal-token: $INT" -H "x-qcms-admin-session: $ADM" -H 'content-type: application/json' \
+  -d '{"environment":"prod","version":1,"fromEnvironment":"test"}'
 ```
 
 ## 3. Wire a webhook and mint a secure link (admin)
@@ -91,7 +99,7 @@ curl -sX POST "$API/admin/forms/frm_auto_quote/webhooks" \
 # Mint a secure link. The token appears only inside the returned url (…/l/<token>).
 curl -sX POST "$API/admin/forms/frm_auto_quote/links" \
   -H "x-qcms-internal-token: $INT" -H "x-qcms-admin-session: $ADM" -H 'content-type: application/json' \
-  -d '{"expiresAt":"2030-01-01T00:00:00.000Z","oneTime":false,"count":1}'
+  -d '{"expiresAt":"2030-01-01T00:00:00.000Z","oneTime":false,"count":1,"environment":"prod"}'
 # → { "links":[{ "linkId":"lnk_…", "url":"https://portal.example/l/<token>", "expiresAt":"…" }] }
 ```
 

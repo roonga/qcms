@@ -1,4 +1,4 @@
-import { notFound } from "next/navigation";
+import { notFound, redirect } from "next/navigation";
 import type { Metadata } from "next";
 
 import { Alert } from "@/components/kit";
@@ -48,6 +48,8 @@ export default async function FormPreviewPage({
     return <Alert variant="error">{detail.message}</Alert>;
   }
   const form = detail.data;
+  if (form.workflow?.enabled && !form.workflow.canEdit)
+    redirect(`/forms/${encodeURIComponent(formId)}`);
 
   return (
     <div className="flex flex-col gap-6">

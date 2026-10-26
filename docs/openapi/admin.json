@@ -491,6 +491,9 @@
           "draft": {
             "nullable": true
           },
+          "releasedDefinition": {
+            "nullable": true
+          },
           "draftSource": {
             "type": "string",
             "enum": [
@@ -524,6 +527,56 @@
           "requiresSecondApprover": {
             "type": "boolean",
             "example": false
+          },
+          "workflow": {
+            "type": "object",
+            "properties": {
+              "enabled": {
+                "type": "boolean"
+              },
+              "environment": {
+                "type": "string"
+              },
+              "canEdit": {
+                "type": "boolean"
+              },
+              "canPublish": {
+                "type": "boolean"
+              },
+              "canRelease": {
+                "type": "boolean"
+              },
+              "eligibleVersions": {
+                "type": "array",
+                "items": {
+                  "type": "integer",
+                  "minimum": 0,
+                  "exclusiveMinimum": true
+                }
+              },
+              "preferredVersion": {
+                "type": "integer",
+                "nullable": true,
+                "minimum": 0,
+                "exclusiveMinimum": true
+              },
+              "currentVersion": {
+                "type": "integer",
+                "nullable": true,
+                "minimum": 0,
+                "exclusiveMinimum": true
+              }
+            },
+            "required": [
+              "enabled",
+              "environment",
+              "canEdit",
+              "canPublish",
+              "canRelease",
+              "eligibleVersions",
+              "preferredVersion",
+              "currentVersion"
+            ]
           }
         },
         "required": [
@@ -537,7 +590,8 @@
           "versions",
           "settings",
           "challengeEnforceable",
-          "requiresSecondApprover"
+          "requiresSecondApprover",
+          "workflow"
         ]
       },
       "FormVersionSummary": {
@@ -4518,7 +4572,7 @@
     "/admin/forms/{id}/publish-and-release": {
       "post": {
         "summary": "Publish the draft and release the new version to an environment, in one act (admin)",
-        "description": "The combined action finding 2 accepted: one intent is one act. It publishes a real, immutable version and keeps it - there is no draft-level release and nothing skips publishing - and the publish, the release record and the `form.released` event share one transaction, so it happens atomically or not at all.",
+        "description": "The combined action finding 2 accepted: one intent is one act. It publishes a real, immutable version and keeps it - there is no draft-level release and nothing skips publishing - and the publish, the release record and the `form.released` event share one transaction, so it happens atomically or not at all. When test and prod are served, publish to test and promote the existing version; direct combined publication to prod is refused.",
         "tags": [
           "forms"
         ],
@@ -5609,7 +5663,7 @@
       },
       "post": {
         "summary": "Release a published version to an environment, or promote it there (admin)",
-        "description": "Writes one release record and copies nothing: the form id and the version number are the published ones. Releasing an earlier version than the one it replaces is a rollback and is the same act. A release never re-pins a session already open.",
+        "description": "Writes one release record and copies nothing: the form id and the version number are the published ones. Releasing an earlier version than the one it replaces is a rollback and is the same act. A release never re-pins a session already open. When test and prod are served, production requires prior test or prod release history; otherwise the request is refused with TEST_RELEASE_REQUIRED.",
         "tags": [
           "releases"
         ],

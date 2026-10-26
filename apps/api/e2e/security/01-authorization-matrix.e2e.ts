@@ -1683,6 +1683,7 @@ describe("the two-person rule for production (task 070, criteria 1 to 7)", () =>
   });
 
   it("allows a different prod approver, in one act, and records the approval (criteria 1, 2)", async () => {
+    expect((await release(author.token, 1, "test")).status).toBe(200);
     const allowed = await release(second.token, 1, "prod");
     expect(allowed.status).toBe(200);
     const body = (await allowed.json()) as { release: { approvedBy: string | null } };
@@ -1721,7 +1722,7 @@ describe("the two-person rule for production (task 070, criteria 1 to 7)", () =>
     // The switch is on for this workspace throughout this block, so this is the case that
     // keeps a test cycle usable (finding 5): a release to `test` is self-service, and the
     // author releasing their own version there is the ordinary shape of it.
-    const released = await release(author.token, 1, "test");
+    const released = await release(second.token, 2, "test");
     expect(released.status).toBe(200);
     const body = (await released.json()) as { release: { approvedBy: string | null } };
     // No approval recorded, because none was required. A column filled in anyway would

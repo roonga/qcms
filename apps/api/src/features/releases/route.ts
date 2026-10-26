@@ -45,7 +45,9 @@ export const releaseVersionRoute = createRoute({
   description:
     "Writes one release record and copies nothing: the form id and the version number " +
     "are the published ones. Releasing an earlier version than the one it replaces is a " +
-    "rollback and is the same act. A release never re-pins a session already open.",
+    "rollback and is the same act. A release never re-pins a session already open. " +
+    "When test and prod are served, production requires prior test or prod release history; " +
+    "otherwise the request is refused with TEST_RELEASE_REQUIRED.",
   tags,
   request: { params: FormIdParam, body: jsonBody(ReleaseVersionBody) },
   responses: {

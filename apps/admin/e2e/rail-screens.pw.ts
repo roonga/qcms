@@ -1,3 +1,4 @@
+import { setScreenEnvironment } from "./support/environment.js";
 import type { Page } from "@playwright/test";
 
 import { expect, test } from "../../portal/e2e/support/gates.js";
@@ -180,6 +181,7 @@ test("561 puts the rail on all ten form-scoped screens, marking the row the scre
 
   await page.setViewportSize({ width: SIDEBAR, height: 900 });
   for (const screen of screens()) {
+    await setScreenEnvironment(page, screen.path);
     await page.goto(screen.path);
     await expect(page.locator("main#main-content"), `${screen.path} is the shell`).toHaveCount(1);
 
@@ -253,6 +255,7 @@ test("561 gives every screen the form's steps as its children, never the list it
   const expected = [`/forms/${FORM_ID}#step-${STEP_ID}`];
 
   for (const screen of screens()) {
+    await setScreenEnvironment(page, screen.path);
     await page.goto(screen.path);
     await expect(page.getByTestId("qcms-rail")).toBeVisible();
     expect
@@ -269,6 +272,7 @@ test("561 gives every screen the form's steps as its children, never the list it
   // It used to have two: an editor of buttons inside the page, beside a rail that carried
   // no steps at all. This asserts the merge from both directions - the rail's rows are the
   // interactive ones, and nothing outside the rail is offering a second copy of them.
+  await setScreenEnvironment(page, `/forms/${FORM_ID}`);
   await page.goto(`/forms/${FORM_ID}`);
   const railStep = page
     .getByTestId("qcms-rail")
@@ -311,6 +315,7 @@ test("561 keeps the two respondent-facing renders on the narrow measure the rail
   // `<main>` rather than a child of it, so it takes nothing off the measure and is no
   // excuse to widen it either.
   for (const path of [`/forms/${FORM_ID}/preview`, `/forms/${FORM_ID}/versions/1`]) {
+    await setScreenEnvironment(page, path);
     await page.goto(path);
     await expect(page.getByTestId("qcms-rail")).toBeVisible();
     const frame = page.getByTestId("qcms-respondent-frame");
@@ -379,6 +384,7 @@ test("561 puts every shared rail row in the same box on all three builder-family
   // PREVIEW FIRST, because its rail is server-rendered and therefore already settled: it
   // is the reference the other two are compared against, and it is the one that can be
   // measured the moment it is visible.
+  await setScreenEnvironment(page, `/forms/${FORM_ID}/preview`);
   await page.goto(`/forms/${FORM_ID}/preview`);
   await expect(page.getByTestId("qcms-rail")).toBeVisible();
   await openRail(page);
@@ -396,6 +402,8 @@ test("561 puts every shared rail row in the same box on all three builder-family
   // both screens render. The two defects this test exists for both survive that - a 193px
   // box against a 223px one is a width, and the 8px under Rules is the gap from Rules to
   // the row below it.
+
+  await setScreenEnvironment(page, `/forms/${FORM_ID}`);
 
   await page.goto(`/forms/${FORM_ID}`);
   await expect(page.getByTestId("qcms-rail")).toBeVisible();
@@ -449,6 +457,7 @@ test("561 puts every shared rail row in the same box on all three builder-family
     ["builder", `/forms/${FORM_ID}`],
     ["preview", `/forms/${FORM_ID}/preview`],
   ] as const) {
+    await setScreenEnvironment(page, path);
     await page.goto(path);
     await expect(page.getByTestId("qcms-rail")).toBeVisible();
     await openRail(page);
@@ -506,6 +515,7 @@ test("1116 heads every form screen's rail the same way, and leaves no breadcrumb
   for (const width of [1440, 390]) {
     await page.setViewportSize({ width, height: 900 });
     for (const screen of screens()) {
+      await setScreenEnvironment(page, screen.path);
       await page.goto(screen.path);
       const rail = page.getByTestId("qcms-rail");
       await expect.soft(rail, `${screen.path} at ${String(width)} carries the rail`).toBeVisible();

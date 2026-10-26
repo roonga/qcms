@@ -1,5 +1,6 @@
 import { expect, test } from "../../portal/e2e/support/gates.js";
 
+import { TEST_ENVIRONMENT_STORAGE } from "./support/environment.js";
 import { createTestAdmin, uniqueAdminEmail } from "./support/admin-account.js";
 import { enrollNewAdmin, signInWithTotp } from "./support/flow.js";
 import {
@@ -70,6 +71,8 @@ import { confirmLifecycle, createDraft } from "./support/questions.js";
  * `waitForSaveAfter` after it is the pairing PR 753 standardized, and it is what makes the
  * wait about this test's own work.
  */
+
+test.use({ storageState: TEST_ENVIRONMENT_STORAGE });
 
 test.describe.configure({ mode: "serial" });
 

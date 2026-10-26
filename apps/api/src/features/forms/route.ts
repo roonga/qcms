@@ -256,7 +256,8 @@ export const publishAndReleaseFormRoute = createRoute({
     "The combined action finding 2 accepted: one intent is one act. It publishes a real, " +
     "immutable version and keeps it - there is no draft-level release and nothing skips " +
     "publishing - and the publish, the release record and the `form.released` event share " +
-    "one transaction, so it happens atomically or not at all.",
+    "one transaction, so it happens atomically or not at all. When test and prod are served, " +
+    "publish to test and promote the existing version; direct combined publication to prod is refused.",
   tags,
   request: { params: FormIdParam, body: jsonBody(PublishAndReleaseBody) },
   responses: {

@@ -82,8 +82,9 @@ because "released version 4 after version 7" is the shape an incident review rea
 
 - **No copy of a version, in any form.** Promotion is a record; a copy would break R1, R6
   and ADR-18 at once.
-- **No ordering requirement** (Q4). A release straight to `prod` succeeds and records that
-  it had no source environment.
+- **Ordering depends on the deployment** (ADR-40 amendment, 2026-10-26). When both
+  test and prod are served, a production candidate needs prior test or prod release
+  history. Prod-only deployments still permit a direct release.
 - **No approval rule.** `approvedBy` exists from this task and is written by task 070's
   two-person rule for `prod` (Q51). Nothing here enforces who may fill it.
 - **No membership check.** The workspace role and its environment scope arrive with tasks
@@ -124,3 +125,21 @@ rather than needing their own: the history records who closed `prod` and when, n
 rewrite it, and a close is never observed as a version change. **A release does not
 reopen a closed environment** - it carries the current value forward, because closing is a
 deliberate operational act and releasing a version is not a request to resume intake.
+
+## Test-to-production workflow (2026-10-26)
+
+The admin's top switch fixes the release target; the release dialog selects a version,
+not another environment. Its server action confirms the environment shown before
+forwarding. `GET /forms/{id}` returns API-derived action capabilities, eligible version
+numbers, the preferred candidate, the current release and its immutable definition.
+
+When both test and prod are served, `POST /forms/{id}/releases` rejects a prod candidate
+without historical test or prod releases with `409 TEST_RELEASE_REQUIRED`. Historical
+prod releases keep legacy rollback available. Moving test to a later version does not
+invalidate an earlier candidate. This rule follows permission and second-person checks.
+A recorded test release does not assert that manual testing passed.
+
+`POST /forms/{id}/publish-and-release` remains atomic, but targets test in the normal
+workflow. Direct publication into prod is refused in a test/prod deployment. In prod,
+the admin reviews stored content and releases an existing version; it never republishes
+the shared draft. Prod-only deployments retain the original behavior.

@@ -1,3 +1,4 @@
+import { setScreenEnvironment } from "./support/environment.js";
 import { readdirSync } from "node:fs";
 import { fileURLToPath } from "node:url";
 
@@ -143,6 +144,7 @@ let sessionId = "";
  */
 async function documentWidth(page: Page, path: string, width: number): Promise<number> {
   await page.setViewportSize({ width, height: 900 });
+  await setScreenEnvironment(page, path);
   await page.goto(path);
   await expect(page.locator("main#main-content"), `${path} renders the shell`).toHaveCount(1);
   return page.evaluate(() => document.documentElement.scrollWidth);

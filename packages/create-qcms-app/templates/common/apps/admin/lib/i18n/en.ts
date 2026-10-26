@@ -1613,7 +1613,6 @@ export const messages = {
   "forms.releases.twoPersonUnknown":
     "v{version} was published before this deployment recorded publishing accounts, so the second-approver rule cannot be checked against it. Publish a new version and release that one.",
   "forms.releases.version": "Version to release",
-  "forms.releases.environment": "Environment",
   "forms.releases.fromEnvironment": "Promoted from (optional)",
   "forms.releases.fromNone": "Nowhere: release it directly",
   "forms.releases.confirm": "Release to {environment}",
@@ -1625,6 +1624,38 @@ export const messages = {
 
   // The combined action finding 2 accepted: one intent is one act. It publishes a real,
   // immutable version and keeps it - nothing here skips publishing.
+  "forms.workflow.release": "Release v{version} to {environment}",
+  "forms.workflow.publishedForm": "Published form",
+  "forms.workflow.noChanges": "No unpublished changes. Edit the draft before publishing again.",
+  "forms.workflow.intake": "Intake",
+  "forms.workflow.testCandidate": "This version was released to test.",
+  "forms.workflow.firstRelease": "v{version} will be the first version released to {environment}.",
+  "forms.workflow.replacesVersion": "v{version} will replace v{current} in {environment}.",
+  "forms.workflow.reviewLoading": "Loading the stored content of v{version}...",
+  "forms.workflow.reviewFailed":
+    "The published version could not be loaded. Close this confirmation and try again.",
+  "forms.workflow.alreadyReleased": "v{version} is already released to {environment}.",
+  "forms.workflow.publish": "Publish to {environment}",
+  "forms.workflow.publishTitle": "Create v{version} and release it to {environment}?",
+  "forms.workflow.noPublishPermission":
+    "Publishing here requires permission to publish forms and release versions to {environment}.",
+  "forms.workflow.noReleasePermission":
+    "You do not have permission to release versions to {environment} in this workspace.",
+  "forms.workflow.intakeClosed":
+    "The new version is released to {environment}; intake remains closed.",
+  "forms.workflow.noCandidate":
+    "No version is available to release to {environment}. Publish and verify a version in test first.",
+  "forms.workflow.reviewVersion": "Review v{version}",
+  "forms.workflow.testRequired":
+    "Publish and verify this version in test, then switch to prod and release the existing version.",
+  "forms.workflow.noEditPermission":
+    "You do not have permission to edit form drafts in this workspace.",
+  "forms.workflow.editInTest":
+    "Draft changes are shared. Select test in the top navigation to edit and publish them.",
+  "forms.workflow.switchToTest": "Switch to test",
+  "forms.workflow.noReleasedVersion":
+    "Nothing is released in this environment yet. Select a published version on Releases to review and release it.",
+  "forms.workflow.reviewCurrent": "Currently released: v{version}",
   "forms.publishRelease.action": "Publish and release…",
   "forms.publishRelease.title": "Publish {slug} and release it to {environment}?",
   "forms.publishRelease.body":

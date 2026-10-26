@@ -62,6 +62,7 @@ const FORM_CODE_MESSAGES: Readonly<Record<string, MessageKey>> = {
   // renders `forms.error.unknown` with the raw token, and these are the refusals an
   // operator is *most* likely to meet - the rule exists to refuse them - so "Something
   // went wrong (APPROVER_IS_AUTHOR)" would be the sentence that teaches the feature.
+  TEST_RELEASE_REQUIRED: "forms.workflow.testRequired",
   APPROVER_IS_AUTHOR: "forms.error.approverIsAuthor",
   APPROVER_UNKNOWN_AUTHOR: "forms.error.approverUnknownAuthor",
   PROPOSER_CANNOT_CONFIRM: "ops.error.proposerCannotConfirm",

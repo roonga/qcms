@@ -86,6 +86,7 @@ export function composeEnvironmentOverrides({ portalPort, adminPort }) {
     QCMS_PORTAL_PORT: String(portalPort),
     QCMS_ADMIN_BASE_URL: `http://localhost:${String(adminPort)}`,
     QCMS_PORTAL_BASE_URL: `http://localhost:${String(portalPort)}`,
+    QCMS_PORTAL_ENVIRONMENTS: "test",
   };
 }
 

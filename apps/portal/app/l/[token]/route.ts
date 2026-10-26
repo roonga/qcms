@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 
 import { ApiError, startLinkSession } from "@/lib/server/api";
+import { portalBaseUrl } from "@/lib/server/config";
 import { currentBasePath } from "@/lib/server/environment";
 import { writeSessionToken } from "@/lib/server/session-cookie";
 
@@ -37,7 +38,7 @@ const ERROR_KIND: Record<string, string> = {
 };
 
 export async function GET(
-  request: Request,
+  _request: Request,
   ctx: { params: Promise<{ token: string }> },
 ): Promise<NextResponse> {
   const { token } = await ctx.params;
@@ -45,10 +46,17 @@ export async function GET(
   try {
     const session = await startLinkSession({ token });
     await writeSessionToken(session.sessionToken);
-    return NextResponse.redirect(new URL(`${basePath}/s/${session.sessionId}`, request.url), 303);
+    // Standalone Docker requests carry the internal bind address, not the public origin.
+    return NextResponse.redirect(
+      new URL(`${basePath}/s/${session.sessionId}`, portalBaseUrl()),
+      303,
+    );
   } catch (error) {
     const code = error instanceof ApiError ? error.code : "internal";
     const kind = ERROR_KIND[code] ?? "invalid";
-    return NextResponse.redirect(new URL(`${basePath}/link-error?kind=${kind}`, request.url), 303);
+    return NextResponse.redirect(
+      new URL(`${basePath}/link-error?kind=${kind}`, portalBaseUrl()),
+      303,
+    );
   }
 }

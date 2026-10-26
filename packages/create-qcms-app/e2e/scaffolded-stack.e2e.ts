@@ -280,12 +280,25 @@ describe("a scaffolded QCMS deployment", () => {
     //     redemption below reaches a form with nothing to serve. `prod` is the environment
     //     a scaffolded deployment serves, which is also the one the respondent surface
     //     resolves while it carries no `/<env>/` prefix.
+    await json(
+      `${API}/admin/forms/${FORM_ID}/releases`,
+      {
+        method: "POST",
+        headers: adminHeaders(),
+        body: JSON.stringify({ environment: "test", version: published["version"] }),
+      },
+      [200, 201],
+    );
     const released = await json(
       `${API}/admin/forms/${FORM_ID}/releases`,
       {
         method: "POST",
         headers: adminHeaders(),
-        body: JSON.stringify({ environment: "prod", version: published["version"] }),
+        body: JSON.stringify({
+          environment: "prod",
+          version: published["version"],
+          fromEnvironment: "test",
+        }),
       },
       [200, 201],
     );

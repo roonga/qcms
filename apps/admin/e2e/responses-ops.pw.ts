@@ -193,14 +193,10 @@ test.describe("admin operations: responses, erasure, webhooks", () => {
     // twice at two levels.
     await expect(page.getByRole("heading", { name: `Response ${revised}` })).toHaveCount(1);
 
-    // The builder names its SCREEN, which reverses 679's exemption for that one route
-    // (Code Owner, 2026-08-26). 679 kept the bare slug there because "the page's subject IS
-    // the form"; the builder is two screens now and its step screen heads itself with the
-    // step, so the premise expired and the slug was being repeated from the trail
-    // above it. Still asserted rather than assumed, because the property worth protecting
-    // is unchanged: this route's heading is its own, not the slug every section once shared.
+    // Production shows the immutable review. Its heading names that screen while
+    // the form's name remains in the rail.
     await page.goto(`/forms/${FORM_ID}`);
-    await expect(page.locator("h1").first()).toHaveText("Form details");
+    await expect(page.locator("h1").first()).toHaveText("Published form");
     await expect(page.locator("h1").first(), "and not the form's name").not.toHaveText(SLUG);
   });
 

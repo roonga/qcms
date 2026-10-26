@@ -1,6 +1,7 @@
 import { readFixtures } from "../../portal/e2e/support/fixtures.js";
 import { expect, test } from "../../portal/e2e/support/gates.js";
 
+import { TEST_ENVIRONMENT_STORAGE } from "./support/environment.js";
 import { createTestAdmin, uniqueAdminEmail } from "./support/admin-account.js";
 import { enrollNewAdmin, fillStable, signInWithTotp } from "./support/flow.js";
 import {
@@ -56,6 +57,8 @@ import { confirmLifecycle, createDraft } from "./support/questions.js";
  * writer would change it. Nothing below stores anything on it either - the first two tests
  * only read.
  */
+
+test.use({ storageState: TEST_ENVIRONMENT_STORAGE });
 
 test.describe.configure({ mode: "serial" });
 

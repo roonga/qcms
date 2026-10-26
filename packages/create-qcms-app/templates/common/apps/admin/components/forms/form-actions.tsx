@@ -10,7 +10,7 @@ import { IssueEntry } from "@/components/forms/validation-panel";
 import type { FormStatusState, PublishReleaseState, PublishState } from "@/lib/forms/builder-state";
 import { IDLE_FORM_STATUS, IDLE_PUBLISH, IDLE_PUBLISH_RELEASE } from "@/lib/forms/builder-state";
 import { freezeSummary, nextVersion } from "@/lib/forms/publish";
-import type { DraftForm, FormIssue } from "@/lib/forms/types";
+import type { DraftForm, FormIssue, FormPublishingWorkflow } from "@/lib/forms/types";
 import { t, tPlural } from "@/lib/i18n/en";
 import { unexpected } from "@/lib/ops/unexpected";
 
@@ -48,6 +48,12 @@ import { unexpected } from "@/lib/ops/unexpected";
  * the list inside would announce a screenful of links as one flat interruption, at the
  * moment the author most needs to move through them one at a time.
  */
+function publishReleaseConfirm(pending: boolean, enabled: boolean, environment: string): string {
+  if (pending) return t("forms.publishRelease.pending");
+  if (enabled) return t("forms.workflow.publish", { environment });
+  return t("forms.publishRelease.confirm", { environment });
+}
+
 export function FormActions({
   slug,
   formId,
@@ -59,7 +65,13 @@ export function FormActions({
   setStatus,
   environment,
   agentAssisted = false,
+  workflow,
+  lifecycleOnly = false,
+  hasStoredDraft = true,
 }: {
+  readonly lifecycleOnly?: boolean;
+  readonly hasStoredDraft?: boolean;
+  readonly workflow?: FormPublishingWorkflow | undefined;
   readonly slug: string;
   readonly formId: string;
   readonly status: "open" | "closed";
@@ -109,7 +121,10 @@ export function FormActions({
 
   const version = nextVersion(latestVersion);
   const summary = freezeSummary(draft);
-  const canPublish = draft !== null && summary.steps > 0;
+  const canPublish = hasStoredDraft && draft !== null && summary.steps > 0;
+  const rejectionIssues = [published, releasedState].find(
+    (state) => state.status === "rejected",
+  )?.issues;
 
   const runPublish = useCallback(() => {
     startTransition(() => {
@@ -182,35 +197,43 @@ export function FormActions({
       data-testid="qcms-form-actions"
     >
       <h2 id="qcms-form-actions-heading" className="qcms-visually-hidden">
-        {t("forms.publish.action")}
+        {t(lifecycleOnly ? "forms.workflow.intake" : "forms.publish.action")}
       </h2>
 
       <div className="flex flex-wrap items-center gap-2">
-        <Button
-          variant="primary"
-          size="md"
-          isDisabled={!canPublish || isPending}
-          onPress={() => {
-            setPublished(IDLE_PUBLISH);
-            setDialog("publish");
-          }}
-        >
-          {t("forms.publish.action")}
-        </Button>
+        {!lifecycleOnly && !workflow?.enabled && (
+          <Button
+            variant="primary"
+            size="md"
+            isDisabled={!canPublish || isPending}
+            onPress={() => {
+              setPublished(IDLE_PUBLISH);
+              setDialog("publish");
+            }}
+          >
+            {t("forms.publish.action")}
+          </Button>
+        )}
         {/* One intent, one act (finding 2). Beside Publish rather than replacing it,
             because publishing without releasing is still what an author does when the
             version is not ready to serve anywhere. */}
-        <Button
-          variant="secondary"
-          size="md"
-          isDisabled={!canPublish || isPending || environmentUnknown}
-          onPress={() => {
-            setReleased(IDLE_PUBLISH_RELEASE);
-            setDialog("publishRelease");
-          }}
-        >
-          {t("forms.publishRelease.action")}
-        </Button>
+        {!lifecycleOnly && (
+          <Button
+            variant={workflow?.enabled ? "primary" : "secondary"}
+            size="md"
+            isDisabled={
+              !canPublish || isPending || environmentUnknown || workflow?.canPublish === false
+            }
+            onPress={() => {
+              setReleased(IDLE_PUBLISH_RELEASE);
+              setDialog("publishRelease");
+            }}
+          >
+            {workflow?.enabled
+              ? t("forms.workflow.publish", { environment })
+              : t("forms.publishRelease.action")}
+          </Button>
+        )}
         <Button
           variant="secondary"
           size="md"
@@ -226,8 +249,15 @@ export function FormActions({
         </Button>
       </div>
 
-      {!canPublish && (
-        <p className="text-sm text-(--color-text-muted)">{t("forms.publish.noDraft")}</p>
+      {!lifecycleOnly && workflow?.enabled && !workflow.canPublish && (
+        <p className="text-sm text-(--color-text-muted)">
+          {t("forms.workflow.noPublishPermission", { environment })}
+        </p>
+      )}
+      {!lifecycleOnly && !canPublish && (
+        <p className="text-sm text-(--color-text-muted)">
+          {t(hasStoredDraft ? "forms.publish.noDraft" : "forms.workflow.noChanges")}
+        </p>
       )}
       {status === "closed" && (
         <p className="text-sm text-(--color-text-muted)" data-testid="qcms-form-closed">
@@ -247,12 +277,12 @@ export function FormActions({
             it (#377). A summary comes here and the work list stays where it is: every
             entry in it is a link that moves focus to the rule or step at fault, and a list
             of links read out as one flat interruption is neither navigable nor wanted. */}
-        {published.status === "rejected" && draft !== null && (
+        {rejectionIssues !== undefined && draft !== null && (
           <p className="qcms-visually-hidden">
             {tPlural(
               "forms.publish.blockedAnnounce.one",
               "forms.publish.blockedAnnounce.other",
-              (published.issues ?? []).length,
+              rejectionIssues.length,
             )}
           </p>
         )}
@@ -279,10 +309,16 @@ export function FormActions({
               environment: releasedState.environment ?? environment,
             })}
           >
-            <Link className="qcms-text-link" href={`/forms/${encodeURIComponent(formId)}/releases`}>
-              {t("forms.tab.releases")}
+            <Link
+              className="qcms-text-link"
+              href={`/forms/${encodeURIComponent(formId)}/${workflow?.enabled ? "links" : "releases"}`}
+            >
+              {workflow?.enabled ? t("forms.tab.links") : t("forms.tab.releases")}
             </Link>
           </Alert>
+        )}
+        {releasedState.status === "released" && status === "closed" && (
+          <p>{t("forms.workflow.intakeClosed", { environment })}</p>
         )}
         {releasedState.status === "error" && (
           <Alert variant="error">
@@ -370,7 +406,11 @@ export function FormActions({
         <Dialog
           isOpen
           role="alertdialog"
-          title={t("forms.publishRelease.title", { slug, environment })}
+          title={
+            workflow?.enabled
+              ? t("forms.workflow.publishTitle", { version, environment })
+              : t("forms.publishRelease.title", { slug, environment })
+          }
           description={t("forms.publishRelease.body", { environment })}
           isDismissable={!isPending}
           onOpenChange={(isOpen) => {
@@ -378,8 +418,12 @@ export function FormActions({
           }}
         >
           <div className="flex flex-col gap-4" data-testid="qcms-publish-release-dialog">
-            {agentAssisted && <AgentProvenanceTag />}
-            <p className="text-sm text-(--color-text)">
+            {agentAssisted && (
+              <div data-testid="qcms-publish-provenance">
+                <AgentProvenanceTag />
+              </div>
+            )}
+            <p className="text-sm text-(--color-text)" data-testid="qcms-freeze-summary">
               {t("forms.publish.freezes", {
                 steps: tPlural(
                   "forms.publish.freezes.steps.one",
@@ -415,9 +459,7 @@ export function FormActions({
                 isDisabled={isPending}
                 onPress={runPublishRelease}
               >
-                {isPending
-                  ? t("forms.publishRelease.pending")
-                  : t("forms.publishRelease.confirm", { environment })}
+                {publishReleaseConfirm(isPending, workflow?.enabled === true, environment)}
               </Button>
               <Button
                 variant="ghost"

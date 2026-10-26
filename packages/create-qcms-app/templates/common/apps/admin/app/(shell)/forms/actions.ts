@@ -20,9 +20,11 @@ import type {
 import { formIdFromSlug } from "@/lib/forms/draft";
 import { t } from "@/lib/i18n/en";
 import { messageForFormCode } from "@/lib/forms/errors";
-import type { DraftForm } from "@/lib/forms/types";
+import { readState, type ReadState } from "@/lib/read-state";
+import type { DraftForm, FormVersionSnapshot } from "@/lib/forms/types";
 import {
   createForm,
+  getFormVersion,
   previewCondition,
   previewDraft,
   publishForm,
@@ -422,16 +424,34 @@ export async function publishFormAction(formId: string): Promise<PublishState> {
  * action, because there is no second mechanism: the API derives the marking from the
  * release's predecessor and reports it, and the screen says so afterwards.
  */
+/** Review the exact published version in the environment the confirmation shows. */
+export async function reviewFormVersionAction(
+  formId: string,
+  shown: string | undefined,
+  version: number,
+): Promise<ReadState<FormVersionSnapshot>> {
+  const session = await requireAdminSession();
+  const check = await confirmShownEnvironment(session, shown);
+  if (!check.ok) return { ok: false };
+  return readState(await getFormVersion(session, formId, version));
+}
+
 export async function releaseVersionAction(
   formId: string,
+  shown: string | undefined,
   input: {
-    readonly environment: string;
     readonly version: number;
     readonly fromEnvironment?: string;
   },
 ): Promise<ReleaseState> {
   const session = await requireAdminSession();
-  const result = await releaseVersion(session, formId, input);
+  const check = await confirmShownEnvironment(session, shown);
+  if (!check.ok) return { status: "error", message: check.message };
+  const result = await releaseVersion(session, formId, {
+    version: input.version,
+    ...(input.fromEnvironment === undefined ? {} : { fromEnvironment: input.fromEnvironment }),
+    environment: check.environment,
+  });
   if (!result.ok) return { status: "error", message: result.message };
   // The release screen, the version list and the form's own header all describe what is
   // released, so the whole subtree is re-read rather than one route of it.

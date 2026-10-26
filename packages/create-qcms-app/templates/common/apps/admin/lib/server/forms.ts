@@ -13,6 +13,7 @@ import type {
   DraftForm,
   DraftPreview,
   FormDetail,
+  FormPublishingWorkflow,
   FormIssue,
   FormListItem,
   FormSettings,
@@ -141,6 +142,7 @@ export const getForm: (session: AdminSession, formId: string) => Promise<ApiResu
         status: raw["status"] === "closed" ? "closed" : "open",
         draft: parseDraft(raw["draft"], formId, defaultLocale),
         draftSource: parseDraftSource(raw["draftSource"]),
+        releasedDefinition: parseDraft(raw["releasedDefinition"], formId, defaultLocale),
         versions: parseVersions(raw["versions"]),
         settings: parseSettings(raw["settings"]),
         challengeEnforceable: raw["challengeEnforceable"] === true,
@@ -153,6 +155,7 @@ export const getForm: (session: AdminSession, formId: string) => Promise<ApiResu
         // a build talking to a pre-070 API shows no rule rather than claiming one the API
         // will not enforce.
         requiresSecondApprover: raw["requiresSecondApprover"] === true,
+        ...readWorkflow(raw["workflow"]),
       },
     };
   });
@@ -741,5 +744,26 @@ function parseDraft(raw: unknown, formId: string, defaultLocale: string): DraftF
     title: (source["title"] ?? {}) as DraftForm["title"],
     steps: readDraftSteps(source["steps"]),
     rules: readDraftRules(source["rules"]),
+  };
+}
+
+/** API-owned capabilities; absent responses keep the legacy single-environment UI. */
+function readWorkflow(raw: unknown): { workflow?: FormPublishingWorkflow } {
+  if (raw === null || typeof raw !== "object") return {};
+  const row = raw as Record<string, unknown>;
+  return {
+    workflow: {
+      enabled: row["enabled"] === true,
+      environment: typeof row["environment"] === "string" ? row["environment"] : "",
+      canEdit: row["canEdit"] === true,
+      canPublish: row["canPublish"] === true,
+      canRelease: row["canRelease"] === true,
+      eligibleVersions: Array.isArray(row["eligibleVersions"])
+        ? row["eligibleVersions"].filter((v): v is number => typeof v === "number")
+        : [],
+      preferredVersion:
+        typeof row["preferredVersion"] === "number" ? row["preferredVersion"] : null,
+      currentVersion: typeof row["currentVersion"] === "number" ? row["currentVersion"] : null,
+    },
   };
 }

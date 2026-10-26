@@ -59,6 +59,7 @@ import {
   getReleasedVersion,
   getSession,
   insertFormVersion,
+  insertFormRelease,
   insertSecureLink,
   listFormVersions,
   publishQuestionVersion,
@@ -358,12 +359,75 @@ describe("release resolution replaces the newest published version (criterion 1)
     expect((await startAnonymous(slug)).status).toBe(201);
   });
 
-  it("records a release straight to `prod` with no prior release anywhere (criterion 5)", async () => {
+  it("refuses a production version with no test or legacy prod release history", async () => {
     const { formId } = await seedForm("hotfixed", 1);
     const res = await post(`/forms/${formId}/releases`, { environment: "prod", version: 1 });
-    expect(res.status).toBe(200);
-    const body = (await res.json()) as { release: { fromEnvironment: string | null } };
-    expect(body.release.fromEnvironment).toBeNull();
+    expect(res.status).toBe(409);
+    expect(((await res.json()) as { error: { code: string } }).error.code).toBe(
+      "TEST_RELEASE_REQUIRED",
+    );
+    expect(await getReleasedVersion(control, formId, "prod")).toBeUndefined();
+    expect(await releasedEvents("prod", formId)).toBe(0);
+  });
+});
+
+describe("test-to-production eligibility", () => {
+  it("keeps an older tested version eligible after test has moved forward", async () => {
+    const { formId } = await seedForm("testedhistory", 2);
+    await post(`/forms/${formId}/releases`, { environment: "test", version: 1 });
+    await post(`/forms/${formId}/releases`, { environment: "test", version: 2 });
+    expect(
+      (await post(`/forms/${formId}/releases`, { environment: "prod", version: 1 })).status,
+    ).toBe(200);
+    expect((await getReleasedVersion(control, formId, "prod"))?.version).toBe(1);
+  });
+
+  it("keeps a legacy production version eligible for rollback", async () => {
+    const { formId } = await seedForm("legacyrollback", 2);
+    await insertFormRelease(control, {
+      formId,
+      environment: "prod",
+      version: 1,
+      releasedBy: adminUserId,
+    });
+    await post(`/forms/${formId}/releases`, { environment: "test", version: 2 });
+    expect(
+      (await post(`/forms/${formId}/releases`, { environment: "prod", version: 2 })).status,
+    ).toBe(200);
+    const rollback = await post(`/forms/${formId}/releases`, { environment: "prod", version: 1 });
+    expect(rollback.status).toBe(200);
+    expect(((await rollback.json()) as { release: { rollback: boolean } }).release.rollback).toBe(
+      true,
+    );
+  });
+
+  it("refuses direct draft publication to prod without consuming the draft", async () => {
+    const formId = FormId.parse("frm_no_direct_prod");
+    await seedPublishedQuestion("q_no_direct_prod");
+    await createForm(control, {
+      workspaceId: SEED_WORKSPACE_ID,
+      formId,
+      slug: "no-direct-prod",
+      defaultLocale: "en",
+    });
+    await app.request(`/admin/forms/${formId}/draft`, {
+      method: "PUT",
+      headers: adminHeaders(),
+      body: JSON.stringify({ definition: draftDefinition(formId, "q_no_direct_prod") }),
+    });
+    const response = await post(`/forms/${formId}/publish-and-release`, { environment: "prod" });
+    expect(response.status).toBe(409);
+    expect(((await response.json()) as { error: { code: string } }).error.code).toBe(
+      "TEST_RELEASE_REQUIRED",
+    );
+    expect(await listFormVersions(control, formId)).toHaveLength(0);
+    const form = (await (await get(`/forms/${formId}`)).json()) as {
+      draft: unknown;
+      workflow: { canPublish: boolean };
+    };
+    expect(form.draft).not.toBeNull();
+    expect(form.workflow.canPublish).toBe(false);
+    expect(await releasedEvents("prod", formId)).toBe(0);
   });
 });
 
@@ -424,6 +488,7 @@ describe("the release writes exactly one event, in its own transaction (criterio
 
   it("carries the form, the version, the environment and who released it", async () => {
     const { formId } = await seedForm("payload", 1);
+    await post(`/forms/${formId}/releases`, { environment: "test", version: 1 });
     await post(`/forms/${formId}/releases`, { environment: "prod", version: 1 });
 
     const res = await testDb.client.query<{ payload: Record<string, unknown> }>(
@@ -457,6 +522,7 @@ describe("the release history (criteria 4 and 7)", () => {
   it("answers who released what, when and from where, and marks a rollback", async () => {
     const { formId } = await seedForm("history", 7);
     for (const version of [4, 7]) {
+      await post(`/forms/${formId}/releases`, { environment: "test", version });
       expect(
         (await post(`/forms/${formId}/releases`, { environment: "prod", version })).status,
       ).toBe(200);
@@ -661,6 +727,7 @@ describe("refusals", () => {
 describe("the switcher's environment steers an admin read (Q6)", () => {
   it("reads the environment the header names rather than the interim default", async () => {
     const { formId } = await seedForm("switched", 2);
+    await post(`/forms/${formId}/releases`, { environment: "test", version: 2 });
     await post(`/forms/${formId}/releases`, { environment: "test", version: 1 });
     await post(`/forms/${formId}/releases`, { environment: "prod", version: 2 });
 
@@ -786,6 +853,7 @@ describe("the two-person rule for a prod release (task 070, Q13, Q30, Q51)", () 
   });
 
   it("records no approval and compares nothing with the switch off (criterion 3)", async () => {
+    await post(`/forms/${RULE_FORM}/releases`, { environment: "test", version: 1 });
     await setRequireSecondApprover(control, SEED_WORKSPACE_ID, false);
     // The author releasing their own version into `prod`, which is what a
     // single-administrator installation does and has to go on being able to do.
@@ -806,6 +874,7 @@ describe("the two-person rule for a prod release (task 070, Q13, Q30, Q51)", () 
 
     // Version 2 was published by a different account, so this request is the second
     // account and its id is what lands on the row.
+    await post(`/forms/${RULE_FORM}/releases`, { environment: "test", version: 2 });
     const allowed = await post(`/forms/${RULE_FORM}/releases`, { environment: "prod", version: 2 });
     expect(allowed.status).toBe(200);
     expect(

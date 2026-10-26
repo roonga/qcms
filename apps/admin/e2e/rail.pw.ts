@@ -1,3 +1,4 @@
+import { TEST_ENVIRONMENT_STORAGE } from "./support/environment.js";
 import type { Page } from "@playwright/test";
 
 import { expect, test } from "../../portal/e2e/support/gates.js";
@@ -29,6 +30,8 @@ import {
  * one the rail turns at, so a rail that collapsed at 1000 or at 1100 would be a third
  * boundary nobody wrote down.
  */
+
+test.use({ storageState: TEST_ENVIRONMENT_STORAGE });
 
 test.describe.configure({ mode: "serial" });
 
@@ -272,6 +275,7 @@ test("559 lets a short screen's rail reach the bottom of the shell (N2)", async 
   await page.goto(linksPath());
   await expect(page.getByTestId("qcms-rail")).toBeVisible();
 
+  await waitForBarMeasurement(page);
   const filled = await page.evaluate(() => {
     const rail = document.querySelector('[data-testid="qcms-rail"]');
     const main = document.querySelector("main#main-content");
@@ -412,7 +416,7 @@ const scrollState = async (
     // The token resolved to pixels, by letting the browser resolve it: it is a `calc`
     // over another custom property, so reading the string would prove nothing.
     const probe = document.createElement("div");
-    probe.style.blockSize = getComputedStyle(root).getPropertyValue("--admin-topbar-h");
+    probe.style.blockSize = "var(--admin-topbar-layout-h, var(--admin-topbar-h))";
     probe.style.position = "absolute";
     root.append(probe);
     const barToken = probe.getBoundingClientRect().height;
@@ -429,6 +433,15 @@ const scrollState = async (
     };
   });
 
+async function waitForBarMeasurement(page: Page): Promise<void> {
+  await expect
+    .poll(async () => {
+      const state = await scrollState(page);
+      return Math.abs(state.barHeight - state.barToken);
+    })
+    .toBeLessThan(0.01);
+}
+
 test("pins the rail to the viewport below the bar, at the height the token claims", async ({
   page,
 }) => {
@@ -438,12 +451,14 @@ test("pins the rail to the viewport below the bar, at the height the token claim
   await page.goto(linksPath());
   await expect(page.getByTestId("qcms-rail")).toBeVisible();
 
+  await waitForBarMeasurement(page);
   const at = await scrollState(page);
-  // THE ONE NUMBER THIS DESIGN DEPENDS ON. The rail's sticky offset and its height are
-  // both `--admin-topbar-h`, which is derived from `--admin-control-h` rather than
-  // measured off the bar. If the two ever disagree the rail slides under the bar or
-  // leaves a gap below it, and neither is loud - so the drift fails here instead.
-  expect(at.barHeight, "the bar is exactly what the token derives").toBeCloseTo(at.barToken, 0);
+  // The effective value includes the test banner inside the sticky header. A derived
+  // single-row height would leave the rail behind the banner and beyond the viewport.
+  expect(at.barHeight, "the effective height includes the entire header").toBeCloseTo(
+    at.barToken,
+    0,
+  );
   expect(at.railTop, "the rail starts where the bar ends").toBeCloseTo(at.barHeight, 0);
   expect(at.railBottom, "and ends on the bottom of the screen").toBeCloseTo(900, 0);
 });
@@ -458,6 +473,7 @@ test("gives neither the rail nor the page a scrollbar when both fit", async ({ p
   await page.goto(linksPath());
   await expect(page.getByTestId("qcms-rail")).toBeVisible();
 
+  await waitForBarMeasurement(page);
   const at = await scrollState(page);
   expect(at.pageOverflows, "the screen fits, so the page offers no scrollbar").toBe(false);
   expect(at.railOverflows, "and the rail's rows fit, so neither does it").toBe(false);
@@ -473,6 +489,7 @@ test("leaves the rail where it is while the screen beside it is scrolled", async
   await page.goto(linksPath());
   await expect(page.getByTestId("qcms-rail")).toBeVisible();
 
+  await waitForBarMeasurement(page);
   const at = await scrollState(page);
   expect(at.pageOverflows, "this screen is taller than 400px, so the page scrolls").toBe(true);
   expect(at.railScrollTop).toBe(0);

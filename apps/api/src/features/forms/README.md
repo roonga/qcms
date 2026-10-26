@@ -183,6 +183,19 @@ rule itself is `features/workspaces/rules.ts` (`mayPinQuestion`), beside the **e
 of the same asymmetry (`mayEditQuestion`), which has no caller until task 069 resolves a
 member. `features/workspaces/README.md` is that slice's own page.
 
+## Publishing through the admin (2026-10-26)
+
+In a test/prod deployment the primary action is **Publish to test**, backed by the atomic
+publish-and-release endpoint. Production exposes stored-version review and release of
+an eligible existing version, with draft authoring in test. Direct combined publication
+to prod is refused with `TEST_RELEASE_REQUIRED`; the library-only publish API remains
+available to integrations. The release slice documents eligibility and rollback.
+
+The detail response adds `workflow` (API-derived edit, combined-publish and release
+capabilities, selected environment, eligible and preferred versions, and current version)
+and `releasedDefinition`, which is the selected environment's immutable definition or
+null. The production rail uses that definition and never validates the shared draft.
+
 ## New draft after publish is seeded
 
 Publish deletes the draft. `GET /admin/forms/:id` then returns the draft **seeded
