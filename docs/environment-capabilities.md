@@ -31,8 +31,10 @@ not approve a new workflow or change authorization.
 
 ## What a user can do
 
-Every capability below also requires workspace membership and the relevant role.
-Environment access alone grants no action. A person can hold several roles.
+Every administrative capability below also requires workspace membership and the
+relevant role. Respondent entry instead requires a valid secure link or permitted
+public access. Environment access alone grants no administrative action. A person
+can hold several roles.
 
 | Capability                                                 | Shared authoring                   | dev                | test               | stg                | prod                                      |
 | ---------------------------------------------------------- | ---------------------------------- | ------------------ | ------------------ | ------------------ | ----------------------------------------- |
