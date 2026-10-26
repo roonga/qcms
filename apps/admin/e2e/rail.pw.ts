@@ -275,12 +275,7 @@ test("559 lets a short screen's rail reach the bottom of the shell (N2)", async 
   await page.goto(linksPath());
   await expect(page.getByTestId("qcms-rail")).toBeVisible();
 
-  await expect
-    .poll(async () => {
-      const state = await scrollState(page);
-      return Math.abs(state.barHeight - state.barToken);
-    })
-    .toBeLessThan(1);
+  await waitForBarMeasurement(page);
   const filled = await page.evaluate(() => {
     const rail = document.querySelector('[data-testid="qcms-rail"]');
     const main = document.querySelector("main#main-content");
@@ -421,7 +416,7 @@ const scrollState = async (
     // The token resolved to pixels, by letting the browser resolve it: it is a `calc`
     // over another custom property, so reading the string would prove nothing.
     const probe = document.createElement("div");
-    probe.style.blockSize = "var(--admin-topbar-measured-h, var(--admin-topbar-h))";
+    probe.style.blockSize = "var(--admin-topbar-layout-h, var(--admin-topbar-h))";
     probe.style.position = "absolute";
     root.append(probe);
     const barToken = probe.getBoundingClientRect().height;
@@ -438,6 +433,15 @@ const scrollState = async (
     };
   });
 
+async function waitForBarMeasurement(page: Page): Promise<void> {
+  await expect
+    .poll(async () => {
+      const state = await scrollState(page);
+      return Math.abs(state.barHeight - state.barToken);
+    })
+    .toBeLessThan(0.01);
+}
+
 test("pins the rail to the viewport below the bar, at the height the token claims", async ({
   page,
 }) => {
@@ -447,12 +451,7 @@ test("pins the rail to the viewport below the bar, at the height the token claim
   await page.goto(linksPath());
   await expect(page.getByTestId("qcms-rail")).toBeVisible();
 
-  await expect
-    .poll(async () => {
-      const state = await scrollState(page);
-      return Math.abs(state.barHeight - state.barToken);
-    })
-    .toBeLessThan(1);
+  await waitForBarMeasurement(page);
   const at = await scrollState(page);
   // The effective value includes the test banner inside the sticky header. A derived
   // single-row height would leave the rail behind the banner and beyond the viewport.
@@ -474,6 +473,7 @@ test("gives neither the rail nor the page a scrollbar when both fit", async ({ p
   await page.goto(linksPath());
   await expect(page.getByTestId("qcms-rail")).toBeVisible();
 
+  await waitForBarMeasurement(page);
   const at = await scrollState(page);
   expect(at.pageOverflows, "the screen fits, so the page offers no scrollbar").toBe(false);
   expect(at.railOverflows, "and the rail's rows fit, so neither does it").toBe(false);
@@ -489,6 +489,7 @@ test("leaves the rail where it is while the screen beside it is scrolled", async
   await page.goto(linksPath());
   await expect(page.getByTestId("qcms-rail")).toBeVisible();
 
+  await waitForBarMeasurement(page);
   const at = await scrollState(page);
   expect(at.pageOverflows, "this screen is taller than 400px, so the page scrolls").toBe(true);
   expect(at.railScrollTop).toBe(0);

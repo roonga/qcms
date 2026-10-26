@@ -28,7 +28,7 @@
  *
  * ## Before the first measurement
  *
- * CSS reads `var(--admin-topbar-measured-h, var(--admin-topbar-h))`, so the derived value
+ * CSS falls back to `--admin-topbar-h`, so the derived value
  * remains the initial fallback. The observer then corrects the rail's geometry to include
  * a banner or wrapped navigation; scroll padding follows the same complete height.
  *
@@ -51,3 +51,6 @@ export const TOPBAR_HEIGHT_PROPERTY = "--admin-topbar-measured-h";
 
 /** The bar itself: `app/(shell)/layout.tsx`'s `<header>`, styled by `app/globals.css`. */
 export const TOPBAR_SELECTOR = "header.qcms-topbar";
+
+/** Exact border-box height for rail geometry; scroll padding keeps its rounded-up value. */
+export const TOPBAR_LAYOUT_HEIGHT_PROPERTY = "--admin-topbar-layout-h";

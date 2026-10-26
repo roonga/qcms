@@ -2,7 +2,11 @@
 
 import { useEffect } from "react";
 
-import { TOPBAR_HEIGHT_PROPERTY, TOPBAR_SELECTOR } from "@/lib/topbar";
+import {
+  TOPBAR_HEIGHT_PROPERTY,
+  TOPBAR_LAYOUT_HEIGHT_PROPERTY,
+  TOPBAR_SELECTOR,
+} from "@/lib/topbar";
 
 /**
  * Publish the top bar's rendered height so the page's scroll padding can follow it
@@ -21,7 +25,8 @@ import { TOPBAR_HEIGHT_PROPERTY, TOPBAR_SELECTOR } from "@/lib/topbar";
  * **It rounds up.** A wrapped bar measures a fractional height (145.5 at 390 on a device
  * pixel ratio that is not 1), and a scroll padding a fraction short of the bar leaves the
  * focused control a fraction behind it - visually nothing, and a test that is right to fail.
- * Up is the safe direction: a pixel of daylight under the bar is not a defect.
+ * Up is the safe direction for scroll padding. Rail geometry receives the exact height
+ * separately, so rounding cannot introduce a gap or movement when it becomes sticky.
  *
  * **It removes the property on unmount.** Never reached as the shell is built today, and
  * present for the day it is: a stale height left on `<html>` by an unmounted shell would be
@@ -37,6 +42,7 @@ export function TopbarHeight(): null {
     const publish = (): void => {
       const height = bar.getBoundingClientRect().height;
       root.style.setProperty(TOPBAR_HEIGHT_PROPERTY, `${String(Math.ceil(height))}px`);
+      root.style.setProperty(TOPBAR_LAYOUT_HEIGHT_PROPERTY, `${String(height)}px`);
     };
 
     publish();
@@ -48,6 +54,7 @@ export function TopbarHeight(): null {
     return () => {
       observer.disconnect();
       root.style.removeProperty(TOPBAR_HEIGHT_PROPERTY);
+      root.style.removeProperty(TOPBAR_LAYOUT_HEIGHT_PROPERTY);
     };
   }, []);
   return null;

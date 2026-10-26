@@ -3085,9 +3085,9 @@ div:has(> [role="dialog"] [data-qcms-dialog="wide"]) {
        height is then the viewport minus the bar, so the rail ends on the screen's
        bottom edge on a short screen and a long one alike. */
     position: sticky;
-    inset-block-start: var(--admin-topbar-measured-h, var(--admin-topbar-h));
+    inset-block-start: var(--admin-topbar-layout-h, var(--admin-topbar-h));
     align-self: start;
-    block-size: calc(100dvh - var(--admin-topbar-measured-h, var(--admin-topbar-h)));
+    block-size: calc(100dvh - var(--admin-topbar-layout-h, var(--admin-topbar-h)));
     overflow-y: auto;
     border-block-end: none;
     border-inline-end: 1px solid var(--color-border);
