@@ -297,7 +297,20 @@ export interface FormVersionSummary {
  * row, `"seeded"` means the API handed back the newest published definition as a starting
  * point that **is not stored yet**, and `"none"` means there is nothing at all.
  */
+export interface FormPublishingWorkflow {
+  readonly enabled: boolean;
+  readonly environment: string;
+  readonly canEdit: boolean;
+  readonly canPublish: boolean;
+  readonly canRelease: boolean;
+  readonly eligibleVersions: readonly number[];
+  readonly preferredVersion: number | null;
+  readonly currentVersion: number | null;
+}
+
 export interface FormDetail {
+  readonly workflow?: FormPublishingWorkflow;
+  readonly releasedDefinition?: DraftForm | null;
   readonly formId: string;
   readonly slug: string;
   readonly defaultLocale: string;

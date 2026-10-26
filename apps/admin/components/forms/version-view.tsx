@@ -58,7 +58,9 @@ import type { PreviewTheme } from "@/lib/preview-theme";
 export function VersionView({
   snapshot,
   defaultTheme,
+  headingId = VERSION_HEADING_ID,
 }: {
+  readonly headingId?: string;
   readonly snapshot: FormVersionSnapshot;
   /** The deployment's configured portal theme, read on the server by the page. */
   readonly defaultTheme: PreviewTheme;
@@ -103,7 +105,7 @@ export function VersionView({
     // form; the version is the page's subject, so it is the page's heading, and saying it
     // again one level down would only pad the outline.
     <section
-      aria-labelledby={VERSION_HEADING_ID}
+      aria-labelledby={headingId}
       className="flex flex-col gap-4"
       data-testid="qcms-version-view"
     >

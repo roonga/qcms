@@ -150,6 +150,11 @@ const EXCLUDES = [VENDORED_SOURCE_PATHSPEC, ":!plan/**"];
  */
 export const ALLOWED = [
   {
+    file: "apps/portal/lib/server/link-entry.test.ts",
+    value: 3000,
+    why: "Regression input for Next standalone's container-internal bind address, not a published QCMS port. The assertion requires redirecting away from it to the configured public portal origin.",
+  },
+  {
     file: "docs/agent-authoring.md",
     value: 11434,
     why: "Ollama's own default port, in the local-model walkthrough (041). Not a QCMS port: it is the third-party runtime's, and an operator reading the guide needs the number their own install actually listens on.",

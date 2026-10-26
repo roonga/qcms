@@ -2,6 +2,7 @@ import type { Page } from "@playwright/test";
 
 import { expect, test } from "../../portal/e2e/support/gates.js";
 
+import { TEST_ENVIRONMENT_STORAGE } from "./support/environment.js";
 import { createTestAdmin, uniqueAdminEmail } from "./support/admin-account.js";
 import { enrollNewAdmin, fillStable, signInWithTotp } from "./support/flow.js";
 import {
@@ -39,6 +40,8 @@ import {
  * Every assertion is scoped by this run's slug prefix, because the harness database
  * survives a rerun and holds whatever every other admin spec created.
  */
+
+test.use({ storageState: TEST_ENVIRONMENT_STORAGE });
 
 test.describe.configure({ mode: "serial" });
 
@@ -123,16 +126,16 @@ test("creates the library this spec reads, and closes one of its forms", async (
   // Back to the form's own screen: the lifecycle actions live there, and pinning left the
   // browser on the step.
   await openFormDetails(page);
-  await page.getByRole("button", { name: "Publish and release…" }).click();
+  await page.getByRole("button", { name: "Publish to test" }).click();
   const publishDialog = page.getByRole("alertdialog");
-  await publishDialog.getByRole("button", { name: "Publish and release to prod" }).click();
-  await expect(page.getByText("Published as v1 and released to prod.")).toBeVisible({
+  await publishDialog.getByRole("button", { name: "Publish to test" }).click();
+  await expect(page.getByText("Published as v1 and released to test.")).toBeVisible({
     timeout: 60_000,
   });
 
-  await page.getByRole("button", { name: "Close in prod" }).click();
+  await page.getByRole("button", { name: "Close in test" }).click();
   const dialog = page.getByRole("alertdialog");
-  await dialog.getByRole("button", { name: "Close it in prod" }).click();
+  await dialog.getByRole("button", { name: "Close it in test" }).click();
   await expect(page.getByTestId("qcms-form-closed")).toBeVisible({ timeout: 30_000 });
 
   await createForm(page, CHARLIE, "Charlie zebra");

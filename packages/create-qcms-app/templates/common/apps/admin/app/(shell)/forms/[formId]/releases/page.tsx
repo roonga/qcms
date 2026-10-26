@@ -12,7 +12,8 @@ import { getForm } from "@/lib/server/forms";
 import { listReleases } from "@/lib/server/releases";
 import { requireAdminSession } from "@/lib/server/session";
 
-import { releaseVersionAction } from "../../actions";
+import { previewPortalTheme } from "@/lib/server/config";
+import { releaseVersionAction, reviewFormVersionAction } from "../../actions";
 
 /** The browser-tab title for this route (issue #536): the section, and the form it belongs to. */
 export async function generateMetadata({
@@ -88,11 +89,19 @@ export default async function FormReleasesPage({
       <p className="text-sm text-(--color-text-muted)">{t("forms.releases.intro")}</p>
       {!history.ok && <Alert variant="error">{history.message}</Alert>}
       <ReleasePanel
+        formId={form.formId}
+        workflow={form.workflow}
+        reviewVersion={
+          form.workflow?.enabled && environment === "prod"
+            ? reviewFormVersionAction.bind(null, form.formId, environment)
+            : undefined
+        }
+        defaultTheme={previewPortalTheme()}
         releases={history.ok ? history.data : []}
         versions={form.versions.map((version) => version.version)}
         environments={environments}
         selectedEnvironment={environment}
-        release={releaseVersionAction.bind(null, form.formId)}
+        release={releaseVersionAction.bind(null, form.formId, environment)}
         // The two-person rule's three inputs (Q51, task 070): the workspace's switch, the
         // account reading the screen, and the account that **published** each version. The
         // panel needs all three to say whether this operator can release this version into

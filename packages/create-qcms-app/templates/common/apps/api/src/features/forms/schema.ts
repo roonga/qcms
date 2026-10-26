@@ -455,6 +455,7 @@ export const FormDetailResponse = z
     status: FormStatus.openapi({ example: "open" }),
     /** The open draft, else the latest published definition (seed), else null. */
     draft: z.unknown(),
+    releasedDefinition: z.unknown(),
     /** Where `draft` came from: an open draft, a seed, or none. */
     draftSource: z.enum(["open", "seeded", "none"]).openapi({ example: "open" }),
     /**
@@ -488,6 +489,16 @@ export const FormDetailResponse = z
      * has to say before the operator acts rather than after a 403.
      */
     requiresSecondApprover: z.boolean().openapi({ example: false }),
+    workflow: z.object({
+      enabled: z.boolean(),
+      environment: z.string(),
+      canEdit: z.boolean(),
+      canPublish: z.boolean(),
+      canRelease: z.boolean(),
+      eligibleVersions: z.array(z.number().int().positive()),
+      preferredVersion: z.number().int().positive().nullable(),
+      currentVersion: z.number().int().positive().nullable(),
+    }),
   })
   .openapi("FormDetailResponse");
 

@@ -77,7 +77,8 @@ vi.mock("@/lib/server/links", () => ({
 vi.mock("@/lib/server/releases", () => ({
   publishAndRelease: (_s: unknown, _f: string, environment: string) =>
     forwarded(environment).then(() => ({ ok: true, data: { version: 2, environment } })),
-  releaseVersion: () => forwarded(),
+  releaseVersion: (_s: unknown, _f: string, input: { environment: string }) =>
+    forwarded(input.environment),
 }));
 vi.mock("@/lib/server/responses", () => ({
   eraseSession: () => forwarded(),
@@ -105,6 +106,7 @@ const ACTIONS: readonly {
   readonly name: string;
   readonly run: (shown: string | undefined) => Promise<{ status: string; message?: string }>;
 }[] = [
+  { name: "release", run: (shown) => forms.releaseVersionAction("frm_a", shown, { version: 1 }) },
   { name: "close", run: (shown) => forms.setFormStatusAction("frm_a", shown, "close") },
   { name: "reopen", run: (shown) => forms.setFormStatusAction("frm_a", shown, "reopen") },
   {
@@ -209,15 +211,18 @@ describe.each(ACTIONS)("$name", ({ run }) => {
   });
 });
 
-describe("a release chosen in the release dialog", () => {
-  it("is not checked against the switcher, because the dialog names its own target", async () => {
-    // Promotion releases to an environment other than the selected one by design (ADR-40);
-    // the target travels in the body, so another tab's cookie cannot redirect it.
+describe("a release bound to the selected environment", () => {
+  it("refuses a stale production confirmation after another tab switches to test", async () => {
     current.value = resolvedTo("test");
-
-    await forms.releaseVersionAction("frm_a", { environment: "prod", version: 1 });
-
+    const result = await forms.releaseVersionAction("frm_a", "prod", { version: 1 });
+    expect(result.status).toBe("error");
+    expect(sent.count).toBe(0);
+  });
+  it("uses the shown environment rather than a client-supplied target", async () => {
+    current.value = resolvedTo("test");
+    await forms.releaseVersionAction("frm_a", "test", { version: 1 });
     expect(sent.count).toBe(1);
+    expect(sent.environments).toEqual(["test"]);
   });
 });
 

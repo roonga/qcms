@@ -3,6 +3,7 @@ import type { Metadata } from "next";
 import { notFound } from "next/navigation";
 
 import { Alert } from "@/components/kit";
+import { FormProductionReview } from "@/components/forms/form-production-review";
 import { FormActions } from "@/components/forms/form-actions";
 import { CONCURRENT_NOTICE_COOKIE, isConcurrentNoticeDismissed } from "@/lib/builder-notice";
 import { shownEnvironment } from "@/lib/environment";
@@ -121,6 +122,14 @@ export default async function FormBuilderPage({
   }
 
   const form = seedTitle(detail.data, firstValue(query["title"]).trim());
+  if (form.workflow?.enabled && !form.workflow.canEdit) {
+    return (
+      <FormProductionReview
+        form={form}
+        environments={resolved.status === "known" ? resolved.environments : []}
+      />
+    );
+  }
 
   return (
     <div className="flex flex-col gap-6">
@@ -175,6 +184,8 @@ export default async function FormBuilderPage({
         }
         formActions={
           <FormActions
+            workflow={form.workflow}
+            hasStoredDraft={form.draftSource === "open"}
             formId={form.formId}
             slug={form.slug}
             status={form.status}

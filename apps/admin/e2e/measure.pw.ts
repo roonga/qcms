@@ -1,3 +1,4 @@
+import { setScreenEnvironment } from "./support/environment.js";
 import type { Page } from "@playwright/test";
 
 import { expect, test } from "../../portal/e2e/support/gates.js";
@@ -163,6 +164,7 @@ type Measured = {
  * rather than left as a guard that does not guard.
  */
 async function measure(page: Page, path: string): Promise<Measured> {
+  await setScreenEnvironment(page, path);
   await page.goto(path);
   const main = page.locator("main#main-content");
   await expect(main, `${path} renders the authenticated shell`).toHaveCount(1);
@@ -283,6 +285,7 @@ test("668 renders the three drawn inner elements at their drawn width, at 1280",
   ] as const;
 
   for (const target of inner) {
+    await setScreenEnvironment(page, target.path);
     await page.goto(target.path);
     const element = page.locator(target.selector);
     // Generous, because two of the three appear only once the API has answered: the draft
@@ -302,10 +305,12 @@ test("668 renders the three drawn inner elements at their drawn width, at 1280",
   // page just got narrower here", and the two screens say different things on it: the
   // stored render promises what a respondent SAW, which is a different claim from what one
   // would see now.
+  await setScreenEnvironment(page, `/forms/${FORM_ID}/versions/1`);
   await page.goto(`/forms/${FORM_ID}/versions/1`);
   await expect(page.getByText("Respondent view, as stored at publish")).toBeVisible({
     timeout: 60_000,
   });
+  await setScreenEnvironment(page, `/forms/${FORM_ID}/preview`);
   await page.goto(`/forms/${FORM_ID}/preview`);
   await expect(page.getByText("Respondent view", { exact: true })).toBeVisible({
     timeout: 60_000,
@@ -326,6 +331,7 @@ test("675 spends one section-padding token on the bar and the column alike, at 1
   test.setTimeout(300_000);
   await signInWithTotp(page, EMAIL, totpSecret);
   await page.setViewportSize({ width: 1280, height: 900 });
+  await setScreenEnvironment(page, "/webhooks");
   await page.goto("/webhooks");
   await expect(page.locator(".qcms-rail"), "a screen with no rail").toHaveCount(0);
 
@@ -370,6 +376,7 @@ test("648 puts the wordmark, the nav and the content column on one left edge, at
   // A screen with NO rail is the one where the three edges must coincide exactly; on a
   // railed screen the column deliberately starts at the rail's edge instead, which is
   // asserted in the sweep above.
+  await setScreenEnvironment(page, "/webhooks");
   await page.goto("/webhooks");
   // Same reason as the sweep's helper: three rail components, one shared class. Asserting
   // the class is absent is the claim "no rail occupies the first track here", which is what
@@ -463,6 +470,7 @@ test("648 leaves the auth screens centred, because their own POC centres them", 
   // centred on both axes because it is a sign-in card. The shipped component agrees with
   // its drawing already. Left-anchoring is the SHELL's rule; these routes are not in it.
   await page.setViewportSize({ width: 1280, height: 900 });
+  await setScreenEnvironment(page, "/sign-in");
   await page.goto("/sign-in");
 
   const card = page.locator("main#main-content");

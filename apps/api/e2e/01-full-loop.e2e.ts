@@ -134,9 +134,15 @@ describe("scenario 1: full loop end to end", () => {
     // version in the library is served nowhere until a release record says where. This
     // scenario drives the admin surface end to end, so it performs the second act over
     // HTTP too rather than reaching into the database for it.
+    const testRelease = await admin.releaseVersion(FORM_ID, {
+      environment: "test",
+      version: published.body.version,
+    });
+    expect(testRelease.status).toBe(200);
     const released = await admin.releaseVersion<{ version: number }>(FORM_ID, {
       environment: DEFAULT_TEST_ENVIRONMENT,
       version: published.body.version,
+      fromEnvironment: "test",
     });
     expect(released.status).toBe(200);
     expect(released.body.version).toBe(1);

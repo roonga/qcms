@@ -156,6 +156,7 @@ describe("composeEnvironmentOverrides", () => {
       QCMS_PORTAL_PORT: "17100",
       QCMS_ADMIN_BASE_URL: "http://localhost:17140",
       QCMS_PORTAL_BASE_URL: "http://localhost:17100",
+      QCMS_PORTAL_ENVIRONMENTS: "test",
     });
   });
 

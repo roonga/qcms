@@ -1,3 +1,4 @@
+import { chooseEnvironment } from "./support/environment.js";
 import AxeBuilder from "@axe-core/playwright";
 import type { Page } from "@playwright/test";
 import { generate } from "otplib";
@@ -923,11 +924,13 @@ test("publish, preview, history and secure links have zero violations", async ({
   // reload it replaces did the same job of proving the draft reached the server.
   await page.goto(`/forms/${formId}`);
 
-  await page.getByRole("button", { name: "Publish", exact: true }).click();
+  await page.getByRole("button", { name: "Publish to test", exact: true }).click();
   await expect(page.getByRole("alertdialog")).toBeVisible();
   await expectNoViolations(page, "publish confirmation");
-  await page.getByRole("alertdialog").getByRole("button", { name: "Publish v1" }).click();
-  await expect(page.getByText("Published as v1.")).toBeVisible({ timeout: 30_000 });
+  await page.getByRole("alertdialog").getByRole("button", { name: "Publish to test" }).click();
+  await expect(page.getByText("Published as v1 and released to test.")).toBeVisible({
+    timeout: 30_000,
+  });
   // That success alert is announced only because the container it arrives in is a live
   // region, and nothing else in the suite says so (issue #368). The visibility assertion
   // directly above passes with the attribute deleted, which is the whole point: the
@@ -948,10 +951,12 @@ test("publish, preview, history and secure links have zero violations", async ({
   await fillStable(field(page, "Form title"), OVERFLOWING_FORM_TITLE);
   await waitForSaveAfter(page, beforeTitle);
   await page.reload();
-  await page.getByRole("button", { name: "Publish", exact: true }).click();
+  await page.getByRole("button", { name: "Publish to test", exact: true }).click();
   await expect(page.getByRole("alertdialog")).toBeVisible();
-  await page.getByRole("alertdialog").getByRole("button", { name: "Publish v2" }).click();
-  await expect(page.getByText("Published as v2.")).toBeVisible({ timeout: 30_000 });
+  await page.getByRole("alertdialog").getByRole("button", { name: "Publish to test" }).click();
+  await expect(page.getByText("Published as v2 and released to test.")).toBeVisible({
+    timeout: 30_000,
+  });
 
   // Published, and released below, because a published version is served nowhere until a
   // release record says where (ADR-40, task 065): the operations sweep further down starts
@@ -970,15 +975,17 @@ test("publish, preview, history and secure links have zero violations", async ({
   // gate exists for - and the release itself is what lets the operations sweep below start a
   // respondent session on this form.
   await page.goto(`/forms/${formId}/releases`);
+  await chooseEnvironment(page, "prod");
   await expect(page.getByTestId("qcms-release-panel")).toBeVisible();
   await expectNoViolations(page, "the release screen, nothing released yet");
   await page.getByRole("button", { name: "Release a version…" }).click();
   await expect(page.getByRole("alertdialog")).toBeVisible();
   await expectNoViolations(page, "release confirmation");
-  await page.getByRole("button", { name: "Release to prod" }).click();
+  await page.getByRole("button", { name: "Release v2 to prod" }).click();
   await expect(page.getByTestId("qcms-release-status")).toContainText("prod");
   await expectNoViolations(page, "the release screen with a history");
 
+  await chooseEnvironment(page, "test");
   await page.goto(`/forms/${formId}/preview`);
   await expect(
     page.getByTestId("qcms-draft-preview").getByText("E2E Single choice question"),
@@ -1034,6 +1041,7 @@ test("publish, preview, history and secure links have zero violations", async ({
   await expectNoViolations(page, "one published version, rendered from storage");
 
   await page.goto(`/forms/${formId}/links`);
+  await chooseEnvironment(page, "prod");
   await expect(page.getByTestId("qcms-links-empty")).toBeVisible();
   // The mint and revoke outcomes are announced only because their container is a live
   // region, and nothing else in the suite says so (issue #368). Asserted here, empty and

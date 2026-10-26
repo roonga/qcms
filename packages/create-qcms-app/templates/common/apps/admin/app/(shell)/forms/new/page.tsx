@@ -1,6 +1,10 @@
 import Link from "next/link";
 import type { Metadata } from "next";
 
+import { SwitchToTest } from "@/components/forms/switch-to-test";
+import { Alert } from "@/components/kit";
+import { resolvedEnvironment } from "@/lib/server/environments";
+import { secureCookies } from "@/lib/server/config";
 import { Card } from "@/components/kit";
 import { t } from "@/lib/i18n/en";
 import { pageMetadata } from "@/lib/page-title";
@@ -37,7 +41,12 @@ export function generateMetadata(): Metadata {
  * same sentence `/questions/new` carries, for the same reason.
  */
 export default async function NewFormPage() {
-  await requireAdminSession();
+  const session = await requireAdminSession();
+  const resolved = await resolvedEnvironment(session);
+  const production =
+    resolved.status === "known" &&
+    resolved.environment === "prod" &&
+    resolved.environments.includes("test");
 
   return (
     <div className="flex flex-col gap-6">
@@ -49,7 +58,14 @@ export default async function NewFormPage() {
       </div>
       <div className="qcms-card">
         <Card padding="md" radius="md" border>
-          <CreateForm action={createFormAction} />
+          {production ? (
+            <div className="flex flex-col gap-3">
+              <Alert variant="info">{t("forms.workflow.editInTest")}</Alert>
+              <SwitchToTest secure={secureCookies()} />
+            </div>
+          ) : (
+            <CreateForm action={createFormAction} />
+          )}
         </Card>
       </div>
     </div>
