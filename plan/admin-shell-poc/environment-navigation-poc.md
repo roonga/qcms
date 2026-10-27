@@ -7,14 +7,17 @@ the artifacts service's allocated port in [PORTS.md](../../docs/PORTS.md).
 
 ## Explore
 
-- **Application navigation:** Questions, Forms, Operations and permitted
-  administration entries live in the top bar. There is no Authoring menu group.
+- **Application navigation:** Questions, Forms, Workspaces,
+  Operations and permitted Site configuration live in the top bar. There is no
+  Authoring menu group. [Existing-nav coverage](top-nav-reconciliation.md) maps
+  every shipped entry and header utility to its POC destination and preview limits.
   Operations has a separated entry after the normal menus, with a divider and
   additional spacing. Workspace identity and an avatar-only account display also
   belong to this application-level bar; the avatar retains an accessible name.
 - **Context rail:** contains only navigation within the selected context. A form
   has Draft and Versions; the sample question has Question details and Used by;
-  Operations has its permitted operational screens. The Forms index has no rail.
+  A selected operational form has its permitted screens and an All forms return link.
+  Form listing screens have no rail.
   Context links are not duplicated as content tabs or application-level rail items.
 - **Forms:** open Customer onboarding. Edit the shared draft, preview it, then use
   the single **Publish** button to start the publishing wizard.
@@ -34,13 +37,32 @@ the artifacts service's allocated port in [PORTS.md](../../docs/PORTS.md).
   version for an approver to release later. This also supports a prod-only site that
   requires separate publishing and releasing accounts.
 - **Operations:** enter a dedicated mode from the top-level application menu.
-  The normal application menu and authoring navigation disappear. Environment and
-  form selectors move to the Operations top bar, above all operational screens.
-  The sidebar contains Overview, Responses, Links and Webhooks according to role.
-  The URL retains the operational screen, environment and form.
+  The normal application menu and authoring navigation disappear. Only the
+  environment selector remains in the Operations top bar; there is no form dropdown.
+  Entry opens a forms table with search, workspace/intake filters, sorting and
+  pagination. Select a row to open that form's operational screens.
+- **Operations forms list:** 32 synthetic forms across four sample workspaces
+  demonstrate a larger installation. Columns show workspace, released version,
+  intake state, permitted response counts and last release. Search matches name or
+  ID. Filters, sort and pagination are preserved in the URL through detail pages,
+  refresh and the All forms return link. Changing environment resets pagination.
+  The sidebar contains Overview, Responses, Links and Webhooks only after a form
+  is selected. Unreleased forms have no enabled intake or secure-link creation.
+- **Environment-wide operations:** Delivery failures and Erasure log remain
+  independent of the selected form. Their own Operations menu preserves the
+  existing global queue and evidence screens. Sample retries affect one environment.
+- **Workspaces and Settings:** workspace owners/admins can browse sample members,
+  access groups, settings and audit panels. Every user can review their own access.
+  Personal Settings is under the avatar, with Account, Change password and Two-factor sections; it does
+  not contain workspace or release-flow controls. These are navigation previews.
+- **Avatar:** contains Settings, identity, personal security entry points and simulated
+  sign-out. Operations-only users can open account settings without exposing the
+  normal app menu. Appearance keeps its existing place as a header utility; this
+  POC demonstrates the Light layout only.
 - **Exit operations:** returns users with other permissions to their previous
-  authoring or administration context. Re-entering Operations restores its own last
-  screen, environment and form. No authoring links are shown inside Operations.
+  authoring or administration context. Re-entering Operations opens the forms list
+  in its previous environment, preserving its filters. No authoring links are shown
+  inside Operations.
 - **Operations-only users:** the response-operator persona opens directly in
   Operations, with no normal application menu or exit into an inaccessible area.
   Only its permitted operational screens are shown, including when an authoring
@@ -82,8 +104,10 @@ requires a different account to confirm its pending proposal.
   atomically; this POC does not provide that API.
 - Role simulation demonstrates navigation and action permissions. It does not
   implement authentication, workspace switching or a complete grant-scope editor.
-- Customer onboarding is the interactive authoring example. Customer feedback is a
-  second operational context for testing the form selector.
+- Customer onboarding is the interactive authoring example. Additional forms and
+  all workspace names are synthetic Operations-list data, not live installation
+  records. The list illustrates access to several workspaces; it does not implement
+  workspace provisioning or a complete permission-scope editor.
 - Questions opens the Contact email example to demonstrate question-specific rail
   navigation; this POC does not reproduce the full question library.
 
@@ -108,3 +132,9 @@ flow illustrates the subsequent product direction; it does not amend an ADR.
   exit/re-entry, role-filtered menus and Operations-only entry/bookmarks.
 - Chromium journeys: application-level Questions/Forms navigation, active top-nav
   state on nested screens, context-only rails and no duplicate form navigation.
+- Chromium journeys: forms search, workspace/intake filters, sorting, pagination,
+  empty results, list/detail/refresh continuity, environment scope, unreleased forms
+  and response-data visibility; desktop and mobile listing accessibility.
+- Chromium journeys: shipped top-nav coverage, workspace permission separation,
+  personal-settings navigation, account access inside Operations, environment-wide
+  failure retries and erasure evidence.

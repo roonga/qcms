@@ -1021,6 +1021,99 @@
           margin: 5px 0 0;
         }
       }
+      .list-filters {
+        display: grid;
+        grid-template-columns: minmax(210px, 2fr) minmax(160px, 1.4fr) minmax(120px, 1fr) minmax(
+            140px,
+            1fr
+          );
+        gap: 16px;
+      }
+      .list-filters label {
+        display: flex;
+        flex-direction: column;
+        gap: 7px;
+        font-size: 12px;
+        font-weight: 600;
+      }
+      .list-filters input,
+      .list-filters select {
+        width: 100%;
+        min-width: 0;
+      }
+      .list-filters .actions {
+        grid-column: 1 / -1;
+      }
+      .list-results {
+        margin: 24px 0 12px;
+      }
+      .list-results p {
+        margin: 0;
+      }
+      .list-pagination {
+        margin-top: 15px;
+      }
+      @media (max-width: 900px) {
+        .list-filters {
+          grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+        }
+      }
+      @media (max-width: 520px) {
+        .list-filters {
+          grid-template-columns: minmax(0, 1fr);
+        }
+        .list-results {
+          align-items: flex-start;
+          flex-direction: column;
+          gap: 5px;
+        }
+      }
+      .operations-tools {
+        flex-direction: row;
+        flex-wrap: wrap;
+        gap: 4px;
+        margin-top: 5px;
+      }
+      .operations-tools a {
+        font-size: 12px;
+        min-height: 32px;
+        padding: 5px 9px;
+      }
+      .utility-button {
+        padding: 0;
+        width: 35px;
+        min-height: 35px;
+        border: 0;
+        background: transparent;
+        font-size: 20px;
+      }
+      .application-bar {
+        flex-wrap: wrap;
+      }
+      .application-bar #account {
+        margin-left: 0;
+      }
+      body[data-mode="normal"] #appearance {
+        margin-left: auto;
+      }
+      #account button.avatar {
+        padding: 0;
+        min-height: 33px;
+        border: 0;
+        color: var(--ink);
+      }
+      @media (max-width: 700px) {
+        #appearance {
+          order: 1;
+          margin-left: auto;
+        }
+        .application-bar #account {
+          margin-left: 0;
+        }
+        .operations-tools {
+          margin: 5px 0 0;
+        }
+      }
     </style>
   </head>
   <body>
@@ -1050,6 +1143,16 @@
       <div id="application-area"></div>
       <div id="operations-scope" class="operations-scope"></div>
       <div id="operations-exit"></div>
+      <button
+        id="appearance"
+        class="utility-button"
+        type="button"
+        data-action="appearance"
+        aria-label="Appearance"
+        title="Appearance"
+      >
+        ◐
+      </button>
       <div class="account" id="account"></div>
     </div>
     <div class="shell">
@@ -1091,11 +1194,50 @@
         owner: { name: "Alex Chen", detail: "Site owner", admin: true },
       };
       const labels = { dev: "Development", test: "Test", stg: "Staging", prod: "Production" };
-      const forms = { onboarding: "Customer onboarding", feedback: "Customer feedback" };
+      const formCatalog = [
+        ["onboarding", "Customer onboarding", "Customer experience"],
+        ["feedback", "Customer feedback", "Customer experience"],
+        ["enquiries", "General enquiries", "Customer experience"],
+        ["complaints", "Customer complaints", "Customer experience"],
+        ["returns", "Returns request", "Customer experience"],
+        ["warranty", "Warranty registration", "Customer experience"],
+        ["appointments", "Appointment request", "Customer experience"],
+        ["support", "Technical support", "Customer experience"],
+        ["accessibility", "Accessibility feedback", "Customer experience"],
+        ["subscription", "Subscription preferences", "Customer experience"],
+        ["events", "Event registration", "Customer experience"],
+        ["research", "Research participation", "Customer experience"],
+        ["leave", "Leave request", "People operations"],
+        ["expenses", "Expense reimbursement", "Finance"],
+        ["new-starter", "New starter details", "People operations"],
+        ["training", "Training registration", "People operations"],
+        ["equipment", "Equipment request", "People operations"],
+        ["exit", "Exit feedback", "People operations"],
+        ["wellbeing", "Wellbeing check-in", "People operations"],
+        ["recruitment", "Candidate application", "People operations"],
+        ["invoice", "Invoice enquiry", "Finance"],
+        ["purchase", "Purchase request", "Finance"],
+        ["supplier", "Supplier registration", "Finance"],
+        ["refund", "Refund approval", "Finance"],
+        ["budget", "Budget request", "Finance"],
+        ["bank", "Bank details change", "Finance"],
+        ["incident", "Incident report", "Compliance"],
+        ["privacy", "Privacy request", "Compliance"],
+        ["consent", "Consent review", "Compliance"],
+        ["risk", "Risk assessment", "Compliance"],
+        ["declaration", "Conflict declaration", "Compliance"],
+        ["audit", "Audit evidence request", "Compliance"],
+      ];
+      const forms = Object.fromEntries(formCatalog.map(([id, name]) => [id, name]));
+      const formWorkspaces = Object.fromEntries(
+        formCatalog.map(([id, , workspace]) => [id, workspace]),
+      );
+      let operationsListContext = { q: "", status: "all", workspace: "all", sort: "name", page: 1 };
       let role = "all";
       let config, records, versions, draft, questionLabel, historyEntries;
       let wizard = null;
-      let operationsContext = { tab: "overview", env: "dev", form: "onboarding" };
+      let deliveryFailures, erasureEvents;
+      let operationsContext = { tab: "forms", env: "dev", form: "" };
       let normalContext = { view: "forms", tab: "", form: "onboarding" };
       let toastTimer;
       const person = () => profiles[role];
@@ -1124,15 +1266,43 @@
         '<a class="' + cls + '" href="#' + hash + '">' + escape(text) + "</a>";
       const state = () => {
         const params = new URLSearchParams(location.hash.slice(1));
+        const operationsOnly = !canReadForms() && !person().admin && person().responses;
+        const requestedView = params.get("view");
+        const view = operationsOnly
+          ? "operations"
+          : requestedView ||
+            (canReadForms() ? "forms" : person().responses ? "operations" : "administration");
+        const selected = forms[params.get("form")] ? params.get("form") : "";
+        const form =
+          view === "operations"
+            ? operationsOnly && requestedView !== "operations"
+              ? ""
+              : selected
+            : selected || "onboarding";
+        const rawPage = Number(params.get("page") || 1);
         return {
-          view:
-            !canReadForms() && !person().admin && person().responses
-              ? "operations"
-              : params.get("view") ||
-                (canReadForms() ? "forms" : person().responses ? "operations" : "administration"),
-          tab: params.get("tab") || "draft",
+          view,
+          form,
+          tab:
+            view === "operations" && ["delivery-failures", "erasures"].includes(params.get("tab"))
+              ? params.get("tab")
+              : view === "operations" && (!form || params.get("tab") === "forms")
+                ? "forms"
+                : params.get("tab") || (view === "operations" ? "overview" : "draft"),
           env: config.envs.includes(params.get("env")) ? params.get("env") : config.envs[0],
-          form: forms[params.get("form")] ? params.get("form") : "onboarding",
+          q: params.get("q") || "",
+          status: ["all", "open", "closed", "unreleased"].includes(params.get("status"))
+            ? params.get("status")
+            : "all",
+          workspace: Object.values(formWorkspaces).includes(params.get("workspace"))
+            ? params.get("workspace")
+            : "all",
+          sort:
+            ["name", "released", "responses"].includes(params.get("sort")) &&
+            (params.get("sort") !== "responses" || person().responses)
+              ? params.get("sort")
+              : "name",
+          page: Number.isSafeInteger(rawPage) && rawPage > 0 ? rawPage : 1,
         };
       };
       const url = (view, tab = "", env = "", form = "onboarding") =>
@@ -1140,8 +1310,43 @@
           view,
           ...(tab ? { tab } : {}),
           ...(env ? { env } : {}),
-          form,
+          ...(form && tab !== "forms" ? { form } : {}),
+          ...(view === "operations"
+            ? {
+                ...(operationsListContext.q ? { q: operationsListContext.q } : {}),
+                ...(operationsListContext.status !== "all"
+                  ? { status: operationsListContext.status }
+                  : {}),
+                ...(operationsListContext.workspace !== "all"
+                  ? { workspace: operationsListContext.workspace }
+                  : {}),
+                ...(operationsListContext.sort !== "name"
+                  ? { sort: operationsListContext.sort }
+                  : {}),
+                ...(operationsListContext.page > 1
+                  ? { page: String(operationsListContext.page) }
+                  : {}),
+              }
+            : {}),
         }).toString();
+      function applyOperationsFilters(reset = false) {
+        operationsListContext = reset
+          ? { q: "", status: "all", workspace: "all", sort: "name", page: 1 }
+          : {
+              q: $("#ops-search").value.trim(),
+              status: $("#ops-status").value,
+              workspace: $("#ops-workspace").value,
+              sort: $("#ops-sort").value,
+              page: 1,
+            };
+        if (reset && $("#ops-search")) {
+          $("#ops-search").value = "";
+          $("#ops-workspace").value = "all";
+          $("#ops-status").value = "all";
+          $("#ops-sort").value = "name";
+        }
+        navigate("operations", "forms", state().env, "");
+      }
       function navigate(view, tab = "", env = "", form = "onboarding") {
         const next = url(view, tab, env, form);
         if (location.hash.slice(1) === next) render();
@@ -1162,21 +1367,66 @@
           multi: false,
           second: false,
         };
-        operationsContext = { tab: "overview", env: config.envs[0], form: "onboarding" };
+        operationsContext = { tab: "forms", env: config.envs[0], form: "" };
+        operationsListContext = { q: "", status: "all", workspace: "all", sort: "name", page: 1 };
         normalContext = { view: "forms", tab: "", form: "onboarding" };
         records = {};
-        for (const form of Object.keys(forms)) {
+        deliveryFailures = Object.fromEntries(
+          config.envs.map((env) => [
+            env,
+            [
+              {
+                id: "evt-" + env + "-01",
+                form: "onboarding",
+                reason: "Endpoint returned 503",
+                attempts: 6,
+              },
+              {
+                id: "evt-" + env + "-02",
+                form: "feedback",
+                reason: "Delivery timed out",
+                attempts: 6,
+              },
+            ],
+          ]),
+        );
+        erasureEvents = Object.fromEntries(
+          config.envs.map((env) => [
+            env,
+            [
+              {
+                session: "sample-" + env + "-erased-01",
+                form: "feedback",
+                version: 7,
+                reason: "Respondent request",
+                at: "27 Oct, 10:00",
+              },
+            ],
+          ]),
+        );
+        for (const [index, form] of Object.keys(forms).entries()) {
           records[form] = {};
           for (const env of config.envs) {
-            const version = config.envs.indexOf(env) < 2 && !isProtected(env) ? 8 : 7;
+            const version =
+              index > 1 && index % 7 === 0
+                ? null
+                : config.envs.indexOf(env) < 2 && !isProtected(env)
+                  ? 8
+                  : 7;
             records[form][env] = {
               version,
-              closed: false,
-              history: [7, ...(version === 8 ? [8] : [])],
+              closed: version !== null && index > 1 && (index + config.envs.indexOf(env)) % 4 === 0,
+              history: version === null ? [] : [7, ...(version === 8 ? [8] : [])],
               links: [],
               webhook: "https://example.com/" + env + "/events",
               proposal: null,
-              responses: isProtected(env) ? 124 : 6,
+              responses: version === null ? 0 : (isProtected(env) ? 124 : 6) + index * 3,
+              lastReleased:
+                version === null
+                  ? null
+                  : Date.UTC(2026, 9, 27, 11, 20) -
+                    index * 3600000 -
+                    config.envs.indexOf(env) * 1800000,
             };
           }
         }
@@ -1259,8 +1509,23 @@
         );
       }
       function header(title, subtitle, actions = "", badge = "") {
+        const scope = state();
+        const workspaceLabel =
+          scope.view === "operations"
+            ? scope.form && scope.tab !== "forms"
+              ? formWorkspaces[scope.form]
+              : scope.workspace === "all"
+                ? "All accessible workspaces"
+                : scope.workspace
+            : scope.view === "settings"
+              ? "Your account"
+              : ["workspaces", "workspace", "administration"].includes(scope.view)
+                ? "Installation"
+                : "Customer experience";
         return (
-          '<div class="heading"><div><div class="eyebrow">Customer experience</div><h1>' +
+          '<div class="heading"><div><div class="eyebrow">' +
+          escape(workspaceLabel) +
+          "</div><h1>" +
           escape(title) +
           '</h1><div class="muted">' +
           escape(subtitle) +
@@ -1282,7 +1547,14 @@
             : []),
         ];
       }
+      function workspaceUrl(name, tab = "members") {
+        return url("workspace", tab, "", "") + "&workspace=" + encodeURIComponent(name);
+      }
       function exitOperationsUrl() {
+        if (["settings", "workspaces"].includes(normalContext.view))
+          return url(normalContext.view, normalContext.tab, "", "");
+        if (normalContext.view === "workspace" && person().admin)
+          return workspaceUrl(normalContext.workspace, normalContext.tab);
         if (normalContext.view === "administration" && person().admin) return url("administration");
         if (canReadForms())
           return url(
@@ -1310,19 +1582,6 @@
                 "</option>",
             )
             .join("") +
-          '</select></label><label for="ops-form">Form<select id="ops-form" aria-label="Form">' +
-          Object.entries(forms)
-            .map(
-              ([id, name]) =>
-                '<option value="' +
-                id +
-                '"' +
-                (id === s.form ? " selected" : "") +
-                ">" +
-                escape(name) +
-                "</option>",
-            )
-            .join("") +
           "</select></label>" +
           tag(
             isProtected(s.env) ? "Production data" : "Non-production data",
@@ -1334,12 +1593,22 @@
         const s = state();
         const operationsAllowed = Boolean(person().release || person().responses);
         const operationsMode = s.view === "operations" && operationsAllowed;
-        if (operationsMode) operationsContext = { tab: s.tab, env: s.env, form: s.form };
-        else if (
+        if (operationsMode) {
+          operationsContext = { tab: "forms", env: s.env, form: "" };
+          operationsListContext = {
+            q: s.q,
+            status: s.status,
+            workspace: s.workspace,
+            sort: s.sort,
+            page: s.page,
+          };
+        } else if (
           (["forms", "form", "questions"].includes(s.view) && canReadForms()) ||
-          (s.view === "administration" && person().admin)
+          (s.view === "administration" && person().admin) ||
+          ["settings", "workspaces"].includes(s.view) ||
+          (s.view === "workspace" && person().admin)
         )
-          normalContext = { view: s.view, tab: s.tab, form: s.form };
+          normalContext = { view: s.view, tab: s.tab, form: s.form, workspace: s.workspace };
         document.body.dataset.mode = operationsMode ? "operations" : "normal";
         const areas = [];
         if (canReadForms())
@@ -1353,11 +1622,30 @@
             "Operations",
             url("operations", operationsContext.tab, operationsContext.env, operationsContext.form),
           ]);
-        if (person().admin) areas.push(["administration", "Administration", url("administration")]);
+        areas.push(["workspaces", "Workspaces", url("workspaces", "", "", "")]);
+        if (person().admin)
+          areas.push(["administration", "Site configuration", url("administration")]);
         $("#application-area").innerHTML = operationsMode
           ? '<div class="operations-brand">' +
             icon("operations") +
-            "<strong>Operations</strong></div>"
+            '<strong>Operations</strong></div><nav class="operations-tools" aria-label="Operations areas">' +
+            [
+              ["forms", "Forms"],
+              ...(person().release ? [["delivery-failures", "Delivery failures"]] : []),
+              ...(person().responses ? [["erasures", "Erasure log"]] : []),
+            ]
+              .map(
+                ([id, label]) =>
+                  '<a href="#' +
+                  url("operations", id, s.env, "") +
+                  '"' +
+                  (s.tab === id ? ' aria-current="page"' : "") +
+                  ">" +
+                  escape(label) +
+                  "</a>",
+              )
+              .join("") +
+            "</nav>"
           : '<nav class="area-nav" aria-label="Application areas">' +
             areas
               .filter(([id]) => id !== "operations")
@@ -1366,7 +1654,9 @@
                   '<a href="#' +
                   target +
                   '"' +
-                  ((id === "forms" && s.view === "form") || id === s.view
+                  ((id === "forms" && s.view === "form") ||
+                  (id === "workspaces" && s.view === "workspace") ||
+                  id === s.view
                     ? ' aria-current="page"'
                     : "") +
                   ">" +
@@ -1387,6 +1677,25 @@
                 '<span>Operations</span><span aria-hidden="true">→</span></a></span>'
               : "") +
             "</nav>";
+        $(".global-workspace").innerHTML = operationsMode
+          ? "<small>Workspace scope</small><strong>" +
+            escape(
+              s.form && s.tab !== "forms"
+                ? formWorkspaces[s.form]
+                : s.workspace === "all"
+                  ? "All accessible"
+                  : s.workspace,
+            ) +
+            "</strong>"
+          : s.view === "settings"
+            ? "<small>Scope</small><strong>Your account</strong>"
+            : ["workspaces", "administration"].includes(s.view)
+              ? "<small>Scope</small><strong>Installation</strong>"
+              : s.view === "workspace"
+                ? "<small>Workspace</small><strong>" +
+                  escape(s.workspace === "all" ? "Customer experience" : s.workspace) +
+                  "</strong>"
+                : "<small>Workspace</small><strong>Customer experience</strong>";
         $("#operations-scope").hidden = !operationsMode;
         $("#operations-scope").innerHTML = operationsMode ? operationsScope(s) : "";
         $("#operations-exit").innerHTML =
@@ -1394,11 +1703,16 @@
             ? link("Exit operations", exitOperationsUrl(), "button")
             : "";
         const sideItems = operationsMode
-          ? operationalSections().map(([id, label]) => [
-              id,
-              label,
-              url("operations", id, s.env, s.form),
-            ])
+          ? s.form && !["forms", "delivery-failures", "erasures"].includes(s.tab)
+            ? [
+                ["forms", "All forms", url("operations", "forms", s.env, "")],
+                ...operationalSections().map(([id, label]) => [
+                  id,
+                  label,
+                  url("operations", id, s.env, s.form),
+                ]),
+              ]
+            : []
           : s.view === "form" && canReadForms()
             ? [
                 ...(person().edit ? [["draft", "Draft", url("form", "draft")]] : []),
@@ -1409,9 +1723,26 @@
                   ["details", "Question details", url("questions", "details")],
                   ["usage", "Used by", url("questions", "usage")],
                 ]
-              : s.view === "administration" && person().admin
-                ? [["administration", "Release flow", url("administration")]]
-                : [];
+              : s.view === "workspace" && person().admin
+                ? [
+                    ["members", "Members"],
+                    ["groups", "Access groups"],
+                    ["workspace-settings", "Workspace settings"],
+                    ["audit", "Access audit"],
+                  ].map(([id, label]) => [
+                    id,
+                    label,
+                    workspaceUrl(s.workspace === "all" ? "Customer experience" : s.workspace, id),
+                  ])
+                : s.view === "settings"
+                  ? [
+                      ["account", "Account"],
+                      ["change-password", "Change password"],
+                      ["two-factor", "Two-factor authentication"],
+                    ].map(([id, label]) => [id, label, url("settings", id, "", "")])
+                  : s.view === "administration" && person().admin
+                    ? [["administration", "Release flow", url("administration")]]
+                    : [];
         const currentSide = operationsMode
           ? operationalSections().some(([id]) => id === s.tab)
             ? s.tab
@@ -1424,21 +1755,39 @@
               ? s.tab === "usage"
                 ? "usage"
                 : "details"
-              : "administration";
+              : s.view === "workspace"
+                ? ["members", "groups", "workspace-settings", "audit"].includes(s.tab)
+                  ? s.tab
+                  : "members"
+                : s.view === "settings"
+                  ? ["account", "change-password", "two-factor"].includes(s.tab)
+                    ? s.tab
+                    : "account"
+                  : "administration";
         $("#rail-context").textContent = operationsMode
-          ? forms[s.form]
+          ? forms[s.form] || "Forms"
           : s.view === "form"
             ? "Customer onboarding"
             : s.view === "questions"
               ? "Contact email"
-              : "This installation";
+              : s.view === "workspace"
+                ? s.workspace === "all"
+                  ? "Customer experience"
+                  : s.workspace
+                : s.view === "settings"
+                  ? "Your account"
+                  : "This installation";
         $("#section-label").textContent = operationsMode
           ? "Operations"
           : s.view === "form"
             ? "Form navigation"
             : s.view === "questions"
               ? "Question navigation"
-              : "Site configuration";
+              : s.view === "workspace"
+                ? "Workspace navigation"
+                : s.view === "settings"
+                  ? "Account settings"
+                  : "Site configuration";
         $("#nav").setAttribute(
           "aria-label",
           operationsMode ? "Operations navigation" : "Context navigation",
@@ -1466,37 +1815,49 @@
               "</a>",
           )
           .join("");
+        const initials = person()
+          .name.split(" ")
+          .map((x) => x[0])
+          .join("");
         $("#account").innerHTML =
-          '<div class="avatar" role="img" aria-label="' +
-          escape(person().name) +
-          ' account" title="' +
-          escape(person().name) +
-          '">' +
-          escape(
-            person()
-              .name.split(" ")
-              .map((x) => x[0])
-              .join(""),
-          ) +
-          "</div>";
+          '<button class="avatar" data-action="account-menu" aria-label="' +
+          escape(initials + ", account menu for " + person().name) +
+          '" title="Account menu">' +
+          escape(initials) +
+          "</button>";
         const allowed =
           s.view === "operations"
             ? operationsAllowed
             : s.view === "administration"
               ? Boolean(person().admin)
-              : ["forms", "form", "questions"].includes(s.view) && canReadForms();
+              : ["settings", "workspaces"].includes(s.view) ||
+                (s.view === "workspace" && Boolean(person().admin)) ||
+                (["forms", "form", "questions"].includes(s.view) && canReadForms());
         let html =
           '<div class="crumb">' +
           (operationsMode
-            ? "Operations / " + escape(envName(s.env)) + " / " + escape(forms[s.form])
+            ? "Operations / " +
+              escape(envName(s.env)) +
+              " / " +
+              escape(
+                s.form && !["forms", "delivery-failures", "erasures"].includes(s.tab)
+                  ? forms[s.form]
+                  : { "delivery-failures": "Delivery failures", erasures: "Erasure log" }[s.tab] ||
+                      "Forms",
+              )
             : escape(
-                "Customer experience / " +
+                (["settings", "workspaces", "workspace", "administration"].includes(s.view)
+                  ? ""
+                  : "Customer experience / ") +
                   (s.view === "form"
                     ? "Forms / Customer onboarding"
                     : {
                         forms: "Forms",
                         questions: "Question library",
-                        administration: "Administration",
+                        administration: "Site configuration",
+                        workspaces: "Workspaces",
+                        workspace: "Workspace management",
+                        settings: "Settings",
                       }[s.view] || "Page"),
               )) +
           "</div>";
@@ -1508,6 +1869,9 @@
         else if (s.view === "questions") html += questionsView(s);
         else if (s.view === "operations") html += operationsView(s);
         else if (s.view === "administration") html += administrationView();
+        else if (s.view === "workspaces") html += workspacesView();
+        else if (s.view === "workspace") html += workspaceView(s);
+        else if (s.view === "settings") html += settingsView(s);
         $("#content").innerHTML = html;
         document.title =
           "QCMS · " +
@@ -1517,6 +1881,9 @@
             forms: "Forms",
             questions: "Question library",
             administration: "Release flow",
+            workspaces: "Workspaces",
+            workspace: "Workspace management",
+            settings: "Account settings",
           }[s.view] || "Concept");
       }
       function formsView() {
@@ -1663,7 +2030,330 @@
           '</p><p class="muted">A published form retains its original question content.</p></div></div>'
         );
       }
+      function workspacesView() {
+        const names = [...new Set(Object.values(formWorkspaces))];
+        return (
+          header("Workspaces", "Manage workspace access and review your own grants.") +
+          (person().admin
+            ? '<div class="card flush table-scroll"><table><thead><tr><th>Workspace</th><th>Forms</th><th>Manage</th></tr></thead><tbody>' +
+              names
+                .map(
+                  (name) =>
+                    "<tr><td>" +
+                    escape(name) +
+                    "</td><td>" +
+                    formCatalog.filter(([, , workspace]) => workspace === name).length +
+                    "</td><td>" +
+                    link("Open " + name, workspaceUrl(name), "button") +
+                    "</td></tr>",
+                )
+                .join("") +
+              "</tbody></table></div>"
+            : '<div class="notice">You do not administer a workspace. Your own access is shown below.</div>') +
+          myAccessBody()
+        );
+      }
+      function myAccessBody() {
+        return (
+          '<div class="card"><h2>My access</h2><p>' +
+          escape(person().name) +
+          " · " +
+          escape(person().detail) +
+          '</p><p class="muted">' +
+          (person().admin
+            ? "Installation administration is separate from form and response permissions."
+            : "Your role applies only within its workspace, form and environment grants.") +
+          "</p><p><small>Sample role: " +
+          escape(role) +
+          " · " +
+          (person().environments
+            ? person().environments.map(envName).map(escape).join(", ")
+            : "All configured environments in this demo") +
+          "</small></p></div>"
+        );
+      }
+      function workspaceView(s) {
+        const name = s.workspace === "all" ? "Customer experience" : s.workspace;
+        const tab = ["members", "groups", "workspace-settings", "audit"].includes(s.tab)
+          ? s.tab
+          : "members";
+        const headings = {
+          members: "Members",
+          groups: "Access groups",
+          "workspace-settings": "Workspace settings",
+          audit: "Access audit",
+        };
+        let html =
+          header(headings[tab], name) +
+          "<p>" +
+          link("All workspaces", url("workspaces", "", "", "")) +
+          "</p>";
+        if (tab === "members")
+          html +=
+            '<div class="card flush table-scroll"><table><thead><tr><th>Member</th><th>Workspace role</th></tr></thead><tbody><tr><td>Alex Chen</td><td>Owner</td></tr><tr><td>Morgan Lee</td><td>Member</td></tr><tr><td>Riley Patel</td><td>Member</td></tr></tbody></table></div>';
+        if (tab === "groups")
+          html +=
+            '<div class="card flush table-scroll"><table><thead><tr><th>Access group</th><th>Role</th><th>Environments</th></tr></thead><tbody><tr><td>Authoring</td><td>forms.editor</td><td>' +
+            escape(
+              config.envs
+                .filter((env) => !isProtected(env))
+                .map(envName)
+                .join(", "),
+            ) +
+            "</td></tr><tr><td>Production approval</td><td>forms.approver</td><td>" +
+            escape(envName(config.protected)) +
+            "</td></tr><tr><td>Response operations</td><td>responses.viewer, responses.eraser</td><td>Explicit environment and form scope</td></tr></tbody></table></div>";
+        if (tab === "workspace-settings")
+          html +=
+            '<div class="card"><h2>Production approval</h2><p>' +
+            tag(
+              config.second ? "Different approver required" : "Second-person requirement off",
+              config.second ? "blue" : "",
+            ) +
+            '</p><p class="muted">The existing workspace screen manages approval requirements and default test-data access for new editors. Personal account settings remain separate.</p></div>';
+        if (tab === "audit")
+          html +=
+            '<div class="card"><h2>Access changes</h2><p>Sample event · Access group granted to Morgan Lee.</p><p class="muted">Membership, grant and workspace-setting changes are audited. The existing application exposes the audit to workspace owners and installation administrators.</p></div>';
+        return (
+          html +
+          '<div class="notice">Read-only sample management panels. This prototype does not modify workspace memberships or grants.</div>'
+        );
+      }
+      function settingsBody(tab) {
+        if (tab === "change-password")
+          return '<div class="card"><h2>Change password</h2><p>Change your account password and revoke other sessions.</p><p class="muted">This navigation preview does not collect passwords or update a live account.</p></div>';
+        if (tab === "two-factor")
+          return (
+            '<div class="card"><h2>Two-factor authentication</h2><p>' +
+            tag("Enrolled", "green") +
+            '</p><h3>Re-enrolment</h3><p class="muted">The existing flow signs out and returns through sign-in and enrolment.</p><h3>Recovery codes</h3><p class="muted">The existing application supports password-confirmed regeneration of recovery codes.</p></div>'
+          );
+        return (
+          '<div class="card"><h2>Account</h2><p>Signed in as ' +
+          escape(person().name) +
+          '</p><p class="muted">Account settings are personal and independent of workspace administration.</p></div>'
+        );
+      }
+      function settingsView(s) {
+        const tab = ["account", "change-password", "two-factor"].includes(s.tab)
+          ? s.tab
+          : "account";
+        return (
+          header("Settings", "Your account, password and two-factor authentication.") +
+          settingsBody(tab)
+        );
+      }
+      function deliveryFailuresView(s) {
+        const entries = deliveryFailures[s.env];
+        return (
+          header(
+            "Delivery failures",
+            envName(s.env) + " · All accessible forms",
+            button("Retry all", "retry-all", "", true, !entries.length || !canOperate(s.env)),
+          ) +
+          (entries.length
+            ? '<div class="card flush table-scroll"><table><thead><tr><th>Form</th><th>Event</th><th>Attempts</th><th>Last failure</th><th>Action</th></tr></thead><tbody>' +
+              entries
+                .map(
+                  (item) =>
+                    "<tr><td>" +
+                    link(forms[item.form], url("operations", "webhooks", s.env, item.form)) +
+                    "</td><td>" +
+                    escape(item.id) +
+                    "</td><td>" +
+                    item.attempts +
+                    "</td><td>" +
+                    escape(item.reason) +
+                    "</td><td>" +
+                    button(
+                      "Retry",
+                      "retry-delivery",
+                      'data-id="' + item.id + '"',
+                      false,
+                      !canOperate(s.env),
+                    ) +
+                    "</td></tr>",
+                )
+                .join("") +
+              "</tbody></table></div>"
+            : '<div class="card empty"><h2>No delivery failures</h2><p class="muted">No stuck deliveries in this environment.</p></div>') +
+          '<div class="notice">Retries are simulated in this POC; no webhook request is sent.</div>'
+        );
+      }
+      function erasureLogView(s) {
+        return (
+          header("Erasure log", envName(s.env) + " · Erasure evidence across accessible forms.") +
+          '<div class="card flush table-scroll"><table><thead><tr><th>Session</th><th>Form</th><th>Version</th><th>Erased at</th><th>Reason</th></tr></thead><tbody>' +
+          erasureEvents[s.env]
+            .map(
+              (item) =>
+                "<tr><td>" +
+                escape(item.session) +
+                "</td><td>" +
+                escape(forms[item.form]) +
+                "</td><td>v" +
+                item.version +
+                "</td><td>" +
+                escape(item.at) +
+                "</td><td>" +
+                escape(item.reason) +
+                "</td></tr>",
+            )
+            .join("") +
+          '</tbody></table></div><p class="muted">Erasure is performed from a selected response, not from this log.</p>'
+        );
+      }
+      function operationsFormsView(s) {
+        const query = s.q.toLocaleLowerCase();
+        const workspaceNames = [...new Set(Object.values(formWorkspaces))].sort();
+        const matches = formCatalog
+          .filter(([id, name, workspace]) => {
+            const r = record(s.env, id);
+            return (
+              (!query || (name + " " + id).toLocaleLowerCase().includes(query)) &&
+              (s.workspace === "all" || s.workspace === workspace) &&
+              (s.status === "all" ||
+                (s.status === "unreleased" && r.version === null) ||
+                (s.status === "open" && r.version !== null && !r.closed) ||
+                (s.status === "closed" && r.version !== null && r.closed))
+            );
+          })
+          .sort((a, b) =>
+            s.sort === "released"
+              ? (record(s.env, b[0]).lastReleased || 0) - (record(s.env, a[0]).lastReleased || 0) ||
+                a[1].localeCompare(b[1])
+              : s.sort === "responses"
+                ? record(s.env, b[0]).responses - record(s.env, a[0]).responses ||
+                  a[1].localeCompare(b[1])
+                : a[1].localeCompare(b[1]),
+          );
+        const pageSize = 10,
+          pages = Math.max(1, Math.ceil(matches.length / pageSize)),
+          page = Math.min(s.page, pages),
+          offset = (page - 1) * pageSize;
+        operationsListContext.page = page;
+        const options = (values, current) =>
+          values
+            .map(
+              ([value, label]) =>
+                '<option value="' +
+                escape(value) +
+                '"' +
+                (value === current ? " selected" : "") +
+                ">" +
+                escape(label) +
+                "</option>",
+            )
+            .join("");
+        let html = header(
+          "Forms in " + envName(s.env),
+          "Find a form to manage intake, links, responses and webhook delivery.",
+        );
+        html +=
+          '<form id="ops-filter-form" class="card list-filters" role="search" aria-label="Filter operational forms"><label for="ops-search">Search forms<input id="ops-search" type="search" name="q" value="' +
+          escape(s.q) +
+          '" placeholder="Search by form name or ID"></label><label for="ops-workspace">Workspace<select id="ops-workspace" aria-label="Workspace">' +
+          options(
+            [["all", "All accessible workspaces"], ...workspaceNames.map((name) => [name, name])],
+            s.workspace,
+          ) +
+          '</select></label><label for="ops-status">Intake<select id="ops-status" aria-label="Intake">' +
+          options(
+            [
+              ["all", "All states"],
+              ["open", "Open"],
+              ["closed", "Closed"],
+              ["unreleased", "Not released"],
+            ],
+            s.status,
+          ) +
+          '</select></label><label for="ops-sort">Sort by<select id="ops-sort" aria-label="Sort by">' +
+          options(
+            [
+              ["name", "Form name"],
+              ["released", "Latest release"],
+              ...(person().responses ? [["responses", "Most responses"]] : []),
+            ],
+            s.sort,
+          ) +
+          '</select></label><div class="actions"><button class="primary" type="submit">Apply filters</button>' +
+          button("Clear filters", "ops-clear") +
+          "</div></form>";
+        html +=
+          '<div class="row list-results"><p role="status">' +
+          (matches.length
+            ? offset +
+              1 +
+              "–" +
+              Math.min(offset + pageSize, matches.length) +
+              " of " +
+              matches.length +
+              " forms"
+            : "No forms match these filters") +
+          "</p><small>" +
+          escape(envName(s.env)) +
+          " · " +
+          (s.workspace === "all" ? "All accessible workspaces" : escape(s.workspace)) +
+          "</small></div>";
+        if (!matches.length)
+          return (
+            html +
+            '<div class="card empty"><h2>No matching forms</h2><p class="muted">Try another name, workspace or intake state.</p>' +
+            button("Clear filters", "ops-clear") +
+            "</div>"
+          );
+        html +=
+          '<div class="card flush table-scroll"><table><caption class="sr-only">Operational forms in ' +
+          escape(envName(s.env)) +
+          "</caption><thead><tr><th>Form</th><th>Workspace</th><th>Released version</th><th>Intake</th><th>Responses</th><th>Last release</th></tr></thead><tbody>" +
+          matches
+            .slice(offset, offset + pageSize)
+            .map(([id, name, workspace]) => {
+              const r = record(s.env, id);
+              return (
+                "<tr><td>" +
+                link(name, url("operations", "overview", s.env, id)) +
+                "<small>" +
+                escape(id) +
+                "</small></td><td>" +
+                escape(workspace) +
+                "</td><td>" +
+                (r.version === null ? "—" : "v" + r.version) +
+                "</td><td>" +
+                tag(
+                  r.version === null ? "Not released" : r.closed ? "Closed" : "Open",
+                  r.version === null ? "" : r.closed ? "amber" : "green",
+                ) +
+                "</td><td>" +
+                (person().responses ? r.responses : '<span class="muted">Restricted</span>') +
+                "</td><td>" +
+                (r.lastReleased
+                  ? new Intl.DateTimeFormat("en-AU", {
+                      month: "short",
+                      day: "numeric",
+                      hour: "2-digit",
+                      minute: "2-digit",
+                      timeZone: "UTC",
+                    }).format(r.lastReleased)
+                  : "—") +
+                "</td></tr>"
+              );
+            })
+            .join("") +
+          '</tbody></table></div><div class="row list-pagination"><small>Page ' +
+          page +
+          " of " +
+          pages +
+          '</small><div class="actions">' +
+          button("Previous", "ops-page", 'data-page="' + (page - 1) + '"', false, page === 1) +
+          button("Next", "ops-page", 'data-page="' + (page + 1) + '"', false, page === pages) +
+          "</div></div>";
+        return html;
+      }
       function operationsView(s) {
+        if (s.tab === "delivery-failures" && person().release) return deliveryFailuresView(s);
+        if (s.tab === "erasures" && person().responses) return erasureLogView(s);
+        if (!s.form || s.tab === "forms") return operationsFormsView(s);
         const r = record(s.env, s.form);
         const activeTab = [
           "overview",
@@ -1678,10 +2368,10 @@
         );
         if (activeTab === "overview") {
           html +=
-            '<div class="stat-grid"><div class="stat"><small>Released version</small><strong>v' +
-            r.version +
+            '<div class="stat-grid"><div class="stat"><small>Released version</small><strong>' +
+            (r.version === null ? "Not released" : "v" + r.version) +
             '</strong></div><div class="stat"><small>Intake</small><strong>' +
-            (r.closed ? "Closed" : "Open") +
+            (r.version === null ? "Not available" : r.closed ? "Closed" : "Open") +
             '</strong></div><div class="stat"><small>' +
             (person().responses ? "Submitted responses" : "Response access") +
             "</small><strong>" +
@@ -1691,16 +2381,18 @@
             " in " +
             escape(envName(s.env)) +
             '</h2><p class="muted">' +
-            (r.closed
-              ? "New sessions are currently refused."
-              : "New sessions start on v" + r.version + ".") +
+            (r.version === null
+              ? "This form has not been released in this environment."
+              : r.closed
+                ? "New sessions are currently refused."
+                : "New sessions start on v" + r.version + ".") +
             " Existing sessions keep their original version.</p></div>" +
             button(
               r.closed ? "Reopen intake" : "Close intake",
               "intake",
               "",
               false,
-              !canOperate(s.env),
+              !canOperate(s.env) || r.version === null,
             ) +
             '</div><div class="actions">' +
             (person().release
@@ -1732,7 +2424,7 @@
             "</p></div>" +
             button("Export responses", "export") +
             '</div><div class="card flush table-scroll"><table><thead><tr><th>Session</th><th>Status</th><th>Form version</th><th>Received</th></tr></thead><tbody>' +
-            [1, 2, 3]
+            (r.responses ? [1, 2, 3] : [])
               .map(
                 (n) =>
                   "<tr><td>sample-" +
@@ -1754,7 +2446,13 @@
             '<div class="row"><div><h2>' +
             escape(envName(s.env)) +
             ' links</h2><p class="muted">New sessions follow this environment\'s released version.</p></div>' +
-            button("Create secure link", "create-link", "", true, !canOperate(s.env)) +
+            button(
+              "Create secure link",
+              "create-link",
+              "",
+              true,
+              !canOperate(s.env) || r.version === null,
+            ) +
             "</div>" +
             (r.links.length
               ? r.links
@@ -2140,6 +2838,7 @@
         if (combined) versions.unshift(candidate);
         for (const env of targets) {
           record(env).version = candidate.number;
+          record(env).lastReleased = Date.now();
           record(env).history.push(candidate.number);
           historyEntries.unshift(
             "v" + candidate.number + " released to " + envName(env) + " by " + person().name + ".",
@@ -2214,6 +2913,70 @@
         const action = el.dataset.action;
         const s = state();
         captureDraft();
+        if (action === "ops-clear") return applyOperationsFilters(true);
+        if (action === "ops-page") {
+          operationsListContext.page = Number(el.dataset.page);
+          navigate("operations", "forms", s.env, "");
+          return;
+        }
+        if (action === "account-menu")
+          return modal(
+            '<h2 id="dialog-title">Account menu</h2><p>Signed in as ' +
+              escape(person().name) +
+              '</p><div class="stack">' +
+              button("Settings", "account-section", 'data-section="account"') +
+              button("Change password", "account-section", 'data-section="change-password"') +
+              button("Two-factor authentication", "account-section", 'data-section="two-factor"') +
+              button("My access", "my-access") +
+              button("Sign out", "demo-signout") +
+              "</div>",
+            button("Close", "cancel"),
+            false,
+          );
+        if (action === "account-section") {
+          if (s.view !== "operations") {
+            const section = el.dataset.section;
+            closeModal();
+            return navigate("settings", section, "", "");
+          }
+          return modal(
+            '<h2 id="dialog-title">Account settings</h2>' + settingsBody(el.dataset.section),
+            button("Close", "cancel"),
+            false,
+          );
+        }
+        if (action === "my-access")
+          return modal(
+            '<h2 id="dialog-title">My access</h2>' + myAccessBody(),
+            button("Close", "cancel"),
+            false,
+          );
+        if (action === "demo-signout")
+          return modal(
+            '<h2 id="dialog-title">Signed out · Demo</h2><p>This preview does not end a live application session.</p>',
+            button("Return to demo", "cancel", "", true),
+            false,
+          );
+        if (action === "appearance")
+          return modal(
+            '<h2 id="dialog-title">Appearance</h2><p>' +
+              tag("Light preview", "blue") +
+              '</p><p>The existing app has a header appearance control for Light, Dark and High contrast.</p><p class="muted">Theme variants are outside this navigation POC; the control keeps its place beside the account avatar.</p>',
+            button("Close", "cancel"),
+            false,
+          );
+        if (action === "retry-delivery" && canOperate(s.env)) {
+          deliveryFailures[s.env] = deliveryFailures[s.env].filter(
+            (item) => item.id !== el.dataset.id,
+          );
+          render();
+          return notify("Sample delivery queued for retry in " + envName(s.env) + ".");
+        }
+        if (action === "retry-all" && canOperate(s.env)) {
+          deliveryFailures[s.env] = [];
+          render();
+          return notify("Sample deliveries queued for retry in " + envName(s.env) + ".");
+        }
         if (action === "cancel") return closeModal();
         if (action === "preview")
           modal(
@@ -2367,8 +3130,18 @@
             ?.focus();
         }
         if (event.target.id === "draft-company") captureDraft();
-        if (event.target.id === "ops-env" || event.target.id === "ops-form")
-          navigate("operations", state().tab, $("#ops-env").value, $("#ops-form").value);
+        if (event.target.id === "ops-env") {
+          const current = state();
+          operationsListContext.page = 1;
+          navigate(
+            "operations",
+            current.tab,
+            $("#ops-env").value,
+            current.tab === "forms" ? "" : current.form,
+          );
+        }
+        if (["ops-workspace", "ops-status", "ops-sort"].includes(event.target.id))
+          applyOperationsFilters();
         if (event.target.id === "flow-preset") {
           const presets = {
             single: ["prod"],
@@ -2386,6 +3159,11 @@
         }
       });
       document.addEventListener("submit", (event) => {
+        if (event.target.id === "ops-filter-form") {
+          event.preventDefault();
+          applyOperationsFilters();
+          return;
+        }
         if (event.target.id !== "flow-form") return;
         event.preventDefault();
         const envs = $("#flow-envs")
@@ -2410,10 +3188,16 @@
         captureDraft();
         if ($("#dialog").open) closeModal();
         role = event.target.value;
+        const destination = canReadForms()
+          ? "form"
+          : person().responses
+            ? "operations"
+            : "administration";
         navigate(
-          canReadForms() ? "form" : person().responses ? "operations" : "administration",
-          canReadForms() ? "versions" : "overview",
+          destination,
+          destination === "operations" ? "forms" : canReadForms() ? "versions" : "",
           state().env,
+          destination === "operations" ? "" : "onboarding",
         );
       });
       $("#reset").addEventListener("click", () => {
