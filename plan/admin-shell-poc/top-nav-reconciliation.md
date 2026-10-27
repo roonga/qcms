@@ -8,14 +8,14 @@ running admin application.
 
 ## App-level destinations
 
-| Shipped entry | Existing purpose                                                                    | POC destination                                                                                                                                                        |
-| ------------- | ----------------------------------------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| Questions     | Question library and question authoring                                             | Questions in the normal top nav; the selected sample question has a context rail.                                                                                      |
-| Forms         | Form library, authoring, versions and releases                                      | Forms in the normal top nav; the selected form has Draft and Versions in its rail. The Publish wizard handles destinations.                                            |
-| Responses     | Pick a form to inspect its responses; access the erasure log                        | Operations → Forms table → selected form → Responses. Operations → Erasure log preserves the environment-wide evidence screen.                                         |
-| Webhooks      | Environment-wide dead-letter queue and access to per-form endpoint configuration    | Operations → Delivery failures, plus Operations → selected form → Webhooks. Sample retry and retry-all stay within the selected environment.                           |
-| Workspaces    | Managed-workspace list and My access; workspace members, groups, settings and audit | Workspaces in the normal top nav. Owners/admins see read-only sample management panels; other users see their own access.                                              |
-| Settings      | Personal account, change password, two-factor authentication and recovery-code flow | Avatar → Settings, with a personal-settings context rail outside Operations and an in-mode dialog inside Operations. Workspace and release-flow settings are separate. |
+| Shipped entry | Existing purpose                                                                    | POC destination                                                                                                                                                                               |
+| ------------- | ----------------------------------------------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Questions     | Question library and question authoring                                             | Questions in the normal top nav; the selected sample question has a context rail.                                                                                                             |
+| Forms         | Form library, authoring, versions and releases                                      | Forms in the normal top nav; the selected form has Draft and Versions in its rail. The Publish wizard handles destinations.                                                                   |
+| Responses     | Pick a form to inspect its responses; access the erasure log                        | Operations → Forms table → selected form → Responses. Operations → Erasure log preserves the environment-wide evidence screen.                                                                |
+| Webhooks      | Environment-wide dead-letter queue and access to per-form endpoint configuration    | Operations → Delivery failures, plus Operations → selected form → Webhooks. Sample retry and retry-all stay within the selected environment.                                                  |
+| Workspaces    | Managed-workspace list and My access; workspace members, groups, settings and audit | Workspaces entry only for owners/admins. It opens a separate management mode with a scoped workspace list, contextual panels and Exit workspaces. Other users use My access under the avatar. |
+| Settings      | Personal account, change password, two-factor authentication and recovery-code flow | Avatar → Settings, with a personal-settings context rail outside focused modes and an in-mode dialog inside Operations or Workspaces. Workspace and release-flow settings are separate.       |
 
 The existing Responses index is a form picker, **not a cross-form answer table**.
 The new operational forms table preserves that entry point without inventing a
@@ -36,13 +36,17 @@ Settings.
 
 Workspaces already exist in the application. Customer experience, People operations,
 Finance and Compliance are fictional POC workspace names; none was fetched from a
-running installation. The Operations workspace filter represents accessible scope,
-not a new tenant boundary.
+running installation. The Operations workspace filter only filters list results. No workspace scope or
+switcher is shown in the application header. Workspaces remain authorization
+groupings within the installation.
 
-## Operations-only access
+## Focused-mode access
 
-- Normal app menus remain hidden until a permitted user exits Operations.
-- An Operations-only user has no exit into inaccessible app areas.
+- Normal app menus remain hidden inside Operations and Workspaces management until
+  a permitted user exits the mode.
+- Operations-only and workspace-only users have no exit into inaccessible app areas.
+- The Workspaces entry requires management access; owners only see their owned
+  workspaces, and direct routes to unrelated workspace management are refused.
 - Personal account settings and My access remain reachable from the avatar without
   revealing the normal app navigation or leaving Operations.
 - Operational views remain role-specific. A response operator does not gain access

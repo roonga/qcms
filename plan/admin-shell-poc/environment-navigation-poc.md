@@ -7,13 +7,13 @@ the artifacts service's allocated port in [PORTS.md](../../docs/PORTS.md).
 
 ## Explore
 
-- **Application navigation:** Questions, Forms, Workspaces,
+- **Application navigation:** Questions, Forms, permitted Workspaces,
   Operations and permitted Site configuration live in the top bar. There is no
   Authoring menu group. [Existing-nav coverage](top-nav-reconciliation.md) maps
   every shipped entry and header utility to its POC destination and preview limits.
   Operations has a separated entry after the normal menus, with a divider and
-  additional spacing. Workspace identity and an avatar-only account display also
-  belong to this application-level bar; the avatar retains an accessible name.
+  additional spacing. The account uses an avatar with an accessible name. There
+  is no workspace scope label or workspace switcher in the application header.
 - **Context rail:** contains only navigation within the selected context. A form
   has Draft and Versions; the sample question has Question details and Used by;
   A selected operational form has its permitted screens and an All forms return link.
@@ -48,11 +48,22 @@ the artifacts service's allocated port in [PORTS.md](../../docs/PORTS.md).
   refresh and the All forms return link. Changing environment resets pagination.
   The sidebar contains Overview, Responses, Links and Webhooks only after a form
   is selected. Unreleased forms have no enabled intake or secure-link creation.
+- **Filter boundaries:** search, workspace, intake and sort affect only list
+  results. They do not change the application header or the page heading above the
+  filter controls. Environment is an explicit Operations-wide context. List filters
+  do not apply to Delivery failures or Erasure log; returning to Forms restores them.
 - **Environment-wide operations:** Delivery failures and Erasure log remain
   independent of the selected form. Their own Operations menu preserves the
   existing global queue and evidence screens. Sample retries affect one environment.
-- **Workspaces and Settings:** workspace owners/admins can browse sample members,
-  access groups, settings and audit panels. Every user can review their own access.
+- **Workspace management:** only workspace owners and installation administrators
+  see the Workspaces entry. It opens a separate mode, hiding the normal app menu.
+  Owners see only workspaces they manage. Members, access groups, settings and audit
+  stay in the selected workspace's rail. All workspaces returns to the managed list.
+  Exit workspaces restores a permitted normal area. The workspace-only owner
+  persona opens directly in this mode without an exit into inaccessible areas.
+- **Personal access and Settings:** every user can review My access under the avatar,
+  without a Workspaces management menu. Personal Settings remains available inside
+  both focused modes without showing normal menus.
   Personal Settings is under the avatar, with Account, Change password and Two-factor sections; it does
   not contain workspace or release-flow controls. These are navigation previews.
 - **Avatar:** contains Settings, identity, personal security entry points and simulated
@@ -75,6 +86,8 @@ the artifacts service's allocated port in [PORTS.md](../../docs/PORTS.md).
   Full access combines those roles for easier exploration; ownership alone grants
   only the administration view. The test-only editor demonstrates destination
   filtering by environment scope.
+  Jordan is a workspace-only owner of Customer experience, with no authoring,
+  response or installation-administration privileges.
 
 The Versions table's **Available in** column names environments currently serving
 that version, not every environment that ever served it. Publishing a replacement
@@ -138,3 +151,5 @@ flow illustrates the subsequent product direction; it does not amend an ADR.
 - Chromium journeys: shipped top-nav coverage, workspace permission separation,
   personal-settings navigation, account access inside Operations, environment-wide
   failure retries and erasure evidence.
+- Chromium journeys: owner-scoped workspace mode, direct-route permission checks,
+  mode exit/restoration, workspace-only entry and stable headers during list filtering.

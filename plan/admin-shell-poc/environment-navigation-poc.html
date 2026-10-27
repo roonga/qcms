@@ -930,15 +930,6 @@
       .application-identity .brand {
         padding: 0;
       }
-      .global-workspace {
-        border-left: 1px solid var(--line);
-        padding-left: 14px;
-      }
-      .global-workspace small,
-      .global-workspace strong {
-        display: block;
-        font-size: 11px;
-      }
       .application-bar #account {
         padding: 0;
         margin: 0 0 0 auto;
@@ -961,11 +952,6 @@
       }
       .shell.without-rail {
         grid-template-columns: minmax(0, 1fr);
-      }
-      @media (max-width: 1200px) {
-        .global-workspace {
-          display: none;
-        }
       }
       @media (max-width: 700px) {
         .application-bar {
@@ -1114,6 +1100,18 @@
           margin: 5px 0 0;
         }
       }
+      body[data-mode="workspaces"] .application-bar {
+        background: #edf2fa;
+        border-bottom-color: #c5d3e8;
+      }
+      body[data-mode="workspaces"] aside {
+        background: #f8fafd;
+      }
+      @media (max-width: 700px) {
+        body[data-mode="workspaces"] #application-area {
+          flex-basis: auto;
+        }
+      }
     </style>
   </head>
   <body>
@@ -1129,6 +1127,7 @@
           <option value="approver">Morgan · Approver</option>
           <option value="responses">Riley · Response operator</option>
           <option value="owner">Alex · Site owner</option>
+          <option value="workspaceowner">Jordan · Workspace owner</option>
         </select>
         <button id="reset">Reset demo</button>
       </div>
@@ -1136,9 +1135,6 @@
     <div class="application-bar" role="region" aria-label="Application navigation">
       <div class="application-identity">
         <div class="brand"><span class="brand-mark">q</span> QCMS</div>
-        <div class="global-workspace">
-          <small>Workspace</small><strong>Customer experience</strong>
-        </div>
       </div>
       <div id="application-area"></div>
       <div id="operations-scope" class="operations-scope"></div>
@@ -1192,6 +1188,11 @@
         approver: { name: "Morgan Lee", detail: "Forms approver", release: true, prod: true },
         responses: { name: "Riley Patel", detail: "Responses viewer & eraser", responses: true },
         owner: { name: "Alex Chen", detail: "Site owner", admin: true },
+        workspaceowner: {
+          name: "Jordan Blake",
+          detail: "Workspace owner",
+          ownedWorkspaces: ["Customer experience"],
+        },
       };
       const labels = { dev: "Development", test: "Test", stg: "Staging", prod: "Production" };
       const formCatalog = [
@@ -1242,6 +1243,13 @@
       let toastTimer;
       const person = () => profiles[role];
       const canReadForms = () => Boolean(person().edit || person().release);
+      const managedWorkspaces = () =>
+        person().admin
+          ? [...new Set(Object.values(formWorkspaces))]
+          : person().ownedWorkspaces || [];
+      const canManageWorkspaces = () => managedWorkspaces().length > 0;
+      const canManageWorkspace = (name) =>
+        managedWorkspaces().includes(name === "all" ? "Customer experience" : name);
       const envName = (env) => labels[env] || env;
       const isProtected = (env) => env === config.protected;
       const canOperate = (env) =>
@@ -1266,12 +1274,27 @@
         '<a class="' + cls + '" href="#' + hash + '">' + escape(text) + "</a>";
       const state = () => {
         const params = new URLSearchParams(location.hash.slice(1));
-        const operationsOnly = !canReadForms() && !person().admin && person().responses;
+        const operationsOnly =
+          !canReadForms() && !canManageWorkspaces() && !person().admin && person().responses;
         const requestedView = params.get("view");
+        const workspaceOnly =
+          canManageWorkspaces() &&
+          !canReadForms() &&
+          !person().admin &&
+          !person().responses &&
+          !person().release;
         const view = operationsOnly
           ? "operations"
-          : requestedView ||
-            (canReadForms() ? "forms" : person().responses ? "operations" : "administration");
+          : workspaceOnly && !["workspaces", "workspace"].includes(requestedView)
+            ? "workspaces"
+            : requestedView ||
+              (canReadForms()
+                ? "forms"
+                : person().responses
+                  ? "operations"
+                  : canManageWorkspaces()
+                    ? "workspaces"
+                    : "administration");
         const selected = forms[params.get("form")] ? params.get("form") : "";
         const form =
           view === "operations"
@@ -1311,7 +1334,7 @@
           ...(tab ? { tab } : {}),
           ...(env ? { env } : {}),
           ...(form && tab !== "forms" ? { form } : {}),
-          ...(view === "operations"
+          ...(view === "operations" && !["delivery-failures", "erasures"].includes(tab)
             ? {
                 ...(operationsListContext.q ? { q: operationsListContext.q } : {}),
                 ...(operationsListContext.status !== "all"
@@ -1514,9 +1537,7 @@
           scope.view === "operations"
             ? scope.form && scope.tab !== "forms"
               ? formWorkspaces[scope.form]
-              : scope.workspace === "all"
-                ? "All accessible workspaces"
-                : scope.workspace
+              : "Operations"
             : scope.view === "settings"
               ? "Your account"
               : ["workspaces", "workspace", "administration"].includes(scope.view)
@@ -1551,9 +1572,12 @@
         return url("workspace", tab, "", "") + "&workspace=" + encodeURIComponent(name);
       }
       function exitOperationsUrl() {
-        if (["settings", "workspaces"].includes(normalContext.view))
+        if (
+          normalContext.view === "settings" ||
+          (normalContext.view === "workspaces" && canManageWorkspaces())
+        )
           return url(normalContext.view, normalContext.tab, "", "");
-        if (normalContext.view === "workspace" && person().admin)
+        if (normalContext.view === "workspace" && canManageWorkspace(normalContext.workspace))
           return workspaceUrl(normalContext.workspace, normalContext.tab);
         if (normalContext.view === "administration" && person().admin) return url("administration");
         if (canReadForms())
@@ -1565,7 +1589,11 @@
             "",
             normalContext.form,
           );
-        return person().admin ? url("administration") : "";
+        return person().admin
+          ? url("administration")
+          : canManageWorkspaces()
+            ? url("workspaces", "", "", "")
+            : "";
       }
       function operationsScope(s) {
         return (
@@ -1593,23 +1621,28 @@
         const s = state();
         const operationsAllowed = Boolean(person().release || person().responses);
         const operationsMode = s.view === "operations" && operationsAllowed;
+        const workspaceMode = ["workspaces", "workspace"].includes(s.view) && canManageWorkspaces();
         if (operationsMode) {
           operationsContext = { tab: "forms", env: s.env, form: "" };
-          operationsListContext = {
-            q: s.q,
-            status: s.status,
-            workspace: s.workspace,
-            sort: s.sort,
-            page: s.page,
-          };
+          if (!["delivery-failures", "erasures"].includes(s.tab))
+            operationsListContext = {
+              q: s.q,
+              status: s.status,
+              workspace: s.workspace,
+              sort: s.sort,
+              page: s.page,
+            };
         } else if (
           (["forms", "form", "questions"].includes(s.view) && canReadForms()) ||
           (s.view === "administration" && person().admin) ||
-          ["settings", "workspaces"].includes(s.view) ||
-          (s.view === "workspace" && person().admin)
+          s.view === "settings"
         )
           normalContext = { view: s.view, tab: s.tab, form: s.form, workspace: s.workspace };
-        document.body.dataset.mode = operationsMode ? "operations" : "normal";
+        document.body.dataset.mode = operationsMode
+          ? "operations"
+          : workspaceMode
+            ? "workspaces"
+            : "normal";
         const areas = [];
         if (canReadForms())
           areas.push(
@@ -1622,84 +1655,75 @@
             "Operations",
             url("operations", operationsContext.tab, operationsContext.env, operationsContext.form),
           ]);
-        areas.push(["workspaces", "Workspaces", url("workspaces", "", "", "")]);
+        if (canManageWorkspaces())
+          areas.push(["workspaces", "Workspaces", url("workspaces", "", "", "")]);
         if (person().admin)
           areas.push(["administration", "Site configuration", url("administration")]);
-        $("#application-area").innerHTML = operationsMode
+        $("#application-area").innerHTML = workspaceMode
           ? '<div class="operations-brand">' +
-            icon("operations") +
-            '<strong>Operations</strong></div><nav class="operations-tools" aria-label="Operations areas">' +
-            [
-              ["forms", "Forms"],
-              ...(person().release ? [["delivery-failures", "Delivery failures"]] : []),
-              ...(person().responses ? [["erasures", "Erasure log"]] : []),
-            ]
-              .map(
-                ([id, label]) =>
-                  '<a href="#' +
-                  url("operations", id, s.env, "") +
-                  '"' +
-                  (s.tab === id ? ' aria-current="page"' : "") +
-                  ">" +
-                  escape(label) +
-                  "</a>",
-              )
-              .join("") +
+            icon("administration") +
+            '<strong>Workspaces</strong></div><nav class="operations-tools" aria-label="Workspace areas">' +
+            link("All workspaces", url("workspaces", "", "", "")) +
             "</nav>"
-          : '<nav class="area-nav" aria-label="Application areas">' +
-            areas
-              .filter(([id]) => id !== "operations")
-              .map(
-                ([id, label, target]) =>
-                  '<a href="#' +
-                  target +
-                  '"' +
-                  ((id === "forms" && s.view === "form") ||
-                  (id === "workspaces" && s.view === "workspace") ||
-                  id === s.view
-                    ? ' aria-current="page"'
-                    : "") +
-                  ">" +
-                  escape(label) +
-                  "</a>",
-              )
-              .join("") +
-            (operationsAllowed
-              ? '<span class="operations-entry"><a class="operations-link" href="#' +
-                url(
-                  "operations",
-                  operationsContext.tab,
-                  operationsContext.env,
-                  operationsContext.form,
-                ) +
-                '">' +
-                icon("operations") +
-                '<span>Operations</span><span aria-hidden="true">→</span></a></span>'
-              : "") +
-            "</nav>";
-        $(".global-workspace").innerHTML = operationsMode
-          ? "<small>Workspace scope</small><strong>" +
-            escape(
-              s.form && s.tab !== "forms"
-                ? formWorkspaces[s.form]
-                : s.workspace === "all"
-                  ? "All accessible"
-                  : s.workspace,
-            ) +
-            "</strong>"
-          : s.view === "settings"
-            ? "<small>Scope</small><strong>Your account</strong>"
-            : ["workspaces", "administration"].includes(s.view)
-              ? "<small>Scope</small><strong>Installation</strong>"
-              : s.view === "workspace"
-                ? "<small>Workspace</small><strong>" +
-                  escape(s.workspace === "all" ? "Customer experience" : s.workspace) +
-                  "</strong>"
-                : "<small>Workspace</small><strong>Customer experience</strong>";
+          : operationsMode
+            ? '<div class="operations-brand">' +
+              icon("operations") +
+              '<strong>Operations</strong></div><nav class="operations-tools" aria-label="Operations areas">' +
+              [
+                ["forms", "Forms"],
+                ...(person().release ? [["delivery-failures", "Delivery failures"]] : []),
+                ...(person().responses ? [["erasures", "Erasure log"]] : []),
+              ]
+                .map(
+                  ([id, label]) =>
+                    '<a href="#' +
+                    url("operations", id, s.env, "") +
+                    '"' +
+                    (s.tab === id ? ' aria-current="page"' : "") +
+                    ">" +
+                    escape(label) +
+                    "</a>",
+                )
+                .join("") +
+              "</nav>"
+            : '<nav class="area-nav" aria-label="Application areas">' +
+              areas
+                .filter(([id]) => id !== "operations")
+                .map(
+                  ([id, label, target]) =>
+                    '<a href="#' +
+                    target +
+                    '"' +
+                    ((id === "forms" && s.view === "form") ||
+                    (id === "workspaces" && s.view === "workspace") ||
+                    id === s.view
+                      ? ' aria-current="page"'
+                      : "") +
+                    ">" +
+                    escape(label) +
+                    "</a>",
+                )
+                .join("") +
+              (operationsAllowed
+                ? '<span class="operations-entry"><a class="operations-link" href="#' +
+                  url(
+                    "operations",
+                    operationsContext.tab,
+                    operationsContext.env,
+                    operationsContext.form,
+                  ) +
+                  '">' +
+                  icon("operations") +
+                  '<span>Operations</span><span aria-hidden="true">→</span></a></span>'
+                : "") +
+              "</nav>";
         $("#operations-scope").hidden = !operationsMode;
         $("#operations-scope").innerHTML = operationsMode ? operationsScope(s) : "";
-        $("#operations-exit").innerHTML =
-          operationsMode && (canReadForms() || person().admin)
+        $("#operations-exit").innerHTML = workspaceMode
+          ? canReadForms() || person().admin
+            ? link("Exit workspaces", exitOperationsUrl(), "button")
+            : ""
+          : operationsMode && (canReadForms() || canManageWorkspaces() || person().admin)
             ? link("Exit operations", exitOperationsUrl(), "button")
             : "";
         const sideItems = operationsMode
@@ -1723,7 +1747,7 @@
                   ["details", "Question details", url("questions", "details")],
                   ["usage", "Used by", url("questions", "usage")],
                 ]
-              : s.view === "workspace" && person().admin
+              : s.view === "workspace" && canManageWorkspace(s.workspace)
                 ? [
                     ["members", "Members"],
                     ["groups", "Access groups"],
@@ -1830,8 +1854,9 @@
             ? operationsAllowed
             : s.view === "administration"
               ? Boolean(person().admin)
-              : ["settings", "workspaces"].includes(s.view) ||
-                (s.view === "workspace" && Boolean(person().admin)) ||
+              : s.view === "settings" ||
+                (s.view === "workspaces" && canManageWorkspaces()) ||
+                (s.view === "workspace" && canManageWorkspace(s.workspace)) ||
                 (["forms", "form", "questions"].includes(s.view) && canReadForms());
         let html =
           '<div class="crumb">' +
@@ -2031,10 +2056,10 @@
         );
       }
       function workspacesView() {
-        const names = [...new Set(Object.values(formWorkspaces))];
+        const names = managedWorkspaces();
         return (
           header("Workspaces", "Manage workspace access and review your own grants.") +
-          (person().admin
+          (canManageWorkspaces()
             ? '<div class="card flush table-scroll"><table><thead><tr><th>Workspace</th><th>Forms</th><th>Manage</th></tr></thead><tbody>' +
               names
                 .map(
@@ -2062,13 +2087,17 @@
           '</p><p class="muted">' +
           (person().admin
             ? "Installation administration is separate from form and response permissions."
-            : "Your role applies only within its workspace, form and environment grants.") +
+            : person().ownedWorkspaces
+              ? "Workspace ownership grants management access. Authoring and response access require separate grants."
+              : "Your role applies only within its workspace, form and environment grants.") +
           "</p><p><small>Sample role: " +
           escape(role) +
           " · " +
-          (person().environments
-            ? person().environments.map(envName).map(escape).join(", ")
-            : "All configured environments in this demo") +
+          (person().ownedWorkspaces
+            ? "Manages " + person().ownedWorkspaces.map(escape).join(", ")
+            : person().environments
+              ? person().environments.map(envName).map(escape).join(", ")
+              : "All configured environments in this demo") +
           "</small></p></div>"
         );
       }
@@ -2083,14 +2112,12 @@
           "workspace-settings": "Workspace settings",
           audit: "Access audit",
         };
-        let html =
-          header(headings[tab], name) +
-          "<p>" +
-          link("All workspaces", url("workspaces", "", "", "")) +
-          "</p>";
+        let html = header(headings[tab], name);
         if (tab === "members")
           html +=
-            '<div class="card flush table-scroll"><table><thead><tr><th>Member</th><th>Workspace role</th></tr></thead><tbody><tr><td>Alex Chen</td><td>Owner</td></tr><tr><td>Morgan Lee</td><td>Member</td></tr><tr><td>Riley Patel</td><td>Member</td></tr></tbody></table></div>';
+            '<div class="card flush table-scroll"><table><thead><tr><th>Member</th><th>Workspace role</th></tr></thead><tbody><tr><td>Alex Chen</td><td>Owner</td></tr>' +
+            (name === "Customer experience" ? "<tr><td>Jordan Blake</td><td>Owner</td></tr>" : "") +
+            "<tr><td>Morgan Lee</td><td>Member</td></tr><tr><td>Riley Patel</td><td>Member</td></tr></tbody></table></div>";
         if (tab === "groups")
           html +=
             '<div class="card flush table-scroll"><table><thead><tr><th>Access group</th><th>Role</th><th>Environments</th></tr></thead><tbody><tr><td>Authoring</td><td>forms.editor</td><td>' +
@@ -2934,7 +2961,7 @@
             false,
           );
         if (action === "account-section") {
-          if (s.view !== "operations") {
+          if (!["operations", "workspaces", "workspace"].includes(s.view)) {
             const section = el.dataset.section;
             closeModal();
             return navigate("settings", section, "", "");
@@ -3192,7 +3219,9 @@
           ? "form"
           : person().responses
             ? "operations"
-            : "administration";
+            : canManageWorkspaces()
+              ? "workspaces"
+              : "administration";
         navigate(
           destination,
           destination === "operations" ? "forms" : canReadForms() ? "versions" : "",
