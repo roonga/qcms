@@ -812,6 +812,115 @@
           padding: 13px 16px;
         }
       }
+      .application-bar {
+        display: flex;
+        align-items: center;
+        gap: 20px;
+        padding: 12px 25px;
+        border-bottom: 1px solid var(--line);
+        background: white;
+        position: sticky;
+        top: 0;
+        z-index: 2;
+        min-height: 72px;
+      }
+      .area-nav {
+        flex-direction: row;
+        gap: 8px;
+      }
+      .area-nav a {
+        padding: 10px 15px;
+      }
+      .operations-brand {
+        display: flex;
+        align-items: center;
+        gap: 10px;
+        color: #23436f;
+        font-size: 18px;
+      }
+      .operations-brand svg {
+        width: 23px;
+        height: 23px;
+      }
+      .operations-scope {
+        display: flex;
+        align-items: center;
+        gap: 16px;
+        margin-left: auto;
+      }
+      .operations-scope label {
+        color: var(--muted);
+        font-size: 11px;
+        font-weight: 650;
+      }
+      .operations-scope select {
+        display: block;
+        margin-top: 4px;
+        min-width: 160px;
+      }
+      .operations-scope .tag {
+        align-self: center;
+      }
+      .section-label {
+        margin: 0 13px 9px;
+      }
+      body[data-mode="operations"] .application-bar {
+        background: #edf2fa;
+        border-bottom-color: #c5d3e8;
+      }
+      body[data-mode="operations"] aside {
+        background: #f8fafd;
+      }
+      body[data-mode="operations"] .shell {
+        min-height: calc(100vh - 145px);
+      }
+      @media (max-width: 1100px) {
+        .application-bar {
+          flex-wrap: wrap;
+        }
+        .operations-scope {
+          order: 3;
+          flex-basis: 100%;
+          margin-left: 0;
+        }
+        #operations-exit {
+          margin-left: auto;
+        }
+      }
+      @media (max-width: 700px) {
+        .application-bar {
+          padding: 12px 15px;
+          gap: 12px;
+          position: static;
+        }
+        .area-nav {
+          display: flex;
+          margin: 0;
+          gap: 3px;
+          flex-wrap: wrap;
+        }
+        .area-nav a {
+          padding: 8px 10px;
+        }
+        .operations-scope {
+          display: grid;
+          grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+          gap: 10px;
+        }
+        .operations-scope select {
+          min-width: 0;
+          width: 100%;
+        }
+        .operations-scope .tag {
+          justify-self: start;
+        }
+        .section-label {
+          margin: 15px 10px 0;
+        }
+        .operations-brand {
+          font-size: 17px;
+        }
+      }
     </style>
   </head>
   <body>
@@ -831,10 +940,16 @@
         <button id="reset">Reset demo</button>
       </div>
     </header>
+    <div class="application-bar" role="region" aria-label="Application navigation">
+      <div id="application-area"></div>
+      <div id="operations-scope" class="operations-scope"></div>
+      <div id="operations-exit"></div>
+    </div>
     <div class="shell">
       <aside>
         <div class="brand"><span class="brand-mark">q</span> QCMS</div>
         <div class="workspace"><small>Workspace</small><strong>Customer experience</strong></div>
+        <div id="section-label" class="eyebrow section-label"></div>
         <nav id="nav" aria-label="Primary"></nav>
         <div class="account" id="account"></div>
       </aside>
@@ -876,6 +991,7 @@
       let config, records, versions, draft, questionLabel, historyEntries;
       let wizard = null;
       let operationsContext = { tab: "overview", env: "dev", form: "onboarding" };
+      let normalContext = { view: "forms", tab: "", form: "onboarding" };
       let toastTimer;
       const person = () => profiles[role];
       const canReadForms = () => Boolean(person().edit || person().release);
@@ -905,8 +1021,10 @@
         const params = new URLSearchParams(location.hash.slice(1));
         return {
           view:
-            params.get("view") ||
-            (canReadForms() ? "forms" : person().responses ? "operations" : "administration"),
+            !canReadForms() && !person().admin && person().responses
+              ? "operations"
+              : params.get("view") ||
+                (canReadForms() ? "forms" : person().responses ? "operations" : "administration"),
           tab: params.get("tab") || "draft",
           env: config.envs.includes(params.get("env")) ? params.get("env") : config.envs[0],
           form: forms[params.get("form")] ? params.get("form") : "onboarding",
@@ -940,6 +1058,7 @@
           second: false,
         };
         operationsContext = { tab: "overview", env: config.envs[0], form: "onboarding" };
+        normalContext = { view: "forms", tab: "", form: "onboarding" };
         records = {};
         for (const form of Object.keys(forms)) {
           records[form] = {};
@@ -1046,27 +1165,160 @@
           "</div></div>"
         );
       }
+      function operationalSections() {
+        return [
+          ["overview", "Overview"],
+          ...(person().responses ? [["responses", "Responses"]] : []),
+          ...(person().release
+            ? [
+                ["links", "Links"],
+                ["webhooks", "Webhooks"],
+              ]
+            : []),
+        ];
+      }
+      function exitOperationsUrl() {
+        if (normalContext.view === "administration" && person().admin) return url("administration");
+        if (canReadForms())
+          return url(
+            ["forms", "form", "questions"].includes(normalContext.view)
+              ? normalContext.view
+              : "forms",
+            normalContext.tab,
+            "",
+            normalContext.form,
+          );
+        return person().admin ? url("administration") : "";
+      }
+      function operationsScope(s) {
+        return (
+          '<label for="ops-env">Environment<select id="ops-env" aria-label="Environment">' +
+          config.envs
+            .map(
+              (env) =>
+                '<option value="' +
+                env +
+                '"' +
+                (env === s.env ? " selected" : "") +
+                ">" +
+                escape(envName(env)) +
+                "</option>",
+            )
+            .join("") +
+          '</select></label><label for="ops-form">Form<select id="ops-form" aria-label="Form">' +
+          Object.entries(forms)
+            .map(
+              ([id, name]) =>
+                '<option value="' +
+                id +
+                '"' +
+                (id === s.form ? " selected" : "") +
+                ">" +
+                escape(name) +
+                "</option>",
+            )
+            .join("") +
+          "</select></label>" +
+          tag(
+            isProtected(s.env) ? "Production data" : "Non-production data",
+            isProtected(s.env) ? "amber" : "blue",
+          )
+        );
+      }
       function render() {
         const s = state();
-        if (s.view === "operations") operationsContext = { tab: s.tab, env: s.env, form: s.form };
-        const visible = [];
-        if (canReadForms()) visible.push(["forms", "Forms"], ["questions", "Question library"]);
-        if (person().release || person().responses) visible.push(["operations", "Operations"]);
-        if (person().admin) visible.push(["administration", "Administration"]);
-        $("#nav").innerHTML = visible
+        const operationsAllowed = Boolean(person().release || person().responses);
+        const operationsMode = s.view === "operations" && operationsAllowed;
+        if (operationsMode) operationsContext = { tab: s.tab, env: s.env, form: s.form };
+        else if (
+          (["forms", "form", "questions"].includes(s.view) && canReadForms()) ||
+          (s.view === "administration" && person().admin)
+        )
+          normalContext = { view: s.view, tab: s.tab, form: s.form };
+        document.body.dataset.mode = operationsMode ? "operations" : "normal";
+        const areas = [];
+        if (canReadForms())
+          areas.push([
+            "authoring",
+            "Authoring",
+            ["forms", "form", "questions"].includes(normalContext.view)
+              ? url(normalContext.view, normalContext.tab, "", normalContext.form)
+              : url("forms"),
+          ]);
+        if (operationsAllowed)
+          areas.push([
+            "operations",
+            "Operations",
+            url("operations", operationsContext.tab, operationsContext.env, operationsContext.form),
+          ]);
+        if (person().admin) areas.push(["administration", "Administration", url("administration")]);
+        $("#application-area").innerHTML = operationsMode
+          ? '<div class="operations-brand">' +
+            icon("operations") +
+            "<strong>Operations</strong></div>"
+          : '<nav class="area-nav" aria-label="Application areas">' +
+            areas
+              .map(
+                ([id, label, target]) =>
+                  '<a href="#' +
+                  target +
+                  '"' +
+                  ((id === "authoring" && ["forms", "form", "questions"].includes(s.view)) ||
+                  id === s.view
+                    ? ' aria-current="page"'
+                    : "") +
+                  ">" +
+                  escape(label) +
+                  "</a>",
+              )
+              .join("") +
+            "</nav>";
+        $("#operations-scope").hidden = !operationsMode;
+        $("#operations-scope").innerHTML = operationsMode ? operationsScope(s) : "";
+        $("#operations-exit").innerHTML =
+          operationsMode && (canReadForms() || person().admin)
+            ? link("Exit operations", exitOperationsUrl(), "button")
+            : "";
+        const sideItems = operationsMode
+          ? operationalSections().map(([id, label]) => [
+              id,
+              label,
+              url("operations", id, s.env, s.form),
+            ])
+          : s.view === "administration" && person().admin
+            ? [["administration", "Release flow", url("administration")]]
+            : canReadForms()
+              ? [
+                  ["forms", "Forms", url("forms")],
+                  ["questions", "Question library", url("questions")],
+                ]
+              : [];
+        $("#section-label").textContent = operationsMode
+          ? "Operations"
+          : s.view === "administration"
+            ? "Site configuration"
+            : "Shared authoring";
+        $("#nav").setAttribute(
+          "aria-label",
+          operationsMode ? "Operations navigation" : "Workspace navigation",
+        );
+        $("#nav").innerHTML = sideItems
           .map(
-            ([id, text]) =>
+            ([id, label, target]) =>
               '<a href="#' +
-              (id === "operations"
-                ? url(id, operationsContext.tab, operationsContext.env, operationsContext.form)
-                : url(id)) +
+              target +
               '"' +
-              (s.view === id || (id === "forms" && s.view === "form")
-                ? ' aria-current="page"'
-                : "") +
+              (operationsMode
+                ? s.tab === id ||
+                  (!operationalSections().some(([tab]) => tab === s.tab) && id === "overview")
+                  ? ' aria-current="page"'
+                  : ""
+                : s.view === id || (id === "forms" && s.view === "form")
+                  ? ' aria-current="page"'
+                  : "") +
               ">" +
-              icon(id) +
-              escape(text) +
+              icon(operationsMode ? "operations" : id) +
+              escape(label) +
               "</a>",
           )
           .join("");
@@ -1083,21 +1335,26 @@
           "</strong><br><small>" +
           escape(person().detail) +
           "</small></div>";
-        const allowed = visible.some(([id]) => id === (s.view === "form" ? "forms" : s.view));
+        const allowed =
+          s.view === "operations"
+            ? operationsAllowed
+            : s.view === "administration"
+              ? Boolean(person().admin)
+              : ["forms", "form", "questions"].includes(s.view) && canReadForms();
         let html =
           '<div class="crumb">' +
-          link("Workspace", url("forms")) +
-          "<span>/</span>" +
-          escape(
-            s.view === "form"
-              ? "Forms / Customer onboarding"
-              : {
-                  forms: "Forms",
-                  questions: "Question library",
-                  operations: "Operations",
-                  administration: "Administration",
-                }[s.view] || "Page",
-          ) +
+          (operationsMode
+            ? "Operations / " + escape(envName(s.env)) + " / " + escape(forms[s.form])
+            : escape(
+                "Customer experience / " +
+                  (s.view === "form"
+                    ? "Forms / Customer onboarding"
+                    : {
+                        forms: "Forms",
+                        questions: "Question library",
+                        administration: "Administration",
+                      }[s.view] || "Page"),
+              )) +
           "</div>";
         if (!allowed)
           html +=
@@ -1261,53 +1518,9 @@
         ].includes(s.tab)
           ? s.tab
           : "overview";
-        let html = header("Operations", "Manage the form running in a specific environment.");
-        html +=
-          '<div class="env-context"><label for="ops-env">Environment<select id="ops-env" aria-label="Environment">' +
-          config.envs
-            .map(
-              (env) =>
-                '<option value="' +
-                env +
-                '"' +
-                (env === s.env ? " selected" : "") +
-                ">" +
-                escape(envName(env)) +
-                "</option>",
-            )
-            .join("") +
-          '</select></label><label for="ops-form">Form<select id="ops-form" aria-label="Form">' +
-          Object.entries(forms)
-            .map(
-              ([id, name]) =>
-                '<option value="' +
-                id +
-                '"' +
-                (id === s.form ? " selected" : "") +
-                ">" +
-                escape(name) +
-                "</option>",
-            )
-            .join("") +
-          "</select></label>" +
-          tag(
-            isProtected(s.env) ? "Production data" : "Non-production data",
-            isProtected(s.env) ? "amber" : "blue",
-          ) +
-          "</div>";
-        html += tabs(
-          [
-            ["overview", "Overview"],
-            ...(person().responses ? [["responses", "Responses"]] : []),
-            ...(person().release
-              ? [
-                  ["links", "Links"],
-                  ["webhooks", "Webhooks"],
-                ]
-              : []),
-          ],
-          activeTab,
-          (id) => url("operations", id, s.env, s.form),
+        let html = header(
+          operationalSections().find(([id]) => id === activeTab)[1],
+          forms[s.form] + " · " + envName(s.env),
         );
         if (activeTab === "overview") {
           html +=
@@ -1450,8 +1663,7 @@
               : "") +
             "</div>";
         }
-        if (canReadForms())
-          html += '<p class="spaced">' + link("Back to versions", url("form", "versions")) + "</p>";
+
         return html;
       }
       function administrationView() {
@@ -2038,7 +2250,7 @@
           second: $("#flow-second").checked,
         });
         render();
-        notify("Demo flow applied. Open Forms to explore your release journey.");
+        notify("Demo flow applied.");
       });
       $("#persona").addEventListener("change", (event) => {
         captureDraft();

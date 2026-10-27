@@ -24,8 +24,18 @@ the artifacts service's allocated port in [PORTS.md](../../docs/PORTS.md).
 - **Publish without releasing:** within the wizard, a draft may become an immutable
   version for an approver to release later. This also supports a prod-only site that
   requires separate publishing and releasing accounts.
-- **Operations:** choose an environment and form. Explore intake, responses,
-  secure links and webhooks. The URL retains the current operational context.
+- **Operations:** enter a dedicated mode from the top-level application menu.
+  The normal application menu and authoring navigation disappear. Environment and
+  form selectors move to the Operations top bar, above all operational screens.
+  The sidebar contains Overview, Responses, Links and Webhooks according to role.
+  The URL retains the operational screen, environment and form.
+- **Exit operations:** returns users with other permissions to their previous
+  authoring or administration context. Re-entering Operations restores its own last
+  screen, environment and form. No authoring links are shown inside Operations.
+- **Operations-only users:** the response-operator persona opens directly in
+  Operations, with no normal application menu or exit into an inaccessible area.
+  Only its permitted operational screens are shown, including when an authoring
+  bookmark is supplied.
 - **Administration:** try production only, test/production, four stages or flexible
   destinations. Customize the names, order and protected production destination.
   Toggle preceding-environment eligibility, multiple destinations and a different
@@ -83,3 +93,5 @@ flow illustrates the subsequent product direction; it does not amend an ADR.
   prevention of prerequisite bypass or partial batch updates.
 - Desktop and mobile accessibility scans, wizard-step scans, keyboard dismissal,
   browser refresh context and mobile overflow checks.
+- Chromium journeys: dedicated Operations navigation, top-bar context selectors,
+  exit/re-entry, role-filtered menus and Operations-only entry/bookmarks.
