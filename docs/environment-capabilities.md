@@ -1,5 +1,10 @@
 # Environment capabilities: UX review brief
 
+For the latest agreed navigation/publishing direction and a code-backed role audit,
+see the [implementation handover](../plan/environment-navigation-implementation.md).
+This earlier capability brief and the interactive POC do not override the existing
+permission matrix. The POC is flow guidance, not a visual specification.
+
 This brief describes domain capabilities and constraints for an independent UX
 recommendation. It deliberately specifies no navigation, screen layout, control
 placement or interaction sequence. It records current server capabilities; it does

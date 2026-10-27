@@ -1,5 +1,13 @@
 # Existing top navigation: POC coverage
 
+**Implementation handover:** see the
+[flow and permission plan](../environment-navigation-implementation.md).
+This POC guides interaction, **not look and feel**. Existing application components
+and approved visual contracts govern implementation. Mock permissions are not
+policy: global Delivery failures and Erasure log require the installation claim;
+response-only form discovery and atomic multi-environment publishing need new
+backend contracts. The plan's audit supersedes simplified access descriptions here.
+
 The inventory comes from the shipped
 [AdminNav](../../apps/admin/components/admin-nav.tsx) and
 [shell layout](<../../apps/admin/app/(shell)/layout.tsx>), not from the earlier POC.

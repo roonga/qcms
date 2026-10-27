@@ -1,5 +1,13 @@
 # Environment navigation POC
 
+**Implementation handover:** see the
+[flow and permission plan](../environment-navigation-implementation.md).
+This POC guides interaction, **not look and feel**. Existing application components
+and approved visual contracts govern implementation. Mock permissions are not
+policy: global Delivery failures and Erasure log require the installation claim;
+response-only form discovery and atomic multi-environment publishing need new
+backend contracts. The plan's audit supersedes simplified access descriptions here.
+
 Status: interactive design proposal; no application or backend policy changes.
 
 Open [the POC](environment-navigation-poc.html) through `pnpm artifacts`. It uses
