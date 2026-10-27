@@ -7,6 +7,13 @@ the artifacts service's allocated port in [PORTS.md](../../docs/PORTS.md).
 
 ## Explore
 
+- **Application navigation:** Questions, Forms, Operations and permitted
+  administration entries live in the top bar. There is no Authoring menu group.
+  Workspace identity and the account also belong to this application-level bar.
+- **Context rail:** contains only navigation within the selected context. A form
+  has Draft and Versions; the sample question has Question details and Used by;
+  Operations has its permitted operational screens. The Forms index has no rail.
+  Context links are not duplicated as content tabs or application-level rail items.
 - **Forms:** open Customer onboarding. Edit the shared draft, preview it, then use
   the single **Publish** button to start the publishing wizard.
 - **Versions:** the combined version and release view. Review immutable snapshots,
@@ -75,6 +82,8 @@ requires a different account to confirm its pending proposal.
   implement authentication, workspace switching or a complete grant-scope editor.
 - Customer onboarding is the interactive authoring example. Customer feedback is a
   second operational context for testing the form selector.
+- Questions opens the Contact email example to demonstrate question-specific rail
+  navigation; this POC does not reproduce the full question library.
 
 The proposal follows the
 [independent UX recommendation](../environment-ux-recommendation.md) and
@@ -95,3 +104,5 @@ flow illustrates the subsequent product direction; it does not amend an ADR.
   browser refresh context and mobile overflow checks.
 - Chromium journeys: dedicated Operations navigation, top-bar context selectors,
   exit/re-entry, role-filtered menus and Operations-only entry/bookmarks.
+- Chromium journeys: application-level Questions/Forms navigation, active top-nav
+  state on nested screens, context-only rails and no duplicate form navigation.

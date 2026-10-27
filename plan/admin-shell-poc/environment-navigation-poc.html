@@ -921,6 +921,85 @@
           font-size: 17px;
         }
       }
+      .application-identity {
+        display: flex;
+        align-items: center;
+        gap: 14px;
+        flex-shrink: 0;
+      }
+      .application-identity .brand {
+        padding: 0;
+      }
+      .global-workspace {
+        border-left: 1px solid var(--line);
+        padding-left: 14px;
+      }
+      .global-workspace small,
+      .global-workspace strong {
+        display: block;
+        font-size: 11px;
+      }
+      .application-bar #account {
+        padding: 0;
+        margin: 0 0 0 auto;
+        flex-shrink: 0;
+      }
+      .application-bar #account small {
+        display: none;
+      }
+      .application-bar #account strong {
+        font-size: 12px;
+      }
+      body[data-mode="operations"] .application-bar #account {
+        margin-left: 0;
+      }
+      .rail-context {
+        font-weight: 650;
+        font-size: 14px;
+        padding: 0 13px;
+        margin-bottom: 23px;
+      }
+      .shell.without-rail {
+        grid-template-columns: minmax(0, 1fr);
+      }
+      @media (max-width: 1200px) {
+        .global-workspace {
+          display: none;
+        }
+      }
+      @media (max-width: 700px) {
+        .application-bar {
+          flex-wrap: wrap;
+        }
+        .application-bar #account {
+          display: flex;
+          order: 1;
+          margin-left: auto;
+        }
+        .application-bar #account > div:last-child {
+          display: none;
+        }
+        #application-area {
+          order: 2;
+          flex-basis: 100%;
+        }
+        #operations-exit {
+          order: 2;
+        }
+        body[data-mode="operations"] #application-area {
+          flex-basis: auto;
+        }
+        body[data-mode="operations"] .application-bar #account {
+          margin-left: auto;
+        }
+        .rail-context {
+          margin-bottom: 8px;
+          padding: 0 10px;
+        }
+        aside #section-label {
+          margin-top: 0;
+        }
+      }
     </style>
   </head>
   <body>
@@ -941,17 +1020,22 @@
       </div>
     </header>
     <div class="application-bar" role="region" aria-label="Application navigation">
+      <div class="application-identity">
+        <div class="brand"><span class="brand-mark">q</span> QCMS</div>
+        <div class="global-workspace">
+          <small>Workspace</small><strong>Customer experience</strong>
+        </div>
+      </div>
       <div id="application-area"></div>
       <div id="operations-scope" class="operations-scope"></div>
       <div id="operations-exit"></div>
+      <div class="account" id="account"></div>
     </div>
     <div class="shell">
       <aside>
-        <div class="brand"><span class="brand-mark">q</span> QCMS</div>
-        <div class="workspace"><small>Workspace</small><strong>Customer experience</strong></div>
+        <div id="rail-context" class="rail-context"></div>
         <div id="section-label" class="eyebrow section-label"></div>
         <nav id="nav" aria-label="Primary"></nav>
-        <div class="account" id="account"></div>
       </aside>
       <main id="main" tabindex="-1"><div class="content" id="content"></div></main>
     </div>
@@ -1238,13 +1322,10 @@
         document.body.dataset.mode = operationsMode ? "operations" : "normal";
         const areas = [];
         if (canReadForms())
-          areas.push([
-            "authoring",
-            "Authoring",
-            ["forms", "form", "questions"].includes(normalContext.view)
-              ? url(normalContext.view, normalContext.tab, "", normalContext.form)
-              : url("forms"),
-          ]);
+          areas.push(
+            ["questions", "Questions", url("questions")],
+            ["forms", "Forms", url("forms")],
+          );
         if (operationsAllowed)
           areas.push([
             "operations",
@@ -1263,8 +1344,7 @@
                   '<a href="#' +
                   target +
                   '"' +
-                  ((id === "authoring" && ["forms", "form", "questions"].includes(s.view)) ||
-                  id === s.view
+                  ((id === "forms" && s.view === "form") || id === s.view
                     ? ' aria-current="page"'
                     : "") +
                   ">" +
@@ -1285,39 +1365,69 @@
               label,
               url("operations", id, s.env, s.form),
             ])
-          : s.view === "administration" && person().admin
-            ? [["administration", "Release flow", url("administration")]]
-            : canReadForms()
+          : s.view === "form" && canReadForms()
+            ? [
+                ...(person().edit ? [["draft", "Draft", url("form", "draft")]] : []),
+                ["versions", "Versions", url("form", "versions")],
+              ]
+            : s.view === "questions" && canReadForms()
               ? [
-                  ["forms", "Forms", url("forms")],
-                  ["questions", "Question library", url("questions")],
+                  ["details", "Question details", url("questions", "details")],
+                  ["usage", "Used by", url("questions", "usage")],
                 ]
-              : [];
+              : s.view === "administration" && person().admin
+                ? [["administration", "Release flow", url("administration")]]
+                : [];
+        const currentSide = operationsMode
+          ? operationalSections().some(([id]) => id === s.tab)
+            ? s.tab
+            : "overview"
+          : s.view === "form"
+            ? person().edit && s.tab === "draft"
+              ? "draft"
+              : "versions"
+            : s.view === "questions"
+              ? s.tab === "usage"
+                ? "usage"
+                : "details"
+              : "administration";
+        $("#rail-context").textContent = operationsMode
+          ? forms[s.form]
+          : s.view === "form"
+            ? "Customer onboarding"
+            : s.view === "questions"
+              ? "Contact email"
+              : "This installation";
         $("#section-label").textContent = operationsMode
           ? "Operations"
-          : s.view === "administration"
-            ? "Site configuration"
-            : "Shared authoring";
+          : s.view === "form"
+            ? "Form navigation"
+            : s.view === "questions"
+              ? "Question navigation"
+              : "Site configuration";
         $("#nav").setAttribute(
           "aria-label",
-          operationsMode ? "Operations navigation" : "Workspace navigation",
+          operationsMode ? "Operations navigation" : "Context navigation",
         );
+        document.querySelector("aside").hidden = !sideItems.length;
+        document.querySelector(".shell").classList.toggle("without-rail", !sideItems.length);
         $("#nav").innerHTML = sideItems
           .map(
             ([id, label, target]) =>
               '<a href="#' +
               target +
               '"' +
-              (operationsMode
-                ? s.tab === id ||
-                  (!operationalSections().some(([tab]) => tab === s.tab) && id === "overview")
-                  ? ' aria-current="page"'
-                  : ""
-                : s.view === id || (id === "forms" && s.view === "form")
-                  ? ' aria-current="page"'
-                  : "") +
+              (currentSide === id ? ' aria-current="page"' : "") +
               ">" +
-              icon(operationsMode ? "operations" : id) +
+              icon(
+                operationsMode
+                  ? "operations"
+                  : s.view === "questions"
+                    ? "questions"
+                    : s.view === "administration"
+                      ? "administration"
+                      : "forms",
+              ) +
               escape(label) +
               "</a>",
           )
@@ -1361,7 +1471,7 @@
             '<div class="card empty"><h1>This section needs another role</h1><p class="muted">Choose an available section in the navigation.</p></div>';
         else if (s.view === "forms") html += formsView();
         else if (s.view === "form") html += formView(s);
-        else if (s.view === "questions") html += questionsView();
+        else if (s.view === "questions") html += questionsView(s);
         else if (s.view === "operations") html += operationsView(s);
         else if (s.view === "administration") html += administrationView();
         $("#content").innerHTML = html;
@@ -1398,14 +1508,12 @@
       }
       function formView(s) {
         const current = person().edit && s.tab === "draft" ? "draft" : "versions";
-        const items = [...(person().edit ? [["draft", "Draft"]] : []), ["versions", "Versions"]];
         let html = header(
           "Customer onboarding",
           "Contact details, company information and consent.",
           button("Publish", "publish-wizard", "", true),
           tag("Shared across environments", "blue"),
         );
-        html += tabs(items, current, (id) => url("form", id));
         if (current === "draft") {
           html +=
             '<div class="grid"><div><div class="card"><div class="row"><h2>Form draft</h2>' +
@@ -1488,11 +1596,23 @@
         }
         return html;
       }
-      function questionsView() {
+      function questionsView(s) {
+        if (s.tab === "usage")
+          return (
+            header(
+              "Used by",
+              "Forms using Contact email.",
+              "",
+              tag("Shared across environments", "blue"),
+            ) +
+            '<div class="card"><h2>Customer onboarding</h2><p class="muted">Published forms retain their pinned question versions.</p>' +
+            link("Open form", url("form", person().edit ? "draft" : "versions"), "button") +
+            "</div>"
+          );
         return (
           header(
-            "Question library",
-            "Reusable questions and their shared version history.",
+            "Contact email",
+            "Reusable question · Shared version history.",
             "",
             tag("Shared across environments", "blue"),
           ) +
