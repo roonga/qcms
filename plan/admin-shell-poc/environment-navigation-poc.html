@@ -976,9 +976,6 @@
           order: 1;
           margin-left: auto;
         }
-        .application-bar #account > div:last-child {
-          display: none;
-        }
         #application-area {
           order: 2;
           flex-basis: 100%;
@@ -998,6 +995,30 @@
         }
         aside #section-label {
           margin-top: 0;
+        }
+      }
+      .operations-entry {
+        display: flex;
+        align-items: center;
+        margin-left: 16px;
+        padding-left: 22px;
+        border-left: 1px solid var(--line);
+      }
+      .area-nav .operations-link {
+        border: 1px solid #cdd8e9;
+        color: #244d86;
+        background: #f4f7fc;
+      }
+      .area-nav .operations-link:hover {
+        background: var(--blue-pale);
+      }
+      @media (max-width: 700px) {
+        .operations-entry {
+          flex-basis: 100%;
+          border-left: 0;
+          border-top: 1px solid var(--line);
+          padding: 9px 0 0;
+          margin: 5px 0 0;
         }
       }
     </style>
@@ -1339,6 +1360,7 @@
             "<strong>Operations</strong></div>"
           : '<nav class="area-nav" aria-label="Application areas">' +
             areas
+              .filter(([id]) => id !== "operations")
               .map(
                 ([id, label, target]) =>
                   '<a href="#' +
@@ -1352,6 +1374,18 @@
                   "</a>",
               )
               .join("") +
+            (operationsAllowed
+              ? '<span class="operations-entry"><a class="operations-link" href="#' +
+                url(
+                  "operations",
+                  operationsContext.tab,
+                  operationsContext.env,
+                  operationsContext.form,
+                ) +
+                '">' +
+                icon("operations") +
+                '<span>Operations</span><span aria-hidden="true">→</span></a></span>'
+              : "") +
             "</nav>";
         $("#operations-scope").hidden = !operationsMode;
         $("#operations-scope").innerHTML = operationsMode ? operationsScope(s) : "";
@@ -1433,18 +1467,18 @@
           )
           .join("");
         $("#account").innerHTML =
-          '<div class="avatar">' +
+          '<div class="avatar" role="img" aria-label="' +
+          escape(person().name) +
+          ' account" title="' +
+          escape(person().name) +
+          '">' +
           escape(
             person()
               .name.split(" ")
               .map((x) => x[0])
               .join(""),
           ) +
-          "</div><div><strong>" +
-          escape(person().name) +
-          "</strong><br><small>" +
-          escape(person().detail) +
-          "</small></div>";
+          "</div>";
         const allowed =
           s.view === "operations"
             ? operationsAllowed

@@ -9,7 +9,9 @@ the artifacts service's allocated port in [PORTS.md](../../docs/PORTS.md).
 
 - **Application navigation:** Questions, Forms, Operations and permitted
   administration entries live in the top bar. There is no Authoring menu group.
-  Workspace identity and the account also belong to this application-level bar.
+  Operations has a separated entry after the normal menus, with a divider and
+  additional spacing. Workspace identity and an avatar-only account display also
+  belong to this application-level bar; the avatar retains an accessible name.
 - **Context rail:** contains only navigation within the selected context. A form
   has Draft and Versions; the sample question has Question details and Used by;
   Operations has its permitted operational screens. The Forms index has no rail.
