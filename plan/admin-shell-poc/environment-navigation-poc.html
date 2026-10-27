@@ -576,6 +576,7 @@
       }
       .dialog-actions {
         display: flex;
+        flex-wrap: wrap;
         justify-content: flex-end;
         gap: 10px;
         padding: 18px 28px;
@@ -935,6 +936,7 @@
           envs: ["dev", "test", "stg", "prod"],
           protected: "prod",
           sequential: true,
+          multi: false,
           second: false,
         };
         operationsContext = { tab: "overview", env: config.envs[0], form: "onboarding" };
@@ -1464,7 +1466,9 @@
           escape(config.protected) +
           '" required></label><label class="check"><input type="checkbox" id="flow-sequential"' +
           (config.sequential ? " checked" : "") +
-          '><span><strong>Require the preceding environment</strong><br><small>Each candidate must have been released to the preceding environment before it can advance.</small></span></label><label class="check"><input type="checkbox" id="flow-second"' +
+          '><span><strong>Require the preceding environment</strong><br><small>Each candidate must have been released to the preceding environment before it can advance.</small></span></label><label class="check"><input type="checkbox" id="flow-multi"' +
+          (config.multi ? " checked" : "") +
+          '><span><strong>Allow publishing to multiple environments</strong><br><small>Each selected environment must already meet its release prerequisites. One selection cannot satisfy another environment’s prerequisite.</small></span></label><label class="check"><input type="checkbox" id="flow-second"' +
           (config.second ? " checked" : "") +
           '><span><strong>Require a different production approver</strong><br><small>The account that published a version cannot release it to production.</small></span></label><button class="primary" type="submit">Apply demo flow</button><p class="spaced"><small>Changing the flow resets the sample releases so you can explore another setup.</small></p></form><div class="card"><div class="eyebrow">Configured by the owner</div><h2>Your flow, your destinations</h2><p class="muted">The release screen uses these names and rules. Adding an environment does not add another question library or form draft.</p><p class="muted">Production operations require an approver. Response access is always granted separately.</p><div class="notice">Concept configuration. These controls do not change the running installation.</div></div></div>'
         );
@@ -1516,8 +1520,9 @@
           selection:
             person().edit && state().tab === "draft" ? "draft" : String(versions[0].number),
           draftVersion: person().edit ? publishedVersion() : null,
-          env: "",
-          expected: null,
+          targets: null,
+          library: false,
+          expected: {},
         };
         renderWizard();
       }
@@ -1586,42 +1591,52 @@
             combined && (!candidate.title.trim() || !candidate.question.trim()),
           );
         } else if (wizard.step === 2) {
-          if (!wizard.env)
-            wizard.env =
-              accessible.find((env) => !destinationReason(env)) || (combined ? "library" : "");
+          if (wizard.targets === null) {
+            const first = accessible.find((env) => !destinationReason(env));
+            wizard.targets = first ? [first] : [];
+            wizard.library = !first && combined;
+          }
           body +=
             '<h2 id="dialog-title" tabindex="-1">Where should v' +
             candidate.number +
-            ' be available?</h2><p class="muted">Only environments you can publish to are listed. The site’s release rules still apply.</p><fieldset class="destination-list"><legend class="sr-only">Destination environment</legend>' +
-            accessible
-              .map((env) => {
-                const reason = destinationReason(env);
-                return (
-                  '<label class="destination' +
-                  (reason ? " unavailable" : "") +
-                  '"><input type="radio" name="wizard-environment" value="' +
-                  env +
-                  '"' +
-                  (wizard.env === env && !reason ? " checked" : "") +
-                  (reason ? " disabled" : "") +
-                  "><span><strong>" +
-                  escape(envName(env)) +
-                  "</strong><small>Currently v" +
-                  record(env).version +
-                  " · Intake " +
-                  (record(env).closed ? "closed" : "open") +
-                  "</small>" +
-                  (reason ? '<small class="restriction">' + escape(reason) + "</small>" : "") +
-                  "</span></label>"
-                );
-              })
-              .join("") +
-            (combined
-              ? '<label class="destination"><input type="radio" name="wizard-environment" value="library"' +
-                (wizard.env === "library" ? " checked" : "") +
-                "><span><strong>Create version for later release</strong><small>Publish an immutable version without changing an environment. An approver can release it later.</small></span></label>"
-              : "") +
-            "</fieldset>";
+            ' be available?</h2><p class="muted">' +
+            (config.multi
+              ? "Choose one or more accessible environments. Each destination must meet the site’s release rules independently."
+              : "Choose one accessible environment. This site allows one destination per publication.") +
+            '</p><fieldset class="destination-list"><legend class="sr-only">Destination environments</legend>';
+          body += accessible
+            .map((env) => {
+              const reason = destinationReason(env);
+              return (
+                '<label class="destination' +
+                (reason ? " unavailable" : "") +
+                '"><input type="' +
+                (config.multi ? "checkbox" : "radio") +
+                '" name="wizard-environment" value="' +
+                env +
+                '"' +
+                (wizard.targets.includes(env) && !reason ? " checked" : "") +
+                (reason ? " disabled" : "") +
+                "><span><strong>" +
+                escape(envName(env)) +
+                "</strong><small>Currently v" +
+                record(env).version +
+                " · Intake " +
+                (record(env).closed ? "closed" : "open") +
+                "</small>" +
+                (reason ? '<small class="restriction">' + escape(reason) + "</small>" : "") +
+                "</span></label>"
+              );
+            })
+            .join("");
+          if (combined)
+            body +=
+              '<label class="destination"><input type="' +
+              (config.multi ? "checkbox" : "radio") +
+              '" name="wizard-environment" value="library"' +
+              (wizard.library ? " checked" : "") +
+              "><span><strong>Create version for later release</strong><small>No environment changes. This choice replaces any selected destinations.</small></span></label>";
+          body += "</fieldset>";
           if (!accessible.length)
             body +=
               '<div class="notice amber">Your role has no accessible release environments.' +
@@ -1629,36 +1644,62 @@
                 ? " You can still create a version for an approver."
                 : " Ask the site owner for the appropriate environment access.") +
               "</div>";
+          if (config.multi && wizard.targets.length)
+            body +=
+              "<p><small>" +
+              wizard.targets.length +
+              " environment" +
+              (wizard.targets.length === 1 ? "" : "s") +
+              " selected. One version will be used for every destination.</small></p>";
           footer += button(
             "Review",
             "wizard-next",
             "",
             true,
-            !wizard.env || (wizard.env !== "library" && Boolean(destinationReason(wizard.env))),
+            !wizard.library &&
+              (!wizard.targets.length || wizard.targets.some((env) => destinationReason(env))),
           );
         } else {
-          const library = wizard.env === "library";
-          const current = library ? null : record(wizard.env);
-          const reason = library ? "" : destinationReason(wizard.env);
+          const targets = selectedTargets();
+          const reasons = targets.map(destinationReason).filter(Boolean);
           body +=
             '<h2 id="dialog-title" tabindex="-1">' +
-            (library
+            (wizard.library
               ? "Review version publication"
-              : "Review publication to " + escape(envName(wizard.env))) +
+              : targets.length === 1
+                ? "Review publication to " + escape(envName(targets[0]))
+                : "Review publication to " + targets.length + " environments") +
             '</h2><p class="muted">Customer onboarding · ' +
-            (combined ? "New version" : "Existing immutable version") +
+            (combined
+              ? "Create one new immutable version"
+              : "Reuse one existing immutable version") +
             "</p>";
-          body += library
-            ? '<div class="card"><small>New published version</small><h3>v' +
+          if (wizard.library)
+            body +=
+              '<div class="card"><small>New published version</small><h3>v' +
               candidate.number +
-              "</h3></div>"
-            : '<div class="comparison"><div><small>Currently in ' +
-              escape(envName(wizard.env)) +
-              "</small><strong>v" +
-              current.version +
-              '</strong></div><span aria-hidden="true">→</span><div class="target"><small>Version to publish</small><strong>v' +
-              candidate.number +
-              "</strong></div></div>";
+              "</h3></div>";
+          else
+            body += targets
+              .map(
+                (env) =>
+                  '<section class="card"><h3>' +
+                  escape(envName(env)) +
+                  '</h3><div class="comparison"><div><small>Currently released</small><strong>v' +
+                  record(env).version +
+                  '</strong></div><span aria-hidden="true">→</span><div class="target"><small>Version to publish</small><strong>v' +
+                  candidate.number +
+                  "</strong></div></div><small>Intake " +
+                  (record(env).closed
+                    ? "will remain closed. Reopen separately when ready."
+                    : "is open.") +
+                  "</small>" +
+                  (record(env).version > candidate.number
+                    ? "<p><strong>This is a rollback.</strong> Existing sessions and operational settings are preserved.</p>"
+                    : "") +
+                  "</section>",
+              )
+              .join("");
           body +=
             "<h3>Content to publish</h3><p>" +
             escape(candidate.title) +
@@ -1678,56 +1719,60 @@
               ". This does not record a successful test.</small></p>";
           body +=
             '<div class="notice' +
-            (reason || current?.closed ? " amber" : "") +
+            (reasons.length ? " amber" : "") +
             '">' +
-            (reason
-              ? escape(reason)
-              : library
+            (reasons.length
+              ? reasons.map(escape).join("<br>")
+              : wizard.library
                 ? "No environment changes. This version will be available for a future release."
-                : current.closed
-                  ? "Intake will remain closed. Reopen it separately when ready."
-                  : "New sessions will use this version. Existing sessions keep their original version.") +
+                : "One confirmation updates all " +
+                  targets.length +
+                  " selected destination" +
+                  (targets.length === 1 ? "" : "s") +
+                  ". Existing sessions keep their original version.") +
             "</div>";
-          if (current && current.version > candidate.number)
-            body +=
-              "<p><strong>This is a rollback.</strong> It adds a release record and does not restore operational settings.</p>";
           footer += button(
-            library
+            wizard.library
               ? "Publish v" + candidate.number
-              : "Publish v" + candidate.number + " to " + envName(wizard.env),
+              : targets.length === 1
+                ? "Publish v" + candidate.number + " to " + envName(targets[0])
+                : "Publish v" + candidate.number + " to " + targets.length + " environments",
             "wizard-confirm",
             "",
             true,
-            Boolean(reason),
+            Boolean(reasons.length),
           );
         }
         modal(body, footer);
         $("#dialog-title").focus({ preventScroll: true });
       }
+      function selectedTargets() {
+        return config.envs.filter((env) => (wizard.targets || []).includes(env));
+      }
       function confirmWizard() {
         if (!wizard || wizard.step !== 3) return;
         const candidate = wizardCandidate();
         const combined = wizard.selection === "draft";
-        const env = wizard.env;
-        const library = env === "library";
-        if (library && (!combined || !person().edit)) return;
-        if (!library) {
-          const reason = destinationReason(env);
-          if (reason) {
-            wizard.step = 2;
-            renderWizard();
-            return notify(reason);
-          }
-          if (record(env).version !== wizard.expected) {
-            wizard.expected = record(env).version;
-            renderWizard();
-            return notify(
-              "The destination changed. Review its current version before confirming again.",
-            );
-          }
+        const targets = selectedTargets();
+        if (wizard.library && (!combined || !person().edit || targets.length)) return;
+        if (!wizard.library && (!targets.length || (!config.multi && targets.length > 1))) return;
+        const reason = targets.map(destinationReason).find(Boolean);
+        if (reason) {
+          wizard.targets = targets.filter((env) => !destinationReason(env));
+          wizard.step = 2;
+          renderWizard();
+          return notify(reason);
+        }
+        const changed = targets.filter((env) => record(env).version !== wizard.expected[env]);
+        if (changed.length) {
+          for (const env of targets) wizard.expected[env] = record(env).version;
+          renderWizard();
+          return notify(
+            "A destination changed. Review all current versions before confirming again.",
+          );
         }
         if (combined) versions.unshift(candidate);
-        if (!library) {
+        for (const env of targets) {
           record(env).version = candidate.number;
           record(env).history.push(candidate.number);
           historyEntries.unshift(
@@ -1739,23 +1784,40 @@
         modal(
           '<div class="eyebrow">Publication complete</div><h2 id="dialog-title" tabindex="-1">v' +
             candidate.number +
-            (library ? " is ready for release" : " is available in " + escape(envName(env))) +
+            (wizard.library
+              ? " is ready for release"
+              : targets.length === 1
+                ? " is available in " + escape(envName(targets[0]))
+                : " is available in " + targets.length + " environments") +
             "</h2><p>" +
-            (library
+            (wizard.library
               ? "The immutable version is in the version library. No environment changed."
-              : "The version table now shows its updated availability.") +
+              : "The same immutable version is now available in every selected environment.") +
             "</p>" +
-            (!library
-              ? '<div class="notice' +
-                (record(env).closed ? " amber" : "") +
-                '">Intake ' +
-                (record(env).closed ? "remains closed." : "is open.") +
-                " Existing sessions keep their original version.</div>"
+            targets
+              .map(
+                (env) =>
+                  "<p>" +
+                  tag(envName(env), "blue") +
+                  " Intake " +
+                  (record(env).closed ? "remains closed." : "is open.") +
+                  "</p>",
+              )
+              .join("") +
+            (!wizard.library
+              ? '<div class="notice">Existing sessions keep their original version.</div>'
               : ""),
           button("Done", "cancel") +
-            (!library
-              ? button("Open " + envName(env) + " operations", "wizard-operations", "", true)
-              : ""),
+            targets
+              .map((env) =>
+                button(
+                  "Open " + envName(env) + " operations",
+                  "wizard-operations",
+                  'data-env="' + env + '"',
+                  targets.length === 1,
+                ),
+              )
+              .join(""),
           false,
         );
         $("#dialog-title").focus({ preventScroll: true });
@@ -1825,15 +1887,17 @@
               return;
             wizard.step = 2;
           } else if (wizard.step === 2) {
-            if (!wizard.env || (wizard.env !== "library" && destinationReason(wizard.env))) return;
-            wizard.expected = wizard.env === "library" ? null : record(wizard.env).version;
+            const targets = selectedTargets();
+            if (!wizard.library && (!targets.length || targets.some(destinationReason))) return;
+            wizard.expected = Object.fromEntries(targets.map((env) => [env, record(env).version]));
             wizard.step = 3;
           }
           renderWizard();
         }
         if (action === "wizard-confirm") confirmWizard();
         if (action === "wizard-operations" && wizard?.step === 4) {
-          const env = wizard.env;
+          const env = el.dataset.env;
+          if (!selectedTargets().includes(env)) return;
           closeModal();
           navigate("operations", "overview", env);
         }
@@ -1913,13 +1977,24 @@
       document.addEventListener("change", (event) => {
         if (event.target.id === "wizard-version" && wizard) {
           wizard.selection = event.target.value;
-          wizard.env = "";
+          wizard.targets = null;
+          wizard.library = false;
           renderWizard();
           $("#wizard-version").focus();
         }
         if (event.target.name === "wizard-environment" && wizard) {
-          wizard.env = event.target.value;
           const control = event.target.value;
+          if (control === "library") {
+            wizard.library = event.target.checked;
+            if (wizard.library) wizard.targets = [];
+          } else {
+            wizard.library = false;
+            wizard.targets = event.target.checked
+              ? config.multi
+                ? [...new Set([...wizard.targets, control])]
+                : [control]
+              : wizard.targets.filter((env) => env !== control);
+          }
           renderWizard();
           document
             .querySelector('input[name="wizard-environment"][value="' + control + '"]')
@@ -1940,6 +2015,7 @@
             $("#flow-envs").value = names.join(", ");
             $("#flow-protected").value = "prod";
             $("#flow-sequential").checked = event.target.value !== "flexible" && names.length > 1;
+            $("#flow-multi").checked = event.target.value === "flexible";
           }
         }
       });
@@ -1958,6 +2034,7 @@
           envs,
           protected: protectedEnv,
           sequential: $("#flow-sequential").checked,
+          multi: $("#flow-multi").checked,
           second: $("#flow-second").checked,
         });
         render();
