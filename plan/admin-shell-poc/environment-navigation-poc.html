@@ -1,0 +1,1765 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>QCMS · Environment navigation concept</title>
+    <style>
+      :root {
+        color-scheme: light;
+        --ink: #182333;
+        --muted: #526178;
+        --line: #dce3ec;
+        --paper: #fff;
+        --canvas: #f5f7fa;
+        --blue: #2456c6;
+        --blue-pale: #eaf0fc;
+        --green: #1d704b;
+        --green-pale: #eaf5ee;
+        --amber: #81550e;
+        --amber-pale: #fff5de;
+        --font: "Lexend", ui-sans-serif, system-ui, sans-serif;
+      }
+      * {
+        box-sizing: border-box;
+      }
+      body {
+        margin: 0;
+        color: var(--ink);
+        background: var(--canvas);
+        font-family: var(--font);
+        font-size: 14px;
+        line-height: 1.55;
+      }
+      button,
+      input,
+      select,
+      textarea {
+        font: inherit;
+      }
+      button,
+      select {
+        cursor: pointer;
+      }
+      button,
+      .button {
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        gap: 8px;
+        min-height: 40px;
+        padding: 8px 15px;
+        border: 1px solid var(--line);
+        border-radius: 6px;
+        background: var(--paper);
+        color: var(--ink);
+        text-decoration: none;
+        font-weight: 600;
+      }
+      button:hover,
+      .button:hover {
+        background: var(--canvas);
+        border-color: #a4b0c1;
+      }
+      button.primary {
+        color: white;
+        background: var(--blue);
+        border-color: var(--blue);
+      }
+      button.primary:hover {
+        background: #1d46a3;
+      }
+      button:disabled {
+        cursor: not-allowed;
+        opacity: 0.5;
+      }
+      :focus-visible {
+        outline: 3px solid var(--blue);
+        outline-offset: 3px;
+      }
+      a {
+        color: var(--blue);
+      }
+      h1,
+      h2,
+      h3,
+      p {
+        margin-top: 0;
+      }
+      h1 {
+        font-size: 29px;
+        line-height: 1.25;
+        letter-spacing: -0.7px;
+        margin-bottom: 9px;
+      }
+      h2 {
+        font-size: 18px;
+        letter-spacing: -0.25px;
+        margin-bottom: 8px;
+      }
+      h3 {
+        font-size: 14px;
+        margin-bottom: 4px;
+      }
+      p {
+        margin-bottom: 15px;
+      }
+      .muted,
+      small {
+        color: var(--muted);
+      }
+      small {
+        font-size: 12px;
+      }
+      .eyebrow {
+        font-size: 11px;
+        font-weight: 700;
+        letter-spacing: 1.1px;
+        text-transform: uppercase;
+        color: var(--muted);
+        margin-bottom: 10px;
+      }
+      .demo {
+        min-height: 48px;
+        background: #182333;
+        color: white;
+        display: flex;
+        align-items: center;
+        gap: 14px;
+        justify-content: space-between;
+        padding: 7px 24px;
+      }
+      .demo small {
+        color: #d0d9e6;
+      }
+      .demo select {
+        color: white;
+        background: #263447;
+        border: 1px solid #65758a;
+        border-radius: 5px;
+        padding: 6px 9px;
+        max-width: 250px;
+      }
+      .demo button {
+        min-height: 30px;
+        padding: 4px 10px;
+        color: white;
+        background: transparent;
+        border-color: #65758a;
+        font-size: 12px;
+      }
+      .demo-controls {
+        display: flex;
+        align-items: center;
+        gap: 10px;
+      }
+      .shell {
+        display: grid;
+        grid-template-columns: 224px minmax(0, 1fr);
+        min-height: calc(100vh - 48px);
+      }
+      aside {
+        display: flex;
+        flex-direction: column;
+        border-right: 1px solid var(--line);
+        padding: 28px 16px 18px;
+        background: var(--paper);
+      }
+      .brand {
+        display: flex;
+        align-items: center;
+        gap: 9px;
+        padding: 0 12px;
+        font-weight: 750;
+        font-size: 19px;
+        letter-spacing: -0.6px;
+      }
+      .brand-mark {
+        display: grid;
+        place-items: center;
+        width: 30px;
+        height: 30px;
+        background: var(--blue);
+        color: white;
+        border-radius: 8px;
+        font-size: 18px;
+      }
+      .workspace {
+        margin: 27px 9px 26px;
+        padding-bottom: 21px;
+        border-bottom: 1px solid var(--line);
+      }
+      .workspace strong {
+        display: block;
+        font-size: 13px;
+      }
+      .workspace small {
+        display: block;
+        margin-bottom: 5px;
+      }
+      nav {
+        display: flex;
+        flex-direction: column;
+        gap: 5px;
+      }
+      nav a {
+        display: flex;
+        gap: 12px;
+        align-items: center;
+        min-height: 44px;
+        padding: 10px 13px;
+        color: var(--muted);
+        text-decoration: none;
+        border-radius: 6px;
+        font-weight: 550;
+      }
+      nav a:hover {
+        background: var(--canvas);
+      }
+      nav a[aria-current="page"] {
+        background: var(--blue-pale);
+        color: var(--blue);
+      }
+      nav svg {
+        width: 18px;
+        height: 18px;
+        flex-shrink: 0;
+      }
+      .nav-divider {
+        margin: 20px 10px 9px;
+        border-top: 1px solid var(--line);
+      }
+      .account {
+        margin-top: auto;
+        padding: 30px 12px 0;
+        display: flex;
+        gap: 10px;
+        align-items: center;
+      }
+      .avatar {
+        display: grid;
+        place-items: center;
+        width: 33px;
+        height: 33px;
+        border-radius: 50%;
+        background: #e6ebf2;
+        font-size: 12px;
+        font-weight: 700;
+      }
+      main {
+        padding: 30px 48px 60px;
+        min-width: 0;
+      }
+      .content {
+        max-width: 1120px;
+        margin: 0 auto;
+      }
+      .crumb {
+        display: flex;
+        gap: 8px;
+        align-items: center;
+        font-size: 12px;
+        color: var(--muted);
+        min-height: 24px;
+        margin-bottom: 25px;
+      }
+      .crumb a {
+        color: var(--muted);
+        text-decoration: none;
+      }
+      .heading,
+      .row {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        gap: 16px;
+      }
+      .heading {
+        align-items: flex-start;
+        margin-bottom: 24px;
+      }
+      .actions {
+        display: flex;
+        gap: 9px;
+        align-items: center;
+        flex-wrap: wrap;
+      }
+      .tag {
+        display: inline-flex;
+        align-items: center;
+        gap: 6px;
+        padding: 3px 9px;
+        background: var(--canvas);
+        border: 1px solid var(--line);
+        border-radius: 5px;
+        font-size: 11px;
+        font-weight: 600;
+        white-space: nowrap;
+      }
+      .tag.green {
+        background: var(--green-pale);
+        color: var(--green);
+        border-color: #cee4d5;
+      }
+      .tag.blue {
+        background: var(--blue-pale);
+        color: var(--blue);
+        border-color: #cfdbf4;
+      }
+      .tag.amber {
+        background: var(--amber-pale);
+        color: var(--amber);
+        border-color: #eddeb7;
+      }
+      .tabs {
+        display: flex;
+        gap: 25px;
+        border-bottom: 1px solid var(--line);
+        margin: 7px 0 26px;
+        overflow-x: auto;
+      }
+      .tabs a {
+        white-space: nowrap;
+        text-decoration: none;
+        padding: 12px 0;
+        color: var(--muted);
+        border-bottom: 2px solid transparent;
+        font-weight: 600;
+        font-size: 13px;
+      }
+      .tabs a[aria-current="page"] {
+        color: var(--blue);
+        border-color: var(--blue);
+      }
+      .card {
+        padding: 24px;
+        background: var(--paper);
+        border: 1px solid var(--line);
+        border-radius: 9px;
+        margin-bottom: 20px;
+      }
+      .card.flush {
+        padding: 0;
+        overflow: hidden;
+      }
+      .card-top {
+        padding: 20px 24px;
+        border-bottom: 1px solid var(--line);
+      }
+      .card-top h2,
+      .card-top p {
+        margin-bottom: 0;
+      }
+      .grid {
+        display: grid;
+        grid-template-columns: minmax(0, 1fr) 290px;
+        gap: 22px;
+        align-items: start;
+      }
+      .stat-grid {
+        display: grid;
+        grid-template-columns: repeat(3, 1fr);
+        gap: 16px;
+        margin-bottom: 22px;
+      }
+      .stat {
+        background: white;
+        border: 1px solid var(--line);
+        padding: 19px 23px;
+        border-radius: 8px;
+      }
+      .stat strong {
+        display: block;
+        font-size: 28px;
+        letter-spacing: -0.5px;
+        margin-top: 6px;
+      }
+      .notice {
+        padding: 13px 16px;
+        border-radius: 6px;
+        background: var(--blue-pale);
+        color: #24467d;
+        font-size: 12px;
+        margin-bottom: 20px;
+      }
+      .notice.amber {
+        background: var(--amber-pale);
+        color: var(--amber);
+      }
+      label.field {
+        display: block;
+        margin: 19px 0;
+        font-weight: 600;
+        font-size: 12px;
+      }
+      label.field input,
+      label.field textarea,
+      label.field select {
+        display: block;
+        margin-top: 7px;
+        width: 100%;
+      }
+      input,
+      textarea,
+      select {
+        padding: 10px 11px;
+        border: 1px solid #b8c4d4;
+        border-radius: 5px;
+        background: var(--paper);
+        color: var(--ink);
+        min-height: 40px;
+      }
+      textarea {
+        resize: vertical;
+      }
+      input[type="checkbox"] {
+        width: 17px;
+        min-height: 17px;
+        accent-color: var(--blue);
+      }
+      label.check {
+        display: flex;
+        align-items: flex-start;
+        gap: 10px;
+        margin: 21px 0;
+      }
+      .check input {
+        margin-top: 3px;
+      }
+      table {
+        width: 100%;
+        border-collapse: collapse;
+        text-align: left;
+      }
+      th {
+        font-size: 10px;
+        text-transform: uppercase;
+        letter-spacing: 0.8px;
+        color: var(--muted);
+        background: #fafbfd;
+        font-weight: 650;
+      }
+      th,
+      td {
+        padding: 15px 23px;
+        border-bottom: 1px solid var(--line);
+      }
+      tr:last-child td {
+        border-bottom: 0;
+      }
+      td {
+        font-size: 13px;
+      }
+      td small {
+        display: block;
+        margin-top: 3px;
+      }
+      td button {
+        min-height: 33px;
+        padding: 5px 11px;
+        font-size: 12px;
+      }
+      .table-scroll {
+        overflow-x: auto;
+      }
+      .text-button {
+        padding: 0;
+        min-height: 28px;
+        border: 0;
+        background: transparent;
+        color: var(--blue);
+      }
+      .flow {
+        display: flex;
+        gap: 0;
+        margin: 28px 0;
+        overflow-x: auto;
+        padding-bottom: 4px;
+      }
+      .stage {
+        flex: 1;
+        min-width: 125px;
+        position: relative;
+        border-top: 2px solid #c7d5ec;
+        padding: 19px 13px 5px 0;
+      }
+      .stage::before {
+        content: "";
+        position: absolute;
+        width: 10px;
+        height: 10px;
+        background: var(--blue);
+        border: 3px solid var(--canvas);
+        outline: 1px solid #c7d5ec;
+        border-radius: 50%;
+        top: -6px;
+        left: 0;
+      }
+      .stage strong {
+        display: block;
+        font-size: 13px;
+        margin-bottom: 7px;
+      }
+      .stage small {
+        display: block;
+        margin-top: 6px;
+      }
+      .env-context {
+        background: white;
+        border: 1px solid var(--line);
+        border-left: 3px solid var(--blue);
+        padding: 18px 22px;
+        display: flex;
+        align-items: end;
+        gap: 20px;
+        border-radius: 7px;
+        margin-bottom: 12px;
+      }
+      .env-context label {
+        font-size: 11px;
+        color: var(--muted);
+        font-weight: 600;
+      }
+      .env-context select {
+        display: block;
+        margin-top: 5px;
+        min-width: 170px;
+      }
+      .env-context .tag {
+        margin-left: auto;
+        margin-bottom: 7px;
+      }
+      .question-row {
+        padding: 18px 0;
+        border-bottom: 1px solid var(--line);
+        display: flex;
+        gap: 14px;
+      }
+      .question-row:last-child {
+        border: 0;
+      }
+      .number {
+        width: 25px;
+        height: 25px;
+        display: grid;
+        place-items: center;
+        background: var(--canvas);
+        border-radius: 5px;
+        font-size: 11px;
+        color: var(--muted);
+      }
+      .mini-input {
+        border: 1px solid var(--line);
+        height: 36px;
+        width: min(100%, 350px);
+        border-radius: 4px;
+        margin-top: 9px;
+      }
+      .version-number {
+        font-size: 20px;
+        font-weight: 650;
+        color: var(--blue);
+      }
+      dialog {
+        border: 1px solid var(--line);
+        border-radius: 12px;
+        padding: 0;
+        width: min(610px, calc(100% - 28px));
+        color: var(--ink);
+        max-height: 90vh;
+      }
+      dialog::backdrop {
+        background: rgb(18 29 46 / 0.48);
+      }
+      .dialog-body {
+        padding: 28px;
+      }
+      .dialog-actions {
+        display: flex;
+        justify-content: flex-end;
+        gap: 10px;
+        padding: 18px 28px;
+        border-top: 1px solid var(--line);
+        background: #fafbfd;
+      }
+      .comparison {
+        display: grid;
+        grid-template-columns: 1fr 28px 1fr;
+        align-items: center;
+        gap: 10px;
+        margin: 22px 0;
+      }
+      .comparison > div {
+        padding: 17px;
+        border: 1px solid var(--line);
+        border-radius: 7px;
+      }
+      .comparison strong {
+        display: block;
+        font-size: 28px;
+        margin-top: 5px;
+      }
+      .comparison .target {
+        border-color: #b8cbef;
+        background: var(--blue-pale);
+      }
+      .toast {
+        position: fixed;
+        bottom: 24px;
+        left: 50%;
+        transform: translateX(-50%);
+        color: white;
+        background: #182333;
+        border-radius: 8px;
+        padding: 13px 20px;
+        box-shadow: 0 8px 30px rgb(0 0 0 / 0.15);
+        max-width: calc(100% - 30px);
+        z-index: 5;
+      }
+      .toast:empty {
+        display: none;
+      }
+      .empty {
+        text-align: center;
+        padding: 45px 20px;
+      }
+      .stack > * + * {
+        margin-top: 12px;
+      }
+      .spaced {
+        margin-top: 24px;
+      }
+      [hidden] {
+        display: none !important;
+      }
+      .skip {
+        position: absolute;
+        left: 10px;
+        top: -100px;
+        z-index: 10;
+        background: white;
+        padding: 12px;
+      }
+      .skip:focus {
+        top: 8px;
+      }
+      @media (max-width: 1050px) {
+        main {
+          padding: 25px;
+        }
+        .grid {
+          grid-template-columns: 1fr;
+        }
+        .shell {
+          grid-template-columns: 195px minmax(0, 1fr);
+        }
+      }
+      @media (max-width: 700px) {
+        .demo {
+          align-items: flex-start;
+          padding: 10px 15px;
+          flex-direction: column;
+          gap: 8px;
+        }
+        .demo-controls {
+          flex-wrap: wrap;
+        }
+        .shell {
+          display: block;
+        }
+        aside {
+          padding: 15px;
+          border-right: 0;
+          border-bottom: 1px solid var(--line);
+        }
+        .brand {
+          padding: 0;
+        }
+        .workspace,
+        .account,
+        .nav-divider {
+          display: none;
+        }
+        nav {
+          margin-top: 14px;
+          display: grid;
+          grid-template-columns: repeat(2, minmax(0, 1fr));
+        }
+        nav a {
+          padding: 8px 10px;
+          font-size: 12px;
+          white-space: nowrap;
+        }
+        nav svg {
+          display: none;
+        }
+        main {
+          padding: 23px 17px 55px;
+        }
+        h1 {
+          font-size: 25px;
+        }
+        .heading {
+          flex-direction: column;
+        }
+        .stat-grid {
+          grid-template-columns: 1fr;
+          gap: 8px;
+        }
+        .stat {
+          padding: 13px 17px;
+        }
+        .stat strong {
+          font-size: 23px;
+        }
+        .env-context {
+          flex-wrap: wrap;
+          padding: 14px;
+          gap: 12px;
+        }
+        .env-context select {
+          min-width: 130px;
+          max-width: 100%;
+        }
+        .env-context .tag {
+          margin-left: 0;
+        }
+        .card {
+          padding: 19px;
+        }
+        th,
+        td {
+          padding: 13px 16px;
+        }
+      }
+    </style>
+  </head>
+  <body>
+    <a class="skip" href="#main">Skip to content</a>
+    <header class="demo">
+      <div><strong>Navigation concept</strong> <small> · Interactive sample data</small></div>
+      <div class="demo-controls">
+        <label for="persona">Explore as</label>
+        <select id="persona">
+          <option value="all">Alex · Full access</option>
+          <option value="editor">Alex · Editor</option>
+          <option value="approver">Morgan · Approver</option>
+          <option value="responses">Riley · Response operator</option>
+          <option value="owner">Alex · Site owner</option>
+        </select>
+        <button id="reset">Reset demo</button>
+      </div>
+    </header>
+    <div class="shell">
+      <aside>
+        <div class="brand"><span class="brand-mark">q</span> QCMS</div>
+        <div class="workspace"><small>Workspace</small><strong>Customer experience</strong></div>
+        <nav id="nav" aria-label="Primary"></nav>
+        <div class="account" id="account"></div>
+      </aside>
+      <main id="main" tabindex="-1"><div class="content" id="content"></div></main>
+    </div>
+    <dialog id="dialog" aria-labelledby="dialog-title"><div id="dialog-content"></div></dialog>
+    <div class="toast" role="status" id="toast"></div>
+    <script>
+      const $ = (selector) => document.querySelector(selector);
+      const escape = (value) =>
+        String(value).replace(
+          /[&<>"']/g,
+          (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" })[c],
+        );
+      const profiles = {
+        all: {
+          name: "Alex Chen",
+          detail: "Author, approver & owner",
+          edit: true,
+          release: true,
+          responses: true,
+          admin: true,
+        },
+        editor: { name: "Alex Chen", detail: "Forms editor", edit: true, release: true },
+        approver: { name: "Morgan Lee", detail: "Forms approver", release: true, prod: true },
+        responses: { name: "Riley Patel", detail: "Responses viewer & eraser", responses: true },
+        owner: { name: "Alex Chen", detail: "Site owner", admin: true },
+      };
+      const labels = { dev: "Development", test: "Test", stg: "Staging", prod: "Production" };
+      const forms = { onboarding: "Customer onboarding", feedback: "Customer feedback" };
+      let role = "all";
+      let config, records, versions, draft, questionLabel, pending, historyEntries;
+      let operationsContext = { tab: "overview", env: "dev", form: "onboarding" };
+      let toastTimer;
+      const person = () => profiles[role];
+      const canReadForms = () => Boolean(person().edit || person().release);
+      const envName = (env) => labels[env] || env;
+      const isProtected = (env) => env === config.protected;
+      const canOperate = (env) =>
+        Boolean(person().release && (!isProtected(env) || person().prod || role === "all"));
+      const record = (env, form = "onboarding") => records[form][env];
+      const tag = (text, kind = "") => '<span class="tag ' + kind + '">' + escape(text) + "</span>";
+      const button = (text, action, data = "", primary = false, disabled = false) =>
+        '<button type="button" data-action="' +
+        action +
+        '" ' +
+        data +
+        (primary ? ' class="primary"' : "") +
+        (disabled ? " disabled" : "") +
+        ">" +
+        escape(text) +
+        "</button>";
+      const link = (text, hash, cls = "") =>
+        '<a class="' + cls + '" href="#' + hash + '">' + escape(text) + "</a>";
+      const state = () => {
+        const params = new URLSearchParams(location.hash.slice(1));
+        return {
+          view:
+            params.get("view") ||
+            (canReadForms() ? "forms" : person().responses ? "operations" : "administration"),
+          tab: params.get("tab") || "draft",
+          env: config.envs.includes(params.get("env")) ? params.get("env") : config.envs[0],
+          form: forms[params.get("form")] ? params.get("form") : "onboarding",
+        };
+      };
+      const url = (view, tab = "", env = "", form = "onboarding") =>
+        new URLSearchParams({
+          view,
+          ...(tab ? { tab } : {}),
+          ...(env ? { env } : {}),
+          form,
+        }).toString();
+      function navigate(view, tab = "", env = "", form = "onboarding") {
+        const next = url(view, tab, env, form);
+        if (location.hash.slice(1) === next) render();
+        else location.hash = next;
+      }
+      function notify(message) {
+        clearTimeout(toastTimer);
+        $("#toast").textContent = message;
+        toastTimer = setTimeout(() => {
+          $("#toast").textContent = "";
+        }, 6500);
+      }
+      function seed(nextConfig) {
+        config = nextConfig || {
+          envs: ["dev", "test", "stg", "prod"],
+          protected: "prod",
+          sequential: true,
+          second: false,
+        };
+        operationsContext = { tab: "overview", env: config.envs[0], form: "onboarding" };
+        records = {};
+        for (const form of Object.keys(forms)) {
+          records[form] = {};
+          for (const env of config.envs) {
+            const version = config.envs.indexOf(env) < 2 && !isProtected(env) ? 8 : 7;
+            records[form][env] = {
+              version,
+              closed: false,
+              history: [7, ...(version === 8 ? [8] : [])],
+              links: [],
+              webhook: "https://example.com/" + env + "/events",
+              proposal: null,
+              responses: isProtected(env) ? 124 : 6,
+            };
+          }
+        }
+        versions = [
+          {
+            number: 8,
+            author: "Morgan Lee",
+            title: "Customer onboarding",
+            question: "Work email address",
+            note: "Clarified contact details and added an optional company field.",
+          },
+          {
+            number: 7,
+            author: "Morgan Lee",
+            title: "Customer onboarding",
+            question: "Email address",
+            note: "Current customer onboarding baseline.",
+          },
+        ];
+        draft = { title: "Customer onboarding", question: "Work email address", company: true };
+        questionLabel = "Work email address";
+        historyEntries = [];
+      }
+      function eligibility(env, version) {
+        if (!canOperate(env)) return "An approver with access to this environment is required.";
+        if (config.second && isProtected(env) && version.author === person().name)
+          return (
+            "A different approver must release this version. It was published by " +
+            version.author +
+            "."
+          );
+        const index = config.envs.indexOf(env);
+        if (
+          config.sequential &&
+          index > 0 &&
+          !record(env).history.includes(version.number) &&
+          !record(config.envs[index - 1]).history.includes(version.number)
+        )
+          return (
+            "Release v" +
+            version.number +
+            " to " +
+            envName(config.envs[index - 1]) +
+            " first, as required by this site's flow."
+          );
+        return "";
+      }
+      function icon(type) {
+        const paths = {
+          forms:
+            '<rect x="4" y="3" width="16" height="18" rx="2"/><path d="M8 8h8M8 12h8M8 16h5"/>',
+          questions:
+            '<path d="M9 8a3 3 0 1 1 5 2c-2 1-2 2-2 3M12 17h.01"/><circle cx="12" cy="12" r="10"/>',
+          operations: '<path d="M3 12h4l3-8 4 16 3-8h4"/>',
+          administration:
+            '<circle cx="12" cy="12" r="4"/><path d="M12 2v3M12 19v3M2 12h3M19 12h3M5 5l2 2M17 17l2 2M5 19l2-2M17 7l2-2"/>',
+        };
+        return (
+          '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round">' +
+          paths[type] +
+          "</svg>"
+        );
+      }
+      function tabs(items, current, makeUrl) {
+        return (
+          '<div class="tabs" aria-label="Section">' +
+          items
+            .map(
+              ([id, text]) =>
+                '<a href="#' +
+                makeUrl(id) +
+                '"' +
+                (id === current ? ' aria-current="page"' : "") +
+                ">" +
+                escape(text) +
+                "</a>",
+            )
+            .join("") +
+          "</div>"
+        );
+      }
+      function header(title, subtitle, actions = "", badge = "") {
+        return (
+          '<div class="heading"><div><div class="eyebrow">Customer experience</div><h1>' +
+          escape(title) +
+          '</h1><div class="muted">' +
+          escape(subtitle) +
+          '</div></div><div class="actions">' +
+          badge +
+          actions +
+          "</div></div>"
+        );
+      }
+      function render() {
+        const s = state();
+        if (s.view === "operations") operationsContext = { tab: s.tab, env: s.env, form: s.form };
+        const visible = [];
+        if (canReadForms()) visible.push(["forms", "Forms"], ["questions", "Question library"]);
+        if (person().release || person().responses) visible.push(["operations", "Operations"]);
+        if (person().admin) visible.push(["administration", "Administration"]);
+        $("#nav").innerHTML = visible
+          .map(
+            ([id, text]) =>
+              '<a href="#' +
+              (id === "operations"
+                ? url(id, operationsContext.tab, operationsContext.env, operationsContext.form)
+                : url(id)) +
+              '"' +
+              (s.view === id || (id === "forms" && s.view === "form")
+                ? ' aria-current="page"'
+                : "") +
+              ">" +
+              icon(id) +
+              escape(text) +
+              "</a>",
+          )
+          .join("");
+        $("#account").innerHTML =
+          '<div class="avatar">' +
+          escape(
+            person()
+              .name.split(" ")
+              .map((x) => x[0])
+              .join(""),
+          ) +
+          "</div><div><strong>" +
+          escape(person().name) +
+          "</strong><br><small>" +
+          escape(person().detail) +
+          "</small></div>";
+        const allowed = visible.some(([id]) => id === (s.view === "form" ? "forms" : s.view));
+        let html =
+          '<div class="crumb">' +
+          link("Workspace", url("forms")) +
+          "<span>/</span>" +
+          escape(
+            s.view === "form"
+              ? "Forms / Customer onboarding"
+              : {
+                  forms: "Forms",
+                  questions: "Question library",
+                  operations: "Operations",
+                  administration: "Administration",
+                }[s.view] || "Page",
+          ) +
+          "</div>";
+        if (!allowed)
+          html +=
+            '<div class="card empty"><h1>This section needs another role</h1><p class="muted">Choose an available section in the navigation.</p></div>';
+        else if (s.view === "forms") html += formsView();
+        else if (s.view === "form") html += formView(s);
+        else if (s.view === "questions") html += questionsView();
+        else if (s.view === "operations") html += operationsView(s);
+        else if (s.view === "administration") html += administrationView();
+        $("#content").innerHTML = html;
+        document.title =
+          "QCMS · " +
+          ({
+            form: "Customer onboarding",
+            operations: envName(s.env) + " operations",
+            forms: "Forms",
+            questions: "Question library",
+            administration: "Release flow",
+          }[s.view] || "Concept");
+      }
+      function formsView() {
+        return (
+          header(
+            "Forms",
+            "Create shared content. Release each version where it belongs.",
+            "",
+            tag("Shared authoring", "blue"),
+          ) +
+          '<div class="card flush table-scroll"><table><thead><tr><th>Form</th><th>Draft</th><th>Published</th><th>Released in</th></tr></thead><tbody><tr><td>' +
+          link("Customer onboarding", url("form", person().edit ? "draft" : "releases")) +
+          "<small>Collect contact and company details</small></td><td>" +
+          tag("Changes ready") +
+          "</td><td>v" +
+          versions[0].number +
+          "</td><td>" +
+          config.envs.map((env) => tag(envName(env) + " · v" + record(env).version)).join(" ") +
+          '</td></tr><tr><td>Customer feedback<small>Post-service feedback</small></td><td><span class="muted">No changes</span></td><td>v8</td><td>' +
+          link("View operations", url("operations", "overview", config.envs[0], "feedback")) +
+          '</td></tr></tbody></table></div><p class="muted"><small>Questions, drafts and version history are shared. Each environment has its own released version and respondent data.</small></p>'
+        );
+      }
+      function formView(s) {
+        const current = person().edit ? s.tab : s.tab === "draft" ? "versions" : s.tab;
+        const items = [
+          ...(person().edit ? [["draft", "Draft"]] : []),
+          ["versions", "Versions"],
+          ["releases", "Releases"],
+        ];
+        let html = header(
+          "Customer onboarding",
+          "Contact details, company information and consent.",
+          "",
+          tag("Shared across environments", "blue"),
+        );
+        html += tabs(items, current, (id) => url("form", id));
+        if (current === "draft") {
+          html +=
+            '<div class="grid"><div><div class="card"><div class="row"><h2>Form draft</h2>' +
+            tag("Editable") +
+            '</div><p class="muted">Build the next version. Released versions stay unchanged.</p><label class="field">Form title<input id="draft-title" value="' +
+            escape(draft.title) +
+            '"></label><label class="field">Contact question<input id="draft-question" value="' +
+            escape(draft.question) +
+            '"></label><label class="check"><input id="draft-company" type="checkbox"' +
+            (draft.company ? " checked" : "") +
+            '> Include optional company name</label><div class="actions">' +
+            button("Preview draft", "preview") +
+            button("Use latest library question", "update-question") +
+            '</div></div><div class="notice">This draft is shared. Editing it does not change any released form.</div></div><div class="card"><div class="eyebrow">Next version</div><h2>Publish v' +
+            (versions[0].number + 1) +
+            '</h2><p class="muted">Freeze this draft and make it available in ' +
+            escape(envName(config.envs[0])) +
+            '.</p><div class="stack">' +
+            button(
+              "Publish to " + envName(config.envs[0]),
+              "publish",
+              'data-release="yes"',
+              true,
+              !canOperate(config.envs[0]),
+            ) +
+            "<div>" +
+            button("Publish version only", "publish", 'data-release="no"') +
+            '</div></div><p class="spaced"><small>Publishing a version alone changes no environment.</small></p></div></div>';
+        } else if (current === "versions") {
+          html +=
+            '<div class="card flush table-scroll"><table><thead><tr><th>Version</th><th>Content</th><th>Published by</th><th>Review</th></tr></thead><tbody>' +
+            versions
+              .map(
+                (v) =>
+                  "<tr><td><strong>v" +
+                  v.number +
+                  "</strong></td><td>" +
+                  escape(v.note) +
+                  "<small>Question: " +
+                  escape(v.question) +
+                  "</small></td><td>" +
+                  escape(v.author) +
+                  "</td><td>" +
+                  button("Review v" + v.number, "snapshot", 'data-version="' + v.number + '"') +
+                  "</td></tr>",
+              )
+              .join("") +
+            '</tbody></table></div><p class="muted"><small>Published content is immutable. Promotion releases one of these exact versions.</small></p>';
+        } else {
+          const latest = versions[0];
+          html +=
+            '<div class="row"><div><h2>Released where</h2><p class="muted">One version history. A separate release in each environment.</p></div>' +
+            tag(config.sequential ? "Ordered release flow" : "Flexible destinations") +
+            '</div><div class="flow">' +
+            config.envs
+              .map(
+                (env) =>
+                  '<div class="stage"><strong>' +
+                  escape(envName(env)) +
+                  "</strong>" +
+                  tag("v" + record(env).version, isProtected(env) ? "green" : "blue") +
+                  "<small>" +
+                  (record(env).closed ? "Intake closed" : "Intake open") +
+                  "</small></div>",
+              )
+              .join("") +
+            '</div><div class="card flush table-scroll"><table><thead><tr><th>Environment</th><th>Released</th><th>Intake</th><th>Next action</th></tr></thead><tbody>' +
+            config.envs
+              .map((env) => {
+                const reason = eligibility(env, latest);
+                return (
+                  "<tr><td><strong>" +
+                  escape(envName(env)) +
+                  "</strong><small>" +
+                  (isProtected(env) ? "Approver required" : "Editor or approver") +
+                  "</small></td><td>" +
+                  button(
+                    "v" + record(env).version,
+                    "snapshot",
+                    'data-version="' + record(env).version + '"',
+                  ) +
+                  "</td><td>" +
+                  tag(
+                    record(env).closed ? "Closed" : "Open",
+                    record(env).closed ? "amber" : "green",
+                  ) +
+                  "</td><td>" +
+                  (record(env).version === latest.number
+                    ? link("Open operations", url("operations", "overview", env), "button")
+                    : button(
+                        "Release v" + latest.number + " to " + envName(env),
+                        "release",
+                        'data-env="' + env + '"',
+                        !reason,
+                        Boolean(reason),
+                      )) +
+                  (reason && record(env).version !== latest.number
+                    ? "<small>" + escape(reason) + "</small>"
+                    : "") +
+                  "</td></tr>"
+                );
+              })
+              .join("") +
+            '</tbody></table></div><div class="row"><p class="muted"><small>Review another published version to release it or roll back.</small></p>' +
+            button("Choose version and destination", "choose-release") +
+            '</div><div class="card spaced"><h2>Release activity</h2>' +
+            (historyEntries.length
+              ? historyEntries.map((entry) => "<p>" + escape(entry) + "</p>").join("")
+              : '<p class="muted">Sample baseline · Morgan Lee<br>' +
+                config.envs
+                  .map((env) => escape(envName(env)) + ": v" + record(env).version)
+                  .join(" · ") +
+                "</p>") +
+            "</div>";
+        }
+        return html;
+      }
+      function questionsView() {
+        return (
+          header(
+            "Question library",
+            "Reusable questions and their shared version history.",
+            "",
+            tag("Shared across environments", "blue"),
+          ) +
+          '<div class="grid"><div class="card"><h2>Contact email</h2><p class="muted">q_contact_email · Email · Published question v3</p><label class="field">Question label<input id="library-label" value="' +
+          escape(questionLabel) +
+          '"' +
+          (!person().edit ? " readonly" : "") +
+          '></label><div class="actions">' +
+          (person().edit
+            ? button("Publish question version", "publish-question", "", true)
+            : tag("Read only")) +
+          '</div><p class="spaced"><small>Forms keep their pinned question versions. Update a form draft explicitly to use the new question version.</small></p></div><div class="card"><h2>Used by</h2><p>' +
+          link("Customer onboarding", url("form", person().edit ? "draft" : "versions")) +
+          '</p><p class="muted">A published form retains its original question content.</p></div></div>'
+        );
+      }
+      function operationsView(s) {
+        const r = record(s.env, s.form);
+        const activeTab = [
+          "overview",
+          ...(person().responses ? ["responses"] : []),
+          ...(person().release ? ["links", "webhooks"] : []),
+        ].includes(s.tab)
+          ? s.tab
+          : "overview";
+        let html = header("Operations", "Manage the form running in a specific environment.");
+        html +=
+          '<div class="env-context"><label for="ops-env">Environment<select id="ops-env" aria-label="Environment">' +
+          config.envs
+            .map(
+              (env) =>
+                '<option value="' +
+                env +
+                '"' +
+                (env === s.env ? " selected" : "") +
+                ">" +
+                escape(envName(env)) +
+                "</option>",
+            )
+            .join("") +
+          '</select></label><label for="ops-form">Form<select id="ops-form" aria-label="Form">' +
+          Object.entries(forms)
+            .map(
+              ([id, name]) =>
+                '<option value="' +
+                id +
+                '"' +
+                (id === s.form ? " selected" : "") +
+                ">" +
+                escape(name) +
+                "</option>",
+            )
+            .join("") +
+          "</select></label>" +
+          tag(
+            isProtected(s.env) ? "Production data" : "Non-production data",
+            isProtected(s.env) ? "amber" : "blue",
+          ) +
+          "</div>";
+        html += tabs(
+          [
+            ["overview", "Overview"],
+            ...(person().responses ? [["responses", "Responses"]] : []),
+            ...(person().release
+              ? [
+                  ["links", "Links"],
+                  ["webhooks", "Webhooks"],
+                ]
+              : []),
+          ],
+          activeTab,
+          (id) => url("operations", id, s.env, s.form),
+        );
+        if (activeTab === "overview") {
+          html +=
+            '<div class="stat-grid"><div class="stat"><small>Released version</small><strong>v' +
+            r.version +
+            '</strong></div><div class="stat"><small>Intake</small><strong>' +
+            (r.closed ? "Closed" : "Open") +
+            '</strong></div><div class="stat"><small>' +
+            (person().responses ? "Submitted responses" : "Response access") +
+            "</small><strong>" +
+            (person().responses ? r.responses : "Restricted") +
+            '</strong></div></div><div class="card"><div class="row"><div><h2>' +
+            escape(forms[s.form]) +
+            " in " +
+            escape(envName(s.env)) +
+            '</h2><p class="muted">' +
+            (r.closed
+              ? "New sessions are currently refused."
+              : "New sessions start on v" + r.version + ".") +
+            " Existing sessions keep their original version.</p></div>" +
+            button(
+              r.closed ? "Reopen intake" : "Close intake",
+              "intake",
+              "",
+              false,
+              !canOperate(s.env),
+            ) +
+            '</div><div class="actions">' +
+            (person().release
+              ? link(
+                  "Get " + envName(s.env) + " link",
+                  url("operations", "links", s.env, s.form),
+                  "button",
+                )
+              : "") +
+            (person().responses
+              ? link(
+                  "View " + envName(s.env) + " responses",
+                  url("operations", "responses", s.env, s.form),
+                  "button",
+                )
+              : "") +
+            "</div></div>";
+          if (!person().responses)
+            html +=
+              '<div class="notice">Response data needs a separate responses role, even if you can edit or release forms.</div>';
+        } else if (activeTab === "responses") {
+          html +=
+            '<div class="row"><div><h2>' +
+            escape(envName(s.env)) +
+            ' responses</h2><p class="muted">' +
+            r.responses +
+            " submissions · " +
+            escape(forms[s.form]) +
+            "</p></div>" +
+            button("Export responses", "export") +
+            '</div><div class="card flush table-scroll"><table><thead><tr><th>Session</th><th>Status</th><th>Form version</th><th>Received</th></tr></thead><tbody>' +
+            [1, 2, 3]
+              .map(
+                (n) =>
+                  "<tr><td>sample-" +
+                  escape(s.env) +
+                  "-00" +
+                  n +
+                  "</td><td>" +
+                  tag("Submitted", "green") +
+                  "</td><td>v" +
+                  (n === 3 ? Math.max(7, r.version - 1) : r.version) +
+                  "</td><td>Today, 10:" +
+                  (20 + n * 4) +
+                  "</td></tr>",
+              )
+              .join("") +
+            "</tbody></table></div>";
+        } else if (activeTab === "links") {
+          html +=
+            '<div class="row"><div><h2>' +
+            escape(envName(s.env)) +
+            ' links</h2><p class="muted">New sessions follow this environment\'s released version.</p></div>' +
+            button("Create secure link", "create-link", "", true, !canOperate(s.env)) +
+            "</div>" +
+            (r.links.length
+              ? r.links
+                  .map(
+                    (item, index) =>
+                      '<div class="card"><div class="row"><div><strong>Review link ' +
+                      (index + 1) +
+                      '</strong><p class="muted">' +
+                      escape(envName(s.env)) +
+                      " · " +
+                      (item.revoked ? "Revoked" : "Active") +
+                      "</p></div>" +
+                      button(
+                        item.revoked ? "Revoked" : "Revoke",
+                        "revoke-link",
+                        'data-index="' + index + '"',
+                        false,
+                        item.revoked || !canOperate(s.env),
+                      ) +
+                      "</div><code>" +
+                      escape(item.path) +
+                      "</code></div>",
+                  )
+                  .join("")
+              : '<div class="card empty"><h2>No secure links yet</h2><p class="muted">Create a link for ' +
+                escape(envName(s.env)) +
+                " to exercise the released form.</p></div>");
+          html +=
+            '<div class="notice">Sample links demonstrate navigation only; they do not open a respondent session.</div>';
+        } else {
+          html +=
+            '<div class="card"><h2>' +
+            escape(envName(s.env)) +
+            ' webhook</h2><p class="muted">Only submissions in this environment use this endpoint.</p><p><strong>Active endpoint</strong><br>' +
+            escape(r.webhook) +
+            '</p><label class="field">New endpoint<input id="webhook-url" type="url" value="' +
+            escape(r.webhook) +
+            '"></label>' +
+            button(
+              config.second && isProtected(s.env) ? "Propose endpoint change" : "Update endpoint",
+              "webhook",
+              "",
+              true,
+              !canOperate(s.env),
+            ) +
+            (r.proposal
+              ? '<div class="notice spaced"><strong>Pending proposal</strong><p>' +
+                escape(r.proposal.url) +
+                "<br>Proposed by " +
+                escape(r.proposal.author) +
+                "</p>" +
+                button(
+                  "Confirm endpoint change",
+                  "confirm-webhook",
+                  "",
+                  false,
+                  !canOperate(s.env) || r.proposal.author === person().name,
+                ) +
+                "</div>"
+              : "") +
+            "</div>";
+        }
+        if (canReadForms())
+          html +=
+            '<p class="spaced">' + link("Back to form releases", url("form", "releases")) + "</p>";
+        return html;
+      }
+      function administrationView() {
+        return (
+          header(
+            "Release flow",
+            "Choose how this installation moves published versions between environments.",
+          ) +
+          '<div class="grid"><form id="flow-form" class="card"><h2>Environments and release rules</h2><p class="muted">Set the destinations your team needs. Authoring remains shared.</p><label class="field">Start with a flow<select id="flow-preset"><option value="custom">Current configuration</option><option value="single">Production only</option><option value="pair">Test → Production</option><option value="four">Dev → Test → Staging → Production</option><option value="flexible">Flexible destinations</option></select></label><label class="field">Environment names, in order<input id="flow-envs" value="' +
+          escape(config.envs.join(", ")) +
+          '" required pattern="[a-z][a-z0-9_-]*(, *[a-z][a-z0-9_-]*)*"><small>Comma-separated names, for example: dev, test, stg, prod.</small></label><label class="field">Protected production environment<input id="flow-protected" value="' +
+          escape(config.protected) +
+          '" required></label><label class="check"><input type="checkbox" id="flow-sequential"' +
+          (config.sequential ? " checked" : "") +
+          '><span><strong>Require the preceding environment</strong><br><small>Each candidate must have been released to the preceding environment before it can advance.</small></span></label><label class="check"><input type="checkbox" id="flow-second"' +
+          (config.second ? " checked" : "") +
+          '><span><strong>Require a different production approver</strong><br><small>The account that published a version cannot release it to production.</small></span></label><button class="primary" type="submit">Apply demo flow</button><p class="spaced"><small>Changing the flow resets the sample releases so you can explore another setup.</small></p></form><div class="card"><div class="eyebrow">Configured by the owner</div><h2>Your flow, your destinations</h2><p class="muted">The release screen uses these names and rules. Adding an environment does not add another question library or form draft.</p><p class="muted">Production operations require an approver. Response access is always granted separately.</p><div class="notice">Concept configuration. These controls do not change the running installation.</div></div></div>'
+        );
+      }
+      function modal(body, footer) {
+        $("#dialog-content").innerHTML =
+          '<div class="dialog-body">' +
+          body +
+          '</div><div class="dialog-actions">' +
+          button("Cancel", "cancel") +
+          footer +
+          "</div>";
+        $("#dialog").showModal();
+      }
+      function closeModal() {
+        $("#dialog").close();
+        pending = null;
+      }
+      function snapshot(version) {
+        modal(
+          '<div class="eyebrow">Immutable published content</div><h2 id="dialog-title">Version ' +
+            version.number +
+            '</h2><p class="muted">Published by ' +
+            escape(version.author) +
+            "</p><h3>" +
+            escape(version.title) +
+            '</h3><div class="question-row"><span class="number">1</span><div><strong>' +
+            escape(version.question) +
+            '</strong><div class="mini-input"></div></div></div><p class="muted spaced">' +
+            escape(version.note) +
+            "</p>",
+          button("Done", "cancel", "", true),
+        );
+      }
+      function releaseModal(env, version, combined = false) {
+        const reason = eligibility(env, version);
+        const r = record(env);
+        pending = { env, version, combined, expected: r.version };
+        const evidence = config.envs.filter((name) =>
+          record(name).history.includes(version.number),
+        );
+        const body =
+          '<div class="eyebrow">' +
+          (combined ? "Publish and release" : "Release review") +
+          '</div><h2 id="dialog-title">' +
+          (combined ? "Publish to " : "Release to ") +
+          escape(envName(env)) +
+          '</h2><p class="muted">Customer onboarding · ' +
+          escape(env) +
+          '</p><div class="comparison"><div><small>Currently released</small><strong>v' +
+          r.version +
+          '</strong></div><span aria-hidden="true">→</span><div class="target"><small>' +
+          (combined ? "New version" : "Candidate") +
+          "</small><strong>v" +
+          version.number +
+          "</strong></div></div><h3>Candidate content</h3><p>" +
+          escape(version.title) +
+          '<br><span class="muted">Contact question: ' +
+          escape(version.question) +
+          "</span></p><p><small>Published by " +
+          escape(version.author) +
+          (evidence.length
+            ? " · Previously released in " + evidence.map(envName).map(escape).join(", ")
+            : combined
+              ? " · New snapshot"
+              : " · Not yet released") +
+          '</small></p><div class="notice' +
+          (r.closed || reason ? " amber" : "") +
+          '">' +
+          (reason
+            ? escape(reason)
+            : r.closed
+              ? "Intake will remain closed. Reopen it separately when ready."
+              : "New sessions will use this version. Existing sessions keep their original version.") +
+          "</div>" +
+          (r.version > version.number
+            ? "<p><strong>This is a rollback.</strong> It adds a release record and does not restore operational settings.</p>"
+            : "");
+        modal(
+          body,
+          button(
+            combined
+              ? "Publish v" + version.number + " to " + envName(env)
+              : "Release v" + version.number + " to " + envName(env),
+            "confirm-release",
+            "",
+            true,
+            Boolean(reason) || r.version === version.number,
+          ),
+        );
+      }
+      function publishedVersion() {
+        return {
+          number: versions[0].number + 1,
+          author: person().name,
+          title: draft.title,
+          question: draft.question,
+          note:
+            "Updated contact question: " +
+            draft.question +
+            (draft.company ? "; includes optional company name." : "."),
+        };
+      }
+      function captureDraft() {
+        if ($("#draft-title"))
+          draft = {
+            title: $("#draft-title").value,
+            question: $("#draft-question").value,
+            company: $("#draft-company").checked,
+          };
+      }
+      document.addEventListener("click", (event) => {
+        const el = event.target.closest("[data-action]");
+        if (!el || el.disabled) return;
+        const action = el.dataset.action;
+        const s = state();
+        captureDraft();
+        if (action === "cancel") return closeModal();
+        if (action === "preview")
+          modal(
+            '<div class="eyebrow">Draft preview · Hypothetical answers</div><h2 id="dialog-title">' +
+              escape(draft.title) +
+              '</h2><label class="field">' +
+              escape(draft.question) +
+              '<input type="email" placeholder="you@example.com"></label>' +
+              (draft.company
+                ? '<label class="field">Company name <span class="muted">(optional)</span><input></label>'
+                : "") +
+              '<p class="muted">This preview creates no respondent session.</p>',
+            button("Done", "cancel", "", true),
+          );
+        if (action === "update-question") {
+          draft.question = questionLabel;
+          render();
+          notify("Draft reference updated. Published versions are unchanged.");
+        }
+        if (action === "publish-question" && person().edit) {
+          questionLabel = $("#library-label").value;
+          notify("New question version published. Update the form draft to use it.");
+        }
+        if (action === "snapshot")
+          snapshot(versions.find((v) => v.number === Number(el.dataset.version)));
+        if (action === "publish" && person().edit) {
+          if (!draft.title.trim() || !draft.question.trim())
+            return notify("Enter a form title and contact question before publishing.");
+          const version = publishedVersion();
+          if (el.dataset.release === "yes") releaseModal(config.envs[0], version, true);
+          else {
+            versions.unshift(version);
+            navigate("form", "versions");
+            notify("v" + version.number + " published. No environment changed.");
+          }
+        }
+        if (action === "release") releaseModal(el.dataset.env, versions[0]);
+        if (action === "choose-release") {
+          modal(
+            '<h2 id="dialog-title">Choose a release</h2><p class="muted">Release an immutable version to an allowed destination.</p><label class="field">Version<select id="candidate-version">' +
+              versions
+                .map(
+                  (v) =>
+                    '<option value="' +
+                    v.number +
+                    '">v' +
+                    v.number +
+                    " · " +
+                    escape(v.author) +
+                    "</option>",
+                )
+                .join("") +
+              '</select></label><label class="field">Destination<select id="candidate-env">' +
+              config.envs
+                .map((env) => '<option value="' + env + '">' + escape(envName(env)) + "</option>")
+                .join("") +
+              "</select></label>",
+            button("Review release", "review-selection", "", true),
+          );
+        }
+        if (action === "review-selection") {
+          const env = $("#candidate-env").value;
+          const version = versions.find((v) => v.number === Number($("#candidate-version").value));
+          closeModal();
+          releaseModal(env, version);
+        }
+        if (action === "confirm-release" && pending) {
+          const { env, version, combined, expected } = pending;
+          const reason = eligibility(env, version);
+          if (reason) return notify(reason);
+          if (record(env).version !== expected) {
+            closeModal();
+            return releaseModal(env, version, combined);
+          }
+          if (combined) versions.unshift(version);
+          record(env).version = version.number;
+          record(env).history.push(version.number);
+          historyEntries.unshift(
+            "v" + version.number + " released to " + envName(env) + " by " + person().name + ".",
+          );
+          closeModal();
+          navigate("form", "releases");
+          notify(
+            "v" +
+              version.number +
+              " released to " +
+              envName(env) +
+              ". Intake " +
+              (record(env).closed ? "remains closed." : "is open."),
+          );
+        }
+        if (action === "intake" && canOperate(s.env)) {
+          record(s.env, s.form).closed = !record(s.env, s.form).closed;
+          render();
+          notify(
+            envName(s.env) + " intake " + (record(s.env, s.form).closed ? "closed." : "reopened."),
+          );
+        }
+        if (action === "create-link" && canOperate(s.env)) {
+          const r = record(s.env, s.form);
+          r.links.push({
+            path:
+              (isProtected(s.env) ? "" : "/" + s.env) + "/l/sample-link-" + (r.links.length + 1),
+            revoked: false,
+          });
+          render();
+          notify("Sample secure link created for " + envName(s.env) + ".");
+        }
+        if (action === "revoke-link" && canOperate(s.env)) {
+          record(s.env, s.form).links[Number(el.dataset.index)].revoked = true;
+          render();
+          notify("Link revoked in " + envName(s.env) + ".");
+        }
+        if (action === "export" && person().responses) {
+          const csv =
+            "session,environment,form,version,status\nsample-001," +
+            s.env +
+            "," +
+            s.form +
+            "," +
+            record(s.env, s.form).version +
+            ",submitted\n";
+          const objectUrl = URL.createObjectURL(new Blob([csv], { type: "text/csv" }));
+          const anchor = document.createElement("a");
+          anchor.href = objectUrl;
+          anchor.download = "sample-" + s.env + "-responses.csv";
+          anchor.click();
+          setTimeout(() => URL.revokeObjectURL(objectUrl), 1000);
+          notify("Sample " + envName(s.env) + " responses exported.");
+        }
+        if (action === "webhook" && canOperate(s.env)) {
+          const input = $("#webhook-url");
+          if (!input.reportValidity()) return;
+          let endpoint;
+          try {
+            endpoint = new URL(input.value);
+          } catch {
+            return notify("Enter a valid HTTPS endpoint.");
+          }
+          if (endpoint.protocol !== "https:") return notify("Use an HTTPS endpoint.");
+          const r = record(s.env, s.form);
+          if (config.second && isProtected(s.env))
+            r.proposal = { url: endpoint.href, author: person().name };
+          else r.webhook = endpoint.href;
+          render();
+          notify(
+            r.proposal
+              ? "Proposal pending. A different approver must confirm."
+              : "Endpoint updated in " + envName(s.env) + ".",
+          );
+        }
+        if (action === "confirm-webhook" && canOperate(s.env)) {
+          const r = record(s.env, s.form);
+          if (r.proposal && r.proposal.author !== person().name) {
+            r.webhook = r.proposal.url;
+            r.proposal = null;
+            render();
+            notify("Endpoint change confirmed.");
+          }
+        }
+      });
+      document.addEventListener("input", (event) => {
+        if (event.target.id.startsWith("draft-")) captureDraft();
+      });
+      document.addEventListener("change", (event) => {
+        if (event.target.id === "draft-company") captureDraft();
+        if (event.target.id === "ops-env" || event.target.id === "ops-form")
+          navigate("operations", state().tab, $("#ops-env").value, $("#ops-form").value);
+        if (event.target.id === "flow-preset") {
+          const presets = {
+            single: ["prod"],
+            pair: ["test", "prod"],
+            four: ["dev", "test", "stg", "prod"],
+            flexible: ["dev", "test", "stg", "prod"],
+          };
+          const names = presets[event.target.value];
+          if (names) {
+            $("#flow-envs").value = names.join(", ");
+            $("#flow-protected").value = "prod";
+            $("#flow-sequential").checked = event.target.value !== "flexible" && names.length > 1;
+          }
+        }
+      });
+      document.addEventListener("submit", (event) => {
+        if (event.target.id !== "flow-form") return;
+        event.preventDefault();
+        const envs = $("#flow-envs")
+          .value.split(",")
+          .map((x) => x.trim());
+        const protectedEnv = $("#flow-protected").value.trim();
+        if (!envs.includes(protectedEnv))
+          return notify("The protected production environment must be in the environment list.");
+        if (new Set(envs).size !== envs.length)
+          return notify("Use a unique name for each environment.");
+        seed({
+          envs,
+          protected: protectedEnv,
+          sequential: $("#flow-sequential").checked,
+          second: $("#flow-second").checked,
+        });
+        render();
+        notify("Demo flow applied. Open Forms to explore your release journey.");
+      });
+      $("#persona").addEventListener("change", (event) => {
+        captureDraft();
+        if ($("#dialog").open) closeModal();
+        role = event.target.value;
+        navigate(
+          canReadForms() ? "form" : person().responses ? "operations" : "administration",
+          canReadForms() ? "releases" : "overview",
+          state().env,
+        );
+      });
+      $("#reset").addEventListener("click", () => {
+        if ($("#dialog").open) closeModal();
+        seed();
+        role = "all";
+        $("#persona").value = role;
+        navigate("forms");
+        notify("Sample data reset.");
+      });
+      $("#dialog").addEventListener("click", (event) => {
+        if (event.target === $("#dialog")) closeModal();
+      });
+      window.addEventListener("hashchange", () => {
+        render();
+        $("#main").focus({ preventScroll: true });
+      });
+      seed();
+      render();
+    </script>
+  </body>
+</html>
