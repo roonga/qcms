@@ -7,12 +7,18 @@ the artifacts service's allocated port in [PORTS.md](../../docs/PORTS.md).
 
 ## Explore
 
-- **Forms:** open Customer onboarding. Edit the shared draft, preview it, then
-  publish a version alone or publish to the first configured environment.
-- **Versions:** review immutable sample snapshots. Later draft edits do not change
-  their content.
-- **Releases:** see every environment's released version and intake status. Review
-  a candidate and destination before release, or select an older version for rollback.
+- **Forms:** open Customer onboarding. Edit the shared draft, preview it, then use
+  the single **Publish** button to start the publishing wizard.
+- **Versions:** the combined version and release view. Review immutable snapshots,
+  current environment availability, intake state and release history in one place.
+  Every table row has the same Review action; no variable next-action column.
+- **Publish wizard:** choose the draft or an existing version, choose an accessible
+  destination, review the change, then confirm. Destinations outside the caller's
+  permissions are omitted. Accessible destinations blocked by the configured flow,
+  second-person rule or current release state are shown with an explanation.
+- **Publish without releasing:** within the wizard, a draft may become an immutable
+  version for an approver to release later. This also supports a prod-only site that
+  requires separate publishing and releasing accounts.
 - **Operations:** choose an environment and form. Explore intake, responses,
   secure links and webhooks. The URL retains the current operational context.
 - **Administration:** try production only, test/production, four stages or flexible
@@ -20,7 +26,13 @@ the artifacts service's allocated port in [PORTS.md](../../docs/PORTS.md).
   Toggle preceding-environment eligibility and a different production approver.
 - **Explore as:** simulate an editor, approver, response operator or site owner.
   Full access combines those roles for easier exploration; ownership alone grants
-  only the administration view.
+  only the administration view. The test-only editor demonstrates destination
+  filtering by environment scope.
+
+The Versions table's **Available in** column names environments currently serving
+that version, not every environment that ever served it. Publishing a replacement
+or rolling back updates the badges; prior releases remain in the release history.
+The wizard never writes a version or release before its final confirmation.
 
 For the second-person journey, enable the requirement in Administration, publish a
 new version as Alex, release through the configured non-production stages, then
@@ -47,9 +59,10 @@ flow illustrates the subsequent product direction; it does not amend an ADR.
 
 ## Validation
 
-- Chromium journeys: shared draft continuity, immutable versions, publication,
-  four-stage promotion, single-environment publication and flexible destinations.
+- Chromium journeys: wizard cancellation, shared draft continuity, immutable versions,
+  publication, four-stage promotion, single-environment publication, flexible
+  destinations and current availability after replacement or rollback.
 - Chromium journeys: rollback, role separation, second-person release, environment
   and form context, secure-link isolation, revocation and endpoint approval.
-- Desktop and mobile accessibility scans, release-dialog scan, keyboard dismissal,
+- Desktop and mobile accessibility scans, wizard-step scans, keyboard dismissal,
   browser refresh context and mobile overflow checks.

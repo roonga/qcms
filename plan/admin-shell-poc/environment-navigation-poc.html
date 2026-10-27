@@ -643,6 +643,85 @@
       .skip:focus {
         top: 8px;
       }
+      .wizard-steps {
+        display: flex;
+        gap: 20px;
+        padding: 0;
+        margin: 0 0 26px;
+        list-style: none;
+        color: var(--muted);
+        font-size: 12px;
+      }
+      .wizard-steps li {
+        display: flex;
+        gap: 7px;
+        align-items: center;
+      }
+      .wizard-steps span {
+        display: grid;
+        place-items: center;
+        width: 25px;
+        height: 25px;
+        border-radius: 50%;
+        background: var(--canvas);
+        border: 1px solid var(--line);
+      }
+      .wizard-steps [aria-current="step"] {
+        color: var(--blue);
+        font-weight: 700;
+      }
+      .wizard-steps [aria-current="step"] span {
+        background: var(--blue);
+        color: white;
+        border-color: var(--blue);
+      }
+      .wizard-select {
+        width: 100%;
+      }
+      .destination-list {
+        padding: 0;
+        margin: 0;
+        border: 0;
+      }
+      .destination {
+        display: flex;
+        gap: 12px;
+        align-items: flex-start;
+        padding: 16px;
+        border: 1px solid var(--line);
+        border-radius: 7px;
+        margin: 11px 0;
+        cursor: pointer;
+      }
+      .destination:has(input:checked) {
+        border-color: var(--blue);
+        background: var(--blue-pale);
+      }
+      .destination input {
+        margin-top: 4px;
+        min-height: 16px;
+        accent-color: var(--blue);
+        flex-shrink: 0;
+      }
+      .destination strong,
+      .destination small {
+        display: block;
+      }
+      .destination.unavailable {
+        cursor: default;
+        background: var(--canvas);
+      }
+      .restriction {
+        color: var(--amber);
+        margin-top: 5px;
+      }
+      .sr-only {
+        position: absolute;
+        width: 1px;
+        height: 1px;
+        overflow: hidden;
+        clip-path: inset(50%);
+      }
       @media (max-width: 1050px) {
         main {
           padding: 25px;
@@ -743,6 +822,7 @@
         <select id="persona">
           <option value="all">Alex · Full access</option>
           <option value="editor">Alex · Editor</option>
+          <option value="testeditor">Alex · Test-only editor</option>
           <option value="approver">Morgan · Approver</option>
           <option value="responses">Riley · Response operator</option>
           <option value="owner">Alex · Site owner</option>
@@ -778,6 +858,13 @@
           admin: true,
         },
         editor: { name: "Alex Chen", detail: "Forms editor", edit: true, release: true },
+        testeditor: {
+          name: "Alex Chen",
+          detail: "Forms editor · Test only",
+          edit: true,
+          release: true,
+          environments: ["test"],
+        },
         approver: { name: "Morgan Lee", detail: "Forms approver", release: true, prod: true },
         responses: { name: "Riley Patel", detail: "Responses viewer & eraser", responses: true },
         owner: { name: "Alex Chen", detail: "Site owner", admin: true },
@@ -785,7 +872,8 @@
       const labels = { dev: "Development", test: "Test", stg: "Staging", prod: "Production" };
       const forms = { onboarding: "Customer onboarding", feedback: "Customer feedback" };
       let role = "all";
-      let config, records, versions, draft, questionLabel, pending, historyEntries;
+      let config, records, versions, draft, questionLabel, historyEntries;
+      let wizard = null;
       let operationsContext = { tab: "overview", env: "dev", form: "onboarding" };
       let toastTimer;
       const person = () => profiles[role];
@@ -793,7 +881,11 @@
       const envName = (env) => labels[env] || env;
       const isProtected = (env) => env === config.protected;
       const canOperate = (env) =>
-        Boolean(person().release && (!isProtected(env) || person().prod || role === "all"));
+        Boolean(
+          person().release &&
+          (!person().environments || person().environments.includes(env)) &&
+          (!isProtected(env) || person().prod || role === "all"),
+        );
       const record = (env, form = "onboarding") => records[form][env];
       const tag = (text, kind = "") => '<span class="tag ' + kind + '">' + escape(text) + "</span>";
       const button = (text, action, data = "", primary = false, disabled = false) =>
@@ -1033,7 +1125,7 @@
             tag("Shared authoring", "blue"),
           ) +
           '<div class="card flush table-scroll"><table><thead><tr><th>Form</th><th>Draft</th><th>Published</th><th>Released in</th></tr></thead><tbody><tr><td>' +
-          link("Customer onboarding", url("form", person().edit ? "draft" : "releases")) +
+          link("Customer onboarding", url("form", person().edit ? "draft" : "versions")) +
           "<small>Collect contact and company details</small></td><td>" +
           tag("Changes ready") +
           "</td><td>v" +
@@ -1046,16 +1138,12 @@
         );
       }
       function formView(s) {
-        const current = person().edit ? s.tab : s.tab === "draft" ? "versions" : s.tab;
-        const items = [
-          ...(person().edit ? [["draft", "Draft"]] : []),
-          ["versions", "Versions"],
-          ["releases", "Releases"],
-        ];
+        const current = person().edit && s.tab === "draft" ? "draft" : "versions";
+        const items = [...(person().edit ? [["draft", "Draft"]] : []), ["versions", "Versions"]];
         let html = header(
           "Customer onboarding",
           "Contact details, company information and consent.",
-          "",
+          button("Publish", "publish-wizard", "", true),
           tag("Shared across environments", "blue"),
         );
         html += tabs(items, current, (id) => url("form", id));
@@ -1072,47 +1160,14 @@
             '> Include optional company name</label><div class="actions">' +
             button("Preview draft", "preview") +
             button("Use latest library question", "update-question") +
-            '</div></div><div class="notice">This draft is shared. Editing it does not change any released form.</div></div><div class="card"><div class="eyebrow">Next version</div><h2>Publish v' +
-            (versions[0].number + 1) +
-            '</h2><p class="muted">Freeze this draft and make it available in ' +
-            escape(envName(config.envs[0])) +
-            '.</p><div class="stack">' +
-            button(
-              "Publish to " + envName(config.envs[0]),
-              "publish",
-              'data-release="yes"',
-              true,
-              !canOperate(config.envs[0]),
-            ) +
-            "<div>" +
-            button("Publish version only", "publish", 'data-release="no"') +
-            '</div></div><p class="spaced"><small>Publishing a version alone changes no environment.</small></p></div></div>';
-        } else if (current === "versions") {
-          html +=
-            '<div class="card flush table-scroll"><table><thead><tr><th>Version</th><th>Content</th><th>Published by</th><th>Review</th></tr></thead><tbody>' +
-            versions
-              .map(
-                (v) =>
-                  "<tr><td><strong>v" +
-                  v.number +
-                  "</strong></td><td>" +
-                  escape(v.note) +
-                  "<small>Question: " +
-                  escape(v.question) +
-                  "</small></td><td>" +
-                  escape(v.author) +
-                  "</td><td>" +
-                  button("Review v" + v.number, "snapshot", 'data-version="' + v.number + '"') +
-                  "</td></tr>",
-              )
-              .join("") +
-            '</tbody></table></div><p class="muted"><small>Published content is immutable. Promotion releases one of these exact versions.</small></p>';
+            '</div></div><div class="notice">This draft is shared. Editing it does not change any released form.</div></div><div class="card"><div class="eyebrow">Next version</div><h2>Ready when you are</h2><p class="muted">Use Publish to choose a version, select an accessible environment and review the change.</p><p><small>The wizard follows this site’s configured flow. A new draft becomes immutable only when you confirm.</small></p></div></div>';
         } else {
-          const latest = versions[0];
           html +=
-            '<div class="row"><div><h2>Released where</h2><p class="muted">One version history. A separate release in each environment.</p></div>' +
+            '<div class="row"><div><h2>Versions and availability</h2><p class="muted">See which version is running in each environment, then publish from one place.</p></div>' +
             tag(config.sequential ? "Ordered release flow" : "Flexible destinations") +
-            '</div><div class="flow">' +
+            "</div>";
+          html +=
+            '<div class="flow">' +
             config.envs
               .map(
                 (env) =>
@@ -1122,49 +1177,47 @@
                   tag("v" + record(env).version, isProtected(env) ? "green" : "blue") +
                   "<small>" +
                   (record(env).closed ? "Intake closed" : "Intake open") +
-                  "</small></div>",
+                  "</small>" +
+                  link("Open operations", url("operations", "overview", env)) +
+                  "</div>",
               )
               .join("") +
-            '</div><div class="card flush table-scroll"><table><thead><tr><th>Environment</th><th>Released</th><th>Intake</th><th>Next action</th></tr></thead><tbody>' +
-            config.envs
-              .map((env) => {
-                const reason = eligibility(env, latest);
+            "</div>";
+          html +=
+            '<div class="card flush table-scroll"><table><thead><tr><th>Version</th><th>Content</th><th>Published by</th><th>Available in</th><th>Review</th></tr></thead><tbody>' +
+            versions
+              .map((v) => {
+                const available = config.envs.filter((env) => record(env).version === v.number);
                 return (
-                  "<tr><td><strong>" +
-                  escape(envName(env)) +
-                  "</strong><small>" +
-                  (isProtected(env) ? "Approver required" : "Editor or approver") +
+                  "<tr><td><strong>v" +
+                  v.number +
+                  "</strong></td><td>" +
+                  escape(v.note) +
+                  "<small>Question: " +
+                  escape(v.question) +
                   "</small></td><td>" +
-                  button(
-                    "v" + record(env).version,
-                    "snapshot",
-                    'data-version="' + record(env).version + '"',
-                  ) +
+                  escape(v.author) +
                   "</td><td>" +
-                  tag(
-                    record(env).closed ? "Closed" : "Open",
-                    record(env).closed ? "amber" : "green",
-                  ) +
+                  (available.length
+                    ? available
+                        .map((env) =>
+                          link(
+                            envName(env),
+                            url("operations", "overview", env),
+                            "tag " + (isProtected(env) ? "green" : "blue"),
+                          ),
+                        )
+                        .join(" ")
+                    : '<span class="muted">Not currently released</span>') +
                   "</td><td>" +
-                  (record(env).version === latest.number
-                    ? link("Open operations", url("operations", "overview", env), "button")
-                    : button(
-                        "Release v" + latest.number + " to " + envName(env),
-                        "release",
-                        'data-env="' + env + '"',
-                        !reason,
-                        Boolean(reason),
-                      )) +
-                  (reason && record(env).version !== latest.number
-                    ? "<small>" + escape(reason) + "</small>"
-                    : "") +
+                  button("Review v" + v.number, "snapshot", 'data-version="' + v.number + '"') +
                   "</td></tr>"
                 );
               })
               .join("") +
-            '</tbody></table></div><div class="row"><p class="muted"><small>Review another published version to release it or roll back.</small></p>' +
-            button("Choose version and destination", "choose-release") +
-            '</div><div class="card spaced"><h2>Release activity</h2>' +
+            '</tbody></table></div><p class="muted"><small>Available in shows current releases. Publishing to another environment reuses the exact version; it does not create a copy.</small></p>';
+          html +=
+            '<div class="card spaced"><h2>Release history</h2>' +
             (historyEntries.length
               ? historyEntries.map((entry) => "<p>" + escape(entry) + "</p>").join("")
               : '<p class="muted">Sample baseline · Morgan Lee<br>' +
@@ -1396,8 +1449,7 @@
             "</div>";
         }
         if (canReadForms())
-          html +=
-            '<p class="spaced">' + link("Back to form releases", url("form", "releases")) + "</p>";
+          html += '<p class="spaced">' + link("Back to versions", url("form", "versions")) + "</p>";
         return html;
       }
       function administrationView() {
@@ -1417,19 +1469,19 @@
           '><span><strong>Require a different production approver</strong><br><small>The account that published a version cannot release it to production.</small></span></label><button class="primary" type="submit">Apply demo flow</button><p class="spaced"><small>Changing the flow resets the sample releases so you can explore another setup.</small></p></form><div class="card"><div class="eyebrow">Configured by the owner</div><h2>Your flow, your destinations</h2><p class="muted">The release screen uses these names and rules. Adding an environment does not add another question library or form draft.</p><p class="muted">Production operations require an approver. Response access is always granted separately.</p><div class="notice">Concept configuration. These controls do not change the running installation.</div></div></div>'
         );
       }
-      function modal(body, footer) {
+      function modal(body, footer, cancellable = true) {
         $("#dialog-content").innerHTML =
           '<div class="dialog-body">' +
           body +
           '</div><div class="dialog-actions">' +
-          button("Cancel", "cancel") +
+          (cancellable ? button("Cancel", "cancel") : "") +
           footer +
           "</div>";
         $("#dialog").showModal();
       }
       function closeModal() {
         $("#dialog").close();
-        pending = null;
+        wizard = null;
       }
       function snapshot(version) {
         modal(
@@ -1447,62 +1499,266 @@
           button("Done", "cancel", "", true),
         );
       }
-      function releaseModal(env, version, combined = false) {
-        const reason = eligibility(env, version);
-        const r = record(env);
-        pending = { env, version, combined, expected: r.version };
-        const evidence = config.envs.filter((name) =>
-          record(name).history.includes(version.number),
-        );
-        const body =
-          '<div class="eyebrow">' +
-          (combined ? "Publish and release" : "Release review") +
-          '</div><h2 id="dialog-title">' +
-          (combined ? "Publish to " : "Release to ") +
-          escape(envName(env)) +
-          '</h2><p class="muted">Customer onboarding · ' +
-          escape(env) +
-          '</p><div class="comparison"><div><small>Currently released</small><strong>v' +
-          r.version +
-          '</strong></div><span aria-hidden="true">→</span><div class="target"><small>' +
-          (combined ? "New version" : "Candidate") +
-          "</small><strong>v" +
-          version.number +
-          "</strong></div></div><h3>Candidate content</h3><p>" +
-          escape(version.title) +
-          '<br><span class="muted">Contact question: ' +
-          escape(version.question) +
-          "</span></p><p><small>Published by " +
-          escape(version.author) +
-          (evidence.length
-            ? " · Previously released in " + evidence.map(envName).map(escape).join(", ")
-            : combined
-              ? " · New snapshot"
-              : " · Not yet released") +
-          '</small></p><div class="notice' +
-          (r.closed || reason ? " amber" : "") +
-          '">' +
-          (reason
-            ? escape(reason)
-            : r.closed
-              ? "Intake will remain closed. Reopen it separately when ready."
-              : "New sessions will use this version. Existing sessions keep their original version.") +
-          "</div>" +
-          (r.version > version.number
-            ? "<p><strong>This is a rollback.</strong> It adds a release record and does not restore operational settings.</p>"
-            : "");
-        modal(
-          body,
-          button(
-            combined
-              ? "Publish v" + version.number + " to " + envName(env)
-              : "Release v" + version.number + " to " + envName(env),
-            "confirm-release",
+      function wizardCandidate() {
+        return wizard.selection === "draft"
+          ? wizard.draftVersion
+          : versions.find((v) => v.number === Number(wizard.selection));
+      }
+      function destinationReason(env) {
+        const candidate = wizardCandidate();
+        if (wizard.selection !== "draft" && record(env).version === candidate.number)
+          return "This version is already available here.";
+        return eligibility(env, candidate);
+      }
+      function startWizard() {
+        wizard = {
+          step: 1,
+          selection:
+            person().edit && state().tab === "draft" ? "draft" : String(versions[0].number),
+          draftVersion: person().edit ? publishedVersion() : null,
+          env: "",
+          expected: null,
+        };
+        renderWizard();
+      }
+      function renderWizard() {
+        const candidate = wizardCandidate();
+        const combined = wizard.selection === "draft";
+        const accessible = config.envs.filter(canOperate);
+        const progress =
+          '<ol class="wizard-steps" aria-label="Publishing progress">' +
+          ["Version", "Environment", "Review"]
+            .map(
+              (name, index) =>
+                "<li" +
+                (wizard.step === index + 1 ? ' aria-current="step"' : "") +
+                "><span>" +
+                (index + 1) +
+                "</span>" +
+                name +
+                "</li>",
+            )
+            .join("") +
+          "</ol>";
+        let body = progress;
+        let footer = wizard.step > 1 ? button("Back", "wizard-back") : "";
+        if (wizard.step === 1) {
+          body +=
+            '<h2 id="dialog-title" tabindex="-1">What would you like to publish?</h2><p class="muted">Create a new version from the shared draft, or make an existing version available elsewhere.</p><label class="field" for="wizard-version">Version</label><select id="wizard-version" class="wizard-select" aria-label="Version">' +
+            (person().edit
+              ? '<option value="draft"' +
+                (combined ? " selected" : "") +
+                ">Current draft · create v" +
+                wizard.draftVersion.number +
+                "</option>"
+              : "") +
+            versions
+              .map(
+                (v) =>
+                  '<option value="' +
+                  v.number +
+                  '"' +
+                  (wizard.selection === String(v.number) ? " selected" : "") +
+                  ">v" +
+                  v.number +
+                  " · " +
+                  escape(v.author) +
+                  "</option>",
+              )
+              .join("") +
+            '</select><div class="card spaced"><h3>' +
+            escape(candidate.title) +
+            "</h3><p>" +
+            escape(candidate.question) +
+            "</p><small>" +
+            (combined
+              ? "A new immutable snapshot will be created when you confirm."
+              : "This published version will be reused exactly as it is.") +
+            "</small></div>";
+          if (combined && (!candidate.title.trim() || !candidate.question.trim()))
+            body +=
+              '<div class="notice amber">The draft needs a form title and contact question before it can be published.</div>';
+          footer += button(
+            "Continue",
+            "wizard-next",
             "",
             true,
-            Boolean(reason) || r.version === version.number,
-          ),
+            combined && (!candidate.title.trim() || !candidate.question.trim()),
+          );
+        } else if (wizard.step === 2) {
+          if (!wizard.env)
+            wizard.env =
+              accessible.find((env) => !destinationReason(env)) || (combined ? "library" : "");
+          body +=
+            '<h2 id="dialog-title" tabindex="-1">Where should v' +
+            candidate.number +
+            ' be available?</h2><p class="muted">Only environments you can publish to are listed. The site’s release rules still apply.</p><fieldset class="destination-list"><legend class="sr-only">Destination environment</legend>' +
+            accessible
+              .map((env) => {
+                const reason = destinationReason(env);
+                return (
+                  '<label class="destination' +
+                  (reason ? " unavailable" : "") +
+                  '"><input type="radio" name="wizard-environment" value="' +
+                  env +
+                  '"' +
+                  (wizard.env === env && !reason ? " checked" : "") +
+                  (reason ? " disabled" : "") +
+                  "><span><strong>" +
+                  escape(envName(env)) +
+                  "</strong><small>Currently v" +
+                  record(env).version +
+                  " · Intake " +
+                  (record(env).closed ? "closed" : "open") +
+                  "</small>" +
+                  (reason ? '<small class="restriction">' + escape(reason) + "</small>" : "") +
+                  "</span></label>"
+                );
+              })
+              .join("") +
+            (combined
+              ? '<label class="destination"><input type="radio" name="wizard-environment" value="library"' +
+                (wizard.env === "library" ? " checked" : "") +
+                "><span><strong>Create version for later release</strong><small>Publish an immutable version without changing an environment. An approver can release it later.</small></span></label>"
+              : "") +
+            "</fieldset>";
+          if (!accessible.length)
+            body +=
+              '<div class="notice amber">Your role has no accessible release environments.' +
+              (combined
+                ? " You can still create a version for an approver."
+                : " Ask the site owner for the appropriate environment access.") +
+              "</div>";
+          footer += button(
+            "Review",
+            "wizard-next",
+            "",
+            true,
+            !wizard.env || (wizard.env !== "library" && Boolean(destinationReason(wizard.env))),
+          );
+        } else {
+          const library = wizard.env === "library";
+          const current = library ? null : record(wizard.env);
+          const reason = library ? "" : destinationReason(wizard.env);
+          body +=
+            '<h2 id="dialog-title" tabindex="-1">' +
+            (library
+              ? "Review version publication"
+              : "Review publication to " + escape(envName(wizard.env))) +
+            '</h2><p class="muted">Customer onboarding · ' +
+            (combined ? "New version" : "Existing immutable version") +
+            "</p>";
+          body += library
+            ? '<div class="card"><small>New published version</small><h3>v' +
+              candidate.number +
+              "</h3></div>"
+            : '<div class="comparison"><div><small>Currently in ' +
+              escape(envName(wizard.env)) +
+              "</small><strong>v" +
+              current.version +
+              '</strong></div><span aria-hidden="true">→</span><div class="target"><small>Version to publish</small><strong>v' +
+              candidate.number +
+              "</strong></div></div>";
+          body +=
+            "<h3>Content to publish</h3><p>" +
+            escape(candidate.title) +
+            '<br><span class="muted">Contact question: ' +
+            escape(candidate.question) +
+            "</span></p><p><small>" +
+            (combined ? "Will be published by " : "Originally published by ") +
+            escape(candidate.author) +
+            "</small></p>";
+          const evidence = config.envs.filter((env) =>
+            record(env).history.includes(candidate.number),
+          );
+          if (!combined && evidence.length)
+            body +=
+              "<p><small>Previously released in " +
+              evidence.map(envName).map(escape).join(", ") +
+              ". This does not record a successful test.</small></p>";
+          body +=
+            '<div class="notice' +
+            (reason || current?.closed ? " amber" : "") +
+            '">' +
+            (reason
+              ? escape(reason)
+              : library
+                ? "No environment changes. This version will be available for a future release."
+                : current.closed
+                  ? "Intake will remain closed. Reopen it separately when ready."
+                  : "New sessions will use this version. Existing sessions keep their original version.") +
+            "</div>";
+          if (current && current.version > candidate.number)
+            body +=
+              "<p><strong>This is a rollback.</strong> It adds a release record and does not restore operational settings.</p>";
+          footer += button(
+            library
+              ? "Publish v" + candidate.number
+              : "Publish v" + candidate.number + " to " + envName(wizard.env),
+            "wizard-confirm",
+            "",
+            true,
+            Boolean(reason),
+          );
+        }
+        modal(body, footer);
+        $("#dialog-title").focus({ preventScroll: true });
+      }
+      function confirmWizard() {
+        if (!wizard || wizard.step !== 3) return;
+        const candidate = wizardCandidate();
+        const combined = wizard.selection === "draft";
+        const env = wizard.env;
+        const library = env === "library";
+        if (library && (!combined || !person().edit)) return;
+        if (!library) {
+          const reason = destinationReason(env);
+          if (reason) {
+            wizard.step = 2;
+            renderWizard();
+            return notify(reason);
+          }
+          if (record(env).version !== wizard.expected) {
+            wizard.expected = record(env).version;
+            renderWizard();
+            return notify(
+              "The destination changed. Review its current version before confirming again.",
+            );
+          }
+        }
+        if (combined) versions.unshift(candidate);
+        if (!library) {
+          record(env).version = candidate.number;
+          record(env).history.push(candidate.number);
+          historyEntries.unshift(
+            "v" + candidate.number + " released to " + envName(env) + " by " + person().name + ".",
+          );
+        }
+        wizard.step = 4;
+        navigate("form", "versions");
+        modal(
+          '<div class="eyebrow">Publication complete</div><h2 id="dialog-title" tabindex="-1">v' +
+            candidate.number +
+            (library ? " is ready for release" : " is available in " + escape(envName(env))) +
+            "</h2><p>" +
+            (library
+              ? "The immutable version is in the version library. No environment changed."
+              : "The version table now shows its updated availability.") +
+            "</p>" +
+            (!library
+              ? '<div class="notice' +
+                (record(env).closed ? " amber" : "") +
+                '">Intake ' +
+                (record(env).closed ? "remains closed." : "is open.") +
+                " Existing sessions keep their original version.</div>"
+              : ""),
+          button("Done", "cancel") +
+            (!library
+              ? button("Open " + envName(env) + " operations", "wizard-operations", "", true)
+              : ""),
+          false,
         );
+        $("#dialog-title").focus({ preventScroll: true });
       }
       function publishedVersion() {
         return {
@@ -1555,71 +1811,31 @@
         }
         if (action === "snapshot")
           snapshot(versions.find((v) => v.number === Number(el.dataset.version)));
-        if (action === "publish" && person().edit) {
-          if (!draft.title.trim() || !draft.question.trim())
-            return notify("Enter a form title and contact question before publishing.");
-          const version = publishedVersion();
-          if (el.dataset.release === "yes") releaseModal(config.envs[0], version, true);
-          else {
-            versions.unshift(version);
-            navigate("form", "versions");
-            notify("v" + version.number + " published. No environment changed.");
+        if (action === "publish-wizard" && canReadForms()) startWizard();
+        if (action === "wizard-back" && wizard) {
+          wizard.step -= 1;
+          renderWizard();
+        }
+        if (action === "wizard-next" && wizard) {
+          if (wizard.step === 1) {
+            if (
+              wizard.selection === "draft" &&
+              (!wizardCandidate().title.trim() || !wizardCandidate().question.trim())
+            )
+              return;
+            wizard.step = 2;
+          } else if (wizard.step === 2) {
+            if (!wizard.env || (wizard.env !== "library" && destinationReason(wizard.env))) return;
+            wizard.expected = wizard.env === "library" ? null : record(wizard.env).version;
+            wizard.step = 3;
           }
+          renderWizard();
         }
-        if (action === "release") releaseModal(el.dataset.env, versions[0]);
-        if (action === "choose-release") {
-          modal(
-            '<h2 id="dialog-title">Choose a release</h2><p class="muted">Release an immutable version to an allowed destination.</p><label class="field">Version<select id="candidate-version">' +
-              versions
-                .map(
-                  (v) =>
-                    '<option value="' +
-                    v.number +
-                    '">v' +
-                    v.number +
-                    " · " +
-                    escape(v.author) +
-                    "</option>",
-                )
-                .join("") +
-              '</select></label><label class="field">Destination<select id="candidate-env">' +
-              config.envs
-                .map((env) => '<option value="' + env + '">' + escape(envName(env)) + "</option>")
-                .join("") +
-              "</select></label>",
-            button("Review release", "review-selection", "", true),
-          );
-        }
-        if (action === "review-selection") {
-          const env = $("#candidate-env").value;
-          const version = versions.find((v) => v.number === Number($("#candidate-version").value));
+        if (action === "wizard-confirm") confirmWizard();
+        if (action === "wizard-operations" && wizard?.step === 4) {
+          const env = wizard.env;
           closeModal();
-          releaseModal(env, version);
-        }
-        if (action === "confirm-release" && pending) {
-          const { env, version, combined, expected } = pending;
-          const reason = eligibility(env, version);
-          if (reason) return notify(reason);
-          if (record(env).version !== expected) {
-            closeModal();
-            return releaseModal(env, version, combined);
-          }
-          if (combined) versions.unshift(version);
-          record(env).version = version.number;
-          record(env).history.push(version.number);
-          historyEntries.unshift(
-            "v" + version.number + " released to " + envName(env) + " by " + person().name + ".",
-          );
-          closeModal();
-          navigate("form", "releases");
-          notify(
-            "v" +
-              version.number +
-              " released to " +
-              envName(env) +
-              ". Intake " +
-              (record(env).closed ? "remains closed." : "is open."),
-          );
+          navigate("operations", "overview", env);
         }
         if (action === "intake" && canOperate(s.env)) {
           record(s.env, s.form).closed = !record(s.env, s.form).closed;
@@ -1695,6 +1911,20 @@
         if (event.target.id.startsWith("draft-")) captureDraft();
       });
       document.addEventListener("change", (event) => {
+        if (event.target.id === "wizard-version" && wizard) {
+          wizard.selection = event.target.value;
+          wizard.env = "";
+          renderWizard();
+          $("#wizard-version").focus();
+        }
+        if (event.target.name === "wizard-environment" && wizard) {
+          wizard.env = event.target.value;
+          const control = event.target.value;
+          renderWizard();
+          document
+            .querySelector('input[name="wizard-environment"][value="' + control + '"]')
+            ?.focus();
+        }
         if (event.target.id === "draft-company") captureDraft();
         if (event.target.id === "ops-env" || event.target.id === "ops-form")
           navigate("operations", state().tab, $("#ops-env").value, $("#ops-form").value);
@@ -1739,7 +1969,7 @@
         role = event.target.value;
         navigate(
           canReadForms() ? "form" : person().responses ? "operations" : "administration",
-          canReadForms() ? "releases" : "overview",
+          canReadForms() ? "versions" : "overview",
           state().env,
         );
       });
