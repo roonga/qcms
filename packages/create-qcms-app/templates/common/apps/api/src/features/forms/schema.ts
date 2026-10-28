@@ -1,56 +1,21 @@
-/**
- * Request/response schemas for the admin form-authoring slices (task 022).
- *
- * Zod is the single schema language (017's convention); these drive both the
- * request validation the routes perform and the generated OpenAPI documents
- * (027). The **form definition** itself is validated by the kernel
- * (`FormDefinition`, task 004) inside the handlers - not re-declared here - so a
- * malformed definition returns the kernel's coded issues through the error
- * envelope (422) with its paths intact. The request bodies therefore carry the
- * definition as an opaque object; the route schema guards only the envelope
- * around it.
- *
- * Publish issues (`PublishError[]` plus the slice-level `DEPRECATED_PIN`) are
- * likewise echoed as opaque JSON: the kernel's typed union (034 renders it
- * verbatim) is the source of truth, so re-declaring it here would only invite
- * drift.
- */
-
 import { z } from "@hono/zod-openapi";
 
 import { LIBRARY_SEARCH_MAX_LENGTH } from "../../openapi.js";
 
-/**
- * Whether a form accepts new sessions. Declared here rather than beside the response
- * schemas because the list route's `status` filter needs it before them (issue 686).
- */
 const FormLifecycle = z.enum(["open", "closed"]);
 
-// --- params -----------------------------------------------------------------
-
-/** `:id` path param - a `frm_…` form id (validated as a FormId in-handler). */
 export const FormIdParam = z.object({
   id: z.string().openapi({ param: { name: "id", in: "path" }, example: "frm_signup" }),
 });
 
-/** `:id`/`:v` path params - version is parsed to a positive integer in-handler. */
 export const FormVersionParam = z.object({
   id: z.string().openapi({ param: { name: "id", in: "path" }, example: "frm_signup" }),
   v: z.string().openapi({ param: { name: "v", in: "path" }, example: "1" }),
 });
 
-// --- query -------------------------------------------------------------------
-
 /**
- * `GET /admin/forms` - the library list's search, status filter and sort (issue 686).
- *
- * The shape is `ListQuestionsQuery`'s, one route over, because the two library screens
- * are the same screen twice and the admin sends the same GET form to both: the filters
- * live in the URL, the API owns them, and the BFF only proxies them (R2).
- *
- * `sort` is an enum rather than a free `field:direction` pair so the set of orders the
- * API is willing to guarantee is written down in one place, and so a caller cannot ask
- * for an order over a column that is not indexed or not stable.
+ * `sort` is an enum rather than a free `field:direction` pair so a caller cannot ask for
+ * an order over a column that is not indexed or not stable.
  */
 export const ListFormsQuery = z.object({
   status: FormLifecycle.optional().openapi({
@@ -58,13 +23,8 @@ export const ListFormsQuery = z.object({
     example: "open",
   }),
   /**
-   * Bounded at {@link LIBRARY_SEARCH_MAX_LENGTH}, the cap both library lists share: a
-   * search term is a substring matched per row in the handler, so an unbounded one is
-   * unbounded work, and past the cap the route answers 400 rather than doing the work.
-   *
-   * This was the bounded half of a pair for a while - the question library's equivalent
-   * had no bound at all until issue #862 - which is why the constant is now shared
-   * rather than written out in each slice.
+   * Bounded because the term is substring-matched per row in the handler, so an
+   * unbounded one is unbounded work.
    */
   search: z
     .string()
@@ -80,69 +40,38 @@ export const ListFormsQuery = z.object({
     .openapi({ param: { name: "sort", in: "query" }, example: "slug-asc" }),
 });
 
-// --- request bodies ---------------------------------------------------------
-
 /**
- * The form definition, opaque at the route boundary. The kernel
- * (`parseFormDefinition`, 004) validates its contents in the handler; here it is
- * any JSON object so a structurally-present-but-invalid definition still reaches
- * the handler and returns the kernel's 422 rather than a bare 400.
+ * Any JSON object, so an invalid definition reaches the handler and returns the kernel's
+ * coded 422 rather than a bare 400.
  */
 const OpaqueDefinition = z
   .record(z.string(), z.unknown())
   .openapi("FormDefinitionInput", { description: "A form definition (kernel-validated)." });
 
-/** `POST /admin/forms` - the identity to create with its empty first draft. */
 export const CreateFormBody = z
   .strictObject({
     formId: z.string().min(1).openapi({ example: "frm_signup" }),
     slug: z.string().min(1).openapi({ example: "signup" }),
     defaultLocale: z.string().min(1).openapi({ example: "en" }),
     /**
-     * The workspace that will own this form (ADR-41, task 068).
-     *
-     * **Optional on the request and required on the row.** `control.forms.workspace_id`
-     * is `NOT NULL` with no default, so every form has exactly one workspace; what is
-     * optional is naming it. Omitted, it resolves to the installation's single workspace
-     * - the ordinary case, since a bootstrapped deployment is seeded with one - and is
-     * **refused** when more than one workspace exists, naming the candidates. There is
-     * no safe default among several (`features/workspaces/resolve.ts`), and the picker
-     * that will make this field ordinary arrives with task 069's screens.
+     * Optional on the request, required on the row: omitted it resolves to the single
+     * workspace, and is refused when more than one exists.
      */
     workspaceId: z.string().min(1).optional().openapi({ example: "org_default_workspace" }),
   })
   .openapi("CreateFormBody");
 
-/** `PUT /admin/forms/:id/draft` and `POST .../draft/validate` - a full definition. */
 export const DraftBody = z
   .strictObject({
     definition: OpaqueDefinition,
-    /**
-     * Set when this save is accepting an agent-assisted proposal (041, ADR-25).
-     * Sticky on the stored draft: it marks provenance for the human who will
-     * publish, and an ordinary later save never clears it.
-     */
+    /** Sticky provenance for the human who publishes: an ordinary later save never clears it. */
     agentAssisted: z.boolean().optional(),
   })
   .openapi("DraftBody");
 
 /**
- * The HYPOTHETICAL ROSTER both admin preview routes take (074, ADR-42).
- *
- * A group id mapped to the instance ids the author's screen is showing. Neither route has a
- * session, so neither has a roster: the admin mints one locally from the group's own `min`
- * or from a count the author types, and sends it. That is the whole of what makes a repeating
- * group previewable in the builder - `evaluateRules` takes the live roster as its own
- * parameter precisely because a roster is state the server owns at serve time, and in a
- * preview nobody owns it.
- *
- * **The caller mints the ids rather than the API** because the same request carries ANSWERS
- * keyed by them (`ins_i2/q_passport`). A server that minted its own would have to hand them
- * back before any answer could be typed against them, which is a second round trip for a
- * panel whose whole job is to be instant. The ids are still parsed as `InstanceId`s here, so
- * nothing but a well-formed `ins_` id reaches the evaluator.
- *
- * Nothing is stored and no id here is a session's: these instances exist for one request.
+ * The caller mints the instance ids rather than the API because the same request carries
+ * answers keyed by them; nothing here is stored and no id is a session's.
  */
 const HypotheticalRosters = z
   .record(z.string(), z.array(z.string()))
@@ -153,7 +82,6 @@ const HypotheticalRosters = z
     example: { grp_passengers: ["ins_i1", "ins_i2"] },
   });
 
-/** The roster an evaluation actually used, per group, in document order of the groups. */
 const RosterProjection = z.array(
   z.object({
     groupId: z.string().openapi({ example: "grp_passengers" }),
@@ -162,15 +90,8 @@ const RosterProjection = z.array(
 );
 
 /**
- * `POST /admin/forms/:id/draft/preview-condition` - the rule test bench (033).
- *
- * The unsaved draft travels with the request (like `DraftBody`) so the bench
- * answers the definition on the author's screen, not the last one persisted.
- *
- * `answers` is a `questionId -> AnswerValue` map of **hypothetical** answers the
- * author typed into the bench. They are answer-shaped, so they are handled under
- * the answer rules (SEC-13 / ADR-34): never logged, never persisted, never
- * echoed back in a response or an error message.
+ * `answers` is answer-shaped, so it falls under the answer rules (SEC-13 / ADR-34):
+ * never logged, never persisted, never echoed back.
  */
 export const PreviewConditionBody = z
   .strictObject({
@@ -185,17 +106,8 @@ export const PreviewConditionBody = z
   .openapi("PreviewConditionBody");
 
 /**
- * `POST /admin/forms/:id/draft/preview` - the live draft preview (034).
- *
- * The unsaved draft travels with the request, exactly as it does for validate and
- * for the rule test bench, so the preview shows the definition on the author's
- * screen rather than the last one persisted.
- *
- * `answers` is the author's walk-through state: a `questionId -> AnswerValue` map
- * they built by clicking through their own branches. It is answer-shaped, so it
- * is handled under the answer rules (SEC-13 / ADR-34): never logged, never
- * persisted, never echoed back in a response or an error message. It is optional
- * because the first render of the pane has no answers yet.
+ * `answers` is answer-shaped, so it falls under the answer rules (SEC-13 / ADR-34):
+ * never logged, never persisted, never echoed back.
  */
 export const PreviewDraftBody = z
   .strictObject({
@@ -208,25 +120,12 @@ export const PreviewDraftBody = z
   })
   .openapi("PreviewDraftBody");
 
-/**
- * The longest min-time floor a form may set, in milliseconds (one hour).
- *
- * An input guard, not a domain rule: the floor exists to make a bot's instant
- * submit fail (026), and a value past an hour stops being a floor and becomes a
- * lockout an author cannot have meant. Bounding it here keeps a mistyped field
- * from becoming a form nobody can submit.
- */
+/** An input guard: past an hour the floor becomes a lockout a mistyped field cannot undo. */
 const MAX_MIN_SUBMIT_MS = 60 * 60 * 1000;
 
 /**
- * `PATCH /admin/forms/:id/settings` - the per-form abuse-control settings (026,
- * ADR-24 tier 2), edited by the builder's settings panel (033).
- *
- * A **partial** body: an absent key leaves that setting alone, which is what lets
- * the panel save one control without echoing the other back. `minSubmitMs: null`
- * is a value rather than an omission and means "use the deployment's configured
- * floor", so the field is nullable *and* optional and the two mean different
- * things.
+ * A partial body. `minSubmitMs: null` is a value, not an omission, and means "use the
+ * deployment's configured floor", so the field is both nullable and optional.
  */
 export const UpdateFormSettingsBody = z
   .strictObject({
@@ -240,29 +139,14 @@ export const UpdateFormSettingsBody = z
       .optional()
       .openapi({ example: 3000 }),
   })
-  // At least one field must be present. A partial body plus an all-absent body
-  // would make the helper's return value ambiguous downstream: `undefined` would
-  // mean either "no such form" (a 404) or "nothing asked for" (a 200), two
-  // different answers behind one sentinel. Rejecting the empty patch at the
-  // schema boundary keeps `undefined` meaning exactly "no such form", so the
-  // handler needs no pre-read to tell the two apart.
+  // Refusing the empty patch here keeps the helper's `undefined` meaning exactly "no such
+  // form", so the handler needs no pre-read to tell that from "nothing asked for".
   .refine(
     (body) => body.challengeRequired !== undefined || body.minSubmitMs !== undefined,
     "Provide at least one of challengeRequired or minSubmitMs",
   )
-  // `minProperties: 1` is the JSON Schema expression of the `.refine()` above
-  // (issue #242). A refinement is a predicate the generator cannot read, so
-  // without this the published schema showed two optional fields and no `required`
-  // array: nothing in `docs/openapi/admin.json` said an all-absent body is a 400,
-  // and a client generated from the document alone could not know it.
-  //
-  // Stated as metadata rather than by re-shaping the body into a union of the
-  // single-field variants. The union would also generate the constraint, as an
-  // `anyOf` branch per field, but "at least one of N" needs a branch per field and
-  // per-form settings are an ADR-24 tier-2 surface that gains fields over time, so
-  // that cost grows while this one does not. The `.refine()` stays the enforcement;
-  // this only makes it visible, and the two are pinned together by the contract
-  // test in `src/openapi-document.test.ts` and the integration test that sends `{}`.
+  // `minProperties: 1` restates the `.refine()` above for the generator, which cannot
+  // read a predicate; the refinement stays the enforcement.
   .openapi("UpdateFormSettingsBody", {
     minProperties: 1,
     description:
@@ -270,30 +154,20 @@ export const UpdateFormSettingsBody = z
       "an all-absent body is refused at the schema with a 400 `INVALID_REQUEST` envelope.",
   });
 
-/** The per-form abuse-control settings, as every read and the patch return them. */
 export const FormSettings = z
   .object({
-    /** When true, start-session demands a passing challenge (026). */
     challengeRequired: z.boolean().openapi({ example: false }),
-    /** Min-time floor override in ms; `null` means the deployment default applies. */
+    /** `null` means the deployment default applies. */
     minSubmitMs: z.number().int().nullable().openapi({ example: 3000 }),
   })
   .openapi("FormSettings");
 
 /**
- * Whether a challenge this deployment can actually verify stands behind a form's
- * `challengeRequired` (ADR-24, amended 2026-08-31, issue #725).
- *
- * A boolean derived from `deps.config.flags`, never the flag value itself. The
- * response used to echo the raw provider name so the panel could compare it
- * against `"none"`; that was a standing exception to "clients receive behavior,
- * not flag values", and the Code Owner removed it. The panel needs exactly one
- * fact - is ticking the box going to protect anything - and adding or renaming a
- * provider now changes nothing on the wire or in the admin.
+ * Derived from `deps.config.flags`, never the flag value itself: clients receive behavior,
+ * not flag values (ADR-24).
  */
 const ChallengeEnforceable = z.boolean().openapi({ example: false });
 
-/** `PATCH /admin/forms/:id/settings` result: the settings as they now stand. */
 export const FormSettingsResponse = z
   .object({
     formId: z.string().openapi({ example: "frm_signup" }),
@@ -303,56 +177,27 @@ export const FormSettingsResponse = z
   .openapi("FormSettingsResponse");
 
 /**
- * `POST .../draft/preview-condition` result: did the condition match, or why the
- * bench could not answer.
- *
- * `outcome` is deliberately tri-state rather than a nullable boolean: "could not
- * evaluate" must not be readable as "no match". The bench is a read-only aid over
- * a draft that may be half-built, so being unable to answer is an ordinary,
- * frequent state that the panel has to render differently from a real `noMatch`.
- * `reason` is the single error channel and is present only when `outcome` is
- * `"unavailable"`.
+ * `outcome` is tri-state rather than a nullable boolean so "could not evaluate" cannot be
+ * read as "no match".
  */
 export const PreviewConditionResponse = z
   .object({
     ruleId: z.string().openapi({ example: "rul_accident_followup" }),
-    /**
-     * The question ids the condition reads: those the draft pins first, in the
-     * draft's document order, then any it does not pin. The bench prompts for
-     * these; an unpinned one has no resolvable version, so it reads as unanswered.
-     */
+    /** Pinned ids first, in document order; an unpinned one reads as unanswered. */
     references: z.array(z.string()),
     outcome: z.enum(["match", "noMatch", "unavailable"]).openapi({ example: "match" }),
-    /** Why the bench could not answer. Present only when `outcome` is `unavailable`. */
+    /** Present only when `outcome` is `unavailable`. */
     reason: z
       .enum(["unparseableDraft", "ruleNotFound", "noTarget", "unresolvedAnswers"])
       .optional()
       .openapi({ example: "ruleNotFound" }),
-    /**
-     * The groups the bench evaluated, with the hypothetical roster it used for each (074).
-     *
-     * Echoed so the bench can state what it answered ABOUT. A verdict computed against three
-     * passengers beside a panel that has since been set to five is the one wrong thing a
-     * bench must never show, and the roster is what lets the panel tell.
-     */
+    /** Echoed so the panel can tell whether a verdict was computed against its own roster. */
     rosters: RosterProjection,
-    /**
-     * The group the rule's target sits inside, when it sits in one.
-     *
-     * Present exactly when the rule is evaluated PER INSTANCE, which is the fact an author
-     * most often comes to the bench to discover: scope is implicit by position (ADR-42
-     * §3.4), so nothing in the condition they wrote says it.
-     */
+    /** Present exactly when the rule is evaluated per instance; scope is implicit by position. */
     targetGroupId: z.string().optional().openapi({ example: "grp_passengers" }),
     /**
-     * One verdict per live instance of {@link targetGroupId}, in roster order.
-     *
-     * Present only for a per-instance rule, and **empty rather than absent** when that group
-     * has no instance: an empty list is the honest answer for a roster with nothing in it,
-     * and it is what the zero-instance case looks like from the panel's side.
-     *
-     * The top-level `outcome` stays the rule's own answer - `match` when any instance matched
-     * - so a caller that does not care about instances reads exactly what it always read.
+     * Per-instance verdicts in roster order, empty rather than absent for a group with no
+     * instance. The top-level `outcome` stays the rule's own answer.
      */
     instanceOutcomes: z
       .array(
@@ -365,58 +210,38 @@ export const PreviewConditionResponse = z
   })
   .openapi("PreviewConditionResponse");
 
-// --- responses --------------------------------------------------------------
-
 /**
- * The form lifecycle status, in responses and as the list route's filter.
- *
- * **Per environment, and derived, since task 066** (Q18): there is no `forms.status`
- * column, and what these responses carry is the reading of the request's own
- * environment's release state - the Q6 switcher's environment on an admin screen. So the
- * same form is `open` on one screen and `closed` on the next when the switcher moves,
- * which is the intended behaviour and not a caching artefact.
+ * Derived per environment, not a stored column: the same form reads `open` on one admin
+ * screen and `closed` on the next when the environment switcher moves.
  */
 const FormStatus = FormLifecycle;
 
-/** A publish issue: the kernel's `PublishError` union, plus `DEPRECATED_PIN`. */
+/** Opaque: the kernel owns the `PublishError` union, plus the API's `DEPRECATED_PIN`. */
 const PublishIssue = z.unknown();
 
-/**
- * A publish warning: the kernel's `PublishWarning` union (issue #123).
- *
- * Opaque here for the same reason `PublishIssue` is - the kernel owns the
- * union, and restating it in the route schema would be a second declaration to
- * keep in step. A warning never blocks a publish; it rides beside the issues so
- * the author sees it before deciding.
- */
+/** Opaque: the kernel owns the `PublishWarning` union. */
 const PublishWarningEntry = z.unknown();
 
-/** `POST /admin/forms` result: the created identity and its empty draft. */
 export const CreatedFormResponse = z
   .object({
     formId: z.string().openapi({ example: "frm_signup" }),
     slug: z.string().openapi({ example: "signup" }),
-    /** The workspace that owns it, echoed because the request may not have named it. */
+    /** Echoed because the request may not have named it. */
     workspaceId: z.string().openapi({ example: "org_default_workspace" }),
     defaultLocale: z.string().openapi({ example: "en" }),
     status: FormStatus.openapi({ example: "open" }),
-    /** The seeded empty draft definition (no steps yet). */
     draft: z.unknown(),
   })
   .openapi("CreatedFormResponse");
 
-/** One row in the form library list: identity plus draft/published state. */
 export const FormListItem = z
   .object({
     formId: z.string().openapi({ example: "frm_signup" }),
     slug: z.string().openapi({ example: "signup" }),
     defaultLocale: z.string().openapi({ example: "en" }),
     status: FormStatus.openapi({ example: "open" }),
-    /** Whether an open draft exists (unpublished working state). */
     hasDraft: z.boolean().openapi({ example: true }),
-    /** The newest published version number, or `null` if never published. */
     latestVersion: z.number().int().positive().nullable().openapi({ example: 2 }),
-    /** When the newest version was published, or `null`. */
     publishedAt: z.iso.datetime().nullable(),
   })
   .openapi("FormListItem");
@@ -425,7 +250,6 @@ export const ListFormsResponse = z
   .object({ forms: z.array(FormListItem) })
   .openapi("ListFormsResponse");
 
-/** A version summary row (no full snapshot - see the versions/:v route). */
 export const FormVersionSummary = z
   .object({
     version: z.number().int().positive().openapi({ example: 1 }),
@@ -434,59 +258,36 @@ export const FormVersionSummary = z
     a2uiSpecVersion: z.string().openapi({ example: "0.1.0" }),
     semanticsVersion: z.string().openapi({ example: "1" }),
     /**
-     * The account that published this version, or null for one published before the
-     * column existed (task 070).
-     *
-     * **This is the author Q51's two-person rule compares against**, which is why it rides
-     * the version summary rather than a read of its own: the release screen has the version
-     * list in hand and needs to be able to say "you published this one" *before* the
-     * operator presses anything, rather than after a refusal.
+     * The author the two-person release rule compares against; carried here so a screen can
+     * say "you published this one" before the operator acts rather than after a refusal.
      */
     publishedBy: z.string().nullable().openapi({ example: "usr_alice" }),
   })
   .openapi("FormVersionSummary");
 
-/** `GET /admin/forms/:id`: identity, current draft (open or seeded), versions. */
 export const FormDetailResponse = z
   .object({
     formId: z.string().openapi({ example: "frm_signup" }),
     slug: z.string().openapi({ example: "signup" }),
     defaultLocale: z.string().openapi({ example: "en" }),
     status: FormStatus.openapi({ example: "open" }),
-    /** The open draft, else the latest published definition (seed), else null. */
+    /** The open draft, else the latest published definition as a seed, else null. */
     draft: z.unknown(),
     releasedDefinition: z.unknown(),
-    /** Where `draft` came from: an open draft, a seed, or none. */
     draftSource: z.enum(["open", "seeded", "none"]).openapi({ example: "open" }),
-    /**
-     * Whether the open draft carries agent-assisted changes (041, ADR-25). The
-     * builder header and the publish confirmation show it, so the human
-     * publishing knows what they are signing. Always false for a seeded draft.
-     */
+    /** Always false for a seeded draft. */
     draftAgentAssisted: z.boolean().openapi({ example: false }),
-    /** The open draft's state token, or null; the 041 assist request echoes it. */
     draftUpdatedAt: z.string().nullable(),
     versions: z.array(FormVersionSummary),
-    /** The per-form abuse-control settings (026), which the builder panel edits (033). */
     settings: FormSettings,
     /**
-     * Whether a challenge can be verified here. Carried on the detail read, not
-     * only on a settings write, because the panel has to warn that
+     * On the detail read, not only on a settings write, because the panel must warn that
      * `challengeRequired` is unenforceable the moment the form opens.
      */
     challengeEnforceable: ChallengeEnforceable,
     /**
-     * Whether this form's workspace requires a second approver for production (Q13, Q30,
-     * Q32; task 070), read from the workspace's `requireSecondApprover` field.
-     *
-     * A **behaviour statement about this form**, not a workspace setting read: the
-     * membership screens are an owner's (Q35) and an approver holds no grant on them, so a
-     * screen that needed the workspace row to tell an approver the rule applies could not
-     * get it. It rides the detail read the release and the endpoint screens already make.
-     *
-     * It is not a secret and not a flag value in ADR-24's sense: it says what this
-     * deployment will do with the operator's next release, which is exactly what a screen
-     * has to say before the operator acts rather than after a 403.
+     * Carried here because an approver holds no grant on the workspace membership screens,
+     * so nothing else can tell them the second-approver rule applies before a 403.
      */
     requiresSecondApprover: z.boolean().openapi({ example: false }),
     workflow: z.object({
@@ -502,92 +303,56 @@ export const FormDetailResponse = z
   })
   .openapi("FormDetailResponse");
 
-/** `PUT /admin/forms/:id/draft`: the saved draft plus advisory issues. */
 export const SavedDraftResponse = z
   .object({
     draft: z.unknown(),
-    /** Advisory validation issues; they do not block saving, but block publish. */
+    /** Advisory: they do not block saving, but block publish. */
     issues: z.array(PublishIssue),
     /**
-     * Non-blocking publish warnings. Empty whenever the **kernel** reports
-     * errors, which is narrower than "empty whenever `issues` is not": a
-     * `DEPRECATED_PIN` finding comes from the API layer and can stand beside a
-     * warning about the same draft.
+     * Empty whenever the kernel reports errors, which is narrower than "empty whenever
+     * `issues` is not": a `DEPRECATED_PIN` finding comes from the API layer.
      */
     warnings: z.array(PublishWarningEntry),
-    /** Whether this draft carries agent-assisted changes (041). */
     agentAssisted: z.boolean().openapi({ example: false }),
-    /** The draft's current state token, for the 041 assist request. */
     updatedAt: z.string().openapi({ example: "2026-08-01T09:00:00.000Z" }),
   })
   .openapi("SavedDraftResponse");
 
-/** `POST /admin/forms/:id/draft/validate`: dry-run issues only (no save). */
 export const ValidateDraftResponse = z
   .object({
     /** Errors only: a warning describes a draft that would publish. */
     valid: z.boolean().openapi({ example: false }),
     issues: z.array(PublishIssue),
     /**
-     * Non-blocking publish warnings. Empty whenever the **kernel** reports
-     * errors; a `DEPRECATED_PIN` finding is raised by the API layer and can
-     * stand beside a warning, so a non-empty `issues` does not imply an empty
-     * `warnings`.
+     * Empty whenever the kernel reports errors; a `DEPRECATED_PIN` finding comes from the
+     * API layer, so a non-empty `issues` does not imply an empty `warnings`.
      */
     warnings: z.array(PublishWarningEntry),
   })
   .openapi("ValidateDraftResponse");
 
-/**
- * `POST /admin/forms/:id/draft/preview`: the dry-run compile of the draft (034).
- *
- * The payload is 011's `CompiledForm` (documents + both version stamps) plus the
- * forward-pass projection for the answers that came with the request. It is the
- * same pair of things the portal's serve-step hands a respondent - full compiled
- * document, authoritative visible set - which is what lets the admin project and
- * render it through exactly the portal's code path (ARCHITECTURE §6).
- *
- * Nothing here is persisted and nothing recompiles at serve time: this is the
- * admin-side dry run, and ADR-18's stored audit copy is written only by publish.
- */
+/** Nothing here is persisted: ADR-18's stored audit copy is written only by publish. */
 export const PreviewDraftResponse = z
   .object({
-    /** One compiled A2UI document per step, in the draft's own step order. */
     documents: z.array(
       z.object({
         stepId: z.string().openapi({ example: "stp_driver" }),
-        /** The A2UI node tree, opaque here: the renderer's registry reads it. */
         root: z.unknown(),
       }),
     ),
     compilerVersion: z.string().openapi({ example: "0.1.0" }),
     a2uiSpecVersion: z.string().openapi({ example: "0.1.0" }),
-    /** The forward-pass result (ADR-16) for the supplied answers. */
     flow: z.object({
       visibleSteps: z.array(z.string()),
       /**
-       * The visible fields as ANSWER KEYS: a bare `questionId` outside every repeating
-       * group, byte-identically to what this always sent, and `instanceId/questionId` inside
-       * one (ADR-42, ADR-43).
-       *
-       * The qualified form is not optional detail. A rule targeting inside a group is
-       * evaluated once per live instance, so a member question can be visible in one
-       * instance and hidden in another, and only the qualified key can say which - which is
-       * why `documentForVisible` skips a repeat template and the renderer's expansion prunes
-       * each clone against this same set. It is the identical projection the portal's
-       * serve-step returns, which is what keeps the preview's DOM the portal's DOM.
+       * Answer keys: a bare `questionId` outside a repeating group, `instanceId/questionId`
+       * inside one, since a member question can be visible in one instance and hidden in
+       * another and only the qualified key can say which.
        */
       visibleQuestions: z.array(z.string()),
       complete: z.boolean(),
-      /** The hypothetical roster this projection was computed with, per group (074). */
       rosters: RosterProjection,
-      /**
-       * The ADR-28 cursor's page list (task 076, Q22), present exactly when the draft
-       * holds a repeating group and absent otherwise, as the kernel's own optional field
-       * is. A step paginated by a `perInstanceStep` group contributes one view per live
-       * instance, so the preview's walk is the walk a respondent gets rather than a
-       * step-shaped approximation of it.
-       */
+      /** Present exactly when the draft holds a repeating group, as the kernel's field is. */
       visibleStepViews: z
         .array(z.object({ stepId: z.string(), instanceId: z.string().nullable() }))
         .optional(),
@@ -595,7 +360,6 @@ export const PreviewDraftResponse = z
   })
   .openapi("PreviewDraftResponse");
 
-/** `POST /admin/forms/:id/publish`: the new version and when it was frozen. */
 export const PublishedResponse = z
   .object({
     version: z.number().int().positive().openapi({ example: 1 }),
@@ -604,11 +368,8 @@ export const PublishedResponse = z
   .openapi("PublishedResponse");
 
 /**
- * `POST /admin/forms/:id/publish-and-release`: which environment the new version goes to.
- *
- * One intent, one act (finding 2's first mitigation). The body is the environment and
- * nothing else: the version is the one this call creates, so there is nothing to choose,
- * and a first release has no source environment (Q4).
+ * The body is the environment and nothing else: the version is the one this call creates,
+ * and a first release has no source environment.
  */
 export const PublishAndReleaseBody = z
   .strictObject({
@@ -621,7 +382,6 @@ export const PublishAndReleaseBody = z
   })
   .openapi("PublishAndReleaseBody");
 
-/** `POST /admin/forms/:id/publish-and-release`: the version, and where it now serves. */
 export const PublishedAndReleasedResponse = z
   .object({
     version: z.number().int().positive().openapi({ example: 1 }),
@@ -632,17 +392,9 @@ export const PublishedAndReleasedResponse = z
   .openapi("PublishedAndReleasedResponse");
 
 /**
- * `POST /admin/forms/:id/close|reopen`: **which environment's** intake to stop or
- * resume (Q18, task 066).
- *
- * Required, with no default, and in the body rather than taken from the Q6 switcher's
- * header - the same choice the release and mint bodies make, and for the same reason:
- * closing intake is an operational act with a consequence, so the environment is a value
- * the caller states and the admin's confirmation restates (Q6), never one it inherits
- * from a header it may not have been looking at.
- *
- * The name rule is Q42's, so a malformed name is refused by the schema rather than
- * reaching a query.
+ * Required with no default, and in the body rather than taken from the environment
+ * switcher's header: closing intake is an operational act, so the caller states the
+ * environment rather than inheriting one it may not have been looking at.
  */
 export const FormEnvironmentBody = z
   .strictObject({
@@ -656,11 +408,8 @@ export const FormEnvironmentBody = z
   .openapi("FormEnvironmentBody");
 
 /**
- * `POST /admin/forms/:id/close|reopen`: the resulting lifecycle status, **in that
- * environment**.
- *
- * `environment` is echoed because the status is only meaningful beside it since task 066:
- * one form can be closed in `prod` and open in `test`, which is the whole of Q18.
+ * `environment` is echoed because the status is only meaningful beside it: one form can be
+ * closed in `prod` and open in `test`.
  */
 export const FormStatusResponse = z
   .object({
@@ -670,7 +419,6 @@ export const FormStatusResponse = z
   })
   .openapi("FormStatusResponse");
 
-/** `GET /admin/forms/:id/versions/:v`: the full immutable snapshot (034). */
 export const FormVersionSnapshotResponse = z
   .object({
     formId: z.string().openapi({ example: "frm_signup" }),
@@ -679,9 +427,8 @@ export const FormVersionSnapshotResponse = z
     compilerVersion: z.string().openapi({ example: "0.1.0" }),
     a2uiSpecVersion: z.string().openapi({ example: "0.1.0" }),
     semanticsVersion: z.string().openapi({ example: "1" }),
-    /** The frozen form definition (R1). */
     definition: z.unknown(),
-    /** The compiled A2UI documents, served verbatim by the portal (ADR-18). */
+    /** Served verbatim by the portal: nothing recompiles at serve time (ADR-18). */
     compiled: z.unknown(),
   })
   .openapi("FormVersionSnapshotResponse");
