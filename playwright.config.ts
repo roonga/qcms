@@ -178,6 +178,9 @@ export default defineConfig({
     // reproducible in place); passing runs record nothing anywhere.
     screenshot: process.env.CI ? "only-on-failure" : "off",
     trace: process.env.CI ? "on-first-retry" : "off",
+    // Under the test timeout, so a hung action is named rather than reported only as the
+    // test running out of time. Generous enough for a route `next dev` has not compiled.
+    actionTimeout: 30_000,
   },
   projects: [
     {

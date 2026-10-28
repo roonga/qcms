@@ -394,6 +394,10 @@ function lineIndex(text) {
  * nobody asserted. A non-pnpm layout is handled by the direct `node_modules/<name>`
  * fallback, which is checked against the manifest's own version for the same reason.
  *
+ * Windows needs the second pass: pnpm truncates a store directory name to 60 characters,
+ * so the prefix is not there to match and only the installed manifest can confirm the
+ * version.
+ *
  * @param {string} nodeModules path to a `node_modules` directory
  * @param {string} name package name
  * @param {string} version exact version
@@ -409,19 +413,34 @@ export function findPackageRoot(nodeModules, name, version) {
   } catch {
     entries = [];
   }
-  for (const entry of entries.sort()) {
+  const sorted = entries.sort();
+  for (const entry of sorted) {
     if (entry !== prefix && !entry.startsWith(`${prefix}_`)) continue;
     const root = join(store, entry, "node_modules", ...name.split("/"));
     if (existsSync(join(root, "package.json"))) return root;
   }
-  const direct = join(nodeModules, ...name.split("/"));
-  try {
-    const manifest = JSON.parse(readFileSync(join(direct, "package.json"), "utf8"));
-    if (manifest.version === version) return direct;
-  } catch {
-    // Not installed here either; the caller reports it once, with the version.
+  for (const entry of sorted) {
+    const root = join(store, entry, "node_modules", ...name.split("/"));
+    if (manifestVersion(root) === version) return root;
   }
+  const direct = join(nodeModules, ...name.split("/"));
+  if (manifestVersion(direct) === version) return direct;
   return null;
+}
+
+/**
+ * The `version` a package root's own manifest declares, or null when there is none.
+ *
+ * @param {string} root
+ * @returns {string | null}
+ */
+function manifestVersion(root) {
+  try {
+    const manifest = JSON.parse(readFileSync(join(root, "package.json"), "utf8"));
+    return typeof manifest.version === "string" ? manifest.version : null;
+  } catch {
+    return null;
+  }
 }
 
 /**
