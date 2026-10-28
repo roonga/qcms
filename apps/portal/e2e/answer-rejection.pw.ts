@@ -87,18 +87,8 @@ test("a refused answer stays retryable: the optimistic record is rolled back", a
   await startKitchenSink(page, kitchenSinkSlug);
   await fillText(page, KS.fullName, HELD);
   await commitRefused(page, KS.fullName, REFUSED);
-  // The message rendering is also the marker that the refusal has been applied:
-  // the rollback runs on the same continuation, so once this is on screen the
-  // record has already been restored.
   await expect(page.getByText(INVALID)).toBeVisible();
 
-  // Commit the SAME refused value again, with no edit in between: focus enters the
-  // field and leaves it, which is a blur commit like any other. The record was
-  // written optimistically when the first post was issued, so without the rollback
-  // this second commit is deduped into silence and the respondent can never retry
-  // a value the server might accept later (a transient failure, a changed
-  // constraint). The retry is refused again here, which is the point: what is
-  // being pinned is that it was SENT.
   const refusedAgain = answerRefused(page);
   await page.getByRole("textbox", { name: KS.fullName }).click();
   await blurActive(page);
@@ -127,31 +117,17 @@ test("a refusal's message lives exactly as long as the value it describes", asyn
   const field = page.getByRole("textbox", { name: KS.fullName });
   await expect(invalid).toBeVisible();
 
-  // The EDIT clears it, and it clears on the keystroke rather than on an accepted
-  // post: this control commits on blur (ADR-31), so at this point no post for the
-  // corrected value has been issued at all. That is what makes the message useful
-  // while the respondent is still typing the correction.
   await field.fill("Grace Hopper");
   await expect(invalid).toBeHidden();
 
-  // Derived, not latched: re-entering the refused value shows the message again,
-  // because the message describes that value and the server still refuses it.
   await field.fill(REFUSED);
   await expect(invalid).toBeVisible();
 
-  // The case "clear it when a post succeeds" structurally cannot handle: restoring
-  // the value the server ALREADY HOLDS is deduped, so no post for this question is
-  // ever issued or accepted again. A message cleared by an accepted post would
-  // therefore stay on screen forever, under a field whose value the server holds.
   await field.fill(HELD);
   await expect(invalid).toBeHidden();
   await blurActive(page);
   await expect(invalid).toBeHidden();
 
-  // Anchor the "no post" claim deterministically instead of on a timer: commit a
-  // DIFFERENT question and wait for its post. Answer posts are serialized and
-  // ordered, so once that has landed, anything the blur above queued would already
-  // have been sent.
   await enterDate(page, "05171990");
 
   expect(postsFor(log, "q_full_name")).toEqual([
@@ -175,10 +151,6 @@ test("Continue stops at a field showing a refusal, and the summary names it (loc
 
   await startKitchenSink(page, kitchenSinkSlug);
   await enterDate(page, "05171990");
-  // The case the old gate let through: the server holds an ACCEPTED answer, so nothing
-  // required is missing, while the field shows a value the server refused. Continue used
-  // to read only `missingRequired` and moved on, leaving the step with an answer the
-  // respondent believed they had given and the ledger did not have.
   await fillText(page, KS.fullName, HELD);
   await commitRefused(page, KS.fullName, REFUSED);
   await expect(page.getByText(INVALID)).toBeVisible();
@@ -187,15 +159,12 @@ test("Continue stops at a field showing a refusal, and the summary names it (loc
   const summary = page.getByTestId("error-summary");
   await expect(summary).toBeVisible();
   await expect(summary).toBeFocused();
-  // Named by its refusal, through the composition the no-JS path draws, and not as
-  // "needs an answer": the question is answered, with the value before this one.
   const link = summary.getByRole("link", { name: `${KS.fullName}: ${INVALID}` });
   await expect(link).toHaveCount(1);
   await expect(link).toHaveAttribute("href", "#q_full_name");
   await expect(page.getByRole("heading", { name: "About you" })).toBeVisible();
   expect(stepReads).toBe(0);
 
-  // Correcting the value removes the entry and the block with it.
   await fillText(page, KS.fullName, "Grace Hopper");
   await expect(link).toHaveCount(0);
   await continueStep(page);

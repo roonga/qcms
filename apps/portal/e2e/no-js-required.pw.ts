@@ -70,11 +70,6 @@ test("a JS-disabled respondent submits a step holding a required date", async ({
   try {
     const sessionId = await startWithoutJs(page, kitchenSinkSlug);
 
-    // The controls the browser can actually operate: a group named by the question,
-    // holding a day, a month and a year box, each required and each labelled. Before
-    // #920 the only thing on the page under this name was an unfocusable hidden
-    // mirror; before the 2026-10-19 ruling it was one `<input type="date">` drawn in
-    // the browser's locale order. The order now follows QCMS_LOCALE (en-GB unset).
     const group = page.getByRole("group", { name: KS.dob });
     await expect(group).toBeVisible();
     await expect(group.getByRole("textbox")).toHaveCount(3);
@@ -91,12 +86,8 @@ test("a JS-disabled respondent submits a step holding a required date", async ({
     await fillNativeDate(page, "q_dob", "1990-05-17");
     await submitStep(page);
 
-    // The step advanced, which is the whole claim: this POST could not happen at all
-    // before, because the browser refused to submit the form.
     await expect(page.getByRole("heading", { name: "Driving history" })).toBeVisible();
 
-    // And the ISO day the native control posted is the canonical value the API
-    // stored - the same bytes the scripted path sends for the same answer.
     expect((await db.latestAnswers(sessionId)).get("q_dob")).toBe("1990-05-17");
   } finally {
     await db.close();
@@ -109,19 +100,13 @@ test("the browser still refuses to submit an empty required date, and says so on
   const { kitchenSinkSlug } = readFixtures();
   await startWithoutJs(page, kitchenSinkSlug);
 
-  // Every whole-step POST this page makes, so "the browser blocked it" is a counted
-  // fact rather than an absence observed for an arbitrary length of time.
   const postCount = countStepPosts(page);
 
   await page.locator(NAME_FIELD).fill("Ada Lovelace");
 
-  // Click Continue with the date empty. The ruling KEPT browser validation, so this
-  // is the intended outcome, not a residue: nothing leaves the page.
   await stepSubmit(page).click();
   await expect(page.getByRole("heading", { name: "About you" })).toBeVisible();
 
-  // Now fill it and submit for real. The navigation that follows is what makes the
-  // count above decisive: if the first click had posted, there would be two.
   await fillNativeDate(page, "q_dob", "1990-05-17");
   await submitStep(page);
   await expect(page.getByRole("heading", { name: "Driving history" })).toBeVisible();
@@ -136,10 +121,6 @@ test("a crafted post that skips the browser is refused by the API and reported o
   try {
     const sessionId = await startWithoutJs(page, kitchenSinkSlug);
 
-    // The whole step, hand-built: a good name, and the required date posted empty -
-    // exactly what a browser with no constraint validation would send. The kind tags
-    // are the renderer's own, so the BFF decodes it as the real form (task 044), and
-    // the same-origin header is what the SEC-9 belt asks for (issue #487).
     const response = await page.request.post(`/s/${sessionId}/step`, {
       headers: { "sec-fetch-site": "same-origin" },
       form: {
@@ -152,14 +133,9 @@ test("a crafted post that skips the browser is refused by the API and reported o
     });
     expect(response.status()).toBe(303);
 
-    // THE OBSERVATION, inverted. Nothing was stored for the required question: not an
-    // empty string, not a tombstone, nothing. The API refuses an empty value outright
-    // (EMPTY_ANSWER_NOT_ALLOWED) and the BFF never invents one.
     expect((await db.latestAnswers(sessionId)).has("q_dob")).toBe(false);
     expect((await db.answerRows(sessionId)).filter((r) => r.questionId === "q_dob")).toEqual([]);
 
-    // And the respondent is told, on the step, without scripting: a summary entry
-    // naming the question and a message in the field's own slot.
     await page.goto(`/s/${sessionId}`);
     await expect(page.getByRole("heading", { name: "About you" })).toBeVisible();
     const summary = page.getByTestId("error-summary");
@@ -167,8 +143,6 @@ test("a crafted post that skips the browser is refused by the API and reported o
     await expect(summary.getByRole("link", { name: /Date of birth/ })).toBeVisible();
     await expect(page.getByText("This question needs an answer.")).toBeVisible();
 
-    // The answer that WAS accepted survives the round trip, so the respondent fixes
-    // one field instead of retyping the step.
     await expect(page.locator(NAME_FIELD)).toHaveValue("Ada Lovelace");
     for (const part of ["day", "month", "year"] as const) {
       await expect(page.locator(NATIVE_DATE_BOX[part]("q_dob"))).toHaveValue("");
@@ -186,12 +160,6 @@ test("the API's own 422 lands next to its field too, with the rest of the step i
   try {
     const sessionId = await startWithoutJs(page, kitchenSinkSlug);
 
-    // The BFF's 422 rendering has never had a browser assertion on this transport,
-    // and it takes a crafted post to reach at all: `q_full_name` carries a `pattern`
-    // the renderer emits as the HTML attribute, so the browser refuses a name with a
-    // digit in it before the form leaves the page. That is the ruling working as
-    // intended; it also means the server half is the only thing standing between a
-    // client that ignores `pattern` and a stored answer, which is what this asserts.
     const response = await page.request.post(`/s/${sessionId}/step`, {
       headers: { "sec-fetch-site": "same-origin" },
       form: {
@@ -204,21 +172,15 @@ test("the API's own 422 lands next to its field too, with the rest of the step i
     });
     expect(response.status()).toBe(303);
 
-    // Refused by the kernel through the API, so nothing was stored for the name; the
-    // date posted beside it was fine and was.
     const stored = await db.latestAnswers(sessionId);
     expect(stored.has("q_full_name")).toBe(false);
     expect(stored.get("q_dob")).toBe("1990-05-17");
 
     await page.goto(`/s/${sessionId}`);
     await expect(page.getByRole("heading", { name: "About you" })).toBeVisible();
-    // The kernel's own wording for the constraint that failed, in the field's slot and
-    // in the summary - not the generic "that answer is not valid" (issue #322).
     await expect(page.getByTestId("error-summary")).toContainText(/does not match/i);
     await expect(page.getByText(/does not match/i).first()).toBeVisible();
 
-    // The value the respondent typed is back in the box, so they correct it rather
-    // than retype it, and the accepted date beside it is untouched.
     await expect(page.locator(NAME_FIELD)).toHaveValue("Ada1");
     await expect(page.locator(NATIVE_DATE_BOX.day("q_dob"))).toHaveValue("17");
     await expect(page.locator(NATIVE_DATE_BOX.month("q_dob"))).toHaveValue("05");

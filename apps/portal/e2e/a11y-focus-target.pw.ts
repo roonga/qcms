@@ -75,8 +75,6 @@ async function expectEntryFocuses(
   const summary = page.getByTestId("error-summary");
   await expect(summary).toBeVisible();
   await summary.locator(`a[href="#${questionId}"]`).click();
-  // Polled rather than read once: answering a question re-renders the step (the
-  // summary shrinks), so focus is asserted after the page has settled.
   await expect
     .poll(() => focusTarget(page))
     .toEqual({ ...expected, questionId, rendered: true, inAriaHidden: false });
@@ -96,71 +94,34 @@ async function expectMissing(page: Page, questionIds: readonly string[]): Promis
 test("error-summary entries land focus on each question type's value control", async ({ page }) => {
   const { kitchenSinkSlug } = readFixtures();
   await startKitchenSink(page, kitchenSinkSlug);
-  // The hydrated flow owns the jump-to-field handler; the SSR paint does not.
   await expect(page.getByTestId("flow-announcer")).toBeAttached();
 
-  // This spec used to answer every question BEFORE activating the next summary
-  // entry, and the note here separated two reasons for it:
-  //
-  // 1. The walk needs it. `continueStep` only advances when the current step's
-  //    required questions are satisfied, so each step is answered before Continue.
-  //    That is not a concession to a gate, and it stays.
-  // 2. A workaround. Leaving a required question empty posted `null` on blur, the
-  //    API rejected that 422, and the browser logged a `console.error` the shared
-  //    gate fails on. So focus could never be moved OUT of an unanswered control -
-  //    in a spec whose subject is keyboard traversal.
-  //
-  // Reason 2 is gone (issue #168, Code Owner decision 2026-09-02): a retraction is
-  // posted only when the control holds an answer, so focus entering and leaving a
-  // never-answered control posts nothing at all. Removing this distortion was named
-  // as part of that acceptance, because it was the strongest argument in the issue
-  // for settling the question. The walk below now crosses an empty control on
-  // purpose - a `blur` control in step 1 and a `groupExit` group in step 2 - which
-  // is both the realistic keyboard journey and a live check on the suppression: a
-  // regression re-reds this spec through the console gate.
-
-  // --- Step 1: shortText and the DatePicker (the #76 regression) ------------
   await expectMissing(page, ["q_full_name", "q_dob"]);
   await expectEntryFocuses(page, "q_full_name", { tag: "INPUT", type: "text", role: null });
-  // Focus leaves q_full_name still empty. Its commit moment is `blur`, so before
-  // #168 this posted a null the API answered 422 and the console gate failed on.
-  // The date field's value control is an editable SEGMENT, not an input: a span
-  // carrying role=spinbutton. Before the #76 fix this focused nothing at all.
   await expectEntryFocuses(page, "q_dob", { tag: "SPAN", type: null, role: "spinbutton" });
   await enterDate(page, "05171990");
   await fillText(page, KS.fullName, "Ada Lovelace");
   await continueStep(page);
 
-  // --- Step 2: multiChoice checkbox and boolean radio ----------------------
   await expectMissing(page, ["q_at_fault_accident", "q_optional_cover"]);
   await expectEntryFocuses(page, "q_optional_cover", {
     tag: "INPUT",
     type: "checkbox",
     role: null,
   });
-  // And out of the checkbox GROUP with nothing checked: the `groupExit` moment,
-  // the other half of what #168 suppressed.
   await expectEntryFocuses(page, "q_at_fault_accident", {
     tag: "INPUT",
     type: "radio",
     role: null,
   });
-  // Also reveals q_extra_detail (containsAny rule), used further down.
   await checkOption(page, "Breakdown");
 
-  // --- Step 2, branch inserted: the NumberField -----------------------------
-  // Answering Yes reveals q_accident_count, whose field wraps its input in two
-  // stepper <button>s. The target must stay the input, never a stepper.
   await chooseRadio(page, "Yes");
   await expect(page.getByRole("textbox", { name: KS.count })).toBeVisible();
   await expectMissing(page, ["q_accident_count"]);
   await expectEntryFocuses(page, "q_accident_count", { tag: "INPUT", type: "text", role: null });
   await answerNumber(page, "2");
 
-  // --- Step 2: longText has a single candidate, so no preference can misfire -
-  // q_extra_detail is optional, so it never appears in the error summary and
-  // cannot be reached through an entry. Assert instead that its field offers
-  // exactly one focusable target, which makes the preference order moot for it.
   await expect(page.getByRole("textbox", { name: KS.extraDetail })).toBeVisible();
   await expect
     .poll(() =>
@@ -180,20 +141,10 @@ test("error-summary entries land focus on each question type's value control", a
     .toEqual(["TEXTAREA"]);
   await continueStep(page);
 
-  // --- Step 3: singleChoice, in both of its compiled shapes -----------------
-  // A singleChoice question renders as a RadioGroup at seven options or fewer and as
-  // a `Select` above that (`SINGLE_CHOICE_SELECT_THRESHOLD`), and the two land focus
-  // on different elements, so both are walked (issue #988).
   await expectMissing(page, ["q_coverage_level", "q_body_type"]);
   await expectEntryFocuses(page, "q_coverage_level", { tag: "INPUT", type: "radio", role: null });
   await chooseSingleChoice(page, "Standard");
 
-  // The Select's landing point is its TRIGGER BUTTON, and that is the preference
-  // order working rather than failing it. The vendored control does render a real
-  // `<select>` - the preferred value-control tag - but inside an `aria-hidden`
-  // subtree it keeps as an autofill and validation mirror, which `firstFocusableIn`
-  // filters out for the same reason it filters the honeypot. What is left is the one
-  // element a respondent can actually operate on this render.
   await expectMissing(page, ["q_body_type"]);
   await expectEntryFocuses(page, "q_body_type", { tag: "BUTTON", type: "button", role: null });
   await chooseFromSelect(page, "q_body_type", "Wagon");

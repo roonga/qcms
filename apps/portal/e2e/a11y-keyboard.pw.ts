@@ -29,18 +29,6 @@ async function keyboardChoose(page: Page, answer: "Yes" | "No"): Promise<void> {
   const recorded = page.waitForResponse(
     (r) => r.url().includes("/answers") && r.request().method() === "POST" && r.status() === 200,
   );
-  // Pure keyboard selection, retried the same way the Submit activation below is:
-  // a late re-render can momentarily steal focus to <body> and swallow a single
-  // keystroke (documented on the Submit step), which on slower CI runners leaves
-  // the radio unselected so no answer ever posts and `recorded` times out.
-  // `locator.press` re-focuses the radio each attempt, so this stays pure keyboard
-  // (never a pointer); we retry until the selection actually registers.
-  // Kept after the entry hydration wait landed (issue #137): the two guards cover
-  // different windows. The wait covers the one-off gap before React first attaches;
-  // this loop covers every LATER re-render, including the one the second call below
-  // rides in after the first answer posts, which the wait cannot see. It is also not
-  // a substitute for the wait: pre-hydration, `toBeChecked` can pass on the native
-  // radio in the instant before React discards it, after which no retry ever runs.
   await expect(async () => {
     await radio.press("Space");
     await expect(radio).toBeChecked({ timeout: 2000 });
@@ -57,10 +45,8 @@ test("skip link is the first Tab stop, is visible on focus, and jumps to the con
   await page.keyboard.press("Tab");
   const skip = page.getByRole("link", { name: "Skip to content" });
   await expect(skip).toBeFocused();
-  // Visible on focus (slides into view) with a real focus outline (WCAG 2.4.11).
   const outlineWidth = await skip.evaluate((el) => getComputedStyle(el).outlineWidth);
   expect(outlineWidth).not.toBe("0px");
-  // Slides into view on focus (retries past the 0.15s transition).
   await expect(skip).toBeInViewport();
 
   await page.keyboard.press("Enter");
@@ -78,54 +64,25 @@ test("keyboard-only flow: insertion keeps focus + announces, removal announces, 
 }) => {
   const { slug } = readFixtures();
 
-  // Start the session by keyboard (Enter on the Start control).
   await page.goto(`/f/${slug}`);
   await page.getByRole("button", { name: "Start" }).focus();
   await page.keyboard.press("Enter");
   await page.waitForURL(/\/s\/ses_/);
   await expect(page.getByText(ACCIDENT_LABEL)).toBeVisible();
-  // This spec is deliberately keyboard-only, so it hand-rolls the entry the shared
-  // helpers own and has to own their hydration wait too (issue #137). The visible
-  // question above is satisfied by the server-rendered fallback form, whose radios
-  // React replaces wholesale on hydration: a Space press landing in that window
-  // checks a control that is then unmounted, so no answer is posted and nothing
-  // errors (issue #121). Reproduced here at a 6x CPU throttle, where the raw entry
-  // landed un-hydrated every run and the awaited `/answers` POST never arrived.
   await waitForHydration(page);
 
   const announcer = page.getByTestId("flow-announcer");
 
-  // Branch INSERTION via keyboard: choosing "Yes" reveals the count follow-up.
   await keyboardChoose(page, "Yes");
   await expect(page.getByText(COUNT_LABEL)).toBeVisible();
-  // Policy: focus STAYS on the answered control after an insertion (never yanked
-  // forward to the new question).
   await expect(page.getByRole("radio", { name: "Yes", exact: true })).toBeFocused();
-  // The insertion is announced.
   await expect(announcer).toHaveText("1 question was added below.");
-  // The inserted question is a real, keyboard-operable control: reachable (in the
-  // tab order) and enabled. The tab-order policy is DOM order (docs/a11y.md), so
-  // it follows the answered control. We assert reachability without entering the
-  // field: focusing then leaving it would post an (empty) answer and add a
-  // projection, making the removal sequence below nondeterministic.
   await expect(page.getByRole("textbox", { name: /how many/i })).toBeEnabled();
 
-  // Branch REMOVAL via keyboard: choosing "No" drops the count follow-up. Focus
-  // moves from the "Yes" radio to the "No" radio WITHIN the same radio group, so
-  // the count field is never blurred and nothing is posted for it: the only post
-  // is this accident=false answer. On the two-question fixture that single
-  // projection both removes the follow-up AND completes the step, so it announces
-  // readiness. Being the one completing projection, the announcement is
-  // deterministic (no earlier ready-collapse to race with).
   await keyboardChoose(page, "No");
   await expect(page.getByText(COUNT_LABEL)).toHaveCount(0);
   await expect(announcer).toHaveText("You have answered everything. You can now submit.");
 
-  // Ready to submit; complete by keyboard. Wait for the button to settle (no
-  // answer post in flight), then activate it with Enter. Retry the keypress: in
-  // the dev server a late re-render can momentarily steal focus to <body>,
-  // swallowing a single keystroke. `press` re-focuses the button each attempt, so
-  // this is still pure keyboard activation.
   const primary = page.getByTestId("primary-action");
   await expect(primary).toHaveText("Submit");
   await expect(primary).toBeEnabled();
@@ -140,15 +97,10 @@ test("keyboard: kitchen-sink Continue gate is keyboard-operable", async ({ page 
   const { kitchenSinkSlug } = readFixtures();
   await startKitchenSink(page, kitchenSinkSlug);
 
-  // On a multi-step form the primary action is "Continue" (Submit only on the
-  // final step); Back is hidden on the first step (042).
   const primary = page.getByTestId("primary-action");
   await expect(primary).toHaveText("Continue");
   await expect(page.getByTestId("back-action")).toHaveCount(0);
 
-  // The Continue control is reachable and operable by keyboard: focusing it and
-  // pressing Enter with the required fields empty surfaces the error summary and
-  // does NOT advance (ADR-28: explicit navigation, gated on required answers).
   await primary.focus();
   await expect(primary).toBeFocused();
   await page.keyboard.press("Enter");
@@ -162,14 +114,6 @@ test("keyboard: a later step's radio group is still reachable after Continue (#1
   const { kitchenSinkSlug } = readFixtures();
   await startKitchenSink(page, kitchenSinkSlug);
 
-  // Drive to the final step, where the singleChoice RadioGroup sits at the same
-  // tree index as step 2's boolean RadioGroup, so React reconciles the two
-  // questions onto one position. When the mounted control was reused across them it
-  // carried react-aria's `lastFocusedValue` from the answered boolean into a
-  // question with no such option, which dropped EVERY radio to tabindex=-1: the
-  // required question became unreachable by keyboard and screen reader while a
-  // pointer user saw nothing wrong (issue #144). The adapter now keys each control
-  // by its questionId, so arriving at the step mounts a fresh group.
   await fillText(page, KS.fullName, "Ada Lovelace");
   await enterDate(page, "05171990");
   await continueStep(page);
@@ -179,12 +123,8 @@ test("keyboard: a later step's radio group is still reachable after Continue (#1
   await continueStep(page);
   await expect(page.getByRole("heading", { name: "Your cover" })).toBeVisible();
 
-  // Reachable: with nothing selected, react-aria leaves the group's radios in the
-  // tab order (tabindex=0), which is the roving-tabindex contract the adapter's
-  // no-selection value exists to preserve.
   const first = page.getByRole("radio").first();
   await expect(first).toHaveAttribute("tabindex", "0");
-  // ... and operable by keyboard alone, all the way to a recorded answer.
   const recorded = page.waitForResponse(
     (r) => r.url().includes("/answers") && r.request().method() === "POST" && r.status() === 200,
   );

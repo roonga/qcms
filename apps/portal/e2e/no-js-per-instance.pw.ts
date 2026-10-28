@@ -74,38 +74,26 @@ test("the walk completes through all three views with one button and no Back", a
 
   for (const [index, plate] of ["AAA111", "BBB222", "CCC333"].entries()) {
     const ordinal = index + 1;
-    // One view, one instance card, and the chrome names which vehicle it is: the
-    // indicator counts views, so three instances read "of 3".
     await expect(card(page)).toHaveCount(1);
     await expect(page.getByTestId("progress")).toHaveText(
       `Step ${String(ordinal)} of 3: Vehicle ${String(ordinal)}`,
     );
     await expect(page.getByRole("heading", { name: `Vehicle ${String(ordinal)}` })).toBeVisible();
 
-    // **No Back control, on any view.** That is ADR-28's amendment and not an omission,
-    // so it is asserted rather than assumed: a Back here would be a control this task was
-    // told not to add.
     await expect(page.getByRole("button", { name: "Back" })).toHaveCount(0);
-    // Exactly one control posts the step, whatever the group's own buttons do.
     await expect(stepSubmit(page)).toHaveCount(1);
 
-    // The Add control is on the LAST view and on neither earlier one.
     await expect(page.getByRole("button", { name: ADD })).toHaveCount(ordinal === 3 ? 1 : 0);
 
     await card(page).getByLabel("Registration plate").fill(plate);
-    // Nothing has moved: without scripting there is no post until the button is pressed,
-    // which is the no-JS half of "answering never moves the rendered page by itself".
     await expect(page.getByTestId("progress")).toHaveText(
       `Step ${String(ordinal)} of 3: Vehicle ${String(ordinal)}`,
     );
 
     if (ordinal < 3) {
       await submitStep(page);
-      // The server chose the next page, because the respondent has no control that could:
-      // the first view whose instance is incomplete is the one after this.
       continue;
     }
-    // The last required answer completes the flow, so this press submits the session.
     const served = page.waitForResponse(
       (response) => response.request().isNavigationRequest() && response.status() === 200,
     );
@@ -114,18 +102,13 @@ test("the walk completes through all three views with one button and no Back", a
     await expect(page).toHaveURL(/\/done$/);
   }
 
-  // Every instance's answer is in the ledger under its own instance id, which is what a
-  // walk through three views was for.
   const db = await openDb(databaseUrl);
   try {
     const rows = (await db.instanceAnswerRows(sessionId)).filter(
       (row) => row.questionId === "q_pi_plate",
     );
     expect(rows.map((row) => row.value)).toEqual(["AAA111", "BBB222", "CCC333"]);
-    // Three different instances, which is what the walk was for: the same question
-    // answered three times under three ids rather than three times over itself.
     expect(new Set(rows.map((row) => row.instanceId)).size).toBe(3);
-    // And the sealed set carries all three, each qualified by its own instance.
     const locked = (await db.lockedAnswers(sessionId)).filter(
       (answer) => answer.questionId === "q_pi_plate",
     );
@@ -139,24 +122,12 @@ test("the walk completes through all three views with one button and no Back", a
 test("a submit refused for the group's count carries a notice, without scripting", async ({
   page,
 }) => {
-  // The same refusal on the path with no rapid feedback at all (`REPEAT_COUNT_OUT_OF_RANGE`,
-  // ADR-42). Without the notice the press returned the same step and said nothing, which on
-  // this path reaches the respondent least equipped for it.
   await startTour(page);
-  // One answer first, for the same reason as the hydrated case: a session with no answers
-  // at all is refused earlier and differently (`NOTHING_TO_SUBMIT`).
-  //
-  // The plate is filled with it, and that is the browser rather than a choice: the plate
-  // carries HTML `required`, so a Continue with it empty never leaves the page - which is
-  // the 2026-09-13 ruling working. What survives the removals is the DEPOT answer, since a
-  // removed instance's answers are excluded (I6), and that is what gets the session past
-  // `NOTHING_TO_SUBMIT` to the sweep.
   await page.getByLabel("Depot name").fill("Northern depot");
   await card(page).getByLabel("Registration plate").fill("AAA111");
   await submitStep(page);
   await expect(page.getByLabel("Depot name")).toHaveValue("Northern depot");
 
-  // Label-agnostic, because each removal renumbers the ordinal the drawn instance reads.
   for (let round = 0; round < 3; round += 1) {
     const served = page.waitForResponse(
       (response) => response.request().isNavigationRequest() && response.status() === 200,
@@ -166,8 +137,6 @@ test("a submit refused for the group's count carries a notice, without scripting
   }
   await expect(card(page)).toHaveCount(0);
 
-  // Nothing required is left, so this press reaches the submit rather than the step route's
-  // own missing-required report.
   await submitStep(page);
   await expect(page.getByTestId("step-notice")).toBeVisible();
   await expect(page.getByTestId("step-notice")).toHaveText(
@@ -178,34 +147,22 @@ test("a submit refused for the group's count carries a notice, without scripting
 
 test("the Add on the last view grows the group and the walk gains a view", async ({ page }) => {
   await startTour(page);
-  // Walk to the last view, which is where the Add control is.
   for (const plate of ["AAA111", "BBB222"]) {
     await card(page).getByLabel("Registration plate").fill(plate);
     await submitStep(page);
   }
   await expect(page.getByTestId("progress")).toHaveText("Step 3 of 3: Vehicle 3");
 
-  // The Add rides 073's Server Action: the same `__qop` button, the same form, and a 200
-  // re-render carrying the typed values back (Q28). **It lands no `autofocus`**, and that
-  // is deliberate for a paginating group (Q31, ruled 2026-10-03): the new instance is a
-  // view one page further along, so the heading Q11 names is not in this document, and
-  // nothing on this page changed for focus to move to.
   await card(page).getByLabel("Registration plate").fill("CCC333");
   await rosterPress(page, ADD);
 
-  // Four instances, four views, and the re-render is the view the respondent was on: the
-  // list grew at its end, so nothing they had already walked moved.
   await expect(page.getByTestId("progress")).toHaveText("Step 3 of 4: Vehicle 3");
   await expect(card(page).getByLabel("Registration plate")).toHaveValue("CCC333");
-  // This page is no longer the end of the walk, so the Add control is not on it either.
   await expect(page.getByRole("button", { name: ADD })).toHaveCount(0);
-  // And no URL fragment, which is the half of Q28 that is a prohibition: `autofocus` and
-  // a fragment target are mutually exclusive, so a page carrying both lands nowhere.
   expect(new URL(page.url()).hash).toBe("");
 
   await submitStep(page);
   await expect(page.getByTestId("progress")).toHaveText("Step 4 of 4: Vehicle 4");
   await expect(page.getByRole("button", { name: ADD })).toHaveCount(1);
-  // `max: 4`: the group is full, so the control is disabled rather than absent.
   await expect(page.getByRole("button", { name: ADD })).toBeDisabled();
 });

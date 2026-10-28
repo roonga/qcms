@@ -74,8 +74,6 @@ test("the first Continue after typing is not lost while the blur's save is in fl
   await startKitchenSink(page, kitchenSinkSlug);
   await enterDate(page, "05171990");
 
-  // Hold the name's answer post open until the press has finished, so the whole press
-  // happens inside the in-flight window rather than racing a fast local API.
   let release = (): void => {};
   const held = new Promise<void>((resolve) => {
     release = resolve;
@@ -100,13 +98,8 @@ test("the first Continue after typing is not lost while the blur's save is in fl
   if (box === null) throw new Error("the primary action has no box");
   await page.mouse.move(box.x + box.width / 2, box.y + box.height / 2);
 
-  // Pointer down moves focus out of the field, which is the blur commit: the post is
-  // issued here and held open by the route above.
   await page.mouse.down();
   await postIssued;
-  // A person's press is not instantaneous. Let the page render everything the in-flight
-  // post scheduled before the button is released: this is the frame in which the button
-  // used to become `disabled`, which is what swallowed the click.
   await settleFrames(page);
   await page.mouse.up();
 
@@ -122,9 +115,6 @@ test("a double press of Continue advances one step (P4)", async ({ page }) => {
   await fillText(page, KS.fullName, "Ada Lovelace");
   await enterDate(page, "05171990");
 
-  // Hold the first step read open, so the second press lands while the first is still
-  // pending: the window in which only the intent guard stands between a double click and
-  // a skipped step.
   let release = (): void => {};
   const held = new Promise<void>((resolve) => {
     release = resolve;
@@ -142,7 +132,6 @@ test("a double press of Continue advances one step (P4)", async ({ page }) => {
   const x = box.x + box.width / 2;
   const y = box.y + box.height / 2;
   await page.mouse.click(x, y);
-  // While the press is pending the button says so, and refuses the next one.
   await expect(primary).toHaveAttribute("aria-disabled", "true");
   await page.mouse.click(x, y);
 
@@ -172,7 +161,6 @@ test("an expired session lands on the expired screen, not a network failure (P2)
     await db.close();
   }
 
-  // The blur commit is the first request after the session expired: the answer post.
   await page.getByRole("textbox", { name: KS.fullName }).fill("Ada Lovelace");
   await blurActive(page);
 
@@ -198,7 +186,6 @@ test("a session submitted elsewhere lands on the completion screen on Continue (
     await db.close();
   }
 
-  // The step read is the request that meets the refusal.
   await page.getByTestId("primary-action").click();
 
   await expect(
@@ -217,7 +204,6 @@ test("a failed Continue is reported beside the actions and its retry clears it (
   await fillText(page, KS.fullName, "Ada Lovelace");
   await enterDate(page, "05171990");
 
-  // One step read fails the way an unreachable upstream does; the next goes through.
   let failOnce = true;
   await page.route(/\/step\?step=\d+$/, async (route) => {
     if (failOnce) {
@@ -233,8 +219,6 @@ test("a failed Continue is reported beside the actions and its retry clears it (
   const notice = page.getByTestId("flow-failure");
   await expect(notice).toBeVisible();
   await expect(notice.getByRole("alert")).toHaveText(LOST);
-  // Beside the button the respondent just pressed, so it is on screen with it, which the
-  // top of the card on a phone is not.
   await expect(notice).toBeInViewport();
   await expect(primary).toBeInViewport();
   await expect(page.getByRole("heading", { name: "About you" })).toBeVisible();
@@ -288,11 +272,8 @@ test("a not-visible refusal re-reads the current step and moves nothing (#1041)"
   );
   const served = stepServed(page);
 
-  // The boolean commits on change (ADR-31), so this click alone issues the refused post.
   await page.getByText("No", { exact: true }).click();
 
-  // The follow-up is a read of the step at the committed cursor (index 1), never a
-  // cursor-less read, which would serve the first incomplete step instead.
   const request = await reread;
   expect(new URL(request.url()).search).toBe("?step=1");
   await served;
