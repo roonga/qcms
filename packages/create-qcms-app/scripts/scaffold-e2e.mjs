@@ -94,7 +94,7 @@ function unpack(tarball, destination) {
 
 /** A pin belongs here only while an issue is open against the underlying break. */
 const PINNED_DEPENDENCIES = {
-  // TODO(#448): apps/api does not typecheck against 1.5.2; remove when it closes.
+  // apps/api does not typecheck against 1.5.2; remove once #448 closes.
   "@hono/zod-openapi": "1.5.1",
 };
 

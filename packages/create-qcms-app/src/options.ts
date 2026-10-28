@@ -6,7 +6,7 @@ export type DeploymentShape = (typeof DEPLOYMENT_SHAPES)[number];
 
 /**
  * The one package manager: the Dockerfiles need `pnpm deploy --legacy --prod` and a
- * `pnpm-lock.yaml`. TODO(#449): restore the choice once images build without them.
+ * `pnpm-lock.yaml`. Restoring the choice (#449) needs images that build without them.
  */
 export const PACKAGE_MANAGER = "pnpm";
 
