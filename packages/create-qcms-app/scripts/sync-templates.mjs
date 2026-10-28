@@ -165,6 +165,23 @@ export function isExcludedAppPath(path) {
 /** Probed rather than resolved through `PATH` (`sonarjs/no-os-command-from-path`). */
 const GIT_CANDIDATES = ["/usr/bin/git", "/bin/git", "/usr/local/bin/git", "/opt/homebrew/bin/git"];
 
+/**
+ * Machine-specific drive letters are built from the environment (`check:paths`).
+ *
+ * @param {NodeJS.ProcessEnv} environment
+ * @returns {string[]}
+ */
+export function windowsGitCandidates(environment) {
+  const roots = [
+    environment.ProgramFiles,
+    environment["ProgramFiles(x86)"],
+    environment.LOCALAPPDATA === undefined || environment.LOCALAPPDATA === ""
+      ? undefined
+      : join(environment.LOCALAPPDATA, "Programs"),
+  ].filter((root) => root !== undefined && root !== "");
+  return roots.map((root) => join(/** @type {string} */ (root), "Git", "cmd", "git.exe"));
+}
+
 /** Duplicated from `src/exec.ts`: `check:templates` runs under plain `node` and cannot import TypeScript. */
 export const GIT_BIN_OVERRIDE_ENV_VAR = "QCMS_GIT_BIN";
 
@@ -193,10 +210,12 @@ export function checkedGitOverride(value) {
 function gitBinary() {
   const override = process.env[GIT_BIN_OVERRIDE_ENV_VAR];
   if (override !== undefined && override !== "") return checkedGitOverride(override);
-  const found = GIT_CANDIDATES.find((candidate) => existsSync(candidate));
+  const candidates =
+    process.platform === "win32" ? windowsGitCandidates(process.env) : GIT_CANDIDATES;
+  const found = candidates.find((candidate) => existsSync(candidate));
   if (found === undefined) {
     throw new Error(
-      `sync-templates: could not find git. Looked at: ${GIT_CANDIDATES.join(", ")}. ` +
+      `sync-templates: could not find git. Looked at: ${candidates.join(", ")}. ` +
         `Set ${GIT_BIN_OVERRIDE_ENV_VAR} to its absolute path.`,
     );
   }

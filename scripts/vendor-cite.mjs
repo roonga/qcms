@@ -233,6 +233,9 @@ function lineIndex(text) {
  * The version must match exactly: a tree carrying two copies would otherwise hand back
  * whichever the directory listing returned first.
  *
+ * Windows needs the second pass: pnpm truncates a store directory name to 60 characters,
+ * so only the installed manifest can confirm the version.
+ *
  * @param {string} nodeModules
  * @param {string} name
  * @param {string} version
@@ -248,19 +251,32 @@ export function findPackageRoot(nodeModules, name, version) {
   } catch {
     entries = [];
   }
-  for (const entry of entries.sort()) {
+  const sorted = entries.sort();
+  for (const entry of sorted) {
     if (entry !== prefix && !entry.startsWith(`${prefix}_`)) continue;
     const root = join(store, entry, "node_modules", ...name.split("/"));
     if (existsSync(join(root, "package.json"))) return root;
   }
-  const direct = join(nodeModules, ...name.split("/"));
-  try {
-    const manifest = JSON.parse(readFileSync(join(direct, "package.json"), "utf8"));
-    if (manifest.version === version) return direct;
-  } catch {
-    // Not installed here either; the caller reports it once, with the version.
+  for (const entry of sorted) {
+    const root = join(store, entry, "node_modules", ...name.split("/"));
+    if (manifestVersion(root) === version) return root;
   }
+  const direct = join(nodeModules, ...name.split("/"));
+  if (manifestVersion(direct) === version) return direct;
   return null;
+}
+
+/**
+ * @param {string} root
+ * @returns {string | null}
+ */
+function manifestVersion(root) {
+  try {
+    const manifest = JSON.parse(readFileSync(join(root, "package.json"), "utf8"));
+    return typeof manifest.version === "string" ? manifest.version : null;
+  } catch {
+    return null;
+  }
 }
 
 /**

@@ -291,6 +291,35 @@ If the answers say load, say so in the report with the numbers and re-run on a q
 
 **Rollback (the migration is reversible):** `.devcontainer/` touches no product code. Stop using it - or delete the directory - and the host workflow is unchanged: `pnpm install`, the merge gate, and `docker compose -f docker-compose.dev.yml up -d` behave exactly as they did before task 046 (re-run `pnpm install` on the host once if that checkout had been used in the container). Task 046 verified that the portal and API dev servers already bind `0.0.0.0` by default, so no source change was needed for host-browser viewing.
 
+## Windows and WSL
+
+**A native Windows checkout runs `pnpm verify` and nothing heavier.** The three gates below were not ported, because what they need is not a shell difference. A handful of wrapper and scaffolding-CLI tests inside `pnpm verify` also still need POSIX process semantics (signals and a POSIX shell); they are listed in issue #1126 and are container-only too.
+
+| Gate                                     | Native Windows             | Where it runs            |
+| ---------------------------------------- | -------------------------- | ------------------------ |
+| `pnpm verify`                            | yes                        | anywhere                 |
+| `pnpm verify:browser`                    | no                         | WSL or the dev container |
+| `pnpm verify:browser:detached` / `:wait` | no, refused with a message | WSL or the dev container |
+| `QCMS_PORT_SEAT=<0-9> pnpm up:e2e`       | no                         | WSL or the dev container |
+
+The three are POSIX by construction, not by accident. The detached runner puts the suite in a session of its own with `setsid` so it outlives the shell the harness kills, signals a **process group** to stop a suite and its dev servers together, and reads `/proc/<pid>/cwd` to say which worktree owns a port that is already held. Windows has no equivalent of any of the three, so `verify:browser:detached` **fails fast** on `win32` with a message naming WSL rather than failing several frames down on a missing `setsid`.
+
+**WSL2 Ubuntu is the supported route** (Node 24, pnpm 11, per the `packageManager` pin), and the dev container is the canonical one (ADR-29). Keep a separate worktree on the Linux side rather than reaching across to the Windows filesystem: the cross-filesystem path is slow enough to change how the suites behave, and `node_modules` cannot be shared between the two platforms in any case.
+
+```sh
+# In WSL, against a branch you pushed from Windows.
+git -C ~/src/qcms fetch origin <branch>
+git -C ~/src/qcms worktree add ~/src/qcms-wt/<branch-slug> origin/<branch>
+cd ~/src/qcms-wt/<branch-slug>
+pnpm install --frozen-lockfile && pnpm build && pnpm verify
+```
+
+**Docker Desktop is shared, so port seats are shared across both sides.** A seat is a machine-wide claim whichever side of the boundary asked for it, and the Windows and WSL views of the Docker daemon are the same daemon. Pick a seat from `docs/PORTS.md` the way a second lane on one host would, and never run `pnpm dev:down` while another seat is live. The occupancy half of the seat guard is inert (issue #1138), so a collision is not reported for you: the seat you chose is the only thing keeping two runs apart.
+
+**Run `pnpm build` once in a fresh worktree before `test:tooling:no-build`.** That script's name is accurate - it skips the build - and several tooling tests read `dist/`, so in a worktree that has never been built they fail for a missing artifact rather than for anything the branch did.
+
+**A stray quote character in a `Path` entry defeats Node's PATH lookup for every child process it starts**, and the errors never mention it: a gate reports `spawn pnpm ENOENT`, or git "not found", on a machine where both run fine from the prompt. Windows accepts the quote in the environment variable and Node's lookup does not strip it. Before believing a tool is missing, print `$env:Path -split ';'` in PowerShell and look for an entry carrying a quote or an apostrophe, then fix that entry rather than working around it in every command.
+
 ## The whole stack, and the developer toolbox
 
 Tracing is **off unless you set an endpoint** (task 054, ADR-34), and no viewer ships with QCMS. What you reach for depends on how you are running the stack, and the two answers are genuinely different rather than variations of one. Section A is also the shortest route to a running QCMS you can sign in to, whether or not you care about traces.

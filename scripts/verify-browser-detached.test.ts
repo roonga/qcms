@@ -1097,6 +1097,24 @@ describe("startDetached", () => {
     SPAWN_BUDGET_MS,
   );
 
+  it("refuses a native Windows start and names where the gate does run", async () => {
+    const lines: string[] = [];
+    const refused = await startDetached({
+      command: SLEEPER,
+      directory: REPO_ROOT,
+      environment: { ...process.env },
+      out: (line) => lines.push(line),
+      platform: "win32",
+    });
+
+    expect(refused.code).toBe(EXIT_USAGE);
+    expect(refused.pid).toBeUndefined();
+    const message = lines.join("\n");
+    expect(message).toContain("does not run on native Windows");
+    expect(message).toContain("WSL");
+    expect(message).toContain("docs/DEVELOPER_GUIDE.md");
+  });
+
   it("refuses a worktree run with no seat, before it spawns anything", async () => {
     // A real linked worktree: the refusal turns on `.git` being a file, and this checkout
     // is a linked worktree on a lane but a plain clone on CI.

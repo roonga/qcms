@@ -7,11 +7,11 @@ every environment (ADR-18); what varies per environment is which published versi
 
 ## Routes
 
-| Method | Path                   | Scope         | Notes                                                                                                                                                    |
-| ------ | ---------------------- | ------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `POST` | `/forms/{id}/releases` | `forms:write` | Release or promote a published version. Writes one record, copies nothing.                                                                               |
-| `GET`  | `/forms/{id}/releases` | `forms:read`  | The release history, newest first, each rollback marked. `?environment=`. It is also what "released where" is read from: the newest row per environment. |
-| `GET`  | `/environments`        | `forms:read`  | The live set, in `position` order, for the Q6 switcher.                                                                                                  |
+| Method | Path                   | Cell (`route-policy.ts`)                 | Notes                                                                                                                                                    |
+| ------ | ---------------------- | ---------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `POST` | `/forms/{id}/releases` | `release: create`, environment from body | Release or promote a published version. Writes one record, copies nothing.                                                                               |
+| `GET`  | `/forms/{id}/releases` | `release: read`                          | The release history, newest first, each rollback marked. `?environment=`. It is also what "released where" is read from: the newest row per environment. |
+| `GET`  | `/environments`        | grant-exempt, narrowed to held grants    | The live set, in `position` order, for the Q6 switcher.                                                                                                  |
 
 There is **no `GET /releases`**. An earlier draft of this table listed one, for "the
 current release per form across forms", and no such route was ever registered. What
@@ -127,6 +127,11 @@ reopen a closed environment** - it carries the current value forward, because cl
 deliberate operational act and releasing a version is not a request to resume intake.
 
 ## Test-to-production workflow (2026-10-26)
+
+This section describes the default revision of the configurable release workflow ruled on
+2026-10-29 (ADR-40's amendment of that date; contracts in
+`plan/environment-phase1-decisions.md`). Until a deployment writes a workflow revision,
+the behaviour below is exactly what runs.
 
 The admin's top switch fixes the release target; the release dialog selects a version,
 not another environment. Its server action confirms the environment shown before

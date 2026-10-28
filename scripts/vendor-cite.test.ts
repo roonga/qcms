@@ -55,14 +55,13 @@ const ENV_SOURCE = [
 const root = mkdtempSync(join(tmpdir(), "qcms-vendor-cite-"));
 const nodeModules = join(root, "node_modules");
 
-function install(name: string, version: string, files: Record<string, string[]>): string {
-  const directory = join(
-    nodeModules,
-    ".pnpm",
-    `${name.replace("/", "+")}${AT}${version}_peerhash`,
-    "node_modules",
-    ...name.split("/"),
-  );
+function installAt(
+  storeEntry: string,
+  name: string,
+  version: string,
+  files: Record<string, string[]>,
+): string {
+  const directory = join(nodeModules, ".pnpm", storeEntry, "node_modules", ...name.split("/"));
   mkdirSync(directory, { recursive: true });
   writeFileSync(join(directory, "package.json"), JSON.stringify({ name, version }));
   for (const [path, lines] of Object.entries(files)) {
@@ -73,11 +72,28 @@ function install(name: string, version: string, files: Record<string, string[]>)
   return directory;
 }
 
+/** One package in the pnpm store, at an exact version, with a peer-hash suffix. */
+function install(name: string, version: string, files: Record<string, string[]>): string {
+  return installAt(`${name.replace("/", "+")}${AT}${version}_peerhash`, name, version, files);
+}
+
 const mainRoot = install(MAIN, VERSION, { [CONTEXT_PATH]: CONTEXT_SOURCE });
 const coreRoot = install(CORE, VERSION, { [ENV_PATH]: ENV_SOURCE });
 // A second copy at another version, which nothing should read: an exact-version match
 // is what keeps a citation anchored to the asserted pin.
 install(MAIN, OLDER, { [CONTEXT_PATH]: ["a different file entirely"] });
+
+/** A store entry pnpm truncated to 60 characters, as it does on Windows. */
+const TRUNCATED = `${"@better-auth"}/drizzle-adapter`;
+const truncatedRoot = installAt(
+  `${"@better-auth+drizzle-adapte"}_peerhashpeerhashpeerhashpeerhashpeer`,
+  TRUNCATED,
+  VERSION,
+  {},
+);
+/** The same truncation shape at a version nobody pinned, which must stay a miss. */
+const OTHER_TRUNCATED = `${"@better-auth"}/stripe`;
+installAt(`${"@better-auth+strip"}_peerhash`, OTHER_TRUNCATED, OLDER, {});
 
 afterAll(() => {
   rmSync(root, { recursive: true, force: true });
@@ -108,6 +124,14 @@ describe("finding the installed package", () => {
 
   it("reports a package that is not installed at all", () => {
     expect(findPackageRoot(nodeModules, "@better-auth/utils", VERSION)).toBeNull();
+  });
+
+  it("finds a package whose store directory pnpm truncated past its version", () => {
+    expect(findPackageRoot(nodeModules, TRUNCATED, VERSION)).toBe(truncatedRoot);
+  });
+
+  it("still refuses a truncated entry at another version", () => {
+    expect(findPackageRoot(nodeModules, OTHER_TRUNCATED, VERSION)).toBeNull();
   });
 
   it("refuses to guess when the lockfile resolves a package twice", () => {

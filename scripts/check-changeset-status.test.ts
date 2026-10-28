@@ -3,7 +3,7 @@ import { fileURLToPath } from "node:url";
 
 import { describe, expect, it } from "vitest";
 
-import { baseBranchFrom, classify } from "./check-changeset-status.mjs";
+import { baseBranchFrom, classify, statusInvocation } from "./check-changeset-status.mjs";
 
 const REPO_ROOT = new URL("../", import.meta.url);
 
@@ -52,5 +52,23 @@ describe("classify", () => {
     expect(
       classify({ code: 1, output: "some new changesets error", baseBranchResolves: false }),
     ).toBe("failed");
+  });
+});
+
+describe("statusInvocation", () => {
+  it("runs argv with no shell on POSIX", () => {
+    expect(statusInvocation("linux")).toEqual({
+      command: "pnpm",
+      args: ["exec", "changeset", "status"],
+      shell: false,
+    });
+  });
+
+  it("hands Windows one line and a shell, so PATHEXT can find pnpm.cmd", () => {
+    expect(statusInvocation("win32")).toEqual({
+      command: "pnpm exec changeset status",
+      args: [],
+      shell: true,
+    });
   });
 });

@@ -79,9 +79,9 @@ describe("resolveLane", () => {
   });
 
   it("refuses a directory that is not a working tree instead of guessing a lane", () => {
-    expect(() => resolveLane(temporaryDirectory("qcms-agent-scratch-plain-"), {})).toThrow(
-      /not a git working tree/,
-    );
+    const directory = temporaryDirectory("qcms-agent-scratch-plain-");
+    expect(() => resolveLane(directory, {})).toThrow(/git could not name the branch/);
+    expect(() => resolveLane(directory, {})).toThrow(/not a git repository/i);
   });
 });
 
