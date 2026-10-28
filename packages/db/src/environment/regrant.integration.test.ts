@@ -20,36 +20,10 @@ import { describeError } from "./describe-error.js";
 import { GRANT_SOURCES } from "./grants.js";
 import { regrantEnvironments } from "./regrant.js";
 
-/**
- * The re-grant subcommand against a real catalogue (issue #1094).
- *
- * This file covers the three properties that do not need a dump to observe:
- *
- *   - **it is a no-op on a database that is already correct**, so an operator can run it
- *     without wondering what it changed;
- *   - **running it twice changes nothing**, which is what makes it safe inside a recovery
- *     script that may be re-run;
- *   - **it repairs a database whose application grants have been taken away**, which is
- *     the restored shape, and repairs it to **exactly** the grant map a migrated database
- *     holds rather than to a superset.
- *
- * The full dump-restore-re-grant cycle, with `pg_dump` and ownership, is
- * `apps/api/e2e/security/04-db-restore-regrant.e2e.ts`; the end-to-end operator
- * procedure is `pnpm qcms:drill-restore`.
- *
- * ## Why the roles are created before the migration here
- *
- * The baseline's grants are guarded on each role existing, so a database migrated with no
- * application role has no grant to compare against and this file would measure nothing.
- * The ordering is the operator recipe's, the same one `03-db-least-privilege.e2e.ts`
- * follows: roles first, migration second.
- */
-
 const REGRANT_TIMEOUT_MS = 60_000;
 
 const MIGRATE_ROLE = "qcms_migrate";
 
-/** Two workspaces, so a per-workspace grant that reached both would be visible. */
 const WORKSPACES: readonly (readonly [string, string])[] = [
   ["org_regrant_home", "home"],
   ["org_regrant_vehicle", "vehicle"],
@@ -58,15 +32,13 @@ const APPLICATION_ROLES = [
   "qcms_app_control",
   "qcms_app_test",
   "qcms_app_prod",
-  // A name this project does not ship, so the prefix-shaped revokes are executed rather
-  // than believed, exactly as the least-privilege suite does it.
   "qcms_app_zebra",
 ] as const;
 
 let testDb: TestDb;
 let owner: pg.Client;
 let db: Executor;
-/** The password every role in this container is created with. Generated, never committed. */
+/** Generated, never committed. */
 let password: string;
 
 function ephemeralPassword(): string {
@@ -75,20 +47,15 @@ function ephemeralPassword(): string {
   return Array.from(bytes, (byte) => byte.toString(16).padStart(2, "0")).join("");
 }
 
-/**
- * The complete effective privilege map, from the shared query.
- *
- * Effective rather than stored: see `PRIVILEGE_MAP_SQL`. No schema is excluded here,
- * because this harness never recreates the database and so `public`'s owner never moves.
- */
+/** No schema is excluded: this harness never recreates the database. */
 async function grantMap(client: pg.Client): Promise<string[]> {
   const res = await client.query<{ line: string }>(PRIVILEGE_MAP_SQL, [[]]);
   return res.rows.map((row) => row.line);
 }
 
 beforeAll(async () => {
-  // UNMIGRATED on purpose: the roles have to exist before the baseline reaches its grant
-  // block, which is the recipe's ordering.
+  // Unmigrated: the roles have to exist before the baseline reaches its grant block, or
+  // there is no grant to compare against.
   testDb = await startTestDb({ migrate: false });
   owner = testDb.register(new pg.Client({ connectionString: testDb.connectionUri }), "owner");
   await owner.connect();
@@ -99,37 +66,27 @@ beforeAll(async () => {
     await owner.query(`CREATE ROLE ${role} LOGIN PASSWORD '${password}'`);
   }
   await applyMigrations(owner);
-  // **Two workspaces, and their reporting roles**, so task 067's per-workspace source has
-  // something to emit and the equality below covers it. One workspace would not: a grant
-  // that reached both workspaces' views would look correct against one.
   for (const [id, slug] of WORKSPACES) {
     await owner.query(
       `insert into control.organization (id, name, slug, "createdAt") values ($1, $1, $2, now())`,
       [id, slug],
     );
     for (const environment of ["test", "prod"]) {
-      // The role name is this generator's, not a literal: a test that re-typed the
-      // derivation would pass while the derivation drifted.
       await owner.query(
         `CREATE ROLE ${workspaceReportingRoleName(environment, slug)} LOGIN PASSWORD '${password}'`,
       );
     }
   }
-  // Registered with the harness, so teardown drains it before the container stops: an
-  // unregistered pool whose database vanished underneath it reports as an unhandled
-  // `terminating connection due to administrator command` (issue #888).
+  // Registered so teardown drains it before the container stops; an unregistered pool
+  // reports an unhandled termination error.
   const pool = testDb.register(
     new pg.Pool({ connectionString: testDb.connectionUri }),
     "owner pool",
   );
-  // `drizzle(pool)` with no schema satisfies the `Executor` alias structurally but not
-  // nominally, and nothing under test reads a declared table through it. The same cast
-  // `environment-cli.ts` and `migrate.ts` make, for the same reason.
+  // Cast: `drizzle(pool)` with no schema satisfies `Executor` structurally but not
+  // nominally, and nothing under test reads a declared table through it.
   db = drizzle(pool) as unknown as Executor;
-  // The reporting reconciliation, which is what `docs/reporting-view.md` tells an operator
-  // to run after creating a workspace. Without it this database would not be the state a
-  // set-up installation is in - it would be missing every per-workspace view - and "changes
-  // nothing on a database that is already correct" would be measuring the wrong database.
+  // Required setup: without it the database holds no per-workspace view.
   await reconcileWorkspaceReporting(db);
 }, CONTAINER_BOOT_TIMEOUT_MS);
 
@@ -143,9 +100,6 @@ describe("the re-grant subcommand", { timeout: REGRANT_TIMEOUT_MS }, () => {
   });
 
   it("changes nothing on a database that is already correct", async () => {
-    // The first thing an operator will do with this command is run it on a database they
-    // are not sure about. It has to be safe, and "safe" is an equality on the whole grant
-    // map rather than an absence of errors.
     const before = await grantMap(owner);
     expect(before.length).toBeGreaterThan(50);
     const report = await regrantEnvironments(db);
@@ -165,8 +119,6 @@ describe("the re-grant subcommand", { timeout: REGRANT_TIMEOUT_MS }, () => {
     const perEnvironment = GRANT_SOURCES.filter((source) => source.scope !== "installation").length;
     const installation = GRANT_SOURCES.length - perEnvironment;
     expect(report.passes).toHaveLength(installation + perEnvironment * 2);
-    // Task 067's reporting source arrives as one more environment-scoped entry, and this
-    // count follows it with no change here.
     for (const pass of report.passes) expect(pass.statements).toBeGreaterThan(0);
   });
 
@@ -176,10 +128,7 @@ describe("the re-grant subcommand", { timeout: REGRANT_TIMEOUT_MS }, () => {
   });
 
   it("restores exactly the grant map after the application grants are taken away", async () => {
-    // The restored shape, simulated at the privilege layer: `pg_dump --no-privileges`
-    // leaves the objects and drops every grant, and this is what that leaves behind. The
-    // repair has to land on the SAME map, not a superset - which is the security
-    // requirement of the ruling, asserted as an equality.
+    // The repair must land on the same grant map, never a superset.
     const expected = await grantMap(owner);
     for (const role of APPLICATION_ROLES) {
       for (const schema of [
@@ -196,7 +145,6 @@ describe("the re-grant subcommand", { timeout: REGRANT_TIMEOUT_MS }, () => {
     }
     const stripped = await grantMap(owner);
     expect(stripped).not.toEqual(expected);
-    // And the specific grant the defect report named, gone.
     const refused = await owner.query<{ has: boolean }>(
       `select has_table_privilege('qcms_app_prod', 'data_prod.sessions', 'INSERT') as has`,
     );
@@ -207,9 +155,6 @@ describe("the re-grant subcommand", { timeout: REGRANT_TIMEOUT_MS }, () => {
   });
 
   it("covers an environment created after the migrations, by reading the live set", async () => {
-    // The reason the command enumerates `control.environments` rather than naming `test`
-    // and `prod`: an operator who created `staging` last week has to get its grants back
-    // from a re-grant written before it existed.
     await owner.query(`CREATE ROLE qcms_app_staging LOGIN PASSWORD '${password}'`);
     await createEnvironment(db, { name: "staging" });
     const expected = await grantMap(owner);
@@ -225,22 +170,15 @@ describe("the re-grant subcommand", { timeout: REGRANT_TIMEOUT_MS }, () => {
   });
 
   it("names the source and never the statement when Postgres refuses (SEC-8)", async () => {
-    // drizzle wraps a failed statement in a `DrizzleQueryError` whose message is
-    // `Failed query: <sql>\nparams: <params>`, and the CLI unwraps a cause into the line it
-    // writes to stderr. No grant statement carries a credential today; the discipline is
-    // asserted anyway, so a generator that one day emits a `CREATE ROLE ... PASSWORD` is
-    // not the thing that discovers this - which is exactly how it was discovered on the
-    // `CREATE ROLE` path in PR #1093 and on this path in PR #1099.
+    // drizzle wraps a failed statement in an error carrying the SQL and its params, and
+    // the CLI unwraps a cause into the line it writes to stderr.
     const uri = new URL(testDb.connectionUri);
     uri.username = "qcms_app_control";
     uri.password = password;
     const pool = testDb.register(new pg.Pool({ connectionString: uri.toString() }), "non-owner");
-    // `drizzle(pool)` with no schema satisfies the `Executor` alias structurally but not
-    // nominally, and nothing under test reads a declared table through it. The same cast
-    // `environment-cli.ts` and `migrate.ts` make, for the same reason.
+    // Cast: `drizzle(pool)` with no schema satisfies `Executor` structurally but not
+    // nominally, and nothing under test reads a declared table through it.
     const asApplicationRole = drizzle(pool) as unknown as Executor;
-    // The guard the CLI applies first, for completeness: this credential is refused
-    // before any statement runs.
     expect((await ownsControlSchema(asApplicationRole)).owns).toBe(false);
 
     const failure = await regrantEnvironments(asApplicationRole).then(
@@ -248,42 +186,30 @@ describe("the re-grant subcommand", { timeout: REGRANT_TIMEOUT_MS }, () => {
       (error: unknown) => error,
     );
     expect(failure).toBeInstanceOf(Error);
-    // The error is an `Error` by the assertion above, so reading it as one is a narrowing
-    // the compiler cannot do through `unknown` rather than a claim about its shape.
+    // Cast: a narrowing the compiler cannot make through `unknown`.
     const thrown = failure as Error;
 
-    // **What reaches stderr**, which is the layer the leak was in: the entry file writes
-    // `qcms-db environment failed: ${describeError(error)}`, and `describeError` unwraps a
-    // cause into that line. Asserting the thrown message alone is what missed it.
+    // What the entry file actually writes to stderr, which is the layer that matters.
     const printed = `qcms-db environment failed: ${describeError(thrown)}`;
     for (const leak of [/\bGRANT\b/, /\bREVOKE\b/, /Failed query/, /DO \$\$/, /params:/]) {
       expect(printed, `stderr must not carry ${String(leak)}`).not.toMatch(leak);
     }
-    // And it has to say something useful: the grant source that failed, and the driver's
-    // own reason. `permission denied for schema control` is what Postgres says to a role
-    // that does not own it, and repeating it is what tells an operator what to do.
     expect(printed).toContain("could not re-apply");
     expect(printed).toContain("the control role's DML on control (baseline)");
     expect(printed).toMatch(/permission denied/i);
-    // No cause at all, which is what makes the line above provable rather than lucky:
     // `describeError` appends a cause's message, so the wrapper must attach none.
     expect(thrown.cause).toBeUndefined();
   });
 
   it("is stable over a workspace whose reporting roles the operator has not created", async () => {
-    // The shape the Compose stack is in, and the one the restore drill found: 067's grants
-    // are guarded on each reporting role existing, so for such a workspace the views carry
-    // no ACL at all. Both of this PR's database-reading sources have to leave that alone -
-    // a `REVOKE` on a NULL `relacl` materialises it, and `aclexplode` then reports the
-    // owner's seven implicit entries for a relation that is semantically unchanged.
+    // These views carry a NULL `relacl`, and a `REVOKE` on one materialises it: the
+    // owner's implicit entries then appear for a semantically unchanged relation.
     await owner.query(
       `insert into control.organization (id, name, slug, "createdAt")
          values ('org_regrant_unprovisioned', 'Unprovisioned', 'unprovisioned', now())`,
     );
     await reconcileWorkspaceReporting(db);
     const expected = await grantMap(owner);
-    // The views exist, and nothing is granted on them, which is what makes the next two
-    // runs worth measuring.
     expect(expected.filter((line) => line.includes("unprovisioned"))).toEqual([]);
 
     await regrantEnvironments(db);
@@ -293,17 +219,7 @@ describe("the re-grant subcommand", { timeout: REGRANT_TIMEOUT_MS }, () => {
   });
 
   it("names the read and never the query when a READ fails (SEC-8)", async () => {
-    // The case the test above missed. The first version wrapped every statement and left
-    // three reads bare, so PR #1099's round-2 review falsified the module's "never a
-    // statement, in any error path" sentence in one command by renaming
-    // `control.environments`, and got drizzle's wrapper on stderr verbatim:
-    //
-    //   qcms-db environment failed: Failed query: select "name" from "control"."environments"
-    //   order by "control"."environments"."position" asc params: (relation ... does not exist)
-    //
-    // None of the three reads can carry a credential - each is a fixed query over no input -
-    // so this is the documented claim being made true rather than a credential path being
-    // closed. The rename is how the review measured it, so it is how this asserts it.
+    // A rename is the cheapest way to make one of the reads fail.
     await owner.query(`alter table control.environments rename to environments_sec8_renamed`);
     try {
       const failure = await regrantEnvironments(db).then(
@@ -311,15 +227,13 @@ describe("the re-grant subcommand", { timeout: REGRANT_TIMEOUT_MS }, () => {
         (error: unknown) => error,
       );
       expect(failure).toBeInstanceOf(Error);
-      // A narrowing the compiler cannot make through `unknown`, not a claim about the value.
+      // Cast: a narrowing the compiler cannot make through `unknown`.
       const thrown = failure as Error;
       const printed = `qcms-db environment failed: ${describeError(thrown)}`;
 
-      // `select` and `Failed query` are the two the leaked form carried.
       for (const leak of [/Failed query/, /params:/, /\bselect\b/i, /\bGRANT\b/, /DO \$\$/]) {
         expect(printed, `stderr must not carry ${String(leak)}`).not.toMatch(leak);
       }
-      // And it still has to be actionable: which read failed, and what Postgres said.
       expect(printed).toContain("could not read the live environment set");
       expect(printed).toMatch(/does not exist/i);
       expect(thrown.cause).toBeUndefined();
@@ -329,9 +243,6 @@ describe("the re-grant subcommand", { timeout: REGRANT_TIMEOUT_MS }, () => {
   });
 
   it("refuses a database whose live set is empty, rather than granting nothing quietly", async () => {
-    // A restored database carries the live set inside the dump, so an empty table means
-    // the restore did not land the control plane - which is worth a refusal rather than a
-    // report of zero statements that reads as success.
     await owner.query(
       `create table control.environments_regrant_backup as table control.environments`,
     );

@@ -21,20 +21,16 @@ describe("form_drafts enforces at most one open draft per form", () => {
   it("rejects a second draft for the same form", async () => {
     const formId = "frm_one_draft";
     await testDb.client.query(
-      // `workspace_id` is `NOT NULL` with no default since task 068: the harness seeds
-      // the workspace a fixture form belongs to.
       `insert into forms (form_id, slug, workspace_id, default_locale)
          values ($1, 'one-draft', $2, 'en')`,
       [formId, SEED_WORKSPACE_ID],
     );
 
-    // First open draft: fine.
     await testDb.client.query(
       `insert into form_drafts (form_id, definition) values ($1, '{}'::jsonb)`,
       [formId],
     );
 
-    // Second draft for the same form: primary-key collision on form_id.
     await expect(
       testDb.client.query(
         `insert into form_drafts (form_id, definition) values ($1, '{}'::jsonb)`,

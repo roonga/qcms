@@ -1,29 +1,6 @@
 /**
- * The reporting view generator and the committed migration are one thing (task
- * 075).
- *
- * The generator exists because ADR-40 makes the view set per environment and task
- * 068 makes it per workspace, so the DDL has to be creatable more than once under
- * more than one schema name. That only buys anything while the migration that
- * created the launch view set really is the generator's output: a migration
- * hand-edited after the fact would leave `reporting` and every `reporting_<env>`
- * created later describing different views, and nothing else would notice.
- *
- * So this file asserts the two agree byte for byte, and that the generator's
- * schema parameters actually reach the SQL. The live catalogue is compared against
- * `reportingViewColumns` by the drift test in
- * `queries/reporting-retention.integration.test.ts`, which needs a real Postgres;
- * everything here is pure string work.
- *
- * **Task 064 changed what "the committed migration" means, and the first block below
- * with it.** There is no longer a migration whose whole body is one view set under one
- * schema name: the chain is a single per-environment baseline (Q41), and it carries the
- * generator's output **once per shipped environment**, among the tables, guards and
- * grants. So the agreement is asserted per environment against that baseline, which is
- * strictly more than the old "ends with the generated body" and is still derived rather
- * than written as a literal. `environment/baseline.test.ts` compares the whole
- * hand-authored half against its emitter, so a generator change that nobody re-emitted
- * fails there too.
+ * A hand-edit to the committed migration would leave each `reporting_<env>` describing
+ * different views, and nothing else would notice.
  */
 
 import { readdirSync, readFileSync } from "node:fs";
@@ -42,25 +19,7 @@ import {
 
 const MIGRATIONS_DIR = fileURLToPath(new URL("../migrations/", import.meta.url));
 
-/**
- * **There is no marker to find any more, and that absence is the point.**
- *
- * Task 075 found its migration by the generator's own path in the preamble, because the
- * chain was append-only and the next reshape would append rather than replace: the
- * highest-numbered migration naming the generator was the one whose body it still had to
- * produce. Under Q41 the chain is a per-environment baseline, so the question is no longer
- * which migration reshaped the views but which one **creates** them.
- *
- * It is found by what it does rather than by its position, and task 065 is why that
- * matters: it appended the first migration after the baseline, so "the newest `.sql`" -
- * which is what this read used while the chain was one file long - started resolving to a
- * migration with no view in it and every assertion below failed against the wrong file.
- * Matching on `CREATE SCHEMA "reporting_` is a derivation that survives both an appended
- * migration and a future re-baseline, and the single-match check is what keeps it one
- * answer: two migrations creating a `reporting_` schema would mean the launch view set had
- * been reshaped somewhere this file is not looking.
- */
-/** The migration that creates the reporting view sets, read once for the assertions below. */
+/** Found by what it does, never by position: an appended migration must not shift it. */
 function baselineSql(): { name: string; body: string } {
   const bodies = readdirSync(MIGRATIONS_DIR, { withFileTypes: true })
     .filter((entry) => entry.isFile() && entry.name.endsWith(".sql"))
@@ -82,19 +41,12 @@ describe("the generator and the baseline agree, per environment", () => {
   const migration = baselineSql();
 
   it("found a migration to compare against, by derivation rather than by name", () => {
-    // A filter that matched nothing would make every assertion below vacuous. The name
-    // is matched by shape, never by number: the brief's rule, and the reason the old
-    // form of this test had to go.
     expect(migration.name).toMatch(/^\d{4}_.*\.sql$/);
   });
 
   it.each(SHIPPED_ENVIRONMENTS)(
     "carries exactly what the generator emits for %s",
     (environment) => {
-      // Byte for byte, every statement, in order. This is what keeps a hand-edit to the
-      // baseline's view bodies from leaving `reporting_test` and `reporting_prod`
-      // describing different views while nothing else notices - which is the whole
-      // reason 075 made the DDL a function of its schema names.
       for (const statement of reportingViewStatements({
         reporting: reportingSchemaName(environment),
         data: dataSchemaName(environment),
@@ -105,9 +57,6 @@ describe("the generator and the baseline agree, per environment", () => {
   );
 
   it("creates one view set per shipped environment and no unqualified `reporting` one", () => {
-    // The count is the claim: two environments, two `responses` views, two
-    // `answers_flat`. An unqualified `reporting` schema would be the pre-ADR-40 shape
-    // surviving by accident, so its absence is asserted rather than assumed.
     for (const environment of SHIPPED_ENVIRONMENTS) {
       const reporting = reportingSchemaName(environment);
       expect(migration.body).toContain(`CREATE VIEW "${reporting}"."responses"`);
@@ -135,7 +84,6 @@ describe("the schema parameters reach the SQL", () => {
     expect(responses).toContain('JOIN "data_test"."sessions" "s"');
     expect(responses).toContain('LEFT JOIN "data_test"."erasure_tombstones" "t"');
     expect(responses).toContain('FROM "data_test"."answer_group_instances" "agi"');
-    // answers_flat reads the reporting view, never the data plane directly.
     expect(flat).toContain('FROM "reporting_test"."responses" "r"');
     expect(flat).not.toContain("data_test");
   });
@@ -161,7 +109,6 @@ describe("the documented column lists", () => {
   it("appends instance_id to answers_flat rather than inserting it", () => {
     const flat = reportingViewColumns.find((view) => view.name === "answers_flat");
     expect(flat?.columns.at(-1)).toBe("instance_id");
-    // The six columns the contract had before 075, in their original positions.
     expect(flat?.columns.slice(0, 6)).toEqual([
       "session_id",
       "form_id",

@@ -16,7 +16,6 @@ describe("outbox backoff schedule", () => {
     expect(backoffDelayMs(2)).toBe(5 * MIN);
     expect(backoffDelayMs(3)).toBe(25 * MIN);
     expect(backoffDelayMs(4)).toBe(125 * MIN);
-    // 5^4 = 625m > 360m → capped at 6h.
     expect(backoffDelayMs(5)).toBe(OUTBOX_BACKOFF_CAP_MS);
     expect(backoffDelayMs(9)).toBe(OUTBOX_BACKOFF_CAP_MS);
   });
