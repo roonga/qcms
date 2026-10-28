@@ -1,11 +1,6 @@
 /**
- * Credentials arrive in the environment, never as arguments: an argument lands in every
- * `ps` listing while the command runs. The recipe prompts with `read -rs` because an
- * inline assignment keeps the value out of argv but puts it in shell history. Nothing
- * echoes the value back on either path (SEC-8).
- *
- * A compiled entry under `src/` rather than a script, because it must run inside the API
- * container and the image carries only `dist`.
+ * Credentials arrive in the environment, never as arguments, which show in `ps` (SEC-8).
+ * A compiled entry under `src/` because the image carries only `dist`.
  */
 
 import { schema } from "@roonga/qcms-db";

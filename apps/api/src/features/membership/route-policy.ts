@@ -1,14 +1,10 @@
-// The rows are data the middleware walks, and an admin route with **no row is refused**:
-// a route nobody decided who may call fails closed rather than being open and silent
-// (SEC-3, ADR-41). Whether a path is served is asked of the router, not of this table,
-// which would be circular.
+// A route with **no row is refused**: failing closed beats open and silent (SEC-3,
+// ADR-41). Whether a path is served is the router's question, not this table's.
 
 import type { Resource } from "./policy.js";
 
-// `caller` is the one source where the answer is a filter rather than a yes: the
-// middleware resolves every workspace the caller holds the act in and the handler narrows
-// its read to them, which is what keeps two groups sharing an installation from seeing
-// each other's forms. `installation` means no workspace and so no membership to resolve.
+// `caller` yields a filter rather than a yes: the handler narrows its read to the
+// workspaces the caller holds the act in. `installation` means no workspace.
 export type WorkspaceSource = "form" | "question" | "path" | "body" | "caller" | "installation";
 
 export interface RoutePolicy {
@@ -22,10 +18,8 @@ export interface RoutePolicy {
   // Must agree with `isEnvironmentScoped`, since the policy refuses an
   // environment-scoped act that names no environment.
   readonly namesEnvironment?: true;
-  // The environment the policy checks must be exactly the one the handler acts in. Four
-  // of these routes declare no body, and only a declared body is validated, so a
-  // body-then-switcher fallback would let a caller authorised against `test` have the
-  // handler act on `prod`.
+  // The policy's environment must be exactly the handler's. Four routes declare no body, so
+  // a body-then-switcher fallback would let a `test` caller act on `prod`.
   readonly environmentFrom?: "body" | "switcher";
   // A second cell the route also requires, evaluated against the same workspace and
   // environment before any handler runs, so neither half can be forgotten.
@@ -239,10 +233,8 @@ export const ROUTE_POLICIES: readonly RoutePolicy[] = [
     action: "write",
     workspace: "form",
   },
-  // The two agent-authoring routes are mounted only under `QCMS_FLAG_AGENT_AUTHORING`, so
-  // they are absent from the shipped OpenAPI document and the test's route derivation
-  // cannot see them. Their rows must be named there explicitly or their absence here
-  // becomes a 403.
+  // The agent-authoring routes exist only under `QCMS_FLAG_AGENT_AUTHORING`, so the test's
+  // route derivation cannot see them; name their rows here or they become a 403.
   {
     method: "POST",
     path: "/admin/forms/{id}/draft/assist",
@@ -521,10 +513,8 @@ export const ROUTE_POLICIES: readonly RoutePolicy[] = [
     audit: "erasure",
   },
   {
-    // The eraser's cell in the selected environment: a caller who may not erase here is
-    // not told what exists elsewhere. The other environments are not this row's to
-    // authorise, so the handler re-asks the decision function per environment before
-    // including one.
+    // The eraser's cell in the selected environment. The handler re-asks per environment
+    // before including another, so a caller is not told what exists elsewhere.
     method: "GET",
     path: "/admin/forms/{id}/responses/{sessionId}/erasure-scope",
     resource: "response",

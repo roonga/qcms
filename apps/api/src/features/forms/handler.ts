@@ -325,12 +325,9 @@ function carriedPlacements(previousDefinition: FormDefinition | undefined): Set<
 }
 
 /**
- * A form may pin its own workspace's or the shared workspace's published versions. The
- * `carried` check grandfathers a placement the previous published version already had,
- * without which the first unrelated edit to such a form would be unpublishable.
- *
- * It never asks who is publishing: a pin is a fact about two workspaces, so the gate
- * holds for every caller, the installation administrator included.
+ * A form may pin its own or the shared workspace's published versions. `carried`
+ * grandfathers a placement the previous version had. It never asks who is publishing,
+ * so the installation administrator is held to it too.
  */
 function workspacePinGate(
   definition: FormDefinition,
@@ -784,11 +781,8 @@ function rosterFor(group: RepeatGroup, asked: readonly string[]): readonly Insta
 }
 
 /**
- * A qualified key must name a pinned question, pinned inside the group the instance belongs
- * to, with that instance in the group's roster: the same "is this instance live"
- * precondition SEC-16 puts on a real answer write.
- *
- * SEC-13 / ADR-34: answer-shaped values, never logged, persisted or echoed back.
+ * A qualified key must name a pinned question inside the instance's group, with that
+ * instance in the roster (SEC-16). SEC-13 / ADR-34: values are never logged or echoed.
  */
 function collectKeyedAnswers(
   supplied: Readonly<Record<string, unknown>> | undefined,
@@ -913,10 +907,9 @@ function benchTarget(
 }
 
 /**
- * Scope is implicit by position, so each group the rule touches has to be declared as a
- * group here: flattening one would report a single verdict for a rule that has one per
- * instance. The count source is always `open` because it is the one source that needs no
- * other question in the form, and the roster reaches the evaluator separately anyway.
+ * Scope is implicit by position, so each group the rule touches must be declared, or one
+ * verdict is reported where the rule has one per instance. The count source is `open`,
+ * the one source needing no other question.
  */
 interface BenchForm {
   readonly definition: FormDefinition;
@@ -1358,12 +1351,9 @@ export function makePublishFormHandler(deps: Deps): RouteHandler<typeof publishF
 }
 
 /**
- * One transaction holds the version, the draft deletion, the release record and its event,
- * so a failed release leaves no published version behind.
- *
- * This handler makes no policy call: the route's row in `route-policy.ts` carries both
- * `form: publish` and `release: create`, judged against the environment the body names
- * before this runs, which is what stops an editor scoped to `test` releasing to `prod`.
+ * One transaction holds the version, draft deletion, release record and event. No policy
+ * call here: the route's `form: publish` and `release: create` row is judged against the
+ * body's environment first, which stops an editor scoped to `test` releasing to `prod`.
  */
 export function makePublishAndReleaseFormHandler(
   deps: Deps,

@@ -944,13 +944,8 @@ describe("a per-workspace reporting role reads one workspace in one environment 
   });
 
   /**
-   * The three side channels PR #1093's review read the other workspace's data through.
-   *
-   * Each one makes the consumer's own qual report what it was handed, and none of them
-   * needs a privilege the role does not have: the first is an arithmetic error, the second
-   * and third are a `COST 1` function in `pg_temp`, which `PUBLIC` may create by default.
-   * They are here rather than in a unit test because what they exercise is the **planner**,
-   * and no string assertion can stand in for it.
+   * Side channels that make the consumer's own qual report what it was handed. They need no
+   * privilege the role lacks, and they exercise the planner, which no string assertion can.
    */
   describe("the consumer's own SQL cannot reach past the filter", () => {
     const OTHER_SECRET = `${VEHICLE_WORKSPACE.slug.toUpperCase()}_SECRET`;
@@ -1058,10 +1053,8 @@ describe("a per-workspace reporting role reads one workspace in one environment 
 
 describe("the roles are the operator's to create, not a migration's", () => {
   it("ships no role-creating migration", async () => {
-    // Roles are cluster-level, need a credential no migration may carry, and
-    // `qcms_migrate` deliberately holds no CREATEROLE - so the recipe in
-    // `docs/operations.md` creates them and the baseline only grants, guarded on each
-    // role existing. Every qcms role in this container was created by this file.
+    // Roles are cluster-level and `qcms_migrate` holds no CREATEROLE, so the recipe in
+    // `docs/operations.md` creates them and the baseline only grants.
     const roles = await owner.query<{ rolname: string }>(
       `SELECT rolname FROM pg_roles WHERE rolname LIKE 'qcms%' ORDER BY rolname`,
     );

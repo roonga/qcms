@@ -10,10 +10,8 @@ import { describe, expect, it } from "vitest";
 
 import { createJsonLogger } from "./logger.js";
 
-// The key order is a contract: `docs/operations.md` prints example lines copied
-// into a `jq` filter, and the level and time leading a line is what makes a raw
-// tail readable. Every other assertion parses first and is order-blind, so these
-// read the raw string from the sink.
+// The key order is a contract: `docs/operations.md` examples feed `jq` filters. Other
+// assertions parse first, so these read the raw string from the sink.
 
 const FIXED_TIME = "2026-08-31T00:00:00.000Z";
 

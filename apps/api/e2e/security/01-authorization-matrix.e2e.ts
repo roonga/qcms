@@ -1,11 +1,7 @@
 /**
- * Two disciplines here are load-bearing. The positive controls run first, because a
- * typo'd path is a 404 that reads as a pass; and each negative block removes exactly one
- * credential from a complete set, so a red attributes to that predicate.
- *
- * With the channel token alone `POST /sessions` by form slug succeeds, which is how the
- * portal starts an anonymous session; that row's control is rate limiting, not
- * authentication.
+ * Positive controls run first, because a typo'd path is a 404 that reads as a pass; each
+ * negative block removes exactly one credential from a complete set. `POST /sessions` with
+ * the channel token alone succeeds, so that row's control is rate limiting.
  */
 
 import { Buffer } from "node:buffer";
@@ -1053,10 +1049,8 @@ describe("the environment a request is authorised for is the environment it acts
 });
 
 /**
- * The masking is asserted on the API's own response bytes, because Q58 masks there and
- * never in the admin's rendering, so a second client of the route cannot see round it.
- * Masking the query string mitigates an operator who put a credential in a URL; it is not
- * a control, and the signing secret is the thing SEC-6 protects.
+ * Asserted on the API's own response bytes: Q58 masks there, never in the admin's rendering.
+ * Masking the query string mitigates a credential put in a URL; SEC-6 protects the secret.
  */
 describe("the production split and the masked endpoint URL (criterion 8)", () => {
   let allEditor = "";

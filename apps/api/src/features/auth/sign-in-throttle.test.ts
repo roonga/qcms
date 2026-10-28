@@ -4,12 +4,9 @@ import { CLIENT_ADDRESS_HEADER } from "../../client-address.js";
 import type { AdminAuth } from "./instance.js";
 
 /**
- * better-auth reads `NODE_ENV` once, when its env module is first imported, so the stub
- * below must precede any import that pulls the library in: hence the dynamic import of
- * `./instance.js` inside `beforeAll`.
- *
- * The limiter's default memory store is module-global with a ten-second window, so every
- * case here uses addresses no other case uses.
+ * better-auth reads `NODE_ENV` once on first import, so the stub precedes the dynamic
+ * import of `./instance.js`. The limiter's memory store is module-global, so each case
+ * uses addresses no other case uses.
  */
 
 /** better-auth's default sign-in rule: three attempts, then a refusal. */

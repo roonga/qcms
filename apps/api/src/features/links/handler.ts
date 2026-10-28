@@ -93,10 +93,8 @@ export function makeMintLinksHandler(deps: Deps): RouteHandler<typeof mintLinksR
       [];
     for (let i = 0; i < count; i += 1) {
       const linkId = newLinkId();
-      // Row before token: verification rejects a token with no row, so the row must
-      // exist by the time a URL ships. Control pool because only `qcms_app_control` may
-      // INSERT into `secure_links`; hence environment is an argument, not the
-      // connection's own.
+      // Row before token: verification rejects a token with no row. Control pool because only
+      // `qcms_app_control` may INSERT into `secure_links`, so environment is an argument.
       await insertSecureLink(deps.databases.control, {
         linkId,
         formId,

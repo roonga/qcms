@@ -97,18 +97,10 @@ export const StepViewProjection = z
   .openapi("StepViewProjection");
 
 /**
- * Scoped to the rendered step's visible questions, so an answer to a question the flow
- * hides never crosses this boundary (SEC); answer values are never logged (SEC-8).
- * Display data only: visibility and readiness stay in `flowState` (R2).
- *
- * `null` is outside the union deliberately, because a retraction is an ABSENT key
- * (ADR-33).
- *
- * `AnswerValue` is left inline rather than registered as a named component:
- * `zod-to-openapi` installs `.openapi()` on zod's prototypes and zod 4 copies those
- * methods onto each schema at construction, so a kernel schema built before
- * `@hono/zod-openapi` is evaluated never gains the method. The generator reads the
- * schema structurally, so the emitted document is unaffected.
+ * Scoped to the rendered step's visible questions (SEC); values are never logged (SEC-8).
+ * `null` is outside the union because a retraction is an ABSENT key (ADR-33).
+ * `AnswerValue` stays inline: zod 4 copies `.openapi()` at construction, so a kernel
+ * schema built before `@hono/zod-openapi` never gains it.
  */
 export const HeldValues = z.record(z.string(), AnswerValue).openapi({
   description:
@@ -134,12 +126,8 @@ export const StepResponse = z
 export type StepResponse = z.infer<typeof StepResponse>;
 
 /**
- * `value` stays `unknown` here because the kernel validates it against the pinned
- * question version and its output is the canonical form the ledger stores.
- *
- * A literal `null` is the retraction (ADR-33) and is the only spelling of a clear: it is
- * not a legal `AnswerValue` for any question type, so it can never collide with real
- * content. `""` and `[]` are refused rather than reinterpreted as retractions.
+ * `value` stays `unknown`: the kernel validates it and its output is what the ledger
+ * stores. A literal `null` is the only clear (ADR-33); `""` and `[]` are refused.
  */
 export const SubmitAnswerBody = z
   .strictObject({

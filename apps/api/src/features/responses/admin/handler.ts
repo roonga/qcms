@@ -417,10 +417,8 @@ function csvExportStream(
 }
 
 /**
- * One pass over the view per file, because a zip entry must be written whole before the
- * next starts and buffering every group's rows meanwhile is what the page bound avoids.
- * `zipStream` asks for an entry only once the previous one closed, so the passes never
- * run two cursors at once.
+ * One pass per file: a zip entry is written whole before the next starts, and
+ * `zipStream` asks for an entry only once the previous closed, so cursors never overlap.
  */
 function zipExportStream(
   request: RequestDatabase,

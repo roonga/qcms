@@ -1,8 +1,6 @@
 /**
- * A pool is a connection, a connection is a role, and a role is an environment, so which
- * pool a handler runs on is a privilege boundary the database enforces. `search_path` is
- * a resolution default and not a grant: a statement naming another environment's schema
- * is refused on privilege.
+ * A pool is a role and a role is an environment, so the pool a handler runs on is a
+ * privilege boundary. `search_path` is a resolution default, not a grant.
  */
 
 import { schema } from "@roonga/qcms-db";

@@ -229,11 +229,9 @@ describe("clearMustChangePassword", () => {
 });
 
 /**
- * Without `transaction: true` on the drizzle adapter, `runWithTransaction` drains the
- * queued `account.update.after` hook even where the work could not roll back
- * (`@better-auth/core/dist/context/transaction.mjs:106`)
- * <!-- expect: if (adapter.options?.adapterConfig.transaction === false) -->
- * so the provisional flag would clear on a change that did not happen.
+ * Without `transaction: true`, `runWithTransaction` drains the queued hook even where the
+ * work could not roll back, clearing the flag for a change that did not happen:
+ * `@better-auth/core/dist/context/transaction.mjs:106` <!-- expect: if (adapter.options?.adapterConfig.transaction === false) -->
  */
 describe("a failed /change-password leaves nothing behind (Code Owner, 2026-10-22)", () => {
   const ATOMIC_EMAIL = "atomic.admin@example.test";

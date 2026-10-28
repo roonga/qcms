@@ -1532,10 +1532,8 @@ describe("GET /admin/forms - search, status filter and sort", () => {
   // this block owns.
   const SCOPE = "search=lst-";
 
-  // Its own app on a clock that advances a second per read: the suite's default clock is
-  // fixed, so two publishes would carry the identical `published_at` and a date sort would
-  // prove only the slug tie-break. A second rather than a minute because the clock also
-  // decides whether the seeded admin session is still live.
+  // A clock advancing a second per read, so two publishes carry distinct `published_at`. A
+  // second, not a minute, because the clock also decides whether the admin session is live.
   let listApp: ReturnType<typeof createApp>;
 
   async function listGet(path: string): Promise<Response> {

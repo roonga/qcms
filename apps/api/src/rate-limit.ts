@@ -27,14 +27,9 @@ const DEFAULT_MAX_KEYS = 100_000;
 const SWEEP_SCAN = 8;
 
 /**
- * Retained heap is O(`maxKeys`) however many distinct keys the process sees, so one
- * request from a never-seen-again client address cannot add a permanent entry.
- *
- * Eviction is LRU rather than oldest-window-first because evicting a live bucket forgives
- * its count: a key that is actively limiting somebody stays warm, while the one-shot keys
- * a distinct-address flood creates go cold at once. Under such a flood limiting weakens
- * instead of the process being killed for memory; absorbing that is the operator's layer
- * (ADR-20).
+ * Retained heap is O(`maxKeys`). Eviction is LRU because evicting a live bucket forgives
+ * its count; a distinct-address flood weakens limiting rather than killing the process,
+ * and absorbing it is the operator's layer (ADR-20).
  */
 export class InMemoryRateLimitStore implements RateLimitStore {
   /** Insertion order is recency order: every hit re-inserts its key. */

@@ -3,10 +3,8 @@ import { z } from "zod";
 import { err, ok, type Result } from "./errors.js";
 import { canonicalJson } from "./prepare-submission.js";
 
-// Hand-rolled rather than taken from a JWT library: the mainstream ones pull
-// Node-only dependencies that would break fetch-purity (R4) and ship algorithm
-// agility this kernel must never accept. The inventory is HMAC-SHA256 only
-// (SEC-7), so there is no header segment and no negotiation surface at all.
+// Hand-rolled: JWT libraries pull Node-only dependencies (breaking R4) and ship algorithm
+// agility. HMAC-SHA256 only (SEC-7), so there is no header segment.
 
 /** Each purpose has its own key list (SEC-7). */
 export const TOKEN_PURPOSES = ["link", "session"] as const;

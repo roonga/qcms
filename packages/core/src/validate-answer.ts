@@ -100,13 +100,9 @@ function encodingError(question: QuestionDefinition): ValidationError {
   }
 }
 
-// Empty text and an empty selection are absence rather than answers (ADR-33),
-// refused here in front of every caller of the kernel, since at the control
-// boundary alone a direct post could satisfy `required` while holding nothing.
-// It never rewrites the post into a retraction: clearing has one spelling on the
-// wire, which the message names. Returned alone, or a `minSelected: 1` question
-// would also say "select at least 1", reading as "select more". Whitespace-only
-// text is not refused here; `isBlankAnswerValue` denies it presence instead.
+// Empty text and an empty selection are absence (ADR-33), refused before every caller. Never
+// rewritten into a retraction. Returned alone, or `minSelected: 1` would also say "select
+// at least 1". Whitespace-only text is denied presence by `isBlankAnswerValue`.
 function emptyAnswerError(): ValidationError {
   return failure(
     "EMPTY_ANSWER_NOT_ALLOWED",
@@ -153,10 +149,8 @@ function checkTextConstraints(
   return errors;
 }
 
-// The `u` flag is the one the safe-pattern subset validated against, so this
-// `.test` cannot be a ReDoS vector. Tested as authored, never implicitly
-// anchored, and a pattern that does not compile reports a mismatch rather than
-// throwing, so this stays total over a hand-constructed definition.
+// The `u` flag is the one the safe-pattern subset validated against, so this cannot be a
+// ReDoS vector. A pattern that does not compile reports a mismatch rather than throwing.
 function matchesPattern(value: string, pattern: string): boolean {
   try {
     return new RegExp(pattern, "u").test(value);

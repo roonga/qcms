@@ -1,12 +1,7 @@
 /**
- * The GET never recompiles: it serves the audit copy stored at publish (ADR-18).
- *
- * The client projection carries only the visible questions of the rendered step and the
- * answers held for exactly those, so neither the rule graph nor the existence of a
- * hidden question crosses it (SEC); answer values are never logged (SEC-8).
- *
- * Answer writes for one session are serialized by a per-session advisory lock, so the
- * append-only ledger's order is deterministic under concurrent submits (I5).
+ * The GET serves the audit copy stored at publish (ADR-18), never recompiling. Only
+ * visible questions and their answers cross the projection (SEC); values are never logged
+ * (SEC-8). Answer writes take a per-session advisory lock (I5).
  */
 
 import type { RouteHandler } from "@hono/zod-openapi";
@@ -105,13 +100,9 @@ interface CompiledFormView {
 }
 
 /**
- * `frozen` carries the semantics stamp on purpose (ADR-16): handing `evaluateRules` the
- * whole snapshot is what puts the serving loop behind the same
- * `UNSUPPORTED_SEMANTICS_VERSION` gate the submit path has, so superseded semantics are
- * refused at the first read rather than branched and failing only at submit.
- *
- * A missing row is an internal inconsistency in a published snapshot, not client input,
- * so it throws rather than returning a typed envelope.
+ * `frozen` carries the semantics stamp (ADR-16), putting serving behind the same
+ * `UNSUPPORTED_SEMANTICS_VERSION` gate as submit. A missing row is an internal
+ * inconsistency, so it throws.
  */
 interface LoadedSnapshot {
   readonly frozen: FrozenSnapshot;
@@ -171,11 +162,8 @@ async function loadSnapshot(
 }
 
 /**
- * A published snapshot with resolved question versions never errs, so an error here is
- * an internal inconsistency rather than client input.
- *
- * `UNSUPPORTED_SEMANTICS_VERSION` is the one reachable state (ADR-16) and gets the typed
- * envelope so the refusal names its cause; every other code stays an opaque 500.
+ * An error here is an internal inconsistency. `UNSUPPORTED_SEMANTICS_VERSION` (ADR-16) gets
+ * the typed envelope; every other code stays an opaque 500.
  */
 function evaluateOrThrow(
   snapshot: LoadedSnapshot,
@@ -305,28 +293,17 @@ function firstUnopenedView(
 }
 
 /**
- * The view served when no cursor was given: a resume and the no-JS walk.
- *
- * Without scripting there is one readiness-labelled button and no Back, so the server
- * picks the page, and it picks the first view whose instance is still incomplete: the
- * respondent walks forward and never lands again on a page they have finished.
- *
- * When no instance is incomplete the step's LAST view is served, because the walk is
- * forward-only and that view is the one carrying the group's Add control, so an open
- * group whose instances are all filled can still grow.
+ * The view when no cursor was given: the first view whose instance is incomplete, so the
+ * no-JS walk never revisits a finished page. If all are complete, the LAST view, which
+ * carries the Add control.
  */
 function servedView(
   flow: FlowState,
   views: readonly StepView[],
   unopened?: UnopenedGroups,
 ): { readonly view: StepView | null; readonly stepIndex: number } {
-  // An unopened group's step is a candidate too, and the earlier candidate wins.
-  // `currentStep` cannot nominate it: an unminted group contributes no visible question,
-  // so a later step with a missing required answer wins and a fresh session would open on
-  // the last step with the group unminted and Submit on the page, which
-  // `checkRepeatCounts` refuses. Comparing the two in document order rather than ranking
-  // the unopened step first can never move a respondent further forward than the flow
-  // already did. This stays out of the kernel because `SEMANTICS_VERSION` is frozen.
+  // An unopened group's step is a candidate too: `currentStep` cannot nominate it (no visible
+  // question until minted). Kept out of the kernel because `SEMANTICS_VERSION` is frozen.
   const owed = firstUnopenedView(views, unopened);
   const byFlow = currentStepView(flow, views);
   if (owed !== null && (byFlow.view === null || owed.stepIndex < byFlow.stepIndex)) return owed;
@@ -361,15 +338,8 @@ function currentStepView(
 }
 
 /**
- * Nothing about hidden questions or the rule graph crosses this boundary (SEC).
- *
- * The cursor changes only which document is drawn and the `visibleQuestions` /
- * `progress.stepIndex` that go with it; `currentStep`, `missingRequired` and
- * `readyToSubmit` stay cursor-independent, so a step never collapses or advances as a
- * side effect of answering.
- *
- * `values` are display data only and travel beside the compiled document, never inside
- * it (ADR-18); answers to hidden questions are excluded (SEC).
+ * Nothing about hidden questions or the rule graph crosses this boundary (SEC). The cursor
+ * changes only the drawn document; `values` are display data beside it (ADR-18).
  */
 function project(
   snapshot: LoadedSnapshot,
@@ -435,14 +405,8 @@ function paginatingGroup(snapshot: LoadedSnapshot, stepId: StepId): RepeatGroup 
 }
 
 /**
- * Two evaluations, and the second is not waste: which step is rendered depends on the
- * roster, and which groups are due to mint depends on which step is rendered. The mint is
- * idempotent, so a form with no group mints nothing and the second pass sees identical
- * inputs.
- *
- * The caller owns the transaction and holds the session's advisory lock, because this
- * writes: two concurrent serves of one step would each see an empty roster and each mint
- * a full set.
+ * Two evaluations: the rendered step depends on the roster and the groups to mint depend on
+ * the step. The mint is idempotent. The caller holds the transaction and advisory lock.
  */
 async function projectWithRosters(
   exec: Parameters<typeof mintDueAndLoadRosters>[0],
@@ -452,10 +416,8 @@ async function projectWithRosters(
   requestedIndex?: number,
 ): Promise<StepResponse> {
   const steps = snapshot.frozen.definition.steps;
-  // Pass one has to be a READ. `occurred_at` defaults to `now()`, which in Postgres is
-  // the TRANSACTION's timestamp, so two mint statements in one transaction write rows
-  // sharing a timestamp and ordering falls to the `instance_id` tiebreaker. Minting once
-  // per transaction is what keeps the minted order and a later read's order the same.
+  // Pass one must be a READ: `now()` is the transaction timestamp, so two mints in one
+  // transaction share `occurred_at` and fall to the `instance_id` tiebreaker.
   const first = evaluateOrThrow(
     snapshot,
     answers,
@@ -553,16 +515,9 @@ export function makeGetStepHandler(deps: Deps): RouteHandler<typeof getStepRoute
 }
 
 /**
- * A body `value` of literal `null` is a retraction (ADR-33), taken as a separate branch
- * before validation rather than as a validation outcome, so no real answer can reach the
- * ledger through it.
- *
- * `null` is the only clear: an empty value is refused with the same 422 any invalid value
- * gets, before the append, so an empty post stores nothing and is never converted into a
- * tombstone. Whitespace-only text is a legal answer that confers no presence.
- *
- * The visibility check, append and re-evaluation share one transaction under the session
- * lock, so only legitimately givable answers are recorded (I6).
+ * A body `value` of literal `null` is a retraction (ADR-33), a separate branch from
+ * validation. An empty value is refused with the usual 422 and never becomes a tombstone.
+ * Visibility check, append and re-evaluation share one transaction under the lock (I6).
  */
 export function makeSubmitAnswerHandler(
   deps: Deps,
@@ -704,12 +659,8 @@ async function applyOneAnswer(
 }
 
 /**
- * The largest number of answers one step of this form can legitimately carry, read from
- * the PINNED snapshot, so it is the author's own declaration rather than anything a
- * caller can state.
- *
- * It is the whole FORM's largest step rather than the step the request names, so the
- * ceiling cannot be made larger by naming another step or by a `step` query parameter.
+ * The most answers one step of this form can carry, from the PINNED snapshot. It is the
+ * whole form's largest step, so naming another step cannot raise the ceiling.
  */
 function stepAnswerBound(snapshot: LoadedSnapshot): number {
   const steps = snapshot.frozen.definition.steps;

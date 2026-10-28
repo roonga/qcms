@@ -179,10 +179,9 @@ function handlePart(part: TextStreamPart<ToolSet>, outcome: RunOutcome): AssistE
 }
 
 /**
- * Without this a refused turn keeps asking up to the full step budget, billing a real
- * provider for a conclusion settled at the first step. It reads the SDK's own step
- * record because `outcome.rejectedTool` is set by this process draining the stream,
- * so a predicate reading it would race the consumer.
+ * Stops a refused turn billing a real provider for the rest of the step budget. Reads the
+ * SDK's step record, since `outcome.rejectedTool` is set by the draining consumer and
+ * would race.
  */
 const stopOnRejectedTool: StopCondition<ToolSet> = ({ steps }) =>
   steps

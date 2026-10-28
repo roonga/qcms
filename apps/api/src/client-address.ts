@@ -1,8 +1,7 @@
 /**
- * `X-Forwarded-For` and `X-Real-IP` are ignored: this process never faces the internet,
- * so only an address a BFF resolved and asserted over the SEC-4 channel is trustworthy.
- * The value is a rate-limit bucket key only: never logged, never a span attribute, never
- * in a response body, never persisted (SEC-13).
+ * `X-Forwarded-For` and `X-Real-IP` are ignored: only an address a BFF asserted over the
+ * SEC-4 channel is trustworthy. The value is a rate-limit bucket key only, never logged,
+ * attributed to a span, returned or persisted (SEC-13).
  */
 
 import type { Context } from "hono";

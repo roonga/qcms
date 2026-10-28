@@ -644,10 +644,8 @@ describe("059: an erased session reaches no consumer, while its neighbour is del
 
     receiver.status.clear();
     receiver.reset();
-    // Well past the row's scheduled retry, so "not attempted" cannot be read as
-    // "not yet due". Other fixtures in this file share the receiver and the pass,
-    // so the assertions below are scoped to this delivery's own path and row rather
-    // than to the pass-wide metrics.
+    // Well past the scheduled retry, so "not attempted" is not "not yet due". Assertions are
+    // scoped to this delivery's path and row, as other fixtures share the receiver.
     await runDeliveryPass(deps, {
       now: new Date(materialized!.nextAttemptAt.getTime() + 60_000),
     });

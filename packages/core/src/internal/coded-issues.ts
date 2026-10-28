@@ -36,12 +36,8 @@ function qcmsCodeOf<Code extends string>(
   return parsed.success ? parsed.data : undefined;
 }
 
-// A union reports one opaque issue whose path stops at the union node, so a
-// malformed field would be reported at the item rather than at the field an
-// author's editor highlights. The two conditions below are deliberately narrow:
-// either alone would change what every other union here reports. Where every
-// branch fails at the node, as a value union does, the original message
-// survives, since naming one branch would be a lie about the value.
+// A union reports one opaque issue stopping at the union node. Both conditions below are
+// deliberately narrow; a value union keeps its message, as naming one branch would mislead.
 function expandUnionIssue(issue: z.core.$ZodIssue): readonly z.core.$ZodIssue[] {
   if (issue.code !== "invalid_union") {
     return [issue];

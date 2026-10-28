@@ -471,7 +471,7 @@ describe("accepting a proposal with new questions", () => {
             definition: {
               ...questionDefinition("q_bad_pattern", "Bad pattern"),
               // Valid to the kernel, refused at the authoring boundary: a browser
-              // compiles `pattern` with the `v` flag and drops this one (issue #53).
+              // compiles `pattern` with the `v` flag and drops this one.
               constraints: { pattern: "^[A-Za-z][A-Za-z .,'-]{0,99}$" },
             },
           },

@@ -165,11 +165,8 @@ export function compareValues(a: AnswerValue, b: AnswerValue): Result<Ordering> 
 }
 
 /**
- * Whether a value is empty or whitespace-only text. Presence rather than
- * encoding: the value is stored verbatim but does not satisfy `required`. No
- * other canonical encoding has a whitespace-only spelling, so this is exact
- * without the question type, which is what lets the evaluator apply it over a
- * bare answer map. An empty selection is refused by `validateAnswer` instead.
+ * Whether a value is empty or whitespace-only text: presence, not encoding. Exact without
+ * the question type, so the evaluator can apply it to a bare answer map.
  */
 export function isBlankAnswerValue(value: AnswerValue): boolean {
   return typeof value === "string" && value.trim() === "";

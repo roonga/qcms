@@ -1,12 +1,9 @@
 import type { A2UINode } from "./types.js";
 
 /**
- * The honeypot decoy field. A respondent never reaches it; a form-filler that
- * populates every input by name does, and the submit slice flags that session
- * with no tell in the response (SECURITY_DESIGN). The field name is shared with
- * the API and deliberately unlike a question id (R6). A dedicated node type:
- * the hiding props are not in the vendored strict schema (ADR-22), so
- * `docs/a2ui-mapping.md` and the golden corpus carry the contract.
+ * The honeypot decoy field: a form-filler populating every input by name flags the session
+ * with no tell in the response (SECURITY_DESIGN). The name is shared with the API and unlike
+ * a question id (R6). A dedicated node type; `docs/a2ui-mapping.md` carries the contract.
  */
 
 /** The submit-body key the decoy posts under, shared with the API. */

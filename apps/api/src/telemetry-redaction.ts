@@ -1,17 +1,7 @@
 /**
- * SEC-13: spans leave the process into an adopter's backend, outside our erasure reach,
- * so what may appear in one is decided by an allowlist rather than by a list of things to
- * strip. Anything an instrumentation invents is dropped before export.
- *
- * Never in any signal: respondent answer values, `LocalizedText` content, secure-link
- * tokens, the SEC-4 internal token, auth secrets. Branded ids are permitted as
- * pseudonymous correlators. The allowlist is over attribute keys and never inspects a
- * value.
- *
- * Query strings go whole, so a route that later carries a secret in one cannot break the
- * rule. `exception.message` and `exception.stacktrace` go, because a validation error
- * message is where an answer value can end up; the stdout structured log still carries
- * both beside the same `requestId`.
+ * SEC-13: spans leave our erasure reach, so an allowlist over attribute keys (never values)
+ * decides what appears. Never exported: answer values, `LocalizedText`, link tokens, the
+ * SEC-4 token, secrets. Query strings and `exception.message`/`stacktrace` go whole.
  */
 
 import type { Attributes } from "@opentelemetry/api";

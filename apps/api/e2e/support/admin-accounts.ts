@@ -72,13 +72,9 @@ export interface TestAdminInput {
 }
 
 /**
- * `signUpEmail` directly rather than `createInitialAdmin`: the zero-admins guard belongs
- * to `pnpm qcms:create-admin` and is tested in
- * `src/features/auth/bootstrap.integration.test.ts`.
- *
- * There is deliberately no pool-closing helper. Playwright runs a project's files in one
- * worker process, so this module's memoized instance outlives any single file and a file
- * that closed the pool would break the next one's `beforeAll`.
+ * `signUpEmail` directly: the zero-admins guard belongs to `pnpm qcms:create-admin`.
+ * There is no pool-closing helper: a Playwright worker shares this memoized instance
+ * across files, so closing it would break the next file's `beforeAll`.
  */
 export async function createTestAdmin(input: TestAdminInput): Promise<void> {
   const { auth, db } = authFor(input.databaseUrl, input.authSecret, input.adminBaseUrl);

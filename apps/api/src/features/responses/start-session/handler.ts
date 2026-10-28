@@ -1,9 +1,6 @@
 /**
- * The environment is the group's, never the request's: each respondent group is pinned
- * with `fixedEnvironment`, so a respondent has nothing to send that could change it.
- *
- * A version is resolved once, here, and `createSession` is the only path that sets one,
- * so nothing can re-pin a session already open (I4).
+ * The environment is the group's, pinned by `fixedEnvironment`, never the request's. A
+ * version is resolved once here and `createSession` is the only path that sets one (I4).
  */
 
 import type { RouteHandler } from "@hono/zod-openapi";
