@@ -186,11 +186,7 @@ async function seedForm(formId: FormId, slug: string, workspaceId: string): Prom
 }
 
 /** A submitted response in one environment, so a count has something to count. */
-async function seedSubmitted(
-  environment: string,
-  formId: FormId,
-  suffix: string,
-): Promise<void> {
+async function seedSubmitted(environment: string, formId: FormId, suffix: string): Promise<void> {
   const exec = executors.get(environment)!;
   const sessionId = SessionId.parse(`ses_ops${suffix}`);
   await createSession(exec, {
@@ -211,11 +207,7 @@ async function seedSubmitted(
 }
 
 /** A session still open in one environment, which is the `inProgress` half of a count. */
-async function seedInProgress(
-  environment: string,
-  formId: FormId,
-  suffix: string,
-): Promise<void> {
+async function seedInProgress(environment: string, formId: FormId, suffix: string): Promise<void> {
   const exec = executors.get(environment)!;
   await createSession(exec, {
     environment,
@@ -361,7 +353,7 @@ interface OperationsRow {
   displayName: string;
   workspace: { workspaceId: string };
   hasRelease: boolean;
-  release: { version: number; closed: boolean } | null;
+  release: { version: number; closed: boolean; releasedAt: string } | null;
   lastReleaseAt: string | null;
   counts: { submitted: number; inProgress: number } | null;
   capabilities: string[];
@@ -396,11 +388,9 @@ describe("operations discovery: which rows each persona is served (D3)", () => {
     // Its own workspace's two forms, and not the second workspace's.
     expect(body.forms.map((row) => row.slug)).toEqual(["ops-claims", "ops-permits"]);
     const claims = body.forms.find((row) => row.slug === "ops-claims");
-    expect(claims?.release).toEqual({
-      version: 1,
-      releasedAt: expect.any(String),
-      closed: false,
-    });
+    expect(claims?.release?.version).toBe(1);
+    expect(claims?.release?.closed).toBe(false);
+    expect(typeof claims?.release?.releasedAt).toBe("string");
     expect(claims?.hasRelease).toBe(true);
     expect(claims?.lastReleaseAt).not.toBeNull();
     // The whole of criterion "no counts for a caller without `response: read`".
@@ -417,12 +407,8 @@ describe("operations discovery: which rows each persona is served (D3)", () => {
     const permits = body.forms.find((row) => row.slug === "ops-permits");
     expect(permits?.hasRelease).toBe(true);
     expect(permits?.release?.closed).toBe(true);
-    expect(await slugsFor(viewer.token, "environment=prod&intake=closed")).toEqual([
-      "ops-permits",
-    ]);
-    expect(await slugsFor(viewer.token, "environment=prod&intake=open")).toEqual([
-      "ops-claims",
-    ]);
+    expect(await slugsFor(viewer.token, "environment=prod&intake=closed")).toEqual(["ops-permits"]);
+    expect(await slugsFor(viewer.token, "environment=prod&intake=open")).toEqual(["ops-claims"]);
     // `test` has one release of `claims` and nothing else, so `permits` reads unreleased
     // there - a different answer from closed, in the same environment's own terms.
     expect(await slugsFor(viewer.token, "environment=test&intake=unreleased")).toEqual([
@@ -612,17 +598,11 @@ describe("operations discovery: bounds, filters and pagination", () => {
   });
 
   it("sorts on counts without showing a count the caller may not see", async () => {
-    const { body } = await operations(
-      oneFormViewer.token,
-      "environment=prod&sort=submitted-desc",
-    );
+    const { body } = await operations(oneFormViewer.token, "environment=prod&sort=submitted-desc");
     expect(body.forms.map((row) => row.slug)).toEqual(["ops-claims"]);
     // A viewer who may count nothing still gets a total order, with every uncountable row
     // last and no count in any of them.
-    const viewerSorted = await operations(
-      viewer.token,
-      "environment=prod&sort=submitted-desc",
-    );
+    const viewerSorted = await operations(viewer.token, "environment=prod&sort=submitted-desc");
     expect(viewerSorted.body.forms.map((row) => row.slug)).toEqual(["ops-claims", "ops-permits"]);
     expect(viewerSorted.body.forms.every((row) => row.counts === null)).toBe(true);
   });

@@ -124,9 +124,7 @@ const OperationsFormRow = z.object({
    * otherwise. Reading it writes no SEC-15 row, because an aggregate is not a read of
    * anybody's answers.
    */
-  counts: z
-    .object({ submitted: z.number().int(), inProgress: z.number().int() })
-    .nullable(),
+  counts: z.object({ submitted: z.number().int(), inProgress: z.number().int() }).nullable(),
   /**
    * The acts this caller holds on this form **in this environment**, as `resource:action`
    * pairs, derived from the same policy decision that would authorise each one.
@@ -153,8 +151,6 @@ export const OperationsFormsResponse = z
      * this caller cannot see. It does not shrink as filters are applied, because a filter
      * affects the results below it and not the controls above them.
      */
-    workspaces: z.array(
-      z.object({ workspaceId: z.string(), slug: z.string(), name: z.string() }),
-    ),
+    workspaces: z.array(z.object({ workspaceId: z.string(), slug: z.string(), name: z.string() })),
   })
   .openapi("OperationsFormsResponse");

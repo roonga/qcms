@@ -184,8 +184,7 @@ describe("every row names an action the policy declares", () => {
     /** Whether this route declares a required `environment` **query** parameter (Q87). */
     const declaresEnvironmentQuery = (row: (typeof ROUTE_POLICIES)[number]): boolean => {
       const operation = document.paths[row.path]?.[row.method.toLowerCase()] as
-        | { parameters?: { name?: string; in?: string; required?: boolean }[] }
-        | undefined;
+        { parameters?: { name?: string; in?: string; required?: boolean }[] } | undefined;
       return (
         operation?.parameters?.some(
           (parameter) =>

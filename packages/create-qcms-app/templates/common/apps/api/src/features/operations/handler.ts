@@ -97,8 +97,7 @@ const fail = {
    * degrading to an empty page, which would be an unauthorised answer that looked like an
    * authorised one.
    */
-  noContext: (): Error =>
-    new Error("operations: no resolved membership on the request context"),
+  noContext: (): Error => new Error("operations: no resolved membership on the request context"),
 } as const;
 
 /** The write acts a row reports as capabilities, in the order a rail would offer them. */
@@ -119,7 +118,11 @@ interface Candidate {
   readonly slug: string;
   readonly defaultLocale: string;
   readonly displayName: string;
-  readonly workspace: { readonly workspaceId: string; readonly slug: string; readonly name: string };
+  readonly workspace: {
+    readonly workspaceId: string;
+    readonly slug: string;
+    readonly name: string;
+  };
   readonly state: FormEnvironmentState | undefined;
   readonly lastReleaseAt: Date | undefined;
   readonly mayReadForm: boolean;
@@ -210,7 +213,10 @@ export function makeOperationsFormsHandler(
     // 2. Filter, before any aggregate and before the total.
     const needle = query.q?.trim().toLowerCase();
     const filtered = candidates.filter((candidate) => {
-      if (query.workspaceId !== undefined && candidate.workspace.workspaceId !== query.workspaceId) {
+      if (
+        query.workspaceId !== undefined &&
+        candidate.workspace.workspaceId !== query.workspaceId
+      ) {
         return false;
       }
       if (query.intake !== undefined && intakeOf(candidate) !== query.intake) return false;
@@ -272,7 +278,8 @@ export function makeOperationsFormsHandler(
           capabilities: [...candidate.capabilities],
         })),
         total,
-        nextCursor: after.length > page.length && last !== undefined ? encodeCursor(last, sort) : null,
+        nextCursor:
+          after.length > page.length && last !== undefined ? encodeCursor(last, sort) : null,
         workspaces: options,
       },
       200,
@@ -372,30 +379,34 @@ function compare(left: Candidate, right: Candidate, sort: string): number {
     left.slug === right.slug
       ? left.formId.localeCompare(right.formId)
       : left.slug.localeCompare(right.slug);
-  switch (sort) {
-    case "slug-desc":
-      return -tie();
-    case "released-desc":
-    case "released-asc": {
-      const l = releasedKey(left);
-      const r = releasedKey(right);
-      if (l === r) return tie();
-      if (l === null) return 1;
-      if (r === null) return -1;
-      return sort === "released-desc" ? (l < r ? 1 : -1) : l < r ? -1 : 1;
-    }
-    case "submitted-desc":
-    case "submitted-asc": {
-      const l = submittedKey(left);
-      const r = submittedKey(right);
-      if (l === r) return tie();
-      if (l === null) return 1;
-      if (r === null) return -1;
-      return sort === "submitted-desc" ? (l < r ? 1 : -1) : l < r ? -1 : 1;
-    }
-    default:
-      return tie();
+  const descending = sort.endsWith("-desc");
+  if (sort.startsWith("released")) {
+    return byKey(releasedKey(left), releasedKey(right), descending, tie);
   }
+  if (sort.startsWith("submitted")) {
+    return byKey(submittedKey(left), submittedKey(right), descending, tie);
+  }
+  return descending ? -tie() : tie();
+}
+
+/**
+ * Order two rows on one axis, with a null key always last and the tie-break underneath.
+ *
+ * `null` sorts last in **both** directions on purpose: it means "this caller has no such
+ * key", which is not a position on the axis at all, so flipping the direction must not
+ * promote it to the top of the page.
+ */
+function byKey(
+  left: string | number | null,
+  right: string | number | null,
+  descending: boolean,
+  tie: () => number,
+): number {
+  if (left === right) return tie();
+  if (left === null) return 1;
+  if (right === null) return -1;
+  const ascending = left < right ? -1 : 1;
+  return descending ? -ascending : ascending;
 }
 
 /** The release axis, and `null` for a caller who may not read it or a form never released. */

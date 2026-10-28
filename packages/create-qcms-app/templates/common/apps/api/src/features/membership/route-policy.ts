@@ -179,13 +179,15 @@ export interface RoutePolicy {
  * table's own fields are the form's: a caller who may not read the form has no business
  * being told which version is serving it. The two always travel together in the matrix.
  */
-export const OPERATIONAL_CELLS: readonly { readonly resource: Resource; readonly action: string }[] =
-  [
-    { resource: "form", action: "read" },
-    { resource: "response", action: "read" },
-    { resource: "response", action: "erase" },
-    { resource: "response", action: "dispose" },
-  ];
+export const OPERATIONAL_CELLS: readonly {
+  readonly resource: Resource;
+  readonly action: string;
+}[] = [
+  { resource: "form", action: "read" },
+  { resource: "response", action: "read" },
+  { resource: "response", action: "erase" },
+  { resource: "response", action: "dispose" },
+];
 
 /**
  * Every admin route, as a cell of the matrix.

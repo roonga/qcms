@@ -384,72 +384,27 @@ export function makeReleaseReviewHandler(
       .map((row) => row.name)
       .filter((name) => deps.databases.names.includes(name));
 
-    const targets = [];
-    for (const environment of served) {
-      const mayRelease = decideAccess({
-        memberRole: membership.memberRole,
-        grants: membership.grants,
-        request: { resource: "release", action: "create", environment, formId },
-      }).allowed;
-      if (!mayRelease) continue;
-
-      const here = releases.filter((release) => release.environment === environment);
-      // Newest first already (`listFormReleases` orders by released_at then sequence).
-      const current = here[0];
-      const version = candidate?.version;
-      const rollback =
-        version !== undefined && here.some((release) => release.version === version);
-      const prerequisite =
-        workflowEnabled && environment === PRODUCTION_ENVIRONMENT ? ["test", "prod"] : [];
-      const evidence =
-        version === undefined
-          ? []
-          : releases.filter(
-              (release) =>
-                release.version === version &&
-                (prerequisite.length === 0
-                  ? release.environment === environment
-                  : prerequisite.includes(release.environment)),
-            );
-
-      const blockers: { code: string; requiresAnyOf: string[] }[] = [];
-      if (prerequisite.length > 0 && !rollback) {
-        if (source.kind === "draft") {
-          // Today's behaviour, stated: a combined publish into `prod` is refused while
-          // `test` is served, because the version would have no prior release anywhere.
-          blockers.push({ code: "DRAFT_PUBLISH_NOT_ALLOWED", requiresAnyOf: [...prerequisite] });
-        } else if (evidence.length === 0) {
-          blockers.push({ code: "TEST_RELEASE_REQUIRED", requiresAnyOf: [...prerequisite] });
-        }
-      }
-      if (version !== undefined && current?.version === version) {
-        blockers.push({ code: "ALREADY_RELEASED", requiresAnyOf: [] });
-      }
-
-      const applies = environment === PRODUCTION_ENVIRONMENT && requiresSecond;
-      const author = candidate?.publishedBy ?? null;
-      const refusedAsAuthor = applies && author !== null && author === principal.userId;
-      if (applies && source.kind === "version") {
-        if (author === null) blockers.push({ code: "APPROVER_UNKNOWN_AUTHOR", requiresAnyOf: [] });
-        else if (refusedAsAuthor) blockers.push({ code: "APPROVER_IS_AUTHOR", requiresAnyOf: [] });
-      }
-
-      targets.push({
-        environment,
-        currentVersion: current?.version ?? null,
-        currentSequence: current?.sequence ?? null,
-        closed: current?.closed ?? false,
-        evidence: evidence.map((release) => ({
-          environment: release.environment,
-          version: release.version,
-          sequence: release.sequence,
-          releasedAt: release.releasedAt.toISOString(),
-        })),
-        blockers,
-        twoPerson: { applies, refusedAsAuthor },
-        protected: environment === PRODUCTION_ENVIRONMENT,
-      });
-    }
+    const targets = served
+      .filter(
+        (environment) =>
+          decideAccess({
+            memberRole: membership.memberRole,
+            grants: membership.grants,
+            request: { resource: "release", action: "create", environment, formId },
+          }).allowed,
+      )
+      .map((environment) =>
+        reviewTarget({
+          environment,
+          releases,
+          workflowEnabled,
+          requiresSecond,
+          isDraft: source.kind === "draft",
+          version: candidate?.version,
+          author: candidate?.publishedBy ?? null,
+          caller: principal.userId,
+        }),
+      );
 
     return c.json(
       {
@@ -471,6 +426,141 @@ export function makeReleaseReviewHandler(
       200,
     );
   };
+}
+
+/** One reason a target refuses a candidate, and the environments that would satisfy it. */
+interface Blocker {
+  readonly code: string;
+  readonly requiresAnyOf: string[];
+}
+
+/**
+ * Evaluate one target of a review: what is serving there, the evidence, the blockers and
+ * the two-person reading.
+ *
+ * Its own function because it is the half of the review that is **policy about releases**
+ * rather than policy about callers: the handler decides which environments this caller may
+ * be told about, and this decides what is true of each of them. Nothing here reads a grant.
+ */
+function reviewTarget(input: {
+  readonly environment: string;
+  readonly releases: readonly FormReleaseHistoryRow[];
+  readonly workflowEnabled: boolean;
+  readonly requiresSecond: boolean;
+  readonly isDraft: boolean;
+  readonly version: number | undefined;
+  readonly author: string | null;
+  readonly caller: string;
+}): {
+  environment: string;
+  currentVersion: number | null;
+  currentSequence: number | null;
+  closed: boolean;
+  evidence: { environment: string; version: number; sequence: number; releasedAt: string }[];
+  blockers: Blocker[];
+  twoPerson: { applies: boolean; refusedAsAuthor: boolean };
+  protected: boolean;
+} {
+  const { environment, releases, version } = input;
+  const here = releases.filter((release) => release.environment === environment);
+  // Newest first already (`listFormReleases` orders by released_at then sequence).
+  const current = here[0];
+  // The **rollback exception** (decision 2): a version with any prior release row in the
+  // target itself is eligible there regardless of prerequisites.
+  const rollback = version !== undefined && here.some((release) => release.version === version);
+  // The derived default workflow (decision 1 stated as data), until phase 3 writes a
+  // revision: `prod` requires a prior release of that version in `test` or `prod` when
+  // both are served, and no other environment has a prerequisite.
+  const prerequisite =
+    input.workflowEnabled && environment === PRODUCTION_ENVIRONMENT ? ["test", "prod"] : [];
+  const evidence =
+    version === undefined ? [] : evidenceFor(releases, version, environment, prerequisite);
+
+  const applies = environment === PRODUCTION_ENVIRONMENT && input.requiresSecond;
+  const refusedAsAuthor = applies && input.author !== null && input.author === input.caller;
+  const blockers = blockersFor({
+    prerequisite,
+    rollback,
+    isDraft: input.isDraft,
+    hasEvidence: evidence.length > 0,
+    alreadyReleased: version !== undefined && current?.version === version,
+    twoPersonApplies: applies,
+    authorKnown: input.author !== null,
+    refusedAsAuthor,
+  });
+
+  return {
+    environment,
+    currentVersion: current?.version ?? null,
+    currentSequence: current?.sequence ?? null,
+    closed: current?.closed ?? false,
+    evidence: evidence.map((release) => ({
+      environment: release.environment,
+      version: release.version,
+      sequence: release.sequence,
+      releasedAt: release.releasedAt.toISOString(),
+    })),
+    blockers,
+    twoPerson: { applies, refusedAsAuthor },
+    protected: environment === PRODUCTION_ENVIRONMENT,
+  };
+}
+
+/**
+ * Every reason one target refuses one candidate, as booleans already decided.
+ *
+ * Separated from {@link reviewTarget} so each rule reads as one line and so the set is
+ * enumerable: these codes are the contract phase 3's commit refuses with, and a reader
+ * comparing the two has one list to compare against rather than a traversal.
+ */
+function blockersFor(input: {
+  readonly prerequisite: readonly string[];
+  readonly rollback: boolean;
+  readonly isDraft: boolean;
+  readonly hasEvidence: boolean;
+  readonly alreadyReleased: boolean;
+  readonly twoPersonApplies: boolean;
+  readonly authorKnown: boolean;
+  readonly refusedAsAuthor: boolean;
+}): Blocker[] {
+  const blockers: Blocker[] = [];
+  const requiresAnyOf = [...input.prerequisite];
+  if (input.prerequisite.length > 0 && !input.rollback) {
+    // Today's behaviour, stated: a combined publish into `prod` is refused while `test`
+    // is served, because the version would have no prior release anywhere.
+    if (input.isDraft) blockers.push({ code: "DRAFT_PUBLISH_NOT_ALLOWED", requiresAnyOf });
+    // `TEST_RELEASE_REQUIRED` while the workflow is the derived default (F5).
+    else if (!input.hasEvidence) blockers.push({ code: "TEST_RELEASE_REQUIRED", requiresAnyOf });
+  }
+  if (input.alreadyReleased) blockers.push({ code: "ALREADY_RELEASED", requiresAnyOf: [] });
+  if (input.twoPersonApplies && !input.isDraft) {
+    if (!input.authorKnown) blockers.push({ code: "APPROVER_UNKNOWN_AUTHOR", requiresAnyOf: [] });
+    else if (input.refusedAsAuthor) {
+      blockers.push({ code: "APPROVER_IS_AUTHOR", requiresAnyOf: [] });
+    }
+  }
+  return blockers;
+}
+
+/**
+ * The committed rows that satisfy a target's rule for one version (decision 2).
+ *
+ * With a prerequisite, the rows of that version in any required environment; without one,
+ * the rows of that version in the target itself, which is what a reader needs to see that
+ * a release there would be a rollback rather than a move forward.
+ */
+function evidenceFor(
+  releases: readonly FormReleaseHistoryRow[],
+  version: number,
+  environment: string,
+  prerequisite: readonly string[],
+): FormReleaseHistoryRow[] {
+  return releases.filter((release) => {
+    if (release.version !== version) return false;
+    return prerequisite.length === 0
+      ? release.environment === environment
+      : prerequisite.includes(release.environment);
+  });
 }
 
 // --- GET /admin/environments ------------------------------------------------
