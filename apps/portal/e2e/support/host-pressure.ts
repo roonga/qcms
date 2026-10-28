@@ -1,31 +1,14 @@
 /**
- * How busy this machine is, and whether that is enough to doubt a red (issue #395).
+ * How busy this machine is, and whether that is enough to doubt a red run: the load
+ * averages, the Docker containers running and how many Testcontainers sessions they
+ * span.
  *
- * ## Why this is its own module
+ * It is evidence rather than a verdict. Nothing here retries, skips or relaxes anything;
+ * it gives a reader the one thing a failure message cannot, which is what else was
+ * happening at the time.
  *
- * Two callers need the same reading and neither may import the other. `contention.ts`
- * builds the end-of-run report and needs `/proc` to name a neighbouring lane, which it
- * does through `port-seat.ts`; `port-seat.ts` refuses a seat it cannot have and now
- * prints what the machine was doing when it refused, because "the seat is taken" and
- * "the machine is carrying four other lanes" are different answers and the second one
- * tells the reader whether waiting will help. Putting the probe in either of them makes
- * the pair circular, so the probe lives here and both import it.
- *
- * ## What the pressure rule is for
- *
- * #395 was filed about a run whose neighbour was visible: another seat's harness ports
- * were live. Its second occurrence had no such tell. A forced unit run failed
- * `@roonga/qcms-ui` and `@roonga/qcms-db` on an admin-only diff, and the lanes competing with it
- * were running `turbo run test` rather than a browser harness, so they held no seat
- * ports at all and the report's own conclusion was that nothing argued against reading
- * the failures as the branch's own. The signal those lanes DO leave is on the Docker
- * daemon: a Testcontainers session id per lane, and a run queue several times the CPU
- * count. That is what {@link hostPressure} reads.
- *
- * It reports pressure; it never concludes from it. A loaded machine is a reason to
- * re-run before believing a red, not a reason to disbelieve one - a genuine regression
- * happens on a busy host too, and every wording here is written so the reader draws the
- * conclusion.
+ * The Docker CLI is looked for at absolute paths, because a daemon that cannot be
+ * reached has to read as unknown rather than as idle.
  */
 
 import { spawnSync } from "node:child_process";

@@ -156,14 +156,10 @@ afterAll(() => {
 
 describe("seat 0 is today's allocation", () => {
   it("puts the human-facing services exactly where they already are", () => {
-    // The compatibility contract. If this ever changes, every developer's bookmark,
-    // every doc URL and the devcontainer's `appPort` are wrong at the same moment.
     expect(stablePort("portal", 0)).toBe(7000);
     expect(stablePort("api", 0)).toBe(7010);
     expect(stablePort("postgres", 0)).toBe(7020);
     expect(stablePort("artifacts", 0)).toBe(7030);
-    // Published out of the dev container since issue #281, so it is now in `appPort`
-    // and in the same contract as the four above rather than a bare allocation.
     expect(stablePort("admin", 0)).toBe(7040);
   });
 
@@ -173,8 +169,6 @@ describe("seat 0 is today's allocation", () => {
   });
 
   it("leaves the Compose project name alone, so no existing database moves", () => {
-    // Two Compose stacks with one project name ARE one stack, so this is the seam
-    // that decides whether a second seat gets its own database or silently shares.
     expect(composeProjectName(0)).toBe("qcms-dev");
     expect(composeProjectName(1)).toBe("qcms-dev-s1");
   });
@@ -195,8 +189,6 @@ describe("resolvePortSeat", () => {
   it.each(["10", "-1", "1.5", "a", "01", "2x", "99"])(
     "refuses %s loudly rather than coercing it",
     (raw) => {
-      // Coercing would be the dangerous outcome: a bad value that fell back to seat 0
-      // would put this run straight back on another seat's ports, silently.
       expect(() => resolvePortSeat(raw)).toThrow(PORT_SEAT_ENV_VAR);
       expect(() => resolvePortSeat(raw)).toThrow("docs/PORTS.md");
     },
@@ -218,8 +210,6 @@ describe("port arithmetic", () => {
   });
 
   it("keeps every port legal, which a 7xxxx harness block would not have been", () => {
-    // The trap in "five digits, keep the 7": 70000 and up are above the maximum TCP
-    // port and simply cannot bind. 17xxx keeps the mnemonic and stays legal.
     for (let seat = MIN_PORT_SEAT; seat <= MAX_PORT_SEAT; seat += 1) {
       for (const { port } of harnessPorts(seat)) {
         expect(port).toBeGreaterThan(1023);
@@ -262,8 +252,6 @@ describe("port arithmetic", () => {
 
 describe("assertSeatPortsOutsideEphemeralRange", () => {
   it("passes for every seat against this machine's live range", () => {
-    // The real check, on the real value: 17xxx is below the stock 32768-60999 window,
-    // and this fails on a machine that moved the window under it.
     for (let seat = MIN_PORT_SEAT; seat <= MAX_PORT_SEAT; seat += 1) {
       expect(() => assertSeatPortsOutsideEphemeralRange(seat)).not.toThrow();
     }
@@ -278,14 +266,12 @@ describe("assertSeatPortsOutsideEphemeralRange", () => {
   it("reads the range from the file rather than assuming it", () => {
     expect(ephemeralPortRange("/definitely/not/a/sysctl")).toBeUndefined();
     const live = ephemeralPortRange();
-    // Linux only; elsewhere the assertion degrades to a no-op, which is stated.
     if (live !== undefined) expect(live.low).toBeLessThan(live.high);
   });
 });
 
 describe("occupantOfPort", () => {
   it("reports nothing for a port with no listener", async () => {
-    // Bind and release, so the port is known to have been bindable and is free now.
     const { port, server } = await listenOnFreePort();
     await close(server);
     expect(occupantOfPort(port)).toBeUndefined();
@@ -295,8 +281,6 @@ describe("occupantOfPort", () => {
     const { port } = await listenOnFreePort();
     const found = occupantOfPort(port);
     if (found === undefined) {
-      // No `/proc` (not Linux): the refusal degrades to "cannot attribute", which
-      // `isAdoptable` already treats as not-mine. Nothing to assert here.
       expect(ephemeralPortRange()).toBeUndefined();
       return;
     }
@@ -311,9 +295,6 @@ describe("assertSeatPortsUsable", () => {
   });
 
   it("refuses a dev server belonging to another worktree, naming pid and cwd", () => {
-    // The exact issue #255 shape: another lane's portal dev server is up on the port
-    // this run wants. Before the seat scheme, Playwright adopted it and the run went
-    // green against that other tree.
     const call = () =>
       assertSeatPortsUsable(0, "/repo/qcms", [
         occupant({ pid: 4242, cwd: "/repo/qcms-other-worktree" }),
@@ -327,18 +308,12 @@ describe("assertSeatPortsUsable", () => {
     expect(() =>
       assertSeatPortsUsable(0, "/repo/qcms", [occupant({ cwd: "/repo/qcms" })], alwaysReady),
     ).not.toThrow();
-    // A trailing slash is how `HARNESS_REPO_ROOT` arrives and not how `/proc` reports
-    // a cwd, so the comparison has to survive it or every reuse would be refused.
     expect(() =>
       assertSeatPortsUsable(0, "/repo/qcms/", [occupant({ cwd: "/repo/qcms" })], alwaysReady),
     ).not.toThrow();
   });
 
   it("refuses an orphan from this worktree that no longer answers (issue #295)", () => {
-    // The whole of issue #295 in one case. A run killed mid-suite leaves its
-    // `next-server` reparented to pid 1, listening on the seat, cwd still inside this
-    // worktree - structurally indistinguishable from the case above, and it answers
-    // nothing. Adopting it was hours of two-minute timeouts; refusing names it.
     const call = () =>
       assertSeatPortsUsable(
         0,
@@ -352,18 +327,12 @@ describe("assertSeatPortsUsable", () => {
   });
 
   it("refuses an occupant it cannot attribute, rather than assuming it is ours", () => {
-    // "Cannot tell whose it is" and "it is mine" must never collapse into the same
-    // outcome: that collapse is precisely how a false green is produced.
     expect(() =>
       assertSeatPortsUsable(0, "/repo/qcms", [occupant({ pid: undefined, cwd: undefined })]),
     ).toThrow("unidentified process");
   });
 
   it("says what the machine was doing when it refused (issue #395)", () => {
-    // The refusal already says the seat is taken. What a reader cannot tell from that is
-    // whether moving to a free seat will get them a green run or a slower one: a machine
-    // carrying four other lanes' containers is a machine where the next seat is no
-    // quieter. The probe is injected here so the unit suite spawns no `docker ps`.
     const call = () =>
       assertSeatPortsUsable(
         0,
@@ -378,8 +347,6 @@ describe("assertSeatPortsUsable", () => {
   });
 
   it("never adopts the API or the OTLP receiver, even from this worktree", () => {
-    // Both are bound by the Playwright runner process itself, once per run. A live
-    // listener on either is a leak or a concurrent run, never something to join.
     for (const service of ["api", "otlp"] as const) {
       expect(() =>
         assertSeatPortsUsable(0, "/repo/qcms", [
@@ -392,15 +359,10 @@ describe("assertSeatPortsUsable", () => {
 
 describe("assertSeatChosen", () => {
   it("lets the primary checkout and CI keep the silent default", () => {
-    // `.git` is a directory in a normal clone, which is what CI checks out.
     expect(() => assertSeatChosen(primaryCheckout, "")).not.toThrow();
   });
 
   it("refuses an unset seat in a linked worktree, where lanes actually run", () => {
-    // The residual risk after per-seat isolation is not a port collision, it is a
-    // SEAT collision: two lanes that both fall back to the default. Every lane runs
-    // in a worktree, and a linked worktree has a `.git` FILE, so "I forgot" becomes
-    // a startup error before anything binds rather than a second run on seat 0.
     const call = () => assertSeatChosen(linkedWorktree, "");
     expect(call).toThrow(PORT_SEAT_ENV_VAR);
     expect(call).toThrow("linked git worktree");
@@ -408,8 +370,6 @@ describe("assertSeatChosen", () => {
   });
 
   it("accepts any explicit seat in a worktree, including 0", () => {
-    // Seat 0 is a legitimate answer when nothing else is running. What is refused is
-    // silence, not the value.
     expect(() => assertSeatChosen(linkedWorktree, "0")).not.toThrow();
     expect(() => assertSeatChosen(linkedWorktree, "3")).not.toThrow();
   });
@@ -417,10 +377,6 @@ describe("assertSeatChosen", () => {
 
 describe("adoptableServices", () => {
   it("is empty when the ports are free, so a lost bind race fails loudly", () => {
-    // This is the case a probe alone cannot cover. Port free at config load, another
-    // run claims it a second later: with reuse OFF that ends in EADDRINUSE, which is
-    // the direction the race has to fail in. With reuse ON it would end in a green
-    // suite run against the winner's tree, which is issue #255 exactly.
     expect(adoptableServices(0, "/repo/qcms", [], alwaysReady)).toEqual(new Set());
   });
 
@@ -433,24 +389,17 @@ describe("adoptableServices", () => {
   });
 
   it("adopts nothing when this worktree's own servers no longer answer", () => {
-    // The `reuseExistingServer` half of issue #295. Refusing the run is one outcome;
-    // the flag has to come back empty too, or a future caller that only reads this set
-    // would still hand an orphan to Playwright.
     const portal = occupant({ cwd: "/repo/qcms/apps/portal" });
     const admin = occupant({ service: "admin", cwd: "/repo/qcms/apps/admin" });
     expect(adoptableServices(0, "/repo/qcms", [portal, admin], neverReady)).toEqual(new Set());
   });
 
   it("recognises a dev server by its APP directory, not the repo root", () => {
-    // `next dev` runs with its cwd inside the app, so a live portal server reports
-    // `<repo>/apps/portal`. An equality test made every one of our own servers
-    // unadoptable, which the first concurrent-seat proof run caught.
     const portal = occupant({ cwd: "/repo/qcms/apps/portal" });
     const admin = occupant({ service: "admin", cwd: "/repo/qcms/apps/admin" });
     expect(adoptableServices(0, "/repo/qcms", [portal, admin], alwaysReady)).toEqual(
       new Set(["portal", "admin"]),
     );
-    // A sibling worktree whose path merely starts with the same characters is not us.
     expect(
       isAdoptable(occupant({ cwd: "/repo/qcms-other/apps/portal" }), "/repo/qcms", alwaysReady),
     ).toBe(false);
@@ -475,8 +424,6 @@ describe("isAdoptable", () => {
   });
 
   it("names why it refused, so the message can say more than 'held by pid N'", () => {
-    // The four cases are ordered cheapest-first on purpose: only the last one spawns a
-    // probe, so a foreign or unattributable occupant costs nothing to reject.
     expect(adoptionRefusal(occupant({ service: "api" }), "/repo/qcms", neverReady)).toBe(
       "not-reusable",
     );
@@ -496,28 +443,17 @@ describe("isAdoptable", () => {
 });
 
 describe("probeServiceReady", () => {
-  // The probe itself, against real sockets. Everything above stubs it, so without
-  // these three cases the mechanism that decides adoption would be untested.
-
   it("is true for a server answering below the 400 ceiling", async () => {
     const port = await serveInChildProcess(200);
     expect(probeServiceReady(occupant({ port }))).toBe(true);
   });
 
   it("is false for a server answering 500, which is not serving this app", async () => {
-    // Issue #381's case, one level up: any HTTP answer used to count as alive, and a
-    // portal 500ing on every request (an unbuilt `@roonga/qcms-ui`) looked exactly like a
-    // healthy one. A server in that state is not something to adopt either.
     const port = await serveInChildProcess(500);
     expect(probeServiceReady(occupant({ port }))).toBe(false);
   });
 
   it("is false for a listener that accepts and never answers, which is the orphan", async () => {
-    // A bare TCP listener with no HTTP behind it stands in for the reparented
-    // `next-server`: the port is held, the kernel completes the handshake from the
-    // listen backlog, and nothing ever comes back. This one can stay in-process
-    // precisely because nothing in-process has to run for the connect to succeed.
-    // A shorter budget than the real 5s one, because the wait IS the assertion.
     const { port } = await listenOnFreePort();
     expect(probeServiceReady(occupant({ port }), 750)).toBe(false);
   });

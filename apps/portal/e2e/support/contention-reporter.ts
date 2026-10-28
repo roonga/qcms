@@ -1,69 +1,14 @@
 /**
- * The Playwright reporter that says whether this run was alone (issue #395).
+ * The Playwright reporter that says whether this run had the machine to itself, so a red
+ * run can be read as a defect or as contention rather than guessed at.
  *
- * It is additive to `list`, never a replacement: `list` prints the tests and decides
- * nothing, this prints the neighbourhood and decides nothing either. Together they answer
- * the two questions a red browser gate raises, of which the harness previously answered
- * only the first: *which tests failed*, and *was anything else on this machine competing
- * with them while they did*.
+ * It samples the host at both ends of the run, because a neighbour that arrived
+ * mid-run explains a failure that a start-of-run sample alone would not. The end block
+ * is printed only when the run has failures: a green run needs no explanation, and
+ * printing one every time trains readers to skip it.
  *
- * ## Why a reporter rather than a fixture or a global hook
- *
- * A reporter is the only seam that sees the whole run: it is constructed before the first
- * spec and it is still alive after the last one, so it can sample the host at both ends
- * and hold the failure list in between. A fixture sees one test, `globalSetup` sees the
- * start and `globalTeardown` sees an end it cannot correlate with results. It also runs in
- * the runner process, which is where `/proc` reads and a `docker ps` belong: doing either
- * from a worker would multiply them by the worker count for no extra information.
- *
- * ## The one rule this reporter has
- *
- * **It annotates, it never suppresses.** It implements no verdict-bearing hook: no
- * `onError` swallowing, no exit-code opinion, no retry, no skip. `onEnd` returns nothing,
- * so Playwright's own status is what it always was. A contention-shaped failure still
- * fails the run, and a green run is never explained away as "contention" either. The value
- * added is entirely in what a human reads afterwards, which is exactly where the cost of
- * issue #395 landed: the run did not lie about the tests, it lied by omission about the
- * machine.
- *
- * ## A failing result is not a failing test (issue #828)
- *
- * The first cut counted `result.status`, and that made the reporter fire on runs with
- * zero real failures. `apps/portal/e2e/resume.pw.ts` carried a deliberate `test.fail`
- * marker for the then-open NumberField hydration defect (#151, since fixed and the
- * marker removed): Playwright RUNS such a test, the body fails as intended, and the run
- * is green because the outcome was the expected one. The raw result still reads
- * `failed`, so a green 291-test run printed the whole contention block and claimed "1
- * failing test". A report that appears on green runs is a report operators learn to
- * skip, which costs the one red where it mattered. No spec carries the marker today,
- * which is why the rule below is stated from `TestCase.outcome()` rather than from that
- * one example: the next expected failure gets the same treatment without a code change.
- *
- * So the trigger is the **outcome**, not the status. Playwright folds the result status
- * and `TestCase.expectedStatus` together in `TestCase.outcome()`:
- *
- * - `expected` - every attempt matched `expectedStatus`. A `test.fail` that failed is
- *   here, and so is an ordinary pass. Not a failing test, and not reportable.
- * - `unexpected` - no attempt matched. This is the red merge gate the report exists for.
- * - `flaky` - some attempt matched and some did not, which in this config means a retry
- *   recovered it. Deliberately NOT reportable: see below.
- * - `skipped` - never ran.
- *
- * `outcome()` is read in `onEnd` rather than in `onTestEnd`, because it is computed from
- * the results collected SO FAR: at the end of a failing first attempt the retry has not
- * run yet, so a test that will end up flaky still reads `unexpected` there. Only after
- * the last test has ended is the answer final.
- *
- * ### Why flaky prints nothing
- *
- * A flaky test recovered on retry, so the run is green and its exit code is zero. This
- * report's prose is written for a red - it counts "failing tests" and closes with "the
- * run still failed" - and printing it over a green run would state something false as
- * well as re-teaching the habit #828 is about. Retries are CI-only here
- * (`playwright.config.ts` sets `retries: 0` locally), so a local run cannot produce a
- * flaky outcome at all, and on CI Playwright's own summary already names every flaky
- * test. If cross-lane attribution for flakes is ever wanted, it needs its own wording
- * rather than this block.
+ * Nothing here changes a verdict. It is evidence beside the failures, never a retry, a
+ * skip or a relaxed assertion.
  */
 
 import type { Reporter, TestCase, TestResult } from "@playwright/test/reporter";
@@ -154,11 +99,6 @@ export default class ContentionReporter implements Reporter {
 
   onBegin(): void {
     this.start = sample(this.seat, this.snapshot);
-    // A seat port on another seat is not the only way to be crowded (issue #395's second
-    // occurrence): a lane running `turbo run test` holds none, and shows up only as
-    // another Testcontainers session on the daemon and as run queue. Either is worth
-    // saying out loud fifteen minutes before the red, which is while waiting is still an
-    // option.
     const pressure = hostPressure(this.start.load, this.start.containers).reasons;
     if (this.start.neighbours.length === 0 && pressure.length === 0) return;
     this.write(`${renderStartNotice(this.seat, this.start.neighbours, pressure)}\n`);
@@ -173,13 +113,6 @@ export default class ContentionReporter implements Reporter {
   }
 
   onEnd(): void {
-    // A passing run prints nothing here. The start notice already said whether a
-    // neighbour was up, and a green run needs no argument about whose green it is:
-    // the seat guard makes a run against another worktree impossible, which is the
-    // property #255 shipped and this reporter does not restate.
-    //
-    // "Passing" is the OUTCOME, not the raw status (#828): an expected failure and a
-    // retry-recovered flake both leave a failed attempt behind and neither reds the run.
     const failures = [...this.pending]
       .filter(([test]) => test.outcome() === "unexpected")
       .map(([, note]) => note);

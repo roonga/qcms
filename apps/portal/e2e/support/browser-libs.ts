@@ -1,34 +1,10 @@
 /**
- * The other startup preflight: can the browser this run is about to launch actually
- * start (issue #249)?
+ * The startup preflight that asks whether the browser this run is about to launch can
+ * actually load: Playwright's Chromium needs shared libraries that a slim host may not
+ * have, and a missing one surfaces as a launch failure naming no library at all.
  *
- * ## Why a preflight rather than a better error at the failure
- *
- * On a WSL host with the Playwright browsers downloaded but the OS libraries absent,
- * every test in the suite failed identically, before any assertion, six minutes into
- * the run:
- *
- *     Error: browserType.launch: Target page, context or browser has been closed
- *       - [pid=76490] exception while trying to kill process: Error: kill ESRCH
- *
- * That reads as a harness bug or a resource problem. The real message, several frames
- * down in the launch log, is `error while loading shared libraries: libnspr4.so`.
- * Worse, `playwright install` reports nothing wrong and the browsers look present: it
- * was only `chrome-headless-shell` that was short of dependencies, while the full
- * `chrome` binary beside it resolved everything - so every hand check of "are the
- * browsers installed" said yes.
- *
- * `ldd` answers the question in milliseconds and names the missing libraries exactly.
- * Running it before the first launch turns a six-minute confusing red into a one-line
- * diagnosis, which is what the issue asked for.
- *
- * ## What it must not do
- *
- * It must never fail a run that would have worked. Anything unexpected - no `ldd`, a
- * binary that is not there yet, an unreadable browsers directory, a non-Linux host -
- * is silence, not a refusal: a preflight that blocks a working machine is worse than
- * the confusing error it replaces. It is also strictly additive to the seat guard in
- * `port-seat.ts`, which runs first and is unchanged.
+ * `ldd` is named by absolute path rather than looked up on `PATH`, and the refusal text
+ * is kept separate from the check so its wording is testable.
  */
 
 import { spawnSync } from "node:child_process";
@@ -99,7 +75,6 @@ export function parseMissingLibraries(lddOutput: string): string[] {
  */
 export function launchableBinaries(chromePath: string): string[] {
   const found = [chromePath];
-  // <browsers root>/chromium-<rev>/chrome-linux64/chrome -> <browsers root>
   const browsersRoot = dirname(dirname(dirname(chromePath)));
   let entries: string[];
   try {

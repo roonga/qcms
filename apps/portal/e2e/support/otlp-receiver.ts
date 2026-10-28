@@ -66,14 +66,11 @@ export async function startOtlpReceiver(): Promise<void> {
         (request.url === "/v1/traces" || request.url === "/v1/logs") &&
         request.method === "POST"
       ) {
-        // One line per export request; newlines inside a JSON body are impossible
-        // (the exporter emits compact JSON), so JSONL is safe here.
         appendFileSync(OTLP_CAPTURE_PATH, `${Buffer.concat(chunks).toString("utf8")}\n`);
       }
       response.writeHead(200, { "content-type": "application/json" });
       response.end("{}");
     });
-    // A dropped export must never take the receiver (or the suite) down.
     request.on("error", () => response.destroy());
   });
 

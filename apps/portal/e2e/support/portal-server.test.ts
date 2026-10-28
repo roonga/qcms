@@ -172,12 +172,11 @@ function reap(child: WrapperProcess): void {
   try {
     process.kill(-pid, "SIGKILL");
   } catch {
-    // The group is already gone, which is the normal case after a clean exit.
+    // Already gone, which is the outcome this wanted.
   }
 }
 
 afterEach(() => {
-  // Leaving even one stub alive would let it hold a port into the next test.
   for (const child of running) reap(child);
   running.length = 0;
 });
@@ -206,7 +205,6 @@ function startWrapper(stubSource: string, port: string): Wrapper {
       QCMS_PORTAL_SERVER_LOG: join(dir, "portal.log"),
     },
     stdio: ["ignore", "pipe", "pipe"],
-    // Own process group, so `reap` can take the wrapper's whole subtree down.
     detached: true,
   });
   running.push(child);
@@ -215,8 +213,6 @@ function startWrapper(stubSource: string, port: string): Wrapper {
   child.stderr.on("data", (chunk: Buffer) => {
     stderr += chunk.toString();
   });
-  // Collected rather than merely drained, so a chatty stub can never fill the pipe
-  // and stall the wrapper.
   let stdout = "";
   child.stdout.on("data", (chunk: Buffer) => {
     stdout += chunk.toString();
@@ -335,8 +331,6 @@ describe("portal-server wrapper startup fail-fast (issue #58)", () => {
       const wrapper = startWrapper(FATAL_THEN_HANGS, await freePort());
       const { code, elapsedMs } = await wrapper.ended;
 
-      // Nonzero is what makes Playwright abandon its URL poll instead of waiting
-      // out the timeout.
       expect(code).not.toBe(0);
       expect(
         elapsedMs,
@@ -346,7 +340,6 @@ describe("portal-server wrapper startup fail-fast (issue #58)", () => {
       const stderr = wrapper.stderr();
       expect(stderr).toContain("portal dev server failed during startup");
       expect(stderr).toContain("did not exit");
-      // The tail, on stderr: the cause is in the failure output, not just the file.
       expect(stderr).toContain("last 30 non-blank lines of");
       expect(stderr).toContain("ERR_SOCKET_BAD_PORT");
       expect(stderr).toContain("RangeError: options.port should be >= 0 and < 65536.");
@@ -375,9 +368,6 @@ describe("portal-server wrapper startup fail-fast (issue #58)", () => {
   );
 
   it("still exits nonzero when the child exits 0 before the server is reachable", async () => {
-    // A dev server that stops during startup served nothing, so a 0 here would
-    // report success for a run that cannot work, and would degrade Playwright's
-    // message to the vague "exited early".
     const wrapper = startWrapper(
       `process.stdout.write("stopping\\n");\nprocess.exit(0);\n`,
       await freePort(),
@@ -400,25 +390,12 @@ describe("portal-server wrapper startup fail-fast (issue #58)", () => {
     const stderr = wrapper.stderr();
     expect(stderr).toContain("Uncaught Exception: Error: boom");
     expect(stderr).toContain("line-40");
-    // Trimmed off the front rather than dumping the whole log.
     expect(stderr).not.toContain("line-01");
   }, 30_000);
 
   it(
     "does not call a server that answers 500 to everything ready (issue #381)",
     async () => {
-      // The failure this pins: readiness used to mean "an HTTP response arrived",
-      // so a dev server that 500s every request disarmed the startup watch. The
-      // reproduction was a tree where `@roonga/qcms-ui` had not been built, which makes
-      // the portal's `@roonga/qcms-ui/fonts` import fail on every render. Everything the
-      // #58 machinery adds was then switched off, and the run degraded back to
-      // Playwright's own 180-second poll ending in a bare "Timed out waiting",
-      // with the cause only inside the captured log.
-      //
-      // Asserting the fail-fast happened is what proves the watch stayed armed:
-      // the fatal marker is written after the first request has been answered, so
-      // under the old rule `ready` was already true and this stub would have run
-      // until the test timed out.
       const wrapper = startWrapper(SERVES_ONLY_ERRORS, await freePort());
       const { code, elapsedMs } = await wrapper.ended;
 
@@ -437,23 +414,12 @@ describe("portal-server wrapper startup fail-fast (issue #58)", () => {
   it(
     "leaves a healthy slow start alone and shuts down cleanly on SIGTERM",
     async () => {
-      // The regression that would be worse than the bug: a server that is merely
-      // slow and quiet must not be killed. Nothing ever listens on this port, so
-      // the wrapper stays in its pre-readiness window the whole time and still must
-      // not act.
       const port = await freePort();
       const wrapper = startWrapper(
         `process.stdout.write("  \\u25b2 Next.js 16.2.11\\n  - Local: http://localhost:${port}\\n");\nsetInterval(() => {}, 1000);\n`,
         port,
       );
 
-      // The banner coming back out of the wrapper is both halves of what this test
-      // needs: the wrapper is past its own boot (so SIGTERM will reach the handler,
-      // issue #140), and the one thing this stub ever prints has been through the
-      // startup watch without arming it. Nothing is left that could act afterwards:
-      // before readiness the wrapper only ever moves on a fatal marker in teed output
-      // or on the child ending, and this stub does neither. So no settling delay is
-      // needed here, and none is what the assertions rest on.
       await waitForTeedOutput(wrapper, "Next.js 16.2.11");
       expect(wrapper.child.exitCode).toBeNull();
       expect(wrapper.stderr()).toBe("");
@@ -468,15 +434,6 @@ describe("portal-server wrapper startup fail-fast (issue #58)", () => {
   it(
     "leaves no surviving descendant behind after a fail-fast exit",
     async () => {
-      // The real tree is pnpm -> next dev -> next-server, and `sh -c` forwards no
-      // signals, so killing the direct child reaches at most the first of those.
-      // Nothing else will finish the job: Playwright group-SIGKILLs the webServer
-      // only while it is still alive, and skips that cleanup once the wrapper has
-      // self-exited. A survivor here would hold the port for the next run to latch
-      // onto via `reuseExistingServer`.
-      //
-      // The grandchild is `detached`, so it sits in its own process group: killing a
-      // group cannot be what reaps it, only walking the tree can.
       const wrapper = startWrapper(
         `import { spawn } from "node:child_process";\n` +
           `const grandchild = spawn(process.execPath, ["-e", "setInterval(() => {}, 1000)"], {\n` +
@@ -493,8 +450,6 @@ describe("portal-server wrapper startup fail-fast (issue #58)", () => {
       expect(code).not.toBe(0);
 
       const pids = /pids (\d+) (\d+)/.exec(wrapper.stdout());
-      // Guards the test itself: without this the assertions below could pass by
-      // never having had a tree to reap.
       expect(pids, `stub never reported its pids; stdout was:\n${wrapper.stdout()}`).not.toBeNull();
       const stubPid = Number(pids?.[1]);
       const grandchildPid = Number(pids?.[2]);
@@ -515,27 +470,6 @@ describe("portal-server wrapper startup fail-fast (issue #58)", () => {
   it(
     "disarms the startup watch once the server is reachable",
     async () => {
-      // The scope limit that keeps this change off the happy path: after readiness
-      // the wrapper behaves exactly as it did pre-#58, so a late fault is reported
-      // by the server-log gate per test instead of killing the dev server and
-      // reddening the whole run.
-      //
-      // Getting the fatal line to land *after* readiness is what this test needs, and
-      // a wall-clock deadline is the wrong way to arrange it (issue #140): under load
-      // the wrapper is still booting when one fires. The stub instead reads readiness
-      // off the wrapper's own behaviour. The wrapper polls the port every
-      // READINESS_POLL_MS until it succeeds and then never knocks again, so each
-      // request pushes the fatal line back and a quiet stretch means the probe that
-      // mattered has landed. Anchoring on the *last* knock rather than the first is
-      // the point: the wrapper abandons a probe that has not answered within
-      // READINESS_POLL_MS * 4 and tries again, and under starvation this stub is slow
-      // enough to be abandoned several times before one completes.
-      //
-      // The 3s of quiet is the delay retained on purpose, for two reasons: it is many
-      // poll intervals, so it cannot be confused with the gap between two probes, and
-      // the wrapper sets `ready` in a microtask *after* the probe response arrives, so
-      // a line written in the request handler itself could still be teed while the
-      // watch is armed.
       const wrapper = startWrapper(
         `import { createServer } from "node:http";\n` +
           `let lateBoom;\n` +
@@ -551,12 +485,7 @@ describe("portal-server wrapper startup fail-fast (issue #58)", () => {
         await freePort(),
       );
 
-      // Seeing the late fatal line teed back out means it reached the wrapper's watch
-      // post-readiness, which is the property under test, and (as in the test above)
-      // that the wrapper is booted enough to have a SIGTERM handler.
       await waitForTeedOutput(wrapper, "late boom");
-      // A wrongly armed fail-fast would fire FLUSH_GRACE_MS (300ms) after that tee, so
-      // this window exists only to let the failure happen before we assert it did not.
       await new Promise((resolve) => setTimeout(resolve, 1_500));
       expect(wrapper.child.exitCode).toBeNull();
       expect(wrapper.stderr()).toBe("");

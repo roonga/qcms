@@ -77,19 +77,12 @@ describe("failureText", () => {
 
 describe("ContentionReporter", () => {
   it("prints nothing for a test.fail whose body failed as expected (issue #828)", () => {
-    // The real case: apps/portal/e2e/resume.pw.ts carries a `test.fail` marker for the
-    // open #804 hydration defect. Its result status is "failed" and its expected status
-    // is "failed" too, so Playwright's outcome is "expected" and the RUN IS GREEN. The
-    // first cut of this reporter counted the status, so a 291-test green run printed the
-    // whole contention block and claimed one failing test. A report that shows up on
-    // green runs is a report nobody reads on the red run it was built for.
     const { reporter, output, sampleCount } = harness();
     reporter.onBegin();
     reporter.onTestEnd(testCase("hydrates without a mismatch", "expected"), failedResult());
     reporter.onEnd();
 
     expect(output()).toBe("");
-    // And it does not pay for the end-of-run host sample either: one sample, at begin.
     expect(sampleCount()).toBe(1);
   });
 
@@ -126,12 +119,6 @@ describe("ContentionReporter", () => {
   });
 
   it("prints nothing for a flake a retry recovered", () => {
-    // Decided and written down: flaky prints nothing. A recovered test leaves the run
-    // green with exit code 0, and this block's prose counts "failing tests" and closes
-    // with "the run still failed", so printing it over a green run would be false as
-    // well as re-teaching the habit #828 is about. Retries are CI-only here
-    // (playwright.config.ts sets retries: 0 locally), and CI's own summary names every
-    // flaky test. Cross-lane attribution for flakes would need its own wording.
     const { reporter, output } = harness();
     const flaky = testCase("submits the last step", "flaky");
     reporter.onBegin();
@@ -142,8 +129,6 @@ describe("ContentionReporter", () => {
   });
 
   it("counts a test that failed every attempt once, not once per attempt", () => {
-    // Retries make onTestEnd fire more than once for one test. A count of attempts
-    // would tell the reader there were two failing tests when there was one.
     const { reporter, output } = harness();
     const doomed = testCase("submits the last step", "unexpected");
     reporter.onBegin();
@@ -153,15 +138,10 @@ describe("ContentionReporter", () => {
 
     const report = output();
     expect(report).toContain("seat 4, 1 failing test");
-    // The last attempt's text is the one classified, since that is the one a reader
-    // goes looking at first.
     expect(report).toContain("submits the last step: connection dropped");
   });
 
   it("counts a timeout nothing expected as a failure", () => {
-    // A timed-out attempt is the other status the reporter accepts, and Playwright gives
-    // a `test.fail` that times out the outcome "unexpected" too: the marker says the body
-    // fails, not that it hangs.
     const { reporter, output } = harness();
     reporter.onBegin();
     reporter.onTestEnd(testCase("waits for the API", "unexpected"), {
@@ -188,14 +168,10 @@ describe("ContentionReporter", () => {
     reporter.onEnd();
 
     expect(printed.join("")).toContain("seat 4 is NOT alone");
-    // The start notice is all a green run gets: no report follows it.
     expect(printed.join("")).not.toContain("cross-lane contention report");
   });
 
   it("says at the start when the machine is busy and no other seat is taken", () => {
-    // Issue #395's second occurrence. The competing lanes were running `turbo run test`,
-    // so no seat port was held and the first version of this reporter printed nothing at
-    // all - over the most contended machine of the night.
     const printed: string[] = [];
     const crowded: HostSnapshot = {
       ...QUIET,
@@ -216,9 +192,6 @@ describe("ContentionReporter", () => {
     expect(output).toContain("seat 4 holds its own ports, but this machine is NOT quiet");
     expect(output).toContain("THE MACHINE WAS NOT QUIET");
     expect(output).toContain("Testcontainers sessions on the shared daemon");
-    // The failure carries no contention signature at all, so before this branch existed
-    // the end-of-run report read "nothing here argues against reading these failures as
-    // this branch's own" over eleven foreign containers.
     expect(output).toContain("This run was not alone");
   });
 
