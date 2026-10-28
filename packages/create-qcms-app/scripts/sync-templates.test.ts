@@ -101,9 +101,7 @@ describe("transformDockerfile", () => {
   });
 
   it("throws when a declared monorepo-only COPY is no longer present", () => {
-    // The defect this replaces was a filter on two exact string literals: a renamed or
-    // rewhitespaced line made it a silent no-op, and the adopter's image then failed on
-    // a COPY of a directory the scaffold has not got (issue #456, blind spot C).
+    // A renamed or rewhitespaced line must not turn the filter into a silent no-op.
     const withoutTooling = SOURCE.split("\n")
       .filter((line) => line !== "COPY tooling ./tooling")
       .join("\n");
@@ -129,8 +127,7 @@ describe("transformDockerfile", () => {
   });
 
   it("stamps the adopter's image title and drops the source label", () => {
-    // A scaffolded image must not claim to come from this repository: the code inside
-    // it is the adopter's (issue #457, tier 1).
+    // The code inside a scaffolded image is the adopter's, not this repository's.
     const result = transformDockerfile(SOURCE, "qcms-api", "api");
     expect(result).toContain('org.opencontainers.image.title="{{projectName}}-api"');
     expect(result).not.toContain("github.com/roonga/qcms");
@@ -309,16 +306,8 @@ describe("the drift gate", () => {
 });
 
 describe("reading a generated tree (issue #450)", () => {
-  // The gate compares the COMMITTED template tree against a regenerated one, and it
-  // used to read the committed side through a walk that skipped `dist`, `e2e`,
-  // `coverage`, `.next` and six other directory names. That list is right for reading
-  // `apps/`, which is what it was written for, and wrong for reading a tree that is
-  // supposed to be compared exhaustively: the CLI's own stamping walk skips nothing, so
-  // a file committed at `templates/common/apps/api/dist/leak.js` was stamped into every
-  // scaffolded project while being invisible to `pnpm check:templates`.
-  //
-  // The fixture is a temporary tree rather than a committed file, because committing
-  // one is the thing the gate exists to catch.
+  // The committed side must be read with a walk that skips nothing, like the CLI's stamping
+  // walk. The fixture is a temporary tree because committing one is what the gate catches.
   let root = "";
 
   beforeAll(() => {
@@ -432,10 +421,7 @@ describe("the guards, proved red rather than merely green (issue #456)", () => {
   });
 
   it("catches a NEW KIND of reach out of the project, not just a new instance", () => {
-    // Blind spots D and E together, in the issue's own example. The predecessor shared
-    // one regex with the transform it guarded and scanned `common/apps/` alone, so a
-    // `paths` block in tsconfig.base.json pointing at `../../packages/*` was invisible
-    // twice over: wrong file, wrong kind.
+    // A `paths` block pointing at `../../packages/*` must be caught, not only a new instance.
     const drifted = withFile(
       "common/tsconfig.base.json",
       '{ "compilerOptions": { "paths": { "@roonga/qcms-core": ["../../packages/core/src"] } } }',
@@ -459,12 +445,7 @@ describe("the guards, proved red rather than merely green (issue #456)", () => {
   });
 
   it("catches a workspace dependency an adopter could not install", () => {
-    // Blind spot F, and the one that turned out not to be latent at all: two private
-    // packages became runtime dependencies of all three apps while this branch waited.
-    // The old `??` fallback stamped an unknown `workspace:*` verbatim into the
-    // adopter's manifest, where no registry can satisfy it. The message has to name
-    // the package, or the next person reads a resolution error in someone else's
-    // project instead of a generator error in ours.
+    // The message must name the package; the old `??` fallback stamped an unknown `workspace:*`.
     expect(() =>
       rewriteDependencies({ "@roonga/qcms-unpublished": "workspace:*" }, {}, false),
     ).toThrow(/@roonga\/qcms-unpublished/);

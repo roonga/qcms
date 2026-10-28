@@ -1,10 +1,4 @@
-/**
- * The scaffolder's public surface (task 037).
- *
- * Exported so the CLI e2e and the drift gate can drive it in process rather than by
- * spawning a binary and parsing its output. Nothing here is a stability promise to
- * adopters: `create-qcms-app` is a command, and the command is the contract.
- */
+/** In-process surface for the CLI e2e and the drift gate; the command is the contract, not this. */
 
 export { fillEnv, generateSecret, type FilledEnv } from "./env-file.js";
 export {

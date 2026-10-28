@@ -1,91 +1,8 @@
 #!/usr/bin/env node
 // @ts-check
 /**
- * Generate `packages/create-qcms-app/templates/` from the canonical apps (task 037).
- *
- * ## Why this exists
- *
- * `create-qcms-app` stamps the owned application shell into an adopter's repository
- * (ADR-05: code a customizer would reasonably change is scaffolded source, code whose
- * modification would break audit or versioning guarantees is a versioned package).
- * The shell it stamps has to BE the shell this repository develops, or the CLI ships
- * a fork of the product that nobody runs and nobody notices going stale.
- *
- * So the templates are never hand-written. They are derived here, by a declared set
- * of transforms, from `apps/`, `docker/`, `docker-compose.yml` and the config
- * schema's environment reference. The derived tree is committed (an adopter's
- * `npm pack` tarball has to carry it), which is exactly the state that rots, so the
- * generator doubles as the gate: `--check` regenerates into memory and compares.
- * Change an app shell file without regenerating and `pnpm check:templates` fails
- * naming the file.
- *
- * ## Why generation is not wired into `build`
- *
- * It would be a lie about what turbo can see. `create-qcms-app#build` hashes this
- * package's own inputs; `apps/**` is not among them, so a cached build would skip
- * regeneration after exactly the change that needed it. Reaching `apps/**` through
- * `globalDependencies` would invalidate every task in the repository on every app
- * edit. The honest arrangement is an explicit script plus a gate that always runs:
- * `pnpm qcms:sync-templates` writes, `pnpm check:templates` (inside `check:all`,
- * which `pnpm verify` runs first) refuses drift.
- *
- * ## What the transforms are allowed to be
- *
- * Mechanical and declared, never editorial. Each one below carries the reason it
- * cannot be a byte copy:
- *
- *   1. **Test and harness files are dropped.** They are this repository's tooling
- *      (Testcontainers, Playwright, the seat-aware harness) and none of it exists in
- *      an adopter's tree. Note what this rule is NOT: build output is excluded a step
- *      earlier, by taking the file list from git ({@link repositoryFiles}) rather than
- *      from the working tree. A transform list can only drop what someone thought of;
- *      `.gitignore` already knows.
- *   2. **`workspace:*` becomes a real version range.** The adopter consumes the four
- *      packages from the registry; the range is read from each package's own
- *      `package.json` at generation time, so a version bump is drift the gate sees.
- *   3. **Undeclared `@roonga/qcms-*` imports are declared.** `apps/portal` and `apps/admin`
- *      both import packages they do not list, which works here only because pnpm
- *      hoists the workspace. Outside the workspace it does not. {@link assertImports}
- *      fails the generator rather than shipping a tree that cannot install.
- *   4. **The Dockerfiles lose their monorepo assumptions.** No `packages/`, no
- *      `scripts/`, and `--filter <app>...` (build the workspace dependencies too)
- *      becomes `--filter <app>`, because there are none to build.
- *   5. *(retired)* Compose used to have the `QCMS_ADMIN_2FA` passthrough INSERTED
- *      here, because the canonical file lacked it. `main` has since added it to both
- *      services, which turned the transform into a duplicator, so it is now
- *      {@link assertComposeForwardsTwoFactor}: an assertion that the property still
- *      holds rather than an edit that makes it hold twice.
- *   6. **`.env.example` is generated from the config schema**, by scanning the
- *      generated Compose files for interpolations and looking each name up in
- *      `ENV_REFERENCE` (itself asserted against `apps/api/src/config.ts`). A name
- *      Compose reads that the schema does not document fails the generator.
- *   7. **Every scaffolded app declares the compiler it runs.** See
- *      {@link ROOT_PROVIDED_DEV_DEPENDENCIES}: the workspace root provides it here and
- *      an adopter has no workspace root.
- *   8. **Output that names a QCMS repository script is rewritten** for the tree an
- *      adopter receives ({@link ADOPTER_TEXT_REPLACEMENTS}, issue #457). Two strings,
- *      both user-facing, both telling an operator to run a command their project does
- *      not define.
- *   9. **The images carry the ADOPTER's identity, not this repository's** (issue #457).
- *      `org.opencontainers.image.title` is stamped from the project name, which is why
- *      the Dockerfiles are `.tmpl`, and `org.opencontainers.image.source` is removed:
- *      it is a claim about where the code in the image lives, and the code in an
- *      adopter's image is theirs.
- *
- * ## What the guards are allowed to claim
- *
- * Every assertion below runs over the FINISHED tree and is derived rather than listed,
- * because the version of this file that listed things (issue #456) had guards narrower
- * than their own docstrings: {@link assertNoEscapingPaths} counts `../` against a
- * file's own depth instead of matching one known reach; {@link assertComposeReferences}
- * reads what the Compose files point at instead of trusting the copy list;
- * {@link assertReadmeClaims} compares the hand-written READMEs to the tree they
- * describe; {@link readSource} refuses a file this generator cannot carry faithfully
- * rather than corrupting it.
- *
- * Usage:
- *   node packages/create-qcms-app/scripts/sync-templates.mjs --write
- *   node packages/create-qcms-app/scripts/sync-templates.mjs --check
+ * Derives `packages/create-qcms-app/templates/` from the canonical apps; `--write` generates, `--check` diffs.
+ * Not part of `build`: turbo does not hash `apps/**`, so a cached build would skip it. `pnpm check:templates` gates drift.
  */
 
 import { execFileSync } from "node:child_process";
@@ -111,22 +28,7 @@ export const REPOSITORY_ROOT = fileURLToPath(new URL("../../../", import.meta.ur
 /** Where the generated tree lives, repo-relative. */
 export const TEMPLATE_DIR = "packages/create-qcms-app/templates";
 
-/**
- * The packages an adopter consumes from the registry rather than owning.
- *
- * ADR-05's four, plus the two shared helpers `main` added after this generator was
- * written (`@roonga/qcms-observability` in #446, `@roonga/qcms-csv` in #470). All three scaffolded
- * apps depend on those two AT RUNTIME, so a scaffold that does not resolve them is a
- * scaffold that does not install: the previous silent `workspace:*` fallback stamped
- * an unsatisfiable range into the adopter's manifest and nothing here could see it
- * (issue #456, blind spot F, which is what caught this).
- *
- * **This list is the published surface, so adding to it is a Code Owner call.** The
- * alternative shape, stamping those two as owned source under `packages/` in the
- * adopter's tree, was rejected for the CSV helper's sake: it carries the SEC-13
- * formula-injection guard, and a control that ships as versioned code is one an
- * upgrade can fix everywhere at once.
- */
+/** The published surface: both shared helpers are runtime dependencies of all three apps. */
 const PUBLISHED_PACKAGES = [
   "@roonga/qcms-core",
   "@roonga/qcms-a2ui-compiler",
@@ -136,15 +38,7 @@ const PUBLISHED_PACKAGES = [
   "@roonga/qcms-csv",
 ];
 
-/**
- * Every `@roonga/qcms-*` package each scaffolded app must declare.
- *
- * Derived by hand from what the shell imports and then ENFORCED by
- * {@link assertImports}, which re-derives it from the generated sources: the list
- * here is the declaration, the scan is the proof. `apps/portal` and `apps/admin`
- * under-declare in this repository (transform 3), so this cannot be a copy of their
- * `package.json` files.
- */
+/** Declared by hand and proven by `assertImports`; `apps/portal` and `apps/admin` under-declare here. */
 const APP_QCMS_DEPENDENCIES = {
   api: [
     "@roonga/qcms-a2ui-compiler",
@@ -166,28 +60,13 @@ const APP_QCMS_DEPENDENCIES = {
 
 /** Scripts an app keeps in the scaffold; everything else is this repository's. */
 const APP_SCRIPTS = {
-  // `reset-2fa` rides beside `create-admin` for the same reason `create-admin` is
-  // here (issue #432): a scaffolded project ships the same 2FA policy, the same
-  // encrypted-at-rest enrolment and the same two-role Compose topology, so it has
-  // the same lockout and needs the same way out. Leaving it behind would scaffold a
-  // deployment whose only recovery is hand-editing the database.
+  // `reset-2fa` ships beside `create-admin`: the scaffold has the same 2FA lockout and needs the same way out.
   api: ["build", "typecheck", "start", "create-admin", "reset-2fa"],
   portal: ["dev", "build", "start", "typecheck"],
   admin: ["dev", "build", "start", "typecheck"],
 };
 
-/**
- * Fragments of a kept script that reach outside the app, removed (transform 10).
- *
- * A kept script is copied verbatim, which is right until one of them starts invoking
- * repository tooling. `apps/api`'s `build` gained a `node ../../scripts/clean-dist.mjs`
- * prefix after this generator shipped, and the scaffold has no `scripts/` directory:
- * the Dockerfiles deliberately do not copy one (transform 4), so `pnpm -r build` and
- * every `docker compose up --build` in an adopter's project failed on a missing file.
- * {@link assertNoEscapingPaths} is what found it, over the generated manifest.
- *
- * Each entry must fire, exactly as {@link ADOPTER_TEXT_REPLACEMENTS} must.
- */
+/** Fragments of a kept script that reach outside the app, which the scaffold lacks. Each must fire. */
 const APP_SCRIPT_FRAGMENTS = [
   {
     find: "node ../../scripts/clean-dist.mjs && ",
@@ -230,18 +109,7 @@ function assertAppScriptFragmentsApplied() {
   }
 }
 
-/**
- * devDependencies every scaffolded app needs that no app in THIS repository declares,
- * because the workspace root provides them (transform 7).
- *
- * Found by the scaffold e2e, not by reading: `pnpm -r typecheck` inside a freshly
- * scaffolded project picked up whichever TypeScript happened to be hoisted out of a
- * transitive dependency and failed with three inference errors that do not exist
- * here. An app that ships a `typecheck` script has to ship the compiler that runs it.
- *
- * The range is read from the repository root at generation time, so a root bump is
- * drift the gate sees.
- */
+/** The workspace root provides these here; an app that ships `typecheck` must ship its compiler. */
 const ROOT_PROVIDED_DEV_DEPENDENCIES = ["typescript"];
 
 /** devDependencies that exist only for this repository's test harness. */
@@ -249,10 +117,7 @@ const HARNESS_DEV_DEPENDENCIES = new Set([
   "@testcontainers/postgresql",
   "@seriousme/openapi-schema-validator",
   "otplib",
-  // `tooling/e2e-support`, a private workspace package holding this repository's
-  // Playwright and scenario helpers. The tests that import it are dropped by the strip
-  // rules, so keeping the declaration would stamp an unresolvable `workspace:*` into
-  // the adopter's manifest for code the scaffold does not contain.
+  // Private workspace package whose tests are dropped; keeping it would stamp an unresolvable `workspace:*`.
   "@roonga/qcms-e2e-support",
 ]);
 
@@ -269,47 +134,13 @@ const APP_EXCLUDED_PATHS = new Set([
 /** Directory names that are this repository's harness wherever they appear in an app. */
 const EXCLUDED_APP_DIRECTORIES = new Set(["e2e", "__snapshots__"]);
 
-/**
- * App-relative directory prefixes dropped wholesale, contents included.
- *
- * `scripts/fixtures/` is the sample form `pnpm dev:seed` publishes and its committed
- * compiled document (issue #994). It is input to `scripts/seed-fixtures.ts`, which
- * {@link APP_EXCLUDED_PATHS} already drops, so scaffolding the data without the script
- * that reads it would put two files in an adopter's tree that nothing in that tree
- * opens. A prefix rather than two path entries, because the drop is about the
- * directory: a third fixture added beside them belongs to the same excluded script and
- * would otherwise be stamped into every scaffolded project by default.
- */
+/** Dropped wholesale: the fixtures feed `scripts/seed-fixtures.ts`, which is itself dropped. */
 const EXCLUDED_APP_PREFIXES = ["scripts/fixtures/"];
 
-/**
- * A test runner's configuration or setup file, at any depth in an app.
- *
- * Matched by shape rather than listed, because the list would only ever be as complete
- * as the last person to read it: `apps/admin/vitest.config.ts` arrived after this
- * generator shipped and was stamped into every scaffolded project, where `tsc` then
- * failed on `Cannot find module 'vitest/config'` because the scaffold ships neither
- * runner. The rule holds for the same reason the strip rules exist at all (ADR-23 fixes
- * the two runners as THIS repository's, and none of it is in an adopter's tree).
- */
+/** Matched by shape: the scaffold ships no test runner, so a stamped config fails `tsc`. */
 const TEST_RUNNER_CONFIG = /(^|\/)(vitest|playwright)\.[\w.-]*\.[cm]?[jt]s$/;
 
-/**
- * An agent instruction file, at any depth in an app: `AGENTS.md` and its `CLAUDE.md` alias.
- *
- * Transform 1 by another route. These address a contributor to THIS repository and say so
- * in every line: `apps/admin/app/(shell)/AGENTS.md` names the Vitest tables and the
- * Playwright walk a new screen registers itself in, all of which the strip rules above
- * drop, plus repository scripts an adopter's project does not define. Scaffolding one
- * would hand an adopter instructions about files their tree does not contain, which is a
- * worse outcome than shipping none: a reader has no way to tell a stale instruction from
- * one they have broken.
- *
- * Matched by shape rather than listed, for the reason {@link TEST_RUNNER_CONFIG} is: the
- * generated pair `next dev` writes at an app root is git-ignored here (issue #431) while a
- * hand-written one deeper in the tree is not, and a list would only ever be as complete as
- * the last person to add one.
- */
+/** `AGENTS.md` and `CLAUDE.md` address contributors to this repository and name files the scaffold lacks. */
 const AGENT_INSTRUCTIONS = /(^|\/)(AGENTS|CLAUDE)\.md$/;
 
 /**
@@ -331,33 +162,14 @@ export function isExcludedAppPath(path) {
 
 // --- the source file list ---------------------------------------------------
 
-/**
- * Absolute locations git is installed to.
- *
- * Probed rather than resolved through `PATH`: a subprocess launched by bare name is
- * what `sonarjs/no-os-command-from-path` exists to stop, and the rule is
- * workspace-wide (issue #119). Order is by likelihood on Debian and Ubuntu, which is
- * what the dev container is.
- */
+/** Probed rather than resolved through `PATH` (`sonarjs/no-os-command-from-path`). */
 const GIT_CANDIDATES = ["/usr/bin/git", "/bin/git", "/usr/local/bin/git", "/opt/homebrew/bin/git"];
 
-/**
- * The override variable's name, so the check below and the message agree.
- *
- * Deliberately duplicated from `src/exec.ts`'s `BIN_OVERRIDE_ENV_VAR.git` rather than
- * imported: `check:templates` has to run under plain `node` in a tree that was never
- * installed or built (the property the PO review of #451 proved), so this file may not
- * import TypeScript. `sync-templates.test.ts` pins the two spellings and the two rules
- * against each other instead.
- */
+/** Duplicated from `src/exec.ts`: `check:templates` runs under plain `node` and cannot import TypeScript. */
 export const GIT_BIN_OVERRIDE_ENV_VAR = "QCMS_GIT_BIN";
 
 /**
- * Refuse an override that is not an absolute path to something that exists (#458).
- *
- * Same rule, same reason, as `overrideProgram` in `src/exec.ts`: a bare name is a
- * `PATH` lookup, which is exactly what probing absolute candidates exists to avoid,
- * and lint cannot see it because the value is a variable rather than a literal.
+ * Refuses an override that is not an absolute path to an existing file, like `overrideProgram` in `src/exec.ts`.
  *
  * @param {string} value
  * @returns {string}
@@ -392,28 +204,8 @@ function gitBinary() {
 }
 
 /**
- * Every repository file under `prefix`, from GIT rather than from the working tree.
- *
- * ## Why this is not a directory walk
- *
- * It used to be, and that is the defect this function exists to close. A walk sees
- * whatever is on the developer's disk, and an app directory holds build output that
- * is deliberately git-ignored: `next-env.d.ts` and a 690 KB `tsconfig.tsbuildinfo`
- * per Next app. Those were swept into the generated tree, committed, published inside
- * the package's `files` array, and stamped into every adopter's project. Worse, once
- * committed the gate FROZE them: `--check` passed on the machine that had them and
- * failed on a clean checkout, naming four files the next developer never touched. A
- * skip list cannot fix that, because it enumerates the artifacts someone already
- * thought of; git already knows the answer and is never out of date.
- *
- * `--cached --others --exclude-standard` is "tracked, plus untracked that is not
- * ignored". The `--others` half matters: a source file added but not yet `git add`ed
- * is still part of the app, and omitting it would make the generator's output depend
- * on staging order. Anything in `.gitignore` is excluded by construction, whether or
- * not anyone predicted it.
- *
- * Deleted-but-still-tracked paths are dropped rather than read, so a dirty tree
- * degrades into a `stale:` report from the gate instead of an unhandled read error.
+ * Repository files under `prefix`, from git so git-ignored build output is never swept in.
+ * Deleted-but-tracked paths are dropped so a dirty tree yields a `stale:` report, not a read error.
  *
  * @param {string} prefix repo-relative directory
  * @returns {string[]} repo-relative POSIX paths, sorted, deduplicated
@@ -431,21 +223,10 @@ export function repositoryFiles(prefix) {
 // --- filesystem -------------------------------------------------------------
 
 /**
- * Every file under `root` (repo-relative), sorted. Unfiltered, deliberately.
- *
- * Only generated and hand-written TEMPLATE trees are read this way, and for those the
- * right answer is "everything that is there". A skip list here was the mirror image
- * of the bug above: `currentTemplates()` filtered directory names while the CLI's own
- * stamping walk (`src/templates.ts`) does not, so a file committed under, say,
- * `templates/common/apps/api/dist/` would ship and stamp while being invisible to the
- * gate (issue #450). Reading everything makes the gate's view and the CLI's view the
- * same view.
+ * Every file under `root`, sorted and unfiltered: a skip list would hide files the CLI's stamping walk ships.
  *
  * @param {string} root directory relative to `base`
- * @param {string} base absolute root the paths are relative to. Defaults to the
- *   repository; a test passes a temporary directory, which is the only way to prove
- *   the walk sees a file under a directory name the old skip list hid (issue #450)
- *   without committing such a file.
+ * @param {string} base absolute root the paths are relative to; a test passes a temporary directory
  * @returns {string[]} POSIX paths relative to `base`
  */
 export function walk(root, base = REPOSITORY_ROOT) {
@@ -465,27 +246,8 @@ function read(path) {
 }
 
 /**
- * Read a canonical source file, refusing anything this generator cannot carry
- * faithfully (issue #456, blind spot H).
- *
- * The whole tree is round-tripped as UTF-8 text, `walk()` and `git ls-files` both hand
- * back plain files, and nothing preserves a mode bit. All three are true of every
- * tracked file today, and each one fails silently on the day it stops being true: a
- * font under `apps/*` would be corrupted rather than copied, a symlink dropped without
- * comment, an executable shell script stamped unexecutable. A generator that cannot
- * copy a file must say so, not produce a broken one.
- *
- * The check is the copy: if the bytes do not survive the round trip, the text form is
- * not the file.
- *
- * CodeQL reads the `lstatSync` then `readFileSync` pair as a file-system race
- * (`js/file-system-race`, alert 20) and it is right about the shape. It is not a trust
- * boundary here: this is build-time tooling reading this repository's own tracked
- * files, in one process, as the one actor who also regenerates them, and the stat is a
- * fidelity assertion rather than an authorization decision. Nothing is granted on the
- * strength of it; the worst a swap between the two calls could buy is a generator that
- * writes a file it should have refused, which `check:templates` then reports. Same
- * reasoning as alert 21 on `agent-loop.log`.
+ * Refuses anything the UTF-8 string round trip would corrupt (symlink, executable, non-text).
+ * CodeQL `js/file-system-race` on the `lstatSync`/`readFileSync` pair is accepted: build-time tooling, no authorization decision.
  */
 function readSource(path) {
   const absolute = join(REPOSITORY_ROOT, path);
@@ -514,19 +276,7 @@ function readSource(path) {
   return text;
 }
 
-/**
- * Text in a canonical app that names something only THIS repository has (transform 8).
- *
- * A scaffolded project inherits QCMS's identity along with its shell (issue #457), and
- * the two entries below are the tier that is a defect rather than a curiosity: both are
- * user-facing output telling an operator to run a command their project does not
- * define. The comments around them are left alone, deliberately, and
- * `docs/ownership-seam.md` explains what they are.
- *
- * `find` must appear EXACTLY ONCE in its file. A reworded original fails the generator
- * rather than silently no-opping, which is the same discipline
- * {@link transformDockerfile} applies to the lines it removes.
- */
+/** Text naming something only this repository has. `find` must appear exactly once, so a reworded original fails the generator. */
 const ADOPTER_TEXT_REPLACEMENTS = [
   {
     path: "apps/admin/lib/i18n/en.ts",
@@ -627,11 +377,7 @@ export function rewriteDependencies(block, versions, dropHarness) {
     if (dropHarness && HARNESS_DEV_DEPENDENCIES.has(name)) continue;
     if (PUBLISHED_PACKAGES.includes(name)) continue;
     if (range === "workspace:*") {
-      // Loud rather than quiet (issue #456, blind spot F). A `??` fallback here
-      // stamped an unknown workspace dependency verbatim into the adopter's manifest,
-      // where `workspace:*` is not a range any registry install can satisfy: the
-      // failure surfaced as an install error in someone else's project rather than as
-      // a generator error in ours.
+      // Loud: a `??` fallback would stamp an unsatisfiable `workspace:*` into the adopter's manifest.
       const resolved = versions[name];
       if (resolved === undefined) {
         throw new Error(
@@ -699,26 +445,12 @@ export function appManifest(app, versions) {
 
 // --- monorepo-relative asset paths ------------------------------------------
 
-/**
- * A reach out of an app and into `packages/ui/src`, which only a monorepo has.
- *
- * Three shapes use it and none of them is a JavaScript import, which is why the
- * dependency scan never saw them: `@import` of the theme sheets, Tailwind's
- * `@source` content glob, and a `url()` at a self-hosted font. In this workspace
- * they resolve because the package is a sibling directory; in a scaffold there is no
- * `packages/`, and `next build` fails inside the image with
- * `Can't resolve '../../../packages/ui/src/theme.css'` (found by the scaffold e2e).
- */
+/** Reaches `packages/ui/src` from `@import`, Tailwind `@source` and a font `url()`, which the dependency scan never sees. */
 const UI_SOURCE_REFERENCE = /(?:\.\.\/)+packages\/ui\/src/g;
 
 /**
- * The same reference, resolved through the installed package instead.
- *
- * A relative path into `node_modules` rather than the bare `@roonga/qcms-ui/theme.css`
- * specifier, deliberately: only three of these files are exported subpaths, and the
- * font `url()` and the Tailwind `@source` glob are not resolved by anything that
- * reads an exports map. One rule that is correct for all three beats two rules that
- * each cover part of the problem.
+ * Resolves the reference through the installed package. A relative `node_modules` path, not the bare
+ * specifier, because only three of these files are exported subpaths.
  *
  * @param {string} text
  * @param {string} appRelative the file's path within its app, so the depth is right
@@ -729,39 +461,12 @@ export function rewriteUiAssetPaths(text, appRelative) {
   return text.replaceAll(UI_SOURCE_REFERENCE, `${prefix}node_modules/@roonga/qcms-ui/src`);
 }
 
-/**
- * A relative reference that climbs out of its own directory, and what follows it.
- *
- * The trailing character class stops at anything that ends a path in the shapes this
- * tree actually contains: quotes, whitespace, a closing bracket or paren, a comma or
- * a semicolon.
- */
+/** A relative reference that climbs out of its own directory, up to a path-ending character. */
 const CLIMBING_REFERENCE = /(?:\.\.\/)+[^\s"'`)\],;:]*/g;
 
 /**
- * Fail if any generated file reaches somewhere the scaffold has not got (#456 D, E).
- *
- * The predecessor of this function shared one regex with the transform it guarded
- * (`UI_SOURCE_REFERENCE`), which made it structurally incapable of catching a new
- * KIND of reach: only a new instance of the one already handled. It also scanned
- * `common/apps/` alone, exempting `tsconfig.base.json`, `_npmrc`, the compose files
- * and the whole `solo/` overlay, so a `paths` block pointing at `../../packages/*`
- * would have shipped through. Its docstring meanwhile claimed to be the general
- * counterpart to {@link assertImports}, which overstated it.
- *
- * This is that general counterpart, and it does not know what `packages/` is. It
- * counts `../` against the file's own depth from the scaffold root, so:
- *
- *   - more `../` than depth means the reference leaves the project entirely, which is
- *     never right whatever it names;
- *   - exactly `depth` means it lands ON the project root, so the first segment after
- *     it must be something the scaffold actually stamps there.
- *
- * That subsumes the old rule (`../../../packages/ui/src` from `apps/portal/app` lands
- * at the root and names `packages`, which the scaffold has not got) without naming it.
- *
- * Comments are exempt: several files legitimately explain where a generated sheet came
- * from, and rewriting prose would be editorial rather than mechanical.
+ * Fail if a generated file reaches outside the scaffold: more `../` than its depth leaves the project, and
+ * exactly its depth must land on something the scaffold stamps at its root. Comments are exempt.
  *
  * @param {Map<string, string>} tree
  */
@@ -825,11 +530,8 @@ function scaffoldRootEntries(tree) {
 const QCMS_SPECIFIER = /@roonga\/qcms-(core|a2ui-compiler|csv|db|observability|ui)\b/g;
 
 /**
- * Fail unless every `@roonga/qcms-*` package the generated app sources reach is declared.
- *
- * This is transform 3's proof. It runs over the GENERATED tree, so a file dropped by
- * the strip rules cannot keep a dependency alive, and a newly added import that
- * nobody declared fails the generator rather than the adopter's install.
+ * Fail unless every `@roonga/qcms-*` package the generated sources reach is declared, so a stripped file
+ * cannot keep a dependency alive.
  *
  * @param {Map<string, string>} tree template-relative path to contents
  */
@@ -897,16 +599,7 @@ function compareImports(app, declared, used) {
 
 // --- docker -----------------------------------------------------------------
 
-/**
- * Root directories the monorepo Dockerfiles copy that a scaffolded project has not got.
- *
- * Declared, and every one of them MUST be present in every Dockerfile: the previous
- * version filtered two exact string literals, so a whitespace change or a third
- * monorepo-only `COPY` silently no-opped and the adopter's image failed on a `COPY` of
- * a directory that is not there (issue #456, blind spot C). That is not hypothetical:
- * `COPY tooling ./tooling` was added to all three files after this generator shipped,
- * and the filter did not see it.
- */
+/** Each must be present in every Dockerfile, so a reworded `COPY` fails the generator instead of no-opping. */
 const MONOREPO_ONLY_COPY_DIRECTORIES = ["packages", "scripts", "tooling"];
 
 /** Root directories a scaffolded project HAS, so a `COPY` of one is legitimate. */
@@ -915,20 +608,11 @@ const SCAFFOLD_COPY_DIRECTORIES = new Set(["apps"]);
 /** `COPY <dir> ./<dir>` and nothing else: the whole-directory form. */
 const DIRECTORY_COPY = /^COPY (\S+) \.\/(\S+)$/;
 
-/**
- * The provenance label a scaffolded image must not inherit (issue #457, tier 1).
- *
- * `org.opencontainers.image.source` says where the code in the image lives. In an
- * adopter's image that code is theirs: the ownership seam exists precisely so they
- * edit it. Pointing the label at this repository sends anyone who reads OCI labels to
- * find a running container's source to a repository that does not contain it, which is
- * the specific way a provenance claim is wrong. `title` is inherited identity too, and
- * is stamped from the project name instead.
- */
+/** The provenance label a scaffolded image must not inherit: it would point at a repository without the code. */
 const SOURCE_LABEL_LINE = '      org.opencontainers.image.source="https://github.com/roonga/qcms"';
 
 /**
- * A Dockerfile without its monorepo assumptions or QCMS's identity (transforms 4, 9).
+ * A Dockerfile without its monorepo assumptions or QCMS's identity.
  *
  * @param {string} text
  * @param {string} app the workspace filter name, e.g. `qcms-api`
@@ -984,12 +668,7 @@ export function transformDockerfile(text, app, role) {
 }
 
 /**
- * The adopter's image identity in place of this repository's (issue #457, tier 1).
- *
- * The title becomes `{{projectName}}-<role>`, rendered by the CLI from what the
- * operator typed, which is why the Dockerfiles are stamped as `.tmpl`. The source
- * label is removed rather than blanked: an empty OCI label is still a label, and a
- * scaffolder cannot know the adopter's repository URL. A comment says how to add it.
+ * Title from the project name (hence `.tmpl`); the source label is removed, since the adopter's repository is unknown.
  *
  * @param {string} text
  * @param {string} role
@@ -1021,19 +700,8 @@ const TWO_FACTOR_SERVICES = ["api", "admin"];
 const TWO_FACTOR_PASSTHROUGH = "QCMS_ADMIN_2FA: ${QCMS_ADMIN_2FA:-required}";
 
 /**
- * Fail unless the canonical Compose file already forwards `QCMS_ADMIN_2FA` (was 5).
- *
- * This used to be a transform: the generator INSERTED the passthrough, because the
- * canonical file did not have it and adding it there would have moved the variable
- * into `scripts/env-reference.mjs`'s compose group. `main` has since added it on both
- * services for its own reasons, which turned the transform into a duplicator: the
- * generated file carried the key twice per service, and a duplicate YAML key is
- * resolved by whichever copy wins rather than reported.
- *
- * So the transform is gone and the property it guaranteed is asserted instead. The CLI
- * still prompts for the policy and still writes it into `.env`, and if the canonical
- * file ever stops forwarding it, an adopter's answer would reach neither service
- * silently. That is the failure this catches.
+ * Fail unless the canonical Compose file forwards `QCMS_ADMIN_2FA` to both services exactly once: otherwise the
+ * adopter's answer reaches nothing, and a duplicate YAML key resolves silently.
  *
  * @param {string} text
  */
@@ -1108,19 +776,10 @@ const COMMENT_LINE = /^[ \t]*#[^\n]*$/gm;
 const COMPOSE_INTERNAL = new Set(["POSTGRES_USER", "POSTGRES_DB"]);
 
 /**
- * The generated `.env.example`, from the schema's environment reference.
+ * The generated `.env.example`: names from the generated Compose files, prose from `scripts/env-reference.mjs`.
+ * An undocumented interpolation throws.
  *
- * Every name comes from the GENERATED Compose files, so the example can never
- * document a knob the scaffolded stack does not read, nor miss one it does. The
- * prose, requirement and default come from `scripts/env-reference.mjs`, which
- * `env-reference.test.ts` asserts against `apps/api/src/config.ts`. A Compose
- * interpolation the schema does not document throws rather than shipping a blank row.
- *
- * @param {{ text: string; alwaysRuns: boolean }[]} composeFiles the base topology
- *   (`alwaysRuns`) and the optional overlays. Only the base file's `${NAME:?}` forms
- *   make a variable mandatory: an overlay's are conditional on running the overlay,
- *   and writing them uncommented would tell every operator to fill in three blanks
- *   for a proxy most of them will not start.
+ * @param {{ text: string; alwaysRuns: boolean }[]} composeFiles base topology first; only its `${NAME:?}` forms are mandatory
  */
 export function renderEnvExample(composeFiles) {
   /** Name to "does the base topology refuse to start without it" (`${NAME:?...}`). */
@@ -1174,15 +833,8 @@ const ENV_HEADER = `# Environment for the QCMS stack, generated from the API con
 `;
 
 /**
- * One block per variable: prose, a machine-readable marker line, then the assignment.
- *
- * A variable is written UNCOMMENTED only when the stack refuses to start without it:
- * either the schema calls it required, or Compose interpolates it as `${NAME:?...}`.
- * Everything else ships commented out, so an operator's `.env` says exactly what the
- * operator chose and the defaults stay in one place (the schema).
- *
- * The `# (requirement, secret, default ...)` line is not decoration: `fillEnv` in the
- * CLI reads it to decide which blanks it may fill with generated key material.
+ * One block per variable, uncommented only when the stack refuses to start without it.
+ * `fillEnv` in the CLI reads the `# (requirement, secret, default ...)` line.
  *
  * @param {Map<string, boolean>} names name to "Compose refuses to start without it"
  */
@@ -1227,14 +879,7 @@ function wrap(text) {
 // --- the tree ---------------------------------------------------------------
 
 /**
- * The template path for a scaffold output path: every dot-file basename gets an
- * underscore instead.
- *
- * npm strips `.gitignore` and `.npmrc` from a published tarball no matter what
- * `files` says (`.gitignore` is renamed to `.npmignore`, `.npmrc` is dropped
- * outright), which silently deletes exactly the files a scaffolder exists to write.
- * Every scaffolder solves it the same way; the rule is applied to ALL dot-files
- * rather than the two npm names so nobody has to remember which two.
+ * Dot-file basenames become `_name`: npm strips `.gitignore` and `.npmrc` from a published tarball.
  *
  * @param {string} path a POSIX path relative to the scaffold root
  */
@@ -1327,22 +972,10 @@ export function buildTemplates() {
 
 // --- what the compose files point at ----------------------------------------
 
-/**
- * `dockerfile: <path>` in a Compose build block.
- *
- * `[ \t]` rather than `\s` throughout, for the reason {@link COMMENT_LINE} records:
- * `\s` matches a newline, which makes an anchored multiline pattern backtrack
- * super-linearly over a long file.
- */
+/** `dockerfile: <path>` in a Compose build block; `[ \t]` not `\s`, as `COMMENT_LINE` records. */
 const COMPOSE_DOCKERFILE = /^[ \t]*dockerfile:[ \t]*(\S+)[ \t]*$/gm;
 
-/**
- * A host path bind-mounted into a container, as in
- * `- ./docker/Caddyfile:/etc/caddy/Caddyfile:ro`.
- *
- * The example is spelled out rather than abbreviated because a short one reads as a
- * Windows drive letter to `check:paths`, which is right to say so.
- */
+/** A bind-mounted host path, e.g. `- ./docker/Caddyfile:/etc/caddy/Caddyfile:ro` (a shorter example reads as a drive letter to `check:paths`). */
 const COMPOSE_BIND_MOUNT = /^[ \t]*-[ \t]+\.\/([^\s:]+):\S/gm;
 
 /**
@@ -1356,15 +989,8 @@ function layersFor(shape) {
 }
 
 /**
- * Fail if a generated Compose file points at a file the scaffold does not stamp
- * (issue #456, blind spot B).
- *
- * The generator enumerates the docker assets it copies by name, and a list is exactly
- * as complete as the last person to read it. This checks the other end instead: every
- * path a shipped Compose file references has to exist in the tree that ships it. Add a
- * file to `docker/` and reference it from a Compose file without teaching the
- * generator about it, and the adopter's `docker compose up` fails on a missing path
- * while `check:templates` stays green, because the generated tree never had it either.
+ * Fail if a generated Compose file points at a file the scaffold does not stamp. Checks the referenced end,
+ * since a copy list is only as complete as its last reader.
  *
  * @param {Map<string, string>} tree
  */
@@ -1420,28 +1046,12 @@ function stamps(tree, shape, scaffoldRelative) {
 
 // --- the release-age hold ---------------------------------------------------
 
-/**
- * The supply-chain settings a scaffolded workspace inherits (SEC-11, issue #455).
- *
- * Both keys, never one. pnpm turns `minimumReleaseAgeStrict` on by default only when
- * `minimumReleaseAge` is itself explicitly configured, so a file carrying `strict`
- * beside an inherited default states a policy nothing enforces. `pnpm-workspace.yaml`
- * at the repository root says the same thing about itself.
- */
+/** Both keys: pnpm defaults `minimumReleaseAgeStrict` on only when the age is explicitly configured (SEC-11). */
 const RELEASE_AGE_KEYS = ["minimumReleaseAge", "minimumReleaseAgeStrict"];
 
 /**
- * Fail if this repository holds new releases and the scaffold it stamps does not.
- *
- * `templates-static/common/pnpm-workspace.yaml` is hand-written, which is blind spot G
- * all over again: nothing compared it to anything, and a security posture that lives
- * in two hand-maintained files drifts the moment one of them is edited. An adopter
- * installs a dependency tree the same size as this one from the same registry, so a
- * control that is worth having here is worth stamping there.
- *
- * It checks presence, not equality. The stamped file is the adopter's to tune (ADR-05)
- * and its comment says so; what must not happen silently is the scaffold losing the
- * hold because someone edited one file and not the other.
+ * Fail if this repository holds new releases and the scaffold does not. Presence, not equality: the stamped
+ * file is the adopter's to tune (ADR-05).
  *
  * @param {Map<string, string>} tree
  */
@@ -1487,12 +1097,8 @@ const COMPOSE_VALUE_FLAGS = new Set([
 ]);
 
 /**
- * Every `docker compose` invocation in a document, as its argument words.
- *
- * Line continuations are joined and quoted values collapsed to one word first, so the
- * README's multi-line `docker compose exec -e QCMS_ADMIN_PASSWORD='a long passphrase'`
- * reads as one command rather than as several, and `long` is never mistaken for a
- * service name.
+ * Every `docker compose` invocation in a document, as argument words. Continuations are joined and quoted
+ * values collapsed to one word.
  *
  * @param {string} text
  * @returns {string[][]}
@@ -1555,20 +1161,8 @@ function readComposeFlag(word, next, files) {
 const QCMS_ENV_NAME = /\bQCMS_[A-Z0-9_]+\b/g;
 
 /**
- * Fail if a hand-written README claims something the generated tree does not support
- * (issue #456, blind spot G).
- *
- * `templates-static/` is the one part of the scaffold with no canonical counterpart, so
- * until this ran nothing compared it to anything: the service names, the `-f` overlay
- * shape and the `QCMS_*` variables were unchecked prose next to a Compose file that
- * moves. Only the four `nextCommands` lines were pinned, by `scaffold.test.ts`.
- *
- * Three claims are checkable and all three are checked: a service the README tells the
- * operator to `exec` or `run` has to be a service; a file it passes to `-f` has to be
- * stamped; a `QCMS_*` variable it names has to be one the stack actually reads, meaning
- * the generated Compose files, the generated `.env.example`, or the configuration
- * schema's own reference (which covers the two credentials that only ever arrive
- * through `docker compose exec -e`). What is left unchecked is genuinely prose.
+ * Fail if a hand-written README claims what the generated tree lacks: a service it execs or runs, a file it
+ * passes to `-f`, or a `QCMS_*` variable the stack does not read.
  *
  * @param {Map<string, string>} tree
  */
@@ -1659,10 +1253,7 @@ function composeServices(tree, shape) {
 function environmentNames(tree, shape) {
   /** @type {Set<string>} */
   const names = new Set();
-  // The configuration schema's reference, which documents every variable any QCMS
-  // process parses. It is wider than the Compose files on purpose: `QCMS_ADMIN_EMAIL`
-  // and `QCMS_ADMIN_PASSWORD` reach the container through `docker compose exec -e` at
-  // bootstrap time and are deliberately in no file at all (SEC-8, issue #440).
+  // Wider than the Compose files: `QCMS_ADMIN_EMAIL` and `QCMS_ADMIN_PASSWORD` arrive only via `docker compose exec -e` (SEC-8).
   for (const entry of ENV_REFERENCE) names.add(entry.name);
   for (const [path, contents] of tree) {
     const layer = path.slice(0, path.indexOf("/"));
@@ -1674,13 +1265,7 @@ function environmentNames(tree, shape) {
   return names;
 }
 
-/**
- * The hand-written half of the tree: files with no canonical counterpart.
- *
- * Kept in `templates-static/` as real files rather than string literals here, so
- * they are readable, Prettier-checked and reviewable as the documents they are. The
- * generator copies them in so that ONE tree is the scaffold's definition.
- */
+/** Hand-written files with no canonical counterpart, kept as real files so Prettier and review see them. */
 function staticTemplates() {
   /** @type {Record<string, string>} */
   const files = {};
@@ -1692,7 +1277,7 @@ function staticTemplates() {
 
 // --- the ownership-seam document --------------------------------------------
 
-/** The document whose generated block this script owns (task 037 exit criterion 4). */
+/** The document whose generated block this script owns. */
 export const SEAM_DOC = "docs/ownership-seam.md";
 
 export const SEAM_BEGIN = "<!-- BEGIN GENERATED: ownership-seam (pnpm qcms:sync-templates) -->";
@@ -1754,14 +1339,7 @@ function directoryCounts(paths) {
   return [...counts.entries()].sort(([a], [b]) => (a < b ? -1 : 1));
 }
 
-/**
- * The generated half of `docs/ownership-seam.md`.
- *
- * Two views of the same set, deliberately. The directory table is what a reader uses;
- * the collapsed manifest is the literal answer to "every scaffolded path", so the
- * document cannot claim completeness it does not have. Both come from the same tree
- * the CLI stamps, so neither can drift from what an adopter receives.
- */
+/** The generated half of `docs/ownership-seam.md`: a directory table plus the full manifest, from the tree the CLI stamps. */
 export function renderSeamBlock(tree = buildTemplates()) {
   const byLayer = scaffoldPaths(tree);
   const common = (byLayer.get("common") ?? []).sort();
@@ -1820,12 +1398,7 @@ export function renderSeamBlock(tree = buildTemplates()) {
 }
 
 /**
- * References to this repository's own tracker, decisions and layout (issue #457).
- *
- * Counted rather than removed, so the seam document states the size of the thing
- * instead of an adopter discovering it. Deliberately narrow: `ADR-nn`, `SEC-n`,
- * `issue #nnn`, `task nnn` and a path under one of this repository's top-level
- * directories that a scaffold has not got.
+ * Counts references to this repository's tracker, decisions and layout, so the seam document states their size.
  *
  * @param {Map<string, string>} tree
  * @returns {{ files: number; lines: number }}
@@ -1847,25 +1420,8 @@ export function countInternalReferences(tree) {
 }
 
 /**
- * The generated block with table presentation collapsed away.
- *
- * Prettier owns how a Markdown table is laid out: it pads every cell to the widest in
- * its column and fills the delimiter row to match. This generator emits compact rows,
- * because it has no business reimplementing another tool's formatter. Both are right,
- * and comparing the two raw strings would make `check:templates` and `prettier --check`
- * permanently unable to be green at the same time.
- *
- * So the comparison is on content: inside a table row, runs of whitespace collapse to
- * one space and a delimiter run of dashes collapses to three. Everything else, prose
- * and the file manifest included, is compared byte for byte. A cell whose text changed
- * is still drift; a cell that was merely repadded is not.
- *
- * This is still the right comparison now that `--write` hands the finished document to
- * Prettier itself ({@link seamDocumentText}, issue #866). The committed file is padded
- * and {@link renderSeamBlock} still emits compact rows, so `--check` is comparing a
- * compact render against a padded document and this is what bridges the two. What
- * changed is that the padded form is now what the generator WRITES, rather than what a
- * separate `pnpm format` had to be remembered for.
+ * The block with Prettier's table padding collapsed, so `--check` compares content: a repadded cell is not drift.
+ * Everything else is compared byte for byte.
  *
  * @param {string} block
  * @returns {string}
@@ -1909,14 +1465,7 @@ export function currentSeamBlock() {
 
 // --- write / check ----------------------------------------------------------
 
-/**
- * Everything currently committed under the template directory.
- *
- * Exported because `scripts/dependabot-changeset.mjs` asks the same question this
- * file's `--check` mode asks (issue #834): which generated template files disagree
- * with the working tree. Two readers of one tree have to read it the same way, so
- * the helper borrows this rather than walking the directory a second time.
- */
+/** Everything committed under the template directory; `scripts/dependabot-changeset.mjs` reads the tree the same way. */
 export function currentTemplates() {
   /** @type {Map<string, string>} */
   const tree = new Map();
@@ -1960,15 +1509,7 @@ function writeTemplates(tree) {
   }
 }
 
-/**
- * Prettier, loaded only by `--write`.
- *
- * A dynamic import rather than a top-level one, because `--check` has to run under
- * plain `node` in a tree that was never installed or built (the property the PO review
- * of #451 proved, and the same reason this file may not import TypeScript). `--check`
- * never reaches this function; `--write` is a developer command in an installed tree,
- * and says so if it is not.
- */
+/** Dynamic import: `--check` must run under plain `node` in a tree that was never installed. */
 async function loadPrettier() {
   try {
     return await import("prettier");
@@ -1982,19 +1523,8 @@ async function loadPrettier() {
 }
 
 /**
- * The seam document exactly as `--write` will leave it (issue #866).
- *
- * The generated block goes in compact, and then the WHOLE document goes through
- * Prettier with this repository's own configuration, which is what `pnpm format` would
- * have done to it a step later. That step is the thing being removed: a lane that
- * regenerated and went straight to `pnpm verify` used to land a `prettier --check` red
- * on one file, minutes after the regeneration and saying nothing about it, and every
- * lane through waves 11 and 12 reported the same tax (issues #811, #866).
- *
- * Formatting the whole file rather than the block is deliberate. A block formatted in
- * isolation is only accidentally what Prettier would print in place, and the hand-written
- * prose around it is the generator's neighbour rather than its business: running the same
- * formatter over the same file that `pnpm format` runs over cannot disagree with it.
+ * The seam document as `--write` leaves it: the whole file goes through Prettier with the repository
+ * config, so `pnpm format` cannot disagree.
  *
  * @param {string} block the rendered generated block
  * @param {string} current the document as it stands
@@ -2014,12 +1544,7 @@ export async function main(args = argv.slice(2)) {
     writeTemplates(tree);
     const path = join(REPOSITORY_ROOT, SEAM_DOC);
     const text = readFileSync(path, "utf8");
-    // Compared as finished text rather than as normalised content, which is what the
-    // formatting step buys. The old comparison had to ask whether the CONTENT changed,
-    // because writing unconditionally would have stripped Prettier's table padding out
-    // of a document nothing had changed and the next `pnpm lint` would have put it
-    // back: a two-command loop that never settled. Formatted output has no such loop,
-    // so the honest question is simply whether the file is about to change.
+    // Compared as finished text: formatted output has no pad and unpad loop with `pnpm lint`.
     const next = await seamDocumentText(block, text);
     if (next !== text) writeFileSync(path, next);
     process.stdout.write(
