@@ -21,81 +21,35 @@ import {
   resetAdminTwoFactor,
 } from "./reset-two-factor.js";
 
-/**
- * The `qcms:reset-2fa` break-glass, against a real Postgres with the real role
- * split (issue #432).
- *
- * ## Why this suite builds two database roles rather than one
- *
- * The command's entire guard is which credential opened the connection, so a test
- * that runs everything as one superuser would assert the refusal against a role
- * that does not exist in any deployment and prove nothing about the one that does.
- * So the container is booted **unmigrated**, `qcms_migrate` and `qcms_app` are
- * created from the `docs/operations.md` recipe (the same recipe
- * `apps/api/e2e/security/03-db-least-privilege.e2e.ts` executes), the migrations
- * run as `qcms_migrate`, and from then on each half of the story uses the
- * credential it uses in production:
- *
- * - **better-auth runs as `qcms_app`.** Creating the admin and both enrolments go
- *   through the real library on the application credential, which is what every
- *   API process holds.
- * - **The reset runs as `qcms_migrate`.** And the same call on the `qcms_app`
- *   handle is refused, even though that role holds `DELETE` on every table in
- *   `public` and could perfectly well execute the statement. That is the point:
- *   the guard is ownership, not privilege, so reaching the credential that is on a
- *   running box does not reach the break-glass.
- *
- * ## Why the enrolment is driven through better-auth rather than inserted
- *
- * "The admin can enrol again" is the acceptance criterion, and only the library
- * can answer it: a hand-written `twoFactor` row would be encrypted by this test
- * rather than by the plugin, and a sign-in that then verified against it would be
- * testing the fixture. The enrolment here is the two-step the mounted surface
- * performs (`enableTwoFactor`, then a real TOTP code), the same shape
- * `backup-code-storage.integration.test.ts` uses, so the assertion after the reset
- * is that a genuine enrolment completes on an account whose previous one was
- * deleted underneath it.
- *
- * Requires Docker.
- */
+// The command's guard is which credential opened the connection, so each half of this
+// suite runs as the role it runs as in production.
 
 const MIGRATE_ROLE = "qcms_migrate";
-// The **control** role since ADR-40: better-auth's tables are control-plane tables and
-// `qcms_app_control` is what the API's control pool connects as. The old single
-// `qcms_app` no longer exists in any recipe, and naming it here would have created a
-// role the baseline grants nothing to - which is exactly what the refusal half of this
-// file would then have passed on for the wrong reason.
+// The control role (ADR-40): naming a role the baseline grants nothing to would make the
+// refusal half pass for the wrong reason.
 const APP_ROLE = "qcms_app_control";
 
-/**
- * Generated per run, not written down: a literal here is a hard-coded credential
- * the lint gate flags, and the fixture only needs to be long enough to be accepted.
- */
+/** Generated rather than literal so no credential-shaped string is ever committed here. */
 const PASSWORD = `fixture-${Buffer.from(crypto.getRandomValues(new Uint8Array(18))).toString("base64url")}`;
 const EMAIL = "locked.out@example.test";
-/** A second account, never enrolled, for the no-op and ambiguity cases. */
 const SPARE_EMAIL = "never.enrolled@example.test";
 
 let testDb: TestDb;
 let owner: pg.Client;
 let migratePool: pg.Pool;
 let appPool: pg.Pool;
-/** The migration role's handle: what the command connects with. */
 let migrateDb: Executor;
-/** The application role's handle: what every API process connects with. */
 let appDb: Executor;
 let auth: AdminAuth;
-/** The `twoFactor.backupCodes` blob of the first enrolment, to prove the second differs. */
 let firstBlob = "";
 
-/** A throwaway password for a containerised role. Generated, never committed. */
+/** Generated, never committed: a throwaway password for a containerised role. */
 function ephemeralPassword(): string {
   const bytes = new Uint8Array(24);
   crypto.getRandomValues(bytes);
   return Array.from(bytes, (b) => b.toString(16).padStart(2, "0")).join("");
 }
 
-/** `testDb`'s connection string rewritten to authenticate as `role`. */
 function uriFor(role: string, password: string): string {
   const uri = new URL(testDb.connectionUri);
   uri.username = role;
@@ -103,14 +57,12 @@ function uriFor(role: string, password: string): string {
   return uri.toString();
 }
 
-/** The TOTP secret better-auth just provisioned, read off the otpauth URI. */
 function secretFromUri(totpUri: string): string {
   const secret = new URL(totpUri).searchParams.get("secret");
   if (secret === null) throw new Error("no secret in the provisioning URI");
   return secret;
 }
 
-/** One cookie header from a better-auth response's `Set-Cookie` list. */
 function cookiesOf(response: Response): string {
   return response.headers
     .getSetCookie()
@@ -118,10 +70,6 @@ function cookiesOf(response: Response): string {
     .join("; ");
 }
 
-/**
- * Complete a real two-step enrolment for the fixture account and return the
- * session cookie it ends on.
- */
 async function enrol(): Promise<void> {
   const signedIn = await auth.api.signInEmail({
     body: { email: EMAIL, password: PASSWORD },
@@ -150,7 +98,6 @@ async function enrol(): Promise<void> {
   expect(verified.ok, "a real TOTP code should complete enrolment").toBe(true);
 }
 
-/** Rows in `twoFactor` for the fixture account. */
 async function factorRows(): Promise<{ id: string; backupCodes: string }[]> {
   const rows = await migrateDb
     .select({ id: authTwoFactor.id, backupCodes: authTwoFactor.backupCodes })
@@ -158,7 +105,6 @@ async function factorRows(): Promise<{ id: string; backupCodes: string }[]> {
   return rows.map((row) => ({ id: row.id, backupCodes: String(row.backupCodes) }));
 }
 
-/** Whether the fixture account is currently enrolled. */
 async function isEnrolled(email: string): Promise<boolean> {
   const rows = await migrateDb
     .select({ email: authUser.email, twoFactorEnabled: authUser.twoFactorEnabled })
@@ -166,7 +112,6 @@ async function isEnrolled(email: string): Promise<boolean> {
   return rows.find((row) => row.email === email)?.twoFactorEnabled === true;
 }
 
-/** One audit row, in the shape this suite asserts on. */
 interface AuditRow {
   readonly id: string;
   readonly email: string;
@@ -175,7 +120,6 @@ interface AuditRow {
   readonly wasEnrolled: boolean;
 }
 
-/** Every audit row. */
 async function auditRows(): Promise<AuditRow[]> {
   return migrateDb
     .select({
@@ -189,14 +133,10 @@ async function auditRows(): Promise<AuditRow[]> {
 }
 
 beforeAll(async () => {
-  // UNMIGRATED on purpose: the recipe runs before the first migration, and the
-  // migration then runs as qcms_migrate. Migrating as the superuser first would
-  // leave every object owned by the wrong role, and the ownership guard this suite
-  // exists to exercise would be asserting nothing.
+  // Unmigrated: migrating as the superuser would leave every object owned by the wrong
+  // role, and the ownership guard would assert nothing.
   testDb = await startTestDb({ migrate: false });
-  // Every connection this file opens is handed to the harness (issue #888), so one
-  // teardown drains them all before the container stops and no local `afterAll` has to
-  // re-derive that order.
+  // Registered with the harness so one teardown drains every connection in order.
   owner = testDb.register(
     new pg.Client({ connectionString: testDb.connectionUri }),
     "owner client",
@@ -212,10 +152,8 @@ beforeAll(async () => {
   const database = (await owner.query<{ name: string }>("SELECT current_database() AS name"))
     .rows[0]?.name;
   await owner.query(`GRANT CREATE ON DATABASE "${String(database)}" TO ${MIGRATE_ROLE}`);
-  // Nothing is granted here: the grants are the baseline migration's, guarded on each
-  // role existing, which is why both roles are created BEFORE it runs (ADR-40). The
-  // default-privilege lines below stay, so a table a future migration creates is reached
-  // without a grant step to remember.
+  // The table grants are the baseline migration's and are guarded on each role existing,
+  // which is why both roles are created before it runs (ADR-40).
   await owner.query(`GRANT USAGE ON SCHEMA public TO ${APP_ROLE}`);
   await owner.query(
     `ALTER DEFAULT PRIVILEGES FOR ROLE ${MIGRATE_ROLE} GRANT SELECT ON TABLES TO ${APP_ROLE}`,
@@ -238,8 +176,8 @@ beforeAll(async () => {
   );
   await migrator.connect();
   await applyMigrations(migrator);
-  // Closed here because the ownership assertions below must not see it; registered above
-  // as well, so a throwing `applyMigrations` cannot leave it open. `end()` is idempotent.
+  // Closed here because the ownership assertions below must not see it; it is also
+  // registered, so a throwing `applyMigrations` cannot leave it open.
   await migrator.end();
 
   migratePool = testDb.register(
@@ -271,13 +209,12 @@ afterAll(async () => {
 
 describe("the application-credential refusal (SEC-10)", () => {
   it("refuses the credential every API process holds, even though it could execute the delete", async () => {
-    // The precondition that makes this meaningful: the role IS allowed to delete
-    // the row. If this ever fails, the refusal below stops being about ownership.
+    // The precondition: this role is allowed to delete the row, so the refusal below is
+    // about ownership rather than privilege.
     const client = await appPool.connect();
     try {
       await client.query("BEGIN");
-      // Schema-qualified: `control` is on no connection's search path here, and the
-      // table has never been in `public` since ADR-40.
+      // Schema-qualified: `control` is on no connection's search path here.
       await client.query('DELETE FROM "control"."twoFactor"');
       await client.query("ROLLBACK");
     } finally {
@@ -290,7 +227,6 @@ describe("the application-credential refusal (SEC-10)", () => {
     expect(outcome.refusal.kind).toBe("insufficient-database-role");
     expect(describeResetRefusal(outcome.refusal)).toContain(APP_ROLE);
 
-    // And nothing moved.
     expect(await factorRows()).toHaveLength(1);
     expect(await isEnrolled(EMAIL)).toBe(true);
     expect(await auditRows()).toHaveLength(0);
@@ -319,8 +255,6 @@ describe("the dry run", () => {
     expect(outcome.target.email).toBe(EMAIL);
     expect(outcome.target.factorRows).toBe(1);
     expect(outcome.target.wasEnrolled).toBe(true);
-    // The dry run says so in as many words; an operator who misses it acts on the
-    // wrong belief, so the sentence is part of the contract.
     expect(describeResetOutcome(outcome)).toContain("Nothing has changed");
     expect(describeResetOutcome(outcome)).toContain("--yes");
 
@@ -338,14 +272,11 @@ describe("the reset itself", () => {
     expect(outcome.target.factorRows).toBe(1);
     expect(outcome.databaseRole).toBe(MIGRATE_ROLE);
 
-    // The row is gone, so the recovery codes are gone with it: better-auth keeps
-    // them in `twoFactor.backupCodes`, which is why no separate statement clears them.
+    // better-auth keeps the recovery codes in this row, so deleting it clears them and no
+    // separate statement does.
     expect(await factorRows()).toHaveLength(0);
     expect(await isEnrolled(EMAIL)).toBe(false);
 
-    // What the operator actually reads. Asserted here rather than in a unit test
-    // because these are the real values: a real audit id and the role the reset
-    // genuinely ran as, not a fixture's idea of them.
     const printed = describeResetOutcome(outcome);
     expect(printed).toContain(EMAIL);
     expect(printed).toContain(outcome.auditId);
@@ -366,8 +297,6 @@ describe("the reset itself", () => {
     expect(await isEnrolled(EMAIL)).toBe(true);
     const rows = await factorRows();
     expect(rows).toHaveLength(1);
-    // A genuinely new enrolment, not the old one restored: the stored blob is
-    // ciphertext over a freshly generated secret and a fresh set of codes.
     expect(rows[0]?.backupCodes).not.toBe(firstBlob);
   });
 });
@@ -392,9 +321,6 @@ describe("an account with nothing to clear, and an ambiguous address", () => {
   });
 
   it("refuses when two accounts differ only in the case of their address", async () => {
-    // Two distinct rows under `user.email`'s unique index, one address to an
-    // operator. This is why the resolution is case-insensitive and why the
-    // ambiguity refusal is not dead code.
     await migrateDb
       .insert(authUser)
       .values({ id: crypto.randomUUID(), name: "Twin", email: SPARE_EMAIL.toUpperCase() });
@@ -404,7 +330,6 @@ describe("an account with nothing to clear, and an ambiguous address", () => {
     if (outcome.ok) throw new Error("unreachable");
     expect(outcome.refusal.kind).toBe("ambiguous-email");
     expect(outcome.refusal.kind === "ambiguous-email" && outcome.refusal.matches).toBe(2);
-    // Refused before anything was written: still the two rows from the test above.
     expect(await auditRows()).toHaveLength(2);
   });
 });

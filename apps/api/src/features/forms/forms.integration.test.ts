@@ -1,22 +1,3 @@
-/**
- * Admin form-authoring + publish slice tests (task 022), driven through
- * `app.request()` against the **real** kernel, the real A2UI compiler, and the
- * 013 Testcontainers harness DB - never a mock of our own packages
- * (CONTRIBUTING). Requires Docker.
- *
- * Covers every exit criterion:
- *  1. the full loop (create → draft → publish → seeded new draft → publish v2)
- *     with a v1-pinned session left unaffected (R1, I4);
- *  2. publish failure - a backward rule target → 422 `RULE_BACKWARD_TARGET`
- *     with its path, and nothing persisted (no version, draft intact, no event);
- *  3. deprecated-pin - a moved pin to a deprecated version rejected
- *     (`DEPRECATED_PIN`), a carried-over (unchanged) pin allowed;
- *  4. snapshot integrity - the stored compiled JSONB deep-equals a fresh
- *     `compileForm` of the publish-time snapshot, with all version stamps;
- *  5. atomicity - an induced failure between the version insert and the draft
- *     delete rolls the whole publish back (no version, draft intact, no event).
- */
-
 import { compileForm } from "@roonga/qcms-a2ui-compiler";
 import {
   compileDraft,
@@ -65,9 +46,6 @@ let testDb: TestDb;
 let deps: Deps;
 let app: ReturnType<typeof createApp>;
 let internalToken: string;
-// A real better-auth session row seeded per suite (031): the admin-auth
-// middleware verifies it against the database, so a made-up marker no longer
-// authenticates anything.
 let adminSessionToken: string;
 
 beforeAll(async () => {
@@ -83,8 +61,6 @@ beforeAll(async () => {
 afterAll(async () => {
   await testDb?.teardown();
 }, CONTAINER_BOOT_TIMEOUT_MS);
-
-// --- request helpers (channel token + a real admin session on every call) ----
 
 function authHeaders(extra: Record<string, string> = {}): Record<string, string> {
   return {
@@ -115,18 +91,11 @@ async function get(path: string): Promise<Response> {
   return app.request(`/admin${path}`, { headers: authHeaders() });
 }
 
-// --- fixtures ---------------------------------------------------------------
-
 function shortText(id: string, labelText = "Field"): Record<string, unknown> {
   return { questionId: id, type: "shortText", label: { en: labelText } };
 }
 
-/**
- * Seed a published question (version 1) straight through the db helpers. The
- * definition is parsed through the kernel first (as the authoring route would),
- * so schema defaults - e.g. shortText's `constraints` (`.prefault({})`) the A2UI
- * compiler reads - are applied exactly as a real published version carries them.
- */
+// Parsed through the kernel first so the schema defaults the A2UI compiler reads are applied.
 async function seedPublishedQuestion(id: string, labelText = "Field"): Promise<void> {
   const questionId = QuestionId.parse(id);
   const parsed = parseQuestionDefinition(shortText(id, labelText));
@@ -140,7 +109,6 @@ async function seedPublishedQuestion(id: string, labelText = "Field"): Promise<v
   await publishQuestionVersion(testDb.db, { questionId, version: 1 });
 }
 
-/** A form definition pinning the given `(step → questionIds)` layout at v1. */
 function formDefinition(
   formId: string,
   steps: [string, string[]][],
@@ -163,25 +131,14 @@ function formDefinition(
 interface Issue {
   code: string;
   path?: Record<string, unknown>;
-  /** The keys a strict body refused, named since issue #893. */
   keys?: string[];
 }
 interface ErrBody {
   error: { code: string; message: string; details?: { issues?: Issue[]; target?: string } };
 }
 
-/**
- * How many outbox rows exist in **every** environment's data schema, across all event
- * types (ADR-40, Q60).
- *
- * Counted per schema rather than through the search path, and over every event type rather
- * than `form.published` alone. Publishing queues nothing at all since Q60, so the question
- * is no longer "did the right event land" but "did anything land anywhere", and a count
- * scoped to the one type this handler used to write would go on passing if it started
- * writing a differently named one. Naming both schemas is what makes "in any environment"
- * real: the control pool that publishes has no search path into a data schema, so a count
- * taken through one would be reading nothing and finding nothing.
- */
+// Each schema is named explicitly because the control pool that publishes has no search
+// path into a data schema, so a count taken through one would read nothing.
 async function outboxRowsInEveryEnvironment(): Promise<number> {
   const result = await testDb.client.query(
     `select (select count(*) from data_test.outbox)
@@ -190,14 +147,11 @@ async function outboxRowsInEveryEnvironment(): Promise<number> {
   return Number((result.rows[0] as { n: string | number }).n);
 }
 
-// --- exit criterion 1: the full loop ----------------------------------------
-
 describe("full authoring loop (exit criterion 1)", () => {
   it("create → draft → publish → seeded new draft → publish v2; a v1 session is untouched", async () => {
     await seedPublishedQuestion("q_loop_name", "Name");
     await seedPublishedQuestion("q_loop_email", "Email");
 
-    // create
     const createRes = await post("/forms", {
       formId: "frm_loop",
       slug: "loop",
@@ -208,27 +162,19 @@ describe("full authoring loop (exit criterion 1)", () => {
     expect(created.formId).toBe("frm_loop");
     expect(created.status).toBe("open");
 
-    // draft (valid, single question) - advisory issues empty
     const v1Def = formDefinition("frm_loop", [["stp_one", ["q_loop_name"]]]);
     const draftRes = await put("/forms/frm_loop/draft", { definition: v1Def });
     expect(draftRes.status).toBe(200);
     expect(((await draftRes.json()) as { issues: Issue[] }).issues).toEqual([]);
 
-    // publish v1
     const pubRes = await post("/forms/frm_loop/publish");
     expect(pubRes.status).toBe(200);
     const v1 = (await pubRes.json()) as { version: number; publishedAt: string };
     expect(v1.version).toBe(1);
     expect(typeof v1.publishedAt).toBe("string");
 
-    // **A successful publish queues nothing, in any environment** (Code Owner, Q60). Under
-    // ADR-40 a version lives once in `control` and what makes it live somewhere is a
-    // release (065), so `form.published` had nobody to tell. This is the assertion that
-    // says so: the 200 above proves publishing still works on the control credential, and
-    // this proves it reached no environment's outbox to do it.
     expect(await outboxRowsInEveryEnvironment()).toBe(0);
 
-    // a session pins v1 (I4: the pin is structural, never migrates)
     const sessionId = SessionId.parse("ses_loop_v1_session_aaaa");
     await createSession(testDb.db, {
       environment: DEFAULT_TEST_ENVIRONMENT,
@@ -239,7 +185,6 @@ describe("full authoring loop (exit criterion 1)", () => {
       expiresAt: new Date(Date.now() + 3_600_000),
     });
 
-    // GET detail: the draft was deleted on publish, so it is now *seeded* from v1
     const detail = (await (await get("/forms/frm_loop")).json()) as {
       draftSource: string;
       draft: FormDefinition;
@@ -249,7 +194,6 @@ describe("full authoring loop (exit criterion 1)", () => {
     expect(detail.draft.steps).toHaveLength(1);
     expect(detail.versions.map((v) => v.version)).toEqual([1]);
 
-    // open a new draft from the seed and add a second question, then publish v2
     const v2Def = formDefinition("frm_loop", [
       ["stp_one", ["q_loop_name"]],
       ["stp_two", ["q_loop_email"]],
@@ -259,19 +203,15 @@ describe("full authoring loop (exit criterion 1)", () => {
     expect(pub2.status).toBe(200);
     expect(((await pub2.json()) as { version: number }).version).toBe(2);
 
-    // the v1-pinned session is unaffected: still bound to version 1 (R1, I4)
     const session = (await getSession(testDb.db, sessionId)) as { formVersion: number } | undefined;
     expect(session?.formVersion).toBe(1);
 
-    // both versions exist; v1's stored snapshot is unchanged (immutable)
     const versions = (await get("/forms/frm_loop")).status;
     expect(versions).toBe(200);
     const rows = await listFormVersions(testDb.db, FormId.parse("frm_loop"));
     expect(rows.map((r) => r.version).sort((a, b) => a - b)).toEqual([1, 2]);
   });
 });
-
-// --- exit criterion 2: publish failure (backward rule target) ---------------
 
 describe("publish failure is atomic (exit criterion 2)", () => {
   it("a backward rule target → 422 RULE_BACKWARD_TARGET; nothing persisted", async () => {
@@ -282,8 +222,6 @@ describe("publish failure is atomic (exit criterion 2)", () => {
       (await post("/forms", { formId: "frm_bw", slug: "bw", defaultLocale: "en" })).status,
     ).toBe(201);
 
-    // q_bw_a is in step one, q_bw_b in step two. A rule that *reads* q_bw_b and
-    // *shows* q_bw_a targets a question before its dependency → backward (ADR-16).
     const badDef = formDefinition(
       "frm_bw",
       [
@@ -292,13 +230,11 @@ describe("publish failure is atomic (exit criterion 2)", () => {
       ],
       [{ ruleId: "rul_back", when: { op: "answered", questionId: "q_bw_b" }, show: ["q_bw_a"] }],
     );
-    // The draft saves (drafts may be inconsistent) but advisory flags the issue.
     const draftRes = await put("/forms/frm_bw/draft", { definition: badDef });
     expect(draftRes.status).toBe(200);
     const advisory = (await draftRes.json()) as { issues: Issue[] };
     expect(advisory.issues.some((i) => i.code === "RULE_BACKWARD_TARGET")).toBe(true);
 
-    // publish is rejected with the full PublishError[] verbatim
     const pubRes = await post("/forms/frm_bw/publish");
     expect(pubRes.status).toBe(422);
     const body = (await pubRes.json()) as ErrBody;
@@ -307,14 +243,11 @@ describe("publish failure is atomic (exit criterion 2)", () => {
     expect(backward).toBeDefined();
     expect(backward?.path).toMatchObject({ rule: "rul_back", target: "q_bw_a" });
 
-    // nothing persisted: no version row, the draft is intact, no outbox event
     expect(await listFormVersions(testDb.db, FormId.parse("frm_bw"))).toHaveLength(0);
     expect(await getDraft(testDb.db, FormId.parse("frm_bw"))).toBeDefined();
     expect(await outboxRowsInEveryEnvironment()).toBe(0);
   });
 });
-
-// --- exit criterion 3: deprecated-pin (new/moved vs carried-over) -----------
 
 describe("deprecated-pin gate (exit criterion 3)", () => {
   it("a carried-over pin to a deprecated version is allowed; a moved pin is rejected", async () => {
@@ -325,7 +258,6 @@ describe("deprecated-pin gate (exit criterion 3)", () => {
       (await post("/forms", { formId: "frm_dep", slug: "dep", defaultLocale: "en" })).status,
     ).toBe(201);
 
-    // v1 pins q_dep@1 in stp_a (published at publish time)
     const v1Def = formDefinition("frm_dep", [
       ["stp_a", ["q_dep"]],
       ["stp_b", ["q_dep_other"]],
@@ -333,19 +265,16 @@ describe("deprecated-pin gate (exit criterion 3)", () => {
     expect((await put("/forms/frm_dep/draft", { definition: v1Def })).status).toBe(200);
     expect((await post("/forms/frm_dep/publish")).status).toBe(200);
 
-    // now deprecate q_dep@1 - no longer a valid target for *new* pins
     await deprecateQuestionVersion(testDb.db, {
       questionId: QuestionId.parse("q_dep"),
       version: 1,
     });
 
-    // carried-over: v2 keeps q_dep@1 in the same step stp_a → allowed
     expect((await put("/forms/frm_dep/draft", { definition: v1Def })).status).toBe(200);
     const carried = await post("/forms/frm_dep/publish");
     expect(carried.status).toBe(200);
     expect(((await carried.json()) as { version: number }).version).toBe(2);
 
-    // moved: v3 relocates q_dep@1 to a *different* step stp_b → DEPRECATED_PIN
     const movedDef = formDefinition("frm_dep", [
       ["stp_a", ["q_dep_other"]],
       ["stp_b", ["q_dep"]],
@@ -382,18 +311,8 @@ describe("deprecated-pin gate (exit criterion 3)", () => {
   });
 });
 
-// --- task 068, criterion 2: the workspace pin gate --------------------------
-
 describe("workspace pin gate (task 068, criterion 2)", () => {
-  /**
-   * A second workspace, inserted directly.
-   *
-   * Through the database rather than the workspaces route, because this suite mounts the
-   * forms slice alone - and because the second workspace has to exist only for the length
-   * of this test: `POST /forms` resolves an omitted workspace to the installation's only
-   * one, which every other test in this file relies on, so the test archives it again at
-   * the end to put the installation back as it found it.
-   */
+  // Inserted directly because this suite mounts the forms slice alone.
   async function otherWorkspace(slug: string): Promise<string> {
     const id = `org_${slug.replace(/-/g, "_")}`;
     await testDb.db
@@ -410,9 +329,6 @@ describe("workspace pin gate (task 068, criterion 2)", () => {
       await seedPublishedQuestion("q_wsp_foreign", "Foreign");
       await moveQuestionToWorkspace(testDb.db, QuestionId.parse("q_wsp_foreign"), other);
 
-      // A NEW pin onto a question another ordinary workspace owns: refused, through the
-      // same channel and with the same structured path as a deprecated pin, which is
-      // what Q14 means by "one mechanism rather than two".
       expect(
         (
           await post("/forms", {
@@ -435,11 +351,6 @@ describe("workspace pin gate (task 068, criterion 2)", () => {
       const issue = body.error.details?.issues?.find((i) => i.code === "FOREIGN_WORKSPACE_PIN");
       expect(issue?.path).toMatchObject({ step: "stp_b", question: "q_wsp_foreign", version: 1 });
 
-      // **The grandfathering, which is two properties and not one** (Q14). A form that
-      // already pinned the question before it moved keeps serving - its published version
-      // is immutable and nothing here touched it - AND keeps that pin in its next draft,
-      // which is the half an implementation drops because the draft is where the refusal
-      // lives.
       await seedPublishedQuestion("q_wsp_moved", "Moved");
       expect(
         (
@@ -468,12 +379,9 @@ describe("workspace pin gate (task 068, criterion 2)", () => {
       const carried = await post("/forms/frm_wsp_carry/publish");
       expect(carried.status).toBe(200);
       expect(((await carried.json()) as { version: number }).version).toBe(2);
-      // And the version that was serving before the move is byte-identical still.
       const versions = await listFormVersions(testDb.db, FormId.parse("frm_wsp_carry"));
       expect(versions).toHaveLength(2);
 
-      // Moving that grandfathered pin to another step is a NEW pin, exactly as it is for
-      // a deprecated version: same mechanism, same consequence.
       const movedDef = formDefinition("frm_wsp_carry", [
         ["stp_a", ["q_wsp_own"]],
         ["stp_b", ["q_wsp_moved"]],
@@ -487,22 +395,17 @@ describe("workspace pin gate (task 068, criterion 2)", () => {
         ),
       ).toBe(true);
 
-      // **The shared workspace is the exception, and it is the whole point of finding
-      // 10**: mark the same workspace as the installation's library and the identical new
-      // pin is allowed, from a form in another workspace, with nothing else changed.
       await setWorkspaceShared(testDb.db, other, true);
       const shared = await post("/forms/frm_wsp_new/publish");
       expect(shared.status).toBe(200);
       await setWorkspaceShared(testDb.db, other, false);
     } finally {
-      // Put the installation back to one active workspace, so an omitted `workspaceId`
-      // keeps resolving for every other test in this file.
+      // Back to one active workspace, so an omitted `workspaceId` keeps resolving
+      // for every other test in this file.
       await archiveWorkspace(testDb.db, other, new Date());
     }
   });
 });
-
-// --- exit criterion 4: snapshot integrity -----------------------------------
 
 describe("stored compiled deep-equals a fresh compile (exit criterion 4)", () => {
   it("the version's compiled JSONB equals compileForm of the publish-time snapshot, with stamps", async () => {
@@ -519,7 +422,6 @@ describe("stored compiled deep-equals a fresh compile (exit criterion 4)", () =>
     expect((await put("/forms/frm_snap/draft", { definition: def })).status).toBe(200);
     expect((await post("/forms/frm_snap/publish")).status).toBe(200);
 
-    // Read the stored snapshot back through the version route.
     const stored = (await (await get("/forms/frm_snap/versions/1")).json()) as {
       compiled: unknown;
       compilerVersion: string;
@@ -528,8 +430,6 @@ describe("stored compiled deep-equals a fresh compile (exit criterion 4)", () =>
       definition: FormDefinition;
     };
 
-    // Independently rebuild the fresh compile: compileDraft over the same pinned
-    // records, then compileForm - the exact path publish took at publish time.
     const records: QuestionVersionRecord[] = [];
     for (const [id] of [["q_snap_a"], ["q_snap_b"]] as [string][]) {
       const rows = await listQuestionVersions(testDb.db, QuestionId.parse(id));
@@ -555,7 +455,6 @@ describe("stored compiled deep-equals a fresh compile (exit criterion 4)", () =>
     const fresh = compileForm(result.value.snapshot, {});
 
     expect(stored.compiled).toEqual(fresh);
-    // Version stamps present and consistent.
     expect(stored.compilerVersion).toBe(fresh.compilerVersion);
     expect(stored.a2uiSpecVersion).toBe(fresh.a2uiSpecVersion);
     expect(stored.semanticsVersion).toBe(String(result.value.snapshot.semanticsVersion));
@@ -563,8 +462,6 @@ describe("stored compiled deep-equals a fresh compile (exit criterion 4)", () =>
     expect(stored.a2uiSpecVersion.length).toBeGreaterThan(0);
   });
 });
-
-// --- exit criterion 5: atomicity under an induced mid-transaction failure ----
 
 describe("publish is all-or-nothing (exit criterion 5)", () => {
   it("an induced failure between version insert and draft delete persists nothing", async () => {
@@ -576,8 +473,8 @@ describe("publish is all-or-nothing (exit criterion 5)", () => {
     const def = formDefinition("frm_atom", [["stp_one", ["q_atom"]]]);
     expect((await put("/forms/frm_atom/draft", { definition: def })).status).toBe(200);
 
-    // Induce a real failure on the draft DELETE - which runs *after* the version
-    // insert inside the same transaction (the fault-trigger technique 020 uses).
+    // The draft DELETE runs after the version insert inside the same transaction, so a
+    // trigger on it fails the publish mid-way.
     await testDb.client.query(
       `create function __fail_draft_delete() returns trigger as $$
        begin raise exception 'induced failure'; end; $$ language plpgsql`,
@@ -589,23 +486,18 @@ describe("publish is all-or-nothing (exit criterion 5)", () => {
 
     try {
       const res = await post("/forms/frm_atom/publish");
-      // The induced pg error surfaces as an opaque 500 (unexpected throw).
       expect(res.status).toBe(500);
     } finally {
       await testDb.client.query(`drop trigger __fail_draft_delete on form_drafts`);
       await testDb.client.query(`drop function __fail_draft_delete()`);
     }
 
-    // Nothing committed: no version row, the draft is intact, no outbox event.
     expect(await listFormVersions(testDb.db, FormId.parse("frm_atom"))).toHaveLength(0);
     expect(await getDraft(testDb.db, FormId.parse("frm_atom"))).toBeDefined();
     expect(await outboxRowsInEveryEnvironment()).toBe(0);
   });
 });
 
-// --- 033: the rule test bench and the per-form settings ---------------------
-
-/** Seed a published choice question, so a rule can compare option ids. */
 async function seedPublishedChoice(id: string, optionIds: readonly string[]): Promise<void> {
   const questionId = QuestionId.parse(id);
   const parsed = parseQuestionDefinition({
@@ -671,7 +563,6 @@ describe("preview-condition: the rule test bench (033)", () => {
       references: ["q_bench_choice"],
       outcome: "match",
     });
-    // `reason` is the unavailable-only channel: a real verdict carries none.
     expect(body.reason).toBeUndefined();
   });
 
@@ -689,7 +580,7 @@ describe("preview-condition: the rule test bench (033)", () => {
 
   it("answers for the submitted definition, not the saved draft (a live authoring aid)", async () => {
     // The saved draft still compares against `opt_yes`; this body flips the rule
-    // without saving, so a bench that read storage would give the stale verdict.
+    // without saving.
     const unsaved = {
       ...definition,
       rules: [{ ...rule, when: { op: "equals", questionId: "q_bench_choice", value: "opt_no" } }],
@@ -700,7 +591,6 @@ describe("preview-condition: the rule test bench (033)", () => {
       answers: { q_bench_choice: "opt_no" },
     });
     expect(((await res.json()) as BenchBody).outcome).toBe("match");
-    // And storage is untouched: the bench is read-only.
     const saved = await getDraft(testDb.db, FormId.parse(formId));
     expect((saved?.definition as FormDefinition).rules[0]?.when).toMatchObject({
       value: "opt_yes",
@@ -708,11 +598,8 @@ describe("preview-condition: the rule test bench (033)", () => {
   });
 
   it("still answers when the rule points backwards (placement is validate's verdict)", async () => {
-    // Reversed layout: the target sits *before* the question the rule reads, so
-    // `analyzeRuleGraph` rejects the placement. The bench must still say whether
-    // the condition matches - that is the question the author came here with, and
-    // it is exactly why the bench evaluates a synthetic forward layout instead of
-    // the draft.
+    // The bench evaluates a synthetic forward layout rather than the draft, so a
+    // placement `analyzeRuleGraph` rejects still gets a match verdict.
     const backwards = formDefinition(
       formId,
       [
@@ -728,10 +615,6 @@ describe("preview-condition: the rule test bench (033)", () => {
     });
     expect(((await preview.json()) as BenchBody).outcome).toBe("match");
 
-    // The same definition through validate reports the placement error. That is
-    // the division of labour the two routes exist to keep: the bench answers
-    // "does it match", validate answers "is it legal" (and runs analyzeRuleGraph
-    // server-side, which is why the builder needs no kernel of its own).
     const validated = await post(`/forms/${formId}/draft/validate`, { definition: backwards });
     const issues = ((await validated.json()) as { issues: Issue[] }).issues;
     expect(issues.map((issue) => issue.code)).toContain("RULE_BACKWARD_TARGET");
@@ -741,24 +624,19 @@ describe("preview-condition: the rule test bench (033)", () => {
     const res = await bench(formId, {
       definition,
       ruleId: "rul_bench",
-      // An object is not a canonical AnswerValue encoding (DOMAIN_SCHEMA §2.4).
       answers: { q_bench_choice: { not: "an answer" } },
     });
     expect(res.status).toBe(200);
     const raw = await res.text();
     const body = JSON.parse(raw) as BenchBody;
-    // Tri-state matters here: this is NOT a `noMatch`, and the panel must be able
-    // to tell the difference.
     expect(body.outcome).toBe("unavailable");
     expect(body.reason).toBe("unresolvedAnswers");
-    // SEC-13 / ADR-34: the hypothetical answer never comes back out.
+    // SEC-13: the hypothetical answer never comes back out.
     expect(raw).not.toContain("an answer");
   });
 
   it("declines to answer for an unknown ruleId, as a verdict rather than an error", async () => {
     const res = await bench(formId, { definition, ruleId: "rul_not_here", answers: {} });
-    // 200, not 404: an author scrolling the rule list past a stale id should see
-    // the bench say so, not an error envelope.
     expect(res.status).toBe(200);
     expect((await res.json()) as BenchBody).toMatchObject({
       ruleId: "rul_not_here",
@@ -773,8 +651,6 @@ describe("preview-condition: the rule test bench (033)", () => {
       ruleId: "rul_bench",
       answers: {},
     });
-    // The bench reads work in progress: an unparseable draft is an ordinary
-    // state, not a 422 that would blank the panel mid-edit.
     expect(res.status).toBe(200);
     expect((await res.json()) as BenchBody).toMatchObject({
       outcome: "unavailable",
@@ -795,8 +671,6 @@ describe("preview-condition: the rule test bench (033)", () => {
   });
 
   it("declines to answer when the condition reads only unpinned questions", async () => {
-    // Nothing to vary: the bench form's input step would be empty, so there is no
-    // answer that could change the verdict.
     const unpinned = {
       ...definition,
       rules: [
@@ -825,9 +699,7 @@ interface SettingsBody {
   formId: string;
   settings: { challengeRequired: boolean; minSubmitMs: number | null };
   challengeEnforceable: boolean;
-  // Read back as `unknown` on purpose: the raw provider name must not be on the
-  // wire at all any more (ADR-24, issue #725), and a typed absence is easier to
-  // assert than a missing key on a narrowed interface.
+  // `unknown` so the absence of the provider name can be asserted at all.
   challengeProvider?: unknown;
 }
 
@@ -850,9 +722,6 @@ describe("per-form settings (033 settings panel)", () => {
     const res = await get(`/forms/${formId}`);
     const body = (await res.json()) as SettingsBody;
     expect(body).toMatchObject({ settings: { challengeRequired: false, minSubmitMs: null } });
-    // The derived boolean rides the detail read so the panel can warn on load
-    // that `challengeRequired` is unenforceable (033). The raw provider name is
-    // not on the wire: ADR-24 gives clients behavior, not flag values (#725).
     expect(body.challengeEnforceable).toBe(deps.config.flags.challengeProvider !== "none");
     expect(body.challengeProvider).toBeUndefined();
   });
@@ -865,8 +734,6 @@ describe("per-form settings (033 settings panel)", () => {
       formId,
       settings: { challengeRequired: true, minSubmitMs: null },
     });
-    // The write answers with the derived boolean too, so the warning re-renders
-    // without a follow-up read, and again without naming the provider.
     expect(first.challengeEnforceable).toBe(deps.config.flags.challengeProvider !== "none");
     expect(first.challengeProvider).toBeUndefined();
 
@@ -887,19 +754,10 @@ describe("per-form settings (033 settings panel)", () => {
 
   it("rejects an absurd min-time floor, an empty patch, and an unknown form", async () => {
     expect((await patchSettings(formId, { minSubmitMs: 999_999_999 })).status).toBe(400);
-    // An all-absent patch is refused at the schema, which is what keeps the
-    // helper's `undefined` return meaning exactly "no such form" below.
     expect((await patchSettings(formId, {})).status).toBe(400);
     expect((await patchSettings("frm_no_such_form", { challengeRequired: true })).status).toBe(404);
   });
 
-  /**
-   * The empty patch answers with the code the published document now names (issue
-   * #242). The schema carries `minProperties: 1` and a description quoting
-   * `INVALID_REQUEST`, and this is the half of that pair that checks the server
-   * actually says it - the contract test in `src/openapi-document.test.ts` checks
-   * the document, and neither alone would catch the two drifting apart.
-   */
   it("answers the empty patch with the INVALID_REQUEST envelope the document names", async () => {
     const res = await patchSettings(formId, {});
     expect(res.status).toBe(400);
@@ -910,18 +768,6 @@ describe("per-form settings (033 settings panel)", () => {
   });
 });
 
-/**
- * Request bodies reject unknown keys (Code Owner, 2026-09-19, issue #893).
- *
- * The admin half of the policy on the wire. `docs/openapi/admin.json` now
- * publishes `additionalProperties: false` on every closed body, and the contract
- * test in `src/openapi-document.test.ts` holds the document to it; these tests
- * hold the *server* to the same thing, because neither alone would catch the two
- * drifting apart - which is precisely how #893 arose.
- *
- * `PATCH /admin/forms/{id}/settings` is the endpoint the issue was filed against,
- * so its example is here verbatim.
- */
 describe("unknown keys are refused on an admin body (issue #893)", () => {
   const formId = "frm_unknown_keys";
 
@@ -930,10 +776,6 @@ describe("unknown keys are refused on an admin body (issue #893)", () => {
   }, CONTAINER_BOOT_TIMEOUT_MS);
 
   it("refuses #893's own example on the unknown key, not on the empty patch", async () => {
-    // `{"unknownField": 1}` used to answer 400 for the wrong reason: the key was
-    // stripped, the patch became `{}`, and the empty-patch rule fired. A client
-    // generated from the document read `minProperties: 1`, saw one property, and
-    // could not tell why it was refused.
     const res = await patchSettings(formId, { unknownField: 1 });
 
     expect(res.status).toBe(400);
@@ -947,16 +789,12 @@ describe("unknown keys are refused on an admin body (issue #893)", () => {
   });
 
   it("refuses a real field sent beside an unknown one, which used to answer 200", async () => {
-    // The worse half of the defect, and the one the issue's example hides: this
-    // body was accepted, the unknown key was dropped, and the caller got a
-    // success for a request the server had only partly honoured.
     const res = await patchSettings(formId, { challengeRequired: true, misspelled: 1 });
 
     expect(res.status).toBe(400);
     expect((await res.json()) as ErrBody).toMatchObject({
       error: { code: "INVALID_REQUEST" },
     });
-    // And nothing was written: the refusal is at the schema, before the handler.
     const detail = (await (await get(`/forms/${formId}`)).json()) as SettingsBody;
     expect(detail.settings.challengeRequired).toBe(false);
   });
@@ -970,10 +808,8 @@ describe("unknown keys are refused on an admin body (issue #893)", () => {
   });
 
   it("still accepts an open map keyed by whatever the caller sent", async () => {
-    // The other side of the policy. `answers` is a questionId -> AnswerValue map,
-    // so its keys are the caller's data and closing it would refuse the data
-    // rather than a mistake. An unresolvable id is an ordinary bench outcome, not
-    // a schema refusal - what matters here is that it reached the handler at all.
+    // `answers` keys are the caller's own data, so closing the map would refuse data
+    // rather than a mistake.
     const definition = formDefinition(formId, [["stp_only", []]], []);
     const res = await bench(formId, {
       definition,
@@ -986,7 +822,6 @@ describe("unknown keys are refused on an admin body (issue #893)", () => {
   });
 
   it("refuses an unknown key on the body that wraps the open map", async () => {
-    // The map is open; the envelope around it is not. Both at once, on one route.
     const definition = formDefinition(formId, [["stp_only", []]], []);
     const res = await bench(formId, { definition, ruleId: "rul_absent", answers: {}, extra: true });
 
@@ -996,8 +831,6 @@ describe("unknown keys are refused on an admin body (issue #893)", () => {
     expect(body.error.message).toContain('"extra"');
   });
 });
-
-// --- the live draft preview (034) -------------------------------------------
 
 interface PreviewBody {
   documents: { stepId: string; root: unknown }[];
@@ -1048,9 +881,6 @@ describe("draft preview: the dry-run compile the admin renders (034)", () => {
   });
 
   it("is byte-identical to what publishing this draft would freeze (fidelity)", async () => {
-    // The whole point of the endpoint: the author's preview and the respondent's
-    // served document come out of the same `compileForm` call in the same
-    // process, so they cannot drift (ARCHITECTURE §6, ADR-18).
     const previewed = (await (await preview(formId, { definition })).json()) as PreviewBody;
 
     const published = await post(`/forms/${formId}/publish`);
@@ -1068,8 +898,7 @@ describe("draft preview: the dry-run compile the admin renders (034)", () => {
     expect(previewed.compilerVersion).toBe(snapshot.compilerVersion);
     expect(previewed.a2uiSpecVersion).toBe(snapshot.a2uiSpecVersion);
 
-    // Publishing consumed the draft; restore one so the rest of the block reads
-    // the same definition it started with.
+    // Publishing consumed the draft; the rest of the block needs one.
     await put(`/forms/${formId}/draft`, { definition });
   });
 
@@ -1127,10 +956,8 @@ describe("draft preview: the dry-run compile the admin renders (034)", () => {
     expect(body.error.details?.issues?.map((issue) => issue.code)).toContain(
       "RULE_BACKWARD_TARGET",
     );
-    // The invariant behind the admin's copy for this code, which promises "the reasons
-    // are listed below": a rejection always has at least one reason. A compile that fails
-    // without saying why answers `PREVIEW_UNAVAILABLE` instead, which has its own
-    // sentence and lists nothing.
+    // The admin's copy for this code promises "the reasons are listed below", so a
+    // rejection with no reason would render an empty list.
     expect(body.error.details?.issues?.length ?? 0).toBeGreaterThan(0);
   });
 
@@ -1171,9 +998,6 @@ describe("draft preview: the dry-run compile the admin renders (034)", () => {
   });
 });
 
-// --- 123: publish warnings ride the validate and draft-save responses --------
-
-/** Seed a published multiChoice question, so a rule can read a group answer. */
 async function seedPublishedMulti(id: string, optionIds: readonly string[]): Promise<void> {
   const questionId = QuestionId.parse(id);
   const parsed = parseQuestionDefinition({
@@ -1192,14 +1016,9 @@ async function seedPublishedMulti(id: string, optionIds: readonly string[]): Pro
   await publishQuestionVersion(testDb.db, { questionId, version: 1 });
 }
 
-// --- 074: the admin preview routes with a repeating group in the draft -------
-
-/** A form whose middle step holds a two-member repeating group, plus a question after it. */
 function repeatDefinition(
   formId: string,
   rules: readonly unknown[],
-  /** The group's declared ceiling, or `null` for the state publish refuses with
-   * `REPEAT_MAX_MISSING`: an author who has not filled the required field in yet. */
   max: number | null = 9,
 ): Record<string, unknown> {
   return {
@@ -1254,19 +1073,6 @@ interface RepeatPreviewBody extends PreviewBody {
   };
 }
 
-/**
- * The hypothetical roster both admin preview routes take (ADR-42 §6.4, §6.5).
- *
- * Neither route has a session, so neither has a live roster: the admin mints one from the group's
- * own `min` or from a count the author types, and the answers in the same request are keyed with
- * those ids. These tests are the API's half of that contract.
- *
- * **The two sentences the Q7 ruling exists for are asserted here as well as in the browser**, and
- * deliberately at this layer: `everyInstance` over an empty group is FALSE rather than vacuously
- * true, and its negation is therefore TRUE - so `everyInstance(G, c)` and `not(anyInstance(G, not
- * c))` are not the same expression. That is a property of the evaluator reached through the bench,
- * and the bench is where an author meets it.
- */
 describe("the admin preview routes with a repeating group (074)", () => {
   const formId = "frm_repeat_preview";
 
@@ -1275,9 +1081,8 @@ describe("the admin preview routes with a repeating group (074)", () => {
     await seedPublishedQuestion("q_rp_passport", "Passport number");
     await seedPublishedQuestion("q_rp_fare", "Fare basis");
     await seedPublishedQuestion("q_rp_declaration", "Declaration");
-    // Only the cross-group case pins it: a question is pinned at most once in a form
-    // (`DUPLICATE_QUESTION_IN_FORM` reaches inside groups), so the second group needs a member
-    // of its own rather than borrowing one from the first.
+    // A question is pinned at most once per form, so the cross-group case needs a member
+    // of its own rather than borrowing one from the first group.
     await seedPublishedQuestion("q_rp_bag_tag", "Bag tag");
     await post("/forms", { formId, slug: "repeat-preview", defaultLocale: "en" });
     await put(`/forms/${formId}/draft`, { definition: repeatDefinition(formId, []) });
@@ -1317,7 +1122,6 @@ describe("the admin preview routes with a repeating group (074)", () => {
     const body = (await res.json()) as RepeatBenchBody;
     expect(body.outcome).toBe("noMatch");
     expect(body.rosters).toStrictEqual([{ groupId: "grp_rp_passengers", instances: [] }]);
-    // The rule targets outside the group, so it is not per-instance and carries no instance list.
     expect(body.targetGroupId).toBeUndefined();
     expect(body.instanceOutcomes).toBeUndefined();
   });
@@ -1330,8 +1134,8 @@ describe("the admin preview routes with a repeating group (074)", () => {
       instances: { grp_rp_passengers: [] },
     });
 
-    // Q7: the two are equivalent only when at least one instance is live. Nothing in the
-    // evaluator, the admin or a golden scenario may treat one as a rewrite of the other.
+    // The two are equivalent only when at least one instance is live, so neither may be
+    // treated as a rewrite of the other.
     expect(((await res.json()) as RepeatBenchBody).outcome).toBe("match");
   });
 
@@ -1373,8 +1177,8 @@ describe("the admin preview routes with a repeating group (074)", () => {
 
     expect(res.status).toBe(200);
     const body = (await res.json()) as RepeatBenchBody;
-    // Scope is implicit by POSITION: the target sits inside the group, so the rule is evaluated
-    // once per live instance and the answer resolves to that instance's own value and no other.
+    // Scope is implicit by position: the target sits inside the group, so each instance
+    // resolves the answer to its own value.
     expect(body.targetGroupId).toBe("grp_rp_passengers");
     expect(body.instanceOutcomes).toStrictEqual([
       { instanceId: "ins_g1_1", outcome: "noMatch" },
@@ -1398,9 +1202,7 @@ describe("the admin preview routes with a repeating group (074)", () => {
     });
 
     const body = (await res.json()) as RepeatBenchBody;
-    // Empty rather than absent: absent means the rule is not per-instance at all, and empty means
-    // it is and the group has nothing in it. Collapsing the two would make a rule the bench could
-    // not answer indistinguishable from one it answered about nothing.
+    // Empty rather than absent: absent means the rule is not per-instance at all.
     expect(body.targetGroupId).toBe("grp_rp_passengers");
     expect(body.instanceOutcomes).toStrictEqual([]);
     expect(body.outcome).toBe("noMatch");
@@ -1414,23 +1216,14 @@ describe("the admin preview routes with a repeating group (074)", () => {
       instances: { grp_rp_passengers: ["ins_g1_1", "ins_g1_2", "ins_g1_3", "ins_g1_1"] },
     });
 
-    // A preview showing three instances of a group whose max is two would be a claim about a page
-    // no respondent can reach. The duplicate goes too: roster ORDER is meaning, and a repeated id
-    // would make one instance appear twice in a walk meant to visit each once.
     expect(((await res.json()) as RepeatBenchBody).rosters).toStrictEqual([
       { groupId: "grp_rp_passengers", instances: ["ins_g1_1", "ins_g1_2"] },
     ]);
   });
 
   it("truncates a group whose author has not declared a maximum at the preview cap", async () => {
-    // The state `addGroup` deliberately creates: `open` with `min: 1` and no `max`, because `max`
-    // is a required field with no safe default (SEC-16). `countBounds` then answers `undefined`
-    // and nothing in either preview route bounded the caller's list, so one authenticated request
-    // could ask for any number of instances and be evaluated against all of them.
-    //
-    // The cap bounds ONE REQUEST and no form's declared maximum, which is what keeps it inside
-    // Q14: a group with a declared `max` still truncates against the author's own figure, above
-    // or below the cap.
+    // With no declared `max`, nothing but this cap bounds the caller's instance list, so one
+    // authenticated request could be evaluated against any number of instances (SEC-16).
     const res = await bench(formId, {
       definition: repeatDefinition(formId, [everyRule], null),
       ruleId: "rul_rp_every",
@@ -1449,12 +1242,9 @@ describe("the admin preview routes with a repeating group (074)", () => {
   });
 
   it("bounds a cross-group rule over two groups that declare no maximum", async () => {
-    // The shape the kernel's own budget cannot refuse here: `REPEAT_EVALUATION_BUDGET` is checked
-    // at publish against DECLARED maxima and never at runtime, and neither preview route runs
-    // `analyzeRuleGraph` - so a bench request may target inside one group while applying a
-    // whole-group operator over another, at the product of the two roster lengths. With both
-    // groups unbounded that product had no limit at all; the cap makes the worst one request can
-    // ask for fifty by fifty.
+    // `REPEAT_EVALUATION_BUDGET` is checked at publish against declared maxima only, and
+    // neither preview route runs `analyzeRuleGraph`, so the per-request cap is the only
+    // bound on the product of two unbounded rosters.
     const definition = repeatDefinition(formId, [], null);
     const steps = [...(definition["steps"] as Record<string, unknown>[])];
     steps.splice(2, 0, {
@@ -1501,7 +1291,6 @@ describe("the admin preview routes with a repeating group (074)", () => {
     for (const roster of body.rosters) {
       expect(roster.instances, `group ${roster.groupId}`).toHaveLength(50);
     }
-    // And it still answers: the bound is on the hypothesis, not on the bench's ability to run.
     expect(body.outcome).toBe("noMatch");
     expect(body.targetGroupId).toBe("grp_rp_bags");
     expect(body.instanceOutcomes).toHaveLength(50);
@@ -1531,8 +1320,6 @@ describe("the admin preview routes with a repeating group (074)", () => {
     expect(body.flow.rosters).toStrictEqual([
       { groupId: "grp_rp_passengers", instances: ["ins_p1", "ins_p2"] },
     ]);
-    // A member question appears once per live instance, qualified; a question outside every group
-    // keeps the bare id it always had, byte for byte.
     expect(body.flow.visibleQuestions).toContain("q_rp_trip");
     expect(body.flow.visibleQuestions).toContain("ins_p1/q_rp_passport");
     expect(body.flow.visibleQuestions).toContain("ins_p2/q_rp_passport");
@@ -1586,16 +1373,12 @@ describe("the admin preview routes with a repeating group (074)", () => {
     expect(res.status).toBe(200);
     const body = (await res.json()) as RepeatPreviewBody;
     expect(body.flow.rosters).toStrictEqual([{ groupId: "grp_rp_passengers", instances: [] }]);
-    // The group's chrome still compiles - the document carries the template whatever the roster is
-    // - so the preview renders the group heading and no instance, which is what zero looks like.
     expect(body.documents.map((document) => document.stepId)).toContain("stp_travellers");
   });
 
   it("previews with no `instances` key at all, as the pane's first render does", async () => {
     const res = await preview(formId, { definition: repeatDefinition(formId, []) });
 
-    // Absent means every group has no instance, which is a legal state rather than a missing
-    // argument: the pane sends its roster on the next render once it has read the draft's minima.
     expect(res.status).toBe(200);
     expect(((await res.json()) as RepeatPreviewBody).flow.rosters).toStrictEqual([
       { groupId: "grp_rp_passengers", instances: [] },
@@ -1609,7 +1392,6 @@ describe("publish warnings reach the author without blocking a publish (#123)", 
     ["stp_warn_one", ["q_warn_multi", "q_warn_detail"]],
     ["stp_warn_two", ["q_warn_later"]],
   ];
-  /** Reads a multiChoice answer and reveals a question on the SAME step (ADR-31). */
   const sameStepRule = {
     ruleId: "rul_warn",
     when: { op: "contains", questionId: "q_warn_multi", value: "opt_a" },
@@ -1628,8 +1410,6 @@ describe("publish warnings reach the author without blocking a publish (#123)", 
     const res = await post(`/forms/${formId}/draft/validate`, { definition: sameStep });
     const body = (await res.json()) as { valid: boolean; issues: Issue[]; warnings: Issue[] };
 
-    // The point of the channel: `valid` keys off errors alone, so an advisory does not
-    // turn into a refusal on its way to the screen.
     expect(body.valid).toBe(true);
     expect(body.issues).toEqual([]);
     expect(body.warnings.map((warning) => warning.code)).toEqual(["MULTICHOICE_SAME_STEP_TARGET"]);
@@ -1657,8 +1437,7 @@ describe("publish warnings reach the author without blocking a publish (#123)", 
   });
 
   it("a draft with errors reports no warnings: the kernel advises only on a snapshot", async () => {
-    // A whitespace-only title, which is the #366 publish error rather than a missing
-    // locale: the schema still accepts the value and the publish gate refuses it.
+    // A whitespace-only title: the schema accepts it and the publish gate refuses it.
     const broken = formDefinition(formId, layout, [sameStepRule], "   ");
     const res = await post(`/forms/${formId}/draft/validate`, { definition: broken });
     const body = (await res.json()) as { valid: boolean; issues: Issue[]; warnings: Issue[] };
@@ -1669,15 +1448,8 @@ describe("publish warnings reach the author without blocking a publish (#123)", 
   });
 
   it("a DEPRECATED_PIN issue and a warning coexist, and both are reported", async () => {
-    // The invariant is about the KERNEL, and this is the case that shows why the
-    // wider reading ("warnings is empty whenever issues is not") was false:
-    // `DEPRECATED_PIN` is raised by this layer, not by `compileDraft`, so it can
-    // stand beside an advisory about the same draft.
-    //
-    // The gating is deliberately left alone. This draft genuinely has both facts,
-    // and suppressing the advisory because an unrelated deprecation is open would
-    // drop information the author needs - and would make the warning list depend
-    // on which other problems happen to exist.
+    // `DEPRECATED_PIN` is raised by this layer rather than by `compileDraft`, so it can
+    // stand beside a kernel advisory about the same draft.
     await seedPublishedQuestion("q_warn_dep", "A field since deprecated");
     await deprecateQuestionVersion(testDb.db, {
       questionId: QuestionId.parse("q_warn_dep"),
@@ -1700,12 +1472,9 @@ describe("publish warnings reach the author without blocking a publish (#123)", 
     const res = await post(`/forms/${coexistId}/draft/validate`, { definition });
     const body = (await res.json()) as { valid: boolean; issues: Issue[]; warnings: Issue[] };
 
-    // Both arrays non-empty at once, which the old comments said could not happen.
     expect(body.issues.map((issue) => issue.code)).toContain("DEPRECATED_PIN");
     expect(body.warnings.map((warning) => warning.code)).toEqual(["MULTICHOICE_SAME_STEP_TARGET"]);
-    // The kernel itself found nothing wrong: every issue here is the API layer's.
     expect(body.issues.every((issue) => issue.code === "DEPRECATED_PIN")).toBe(true);
-    // And the deprecation still blocks the publish, exactly as before.
     expect(body.valid).toBe(false);
   });
 
@@ -1718,8 +1487,6 @@ describe("publish warnings reach the author without blocking a publish (#123)", 
   });
 });
 
-// --- refusals that never reach a handler (issues #182, #645) -----------------
-
 describe("admin schema refusals and out-of-range versions", () => {
   const formId = "frm_envelope";
 
@@ -1728,9 +1495,6 @@ describe("admin schema refusals and out-of-range versions", () => {
   });
 
   it("renders a route-schema refusal as the documented ErrorEnvelope (#182)", async () => {
-    // `slug` is required and `formId` must be a string: the validator refuses
-    // this before `makeCreateFormHandler` runs. Before the defaultHook landed the
-    // body was a serialized ZodError with no `error.code` at all.
     const res = await post("/forms", { formId: 42 });
 
     expect(res.status).toBe(400);
@@ -1752,47 +1516,26 @@ describe("admin schema refusals and out-of-range versions", () => {
   });
 
   it("404s a version segment above int4 rather than 500ing on the driver (#645)", async () => {
-    // 2_147_483_648: one past the `form_versions.version` column's ceiling. The
-    // guard used to admit it and let Postgres refuse the parameter, which surfaced
-    // as an opaque 500 for a URL that 404s one digit shorter.
+    // One past the `form_versions.version` column's int4 ceiling.
     const over = await get(`/forms/${formId}/versions/2147483648`);
     expect(over.status).toBe(404);
     expect(((await over.json()) as ErrBody).error.code).toBe("VERSION_NOT_FOUND");
 
-    // The composed behaviour of the two fixes: the refusal is an envelope, and
-    // an in-range unknown version answers identically.
     const inRange = await get(`/forms/${formId}/versions/2147483647`);
     expect(inRange.status).toBe(404);
     expect(((await inRange.json()) as ErrBody).error.code).toBe("VERSION_NOT_FOUND");
   });
 });
 
-// --- the library list: search, status filter and sort (issue 686) -----------
-
 describe("GET /admin/forms - search, status filter and sort", () => {
-  /**
-   * Every assertion here is scoped by a slug prefix this block owns, because the suite
-   * shares one database with every other describe in this file: an unscoped assertion
-   * about the whole library would pass or fail on which sibling ran first.
-   */
+  // The suite shares one database, so every assertion here is scoped by a slug prefix
+  // this block owns.
   const SCOPE = "search=lst-";
 
-  /**
-   * This block's own app, on a clock that moves.
-   *
-   * `publishFormVersion` stamps `published_at` from `deps.clock`, and the suite's
-   * default clock is FIXED - right for every other block here, and wrong for this one:
-   * two publishes seconds apart would carry the identical stamp, so a date sort over
-   * them would prove only the slug tie-break and would pass just as happily against a
-   * handler that ignored dates altogether. A second per read is what makes the publish
-   * order below a fact about the data - a second rather than a minute because the clock
-   * also decides whether the seeded admin session is still live, and a block of forty-odd
-   * requests at a minute a read walks past its expiry and 401s.
-   *
-   * Same database and same seeded admin session as the file-level app; only the clock
-   * differs, and it starts at the fixed instant so the session it authenticates with is
-   * live under it too.
-   */
+  // Its own app on a clock that advances a second per read: the suite's default clock is
+  // fixed, so two publishes would carry the identical `published_at` and a date sort would
+  // prove only the slug tie-break. A second rather than a minute because the clock also
+  // decides whether the seeded admin session is still live.
   let listApp: ReturnType<typeof createApp>;
 
   async function listGet(path: string): Promise<Response> {
@@ -1812,10 +1555,8 @@ describe("GET /admin/forms - search, status filter and sort", () => {
     listApp = createApp(
       makeDeps({
         db: testDb.db,
-        // The file-level app's own config, not a fresh `validEnv()`: the secrets in
-        // that helper are generated per call, so a second composition built from a
-        // second call would carry a different internal token and a different
-        // better-auth secret, and every request here would 401 rather than run.
+        // The file-level app's own config: `validEnv()` generates its secrets per call,
+        // so a second one would issue a different internal token and 401 every request.
         config: deps.config,
         clock: {
           now: () => {
@@ -1842,15 +1583,11 @@ describe("GET /admin/forms - search, status filter and sort", () => {
       expect((await put(`/forms/${id}/draft`, { definition })).status).toBe(200);
     }
 
-    // Alpha publishes before bravo, so the publish-date order is a fact rather than
-    // whatever order the rows come back in. Charlie keeps its draft and is never
-    // published: it is the row the date sorts have no date for.
+    // Alpha publishes first and charlie never publishes, so the date sorts below have a
+    // fixed order and one row with no date.
     expect((await listPost("/forms/frm_lst_alpha/publish")).status).toBe(200);
-    // Bravo publishes **and releases**, because the closed state is per (form,
-    // environment) since task 066 (Q18) and lives on the release state: there is no
-    // intake to close in an environment nothing is released to. This app names no
-    // environment on its requests, so it reads and writes the default one, which is the
-    // environment this harness serves.
+    // Bravo also releases, because the closed state lives on the release row: there is
+    // no intake to close in an environment nothing is released to.
     expect(
       (
         await listPost("/forms/frm_lst_bravo/publish-and-release", {
@@ -1870,7 +1607,6 @@ describe("GET /admin/forms - search, status filter and sort", () => {
     ).toBe(200);
   }, 60_000);
 
-  /** The listed slugs, in the order the route returned them. */
   async function slugs(query: string): Promise<string[]> {
     const res = await listGet(`/forms?${query}`);
     expect(res.status).toBe(200);
@@ -1882,9 +1618,6 @@ describe("GET /admin/forms - search, status filter and sort", () => {
   });
 
   it("searches any locale of the form title, case-insensitively", async () => {
-    // The title lives in the definition rather than on the identity row, and the list
-    // response does not carry it: the search reads it from the draft or the latest
-    // published version, whichever the row has.
     expect(await slugs("search=QUOKKA")).toEqual(["lst-bravo"]);
   });
 
@@ -1912,9 +1645,6 @@ describe("GET /admin/forms - search, status filter and sort", () => {
   });
 
   it("orders by publish date, with a never-published form last in both directions", async () => {
-    // Last in both directions on purpose: a form with no publish date cannot take a
-    // position on a publish-date axis, and treating its absent date as the epoch would
-    // put every unpublished form at the top of "oldest published".
     expect(await slugs(`${SCOPE}&sort=published-desc`)).toEqual([
       "lst-bravo",
       "lst-alpha",
