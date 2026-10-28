@@ -39,9 +39,20 @@ import type { AssistContext, AssistEvent, DraftAssistant } from "./types.js";
  * internal provider package. */
 type ProviderOptions = Record<string, Record<string, JSONValue>>;
 
+/** One prose segment of a turn: the provider's segment id and what it said. */
+export interface TextSegment {
+  readonly id: string;
+  text: string;
+}
+
 /** What the loop learned by the time the stream ended. */
-interface RunOutcome {
-  rationale: string;
+export interface RunOutcome {
+  /**
+   * The turn's prose, split at the provider's own text-segment boundaries
+   * (streaming improvement 3). A new entry starts whenever the id changes, so a
+   * provider that reuses an id across steps still produces two segments.
+   */
+  readonly textSegments: TextSegment[];
   steps: number;
   inputTokens: number;
   outputTokens: number;
@@ -62,6 +73,24 @@ interface RunOutcome {
    * SDK's call id. The id stays here; only the ordinal reaches the client.
    */
   readonly toolSteps: Map<string, number>;
+  /** The provider's reasoning token count for the turn. Counted, never quoted (SEC-8). */
+  reasoningTokens: number;
+}
+
+/**
+ * Append a text delta to the turn's segment column and return the segment it
+ * landed in. Exported for its unit test.
+ */
+export function appendTextSegment(segments: TextSegment[], id: string, delta: string): string {
+  const last = segments.at(-1);
+  if (last !== undefined && last.id === id) last.text += delta;
+  else segments.push({ id, text: delta });
+  return id;
+}
+
+/** The turn's last prose segment, which is what the proposal card quotes. */
+function lastSegmentText(segments: readonly TextSegment[]): string {
+  return segments.at(-1)?.text ?? "";
 }
 
 /**
@@ -253,18 +282,69 @@ export function toolOutcomeEvent(
 }
 
 /**
+ * Announce one allowlisted tool step, once.
+ *
+ * Called from both `tool-input-start` and `tool-call` for the same call id. The
+ * first of them to arrive wins, which is what moves the timeline row to the
+ * moment the model starts streaming the call's JSON rather than the moment the
+ * SDK has parsed all of it (streaming improvement 1). `propose_draft` carries a
+ * whole `FormDefinition`, so that gap is the longest silent stretch of a turn.
+ *
+ * A name outside the allowlist produces nothing here and is **not** recorded as
+ * the refusal: the refusal stays on the parsed `tool-call`, which is the only
+ * part that carries a settled name, so a `tool-input-start` can neither end a
+ * turn nor put an unknown verb on screen (issue #814's path is unchanged).
+ */
+function announceToolStep(
+  outcome: RunOutcome,
+  callId: string,
+  toolName: string,
+): AssistEvent | undefined {
+  if (!isAllowedToolName(toolName) || outcome.toolSteps.has(callId)) return undefined;
+  const step = outcome.toolSteps.size + 1;
+  outcome.toolSteps.set(callId, step);
+  return { type: "status", phase: "tool", tool: toolName, step };
+}
+
+/** A fresh outcome, which is also what a `handlePart` unit test starts from. */
+export function newRunOutcome(): RunOutcome {
+  return {
+    textSegments: [],
+    steps: 0,
+    inputTokens: 0,
+    outputTokens: 0,
+    finishReason: "unknown",
+    rejectedTool: undefined,
+    providerError: undefined,
+    providerRetryable: true,
+    providerStatus: undefined,
+    toolErrors: 0,
+    toolSteps: new Map(),
+    reasoningTokens: 0,
+  };
+}
+
+/**
  * Map one SDK stream part onto the slice's own event vocabulary, recording what
  * the turn's terminal events will need. Returns `undefined` for parts that only
- * update the outcome.
+ * update the outcome. Exported for its unit tests.
  */
-function handlePart(part: TextStreamPart<ToolSet>, outcome: RunOutcome): AssistEvent | undefined {
+export function handlePart(
+  part: TextStreamPart<ToolSet>,
+  outcome: RunOutcome,
+): AssistEvent | undefined {
   switch (part.type) {
     case "start-step":
       outcome.steps += 1;
       return { type: "status", phase: "thinking" };
     case "text-delta":
-      outcome.rationale += part.text;
-      return { type: "text", delta: part.text };
+      return {
+        type: "text",
+        delta: part.text,
+        segment: appendTextSegment(outcome.textSegments, part.id, part.text),
+      };
+    case "tool-input-start":
+      return announceToolStep(outcome, part.id, part.toolName);
     case "tool-call":
       // Defence in depth: `assistToolSet` never offered a verb outside the
       // allowlist and `runAssistTool` would refuse it, but the refusal is
@@ -275,9 +355,7 @@ function handlePart(part: TextStreamPart<ToolSet>, outcome: RunOutcome): AssistE
       // emits next is the same refused call arriving a second time, and
       // `noteToolFailure` skips it rather than counting it (issue #840).
       if (isAllowedToolName(part.toolName)) {
-        const step = outcome.toolSteps.size + 1;
-        outcome.toolSteps.set(part.toolCallId, step);
-        return { type: "status", phase: "tool", tool: part.toolName, step };
+        return announceToolStep(outcome, part.toolCallId, part.toolName);
       }
       outcome.rejectedTool = part.toolName;
       return undefined;
@@ -295,6 +373,7 @@ function handlePart(part: TextStreamPart<ToolSet>, outcome: RunOutcome): AssistE
       outcome.finishReason = part.finishReason;
       outcome.inputTokens = part.totalUsage.inputTokens ?? 0;
       outcome.outputTokens = part.totalUsage.outputTokens ?? 0;
+      outcome.reasoningTokens = part.totalUsage.reasoningTokens ?? 0;
       return undefined;
     default:
       return undefined;
@@ -350,19 +429,7 @@ async function* runTurn(args: {
   state: ProposalState;
 }): AsyncGenerator<AssistEvent> {
   const { ctx, signal, model, providerId, logger, providerOptions, state } = args;
-  const outcome: RunOutcome = {
-    rationale: "",
-    steps: 0,
-    inputTokens: 0,
-    outputTokens: 0,
-    finishReason: "unknown",
-    rejectedTool: undefined,
-    providerError: undefined,
-    providerRetryable: true,
-    providerStatus: undefined,
-    toolErrors: 0,
-    toolSteps: new Map(),
-  };
+  const outcome = newRunOutcome();
 
   const result = streamText({
     model,
@@ -539,7 +606,10 @@ async function* finishTurn(args: {
     proposal: {
       proposedDraft: state.proposedDraft,
       newQuestions: state.newQuestions,
-      rationale: outcome.rationale.trim(),
+      // The last prose segment, not every delta joined: the segments before it
+      // are the narration that already streamed beside the timeline rows
+      // (streaming improvement 3).
+      rationale: lastSegmentText(outcome.textSegments).trim(),
       issues,
       warnings,
     },

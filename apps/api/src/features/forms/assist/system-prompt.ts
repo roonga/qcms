@@ -32,8 +32,15 @@ import { QUESTION_TYPES, SEMANTICS_VERSION } from "@roonga/qcms-core";
  * **3**: the model says what it is about to do before its first tool call, so
  * text streams early rather than after the last tool, and it is told which
  * Markdown subset the panel renders.
+ *
+ * **4**: the working order completes section 9's wording of streaming
+ * improvement 2 - one sentence on what you are about to do, tools with a short
+ * note when the plan changes, then the explanation - so the middle of a long
+ * tool-calling turn is narrated rather than silent. The Markdown paragraph is
+ * unchanged: links stay out of the model's instructions, and the panel's
+ * page-route link rule is a defence against one arriving anyway.
  */
-export const SYSTEM_PROMPT_VERSION = 3;
+export const SYSTEM_PROMPT_VERSION = 4;
 
 /**
  * The condition operators of the rules DSL (DOMAIN_SCHEMA §3). Kept in step with
@@ -105,7 +112,10 @@ Work like this:
 3. Propose genuinely new questions with propose_questions.
 4. Propose the complete draft with propose_draft. It replaces the draft
    wholesale, so include everything that should remain, not only your additions.
-5. Call validate_draft and fix what it reports, then explain your proposal in
+5. Whenever what you are doing stops matching step 1, say so in one short
+   sentence before the next tool call. Do not narrate a call that went as
+   described.
+6. Call validate_draft and fix what it reports, then explain your proposal in
    two or three sentences.
 
 Your text is shown as simple Markdown. You may use **bold**, *italic*,

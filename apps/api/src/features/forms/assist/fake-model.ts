@@ -65,6 +65,7 @@ export const FAKE_SCRIPTS = [
   "no-proposal",
   "length",
   "step-limit",
+  "narrate-then-tools",
 ] as const;
 
 export type FakeScript = (typeof FAKE_SCRIPTS)[number];
@@ -225,11 +226,36 @@ function buildProposal(
 
 type StreamPart = Record<string, unknown>;
 
-function textParts(text: string): StreamPart[] {
+/**
+ * One prose segment.
+ *
+ * The id varies per call because the loop now carries the provider's text
+ * segment ids to the panel (streaming improvement 3): a script that said two
+ * things on two steps under one id would be one segment on the wire, and the
+ * proposal card's rationale would quote both.
+ */
+function textParts(text: string, id = "t0"): StreamPart[] {
   return [
-    { type: "text-start", id: "t0" },
-    { type: "text-delta", id: "t0", delta: text },
-    { type: "text-end", id: "t0" },
+    { type: "text-start", id },
+    { type: "text-delta", id, delta: text },
+    { type: "text-end", id },
+  ];
+}
+
+/**
+ * The parts that precede a parsed call: the model has begun streaming the
+ * call's JSON. `handlePart` announces the timeline row off the first of these,
+ * which is the whole of streaming improvement 1.
+ */
+function toolInputParts(toolName: string, input: unknown, nonce = ""): StreamPart[] {
+  // The provider protocol keys the input phase on `id`, which is the call id
+  // the matching `tool-call` part spells `toolCallId`
+  // (`@ai-sdk/provider` 4.0.31, `LanguageModelV3StreamPart`).
+  const id = `call_${toolName}${nonce}`;
+  return [
+    { type: "tool-input-start", id, toolName },
+    { type: "tool-input-delta", id, delta: JSON.stringify(input) },
+    { type: "tool-input-end", id },
   ];
 }
 
@@ -273,14 +299,14 @@ function planRecoveredStep(
   const round = prompt.filter((m) => m.role === "tool").length;
   if (round === 0) {
     return [
-      ...textParts("Let me propose that straight away."),
+      ...textParts("Let me propose that straight away.", "t0"),
       toolCallPart("propose_draft", { definition: { formId: 42 } }, "_bad"),
       finishPart("tool-calls"),
     ];
   }
   if (round === 1) {
     return [
-      ...textParts("That was malformed. Let me look the questions up first."),
+      ...textParts("That was malformed. Let me look the questions up first.", "t1"),
       toolCallPart("search_question_library", { limit: 10 }),
       finishPart("tool-calls"),
     ];
@@ -292,7 +318,7 @@ function planRecoveredStep(
       finishPart("tool-calls"),
     ];
   }
-  return [...textParts("I have proposed the draft."), finishPart("stop")];
+  return [...textParts("I have proposed the draft.", "t3"), finishPart("stop")];
 }
 
 /**
@@ -333,7 +359,7 @@ function planProposeQuestionsStep(
 
   if (!results.has("propose_questions")) {
     return [
-      ...textParts("This needs a question the library does not have yet."),
+      ...textParts("This needs a question the library does not have yet.", "t0"),
       toolCallPart("propose_questions", {
         questions: [
           {
@@ -376,6 +402,7 @@ function planProposeQuestionsStep(
   return [
     ...textParts(
       "I proposed one new question and a step that pins it. Accepting will create it as an unpublished draft in the library; publish it there and the pin resolves.",
+      "t2",
     ),
     finishPart("stop"),
   ];
@@ -396,12 +423,76 @@ function planToolThenErrorStep(prompt: readonly PromptMessage[]): StreamPart[] {
   ];
 }
 
+/**
+ * The `narrate-then-tools` script: the shape streaming improvements 1, 2 and 3
+ * exist to produce.
+ *
+ * Each round says one sentence under its own text segment id, then begins
+ * streaming a tool call's JSON through `tool-input-start` before the parsed
+ * call arrives. That is what lets a browser see prose and a *running* timeline
+ * row before the first tool result exists, which no other script can show: the
+ * rest emit a parsed `tool-call` with no input phase at all, so their rows
+ * appear and settle in the same instant.
+ *
+ * Three prose segments separated by two tool steps, so the panel's interleaving
+ * and the proposal card quoting only the LAST segment are both observable.
+ */
+function planNarrateStep(
+  prompt: readonly PromptMessage[],
+  results: Map<string, unknown>,
+): StreamPart[] {
+  if (!results.has("search_question_library")) {
+    const query = pickSearchQuery(prompt);
+    const input = { limit: 10, ...(query === undefined ? {} : { query }) };
+    return [
+      ...textParts("Let me look through the question library first.", "t0"),
+      ...toolInputParts("search_question_library", input),
+      toolCallPart("search_question_library", input),
+      finishPart("tool-calls"),
+    ];
+  }
+  if (!results.has("propose_draft")) {
+    const draft = currentDraft(prompt) ?? {};
+    const input = { definition: buildProposal(draft, libraryHits(results)) };
+    return [
+      ...textParts("Found what I need. Drafting the form now.", "t1"),
+      ...toolInputParts("propose_draft", input),
+      toolCallPart("propose_draft", input),
+      finishPart("tool-calls"),
+    ];
+  }
+  return [
+    ...textParts(
+      "I added a driving-history step and gated the follow-up on it, so the second question only appears once the first is answered.",
+      "t2",
+    ),
+    finishPart("stop"),
+  ];
+}
+
+/**
+ * How slowly a script's chunks arrive.
+ *
+ * Zero for every script but one: a deterministic test wants its events now.
+ * `narrate-then-tools` is the exception because what it demonstrates is a
+ * *duration* - a row that is running while the call's input streams - and at
+ * zero delay the running state exists for less time than a browser can observe.
+ */
+const CHUNK_DELAY_MS: Readonly<Partial<Record<FakeScript, number>>> = {
+  "narrate-then-tools": 150,
+};
+
 /** Plan the parts this step emits, given everything that has happened so far. */
 function planStep(prompt: readonly PromptMessage[], script: FakeScript): StreamPart[] {
   const rogueTool = ROGUE_TOOLS[script];
   if (rogueTool !== undefined) {
+    // The input phase is scripted too, so the refusal is proven against the
+    // whole arrival order a real provider produces: a `tool-input-start` for a
+    // name outside the allowlist must put nothing on the timeline, and the
+    // refusal must still come off the parsed call (080 exit criterion 2).
     return [
-      ...textParts("Publishing this for you."),
+      ...textParts("Publishing this for you.", "t0"),
+      ...toolInputParts(rogueTool, { formId: "frm_any" }),
       toolCallPart(rogueTool, { formId: "frm_any" }),
       finishPart("tool-calls"),
     ];
@@ -444,7 +535,7 @@ function planStep(prompt: readonly PromptMessage[], script: FakeScript): StreamP
     // STEP_LIMIT reachable in a test rather than only in theory.
     const round = prompt.filter((m) => m.role === "tool").length;
     return [
-      ...textParts("Let me look at the library again."),
+      ...textParts("Let me look at the library again.", `t${String(round)}`),
       toolCallPart("search_question_library", { limit: 1 }, `_${String(round)}`),
       finishPart("tool-calls"),
     ];
@@ -458,6 +549,10 @@ function planStep(prompt: readonly PromptMessage[], script: FakeScript): StreamP
 
   if (script === "propose-questions") {
     return planProposeQuestionsStep(prompt, results);
+  }
+
+  if (script === "narrate-then-tools") {
+    return planNarrateStep(prompt, results);
   }
 
   if (!results.has("search_question_library")) {
@@ -493,12 +588,13 @@ export function fakeAssistantModel(): MockLanguageModelV3 {
     modelId: "qcms-fake-assistant",
     doStream: ({ prompt }) => {
       const messages = prompt as unknown as readonly PromptMessage[];
-      const parts = planStep(messages, pickScript(messages));
+      const script = pickScript(messages);
+      const parts = planStep(messages, script);
       return Promise.resolve({
         stream: simulateReadableStream({
           chunks: [{ type: "stream-start", warnings: [] }, ...parts],
           initialDelayInMs: 0,
-          chunkDelayInMs: 0,
+          chunkDelayInMs: CHUNK_DELAY_MS[script] ?? 0,
         }),
       } as unknown as Awaited<ReturnType<MockLanguageModelV3["doStream"]>>);
     },

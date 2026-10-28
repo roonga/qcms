@@ -17,7 +17,13 @@ import {
 
 import { createNullLogger, type Logger } from "../../../logger.js";
 import { recordingLogger } from "../../../test-support.js";
-import { aiSdkDraftAssistant, toolOutcomeEvent } from "./assistant.js";
+import {
+  aiSdkDraftAssistant,
+  appendTextSegment,
+  handlePart,
+  newRunOutcome,
+  toolOutcomeEvent,
+} from "./assistant.js";
 import { fakeAssistantModel } from "./fake-model.js";
 import {
   ASSIST_ERROR_CODES,
@@ -500,5 +506,145 @@ describe("assist error codes are all reachable", () => {
     // The ceiling was reached, which is what makes STEP_LIMIT the truthful code
     // rather than a guess.
     expect(usage.steps).toBe(3);
+  });
+});
+
+/** A `tool-call` part, spelled past the SDK's generic `ToolSet` input typing. */
+function toolCallPart(toolCallId: string, toolName: string): Parameters<typeof handlePart>[0] {
+  return { type: "tool-call", toolCallId, toolName, input: {} } as unknown as Parameters<
+    typeof handlePart
+  >[0];
+}
+
+/**
+ * Streaming improvements 1 and 3, at the mapping (080 exit criteria 1, 2 and 3).
+ *
+ * `handlePart` directly rather than only through the loop, because what the
+ * criteria name is an ORDER: the timeline row has to leave on the part that says
+ * a call's input has started, not on the part that says the call is parsed.
+ * Through the loop both produce the same single `status` event, so only feeding
+ * the parts one at a time can tell which one emitted it.
+ */
+describe("handlePart maps the input phase and the segment ids", () => {
+  it("announces an allowlisted step from tool-input-start, before the parsed call", () => {
+    const outcome = newRunOutcome();
+
+    const announced = handlePart(
+      { type: "tool-input-start", id: "call_1", toolName: "propose_draft" },
+      outcome,
+    );
+    expect(announced).toEqual({ type: "status", phase: "tool", tool: "propose_draft", step: 1 });
+
+    // The parsed call for the SAME id adds nothing: one row per call, and it is
+    // already on screen while the definition's JSON is still arriving.
+    expect(handlePart(toolCallPart("call_1", "propose_draft"), outcome)).toBeUndefined();
+    expect(outcome.rejectedTool).toBeUndefined();
+  });
+
+  it("emits nothing for a name outside the allowlist and leaves the refusal to the parsed call", () => {
+    const outcome = newRunOutcome();
+
+    expect(
+      handlePart({ type: "tool-input-start", id: "call_x", toolName: "publish_form" }, outcome),
+    ).toBeUndefined();
+    // Deliberately NOT recorded here: a half-streamed name must not end a turn.
+    expect(outcome.rejectedTool).toBeUndefined();
+
+    expect(handlePart(toolCallPart("call_x", "publish_form"), outcome)).toBeUndefined();
+    expect(outcome.rejectedTool).toBe("publish_form");
+  });
+
+  it("still announces a step for a call that arrived with no input phase", () => {
+    const outcome = newRunOutcome();
+    expect(handlePart(toolCallPart("call_2", "validate_draft"), outcome)).toEqual({
+      type: "status",
+      phase: "tool",
+      tool: "validate_draft",
+      step: 1,
+    });
+  });
+
+  it("carries the provider's text segment id on every delta", () => {
+    const outcome = newRunOutcome();
+    expect(handlePart({ type: "text-delta", id: "t0", text: "Loo" }, outcome)).toEqual({
+      type: "text",
+      delta: "Loo",
+      segment: "t0",
+    });
+    expect(handlePart({ type: "text-delta", id: "t0", text: "king" }, outcome)).toEqual({
+      type: "text",
+      delta: "king",
+      segment: "t0",
+    });
+    expect(handlePart({ type: "text-delta", id: "t1", text: "Done" }, outcome)).toEqual({
+      type: "text",
+      delta: "Done",
+      segment: "t1",
+    });
+    expect(outcome.textSegments).toEqual([
+      { id: "t0", text: "Looking" },
+      { id: "t1", text: "Done" },
+    ]);
+  });
+
+  it("starts a new segment when a provider reuses an id after another one", () => {
+    const segments: { id: string; text: string }[] = [];
+    appendTextSegment(segments, "t0", "one");
+    appendTextSegment(segments, "t1", "two");
+    appendTextSegment(segments, "t0", "three");
+    expect(segments).toEqual([
+      { id: "t0", text: "one" },
+      { id: "t1", text: "two" },
+      { id: "t0", text: "three" },
+    ]);
+  });
+});
+
+describe("narrate-then-tools, through the shipped loop", () => {
+  it("interleaves prose segments with the step rows and quotes only the last segment", async () => {
+    const { ctx } = contextFor("#qcms-fake:narrate-then-tools a quote form");
+    const events = await collect(ctx);
+
+    // The arrival order a panel folds into bubbles: prose, a step, prose, a
+    // step, prose. The rationale the card shows is that last prose and nothing
+    // before it, which is what streaming improvement 3 buys.
+    const shape = events.flatMap((event) => {
+      if (event.type === "text") return [`text:${event.segment ?? "?"}`];
+      if (event.type === "status" && event.phase === "tool") return [`step:${String(event.step)}`];
+      return [];
+    });
+    expect(shape).toEqual(["text:t0", "step:1", "text:t1", "step:2", "text:t2"]);
+
+    const proposal = events.find((e) => e.type === "proposal");
+    if (proposal?.type !== "proposal") throw new Error("expected a proposal");
+    expect(proposal.proposal.rationale).toContain("driving-history step");
+    expect(proposal.proposal.rationale).not.toContain("question library");
+  });
+
+  it("settles both announced steps on the API's own outcome events", async () => {
+    const { ctx } = contextFor("#qcms-fake:narrate-then-tools a quote form");
+    const events = await collect(ctx);
+    const outcomes = events.flatMap((event) =>
+      event.type === "tool-outcome" ? [[event.step, event.outcome] as const] : [],
+    );
+    expect(outcomes).toEqual([
+      [1, "done"],
+      [2, "done"],
+    ]);
+  });
+});
+
+describe("a refused verb that streamed its input first", () => {
+  it("puts no row on the timeline and still ends the turn refused", async () => {
+    const { ctx } = contextFor("#qcms-fake:rogue-publish publish this");
+    const events = await collect(ctx);
+
+    expect(events.filter((e) => e.type === "status" && e.phase === "tool")).toHaveLength(0);
+    expect(events.find((e) => e.type === "tool-rejected")).toEqual({
+      type: "tool-rejected",
+      tool: "publish_form",
+    });
+    expect(events.find((e) => e.type === "error")).toMatchObject({ code: "REFUSED" });
+    expect(events.filter((e) => e.type === "proposal")).toHaveLength(0);
   });
 });
