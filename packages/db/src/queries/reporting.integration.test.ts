@@ -26,13 +26,7 @@ import {
   markSubmitted,
 } from "./index.js";
 
-/**
- * Live-DB coverage for the reporting-view read helpers (task 023) against the
- * 013 Testcontainers harness. These assert the erasure guarantee at the query
- * layer: erased sessions never appear in list/detail/export reads (the view's
- * tombstone anti-join), plus filters, keyset paging, tombstone listing, and the
- * race-safe flag release. Requires Docker.
- */
+/** Requires Docker. */
 
 let testDb: TestDb;
 
@@ -137,7 +131,6 @@ describe("listResponses", () => {
       offset: 0,
     });
     expect(all.total).toBe(3);
-    // Newest first.
     expect(all.rows.map((r) => r.sessionId)).toEqual([
       "ses_list_flagged",
       "ses_list_b",
@@ -145,7 +138,6 @@ describe("listResponses", () => {
     ]);
     expect(all.rows.map((r) => r.answers)).toContainEqual({ q_t: "c" });
 
-    // Version filter.
     const v2 = await listResponses(testDb.db, DEFAULT_TEST_ENVIRONMENT, {
       formId,
       version: 2,
@@ -155,7 +147,6 @@ describe("listResponses", () => {
     expect(v2.total).toBe(2);
     expect(v2.rows.every((r) => r.formVersion === 2)).toBe(true);
 
-    // Date range filter (inclusive bounds).
     const window = await listResponses(testDb.db, DEFAULT_TEST_ENVIRONMENT, {
       formId,
       from: new Date("2026-02-02T00:00:00.000Z"),
@@ -165,7 +156,6 @@ describe("listResponses", () => {
     });
     expect(window.rows.map((r) => r.sessionId)).toEqual(["ses_list_b"]);
 
-    // Flagged filter surfaces the reason; unflagged excludes it.
     const flagged = await listResponses(testDb.db, DEFAULT_TEST_ENVIRONMENT, {
       formId,
       flagged: true,
@@ -183,7 +173,6 @@ describe("listResponses", () => {
     expect(clean.rows.every((r) => r.flaggedReason === null)).toBe(true);
     expect(clean.total).toBe(2);
 
-    // Pagination: limit + offset walks the ordered set.
     const page1 = await listResponses(testDb.db, DEFAULT_TEST_ENVIRONMENT, {
       formId,
       limit: 2,
@@ -252,12 +241,10 @@ describe("getResponse", () => {
     expect(detail!.flaggedReason).toBe("too_fast");
     expect(detail!.answers).toEqual({ q_name: "Ada", q_multi: ["opt_a", "opt_b"] });
 
-    // Missing session → undefined.
     expect(
       await getResponse(testDb.db, DEFAULT_TEST_ENVIRONMENT, formId, SessionId.parse("ses_nope")),
     ).toBeUndefined();
 
-    // Erased → undefined (view exclusion; detail cannot bypass it).
     await eraseSession(testDb.db, formId, sessionId, "subject_request");
     expect(
       await getResponse(testDb.db, DEFAULT_TEST_ENVIRONMENT, formId, sessionId),
@@ -293,7 +280,6 @@ describe("fetchResponsePage (export keyset)", () => {
       after = SessionId.parse(page[page.length - 1]!.sessionId);
       if (page.length < 2) break;
     }
-    // Ascending session_id order, erased session absent.
     expect(collected).toEqual(["ses_exp_01", "ses_exp_02", "ses_exp_04", "ses_exp_05"]);
   });
 });
@@ -328,8 +314,6 @@ describe("listTombstones", () => {
     });
     await eraseSession(testDb.db, formId, a, "subject_request");
     await eraseSession(testDb.db, formId, b, "policy");
-    // `c` belongs to the other form, so it is erased under that form (#305):
-    // erasure is form-scoped, and naming the wrong one is refused.
     await eraseSession(testDb.db, other, c, "subject_request");
 
     const scoped = await listTombstones(testDb.db, { formId });
@@ -353,14 +337,11 @@ describe("clearSubmissionFlag", () => {
       flaggedReason: "honeypot",
     });
 
-    // First clear transitions the row and reports true.
     expect(await clearSubmissionFlag(testDb.db, sessionId)).toBe(true);
     expect((await getSubmission(testDb.db, sessionId))?.flaggedReason).toBeNull();
 
-    // Second clear is a no-op → false (no duplicate release).
     expect(await clearSubmissionFlag(testDb.db, sessionId)).toBe(false);
 
-    // A never-flagged submission also reports false.
     const clean = SessionId.parse("ses_unflag_clean");
     await seedSubmitted({
       formId,

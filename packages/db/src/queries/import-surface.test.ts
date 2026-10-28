@@ -2,23 +2,13 @@ import { describe, expect, it } from "vitest";
 
 import * as queries from "./index.js";
 
-/**
- * Exit criterion 2: `createSession` pins `formVersion` and **no exported helper
- * mutates it** - the pin's immutability (I4) is structural, enforced by the
- * absence of a write path, not by a runtime check. This test guards that
- * absence at the API surface so a future helper that sets `form_version` cannot
- * land unnoticed.
- */
+/** The pin on a session's `formVersion` is enforced by the absence of a write path. */
 describe("query helper import surface", () => {
   const exportNames = Object.keys(queries).filter(
     (name) => typeof (queries as Record<string, unknown>)[name] === "function",
   );
 
-  // The complete, intended public function surface. Pinning it means a new
-  // helper - including any that could re-pin a session's form version - cannot
-  // land without updating this list, where review can see it.
   const EXPECTED_HELPERS = [
-    // questions
     "createQuestion",
     "createQuestionVersion",
     "publishQuestionVersion",
@@ -30,13 +20,9 @@ describe("query helper import surface", () => {
     "updateDraftDefinition",
     "listQuestions",
     "listQuestionOwnership",
-    // Q14's move: one UPDATE on the question's identity row, which is why it reaches no
-    // version and cannot touch a pin. The publish-time rule that decides whether a NEW
-    // pin is allowed is the API's, not a helper here.
     "moveQuestionToWorkspace",
     "isQuestionIdTaken",
     "isQuestionIdInAnswerLedger",
-    // forms
     "getFormBySlug",
     "getForm",
     "listForms",
@@ -50,12 +36,6 @@ describe("query helper import surface", () => {
     "listFormVersions",
     "moveFormToWorkspace",
     "updateFormSettings",
-    // workspaces (ADR-41, task 068). **There is no `deleteWorkspace` and there never
-    // is one**, which is criterion 5 asserted at the import surface the way I4 is
-    // asserted above: a workspace is archived, never deleted, so the absence of the
-    // helper is the control and this list is where a future one would have to appear.
-    // `archiveWorkspace` stamps one column and reaches no form, question or response
-    // row, so ADR-17's two whole-session delete doors stay at two.
     "listWorkspaces",
     "listActiveWorkspaces",
     "getWorkspace",
@@ -66,16 +46,8 @@ describe("query helper import surface", () => {
     "findArchiveBlockers",
     "countWorkspaceContents",
     "ensureSeedWorkspace",
-    // releases (ADR-40, task 065). `insertFormRelease` writes a NEW row and nothing
-    // here updates or deletes one: the history is append-only, the database rejects
-    // both, and a rollback is a release of an earlier version rather than an edit.
-    // Nothing here re-pins a session either - `getReleasedVersion` is what a session
-    // resolves at start, and I4 holds because there is no second resolution.
-    // Closing and reopening are appends here too, since task 066 (Q18): the state the
-    // respondent path reads carries the closed value, so there is no update anywhere.
     "listEnvironments",
     "getEnvironmentChallengeProvider",
-    // The retention TTL overrides the sweep reads per environment (Q11, task 067).
     "listEnvironmentRetention",
     "insertFormRelease",
     "getReleasedVersion",
@@ -85,71 +57,46 @@ describe("query helper import surface", () => {
     "reopenFormInEnvironment",
     "listFormReleases",
     "listReleasedVersions",
-    // sessions
     "createSession",
     "getSession",
     "getSessionInForm",
     "markInProgress",
     "markSubmitted",
     "expireSessions",
-    // secure links
     "insertSecureLink",
     "getSecureLink",
     "listSecureLinks",
     "consumeSecureLink",
     "revokeSecureLink",
-    // webhooks (task 024) - per-form config rows; the secret is opaque
-    // ciphertext at this layer, never handled in plaintext here.
     "insertWebhook",
     "listWebhooks",
     "getWebhook",
     "updateWebhook",
     "deactivateWebhook",
-    // answers - `retractAnswer` appends a tombstone (ADR-33), never an UPDATE or
-    // DELETE, so it widens no mutation door; `isRetraction` is a pure narrower.
     "appendAnswer",
     "retractAnswer",
     "isRetraction",
     "latestAnswers",
     "answerLedger",
-    // the roster (task 072, ADR-42) - `addInstances` and `removeInstance` both
-    // append and nothing else, so neither widens a mutation door: a removal is a
-    // `removed` row rather than a delete, and the table's own reject-update and
-    // reject-delete triggers hold whatever a caller attempts. The three reads are
-    // reads, and none of the five touches a session's pinned form version.
     "addInstances",
     "removeInstance",
     "readRoster",
     "readRosters",
     "rosterLedger",
     "rosterOpApplied",
-    // submissions
     "insertSubmission",
     "getSubmission",
-    // reporting reads (task 023) - erasure-safe view reads for the data-out
-    // admin surface. `clearSubmissionFlag` is a flag-release write (unflag); it
-    // sets no form version, so it does not widen the version-mutation surface.
     "listResponses",
     "getResponse",
     "fetchResponsePage",
     "listTombstones",
     "clearSubmissionFlag",
-    // retention (task 015) - sweep/purge are named for their action, not as
-    // session mutators; sessionExpiresAt is a pure TTL-policy helper.
     "sweepExpiredSessions",
     "purgeExpired",
     "sessionExpiresAt",
-    // erasure (task 016, ADR-17) - the sanctioned whole-session delete door;
-    // SessionNotFoundError is the typed throw. The scoped-guard mechanics stay
-    // internal (imported by module path), not on the public surface.
     "eraseSession",
     "SessionNotFoundError",
-    // `findSubjectPresence` is beside the door rather than inside it (task 067, Q7): it
-    // reads whether one environment holds a (form, session) pair and whether it has
-    // already been erased, which is what the cross-environment erasure offer needs and
-    // which opens nothing.
     "findSubjectPresence",
-    // outbox
     "backoffDelayMs",
     "computeBackoff",
     "enqueue",
@@ -158,69 +105,25 @@ describe("query helper import surface", () => {
     "markDelivered",
     "recordFailure",
     "listDeadLetters",
-    // The time-based half of the payload's retention story (#329): the answers an
-    // event carries, dropped by the existing retention-sweep scheduler once the
-    // event and its whole fan-out have settled past the redelivery window. Erasure
-    // is the on-request half and runs inside `eraseSession`, so it has no separate
-    // entry here.
     "redactAgedOutboxPayloads",
-    // The outbox-level counterpart of `redeliveryRefusalFor` (#433): the same
-    // redacted state `claimDue` filters on, read before a reset so a refusal is
-    // distinguishable from an id that does not exist. `resetForRedelivery` carries
-    // the predicate too, so a caller that skips this one strands nothing.
     "outboxRedeliveryRefusalFor",
     "resetForRedelivery",
-    // webhook deliveries (task 025) - the per-(event, webhook) fan-out unit;
-    // shape-preserving claim/record/reset helpers, no signing or HTTP here.
     "insertDelivery",
     "claimDueDeliveries",
     "markDeliveryDelivered",
     "recordDeliveryFailure",
     "listDeadLetterDeliveries",
-    // The operator dashboard's form-scoped list (task 035): the same delivery rows
-    // plus the last-attempt record the deliverer writes.
     "listRecentDeliveries",
-    // The ADR-17 rule the manual redeliver door reads (059, replacing 035's
-    // tombstone lookup): the same cancelled/redacted state `claimDueDeliveries`
-    // filters on, so the handler's refusal and the scheduler's filter cannot drift.
     "redeliveryRefusalFor",
-    // The time-based half of the response-snippet retention story (#304): the one
-    // delivery column that can hold a respondent's own words, aged out by the
-    // existing retention-sweep scheduler. Erasure is the on-request half and runs
-    // inside `eraseSession`, so it has no separate entry here.
     "redactAgedResponseSnippets",
     "resetDeliveryForRedelivery",
-    // admin identity reads (task 031) - these two are reads. No helper in this
-    // package creates, refreshes or deletes a SESSION, and none returns a
-    // credential (no password hash, no TOTP secret, no backup codes); better-auth
-    // owns every write to the auth tables except the two listed immediately below,
-    // both of which are recorded as exceptions where they live.
     "getAdminSessionByToken",
     "countAdminUsers",
-    // SEC-1's provisional bootstrap credential (task 061). One boolean of ours, from
-    // true to false, called from the database hook that fires when better-auth writes
-    // a new password hash. It writes no session and reads no credential, so the
-    // property above holds.
     "clearMustChangePassword",
-    // The `qcms:reset-2fa` break-glass (issue #432). `clearAdminTwoFactor` is the
-    // one write to the auth tables in this package, and it is a deletion: the
-    // stored TOTP secret and the recovery codes are ciphertext under a key the
-    // command's whole reason for existing is the loss of, so better-auth cannot
-    // disable the factor and nothing here can read it. `readConnectedRole` is the
-    // SEC-10 guard in front of it, and it returns no credential either - a role
-    // name and two counts off the system catalog. Neither breaks the "no session
-    // writes, no credential reads" property above.
     "findAdminsByEmail",
     "clearAdminTwoFactor",
     "recordTwoFactorReset",
     "readConnectedRole",
-    // Membership and grants (ADR-41, Q32, Q45; task 069). These ARE writes to the auth
-    // tables, and they are the second recorded exception to the property above rather
-    // than a quiet widening of it: Q45 makes the QCMS endpoints the **only** grant write
-    // path, because that is where the validation and the SEC-15 rows live and because the
-    // plugin's removal cascades run below any endpoint this layer could gate. None of
-    // them writes a `session` row, returns a credential or touches a form version, so
-    // every property this list guards still holds. `grants.ts` carries the reasoning.
     "resolveMembership",
     "listGrantsForUser",
     "listWorkspaceMembers",
@@ -246,21 +149,9 @@ describe("query helper import surface", () => {
     "findUserByEmail",
     "findUsersByIds",
     "isScopeAll",
-    // The SEC-15 access audit (Q31 with Q56, Q57, Q61; task 069). **One write and no
-    // update or delete beside it**, which is this control's own version of the absence
-    // the list above guards: the audit is append-only, the application roles hold no
-    // `UPDATE` or `DELETE` on it, and there is no helper here for a future caller to
-    // reach for. `writeAccessAuditRow` carries no `RETURNING`, because the same helper
-    // writes the rows for both pools and the environment role holds `INSERT` alone.
     "writeAccessAuditRow",
     "listAccessAudit",
     "countAccessAuditByKind",
-    // The pending `prod` endpoint change (Q30 with Q51; task 070). **No delete helper**,
-    // and the absence is the same kind as the audit's above: a proposal is resolved by
-    // being confirmed or withdrawn, each of which records the account that did it, and a
-    // helper that removed the row would be a way to make a proposed production URL stop
-    // having been proposed. Both state transitions carry their precondition in the
-    // statement, so two confirmations racing cannot both apply.
     "insertEndpointProposal",
     "getEndpointProposal",
     "listOpenEndpointProposals",
@@ -275,24 +166,15 @@ describe("query helper import surface", () => {
   });
 
   it("exposes exactly one session write path that sets a form version: createSession", () => {
-    // The only exported helper that writes `form_version` is `createSession`
-    // (at creation). Every other session helper is a status-only transition or
-    // a read - I4 (a session never migrates form versions) is structural.
     const sessionMutators = exportNames.filter(
       (name) =>
         /^(create|mark|expire|set|change|update|migrate|repin|move)/i.test(name) &&
         /(session|pin|formversion)/i.test(name),
     );
     expect(new Set(sessionMutators)).toEqual(new Set(["createSession", "expireSessions"]));
-    // markInProgress / markSubmitted are status-only and named accordingly.
   });
 
   it("exports no path that deletes a workspace (task 068, criterion 5)", () => {
-    // A workspace is archived, never deleted (Q15), and the deliberate absence of a
-    // delete helper is how this package says so - the same shape as the two tests
-    // above. Archiving is one `UPDATE` of one column, so no code path here reaches a
-    // form, a question or a response row from a workspace either, which keeps ADR-17's
-    // whole-session delete doors at two.
     const workspaceWriters = exportNames.filter((name) => /workspace/i.test(name));
     expect(
       workspaceWriters.filter((name) => /^(delete|remove|drop|purge|erase)/i.test(name)),
