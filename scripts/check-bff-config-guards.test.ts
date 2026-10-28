@@ -17,10 +17,8 @@ import {
 } from "../apps/portal/lib/server/config.ts";
 
 /**
- * These cross-app assertions cannot live inside an app: turbo caches a package's suite
- * against that package's own inputs, so a change to the other app would not invalidate it
- * and the gate would report green without re-reading the file that broke it. The tooling
- * project runs from the repository root and outside turbo.
+ * These cross-app assertions cannot live inside an app: turbo would cache a suite against that
+ * package's own inputs and report green without re-reading the other app's file.
  */
 
 const REPO_ROOT = fileURLToPath(new URL("..", import.meta.url));

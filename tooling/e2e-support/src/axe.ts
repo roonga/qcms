@@ -1,7 +1,5 @@
-// `AxeBuilder#options` replaces the accumulated option object rather than merging into
-// it, so an edit that reaches back for `.withTags()` silently drops the `rules` map and
-// leaves a sweep that still passes while checking less. The callers assert on this
-// helper to catch that. Typed structurally so this package needs no axe dependency.
+// `AxeBuilder#options` replaces the accumulated options rather than merging, so reaching back for
+// `.withTags()` silently drops the `rules` map. Typed structurally so this package needs no axe dependency.
 
 interface RuleOutcome {
   readonly id: string;

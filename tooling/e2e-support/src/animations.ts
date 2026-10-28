@@ -7,14 +7,9 @@ import type { Page } from "@playwright/test";
 const MAX_ANIMATION_MS = 1000;
 
 /**
- * Call before any computed-style read, contrast measurement or axe scan that follows a
- * class swap, or the sample lands mid-transition.
- *
- * Both frames are needed: a CSS transition is not an animation until the style change
- * that starts it has been recomputed, and the first frame's callback can run before
- * that. The loop re-asks because finishing one set of transitions can start another.
- * Each `finished` is raced against a deadline because a transition on an element that
- * stops being rendered stays running and never resolves.
+ * Call before any computed-style read, contrast measurement or axe scan that follows a class swap,
+ * or the sample lands mid-transition. The loop re-asks because finishing one set of transitions can
+ * start another; each `finished` is raced against a deadline since a non-rendered transition never resolves.
  */
 export async function settleTransitions(page: Page): Promise<void> {
   await page.evaluate(async (maxAnimationMs: number) => {

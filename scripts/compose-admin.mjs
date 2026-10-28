@@ -1,11 +1,8 @@
 // @ts-check
 /**
- * The account is created through the `api` service because that is the only container
- * holding a database credential (ADR-35). The credentials travel in the environment,
- * never in argv: nothing on the host should be able to read them out of a `ps` listing.
- *
- * A refusal once an account exists (SEC-1) is the correct answer to a second run, and
- * reading it rather than failing is what makes the bootstrap idempotent.
+ * The account is created through the `api` service, the only container holding a database credential
+ * (ADR-35). Credentials travel in the environment, never in argv. A refusal once an account exists
+ * (SEC-1) is read rather than failed, which makes the bootstrap idempotent.
  */
 
 import { randomBytes } from "node:crypto";

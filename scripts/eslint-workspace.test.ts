@@ -8,10 +8,8 @@ import { afterAll, describe, expect, it } from "vitest";
 import { WORKSPACE_ROOT, eslintBin, rewriteArgs } from "./eslint-workspace.mjs";
 
 /**
- * Several `eslint-plugin-sonarjs` rules activate only when a test framework is declared
- * in a `package.json` at or above the linted file, and that upward search stops at
- * `context.cwd`. The frameworks are declared in the root manifest only, so the working
- * directory decides the verdict.
+ * `eslint-plugin-sonarjs` rules need a test framework declared at or above the linted file, searched
+ * up to `context.cwd`. The frameworks are declared in the root manifest only, so the cwd decides.
  */
 
 const REPO_ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");

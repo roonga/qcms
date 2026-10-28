@@ -371,18 +371,9 @@ describe("check:plan covers what the lane skips", () => {
 });
 
 /**
- * Pins the second property the lane rests on: no reader of a lane path lives in `apps/`
- * or `packages/`, the trees the lane does not run.
- *
- * The scan is deliberately narrow, and each limit is load-bearing rather than an
- * oversight. It counts a needle only inside a quoted string, template literals included.
- * It skips a line that OPENS with a comment marker, without which the backtick half
- * drowns in prose; a path in a trailing comment is therefore a false positive the
- * allowlist absorbs, and one hidden behind a line-opening marker a false negative.
- * `plan/` and `docs/` are not needles, because both are cited in prose across the apps
- * far more often than they are read, so an allowlist would cost more than it catches.
- * A hit is a question, not a verdict: each allowed entry is scoped to an exact line, so
- * a later read in the same file still fails.
+ * Pins that no reader of a lane path lives in `apps/` or `packages/`. The scan is deliberately narrow:
+ * it counts a needle only inside a quoted string and skips lines opening with a comment marker. Each
+ * allowlist entry is scoped to an exact line, so a later read in the same file still fails.
  */
 describe("no reader of a lane path lives where the lane cannot see it", () => {
   const REPO_ROOT = fileURLToPath(new URL("..", import.meta.url));

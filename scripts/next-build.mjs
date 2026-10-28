@@ -1,27 +1,9 @@
 #!/usr/bin/env node
 // @ts-check
 /**
- * Runs a Next build, waiting out a concurrent build of the same app.
- *
- * Since Next 16, `next build` takes an advisory lock on `<distDir>/lock` under
- * `experimental.lockDistDir` (next 16.4.2, `packages/next/src/build/index.ts:1370-1376`;
- * the message is raised by `acquireWithRetriesOrExit` in
- * `packages/next/src/build/lockfile.ts:225`). Re-read those lines on a `next` bump, as
- * `CONTRIBUTING.md` requires. Two consequences are easy to get wrong, and both are why
- * the diagnostic below exists:
- *
- *   - A sibling worktree cannot cause this. Two lanes hold two different paths, and
- *     reading the message as cross-lane contention sends a lane to wait for a quieter
- *     moment when what it has is a second build of its own.
- *   - A lock file left behind by a killed build is harmless, because the lock is
- *     released when the descriptor closes. Only a live process blocks the build.
- *
- * So it waits rather than reporting a red build, bounded at {@link DEFAULT_WAIT_MS},
- * and names the holder. A failure whose output does not carry the lock signature is
- * returned untouched on the first attempt: a genuinely broken build must stay broken.
- *
- * {@link FORWARDED_SIGNALS} are passed on so a killer that stops this wrapper stops the
- * build too, rather than leaving it reparented with the lock in hand.
+ * Runs a Next build, waiting out a concurrent build of the same app: `next build` locks `<distDir>/lock`
+ * (next 16.4.2, `packages/next/src/build/index.ts:1370-1376`; message in `packages/next/src/build/lockfile.ts:225`), re-read on a `next` bump.
+ * Only a live build of this app holds it, never a sibling worktree or a stale file, so this waits and names the holder.
  */
 
 import { spawn } from "node:child_process";

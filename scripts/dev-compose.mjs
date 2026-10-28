@@ -1,17 +1,8 @@
 // @ts-check
 /**
- * Drives the solo topology (`docker-compose.yml`) with the toolbox overlay.
- *
- * It has a Postgres of its own, which is a different database from the one
- * `docker-compose.dev.yml` publishes for `pnpm dev:portal`. An administrator created
- * against that one is invisible here, and the symptom is a sign-in that fails with
- * nothing wrong anywhere it is looked for, so the bootstrap runs `create-admin` inside
- * this stack's own `api` container.
- *
- * Two Compose stacks sharing a project name are one stack, so a wrong project name
- * means `dev:down` tears down nothing or tears down another lane's. That is also why a
- * linked worktree with no `QCMS_PORT_SEAT` is refused rather than defaulted: this
- * command runs `down --volumes --remove-orphans`, which would delete it.
+ * Drives the solo topology (`docker-compose.yml`) with the toolbox overlay. It has its own Postgres,
+ * so the bootstrap runs `create-admin` in this stack's own `api` container. A linked worktree with no
+ * `QCMS_PORT_SEAT` is refused: a wrong project name makes `down --volumes` delete another lane's stack.
  */
 
 import { closeSync, fchmodSync, fstatSync, openSync, readFileSync, writeFileSync } from "node:fs";
@@ -155,11 +146,8 @@ const GROUP_AND_OTHER = 0o077;
 const OWNER_ONLY = 0o600;
 
 /**
- * One descriptor for both halves: `existsSync` then `readFileSync`, or `statSync` then
- * `chmodSync`, is a check-then-use race on a path (CodeQL `js/file-system-race`).
- *
- * Only `ENOENT` means "no pin yet". Anything else is rethrown, because regenerating
- * would overwrite a secret this process could not read.
+ * One descriptor for both halves, avoiding a check-then-use race (CodeQL `js/file-system-race`). Only
+ * `ENOENT` means "no pin yet"; anything else is rethrown, because regenerating would overwrite a secret.
  *
  * @param {string} path
  * @returns {{ secret: string; tightenedFrom?: string } | undefined}
@@ -222,13 +210,9 @@ function writePinFile(path, secret) {
 }
 
 /**
- * Left unset, the API generates a fresh secret every boot, and better-auth stores the
- * enrolled TOTP secret encrypted under this value: a restart would make an existing
- * authenticator permanently unverifiable, and the admin ships no re-enrolment screen.
- *
- * `.env` is deliberately not one of the rungs, because re-copying the template would put
- * its placeholder back over a pinned secret. The file is made owner-only on every path,
- * not only when created, since `mode` is ignored on a file that already exists.
+ * Left unset, the API generates a fresh secret every boot and the enrolled TOTP secret would become
+ * unverifiable. `.env` is not a rung, since re-copying the template would overwrite a pinned secret.
+ * The file is made owner-only on every path, because `mode` is ignored on an existing file.
  *
  * @param {object} [io]
  * @param {NodeJS.ProcessEnv} [io.environment]
@@ -292,12 +276,9 @@ export function seatPorts(seat) {
 }
 
 /**
- * better-auth trusts the admin origin and no other, so a base URL that disagrees with
- * the published port is a sign-in that redirects forever.
- *
- * The bind address is an override rather than a pass-through, unlike every other value
- * here: this stack prints a plaintext administrator credential and runs a Grafana whose
- * login is `admin`/`admin`, so it stays on loopback whatever `.env` said.
+ * better-auth trusts the admin origin only, so a base URL that disagrees with the published port
+ * redirects forever. The bind address is forced to loopback: this stack prints a plaintext
+ * administrator credential and runs a Grafana with `admin`/`admin`.
  *
  * @param {object} options
  * @param {{ portal: number; admin: number; observability: number; dbViewer: number }} options.ports
@@ -530,16 +511,9 @@ export function seedNoticeLine(mode, name) {
 }
 
 /**
- * Run the sample-data loader against the running stack: `pnpm dev:seed`,
- * `pnpm dev:seed:clear`, `pnpm dev:seed:reset`.
- *
- * For `clear` the shared door is a control rather than a convenience: a command that
- * deletes sample data must be unable to name any database but this stack's, so the URL
- * is composed from this stack's own variables and dials `postgres:5432`, a name that
- * resolves only on this Compose network.
- *
- * It preflights like `up` rather than filling placeholders like `down`, because the
- * database credential is read for real here.
+ * Run the sample-data loader against the running stack (`pnpm dev:seed`, `:clear`, `:reset`). The URL
+ * is composed from this stack's own variables and dials `postgres:5432`, so `clear` cannot name any
+ * other database. Preflights like `up`, because the credential is read for real.
  *
  * @param {"seed" | "clear" | "reset"} [mode]
  */

@@ -1,14 +1,9 @@
 #!/usr/bin/env node
 // @ts-check
 /**
- * Port-allocation gate (R8, ADR-37, `docs/PORTS.md`).
- *
- * The boundary: a number counts only where the surrounding syntax says "port", so a
- * clean run means "no port written in one of the recognised shapes", never "no port
- * outside the allocation exists". Known blind spots are a standalone `PORT`
- * identifier, any shape inside `package.json` (broad `.json` is excluded so a gate
- * can never demand an edit to the append-only golden corpus), a bare Compose publish
- * mapping, and a port built by arithmetic or a template literal.
+ * Port-allocation gate (R8, ADR-37, `docs/PORTS.md`). A clean run means no port in a recognised shape,
+ * never that none exists: blind spots are a bare `PORT` identifier, anything in `package.json`, a bare
+ * Compose publish mapping, and a port built by arithmetic or a template literal.
  */
 
 import { execFileSync } from "node:child_process";

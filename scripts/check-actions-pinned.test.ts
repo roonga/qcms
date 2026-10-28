@@ -18,19 +18,8 @@ import {
 import { trackedFilesUnder } from "./tracked-files.mjs";
 
 /**
- * A third-party `uses:` is pinned to a full-length commit SHA, and the trailing version
- * comment is part of that pin (SEC-11).
- *
- * The file set comes from git rather than a directory walk, so the property holds of the
- * repository and not of a checkout's leftovers. `.github/actions/**` is in the pattern too,
- * because a composite action can reference a third-party action.
- *
- * Mutations that edit workflow TEXT matter most: a defect in how text becomes the model is
- * invisible to a mutation of the model.
- *
- * It cannot prove a SHA is the commit its comment names. Resolving a tag needs the network
- * and every gate runs offline, so the comment is checked for being a complete release
- * version, not for being true.
+ * The file set comes from git, not a directory walk, so the property holds of the repository. The
+ * version comment is checked for being a complete release, not for naming the right commit (offline).
  */
 
 const REPO_ROOT = fileURLToPath(new URL("..", import.meta.url));

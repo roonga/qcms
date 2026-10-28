@@ -1,22 +1,9 @@
 #!/usr/bin/env node
 // @ts-check
 /**
- * Resolves every vendored source citation against the package that ships the file.
- * `check:vendor-pin` checks only the version digit beside the package name, so a line
- * that moved under a citation whose file still opens passes it.
- *
- * An expectation marker binds to the citation immediately before it (same line or the
- * line above) and `--expect` fails when the cited lines do not contain the phrase:
- *
+ * Resolves every vendored source citation against the package that ships the file; `check:vendor-pin`
+ * checks only the version digit. A marker binds to the citation before it and `--expect` fails when the cited lines lack the phrase:
  *     (`dist/api/rate-limiter/index.mjs:293`) <!-- expect: ctx.rateLimit.enabled -->
- *
- * An HTML comment is the one syntax invisible in rendered Markdown and legal inside a
- * JSDoc block, so one marker convention covers prose and code. A marker binding to no
- * citation, a phrase under {@link MIN_PHRASE}, and a marker on a path-only citation all
- * fail: a marker that reads as checked and is not is worse than no marker.
- *
- * Dated records (`docs/features/`, `.changeset/`, `docs/RETRO.md`, `plan/`) are exempt,
- * because a log may cite a version that is no longer installed.
  */
 
 import { execFileSync } from "node:child_process";

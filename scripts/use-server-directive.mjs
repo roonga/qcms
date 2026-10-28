@@ -1,11 +1,6 @@
 /**
- * A linear scan rather than a regular expression: the obvious pattern can split a run
- * of comment characters exponentially many ways and hangs on a long one.
- *
- * Whitespace must stay the full `\s` set. A module opening with a BOM, a no-break
- * space, a form feed or a paragraph separator still declares the directive, and under a
- * narrower set it would read as declaring nothing, putting a real Server Action out of
- * the enumerating gate's reach.
+ * A linear scan, not a regex: the obvious pattern backtracks exponentially on a long run of comment
+ * characters. Whitespace must stay the full `\s` set, so a BOM, no-break space or form feed still declares the directive.
  *
  * @param {string} source
  * @returns {boolean}

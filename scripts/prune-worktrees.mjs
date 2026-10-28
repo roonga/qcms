@@ -1,14 +1,9 @@
 #!/usr/bin/env node
 // @ts-check
 /**
- * The registry is the only authority on what is live, and the value here is in what is
- * refused: a registered lane, a directory carrying no `.git` file (somebody's data rather
- * than a stale checkout), and any tree still reporting uncommitted work.
- *
- * A leftover whose git directory is gone is unreachable, so nothing can tell a modified
- * file in it from an unmodified one. The age guard stands in for that answer, and it
- * reads the directory and its immediate children only: it does not see an edit deep
- * inside an otherwise idle checkout.
+ * The registry is the only authority on what is live; refused are a registered lane, a directory with
+ * no `.git` file, and any tree with uncommitted work. For a leftover with no git directory the age
+ * guard stands in, and it reads the directory and its immediate children only.
  */
 
 import { execFileSync } from "node:child_process";

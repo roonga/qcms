@@ -43,10 +43,8 @@ function runWithStubbedClaude(stubOutput: string, ...args: string[]) {
   return runSupervisorWithStub(stubOutput, args);
 }
 
-// Detached and killed by process GROUP: bash defers a trapped signal until the
-// foreground command returns, so spawnSync's own timeout cannot end a run sitting in
-// `sleep`, and killing bash alone leaves the `sleep` holding the stdout pipe open.
-// Reading the log file rather than the pipe keeps the observation independent of both.
+// Detached and killed by process GROUP: bash defers a trapped signal until the foreground command
+// returns, so a timeout cannot end a run sitting in `sleep`. The log file is read, not the pipe.
 async function runUntilLogged(pattern: RegExp, stubOutput: string, ...args: string[]) {
   const { root, copied, env } = supervisorWorkspace(stubOutput);
   const child = spawn("bash", [copied, ...args], { detached: true, stdio: "ignore", env });

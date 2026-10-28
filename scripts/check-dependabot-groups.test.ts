@@ -1,15 +1,7 @@
 /**
- * `.github/dependabot.yml` is the only thing keeping the `@codemirror/*` packages moving
- * as one set: they are exact-pinned but depend on each other through `^6` ranges, so a
- * bump that moves a subset lets pnpm resolve two copies of `@codemirror/view` and
- * `next build` fails naming types rather than versions.
- *
- * Dependabot puts a dependency in the FIRST group it matches, and a dependency excluded
- * by a group falls through to the next rather than ending the search, so declaration
- * order is semantics here. That is what `firstMatchingGroup` models, and why the
- * exclusion on the catch-all group is asserted separately.
+ * The `@codemirror/*` packages must move as one set or pnpm resolves two copies of `@codemirror/view`.
+ * Dependabot assigns the FIRST matching group and an excluded dependency falls through, so order is semantics.
  * https://docs.github.com/en/code-security/dependabot/working-with-dependabot/dependabot-options-reference#groups--
- * https://docs.github.com/en/code-security/tutorials/secure-your-dependencies/optimizing-pr-creation-version-updates
  */
 import { readFileSync } from "node:fs";
 import { join } from "node:path";

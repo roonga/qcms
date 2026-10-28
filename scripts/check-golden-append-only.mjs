@@ -1,12 +1,8 @@
 #!/usr/bin/env node
 // @ts-check
 /**
- * A git-history guard, not a content test: the corpora are frozen records (ADR-18,
- * ADR-16 invariant I7) and only additions are allowed.
- *
- * The diff basis is the merge base with the default branch, so anything already on that
- * branch is history this guard does not re-examine. That is what keeps a recorded
- * exception from becoming a permanent red.
+ * A git-history guard, not a content test: the corpora are frozen (ADR-18, ADR-16 invariant I7) and
+ * only additions are allowed. The diff basis is the merge base, so a recorded exception cannot become a permanent red.
  */
 
 import { execFileSync } from "node:child_process";
@@ -27,9 +23,8 @@ const GUARDED_PREFIXES = ["packages/a2ui-compiler/golden/v", "packages/core/gold
 const PROSE_EXEMPTIONS = new Set(["packages/core/golden/evaluator/CORPUS.md"]);
 
 /**
- * A pin permits exactly one content, so it is not a hole: a listed path passes only if
- * the new bytes hash to the pinned value, and a deletion or rename is still refused.
- * Adding an entry is a Code Owner decision, mirrored in that corpus's `CORPUS.md`.
+ * A pin permits exactly one content: a listed path passes only if the new bytes hash to the pinned
+ * value, and a deletion or rename is still refused. Each entry is mirrored in that corpus's `CORPUS.md`.
  */
 export const PINNED_EXCEPTIONS = [
   {

@@ -1,11 +1,7 @@
 /**
- * Publishing binds on the Docker host, not inside the process that asked for it, so in
- * the dev container every started container is a sibling on the host's loopback and
- * `localhost` reaches nothing. The address that works there is the default-route
- * gateway, and only for a publish bound to all interfaces.
- *
- * `host.docker.internal` is deliberately not used: it accepts a TCP connection on
- * Docker Desktop and then times out on a real session, which is worse than a refusal.
+ * In the dev container every started container is a sibling on the host's loopback, so `localhost`
+ * reaches nothing; the default-route gateway works, only for a publish bound to all interfaces.
+ * `host.docker.internal` is avoided: on Docker Desktop it accepts a connection and then times out.
  */
 
 import { spawnSync } from "node:child_process";

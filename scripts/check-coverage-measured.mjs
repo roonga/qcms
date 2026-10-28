@@ -1,10 +1,8 @@
 #!/usr/bin/env node
 // @ts-check
 /**
- * A coverage threshold is satisfied by a report with no lines in it, so a misdirected
- * `coverage.include` measures nothing and still exits 0. Vitest offers no option for
- * that, hence this guard: both assertions are fail-closed, and the expected file set
- * comes from git so a half-matching pattern cannot print a confident percentage.
+ * A threshold passes on an empty report, so a misdirected `coverage.include` measures nothing and
+ * exits 0. Both assertions fail closed, with the expected file set taken from git.
  */
 
 import { readFileSync } from "node:fs";

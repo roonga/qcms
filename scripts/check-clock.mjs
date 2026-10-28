@@ -1,14 +1,9 @@
 #!/usr/bin/env node
 // @ts-check
 /**
- * Three different faults look identical to a frozen clock when `date` is the only
- * instrument, and each needs a different fix: a wall clock that is frozen or stepped,
- * in-process timers that do not wait, and a `sleep` binary that does not wait. So each
- * kind of wait is measured against BOTH clocks. The monotonic clock is the control,
- * because it cannot be set, only advanced.
- *
- * Deliberately not part of `check:all`: it asserts a property of the machine rather than
- * of the tree, and costs seconds of pure waiting to do it.
+ * Three faults look identical to a frozen clock: a stepped wall clock, timers that do not wait, and
+ * a `sleep` that does not wait. Each wait is measured against BOTH clocks; the monotonic clock is
+ * the control. Not part of `check:all`: it asserts a property of the machine and costs seconds.
  */
 
 import { spawnSync } from "node:child_process";
@@ -36,10 +31,8 @@ const monotonicNow = () => Number(hrtime.bigint() / 1000n) / 1000;
 const timerWait = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
 
 /**
- * Three outcomes, not two. Never spawned leaves the question unanswered, so it is reported
- * rather than failed. Spawned and not completed is a failure: a harness that will not let
- * a foreground `sleep` run is as likely to kill or refuse it as to short-circuit it, and
- * calling that "not measured" would pass on a machine where shell waiting is broken.
+ * Three outcomes: never spawned is reported, not failed; spawned and not completed fails, since a
+ * harness that refuses a foreground `sleep` would otherwise pass as "not measured".
  *
  * @param {number} seconds
  * @returns {{ spawned: boolean; completed: boolean; detail: string }}

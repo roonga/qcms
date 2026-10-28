@@ -1,17 +1,7 @@
 /**
- * Security hygiene gate: four static properties the runtime controls cannot
- * establish about themselves (SEC-8, SEC-12, ADR-24).
- *
- * **The boundary.** These are regex scans, so what they cannot see is a statement
- * or a message assembled elsewhere and handed over as a plain variable
- * (`const q = base + id; db.execute(q)`), and anything past the one hop of
- * indirection {@link envNameConstants} follows. Catching those needs
- * data-flow analysis; the residual is bounded by `sql.raw` being covered in full,
- * since it is the only documented way to reach the driver unparameterized. A clean
- * run means no violation in a recognised shape, never that none exists.
- *
- * Escape hatch: `check-security-hygiene: allow <reason>` in a comment on the line
- * immediately above an offending line, so the reason is in the diff.
+ * Security hygiene gate (SEC-8, SEC-12, ADR-24). **The boundary.** These are regex scans, so a
+ * statement or message assembled elsewhere and passed as a plain variable, or past the one hop
+ * {@link envNameConstants} follows, is invisible: a clean run means no violation in a recognised shape.
  */
 
 import { execFileSync } from "node:child_process";
@@ -283,10 +273,8 @@ export const BODY_SOURCE_ROOT = "apps/api/src/";
 const ENV_NAME = /QCMS_[A-Z0-9_]+/;
 
 /**
- * Deliberately NOT sinks: `logger.*`, `process.stderr.write`, config boot refusals
- * and `describeRefusal`. Those are operator channels, where naming the variable is
- * the point. The property scan exists because assist events are plain object
- * literals that no constructor scan would see.
+ * Deliberately NOT sinks: `logger.*`, `process.stderr.write`, config boot refusals and
+ * `describeRefusal`, which are operator channels where naming the variable is the point.
  */
 const BODY_PROPERTY = /\b(?:message|details?|reason|hint|title)\s*:/g;
 

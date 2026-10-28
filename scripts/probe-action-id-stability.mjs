@@ -1,16 +1,9 @@
 #!/usr/bin/env node
 // @ts-check
 /**
- * Measures whether pinning `NEXT_SERVER_ACTIONS_ENCRYPTION_KEY` keeps a no-JS
- * respondent's held repeating step working across a portal deploy (ADR-43).
- *
- * Deliberately not part of `pnpm verify`: the key is cached under
- * `<distDir>/cache/.rscinfo` and reused by later builds in the same tree, so only a
- * from-scratch build shows the real behaviour. Run it after a Next upgrade, since a
- * bump that changes how ids are salted would otherwise surface on a respondent.
- *
- * It deletes and rewrites `apps/portal/.next` three times and needs a port seat
- * (`docs/PORTS.md`), so it cannot run beside a local stack at the same seat.
+ * Measures whether pinning `NEXT_SERVER_ACTIONS_ENCRYPTION_KEY` keeps a no-JS respondent's held
+ * repeating step working across a portal deploy (ADR-43). Not part of `pnpm verify`: only a
+ * from-scratch build shows the real behaviour. It rewrites `apps/portal/.next` and needs a port seat.
  */
 
 import { cpSync, mkdtempSync, readFileSync, rmSync } from "node:fs";

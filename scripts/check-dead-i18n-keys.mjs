@@ -1,20 +1,9 @@
 #!/usr/bin/env node
 // @ts-check
 /**
- * One direction only. "Key referenced, never defined" is already a type error at the call
- * site, so this covers the half the types cannot see.
- *
- * A reference is any string literal equal to a key anywhere in the catalog's own app,
- * outside a test, rather than an argument to `t()`: keys travel through lookup tables and
- * props, and modelling each route would be a worse copy of the type checker. A literal
- * that is a prefix of a key counts too, because assembled keys are common here; that is a
- * genuine widening, and narrowing a broad prefix in the code is what makes the keys under
- * it visible again.
- *
- * A key asserted only by a test is dead: the test measures the catalog, not the product.
- *
- * A shape this gate cannot read fails closed. If a key really is referenced through an
- * unreadable shape, name it in `ALLOWED` with the reason rather than widening the matcher.
+ * One direction only: "referenced, never defined" is already a type error. A reference is any string
+ * literal equal to, or a prefix of, a key in the catalog's app outside tests; a key asserted only by
+ * a test is dead. An unreadable shape fails closed: name the key in `ALLOWED` with the reason.
  */
 
 import { readFileSync } from "node:fs";

@@ -1,19 +1,9 @@
 #!/usr/bin/env node
 // @ts-check
 /**
- * Three rules, so the fallback tail is improvable at all: change `--font-fallback-sans`
- * and every surface moves, because there is nowhere else for a stack to hide.
- *
- * 1. A `font-family` declaration names a token and nothing else. An inline fallback on a
- *    token the sheet always declares is unreachable code that reads as a stack. Inside
- *    `@font-face` the property binds a name to a file instead, so it is exempt.
- * 2. Only the token sheet writes a family list. Every other `--font-*` declaration ends
- *    in one of the three tail tokens, so it contributes a family and inherits the tail.
- * 3. No Tailwind font-family utility that resolves outside the contract. `font-mono` is
- *    fine: the token sheet repoints `--font-mono`, which is what that utility reads.
- *
- * The vendored upstream drop is out of scope because a gate cannot ask it to change
- * (ADR-22), and so are tests, the adopter override surface, and the generated templates.
+ * Three rules so the fallback tail is improvable: `font-family` names a token only (not in
+ * `@font-face`); only the token sheet writes a family list; no Tailwind font-family utility resolves
+ * outside the contract. Vendored upstream (ADR-22), tests, adopter overrides and templates are out of scope.
  */
 
 import { readFileSync } from "node:fs";

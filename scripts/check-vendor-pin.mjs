@@ -1,14 +1,9 @@
 #!/usr/bin/env node
 // @ts-check
 /**
- * Only a version written immediately after a better-auth package name is checked:
- * adjacency is what keeps the false-positive rate at zero, so a version named forty
- * characters from the package is out of reach. It checks the digits only, never whether
- * a cited `file:line` still points at the branch the prose describes.
- *
- * `*.sql` is deliberately out of {@link GLOBS}: a released migration records the version
- * whose behaviour it describes, and forcing that number forward would make it false.
- * Record areas are {@link EXEMPT} paths instead.
+ * Only a version written immediately after a better-auth package name is checked, digits only, never
+ * whether a cited `file:line` still matches the prose. `*.sql` is out of {@link GLOBS}: a released
+ * migration records the version whose behaviour it describes. Record areas are {@link EXEMPT} paths.
  */
 
 import { execFileSync } from "node:child_process";

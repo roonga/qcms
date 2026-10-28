@@ -1,11 +1,8 @@
 #!/usr/bin/env node
 // @ts-check
 /**
- * The needles are assembled from fragments rather than written out, so this file and
- * its test scan cleanly over themselves and need no self-exclusion. Do not write one
- * out: a gate that exempts itself has a hole the shape of its own source.
- *
- * `plan/` is in scope because generated prose lands there first.
+ * The needles are assembled from fragments so this file and its test scan cleanly over themselves;
+ * do not write one out. `plan/` is in scope because generated prose lands there first.
  */
 
 import { readFileSync } from "node:fs";
@@ -31,11 +28,8 @@ const CLOSE = `${LT}/`;
 const TAG_NAMES = ["function_calls", "invoke", "parameter"];
 
 /**
- * Assembled from `LT`/`CLOSE` so no literal appears in this source. An opening tag
- * needs the lookahead for the delimiter after the name, or ordinary markup such as
- * `<parameterised>` would fail the gate. `content` is banned in its closing form only,
- * being the one name that is also plausible markup. The namespace prefix is listed
- * alone because it is unambiguous without a tag name.
+ * Assembled from `LT`/`CLOSE` so no literal appears here. An opening tag needs a delimiter lookahead
+ * so markup such as `<parameterised>` passes; `content` is banned in its closing form only.
  */
 export const HARNESS_TAG_PATTERNS = [
   ...TAG_NAMES.flatMap((name) => [

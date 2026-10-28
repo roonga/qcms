@@ -1,17 +1,9 @@
 #!/usr/bin/env node
 // @ts-check
 /**
- * Print a committed PNG's dimensions and a downscaled ASCII preview.
- *
- * It averages a block of pixels into one character, so it answers only whether a
- * capture is blank or populated and roughly where its content sits. It cannot tell a
- * clipped glyph from an ellipsis; a claim that fine needs an image render or a human.
- *
- * Dependency-free on purpose (`CONTRIBUTING.md`, "Minimal-dependency policy"), so it
- * decodes only the non-interlaced 8-bit colour types a screenshot tool emits. Indexed
- * colour, other bit depths and Adam7 interlacing are refused by name rather than
- * half-decoded, because a preview that silently renders the wrong pixels is worse than
- * no preview. Alpha is composited over white; chunk CRCs are not verified.
+ * Print a committed PNG's dimensions and a downscaled ASCII preview; it answers only whether a capture
+ * is blank or populated. Dependency-free on purpose, so it decodes only non-interlaced 8-bit colour
+ * types and refuses the rest by name. Alpha is composited over white; chunk CRCs are not verified.
  */
 
 import { readFileSync } from "node:fs";

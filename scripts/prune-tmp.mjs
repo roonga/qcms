@@ -1,14 +1,9 @@
 #!/usr/bin/env node
 // @ts-check
 /**
- * Report, and with `--apply` remove, stale repository-owned entries under the system
- * temporary directory.
- *
- * Removal is recursive, so the sweep refuses to touch anything whose name matches no
- * prefix below, anything younger than the age guard, a symbolic link (never followed,
- * never removed), and any path that does not resolve inside the temporary root. That
- * containment is checked when an entry is classified and again immediately before the
- * `rmSync`, rather than trusted from the listing.
+ * Report, and with `--apply` remove, stale repository-owned entries under the system temporary
+ * directory. Removal is recursive, so it refuses anything matching no prefix, younger than the age
+ * guard, a symlink, or outside the temporary root (checked at classification and again before `rmSync`).
  */
 
 import { lstatSync, readdirSync, realpathSync, rmSync } from "node:fs";

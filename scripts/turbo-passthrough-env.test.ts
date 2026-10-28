@@ -1,9 +1,7 @@
 /**
- * Must spawn a real `turbo run`: Vitest sits on the far side of the boundary that
- * strict env mode strips, so reading `process.env` here would prove nothing. The list
- * is the union of `turbo.json`'s declarations and the documented knobs, so a knob's
- * removal is red as well as its addition, and the excluded control keeps the rest from
- * passing in a world where strict mode was simply turned off.
+ * Must spawn a real `turbo run`: Vitest sits beyond the boundary strict env mode strips. The list is
+ * the union of `turbo.json` and the documented knobs, with an excluded control so it cannot pass if
+ * strict mode were simply off.
  */
 import { spawnSync } from "node:child_process";
 import { existsSync, readFileSync } from "node:fs";

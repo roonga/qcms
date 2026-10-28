@@ -1,11 +1,8 @@
 #!/usr/bin/env node
 // @ts-check
 /**
- * The banned glyph is referenced here only by its codepoint, so this file scans cleanly
- * over itself. Do not write it out.
- *
- * `.json` is deliberately out of scope: the append-only golden corpus (ADR-18) carries
- * em dashes inside frozen fixture data that must never be edited.
+ * The banned glyph is referenced only by codepoint, so this file scans cleanly over itself. `.json`
+ * is out of scope: the golden corpus (ADR-18) carries frozen fixture data containing em dashes.
  */
 
 import { execFileSync } from "node:child_process";

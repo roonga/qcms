@@ -1,13 +1,7 @@
 /**
- * Build the three QCMS images with a real version stamp and an SBOM.
- *
- * buildx needs the docker-container driver, because the default `docker` driver
- * cannot attach attestations. The SBOM step pulls `docker/buildkit-syft-scanner`, so
- * a CI job running this must not assert against Docker Hub pulls.
- *
- * Every assertion walks the exported OCI directory rather than checking which flags
- * were passed, and both the SBOM's presence and its contents are asserted BEFORE
- * {@link pushImage}: a check that runs after the push is a report, not a gate.
+ * Build the three QCMS images with a version stamp and an SBOM. buildx needs the docker-container
+ * driver for attestations, and the SBOM step pulls `docker/buildkit-syft-scanner`. The SBOM and its
+ * contents are asserted BEFORE {@link pushImage}: a check after the push is a report, not a gate.
  */
 
 import { execFileSync } from "node:child_process";
@@ -292,11 +286,9 @@ export function imageReferences(namespace, name, tags) {
 }
 
 /**
- * A CONJUNCTION of every descriptor property buildx writes, because this is the one
- * assertion the push path exists for and a permissive test would report success on an
- * artifact that lost its attestations. The `unknown/unknown` platform is a convention
- * another non-image entry could adopt; only the annotation names this entry as the
- * attestation for a specific image.
+ * A conjunction of every descriptor property buildx writes, so a permissive test cannot report
+ * success on an artifact that lost its attestations; `unknown/unknown` alone is a convention
+ * other entries could adopt.
  *
  * @param {string} rawManifestList
  * @returns {number} how many attestation manifests the list carries.

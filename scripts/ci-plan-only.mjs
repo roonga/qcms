@@ -1,13 +1,9 @@
 #!/usr/bin/env node
 // @ts-check
 /**
- * This script decides how much work a required job does, never whether it runs: a
- * required context that never reports blocks a pull request forever. Every uncertain
- * case therefore resolves to `false` and runs everything.
- *
- * The workflow runs the copy at the pull request's BASE ref, so this file never
- * classifies its own diff, and neither its path nor an output name can be renamed
- * without closing the lane until the rename reaches `main`.
+ * Decides how much work a required job does, never whether it runs: a required context that never
+ * reports blocks a pull request forever, so every uncertain case resolves to `false`. The workflow
+ * runs the copy at the BASE ref, so this file never classifies its own diff and cannot be renamed until the rename reaches `main`.
  */
 
 import { execFileSync } from "node:child_process";
