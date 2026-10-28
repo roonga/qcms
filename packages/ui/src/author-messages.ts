@@ -1,12 +1,9 @@
 import { z } from "zod";
 
 /**
- * The ADR-32 `messages` prop lives in a wrapper rather than in the schemas because
- * every vendored props object is `.strict()` and ADR-22 freezes them byte-identical.
- *
- * The key set mirrors the kernel's `ValidationMessageKey`, restated rather than
- * imported because this package must not pull the kernel into the client bundle; the
- * golden corpus proves the two still agree.
+ * The ADR-32 `messages` prop lives in a wrapper because every vendored props object is `.strict()` and ADR-22
+ * freezes them. The key set restates the kernel's `ValidationMessageKey` rather than importing it, so the client
+ * bundle stays kernel-free; the golden corpus proves the two agree.
  */
 export const AuthorMessagesSchema = z
   .object({

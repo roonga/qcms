@@ -107,11 +107,9 @@ export function guardConnectionErrors(connection: object, label: string): void {
 }
 
 /**
- * Returns the function that releases whatever is still checked out.
- *
- * A pool re-assigns `release` on every checkout, so the wrapper is installed per checkout
- * rather than once per client. The callback overload of `connect` is left alone: wrapping it
- * would change what the caller receives.
+ * Returns the function that releases whatever is still checked out. A pool re-assigns `release` on every
+ * checkout, so the wrapper is installed per checkout. The callback overload of `connect` is left alone:
+ * wrapping it would change what the caller receives.
  */
 function trackCheckouts(pool: object): () => void {
   const held = new Set<ReleasableClient>();

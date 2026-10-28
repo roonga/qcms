@@ -1,11 +1,7 @@
 /**
- * Every table here is declared unqualified, so the connection's `search_path`
- * (`data_<env>, control`) chooses which environment's copy a query helper reaches and no
- * helper can name an environment it was not handed a pool for.
- *
- * The per-environment generator (`../../environment/sql.ts`) emits from this module, so a
- * table, column, index, guard or trigger this module does not declare is one every
- * environment is created without.
+ * Every table is declared unqualified, so the connection's `search_path` (`data_<env>, control`) chooses the
+ * environment. The generator in `../../environment/sql.ts` emits from this module, so anything not declared
+ * here is missing from every environment.
  */
 
 import { getTableName } from "drizzle-orm";

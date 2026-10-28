@@ -1,30 +1,20 @@
 /*
- * The ADR-30 token contract. Contract documentation: docs/theming.md.
- *
- * Never soften the `:is(:root, [data-qcms-theme-scope])` anchor (ADR-38) to
- * `:where()`: that is specificity 0 and would re-rank every block below against an
- * adopter's own `:root` overrides. The knobs ride the anchor:
- *   mode    anchor class:     (none) = Light   .dark = Dark   .hc = High-contrast
- *   theme   anchor attribute: (absent) or [data-theme="slate"] = the default
- *                             [data-theme="harbor"|"sand"|"plum"] = alternates
- *   corners anchor class:     (none) = Subtle  .radius-sharp / -rounded / -pill
- *   density anchor class:     (none) = Comfortable  .density-compact / -spacious
- *   font    anchor class:     .font-<registry key> (declared by fonts.css)
- *
- * Every text and background pair meets WCAG 2.2 AA in Light and Dark and AAA body
- * contrast in High-contrast; `theme-tokens.test.ts` recomputes the ratios from this
- * file, so a value that drifts fails the build.
+ * The ADR-30 token contract (docs/theming.md). Never soften the `:is(:root, [data-qcms-theme-scope])` anchor
+ * (ADR-38) to `:where()`: specificity 0 would re-rank every block below against an adopter's `:root` overrides.
+ * Every text and background pair meets WCAG 2.2 AA in Light and Dark and AAA body contrast in High-contrast.
  */
 
-/* WCAG 1.4.12 floors, which nothing may lower: body >= 16px, line-height >= 1.5,
-   letter-spacing >= 0.12em, word-spacing >= 0.16em, paragraph spacing >= 2em.
-   The three --font-fallback-* values are the only literal font-family lists in the
-   product, and `scripts/check-font-tokens.mjs` fails the build on a second one. */
+/*
+ * WCAG 1.4.12 floors, which nothing may lower: body >= 16px, line-height >= 1.5, letter-spacing >= 0.12em,
+ * word-spacing >= 0.16em, paragraph spacing >= 2em. The three --font-fallback-* values are the only literal
+ * font-family lists, and `scripts/check-font-tokens.mjs` fails the build on a second one.
+ */
 :is(:root, [data-qcms-theme-scope]) {
-  /* Two entries are positional: `system-ui` is never first and never alone, because
-     it resolves from the OS locale rather than the content language and used to
-     short-circuit the rest of the list for non-Latin text (Mozilla bug 1724907);
-     the emoji faces follow the generic, being consulted per glyph. */
+  /*
+   * Two entries are positional: `system-ui` is never first and never alone, because it resolves from the OS locale
+   * and used to short-circuit the list for non-Latin text (Mozilla bug 1724907); the emoji faces follow the
+   * generic, being consulted per glyph.
+   */
   --font-fallback-sans:
     ui-sans-serif, system-ui, -apple-system, "Segoe UI", Roboto, "Helvetica Neue", "Noto Sans",
     "Liberation Sans", Arial, sans-serif, "Apple Color Emoji", "Segoe UI Emoji", "Segoe UI Symbol",
@@ -59,11 +49,11 @@
   --type-paragraph-spacing: 2em;
 }
 
-/* --space-control-h is the WCAG 2.5.8 target-size floor (>= 24px).
-   A density level may set these five tokens and nothing else: never a --type-*
-   token, which carries a 1.4.12 floor, and never --space-control-h below 24px.
-   Only --space-section-pad also moves with the viewport, and every constraint holds
-   at both ends of that breakpoint. */
+/*
+ * --space-control-h is the WCAG 2.5.8 target-size floor (>= 24px). A density level may set these five tokens
+ * and nothing else: never a --type-* token (1.4.12 floor), and never --space-control-h below 24px. Only
+ * --space-section-pad also moves with the viewport.
+ */
 :is(:root, [data-qcms-theme-scope]) {
   --space-control-h: 44px;
   --space-control-pad-x: 0.9rem;
@@ -107,10 +97,7 @@
   }
 }
 
-/* A theme-level setting, not a respondent control: the deployment picks one preset.
-     --radius-control  buttons / inputs / selects / option rows
-     --radius-card     step card / panels / banners / popovers
-     --radius-sm       checkboxes / chips */
+/* A theme-level setting, not a respondent control: the deployment picks one preset. */
 :is(:root, [data-qcms-theme-scope]) {
   --radius-control: 6px;
   --radius-card: 10px;
@@ -455,10 +442,11 @@
   --color-overlay: rgb(0 0 0 / 0.6);
 }
 
-/* One universal mode-layer; a theme contributes only its accent.
-   Source order is load-bearing: these blocks come after every light and dark block,
-   so the shared `.hc` block, at the same (0,2,0) as a theme's light block, wins on
-   order alone, while the accent overrides (0,3,0) win on specificity. */
+/*
+ * One universal mode-layer; a theme contributes only its accent. Source order is load-bearing: these blocks come
+ * after every light and dark block, so the shared `.hc` block, at the same (0,2,0) as a theme's light block, wins
+ * on order alone, while accent overrides (0,3,0) win on specificity.
+ */
 
 :is(:root, [data-qcms-theme-scope]).hc {
   --color-primary: #0b453d;

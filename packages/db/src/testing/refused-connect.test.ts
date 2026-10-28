@@ -1,8 +1,7 @@
 /**
- * No Docker and no Postgres: the refusal comes from a loopback port this file opens
- * and closes. `teardown.ts` lets the guard ignore anything the shared contention
- * markers match, so a shape that reached only that channel would be a failure no
- * test could see.
+ * No Docker and no Postgres: the refusal comes from a loopback port this file opens and closes.
+ * `teardown.ts` lets the guard ignore anything the contention markers match, so a shape reaching only that
+ * channel would be invisible to any test.
  */
 
 import { createServer } from "node:net";

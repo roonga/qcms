@@ -1,9 +1,6 @@
 /**
- * A diagnosis aid only: it must add no retry, move no timeout, and never turn a red run
- * green.
- *
- * A published subpath, so it cannot import this repository's scripts: the seat is read off
- * Docker's Compose project labels rather than computed from a port block.
+ * A diagnosis aid only: it must add no retry, move no timeout, and never turn a red run green. A published
+ * subpath, so it cannot import this repository's scripts; the seat is read off Docker's Compose project labels.
  */
 
 import { execFileSync } from "node:child_process";

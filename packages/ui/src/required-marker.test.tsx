@@ -7,10 +7,8 @@ import { instanceLabelFor, qualifiedFieldName } from "./repeat/repeat-node.ts";
 import { cellLabelFor } from "./repeat/repeat-table-node.ts";
 import { loadGoldenSteps, syntheticRoster } from "./test-support/golden.ts";
 
-// The marker is rendered by each vendored control inside its own label rather than by
-// the adapter, so a control that ships without one is silently missing it for every
-// required question of that type. The case list is derived from the corpus, so a new
-// required question type is covered the day it lands.
+// The marker is rendered by each vendored control inside its own label, so a control shipping without one is
+// silently missing it for every required question of that type. Cases are derived from the corpus.
 
 interface RequiredControl {
   readonly type: string;
@@ -27,12 +25,9 @@ interface GroupScope {
 }
 
 /**
- * A required question inside a group renders once per live instance under its qualified
- * name, so the walk carries the instance: the property pinned here has to hold inside
- * an instance card too, and would silently stop being checked if a group's members
- * were skipped. The table presentation also rewrites a member's label to its cell's
- * own name, so the expectation is the label the renderer emits rather than the stored
- * one.
+ * A required question inside a group renders once per live instance under its qualified name, so the walk
+ * carries the instance. The table presentation rewrites a member's label to its cell's name, so the expectation
+ * is the label the renderer emits.
  */
 function requiredControlsIn(
   node: unknown,
@@ -120,10 +115,8 @@ const cases: Case[] = loadGoldenSteps().flatMap((step) => {
 });
 
 /**
- * None of them: every vendored control wraps the marker in `aria-hidden`, so a screen
- * reader announces the required state rather than a literal asterisk. The set stays
- * empty rather than being deleted with the assertions reading it, which is what makes
- * the claim exhaustive over the corpus-derived set.
+ * None of them: every vendored control wraps the marker in `aria-hidden`, so a screen reader announces the
+ * required state, not an asterisk. The set stays empty rather than deleted, keeping the claim exhaustive.
  */
 const MARKER_IN_ACCESSIBLE_NAME = new Set<string>();
 

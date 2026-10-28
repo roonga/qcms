@@ -5,12 +5,9 @@ import type { FormId } from "@roonga/qcms-core";
 import { forms } from "../control/forms.js";
 
 /**
- * Webhook endpoints an author configures per form (SEC-6). The deliverer posts to every
- * `active` row and signs with the row's secret.
- *
- * The secret is encrypted at rest and never hashed (SEC-6, SEC-8), because the deliverer
- * must recover the plaintext to compute the HMAC; it is shown to the author once and
- * masked everywhere else. `DELETE` soft-deactivates, so delivery history survives.
+ * Webhook endpoints an author configures per form (SEC-6); the deliverer posts to every `active` row.
+ * The secret is encrypted at rest and never hashed (SEC-6, SEC-8) because the deliverer needs the plaintext
+ * for the HMAC; it is shown once and masked elsewhere. `DELETE` soft-deactivates.
  */
 export const webhooks = pgTable("webhooks", {
   webhookId: text("webhook_id").primaryKey(),

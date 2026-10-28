@@ -45,12 +45,9 @@ export class SessionNotFoundError extends Error {
 }
 
 /**
- * Erase one session (ADR-17). Idempotent: an existing tombstone returns unchanged with
- * `alreadyErased: true`. An unknown session throws {@link SessionNotFoundError}.
- *
- * Both lookups name the form, so a cross-form call throws exactly as an unknown id does.
- * Scoping the tombstone lookup too is what keeps an already-erased session of another
- * form from revealing that it exists.
+ * Erase one session (ADR-17). Idempotent: an existing tombstone returns unchanged with `alreadyErased: true`;
+ * an unknown session throws {@link SessionNotFoundError}.
+ * Both lookups name the form, so a cross-form call is indistinguishable from an unknown id.
  */
 export async function eraseSession(
   exec: Executor,
@@ -128,12 +125,8 @@ export interface SubjectPresence {
 }
 
 /**
- * What one environment holds for one (form, session) pair. Form-scoped, so another form's
- * session is indistinguishable from an id that exists nowhere.
- *
- * Two reads rather than a join: a tombstone outlives the session shell a retention purge
- * removes, and a join would report "erased long ago, shell since purged" as "nothing
- * here".
+ * What one environment holds for one (form, session) pair; form-scoped, so another form's session reads as
+ * nonexistent. Two reads rather than a join: a tombstone outlives the session shell a retention purge removes.
  */
 export async function findSubjectPresence(
   exec: Executor,

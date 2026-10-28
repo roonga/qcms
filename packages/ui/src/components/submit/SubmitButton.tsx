@@ -20,14 +20,10 @@ const IMPLICIT_DEFAULT_STYLE: CSSProperties = {
 };
 
 /**
- * A plain `<button type="submit">` rather than a react-aria `Button`, whose default
- * `type="button"` needs JS to submit a form.
- *
- * With `implicitDefault` it renders the hidden copy that makes Enter mean Continue on a
- * step whose form also carries `__qop` buttons: implicit submission presses the first
- * submit button in tree order, so the copy comes before Remove and Add. It carries the
- * real control's label and `formaction` and no `name`, so a post it submits is
- * byte-identical to a press of Continue, and only the browser ever meets it.
+ * A plain `<button type="submit">`: react-aria's `Button` defaults to `type="button"`, which needs JS to submit.
+ * With `implicitDefault` it renders the hidden copy that makes Enter mean Continue when the form also carries
+ * `__qop` buttons: implicit submission presses the first submit button in tree order, so the copy comes first,
+ * carries Continue's label and `formaction`, and has no `name`.
  */
 export function SubmitButton({
   label,

@@ -14,14 +14,10 @@ import type { RepeatColumn } from "./repeat-table.schema.ts";
 import { keepControl, qualifyNames, stringProp } from "./repeat-walk.ts";
 
 /**
- * ADR-42 adds no question type here: every cell is an ordinary question with an
- * ordinary `AnswerValue`, so validation, retraction, the rules DSL, the ledger grain
- * and the export grain all work unchanged, and this is a layout rather than a control.
- *
- * A native `<table>` and never `role="grid"`: APG makes author-managed focus movement
- * a defining property of that pattern, so with scripting off a grid is a tab trap. One
- * tab stop per cell is the documented cost of the ruled choice, bounded by the group's
- * own `max` (SEC-16 sets no installation-wide ceiling).
+ * ADR-42 adds no question type: every cell is an ordinary question, so validation, retraction, rules and the
+ * ledger and export grain work unchanged. A native `<table>` and never `role="grid"`, whose author-managed
+ * focus is a tab trap without scripting; one tab stop per cell is the cost, bounded by the group's `max`
+ * (SEC-16 sets no installation-wide ceiling).
  */
 
 /** What the group's own expansion knows and this one needs. */
@@ -42,10 +38,8 @@ export interface RepeatTableInput {
   readonly opToken?: string;
 }
 
-// Rewritten rather than supplemented, so nothing enters the accessibility tree at one
-// width and leaves it at another: above the reflow the CSS clips it and the visible
-// headers are what a sighted respondent reads, below it the same element is shown. A
-// control with no `label` is not a question, so inventing a name would be worse.
+// Rewritten rather than supplemented, so nothing enters the accessibility tree at one width and leaves it at
+// another. A control with no `label` is not a question, so inventing a name would be worse.
 function relabelCell(node: A2Node, rowLabel: string): A2Node {
   const label = stringProp(node, "label");
   if (label === undefined) return node;

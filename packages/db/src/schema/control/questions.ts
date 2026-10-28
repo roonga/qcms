@@ -9,14 +9,10 @@ import { questionStatus } from "./enums.js";
 import { controlSchema } from "../schemas.js";
 
 /**
- * Question library identity.
- *
- * A `questionId` is stable forever and never reused with a different meaning (R6).
- *
- * Ownership is on this identity row and never on a version, so a question moves workspaces
- * with one `UPDATE` and a form elsewhere that pins one keeps serving it. Whether a new pin
- * is allowed is a publish-time rule in `apps/api/src/features/workspaces/rules.ts`, not a
- * constraint here: a constraint would have to see a draft.
+ * Question library identity. A `questionId` is stable forever and never reused with a different meaning (R6).
+ * Ownership is on this row, never a version, so a question moves workspaces with one `UPDATE`. Whether a new
+ * pin is allowed is a publish-time rule in `apps/api/src/features/workspaces/rules.ts`: a constraint would
+ * have to see a draft.
  */
 export const questions = controlSchema.table("questions", {
   questionId: text("question_id").$type<QuestionId>().primaryKey(),

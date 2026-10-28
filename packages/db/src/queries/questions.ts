@@ -7,8 +7,8 @@ import type { Executor } from "./executor.js";
 import type { AssignableTo } from "./schema-drift.js";
 
 /**
- * The `questions` library-identity row. Hand-authored because its branded-id column
- * degrades to an `error` type through this package's emitted `.d.ts` (issue #5).
+ * The `questions` library-identity row. Hand-authored: its branded-id column degrades to an `error` type
+ * through the emitted `.d.ts`.
  */
 export interface QuestionRow {
   questionId: QuestionId;
@@ -25,8 +25,8 @@ export type _QuestionRowMatchesTable = AssignableTo<QuestionRow, typeof question
 export type QuestionStatus = (typeof questionStatus.enumValues)[number];
 
 /**
- * The `question_versions` row. Hand-authored because the enum-bearing table's
- * `$inferSelect` degrades through this package's emitted `.d.ts` (issue #5).
+ * The `question_versions` row. Hand-authored: the enum-bearing table's `$inferSelect` degrades through the
+ * emitted `.d.ts`.
  */
 export interface QuestionVersionRow {
   questionId: QuestionId;
@@ -200,12 +200,9 @@ export async function listVersionsForQuestions(
 }
 
 /**
- * Overwrite a draft version's `definition` in place, returning `undefined` when no draft
- * matched. The caller must validate the definition through the kernel first.
- *
- * The `status = 'draft'` predicate is stricter than the
- * `question_versions_freeze_published` trigger, which fires only on a published row and
- * so never covered a deprecated one.
+ * Overwrite a draft version's `definition` in place, or `undefined` when no draft matched; the caller must
+ * validate through the kernel first. `status = 'draft'` is stricter than the
+ * `question_versions_freeze_published` trigger, which never covered a deprecated row.
  */
 export async function updateDraftDefinition(
   exec: Executor,

@@ -3,10 +3,9 @@ import type { A2Node } from "@a2ra/core";
 import { REPEAT_INSTANCE_NODE_TYPE } from "./repeat/repeat-node.ts";
 
 /**
- * The document is stored, immutable content (R1, ADR-18) and cannot know what page it
- * will be shown inside, so the embedding page renumbers rather than dropping its own
- * `<h1>`. Only the `as` prop moves: `size` and `weight` stay as compiled, because an
- * admin preview promises what a respondent saw.
+ * The document is stored, immutable content (R1, ADR-18) and cannot know the page it is shown in, so the
+ * embedding page renumbers rather than dropping its own `<h1>`. Only the `as` prop moves: an admin preview
+ * promises what a respondent saw.
  */
 
 /** Clamped at the last level, because the schema would reject an `h5`. */

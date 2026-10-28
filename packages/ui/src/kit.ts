@@ -1,17 +1,8 @@
 /**
- * ADR-22 allows one component stack across both frontends and the vendored sources live
- * in this package alone, so the admin's controls are re-exported from here.
- *
- * Two restraints hold. No wrappers: every export is the vendored component itself, or a
- * QCMS-flavoured layer becomes a second design language by accretion. No schemas:
- * re-exporting `*Schema` or `*Node` would invite an admin screen to grow an A2UI
- * document, and `registryForSpecVersion` stays the only door to the renderer.
- *
- * A host must load `@roonga/qcms-ui/theme.css`, or its own file defining the same
- * custom properties, and must import this from a `"use client"` module.
- *
- * Where a vendored component falls short, ADR-22's route is to fix it upstream and
- * never fork it here.
+ * ADR-22 puts one component stack across both frontends, so the admin's controls are re-exported here.
+ * No wrappers: every export is the vendored component itself. No schemas: `*Schema` or `*Node` would invite an
+ * A2UI document into an admin screen; `registryForSpecVersion` stays the only door to the renderer.
+ * A host must load `@roonga/qcms-ui/theme.css` and import this from a "use client" module.
  */
 
 export { Alert } from "./components/a2ui/alert/index.ts";
@@ -52,11 +43,9 @@ export { Tab, TabList, TabPanel, Tabs } from "react-aria-components";
 export { I18nProvider } from "react-aria-components";
 
 /**
- * By the same route as the tab primitives: the pinned registry ships no combobox, and a
- * picker over a list too long to scan is the APG combobox pattern, whose roving
- * `aria-activedescendant` and input-to-listbox relationship a hand-rolled filter over a
- * `Select` would get wrong. Aliased because the bare names collide with the vendored
- * components.
+ * Aliased because the bare names collide with the vendored components. The pinned registry ships no combobox,
+ * and a hand-rolled filter over a `Select` would get the APG combobox pattern's `aria-activedescendant` and
+ * input-to-listbox relationship wrong.
  */
 export {
   Button as ComboBoxButton,

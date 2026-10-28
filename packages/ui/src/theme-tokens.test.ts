@@ -1,7 +1,5 @@
-// Reads `theme.css` and computes the WCAG 2.2 contrast ratio of every critical pair
-// from the shipped values, so a palette edit that drops a pair below its target fails
-// here rather than reaching a respondent. Targets: AA in Light and Dark, 4.5:1 for body
-// text and 3:1 for UI; AAA in High-contrast, 7:1 for text.
+// Reads `theme.css` and computes the WCAG 2.2 contrast ratio of every critical pair, so a palette edit that drops
+// a pair below target fails here. Targets: AA in Light and Dark (4.5:1 text, 3:1 UI); AAA in High-contrast (7:1 text).
 
 import { readFileSync } from "node:fs";
 import { join } from "node:path";
@@ -170,13 +168,9 @@ function modeOf(selector: string): Mode | null {
 }
 
 /**
- * A rule inside `@media` is captured with the condition that gates it rather than
- * dropped: a media block whose declarations vanish from the parse cannot fail any guard
- * here, so the sheet could grow a viewport that lowers a floor and stay green. Rules
- * keep source order across levels, which is what the cascade needs.
- *
- * Scanned brace by brace, because a `selector {body}` regex over a nesting sheet is
- * the shape the lint rejects.
+ * A rule inside `@media` is captured with its condition rather than dropped, or a viewport that lowers a floor
+ * would stay green. Scanned brace by brace, because a `selector {body}` regex over a nesting sheet is what the
+ * lint rejects.
  */
 function collectRules(css: string, media: string | null, out: Block[]): void {
   let index = 0;
@@ -222,12 +216,9 @@ function parseBlocks(css: string): readonly Block[] {
 const BLOCKS = parseBlocks(THEME_CSS);
 
 /**
- * Resolved the way a browser does, by specificity then source order, which is why the
- * equally specific `.hc` layer emitted last beats a theme's light block.
- *
- * The corners, density and `@media` blocks are excluded because none of them applies in
- * this baseline, and each is asserted separately below; leaving one in would apply the
- * last preset in source order to every contrast and floor assertion in the file.
+ * Resolved the way a browser does, by specificity then source order, so the equally specific `.hc` layer emitted
+ * last beats a theme's light block. Corners, density and `@media` blocks are excluded (each asserted separately),
+ * or the last preset in source order would apply to every contrast assertion.
  */
 function resolveFrom(
   blocks: readonly Block[],
@@ -630,10 +621,8 @@ describe("spacing group: the three density levels x the two viewports", () => {
     }
   });
 
-  // A monotonic scale rather than three unrelated presets, which is what makes the
-  // control a meaningful choice and catches a value edited in the wrong block. Both
-  // ends, because a narrow override that flattened two levels would leave a respondent
-  // on a phone choosing between two looks that render the same.
+  // A monotonic scale rather than three unrelated presets, which catches a value edited in the wrong block. Both
+  // ends are checked, since a narrow override that flattened two levels would leave a phone user two identical looks.
   it("the three levels are ordered Compact < Comfortable < Spacious at both viewports", () => {
     for (const viewport of VIEWPORTS) {
       const levels = [

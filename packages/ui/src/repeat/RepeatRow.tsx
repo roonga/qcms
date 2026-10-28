@@ -6,13 +6,9 @@ import { ROSTER_OP_FIELD, rosterOpValue } from "./repeat-node.ts";
 import type { RepeatRowNode } from "./repeat-table.schema.ts";
 
 /**
- * One live instance as a table row. The `<th scope="row">` carries the focus handle,
- * landing by `autofocus` without scripting rather than a fragment, since a 200
- * answering a POST leaves the browser on the POST's own URL.
- *
- * A `<th>` rather than a `<td>` holding a span: `scope="row"` is what associates every
- * cell in the row with it for 1.3.1, and what the card reflow turns into the card's
- * heading.
+ * One live instance as a table row. The `<th scope="row">` carries the focus handle, landing by `autofocus`
+ * without scripting, since a 200 answering a POST leaves the URL unchanged. A `<th>` rather than a `<td>`:
+ * `scope="row"` associates every cell with it (1.3.1) and becomes the card's heading on reflow.
  */
 export function RepeatRow({
   groupId,

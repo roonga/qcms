@@ -3,17 +3,10 @@ import { useId } from "react";
 import { getNumberFieldStyles } from "./components/a2ui/number-field/number-field.styles.ts";
 
 /**
- * The number question's control in native (no-JS) submit mode.
- *
- * The vendored NumberField cannot serve it: the box the respondent sees carries no
- * `name`, and the value rides a hidden input written from React state, so typing an
- * answer satisfied the browser's `required` check and posted nothing.
- *
- * `type="number"` rather than text-with-`inputmode`, because it posts unformatted,
- * unlocalized digits, which is what the BFF's `Number(...)` coercion expects.
- *
- * The browser's refusals are a convenience, never the rule: the kernel is the
- * authority, so a crafted post is refused by the API like any other.
+ * The number question's control in native (no-JS) submit mode. The vendored NumberField cannot serve it: its
+ * visible box has no `name` and the value rides a hidden input, so a typed answer posted nothing.
+ * `type="number"` posts unformatted digits, as the BFF's `Number(...)` coercion expects. Browser refusals
+ * are a convenience; the kernel is the authority.
  */
 export interface NativeNumberFieldProps {
   /** The questionId, which is the posted field name. */

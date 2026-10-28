@@ -15,12 +15,9 @@ import { outbox } from "./outbox.js";
 import { webhooks } from "./webhooks.js";
 
 /**
- * Per-(event, webhook) delivery state: one outbox event fans out to every `active` webhook
- * and each target needs its own retry and dead-letter state.
- *
- * The signature never lands here: `last_request_headers` is stored with
- * `x-qcms-signature` already masked, so the HMAC is absent from the database rather than
- * hidden by a renderer (SEC-6, SEC-13).
+ * Per-(event, webhook) delivery state: one outbox event fans out to every `active` webhook, each with its own
+ * retry and dead-letter state. The signature never lands here: `last_request_headers` is stored with
+ * `x-qcms-signature` already masked, so the HMAC is absent from the database (SEC-6, SEC-13).
  */
 export const webhookDeliveries = pgTable(
   "webhook_deliveries",
