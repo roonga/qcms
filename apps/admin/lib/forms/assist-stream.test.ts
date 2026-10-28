@@ -166,6 +166,19 @@ describe("readAssistEvents", () => {
    * a future parser that learned to read bare `event:` lines would start
    * emitting an event per heartbeat.
    */
+  it("reads the reasoning variants, and drops one with no delta", async () => {
+    const body = streamOf([
+      frame("reasoning", { delta: "weighing it up" }),
+      frame("reasoning", {}),
+      frame("reasoning-end", {}),
+    ]);
+    const events = await collect(body);
+    expect(events).toEqual([
+      { type: "reasoning", delta: "weighing it up" },
+      { type: "reasoning-end" },
+    ]);
+  });
+
   it("yields nothing for a keep-alive comment and keeps reading around it", async () => {
     const body = streamOf([
       frame("status", { phase: "thinking" }),

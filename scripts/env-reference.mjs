@@ -557,6 +557,14 @@ export const ENV_REFERENCE = [
     description: "Hard ceiling on tool-loop steps in one agent turn (task 041).",
   },
   {
+    name: "QCMS_AGENT_THINKING",
+    process: "api",
+    requirement: "optional",
+    fallback: "off",
+    description:
+      "Whether the model provider's own reasoning summary is shown in the assistant panel (task 081): `off` (default) or `summary`. Under `summary` the API asks the provider for a summarized view of its thinking and forwards it to the panel as a collapsed Thinking disclosure; under `off` reasoning is dropped even when a provider emits it unasked. Reasoning text is never logged, stored, exported in telemetry or replayed into the next turn (SEC-8); only a token count is logged. Reasoning tokens are billed output, bounded per turn by `QCMS_AGENT_MAX_STEPS`. Read by the API alone: the admin never learns the value.",
+  },
+  {
     name: "QCMS_RL_AGENT_ASSIST_WINDOW_MS",
     process: "api",
     requirement: "optional",

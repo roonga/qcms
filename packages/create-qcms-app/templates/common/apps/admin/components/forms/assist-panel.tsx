@@ -657,7 +657,47 @@ function Segment({
   readonly trailing: ReactNode;
 }) {
   if (segment.kind === "text") return <AssistMarkdown text={segment.text} trailing={trailing} />;
+  if (segment.kind === "thinking") return <ThinkingDisclosure segment={segment} />;
   return <StepTimeline steps={segment.steps} />;
+}
+
+/**
+ * The thinking disclosure (081, `plan/agent-everywhere.md` section 4.9).
+ *
+ * **Collapsed, and plain text.** Reasoning is the model's working-out, not its
+ * answer, so it is behind a disclosure rather than in the reply; and it is
+ * rendered as characters rather than through the Markdown subset, because a
+ * summary is not written for a reader and formatting it would dress up prose
+ * the model never meant to publish. `white-space: pre-wrap` keeps its own line
+ * breaks.
+ *
+ * Nothing here knows the operator setting. The disclosure exists because the
+ * events arrived (ADR-24), which is also why there is no empty state for it.
+ */
+function ThinkingDisclosure({
+  segment,
+}: {
+  readonly segment: Extract<TurnSegment, { kind: "thinking" }>;
+}) {
+  const running = segment.endedAt === undefined;
+  const seconds = running
+    ? undefined
+    : Math.max(1, Math.round((segment.endedAt - segment.startedAt) / 1000));
+  return (
+    <details className="qcms-assist-think" data-testid="qcms-assist-thinking">
+      <summary>
+        <span>{t("forms.assist.thinking")}</span>
+        {running ? (
+          <span className="qcms-assist-think__pulse" aria-hidden="true" />
+        ) : (
+          <span className="qcms-assist-think__took">
+            {t("forms.assist.thoughtFor", { seconds: String(seconds) })}
+          </span>
+        )}
+      </summary>
+      <p className="qcms-assist-think__body">{segment.text}</p>
+    </details>
+  );
 }
 
 const STEP_STATE_LABELS: Readonly<Record<StepState, MessageKey>> = {

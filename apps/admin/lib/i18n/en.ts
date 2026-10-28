@@ -1880,6 +1880,12 @@ export const messages = {
   // lands after Accept or Discard (`plan/agent-everywhere.md` section 4.4).
   "forms.assist.resultAccepted": "Accepted into the draft.",
   "forms.assist.resultDiscarded": "Discarded.",
+  // The thinking disclosure (081). "Thinking" while the summary streams, then how
+  // long it took. The contents are the provider's own reasoning summary, shown as
+  // plain text: it is working-out, not an answer, so it is neither formatted nor
+  // open by default.
+  "forms.assist.thinking": "Thinking",
+  "forms.assist.thoughtFor": "Thought for {seconds} s",
   // The step timeline. Each tool is named by what it does for the author, never by its
   // identifier; `step.other` covers a name this build does not know.
   "forms.assist.stepsLabel": "Steps the assistant took",

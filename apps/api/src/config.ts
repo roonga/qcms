@@ -513,8 +513,24 @@ export interface Config {
         readonly baseUrl: string | undefined;
         /** Hard ceiling on tool-loop steps per turn (`QCMS_AGENT_MAX_STEPS`). */
         readonly maxSteps: number;
+        /**
+         * Whether the provider's own reasoning summary reaches the panel
+         * (`QCMS_AGENT_THINKING`, Q16 of `plan/agent-everywhere.md`).
+         *
+         * Configuration read by this process alone, never a flag value a client
+         * learns (ADR-24): the panel renders its Thinking disclosure because the
+         * events arrived, not because it was told a setting. `off` drops every
+         * reasoning part **even when a provider emits one unasked**, which is
+         * what makes the default a guarantee rather than a request (SEC-8).
+         */
+        readonly thinking: AgentThinking;
       };
 }
+
+/** The values `QCMS_AGENT_THINKING` takes (Q16, ruled 2026-10-19). */
+export const AGENT_THINKING = ["off", "summary"] as const;
+
+export type AgentThinking = (typeof AGENT_THINKING)[number];
 
 /** Thrown when the environment fails validation; message names vars, never values. */
 export class ConfigError extends Error {
@@ -1122,11 +1138,33 @@ export function isLocalAgentEndpoint(baseUrl: string): boolean {
  * the secrets exist only in the enabled arm, and every issue names an env var
  * and never a value (SEC-8).
  */
+/**
+ * `QCMS_AGENT_THINKING`, typed and fail-fast like `QCMS_AGENT_MAX_STEPS`.
+ *
+ * The issue names the variable and its allowed values and **echoes no value**
+ * (SEC-8), which matters more here than it looks: an operator who pasted the
+ * wrong thing into the wrong slot would otherwise see it in a crash report.
+ * Read only when a provider is configured, so a `none` deployment boots with it
+ * set to anything at all.
+ */
+function parseAgentThinking(env: Env, issues: string[]): AgentThinking {
+  const raw = env.QCMS_AGENT_THINKING;
+  if (raw === undefined || raw.trim() === "") return "off";
+  const value = raw.trim();
+  const known = AGENT_THINKING.find((candidate) => candidate === value);
+  if (known === undefined) {
+    issues.push(`QCMS_AGENT_THINKING must be one of: ${AGENT_THINKING.join(", ")}`);
+    return "off";
+  }
+  return known;
+}
+
 function parseAgent(env: Env, flags: Flags, issues: string[]): Config["agent"] {
   const provider = flags.agentAuthoring;
   if (provider === "none") return { provider: "none" };
 
   const maxSteps = parseInt_(env, "QCMS_AGENT_MAX_STEPS", DEFAULTS.agentMaxSteps, 1, issues);
+  const thinking = parseAgentThinking(env, issues);
 
   // The deterministic test provider talks to nothing, so it needs neither a key
   // nor a real model id. Requiring either would make the CI composition carry a
@@ -1138,6 +1176,7 @@ function parseAgent(env: Env, flags: Flags, issues: string[]): Config["agent"] {
       apiKey: "",
       baseUrl: undefined,
       maxSteps,
+      thinking,
     };
   }
 
@@ -1172,6 +1211,7 @@ function parseAgent(env: Env, flags: Flags, issues: string[]): Config["agent"] {
     apiKey: apiKey?.trim() ?? "",
     baseUrl,
     maxSteps,
+    thinking,
   };
 }
 

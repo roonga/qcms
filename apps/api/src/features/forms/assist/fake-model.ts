@@ -66,7 +66,19 @@ export const FAKE_SCRIPTS = [
   "length",
   "step-limit",
   "narrate-then-tools",
+  "reasoning",
 ] as const;
+
+/**
+ * The sentinel the `reasoning` script puts in its scripted reasoning text.
+ *
+ * One string, asserted in both directions by one script: present on the wire
+ * and in the panel under `QCMS_AGENT_THINKING=summary`, and absent from the
+ * wire, the logs, the exported telemetry, the next turn's request body and the
+ * replayed conversation under `off` - where the script emits the parts anyway,
+ * which is the whole point (081 exit criteria 1, 2 and 5).
+ */
+export const FAKE_REASONING_SENTINEL = "qcms-reasoning-sentinel-7f3a";
 
 export type FakeScript = (typeof FAKE_SCRIPTS)[number];
 
@@ -471,6 +483,61 @@ function planNarrateStep(
 }
 
 /**
+ * The `reasoning` script: a model that thinks out loud, whatever it was asked.
+ *
+ * It emits reasoning parts **unconditionally**, because the property under test
+ * is that `off` drops them rather than that `off` declines to ask for them. A
+ * script that only emitted them under `summary` would leave the interesting
+ * half - a provider volunteering reasoning nobody requested - untested, and
+ * that is exactly what `openai-compatible` endpoints and the newer Anthropic
+ * models do.
+ *
+ * The text carries a Markdown construct as well as the sentinel, so the panel's
+ * "plain text, never Markdown" rule has something to fail on: under `summary`
+ * the asterisks must be visible as characters.
+ */
+function planReasoningStep(
+  prompt: readonly PromptMessage[],
+  results: Map<string, unknown>,
+): StreamPart[] {
+  const reasoning: StreamPart[] = [
+    { type: "reasoning-start", id: "r0" },
+    {
+      type: "reasoning-delta",
+      id: "r0",
+      delta: `Checking the library first. **${FAKE_REASONING_SENTINEL}** is my note to self.`,
+    },
+    { type: "reasoning-end", id: "r0" },
+  ];
+
+  if (!results.has("search_question_library")) {
+    const query = pickSearchQuery(prompt);
+    return [
+      ...reasoning,
+      ...textParts("Let me look at the library.", "t0"),
+      toolCallPart("search_question_library", {
+        limit: 10,
+        ...(query === undefined ? {} : { query }),
+      }),
+      finishPart("tool-calls"),
+    ];
+  }
+  if (!results.has("propose_draft")) {
+    const draft = currentDraft(prompt) ?? {};
+    return [
+      ...reasoning,
+      toolCallPart("propose_draft", { definition: buildProposal(draft, libraryHits(results)) }),
+      finishPart("tool-calls"),
+    ];
+  }
+  return [
+    ...reasoning,
+    ...textParts("I proposed a driving-history step with a gated follow-up.", "t2"),
+    finishPart("stop"),
+  ];
+}
+
+/**
  * How slowly a script's chunks arrive.
  *
  * Zero for every script but one: a deterministic test wants its events now.
@@ -480,6 +547,25 @@ function planNarrateStep(
  */
 const CHUNK_DELAY_MS: Readonly<Partial<Record<FakeScript, number>>> = {
   "narrate-then-tools": 150,
+};
+
+/**
+ * The scripts whose next step depends on what has already run, each keyed by
+ * name so {@link planStep} dispatches rather than growing another branch per
+ * script. The ones left in `planStep` answer the same way on every round.
+ */
+const STATEFUL_PLANNERS: Readonly<
+  Partial<
+    Record<
+      FakeScript,
+      (prompt: readonly PromptMessage[], results: Map<string, unknown>) => StreamPart[]
+    >
+  >
+> = {
+  "tool-error-recovered": planRecoveredStep,
+  "propose-questions": planProposeQuestionsStep,
+  "narrate-then-tools": planNarrateStep,
+  reasoning: planReasoningStep,
 };
 
 /** Plan the parts this step emits, given everything that has happened so far. */
@@ -542,18 +628,8 @@ function planStep(prompt: readonly PromptMessage[], script: FakeScript): StreamP
   }
 
   const results = toolResults(prompt);
-
-  if (script === "tool-error-recovered") {
-    return planRecoveredStep(prompt, results);
-  }
-
-  if (script === "propose-questions") {
-    return planProposeQuestionsStep(prompt, results);
-  }
-
-  if (script === "narrate-then-tools") {
-    return planNarrateStep(prompt, results);
-  }
+  const planner = STATEFUL_PLANNERS[script];
+  if (planner !== undefined) return planner(prompt, results);
 
   if (!results.has("search_question_library")) {
     const query = pickSearchQuery(prompt);

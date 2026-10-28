@@ -1006,6 +1006,102 @@ describe("AssistPanel focus", () => {
   });
 });
 
+/**
+ * The thinking disclosure (081 exit criteria 1, 2 and 5).
+ *
+ * The panel knows nothing about `QCMS_AGENT_THINKING` (ADR-24), so every case
+ * here is stated in terms of the events: the disclosure exists when reasoning
+ * frames arrive and does not when they do not, which is exactly what the
+ * operator setting decides on the API's side.
+ */
+describe("AssistPanel thinking disclosure", () => {
+  it("renders nothing when no reasoning frame arrives", async () => {
+    stubFetch([frame("text", { delta: "Here is the draft." })]);
+    renderPanel();
+
+    fireEvent.change(composer(), { target: { value: "Go" } });
+    fireEvent.keyDown(composer(), { key: "Enter" });
+
+    await waitFor(() => {
+      expect(screen.getByText("Here is the draft.")).toBeTruthy();
+    });
+    expect(screen.queryByTestId("qcms-assist-thinking")).toBeNull();
+  });
+
+  it("renders collapsed, in plain text, with a duration once the summary ends", async () => {
+    stubFetch([
+      frame("reasoning", { delta: "Checking **one** thing first.\nThen the other." }),
+      frame("reasoning-end", {}),
+      frame("text", { delta: "Here is the draft." }),
+    ]);
+    renderPanel();
+
+    fireEvent.change(composer(), { target: { value: "Go" } });
+    fireEvent.keyDown(composer(), { key: "Enter" });
+
+    const disclosure = await screen.findByTestId("qcms-assist-thinking");
+    // Collapsed: the summary is working-out, not the reply.
+    expect((disclosure as HTMLDetailsElement).open).toBe(false);
+    expect(disclosure.textContent).toContain(t("forms.assist.thinking"));
+
+    // Plain text, never Markdown: the asterisks are characters, and nothing
+    // became an element.
+    expect(disclosure.textContent).toContain("**one**");
+    expect(disclosure.querySelector("strong")).toBeNull();
+    expect(disclosure.querySelector(".qcms-assist-md")).toBeNull();
+
+    // And the duration replaces the running indicator once it has ended.
+    await waitFor(() => {
+      expect(disclosure.textContent).toMatch(/Thought for \d+ s/u);
+    });
+    expect(disclosure.querySelector(".qcms-assist-think__pulse")).toBeNull();
+  });
+
+  it("shows the running indicator while the summary is still arriving", async () => {
+    vi.stubGlobal(
+      "fetch",
+      vi.fn().mockImplementation(
+        openTurn(
+          () => undefined,
+          [frame("reasoning", { delta: "weighing it up" })],
+        ),
+      ),
+    );
+    renderPanel();
+
+    fireEvent.change(composer(), { target: { value: "Go" } });
+    fireEvent.keyDown(composer(), { key: "Enter" });
+
+    const disclosure = await screen.findByTestId("qcms-assist-thinking");
+    expect(disclosure.querySelector(".qcms-assist-think__pulse")).not.toBeNull();
+    expect(disclosure.textContent).not.toMatch(/Thought for/u);
+  });
+
+  it("keeps the summary out of the conversation the API is sent next", async () => {
+    stubFetch([
+      frame("reasoning", { delta: "SENTINEL-REASONING" }),
+      frame("reasoning-end", {}),
+      frame("text", { delta: "Here is the draft." }),
+    ]);
+    renderPanel();
+
+    fireEvent.change(composer(), { target: { value: "First" } });
+    fireEvent.keyDown(composer(), { key: "Enter" });
+    await waitFor(() => {
+      expect(screen.getByText("Here is the draft.")).toBeTruthy();
+    });
+
+    fireEvent.change(composer(), { target: { value: "Second" } });
+    fireEvent.keyDown(composer(), { key: "Enter" });
+
+    await waitFor(() => {
+      expect(vi.mocked(fetch)).toHaveBeenCalledTimes(2);
+    });
+    const sent = vi.mocked(fetch).mock.calls[1]?.[1]?.body;
+    expect(typeof sent === "string" ? sent : "").not.toContain("SENTINEL-REASONING");
+  });
+});
+
 /** The assistant's identity (080 exit criterion 9, issue #1129). */
 describe("AssistPanel identity", () => {
   it("names the panel from the header mark, with no visible title word", () => {

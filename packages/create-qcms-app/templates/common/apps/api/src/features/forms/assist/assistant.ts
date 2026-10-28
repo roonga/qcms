@@ -14,7 +14,6 @@ import {
   APICallError,
   stepCountIs,
   streamText,
-  type JSONValue,
   type LanguageModel,
   type StopCondition,
   type TextStreamPart,
@@ -23,10 +22,11 @@ import {
 
 import type { FormDefinition } from "@roonga/qcms-core";
 
-import type { Config } from "../../../config.js";
+import type { AgentThinking, Config } from "../../../config.js";
 import type { Logger } from "../../../logger.js";
 import { fakeAssistantModel } from "./fake-model.js";
 import { buildSystemPrompt, SYSTEM_PROMPT_VERSION } from "./system-prompt.js";
+import { thinkingProviderOptions, type ProviderOptions } from "./thinking.js";
 import {
   assistToolSet,
   createProposalState,
@@ -34,10 +34,6 @@ import {
   type ProposalState,
 } from "./tools.js";
 import type { AssistContext, AssistEvent, DraftAssistant } from "./types.js";
-
-/** The SDK's per-provider options passthrough, spelled without importing its
- * internal provider package. */
-type ProviderOptions = Record<string, Record<string, JSONValue>>;
 
 /** One prose segment of a turn: the provider's segment id and what it said. */
 export interface TextSegment {
@@ -183,13 +179,15 @@ export function aiSdkDraftAssistant(options: {
   readonly providerId: string;
   readonly logger: Logger;
   readonly providerOptions?: ProviderOptions;
+  /** Whether reasoning parts reach the client at all (081). Defaults to `off`. */
+  readonly thinking?: AgentThinking;
 }): DraftAssistant {
-  const { model, providerId, logger, providerOptions } = options;
+  const { model, providerId, logger, providerOptions, thinking = "off" } = options;
 
   return {
     assist(ctx: AssistContext, signal: AbortSignal): AsyncIterable<AssistEvent> {
       const state = createProposalState();
-      return runTurn({ ctx, signal, model, providerId, logger, providerOptions, state });
+      return runTurn({ ctx, signal, model, providerId, logger, providerOptions, state, thinking });
     },
   };
 }
@@ -332,8 +330,19 @@ export function newRunOutcome(): RunOutcome {
 export function handlePart(
   part: TextStreamPart<ToolSet>,
   outcome: RunOutcome,
+  thinking: AgentThinking = "off",
 ): AssistEvent | undefined {
   switch (part.type) {
+    // Reasoning is forwarded only under `summary`, and dropped under `off` **even
+    // when a provider emits it unasked** (081, SEC-8). Dropping it here rather
+    // than declining to request it is what makes the default a guarantee: a model
+    // that volunteers thinking, or an `openai-compatible` endpoint that always
+    // does, cannot get a word of it onto a screen. Nothing is accumulated either,
+    // so there is no buffer for a logger or the next turn's request to read.
+    case "reasoning-delta":
+      return thinking === "summary" ? { type: "reasoning", delta: part.text } : undefined;
+    case "reasoning-end":
+      return thinking === "summary" ? { type: "reasoning-end" } : undefined;
     case "start-step":
       outcome.steps += 1;
       return { type: "status", phase: "thinking" };
@@ -429,8 +438,9 @@ async function* runTurn(args: {
   logger: Logger;
   providerOptions: ProviderOptions | undefined;
   state: ProposalState;
+  thinking: AgentThinking;
 }): AsyncGenerator<AssistEvent> {
-  const { ctx, signal, model, providerId, logger, providerOptions, state } = args;
+  const { ctx, signal, model, providerId, logger, providerOptions, state, thinking } = args;
   const outcome = newRunOutcome();
 
   const result = streamText({
@@ -449,7 +459,7 @@ async function* runTurn(args: {
 
   try {
     for await (const part of result.stream) {
-      const event = handlePart(part, outcome);
+      const event = handlePart(part, outcome, thinking);
       if (event !== undefined) yield event;
     }
   } catch (error) {
@@ -541,6 +551,13 @@ async function* finishTurn(args: {
     // the model wrote (SEC-8). Non-zero on a turn that still proposed is normal
     // and is how a model correcting itself looks from here.
     toolErrors: outcome.toolErrors,
+    // The provider's reasoning token count, and nothing else about reasoning
+    // (SEC-8). The text never reaches a logger, a span or an audit row, and
+    // there is nowhere it could: `handlePart` forwards each delta and keeps
+    // none, so no buffer of it exists by the time this line runs. The count is
+    // here because reasoning is billed output and an operator turning `summary`
+    // on has no other way to see what it costs.
+    reasoningTokens: outcome.reasoningTokens,
   });
 
   yield {
@@ -700,6 +717,13 @@ async function* deferred(
  * synchronous. Whether the key is present was already settled at boot by config
  * validation, so nothing security-relevant is deferred here.
  */
+/** Spread-shaped, because `exactOptionalPropertyTypes` refuses an explicit `undefined`. */
+function optionalProviderOptions(
+  options: ProviderOptions | undefined,
+): { providerOptions?: ProviderOptions } {
+  return options === undefined ? {} : { providerOptions: options };
+}
+
 export function selectDraftAssistant(config: Config, logger: Logger): DraftAssistant {
   const agent = config.agent;
   if (agent.provider === "none") return unavailableDraftAssistant;
@@ -708,7 +732,16 @@ export function selectDraftAssistant(config: Config, logger: Logger): DraftAssis
   return {
     assist(ctx: AssistContext, signal: AbortSignal): AsyncIterable<AssistEvent> {
       pending ??= resolveModel(agent).then((model) =>
-        aiSdkDraftAssistant({ model, providerId: agent.provider, logger }),
+        aiSdkDraftAssistant({
+          model,
+          providerId: agent.provider,
+          logger,
+          thinking: agent.thinking,
+          // The one place the setting becomes a vendor request (081, section 8).
+          // `undefined` under `off`, and for the two providers with nothing to
+          // ask for, so the call is byte-identical to what it was before.
+          ...optionalProviderOptions(thinkingProviderOptions(agent.provider, agent.thinking)),
+        }),
       );
       return deferred(pending, ctx, signal);
     },

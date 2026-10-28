@@ -4325,6 +4325,36 @@ div:has(> [role="dialog"] [data-qcms-dialog="wide"]) {
   }
 }
 
+/* The thinking disclosure (081). Collapsed by default, plain text inside, and a
+   shimmer on the summary only while the summary is still arriving. */
+.qcms-assist-think {
+  font-size: 0.8125rem;
+  color: var(--color-text-muted);
+}
+.qcms-assist-think > summary {
+  display: flex;
+  align-items: center;
+  gap: 0.375rem;
+  cursor: pointer;
+}
+.qcms-assist-think__took {
+  color: var(--color-text-muted);
+}
+.qcms-assist-think__pulse {
+  inline-size: 6px;
+  block-size: 6px;
+  border-radius: 50%;
+  background-color: var(--color-primary);
+  animation: qcms-assist-pulse 1.2s ease-in-out infinite;
+}
+.qcms-assist-think__body {
+  margin-block-start: 0.375rem;
+  padding-inline-start: 0.75rem;
+  border-inline-start: 2px solid var(--color-border);
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+}
+
 .qcms-assist-card {
   display: flex;
   flex-direction: column;
@@ -4345,6 +4375,7 @@ div:has(> [role="dialog"] [data-qcms-dialog="wide"]) {
 @media (prefers-reduced-motion: reduce) {
   .qcms-assist-caret,
   .qcms-assist-steps__pulse,
+  .qcms-assist-think__pulse,
   .qcms-assist-mark[data-working="true"] .qcms-assist-mark__light {
     animation: none;
   }

@@ -176,6 +176,15 @@ export type AssistEvent =
    * segment rather than every delta joined.
    */
   | { readonly type: "text"; readonly delta: string; readonly segment?: string }
+  /**
+   * A chunk of the provider's own reasoning summary, forwarded **only** under
+   * `QCMS_AGENT_THINKING=summary` (081, SEC-8). It is never logged, never
+   * stored, and never replayed into the next turn's request: the request schema
+   * carries text turns only. The admin renders it as plain text, never Markdown.
+   */
+  | { readonly type: "reasoning"; readonly delta: string }
+  /** The reasoning summary has ended. Carries nothing. */
+  | { readonly type: "reasoning-end" }
   /** A tool call outside the allowlist was refused server-side (041 security control). */
   | { readonly type: "tool-rejected"; readonly tool: string }
   /** The completed, server-validated proposal. Terminal. */

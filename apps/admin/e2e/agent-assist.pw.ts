@@ -403,6 +403,61 @@ test("Enter sends and Shift+Enter adds a line (exit criterion 5)", async ({ page
 });
 
 /**
+ * The thinking disclosure (081 exit criteria 2 and 7).
+ *
+ * The harness API runs with `QCMS_AGENT_THINKING=summary`
+ * (`apps/portal/e2e/support/api-server.ts`), because the disclosure only exists
+ * on screen when reasoning events arrive and the two claims that need a real
+ * browser are about the disclosure: axe over it open and closed, and its
+ * indicator under reduced motion. The `off` half is a wire-level claim, pinned
+ * against the same `reasoning` script in `assistant.test.ts`.
+ *
+ * Nothing on this page knows the setting. The panel renders the disclosure
+ * because the frames came (ADR-24).
+ */
+test("shows the thinking disclosure, collapsed and in plain text (081 exit criterion 2)", async ({
+  page,
+}) => {
+  test.setTimeout(180_000);
+  await signInWithTotp(page, EMAIL, totpSecret);
+  await page.goto(`/forms/${formId}`);
+  await expect(page.getByTestId("qcms-assist-panel")).toBeVisible({ timeout: 30_000 });
+
+  await send(page, `#qcms-fake:reasoning #qcms-fake-search:${NEEDLE} add a step`);
+
+  const disclosure = page.getByTestId("qcms-assist-thinking").first();
+  await expect(disclosure).toBeVisible({ timeout: 60_000 });
+  // Collapsed, and reporting how long it took once the summary has ended.
+  await expect(disclosure).toContainText("Thinking");
+  await expect(disclosure).toContainText(/Thought for \d+ s/u, { timeout: 60_000 });
+
+  // axe closed...
+  const closed = await new AxeBuilder({ page })
+    .include('[data-testid="qcms-assist-panel"]')
+    .withTags(["wcag2a", "wcag2aa", "wcag21a", "wcag21aa", "wcag22aa"])
+    .analyze();
+  expect(
+    closed.violations.map((v) => `${v.id}: ${v.nodes.map((n) => n.target.join(" ")).join(" | ")}`),
+    "axe violations with the thinking disclosure closed",
+  ).toEqual([]);
+
+  // ...and open, with the sentinel visible and its Markdown as characters.
+  await disclosure.locator("summary").click();
+  await expect(disclosure).toContainText("qcms-reasoning-sentinel-7f3a");
+  await expect(disclosure).toContainText("**qcms-reasoning-sentinel-7f3a**");
+  await expect(disclosure.locator("strong")).toHaveCount(0);
+
+  const open = await new AxeBuilder({ page })
+    .include('[data-testid="qcms-assist-panel"]')
+    .withTags(["wcag2a", "wcag2aa", "wcag21a", "wcag21aa", "wcag22aa"])
+    .analyze();
+  expect(
+    open.violations.map((v) => `${v.id}: ${v.nodes.map((n) => n.target.join(" ")).join(" | ")}`),
+    "axe violations with the thinking disclosure open",
+  ).toEqual([]);
+});
+
+/**
  * Reduced motion (exit criterion 8, section 4.6).
  *
  * Read off the computed style rather than off a screenshot: what the criterion
@@ -421,18 +476,33 @@ test("runs no animation under reduced motion (exit criterion 8)", async ({ page 
 
   const animated = await page.evaluate(() => {
     const names: string[] = [];
+    const check = (label: string, element: Element) => {
+      const style = getComputedStyle(element);
+      if (style.animationName !== "none" && style.animationName !== "") {
+        names.push(`${label}: ${style.animationName}`);
+      }
+    };
+
+    // The three the running turn actually has on screen.
     for (const selector of [
       ".qcms-assist-caret",
       ".qcms-assist-steps__pulse",
       '.qcms-assist-mark[data-working="true"] .qcms-assist-mark__light',
     ]) {
-      for (const element of document.querySelectorAll(selector)) {
-        const style = getComputedStyle(element);
-        if (style.animationName !== "none" && style.animationName !== "") {
-          names.push(`${selector}: ${style.animationName}`);
-        }
-      }
+      for (const element of document.querySelectorAll(selector)) check(selector, element);
     }
+
+    // The thinking indicator, probed on an element of its own: this turn emits
+    // no reasoning, and the one that does settles its disclosure faster than a
+    // browser can be pointed at the indicator. What the criterion asks is a
+    // question about the stylesheet under this media query, and that is what
+    // this measures.
+    const probe = document.createElement("span");
+    probe.className = "qcms-assist-think__pulse";
+    document.body.append(probe);
+    check(".qcms-assist-think__pulse", probe);
+    probe.remove();
+
     return names;
   });
   expect(animated, "animations still running under prefers-reduced-motion: reduce").toEqual([]);

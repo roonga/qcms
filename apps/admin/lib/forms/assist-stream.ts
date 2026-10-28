@@ -77,6 +77,14 @@ export type AssistEvent =
    * API, where every delta folds into one segment as it used to.
    */
   | { readonly type: "text"; readonly delta: string; readonly segment?: string }
+  /**
+   * A chunk of the provider's reasoning summary (081). It arrives only when the
+   * API's operator setting allows it, and **nothing here depends on that
+   * setting's value**: the disclosure renders because the events came, which is
+   * what keeps ADR-24's "clients receive behaviour, not flag values" intact.
+   */
+  | { readonly type: "reasoning"; readonly delta: string }
+  | { readonly type: "reasoning-end" }
   | { readonly type: "tool-rejected"; readonly tool: string }
   | {
       readonly type: "usage";
@@ -164,6 +172,12 @@ function toAssistEvent(raw: unknown): AssistEvent | undefined {
       return toToolOutcomeEvent(raw);
     case "text":
       return toTextEvent(raw);
+    case "reasoning":
+      return typeof raw["delta"] === "string"
+        ? { type: "reasoning", delta: raw["delta"] }
+        : undefined;
+    case "reasoning-end":
+      return { type: "reasoning-end" };
     case "tool-rejected":
       return typeof raw["tool"] === "string"
         ? { type: "tool-rejected", tool: raw["tool"] }

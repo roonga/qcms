@@ -15,6 +15,7 @@ import {
   stepQuestionRefs,
 } from "@roonga/qcms-core";
 
+import type { AgentThinking } from "../../../config.js";
 import { createNullLogger, type Logger } from "../../../logger.js";
 import { recordingLogger } from "../../../test-support.js";
 import {
@@ -24,7 +25,7 @@ import {
   newRunOutcome,
   toolOutcomeEvent,
 } from "./assistant.js";
-import { fakeAssistantModel } from "./fake-model.js";
+import { FAKE_REASONING_SENTINEL, fakeAssistantModel } from "./fake-model.js";
 import {
   ASSIST_ERROR_CODES,
   type AssistContext,
@@ -104,6 +105,25 @@ async function collect(
     model: fakeAssistantModel(),
     providerId: "fake",
     logger,
+  });
+  const events: AssistEvent[] = [];
+  for await (const event of assistant.assist(ctx, new AbortController().signal)) {
+    events.push(event);
+  }
+  return events;
+}
+
+/** The same loop with `QCMS_AGENT_THINKING` at a chosen value (081). */
+async function collectWithThinking(
+  ctx: AssistContext,
+  thinking: AgentThinking,
+  logger: Logger = createNullLogger(),
+): Promise<AssistEvent[]> {
+  const assistant = aiSdkDraftAssistant({
+    model: fakeAssistantModel(),
+    providerId: "fake",
+    logger,
+    thinking,
   });
   const events: AssistEvent[] = [];
   for await (const event of assistant.assist(ctx, new AbortController().signal)) {
@@ -631,6 +651,99 @@ describe("narrate-then-tools, through the shipped loop", () => {
       [1, "done"],
       [2, "done"],
     ]);
+  });
+});
+
+/**
+ * Thinking, at the mapping and through the loop (081 exit criteria 1, 2 and 5).
+ *
+ * The `reasoning` script emits its parts on every round **whatever the setting
+ * is**, so each case below is the same scripted model and only the setting
+ * differs. That is what makes the `off` case meaningful: it proves the mapping
+ * drops reasoning a provider volunteered, not that the request forgot to ask.
+ */
+describe("reasoning events", () => {
+  function reasoningPart(text: string): Parameters<typeof handlePart>[0] {
+    return { type: "reasoning-delta", id: "r0", text };
+  }
+
+  it("forwards a delta and the end under summary", () => {
+    const outcome = newRunOutcome();
+    expect(handlePart(reasoningPart("weighing it up"), outcome, "summary")).toEqual({
+      type: "reasoning",
+      delta: "weighing it up",
+    });
+    expect(handlePart({ type: "reasoning-end", id: "r0" }, outcome, "summary")).toEqual({
+      type: "reasoning-end",
+    });
+  });
+
+  it("drops both under off, and keeps nothing", () => {
+    const outcome = newRunOutcome();
+    expect(handlePart(reasoningPart("weighing it up"), outcome, "off")).toBeUndefined();
+    expect(handlePart({ type: "reasoning-end", id: "r0" }, outcome, "off")).toBeUndefined();
+    // Not buffered anywhere: there is no field a logger or the next turn's
+    // request could read reasoning text out of (SEC-8).
+    expect(JSON.stringify(outcome)).not.toContain("weighing it up");
+  });
+
+  it("drops both when no setting was given, so the default is the safe one", () => {
+    const outcome = newRunOutcome();
+    expect(handlePart(reasoningPart("secret"), outcome)).toBeUndefined();
+  });
+
+  it("puts no reasoning frame on the wire under the default, though the script emitted parts", async () => {
+    const { ctx } = contextFor("#qcms-fake:reasoning a quote form");
+    const events = await collect(ctx);
+
+    expect(events.filter((e) => e.type === "reasoning")).toHaveLength(0);
+    expect(events.filter((e) => e.type === "reasoning-end")).toHaveLength(0);
+    expect(JSON.stringify(events)).not.toContain(FAKE_REASONING_SENTINEL);
+    // The turn still works: the setting changes visibility and nothing else.
+    expect(events.find((e) => e.type === "proposal")).toBeDefined();
+  });
+
+  it("streams the frames under summary, carrying the sentinel", async () => {
+    const { ctx } = contextFor("#qcms-fake:reasoning a quote form");
+    const events = await collectWithThinking(ctx, "summary");
+
+    const deltas = events.flatMap((e) => (e.type === "reasoning" ? [e.delta] : []));
+    expect(deltas.join("")).toContain(FAKE_REASONING_SENTINEL);
+    expect(events.filter((e) => e.type === "reasoning-end").length).toBeGreaterThan(0);
+    expect(events.find((e) => e.type === "proposal")).toBeDefined();
+  });
+
+  /** SEC-8: the sentinel reaches no log line and no conversation the model sees. */
+  it("logs a reasoning token count and never a word of the text", async () => {
+    const { logger, lines } = recordingLogger();
+    const { ctx } = contextFor("#qcms-fake:reasoning a quote form");
+    await collectWithThinking(ctx, "summary", logger);
+
+    const serialised = JSON.stringify(lines);
+    expect(serialised).not.toContain(FAKE_REASONING_SENTINEL);
+
+    const record = lines.find((line) => line["msg"] === "draft assistant turn");
+    expect(record, JSON.stringify(lines)).toBeDefined();
+    // The field is on the record beside the input and output counts. Its VALUE
+    // does not survive to stdout: the JSON logger's redactor blanks any key
+    // containing "token", which has always been true of `inputTokens` and
+    // `outputTokens` too, so what a stdout reader sees is `[REDACTED]`. That is
+    // the redactor being conservative rather than this line being wrong, and it
+    // fails safe in the direction SEC-8 cares about.
+    expect(record).toHaveProperty("reasoningTokens");
+    expect(record?.["reasoningTokens"]).toBe("[REDACTED]");
+    expect(record?.["outputTokens"]).toBe("[REDACTED]");
+  });
+
+  it("carries no reasoning into the history a next turn would replay", async () => {
+    const { ctx } = contextFor("#qcms-fake:reasoning a quote form");
+    const events = await collectWithThinking(ctx, "summary");
+
+    // The proposal's rationale is what the panel folds into the conversation it
+    // sends back, and it is a TEXT segment: reasoning has no path into it.
+    const proposal = events.find((e) => e.type === "proposal");
+    if (proposal?.type !== "proposal") throw new Error("expected a proposal");
+    expect(proposal.proposal.rationale).not.toContain(FAKE_REASONING_SENTINEL);
   });
 });
 

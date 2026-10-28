@@ -235,6 +235,15 @@ export async function startApiServer(): Promise<void> {
     // lifted for the same frozen-clock reason as the respondent classes above.
     QCMS_FLAG_AGENT_AUTHORING: "fake",
     QCMS_RL_AGENT_ASSIST_MAX: "1000000",
+    // Task 081: the thinking disclosure, which only exists on screen when
+    // reasoning events arrive. `summary` is what makes them arrive, so this is
+    // the setting the browser suite has to run under to see the disclosure at
+    // all - and the disclosure is the half of 081 that needs a real browser
+    // (axe over it open and closed, and its indicator under reduced motion).
+    // The `off` half is a wire-level claim and is pinned where wire-level claims
+    // belong: `assistant.test.ts` drives the same `reasoning` script under both
+    // settings and asserts the sentinel reaches nothing under `off`.
+    QCMS_AGENT_THINKING: "summary",
   });
   // **One pool per environment, not one handle behind every pool** (ADR-40, Q2, task 066).
   // `MOUNT.all` mounts `test`'s respondent surface at `/test`, so this composition serves
