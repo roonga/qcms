@@ -674,7 +674,7 @@ describe("v-invalid patterns are refused at the authoring boundary (#53)", () =>
     ["a2ui-compiler fixtures/corpus/questions/q-msg-plate.json", "^[A-Z0-9][A-Z0-9-]{2,7}$"],
     ["api e2e/support/fixtures/q-am-plate.json", "^[A-Z0-9][A-Z0-9-]{2,7}$"],
   ])("the pattern in %s would be refused if authored fresh", async (where, pattern) => {
-    const slug =`v-fixture-${where.replace(/[^a-z0-9]+/gi, "-").toLowerCase()}`.slice(0, 60);
+    const slug = `v-fixture-${where.replace(/[^a-z0-9]+/gi, "-").toLowerCase()}`.slice(0, 60);
     const id = `q_v_fx_${Math.abs(hashOf(where)).toString(36)}`;
     const res = await post("/questions", { slug, definition: withPattern(id, pattern) });
 

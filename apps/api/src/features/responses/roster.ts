@@ -124,10 +124,7 @@ export async function loadRosters(
   return deriveRosters(steps, await readRosters(exec, sessionId), answers);
 }
 
-export type RosterRefusalCode =
-  | "REPEAT_NOT_ADDABLE"
-  | "UNKNOWN_INSTANCE"
-  | "REPEAT_MAX_REACHED";
+export type RosterRefusalCode = "REPEAT_NOT_ADDABLE" | "UNKNOWN_INSTANCE" | "REPEAT_MAX_REACHED";
 
 export type RosterWriteResult =
   | { readonly ok: true; readonly minted: readonly InstanceId[] }

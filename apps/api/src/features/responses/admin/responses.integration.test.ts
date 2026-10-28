@@ -479,14 +479,14 @@ describe("erase excludes from all read paths; unflag releases the event (exit cr
     expect(tombstone.sessionId).toBe(erased);
     expect(tombstone.alreadyErased).toBe(false);
 
-    const list =(await (await get("/forms/frm_erase_api/responses")).json()) as ListBody;
+    const list = (await (await get("/forms/frm_erase_api/responses")).json()) as ListBody;
     expect(list.responses.map((r) => r.sessionId)).toEqual([kept]);
     expect(list.total).toBe(1);
 
     expect((await get(`/forms/frm_erase_api/responses/${erased}`)).status).toBe(404);
     expect((await get(`/forms/frm_erase_api/responses/${kept}`)).status).toBe(200);
 
-    const rows =(await (await get("/forms/frm_erase_api/export?format=json")).json()) as Array<{
+    const rows = (await (await get("/forms/frm_erase_api/export?format=json")).json()) as Array<{
       sessionId: string;
     }>;
     expect(rows.map((r) => r.sessionId)).toEqual([kept]);
