@@ -9,20 +9,9 @@ import { afterAll, describe, expect, it } from "vitest";
 import { trackedFilesUnder } from "./tracked-files.mjs";
 
 /**
- * The guard that stops a kernel coverage run from reporting a green over nothing
- * (PR #970 review).
- *
- * The regression it was written for: the `vitest` 4 to 5 major changed
- * `coverage.include` to match each file's path relative to its project root, the root
- * config's repo-relative `packages/core/src/**` then matched no file at all, and
- * `pnpm --filter @roonga/qcms-core coverage` printed `Lines: Unknown% ( 0/0 )` and
- * exited 0 against `thresholds.lines: 95`. Vitest has no option that fails an empty
- * report, so the failure has to be asserted somewhere, and this is where.
- *
- * The cases below drive the guard with written-out summary reports rather than by
- * running Vitest, because what is being tested is the verdict, not the coverage
- * provider. The last case is the wiring: a guard the documented command no longer calls
- * is not a guard, and nothing else in the repository would notice its removal.
+ * Vitest has no option that fails an empty coverage report: a `coverage.include` that
+ * matches no file prints `0/0` and exits 0 against a 95 percent threshold, so the
+ * failure has to be asserted here.
  */
 
 const SCRIPT = fileURLToPath(new URL("check-coverage-measured.mjs", import.meta.url));
@@ -34,14 +23,12 @@ afterAll(() => {
   for (const directory of directories) rmSync(directory, { recursive: true, force: true });
 });
 
-/** The kernel's source files as the guard derives them: from git, not from a list here. */
 function kernelSources(): string[] {
   return trackedFilesUnder(join(REPO_ROOT, "packages", "core", "src"), {
     match: /^(?!.*\.test\.ts$).*\.ts$/,
   }).map((relative) => join(REPO_ROOT, "packages", "core", "src", relative));
 }
 
-/** A json-summary report naming `files`, with one measured line each. */
 function summaryFor(files: string[]): string {
   const entry = { lines: { total: 1, covered: 1, skipped: 0, pct: 100 } };
   const report: Record<string, unknown> = {

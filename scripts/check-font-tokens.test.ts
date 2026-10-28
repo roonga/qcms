@@ -15,28 +15,10 @@ import {
 import { VENDORED_SOURCE_PREFIX } from "./vendored-source.mjs";
 
 /**
- * Issue #27's gate, fed the declarations it exists to catch, VERBATIM.
- *
- * Ten declarations in this repository spelled a font-family list out, and between them
- * they said seven different things. Seven of the ten are shapes this gate judges: the
- * six stylesheet declarations in `REAL_DECLARATIONS` below, plus the one style object in
- * `REAL_STYLE_OBJECT`. All seven are copied byte for byte out of the merge base (commit
- * `a2602be8`), file and line recorded, so the fixtures cannot drift into
- * plausible-looking paraphrases of what was there. The gate must reject every one of
- * them, and the same file at the head must pass.
- *
- * The other three are the tails in `packages/ui/src/font-registry.ts` (`SANS_TAIL`,
- * `SERIF_TAIL`, `MONO_TAIL`) and are deliberately NOT this gate's business: they are TS
- * string constants, not a `font-family` declaration or a style object, and the manifest's
- * own suite polices them - `packages/ui/src/font-registry.test.ts` asserts that every
- * entry's tail is one of the three tail TOKENS.
- *
- * A gate asserted only by "it passes on the current tree" is indistinguishable from a
- * gate that always passes, which is why the fixtures are the real thing rather than a
- * sketch of it.
+ * The fixtures are copied byte for byte out of the declarations this gate was written to
+ * reject, so they cannot drift into paraphrases of what was there.
  */
 
-/** The six real declarations, as they stood at the merge base. */
 const REAL_DECLARATIONS = [
   {
     where: "apps/portal/app/globals.css:89",
@@ -79,7 +61,6 @@ const REAL_DECLARATIONS = [
   },
 ] as const;
 
-/** The seventh shape, and the only one outside a stylesheet. */
 const REAL_STYLE_OBJECT = {
   where: "apps/admin/components/forms/condition-json-pane.tsx:222",
   source:
@@ -153,7 +134,6 @@ describe("what the contract allows", () => {
         '@font-face { font-family: "Inter"; src: url("./fonts/inter-400.woff2") format("woff2"); }',
       ),
     ).toEqual([]);
-    // And the exemption stops at the closing brace.
     expect(
       checkStylesheet(
         "packages/ui/src/fonts.css",
@@ -169,8 +149,6 @@ describe("what the contract allows", () => {
   });
 
   it("leaves the documented adopter override surface alone", () => {
-    // It ships empty; overriding a tail there is how a deployment adds a face for
-    // its own audience, which is the supported edit rather than a second copy.
     expect(
       checkStylesheet(
         "apps/portal/app/adopter-theme.css",
@@ -232,15 +210,9 @@ describe("the shipped tree", () => {
   });
 
   it("scans a corpus that cannot have gone quietly empty", () => {
-    // CONTRIBUTING's companion clause to deriving the set from git: "each caller also
-    // asserts that its scan reaches something". Without this, narrowing SCAN_DIRS or
-    // SCAN_EXTENSIONS leaves all three rules vacuously true and the gate still green,
-    // which is the one failure a gate cannot notice about itself.
     const files = scannedFiles();
     expect(files.length).toBeGreaterThanOrEqual(MINIMUM_SCANNED);
 
-    // Every file the real declarations lived in is in scope, the token sheet included.
-    // A narrowing that dropped any of them would be green about a tree it no longer reads.
     for (const where of [
       ...REAL_DECLARATIONS.map((entry) => entry.where),
       REAL_STYLE_OBJECT.where,
@@ -262,8 +234,6 @@ describe("the shipped tree", () => {
   it("reaches the .css, .ts and .tsx files and nothing else", () => {
     const other = scannedFiles().filter((file) => !/\.(?:css|ts|tsx)$/u.test(file));
     expect(other).toEqual([]);
-    // Each extension is actually represented, so a rule that only ever sees one kind of
-    // file is not mistaken for a rule that holds across the tree.
     for (const extension of [".css", ".ts", ".tsx"]) {
       expect(
         scannedFiles().some((file) => file.endsWith(extension)),

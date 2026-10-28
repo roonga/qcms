@@ -1,13 +1,3 @@
-/**
- * Self-test for the SEC-8 hygiene gate (task 040).
- *
- * A gate nobody has seen refuse anything is not a gate. These cases feed it the
- * violations it exists to catch, one shape at a time, and pin the shapes it must
- * *not* flag: the repo's real logging vocabulary (`questionId`, counts, request
- * metadata) has to keep passing, or the gate gets waived into uselessness on its
- * first false positive.
- */
-
 import { execFileSync } from "node:child_process";
 import { existsSync } from "node:fs";
 import { fileURLToPath } from "node:url";
@@ -141,10 +131,8 @@ describe("SQL concatenation, the form a regex can reach", () => {
   });
 
   it("documents the form it cannot reach, so the gap is visible rather than assumed", () => {
-    // A statement assembled elsewhere and passed by variable needs data-flow
-    // analysis, not a regex. Asserted as a KNOWN LIMITATION: if a future change
-    // makes this detectable, this test fails and the module comment gets
-    // updated with it, rather than the claim quietly outrunning the check.
+    // A known limitation, pinned so the module comment's boundary claim cannot quietly
+    // outrun the check: this shape needs data-flow analysis, not a regex.
     const assembledElsewhere = "const q = base + id;\nawait db.execute(q);";
     expect(scanSql("probe.ts", assembledElsewhere)).toHaveLength(0);
   });
@@ -153,16 +141,8 @@ describe("SQL concatenation, the form a regex can reach", () => {
 describe("the scanned roots cover the workspace they claim to", () => {
   const repoRoot = fileURLToPath(new URL("..", import.meta.url));
   /**
-   * The gate reported "417 source files" while 59 tracked files were outside its
-   * enumeration: 29 `packages/ui/**` TSX, 5 `apps/**` mjs, and every one of the
-   * 24 `scripts/*.mjs` including the gate itself, because a `scripts/**\/*.mjs`
-   * pathspec matches nothing when the files sit at the top level.
-   *
-   * This derives the expectation from what git actually tracks, so drift is a
-   * red instead of a silence. It deliberately keeps its **own** copies of the
-   * roots and extensions rather than importing `SOURCE_ROOTS` and
-   * `SOURCE_EXTENSIONS`: importing them would make the test restate the
-   * implementation and pass no matter what either says.
+   * Keeps its own copies of the roots and extensions rather than importing
+   * `SOURCE_ROOTS` and `SOURCE_EXTENSIONS`, which would pass whatever either says.
    */
   const EXECUTABLE = /\.(ts|tsx|mts|cts|mjs|cjs|js|jsx)$/;
   const ROOTS = ["apps/", "packages/", "scripts/", "tooling/"];
@@ -198,10 +178,8 @@ describe("the scanned roots cover the workspace they claim to", () => {
   });
 
   it("opens files in every root it claims, not just the ones with subdirectories", () => {
-    // The original globs used `scripts/**` pathspecs, which matched nothing at
-    // all because git fnmatch still wants an intervening directory - so an
-    // entire root went unscanned while the file count looked healthy. Asserting
-    // per-root presence is what makes that shape impossible to reintroduce.
+    // A `scripts/**` pathspec matches nothing for files at the top level, because git
+    // fnmatch wants an intervening directory, so presence is asserted per root.
     const scanned = sourceFiles();
     for (const root of ["apps/", "packages/", "scripts/"]) {
       expect(
@@ -222,25 +200,16 @@ describe("backtick concatenation, the evasion a quote-only alternation missed", 
   });
 
   it("still leaves the sql tagged template alone, which is the safe form", () => {
-    // The regression this guards: adding a backtick to the quote class must not
-    // start flagging Drizzle's parameterizing template.
+    // Adding a backtick to the quote class must not start flagging Drizzle's
+    // parameterizing template.
     expect(scanSql("probe.ts", "await exec.execute(sql`select ${a} from t`);")).toHaveLength(0);
     expect(scanSql("probe.ts", "await db.execute(sql`select 1`);")).toHaveLength(0);
   });
 });
 
 /**
- * ADR-24's widened rule, as a gate rather than a review catch (issue #910).
- *
- * The rule: no environment identifier may appear in an API response body. It was caught
- * by a reviewer twice in two weeks - the webhook refusal prose ending "set
- * QCMS_WEBHOOK_ALLOW_PRIVATE for on-prem targets" (issue #756) and the breach-check 503
- * ending "set QCMS_ADMIN_PASSWORD_BREACH_CHECK=false" (issue #910) - so these cases
- * plant each shape the gate must name, and, at least as important, the shapes it must
- * not, because the same file that must not ship a variable name to a client is full of
- * operator log lines and boot refusals that legitimately do.
- *
- * `label` is load-bearing in every case: the rule reads `apps/api/src/` only.
+ * ADR-24: no environment identifier may appear in an API response body. `label` is
+ * load-bearing in every case, because the rule reads `apps/api/src/` only.
  */
 describe("an environment identifier in a response body is refused", () => {
   /** A path inside the scanned root, so the rule engages at all. */
@@ -256,8 +225,8 @@ describe("an environment identifier in a response body is refused", () => {
   });
 
   it("follows one hop through a named constant, which is how #910 hid", () => {
-    // The exact shape of the defect: the literal is nowhere near the response, and a
-    // scan of constructor arguments alone reads clean.
+    // The literal is nowhere near the response, so a scan of constructor arguments
+    // alone reads clean.
     const source = [
       'const FAILED = "... or set QCMS_ADMIN_PASSWORD_BREACH_CHECK=false ...";',
       'throw new APIError("SERVICE_UNAVAILABLE", { message: FAILED, code: "X" });',
@@ -273,9 +242,7 @@ describe("an environment identifier in a response body is refused", () => {
   });
 
   it("is not fooled by a comma inside the sentence", () => {
-    // The first version of this rule sliced a property value with `[^,}]*` and missed
-    // the assist stream's "Try a smaller request, or raise QCMS_AGENT_MAX_STEPS." - the
-    // comma in the English ended the slice before the variable.
+    // A comma in the English must not end the property-value slice.
     const source =
       '  const e = {\n    message:\n      "Try a smaller request, or raise QCMS_AGENT_MAX_STEPS.",\n  };\n';
     const hits = scanEnvNamesInBodies(API, source);
@@ -304,17 +271,9 @@ describe("an environment identifier in a response body is refused", () => {
 });
 
 /**
- * A stray `)` inside a string argument used to end the slice and hide the rest of the
- * call (issue #910, raised on the pull request by a reviewer and by Copilot).
- *
- * `callArguments` counts parentheses and does not track quotes, and its comment claimed
- * the miscount could only lengthen a slice. It cannot: an unbalanced `)` in a literal
- * closes the count early and makes the slice SHORTER, so a later argument is never
- * examined. That mattered most exactly where there was no second net - a **positional**
- * message, `new ApiError(code, status, "...")`, which is the #756 shape and which the
- * property scan cannot see at all - and it meant the rule held or failed depending on
- * whether an author's prose happened to balance its brackets. Hence
- * `callArgumentsQuoteAware`, and hence one case per shape the reviewer probed.
+ * An unbalanced `)` inside a string literal closes a paren count early and makes the
+ * slice SHORTER, so a later argument is never examined. A positional message,
+ * `new ApiError(code, status, "...")`, has no second net, hence the quote-aware slice.
  */
 describe("a stray ) inside a string argument no longer hides the rest of the call", () => {
   const API = "apps/api/src/features/auth/instance.ts";
@@ -344,15 +303,13 @@ describe("a stray ) inside a string argument no longer hides the rest of the cal
   });
 
   it("still catches the balanced case, which is the one that always worked", () => {
-    // Kept as a control: the bug was that whether the rule held depended on the
-    // author's brackets, so the passing half has to keep passing.
     const source = 'throw new ApiError("c", 422, "see (docs/operations.md) then set QCMS_A");';
     expect(scanEnvNamesInBodies(API, source)).toHaveLength(1);
   });
 
   it("ends a literal on its closing quote and not on an escaped one", () => {
-    // The shared skipper's one subtlety: `\\"` is content, so the literal does not end
-    // there and the argument after it is still examined.
+    // `\\"` is content, so the literal does not end there and the next argument is
+    // still examined.
     expect(callArgumentsQuoteAware('f("a \\" b)", "QCMS_A")', 1)).toContain("QCMS_A");
     expect(endOfStringLiteral('"a\\"b"', 0)).toBe(6);
   });
@@ -375,7 +332,7 @@ describe("the operator channels keep naming variables, because that is the point
 
   it("leaves a boot refusal alone", () => {
     // `config.ts` raises these before the process serves a request, so no client exists
-    // to receive one. Twelve of them, none of which may start needing a waiver.
+    // to receive one.
     const source = "issues.push(`QCMS_AGENT_MODEL is required when QCMS_FLAG_AGENT_AUTHORING=x`);";
     expect(scanEnvNamesInBodies(API, source)).toHaveLength(0);
   });
@@ -389,8 +346,7 @@ describe("the operator channels keep naming variables, because that is the point
 
   it("does not read a TypeScript parameter annotation as a body", () => {
     // `warn: (message: string) => void,` has a `message:` and then a `)` before any
-    // comma. An earlier version let the value slice run negative on that bracket and
-    // swallow the rest of the file, reporting every variable named anywhere in it.
+    // comma, which must not let the value slice run negative.
     const source = [
       "export interface Input {",
       "  readonly warn?: (message: string) => void;",
@@ -431,22 +387,19 @@ describe("comments are blanked without moving a single character", () => {
     expect(blanked.split("\n")).toHaveLength(source.split("\n").length);
     expect(blanked).not.toContain("QCMS_A");
     expect(blanked).not.toContain("QCMS_B");
-    // The string literal survives: that is the half the rule is about.
     expect(blanked).toContain("QCMS_C");
   });
 
   it("does not mistake a slash inside a string for the start of a comment", () => {
-    // "http://" appears throughout this repository's prose and URLs, and a regex that
-    // blanked from the first `//` would eat the rest of the line - including, in the
-    // real file, the variable name the rule exists to find.
+    // "http://" is everywhere in this repository, and blanking from the first `//`
+    // would eat the rest of the line, including the variable name being hunted.
     const blanked = blankComments('const e = { message: "see http://x/ QCMS_A" };');
     expect(blanked).toContain("QCMS_A");
   });
 
   it("does not mistake an apostrophe in prose for an opening quote", () => {
-    // The failure this prevents is silent and total: a comment containing "process's"
-    // would open a string that never closes, and every literal after it in the file
-    // would be read as comment text and skipped.
+    // An apostrophe in a comment must not open a string that never closes, which would
+    // silently skip every literal after it.
     const source = ["// this process's environment", 'const e = { message: "QCMS_A" };'].join("\n");
     expect(scanEnvNamesInBodies("apps/api/src/x.ts", source)).toHaveLength(1);
   });

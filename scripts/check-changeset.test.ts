@@ -28,9 +28,8 @@ function write(root: string, filePath: string, content: string): void {
 }
 
 function run(root: string, args: string[]): void {
-  // `as string`: every call site passes a literal argv whose first element is the
-  // program name, so args[0] is never undefined; `noUncheckedIndexedAccess` cannot
-  // see that. A runtime guard here would be unreachable code in a test helper.
+  // `as string`: every call site passes a literal argv, so `args[0]` is never undefined
+  // and a runtime guard here would be unreachable.
   const result = spawnSync(args[0] as string, args.slice(1), { cwd: root, encoding: "utf8" });
   if (result.status !== 0) {
     throw new Error(`${args.join(" ")} failed in ${root}: ${result.stderr}`);
@@ -52,12 +51,7 @@ function commit(root: string, message: string): void {
   ]);
 }
 
-/**
- * A throwaway repo shaped like this one: two publishable packages, one private
- * app, a changesets config. Committed on `main`, then switched to a work branch
- * so the gate has something to diff. The gate is run against THIS repo's script
- * file with the fixture as cwd, so the code under test is the shipped one.
- */
+/** Run with this repo's own gate file and the fixture as cwd, so the shipped code is under test. */
 function makeRepo(options: { seedChangeset?: string } = {}): string {
   const root = mkdtempSync(join(tmpdir(), "check-changeset-"));
   repos.push(root);
@@ -210,9 +204,6 @@ describe("check-changeset gate", () => {
   });
 
   it("FAILS LOUDLY on a workspace glob it cannot expand", () => {
-    // The throw is deliberate: silently skipping an unexpanded glob would leave
-    // the packages it covers unguarded, which is the failure mode this gate exists
-    // to prevent.
     const root = makeRepo();
     write(root, "pnpm-workspace.yaml", 'packages:\n  - "packages/**/nested"\n');
     commit(root, "unsupported workspace glob");
@@ -250,16 +241,10 @@ describe("check-changeset helpers", () => {
     expect(findPublishablePackages(REPO_ROOT).map((pkg) => pkg.name)).toEqual([
       "@roonga/qcms-a2ui-compiler",
       "@roonga/qcms-core",
-      // `@roonga/qcms-csv` and `@roonga/qcms-observability` were private helpers until task 037
-      // needed them installable: all three scaffolded apps depend on them at runtime,
-      // and a scaffolded project has no workspace to resolve `workspace:*` against.
       "@roonga/qcms-csv",
       "@roonga/qcms-db",
       "@roonga/qcms-observability",
       "@roonga/qcms-ui",
-      // The scaffolding CLI (task 037) is unscoped, and publishable for the same
-      // reason the packages are: an adopter runs `pnpm create qcms-app`, so a change
-      // to it is a change a consumer can see and needs a changeset.
       "create-qcms-app",
     ]);
   });
