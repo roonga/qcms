@@ -3,16 +3,9 @@ import { describe, expect, it } from "vitest";
 import { buildAdminExec, classifyBootstrap, generatePassword } from "./compose-admin.mjs";
 
 /**
- * The one coupling in `compose-admin.mjs` that reaches into another module's prose,
- * pinned here so a reword fails a test rather than turning every refusal into an
- * error at the worst moment.
- *
- * These three sentences are copied verbatim from `describeRefusal` in
- * `apps/api/src/features/auth/bootstrap.ts`. They are not imported: that module
- * pulls in `@roonga/qcms-db`, drizzle and the better-auth instance, which is a large
- * runtime dependency for a tooling test to carry in order to read three strings.
- * The trade is stated rather than hidden - if that function is reworded, update
- * these fixtures, and the assertions below say what has to stay true.
+ * Copied verbatim from `describeRefusal` in `apps/api/src/features/auth/bootstrap.ts`
+ * rather than imported, because importing it would pull in the database and better-auth.
+ * Reword that function and these fixtures have to move with it.
  */
 const REFUSALS = {
   alreadyBootstrapped:
@@ -41,9 +34,7 @@ describe("classifyBootstrap", () => {
     ).toBe("already-bootstrapped");
   });
 
-  // The reason the classification is not just "exit status 1". All three refusals
-  // share that status, and reporting a rejected password as a successful skip is
-  // the one misreading that would make dev:up lie about why sign-in fails.
+  // All three refusals share exit status 1, so the status alone cannot classify them.
   it("does not read a rejected password as a skip", () => {
     expect(classifyBootstrap({ status: 1, stderr: REFUSALS.weakPassword })).toBe("failed");
   });
@@ -77,23 +68,10 @@ describe("generatePassword", () => {
 });
 
 /**
- * The control `create-admin.ts` documents, checked one process further up than that
- * file can check it (issue #440).
- *
- * `create-admin` never reads a credential from its own argv. That was true and it
- * was also not the whole path: the harness reached it through `docker compose exec
- * --env QCMS_ADMIN_PASSWORD=<value>`, which put the password in the **docker CLI's**
- * argv on the host, where `/proc/<pid>/cmdline` is world-readable. A comment is a
- * check that cannot fail, so the property is asserted here instead.
- *
- * Both halves are asserted together on purpose. "The password is not in argv" is
- * trivially satisfiable by not passing the password at all, and a refactor that did
- * that would break the bootstrap while leaving a green test behind; every case below
- * that looks for the absence is paired with one that finds the value where the
- * mechanism is supposed to deliver it.
- *
- * The password below is an obvious fixture literal and never a generated one, so
- * nothing real is ever in a test name or a failure diff (SEC-8).
+ * The password must stay out of the docker CLI's own argv, where `/proc/<pid>/cmdline`
+ * is world-readable (SEC-8). Each absence case is paired with one that finds the value
+ * where the mechanism should deliver it, because absence alone is satisfied by passing
+ * nothing at all.
  */
 describe("buildAdminExec", () => {
   const CREDENTIALS = {
@@ -116,8 +94,6 @@ describe("buildAdminExec", () => {
   });
 
   it("still delivers the password, through the environment the docker CLI is given", () => {
-    // The other half of the case above: absence in argv only counts as a fix if the
-    // value is still arriving somewhere.
     expect(build().environment.QCMS_ADMIN_PASSWORD).toBe(CREDENTIALS.password);
   });
 
@@ -136,9 +112,8 @@ describe("buildAdminExec", () => {
   });
 
   it("leaves the environment it was handed intact", () => {
-    // The credentials are added to the docker CLI's environment, not substituted for
-    // it: that environment carries the seat's ports and the compose project's own
-    // values, and an exec without them addresses a different stack.
+    // Added to the docker CLI's environment, not substituted for it: without the seat's
+    // ports and project values an exec addresses a different stack.
     expect(build().environment).toMatchObject({ PATH: "/usr/bin", QCMS_PORT_SEAT: "5" });
   });
 

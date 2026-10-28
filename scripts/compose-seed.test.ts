@@ -2,14 +2,6 @@ import { describe, expect, it } from "vitest";
 
 import { buildSeedRun, databaseUrlFor } from "./compose-seed.mjs";
 
-/**
- * What `pnpm dev:seed` sends to Docker, pinned where it can be read without running
- * anything.
- *
- * Two properties are worth a test rather than a comment, and the first is a security
- * control rather than a preference.
- */
-
 const COMPOSE = [
   "compose",
   "--project-name",
@@ -26,37 +18,29 @@ const URL_WITH_SECRET = "postgres://qcms:s3cr3t-not-real@postgres:5432/qcms";
 
 describe("databaseUrlFor", () => {
   it("dials the service name, because the host has no route to that database", () => {
-    // The whole reason the loader runs in a container: `docker-compose.yml` publishes
-    // no port for Postgres and `compose-config.test.ts` asserts it stays that way,
-    // with the toolbox overlay layered on. `postgres:5432` is reachable only from
-    // inside the Compose network.
+    // `postgres:5432` is reachable only from inside the Compose network, which is why
+    // the loader runs in a container at all.
     expect(
       databaseUrlFor({ QCMS_DB_USER: "qcms", QCMS_DB_PASSWORD: "pw", QCMS_DB_NAME: "qcms" }),
     ).toBe("postgres://qcms:pw@postgres:5432/qcms");
   });
 
   it("falls back to the same defaults docker-compose.yml uses", () => {
-    // A developer who set only a password in `.env` gets the answer Compose would
-    // have interpolated, rather than a second opinion about what the user and
-    // database are called.
     expect(databaseUrlFor({ QCMS_DB_PASSWORD: "pw" })).toBe(
       "postgres://qcms:pw@postgres:5432/qcms",
     );
   });
 
   it("refuses to compose a URL with no password rather than one that cannot work", () => {
-    // `docker-compose.yml` requires `QCMS_DB_PASSWORD`, so an empty one matches no
-    // running stack: defaulting it would turn a missing credential into an
-    // authentication failure from inside a container, which is a much longer way round
-    // to the same sentence.
+    // Defaulting an empty password would turn a missing credential into an
+    // authentication failure from inside a container.
     expect(() => databaseUrlFor({})).toThrow(/QCMS_DB_PASSWORD/u);
     expect(() => databaseUrlFor({ QCMS_DB_PASSWORD: "" })).toThrow(/QCMS_DB_PASSWORD/u);
   });
 
   it("escapes a password that would otherwise not survive a URL", () => {
-    // `openssl rand -base64` output contains `/` and `+`, and a `/` in the userinfo
-    // ends the authority: unescaped, the connection silently targets a different
-    // database rather than failing.
+    // An unescaped `/` in the userinfo ends the authority, so the connection silently
+    // targets a different database rather than failing.
     expect(databaseUrlFor({ QCMS_DB_PASSWORD: "a/b+c@d" })).toBe(
       "postgres://qcms:a%2Fb%2Bc%40d@postgres:5432/qcms",
     );
@@ -65,13 +49,8 @@ describe("databaseUrlFor", () => {
 
 describe("buildSeedRun", () => {
   it("keeps the credential out of argv and puts it in the CLI's environment", () => {
-    // ISSUE #440's CONTROL, and the reason this function is exported at all.
-    // `/proc/<pid>/cmdline` is world-readable on Linux, so a URL carrying the
-    // database password in the docker CLI's arguments is readable by every account
-    // on the machine for the lifetime of the call. `--env NAME` with no `=value` is
-    // Docker's pass-through form: the CLI resolves the name from its own environment
-    // and sends the value over the daemon socket, and an environment is not
-    // world-readable.
+    // `/proc/<pid>/cmdline` is world-readable, so a password in the docker CLI's argv is
+    // readable by every account on the machine. `--env NAME` passes it through instead.
     const run = buildSeedRun({
       compose: COMPOSE,
       databaseUrl: URL_WITH_SECRET,
@@ -92,9 +71,6 @@ describe("buildSeedRun", () => {
       environment: {},
     });
 
-    // `run` and not `exec`: `exec` needs a running service, and this one is profiled
-    // precisely so that `up` never starts it. `--rm` because it exists for the length
-    // of one load, and `--build` because a profiled service is never built by `up`.
     expect(run.argv.slice(0, COMPOSE.length)).toEqual(COMPOSE);
     expect(run.argv).toContain("run");
     expect(run.argv).not.toContain("exec");
@@ -104,8 +80,6 @@ describe("buildSeedRun", () => {
   });
 
   it("passes the caller's compose prefix through untouched", () => {
-    // Stack identity - the project name, the file list, the env file - belongs to the
-    // caller, exactly as it does for `buildAdminExec`. Nothing here knows a seat.
     const other = ["compose", "--project-name", "qcms-local-stack-s3"];
     const run = buildSeedRun({ compose: other, databaseUrl: URL_WITH_SECRET, environment: {} });
     expect(run.argv.slice(0, other.length)).toEqual(other);
@@ -119,9 +93,6 @@ describe("buildSeedRun modes (issue #994)", () => {
   });
 
   it("appends the subcommand after the service name, where Compose passes it through", () => {
-    // `docker compose run SERVICE ARGS...` replaces the image's CMD and leaves its
-    // ENTRYPOINT alone, so the loader's path stays in `docker/seed.Dockerfile` and
-    // this file never names a path inside the image (issue #817's lesson).
     for (const mode of ["seed", "clear", "reset"] as const) {
       const run = buildSeedRun({
         compose: COMPOSE,
@@ -136,8 +107,6 @@ describe("buildSeedRun modes (issue #994)", () => {
   });
 
   it("keeps the credential out of argv on the destructive modes too", () => {
-    // The #440 control is not a property of the loading path: a `clear` run assembles
-    // the same URL and must put it in the same place.
     for (const mode of ["clear", "reset"] as const) {
       const run = buildSeedRun({
         compose: COMPOSE,
@@ -151,8 +120,6 @@ describe("buildSeedRun modes (issue #994)", () => {
   });
 
   it("refuses a mode it does not know rather than passing it to the container", () => {
-    // The container would reject it too, but only after a build and a boot; and an
-    // argv this file did not vet is an argv it cannot claim anything about.
     expect(() =>
       buildSeedRun({
         compose: COMPOSE,
