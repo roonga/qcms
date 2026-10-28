@@ -31,9 +31,7 @@ describe("bodyProblems", () => {
   });
 
   it("accepts CRLF line endings and trailing whitespace on a heading", () => {
-    expect(bodyProblems(good.replaceAll("\n", "\r\n").replace("Summary", "Summary  "))).toEqual(
-      [],
-    );
+    expect(bodyProblems(good.replaceAll("\n", "\r\n").replace("Summary", "Summary  "))).toEqual([]);
   });
 
   it("fires on each missing heading", () => {
@@ -77,8 +75,7 @@ describe("check-pr-body CLI", () => {
 
   it("skips Dependabot and non pull request events", () => {
     expect(
-      run({ GITHUB_EVENT_NAME: "pull_request", PR_AUTHOR: "dependabot[bot]", PR_BODY: "x" })
-        .status,
+      run({ GITHUB_EVENT_NAME: "pull_request", PR_AUTHOR: "dependabot[bot]", PR_BODY: "x" }).status,
     ).toBe(0);
     expect(run({ GITHUB_EVENT_NAME: "push", PR_BODY: "x" }).status).toBe(0);
   });

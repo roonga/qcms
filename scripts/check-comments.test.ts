@@ -41,9 +41,7 @@ describe("comment length", () => {
   });
 
   it("does not count blank lines inside a block", () => {
-    expect(rules(["/*", " * one", " *", " * two", " *", " * three", " */"].join("\n"))).toEqual(
-      [],
-    );
+    expect(rules(["/*", " * one", " *", " * two", " *", " * three", " */"].join("\n"))).toEqual([]);
   });
 
   it("holds non-exported JSDoc to the plain comment limit", () => {
@@ -52,9 +50,7 @@ describe("comment length", () => {
 
   it("gives exported JSDoc its own limit", () => {
     expect(rules(jsdoc(MAX_EXPORT_JSDOC_LINES, "export function f() {}"))).toEqual([]);
-    expect(rules(jsdoc(MAX_EXPORT_JSDOC_LINES + 1, "export function f() {}"))).toEqual([
-      "length",
-    ]);
+    expect(rules(jsdoc(MAX_EXPORT_JSDOC_LINES + 1, "export function f() {}"))).toEqual(["length"]);
     expect(rules(jsdoc(MAX_EXPORT_JSDOC_LINES, "export const a = 1;"))).toEqual([]);
     expect(rules(jsdoc(MAX_EXPORT_JSDOC_LINES, "export default function f() {}"))).toEqual([]);
   });

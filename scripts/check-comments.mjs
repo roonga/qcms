@@ -75,7 +75,8 @@ export const HISTORY_MARKERS = [
  * Tags whose lines describe parameters and types rather than adding prose. Every line
  * after one belongs to it until the next tag.
  */
-const TYPE_TAG = /^@(param|arg|argument|returns?|throws|template|typeParam|type|typedef|callback|property|prop|satisfies|yields|deprecated|see)\b/;
+const TYPE_TAG =
+  /^@(param|arg|argument|returns?|throws|template|typeParam|type|typedef|callback|property|prop|satisfies|yields|deprecated|see)\b/;
 const ANY_TAG = /^@[A-Za-z]+/;
 
 function isAllowedLine(line) {
@@ -182,8 +183,7 @@ function scriptComments(path, text) {
   };
   visit(source);
 
-  const insideJsxText = (range) =>
-    jsxText.some(([from, to]) => range.pos < to && range.end > from);
+  const insideJsxText = (range) => jsxText.some(([from, to]) => range.pos < to && range.end > from);
 
   return [...ranges.values()]
     .filter((range) => !insideJsxText(range))
@@ -231,7 +231,13 @@ function cssComments(text) {
     if (ch === "/" && text[index + 1] === "*") {
       const close = text.indexOf("*/", index + 2);
       const end = close === -1 ? text.length : close + 2;
-      comments.push({ pos: index, end, text: text.slice(index, end), line: false, exported: false });
+      comments.push({
+        pos: index,
+        end,
+        text: text.slice(index, end),
+        line: false,
+        exported: false,
+      });
       index = end;
       continue;
     }
