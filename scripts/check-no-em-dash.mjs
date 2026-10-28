@@ -1,24 +1,11 @@
 #!/usr/bin/env node
 // @ts-check
 /**
- * No-em-dash gate (branding/style, 2026-07-21).
+ * The banned glyph is referenced here only by its codepoint, so this file scans cleanly
+ * over itself. Do not write it out.
  *
- * The em dash (U+2014) is banned in QCMS prose, comments, and UI strings: it
- * reads as an AI-generated tell and QCMS is public. Use a colon, comma,
- * parentheses, a period, or a spaced hyphen ( - ) instead. The en dash
- * (U+2013) is allowed for numeric ranges (e.g. "R1-R8"); the hyphen (-) is
- * always fine.
- *
- * Deny-by-default over tracked prose/source/config: .md .ts .tsx .js .jsx .mjs
- * .cjs .yml .yaml .sh (the vendored a2ra component copy excluded, and only that
- * subtree rather than its QCMS-owned siblings - issue #775). This file references
- * the banned glyph only via its codepoint, so it scans cleanly over itself.
- *
- * NOT covered: .json. The append-only golden corpus (ADR-18) contains em dashes
- * inside frozen fixture data, so widening this gate to .json would fail on
- * files that must never be edited. Committed .json prose is reviewed by hand.
- *
- * Usage:  node scripts/check-no-em-dash.mjs
+ * `.json` is deliberately out of scope: the append-only golden corpus (ADR-18) carries
+ * em dashes inside frozen fixture data that must never be edited.
  */
 
 import { execFileSync } from "node:child_process";
@@ -26,7 +13,7 @@ import { readFileSync } from "node:fs";
 
 import { VENDORED_SOURCE_PATHSPEC } from "./vendored-source.mjs";
 
-// Node on Windows won't resolve `git` -> `git.exe` via execFile without a shell.
+// Node's execFile on Windows does not resolve `git` to `git.exe` without a shell.
 const GIT = process.platform === "win32" ? "git.exe" : "git";
 const EM_DASH = String.fromCharCode(0x2014);
 

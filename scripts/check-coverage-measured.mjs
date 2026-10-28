@@ -1,45 +1,10 @@
 #!/usr/bin/env node
 // @ts-check
 /**
- * The kernel coverage run measured the kernel (PR #970 review).
- *
- * `pnpm --filter @roonga/qcms-core coverage` is task 009's exit criterion 4, and the
- * number it prints is only worth reading if the run actually looked at the kernel's
- * source. Vitest 5 made that stop being obvious. `coverage.include` is now matched
- * against each file's path relative to its PROJECT root ("coverage.include and
- * coverage.exclude now match precisely", https://vitest.dev/guide/migration), so the
- * repo-relative `packages/core/src/**` the root config carried under Vitest 4 matched
- * nothing at all. The run then reported
- *
- *     All files | 0 | 0 | 0 | 0
- *     Lines     : Unknown% ( 0/0 )
- *
- * and exited 0, because `thresholds.lines: 95` is satisfied by a report with no lines
- * in it. A gate that passes on an empty measurement is worse than no gate: it is a
- * green that says the opposite of what a reader takes from it.
- *
- * Vitest has no "fail when the report is empty" option, so this is the guard. It is
- * chained after the Vitest run in `packages/core`'s `coverage` script, which keeps the
- * documented command spelling intact while making the zero-file case a red.
- *
- * Two assertions, both fail-closed:
- *
- *   1. The report measured at least one line. This is the exact regression above.
- *   2. Every kernel source file git knows about appears in the report. This is the
- *      wider property, and it is what catches a pattern that half-matches: an
- *      `include` narrowed to one directory, or a new source directory that the
- *      pattern does not reach, would still print a confident percentage. The expected
- *      set is derived from git rather than listed here (CONTRIBUTING.md, issues #635
- *      and #641), so a file added to the kernel is covered by this guard the moment it
- *      is written.
- *
- * Usage:  node scripts/check-coverage-measured.mjs [path/to/coverage-summary.json]
- *
- * The default path is `coverage/coverage-summary.json` under the repo root, resolved
- * from this file rather than from the working directory - `vitest.config.ts` pins
- * `coverage.reportsDirectory` to the same place for the same reason, so this can never
- * read a report some other invocation left somewhere else. The argument exists for
- * `scripts/check-coverage-measured.test.ts`.
+ * A coverage threshold is satisfied by a report with no lines in it, so a misdirected
+ * `coverage.include` measures nothing and still exits 0. Vitest offers no option for
+ * that, hence this guard: both assertions are fail-closed, and the expected file set
+ * comes from git so a half-matching pattern cannot print a confident percentage.
  */
 
 import { readFileSync } from "node:fs";
@@ -53,18 +18,11 @@ const REPO_ROOT = fileURLToPath(new URL("..", import.meta.url));
 /** Must agree with `coverage.reportsDirectory` in `vitest.config.ts`. */
 const DEFAULT_SUMMARY = path.join(REPO_ROOT, "coverage", "coverage-summary.json");
 
-/** The kernel's source root: what task 009's threshold is a statement about. */
 const KERNEL_SRC = path.join(REPO_ROOT, "packages", "core", "src");
 
-/**
- * Kernel files that are source rather than tests.
- *
- * Vitest's default `coverage.exclude` drops test files, so demanding them in the
- * report would fail on a correct run.
- */
+/** Vitest excludes test files, so demanding them would fail on a correct run. */
 const SOURCE_FILE = /^(?!.*\.test\.ts$).*\.ts$/;
 
-/** @param {string} absolute @returns {string} the path as `vitest.config.ts` would print it */
 function repoRelative(absolute) {
   return path.relative(REPO_ROOT, absolute).split(path.sep).join("/");
 }

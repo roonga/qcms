@@ -1,51 +1,25 @@
 #!/usr/bin/env node
 // @ts-check
 /**
- * Is time in this environment trustworthy enough to wait on? (issue #590)
+ * Three different faults look identical to a frozen clock when `date` is the only
+ * instrument, and each needs a different fix: a wall clock that is frozen or stepped,
+ * in-process timers that do not wait, and a `sleep` binary that does not wait. So each
+ * kind of wait is measured against BOTH clocks. The monotonic clock is the control,
+ * because it cannot be set, only advanced.
  *
- * The reported symptom was "the dev container's clock is frozen": across a session
- * whose `sleep` calls totalled well over an hour, `date` advanced about a minute, so
- * every sleep-based wait returned at once and polling a twelve-minute gate cost dozens
- * of turns. Three different faults produce that same appearance, they need different
- * fixes, and none of them can be told apart by reading `date` twice:
- *
- *  1. **The wall clock is frozen or stepped.** `CLOCK_REALTIME` stands still (or jumps
- *     backwards) while real time passes. Sleeping still works; only the readings lie.
- *  2. **Timers do not wait.** The process asks for two seconds and is resumed at once.
- *  3. **The `sleep` binary will not wait.** The clocks are fine and in-process timers
- *     are fine, but the thing a shell poll loop is built on does not wait: it comes
- *     straight back, or it is refused and exits non-zero, or it is killed. An agent
- *     harness that will not run a foreground `sleep` lands here whichever way it says
- *     no, and all three are indistinguishable from a frozen clock if `date` is your
- *     only instrument. **A `sleep` that ran and failed is this fault, not a missing
- *     tool**: only a `sleep` that could not be spawned at all leaves the question
- *     unanswered, and that alone is reported rather than failed.
- *
- * So this check measures one two-second wait of each kind against BOTH clocks and names
- * which of the three it found. `CLOCK_MONOTONIC` (via `process.hrtime.bigint`) is the
- * control: it cannot be set, only advanced, so a wait that is long on the monotonic
- * clock and short on the wall clock isolates fault 1 from faults 2 and 3.
- *
- * Usage: `pnpm check:clock` (or `node scripts/check-clock.mjs`)
- *
- * Deliberately NOT part of `check:all`. It costs four seconds of pure waiting, it
- * asserts a property of the machine rather than of the tree, and a gate that is slow
- * for reasons the diff can never change is a gate people learn to route around. Run it
- * when waits look wrong. What to do when it fails is in `docs/DEVELOPER_GUIDE.md`,
- * under "Waiting for a long gate".
+ * Deliberately not part of `check:all`: it asserts a property of the machine rather than
+ * of the tree, and costs seconds of pure waiting to do it.
  */
 
 import { spawnSync } from "node:child_process";
 import { argv, exit, hrtime } from "node:process";
 import { pathToFileURL } from "node:url";
 
-/** How long each of the two waits asks for. */
 export const SLEEP_MS = 2000;
 
 /**
- * The floor a wait has to clear to count as real. Generous on purpose: the question is
- * "did this wait at all", not "is the scheduler punctual", and 1.5s of a requested 2s
- * leaves room for a loaded machine without admitting an instant return.
+ * Generous on purpose: the question is whether the wait happened at all, not whether the
+ * scheduler is punctual, so a loaded machine has room without an instant return passing.
  */
 export const MIN_ADVANCE_MS = 1500;
 
@@ -55,27 +29,13 @@ const wallClockNow = () => Date.now();
 /** Milliseconds on the monotonic clock, which can only ever move forwards. */
 const monotonicNow = () => Number(hrtime.bigint() / 1000n) / 1000;
 
-/**
- * Wait in-process, the way a Node script or a test timeout waits.
- *
- * @param {number} ms
- * @returns {Promise<void>}
- */
 const timerWait = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
 
 /**
- * Wait by running the `sleep` binary, the way a shell poll loop waits.
- *
- * Three outcomes, not two, and the distinction is the whole point. **Not spawned at
- * all** (no binary, no permission) leaves the question unanswered: that is reported and
- * not failed. **Spawned and did not complete** - a non-zero exit, or a signal - is a
- * FAILURE, because a harness that will not let a foreground `sleep` run is as likely to
- * kill or refuse it as to short-circuit it, and that is precisely the condition issue
- * #590 is about. Reporting it as "not measured" would let the check pass on a machine
- * where shell waiting is broken.
- *
- * @param {number} seconds
- * @returns {{ spawned: boolean; completed: boolean; detail: string }}
+ * Three outcomes, not two. Never spawned leaves the question unanswered, so it is reported
+ * rather than failed. Spawned and not completed is a failure: a harness that will not let
+ * a foreground `sleep` run is as likely to kill or refuse it as to short-circuit it, and
+ * calling that "not measured" would pass on a machine where shell waiting is broken.
  */
 function runSleepBinary(seconds) {
   const result = spawnSync("sleep", [String(seconds)], { stdio: "ignore" });
@@ -91,13 +51,6 @@ function runSleepBinary(seconds) {
   return { spawned: true, completed: true, detail: "exit 0" };
 }
 
-/**
- * One wait, timed on both clocks at once.
- *
- * @param {() => void | Promise<void>} wait
- * @param {{ wall: () => number; monotonic: () => number }} clocks
- * @returns {Promise<{ wall: number; monotonic: number }>}
- */
 export async function timeBothClocks(wait, clocks) {
   const wallBefore = clocks.wall();
   const monotonicBefore = clocks.monotonic();
@@ -116,27 +69,15 @@ export async function timeBothClocks(wait, clocks) {
  *   binaryDetail: string;
  *   binaryFailure?: string | null;
  * }} Measurements
- *
- * `binary` is null only when `sleep` could not be spawned at all, which is reported and
- * not failed. `binaryFailure` carries the exit status or signal of a `sleep` that DID
- * run and did not complete, which is a failure.
  */
 
 /**
- * Turn the measurements into a verdict and the lines to print.
- *
- * Ordered so the most fundamental fault is named first: a wall clock that does not
- * advance makes every other reading here untrustworthy, including the ones this check
- * would otherwise use to accuse the timers.
- *
- * @param {Measurements} measured
- * @param {{ sleepMs?: number; minAdvanceMs?: number }} [limits]
- * @returns {{ ok: boolean; lines: string[] }}
+ * Ordered so the most fundamental fault is named first: a wall clock that does not advance
+ * makes every other reading here untrustworthy, the timer readings included.
  */
 export function verdict(measured, limits = {}) {
   const sleepMs = limits.sleepMs ?? SLEEP_MS;
   const minAdvanceMs = limits.minAdvanceMs ?? MIN_ADVANCE_MS;
-  /** @param {number} value */
   const ms = (value) => `${value.toFixed(0)}ms`;
   const asked = `asked for ${ms(sleepMs)}, floor ${ms(minAdvanceMs)}`;
 
@@ -203,17 +144,6 @@ export function verdict(measured, limits = {}) {
   return { ok: false, lines };
 }
 
-/**
- * @param {{
- *   clocks?: { wall: () => number; monotonic: () => number };
- *   wait?: (ms: number) => void | Promise<void>;
- *   sleepBinary?: (seconds: number) => { spawned: boolean; completed: boolean; detail: string };
- *   sleepMs?: number;
- *   minAdvanceMs?: number;
- *   log?: (line: string) => void;
- * }} [options]
- * @returns {Promise<number>} process exit code
- */
 export async function main(options = {}) {
   const clocks = options.clocks ?? { wall: wallClockNow, monotonic: monotonicNow };
   const wait = options.wait ?? timerWait;
@@ -224,10 +154,6 @@ export async function main(options = {}) {
 
   const timer = await timeBothClocks(() => wait(sleepMs), clocks);
 
-  // A `sleep` that could not be SPAWNED is reported, not failed: a platform without the
-  // binary has not answered the question either way. A `sleep` that ran and then exited
-  // non-zero or was killed is a different thing entirely and fails below - see
-  // `runSleepBinary`.
   /** @type {{ spawned: boolean; completed: boolean; detail: string }} */
   let outcome = { spawned: false, completed: false, detail: "not attempted" };
   const timed = await timeBothClocks(() => {

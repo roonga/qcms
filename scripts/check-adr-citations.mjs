@@ -1,27 +1,9 @@
 #!/usr/bin/env node
 // @ts-check
 /**
- * Every cited ADR resolves to a defined record (issue #734, rider from #180).
- *
- * ADR numbers are the repository's densest cross-reference: over fourteen hundred
- * citations across documents, comments, tests and commit-adjacent prose, each of them
- * an assertion that a decision by that number exists and says what the citing line
- * implies. Nothing checked that. A citation could name a number that was never
- * allocated, or one that a restructure dropped, and the only way to find out was to go
- * looking - which is the shape of #180, where the record itself had drifted from the
- * documents citing it.
- *
- * Since PR #720 the record lives in `docs/adr/` behind a stable index, so the check is
- * cheap: parse the index, scan the tree, and fail on a citation with no entry. The
- * reverse direction is reported rather than failed - a decision nobody cites is a
- * documentation observation, not a defect, and failing on it would make deleting the
- * last citation of a still-binding decision impossible.
- *
- * This is a resolution check, not a semantic one. It cannot tell whether a line citing
- * ADR-22 is describing ADR-22; it can only tell you that ADR-22 exists. That limit is
- * the reason to keep it cheap.
- *
- * Usage:  node scripts/check-adr-citations.mjs
+ * A resolution check, not a semantic one: it can only say that a cited decision exists.
+ * The reverse direction is reported rather than failed, because failing on an uncited
+ * decision would make deleting the last citation of a binding one impossible.
  */
 
 import { readFileSync } from "node:fs";
@@ -34,77 +16,43 @@ import { VENDORED_SOURCE_PATTERN } from "./vendored-source.mjs";
 
 const REPO_ROOT = fileURLToPath(new URL("../", import.meta.url));
 
-/** The index that defines the record. `docs/PROJECT_GOAL.md` §6 points here. */
 const INDEX = "docs/adr/README.md";
 
-/**
- * Tracked text a citation can plausibly be written in. The same set the other prose
- * gates read, minus the machine-readable formats: a number inside a JSON fixture is
- * data, not a citation.
- */
+/** Machine-readable formats are out: a number inside a fixture is data, not a citation. */
 const TEXT_FILES = /\.(md|markdown|ts|tsx|mts|cts|js|jsx|mjs|cjs|ya?ml|sh|css|sql)$/i;
 
 /**
- * Scratch and vendored areas, excluded for the reasons `scripts/check-ports.mjs` gives
- * for the same two: `plan/` is a working and history area whose older drafts may cite
- * numbering that a later decision superseded, and the vendored component sources are
- * upstream's, kept byte-for-byte.
- *
- * The vendored half is the single definition in `scripts/vendored-source.mjs`. It was
- * written here as the whole of `packages/ui/src/components/`, which also skipped four
- * QCMS-owned subtrees - and three of their files cite ADR-18, ADR-22 and ADR-26
- * (issue #775).
+ * `plan/` drafts may cite numbering a later decision superseded, and the vendored
+ * sources are upstream's, kept byte for byte.
  */
 const EXCLUDED = [/^plan\//, VENDORED_SOURCE_PATTERN];
 
 /**
- * A citation: the prefix, a hyphen, one to three digits. Case-sensitive, because the
- * repository spells it one way.
- *
- * Written without an example, which is not fussiness: an example is a citation, and
- * the first run of this gate failed on its own doc comment. That is the gate working,
- * and the fix is to describe the shape rather than to exempt the file that defines it.
+ * Do not add an example here: an example is itself a citation, and this gate reads its
+ * own source, so the first version of this comment failed the gate.
  */
 const CITATION = /\bADR-(\d{1,3})\b/g;
 
 /**
- * The ADR numbers the index defines, as written.
- *
- * Read from the index table's leading cell rather than from headings in the three
- * record documents: the index is the thing `docs/PROJECT_GOAL.md` sends a reader to,
- * so a decision missing from it is undiscoverable whatever its own document says.
- *
- * @param {string} indexText
- * @returns {Set<string>}
+ * Read from the index rather than from the record documents' own headings: a decision
+ * missing from the index is undiscoverable whatever its document says.
  */
 export function definedAdrs(indexText) {
   const defined = new Set();
   for (const line of indexText.split("\n")) {
-    // A table row: `| ADR-01 | Title | core |`. Anchored on the first cell so a number
-    // mentioned in a title or in the prose above the table is not a definition.
+    // Anchored on the row's first cell, so a number in a title or in prose is not a
+    // definition.
     const match = /^\|\s*ADR-(\d{1,3})\s*\|/.exec(line);
     if (match?.[1] !== undefined) defined.add(normalize(match[1]));
   }
   return defined;
 }
 
-/**
- * `07` and `7` are the same decision. Compared as numbers so a zero-padding difference
- * between a citation and the index is not reported as a missing record.
- *
- * @param {string} digits
- * @returns {string}
- */
+/** `07` and `7` are the same decision, so zero padding must not read as missing. */
 function normalize(digits) {
   return String(Number(digits));
 }
 
-/**
- * Every ADR citation in `text`, with the line it sits on.
- *
- * @param {string} text
- * @returns {{ adr: string; line: number }[]}
- */
 export function citationsIn(text) {
   const found = [];
   text.split("\n").forEach((line, index) => {
@@ -118,7 +66,6 @@ export function citationsIn(text) {
   return found;
 }
 
-/** Run the gate over the tracked tree. Returns the process exit code. */
 export function main() {
   const indexText = readFileSync(join(REPO_ROOT, INDEX), "utf8");
   const defined = definedAdrs(indexText);
@@ -146,7 +93,6 @@ export function main() {
     }
   }
 
-  // Reported, never failed: see the module comment.
   const uncited = [...defined]
     .filter((adr) => !cited.has(adr))
     .sort((a, b) => Number(a) - Number(b));
@@ -179,8 +125,7 @@ export function main() {
   return 0;
 }
 
-// Only when run as a command, so the test can import the helpers above without the
-// scan firing (and without `process.exit` killing the test run).
+// Guarded so an importing test triggers neither the scan nor the `process.exit`.
 if (argv[1] !== undefined && import.meta.url === pathToFileURL(argv[1]).href) {
   process.exit(main());
 }

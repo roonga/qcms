@@ -1,64 +1,13 @@
 #!/usr/bin/env node
 // @ts-check
 /**
- * Classify a pull request diff, so a job does the work its diff can actually be
- * observed by and no more. Two classifications, both fail-safe:
+ * This script decides how much work a required job does, never whether it runs: a
+ * required context that never reports blocks a pull request forever. Every uncertain
+ * case therefore resolves to `false` and runs everything.
  *
- *   - **`plan_only`**: every changed path is in the fast-lane set - the `plan/`
- *     scratch tree, all of `.claude/`, Markdown under `docs/`, and the three root
- *     instruction files. Those changes skip the application build, the unit suites and
- *     all three end-to-end jobs, but `check:plan` still runs every gate that reads any
- *     of those paths. See {@link isPlanOnly}.
- *   - **`admin_only`**: every changed path is under `apps/admin/`, `docs/` or the
- *     fast-lane set, so nothing in the diff can reach a portal-rendered surface. See
- *     {@link isAdminOnly}.
- *
- * The file keeps its original name despite now answering two questions. The workflow
- * runs the copy at the pull request's BASE ref by path (see below), so a rename would
- * make every PR read a classifier that is not there and take the full run until the
- * new name reached `main` - a cost with nothing on the other side of it.
- *
- * ## The contract this script has to keep
- *
- * `protect-main` requires four check contexts and has no bypass actors. A context
- * that never reports leaves a PR "Expected - waiting for status" forever, which is
- * strictly worse than a slow PR. So this script only ever decides how much work a
- * job does; it never decides whether a job runs. Every required job runs on every
- * event and reports its context either way.
- *
- * Consequently every uncertain case resolves to `false` (run everything):
- *
- *   - any event that is not `pull_request` (a push to main, a `workflow_dispatch`
- *     rescue run): the fast lane is a pull-request optimisation and main's own
- *     history is worth the full suite;
- *   - an empty diff, or a base ref that cannot be resolved;
- *   - anything that throws.
- *
- * Renames are read with `--no-renames`, so a path moved out of the fast-lane set shows
- * up as a delete inside it PLUS an add outside it, and the PR is correctly code.
- *
- * ## Two properties that are not obvious, and are the reason this file has tests
- *
- * **This script never classifies its own diff.** The workflow does not run the
- * checked-out copy; it runs the copy from the pull request's BASE ref against the
- * head checkout (`git show "origin/$GITHUB_BASE_REF:scripts/ci-plan-only.mjs"`).
- * Otherwise a pull request that refactors `isPlanOnly` and introduces a defect
- * answering `true` too readily would be classified by its own broken code: its diff
- * touches only this file, which is outside the fast-lane set, so a full run is intended -
- * but the broken copy would answer `plan_only=true`, `pnpm test` is one of the steps
- * the fast lane skips, and the very tests written to catch that defect would not
- * run. It would merge in 45 green seconds and every later PR would take the fast
- * lane. The base copy only ever shells out to `git`, so running it against a head
- * checkout is safe. Consequence to expect: any PR that touches this file gets a full
- * run, which is the point.
- *
- * **Paths are read NUL-separated and never trimmed.** This preserves unusual but
- * valid names and prevents a leading space from changing an outside path into a
- * fast-lane path.
- *
- * Usage:
- *   node scripts/ci-plan-only.mjs                  # reads GITHUB_* from the env
- *   BASE_REF=main node scripts/ci-plan-only.mjs    # local dry run
+ * The workflow runs the copy at the pull request's BASE ref, so this file never
+ * classifies its own diff, and neither its path nor an output name can be renamed
+ * without closing the lane until the rename reaches `main`.
  */
 
 import { execFileSync } from "node:child_process";
@@ -66,67 +15,27 @@ import { appendFileSync } from "node:fs";
 import { argv, env, stdout } from "node:process";
 import { pathToFileURL } from "node:url";
 
-// On Windows, Node's execFile does not resolve `git` -> `git.exe` from PATH
-// (unlike a shell), so a bare "git" ENOENTs even when git is installed.
+// On Windows, Node's execFile does not add the `.exe` suffix the way a shell does.
 const GIT = process.platform === "win32" ? "git.exe" : "git";
 
 /** The scratch tree the fast lane started as. Trailing slash: `planning.md` is not it. */
 export const PLAN_PREFIX = "plan/";
 
 /**
- * Directories the fast lane covers, whatever the file is.
- *
- * `plan/` is committed scratch: no tsconfig includes it, no `@source` root reaches it,
- * nothing imports from it, and the gates that do read it (`check-admin-theme`,
- * `check:plan`'s ESLint and Prettier) all run on the lane.
- *
- * `.claude/` is the agent and skill definitions, `.claude/settings.json` and any hook
- * script, all of it, by ruling (Code Owner, 2026-09-19, issue #873). The evidence in
- * front of that ruling, from the reviews of PR #952:
- *
- *   - **CI inspects the content of none of these files, on either lane.** A probe of a
- *     tracked `.claude/hooks/on-stop.sh`, a `.py` beside it, and a `settings.json`
- *     wiring that hook, emptying `permissions.deny` and setting `defaultMode` to
- *     `bypassPermissions` passes `pnpm check:plan`, and passed the full suite before
- *     this lane existed too. What each gate does and does not select for these files is
- *     tabulated in CONTRIBUTING, "The instruction and plan fast lane".
- *   - **The difference is the wait**: about a minute for four required contexts instead
- *     of about 45.
- *   - Agent frontmatter grants tools and picks a model (`.claude/agents/*.md` carry
- *     `tools:` and `model:`), and a settings change can rewire permissions and hooks.
- *
- * `.claude/worktrees/` and `.claude/settings.local.json` (at any depth) are git-ignored,
- * so neither reaches a diff unless somebody force-adds it - an ignore rule stops
- * `git add`, not `git add -f`. Force-added, either takes the lane like any other
- * `.claude/` path, which is what the ruling asks for. Not "cannot appear in a diff",
- * which is what this comment used to claim.
- *
- * **The separator is what makes each prefix safe.** Without it `plan` would match
+ * The trailing separator is what makes each prefix safe: without it `plan` would match
  * `planner.ts` and `.claude` would match a future `.claude-hooks/`.
  */
 export const FAST_LANE_PREFIXES = [PLAN_PREFIX, ".claude/"];
 
 /**
- * Repository-root instruction files the fast lane covers, matched by EQUALITY.
- *
- * Not prefixes, and that distinction is the whole safety of the list: as a prefix
- * `CLAUDE.md` would also admit `CLAUDE.md.bak` and `CONTRIBUTING.md` would admit
- * `CONTRIBUTING.mdx`, neither of which any gate below has been checked against.
- * Equality also keeps the list anchored at the root, so `apps/api/CONTRIBUTING.md`
- * - which `packages/create-qcms-app` reads when it decides what an app ships - is
- * code, as it should be.
- *
- * Each of these three is prose addressed to a contributor or an agent. What reads
- * them is enumerated in CONTRIBUTING, "The instruction and plan fast lane", and
- * every one of those readers runs in `check:plan`.
+ * Matched by equality, not prefix: as a prefix `CLAUDE.md` would admit `CLAUDE.md.bak`,
+ * and equality keeps `apps/api/CONTRIBUTING.md` code rather than prose.
  */
 export const FAST_LANE_FILES = ["CLAUDE.md", "PROJECT_INSTRUCTIONS.md", "CONTRIBUTING.md"];
 
 /**
- * The documentation tree, whose MARKDOWN is on the lane (Code Owner, 2026-10-24,
- * issue #1139). Not a bare prefix, because `docs/` holds generated artifacts that are
- * code: `docs/openapi/*.json` is the API contract `apps/api/src/openapi-document.test.ts`
- * rebuilds and compares, and a build is the cost the lane exists to avoid.
+ * Markdown only, not a bare prefix: `docs/openapi/*.json` is a generated API contract a
+ * test rebuilds and compares, so it is code.
  */
 export const DOCS_PREFIX = "docs/";
 
@@ -134,85 +43,27 @@ export const DOCS_PREFIX = "docs/";
 export const MARKDOWN_SUFFIX = ".md";
 
 /**
- * Markdown under `docs/` that is NOT on the lane, because something the lane does not
- * run reads it.
- *
- * `docs/SECURITY_DESIGN.md` §3.2 tabulates the authorization matrix and
- * `apps/api/e2e/security/matrix-coverage.e2e.ts` parses that section at RUNTIME, failing
- * when a row is added or reworded without matching probes. That test is the `api-e2e`
- * required context, which the lane reports green without running, and it cannot move into
- * `check:plan`: it imports the probe surfaces from the same e2e tree. So a reword of §3.2
- * on the lane would merge green and redden main's own push run, which always takes the
- * full suite. The ruling's stated grounds were that nothing outside the lane reads
- * `docs/`; this is the one file where that does not hold, so it keeps the full run until
- * the Code Owner says otherwise.
- *
- * Measured over the tracked tree with the scan `scripts/ci-plan-only.test.ts` describes:
- * 46 non-comment quoted occurrences of a `docs/` path under `apps/`, `packages/` and
- * `tooling/`, of which this is the only read of a `docs/**` Markdown file. The others are
- * operator-facing remedy messages, assertions on those messages, backticked prose in
- * trailing comments, and the `docs/openapi/*.json` artifacts the prefix rule already
- * excludes. `docs/ownership-seam.md` is read by `packages/create-qcms-app`'s
- * `sync-templates.mjs`, which the lane DOES run, as `check:templates` inside `check:all`.
+ * Off the lane because `apps/api/e2e/security/matrix-coverage.e2e.ts` parses this file's
+ * authorization matrix at runtime, and that suite is one the lane reports green without
+ * running.
  */
 export const DOCS_OFF_LANE = ["docs/SECURITY_DESIGN.md"];
 
-/**
- * Is this one path Markdown under `docs/`?
- *
- * Prefix WITH its separator and suffix matched exactly, so `docs.md` (no separator),
- * `docs-x/a.md` (a different directory), `docs/a.mdx`, `docs/a.MD` (gates match `.md`
- * case-sensitively) and `docs/a.md/evil.sh` (a directory named like a file) all keep the
- * full run.
- *
- * @param {string} path repo-relative, exactly as git recorded it.
- * @returns {boolean}
- */
 export function isDocsMarkdown(path) {
   if (!path.startsWith(DOCS_PREFIX)) return false;
   if (!path.endsWith(MARKDOWN_SUFFIX)) return false;
   return !DOCS_OFF_LANE.includes(path);
 }
 
-/** How many changed paths the log prints before it truncates. */
 const LOG_LIMIT = 40;
 
-/**
- * Is this one path in the fast-lane set?
- *
- * Three rules, of three deliberately different shapes: a directory prefix carrying its
- * separator, equality, and prefix-plus-exact-extension for `docs/`. Only the last one
- * looks at a suffix, and only because `docs/` holds generated artifacts the lane cannot
- * prove. An intermediate version of this file admitted only Markdown under `.claude/`,
- * which is why the tests still carry the shapes that rule had to get right
- * (`.claude/x.md/evil.sh`, `.claude/x.MD`): those are all on the lane now, and the cases
- * are kept because they pin that `.claude/` does not depend on a suffix.
- *
- * @param {string} path repo-relative, exactly as git recorded it.
- * @returns {boolean}
- */
 export function isFastLanePath(path) {
   if (FAST_LANE_PREFIXES.some((prefix) => path.startsWith(prefix))) return true;
   if (isDocsMarkdown(path)) return true;
   return FAST_LANE_FILES.includes(path);
 }
 
-/**
- * Is every changed path in the fast-lane set?
- *
- * The name and the `plan_only` output keep their original spelling on purpose. The
- * workflow reads this script from the pull request's BASE ref, so the output name is
- * a contract between two commits: renaming it would make every PR whose base predates
- * the rename publish the old name, `ci.yml` read an empty string for the new one, and
- * the lane quietly close until the rename reached `main`. That failure is safe but it
- * is also pointless, and the same argument is why the file itself is not renamed.
- *
- * An empty list is NOT plan-only. An empty diff means the classification failed to
- * see anything, and "saw nothing" must never read as "saw only prose".
- *
- * @param {readonly string[]} files repo-relative paths, as `git diff --name-only` reports them.
- * @returns {boolean}
- */
+/** An empty list is NOT plan-only: "saw nothing" must never read as "saw only prose". */
 export function isPlanOnly(files) {
   const paths = files.filter((path) => path !== "");
   if (paths.length === 0) return false;
@@ -220,45 +71,13 @@ export function isPlanOnly(files) {
 }
 
 /**
- * Directories a change can be confined to without any portal-rendered surface moving.
- *
- * `apps/admin/` is the whole point; `docs/`, `plan/` and `.claude/` ride along because
- * none of them renders anything and an admin PR routinely carries some.
- *
- * The fast-lane directories are spread in rather than retyped, and the root instruction
- * files reach this classification through {@link isFastLanePath}, so the two lists cannot
- * answer differently about one path. `docs/` is a bare prefix here and a Markdown-only
- * rule on the fast lane, which keeps the invariant in the right direction: the wide lane
- * admits strictly more of that tree than the narrow one. That pins an invariant a test asserts over the sets:
- * every path on the fast lane is admin-only too. A path the narrow lane lets skip the
- * browser suite ENTIRELY must also be one the wide lane lets narrow it, or an admin PR
- * carrying a `CLAUDE.md` tweak pays for the whole portal suite while the same tweak alone
- * pays for none of it.
- *
- * What is deliberately NOT here is the condition someone will reach for first,
- * "the diff touches admin". The admin and the portal share `@roonga/qcms-ui` and
- * `@roonga/qcms-core`, so a PR touching either genuinely can change portal behaviour and
- * must run the whole suite. The safe question is what the diff touches OUTSIDE this
- * list, and one path outside it is enough to run everything.
+ * The safe question is what a diff touches OUTSIDE this list, since the admin and the
+ * portal share `@roonga/qcms-ui` and `@roonga/qcms-core`. Every fast-lane path must stay
+ * admin-only too, which a test asserts over the two sets.
  */
 export const ADMIN_ONLY_PREFIXES = ["apps/admin/", "docs/", ...FAST_LANE_PREFIXES];
 
-/**
- * Can this diff move a portal-rendered surface?
- *
- * `false` whenever the answer is not a confident no, on the same rule as
- * {@link isPlanOnly}: an empty list is a classification that saw nothing, and "saw
- * nothing" must never read as "saw only the admin". Every uncertain case runs the
- * full browser suite (issue #696).
- *
- * The admin's own browser project is NOT skipped when this is true - `browser-e2e`
- * narrows to `--project admin-chromium` instead, so an admin-only PR still gets the
- * browser coverage for the surface it did change. The job was already running that
- * project; what it stops paying for is the portal half it cannot exercise.
- *
- * @param {readonly string[]} files repo-relative paths, as `git diff --name-only` reports them.
- * @returns {boolean}
- */
+/** An empty list is NOT admin-only, on the same rule as {@link isPlanOnly}. */
 export function isAdminOnly(files) {
   const paths = files.filter((path) => path !== "");
   if (paths.length === 0) return false;
@@ -267,44 +86,21 @@ export function isAdminOnly(files) {
   );
 }
 
-/**
- * @param {readonly string[]} args
- * @param {string | undefined} [cwd] repository to run in; the process cwd by default.
- * @returns {string}
- */
 function git(args, cwd) {
   return execFileSync(GIT, [...args], { encoding: "utf8", cwd });
 }
 
 /**
- * Split `git`'s NUL-separated output into paths.
- *
- * Deliberately no `.trim()` and no `.split("\n")`. A newline-separated read has to
- * trim to survive CRLF, and trimming silently rewrites ` plan/evil.ts` (a real,
- * committable path that git does not quote) into `plan/evil.ts`, which classifies as
- * prose. NUL separation has no such ambiguity: git emits the recorded bytes.
- *
- * Exported so the parse can be tested without a repository. The layer above it is
- * tested against a real one, because this defect lived here and not in
- * {@link isPlanOnly}.
- *
- * @param {string} raw NUL-separated `git ... -z` output.
- * @returns {string[]}
+ * No `.trim()` and no newline split: trimming rewrites the committable path
+ * ` plan/evil.ts` into one that classifies as prose.
  */
 export function parsePaths(raw) {
   return raw.split("\0").filter((path) => path !== "");
 }
 
 /**
- * The paths this PR changes relative to the merge base with its base branch.
- *
- * Three-dot: on a `pull_request` event the checked-out HEAD is the merge commit, and
- * the base branch may have moved since. Two-dot would then report main's own newer
- * commits as changes (in reverse), which is wrong in both directions.
- *
- * @param {string} baseRef base branch name, e.g. "main".
- * @param {{ cwd?: string }} [options] repository to read; the process cwd by default.
- * @returns {string[] | null} paths, or null when the base could not be resolved.
+ * Three-dot: HEAD is the merge commit and the base branch may have moved, so two-dot
+ * would report the base branch's own newer commits as changes.
  */
 export function changedFiles(baseRef, options = {}) {
   const cwd = options.cwd;
@@ -317,13 +113,6 @@ export function changedFiles(baseRef, options = {}) {
   return parsePaths(git(["diff", "--name-only", "--no-renames", "-z", `${base}...HEAD`], cwd));
 }
 
-/**
- * Write one `<name>=<value>` where the workflow can read it, and echo it to the log.
- *
- * @param {string} name output name, e.g. "plan_only".
- * @param {boolean} value
- * @param {string} why one line, printed so a run explains itself without a rerun.
- */
 function report(name, value, why) {
   stdout.write(`${name}=${value} (${why})\n`);
   const outputFile = env["GITHUB_OUTPUT"];
@@ -333,14 +122,8 @@ function report(name, value, why) {
 }
 
 /**
- * Report every classification as `false` with one shared reason.
- *
- * The fail-safe path, and it writes ALL of them rather than only the one it was
- * thinking about: an output a job reads and this script never wrote arrives as the
- * empty string, and while `'' != 'true'` happens to be the safe direction today, a
- * classification that silently omits itself is one `== 'false'` away from inverting.
- *
- * @param {string} why
+ * Writes every classification, not only the one in mind: an output this script never
+ * wrote arrives as the empty string, one `== 'false'` away from inverting.
  */
 function reportAllFalse(why) {
   report("plan_only", false, why);
@@ -374,10 +157,7 @@ function main() {
     return;
   }
 
-  // Quoted, not bare. An indented bare path renders ` plan/evil.ts` and `plan/evil.ts`
-  // identically in a run log, and a leading space is the difference between prose and
-  // a TypeScript file the fast lane must not skip. JSON.stringify makes the boundary
-  // of every path visible, including tabs and non-ASCII.
+  // Quoted, so a leading space in a path stays visible in the run log.
   stdout.write(`Changed vs origin/${baseRef} (${files.length} path(s)):\n`);
   for (const path of files.slice(0, LOG_LIMIT)) stdout.write(`  ${JSON.stringify(path)}\n`);
   if (files.length > LOG_LIMIT) stdout.write(`  ... and ${files.length - LOG_LIMIT} more\n`);
