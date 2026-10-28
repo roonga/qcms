@@ -1,14 +1,3 @@
-/**
- * Webhook-config admin slice tests (task 024, SEC-6), driven through
- * `app.request()` against the 013 Testcontainers harness DB. Requires Docker.
- *
- * Covers exit criterion 3: webhook CRUD; the secret is shown exactly once (create
- * + explicit rotate) and masked on reads; SSRF cases (localhost, 10.x,
- * link-local) rejected by default and allowed under the override flag; and the
- * at-rest round-trip - the stored ciphertext decrypts back to the shown secret
- * (proving 025 can recover it to sign deliveries). Every app key is synthetic.
- */
-
 import { FormId } from "@roonga/qcms-core";
 import {
   SEED_WORKSPACE_ID,
@@ -37,17 +26,10 @@ let testDb: TestDb;
 let deps: Deps;
 let app: ReturnType<typeof createApp>;
 let internalToken: string;
-// A real better-auth session row seeded per suite (031): the admin-auth
-// middleware verifies it against the database, so a made-up marker no longer
-// authenticates anything.
 let adminSessionToken: string;
-/** The account that token belongs to, which every propose below is the act of. */
 let adminUserId: string;
-// A fixed base env so the on-prem-override app shares the internal token and app
-// key with the default app - only QCMS_WEBHOOK_ALLOW_PRIVATE varies.
 let baseEnv: Record<string, string | undefined>;
 
-/** Build an admin app over the shared db with the given env overrides. */
 function buildApp(env: Record<string, string | undefined>): {
   deps: Deps;
   app: ReturnType<typeof createApp>;
@@ -79,8 +61,6 @@ afterAll(async () => {
   await testDb?.teardown();
 }, CONTAINER_BOOT_TIMEOUT_MS);
 
-// --- request helpers --------------------------------------------------------
-
 function headers(): Record<string, string> {
   return {
     "content-type": "application/json",
@@ -102,8 +82,6 @@ async function req(
   });
 }
 
-// --- tests ------------------------------------------------------------------
-
 describe("webhook CRUD, secret reveal/mask, and at-rest round-trip", () => {
   it("creates a webhook, shows the secret once, and encrypts it at rest (decryptable)", async () => {
     const res = await req(app, `/forms/${FORM_ID}/webhooks`, "POST", {
@@ -120,9 +98,6 @@ describe("webhook CRUD, secret reveal/mask, and at-rest round-trip", () => {
     expect(created.webhookId.startsWith("whk_")).toBe(true);
     expect(created.secret.startsWith("whsec_")).toBe(true);
 
-    // At-rest round-trip: the stored ciphertext is NOT the plaintext, and it
-    // decrypts under QCMS_APP_KEY back to exactly the shown secret (SEC-6 - 025
-    // recovers it to sign). This proves encryption, not a one-way hash.
     const row = await getWebhook(testDb.db, FORM_ID, created.webhookId);
     expect(row?.secretEncrypted.startsWith("v1.")).toBe(true);
     expect(row?.secretEncrypted).not.toContain(created.secret);
@@ -156,7 +131,6 @@ describe("webhook CRUD, secret reveal/mask, and at-rest round-trip", () => {
     };
     const originalRow = await getWebhook(testDb.db, FORM_ID, webhookId);
 
-    // A plain update (url only) does NOT reveal or change the secret.
     const plain = await req(app, `/forms/${FORM_ID}/webhooks/${webhookId}`, "PUT", {
       url: "https://consumer.example.com/rotate-v2",
     });
@@ -166,7 +140,6 @@ describe("webhook CRUD, secret reveal/mask, and at-rest round-trip", () => {
       originalRow?.secretEncrypted,
     );
 
-    // An explicit rotate reveals a NEW secret once and re-encrypts at rest.
     const rotate = await req(app, `/forms/${FORM_ID}/webhooks/${webhookId}`, "PUT", {
       rotateSecret: true,
     });
@@ -220,7 +193,7 @@ describe("SSRF guardrail (SEC-6): default-deny, override-allow", () => {
     "https://127.0.0.1/hook",
     "https://10.1.2.3/hook",
     "https://169.254.169.254/latest/meta-data",
-    "http://consumer.example.com/hook", // plain http rejected by default too
+    "http://consumer.example.com/hook",
   ];
 
   it("rejects private/reserved and non-https targets by default (422)", async () => {
@@ -233,18 +206,8 @@ describe("SSRF guardrail (SEC-6): default-deny, override-allow", () => {
     }
   });
 
-  /**
-   * One case per rejection reason, with the reason the envelope must carry (issue #756).
-   *
-   * The 422 has carried `details.reason` since task 024 and nothing asserted it, so
-   * nothing stopped the field from being dropped or renamed. It is now read: the admin
-   * picks one of four catalog sentences from it (`apps/admin/lib/forms/errors.ts`, the
-   * half of #312 that PR #755 deferred), so the field is contract rather than colour and
-   * this is the test that says so.
-   *
-   * `unsupported-scheme` has no `privateTargets` entry above because it is not an SSRF
-   * case at all: `ftp://` is refused whatever the override says.
-   */
+  // `unsupported-scheme` is absent from `privateTargets` above because it is refused
+  // whatever the override says.
   const REJECTIONS: readonly (readonly [string, string])[] = [
     ["not-a-url", "example.com/hook"],
     ["unsupported-scheme", "ftp://consumer.example.com/hook"],
@@ -261,41 +224,19 @@ describe("SSRF guardrail (SEC-6): default-deny, override-allow", () => {
     }
   });
 
-  /**
-   * SEC-8 and ADR-24 on the refusal envelope, asserted on the serialized bytes.
-   *
-   * Two promises, and the reason both are checked here rather than trusted: this body is
-   * built from author input at a boundary that has just refused it, which is exactly the
-   * shape that grows an echo ("the URL you sent was ..."). It carries no secret and no
-   * echo of the request, and it names no environment variable - the two `allowPrivate`
-   * messages used to end "set QCMS_WEBHOOK_ALLOW_PRIVATE for on-prem targets", and ADR-24
-   * has been absolute since 2026-08-31.
-   */
   it("echoes no secret, no request body and no flag name in the refusal (SEC-8, ADR-24)", async () => {
     for (const [, url] of REJECTIONS) {
       const res = await req(app, `/forms/${FORM_ID}/webhooks`, "POST", { url });
       const raw = await res.text();
       expect(raw, `for ${url}`).not.toContain("whsec_");
       expect(raw, `for ${url}`).not.toContain("QCMS_");
-      // The refused URL itself: harmless here, but an envelope that starts quoting the
-      // request is how a body comes to carry a credential in a query string.
+      // An envelope that quotes the request is how a body comes to carry a credential
+      // out of a query string.
       expect(raw, `for ${url}`).not.toContain(url);
       expect(Object.keys(JSON.parse(raw) as { error: object }).length).toBe(1);
     }
   });
 
-  /**
-   * Each refusal sentence claims only what its own check established.
-   *
-   * `https-required` shipped for one review round reading "must use https, because this
-   * deployment does not allow private targets", which tells a consumer refused on a
-   * public host to go looking for a private address their URL does not have. One flag
-   * lifts both rules, so the sentence was reachable from the code and still wrong about
-   * the caller. Nothing pinned the prose, which is why it drifted; this is the pin.
-   *
-   * Asserted as "does not mention privacy" rather than by matching the whole sentence:
-   * the wording is allowed to improve, the false claim is not.
-   */
   it("does not tell an https refusal it was refused for being private", async () => {
     const res = await req(app, `/forms/${FORM_ID}/webhooks`, "POST", {
       url: "http://consumer.example.com/hook",
@@ -322,16 +263,13 @@ describe("SSRF guardrail (SEC-6): default-deny, override-allow", () => {
 });
 
 describe("the pending `prod` endpoint change (task 070, Q30, Q51)", () => {
-  /** A second `forms.approver` holding `prod`: the account the rule needs. */
   let secondToken = "";
   let secondUserId = "";
-  /** A `forms.viewer`, for Q58's masking of a **proposed** URL. */
   let viewerToken = "";
 
   const AGREED = "https://agreed-consumer.example/hook";
   const PROPOSED = "https://proposed-consumer.example/hook?token=not-a-real-credential";
 
-  /** This suite's requests as one named account. */
   async function as(
     token: string,
     path: string,
@@ -369,8 +307,6 @@ describe("the pending `prod` endpoint change (task 070, Q30, Q51)", () => {
 
   it("holds a new prod endpoint pending, with its secret shown once and nothing live", async () => {
     const res = await req(app, `/forms/${FORM_ID}/webhooks`, "POST", { url: AGREED });
-    // A `202` rather than a `201`: the operator performed the same act and the answer is
-    // "stored, waiting for a second approver" instead of "done".
     expect(res.status).toBe(202);
     const body = (await res.json()) as {
       pending: true;
@@ -378,21 +314,15 @@ describe("the pending `prod` endpoint change (task 070, Q30, Q51)", () => {
       proposal: { proposalId: string; webhookId: string; kind: string; rotatesSecret: boolean };
     };
     expect(body.pending).toBe(true);
-    // The plaintext exists only at this moment, so it is revealed here (SEC-6) - and
-    // nothing signs with it until the change applies, which is what `pending` says.
     expect(body.secret.startsWith("whsec_")).toBe(true);
     expect(body.proposal.kind).toBe("create");
     expect(body.proposal.rotatesSecret).toBe(true);
 
-    // **Nothing live.** The endpoint does not exist yet, so the deliverer has nothing to
-    // post to and the proposed URL receives nothing at all.
     expect(await getWebhook(testDb.db, FORM_ID, body.proposal.webhookId)).toBeUndefined();
     const list = await req(app, `/forms/${FORM_ID}/webhooks`, "GET");
     const rows = (await list.json()) as { webhooks: { webhookId: string }[] };
     expect(rows.webhooks.map((row) => row.webhookId)).not.toContain(body.proposal.webhookId);
 
-    // Confirmed by the second account, the endpoint is created - with the id the proposal
-    // minted, which is what makes a repeated apply idempotent.
     const confirmed = await as(
       secondToken,
       `/forms/${FORM_ID}/webhooks/proposals/${body.proposal.proposalId}/confirm`,
@@ -401,8 +331,6 @@ describe("the pending `prod` endpoint change (task 070, Q30, Q51)", () => {
     expect(confirmed.status).toBe(200);
     const stored = await getWebhook(testDb.db, FORM_ID, body.proposal.webhookId);
     expect(stored?.url).toBe(AGREED);
-    // The secret that was shown once is the secret the endpoint now holds, which is what
-    // makes a pending create usable at all (025 signs with it).
     expect(await decryptWebhookSecret(stored!.secretEncrypted, deps.config.keys.app)).toBe(
       body.secret,
     );
@@ -422,8 +350,6 @@ describe("the pending `prod` endpoint change (task 070, Q30, Q51)", () => {
     expect(removed.status).toBe(202);
     const pending = (await removed.json()) as { proposal: { proposalId: string; kind: string } };
     expect(pending.proposal.kind).toBe("deactivate");
-    // Still active: a deactivation stops a consumer an agreed configuration feeds, and
-    // whether that is right is the question a second approver reads.
     expect((await getWebhook(testDb.db, FORM_ID, webhookId))?.active).toBe(true);
 
     const confirmed = await as(
@@ -455,9 +381,6 @@ describe("the pending `prod` endpoint change (task 070, Q30, Q51)", () => {
     const pendingId = ((await proposed.json()) as { proposal: { proposalId: string } }).proposal
       .proposalId;
 
-    // The pending list hands a stored URL to a caller who may not be allowed to set it,
-    // which is the one property that decides whether a URL is masked. So it masks the
-    // same way the endpoint list does.
     const asViewer = await as(viewerToken, `/forms/${FORM_ID}/webhooks/proposals`, "GET");
     expect(asViewer.status).toBe(200);
     const viewerRows = (await asViewer.json()) as { proposals: { url: string | null }[] };
@@ -465,21 +388,19 @@ describe("the pending `prod` endpoint change (task 070, Q30, Q51)", () => {
     expect(viewerRow?.url).toContain("(hidden)");
     expect(JSON.stringify(viewerRows)).not.toContain("not-a-real-credential");
 
-    // And whole for an account that may configure it.
     const asApprover = await as(secondToken, `/forms/${FORM_ID}/webhooks/proposals`, "GET");
     const approverRows = (await asApprover.json()) as { proposals: { url: string | null }[] };
     expect(approverRows.proposals.some((row) => row.url === PROPOSED)).toBe(true);
 
-    // Clean up so the next case starts with nothing pending on this endpoint.
+    // Leaves nothing pending on this endpoint for the next case.
     expect(
       (await as(secondToken, `/forms/${FORM_ID}/webhooks/proposals/${pendingId}`, "DELETE")).status,
     ).toBe(200);
   });
 
   it("withdraws a confirmed change whose apply never landed, and frees the endpoint", async () => {
-    // PR #1100's review, finding 3. The state is reached by hand rather than by breaking a
-    // pool: `confirmed_at` set with `applied_at` null is exactly what a confirmation whose
-    // endpoint write failed leaves behind, and what matters is that the row can be ended.
+    // `confirmed_at` set with `applied_at` null is written by hand here: it is what a
+    // confirmation whose endpoint write failed leaves behind.
     const created = await req(app, `/forms/${FORM_ID}/webhooks`, "POST", { url: AGREED });
     const first = (await created.json()) as { proposal: { proposalId: string; webhookId: string } };
     await as(
@@ -501,15 +422,11 @@ describe("the pending `prod` endpoint change (task 070, Q30, Q51)", () => {
       confirmedAt: new Date("2026-10-22T00:00:00.000Z"),
     });
 
-    // While it sits there the endpoint is claimed, which is the wedge: no new change for
-    // it is accepted.
     const blocked = await req(app, `/forms/${FORM_ID}/webhooks/${webhookId}`, "PUT", {
       url: "https://third-consumer.example/hook",
     });
     expect(blocked.status).toBe(409);
 
-    // The door out. Nothing live is unpicked - the endpoint still holds the agreed URL -
-    // and the row keeps both accounts.
     const withdrawn = await as(
       secondToken,
       `/forms/${FORM_ID}/webhooks/proposals/${stuckId}`,
@@ -522,7 +439,6 @@ describe("the pending `prod` endpoint change (task 070, Q30, Q51)", () => {
     expect(row?.withdrawnBy).toBe(secondUserId);
     expect(row?.appliedAt).toBeNull();
 
-    // And the endpoint is free again.
     const freed = await req(app, `/forms/${FORM_ID}/webhooks/${webhookId}`, "PUT", {
       url: "https://fourth-consumer.example/hook",
     });
@@ -535,10 +451,6 @@ describe("the pending `prod` endpoint change (task 070, Q30, Q51)", () => {
   });
 
   it("answers both of two concurrent resumes of a `create` cleanly (review finding 7)", async () => {
-    // Two approvers pressing Confirm on an unapplied `create` within one round trip both
-    // read "no endpoint yet" and both insert; the loser used to get a 500 off
-    // `webhooks_pkey`. The row the proposal describes is the same row either way - the id
-    // is minted at propose time - so the loser is an idempotent success.
     const created = await req(app, `/forms/${FORM_ID}/webhooks`, "POST", { url: AGREED });
     const proposal = (await created.json()) as {
       proposal: { proposalId: string; webhookId: string };
@@ -561,21 +473,14 @@ describe("the pending `prod` endpoint change (task 070, Q30, Q51)", () => {
         "POST",
       ),
     ]);
-    // Neither caller is told to retry and neither sees a 500: the end state they both
-    // wanted is the state the endpoint is in.
     expect([left.status, right.status].sort()).toEqual([200, 200]);
     expect((await getWebhook(testDb.db, FORM_ID, proposal.proposal.webhookId))?.url).toBe(AGREED);
     expect(
       (await getEndpointProposal(testDb.db, proposal.proposal.proposalId))?.appliedAt,
     ).not.toBeNull();
 
-    // **And the rule does not stop applying once the change has landed.** The idempotent
-    // success above is for a second *approver*; the proposer arriving at the same applied
-    // row is still refused, which is the line that keeps "two accounts" true after the
-    // apply rather than only up to it (PR #1100's round-two review, finding 4). Without
-    // this the branch that refuses them had no case at all: the pre-apply refusal is
-    // covered over HTTP and the applied-row success is covered above, and between them
-    // they would both pass with the refusal deleted.
+    // The two-account rule still holds after the apply: the proposer is refused even on
+    // an applied row.
     const byProposer = await req(
       app,
       `/forms/${FORM_ID}/webhooks/proposals/${proposal.proposal.proposalId}/confirm`,
@@ -604,13 +509,10 @@ describe("the pending `prod` endpoint change (task 070, Q30, Q51)", () => {
     expect(details).toContain("act=propose");
     expect(details).toContain("act=withdraw");
     for (const row of added) {
-      // Q61: both are filled in because the act names both.
       expect(row.environment).toBe("prod");
       expect(row.formId).toBe(FORM_ID);
-      // The withdrawal is the second account's act, so the actor is that account.
       expect([adminUserId, secondUserId]).toContain(row.actor);
-      // The URL stays out of the audit: a `forms.owner` reads the audit and Q58 never
-      // gave that role an unmasked endpoint URL.
+      // A `forms.owner` reads the audit and is never shown an unmasked endpoint URL.
       expect(row.detail ?? "").not.toContain("agreed-consumer.example");
     }
   });

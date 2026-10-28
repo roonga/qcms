@@ -1,11 +1,3 @@
-/**
- * The tool loop, driven by the deterministic fake provider (041).
- *
- * These run the production `streamText` loop end to end: the only substitution
- * is the language model itself, so the allowlist, the tool dispatch, the
- * stop-reason mapping and the event stream under test are the shipped ones.
- */
-
 import { describe, expect, it } from "vitest";
 
 import {
@@ -120,8 +112,6 @@ describe("draft assistant tool loop (fake provider)", () => {
     expect(proposal.proposal.proposedDraft.steps.map((s) => s.stepId)).toEqual([
       "stp_agent_history",
     ]);
-    // Both library questions on the one step, with the forward-only rule (ADR-16)
-    // the fake script builds revealing the second from an answer to the first.
     expect(proposal.proposal.proposedDraft.steps[0]?.items).toHaveLength(2);
     expect(proposal.proposal.proposedDraft.rules).toHaveLength(1);
     expect(proposal.proposal.proposedDraft.rules[0]?.show).toEqual(["q_accident_detail"]);
@@ -129,30 +119,14 @@ describe("draft assistant tool loop (fake provider)", () => {
     expect(proposal.proposal.warnings).toEqual([]);
     expect(proposal.proposal.rationale).not.toBe("");
 
-    // The advisory validation is the server's own, run before the proposal left.
     expect(validated.at(-1)?.steps.map((s) => s.stepId)).toEqual(["stp_agent_history"]);
 
-    // The library search actually ran: the proposal pins what search returned.
     const firstStep = proposal.proposal.proposedDraft.steps[0];
     expect(firstStep === undefined ? undefined : stepQuestionRefs(firstStep)[0]?.questionId).toBe(
       "q_at_fault_accident",
     );
   });
 
-  /**
-   * The second advisory channel (issue #123) reaches the proposal exactly as the
-   * first does.
-   *
-   * The kernel validates everything, and after that split "everything" is two
-   * lists rather than one. A warning describes a draft that WOULD publish, so an
-   * assistant that dropped it would hand the author a proposal card reading
-   * "validation passes" over a draft the builder's own validation panel flags the
-   * moment it is accepted - the same surface disagreeing with itself about one
-   * draft. The port is stubbed here rather than driven through a warning-producing
-   * fixture on purpose: what is under test is that this slice relays what 022's
-   * validation returned, and `packages/core` owns whether a given draft earns a
-   * warning.
-   */
   it("carries the warnings the server's own validation returned, beside the issues", async () => {
     const warning = {
       code: "MULTICHOICE_SAME_STEP_TARGET" as const,
@@ -172,8 +146,6 @@ describe("draft assistant tool loop (fake provider)", () => {
     const proposal = (await collect(ctx)).find((e) => e.type === "proposal");
     if (proposal?.type !== "proposal") throw new Error("unreachable");
     expect(proposal.proposal.warnings).toEqual([warning]);
-    // Still publishable: a warning is not an issue, and collapsing the two is the
-    // exact confusion issue #123 split them to prevent.
     expect(proposal.proposal.issues).toEqual([]);
   });
 
@@ -193,16 +165,6 @@ describe("draft assistant tool loop (fake provider)", () => {
     expect(events.find((e) => e.type === "error")).toMatchObject({ code: "REFUSED" });
   });
 
-  /**
-   * The split issue #818 exists for, asserted from both sides in one table.
-   *
-   * The live failure was a real account with no balance: a 429 the SDK had
-   * already marked non-retryable, rendered as "try again shortly". Retryable and
-   * non-retryable have to reach the panel as different codes or the operator is
-   * told to wait when they must act - and the second row is only half of it. The
-   * first row is the regression that would send someone to check an account that
-   * is fine, so a plain failure staying `PROVIDER_ERROR` is pinned beside it.
-   */
   it.each([
     ["provider-error", "PROVIDER_ERROR"],
     ["provider-rejected", "PROVIDER_REJECTED"],
@@ -213,36 +175,17 @@ describe("draft assistant tool loop (fake provider)", () => {
   });
 
   it("logs the refusal without writing any vendor detail into the record", async () => {
-    // The panel shows the operator no vendor detail at all (SEC-8), so this log
-    // line is the only trace of a permanent refusal. It must carry enough to act
-    // on and nothing the vendor wrote.
     const { logger, lines } = recordingLogger();
     const { ctx } = contextFor("#qcms-fake:provider-rejected hello");
     await collect(ctx, logger);
     const record = lines.find((line) => line["msg"] === "draft assistant provider failure");
     expect(record).toBeDefined();
     expect(record).toMatchObject({ provider: "fake", retryable: false, statusCode: 429 });
-    // The SDK's own sentence rides on the event to an authenticated admin; it
-    // does not ride into the log, where an exporter or an aggregator would take
-    // it somewhere nobody chose.
+    // The SDK's own sentence rides on the event to an authenticated admin, never into a
+    // log an exporter may forward.
     expect(JSON.stringify(record)).not.toContain("upstream provider refused");
   });
 
-  /**
-   * A failed tool call is not a failed turn (found live on 2026-09-05).
-   *
-   * The Code Owner drove "add step called registration" against a local model.
-   * It malformed one `propose_draft` call, corrected itself, proposed
-   * successfully, and finished with `stop` in six of its twelve steps - and the
-   * panel showed the narration followed by "the assistant is unavailable right
-   * now. Try again shortly", with the proposal discarded. The turn had worked.
-   *
-   * The cause was a `tool-error` part being routed to the same place a stream
-   * failure goes. A provider error is terminal and is checked before the
-   * proposal, so one bad call anywhere destroyed everything after it. Local
-   * models produce at least one such call on most real turns, so this was not
-   * an edge: it was the common path.
-   */
   it("keeps the proposal when a tool call failed and the model recovered", async () => {
     const { ctx } = contextFor("#qcms-fake:tool-error-recovered build me a form");
     const events = await collect(ctx);
@@ -252,12 +195,10 @@ describe("draft assistant tool loop (fake provider)", () => {
       proposal,
       `no proposal survived: ${JSON.stringify(events.map((e) => e.type))}`,
     ).toBeDefined();
-    // And nothing told the operator the provider was unavailable.
     expect(events.filter((e) => e.type === "error")).toHaveLength(0);
   });
 
   describe("tool outcomes, for an honest step timeline", () => {
-    /** `[tool, outcome]` per announced step, in step order. */
     function stepOutcomes(events: readonly AssistEvent[]): [string, string | undefined][] {
       const announced = events.flatMap((e) =>
         e.type === "status" && e.phase === "tool" && e.step !== undefined
@@ -290,7 +231,6 @@ describe("draft assistant tool loop (fake provider)", () => {
         ["search_question_library", "done"],
         ["propose_draft", "done"],
       ]);
-      // No error text travels with the outcome (SEC-8).
       for (const event of events.filter((e) => e.type === "tool-outcome")) {
         expect(Object.keys(event).sort()).toEqual(["outcome", "step", "type"]);
       }
@@ -329,9 +269,8 @@ describe("draft assistant tool loop (fake provider)", () => {
   });
 
   it("counts the failed call in the turn record without quoting it", async () => {
-    // The count is what makes a recovered turn diagnosable at all now that it no
-    // longer surfaces as an error. The message must not travel with it: a tool
-    // error's text is assembled from input the model wrote (SEC-8).
+    // A tool error's text is assembled from input the model wrote, so it must not travel
+    // into the record.
     const { logger, lines } = recordingLogger();
     const { ctx } = contextFor("#qcms-fake:tool-error-recovered build me a form");
     await collect(ctx, logger);
@@ -341,17 +280,8 @@ describe("draft assistant tool loop (fake provider)", () => {
     expect(JSON.stringify(record)).not.toContain("formId");
   });
 
-  /**
-   * A refused turn is not a turn with a tool error in it (issue #840).
-   *
-   * The SDK reports an unallowlisted verb twice: once as the parsed `tool-call`
-   * part, `toolName` intact and `invalid: true`, which is where the refusal is
-   * recorded, and once again as the paired `tool-error` part carrying the same
-   * call. Counting the second one made the record say a tool had failed on a
-   * turn where none had run, and `toolErrors` is the field an operator reads to
-   * tell a model correcting itself from a model that cannot call this API at
-   * all. A refusal is neither, so it counts as neither.
-   */
+  // The SDK reports an unallowlisted verb twice, as an invalid `tool-call` part and again
+  // as the paired `tool-error` part; only the first is the refusal.
   it("logs a refused turn with no tool errors counted", async () => {
     const { logger, lines } = recordingLogger();
     const { ctx } = contextFor("#qcms-fake:rogue-publish do it");
@@ -362,26 +292,14 @@ describe("draft assistant tool loop (fake provider)", () => {
   });
 
   it("still stops the turn when the failed call was a refused verb", async () => {
-    // The one tool failure that must remain terminal: an unallowlisted verb
-    // arrives the same way, and 041's control is that a model which reached for
-    // it gets none of its other work accepted.
     const { ctx } = contextFor("#qcms-fake:rogue-publish do it");
     const events = await collect(ctx);
     expect(events.find((e) => e.type === "error")).toMatchObject({ code: "REFUSED" });
     expect(events.filter((e) => e.type === "proposal")).toHaveLength(0);
   });
 
-  /**
-   * A refused turn stops at the refusing step (issue #814).
-   *
-   * The security control always held - no proposal is yielded - but the loop
-   * carried on asking. `stopWhen` was `stepCountIs(maxSteps)` alone, so a model
-   * that reached for `publish` was told "no such tool" and asked again until the
-   * budget ran out: eight round trips a real provider bills for, to reach a
-   * conclusion that was settled at the first one. The `rogue-publish` script
-   * asks on every step, so the step count is the whole assertion - with the
-   * ceiling at 8 and no stop condition on the refusal this reads 8.
-   */
+  // The `rogue-publish` script asks on every step, so without a stop condition on the
+  // refusal the step count would read the full ceiling.
   it("stops at the step that reached for the forbidden verb, not at the ceiling", async () => {
     const { ctx } = contextFor("#qcms-fake:rogue-publish do it", { maxSteps: 8 });
     const events = await collect(ctx);
@@ -390,15 +308,10 @@ describe("draft assistant tool loop (fake provider)", () => {
     if (usage?.type !== "usage") throw new Error("expected a usage event");
     expect(usage.steps).toBe(1);
 
-    // What the operator saw in #814's screenshot was the same narration eight
-    // times over, which is the same defect from the panel's side.
     expect(events.filter((e) => e.type === "text")).toHaveLength(1);
   });
 
   it("keeps the refusal single and its copy unchanged when the loop stops early", async () => {
-    // Ending the loop sooner must not change what a refused turn IS. The
-    // rejection is named once, the code and the sentence are the ones the panel
-    // already renders, and nothing else rides along.
     const { ctx } = contextFor("#qcms-fake:rogue-publish do it", { maxSteps: 8 });
     const events = await collect(ctx);
 
@@ -422,19 +335,6 @@ describe("draft assistant tool loop (fake provider)", () => {
   });
 });
 
-/**
- * Every declared error code, and the scripted scenario that produces it.
- *
- * This table is the fix for the class of defect `STEP_LIMIT` was an instance of:
- * a code that is declared, has copy rendered for it, and can never be emitted.
- * The two assertions below are deliberately different shapes, because a table
- * like this is only as good as what happens when it goes stale:
- *
- *  - every row must actually produce its code, so a code that stops being
- *    emitted fails here rather than silently becoming decoration again;
- *  - the rows must cover `ASSIST_ERROR_CODES` exactly, so adding a sixth code
- *    without a scenario that reaches it fails too.
- */
 const ERROR_SCENARIOS: readonly (readonly [string, string])[] = [
   ["provider-error", "PROVIDER_ERROR"],
   ["provider-rejected", "PROVIDER_REJECTED"],
@@ -446,8 +346,8 @@ const ERROR_SCENARIOS: readonly (readonly [string, string])[] = [
 
 describe("assist error codes are all reachable", () => {
   it.each(ERROR_SCENARIOS)("script %s emits %s", async (script, expected) => {
-    // A small ceiling so the step-limit script exhausts quickly; every other
-    // script finishes in one step and is unaffected by it.
+    // A small ceiling so the step-limit script exhausts quickly; every other script
+    // finishes in one step.
     const { ctx } = contextFor(`#qcms-fake:${script} go`, { maxSteps: 3 });
     const events = await collect(ctx);
 
@@ -458,16 +358,10 @@ describe("assist error codes are all reachable", () => {
     ).toBeDefined();
     if (error?.type !== "error") throw new Error("unreachable");
     expect(error.code).toBe(expected);
-    // The message is what an operator reads, so an empty one is a defect even
-    // when the code is right.
     expect(error.message.length).toBeGreaterThan(0);
-    // ...and it is framed into the SSE response body by `handler.ts`, so it carries no
-    // environment identifier (ADR-24 as widened 2026-09-12; issue #910). Asserted on
-    // every row rather than only on `STEP_LIMIT`, which is the row that broke it: a
-    // sixth code whose sentence names a variable fails here without anyone remembering
-    // the rule. `QCMS_` is this repository's environment prefix.
+    // The message is framed into the SSE body, which carries no environment identifier
+    // (ADR-24); `QCMS_` is this repository's environment prefix.
     expect(error.message).not.toMatch(/QCMS_[A-Z0-9_]+/);
-    // No code may arrive with a proposal attached: an error turn is terminal.
     expect(events.filter((e) => e.type === "proposal")).toHaveLength(0);
   });
 
@@ -478,9 +372,6 @@ describe("assist error codes are all reachable", () => {
   });
 
   it("distinguishes step exhaustion from a model that simply did not answer", async () => {
-    // The distinction this pins is the reason STEP_LIMIT exists at all: both of
-    // these turns end with no proposal, and they are different problems with
-    // different fixes. If the two ever collapse back into one code, this fails.
     const exhausted = await collect(contextFor("#qcms-fake:step-limit go", { maxSteps: 3 }).ctx);
     const silent = await collect(contextFor("#qcms-fake:no-proposal go", { maxSteps: 3 }).ctx);
 
@@ -497,8 +388,6 @@ describe("assist error codes are all reachable", () => {
     const events = await collect(contextFor("#qcms-fake:step-limit go", { maxSteps: 3 }).ctx);
     const usage = events.find((e) => e.type === "usage");
     if (usage?.type !== "usage") throw new Error("expected a usage event");
-    // The ceiling was reached, which is what makes STEP_LIMIT the truthful code
-    // rather than a guess.
     expect(usage.steps).toBe(3);
   });
 });

@@ -56,41 +56,10 @@ import type {
   workspaceSettingsRoute,
 } from "./route.js";
 
-/**
- * The membership write path, and the only one there is (Q45; task 069).
- *
- * # Why these endpoints and not the plugin's
- *
- * The plugin's own team and member write endpoints are unreachable over HTTP (the auth
- * mount's allowlist names none of them) and are **not an owner path**. Two reasons the
- * earlier two-path shape could not answer:
- *
- *   - the QCMS endpoints are where the validation and the **SEC-15 rows** live, so a
- *     second path is a path on which a grant changes without an audit row; and
- *   - the plugin's **removal cascades** run inside the library, below any endpoint QCMS
- *     could gate, so the only way to be sure a removal is audited is for no removal to
- *     originate there.
- *
- * Every write below therefore writes its grant rows and its audit row **in one
- * transaction** on the control pool. A grant that changed while its audit row failed is
- * the one failure this control may not have, which is the same reasoning Q40 uses for a
- * response read one plane over.
- *
- * # The self-grant rule, and how "a second owner confirms" is spelled
- *
- * Q56: a self-grant of a `responses.*` role is **refused only while the workspace's
- * `requireSecondApprover` switch is on**, and then needs a second `forms.owner`, or the
- * installation administrator, to confirm; the installation administrator follows the same
- * rule; and with the switch **off** it is allowed and audited, which is what keeps a
- * one-account installation able to read its own responses.
- *
- * The confirmation is **one act by the other account**, which is the shape Q51 gives the
- * `prod` release rather than the shape it gives a `prod` endpoint change. So there is no
- * pending row and no second table: the self-grant is refused, the refusal says a
- * different owner has to make it, and that owner making it **is** the confirmation. A
- * stored-pending mechanism would be task 070's shape, and 070 is where the pending
- * mechanism belongs.
- */
+// The only membership write path: the auth plugin's own team and member endpoints are
+// kept off the HTTP allowlist, because its removal cascades run below any endpoint QCMS
+// could gate and would change grants with no audit row. Every write here therefore writes
+// its grant rows and its SEC-15 audit row in one transaction on the control pool.
 
 const fail = {
   notFound: (): ApiError => new ApiError("WORKSPACE_NOT_FOUND", 404, "No such workspace"),
@@ -141,7 +110,6 @@ const fail = {
   noPrincipal: (): ApiError => new ApiError("unauthorized", 401, "Admin authentication required"),
 } as const;
 
-/** The caller, or a refusal. The admin-session gate guarantees one; this is the narrowing. */
 function principalOf(c: { get: (key: "adminPrincipal") => unknown }): {
   readonly userId: string;
   readonly role: string;
@@ -152,20 +120,14 @@ function principalOf(c: { get: (key: "adminPrincipal") => unknown }): {
   return principal;
 }
 
-/** The workspace the grant middleware already authorised the act in. */
 async function workspaceOf(deps: Deps, id: string): Promise<WorkspaceRow> {
   const workspace = await getWorkspace(deps.databases.control, id);
   if (workspace === undefined) throw fail.notFound();
   return workspace;
 }
 
-/**
- * The audit row's `environment` and `form` on a grant, a revoke or a setting (Q61).
- *
- * **Empty unless the act names one.** A grant scoped to `prod` names an environment; one
- * scoped to `all`, or to two environments, names none that a single column could carry.
- * The scope itself is not lost - it moves to the row's `detail`.
- */
+// Empty unless the act names exactly one; a wider scope is not lost, it moves to the
+// audit row's `detail`.
 function scopeColumns(group: {
   readonly environments: readonly string[];
   readonly forms: readonly string[];
@@ -181,7 +143,6 @@ function scopeColumns(group: {
   };
 }
 
-/** The scope, as the row's `detail` carries it: `all` or the list, for both dimensions. */
 function scopeDetail(
   group: {
     readonly role: string;
@@ -199,7 +160,6 @@ function scopeDetail(
   return parts.join(" ");
 }
 
-/** One access group as the API reports it, with its two derived names and its holders. */
 async function groupView(
   exec: Executor,
   workspace: WorkspaceRow,
@@ -230,7 +190,6 @@ async function groupView(
   };
 }
 
-/** Validate a name and a scope against the live environment set, or refuse. */
 async function validateGroup(
   exec: Executor,
   input: {
@@ -250,9 +209,8 @@ async function validateGroup(
     throw fail.invalidScope("`all` is the whole set, so it cannot be combined with a form id");
   }
 
-  // Q42's ordering, both halves: the stored scope is normalised, and a NAME whose own
-  // segment is out of order is refused by `refuseAccessGroupName` below. So `dev-test` is
-  // the one spelling and `test-dev` is never a second grant.
+  // Normalised here and the name's own ordering refused below, so `dev-test` is the one
+  // spelling and `test-dev` is never a second grant.
   const environments = normaliseEnvironmentScope(input.environments, live);
 
   const nameRefusal = refuseAccessGroupName(
@@ -269,19 +227,8 @@ async function validateGroup(
   return { environments, forms: input.forms };
 }
 
-// --- GET /admin/me/access ---------------------------------------------------
-
-/**
- * Every grant the caller holds, and nobody else's (Q35).
- *
- * The one admin route that needs no grant, because it **is** the answer to "what do I
- * hold": a check in front of it would be a check on the thing it exists to tell you. It
- * names no person, so there is no shape of this request that asks about somebody else.
- *
- * `environments` per workspace is what the Q6 switcher offers: **only the environments
- * the caller holds in some grant** (Q25), with `all` expanded against the live set so the
- * switcher has names to show rather than a token.
- */
+// Grant-exempt, and safe to be: it names no person, so no shape of this request asks
+// about anybody but the caller.
 export function makeMyAccessHandler(deps: Deps): RouteHandler<typeof myAccessRoute, ApiEnv> {
   return async (c) => {
     const principal = principalOf(c);
@@ -346,13 +293,8 @@ export function makeMyAccessHandler(deps: Deps): RouteHandler<typeof myAccessRou
   };
 }
 
-/**
- * The environments a caller holds in some grant, which is what the Q6 switcher offers.
- *
- * `all` expands against the live set rather than being returned as a token, because the
- * switcher is a list of names and a client that had to expand `all` itself would be a
- * second place the live set is read.
- */
+// `all` is expanded here rather than returned as a token, so a client is not a second
+// place the live environment set is read.
 function environmentsHeld(
   grants: readonly { readonly environments: readonly string[] }[],
   live: readonly string[],
@@ -368,9 +310,6 @@ function environmentsHeld(
   return live.filter((name) => held.has(name));
 }
 
-// --- GET /admin/workspaces/:id/members --------------------------------------
-
-/** The membership list: owners and the installation admin only (Q35). */
 export function makeListMembersHandler(deps: Deps): RouteHandler<typeof listMembersRoute, ApiEnv> {
   return async (c) => {
     const workspaceId = c.req.valid("param").id;
@@ -382,9 +321,8 @@ export function makeListMembersHandler(deps: Deps): RouteHandler<typeof listMemb
       listAccessGroups(exec, workspaceId),
     ]);
 
-    // Which groups each member holds, so a reader sees the grants rather than only the
-    // member rows: finding 17's point is that access is visible rather than inferred, and
-    // a list of member rows alone would say nothing about what anybody may do.
+    // The groups each member holds, so access is visible in the list rather than
+    // inferred from a member row.
     const byUser = new Map<string, string[]>();
     for (const group of groups) {
       for (const holder of await listAccessGroupHolders(exec, group.teamId)) {
@@ -410,20 +348,8 @@ export function makeListMembersHandler(deps: Deps): RouteHandler<typeof listMemb
   };
 }
 
-// --- PUT /admin/workspaces/:id/members/:userId ------------------------------
-
-/**
- * Set a member row's role: `forms.owner`, or back to the empty role.
- *
- * The one grant that is not a team (Q32), so it is the one grant written here rather than
- * through an access group. Both directions write a SEC-15 row, because both change what
- * somebody may do: `forms.owner` is a grant and taking it away is a revoke.
- *
- * **It refuses the removal of a workspace's last owner.** A workspace with no
- * `forms.owner` is a workspace nobody can administer, and the repair would need the
- * installation claim - so the refusal names what to do instead rather than creating a
- * state only an operator can get out of.
- */
+// Refuses removal of a workspace's last owner: nobody could then administer it, and the
+// repair would need the installation claim.
 export function makeSetMemberRoleHandler(
   deps: Deps,
 ): RouteHandler<typeof setMemberRoleRoute, ApiEnv> {
@@ -447,8 +373,8 @@ export function makeSetMemberRoleHandler(
       const updated = await setMemberRole(tx, workspaceId, userId, role);
       if (updated === undefined) throw fail.notAMember();
 
-      // Both directions are audited (Q56). `forms.owner` names no environment and no
-      // form, so both columns are empty and the detail carries what changed (Q61).
+      // Both directions are audited: granting ownership and taking it away each change
+      // what somebody may do.
       await writeAccessAuditRow(tx, {
         actor: actor.userId,
         workspaceId,
@@ -461,8 +387,6 @@ export function makeSetMemberRoleHandler(
     return c.json({ userId, role }, 200);
   };
 }
-
-// --- GET /admin/workspaces/:id/access-groups --------------------------------
 
 export function makeListAccessGroupsHandler(
   deps: Deps,
@@ -479,16 +403,8 @@ export function makeListAccessGroupsHandler(
   };
 }
 
-// --- POST /admin/workspaces/:id/access-groups -------------------------------
-
-/**
- * Create an access group.
- *
- * **It writes no audit row**, and that is the right answer rather than an omission: a
- * group with no holders carries no grant, so there is nothing for a `grant` row to
- * record. The audit row is written when a holder is added, which is when team membership
- * becomes the grant (Q32).
- */
+// No audit row: a group with no holders carries no grant. The row is written when a
+// holder is added, which is when the grant exists.
 export function makeCreateAccessGroupHandler(
   deps: Deps,
 ): RouteHandler<typeof createAccessGroupRoute, ApiEnv> {
@@ -501,9 +417,7 @@ export function makeCreateAccessGroupHandler(
     const exec = deps.databases.control;
     const scope = await validateGroup(exec, body);
 
-    // Uniqueness within the workspace is the QCMS write path's, because the plugin does
-    // not enforce it on team names (Q37 rule 4). The same name in another workspace is
-    // accepted, which is what criterion 12 asserts on both halves.
+    // Enforced here because the auth plugin does not enforce uniqueness on team names.
     if (await isAccessGroupNameTaken(exec, workspaceId, body.name)) {
       throw fail.nameTaken(body.name);
     }
@@ -519,16 +433,8 @@ export function makeCreateAccessGroupHandler(
   };
 }
 
-// --- PUT /admin/workspaces/:id/access-groups/:teamId ------------------------
-
-/**
- * Re-scope or rename an access group.
- *
- * The role is not changeable (see `queries/grants.ts`), so the body carries none. A
- * re-scope **does** change what every holder may do, so it writes one `grant` row per
- * holder: the act is a grant of the new scope, and a row per holder is what makes "who
- * made it possible" answerable per person rather than per group.
- */
+// The role is not changeable, so the body carries none. A re-scope writes one `grant` row
+// per holder, so "who made this possible" stays answerable per person.
 export function makeUpdateAccessGroupHandler(
   deps: Deps,
 ): RouteHandler<typeof updateAccessGroupRoute, ApiEnv> {
@@ -574,17 +480,9 @@ export function makeUpdateAccessGroupHandler(
   };
 }
 
-// --- DELETE /admin/workspaces/:id/access-groups/:teamId ---------------------
-
-/**
- * Remove an access group, and with it every grant it carried.
- *
- * **This is the cascade Q45 is about.** `teamMember` references `team` with
- * `ON DELETE cascade`, so the holders' rows go with it - and the plugin's own delete
- * endpoint would run that cascade below any hook, leaving the removals invisible. Here
- * the cascade originates at a QCMS endpoint, so the holders are read **first** and one
- * `revoke` row is written per holder, in the same transaction as the delete.
- */
+// `teamMember` cascades on `team` delete, so the holders must be read before the delete
+// and one `revoke` row written per holder in the same transaction, or the removals are
+// invisible.
 export function makeDeleteAccessGroupHandler(
   deps: Deps,
 ): RouteHandler<typeof deleteAccessGroupRoute, ApiEnv> {
@@ -615,19 +513,9 @@ export function makeDeleteAccessGroupHandler(
   };
 }
 
-// --- POST /admin/workspaces/:id/access-groups/:teamId/holders ---------------
-
-/**
- * Grant an access group to somebody. **Team membership is the grant** (Q32).
- *
- * Three things happen in one transaction, and the order is the reasoning:
- *
- *   1. the self-grant rule (Q56) is applied, before anything is written;
- *   2. the holder gets a `member` row with the **empty** role if they have none (finding
- *      G), because the plugin's own team queries assume a team member is a member of the
- *      organisation the team belongs to;
- *   3. the `teamMember` row and its SEC-15 `grant` row are written together.
- */
+// Team membership is the grant. The holder also needs a `member` row with the empty role,
+// because the auth plugin's team queries assume a team member belongs to the
+// organisation.
 export function makeAddHolderHandler(deps: Deps): RouteHandler<typeof addHolderRoute, ApiEnv> {
   return async (c) => {
     const { id: workspaceId, teamId } = c.req.valid("param");
@@ -646,9 +534,8 @@ export function makeAddHolderHandler(deps: Deps): RouteHandler<typeof addHolderR
         : await findUserByEmail(exec, body.email as string);
     if (subject === undefined) throw fail.userNotFound();
 
-    // Q56. The rule reaches the installation administrator on the same terms, so the
-    // claim is not a way around it: the test is "is this account granting itself a
-    // responses role", not "is this account an owner".
+    // The test is "is this account granting itself a responses role", so the installation
+    // claim is not a way around the rule.
     if (
       subject.userId === actor.userId &&
       isResponsesRole(group.role) &&
@@ -682,33 +569,12 @@ export function makeAddHolderHandler(deps: Deps): RouteHandler<typeof addHolderR
   };
 }
 
-/**
- * F17's optional seed grant: a `responses.viewer` on `dev` and `test` for a new
- * `forms.editor` (Q39, Q57, criterion 15).
- *
- * # What it is and what it is not
- *
- * A **convenience**, driven by the workspace's own `seedNewEditorsWithTestData` setting,
- * which defaults **off**. It creates an **ordinary, visible access group** like any other
- * (finding 17), so the access it gives is a row somebody can read in the list and revoke,
- * rather than something inferred from having been onboarded. That is the whole point:
- * **an editor sees dev and test responses only through an explicit grant**, never by
- * implication from an authoring role.
- *
- * And it is a grant on **personal data** (Q57): a test run can involve real respondents,
- * so this is not a lesser thing than a production grant. It therefore writes its own
- * SEC-15 `grant` row, in the same transaction as the editor grant that triggered it, and
- * the admin's help text for the setting says what it hands over in those terms.
- *
- * # Why the scope is "whichever of dev and test exist"
- *
- * The design names `dev` and `test`, and a fresh database ships with `test` and `prod`
- * (Q1): `dev` is an environment an operator creates. A grant naming an environment that
- * does not exist is a grant on nothing and the write path refuses it, so the seed takes
- * the intersection with the live set and writes a group scoped to what is there - in the
- * environments table's order, so there is one spelling (Q42). With neither present it
- * writes nothing at all, which is the honest answer rather than a refused onboarding.
- */
+// Driven by the workspace's `seedNewEditorsWithTestData` setting, off by default. It
+// creates an ordinary visible access group, so an editor still sees dev and test
+// responses only through an explicit, revocable grant, never by implication from an
+// authoring role. Test runs can involve real respondents, so it audits like any other
+// grant on personal data. Scoped to whichever of `dev` and `test` actually exist, since a
+// grant naming an absent environment is refused.
 async function seedTestDataGrant(
   exec: Executor,
   input: {
@@ -758,9 +624,6 @@ async function seedTestDataGrant(
   });
 }
 
-// --- DELETE /admin/workspaces/:id/access-groups/:teamId/holders/:userId -----
-
-/** Revoke one grant. One `teamMember` row and one SEC-15 `revoke` row, together (Q56). */
 export function makeRemoveHolderHandler(
   deps: Deps,
 ): RouteHandler<typeof removeHolderRoute, ApiEnv> {
@@ -788,21 +651,8 @@ export function makeRemoveHolderHandler(
   };
 }
 
-// --- PUT /admin/workspaces/:id/settings -------------------------------------
-
-/**
- * The two per-workspace switches, and the `setting` audit row turning one on writes.
- *
- * Q57 with Q61: turning `seedNewEditorsWithTestData` on is an owner's **deliberate act**
- * on personal data, and it writes a row of kind `setting` with `environment` and `form`
- * empty and the setting's name and its new value in the detail. The two-person switch is
- * audited the same way, because it governs both the self-grant rule here and task 070's
- * two-person rule at a `prod` release: turning it off is the act somebody would want to
- * find afterwards.
- *
- * **A write that changes nothing writes no row.** An audit full of rows recording that
- * somebody set a setting to the value it already had is an audit nobody reads.
- */
+// Both switches are audited, because turning either off is the act somebody would want
+// to find afterwards. A write that changes nothing writes no row.
 export function makeWorkspaceSettingsHandler(
   deps: Deps,
 ): RouteHandler<typeof workspaceSettingsRoute, ApiEnv> {
@@ -859,20 +709,8 @@ export function makeWorkspaceSettingsHandler(
   };
 }
 
-// --- GET /admin/workspaces/:id/audit ----------------------------------------
-
-/**
- * The access audit, for this workspace (SEC-15).
- *
- * Readable by the workspace's **owners** and by the **installation administrator**, and
- * by nobody else - that readership is the point, because an audit only the operator can
- * see does not answer a department's own question about its own data. The grant
- * middleware is what enforces it (`audit: read` is on `forms.owner` alone).
- *
- * The actor's address is resolved for display and is **not** a foreign key: the row
- * carries an account id it deliberately does not reference, so an account that has since
- * been removed shows as an id with no address rather than making the row disappear.
- */
+// The actor id is deliberately not a foreign key, so a removed account shows as an id
+// with no address rather than making the audit row disappear.
 export function makeAuditHandler(deps: Deps): RouteHandler<typeof auditRoute, ApiEnv> {
   return async (c) => {
     const workspaceId = c.req.valid("param").id;

@@ -1,22 +1,3 @@
-/**
- * Route definitions for releases, promotion and the live environment set (ADR-40, task
- * 065).
- *
- * Publishing and releasing are two acts: a version is published once into `control` and
- * shared by every environment (ADR-18), and what makes it live somewhere is a **release**.
- * These are the routes for the second act, on the **admin** surface, behind the internal
- * service-token gate and the admin-auth gate like every other admin slice.
- *
- * Scopes are the forms pair rather than a new `releases:*` member of the SEC-5 taxonomy:
- * a release is an act on a form's lifecycle, and the authority that will actually gate it
- * is ADR-41's `forms.approver` role under task 070's two-person rule, not a scope. Scopes
- * stay inert at launch either way.
- *
- * **`GET /environments` rides this slice** because the Q6 switcher and the release screens
- * are one feature: the switcher offers the environments a release can name, and a second
- * slice holding one read would be a module boundary drawn around a single list.
- */
-
 import { createRoute } from "@hono/zod-openapi";
 
 import type { SliceRegistrar } from "../../app.js";
@@ -55,9 +36,6 @@ export const releaseVersionRoute = createRoute({
       description: "The release record just written",
       content: { "application/json": { schema: ReleasedResponse } },
     },
-    // 400: an environment this deployment does not serve. 404: no such form, or no such
-    // published version of it. 409: that version is already what is released there, so
-    // the release would add a row recording no change.
     ...errorResponses(400, 401, 404, 409),
   },
   ...withScopes("forms:write"),

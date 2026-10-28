@@ -1,19 +1,3 @@
-/**
- * Response listing / export / erasure slice tests (task 023), driven through
- * `app.request()` against the **real** kernel and the 013 Testcontainers harness
- * DB - never a mock of our own packages (CONTRIBUTING). Requires Docker.
- *
- * Covers every exit criterion:
- *  1. list / detail / filter over seeded fixtures, with erased sessions absent;
- *  2. CSV - a byte-for-byte golden export for the insurance fixture (BOM,
- *     RFC 4180 quoting, multiChoice `a;b;c`, document-order columns); JSON
- *     round-trips canonical values;
- *  3. streaming - a 10k-response CSV export completes without buffering the whole
- *     table (delivered in bounded chunks, no chunk near the document size);
- *  4. erase → list/detail/export exclude the session, the tombstone is listed,
- *     and unflag releases the withheld `response.submitted` outbox event.
- */
-
 import {
   type FormDefinition,
   FormId,
@@ -58,9 +42,6 @@ let testDb: TestDb;
 let deps: Deps;
 let app: ReturnType<typeof createApp>;
 let internalToken: string;
-// A real better-auth session row seeded per suite (031): the admin-auth
-// middleware verifies it against the database, so a made-up marker no longer
-// authenticates anything.
 let adminSessionToken: string;
 
 beforeAll(async () => {
@@ -76,8 +57,6 @@ beforeAll(async () => {
 afterAll(async () => {
   await testDb?.teardown();
 }, CONTAINER_BOOT_TIMEOUT_MS);
-
-// --- request helpers --------------------------------------------------------
 
 function authHeaders(extra: Record<string, string> = {}): Record<string, string> {
   return {
@@ -98,11 +77,8 @@ async function post(path: string, body?: unknown): Promise<Response> {
   });
 }
 
-// --- fixtures ---------------------------------------------------------------
-
 const emptyCompiled = {} as unknown as CompiledForm;
 
-/** A form definition pinning `(step → questionIds)` at v1 (kernel-parsed). */
 function formDefinition(formId: string, steps: [string, string[]][]): FormDefinition {
   const raw = {
     formId,
@@ -120,7 +96,6 @@ function formDefinition(formId: string, steps: [string, string[]][]): FormDefini
   return parsed.value;
 }
 
-/** Create a form and publish version 1 with the given step→questionIds layout. */
 async function seedForm(formId: string, steps: [string, string[]][]): Promise<FormId> {
   const id = FormId.parse(formId);
   await createForm(testDb.db, {
@@ -145,8 +120,7 @@ function lockedSubmission(
 ): LockedSubmission {
   return {
     answers: entries.map((e) => ({ questionId: QuestionId.parse(e.questionId), value: e.value })),
-    // `visible` is read by `reporting.responses` for the live instance list, so even a
-    // non-repeating fixture carries the shape a real `prepareSubmission` produces.
+    // `reporting.responses` reads `visible` for the live instance list.
     flowState: {
       visible: entries.map((e) => ({ stepId: "stp_a", questionId: e.questionId })),
     },
@@ -194,8 +168,6 @@ interface ListBody {
   total: number;
 }
 
-// --- exit criterion 1: list / detail / filter, erased absent ----------------
-
 describe("list, detail, and filters (exit criterion 1)", () => {
   it("lists submitted responses, filters, and exposes flagged reason", async () => {
     const formId = await seedForm("frm_list_api", [
@@ -221,14 +193,12 @@ describe("list, detail, and filters (exit criterion 1)", () => {
     expect(all.page).toBe(1);
     expect(all.responses.map((r) => r.sessionId)).toEqual(["ses_api_flagged", "ses_api_clean"]);
 
-    // Flagged filter surfaces the reason.
     const flagged = (await (
       await get("/forms/frm_list_api/responses?flagged=true")
     ).json()) as ListBody;
     expect(flagged.responses.map((r) => r.sessionId)).toEqual(["ses_api_flagged"]);
     expect(flagged.responses[0]!.flaggedReason).toBe("HONEYPOT");
 
-    // Date-range filter.
     const windowed = (await (
       await get("/forms/frm_list_api/responses?from=2026-02-05T00:00:00.000Z")
     ).json()) as ListBody;
@@ -236,8 +206,6 @@ describe("list, detail, and filters (exit criterion 1)", () => {
   });
 
   it("surfaces every enumerated flag reason in the listing (task 026)", async () => {
-    // The canonical anti-abuse vocabulary (HONEYPOT, MIN_TIME, RATE_ANOMALY) is
-    // stored verbatim in flagged_reason and must be queryable via 023's listing.
     const formId = await seedForm("frm_reasons_api", [["stp_a", ["q_name"]]]);
     let i = 0;
     for (const reason of FLAG_REASONS) {
@@ -278,7 +246,6 @@ describe("list, detail, and filters (exit criterion 1)", () => {
     };
     expect(body.contentHash).toBe("f".repeat(64));
     expect(body.answers).toEqual({ q_name: "Grace" });
-    // The ledger is present (a submitted, non-erased session).
     expect(Array.isArray(body.ledger)).toBe(true);
   });
 
@@ -288,8 +255,6 @@ describe("list, detail, and filters (exit criterion 1)", () => {
     expect((await get("/forms/frm_404_api/responses/ses_missing")).status).toBe(404);
   });
 });
-
-// --- exit criterion 2: CSV golden + JSON round-trip -------------------------
 
 describe("CSV golden export + JSON round-trip (exit criterion 2)", () => {
   it("emits the byte-for-byte insurance CSV (BOM, quoting, multiChoice, column order)", async () => {
@@ -322,7 +287,6 @@ describe("CSV golden export + JSON round-trip (exit criterion 2)", () => {
         { questionId: "q_age", value: 29 },
         { questionId: "q_at_fault_accident", value: true },
         { questionId: "q_coverage", value: "opt_silver" },
-        // q_conditions intentionally unanswered → empty cell.
       ],
     });
 
@@ -330,9 +294,7 @@ describe("CSV golden export + JSON round-trip (exit criterion 2)", () => {
     expect(res.status).toBe(200);
     expect(res.headers.get("content-type")).toBe("text/csv; charset=utf-8");
 
-    // Read raw bytes: `Response.text()` strips a leading BOM (WHATWG UTF-8
-    // decode), so a byte-for-byte assertion decodes with `ignoreBOM: true` to
-    // keep the BOM the export actually emits.
+    // `Response.text()` strips a leading BOM, so decode with `ignoreBOM` to keep it.
     const bytes = new Uint8Array(await res.arrayBuffer());
     const text = new TextDecoder("utf-8", { ignoreBOM: true }).decode(bytes);
     const expected =
@@ -341,16 +303,11 @@ describe("CSV golden export + JSON round-trip (exit criterion 2)", () => {
       'ses_ins_001,1,2026-03-15T09:00:00.000Z,anonymous,"Doe, Jane",34,false,opt_gold,opt_diabetes;opt_asthma\r\n' +
       "ses_ins_002,1,2026-03-15T09:00:00.000Z,anonymous,Ada,29,true,opt_silver,\r\n";
     expect(text).toBe(expected);
-    // The BOM is the first three bytes (EF BB BF) - present, exactly once.
     expect([bytes[0], bytes[1], bytes[2]]).toEqual([0xef, 0xbb, 0xbf]);
   });
 
   it("defuses a respondent answer a spreadsheet would execute on open (issue #470)", async () => {
-    // The export path, not the helper: a free-text answer arrives from a public
-    // portal, is stored, and comes back out as a cell an author opens in a
-    // spreadsheet. Fixture text is deliberately inert and obvious (SEC-8) - what
-    // is asserted is that no cell of the emitted file begins with a character a
-    // spreadsheet reads as the start of a formula.
+    // Fixture text is deliberately inert rather than a working payload (SEC-8).
     const formId = await seedForm("frm_formula_guard", [
       ["stp_a", ["q_note", "q_score", "q_balance"]],
     ]);
@@ -361,7 +318,6 @@ describe("CSV golden export + JSON round-trip (exit criterion 2)", () => {
       entries: [
         { questionId: "q_note", value: "=FIXTURE_PAYLOAD" },
         { questionId: "q_score", value: "@FIXTURE_PAYLOAD" },
-        // Issue #476: a genuine negative number must survive as a number.
         { questionId: "q_balance", value: -5 },
       ],
     });
@@ -373,11 +329,7 @@ describe("CSV golden export + JSON round-trip (exit criterion 2)", () => {
     );
 
     expect(text).toContain(",'=FIXTURE_PAYLOAD,'@FIXTURE_PAYLOAD,-5\r\n");
-    // No cell anywhere in the document opens with a formula lead, unless it is a
-    // plain number, which cannot be evaluated as an expression. The header row is
-    // included on purpose: a questionId cannot start with one today, and this is
-    // the assertion that would notice if that ever changed. The split is the
-    // naive one, which is sound here because this fixture quotes nothing.
+    // The naive split is sound here only because this fixture quotes nothing.
     const cells = text
       .replace(/^\uFEFF/, "")
       .split("\r\n")
@@ -397,10 +349,7 @@ describe("CSV golden export + JSON round-trip (exit criterion 2)", () => {
   });
 
   it("400s a version filter above int4 rather than 500ing on the driver (#645)", async () => {
-    // 2_147_483_648: one past the `form_versions.version` column's ceiling. The
-    // filter used to reach Postgres, which refused the parameter as out of range,
-    // so the request 500ed where every other unusable `version` value 400s. It is
-    // now the same INVALID_QUERY refusal, on both routes that take the filter.
+    // 2_147_483_648: one past the `form_versions.version` column's int4 ceiling.
     await seedForm("frm_version_range", [["stp_a", ["q_name"]]]);
 
     const exported = await get("/forms/frm_version_range/export?format=csv&version=2147483648");
@@ -413,7 +362,6 @@ describe("CSV golden export + JSON round-trip (exit criterion 2)", () => {
     expect(listed.status).toBe(400);
     expect(((await listed.json()) as { error: { code: string } }).error.code).toBe("INVALID_QUERY");
 
-    // The in-range ceiling still reads as a real (absent) version, not a refusal.
     expect(
       (await get("/forms/frm_version_range/export?format=csv&version=2147483647")).status,
     ).toBe(404);
@@ -446,33 +394,14 @@ describe("CSV golden export + JSON round-trip (exit criterion 2)", () => {
   });
 });
 
-// --- exit criterion 3: streaming a large export -----------------------------
-
 describe("large export streams without buffering the whole table (exit criterion 3)", () => {
-  /**
-   * 60 s explicitly, rather than Vitest's inherited 5 s default (issue #871).
-   *
-   * Standalone this case takes about 0.6 s (616 ms measured 2026-09-10). What it
-   * spends that on is two 10,000-row inserts into a containerised Postgres and a full
-   * streamed read back, so the cost scales with whatever else the machine is doing
-   * rather than with the behaviour under test: under a fully parallel `pnpm verify`
-   * on a loaded host it failed on the 5 s default while this file took about 24 s,
-   * then passed in isolation and in a forced cache-bypassed re-run. Seeding fewer
-   * rows is not available as the fix - the assertions below want many chunks and a
-   * largest chunk under a quarter of the document, which is exactly what a table
-   * small enough to buffer would stop proving - so the budget moves instead. 60 s is
-   * about a hundred times the standalone measurement, which is the margin
-   * CONTRIBUTING asks for (issues #603, #604): far enough from the work that host
-   * load cannot reach it, and still short enough that an export which never streams
-   * fails.
-   */
+  // 60 s: two 10k-row container inserts and a streamed read back, so the wall time
+  // tracks host load rather than the behaviour under test.
   it("exports 10k responses in bounded chunks, no chunk near the document size", async () => {
     const formId = FormId.parse("frm_bulk");
     await seedForm("frm_bulk", [["stp_a", ["q_t"]]]);
 
-    // Bulk-seed 10k submitted sessions + submissions via generate_series (one
-    // statement each) - far faster than 30k helper calls, and enough to prove
-    // the export never materializes the whole table in memory.
+    // `generate_series` rather than 30k helper calls: far faster to seed.
     await testDb.client.query(
       `insert into sessions (session_id, form_id, form_version, access_mode, environment, status, expires_at, created_at)
        select 'ses_bulk_' || lpad(g::text, 6, '0'), $1, 1, 'anonymous', 'prod', 'submitted', now() + interval '1 day', now()
@@ -512,16 +441,11 @@ describe("large export streams without buffering the whole table (exit criterion
     carry += decoder.decode();
     if (carry.length > 0) dataRows += 1;
 
-    // header + 10000 data rows.
     expect(dataRows).toBe(10001);
-    // Streamed, not buffered: delivered in many chunks, and the largest single
-    // chunk is a small fraction of the whole document (bounded working set).
     expect(chunks).toBeGreaterThan(1);
     expect(maxChunkBytes * 4).toBeLessThan(totalBytes);
   }, 60_000);
 });
-
-// --- exit criterion 4: erase excludes everywhere; unflag releases event -----
 
 describe("erase excludes from all read paths; unflag releases the event (exit criterion 4)", () => {
   async function outboxCount(sessionId: string): Promise<number> {
@@ -547,7 +471,6 @@ describe("erase excludes from all read paths; unflag releases the event (exit cr
       submittedAt: new Date("2026-05-02T00:00:00.000Z"),
     });
 
-    // Erase.
     const eraseRes = await post(`/forms/frm_erase_api/responses/${erased}/erase`, {
       reason: "subject_request",
     });
@@ -556,28 +479,23 @@ describe("erase excludes from all read paths; unflag releases the event (exit cr
     expect(tombstone.sessionId).toBe(erased);
     expect(tombstone.alreadyErased).toBe(false);
 
-    // Excluded from list.
     const list = (await (await get("/forms/frm_erase_api/responses")).json()) as ListBody;
     expect(list.responses.map((r) => r.sessionId)).toEqual([kept]);
     expect(list.total).toBe(1);
 
-    // Excluded from detail (404), while the kept one still resolves.
     expect((await get(`/forms/frm_erase_api/responses/${erased}`)).status).toBe(404);
     expect((await get(`/forms/frm_erase_api/responses/${kept}`)).status).toBe(200);
 
-    // Excluded from export (JSON).
     const rows = (await (await get("/forms/frm_erase_api/export?format=json")).json()) as Array<{
       sessionId: string;
     }>;
     expect(rows.map((r) => r.sessionId)).toEqual([kept]);
 
-    // Tombstone listed (compliance evidence).
     const erasures = (await (await get("/erasures?formId=frm_erase_api")).json()) as {
       erasures: Array<{ sessionId: string; reason: string }>;
     };
     expect(erasures.erasures.map((e) => e.sessionId)).toContain(erased);
 
-    // Idempotent: erasing again is a no-op with alreadyErased:true.
     const again = await post(`/forms/frm_erase_api/responses/${erased}/erase`, {
       reason: "subject_request",
     });
@@ -594,7 +512,6 @@ describe("erase excludes from all read paths; unflag releases the event (exit cr
       flaggedReason: "too_fast",
     });
 
-    // Withheld at submit: no event yet.
     expect(await outboxCount(sessionId)).toBe(0);
 
     const first = await post(`/forms/frm_unflag_api/responses/${sessionId}/unflag`);
@@ -602,27 +519,16 @@ describe("erase excludes from all read paths; unflag releases the event (exit cr
     expect(((await first.json()) as { released: boolean }).released).toBe(true);
     expect(await outboxCount(sessionId)).toBe(1);
 
-    // The response is no longer flagged in the list.
     const flagged = (await (
       await get("/forms/frm_unflag_api/responses?flagged=true")
     ).json()) as ListBody;
     expect(flagged.responses.map((r) => r.sessionId)).not.toContain(sessionId);
 
-    // Idempotent: a second unflag releases nothing and enqueues no duplicate.
     const second = await post(`/forms/frm_unflag_api/responses/${sessionId}/unflag`);
     expect(((await second.json()) as { released: boolean }).released).toBe(false);
     expect(await outboxCount(sessionId)).toBe(1);
   });
 
-  /**
-   * Both 404s, kept apart by their codes.
-   *
-   * #305 put the form-scoped session read ahead of the submission read, so an id
-   * that names no session at all now stops at `SESSION_NOT_FOUND` rather than
-   * falling through to `SUBMISSION_NOT_FOUND`. Seeding a real, in-form session that
-   * genuinely has no submission is what keeps the second path covered - asserting
-   * only the status would let either check answer for the other.
-   */
   it("404s unflag for a real session that has no submission", async () => {
     const formId = await seedForm("frm_unflag_nosub", [["stp_a", ["q_name"]]]);
     const sessionId = SessionId.parse("ses_unflag_nosub");
@@ -651,29 +557,9 @@ describe("erase excludes from all read paths; unflag releases the event (exit cr
   });
 });
 
-// --- form scope on the destructive operations (issue #305) ------------------
-
-/**
- * `erase` and `unflag` used to act on whatever session id a client sent, with no
- * check that it belonged to a form the caller was acting within. Both now sit under
- * the form-scoped path the detail read always used, and the scope is enforced by the
- * query rather than by a comparison made afterwards.
- *
- * Each operation gets three assertions, because a guard that refuses everything and
- * a guard that checks nothing both pass a lone negative test:
- *
- *  1. a **positive** case, so the scope cannot be satisfied by blanket refusal;
- *  2. a **negative** case whose session genuinely exists under another form, which
- *     must 404 *and* leave the target untouched - a guard that refused only after
- *     mutating would pass the status assertion alone;
- *  3. a **fixture-is-real** assertion before the refusal, because a cross-form id
- *     that did not exist would make the negative case pass for the wrong reason.
- *
- * The 404 is the same one an unknown id takes, deliberately: telling "not yours"
- * from "not here" is itself a disclosure that someone else's response exists.
- */
+// The 404 is deliberately the one an unknown id takes: "not yours" rather than
+// "not here" would itself disclose that someone else's response exists.
 describe("form scope on erase and unflag (issue #305)", () => {
-  /** The submission row as the database holds it, or undefined when erased. */
   async function submissionRow(
     sessionId: string,
   ): Promise<{ flagged_reason: string | null; content_hash: string } | undefined> {
@@ -730,30 +616,21 @@ describe("form scope on erase and unflag (issue #305)", () => {
       contentHash: "a".repeat(64),
     });
 
-    // Fixture-is-real: the session exists, is submitted, and is readable through
-    // its own form. Without this the 404 below would be indistinguishable from
-    // "there was never a row", and the test would pass for the wrong reason.
+    // Fixture-is-real: without this the 404 below could pass for a missing row.
     const before = await submissionRow(sessionId);
     expect(before).toBeDefined();
     expect(before?.content_hash).toBe("a".repeat(64));
     expect((await get(`/forms/${owner}/responses/${sessionId}`)).status).toBe(200);
 
-    // The other form asks to erase it.
     const res = await post(`/forms/${bystander}/responses/${sessionId}/erase`, {
       reason: "subject_request",
     });
     expect(res.status).toBe(404);
 
-    // Refused *and* inert. The submission row is the exact thing erasure destroys,
-    // so comparing it field for field against the pre-call snapshot is what rules
-    // out a guard that refuses only after mutating. No tombstone was written, and
-    // the response still reads through its owning form.
     expect(await tombstones(sessionId)).toBe(0);
     expect(await submissionRow(sessionId)).toEqual(before);
     expect((await get(`/forms/${owner}/responses/${sessionId}`)).status).toBe(200);
 
-    // And the owning form can still erase it, so the guard refused the caller
-    // rather than breaking the operation.
     const owned = await post(`/forms/${owner}/responses/${sessionId}/erase`, {
       reason: "subject_request",
     });
@@ -761,13 +638,8 @@ describe("form scope on erase and unflag (issue #305)", () => {
     expect(await tombstones(sessionId)).toBe(1);
     expect(await submissionRow(sessionId)).toBeUndefined();
 
-    // The idempotency step is scoped too, and this is the only assertion that can
-    // show it. `eraseSession` looks for an existing tombstone *before* it looks for
-    // the session, and returns it as `200 alreadyErased: true`. With that lookup
-    // unscoped, the other form now gets that 200 for a session it does not own -
-    // which discloses both that the session exists and that it has been erased,
-    // the exact leak this issue exists to close. A same-form repeat cannot catch
-    // it, and until now every alreadyErased assertion in the repo was same-form.
+    // Cross-form repeat, not a duplicate of the same-form one above: an unscoped
+    // tombstone lookup would answer 200 here and disclose the erasure.
     const afterErasure = await post(`/forms/${bystander}/responses/${sessionId}/erase`, {
       reason: "subject_request",
     });
@@ -804,35 +676,21 @@ describe("form scope on erase and unflag (issue #305)", () => {
       flaggedReason: "too_fast",
     });
 
-    // Fixture-is-real: a genuinely flagged, genuinely withheld submission. If it
-    // were absent, or already released, the assertions below would prove nothing.
+    // Fixture-is-real: absent or already released, the refusal below proves nothing.
     expect((await submissionRow(sessionId))?.flagged_reason).toBe("too_fast");
     expect(await releasedEvents(sessionId)).toBe(0);
 
     const res = await post(`/forms/${bystander}/responses/${sessionId}/unflag`);
     expect(res.status).toBe(404);
 
-    // Refused *and* inert: the flag still stands and no event escaped.
     expect((await submissionRow(sessionId))?.flagged_reason).toBe("too_fast");
     expect(await releasedEvents(sessionId)).toBe(0);
 
-    // And the owning form can still release it, so the guard refused the caller
-    // rather than breaking the operation.
     expect((await post(`/forms/${owner}/responses/${sessionId}/unflag`)).status).toBe(200);
     expect(await releasedEvents(sessionId)).toBe(1);
   });
 });
 
-// --- task 075: both CSV shapes for a repeating group ------------------------
-
-/**
- * Acceptance cases 46, 47 and 48 of `plan/repeating-groups-and-table-input.md`
- * section 11, through the real route against the real reporting view: the long
- * shape's zip, the wide shape's indexed header and its dependence on the
- * version's `max`, and the unchanged single file for a form with no group.
- */
-
-/** A one-group form definition: `q_booking_ref`, then `grp_passengers`, then `q_notes`. */
 function repeatFormDefinition(formId: string, max: number): FormDefinition {
   const parsed = parseFormDefinition({
     formId,
@@ -868,7 +726,6 @@ function repeatFormDefinition(formId: string, max: number): FormDefinition {
   return parsed.value;
 }
 
-/** Create the form and publish one version per `max` given, in order. */
 async function seedRepeatForm(formId: string, maxima: readonly number[]): Promise<FormId> {
   const id = FormId.parse(formId);
   await createForm(testDb.db, {
@@ -890,14 +747,8 @@ async function seedRepeatForm(formId: string, maxima: readonly number[]): Promis
   return id;
 }
 
-/**
- * A submitted session with a roster and instanced locked answers.
- *
- * The roster rows are not decoration: a `LockedAnswer` names its instance and not
- * its group, so `reporting.responses` resolves the group from
- * `answer_group_instances`. A fixture without them would export no group rows at
- * all, which is the failure this test would otherwise mistake for a pass.
- */
+// The roster rows are required: a `LockedAnswer` names its instance and not its
+// group, so `reporting.responses` resolves the group from `answer_group_instances`.
 async function seedRepeatSubmitted(opts: {
   formId: FormId;
   formVersion: number;
@@ -952,9 +803,7 @@ async function seedRepeatSubmitted(opts: {
     contentHash: "0".repeat(64),
     lockedAnswers: {
       answers,
-      // Every live instance was shown, whether or not it was answered: an instance with
-      // `name: null` below is one a respondent added and left blank, which is still
-      // live (ADR-42) and is where the view's instance list has to come from.
+      // An unanswered instance is still live (ADR-42), so it stays in `visible`.
       flowState: {
         visible: [
           ...Object.keys(opts.outside).map((questionId) => ({ stepId: "stp_booking", questionId })),
@@ -974,11 +823,7 @@ async function seedRepeatSubmitted(opts: {
   return sessionId;
 }
 
-/**
- * The archive's entries as text, read from the central directory the way a reader
- * does. Written here rather than shelled out to `unzip` so the test has no tool
- * dependency; the record layout itself is covered by `@roonga/qcms-csv`'s own tests.
- */
+// Read here rather than shelled out to `unzip` so the test has no tool dependency.
 function readZip(bytes: Uint8Array): Map<string, string> {
   const view = new DataView(bytes.buffer, bytes.byteOffset, bytes.byteLength);
   const decode = (from: number, length: number): string =>
@@ -1007,8 +852,6 @@ describe("CSV export of a repeating group, both shapes (cases 46 to 48)", () => 
   let formId: FormId;
 
   beforeAll(async () => {
-    // Two published versions of one form, differing only in the group's `max`:
-    // v1 allows two passengers, v2 allows four. That is what case 47 needs.
     formId = await seedRepeatForm("frm_booking", [2, 4]);
     await seedRepeatSubmitted({
       formId,
@@ -1027,12 +870,8 @@ describe("CSV export of a repeating group, both shapes (cases 46 to 48)", () => 
       outside: { q_booking_ref: "=FIXTURE_PAYLOAD" },
       instances: [{ instanceId: "ins_pax_c", name: "@FIXTURE_PAYLOAD" }],
     });
-    // A booking whose FIRST passenger was added and left blank. Still a live instance
-    // (ADR-42), so it owes a row of its own and must not renumber the one after it.
-    //
-    // Two instances rather than three, and that is deliberate: v1 declares `max: 2`,
-    // so three is a state the API refuses (SEC-16) and a fixture in it would be
-    // asserting the export's behaviour on something the system cannot produce.
+    // Two instances rather than three: v1 declares `max: 2`, so three is a state the
+    // API refuses (SEC-16) and the system could never produce it.
     await seedRepeatSubmitted({
       formId,
       formVersion: 1,
@@ -1047,17 +886,12 @@ describe("CSV export of a repeating group, both shapes (cases 46 to 48)", () => 
     expect(res.status).toBe(200);
     expect(res.headers.get("content-type")).toBe("application/zip");
     expect(res.headers.get("content-disposition")).toBe(
-      // The environment is in the name and in no column (Q8, task 067); this
-      // composition serves `prod`, which is the switcher's default for a request
-      // that names none.
       'attachment; filename="frm_booking-prod-v1-responses.zip"',
     );
 
     const files = readZip(bytes);
     expect([...files.keys()]).toEqual(["responses.csv", "grp_passengers.csv"]);
 
-    // The flat file carries the metadata columns and the questions OUTSIDE the
-    // group, and nothing of the group at all.
     expect(files.get("responses.csv")).toBe(
       "﻿session_id,form_version,submitted_at,access_mode,q_booking_ref,q_notes\r\n" +
         "ses_book_001,1,2026-05-01T00:00:00.000Z,anonymous,ABC123,window seats\r\n" +
@@ -1065,10 +899,6 @@ describe("CSV export of a repeating group, both shapes (cases 46 to 48)", () => 
         "ses_book_003,1,2026-05-01T00:00:00.000Z,anonymous,DEF456,\r\n",
     );
 
-    // The group file is one row per (session, live instance), joinable on session_id,
-    // with the guard applied there too. `ses_book_003`'s first passenger is the one
-    // that matters: added, left blank, still live, so it owes an ordinal-1 row of empty
-    // cells and the passenger after it is 2 rather than 1.
     expect(files.get("grp_passengers.csv")).toBe(
       "﻿session_id,instance_ordinal,instance_id,q_name,q_meal\r\n" +
         "ses_book_001,1,ins_pax_a,Ada,opt_vegan\r\n" +
@@ -1078,7 +908,6 @@ describe("CSV export of a repeating group, both shapes (cases 46 to 48)", () => 
         "ses_book_003,2,ins_pax_e,Grace,\r\n",
     );
 
-    // Joinable: every group row's session is a row of the flat file.
     const sessions = new Set(
       files
         .get("responses.csv")!
@@ -1107,17 +936,9 @@ describe("CSV export of a repeating group, both shapes (cases 46 to 48)", () => 
         "opt_vegan,opt_halal;opt_kosher,window seats\r\n" +
         "ses_book_002,1,2026-05-01T00:00:00.000Z,anonymous,'=FIXTURE_PAYLOAD," +
         "'@FIXTURE_PAYLOAD,,,,\r\n" +
-        // The blank first instance holds its indexed SLOT rather than being skipped, so
-        // the named passenger is in `q_name__2` and not in `q_name__1`. The wide shape
-        // addresses an instance by position, so a blank one has to keep its position or
-        // every later column would mean a different passenger.
         "ses_book_003,1,2026-05-01T00:00:00.000Z,anonymous,DEF456,,Grace,,,\r\n",
     );
 
-    // The same form at a version whose `max` is higher: four slots per member
-    // question instead of two, silently from a consumer's point of view. This is
-    // the documented consequence of Q17, asserted rather than warned about, and it
-    // is why the route requires a version and the screen says to pin it.
     const wider = await exportBytes("/forms/frm_booking/export?format=csv&shape=wide&version=2");
     const widerHeader = new TextDecoder("utf-8", { ignoreBOM: true })
       .decode(wider.bytes)
@@ -1136,10 +957,6 @@ describe("CSV export of a repeating group, both shapes (cases 46 to 48)", () => 
   });
 
   it("case 48: a form with no group is byte-identical in either shape", async () => {
-    // The insurance fixture of exit criterion 2 above, requested in both shapes:
-    // the same single `text/csv` file, the same name, the same bytes. No existing
-    // adopter's pipeline moves, and `shape=wide` is not a second format for a form
-    // that has nothing to fold in.
     const long = await exportBytes("/forms/frm_insurance/export?format=csv&version=1");
     const wide = await exportBytes("/forms/frm_insurance/export?format=csv&shape=wide&version=1");
     const explicitlyLong = await exportBytes(
@@ -1152,7 +969,6 @@ describe("CSV export of a repeating group, both shapes (cases 46 to 48)", () => 
       );
       expect([...got.bytes]).toEqual([...long.bytes]);
     }
-    // And it is still today's file, not merely three identical new ones.
     expect(new TextDecoder("utf-8", { ignoreBOM: true }).decode(long.bytes)).toContain(
       "session_id,form_version,submitted_at,access_mode," +
         "q_full_name,q_age,q_at_fault_accident,q_coverage,q_conditions\r\n",
@@ -1160,8 +976,6 @@ describe("CSV export of a repeating group, both shapes (cases 46 to 48)", () => 
   });
 
   it("JSON export carries the group's instances inside answers", async () => {
-    // JSON spans versions and takes no shape: it emits the reporting row as it
-    // stands, which since migration 0025 carries the group's ordered array.
     const res = await get("/forms/frm_booking/export?format=json");
     const rows = (await res.json()) as Array<{
       sessionId: string;
@@ -1175,23 +989,7 @@ describe("CSV export of a repeating group, both shapes (cases 46 to 48)", () => 
   });
 });
 
-// --- criterion 8: SEC-15's row on every read, export and erasure -------------
-
 describe("every response read, export and erasure writes one audit row (criterion 8)", () => {
-  /**
-   * SEC-15, as a count and as a row.
-   *
-   * Two properties, and the first is the one a single assertion would miss: **no path
-   * reads or exports without a row**. So each case counts the rows before and after rather
-   * than only looking for one, which is what fails when a fourth read path is added later
-   * and forgets its row.
-   *
-   * The row's fields are Q61's: on these three kinds `detail` is **empty** and the other
-   * six are populated. `environment` is the interim `prod` of Q53 until task 066 gives a
-   * request an environment of its own, and `workspace` is the one the grant middleware
-   * authorised the act in - a value the writing role cannot verify, because the row
-   * commits on the environment pool and that role holds no `SELECT` on `user` or `member`.
-   */
   const FORM = "frm_audit_eight";
 
   async function counts(): Promise<Readonly<Record<string, number>>> {
@@ -1224,8 +1022,6 @@ describe("every response read, export and erasure writes one audit row (criterio
   });
 
   it("writes the row even when the read found nothing, because the act happened", async () => {
-    // The honesty `two_factor_resets` already has when a reset cleared no factor: "who
-    // looked for this person's answers" is answerable even when the answer was none.
     const before = await counts();
     const res = await get(`/forms/${FORM}/responses/ses_000000000000000000000000000a`);
     expect(res.status).toBe(404);
@@ -1243,20 +1039,16 @@ describe("every response read, export and erasure writes one audit row (criterio
   it("carries the seven SEC-15 fields, with `detail` empty on a read (Q61)", async () => {
     expect((await get(`/forms/${FORM}/responses`)).status).toBe(200);
     const { rows } = await listAccessAudit(testDb.db, SEED_WORKSPACE_ID, { kind: "read" });
-    // Found by form rather than taken as the newest row: this suite runs under a fixed
-    // clock, so every row in it carries the same instant and "newest" is not an order.
+    // Found by form, not by recency: this suite's fixed clock gives every row the
+    // same instant, so "newest" is not an order.
     const row = rows.find((entry) => entry.formId === FORM);
     expect(row).toBeDefined();
     expect(row?.workspaceId).toBe(SEED_WORKSPACE_ID);
     expect(row?.actor.length).toBeGreaterThan(0);
-    // The interim `prod` of Q53: until task 066 a request names no environment of its
-    // own, so the pool's is what the row carries.
     expect(row?.environment).toBe(DEFAULT_TEST_ENVIRONMENT);
     expect(row?.formId).toBe(FORM);
     expect(row?.kind).toBe("read");
     expect(row?.occurredAt).toBeInstanceOf(Date);
-    // Empty on a read, an export and an erasure: the scope only has somewhere to go on a
-    // grant, a revoke or a setting row.
     expect(row?.detail).toBeNull();
   });
 

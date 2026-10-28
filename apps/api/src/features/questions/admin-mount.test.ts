@@ -1,13 +1,3 @@
-/**
- * Admin-group mount + auth-seam tests (task 021, exit criterion 4).
- *
- * These assert the surface guarantees without a database - the admin-auth gate
- * rejects an unauthenticated request before any handler runs, and a public-only
- * process has no admin group at all (a 404, not a 403). The full lifecycle
- * (create/edit/publish/deprecate, R6, malformed) is exercised against the real
- * DB in `questions.integration.test.ts`.
- */
-
 import { describe, expect, it } from "vitest";
 
 import { createApp } from "../../app.js";
@@ -29,15 +19,13 @@ interface ErrBody {
 
 describe("admin auth seam (exit criterion 4)", () => {
   it("rejects an admin request with no admin session → 401 (before any handler)", async () => {
-    const deps = makeDeps(); // unusedDb: the gate must reject before touching it
+    const deps = makeDeps();
     const app = createApp(deps, ADMIN_ONLY, adminGroups);
 
     const res = await app.request("/admin/questions", {
       method: "POST",
       headers: {
         "content-type": "application/json",
-        // Channel token present, so the internal-token gate passes; the *admin*
-        // gate is what rejects here.
         "x-qcms-internal-token": internalTokenFor(deps.config),
       },
       body: JSON.stringify({ slug: "x", definition: {} }),
@@ -67,15 +55,12 @@ describe("admin group is absent in a public-only process (exit criterion 4, ADR-
       headers: {
         "content-type": "application/json",
         "x-qcms-internal-token": internalTokenFor(deps.config),
-        // Even with an admin session header present, the path does not exist here:
-        // the group is unmounted, so nothing (not even the auth gate) runs. The value
-        // is never verified on this path, which is why no session is seeded (031).
+        // Unmounted group: nothing runs, so this value is never verified.
         [ADMIN_SESSION_HEADER]: "any-value-unverified-here",
       },
       body: JSON.stringify({ slug: "x", definition: {} }),
     });
 
-    // Not 403, not 401 - the admin surface simply does not exist in this shape.
     expect(res.status).toBe(404);
   });
 });

@@ -1,19 +1,3 @@
-/**
- * Route definition and registrar for the assist slice (041).
- *
- * **The flag gates the mount, not the handler.** When
- * `QCMS_FLAG_AGENT_AUTHORING=none` (the default) this registrar returns before
- * registering anything, so `/admin/forms/{id}/draft/assist` does not exist and a
- * request 404s - the same shape ADR-09 uses for an unmounted surface. There is
- * no "feature disabled" branch inside a handler that could be reached by a
- * misconfiguration, and a deployment with the flag off has no assist route in
- * its generated OpenAPI document either.
- *
- * This surface is deliberately **not** part of the frozen 027 core contract: it
- * is optional, flag-gated, and streams SSE rather than returning a modelled JSON
- * body.
- */
-
 import { createRoute } from "@hono/zod-openapi";
 import type { Context } from "hono";
 
@@ -44,8 +28,7 @@ export const assistRoute = createRoute({
     body: jsonBody(AssistBody),
   },
   responses: {
-    // No content schema: the handler returns a raw SSE Response (web
-    // ReadableStream, R4). Errors use the normal envelope.
+    // No content schema: the handler returns a raw SSE Response.
     200: { description: "Server-sent event stream of assist events" },
     ...errorResponses(400, 401, 404, 409, 429),
   },
@@ -53,16 +36,8 @@ export const assistRoute = createRoute({
 });
 
 /**
- * Accepting a proposal (issue #823).
- *
- * A route of its own rather than a field on `PUT /forms/{id}/draft`, and that is
- * the design decision this file records. Accept creates library questions, so
- * the surface that offers it needs `questions:write` as well as `forms:write` -
- * declaring both on the ordinary draft save would overstate what every keystroke
- * autosave requires. And accept is an agent-authoring capability: gating the
- * mount keeps it out of a default build entirely (ADR-09), where a field on the
- * core draft route would have handed every `forms:write` caller a second way to
- * create questions whether the flag was on or not.
+ * Its own route rather than a field on the draft save: accept needs `questions:write`,
+ * and the gated mount keeps a second question-creation path out of a default build.
  */
 export const acceptProposalRoute = createRoute({
   method: "post",
@@ -85,18 +60,11 @@ export const acceptProposalRoute = createRoute({
       description: "The saved draft, its advisory issues, and the question drafts created",
       content: { "application/json": { schema: AcceptProposalResponse } },
     },
-    // 409: a proposed questionId was already used (R6) or its slug is taken.
-    // 422: the draft or one of the proposed definitions did not validate.
     ...errorResponses(400, 401, 404, 409, 422),
   },
   ...withScopes("forms:write", "questions:write"),
 });
 
-/**
- * Per-admin-principal ceiling on agent turns. Keyed by the authenticated
- * principal where there is one (the admin gate runs first), falling back to the
- * client address so a malformed-principal path still buckets somewhere.
- */
 function assistLimiter(deps: Deps) {
   const { windowMs, max } = deps.config.rateLimit.agentAssist;
   return rateLimit({
@@ -104,8 +72,7 @@ function assistLimiter(deps: Deps) {
     windowMs,
     max,
     keyFor: (c) => {
-      // The admin gate ran first, so a principal is present on the real path;
-      // the address fallback keeps the key total.
+      // The address fallback keeps the key total when a principal is missing.
       const principal = (c as Context<ApiEnv>).get("adminPrincipal");
       return `rl:agent-assist:${principal?.userId ?? clientAddress(c)}`;
     },
@@ -114,10 +81,8 @@ function assistLimiter(deps: Deps) {
 
 export const registerFormsAssist: SliceRegistrar = (group, deps: Deps): void => {
   if (deps.config.agent.provider === "none") return;
-  // Hono matches a `use` path exactly unless it ends in `*`, so the turn limiter
-  // covers `/draft/assist` and not `/draft/assist/accept`. That is deliberate:
-  // the ceiling exists to bound upstream provider calls, and an accept makes
-  // none - it is an ordinary admin write, limited like every other one.
+  // Hono matches a `use` path exactly unless it ends in `*`, so this bounds turns and
+  // deliberately not accepts, which make no upstream provider call.
   group.use("/forms/:id/draft/assist", assistLimiter(deps));
   group.openapi(assistRoute, makeAssistHandler(deps));
   group.openapi(acceptProposalRoute, makeAcceptProposalHandler(deps));

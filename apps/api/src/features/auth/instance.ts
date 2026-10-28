@@ -26,152 +26,49 @@ import { accessControl, roles } from "../membership/policy.js";
 import { pluginWriteBackstop } from "./plugin-write-backstop.js";
 
 /**
- * better-auth, configured in owned shell code (ADR-06, SECURITY_DESIGN §2.1 SEC-1).
+ * `expiresIn` below is the idle window; the absolute 12h cap is not expressible in this
+ * config, so it is enforced where a session is read, measured from `session.createdAt`.
  *
- * Task 056 moved this instance out of the admin app and into the API (ADR-35 as
- * amended 2026-07-31): after that move exactly one process holds a database
- * connection, and the admin is a pure BFF for auth traffic as well as for domain
- * data. Nothing about the *policy* changed in the move - every decision below is
- * 031's, carried over with its reasoning - so a diff of this file against
- * `apps/admin/lib/server/auth.ts` at `dc40a83` should show configuration values
- * that are identical and a database handle that arrives as an argument.
- *
- * ## Where it is reachable, and how it is reached
- *
- * Mounted at `/api/auth/*` inside a route group that (a) sits behind the SEC-4
- * internal service token like every other group and (b) refuses any endpoint not on
- * an explicit allowlist. The browser never talks to it: it talks to the admin
- * origin, whose named BFF route handlers forward one operation each and re-emit the
- * resulting `Set-Cookie` headers on their own redirect. So the cookies stay
- * first-party to the admin origin and no CORS surface exists anywhere.
- *
- * ## What is deliberately NOT here
- *
- * **A bare catch-all.** better-auth's documented Hono integration mounts one handler
- * for the whole endpoint set, which as a side effect publishes
- * `POST /api/auth/sign-up/email` - a self-registration path, and SEC-1 requires that
- * "no self-registration path exists in any composition". The mount keeps the vendor's
- * handler shape and puts an endpoint allowlist in front of it, so sign-up is a 404 in
- * every composition. `route.ts` owns that list and `auth-mount.test.ts` pins it.
- *
- * **Email.** No verification mail, no password-reset mail, no OTP delivery: the
- * launch admin surface has one account created by `pnpm qcms:create-admin` and a
- * recovery-code path for a lost authenticator. An admin who loses both re-runs the
- * CLI. Wiring a mailer is a deployment concern the launch cut-line does not carry.
- *
- * **Social and OTP providers.** Phase 4 (SEC-1), via the same library. The
- * external-IdP swap recipe is `docs/auth-swap.md`.
- *
- * ## Session policy (SEC-1)
- *
- * `expiresIn` is the **idle** window (1h by default): better-auth stamps
- * `session.expiresAt` at that distance and pushes it forward when a session is used
- * after `updateAge`. The **absolute** 12h cap is not expressible in this config, so
- * it is enforced where the session is read - the admin's `currentAdminSession()` and
- * the `admin-auth` middleware here - both measuring from `session.createdAt`, which
- * a refresh leaves alone.
- *
- * ## 2FA
- *
- * The `twoFactor` plugin holds back the session on sign-in when an account has
- * enrollment complete: `signInEmail` answers `{ twoFactorRedirect: true }` and sets
- * only a short-lived two-factor cookie, so a password alone never yields a session
- * (which is what makes the API's "session row exists" check meaningful). Enrollment
- * is a two-step provision-then-verify: `enableTwoFactor` stores the secret and
- * backup codes but leaves `user.twoFactorEnabled` false until a real TOTP code
- * verifies, so an abandoned enrollment cannot leave an account half-protected.
- *
- * **better-auth 1.7.10 refuses a second enrollment over a verified factor** rather than
- * re-provisioning one: `enableTwoFactor` throws `TOTP_ALREADY_ENABLED` when a
- * `twoFactor` row exists whose `verified` is not false, and the `verified` it writes is
- * `skipVerificationOnEnable` alone rather than inheriting an existing `true`
- * (`dist/plugins/two-factor/index.mjs`, the enable route). Read while taking the 1.7.3
- * upgrade for issue #849 and recorded rather than acted on: it is stricter in the
- * direction SEC-1 wants, no QCMS path calls enable on an enrolled account, and the
- * break-glass gap it narrows is issue #432's, which has no reset command either way.
- *
- * Both stored factors are **ciphertext under the admin auth secret**: the TOTP secret
+ * Both stored factors are ciphertext under the admin auth secret: the TOTP secret
  * (`dist/plugins/two-factor/index.mjs:135-138`) <!-- expect: const encryptedSecret = await symmetricEncrypt( --> and the recovery codes
- * (`.../backup-codes/index.mjs:19-22`). <!-- expect: storeBackupCodes === "encrypted" --> That used to make `QCMS_ADMIN_AUTH_SECRET` a
- * key nobody could change without destroying every enrolment, which task 056 recorded
- * as permanent. It is not permanent any more: better-auth 1.7.10 carries a versioned
- * key set (`secrets`) and writes a `$ba$<version>$` envelope, so an operator adds a new
- * version, keeps the old one for reading, and stored material re-encodes under the
- * current version as it is used. Recovery-code blobs re-encode on **every redemption**
- * (`.../backup-codes/index.mjs:215`). <!-- expect: encodeBackupCodes(validate.updated --> `docs/operations.md` carries the runbook, and
- * §4 of `docs/SECURITY_DESIGN.md` carries what it does and does not reach.
- *
- * Rotation is still not free of consequence, and the runbook says so: better-auth
- * derives its cookie-signing secret from the *current* version
- * (`dist/context/create-context.mjs:76`), <!-- expect: secret = secretsArray[0].value --> so promoting a new version signs every live
- * admin out. That is the correct trade for a key change and is a world away from what
- * it replaced, which was every authenticator dying with no way back in.
+ * (`.../backup-codes/index.mjs:19-22`). <!-- expect: storeBackupCodes === "encrypted" --> The versioned key set makes that key
+ * rotatable: stored material re-encodes under the current version as it is used, and
+ * recovery-code blobs re-encode on every redemption
+ * (`.../backup-codes/index.mjs:215`). <!-- expect: encodeBackupCodes(validate.updated --> Promoting a new version also changes the
+ * cookie-signing secret (`dist/context/create-context.mjs:76`), <!-- expect: secret = secretsArray[0].value --> so it signs every live
+ * admin out.
  */
 
-/**
- * Cookie prefix. QCMS-named rather than better-auth's default so an operator
- * reading a browser's cookie jar sees whose cookie it is, and so a co-hosted
- * better-auth app cannot collide with this one. Unchanged by the move to the API:
- * the cookies are still set on the admin origin, and renaming them would have
- * signed out every live admin for no reason.
- */
 const COOKIE_PREFIX = "qcms_admin";
 
-/** The name of the session cookie better-auth issues, derived from the prefix. */
 export const SESSION_COOKIE = `${COOKIE_PREFIX}.session_token`;
 
-/** The name of the short-lived cookie that carries a pending 2FA challenge. */
 export const TWO_FACTOR_COOKIE = `${COOKIE_PREFIX}.two_factor`;
 
-/**
- * better-auth's base path, and therefore the prefix this instance strips from an
- * inbound request path. It has to match the mount prefix in `app.ts` exactly, or the
- * library resolves every request to an unknown endpoint.
- */
+/** Must match the mount prefix in `app.ts`, or every request resolves to an unknown endpoint. */
 export const AUTH_BASE_PATH = "/api/auth";
 
 /**
- * better-auth's `providerId` for an email-and-password account (task 061).
- *
- * A literal in the library rather than a configurable name: `findCredentialAccount`
- * looks the row up with `value: "credential"`
- * (`dist/db/internal-adapter.mjs:667-684`) <!-- expect: value: "credential" -->, and
- * `/change-password` writes the new hash to whatever that read returned. Named here
- * because the `account.update.after` hook below has to tell that row apart from an
- * OAuth account whose refreshed tokens go through the same write.
+ * A literal in the library rather than a configurable name: `findCredentialAccount` looks
+ * the row up with `value: "credential"`
+ * (`dist/db/internal-adapter.mjs:667-684`) <!-- expect: value: "credential" -->, so the
+ * `account.update.after` hook below needs it to tell that row from an OAuth account.
  */
 const CREDENTIAL_PROVIDER_ID = "credential";
 
 /**
- * Minimum admin password length (SEC-1). Length is the only *composition-shaped* rule
- * here, and deliberately so: NIST SP 800-63B Rev 4 section 3.1.1.2 says a verifier
- * SHALL NOT impose composition rules, and OWASP ASVS 5.0 6.2.5 says the same. The
- * control the standards actually mandate is the breach-corpus check below.
+ * The only composition-shaped rule here: NIST SP 800-63B Rev 4 section 3.1.1.2 forbids the
+ * rest and mandates the breach-corpus check instead (SEC-1).
  */
 export const MIN_PASSWORD_LENGTH = 12;
 
-/**
- * The one line an operator must be able to find in a log when the breach check is
- * off. Exported so the test that pins it and the two entry points that emit it read
- * the same string.
- */
 export const BREACH_CHECK_DISABLED_WARNING =
   "QCMS_ADMIN_PASSWORD_BREACH_CHECK is false: admin passwords are NOT checked against " +
   "the public breach corpus. This is a documented downgrade against NIST SP 800-63B " +
   "Rev 4 section 3.1.1.2 and OWASP ASVS 5.0 6.2.12 (SEC-1), supported only for a " +
   "deployment with no egress to api.pwnedpasswords.com.";
 
-/**
- * Emit {@link BREACH_CHECK_DISABLED_WARNING} when the check is off, and nothing when
- * it is on.
- *
- * A plain `(message: string) => void` sink rather than the `Logger` interface, because
- * the two callers are a server with a structured logger and a CLI with a stderr
- * stream, and the only thing they have in common is "somewhere an operator reads".
- * Silence when the check is on is the point: a line per boot saying a control is
- * working is a line nobody reads, which is the same failure mode as the fail-open
- * warning this design rejected.
- */
+/** Silence when the check is on, so the line that does appear is one an operator acts on. */
 export function warnIfBreachCheckDisabled(
   adminAuth: Pick<Config["adminAuth"], "breachedPasswordCheck">,
   warn: (message: string) => void,
@@ -180,83 +77,33 @@ export function warnIfBreachCheckDisabled(
 }
 
 /**
- * What SEC-1's sign-in throttle is actually doing in this process (issue #390).
- *
- * ## Why this exists
- *
- * The throttle is better-auth's. Until issue #390 whether it ran was decided by
- * `NODE_ENV`: read against better-auth 1.7.10, the pinned version,
- * `dist/context/create-context.mjs:172` <!-- expect: options.rateLimit?.enabled ?? isProduction --> resolves it as
+ * Without an explicit `rateLimit.enabled`, whether SEC-1's throttle runs is decided by
+ * `NODE_ENV`: `dist/context/create-context.mjs:172` <!-- expect: options.rateLimit?.enabled ?? isProduction --> resolves it as
  * `options.rateLimit?.enabled ?? isProduction`, and `isProduction` is a module-scope
  * `const` in `@better-auth/core/dist/env/env-impl.mjs:32` <!-- expect: isProduction = nodeENV === "production" --> (`nodeENV === "production"`,
- * over a `nodeENV` captured at `:30` on that module's first import). So the state of a security
- * control was decided, once and before any request arrived, by a general-purpose
- * variable that nothing about the running process reported.
+ * over a `nodeENV` captured at `:30` on that module's first import).
  *
- * `createAdminAuth` above now passes `rateLimit.enabled` from
- * `QCMS_ADMIN_SIGNIN_THROTTLE` (default **on**), which takes that `??` branch away, so
- * `NODE_ENV` no longer participates in either direction. That is the decision half of
- * #390; this function is the reporting half, and the pairing is the point. The one
- * remaining way to serve an unthrottled sign-in surface is to set the escape hatch
- * false, and setting it false is exactly what makes the warn line below fire, so the
- * guard's failure mode is one its own detector can see.
- *
- * ## Read back, never echoed
- *
- * Every field comes from `await auth.$context`, which is the object the limiter itself
- * consults: in better-auth 1.7.10, `dist/api/rate-limiter/index.mjs:293` <!-- expect: if (!ctx.rateLimit.enabled) return --> gates on
+ * Every field is read back off `await auth.$context`, the object the limiter itself
+ * consults, never echoed from the options this file passes in:
+ * `dist/api/rate-limiter/index.mjs:293` <!-- expect: if (!ctx.rateLimit.enabled) return --> gates on
  * `ctx.rateLimit.enabled`, and
  * `getIP` (`@better-auth/core/dist/utils/ip.mjs:206`) <!-- expect: ipAddressHeaders || DEFAULT_IP_HEADERS --> reads the header list off
- * `ctx.options.advanced.ipAddress`. Reporting the options this file passes in instead
- * would report what was asked for, which is exactly the thing already known and exactly
- * the thing that can be wrong.
+ * `ctx.options.advanced.ipAddress`.
  *
- * There is a **second** way the vendor leaves the sign-in surface unlimited that is not
- * reported here: `advanced.ipAddress.disableIpTracking` makes `resolveRateLimitConfig`
- * return `null` for a caller whose address does not resolve, and the check is skipped.
- * It is absent because the type system proves it cannot be true - `ctx.options` is the
- * literal options object built below, and `disableIpTracking` is not a property of it,
- * so reading it back would not compile. A future edit that adds the option has to widen
- * {@link SignInThrottleState} with it, and will be told so by `tsc`.
- *
- * ## What is deliberately not in here
- *
- * The **numbers**. In better-auth 1.7.10 the sign-in rule is three attempts per ten
+ * The numbers are not reported because they are module-private to the vendor and would be
+ * an inference printed as an observation: three attempts per ten
  * seconds (`getDefaultSpecialRules`, `dist/api/rate-limiter/index.mjs:305-311`, <!-- expect: window: 10, max: 3 --> matching
- * `/sign-in`, `/sign-up`, `/change-password` and `/change-email`), and the two-factor
- * plugin adds the same shape for `/two-factor/*`
- * (`dist/plugins/two-factor/index.mjs:338-344`). <!-- expect: path.startsWith("/two-factor/") --> Neither is reachable from the resolved
- * context: both are module-private to the vendor. Restating them here would be an
- * inference printed as an observation, which is the failure mode this whole function
- * exists to avoid, so they stay in this comment where a reader can see them sourced.
+ * `/sign-in`, `/sign-up`, `/change-password` and `/change-email`), and the same shape for
+ * `/two-factor/*` (`dist/plugins/two-factor/index.mjs:338-344`). <!-- expect: path.startsWith("/two-factor/") -->
  */
 export interface SignInThrottleState {
-  /**
-   * Whether a sign-in POST to this process can be refused with a 429: `rateLimit.enabled`
-   * as better-auth resolved it, which since issue #390 is `QCMS_ADMIN_SIGNIN_THROTTLE`
-   * as this configuration passed it in. The one field an operator needs.
-   */
   readonly enabled: boolean;
-  /**
-   * The headers the limiter resolves a caller's address from, in order, as
-   * `getIP` reads them (better-auth 1.7.10, the pinned version:
-   * `@better-auth/core/dist/utils/ip.mjs:206`). Header
-   * **names**, never a value: an address identifies a person and SEC-8 and
-   * SEC-13 keep it out of a log line, which is why this reports where the
-   * limiter looks rather than what it found.
-   */
+  /** Header names, never a value: an address identifies a person (SEC-8, SEC-13). */
   readonly addressHeaders: readonly string[];
 }
 
-/** The boot line when the throttle is running. */
 export const SIGN_IN_THROTTLE_ACTIVE_MESSAGE = "sign-in throttling active";
 
-/**
- * The boot line when it is not, written for an operator who has to act on it: what is
- * off, what that costs, why it is off, and what decides it. Long for the same reason
- * {@link BREACH_CHECK_DISABLED_WARNING} is long: it is read once, by someone who did not
- * write it, at the moment it matters.
- */
 export const SIGN_IN_THROTTLE_INACTIVE_WARNING =
   "sign-in throttling is NOT running in this process: the admin sign-in, change-password " +
   "and two-factor endpoints have no brute-force limiter (SEC-1). This is on by default " +
@@ -266,68 +113,12 @@ export const SIGN_IN_THROTTLE_INACTIVE_WARNING =
   "docs/operations.md.";
 
 /**
- * The variable an operator sets to say how many proxies stand in front of the **admin**
- * hostname. The admin BFF is what acts on it, counting that many entries from the right
- * of its own inbound `X-Forwarded-For` before asserting one address on the vouched
- * header (`apps/admin/lib/server/client-address.ts`, issue #374).
- *
- * This process reads it for **one** purpose and never acts on the value: whether it is
- * set at all is the only thing an operator has told the API about the admin's ingress,
- * and {@link signInThrottleSharedBucketWarning} needs exactly that. Named as a constant
- * so `scripts/env-reference.mjs` sees the read and the drift gate makes the API's row in
- * `docs/operations.md` compulsory.
+ * Never acted on here: whether it is set at all is the only thing this process knows about
+ * the admin's ingress, and naming it as a constant is what `scripts/env-reference.mjs` sees.
  */
 export const ADMIN_TRUSTED_PROXY_HOPS_ENV = "QCMS_ADMIN_TRUSTED_PROXY_HOPS";
 
-/**
- * The boot line for the composition issue #482 records: the throttle is running, and
- * nothing says a proxy is in front of the admin to vouch for a caller's address.
- *
- * ## What goes wrong
- *
- * With no vouched address better-auth resolves none and keys every caller into its one
- * `no-trusted-ip` bucket (see `advanced.ipAddress` in `createAdminAuth`). The sign-in
- * rule is three attempts per ten seconds, so on that shape three attempts from anyone
- * hold the admin sign-in surface closed for **everyone** until the window rolls, and a
- * sustained caller holds it closed indefinitely. `/two-factor/*` has its own bucket with
- * the same property.
- *
- * That is fail-safe rather than fail-open - the failure is refusal, not admission - so
- * it is an availability consequence rather than a hole in the control. It is warned
- * about because it is the property of the shape this project ships as its **default**:
- * `docker-compose.yml` puts no proxy in front of the admin, and until issue #482 an
- * operator could learn this only from a documentation page they may never open.
- *
- * ## Why every boot, and why a warning rather than a refusal
- *
- * The same precedent {@link SIGN_IN_THROTTLE_INACTIVE_WARNING} sets: a state an operator
- * has to act on is repeated for as long as it holds, so it is met by whoever reads the
- * log rather than only by whoever read the docs. A refusal would be wrong here - the
- * proxy-less stack is a supported local shape, and this costs availability rather than
- * confidentiality.
- *
- * ## What it reports, stated honestly
- *
- * A **declaration**, not an observation. The API never faces the internet (ADR-20) and
- * cannot see the admin's inbound chain, so it cannot know whether a proxy exists; what
- * it can see is whether the operator declared one in this process's environment. A
- * deployment that sets {@link ADMIN_TRUSTED_PROXY_HOPS_ENV} here without a real proxy in
- * front of the admin silences this line and keeps the shared bucket - the same class of
- * mistake `docs/deploy-ingress.md` already warns about for the hop count itself, and the
- * message says so rather than implying the API checked.
- *
- * The message is worded for that gap in the other direction too. A deployment that DOES
- * have a proxy but set the count only on the `admin` service is vouching for an address
- * while this line fires, so the line states the shared bucket as the consequence of the
- * declaration being true rather than as an observed fact, and names "set it here too" as
- * the remedy for exactly that case. Claiming an unkeyed limiter at a deployment that has
- * one would be the same defect this whole file exists to avoid: an inference printed as
- * an observation.
- *
- * SEC-8: the value is never echoed, only whether the name is set. It is a topology
- * count rather than a secret, but the rule is that boot diagnostics name variables and
- * print no values, and a count is still a fact about the deployment.
- */
+/** A declaration, not an observation: this process cannot see the admin's inbound chain. */
 export const SIGN_IN_THROTTLE_SHARED_BUCKET_WARNING =
   "sign-in throttling is running, but no proxy is declared in front of the admin in " +
   "this process's environment (QCMS_ADMIN_TRUSTED_PROXY_HOPS is unset or 0 here). " +
@@ -345,25 +136,7 @@ export const SIGN_IN_THROTTLE_SHARED_BUCKET_WARNING =
   "process cannot see the admin's inbound chain, so setting that variable without a " +
   "real proxy silences the line and keeps the shared bucket. See docs/operations.md.";
 
-/**
- * The shared-bucket warning, or `undefined` when there is nothing to say.
- *
- * Two conditions, both required. The throttle has to be **on**, because with it off
- * there is no bucket to share and {@link SIGN_IN_THROTTLE_INACTIVE_WARNING} is already
- * saying the larger thing. And no proxy may be declared, because that declaration is the
- * one signal an operator gives this process about the admin's ingress.
- *
- * `0` counts as no proxy rather than as a declaration that silences the line, because
- * `0` means precisely "trust no forwarded entry" - `docs/operations.md` spells that out
- * as "every sign-in attempt in one shared bucket", which is this warning's subject. It
- * is a supported shape (the admin reached over a tunnel, say), and a supported shape
- * whose availability property an operator should still be told about; the fly.io recipe
- * sets it deliberately. Anything unparseable is left to the admin's own reader, which
- * refuses it: this function does not second-guess a value it never acts on.
- *
- * `env` is a parameter rather than a `process.env` read so a test states the environment
- * it is asserting about instead of mutating the process's.
- */
+/** `0` counts as no proxy: it means trust no forwarded entry, which is the shared bucket. */
 export function signInThrottleSharedBucketWarning(
   state: SignInThrottleState,
   env: Record<string, string | undefined>,
@@ -374,13 +147,7 @@ export function signInThrottleSharedBucketWarning(
   return SIGN_IN_THROTTLE_SHARED_BUCKET_WARNING;
 }
 
-/**
- * Read the effective state off better-auth's resolved context.
- *
- * Awaiting `$context` forces the instance to finish initialising, which is why the
- * caller is the composition root rather than a request path: by the time an admin
- * signs in this has long since resolved.
- */
+/** Awaiting `$context` forces initialisation, so the caller is the composition root. */
 export async function readSignInThrottleState(auth: AdminAuth): Promise<SignInThrottleState> {
   const ctx = await auth.$context;
   return {
@@ -390,23 +157,8 @@ export async function readSignInThrottleState(auth: AdminAuth): Promise<SignInTh
 }
 
 /**
- * Emit exactly one line saying whether the throttle is running, and answer the state so
- * a caller (or a test) can compare it against what the limiter actually does.
- *
- * A line in **both** directions, unlike the breach-check warning above, which is silent
- * when the control is on. The difference is what the two questions are: "has someone
- * turned this off" is answered by a warning, and "is this on" - which is what issue #390
- * asks and what nothing in the running system could answer - needs a line even when the
- * answer is yes.
- *
- * `addressHeaders` is joined into a scalar rather than logged as an array so it survives
- * the OTel export path, which takes string, number and boolean fields only.
- *
- * A **second** line follows when the throttle is on but nothing declares a proxy in
- * front of the admin (issue #482). It is separate from the active line rather than
- * folded into it because the two answer different questions - "is the control running"
- * and "is the control keyed on anything" - and an operator can be entitled to a clean
- * answer to the first while needing to act on the second.
+ * `addressHeaders` is joined into a scalar because the OTel export path takes string,
+ * number and boolean fields only.
  */
 export async function logSignInThrottleState(
   auth: AdminAuth,
@@ -426,41 +178,14 @@ export async function logSignInThrottleState(
   return state;
 }
 
-/**
- * The error code better-auth's `haveIBeenPwned` plugin puts in the body of the 400 it
- * answers a corpus hit with. A code, not the message: the message is prose the vendor
- * may reword, the code is the contract (its `$ERROR_CODES` entry).
- */
+/** The vendor's code, not its message: the message is prose it may reword. */
 export const CORPUS_HIT_CODE = "PASSWORD_COMPROMISED";
 
-/**
- * The code this shell puts on a refusal caused by the corpus **lookup** failing rather
- * than by the password. First-party, so callers match on a value this repository owns
- * rather than on vendor prose.
- */
 export const BREACH_LOOKUP_FAILED_CODE = "BREACH_CORPUS_UNREACHABLE";
 
 /**
- * What that refusal says **in the response body**. Written to be read in a CI log by
- * someone whose change had nothing to do with passwords: the first sentence names the
- * cause, the second denies the wrong hypothesis outright, and the third says what to
- * wait for.
- *
- * It names **no environment variable**, and that is a rule rather than a wording
- * preference (issue #910). ADR-24's "clients receive behavior, not flag values" was
- * widened by the Code Owner on 2026-09-12 to reach any environment identifier in a
- * response body, on the reasoning that a variable a client cannot set is not made
- * actionable for the client by being outside the flag registry. This string used to end
- * "set QCMS_ADMIN_PASSWORD_BREACH_CHECK=false for a deployment that has none", which put
- * an operator's configuration knob into a 503 any session holder can provoke. The knob
- * is still the answer; {@link BREACH_LOOKUP_OPERATOR_GUIDANCE} is where it is now said,
- * on the two channels only an operator reads.
- *
- * The host name stays. `api.pwnedpasswords.com` is an upstream dependency documented in
- * `docs/SECURITY_DESIGN.md` and `docs/operations.md`, not an environment identifier, and
- * naming it is the whole reason this message beats the vendor's opaque 500 (issue #436).
- * `scripts/check-security-hygiene.mjs` enforces the narrow rule - a `QCMS_` token in a
- * literal that reaches a response body - rather than a general ban on being specific.
+ * Reaches a response body, so it must name no environment variable: a client cannot act on
+ * an operator's knob (ADR-24, enforced by `scripts/check-security-hygiene.mjs`).
  */
 export const BREACH_LOOKUP_FAILED_MESSAGE =
   "The SEC-1 breach-corpus lookup to api.pwnedpasswords.com did not complete, so this " +
@@ -470,15 +195,7 @@ export const BREACH_LOOKUP_FAILED_MESSAGE =
   "again; a deployment that structurally cannot reach it has a documented configuration " +
   "switch (docs/operations.md).";
 
-/**
- * The operator half of the same outage: which variable turns the check off, for the
- * deployment that has no egress to the corpus at all.
- *
- * Split out of {@link BREACH_LOOKUP_FAILED_MESSAGE} rather than deleted, because the
- * instruction is still the right one - it is the audience that was wrong. This string
- * reaches the API's `warn` log and `qcms:create-admin`'s stderr, both of which an
- * operator reads and neither of which is a response body. **Never put it in one.**
- */
+/** Operator channels only: a log and a CLI's stderr. Never put this in a response body. */
 export const BREACH_LOOKUP_OPERATOR_GUIDANCE =
   "Restore egress to api.pwnedpasswords.com, or set " +
   "QCMS_ADMIN_PASSWORD_BREACH_CHECK=false for a deployment that structurally has none " +
@@ -486,33 +203,8 @@ export const BREACH_LOOKUP_OPERATOR_GUIDANCE =
   "section 3.1.1.2 and OWASP ASVS 5.0 6.2.12 (SEC-1).";
 
 /**
- * Turn the vendor's opaque 500 into a refusal that names the network (issue #436).
- *
- * `haveIBeenPwned` collapses every non-corpus-hit outcome of its lookup into
- * `APIError("INTERNAL_SERVER_ERROR", { message: "Failed to check password. ..." })`.
- * That is a fine failure and the *right* one - refusing a password it could not check
- * is fail-closed, which stays - but as a report it is a dead end: what an operator (or
- * the `full-stack-e2e` log of a pull request about something else entirely) sees is a
- * 500 out of sign-up, and the first hypothesis that reading produces is that
- * authentication is broken.
- *
- * So the translation is by **status and code, never by message text**. The vendor's
- * wrapper around `ctx.password.hash` does exactly three things - SHA-1 the password,
- * fetch the range, compare the suffix - so an `APIError` out of it that is not the
- * corpus-hit 400 can only be the lookup failing. A plain `Error` (the underlying
- * hash itself failing) is not an `APIError` and passes through untouched, so nothing
- * unrelated gets blamed on the network.
- *
- * The status becomes 503: an upstream this process depends on was unavailable, which
- * is what "Service Unavailable" means and what "Internal Server Error" does not.
- *
- * `warn`, when given, receives {@link BREACH_LOOKUP_OPERATOR_GUIDANCE} on exactly the
- * relabels - never on the two pass-through branches (issue #910). It is the operator's
- * half of the report, and it goes to a log rather than into the body for the reason
- * {@link BREACH_LOOKUP_FAILED_MESSAGE} states. Optional so the unit tests that assert
- * the pass-throughs need no sink, and a plain `(message: string) => void` for the reason
- * {@link warnIfBreachCheckDisabled} takes one: the server has a structured logger and
- * the CLI has a stderr stream, and "somewhere an operator reads" is all they share.
+ * `haveIBeenPwned` collapses every lookup failure into an opaque 500, so this relabels by
+ * status and code and never by message text; a plain `Error` passes through untouched.
  */
 export function explainBreachLookupFailure(
   error: unknown,
@@ -530,41 +222,17 @@ export function explainBreachLookupFailure(
 }
 
 /**
- * The membership limit, raised from the plugin's default of **100** (ADR-41's
- * configuration guards, task 069's criterion 9).
- *
- * **That default is a real limit rather than a formality**: an installation with more
- * than a hundred people in one workspace would start refusing grants, with no message
- * anybody expects and nothing in the product saying why. A government department sharing
- * an installation is exactly the deployment this design was tested against, and a
- * hundred is not a lot of people.
- *
- * Five thousand is a bound rather than a policy: it is far past any staff count a single
- * QCMS installation is for, and it is still a number rather than infinity, so a runaway
- * sync path at task C3 fails against a limit instead of filling a table. Exported so the
- * assertion against the running instance reads the same number this configuration passes
- * rather than a second copy of it.
+ * Raised from the plugin's default of 100, which would start refusing grants in an
+ * installation this design is meant for, while still bounding a runaway sync path.
  */
 export const MEMBERSHIP_LIMIT = 5_000;
 
-/** The `init` argument better-auth hands a plugin, without restating its type. */
 type PluginInitContext = Parameters<NonNullable<BetterAuthPlugin["init"]>>[0];
 
 /**
- * A first-party plugin that wraps the password hash **after** `haveIBeenPwned` has
- * wrapped it, so it sees that plugin's refusals and can relabel the network one.
- *
- * Order is the whole mechanism and is load-bearing: better-auth runs plugin `init`
- * hooks in array order and `Object.assign`s each returned context over the running one
- * (`context/helpers.ts`, `runPluginInit`), so the `hash` this captures is the vendor's
- * checked hash only while this entry sits *after* `haveIBeenPwned` in `plugins`.
- * Listed before it, this would wrap the bare hash and see nothing.
- *
- * It changes what is reported and nothing about what is enforced: every path that
- * refused a password before still refuses it, with the same fail-closed behaviour.
- *
- * A factory rather than a module constant since issue #910, so the operator sink the
- * caller owns reaches the relabel. With no sink the plugin behaves exactly as it did.
+ * Order is the mechanism: better-auth runs plugin `init` hooks in array order, so the
+ * `hash` this captures is the vendor's checked hash only while this sits after
+ * `haveIBeenPwned` in `plugins`. Listed before it, it would wrap the bare hash.
  */
 function breachLookupDiagnostics(warn?: (message: string) => void): BetterAuthPlugin {
   return {
@@ -589,40 +257,20 @@ function breachLookupDiagnostics(warn?: (message: string) => void): BetterAuthPl
   };
 }
 
-/** What {@link createAdminAuth} needs: a database handle and the auth config. */
 export interface AdminAuthInput {
   readonly db: Executor;
   readonly adminAuth: Config["adminAuth"];
-  /**
-   * Where an operator-facing line about a breach-corpus outage goes (issue #910).
-   *
-   * Optional, and absent means silence rather than a default sink: the OpenAPI
-   * generator and dozens of unit tests build an instance they never send a password
-   * through, and neither owns a logger. The two callers that do - `route.ts` with
-   * `deps.logger` and `create-admin.ts` with stderr - pass one, which is what keeps
-   * {@link BREACH_LOOKUP_OPERATOR_GUIDANCE} out of the response body and in front of
-   * the only reader who can act on it.
-   */
+  /** Absent means silence, not a default sink: most callers never send a password through. */
   readonly warn?: (message: string) => void;
 }
 
-/** The configured better-auth instance type, so callers need not restate it. */
 export type AdminAuth = ReturnType<typeof createAdminAuth>;
 
-/**
- * Build the configured instance. Takes its collaborators as arguments rather than
- * reading the environment, so the composition root, the OpenAPI generator, the
- * integration tests and the bootstrap CLI all get the same object from the same
- * code path.
- */
 export function createAdminAuth(input: AdminAuthInput) {
   const { adminAuth } = input;
   return betterAuth({
     database: drizzleAdapter(input.db, {
       provider: "pg",
-      // **Real database transactions for better-auth's multi-step writes** (Code Owner,
-      // 2026-10-22).
-      //
       // The adapter's own default is `false`
       // (`@better-auth/drizzle-adapter/dist/index.mjs:563`)
       // <!-- expect: transaction: config.transaction ?? false -->, and the adapter factory
@@ -634,191 +282,85 @@ export function createAdminAuth(input: AdminAuthInput) {
       // <!-- expect: lazyLoadTransaction = createAsIsTransaction(adapter) -->, which hands
       // the callback the very adapter it already had
       // (`@better-auth/core/dist/db/adapter/factory.mjs:18`)
-      // <!-- expect: (adapter) => (fn) => fn(adapter) -->. Left at the default, a
-      // `runWithTransaction` wrap is an async-local scope and nothing more: the writes
-      // inside it are applied as they happen and none of them rolls back.
+      // <!-- expect: (adapter) => (fn) => fn(adapter) -->, so at the default a
+      // `runWithTransaction` wrap rolls nothing back.
       //
-      // That default is wrong for this deployment because of `/change-password`, which
-      // since 1.7.8 wraps the session revocation, the credential write and the
+      // `/change-password` wraps the session revocation, the credential write and the
       // replacement session in one such wrap
       // (`dist/api/routes/update-user.mjs:173`)
-      // <!-- expect: const newSession = await runWithTransaction( -->. Without a real
-      // transaction a failure part-way through leaves a partial result the admin cannot
-      // see and cannot undo: every session revoked while the old password still works, or
-      // the password moved while the caller is told it did not. SEC-1 asks a password
-      // change to revoke the other sessions, and it is one act, so it commits as one.
+      // <!-- expect: const newSession = await runWithTransaction( -->, and SEC-1 asks that
+      // to be one act, so it has to commit as one.
       //
-      // Passing `true` makes the adapter's `transaction` a function rather than `false`,
-      // and that single value decides two behaviours at once
+      // `true` also defers the hooks queued inside the wrap until after the commit
       // (`@better-auth/core/dist/context/transaction.mjs:65-110`)
-      // <!-- expect: result = await adapter.transaction( -->: the wrapped work runs in a
-      // `db.transaction` on this process's Drizzle handle, and the hooks queued inside it
-      // are drained **only after the commit**, where before they were drained on the
-      // failing path too (`@better-auth/core/dist/context/transaction.mjs:106`)
-      // <!-- expect: if (adapter.options?.adapterConfig.transaction === false) -->. The
-      // second half is what makes task 061's `databaseHooks.account.update.after` below
-      // fail closed: a change that does not commit no longer clears the provisional flag.
-      //
-      // `input.db` is a top-level Drizzle handle over a `pg.Pool` in every caller - the
-      // composition root passes `deps.databases.control` (`features/auth/route.ts`),
-      // `qcms:create-admin` builds its own, and the integration suites use the test
-      // harness's - so `db.transaction` opens a real `BEGIN` on one pooled connection.
-      // `Executor` is the `PgDatabase` supertype of both that handle and a `PgTransaction`
-      // (`packages/db/src/queries/executor.ts`), and were a transaction handle ever passed
-      // in, Drizzle would nest the adapter's transaction as a savepoint rather than fail.
-      //
-      // **Connection cost, because a transaction holds one.** Three endpoints open one
-      // (`/change-password`, and the challenge-cookie consume inside
-      // `/two-factor/verify-totp` and `/two-factor/verify-backup-code`), each for a few
-      // statements and no network call: password hashing and the breach-corpus lookup both
-      // happen before the wrap is entered. Nothing inside a transaction asks the pool for a
-      // second connection - our one `databaseHooks` entry writes through `input.db`, and it
-      // is an after-hook that runs once the commit has released the first - so the pool
-      // cannot deadlock against itself here. The control pool is node-postgres' default
-      // size (`apps/api/src/environments.ts` opens it with no `max`), which is ten.
+      // <!-- expect: result = await adapter.transaction( -->, the drain-on-failure branch
+      // being guarded on the adapter advertising no transaction
+      // (`@better-auth/core/dist/context/transaction.mjs:106`)
+      // <!-- expect: if (adapter.options?.adapterConfig.transaction === false) -->, which
+      // is what makes the `account.update.after` hook below fail closed.
       transaction: true,
-      // Explicit model-to-table mapping: `@roonga/qcms-db`'s exported names are prefixed
-      // (`authUser`) to keep them apart from the domain tables, while better-auth
-      // addresses its models unprefixed. Without the map the adapter would look for
-      // tables named after its own models and find nothing.
+      // `@roonga/qcms-db` exports prefixed names and better-auth addresses its models
+      // unprefixed, so without this map the adapter finds no tables at all.
       schema: {
         user: authUser,
         session: authSession,
         account: authAccount,
         verification: authVerification,
         twoFactor: authTwoFactor,
-        // The organisation plugin's models (ADR-41, Q32; tasks 068 and 069). The adapter
-        // resolves a model by this map alone - without an entry it looks for a table
-        // named after its own model and finds nothing - so all five go in with the
-        // plugin.
-        //
-        // `team` and `teamMember` join the map **with task 069**, and the pairing is
-        // load-bearing in both directions: the plugin declares those two models only
-        // while `teams.enabled` is on, and their `role`, `environments` and `forms`
-        // columns are `NOT NULL` with no default, so the mirror is legal only once this
-        // task declares the matching **required** additional fields. Task 068 left them
-        // out for exactly that reason (`packages/db/src/schema/control/auth.ts` has the
-        // two rules), and turning teams on without this entry would make the library
-        // look for a table named after its own model and find nothing.
         organization: authOrganization,
         member: authMember,
         invitation: authInvitation,
+        // Declared by the plugin only while `teams.enabled` is on below, and their columns
+        // are `NOT NULL` with no default, so they map only alongside the required fields.
         team: authTeam,
         teamMember: authTeamMember,
       },
     }),
-    // The **versioned** key set, and `secret` beside it as the legacy fallback
-    // (issue #319). better-auth 1.7.10 resolves these together in
-    // `dist/context/create-context.mjs:70-82`: with `secrets` present it builds a
-    // `SecretConfig` whose current version encrypts, whose whole map decrypts, and
-    // whose `legacySecret` is `secret` - used only for ciphertext that predates the
-    // `$ba$<version>$` envelope. That is what makes rotating this key a rotation
-    // rather than a break: see the header note above.
-    //
-    // `secrets` defaults to one version-1 entry holding exactly `secret`, so a
-    // deployment that has never rotated signs and encrypts with the same value it
-    // always did. Only the stored *format* moves, and only forwards.
+    // `secret` stays beside the versioned key set as the legacy fallback, used only for
+    // ciphertext predating the `$ba$<version>$` envelope.
     secrets: adminAuth.secrets.map((entry) => ({ ...entry })),
     secret: adminAuth.secret,
-    // The ADMIN app's public origin, not this API's. The browser only ever sees the
-    // admin, so that is the origin the cookies belong to and the one better-auth
-    // must treat as trusted; the vendor options reference recommends configuring it
-    // explicitly rather than inferring it from a request behind a proxy.
+    // The admin app's origin, not this API's: the browser only ever sees the admin, so
+    // that is the origin the cookies belong to.
     baseURL: adminAuth.baseUrl,
     basePath: AUTH_BASE_PATH,
-    // Stated rather than inherited from `baseURL`, so a future change to how the
-    // admin's origin is derived cannot silently widen what better-auth accepts as a
-    // same-origin request (its CSRF check reads this list).
+    // Stated rather than inherited from `baseURL`, because better-auth's CSRF check reads
+    // this list and a change to how the origin is derived must not widen it silently.
     trustedOrigins: [adminAuth.baseUrl],
-    // No phone-home. better-auth's telemetry is opt-in upstream; saying so
-    // explicitly means an upstream default flip cannot quietly turn it on.
+    // Stated so an upstream default flip cannot turn telemetry on.
     telemetry: { enabled: false },
-    // SEC-1's brute-force throttle on sign-in, change-password and two-factor, stated
-    // rather than inferred (issue #390).
-    //
-    // better-auth 1.7.10, the pinned version, resolves this as
-    // `options.rateLimit?.enabled ?? isProduction`
-    // (`dist/context/create-context.mjs:172`), and `isProduction` is
-    // `nodeENV === "production"` over a `NODE_ENV` captured once when
-    // `@better-auth/core/dist/env/env-impl.mjs` is first imported (`:30-32`). Passing a
-    // value here takes the `??` branch away, so the state of a security control is no
-    // longer decided by a general-purpose variable that people set, and forget to set,
-    // for unrelated reasons. Nothing else about the limiter changes: `window`, `max`
-    // and `storage` keep the vendor defaults (`:172-174`), and the sign-in allowance is
-    // still `getDefaultSpecialRules`' three attempts per ten seconds
-    // (`dist/api/rate-limiter/index.mjs:305-311`).
-    //
-    // `adminAuth.signInThrottle` defaults to **true**, so a deployment that configures
-    // nothing is throttled. It is a whole boolean rather than an "is this development"
-    // predicate on purpose: a predicate wrong in the direction `NODE_ENV` is wrong
-    // today would quietly stop protecting production while every diagnostic still read
-    // as healthy, which is worse than the bug being fixed here.
-    //
-    // Read back off `$context` by `readSignInThrottleState` below, which is what keeps
-    // the guard and its detector aligned: turning this off makes `ctx.rateLimit.enabled`
-    // false, and the boot line warns.
+    // Passing a value takes away the `?? isProduction` branch, so `NODE_ENV` no longer
+    // decides whether SEC-1's throttle runs.
     rateLimit: { enabled: adminAuth.signInThrottle },
     emailAndPassword: {
       enabled: true,
-      // A floor, not a strength model: the blocklist plugin below is the control the
-      // standards mandate, and 040 verifies SEC-1 as a system.
       minPasswordLength: MIN_PASSWORD_LENGTH,
-      // No reset mail exists (see the header), so do not advertise one.
+      // No reset mail exists, so do not advertise one.
       requireEmailVerification: false,
     },
     session: {
       expiresIn: Math.floor(adminAuth.idleMs / 1000),
-      // Refresh at most once per quarter of the idle window: enough that an active
-      // admin is never logged out mid-task, few enough that a busy session is not
-      // writing to the session row on every request.
       updateAge: Math.floor(adminAuth.idleMs / 4000),
     },
     user: {
       additionalFields: {
-        // The SEC-3 role claim, carried from day one so Phase 4 RBAC is additive.
-        // `input: false` is the load-bearing part: no request body can set it, so
-        // the claim cannot be self-assigned.
+        // `input: false` is the load-bearing part: the SEC-3 claim cannot be self-assigned.
         role: { type: "string", required: false, defaultValue: "admin", input: false },
-        // SEC-1's provisional bootstrap credential (task 061).
-        //
-        // WHY A DECLARED FIELD RATHER THAN A COLUMN THE LIBRARY HAS NEVER HEARD OF.
-        // The gate reads this off the session user, and the session user is whatever
-        // better-auth's `get-session` returns. `parseUserOutput` filters the row
+        // A DECLARED field rather than a column the library has never heard of, because
+        // the gate reads this off the session user and `parseUserOutput` filters the row
         // against `getFields(options, "user", "output")`
         // (`dist/db/schema.mjs:25`) <!-- expect: filterOutputFields(user, getFields(options, "user", "output")) -->,
-        // and that function merges `options.user.additionalFields` into better-auth's
-        // own field set
-        // (`dist/db/schema.mjs:12`) <!-- expect: options[modelName]?.additionalFields -->,
-        // dropping only what is marked `returned: false`. A column added behind the
-        // library's back is in neither set, so it would be absent from the session
-        // object exactly where the gate needs it.
+        // which merges `options.user.additionalFields`
+        // (`dist/db/schema.mjs:12`) <!-- expect: options[modelName]?.additionalFields -->.
         //
-        // `defaultValue: true` is what SETS the flag, and it is the library that
-        // applies it: `parseInputData` writes a field's `defaultValue` on a create
+        // `defaultValue: true` is what SETS the flag, applied by the library on a create
         // that does not name it
-        // (`dist/db/schema.mjs:95`) <!-- expect: action === "create" -->, so an
-        // account `qcms:create-admin` brings into existence is marked provisional by
-        // the same call that creates it. Nothing in `bootstrap.ts` has to remember to,
-        // and any future account-creation path inherits the marking rather than
-        // opting into it - the fail-closed direction for a control like this.
+        // (`dist/db/schema.mjs:95`) <!-- expect: action === "create" -->, so every
+        // account-creation path inherits the marking rather than opting into it.
         //
-        // `input: false` is the load-bearing half of the pair, for the reason the
-        // role claim above gives and one more: an update naming the field never writes
-        // it. `parseInputData` skips every `input: false` field, and on the way past it
-        // throws for a TRUTHY value
+        // `input: false` means no update writes it: a truthy value throws
         // (`dist/db/schema.mjs:74`) <!-- expect: is not allowed to be set -->
-        // while a falsy one is dropped silently by the `continue` below it. So
-        // `mustChangePassword: true` is refused and `false` is ignored - a difference in
-        // the noise, not in the outcome, since neither reaches the row. A session holder
-        // therefore cannot clear their own flag through any endpoint. It is cleared by
-        // the `databaseHooks` entry below and by nothing else.
-        //
-        // Stated precisely because the first-round review of PR #1023 read the vendor
-        // and found this comment claiming "refused outright on an update", which would
-        // have had someone reaching for a refusal that never arrives.
-        //
-        // `required: false` because the column carries a database default too, and a
-        // required field with no value would refuse better-auth's own insert.
+        // and a falsy one is dropped, so a session holder cannot clear their own flag.
         mustChangePassword: {
           type: "boolean",
           required: false,
@@ -831,18 +373,9 @@ export function createAdminAuth(input: AdminAuthInput) {
       account: {
         update: {
           /**
-           * Clear the provisional-credential flag when a password is actually
-           * changed (task 061, SEC-1).
-           *
-           * ## Why this seam, out of the ones 1.7.6 offers
-           *
-           * There is no library support for any of this. 1.7.6 ships no "force
-           * password change" option, no first-party plugin, and nothing in
-           * `databaseHooks` that can refuse a request on a user-field predicate -
-           * the nearest shape is the admin plugin's `banned` field, which is the
-           * wrong semantics (a banned account is refused, not sent to a remedy).
-           * So the enforcement is entirely ours, and this hook is only the
-           * clearing half.
+           * Clearing the provisional-credential flag is entirely ours: the library offers
+           * no forced-password-change option and nothing in `databaseHooks` can refuse a
+           * request on a user-field predicate (SEC-1).
            *
            * The event that means "a password was successfully changed" is the write
            * of the new hash to the credential account row, which is
@@ -854,56 +387,29 @@ export function createAdminAuth(input: AdminAuthInput) {
            * `updateWithHooks`, at `dist/db/internal-adapter.mjs:711`
            * <!-- expect: updateWithHooks -->, which runs this hook.
            *
-           * That is what makes exit criterion 2 hold by construction rather than by
-           * enumeration. A refused change throws before `:175`. Signing out and in
-           * again writes the `session` model, never `account`. A session refresh
-           * writes `session`. None of them reaches this hook at all.
-           *
-           * ## What else could reach it
-           *
-           * `updateAccount` is also how better-auth stores refreshed OAuth tokens,
-           * so the guard is on `providerId`: only the `credential` account carries a
-           * password. QCMS configures no social provider, so today the guard is
-           * belt on braces - but a deployment that adds one must not have its flag
-           * cleared by a token refresh, and the guard is cheaper than the incident.
-           *
-           * ## Ordering, and why the commit is what this hook waits for
+           * `updateAccount` is also how refreshed OAuth tokens are stored, so the
+           * `providerId` guard keeps a token refresh from clearing the flag.
            *
            * `update.after` hooks are queued through `queueAfterTransactionHook`,
-           * which runs the hook inline when no transaction is open and pushes it
-           * onto the pending list otherwise:
+           * which runs the hook inline when no transaction is open and defers it
+           * otherwise:
            * `@better-auth/core/dist/context/transaction.mjs:139`
            * <!-- expect: if (!store?.isTransactionActive) return executeHook(); -->,
            * and `runWithTransaction` drains that list
            * (`@better-auth/core/dist/context/transaction.mjs:90,109`)
            * <!-- expect: for (const hook of pendingHooks) -->.
-           * Since 1.7.8 the branch that is live here is the deferred one:
-           * `/change-password` wraps the session revocation and the account write in
-           * `runWithTransaction` (`dist/api/routes/update-user.mjs:173`)
-           * <!-- expect: const newSession = await runWithTransaction( -->, where
-           * before the write was unwrapped and the hook ran inline.
-           *
-           * **And since `transaction: true` on the adapter above (Code Owner,
-           * 2026-10-22) that wrap is a real `BEGIN`, which is what makes the clearing
-           * fail closed.** The drain happens once, after the commit, and the failing
-           * path skips it: the branch that runs queued hooks over work that could not
-           * roll back is guarded on the adapter advertising no transaction
+           * `/change-password` takes the deferred branch
+           * (`dist/api/routes/update-user.mjs:173`)
+           * <!-- expect: const newSession = await runWithTransaction( -->, and with
+           * `transaction: true` above the drain-on-failure branch is guarded on the
+           * adapter advertising no transaction
            * (`@better-auth/core/dist/context/transaction.mjs:106`)
            * <!-- expect: if (adapter.options?.adapterConfig.transaction === false) -->,
-           * which is no longer this instance. So a `/change-password` that throws after
-           * the credential write - the replacement session failing to insert, say - rolls
-           * the write back **and** leaves the flag set, where before it would have rolled
-           * nothing back and cleared the flag anyway.
-           * `provisional-credential.integration.test.ts` asserts both halves against a
-           * real Postgres rather than against this paragraph.
+           * so a change that does not commit leaves the flag set.
            *
-           * On the success path nothing about the timing changed: the drain is awaited
-           * before the endpoint answers, so the very next `get-session` the admin makes -
-           * the one on the redirect after the form POST - already sees the cleared flag.
            * The write goes through this process's own executor rather than the library's
-           * adapter, which is what keeps it off the transaction's connection: by the time
-           * the hook runs the commit has returned that connection to the pool, so this
-           * update takes a fresh one and cannot block on rows the transaction held.
+           * adapter, so it takes a fresh connection and cannot block on rows the
+           * transaction held.
            */
           after: async (account) => {
             const row = account as { readonly providerId?: unknown; readonly userId?: unknown };
@@ -916,199 +422,80 @@ export function createAdminAuth(input: AdminAuthInput) {
     },
     advanced: {
       cookiePrefix: COOKIE_PREFIX,
-      // The address SEC-1's per-IP sign-in throttling keys on comes from the admin BFF
-      // and nowhere else (issue #374). better-auth's default is `["x-forwarded-for"]`,
-      // which at this process means "whatever the browser sent, relayed": the BFF used
-      // to forward that header verbatim, so a caller rotating it bought a fresh backoff
-      // bucket every attempt. Naming the vouched header instead puts the auth throttle
-      // on the same trust model as every other per-address limit here
-      // (`src/client-address.ts`, issue #341): the BFF resolves one address by counting
-      // trusted hops from the right of its own inbound chain and asserts it over the
-      // SEC-4 internal-token channel, and `X-Forwarded-For` at this process - which
-      // never faces the internet, ADR-20 - is ignored.
-      //
-      // With no vouched address better-auth resolves none and every caller shares its
-      // `no-trusted-ip` bucket. Coarse, and deliberately so: that is the failure this
-      // configuration can have, and it is the closed one, never a bucket per request.
+      // The throttle keys on the BFF's vouched address only. better-auth's default
+      // `x-forwarded-for` is browser-controlled at this process (ADR-20), so a caller
+      // rotating it would buy a fresh backoff bucket every attempt. With no vouched
+      // address every caller shares one bucket, which is the closed failure.
       ipAddress: { ipAddressHeaders: [CLIENT_ADDRESS_HEADER] },
-      // `Secure` outside development, so local http development still works (ADR-20:
-      // TLS terminates at the operator's ingress, and local eval runs plain http).
-      // A config value rather than a `NODE_ENV` read, because the flag describes the
-      // browser-facing origin's scheme and this process cannot see it.
+      // A config value rather than a `NODE_ENV` read: this process cannot see the
+      // browser-facing origin's scheme.
       useSecureCookies: adminAuth.secureCookies,
       defaultCookieAttributes: {
         httpOnly: true,
-        // SameSite=Lax is the primary CSRF control (SEC-9); the admin's BFF route
-        // handlers add an Origin/Sec-Fetch-Site check on top for older clients.
+        // The primary CSRF control (SEC-9).
         sameSite: "lax",
         path: "/",
       },
     },
     plugins: [
       twoFactor({
-        // What an authenticator app displays next to the account. The product name
-        // only: an operator's authenticator shows this for years, and "admin" is not
-        // part of the name (Code Owner naming call, 2026-07-30).
         issuer: "QCMS",
-        // Enrollment must be confirmed by a real TOTP code before the account counts
-        // as protected; this is better-auth's default and is restated because
-        // flipping it would silently weaken SEC-1.
+        // Restated because flipping it would silently weaken SEC-1.
         skipVerificationOnEnable: false,
         backupCodeOptions: {
-          // Recovery codes are ciphertext at rest, under the versioned key set above
-          // (issue #319, SEC-7).
-          //
-          // This restates better-auth 1.7.10's own default rather than changing it:
+          // Restates the vendor's own default rather than changing it:
           // `dist/plugins/two-factor/index.mjs:25-27` <!-- expect: storeBackupCodes: "encrypted" --> builds `backupCodeOptions` as
-          // `{ storeBackupCodes: "encrypted", ...options?.backupCodeOptions }`, so
-          // an instance that passes nothing already encrypts. Verified against the
-          // stored column rather than read off the type, in
-          // `backup-code-storage.integration.test.ts`.
-          //
-          // It is written down for the same reason `skipVerificationOnEnable` is:
-          // this is a security property of the deployment, and an upstream default
-          // flip would otherwise weaken it silently and invisibly. Issue #319 exists
-          // because a reviewer read the *decoder* (`backup-codes/index.mjs:45`,
-          // which does plain-JSON parse when the option is absent) without reading
-          // the caller that supplies it, and concluded the codes sat in plaintext.
-          // Stating the value is what makes that question answerable from this file.
+          // `{ storeBackupCodes: "encrypted", ...options?.backupCodeOptions }`. Stated so
+          // an upstream default flip cannot weaken SEC-7 silently.
           storeBackupCodes: "encrypted",
         },
       }),
-      // SEC-1's breach-corpus check (issue #178). NIST SP 800-63B Rev 4 section
-      // 3.1.1.2 says a verifier SHALL compare a prospective secret against a list of
-      // known compromised passwords, and OWASP ASVS 5.0 6.2.12 requires the same at
-      // L2. Neither asks for an entropy score, which is what SEC-1 used to promise.
-      //
-      // First-party: `haveIBeenPwned` ships inside the pinned better-auth and is
-      // re-exported from `better-auth/plugins`, so no package entered the tree. What
-      // *is* new is an operational dependency: a k-anonymity lookup that sends the
-      // first five hex characters of the password's SHA-1 to
-      // `api.pwnedpasswords.com/range/{prefix}` with `Add-Padding: true` and matches
-      // the suffix in this process. The password never leaves the process, and the
-      // five-character prefix is all the endpoint learns: about two thousand corpus
-      // entries share any one range (measured 2026-08-09 across six prefixes: 1921 to
-      // 2509 entries, unpadded), and vastly more possible passwords than that do, so
-      // the request tells the endpoint nothing usable (SEC-8).
-      //
-      // It hooks `ctx.password.hash`, so it covers every path that sets a password
-      // rather than one call site. Both of ours are in the vendor's default `paths`:
-      // `/change-password` over the mount, and `/sign-up/email` called in process by
-      // `bootstrap.ts`. Traced, not inferred (issue #178): an in-process
-      // `auth.api.signUpEmail` does populate `getCurrentAuthContext().path`, the
-      // lookup goes out, and a corpus hit comes back as a 400 `PASSWORD_COMPROMISED`.
-      // `paths` is deliberately left at its default: the seven defaults already cover
-      // both, the other five are unreachable behind `route.ts`'s allowlist, and the
-      // option is absent from the vendor's documentation site, so pinning it would
-      // couple this configuration to undocumented surface.
-      //
-      // **Fail-closed, kept from the vendor.** An unreachable endpoint refuses the
-      // password rather than waving it through. That is acceptable because neither
-      // caller is on a critical path that cannot be retried: `qcms:create-admin` is
-      // run-once and re-runnable, and change-password is retryable. Fail-open-with-a-
-      // warning was considered and rejected, because a warning nobody reads turns a
-      // SHALL into a sometimes. A deployment that is *structurally* offline sets
-      // `QCMS_ADMIN_PASSWORD_BREACH_CHECK=false` instead: a config-plane decision the
-      // deployer makes and a reviewer can see, rather than a runtime bypass. That
-      // knob is also the break-glass for the one case fail-closed genuinely costs an
-      // operator something, rotating a leaked password while the corpus is
-      // unreachable mid-incident.
+      // SEC-1's breach-corpus check: a k-anonymity lookup that sends only the first five
+      // hex characters of the password's SHA-1, so the password never leaves the process
+      // and the endpoint learns nothing usable (SEC-8). Hooks `ctx.password.hash`, so it
+      // covers every path that sets a password. Fail-closed is the vendor's and is kept:
+      // an unreachable corpus refuses the password, and a structurally offline deployment
+      // turns the check off in configuration rather than at runtime.
       haveIBeenPwned({ enabled: adminAuth.breachedPasswordCheck }),
-      // Immediately after `haveIBeenPwned`, and only useful there: it wraps whatever
-      // `password.hash` is at its turn, and the vendor's checked hash is what that is
-      // at this position. See the plugin's own note (issue #436). Fail-closed is
-      // untouched; the refusal just stops reading like an authentication failure.
+      // Must stay immediately after `haveIBeenPwned`: it wraps whatever `password.hash` is
+      // at its turn.
       breachLookupDiagnostics(input.warn),
-      // ADR-41's workspace, which is this plugin's `organization` row (Q32), and since
-      // task 069 the membership that authorises work inside it.
-      //
-      // # What is declared here and what is enforced elsewhere
-      //
-      // Task 068 built the **container**: the row, what it owns, how a question moves
-      // between workspaces and how a workspace is archived. **Task 069 adds the
-      // membership**: the six roles as disjoint statements, the team's typed additional
-      // fields, the configuration guards, and the plugin's before-hooks as a backstop.
-      //
-      // What is **not** here is the enforcement. The check runs in the QCMS API
-      // middleware (`features/membership/`), which resolves the caller's `member` row and
-      // teams and then calls the plugin's own **authorize function** directly: the
-      // plugin's HTTP `hasPermission` is not used, because it needs the signed cookie
-      // this API does not hold. Never in a BFF (R2) and never only in the UI (SEC-3).
-      //
-      // # No organisation route is reachable over HTTP, and that is Q45's HTTP half
-      //
-      // `route.ts`'s allowlist answers 404 for every path it does not name, and it names
-      // none of this plugin's, so declaring the plugin publishes no endpoint. **Grants
-      // are written only through QCMS endpoints** (Q45): the QCMS endpoints are where the
-      // validation and the SEC-15 rows live, so a second path is a path on which a grant
-      // changes without an audit row, and the plugin's removal cascades run inside the
-      // library, below any endpoint QCMS could gate. `auth-mount.test.ts` asserts the 404
-      // by request rather than by reading this comment.
-      //
-      // The before-hooks below are therefore a **backstop** rather than the mechanism:
-      // they catch a call that reaches the plugin anyway, through a configuration slip or
-      // a library change. Two write paths, one rule set.
+      // Declared for its models and its policy only. Enforcement is the QCMS membership
+      // middleware, which calls the plugin's authorize function directly because the
+      // plugin's HTTP `hasPermission` needs a signed cookie this API does not hold.
       organization({
-        // `forms.owner` on the member row (Q32, Q38), so the plugin's creator-role and
-        // last-owner protections work on the name ADR-41 uses. A dot is a plain string
-        // in the plugin's comma-separated role list, and `roles` below declares the
-        // statements behind the name.
+        // A dot is a plain string in the plugin's comma-separated role list, so the
+        // creator-role and last-owner protections work on the name ADR-41 uses.
         creatorRole: "forms.owner",
-        // The six roles as **disjoint statements**, with the plugin's own `admin`,
-        // `member` and `owner` overridden with empty statements.
-        // `features/membership/policy.ts` is where each statement set is written, beside
-        // the cell of the permissions matrix it is, and it is also what the middleware
-        // evaluates - one declaration, read by the library here and by the resolver
-        // there.
+        // One declaration, read by the library here and by the membership resolver.
         ac: accessControl,
         roles,
-        // **Off, deliberately** (ADR-41). Owner-defined roles could recreate the
-        // mixed-family role this design removed, and they cannot be enumerated in the
-        // section 3.2 matrix. Stated rather than left to the library's default so an
-        // upstream default flip cannot turn it on.
+        // Off: owner-defined roles cannot be enumerated in ADR-41's permissions matrix.
         dynamicAccessControl: { enabled: false },
-        // Raised from the plugin's default of **100**, which is a real limit rather than
-        // a formality: an installation with more than a hundred people in one workspace
-        // would start refusing grants with no message anybody expects.
         membershipLimit: MEMBERSHIP_LIMIT,
         teams: {
-          // Teams are access groups, and every grant but `forms.owner` is one (Q32).
           enabled: true,
-          // **No default team.** A team is a grant, so one created for every new
-          // workspace would be a grant nobody wrote, carrying a role and a scope this
-          // configuration would have had to invent.
+          // A team is a grant, so a default team would be a grant nobody wrote.
           defaultTeam: { enabled: false },
-          // A workspace may hold **no** access groups, which is the state every
-          // workspace starts in: its owner is a `member` row and nothing else exists
-          // yet. The plugin's default refuses the removal of an organisation's last
-          // team, which would make the last grant unrevokable.
+          // The plugin's default refuses removing an organisation's last team, which
+          // would make the last grant unrevokable.
           allowRemovingAllTeams: true,
         },
         organizationHooks: pluginWriteBackstop(input.db),
-        // A workspace is created by an operator act, never by an administrator signing
-        // in and making one (ADR-41: a workspace is not a tenant). The server-side
-        // `createOrganization` with an explicit `userId` is a system action and is
-        // unaffected by this (`dist/plugins/organization/routes/crud-org.mjs:57`),
+        // A workspace is an operator act, not something an administrator makes by signing
+        // in (ADR-41). The server-side `createOrganization` with an explicit `userId` is a
+        // system action and is unaffected (`dist/plugins/organization/routes/crud-org.mjs:57`),
         // <!-- expect: const isSystemAction = !session && ctx.body.userId -->
-        // which is what lets the bootstrap seed one while refusing every session-bound
-        // caller.
+        // which is what lets the bootstrap seed one.
         allowUserToCreateOrganization: false,
-        // A workspace is archived, never deleted (Q15). The endpoint is unreachable
-        // behind the allowlist as well, and `@roonga/qcms-db` exports no delete path
-        // (criterion 5): three independent reasons, because this is the door ADR-17
-        // must not gain a third of.
+        // A workspace is archived, never deleted (Q15).
         disableOrganizationDeletion: true,
         schema: {
           organization: {
-            // Typed additional fields, never `organization.metadata` (Q39): the free-form
-            // column is replaced wholesale by any holder of `organization: update`, so a
-            // decision resting on it is a decision anybody with that statement rewrites.
-            //
-            // All three are `input: false`, so no request body sets them. Each has a
-            // QCMS write path of its own where it has one at all: the shared flag and the
-            // archive stamp are workspace routes (`features/workspaces/`), and
-            // `requireSecondApprover` is written by nothing in this task - it is declared
-            // off and task 070 is what reads it (Q13).
+            // Typed fields, never `organization.metadata` (Q39): that column is replaced
+            // wholesale by any holder of `organization: update`, so a decision resting on
+            // it is one anybody with that statement rewrites. All `input: false`, so no
+            // request body sets them.
             additionalFields: {
               isShared: { type: "boolean", required: false, defaultValue: false, input: false },
               requireSecondApprover: {
@@ -1118,14 +505,8 @@ export function createAdminAuth(input: AdminAuthInput) {
                 input: false,
               },
               archivedAt: { type: "date", required: false, input: false },
-              // F17's convenience as a visible setting rather than a habit (Q39, Q57).
-              //
-              // **Defaults off**, and turning it on is an owner's deliberate act that
-              // writes a SEC-15 row of kind `setting` (Q61), because a grant on `test`
-              // responses is a grant on **personal data**: a test run can involve real
-              // respondents. The admin's help text for the setting says so in those
-              // terms. `input: false`, so no request body sets it; the workspace
-              // settings route is its one write path.
+              // Defaults off: a grant on `test` responses is a grant on personal data,
+              // since a test run can involve real respondents (Q57).
               seedNewEditorsWithTestData: {
                 type: "boolean",
                 required: false,
@@ -1135,28 +516,15 @@ export function createAdminAuth(input: AdminAuthInput) {
             },
           },
           team: {
-            // The team's typed additional fields: **the grant itself** (Q32, Q39).
-            //
-            // `role`, `environments` and `forms` are **required with no default**,
-            // because they are the grant and a default would be a grant nobody wrote.
-            // That is also why `packages/db/src/schema/control/auth.ts` declares all
-            // three `NOT NULL` with no default: the library's two-direction startup
-            // schema check makes a `NOT NULL` column it never writes fatal, so a
-            // required field here and a `NOT NULL` column there are one decision.
-            //
-            // The two scopes are `string[]`, which the Drizzle adapter maps to a
-            // Postgres `text[]` on `pg`. `all` is the single-element set meaning the
-            // whole of that dimension.
+            // These three fields ARE the grant, so they are required with no default; the
+            // matching columns are `NOT NULL` with no default, and the library's startup
+            // schema check makes a `NOT NULL` column it never writes fatal.
             additionalFields: {
               role: { type: "string", required: true },
               environments: { type: "string[]", required: true },
               forms: { type: "string[]", required: true },
-              // Task C3's join key (Q39, Q37 rule 3). `input: false`, unique at the
-              // database, and **written only by the C3 sync path**: declared now so the
-              // column exists before C3 rather than arriving as a later migration
-              // against a live deployment. Criterion 15 asserts the absence - it is on
-              // no request body the API accepts and no code path but the sync seam
-              // writes it, and the before-hook below refuses it outright.
+              // Written only by the directory sync path; declared now so the column
+              // predates it rather than arriving as a migration against a live deployment.
               externalGroupId: { type: "string", required: false, input: false },
             },
           },

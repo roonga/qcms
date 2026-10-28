@@ -1,39 +1,17 @@
-/**
- * Request/response schemas for the admin question-authoring slices (task 021).
- *
- * Zod is the single schema language (017's convention); these drive both the
- * request validation the routes perform and the generated OpenAPI documents
- * (027). The **question definition** itself is validated by the kernel
- * (`QuestionDefinition`, task 003) inside the handlers - not re-declared here -
- * so a malformed definition returns the kernel's coded issues through the error
- * envelope (422) with its paths intact. The request bodies therefore carry the
- * definition as an opaque object; the route schema guards only the envelope
- * around it.
- */
-
 import { z } from "@hono/zod-openapi";
 
 import { LIBRARY_SEARCH_MAX_LENGTH } from "../../openapi.js";
 
-// --- params -----------------------------------------------------------------
-
-/** `:id` path param - a `q_…` question id (validated as a QuestionId in-handler). */
 export const QuestionIdParam = z.object({
   id: z.string().openapi({ param: { name: "id", in: "path" }, example: "q_favourite_colour" }),
 });
 
-/** `:id`/`:v` path params - version is parsed to a positive integer in-handler. */
 export const VersionParam = z.object({
   id: z.string().openapi({ param: { name: "id", in: "path" }, example: "q_favourite_colour" }),
   v: z.string().openapi({ param: { name: "v", in: "path" }, example: "1" }),
 });
 
-/**
- * `GET /admin/questions/:id/versions/:v/preview` query - the locale the preview
- * resolves its labels in. Optional and free-form here (the handler coerces an
- * unrecognized code to `en` rather than erroring): a preview is a display aid,
- * so a bad locale must never cost the author their preview.
- */
+/** Free-form rather than an enum: the handler falls back to `en` rather than erroring. */
 export const PreviewQuestionVersionQuery = z.object({
   locale: z
     .string()
@@ -47,10 +25,8 @@ export const PreviewQuestionVersionQuery = z.object({
 });
 
 /**
- * The seven question types (§4.2). Declared here rather than imported from the
- * kernel because this is the *route* contract: it is what the OpenAPI document
- * publishes and what a client may filter by, and it changes only when the API
- * decides to expose a new one.
+ * Declared here rather than imported from the kernel: this is the route contract the
+ * OpenAPI document publishes, and it changes only when the API decides to expose a type.
  */
 const QuestionTypeEnum = z.enum([
   "shortText",
@@ -62,7 +38,6 @@ const QuestionTypeEnum = z.enum([
   "multiChoice",
 ]);
 
-/** `GET /admin/questions` query filters. */
 export const ListQuestionsQuery = z.object({
   status: z
     .enum(["draft", "published", "deprecated"])
@@ -72,31 +47,15 @@ export const ListQuestionsQuery = z.object({
     param: { name: "type", in: "query" },
     example: "number",
   }),
-  /**
-   * Bounded at {@link LIBRARY_SEARCH_MAX_LENGTH}, the cap both library lists share
-   * (issue #686 bounded the form list, issue #862 this one): a search term is matched
-   * per row in the handler, so an unbounded term is unbounded work, and past the cap
-   * the route answers 400 through the standard error envelope rather than doing it.
-   */
+  /** A search term is matched per row in the handler, so an unbounded term is unbounded work. */
   search: z
     .string()
     .max(LIBRARY_SEARCH_MAX_LENGTH)
     .optional()
     .openapi({ param: { name: "search", in: "query" }, example: "colour" }),
   /**
-   * Ask for every stored version of each listed question, not only a summary of the
-   * latest (issue #684).
-   *
-   * The form builder needs the whole version list to decide what it may pin - a question
-   * whose latest version is a draft on top of a published v1 is pinnable at v1 - and the
-   * summary cannot answer that, so it was reading the list and then the detail route once
-   * per question. Opt-in rather than always-on because the library screen needs none of
-   * it: making versions unconditional would put every definition of every version into a
-   * payload rendered as a table of latest-version rows, which is the same class of waste
-   * one route over.
-   *
    * An enum of one value rather than a boolean, so a later caller can ask for a narrower
-   * slice (`?versions=published`) without the parameter having to change shape or meaning.
+   * slice (`?versions=published`) without the parameter changing shape or meaning.
    */
   versions: z
     .enum(["all"])
@@ -104,46 +63,29 @@ export const ListQuestionsQuery = z.object({
     .openapi({ param: { name: "versions", in: "query" }, example: "all" }),
 });
 
-// --- request bodies ---------------------------------------------------------
-
 /**
- * The question definition, opaque at the route boundary. The kernel
- * (`parseQuestionDefinition`, 003) validates its contents in the handler; here
- * it is any JSON object so a structurally-present-but-invalid definition still
- * reaches the handler and returns the kernel's 422 rather than a bare 400.
+ * Any JSON object, so an invalid definition reaches the handler and returns the kernel's
+ * coded 422 rather than a bare 400 from the route schema.
  */
 const OpaqueDefinition = z
   .record(z.string(), z.unknown())
   .openapi("QuestionDefinitionInput", { description: "A question definition (kernel-validated)." });
 
-/** `POST /admin/questions` - the library slug plus the first draft's definition. */
 export const CreateQuestionBody = z
   .strictObject({
     slug: z.string().min(1).openapi({ example: "favourite-colour" }),
     definition: OpaqueDefinition,
-    /**
-     * The workspace that will own this question (ADR-41, task 068).
-     *
-     * Optional on the request and required on the row, exactly as it is for a form:
-     * omitted, it resolves to the installation's single workspace, and it is refused
-     * when more than one exists (`features/workspaces/resolve.ts`). A question owned by
-     * the **shared** workspace is the org-wide library every workspace may pin from, and
-     * marking a workspace shared is a workspace route rather than a field here.
-     */
+    /** Omitted, it resolves to the installation's single workspace (`workspaces/resolve.ts`). */
     workspaceId: z.string().min(1).optional().openapi({ example: "org_default_workspace" }),
   })
   .openapi("CreateQuestionBody");
 
-/** `PUT /admin/questions/:id/versions/:v` - the replacement draft definition. */
 export const EditVersionBody = z
   .strictObject({ definition: OpaqueDefinition })
   .openapi("EditVersionBody");
 
-// --- responses --------------------------------------------------------------
-
 const QuestionStatus = z.enum(["draft", "published", "deprecated"]);
 
-/** One stored version in a response. `definition` echoes the kernel-valid JSON. */
 export const QuestionVersionView = z
   .object({
     questionId: z.string().openapi({ example: "q_favourite_colour" }),
@@ -155,19 +97,17 @@ export const QuestionVersionView = z
   .openapi("QuestionVersionView");
 export type QuestionVersionView = z.infer<typeof QuestionVersionView>;
 
-/** `POST /admin/questions` result: the new identity and its first draft version. */
 export const CreatedQuestionResponse = z
   .object({
     questionId: z.string().openapi({ example: "q_favourite_colour" }),
     slug: z.string().openapi({ example: "favourite-colour" }),
-    /** The workspace that owns it, echoed because the request may not have named it. */
+    /** Echoed because the request may not have named it. */
     workspaceId: z.string().openapi({ example: "org_default_workspace" }),
     createdAt: z.iso.datetime(),
     version: QuestionVersionView,
   })
   .openapi("CreatedQuestionResponse");
 
-/** One row in the library list: the latest-version summary plus its label. */
 export const QuestionListItem = z
   .object({
     questionId: z.string().openapi({ example: "q_favourite_colour" }),
@@ -176,23 +116,11 @@ export const QuestionListItem = z
     latestVersion: z.number().int().positive().openapi({ example: 2 }),
     latestStatus: QuestionStatus.openapi({ example: "published" }),
     publishedAt: z.iso.datetime().nullable(),
-    /** The latest version's localized label (locale → text); [] of loading only. */
     label: z.unknown(),
-    /**
-     * The latest version's question type, or `null` when that version is missing.
-     *
-     * Free to carry: the handler already loads each latest definition to read its
-     * label, so this is one more field off an object it is holding rather than a
-     * second read (issue #218).
-     */
     type: QuestionTypeEnum.nullable(),
     /**
-     * Every stored version of this question, oldest first - present only when the
-     * request asked for them with `?versions=all` (issue #684).
-     *
-     * Optional rather than nullable, and absent rather than empty, so the two states a
-     * reader has to tell apart stay distinct: "this response does not carry versions"
-     * and "this question has none". A caller that did not ask never sees the key.
+     * Absent rather than empty when the request did not ask, so "this response carries no
+     * versions" and "this question has none" stay distinct.
      */
     versions: z.array(QuestionVersionView).optional(),
   })
@@ -204,15 +132,8 @@ export const ListQuestionsResponse = z
   .openapi("ListQuestionsResponse");
 
 /**
- * `GET /admin/questions/:id/versions/:v/preview`: one question compiled to a
- * single-question A2UI document the admin renders through the shared renderer
- * (028). Shaped like a served step document (`stepId` + `root`) so the renderer
- * needs no preview-specific branch, plus the two ADR-18 version stamps so a
- * renderer can tell which compiler and spec produced the tree.
- *
- * `root` is opaque to the API (the renderer interprets it), so it is `unknown`
- * rather than a recursive schema the API would have to keep in step with the
- * compiler - same reasoning as `StepDocument` on the respondent side.
+ * `root` is opaque to the API, so `unknown` rather than a recursive schema the API would
+ * have to keep in step with the compiler.
  */
 export const QuestionPreviewResponse = z
   .object({
@@ -226,7 +147,6 @@ export const QuestionPreviewResponse = z
   })
   .openapi("QuestionPreviewResponse");
 
-/** `GET /admin/questions/:id`: the identity with every version, oldest first. */
 export const QuestionDetailResponse = z
   .object({
     questionId: z.string().openapi({ example: "q_favourite_colour" }),

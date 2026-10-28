@@ -1,42 +1,3 @@
-/**
- * Releases and promotion against a real Postgres, with a real pool per environment (task
- * 065, ADR-40).
- *
- * # Why two pools and not one handle
- *
- * `makeDeps`'s `singleDatabase` fans one handle out to the control pool and to every
- * environment, which is right for a suite that does not care where a row landed and
- * useless for this one: "released to `test` and not to `prod`" is a claim about two
- * schemas, and one handle cannot fail it. So this file builds its own `Databases` over a
- * pool per environment, each on its own `data_<env>, control` search path, exactly as
- * `schedulers/every-environment.integration.test.ts` does and for the same reason.
- *
- * # Which criteria live here
- *
- * 1 (served where it is released and nowhere else), 3 (a release never re-pins a live
- * session), 4 and 7 through the history endpoint, 5 (straight to `prod`), and 8 (exactly
- * one `form.released` row in the released environment's outbox, in the release's own
- * transaction). Criterion 8's privilege half - that the release transaction runs under
- * `qcms_app_control`'s real grants, which is what catches the `RETURNING` trap - is in
- * `apps/api/e2e/security/03-db-least-privilege.e2e.ts`; this file runs as the migration
- * credential and asserts the behaviour. Criteria 2 and the rest of 4 and 7 are asserted at
- * the query layer in `packages/db/src/queries/releases.integration.test.ts`.
- *
- * # Nothing is substituted, since task 066
- *
- * This file used to compose **two** apps and substitute `Databases.defaultEnvironment` on
- * each, because the respondent path had no `/<env>/` prefix and every respondent request
- * resolved to one environment (Q53). It composes **one** app now, with `prod`'s
- * respondent surface at `/` and `test`'s at `/test`, and reaches each environment by its
- * own address. So the pool a request runs on is chosen the way a deployment chooses it.
- *
- * One consequence is visible in every release-resolution case below: a session in `test`
- * is started from a **secure link**, never from a form slug, because anonymous entry
- * exists on `prod`'s surface alone (SEC-14, task 066's criterion 3). That is not a test
- * accommodation - it is the design, and a case that still used a slug would be asserting
- * against a route that does not exist.
- */
-
 import { drizzle } from "drizzle-orm/node-postgres";
 import pg from "pg";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
@@ -95,12 +56,7 @@ import { registerReleases } from "./route.js";
 const { Pool } = pg;
 
 const LIVE_SET = ["test", "prod"] as const;
-/**
- * Every surface, with `test`'s respondent surface mounted at `/test` (Q21).
- *
- * `environments` is the non-prod set, so `prod` is absent from it by construction: prod is
- * the unprefixed shape and `MOUNT_PREFIX.public` is its mount.
- */
+/** `environments` is the non-prod set: `prod` is the unprefixed `public` mount. */
 const MOUNTED = {
   public: true,
   internal: false,
@@ -117,13 +73,10 @@ let linkKey: CryptoKey;
 let adminSessionToken: string;
 let adminUserId: string;
 
-/** The real pool selection: control plus one per environment, chosen by name. */
 function databases(): Databases {
   return {
     control,
     names: [...LIVE_SET],
-    // Only an admin request that names no environment reaches this; every respondent
-    // request is served by a group that pinned one.
     defaultEnvironment: "prod",
     for: (environment: string) => {
       const found = executors.get(environment);
@@ -137,7 +90,6 @@ function databases(): Databases {
   };
 }
 
-/** The address prefix of one environment's respondent surface (Q21). */
 function prefixOf(environment: string): string {
   return environment === "prod" ? "" : `/${environment}`;
 }
@@ -151,9 +103,7 @@ beforeAll(async () => {
     );
     executors.set(environment, drizzle(pool, { schema }));
   }
-  // Every control-plane table is declared schema-qualified, so any of these connections
-  // resolves them; `test`'s is used so nothing here depends on `prod` being the interim
-  // default.
+  // Control-plane tables are schema-qualified, so any of these connections resolves them.
   control = executors.get("test")!;
   const seeded = await seedAdminSession(control);
   adminSessionToken = seeded.token;
@@ -205,7 +155,7 @@ async function get(path: string, extra: Record<string, string> = {}): Promise<Re
   return app.request(`/admin${path}`, { headers: adminHeaders(extra) });
 }
 
-/** Start an **anonymous** session, which exists on `prod`'s surface alone (criterion 3). */
+/** Anonymous entry exists on `prod`'s surface alone (SEC-14). */
 async function startAnonymous(slug: string): Promise<Response> {
   return app.request("/sessions", {
     method: "POST",
@@ -216,15 +166,6 @@ async function startAnonymous(slug: string): Promise<Response> {
 
 let mintedLinks = 0;
 
-/**
- * Start a session in `environment` by minting a secure link for it and redeeming it at
- * **that environment's own address**.
- *
- * The link is minted at the query layer rather than through the admin route, because what
- * these cases are about is release resolution and not minting; the mint route has its own
- * coverage. What is real here is the address, the pool it selects and the environment on
- * the row the handler checks against it.
- */
 async function startIn(environment: string, formId: FormId): Promise<Response> {
   mintedLinks += 1;
   const linkId = LinkId.parse(`lnk_rel${String(mintedLinks)}`);
@@ -244,12 +185,6 @@ async function startIn(environment: string, formId: FormId): Promise<Response> {
 const emptyDef = {} as unknown as FormDefinition;
 const emptyCompiled = {} as unknown as CompiledForm;
 
-/**
- * A published question, so a draft has something to pin.
- *
- * Parsed through the kernel first, exactly as the authoring route would, so the schema
- * defaults a real published version carries are applied here too.
- */
 async function seedPublishedQuestion(id: string): Promise<void> {
   const questionId = QuestionId.parse(id);
   const parsed = parseQuestionDefinition({
@@ -267,7 +202,6 @@ async function seedPublishedQuestion(id: string): Promise<void> {
   await publishQuestionVersion(control, { questionId, version: 1 });
 }
 
-/** A one-step form definition pinning one published question at v1. */
 function draftDefinition(formId: string, questionId: string): Record<string, unknown> {
   return {
     formId,
@@ -284,7 +218,6 @@ function draftDefinition(formId: string, questionId: string): Record<string, unk
   };
 }
 
-/** A form with `versions` published versions and no release anywhere. */
 async function seedForm(label: string, versions = 1): Promise<{ formId: FormId; slug: string }> {
   const formId = FormId.parse(`frm_${label}`);
   const slug = `${label}-slug`;
@@ -302,7 +235,6 @@ async function seedForm(label: string, versions = 1): Promise<{ formId: FormId; 
   return { formId, slug };
 }
 
-/** `form.released` rows for one form in one environment, counted by the owner. */
 async function releasedEvents(environment: string, formId: FormId): Promise<number> {
   const res = await testDb.client.query<{ n: string }>(
     `select count(*) as n from data_${environment}.outbox
@@ -316,9 +248,6 @@ describe("release resolution replaces the newest published version (criterion 1)
   it("serves a version in the environment it is released to, and refuses it elsewhere", async () => {
     const { formId, slug } = await seedForm("servedhere", 1);
 
-    // Nothing is released anywhere yet, so a published version is served nowhere. That is
-    // the whole of ADR-40 in one assertion: publishing is not the act that reaches a
-    // respondent.
     const beforeRelease = await startIn("test", formId);
     expect(beforeRelease.status).toBe(409);
     expect(((await beforeRelease.json()) as { error: { code: string } }).error.code).toBe(
@@ -332,8 +261,6 @@ describe("release resolution replaces the newest published version (criterion 1)
     expect(inTest.status).toBe(201);
     expect(((await inTest.json()) as { formVersion: number }).formVersion).toBe(1);
 
-    // And `prod`, where nothing was released, still refuses - on the same slug, the same
-    // form and the same published version.
     const inProd = await startAnonymous(slug);
     expect(inProd.status).toBe(409);
   });
@@ -355,7 +282,6 @@ describe("release resolution replaces the newest published version (criterion 1)
     expect(body.release.version).toBe(1);
     expect(body.release.fromEnvironment).toBe("test");
 
-    // Both environments now serve the same version, from one stored copy of it.
     expect((await startAnonymous(slug)).status).toBe(201);
   });
 
@@ -445,12 +371,9 @@ describe("a release never re-pins a live session (criterion 3, ADR-07 invariant 
     };
     expect(session.formVersion).toBe(1);
 
-    // The release happens with that session open.
     const second = await post(`/forms/${formId}/releases`, { environment: "test", version: 2 });
     expect(second.status).toBe(200);
 
-    // What the respondent is served is unchanged, read back through the respondent's own
-    // credential rather than inferred from the row.
     const status = await app.request(`/test/sessions/${session.sessionId}`, {
       headers: {
         "x-qcms-internal-token": internalToken,
@@ -460,12 +383,9 @@ describe("a release never re-pins a live session (criterion 3, ADR-07 invariant 
     expect(status.status).toBe(200);
     expect(((await status.json()) as { formVersion: number }).formVersion).toBe(1);
 
-    // And the row behind it, because a re-pin would be a write nothing else would show.
     const row = await getSession(executors.get("test")!, session.sessionId as never);
     expect(row?.formVersion).toBe(1);
 
-    // A session started after the release gets the new version, which is what makes the
-    // assertion above about the pin rather than about the release having failed.
     const next = await startIn("test", formId);
     expect(((await next.json()) as { formVersion: number }).formVersion).toBe(2);
   });
@@ -480,9 +400,6 @@ describe("the release writes exactly one event, in its own transaction (criterio
     await post(`/forms/${formId}/releases`, { environment: "test", version: 1 });
 
     expect(await releasedEvents("test", formId)).toBe(1);
-    // The outbox is per environment, so an event about a `test` release has no business in
-    // `prod`'s queue - which is also why publishing, being environment-agnostic, queues
-    // nothing at all (Q60).
     expect(await releasedEvents("prod", formId)).toBe(0);
   });
 
@@ -502,14 +419,11 @@ describe("the release writes exactly one event, in its own transaction (criterio
       environment: "prod",
       releasedBy: adminUserId,
     });
-    // No respondent content, which is why this event type is the one retention uses as its
-    // example of a payload that never carries answers.
     expect(res.rows[0]?.payload).not.toHaveProperty("answers");
   });
 
   it("writes neither the record nor the event when the release is refused", async () => {
     const { formId } = await seedForm("refused", 1);
-    // Version 2 does not exist, so the release is refused before any transaction opens.
     const res = await post(`/forms/${formId}/releases`, { environment: "test", version: 2 });
     expect(res.status).toBe(404);
     expect(await releasedEvents("test", formId)).toBe(0);
@@ -527,7 +441,6 @@ describe("the release history (criteria 4 and 7)", () => {
         (await post(`/forms/${formId}/releases`, { environment: "prod", version })).status,
       ).toBe(200);
     }
-    // The incident: 7 is bad, so 4 goes back out. A third row, not an edit.
     const rolledBack = await post(`/forms/${formId}/releases`, { environment: "prod", version: 4 });
     expect(rolledBack.status).toBe(200);
     expect(((await rolledBack.json()) as { release: { rollback: boolean } }).release.rollback).toBe(
@@ -543,7 +456,6 @@ describe("the release history (criteria 4 and 7)", () => {
         releasedAt: string;
       }>;
     };
-    // Append-only: three rows, newest first, every prior row still there (criterion 7).
     expect(body.releases.map((row) => [row.version, row.rollback])).toEqual([
       [4, true],
       [7, false],
@@ -558,7 +470,6 @@ describe("refusals", () => {
   it("refuses a release into an environment this deployment does not serve", async () => {
     const { formId } = await seedForm("unknownenv", 1);
     const res = await post(`/forms/${formId}/releases`, { environment: "staging", version: 1 });
-    // The schema accepts the name's shape; the live set is what refuses it.
     expect(res.status).toBe(400);
     expect(((await res.json()) as { error: { code: string } }).error.code).toBe(
       "UNKNOWN_ENVIRONMENT",
@@ -588,14 +499,12 @@ describe("refusals", () => {
     expect(((await again.json()) as { error: { code: string } }).error.code).toBe(
       "ALREADY_RELEASED",
     );
-    // One row, not two: a double-pressed button leaves the history legible.
     expect(await releasedEvents("test", formId)).toBe(1);
   });
 
   it("refuses a release of a version of another form", async () => {
     const { formId } = await seedForm("otherform", 1);
     await seedForm("otherformsource", 3);
-    // Version 3 exists, but not for this form.
     const res = await post(`/forms/${formId}/releases`, { environment: "test", version: 3 });
     expect(res.status).toBe(404);
   });
@@ -605,22 +514,6 @@ describe("refusals", () => {
     expect(res.status).toBe(404);
   });
 
-  /**
-   * The race the 409 exists for, fired rather than reasoned about.
-   *
-   * Six releases of six **different** versions into one environment, started together, so
-   * the `ALREADY_RELEASED` pre-check cannot be what refuses any of them: under `READ
-   * COMMITTED` none of the six sees another's uncommitted row, every one of them reads the
-   * same `max(sequence)`, and every one of them tries to insert the same next sequence.
-   * The composite primary key `(form_id, environment, sequence)` lets one through per
-   * sequence and refuses the rest.
-   *
-   * What is asserted is the **contract**, not the arithmetic of who wins: at least one
-   * release lands, every refusal is a typed 409 `RELEASE_RACED`, nothing is a 5xx, and the
-   * history holds one row per sequence with no duplicate and no gap. A 500 here would be
-   * the real defect - a driver error reaching the caller as "something broke" when the
-   * honest answer is "someone else got there first, read the history and press again".
-   */
   it("refuses the losers of a concurrent release with a typed 409, never a 5xx", async () => {
     const { formId } = await seedForm("raced", 6);
     const versions = [1, 2, 3, 4, 5, 6];
@@ -635,17 +528,11 @@ describe("refusals", () => {
 
     const won = results.filter((r) => r.status === 200);
     const lost = results.filter((r) => r.status !== 200);
-    // Somebody has to win, or the guard is refusing work that should have landed.
     expect(won.length).toBeGreaterThanOrEqual(1);
     expect(won.length + lost.length).toBe(versions.length);
-    // Every loser is the typed refusal. No 5xx, and no other code either: a 400 here would
-    // mean the request was judged malformed, which it was not.
     expect(lost.map((r) => [r.status, r.code])).toEqual(lost.map(() => [409, "RELEASE_RACED"]));
     expect(results.some((r) => r.status >= 500)).toBe(false);
 
-    // And the history is exactly the winners: one row per sequence, dense from 1, with the
-    // sequence unique per (form, environment) - which is the property the key enforces and
-    // the reason a loser cannot have quietly overwritten a winner.
     const rows = await testDb.client.query<{ sequence: string; version: string }>(
       `select sequence, version from control.form_releases
         where form_id = $1 and environment = 'test' order by sequence`,
@@ -654,33 +541,15 @@ describe("refusals", () => {
     const sequences = rows.rows.map((row) => Number(row.sequence));
     expect(sequences).toEqual(won.map((_, index) => index + 1));
     expect(new Set(sequences).size).toBe(sequences.length);
-    // One event per landed release, in the released environment's outbox (criterion 8).
     expect(await releasedEvents("test", formId)).toBe(won.length);
   });
 
-  /**
-   * The same refusal with the race forced rather than hoped for.
-   *
-   * The storm above asserts the contract whoever wins, but it cannot guarantee that any
-   * request *loses*: if Postgres happens to run the six inserts end to end, all six land
-   * and the 409 path is never entered. So this case holds the race open. A separate
-   * connection inserts sequence 1 and does **not** commit; the release request then reads
-   * no released version (the row is invisible to it), computes the same sequence 1, and
-   * blocks on the primary key's index entry. Committing the held row turns that block
-   * into a 23505, which is exactly the live race and the only way to see the 409
-   * deterministically.
-   *
-   * The wait is on `pg_locks` rather than a sleep: the request has to be *at* the lock
-   * before the commit, or it would read the committed row and legitimately take sequence
-   * 2 instead.
-   */
   it("turns the key violation of a lost race into the 409, with the race held open", async () => {
     const { formId } = await seedForm("racedheld", 2);
 
     await testDb.client.query("begin");
     try {
-      // The winner, uncommitted: invisible to the request below, and already holding the
-      // index entry for (form, 'test', 1).
+      // Uncommitted, so it is invisible to the request below while holding the index entry.
       await testDb.client.query(
         `insert into control.form_releases (form_id, environment, version, sequence, released_by)
          values ($1, 'test', 1, 1, 'usr_blocker')`,
@@ -689,8 +558,8 @@ describe("refusals", () => {
 
       const racing = post(`/forms/${formId}/releases`, { environment: "test", version: 2 });
 
-      // Wait for that request to be blocked on the index entry. `pg_locks` reports the
-      // ungranted lock, so this is the request's own state and not a guess about timing.
+      // Waiting on `pg_locks` rather than sleeping: the request has to be at the lock
+      // before the commit, or it would read the committed row and take sequence 2.
       const deadline = Date.now() + 10_000;
       let blocked = false;
       while (Date.now() < deadline && !blocked) {
@@ -708,13 +577,9 @@ describe("refusals", () => {
       expect(res.status).toBe(409);
       expect(((await res.json()) as { error: { code: string } }).error.code).toBe("RELEASE_RACED");
     } finally {
-      // `commit` on an already-committed session is a no-op warning, which is the right
-      // shape for a failure path that may not have reached the commit above.
       await testDb.client.query("rollback").catch(() => undefined);
     }
 
-    // The loser left nothing behind: one row, the winner's, and no event for a release
-    // that never happened.
     const rows = await testDb.client.query<{ n: string }>(
       "select count(*) as n from control.form_releases where form_id = $1",
       [formId],
@@ -731,9 +596,6 @@ describe("the switcher's environment steers an admin read (Q6)", () => {
     await post(`/forms/${formId}/releases`, { environment: "test", version: 1 });
     await post(`/forms/${formId}/releases`, { environment: "prod", version: 2 });
 
-    // The release reads here are control-plane and take their environment from the query,
-    // so what the header steers is every per-environment admin read behind it. The
-    // observable proof that the middleware ran at all is its refusal.
     const refused = await get(`/forms/${formId}/releases`, {
       [REQUEST_ENVIRONMENT_HEADER]: "staging",
     });
@@ -751,8 +613,6 @@ describe("the switcher's environment steers an admin read (Q6)", () => {
   it("offers the live environment set in canonical order", async () => {
     const res = await get("/environments");
     expect(res.status).toBe(200);
-    // `position` order, which is the order a combined environment set is written in (Q42),
-    // so the switcher shows one ordering and the authorisation model uses the same one.
     expect((await res.json()) as unknown).toEqual({
       environments: [
         { name: "test", position: 1 },
@@ -784,9 +644,6 @@ describe("publish and release in one act (finding 2's combined action)", () => {
     const body = (await res.json()) as { version: number; environment: string };
     expect(body).toMatchObject({ version: 1, environment: "test" });
 
-    // One act: the version exists, the release exists, and the event is in the released
-    // environment's outbox. A combined action that published without releasing would leave
-    // the first two and not the third.
     expect(await releasedEvents("test", formId)).toBe(1);
     const history = await get(`/forms/${formId}/releases`);
     expect(((await history.json()) as { releases: unknown[] }).releases).toHaveLength(1);
@@ -799,8 +656,6 @@ describe("publish and release in one act (finding 2's combined action)", () => {
     await createForm(control, {
       workspaceId: SEED_WORKSPACE_ID,
       formId,
-      // Distinct from `seedForm("refused")`'s slug one describe block up, which it was
-      // only by luck before task 068 made `forms.slug` unique installation-wide.
       slug: "combined-refused-slug",
       defaultLocale: "en",
     });
@@ -813,8 +668,6 @@ describe("publish and release in one act (finding 2's combined action)", () => {
     const res = await post(`/forms/${formId}/publish-and-release`, { environment: "staging" });
     expect(res.status).toBe(400);
 
-    // Atomically or not at all: no version, and the draft is still open, so the author's
-    // work is where they left it.
     const detail = await get(`/forms/${formId}`);
     const form = (await detail.json()) as { versions: unknown[]; draft: unknown };
     expect(form.versions).toEqual([]);
@@ -832,8 +685,6 @@ describe("the two-person rule for a prod release (task 070, Q13, Q30, Q51)", () 
       slug: "two-person-release",
       defaultLocale: "en",
     });
-    // Version 1 published by the account every request below is made as, which is the
-    // case criterion 1 refuses, and version 2 by somebody else.
     for (const publishedBy of [adminUserId, "au_somebody_else"]) {
       await insertFormVersion(control, {
         formId: RULE_FORM,
@@ -848,15 +699,12 @@ describe("the two-person rule for a prod release (task 070, Q13, Q30, Q51)", () 
   });
 
   afterAll(async () => {
-    // Q13's default, for anything composed after this block.
     await setRequireSecondApprover(control, SEED_WORKSPACE_ID, false);
   });
 
   it("records no approval and compares nothing with the switch off (criterion 3)", async () => {
     await post(`/forms/${RULE_FORM}/releases`, { environment: "test", version: 1 });
     await setRequireSecondApprover(control, SEED_WORKSPACE_ID, false);
-    // The author releasing their own version into `prod`, which is what a
-    // single-administrator installation does and has to go on being able to do.
     const res = await post(`/forms/${RULE_FORM}/releases`, { environment: "prod", version: 1 });
     expect(res.status).toBe(200);
     const body = (await res.json()) as { release: { approvedBy: string | null } };
@@ -872,8 +720,6 @@ describe("the two-person rule for a prod release (task 070, Q13, Q30, Q51)", () 
       "APPROVER_IS_AUTHOR",
     );
 
-    // Version 2 was published by a different account, so this request is the second
-    // account and its id is what lands on the row.
     await post(`/forms/${RULE_FORM}/releases`, { environment: "test", version: 2 });
     const allowed = await post(`/forms/${RULE_FORM}/releases`, { environment: "prod", version: 2 });
     expect(allowed.status).toBe(200);
@@ -881,7 +727,6 @@ describe("the two-person rule for a prod release (task 070, Q13, Q30, Q51)", () 
       ((await allowed.json()) as { release: { approvedBy: string | null } }).release.approvedBy,
     ).toBe(adminUserId);
 
-    // And on the row rather than only in the response, which is what makes it auditable.
     const stored = await getReleasedVersion(control, RULE_FORM, "prod");
     expect(stored?.approvedBy).toBe(adminUserId);
   });
@@ -896,9 +741,6 @@ describe("the two-person rule for a prod release (task 070, Q13, Q30, Q51)", () 
   });
 
   it("refuses publish-and-release into prod outright with the switch on (Q51)", async () => {
-    // F2's convenience publishes and releases as one account, so the account that
-    // publishes **is** the account releasing - exactly what criterion 1 refuses. The two
-    // acts have to be two accounts, which means they have to be two requests.
     await setRequireSecondApprover(control, SEED_WORKSPACE_ID, true);
     const before = await getReleasedVersion(control, RULE_FORM, "prod");
     const res = await post(`/forms/${RULE_FORM}/publish-and-release`, { environment: "prod" });
@@ -906,8 +748,6 @@ describe("the two-person rule for a prod release (task 070, Q13, Q30, Q51)", () 
     expect(((await res.json()) as { error: { code: string } }).error.code).toBe(
       "APPROVER_IS_AUTHOR",
     );
-    // Nothing published and nothing released: the refusal is raised before the
-    // transaction opens, so there is no stray version left behind to explain.
     const after = await getReleasedVersion(control, RULE_FORM, "prod");
     expect(after?.version).toBe(before?.version);
     const versions = await listFormVersions(control, RULE_FORM);

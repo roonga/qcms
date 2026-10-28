@@ -1,14 +1,3 @@
-/**
- * Admin-group mount + auth-seam tests for the response data-out slices (task
- * 023). No database - these assert the surface guarantees: the admin-auth gate
- * (021, reused) rejects an unauthenticated request before any handler, and a
- * public-only process has no admin group at all (a 404, not a 403; ADR-09). The
- * full lifecycle runs against the real DB in `responses.integration.test.ts`.
- *
- * These are the SEC guardrails: export and detail are answer data; without a
- * session they 401, and in a public-only process they do not exist.
- */
-
 import { describe, expect, it } from "vitest";
 
 import { createApp } from "../../../app.js";
@@ -39,7 +28,7 @@ describe("responses admin auth seam (401 before any handler)", () => {
 
   for (const { method, path, body } of paths) {
     it(`${method} ${path} → 401 with no admin session`, async () => {
-      const deps = makeDeps(); // unusedDb: the gate rejects before touching it
+      const deps = makeDeps();
       const app = createApp(deps, ADMIN_ONLY, adminGroups);
       const res = await app.request(path, {
         method,
@@ -62,7 +51,6 @@ describe("responses admin group is absent in a public-only process (ADR-09)", ()
     const res = await app.request("/admin/forms/frm_x/export?format=json&version=1", {
       headers: {
         "x-qcms-internal-token": internalTokenFor(deps.config),
-        // Unmounted group: nothing runs, so this value is never verified (031).
         [ADMIN_SESSION_HEADER]: "any-value-unverified-here",
       },
     });

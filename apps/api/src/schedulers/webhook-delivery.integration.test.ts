@@ -1,33 +1,3 @@
-/**
- * Webhook delivery pass - end-to-end integration (task 025). Boots the 013
- * Testcontainers harness DB and a real in-test HTTP receiver (node:http, test
- * only - the deliverer itself uses the web `fetch`, R4), and proves all five exit
- * criteria against live infrastructure. Requires Docker.
- *
- * 1. submit → a signed request arrives; the signature verifies against the
- *    documented recipe; a tampered body fails verification.
- * 2. failure path: 500 → retries with advancing backoff → dead-lettered with
- *    lastError; the redeliver endpoint → successful delivery → marked delivered.
- * 3. two deliverer instances against one outbox never double-deliver a single
- *    (event, webhook) - `FOR UPDATE SKIP LOCKED`.
- * 4. crash between send and mark-delivered → redelivered on the next pass
- *    (at-least-once; the duplicate is expected).
- * 5. fan-out: two webhooks on one form, one failing - states independent.
- *
- * Task 059 adds a seventh group: an erased session's event reaches no consumer in a
- * real delivery pass, while an unerased session in the *same* pass is delivered
- * normally. That is the assertion the ADR-17 amendment turns on - before 059 the
- * erased session's answers went out on the very next tick.
- *
- * Task 035 adds a sixth group over the same live infrastructure: the per-attempt
- * record the operator dashboard reads (status, latency, request headers, response
- * snippet) is written on success, on a non-2xx and on a transport failure, and the
- * HMAC is masked *before* it reaches the database rather than at render time.
- *
- * `node:crypto` appears here only as the verification oracle (the consumer
- * recipe); the production signer never imports it.
- */
-
 import { createHmac } from "node:crypto";
 import { createServer, type Server } from "node:http";
 import type { AddressInfo } from "node:net";
@@ -79,8 +49,6 @@ import { RESPONSE_SNIPPET_MAX, runDeliveryPass, SIGNATURE_MASK } from "./outbox-
 const { Pool } = pg;
 const ADMIN_ONLY = { public: false, internal: false, admin: true } as const;
 
-// --- in-test HTTP receiver --------------------------------------------------
-
 interface Received {
   readonly path: string;
   readonly header: (name: string) => string | undefined;
@@ -90,12 +58,7 @@ interface Received {
 interface Receiver {
   readonly origin: string;
   readonly received: Received[];
-  /** Per-path response status (default 200). */
   readonly status: Map<string, number>;
-  /**
-   * Per-path response body (default "ok"). 035 stores a snippet of whatever the
-   * consumer answers with, so the body has to be shapeable to assert on it.
-   */
   readonly body: Map<string, string>;
   setDelay(ms: number): void;
   reset(): void;
@@ -154,8 +117,6 @@ async function startReceiver(): Promise<Receiver> {
   };
 }
 
-// --- fixtures ---------------------------------------------------------------
-
 const emptyDef = {} as unknown as FormDefinition;
 const emptyCompiled = {} as unknown as Parameters<typeof insertFormVersion>[1]["compiled"];
 
@@ -164,16 +125,14 @@ let receiver: Receiver;
 let baseEnv: Record<string, string | undefined>;
 let deps: Deps;
 let seq = 0;
-// A real better-auth session row (031). This suite runs on the SYSTEM clock, so
-// the seeded session is anchored to wall time rather than the fixed test instant.
+// This suite runs on the system clock, so the seeded session is anchored to wall time.
 let adminSessionToken: string;
 
 beforeAll(async () => {
   testDb = await startTestDb();
   receiver = await startReceiver();
-  // On-prem override so the localhost receiver passes SSRF at config + delivery
-  // time; a single shared env keeps QCMS_APP_KEY stable across the run so the
-  // webhook secret we encrypt is decryptable by the deliverer.
+  // The override lets the localhost receiver past SSRF, and one shared env keeps
+  // QCMS_APP_KEY stable so an encrypted webhook secret stays decryptable.
   baseEnv = validEnv({ QCMS_WEBHOOK_ALLOW_PRIVATE: "true" });
   deps = makeDeps({ db: testDb.db, env: baseEnv, clock: systemClock });
   adminSessionToken = (await seedAdminSession(testDb.db, { at: new Date(), label: "operator" }))
@@ -185,13 +144,6 @@ afterAll(async () => {
   await testDb?.teardown();
 }, CONTAINER_BOOT_TIMEOUT_MS);
 
-/**
- * Seed a form + published version, and one active webhook per given path.
- *
- * `origin` defaults to the in-test receiver; a hook overrides it to point somewhere
- * the receiver is not (a released port), which is how the transport-failure path
- * gets exercised without stubbing `fetch`.
- */
 async function seed(
   hooks: Array<{ path: string; secret: string; origin?: string }>,
 ): Promise<{ formId: FormId; version: number; webhookIds: string[] }> {
@@ -227,7 +179,6 @@ async function seed(
   return { formId, version: v.version, webhookIds };
 }
 
-/** Enqueue a `response.submitted` event with 020's payload shape. */
 async function enqueueSubmitted(formId: FormId, version: number): Promise<string> {
   const event = await enqueue(testDb.db, {
     eventType: "response.submitted",
@@ -247,17 +198,13 @@ async function deliveriesFor(outboxId: string): Promise<DeliveryRow[]> {
   return testDb.db.select().from(webhookDeliveries).where(eq(webhookDeliveries.outboxId, outboxId));
 }
 
-/**
- * A `now` a minute ahead of the host clock. Outbox/delivery rows default their
- * `next_attempt_at` to the *database* clock, which in CI can run a few seconds
- * ahead of the host's `Date.now()`; a minute of margin makes freshly enqueued
- * rows reliably "due" regardless of that container skew.
- */
+// A minute of margin, because `next_attempt_at` defaults to the database clock, which
+// can run ahead of the host's.
 function soon(): Date {
   return new Date(Date.now() + 60_000);
 }
 
-/** The documented Node consumer verification recipe. */
+/** The documented consumer verification recipe. */
 function verify(secret: string, timestamp: string, body: string, signature: string): boolean {
   const digest = createHmac("sha256", secret).update(`${timestamp}.${body}`).digest("hex");
   const expected = `v1=${digest}`;
@@ -277,8 +224,6 @@ function adminHeaders(): Record<string, string> {
     [ADMIN_SESSION_HEADER]: adminSessionToken,
   };
 }
-
-// --- exit criterion 1 -------------------------------------------------------
 
 describe("exit 1: signed delivery arrives and verifies; tamper fails", () => {
   it("delivers a signed response.submitted request the recipe verifies", async () => {
@@ -301,9 +246,7 @@ describe("exit 1: signed delivery arrives and verifies; tamper fails", () => {
     const signature = req.header("x-qcms-signature")!;
     expect(signature).toMatch(/^v1=[0-9a-f]{64}$/);
 
-    // The signature verifies over the exact received bytes...
     expect(verify(secret, timestamp, req.body, signature)).toBe(true);
-    // ...and a tampered body does not.
     expect(verify(secret, timestamp, req.body + "x", signature)).toBe(false);
 
     const envelope = JSON.parse(req.body) as {
@@ -320,8 +263,6 @@ describe("exit 1: signed delivery arrives and verifies; tamper fails", () => {
   });
 });
 
-// --- exit criterion 2 -------------------------------------------------------
-
 describe("exit 2: failure → advancing backoff → dead-letter → redeliver → delivered", () => {
   it("retries with advancing backoff, dead-letters, then the admin endpoint redelivers", async () => {
     receiver.reset();
@@ -330,7 +271,6 @@ describe("exit 2: failure → advancing backoff → dead-letter → redeliver �
     const { formId, version } = await seed([{ path: "/fail", secret }]);
     const outboxId = await enqueueSubmitted(formId, version);
 
-    // Drive attempts, advancing `now` past each scheduled retry, until dead-letter.
     let now = soon();
     const nextAttemptTimes: number[] = [];
     let delivery: DeliveryRow | undefined;
@@ -346,12 +286,10 @@ describe("exit 2: failure → advancing backoff → dead-letter → redeliver �
     expect(delivery?.attempts).toBe(OUTBOX_MAX_ATTEMPTS);
     expect(delivery?.deadLetteredAt).toBeInstanceOf(Date);
     expect(delivery?.lastError).toBe("http_500");
-    // Backoff timestamps advance across attempts (strictly increasing).
     for (let i = 1; i < nextAttemptTimes.length; i++) {
       expect(nextAttemptTimes[i]!).toBeGreaterThan(nextAttemptTimes[i - 1]!);
     }
 
-    // The admin dead-letters view lists it with its attempt history.
     const app = adminApp();
     const listRes = await app.request("/admin/outbox/dead-letters", { headers: adminHeaders() });
     expect(listRes.status).toBe(200);
@@ -368,7 +306,6 @@ describe("exit 2: failure → advancing backoff → dead-letter → redeliver �
     expect(mine!.attempts).toBe(OUTBOX_MAX_ATTEMPTS);
     expect(mine!.lastError).toBe("http_500");
 
-    // Fix the receiver, redeliver via the admin endpoint, then run a pass.
     receiver.status.set("/fail", 200);
     receiver.received.length = 0;
     const redeliverRes = await app.request(
@@ -398,20 +335,18 @@ describe("exit 2: failure → advancing backoff → dead-letter → redeliver �
   });
 });
 
-// --- exit criterion 3 -------------------------------------------------------
-
 describe("exit 3: two instances, one outbox - no double-delivery (SKIP LOCKED)", () => {
   let pool: pg.Pool;
   let pooledDeps: Deps;
 
   beforeAll(() => {
-    // Registered with the harness rather than ended in a local `afterAll` (issue #888).
+    // Registered with the harness so its teardown ends this pool.
     pool = testDb.register(
       new Pool({
         connectionString: testDb.connectionUri,
         max: 8,
-        // The search path an API pool connects with (ADR-40): every data-plane table is
-        // declared unqualified, so a pool that sets none resolves `outbox` to nothing.
+        // Data-plane tables are declared unqualified, so a pool without a search path
+        // resolves `outbox` to nothing.
         options: searchPathOptions(DEFAULT_TEST_ENVIRONMENT),
       }),
       "outbox concurrency pool",
@@ -434,17 +369,14 @@ describe("exit 3: two instances, one outbox - no double-delivery (SKIP LOCKED)",
     ]);
 
     receiver.setDelay(0);
-    // Exactly one POST reached the receiver for this (event, webhook).
     expect(receiver.received.filter((r) => r.path === "/race")).toHaveLength(1);
     expect(a.delivered + b.delivered).toBe(1);
 
     const rows = await deliveriesFor(outboxId);
-    expect(rows).toHaveLength(1); // materialized exactly once too
+    expect(rows).toHaveLength(1);
     expect(rows[0]!.deliveredAt).toBeInstanceOf(Date);
   }, 20_000);
 });
-
-// --- exit criterion 4 -------------------------------------------------------
 
 describe("exit 4: crash between send and mark-delivered → redelivered (at-least-once)", () => {
   it("rolls back an interrupted delivery and redelivers it (a duplicate) next pass", async () => {
@@ -453,8 +385,6 @@ describe("exit 4: crash between send and mark-delivered → redelivered (at-leas
     const { formId, version } = await seed([{ path: "/crash", secret }]);
     const outboxId = await enqueueSubmitted(formId, version);
 
-    // Simulate a crash after the POST but before mark-delivered: the delivery
-    // transaction aborts, so the send happened but the row stays pending.
     await expect(
       runDeliveryPass(deps, {
         now: soon(),
@@ -466,17 +396,14 @@ describe("exit 4: crash between send and mark-delivered → redelivered (at-leas
 
     expect(receiver.received.filter((r) => r.path === "/crash")).toHaveLength(1);
     let [delivery] = await deliveriesFor(outboxId);
-    expect(delivery?.deliveredAt).toBeNull(); // rolled back - still pending
+    expect(delivery?.deliveredAt).toBeNull();
 
-    // Next pass redelivers (the consumer sees a duplicate - at-least-once).
     await runDeliveryPass(deps, { now: soon() });
     expect(receiver.received.filter((r) => r.path === "/crash")).toHaveLength(2);
     [delivery] = await deliveriesFor(outboxId);
     expect(delivery?.deliveredAt).toBeInstanceOf(Date);
   });
 });
-
-// --- exit criterion 5 -------------------------------------------------------
 
 describe("exit 5: fan-out - two webhooks, one failing, states independent", () => {
   it("delivers to the healthy webhook while the failing one retries independently", async () => {
@@ -501,8 +428,6 @@ describe("exit 5: fan-out - two webhooks, one failing, states independent", () =
     const rows = await deliveriesFor(outboxId);
     const good = rows.find((r) => r.webhookId === webhookIds[0]);
     const bad = rows.find((r) => r.webhookId === webhookIds[1]);
-    // Independent states: healthy delivered, failing one pending with a recorded
-    // error and no dead-letter yet - neither affects the other.
     expect(good?.deliveredAt).toBeInstanceOf(Date);
     expect(good?.attempts).toBe(0);
     expect(bad?.deliveredAt).toBeNull();
@@ -512,14 +437,8 @@ describe("exit 5: fan-out - two webhooks, one failing, states independent", () =
   });
 });
 
-// --- task 035: the attempt record the operator dashboard reads ---------------
-
-/**
- * A port nothing is listening on: bind an ephemeral one, then release it.
- *
- * Cheaper and far more deterministic than waiting out the delivery timeout, and it
- * exercises the same catch branch (a transport error rather than a response).
- */
+// A port nothing listens on, which reaches the transport-error branch without waiting
+// out the delivery timeout.
 async function releasedPort(): Promise<number> {
   const probe = createServer();
   await new Promise<void>((resolve) => probe.listen(0, "127.0.0.1", () => resolve()));
@@ -537,8 +456,6 @@ describe("035: each attempt is recorded on the row, with the signature masked", 
 
     await runDeliveryPass(deps, { now: soon() });
 
-    // The consumer got a genuine, verifying signature: the masking is storage-side
-    // only, not a signer that quietly stopped signing.
     const hit = receiver.received.find((r) => r.path === "/mask")!;
     const sent = hit.header("x-qcms-signature")!;
     expect(sent).toMatch(/^v1=[0-9a-f]{64}$/);
@@ -546,13 +463,9 @@ describe("035: each attempt is recorded on the row, with the signature masked", 
 
     const [row] = await deliveriesFor(outboxId);
     expect(row?.lastRequestHeaders?.["x-qcms-signature"]).toBe(SIGNATURE_MASK);
-    // Nothing shaped like an HMAC survives anywhere in the stored blob, under any
-    // key: the check is on the serialized column, not on the one field we masked.
     const stored = JSON.stringify(row?.lastRequestHeaders);
     expect(stored).not.toContain(sent);
     expect(stored).not.toMatch(/v1=[0-9a-f]{64}/);
-    // The header NAME survives, because "this request was signed" is what an
-    // operator debugging a rejecting consumer needs to see.
     expect(Object.keys(row?.lastRequestHeaders ?? {})).toContain("x-qcms-signature");
   });
 
@@ -574,7 +487,6 @@ describe("035: each attempt is recorded on the row, with the signature masked", 
     expect(row?.lastResponseSnippet).toBe("thanks");
     expect(row?.lastRequestHeaders?.["x-qcms-event"]).toBe("response.submitted");
     expect(row?.lastRequestHeaders?.["x-qcms-timestamp"]).toBeTruthy();
-    // Success does not advance the failed-attempt counter that drives the backoff.
     expect(row?.attempts).toBe(0);
   });
 
@@ -627,8 +539,6 @@ describe("035: each attempt is recorded on the row, with the signature masked", 
 
     const [row] = await deliveriesFor(outboxId);
     expect(row?.lastError).toBe("network_error");
-    // No response ever arrived, so there is no status and no body to keep - but the
-    // request is still describable, which is the whole point of storing it.
     expect(row?.lastStatus).toBeNull();
     expect(row?.lastResponseSnippet).toBeNull();
     expect(row?.lastAttemptAt).toBeInstanceOf(Date);
@@ -639,16 +549,9 @@ describe("035: each attempt is recorded on the row, with the signature masked", 
   });
 });
 
-// --- exit criterion 2 (task 059) --------------------------------------------
-
 describe("059: an erased session reaches no consumer, while its neighbour is delivered", () => {
-  /**
-   * A real, submitted-enough session plus its queued `response.submitted` event.
-   *
-   * The session row has to exist for `eraseSession` to erase anything, and the
-   * payload has to be the shape the submit slice enqueues (whole locked answer set
-   * inline) for the redaction to have something to remove.
-   */
+  // The session row has to exist for `eraseSession` to erase anything, and the payload
+  // has to carry the answer set inline for the redaction to have something to remove.
   async function seedSessionWithEvent(
     formId: FormId,
     version: number,
