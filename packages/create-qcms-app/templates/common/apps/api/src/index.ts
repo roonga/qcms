@@ -1,3 +1,4 @@
+// `serve.ts` is the server entry and is not re-exported: importing this module must never bind a port.
 export { createApp, type RouteGroups, type SliceRegistrar, type CreateAppOptions } from "./app.js";
 export { appGroups } from "./registrars.js";
 export { buildApiDocuments, type ApiDocuments, type OpenApiDocument } from "./openapi-document.js";
