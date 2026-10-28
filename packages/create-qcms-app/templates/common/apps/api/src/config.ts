@@ -527,7 +527,7 @@ export interface Config {
       };
 }
 
-/** The values `QCMS_AGENT_THINKING` takes (Q16, ruled 2026-10-19). */
+/** The values `QCMS_AGENT_THINKING` takes . */
 export const AGENT_THINKING = ["off", "summary"] as const;
 
 export type AgentThinking = (typeof AGENT_THINKING)[number];
@@ -1134,11 +1134,6 @@ export function isLocalAgentEndpoint(baseUrl: string): boolean {
 }
 
 /**
- * Parse the draft-assistant configuration (041). Mirrors {@link parseChallenge}:
- * the secrets exist only in the enabled arm, and every issue names an env var
- * and never a value (SEC-8).
- */
-/**
  * `QCMS_AGENT_THINKING`, typed and fail-fast like `QCMS_AGENT_MAX_STEPS`.
  *
  * The issue names the variable and its allowed values and **echoes no value**
@@ -1159,6 +1154,11 @@ function parseAgentThinking(env: Env, issues: string[]): AgentThinking {
   return known;
 }
 
+/**
+ * Parse the draft-assistant configuration (041). Mirrors {@link parseChallenge}:
+ * the secrets exist only in the enabled arm, and every issue names an env var
+ * and never a value (SEC-8).
+ */
 function parseAgent(env: Env, flags: Flags, issues: string[]): Config["agent"] {
   const provider = flags.agentAuthoring;
   if (provider === "none") return { provider: "none" };

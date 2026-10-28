@@ -727,6 +727,22 @@ describe("AssistPanel", () => {
       expect(screen.getByLabelText(t("forms.assist.inputLabel"))).toBeTruthy();
     });
 
+    it("moves focus to the composer when the panel opens", async () => {
+      render(
+        <AssistPanel
+          endpoint="/forms/frm_quote/assist"
+          draft={DRAFT}
+          draftUpdatedAt={undefined}
+          onAccept={vi.fn()}
+        />,
+      );
+      fireEvent.click(screen.getByRole("button", { name: t("forms.assist.collapse") }));
+      fireEvent.click(screen.getByRole("button", { name: t("forms.assist.expand") }));
+      await waitFor(() => {
+        expect(document.activeElement).toBe(composer());
+      });
+    });
+
     it("starts a new conversation, clearing the turns and the card", async () => {
       vi.stubGlobal(
         "fetch",

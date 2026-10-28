@@ -2,8 +2,7 @@ import { t } from "@/lib/i18n/en";
 
 /**
  * The assistant's mark: the Q of QCMS drawn as a speech bubble wearing a robot
- * visor with two points of light (Code Owner, 2026-10-24, issue #1129; the
- * design system's AssistantIcon card, version 16).
+ * visor with two points of light.
  *
  * **Inline SVG rather than an image file**, which is the whole reason it is a
  * component. The bubble and the lights are `color-primary` and the visor is

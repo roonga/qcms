@@ -25,8 +25,7 @@
  *
  * ## Links, and the closed page-route list
  *
- * A link survives as a link in exactly one case (Code Owner, 2026-10-24, review finding
- * B3): its target is a same-origin path that matches an admin **page** route on
+ * A link survives as a link in exactly one case: its target is a same-origin path that matches an admin **page** route on
  * {@link ADMIN_PAGE_ROUTES}, with no query string and no fragment. Everything else -
  * an external URL, a `javascript:` target, a protocol-relative path, a path carrying a
  * query or a fragment, and any path not on the list - renders as the link's text, as it

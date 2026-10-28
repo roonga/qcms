@@ -111,8 +111,7 @@ describe("AssistMarkdown, the safe subset", () => {
   });
 
   /**
-   * The link rule (Code Owner, 2026-10-24, review finding B3; 080 exit
-   * criterion 7).
+   * The link rule (080 exit criterion 7).
    *
    * The two cases that matter sit beside each other: `/forms/frm_x` is a page
    * and `/forms/frm_x/export` is the streaming download route handler, which
