@@ -45,13 +45,10 @@ describe("mergeStepValues", () => {
   it("CLEARS a field the context cleared, rather than falling back to the stored answer", () => {
     const merged = mergeStepValues({ q_x: 5 }, { q_x: undefined });
     expect(merged.q_x).toBeUndefined();
-    // The key is still present: an explicit clear, not a silent absence.
     expect(Object.hasOwn(merged, "q_x")).toBe(true);
   });
 
   it("distinguishes a cleared key from an absent one over the same stored answer", () => {
-    // The two inputs are indistinguishable in a JSON dump and are opposite
-    // renders. This is the assertion whose absence let the regression through.
     expect(mergeStepValues({ q_x: 5 }, {}).q_x).toBe(5);
     expect(mergeStepValues({ q_x: 5 }, { q_x: undefined }).q_x).toBeUndefined();
   });

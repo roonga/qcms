@@ -92,7 +92,6 @@ describe("vouched client address", () => {
   it("vouches for the address the ingress wrote, and never forwards the raw chain", async () => {
     const headers = await startFrom("203.0.113.7");
     expect(headers?.get("x-qcms-client-address")).toBe("203.0.113.7");
-    // The API must not be able to re-derive an address from a client-written list.
     expect(headers?.get("x-forwarded-for")).toBeNull();
     expect(headers?.get("x-real-ip")).toBeNull();
   });
@@ -106,7 +105,6 @@ describe("vouched client address", () => {
   });
 
   it("does NOT let a forged inbound header move the bucket", async () => {
-    // The attacker sends its own X-Forwarded-For; an appending proxy adds its peer.
     const forged = await startFrom("10.0.0.1, 203.0.113.7");
     expect(forged?.get("x-qcms-client-address")).toBe("203.0.113.7");
     expect(forged?.get("x-qcms-client-address")).not.toBe("10.0.0.1");
@@ -162,8 +160,6 @@ describe("the environment's API surface", () => {
     const { startLinkSession } = await import("./api");
     await startLinkSession({ token: "a-link-token" });
 
-    // A respondent request's environment is the API group that served it (SEC-14). A
-    // header would be a second source, and a forgeable one.
     expect(sent[0]?.headers.get("x-qcms-environment")).toBeNull();
   });
 });

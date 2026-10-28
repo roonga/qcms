@@ -67,7 +67,6 @@ describe("trustedProxyHops", () => {
 
 describe("resolveClientAddress: one trusted proxy (Recipes A and B)", () => {
   it("Recipe A - Caddy SETS the header, so the single entry is the client", () => {
-    // `header_up X-Forwarded-For {remote_host}` replaces whatever arrived.
     expect(resolveClientAddress("203.0.113.7", 1)).toBe("203.0.113.7");
   });
 
@@ -85,7 +84,6 @@ describe("resolveClientAddress: one trusted proxy (Recipes A and B)", () => {
 
   it("ignores a forged prefix: the forged value never becomes the bucket", () => {
     const honest = resolveClientAddress("203.0.113.7", 1);
-    // The attacker sends `X-Forwarded-For: 10.0.0.1` and the proxy appends its peer.
     const forged = resolveClientAddress("10.0.0.1, 203.0.113.7", 1);
     expect(forged).toBe(honest);
     expect(forged).not.toBe("10.0.0.1");
@@ -110,8 +108,6 @@ describe("resolveClientAddress: other hop counts", () => {
   });
 
   it("yields nothing when the chain is shorter than the declared trusted path", () => {
-    // Declared two proxies, one entry arrived: the deployment is not the shape the
-    // operator described, so nothing in the chain is known to be proxy-written.
     expect(resolveClientAddress("203.0.113.7", 2)).toBeUndefined();
   });
 

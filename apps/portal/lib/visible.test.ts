@@ -131,8 +131,6 @@ describe("questionPositions", () => {
   });
 
   it("skips a question the flow hides, so positions match what is drawn", () => {
-    // q_blank is the SECOND field on the page once q_hidden is pruned, and a
-    // whole-document numbering would have called it the third.
     expect([...questionPositions(doc, ["q_full_name", "q_blank"])]).toEqual([
       ["q_full_name", 1],
       ["q_blank", 2],
@@ -148,8 +146,6 @@ describe("questionPositions", () => {
   });
 
   it("falls back to the visible set's own order when there is no document", () => {
-    // The API lists `visibleQuestions` in document order too (ADR-16's forward
-    // pass), so a completed flow with no step document still numbers correctly.
     expect([...questionPositions(null, ["q_full_name", "q_blank"])]).toEqual([
       ["q_full_name", 1],
       ["q_blank", 2],
@@ -200,17 +196,12 @@ describe("commitMoments", () => {
     } as unknown as A2UIStepDocument;
 
     expect([...commitMoments(doc)]).toEqual([
-      // boolean / singleChoice up to 7 options
       ["q_coverage_level", "change"],
-      // singleChoice above 7 options
       ["q_long_list", "change"],
-      // multiChoice: NOT on change, unlike every other selection control
       ["q_optional_cover", "groupExit"],
-      // shortText: not listed in ADR-31's table, read as unchanged
       ["q_full_name", "blur"],
       ["q_extra_detail", "blur"],
       ["q_accident_count", "blur"],
-      // the only control with a completion signal distinct from blur
       ["q_dob", "completion"],
     ]);
   });
@@ -288,7 +279,6 @@ describe("instanceLabels over both presentations (tasks 073 and 077)", () => {
   });
 
   it("names a field inside a table ROW, through the cell between them", () => {
-    // The cell is a node of its own, so the walk has to carry the row's label past it.
     const labels = instanceLabels(
       expandedDoc("RepeatRow", [
         {

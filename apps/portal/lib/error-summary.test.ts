@@ -108,9 +108,7 @@ describe("missingRequiredEntries", () => {
     expect(entries.map((entry) => entry.questionId)).toEqual(["q_full_name", "q_dob"]);
     expect(entries[0]?.message).toContain("Full name");
     expect(entries[1]?.message).toContain("Date of birth");
-    // The defect this guards: identical messages for every entry.
     expect(new Set(entries.map((entry) => entry.message)).size).toBe(entries.length);
-    // A question's message names only its own field.
     expect(entries[0]?.message).not.toContain("Date of birth");
     expect(entries[1]?.message).not.toContain("Full name");
   });
@@ -122,8 +120,6 @@ describe("missingRequiredEntries", () => {
   });
 
   it("names a label-less question by its position, never by a constant", () => {
-    // `website` is the honeypot: a named node the compiler gives no label. Here it
-    // is in the visible set, so it has a place on the page to be counted to.
     const entries = missingRequiredEntries(
       stepDoc,
       ["website"],
@@ -134,9 +130,6 @@ describe("missingRequiredEntries", () => {
   });
 
   it("falls back to the unnamed sentence only for a question with no position at all", () => {
-    // Neither in the document nor in the visible set: nothing is rendered for it,
-    // so there is no field on the page to count to. Neither caller can produce
-    // this - the flow intersects `missingRequired` with the visible set first.
     const entries = missingRequiredEntries(stepDoc, ["q_unknown"], VISIBLE);
     expect(entries[0]?.message).toBe("This question needs an answer.");
   });
@@ -168,13 +161,10 @@ describe("missingRequiredEntries with label-less questions (issue #326)", () => 
 
   it("numbers them by their place among the VISIBLE questions, not in the summary", () => {
     const entries = missingRequiredEntries(labelLessDoc, labelLessMissing, labelLessVisible);
-    // Visible order is q_full_name, q_blank_b, q_dob, q_blank_d.
     expect(entries.map((entry) => entry.message)).toEqual([
       `Question 2: ${AUTHORED}`,
       `Question 4: ${AUTHORED}`,
     ]);
-    // Summary-index naming would have said 1 and 2; document-order naming (which
-    // counts the hidden question) would have said 5 for the second.
     expect(entries[0]?.message).not.toContain("Question 1");
     expect(entries[1]?.message).not.toContain("Question 5");
   });
@@ -244,9 +234,6 @@ describe("errorSummaryEntries", () => {
   });
 
   it("falls back to the bare message only when the question has no position at all", () => {
-    // In neither the document nor the visible set: no label to read and no field
-    // on the page to count to. The route cannot produce it - the API raises
-    // errors against questions it just served.
     const entries = errorSummaryEntries(labelLessDoc, { q_absent: AUTHORED }, labelLessVisible);
     expect(entries[0]?.message).toBe(AUTHORED);
   });
@@ -263,29 +250,20 @@ describe("errorSummaryEntries", () => {
  */
 describe("the no-JS missing-required narrowing (issue #920)", () => {
   it("keeps only questions visible on the step being drawn", () => {
-    // The API's set is flow-wide and cursor-independent, so a required question on a
-    // step ahead would otherwise be accused on a step the respondent is still on.
     expect(missingOnStep(["q_dob", "q_accident_count"], VISIBLE, {})).toEqual(["q_dob"]);
   });
 
   it("leaves a question that already carries the API's own refusal", () => {
-    // Missing an answer by construction, but the kernel's message about the value it
-    // refused says more than "this question needs an answer".
     expect(missingOnStep(["q_full_name", "q_dob"], VISIBLE, { q_dob: "Too late" })).toEqual([
       "q_full_name",
     ]);
   });
 
   it("de-duplicates, so a forged repeat cannot draw one question twice", () => {
-    // Every surviving id becomes a React key and a summary anchor, so a repeat would
-    // render the same question twice under the same key. The API's own set never
-    // repeats; a hand-set cookie can.
     expect(missingOnStep(["q_dob", "q_dob", "q_full_name", "q_dob"], VISIBLE, {})).toEqual([
       "q_dob",
       "q_full_name",
     ]);
-    // First-seen order survives the de-duplication, so the summary still reads in the
-    // API's document order.
     expect(missingOnStep(["q_full_name", "q_dob", "q_full_name"], VISIBLE, {})).toEqual([
       "q_full_name",
       "q_dob",
@@ -293,15 +271,11 @@ describe("the no-JS missing-required narrowing (issue #920)", () => {
   });
 
   it("is inert for a forged set naming questions that are not on the page", () => {
-    // The re-render context is httpOnly but unsigned, so a respondent can hand the
-    // render any ids they like. The worst that buys is a message beside a question on
-    // their own screen; here, not even that.
     expect(missingOnStep(["q_not_here", "__proto__"], VISIBLE, {})).toEqual([]);
     expect(missingOnStep([], VISIBLE, {})).toEqual([]);
   });
 
   it("gives the field slot the same wording the summary link uses", () => {
-    // One gap, two places a respondent reads about it; they may not disagree.
     const missing = ["q_dob"];
     expect(requiredFieldErrors(stepDoc, missing)).toEqual({
       q_dob: "This question needs an answer.",
@@ -334,9 +308,6 @@ describe("the no-JS missing-required narrowing (issue #920)", () => {
   });
 
   it("orders a mixed summary the way the fields are asked, not the way it was composed", () => {
-    // A respondent holding one refusal and one gap must not be sent back up the form
-    // and then down again. `q_full_name` is asked first, so its entry is listed first,
-    // even though the refusal composition ran second.
     const gap = missingRequiredEntries(stepDoc, ["q_full_name"], VISIBLE);
     const refusal = errorSummaryEntries(stepDoc, { q_dob: "Too late" }, VISIBLE);
     expect(orderedEntries([...refusal, ...gap], VISIBLE).map((e) => e.questionId)).toEqual([

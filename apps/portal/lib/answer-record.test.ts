@@ -17,35 +17,17 @@ import {
 } from "./answer-record.js";
 
 /**
- * The flow's record of what the server holds and what it refused (issue #122).
- *
- * These are the two rules whose failures are invisible on screen: a redundant
- * append nobody sees, and a rejection message under a field that is now fine. They
- * are driven here as sequences rather than as single calls, because both defects
- * issue #122 reports are about ORDER - what the record held at the moment a second
- * commit arrived, and what it held after a post came back refused.
- *
- * The browser layer covers that these functions are actually wired up:
- * `apps/portal/e2e/answer-dedupe.pw.ts` pins the exact post counts for the
- * in-flight double post, the ordinary dedupe and the retract-then-re-answer
- * sequence; `resume.pw.ts` pins the issue #146 seeding these rules must not
- * regress; and `answer-rejection.pw.ts` drives the 422 halves - the rollback and
- * the message's lifetime - over a real API refusal. That last one was impossible
- * until issue #166: a browser logs any 4xx as a `console.error` and the shared e2e
- * gate failed every test on it, so these two rules had no layer above this one.
- * They stay pinned here as well, because a whole sequence is cheap to drive over
- * pure functions and expensive to drive through a browser.
+ * Driven as sequences rather than single calls, because both rules are about order:
+ * what the record held when a second commit arrived, and what it held after a post came
+ * back refused. The browser layer covers that these functions are wired up.
  */
 
-/** The record after answering `q_name` with "Ada", as the flow would have it. */
 function afterAnswering(): PostedRecord {
   return withIssued({}, "q_name", "Ada");
 }
 
 describe("answerKey", () => {
   it("keeps absence distinct from every real value (issues #95, #98)", () => {
-    // An emptied control means absence, and absence posts as `null`, so the key
-    // for "no answer" has to be the one key no answer can produce.
     expect(answerKey(undefined)).toBe("null");
     expect(answerKey("null")).not.toBe(answerKey(undefined));
     expect(answerKey("")).not.toBe(answerKey(undefined));
@@ -61,28 +43,19 @@ describe("answerKey", () => {
   });
 
   it("reads a multiChoice selection as a set, as the kernel does (issue #167, ADR-21)", () => {
-    // `valuesEqual` compares option ids order-insensitively, so a key that told
-    // these two apart gave the client and the server different notions of "the
-    // same answer" - one redundant append to an append-only ledger.
     expect(answerKey(["opt_a", "opt_b"])).toBe(answerKey(["opt_b", "opt_a"]));
     expect(answerKey(["opt_a", "opt_b", "opt_c"])).toBe(answerKey(["opt_c", "opt_a", "opt_b"]));
-    // A genuinely different member set is still a different answer. Order
-    // insensitivity is not membership insensitivity.
     expect(answerKey(["opt_a", "opt_b"])).not.toBe(answerKey(["opt_a", "opt_c"]));
     expect(answerKey(["opt_a", "opt_b"])).not.toBe(answerKey(["opt_a"]));
   });
 
   it("sorts into a copy, leaving the rendered selection untouched (issue #167)", () => {
-    // The argument is the value on screen; sorting it in place would reorder the
-    // respondent's own selection in the control.
     const selection = ["opt_b", "opt_a"];
     answerKey(selection);
     expect(selection).toEqual(["opt_b", "opt_a"]);
   });
 
   it("keeps absence distinct from every reordered array too (issue #167)", () => {
-    // The property the whole design rests on survives the canonicalization: an
-    // empty selection, a one-member selection and absence stay three states.
     expect(answerKey([])).not.toBe(answerKey(undefined));
     expect(answerKey(["null"])).not.toBe(answerKey(undefined));
     expect(answerKey([])).not.toBe(answerKey(["opt_a"]));
@@ -92,13 +65,9 @@ describe("answerKey", () => {
 describe("the record of what the server holds", () => {
   it("is seeded from the answers a served step reports (issue #146)", () => {
     const record = recordedAnswers({ q_name: "Ada", q_age: 36, q_cover: ["opt_a"] });
-    // The gesture that destroyed data before the seed existed: focus enters and
-    // leaves an untouched resumed control, so the blur commit sees the same value
-    // the server already has and must post nothing.
     expect(isRecorded(record, "q_name", "Ada")).toBe(true);
     expect(isRecorded(record, "q_age", 36)).toBe(true);
     expect(isRecorded(record, "q_cover", ["opt_a"])).toBe(true);
-    // ...while a genuine clear of a seeded answer is still a new thing to say.
     expect(isRecorded(record, "q_name", undefined)).toBe(false);
     expect(holdsAnswer(record, "q_name")).toBe(true);
   });
@@ -110,9 +79,6 @@ describe("the record of what the server holds", () => {
   });
 
   it("merges a served step's answers over the record without dropping the rest", () => {
-    // Navigation adopts the answers the response carries; a question it does not
-    // mention leaves this client's own record alone (it may hold a value posted on
-    // another step).
     const merged = withServerHeld({ q_name: '"Ada"', q_dob: '"1990-05-17"' }, { q_name: "Grace" });
     expect(isRecorded(merged, "q_name", "Grace")).toBe(true);
     expect(isRecorded(merged, "q_dob", "1990-05-17")).toBe(true);
@@ -121,9 +87,6 @@ describe("the record of what the server holds", () => {
 
 describe("recording a post when it is issued (issue #122, symptom 1)", () => {
   it("makes the value recorded before the post resolves, so the blur behind it posts nothing", () => {
-    // A `change` control (boolean, singleChoice under ADR-31) posts on selection;
-    // focus leaves it while that post is still in flight. Recording on RESOLUTION
-    // left this false, and the blur commit re-posted the identical value.
     const record = withIssued({}, "q_accident", false);
     expect(isRecorded(record, "q_accident", false)).toBe(true);
   });
@@ -136,43 +99,25 @@ describe("recording a post when it is issued (issue #122, symptom 1)", () => {
 
 describe("a multiChoice selection through the record (issue #167)", () => {
   it("dedupes a reorder, posts a changed set, and posts both halves of retract-then-re-answer", () => {
-    // Driven as a sequence, because what the record HELD when each gesture
-    // arrived is the whole question - a single call cannot show it.
-
-    // 1. Resume: the server holds a two-member selection.
     let record = recordedAnswers({ q_cover: ["opt_a", "opt_b"] });
 
-    // 2. The respondent unchecks and rechecks, so the adapter hands back the same
-    //    members in a different order. The kernel would call that the same answer
-    //    (ADR-21), so the client must post nothing rather than append a duplicate.
     expect(isRecorded(record, "q_cover", ["opt_b", "opt_a"])).toBe(true);
 
-    // 3. A genuinely different member set is a new thing to say, and posting it
-    //    records it at ISSUE time (issue #122).
     expect(isRecorded(record, "q_cover", ["opt_a", "opt_c"])).toBe(false);
     record = withIssued(record, "q_cover", ["opt_a", "opt_c"]);
-    // ...and the reorder of the NEW set is deduped in turn.
     expect(isRecorded(record, "q_cover", ["opt_c", "opt_a"])).toBe(true);
 
-    // 4. The respondent clears the control: a retraction, distinct from every
-    //    selection including the empty one, so it posts.
     expect(isRecorded(record, "q_cover", undefined)).toBe(false);
     expect(holdsAnswer(record, "q_cover")).toBe(true);
     record = withIssued(record, "q_cover", undefined);
     expect(holdsAnswer(record, "q_cover")).toBe(false);
 
-    // 5. Re-answering the set that was just retracted posts as well: the ledger
-    //    holds a tombstone, so this is genuinely new information even though the
-    //    members are the ones from step 3, in any order.
     expect(isRecorded(record, "q_cover", ["opt_c", "opt_a"])).toBe(false);
     record = withIssued(record, "q_cover", ["opt_c", "opt_a"]);
     expect(isRecorded(record, "q_cover", ["opt_a", "opt_c"])).toBe(true);
   });
 
   it("adopts a served step's selection whatever order the response lists it in", () => {
-    // The response echoes the ledger's stored order, which need not be the order
-    // the control renders; a navigation must not leave the record disagreeing
-    // with the screen.
     const merged = withServerHeld(withIssued({}, "q_cover", ["opt_a", "opt_b"]), {
       q_cover: ["opt_b", "opt_a"],
     });
@@ -183,21 +128,13 @@ describe("a multiChoice selection through the record (issue #167)", () => {
 describe("rolling the record back when a post is refused (issue #122, symptom 2)", () => {
   it("leaves the refused value postable again", () => {
     const held = afterAnswering();
-    // The respondent replaces "Ada" with something the API refuses.
     const issued = withIssued(held, "q_name", "123");
     const rolledBack = withRollback(issued, held, "q_name", answerKey("123"));
-    // What the server actually has is what it had before the refusal...
     expect(isRecorded(rolledBack, "q_name", "Ada")).toBe(true);
-    // ...and re-entering the refused value posts rather than being deduped into
-    // silence, which is what a retry needs the moment the same body could be
-    // accepted later (a transient failure, a changed constraint).
     expect(isRecorded(rolledBack, "q_name", "123")).toBe(false);
   });
 
   it("restores ABSENCE when the question had no recorded answer", () => {
-    // Not "the key `null`": a `completion` clear reads the difference between "the
-    // server holds nothing" and "the server holds a retraction" to decide whether
-    // a clear is a retraction at all (ADR-31 amended x ADR-33).
     const issued = withIssued({}, "q_dob", "1990-05-17");
     const rolledBack = withRollback(issued, {}, "q_dob", answerKey("1990-05-17"));
     expect(holdsAnswer(rolledBack, "q_dob")).toBe(false);
@@ -205,8 +142,6 @@ describe("rolling the record back when a post is refused (issue #122, symptom 2)
   });
 
   it("does not clobber a newer post issued for the same question", () => {
-    // Two commits, then the FIRST comes back refused. Its rollback is stale: the
-    // second post is the current truth about what the server is being told.
     const held = afterAnswering();
     const first = withIssued(held, "q_name", "123");
     const second = withIssued(first, "q_name", "Grace");
@@ -216,36 +151,20 @@ describe("rolling the record back when a post is refused (issue #122, symptom 2)
   });
 
   it("restores absence rather than a refused predecessor when two refusals overlap", () => {
-    // Issue #169, the interleaving #122's compare-and-swap did not cover. Two posts
-    // for one question are in flight at once and BOTH come back refused.
-    //
-    // The question starts unanswered, so nothing has ever been confirmed for it.
     const confirmed: PostedRecord = {};
-    // Post A is issued for "123"...
     const afterA = withIssued(confirmed, "q_name", "123");
-    // ...and post B for "456" is issued before A resolves.
     const afterB = withIssued(afterA, "q_name", "456");
 
-    // A resolves first and is refused. Its rollback is stale: B's entry is the
-    // current truth about what the server is being told, so the CAS declines.
     const afterARollback = withRollback(afterB, confirmed, "q_name", answerKey("123"));
     expect(afterARollback).toBe(afterB);
 
-    // Then B is refused. Reading its predecessor out of the record it was issued
-    // against would reinstate "123" - a value the server refused and never held -
-    // and re-entering "123" would then be deduped into silence. The predecessor
-    // comes from the confirmed record instead, which holds nothing for this
-    // question, so the rollback restores ABSENCE.
     const afterBRollback = withRollback(afterARollback, confirmed, "q_name", answerKey("456"));
     expect(holdsAnswer(afterBRollback, "q_name")).toBe(false);
-    // Both refused values are postable again, which is the symptom stated directly.
     expect(isRecorded(afterBRollback, "q_name", "123")).toBe(false);
     expect(isRecorded(afterBRollback, "q_name", "456")).toBe(false);
   });
 
   it("restores the last ACCEPTED value when two later refusals overlap", () => {
-    // The same interleaving over a question the server does hold an answer for. The
-    // rollback must land on "Ada", the accepted value, and not on either refusal.
     const confirmed = withConfirmed({}, "q_name", "Ada");
     const afterA = withIssued(confirmed, "q_name", "123");
     const afterB = withIssued(afterA, "q_name", "456");
@@ -259,8 +178,6 @@ describe("rolling the record back when a post is refused (issue #122, symptom 2)
   });
 
   it("keeps a retraction and a re-answer of the retracted value both postable", () => {
-    // Issue #98's absence semantics through the whole sequence: answered, cleared,
-    // then the same value again. Every step has something new to say.
     const answered = afterAnswering();
     expect(isRecorded(answered, "q_name", undefined)).toBe(false);
     const retracted = withIssued(answered, "q_name", undefined);
@@ -281,17 +198,11 @@ describe("the field errors a refusal displays (issue #122, symptom 2)", () => {
   });
 
   it("clears on the edit that replaces the refused value, with no post involved", () => {
-    // The rule: the message describes ONE value, so the edit that replaces the
-    // value clears it. Tying it to the next accepted post instead leaves it up
-    // while the respondent types the correction.
     expect(visibleErrors(rejected, { q_name: "12" })).toEqual({});
     expect(visibleErrors(rejected, { q_name: undefined })).toEqual({});
   });
 
   it("clears when the correction restores the value the server already holds", () => {
-    // The case that made the message permanent: the correction is deduped (the
-    // stored answer was never overwritten by the refused one), so no accepted post
-    // for this field can ever arrive to clear it.
     expect(visibleErrors(rejected, { q_name: "Ada" })).toEqual({});
   });
 
@@ -303,16 +214,12 @@ describe("the field errors a refusal displays (issue #122, symptom 2)", () => {
   });
 
   it("drops a refusal once a post for that question is accepted", () => {
-    // So a value the API refused before and accepts now (a changed constraint)
-    // cannot resurrect the old message by being typed again.
     const cleared = withoutRejection(rejected, "q_name");
     expect(visibleErrors(cleared, { q_name: "123" })).toEqual({});
     expect(withoutRejection(cleared, "q_name")).toBe(cleared);
   });
 
   it("is one stable object when nothing is refused", () => {
-    // The renderer memoises on the errors object's identity, so an error-free
-    // render must not allocate a new one per keystroke.
     expect(visibleErrors({}, { q_name: "Ada" })).toBe(visibleErrors({}, { q_name: "Grace" }));
   });
 });
@@ -340,29 +247,20 @@ describe("what focus leaving a control commits (issue #168)", () => {
   const MOMENTS = ["blur", "groupExit"] as const;
 
   it.each(MOMENTS)("posts nothing when an empty %s control was never answered", (moment) => {
-    // The gesture in the issue: focus enters and leaves an untouched control. The
-    // record has no entry for it at all, which is what "never answered" looks like.
     expect(commitsOnFocusExit({}, "q_name", undefined, moment)).toBe(false);
   });
 
   it.each(MOMENTS)("posts the retraction of a held answer at the %s moment", (moment) => {
-    // ADR-33's whole point, and the direction that must NOT be suppressed.
     expect(commitsOnFocusExit(afterAnswering(), "q_name", undefined, moment)).toBe(true);
   });
 
   it.each(MOMENTS)("posts nothing at the %s moment once the retraction landed", (moment) => {
-    // A retraction is not an answer, so a second focus pass over the now-empty
-    // control has nothing left to retract. `isRecorded` would also dedupe this, but
-    // the two rules must agree rather than one covering for the other.
     const retracted = withIssued(afterAnswering(), "q_name", undefined);
     expect(holdsAnswer(retracted, "q_name")).toBe(false);
     expect(commitsOnFocusExit(retracted, "q_name", undefined, moment)).toBe(false);
   });
 
   it("is correct on a RESUMED step, where the record came from the server (issue #146)", () => {
-    // The scenario #146 records: the client's own writes are not the authority here,
-    // the served answers are. Tabbing through an untouched resumed control must post
-    // nothing, and clearing one must still retract.
     const resumed = recordedAnswers({ q_name: "Ada", q_cover: ["opt_a"] });
     expect(commitsOnFocusExit(resumed, "q_name", undefined, "blur")).toBe(true);
     expect(commitsOnFocusExit(resumed, "q_cover", undefined, "groupExit")).toBe(true);
@@ -370,30 +268,19 @@ describe("what focus leaving a control commits (issue #168)", () => {
   });
 
   it("counts an in-flight post as held, and a refused one as not", () => {
-    // `withIssued` records at issue time, so a respondent who answers and then
-    // immediately clears still retracts, even before the first post resolves.
     const inFlight = withIssued({}, "q_name", "Ada");
     expect(commitsOnFocusExit(inFlight, "q_name", undefined, "blur")).toBe(true);
-    // And a value the server refused was never held, so clearing it asserts nothing.
     const rolledBack = withRollback(inFlight, {}, "q_name", answerKey("Ada"));
     expect(commitsOnFocusExit(rolledBack, "q_name", undefined, "blur")).toBe(false);
   });
 
   it("commits a real value whatever the record says", () => {
-    // The suppression is about `null` alone. A repeat of a value already recorded is
-    // suppressed one layer up, by `isRecorded` in the caller, which is a different
-    // question from whether this is a commit at all.
     expect(commitsOnFocusExit({}, "q_name", "Ada", "blur")).toBe(true);
     expect(commitsOnFocusExit(afterAnswering(), "q_name", "Ada", "blur")).toBe(true);
     expect(commitsOnFocusExit({}, "q_cover", ["opt_a"], "groupExit")).toBe(true);
   });
 
   it("keeps the completion moment's stricter rule: an empty date never commits here", () => {
-    // The date's clear reaches the flow as a change event once editing ends, not as
-    // a focus exit, so committing an empty one here would post the stale value's
-    // retraction at the wrong moment - or a `null` for a partial date mid-entry.
-    // True even when an answer IS held, which is what separates this from the rule
-    // above.
     expect(commitsOnFocusExit({}, "q_dob", undefined, "completion")).toBe(false);
     expect(
       commitsOnFocusExit(
@@ -403,7 +290,6 @@ describe("what focus leaving a control commits (issue #168)", () => {
         "completion",
       ),
     ).toBe(false);
-    // A complete date still commits.
     expect(commitsOnFocusExit({}, "q_dob", "1990-05-17", "completion")).toBe(true);
   });
 });

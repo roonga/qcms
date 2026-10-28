@@ -136,9 +136,6 @@ describe("default font selection", () => {
     expect(portalFont()).toBe(SYSTEM_FONT_KEY);
   });
 
-  // The one effect the curation list has BEFORE task 053 renders a control from
-  // it: a default the deployment does not offer is not a legal default, because a
-  // respondent who switched away could never switch back to it.
   it("falls back to System for a real key the deployment has curated away", () => {
     process.env.QCMS_PORTAL_FONTS = "inter, merriweather";
     process.env.QCMS_PORTAL_FONT = "lexend";
@@ -220,8 +217,6 @@ describe("brand mark config (task 053, issue #25)", () => {
     expect(portalBrand().name).toBe(messages["brand.defaultName"]);
   });
 
-  // The validator matches what `csp.ts` already permits (`img-src 'self' data:`),
-  // so a value it accepts is a value the browser will actually load.
   it("accepts a same-origin path and an inline data image", () => {
     for (const logo of [
       "/brand/logo.svg",
@@ -273,8 +268,6 @@ describe("respondent choices resolve over config (task 053)", () => {
     });
   });
 
-  // `auto` survives resolution deliberately: it is not a rendered mode, it is the
-  // signal to `app/layout.tsx`'s pre-paint script that the OS gets to decide.
   it("leaves a configured `auto` as `auto`, and reports no explicit choice", () => {
     const resolved = resolveAppearance(NO_COOKIES);
     expect(resolved.mode).toBe("auto");
@@ -291,8 +284,6 @@ describe("respondent choices resolve over config (task 053)", () => {
     expect(resolved.density).toBe(DEFAULT_DENSITY);
   });
 
-  // The curation rule with teeth: a face the deployment has stopped OFFERING must
-  // stop being served, because the font control could no longer switch back to it.
   it("ignores a font cookie naming a face this deployment no longer offers", () => {
     process.env.QCMS_PORTAL_FONTS = "inter";
     process.env.QCMS_PORTAL_FONT = "inter";
@@ -302,10 +293,6 @@ describe("respondent choices resolve over config (task 053)", () => {
 });
 
 describe("root class name", () => {
-  // The cast takes plain strings where the signature wants the literal unions, so a
-  // case can pass a value the resolver is supposed to reject (that is what several of
-  // these tests assert). Shaping only: the object's keys and their runtime types are
-  // exactly what `rootClassName` reads.
   const at = (mode: string, font: string, density: string) =>
     ({ mode, modeChosen: false, font, density }) as Parameters<typeof rootClassName>[0];
 

@@ -48,13 +48,9 @@ describe("diffFlow", () => {
     };
     const delta = diffFlow(base, next);
     expect(delta.stepChanged).toBe(false);
-    // The branch removal is still reported so it can be announced instead.
     expect(delta.removed).toEqual(["q_b"]);
   });
 
-  // Task 076: a `perInstanceStep` group's pages are views of ONE step, so the instance
-  // is what tells two of them apart. Without this the Continue from Vehicle 1 to Vehicle
-  // 2 announces nothing and leaves focus where the respondent left it.
   it("treats a move between two views of one step as a step change", () => {
     const first: FlowView = { ...base, instanceId: "ins_1" };
     const second: FlowView = { ...base, instanceId: "ins_2", stepIndex: 1 };

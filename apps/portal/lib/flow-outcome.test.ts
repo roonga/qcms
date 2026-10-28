@@ -37,8 +37,6 @@ describe("refusalOutcome (local UX list P2)", () => {
     expect(refusalOutcome(500, "SESSION_EXPIRED")).toBe("failed");
     expect(refusalOutcome(502, undefined)).toBe("failed");
     expect(refusalOutcome(403, "forbidden")).toBe("failed");
-    // A code is read with its status: the not-visible code on another status is not
-    // the API's visibility refusal.
     expect(refusalOutcome(404, "QUESTION_NOT_VISIBLE")).toBe("failed");
   });
 });
@@ -70,8 +68,6 @@ describe("failureAfterSuccess (local UX list P9)", () => {
   });
 
   it("keeps a failed answer's notice until that answer, or a navigation, gets through", () => {
-    // Another question saving says the server is reachable, not that this answer
-    // reached it, and clearing here would take away the Try again that re-sends it.
     expect(failureAfterSuccess(answerA, { kind: "answer", questionId: "q_b" })).toBe(answerA);
     expect(failureAfterSuccess(answerA, { kind: "roster" })).toBe(answerA);
     expect(failureAfterSuccess(answerA, { kind: "submitRefused" })).toBe(answerA);

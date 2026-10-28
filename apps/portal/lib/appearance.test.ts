@@ -25,8 +25,6 @@ import {
 } from "./appearance.js";
 
 describe("mode and density vocabularies", () => {
-  // `auto` is a config keyword, not a rendered mode. A control offering it would be
-  // offering a state the page can never be in, and the class would match nothing.
   it("the selectable modes are the three root classes, and never include `auto`", () => {
     expect([...APPEARANCE_MODES]).toEqual(["light", "dark", "hc"]);
     expect(APPEARANCE_MODES).not.toContain("auto");
@@ -37,8 +35,6 @@ describe("mode and density vocabularies", () => {
     expect(DEFAULT_DENSITY).toBe("comfortable");
   });
 
-  // Comfortable IS the base `:root` spacing block, so a `.density-comfortable` class
-  // would be a second place to edit the same five values.
   it("Comfortable is an absence of class; the other two are classes", () => {
     expect(densityClass("comfortable")).toBe("");
     expect(densityClass("compact")).toBe("density-compact");
@@ -53,9 +49,6 @@ describe("parsers distinguish `no choice` from `a choice`", () => {
     for (const level of DENSITY_LEVELS) expect(parseDensity(level)).toBe(level);
   });
 
-  // The whole point of `undefined`: a missing or hand-edited cookie has to fall
-  // through to the deployment default and then to the OS signals. A parser that
-  // substituted a default here would silently pin every visitor to Light.
   it("returns undefined for absent, empty and nonsense values", () => {
     for (const raw of [undefined, "", "auto", "sepia", "Light", " dark"]) {
       expect(parseMode(raw), `mode ${String(raw)}`).toBeUndefined();
@@ -79,15 +72,10 @@ describe("the appearance cookie", () => {
     expect(appearanceCookie("qcms-theme", "hc", false)).not.toContain("Secure");
   });
 
-  // These cookies are presentation chrome, so no `httpOnly` (the browser writes
-  // them) - and that is only safe because nothing about a session, an identity or an
-  // answer is inferable from a mode keyword.
   it("is not httpOnly, because the browser is the writer", () => {
     expect(appearanceCookie("qcms-font", "atkinson", true)).not.toContain("HttpOnly");
   });
 
-  // Cannot fire on any legitimate value (every one is a keyword or a registry key),
-  // so it is a tripwire for a future call site rather than a runtime code path.
   it("refuses anything that could smuggle an attribute into the cookie", () => {
     for (const value of ["hc; Domain=evil.test", "a\nSet-Cookie: x=y", "Compact", ""]) {
       expect(() => appearanceCookie("qcms-theme", value, false), value).toThrow();
@@ -112,8 +100,6 @@ describe("the cookies one submission writes", () => {
     ]);
   });
 
-  // An absent axis means "not chosen in this submission", never "reset to the
-  // default": clearing it would silently undo a choice the respondent did not touch.
   it("writes nothing for an axis that was not chosen", () => {
     expect(appearanceCookiesFor({ font: "lexend" }, false)).toEqual([
       appearanceCookie("qcms-font", "lexend", false),
@@ -121,8 +107,6 @@ describe("the cookies one submission writes", () => {
     expect(appearanceCookiesFor({}, false)).toEqual([]);
   });
 
-  // The attributes are not restated here, deliberately: they come from
-  // `appearanceCookie` and are pinned above, once, for both paths.
   it("carries Secure through to every cookie it writes", () => {
     const written = appearanceCookiesFor(
       { mode: "dark", font: "system", density: "spacious" },
