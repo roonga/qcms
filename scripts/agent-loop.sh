@@ -77,14 +77,11 @@ done
 positive_int --parallel "$parallel"
 positive_int --retry-minutes "$retry_minutes"
 positive_int --max-iterations "$max_iterations"
-# Optional, so only checked when given. It reaches `$((10#$stop_after_task))`
-# at sentinel-match time, where a non-numeric value throws a bash arithmetic
-# error mid-run and the stop check then silently never fires.
+# Validated up front because a non-numeric value would reach `$((10#...))` at
+# sentinel-match time, where it throws mid-run and the stop check never fires again.
 [ -z "$stop_after_task" ] || positive_int --stop-after-task "$stop_after_task"
 
-# --- port seat (R8, docs/PORTS.md) -------------------------------------------
-#
-# The single conductor owns one seat. Its worktrees and subagents inherit it.
+# The single conductor owns one seat; its worktrees and subagents inherit it (R8).
 [ -n "$seat" ] || seat=0
 case "$seat" in
   [0-9]) ;;
@@ -105,14 +102,10 @@ log() {
   ) 2>/dev/null
 }
 
-# --- session process groups --------------------------------------------------
-#
 # Each session gets its own process group so all descendants can be reaped.
 session_reap_grace_sec=5
 session_pgid=""
 own_pgid="$(ps -o pgid= -p $$ 2>/dev/null | tr -d ' ')"
-# The group a reap is currently working on, and the flag a second interrupt sets.
-# Together they are what makes an insistent operator heard (issue #258).
 reaping_pgid=""
 escalate_reap=0
 
@@ -120,33 +113,21 @@ group_alive() { # $1 = pgid
   kill -0 -- "-$1" 2>/dev/null
 }
 
-# Terminate everything left in the finished session's process group. Idempotent:
-# it clears session_pgid first, so the EXIT trap after a signal handler is a
-# no-op rather than a second round of kills against a recycled id.
-#
-# While the SIGTERM grace below is running, `reaping_pgid` holds the group, so a
-# signal arriving mid-reap has something to act on: before issue #258 it found
-# session_pgid already cleared, reaped nothing, and re-raised, which left a
-# SIGTERM-ignoring descendant alive under a log line claiming everything the
-# session spawned had been stopped.
+# Clears session_pgid first, so the EXIT trap after a signal handler is a no-op rather
+# than a second round of kills against a recycled id. `reaping_pgid` holds the group
+# during the grace period, so a signal arriving mid-reap still has something to act on.
 reap_session_group() {
   local pgid="$session_pgid" waited=0
   session_pgid=""
   [ -n "$pgid" ] || return 0
-  # Never signal the supervisor's own group. Unreachable in the current shape -
-  # session_pgid is always `$!`, a fresh child pid, and own_pgid is a live group
-  # leader's - and kept anyway because it is the one mistake here that would be
-  # fatal rather than untidy, and because how the group id is obtained is exactly
-  # the kind of thing a later change touches.
+  # Unreachable in the current shape, and kept because signalling the supervisor's own
+  # group is the one mistake here that would be fatal rather than untidy.
   if [ -n "$own_pgid" ] && [ "$pgid" = "$own_pgid" ]; then
     log "WARNING: session shares the supervisor's process group ($pgid) - not reaping, orphans may survive"
     return 0
   fi
-  # Nothing left in the group: the normal path after a session that exited
-  # cleanly, and also what a failed `set -m` looks like from here (the group was
-  # never created, so `kill -0` on it fails). Silent on purpose - this runs once
-  # per iteration and a warning would fire on every clean one - so the failed
-  # job-control case is a silent possible orphan rather than a logged one.
+  # Also what a failed `set -m` looks like from here, so that case is a silent possible
+  # orphan: a warning would otherwise fire on every clean iteration.
   group_alive "$pgid" || return 0
 
   reaping_pgid="$pgid"
@@ -158,10 +139,7 @@ reap_session_group() {
       reaping_pgid=""
       return 0
     }
-    # A second interrupt means what it means to every operator: stop waiting.
-    # The Code Owner ruled on 2026-08-01 that it cuts the grace short and goes
-    # straight to SIGKILL, and that the escalation is logged so the operator can
-    # see that it happened (issue #258).
+    # A second interrupt cuts the grace short and goes straight to SIGKILL.
     if [ "$escalate_reap" = 1 ]; then
       log "second interrupt - not waiting out the ${session_reap_grace_sec}s grace, killing process group $pgid now"
       break
@@ -183,15 +161,9 @@ reap_session_group() {
   log "WARNING: process group $pgid still present after SIGKILL - check for stuck processes"
 }
 
-# Forward supervisor signals to the active session group.
-#
-# Re-entrant by design: bash defers a trapped signal until the running foreground
-# command returns, so a signal arriving during the reap's `sleep 0.1` re-enters
-# this function. That second entry escalates and RETURNS rather than re-raising,
-# leaving the first entry to finish the kill and re-raise once. Returning is what
-# keeps the escalation meaningful: re-raising here would kill the supervisor
-# mid-grace, which is precisely the shape that let a SIGTERM-ignoring descendant
-# survive an operator pressing Ctrl+C twice.
+# Re-entrant by design: a signal arriving during the reap's `sleep 0.1` re-enters here.
+# The second entry escalates and RETURNS rather than re-raising, because re-raising
+# would kill the supervisor mid-grace and leave the session's descendants alive.
 on_signal() { # $1 = signal name
   if [ -n "$reaping_pgid" ]; then
     escalate_reap=1
@@ -206,19 +178,15 @@ on_signal() { # $1 = signal name
 trap 'on_signal INT' INT
 trap 'on_signal TERM' TERM
 trap 'on_signal HUP' HUP
-# SIGQUIT too (issue #258): Ctrl+backslash goes to the whole foreground group, and
-# without this the supervisor died on it while the session's own group - which
-# job control put outside that foreground group - survived, which is the orphan
-# the forwarding exists to prevent.
+# SIGQUIT reaches the foreground group only, which job control puts the session's own
+# group outside of, so without this the supervisor dies and the session survives.
 trap 'on_signal QUIT' QUIT
 trap reap_session_group EXIT
-# ----------------------------------------------------------------------------
 
 prompt="/next-work"
 [ "$parallel" -gt 1 ] && prompt="/next-work $parallel"
 log "supervisor start: '$prompt', retry ${retry_minutes}m, max $max_iterations iterations"
 
-# Sentinel and usage-limit matching are case-insensitive.
 shopt -s nocasematch
 
 for ((i = 1; i <= max_iterations; i++)); do
@@ -271,14 +239,12 @@ for ((i = 1; i <= max_iterations; i++)); do
     break
   fi
 
-  # No sentinel means the session died before reporting durable completion.
   if [ "$i" -ge "$max_iterations" ]; then
     log "no sentinel - max $max_iterations iterations reached, stopping."
     break
   fi
 
-  # If the error names the reset time, sleep until then (+3 min buffer) instead
-  # of the blind retry interval.
+  # A named reset time is slept to, with a buffer, instead of the blind interval.
   sleep_sec=$((retry_minutes * 60))
   if [[ "$out" =~ reset[s]?[[:space:]]+(at[[:space:]]+)?([0-9]{1,2}(:[0-9]{2})?[[:space:]]*([ap]m)?) ]]; then
     reset_at="${BASH_REMATCH[2]}"

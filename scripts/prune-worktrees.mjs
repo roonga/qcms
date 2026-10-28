@@ -1,48 +1,14 @@
 #!/usr/bin/env node
 // @ts-check
 /**
- * Report, and on request remove, orphan directories under the agent worktree root
- * (issue #735).
+ * The registry is the only authority on what is live, and the value here is in what is
+ * refused: a registered lane, a directory carrying no `.git` file (somebody's data rather
+ * than a stale checkout), and any tree still reporting uncommitted work.
  *
- * Every agent lane works in a `git worktree` under `.claude/worktrees/`. The skills say
- * to remove an orphan only after proving it is not registered, and nothing ever did that
- * sweep, so the directories accumulate: #735 measured 56 directories against 6
- * registered worktrees, and a re-measure on 2026-09-03 found 51 orphans among 56
- * directories under that root, holding 75 GB in total. None of it was reachable by git
- * and none of it was reported anywhere, which is why it grew unnoticed. The first run of
- * this script removed those 51 and left the root at 8.5 GB.
- *
- * `git worktree list` is the registry. Anything under the root that is not in it is a
- * candidate, and the whole value of this script is in what it refuses to touch:
- *
- * - **A registered worktree** is a live lane. Never touched.
- * - **A directory that is not a worktree leftover at all** - no `.git` file naming a
- *   git directory - is somebody's data that happens to live under this path, not a
- *   stale checkout. Reported, never removed. `.claude/worktrees/seat-mail` is the real
- *   case: a retired two-seat message store, not a worktree.
- * - **A worktree whose git directory still exists** is asked, through git, whether it
- *   has uncommitted work. Dirty means reported and kept.
- * - **A worktree whose git directory is gone** is the bulk of the accumulation, and git
- *   cannot answer for it at all: the branch pointer, index and reflog that made it a
- *   worktree no longer exist, so nothing in it can be committed, pushed or listed, and
- *   no tool can separate a modified file there from an unmodified one. It is removable,
- *   with the age guard below as the safety net rather than a git answer.
- * - **Anything modified recently** (default: the last 24 hours) is kept whatever its
- *   state, so a lane that is working right now is never swept out from under itself.
- *   The guard reads the mtime of the directory and its immediate children only, so it
- *   sees a checkout being created or files added at the top level; it does not walk the
- *   tree, and it therefore does not see an edit deep inside an otherwise idle checkout.
- *   That limit is stated because the guard is a safety net, not a proof.
- *
- * Registrations pointing at a directory that no longer exists are git's own stale
- * entries; `--apply` runs `git worktree prune` for those.
- *
- * Usage:
- *   node scripts/prune-worktrees.mjs                 # report only, changes nothing
- *   node scripts/prune-worktrees.mjs --apply         # remove what the report lists
- *   node scripts/prune-worktrees.mjs --size          # add per-directory sizes (slow)
- *   node scripts/prune-worktrees.mjs --min-age-hours 48
- *   node scripts/prune-worktrees.mjs --strict        # exit 1 when orphans remain
+ * A leftover whose git directory is gone is unreachable, so nothing can tell a modified
+ * file in it from an unmodified one. The age guard stands in for that answer, and it
+ * reads the directory and its immediate children only: it does not see an edit deep
+ * inside an otherwise idle checkout.
  */
 
 import { execFileSync } from "node:child_process";
@@ -53,10 +19,8 @@ import { fileURLToPath, pathToFileURL } from "node:url";
 
 const REPO_ROOT = fileURLToPath(new URL("../", import.meta.url));
 
-/** The worktree root the agent skills use. */
 export const DEFAULT_ROOT = ".claude/worktrees";
 
-/** Directories younger than this are kept whatever their state. */
 export const DEFAULT_MIN_AGE_HOURS = 24;
 
 /**
@@ -65,15 +29,8 @@ export const DEFAULT_MIN_AGE_HOURS = 24;
  */
 
 /**
- * The primary checkout for whatever working tree `from` sits in.
- *
- * The worktree root is a property of the repository, not of where you happen to be
- * standing, and an agent lane runs from a linked worktree whose own `.claude/worktrees`
- * is empty. `--git-common-dir` resolves to the primary checkout's `.git` from any
- * worktree, so the sweep always looks at the one directory that accumulates.
- *
- * @param {string} from
- * @returns {string}
+ * A lane runs from a linked tree whose own root directory is empty, so this resolves back
+ * to the primary checkout and the sweep always looks at the one place that accumulates.
  */
 export function primaryCheckout(from) {
   const common = execFileSync(
@@ -84,13 +41,6 @@ export function primaryCheckout(from) {
   return dirname(common);
 }
 
-/**
- * Absolute paths git currently registers as worktrees, and the ones whose directory is
- * missing (git's own stale entries).
- *
- * @param {string} repoRoot
- * @returns {{ registered: Set<string>; missing: string[] }}
- */
 export function readRegistry(repoRoot) {
   const output = execFileSync("git", ["-C", repoRoot, "worktree", "list", "--porcelain"], {
     encoding: "utf8",
@@ -111,15 +61,8 @@ export function readRegistry(repoRoot) {
 }
 
 /**
- * The newest mtime among a directory and its immediate children, in milliseconds.
- *
- * Floored, because `statSync` reports sub-millisecond precision while `Date.now()`
- * truncates: a file written moments ago can read as newer than "now" by a fraction of a
- * millisecond, which makes an age comparison against a zero window come out backwards.
- * Sub-millisecond precision means nothing to a guard measured in hours.
- *
- * @param {string} directory
- * @returns {number}
+ * Floored: `statSync` reports sub-millisecond precision while `Date.now()` truncates, so
+ * a file written moments ago can read as newer than now and reverse an age comparison.
  */
 export function newestTopLevelMtime(directory) {
   let newest = statSync(directory).mtimeMs;
@@ -133,13 +76,6 @@ export function newestTopLevelMtime(directory) {
   return Math.floor(newest);
 }
 
-/**
- * The git directory a linked worktree's `.git` file names, or `undefined` when the
- * directory carries no such file (so it is not a worktree leftover).
- *
- * @param {string} directory
- * @returns {string | undefined}
- */
 export function linkedGitDir(directory) {
   let contents;
   try {
@@ -151,14 +87,7 @@ export function linkedGitDir(directory) {
   return match === null ? undefined : match[1].trim();
 }
 
-/**
- * Classify one directory under the worktree root.
- *
- * @param {{ name: string; path: string; registered: Set<string>; minAgeMs: number; now: number }} input
- * @returns {Entry}
- */
 export function classify({ name, path, registered, minAgeMs, now }) {
-  /** @param {Verdict} verdict @param {string} detail @param {boolean} removable @returns {Entry} */
   const entry = (verdict, detail, removable) => ({ name, path, verdict, detail, removable });
 
   if (registered.has(path)) return entry("registered", "live worktree, git lists it", false);
@@ -189,8 +118,8 @@ export function classify({ name, path, registered, minAgeMs, now }) {
       stdio: ["ignore", "pipe", "pipe"],
     });
   } catch {
-    // git will not speak for this tree, so treat it as it treats one whose git
-    // directory is gone: unreachable, and removable only under the age guard above.
+    // Nothing can speak for this tree, so it counts as unreachable and is removable only
+    // under the age guard above.
     return entry("orphan-detached", "git cannot read this worktree", true);
   }
   if (status.trim() !== "") {
@@ -200,12 +129,6 @@ export function classify({ name, path, registered, minAgeMs, now }) {
   return entry("orphan-clean", "unregistered and clean", true);
 }
 
-/**
- * Classify every immediate child directory of `root`.
- *
- * @param {{ repoRoot: string; root: string; minAgeHours: number; now?: number }} options
- * @returns {{ entries: Entry[]; missing: string[] }}
- */
 export function scan({ repoRoot, root, minAgeHours, now = Date.now() }) {
   const rootPath = resolve(repoRoot, root);
   const { registered, missing } = readRegistry(repoRoot);
@@ -229,17 +152,9 @@ export function scan({ repoRoot, root, minAgeHours, now = Date.now() }) {
 }
 
 /**
- * Disk usage of a directory in kilobytes, or `undefined` when `du` is unavailable.
- *
- * `du` counts each inode once per directory it walks, and pnpm hardlinks a package's
- * files into every worktree's `node_modules` from one store. So the sum over several
- * worktrees counts a shared file several times and **overstates what a sweep frees**:
- * the first real run reported 99 GB across 51 directories and the filesystem gained
- * 65 GB. The number is a useful ranking of which directories are large; it is not a
- * prediction of free space.
- *
- * @param {string} directory
- * @returns {number | undefined}
+ * `du` counts each inode once per directory it walks and pnpm hardlinks from one store,
+ * so a sum over several trees overstates what a sweep frees. It ranks sizes; it does not
+ * predict free space.
  */
 export function sizeKb(directory) {
   try {
@@ -251,7 +166,6 @@ export function sizeKb(directory) {
   }
 }
 
-/** @param {number} kb @returns {string} */
 export function humanKb(kb) {
   const units = ["KB", "MB", "GB", "TB"];
   let value = kb;
@@ -263,10 +177,6 @@ export function humanKb(kb) {
   return `${value.toFixed(value >= 10 || unit === 0 ? 0 : 1)} ${units[unit]}`;
 }
 
-/**
- * @param {string[]} args
- * @returns {{ apply: boolean; size: boolean; strict: boolean; root: string; minAgeHours: number }}
- */
 export function parseArgs(args) {
   const parsed = {
     apply: false,
@@ -297,11 +207,6 @@ export function parseArgs(args) {
   return parsed;
 }
 
-/**
- * @param {string[]} args
- * @param {string} repoRoot
- * @returns {number}
- */
 export function main(args, repoRoot) {
   /** @type {ReturnType<typeof parseArgs>} */
   let options;

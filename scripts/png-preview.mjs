@@ -1,48 +1,17 @@
 #!/usr/bin/env node
 // @ts-check
 /**
- * Print a committed PNG's dimensions and a downscaled ASCII preview (issue #415).
+ * Print a committed PNG's dimensions and a downscaled ASCII preview.
  *
- * The rule that came out of task 057 is that gate prose describing a rendering is
- * written from the rendering, not from the intent: in that case the word "ellipsizing"
- * travelled through a PR body, a gate README, a review comment and a relay to the Code
- * Owner while the column was actually hard-clipping mid-glyph. Four hands, and nobody
- * had opened the file.
+ * It averages a block of pixels into one character, so it answers only whether a
+ * capture is blank or populated and roughly where its content sits. It cannot tell a
+ * clipped glyph from an ellipsis; a claim that fine needs an image render or a human.
  *
- * An agent's Read tool renders a PNG directly, and that is the better look every time it
- * is available. This script is the fallback for a terminal-only lane, and it answers a
- * coarser question than the Read tool does: whether a capture is blank or populated,
- * whether the dark band is where a claim says it is, whether a region has content in it
- * at all, and whether the theme is light or dark. It works at the scale of a block of
- * pixels averaged into one character, so it cannot tell a clipped glyph from an
- * ellipsis, which was 057's own question. A claim that fine still needs the Read tool or
- * a human; what this removes is the case where nobody looked at all.
- *
- * Dependency-free on purpose (`CONTRIBUTING.md`, "Minimal-dependency policy"). The
- * repository has no PIL, no ImageMagick, and `playwright` resolves only through
- * `pnpm exec`, so every previous attempt at this built a throwaway harness inside a
- * scratchpad that did not survive the session. Node's own `node:zlib` is the only thing
- * a PNG decoder actually needs.
- *
- * Scope, and why it stops where it does. Non-interlaced 8-bit PNGs in colour types 0
- * (greyscale), 2 (truecolour), 4 (greyscale + alpha) and 6 (truecolour + alpha) are what
- * Playwright, Chrome and every screenshot tool in this repository emit, so they are what
- * this decodes. Indexed colour, 1/2/4/16-bit depths and Adam7 interlacing are refused by
- * name rather than half-decoded, because a preview that silently renders the wrong
- * pixels is worse than no preview: it would reintroduce exactly the confident-and-wrong
- * gate prose the tool exists to prevent.
- *
- * Alpha is composited over white, matching how a screenshot with a transparent
- * background is read on a page. Chunk CRCs are not verified: this reports what a decoder
- * sees, and a corrupt file fails at the inflate or the scanline length instead.
- *
- * Usage:
- *   pnpm png:preview <file.png>
- *   pnpm png:preview <file.png> --width 100
- *   node scripts/png-preview.mjs <file.png> [--width N]
- *
- * Exit codes: 0 on a printed preview, 1 with `png-preview: <reason>` on stderr for a
- * missing file, a non-PNG, an unsupported PNG, or a malformed one.
+ * Dependency-free on purpose (`CONTRIBUTING.md`, "Minimal-dependency policy"), so it
+ * decodes only the non-interlaced 8-bit colour types a screenshot tool emits. Indexed
+ * colour, other bit depths and Adam7 interlacing are refused by name rather than
+ * half-decoded, because a preview that silently renders the wrong pixels is worse than
+ * no preview. Alpha is composited over white; chunk CRCs are not verified.
  */
 
 import { readFileSync } from "node:fs";
@@ -50,25 +19,18 @@ import { inflateSync } from "node:zlib";
 import { argv, exit } from "node:process";
 import { pathToFileURL } from "node:url";
 
-/** The eight bytes every PNG starts with (PNG spec, 5.2). */
 export const PNG_SIGNATURE = Buffer.from([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a]);
 
-/** Preview width when `--width` is not given: fits an 80-column terminal with margin. */
+/** Fits an 80-column terminal with margin. */
 export const DEFAULT_WIDTH = 72;
 
-/** Narrowest preview worth printing. Below this the shapes stop being readable. */
 export const MIN_WIDTH = 8;
 
-/** Widest preview. Past this the preview wraps in any normal terminal and reads worse. */
 export const MAX_WIDTH = 200;
 
-/**
- * Darkest to lightest. Index by the averaged luminance, so a black pixel prints `@` and
- * a white one prints a space, which is what makes an empty capture look empty.
- */
+/** Darkest to lightest, indexed by averaged luminance, so an empty capture looks empty. */
 export const RAMP = "@%#*+=-:. ";
 
-/** Samples per pixel for each colour type this decoder supports. */
 const CHANNELS = new Map([
   [0, 1],
   [2, 3],
@@ -76,7 +38,6 @@ const CHANNELS = new Map([
   [6, 4],
 ]);
 
-/** Human names for every colour type the PNG spec defines, including the refused ones. */
 const COLOUR_TYPE_NAMES = new Map([
   [0, "greyscale"],
   [2, "truecolour"],
@@ -97,12 +58,8 @@ const COLOUR_TYPE_NAMES = new Map([
  * `samples` is `width * height * channels` bytes, row-major, filters already reversed.
  */
 
-/**
- * A refusal a caller is meant to print rather than a bug. Every message names the
- * reason, because "could not preview that" sends a reader back to guessing.
- */
+/** A refusal a caller is meant to print rather than a bug. */
 export class PngError extends Error {
-  /** @param {string} message */
   constructor(message) {
     super(message);
     this.name = "PngError";
@@ -110,13 +67,9 @@ export class PngError extends Error {
 }
 
 /**
- * Walk the chunk sequence once, collecting the header and the compressed image data.
+ * An IDAT split can fall mid-deflate-stream, so the parts are concatenated and
+ * inflated as one stream rather than individually.
  *
- * IDAT is allowed to be split across any number of chunks and the split can fall
- * mid-deflate-stream, so the parts are concatenated and inflated as one stream rather
- * than inflated individually.
- *
- * @param {Buffer} file
  * @returns {{ header: Buffer; data: Buffer }}
  */
 export function readChunks(file) {
@@ -149,12 +102,6 @@ export function readChunks(file) {
   return { header, data: Buffer.concat(parts) };
 }
 
-/**
- * Parse IHDR and refuse anything this decoder would have to guess at.
- *
- * @param {Buffer} header
- * @returns {{ width: number; height: number; bitDepth: number; colourType: number; channels: number }}
- */
 export function readHeader(header) {
   if (header.length < 13) throw new PngError("malformed PNG: IHDR is shorter than 13 bytes");
   const width = header.readUInt32BE(0);
@@ -187,13 +134,8 @@ export function readHeader(header) {
 }
 
 /**
- * The Paeth predictor (PNG spec, 9.4): pick whichever of left, above and upper-left the
- * linear estimate `a + b - c` lands nearest to, ties going left then above.
- *
- * @param {number} a left
- * @param {number} b above
- * @param {number} c upper-left
- * @returns {number}
+ * The Paeth predictor (PNG spec, 9.4): whichever of left, above and upper-left the
+ * estimate `a + b - c` lands nearest to, ties going left then above.
  */
 export function paeth(a, b, c) {
   const p = a + b - c;
@@ -205,25 +147,15 @@ export function paeth(a, b, c) {
 }
 
 /**
- * Reverse the per-scanline filters (PNG spec, 9.2) into raw samples.
- *
- * Each scanline arrives as one filter-type byte followed by `width * channels` bytes.
- * Filters reference the byte one pixel to the left (`a`), the same byte on the previous
- * scanline (`b`) and the byte one pixel left on the previous scanline (`c`); all three
- * read as zero outside the image.
- *
- * @param {Buffer} raw inflated image data
- * @param {{ width: number; height: number; channels: number }} shape
- * @returns {Uint8Array}
+ * Reverse the per-scanline filters (PNG spec, 9.2). `a`, `b` and `c` are the bytes one
+ * pixel left, on the previous scanline, and one pixel left on the previous scanline;
+ * all three read as zero outside the image.
  */
 export function unfilter(raw, { width, height, channels }) {
   const stride = width * channels;
   const expected = (stride + 1) * height;
-  // Exactly, not at least. A non-interlaced stream is fully determined by IHDR, so any
-  // other length means the header and the payload disagree about the image, and this
-  // script's whole posture is to refuse rather than preview pixels it had to guess at.
-  // Short is a truncated file. Long is the dangerous one: the first `expected` bytes
-  // decode cleanly, so a payload holding a 4x4 image behind a 2x2 IHDR would print a
+  // Exactly, not at least. A long payload is the dangerous case: the first `expected`
+  // bytes decode cleanly, so a larger image behind a smaller IHDR would print a
   // confident preview of its top-left corner and exit 0.
   if (raw.length !== expected) {
     throw new PngError(
@@ -258,12 +190,6 @@ export function unfilter(raw, { width, height, channels }) {
   return out;
 }
 
-/**
- * Decode a PNG file into raw 8-bit samples.
- *
- * @param {Buffer} file
- * @returns {DecodedPng}
- */
 export function decodePng(file) {
   const { header, data } = readChunks(file);
   const shape = readHeader(header);
@@ -279,16 +205,8 @@ export function decodePng(file) {
 }
 
 /**
- * One pixel's luminance, 0 (black) to 255 (white), alpha composited over white.
- *
- * Rec. 709 coefficients, which is what "how bright does this look" means for sRGB
- * screenshots: green dominates and blue barely registers, so a plain channel mean would
- * make blue text read far darker than it looks.
- *
- * @param {Uint8Array} samples
- * @param {number} at index of the pixel's first sample
- * @param {number} channels
- * @returns {number}
+ * Rec. 709 coefficients rather than a channel mean, which would make blue text read
+ * far darker than it looks.
  */
 export function luminance(samples, at, channels) {
   const grey = channels < 3;
@@ -301,12 +219,6 @@ export function luminance(samples, at, channels) {
   return value * alpha + 255 * (1 - alpha);
 }
 
-/**
- * Bound a requested preview width to something a terminal can show.
- *
- * @param {number} requested
- * @returns {number}
- */
 export function boundWidth(requested) {
   if (!Number.isInteger(requested) || requested < MIN_WIDTH || requested > MAX_WIDTH) {
     throw new PngError(
@@ -317,14 +229,9 @@ export function boundWidth(requested) {
 }
 
 /**
- * Downscale to an ASCII grid by box-averaging luminance.
+ * Rows are halved because a terminal cell is about twice as tall as it is wide, so
+ * without it a square image prints as a tall rectangle.
  *
- * Rows are halved against the aspect ratio because a terminal cell is about twice as
- * tall as it is wide; without that a square image prints as a tall rectangle and every
- * judgement about proportion made from the preview is wrong.
- *
- * @param {DecodedPng} image
- * @param {number} columns
  * @returns {{ columns: number; rows: number; cellWidth: number; cellHeight: number; lines: string[] }}
  */
 export function asciiPreview(image, columns) {
@@ -362,10 +269,6 @@ export function asciiPreview(image, columns) {
   };
 }
 
-/**
- * @param {string[]} args
- * @returns {{ file: string; width: number }}
- */
 export function parseArgs(args) {
   /** @type {string | undefined} */
   let file;
@@ -393,10 +296,6 @@ export function parseArgs(args) {
   return { file, width };
 }
 
-/**
- * @param {string[]} args
- * @returns {number} process exit code
- */
 export function main(args) {
   try {
     const { file, width } = parseArgs(args);

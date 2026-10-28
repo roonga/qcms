@@ -1,10 +1,4 @@
-// Serve design previews read-only over HTTP so they can be viewed from the host
-// browser on this machine seat's artifacts port
-// (7S30, so http://localhost:7030 at the default seat 0; published by the
-// devcontainer's appPort). The allocation rule and table: docs/PORTS.md. Roots:
-//   /plan/       -> plan/                             (design previews, specs)
-// Start with `pnpm artifacts`. Seat: QCMS_PORT_SEAT. Port override (wins over the
-// seat, for an unusual machine): QCMS_ARTIFACTS_PORT.
+// Read-only. The port is derived from the seat; see `docs/PORTS.md`.
 
 import { createServer } from "node:http";
 import { readFile, readdir } from "node:fs/promises";
@@ -39,7 +33,7 @@ const page = (title, body) =>
   `<!doctype html><meta charset="utf-8"><title>${escapeHtml(title)}</title>` +
   `<body style="font-family: system-ui, sans-serif; margin: 2rem;"><h1>${escapeHtml(title)}</h1>${body}`;
 
-// Resolve a URL path under a root directory, refusing anything that escapes it.
+// Refuses anything that escapes the root directory.
 const safeJoin = (rootDir, urlPath) => {
   const target = resolve(rootDir, "." + urlPath);
   if (target !== rootDir && !target.startsWith(rootDir + sep)) return null;
@@ -65,7 +59,6 @@ const serveIndex = async (res) => {
   res.end(page("QCMS artifacts", body));
 };
 
-// Map a request path to { fsPath, urlBase } or null when it matches no root.
 const resolveTarget = (path) => {
   const [, top, ...rest] = path.split("/");
   if (top in roots) {

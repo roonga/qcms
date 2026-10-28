@@ -1,47 +1,7 @@
 /**
- * dev-stack.mjs - stand up a real, local QCMS stack a human can open in a browser.
- *
- * Started life as `dev-portal.mjs` for the task-030 manual screen-reader pass, when
- * the only place a form got seeded and published was the Playwright e2e globalSetup,
- * which lives and dies with the test run. Issue #281 gave it a second front end: the
- * admin was the one app in the repo a human could not open by following the docs.
- * The two entry points (`scripts/dev-portal.mjs`, `scripts/dev-admin.mjs`) are thin
- * and this module holds everything, so the setup cannot drift into two versions.
- *
- * Whichever front end you ask for, the sequence is the same:
- *
- *   1. Bring up the dev Postgres (docker-compose.dev.yml, on this seat's 7S20) and
- *      migrate it to head (the same package-owned migration set adopters run).
- *   2. Seed AND PUBLISH the kitchen-sink form (frm_kitchen_sink) through the
- *      exact same publish pipeline the e2e seed uses - the published @roonga/qcms-db
- *      helpers (createQuestion / createQuestionVersion / createForm /
- *      insertFormVersion), storing the committed golden compiled A2UI verbatim
- *      (ADR-18). Idempotent: a re-run notices the form and skips.
- *   3. Start the API (node apps/api/dist/serve.js) and the requested front end
- *      (next dev), wired together over http with a shared, freshly-generated SEC-4
- *      internal token, and wait until both are serving.
- *   4. Print the exact URL to open, and how to stop everything.
- *
- * ## Why the API is always started here, and never assumed
- *
- * The SEC-4 internal token is generated in memory per run and written nowhere. That
- * is the property worth keeping, and it is exactly what makes "start the admin against
- * the API that is already up" unworkable: the only way to learn the running API's
- * token is to read it out of that process's environment by hand. So each entry point
- * starts its own API and hands the same in-memory value to both children
- * ({@link apiChildEnv} and {@link frontendChildEnv} take one `internalToken`). The
- * cost is that two entry points cannot run at one seat - they would both bind `7S10` -
- * which is the honest trade and is what `docs/PORTS.md` says. Run the second one at
- * another seat (`QCMS_PORT_SEAT=1 pnpm dev:admin`).
- *
- * Secrets are generated in memory per run and passed to the child processes via
- * the environment - never written to any file, and never echoed to the terminal
- * (SEC-8). The dev database password is the docker-compose dev default (not a real
- * credential), overridable via env.
- *
- * Usage:  pnpm dev:portal  |  pnpm dev:admin
- * Stop:   Ctrl+C (stops the API + front end). The Postgres container is left up;
- *         remove it with:  docker compose -f docker-compose.dev.yml down
+ * Each entry point starts its own API: the SEC-4 internal token is generated in
+ * memory per run and written nowhere, so no other process can learn it, and two
+ * entry points therefore cannot share a seat (`docs/PORTS.md`).
  */
 
 import { spawn, spawnSync } from "node:child_process";
@@ -55,34 +15,13 @@ import { composeProjectName, stablePort } from "./ports.mjs";
 
 const REPO_ROOT = fileURLToPath(new URL("../", import.meta.url));
 
-// ---------------------------------------------------------------------------
-// Tunables (all overridable via env so the script never hard-codes a machine).
-//
-// The three ports come from this machine's SEAT (`QCMS_PORT_SEAT`, default 0) via
-// `scripts/ports.mjs`, never from a literal here: seat S runs the human-facing stack
-// on 7S00 / 7S10 / 7S20, and seat 0 is exactly today's 7000 / 7010 / 7020. The rule,
-// the table and the reasoning are in `docs/PORTS.md`. The individual
-// `QCMS_DEV_*_PORT` / `QCMS_DB_PORT` overrides still win where they are set, so an
-// unusual machine can still move one service without moving the whole seat.
-// ---------------------------------------------------------------------------
 const COMPOSE_PROJECT = process.env.COMPOSE_PROJECT_NAME ?? composeProjectName();
 const DB_PORT = process.env.QCMS_DB_PORT ?? String(stablePort("postgres"));
 const DB_USER = process.env.QCMS_DB_USER ?? "qcms";
 const DB_PASSWORD = process.env.QCMS_DB_PASSWORD ?? "qcms";
 const DB_NAME = process.env.QCMS_DB_NAME ?? "qcms";
-// Where this process reaches the dev Postgres.
-//
-// On a host checkout that is plain localhost. Inside the dev container it is
-// not: `docker compose` there talks to the mounted host socket
-// (docker-outside-of-docker, ADR-29), so the database starts as a SIBLING
-// published on the host's loopback, and this container's own localhost has
-// nothing on that port. The address that works is the default-route gateway.
-//
-// That resolution used to live here, and living HERE is why issue #316 existed:
-// the full-stack Compose harness hit the identical problem 200 lines away and
-// hardcoded localhost instead. It now lives in `scripts/docker-host.mjs`, which
-// both call, so the two cannot drift apart again. `QCMS_DB_HOST` still wins for
-// this script specifically, ahead of the shared resolution's own override.
+// Inside the dev container the database is a published sibling, so the address that
+// works is the host gateway rather than localhost (ADR-29).
 function detectDbHost() {
   if (process.env.QCMS_DB_HOST) return process.env.QCMS_DB_HOST;
   return publishedPortHost();
@@ -94,12 +33,6 @@ const DATABASE_URL =
 
 const API_PORT = process.env.QCMS_DEV_API_PORT ?? String(stablePort("api"));
 const PORTAL_PORT = process.env.QCMS_DEV_PORTAL_PORT ?? String(stablePort("portal"));
-// This seat's admin dev server (`7S40`). `pnpm dev:admin` listens on it, and the API is
-// configured with its origin either way (task 056: better-auth lives in the API and
-// scopes cookies to the admin's public origin), so `pnpm dev:portal` agrees with an
-// admin started separately. Derived from the seat rather than written down, and
-// overridable for a developer running the admin somewhere else - R8 is a rule about
-// derivation (`docs/PORTS.md`).
 const ADMIN_PORT = process.env.QCMS_DEV_ADMIN_PORT ?? String(stablePort("admin"));
 const API_BASE_URL = `http://127.0.0.1:${API_PORT}`;
 const PORTAL_BASE_URL = `http://localhost:${PORTAL_PORT}`;
@@ -108,44 +41,9 @@ const ADMIN_BASE_URL = `http://localhost:${ADMIN_PORT}`;
 const FORM_ID = "frm_kitchen_sink";
 const FORM_SLUG = process.env.QCMS_DEV_FORM_SLUG ?? "kitchen-sink";
 
-/**
- * The one vehicle-domain kitchen-sink definition and its committed golden compiled
- * A2UI - the same pair the portal e2e seeds.
- *
- * Named constants rather than literals at the read site because these are the only
- * paths in this file that point outside `packages/`, and they went stale exactly
- * that way: PR #779 (#129) renamed both fixtures to the `vehicle-` prefix, the
- * rename swept `apps/api/e2e` and not `scripts/`, and `pnpm dev:admin` and
- * `pnpm dev:portal` then died on an ENOENT in the seeder before the API started
- * (issue #817). `scripts/dev-stack.test.ts` derives its assertion from
- * {@link FIXTURE_READ_PATHS} below, so a future rename fails a test in `verify`
- * instead of the next person's dev stack.
- */
 const KITCHEN_SINK_DEFINITION = "apps/api/e2e/support/fixtures/vehicle-kitchen-sink-form.json";
 const KITCHEN_SINK_GOLDEN = "apps/api/e2e/support/fixtures/vehicle-kitchen-sink.a2ui.json";
 
-/**
- * Where each library question's DEFINITION lives, and what slug its library row gets.
- *
- * This map is deliberately NOT the list of questions to seed. Which questions the
- * kitchen sink pins, and at which version, is a fact about
- * {@link KITCHEN_SINK_DEFINITION}, and it is read from there by
- * {@link kitchenSinkQuestions} - because a second copy of that list is exactly how
- * `pnpm dev:portal` broke. A question added to the form json reached the launcher's
- * `insertFormVersion` but not its seed loop, so every step 500'd on
- * `pinned question ... is missing (snapshot not self-contained)` on a fresh database,
- * and nothing in `verify` executes this launcher to notice (the #817 class again, and
- * CONTRIBUTING's "derive the set" rule).
- *
- * What the form json cannot say is where a definition FILE is, so that much is written
- * here - and {@link kitchenSinkQuestions} refuses to run if this map and the json's
- * pinned set disagree in either direction, so the two cannot drift apart silently.
- * `scripts/dev-stack.test.ts` makes that comparison in `verify`.
- *
- * Six map to the shared neutral kernel fixtures; the three unique to this form
- * (optional cover, extra detail, annual km) live in the e2e support directory
- * (043 neutral-domain rule).
- */
 const QUESTION_SOURCES = {
   q_full_name: {
     slug: "full-name",
@@ -180,33 +78,10 @@ const QUESTION_SOURCES = {
   },
 };
 
-/**
- * The questions this launcher seeds, DERIVED from the form definition's own pinned
- * items rather than listed again here.
- *
- * `versions` is the highest version any step pins, because the seed creates versions
- * 1..n with identical bytes to mirror the e2e seed - `q_at_fault_accident` is pinned
- * at 2, so it gets two. Reading the pin instead of writing "2" down is the same
- * derivation: a repin in the json moves this with it.
- *
- * Both directions of disagreement throw, and both throw HERE, at module load, rather
- * than half way through a seed that has already written rows:
- *
- * - a question the json pins with no entry in {@link QUESTION_SOURCES} is the failure
- *   this function exists to prevent - it used to be a 500 on every step of a freshly
- *   seeded dev stack, reported nowhere near its cause;
- * - an entry in {@link QUESTION_SOURCES} the json no longer pins is the same class
- *   pointing the other way: a stale row seeded into every dev database, and a path in
- *   {@link FIXTURE_READ_PATHS} kept alive by nothing.
- *
- * Exported for `scripts/dev-stack.test.ts`, which runs in `verify` and is therefore
- * the gate this launcher does not otherwise have.
- */
 export function kitchenSinkQuestions(
   definition = readJson(KITCHEN_SINK_DEFINITION),
   sources = QUESTION_SOURCES,
 ) {
-  /** questionId -> the highest version any step pins. */
   const pinned = new Map();
   for (const step of definition.steps ?? []) {
     for (const item of step.items ?? []) {
@@ -241,16 +116,6 @@ export function kitchenSinkQuestions(
 
 const QUESTIONS = kitchenSinkQuestions();
 
-/**
- * Every repo-relative fixture this launcher reads, derived from the two lists above
- * rather than restated (issue #817).
- *
- * `scripts/**` has no typecheck and nothing in `verify` executes this script, so a
- * fixture rename elsewhere in the repo is invisible here until a human runs
- * `pnpm dev:admin` and gets an ENOENT. Deriving the list is what lets
- * `scripts/dev-stack.test.ts` assert that all of them still resolve, in a suite that
- * does run - the "derive the read sites" lesson issue #817 records.
- */
 export const FIXTURE_READ_PATHS = [
   KITCHEN_SINK_DEFINITION,
   KITCHEN_SINK_GOLDEN,
@@ -261,12 +126,6 @@ const IS_WINDOWS = process.platform === "win32";
 const children = [];
 let shuttingDown = false;
 
-/**
- * How this run names itself in its own output: `dev-portal` or `dev-admin`, set by
- * {@link runDevStack}. Parameterised rather than fixed so the two entry points read
- * as themselves in a terminal, and so `pnpm dev:portal`'s output is byte-identical to
- * what it printed before this module existed.
- */
 let label = "dev-stack";
 
 function log(msg) {
@@ -283,9 +142,8 @@ function readJson(relPath) {
 }
 
 function randomSecret() {
-  // 32 random bytes -> 43-char base64url; >= config MIN_SECRET_LENGTH (32) and
-  // free of whitespace/commas (the key-list parser splits on those). Synthetic,
-  // generated per run, never persisted.
+  // Meets config MIN_SECRET_LENGTH, and base64url carries no whitespace or comma for
+  // the key-list parser to split on.
   const bytes = new Uint8Array(32);
   crypto.getRandomValues(bytes);
   return Buffer.from(bytes).toString("base64url");
@@ -306,10 +164,6 @@ async function waitFor(label, probe, { timeoutMs = 90_000, intervalMs = 1000 } =
   throw new Error(`timed out waiting for ${label}${lastErr ? `: ${lastErr.message}` : ""}`);
 }
 
-// ---------------------------------------------------------------------------
-// 0. Ensure the workspace is built (the API runs from dist; the portal's dev
-//    server and this seeder consume @roonga/qcms-* build output).
-// ---------------------------------------------------------------------------
 function ensureBuilt() {
   const needed = [
     "apps/api/dist/serve.js",
@@ -327,9 +181,6 @@ function ensureBuilt() {
   if (res.status !== 0) fail("pnpm build failed");
 }
 
-// ---------------------------------------------------------------------------
-// 1. Dev Postgres up + migrated.
-// ---------------------------------------------------------------------------
 function composeUp() {
   log(
     `bringing up dev Postgres (docker-compose.dev.yml, project ${COMPOSE_PROJECT}, port ${DB_PORT})...`,
@@ -340,14 +191,8 @@ function composeUp() {
     shell: IS_WINDOWS,
     env: {
       ...process.env,
-      // Two Compose stacks sharing a project name ARE one stack, and moving only
-      // the port does not share it - it TAKES it: same project plus a changed port
-      // mapping makes `up -d` recreate the running container on the new port against
-      // the same volume, so seat 0 loses its database mid-session and keeps dialling
-      // a port nothing serves. Nothing errors on either side. The
-      // project name is what makes a seat's database its own; `COMPOSE_PROJECT_NAME`
-      // outranks the `name:` in the compose file, and named volumes are namespaced
-      // by project. Seat 0 resolves to the unchanged `qcms-dev`.
+      // A shared project name makes two seats one stack: `up -d` would move seat 0's
+      // container onto this port against the same volume and silently take its database.
       COMPOSE_PROJECT_NAME: COMPOSE_PROJECT,
       QCMS_DB_PORT: DB_PORT,
       QCMS_DB_USER: DB_USER,
@@ -355,7 +200,6 @@ function composeUp() {
       QCMS_DB_NAME: DB_NAME,
     },
   });
-  // Compose has already printed the real reason; do not guess at it.
   if (res.status !== 0) fail(`docker compose up failed (exit ${res.status}); see the error above`);
 }
 
@@ -393,11 +237,6 @@ async function migrateAndSeed(toolkit) {
   await pool.end();
 }
 
-// The publish pipeline, reused verbatim from the e2e insurance seed
-// (apps/api/e2e/support/seed.ts): create each library question + its published
-// version(s), create the form identity, then freeze one published form version
-// storing the committed golden compiled A2UI (ADR-18: served verbatim, never
-// recompiled).
 async function seedKitchenSink({ handle, db, core }) {
   const existing = await db.getForm(handle, core.FormId.parse(FORM_ID));
   if (existing !== undefined) {
@@ -407,10 +246,6 @@ async function seedKitchenSink({ handle, db, core }) {
 
   log("seeding + publishing the kitchen-sink form...");
 
-  // Every form and question belongs to exactly one workspace (ADR-41, task 068), so the
-  // seed adopts the workspace this database has or creates the fixture one if it has
-  // none. `pnpm dev:portal` brings up a database with no accounts, so there is often
-  // nothing to adopt.
   const workspaceId = await db.ensureSeedWorkspace(handle);
 
   for (const q of QUESTIONS) {
@@ -421,7 +256,6 @@ async function seedKitchenSink({ handle, db, core }) {
     );
     for (let v = 1; v <= q.versions; v += 1) {
       const created = await db.createQuestionVersion(handle, { questionId, definition });
-      // Publish the version (the fixtures are "published" library questions).
       await db.publishQuestionVersion(handle, { questionId, version: created.version });
     }
   }
@@ -460,21 +294,6 @@ async function ignoreDuplicate(fn) {
   }
 }
 
-// ---------------------------------------------------------------------------
-// 3. Start the API and one front end, wired together.
-// ---------------------------------------------------------------------------
-/**
- * Spawn one tracked child of this launcher.
- *
- * Exported for the issue #350 regression test, which needs a child this module is
- * tracking without booting a database, an API and `next dev` to get one.
- *
- * @param {string} name
- * @param {string} command
- * @param {string[]} args
- * @param {Record<string, string>} env
- * @returns {import("node:child_process").ChildProcess}
- */
 export function startChild(name, command, args, env) {
   const child = spawn(command, args, {
     cwd: REPO_ROOT,
@@ -493,26 +312,6 @@ export function startChild(name, command, args, env) {
   return child;
 }
 
-/**
- * The API child's environment.
- *
- * Pure, and exported, so the property this whole module exists for is testable without
- * booting anything: the token handed to the API and the token handed to the front end
- * are one value (`dev-stack.test.ts`). Every secret arrives as an argument rather than
- * being generated here, for the same reason.
- *
- * @param {object} options
- * @param {string} options.databaseUrl
- * @param {string} options.apiPort
- * @param {string} options.portalBaseUrl
- * @param {string} options.adminBaseUrl
- * @param {string} options.internalToken the shared SEC-4 token, in memory only.
- * @param {string} options.linkKeys
- * @param {string} options.sessionKeys
- * @param {string} options.appKey
- * @param {string} options.adminAuthSecret
- * @returns {Record<string, string>}
- */
 export function apiChildEnv({
   databaseUrl,
   apiPort,
@@ -527,11 +326,8 @@ export function apiChildEnv({
   return {
     DATABASE_URL: databaseUrl,
     QCMS_MOUNT: "all",
-    // One pool per environment plus a control pool (ADR-40, Q2). The local dev database
-    // is a single superuser credential, so every pool gets the same connection string:
-    // what differs is the SEARCH PATH each connects with, which is what makes the
-    // per-environment resolution real in development. The privilege half is asserted
-    // with real roles in `apps/api/e2e/security/03-db-least-privilege.e2e.ts`.
+    // One superuser credential in dev, so every pool shares the connection string and
+    // only the search path differs (ADR-40, Q2).
     QCMS_ENVIRONMENTS: "test,prod",
     QCMS_DATABASE_URL_TEST: databaseUrl,
     QCMS_DATABASE_URL_PROD: databaseUrl,
@@ -541,63 +337,11 @@ export function apiChildEnv({
     QCMS_LINK_KEYS: linkKeys,
     QCMS_SESSION_KEYS: sessionKeys,
     QCMS_APP_KEY: appKey,
-    // `QCMS_MOUNT: "all"` includes the admin surface, and since task 056 that surface
-    // carries better-auth - so this process needs the two values the instance is
-    // configured from, or `loadConfig` refuses to boot and the child dies at startup.
-    //
-    // PIN THIS if you are working on the admin. Unlike the three keys above, a fresh
-    // value here does more than invalidate cookies: it makes an existing TOTP
-    // enrolment permanently unverifiable. `two-factor/enable` stores the TOTP secret
-    // ENCRYPTED under this value (better-auth 1.7.10, the pinned version,
-    // `dist/plugins/two-factor/index.mjs:135-138`, `symmetricEncrypt({ key:
-    // ctx.context.secretConfig, ... })`) and every verify decrypts with the *current*
-    // one (`dist/plugins/two-factor/totp/index.mjs:188`, and `:122` for the URI
-    // reveal), so after a restart with a new secret the authenticator's codes are
-    // rejected forever. The recovery codes do NOT survive either, contrary to what
-    // this comment used to claim (issue #319): the plugin defaults `storeBackupCodes`
-    // to `"encrypted"` (`dist/plugins/two-factor/index.mjs:25-27`), so all ten
-    // (`.../backup-codes/index.mjs:15`, `amount ?? 10`) are encrypted under the same
-    // value. The admin has no re-enrolment screen and there is no 2FA reset command
-    // yet (issue #432), so one unpinned restart kills the account in that database.
-    //
-    // In a *deployment* this is rotatable rather than fatal: `QCMS_ADMIN_AUTH_SECRETS`
-    // is a versioned list where the newest entry encrypts and older entries keep
-    // reading (`docs/operations.md`). Dev does not use it, because pinning one value
-    // is simpler than rotating in a throwaway database.
-    //
-    // So: honoured from the environment when set, exactly like DATABASE_URL and the
-    // ports above, and random only for a zero-config first run. Pin it and an enrolled
-    // admin survives restarts; leave it unset and expect to re-bootstrap. `pnpm
-    // dev:admin` says so on startup when it is unset, because that is the run where it
-    // costs something.
-    //
-    // It deliberately does NOT have to match the value passed to
-    // `pnpm qcms:create-admin`: that command creates an account (salted password hash,
-    // secret-independent) and enrols no factor, and it revokes the one session it mints,
-    // so nothing it writes is ever decrypted by this process.
+    // Pin this when working on the admin: a fresh value leaves an existing TOTP
+    // enrolment and its backup codes permanently undecryptable.
     QCMS_ADMIN_AUTH_SECRET: adminAuthSecret,
-    // The admin dev server's origin: this seat's stable admin port (`docs/PORTS.md`),
-    // which is what `pnpm dev:admin` listens on. better-auth scopes its cookies to it
-    // and trusts no other origin, so the admin child below is handed the same value and
-    // the two agree by construction. `pnpm dev:portal` sets it too, so an admin started
-    // separately against that API still matches.
     QCMS_ADMIN_BASE_URL: adminBaseUrl,
-    // The development escape hatch for SEC-1's sign-in throttle, and the reason the
-    // throttle could be turned on by default at all (issue #390).
-    //
-    // The control now defaults to ON in every environment, `NODE_ENV` no longer decides
-    // it, and a deployment that configures nothing is throttled. Its allowance is three
-    // attempts per ten seconds, which is right for the internet and wrong for a local
-    // loop where one developer signs in, enrols a factor, restarts the API and signs in
-    // again inside a minute. Left on here, the first thing the knob would teach anyone
-    // is how to route around it, and a control people route around is worse than one
-    // that is off, because it looks present.
-    //
-    // So it is off in `pnpm dev:portal` and `pnpm dev:admin`, stated in one line a
-    // reviewer can read, and nowhere else: not in the images, not in
-    // `docker-compose.yml`, not in `.env.compose.example`. The API says so at boot with
-    // a warn line naming this variable, which is the intended noise rather than a
-    // defect.
+    // Off for the local sign-in loop only. SEC-1's throttle stays on everywhere else.
     QCMS_ADMIN_SIGNIN_THROTTLE: "false",
   };
 }
@@ -612,27 +356,6 @@ async function startApi(env) {
   log("API is healthy.");
 }
 
-/**
- * The environment for one front-end child.
- *
- * Pure and exported for the same reason as {@link apiChildEnv}. Two properties are
- * asserted in `dev-stack.test.ts` rather than left to review:
- *
- *   - the `QCMS_INTERNAL_TOKEN` matches the API's, which is the whole point of a
- *     combined launcher (issue #281);
- *   - the **admin** env carries no `DATABASE_URL`. Task 056 took the database handle
- *     out of the admin (ADR-35), and `apps/admin/lib/server/r2-import-surface.test.ts`
- *     guards the import side of that. Handing one back here would re-entrench it
- *     through the environment instead, which no import test can see.
- *
- * @param {"portal" | "admin"} frontend
- * @param {object} options
- * @param {string} options.apiBaseUrl
- * @param {string} options.internalToken
- * @param {string} options.portalBaseUrl
- * @param {string} options.adminBaseUrl
- * @returns {Record<string, string>}
- */
 export function frontendChildEnv(
   frontend,
   { apiBaseUrl, internalToken, portalBaseUrl, adminBaseUrl },
@@ -645,54 +368,17 @@ export function frontendChildEnv(
   if (frontend === "admin") {
     return {
       ...shared,
-      // The admin's own public origin. It reads it for the SEC-9 origin check on every
-      // state-changing POST, and the API reads the same value as better-auth's
-      // `baseURL`, so both sides of the proxied hop agree on which origin the cookies
-      // belong to. That is the entire configuration of the admin since task 056: an
-      // API address, the SEC-4 token, and this. No database URL, no auth secret.
       QCMS_ADMIN_BASE_URL: adminBaseUrl,
-      // ...and, since 2026-08-26, the respondent portal's origin, so the builder can show
-      // a published form's own public address. Read-only and optional: the admin makes no
-      // request to the portal, it only writes the URL down for an operator to hand out.
       QCMS_PORTAL_BASE_URL: portalBaseUrl,
     };
   }
   return {
     ...shared,
-    // The Start BFF route builds its 303 redirect against the public portal
-    // origin (apps/portal/lib/server/config.ts), and that read is required: with
-    // it unset the respondent's first click 500s instead of opening a session.
-    // The API child above is handed the same value for its own link building.
     QCMS_PORTAL_BASE_URL: portalBaseUrl,
-    // `dev:up` creates `test` and `prod` (Q9), and the API child mounts both surfaces
-    // through `QCMS_MOUNT: "all"`, so the portal serves `test`'s addresses too: a
-    // developer can redeem a `/test/l/<token>` link against the stack they are running
-    // (ADR-40, Q21). No host map, because one dev origin serves everything - the path is
-    // the handle a local stack has.
     QCMS_PORTAL_ENVIRONMENTS: "test",
   };
 }
 
-/**
- * Both children's environments, built together from this run's one token.
- *
- * This exists to remove a seam rather than to save a line. `apiChildEnv` and
- * `frontendChildEnv` are pure, so a test that calls them with hand-written inputs
- * proves only that they copy their arguments through: it stays green if the *call
- * site* hands the front end a fresh `randomSecret()`, or passes `PORTAL_BASE_URL`
- * where `ADMIN_BASE_URL` belongs. Those are the two mutations that would break issue
- * #281's premise while every assertion still passed.
- *
- * So the call site is this function, it is exported, and it takes the token **once**.
- * There is no longer a place for a second token to enter, and the addresses come from
- * this module's own seat-derived constants rather than from the caller, which is what
- * lets a test assert the real ones (R8).
- *
- * @param {object} options
- * @param {"portal" | "admin"} options.frontend
- * @param {string} options.internalToken the shared SEC-4 token, in memory only.
- * @returns {{ api: Record<string, string>, frontend: Record<string, string> }}
- */
 export function stackChildEnvs({ frontend, internalToken }) {
   return {
     api: apiChildEnv({
@@ -715,18 +401,6 @@ export function stackChildEnvs({ frontend, internalToken }) {
   };
 }
 
-/**
- * What each front end is called, where it listens, and how to tell it is really
- * serving.
- *
- * The readiness probe is a **page a human would open**, never a health endpoint, and
- * that is deliberate on both entries. `next dev` compiles routes on first hit, so a
- * cheap endpoint can answer while the page a person wants is still a compile away; and
- * for the admin specifically, a 200 from `/healthz` would prove nothing about the thing
- * issue #281 is about. `/sign-in` is the admin's own first screen and needs no session.
- *
- * @type {Record<"portal" | "admin", { pkg: string; port: string; baseUrl: string; readyPath: string; readyLabel: string }>}
- */
 const FRONTENDS = {
   portal: {
     pkg: "qcms-portal",
@@ -759,25 +433,9 @@ async function startFrontend(frontend, env) {
   log(`${frontend} is serving.`);
 }
 
-// ---------------------------------------------------------------------------
-// Shutdown.
-// ---------------------------------------------------------------------------
-
-/**
- * Absolute path to `ps`, or `undefined` where neither location exists.
- *
- * Probed rather than resolved through `PATH`: a subprocess launched by bare name is
- * what `sonarjs/no-os-command-from-path` exists to stop, and both locations are covered
- * because distributions differ on which is the file and which the symlink.
- */
+/** Probed rather than resolved through `PATH` (`sonarjs/no-os-command-from-path`). */
 const PS_BINARY = ["/bin/ps", "/usr/bin/ps"].find((candidate) => existsSync(candidate));
 
-/**
- * Every live descendant pid of `rootPid`, from a single `ps` snapshot.
- *
- * @param {number} rootPid
- * @returns {number[]}
- */
 export function descendantsOf(rootPid) {
   if (PS_BINARY === undefined) return [];
   const listed = spawnSync(PS_BINARY, ["-e", "-o", "pid=,ppid="], { encoding: "utf8" });
@@ -803,21 +461,8 @@ export function descendantsOf(rootPid) {
 }
 
 /**
- * Signal one child's whole process tree, and report which pids were signalled.
- *
- * Exported so the reaping path (issue #318) has a test that does not need a stack:
- * a real tree of `sleep`s stands in for `pnpm` -> `next dev` -> `next-server`.
- *
- * **The exited-child guard is the load-bearing line.** `child.kill()` is a no-op once
- * the child has exited, because Node knows the pid is spent. `process.kill()` has no
- * such knowledge: it signals whatever holds that number *now*, and after a wait() the
- * kernel is free to have recycled it onto an unrelated process. Walking a dead child's
- * tree is worse still, since the `ps` snapshot is taken after the fact. So a child that
- * has already exited is skipped outright, and nothing is signalled on its behalf.
- *
- * @param {import("node:child_process").ChildProcess} child
- * @returns {number[]} the pids signalled, children before parents. Empty when the child
- *   never started or has already exited.
+ * Unlike `child.kill()`, `process.kill()` does not know a pid is spent, so an exited
+ * child is skipped outright: the kernel may have recycled its number onto anything.
  */
 export function reapChildTree(child) {
   if (child.pid === undefined) return [];
@@ -825,20 +470,13 @@ export function reapChildTree(child) {
   if (child.exitCode !== null || child.signalCode !== null) return [];
 
   if (IS_WINDOWS) {
-    // next dev and the shell wrapper spawn a tree of grandchildren that a
-    // plain child.kill() leaves orphaned; taskkill /T kills the whole tree.
+    // /T because a plain kill leaves the grandchild tree orphaned.
     spawnSync("taskkill", ["/pid", String(child.pid), "/T", "/F"], { stdio: "ignore" });
     return [child.pid];
   }
 
-  // Signal the whole tree, not just the direct child. A front end is spawned as
-  // `pnpm --filter <app> dev`, and pnpm does not forward a signal to the
-  // `next dev` it runs, so a plain `child.kill()` leaves a `next-server`
-  // holding this seat's `7S00`/`7S40` after Ctrl+C. The next run then dies on
-  // EADDRINUSE, or - worse under the Playwright harness - gets adopted by
-  // `reuseExistingServer` (`docs/PORTS.md`). Same reaping as the harness's own
-  // wrapper (`apps/admin/e2e/support/admin-server.mjs`), one `ps` snapshot,
-  // and children before parents so nothing is re-parented mid-walk.
+  // pnpm does not forward a signal to the `next dev` it runs, so killing only the direct
+  // child leaves a server holding this seat's port. Children before parents.
   const tree = [...descendantsOf(child.pid).reverse(), child.pid];
   for (const pid of tree) {
     try {
@@ -850,33 +488,11 @@ export function reapChildTree(child) {
   return tree;
 }
 
-/** Set by {@link reapAllChildren}, so the choke point can never run twice. */
 let reaped = false;
 
 /**
- * Reap every child this launcher started. **The only place that reaps.**
- *
- * Wired to `process.on("exit")` rather than called from each ending, which is issue
- * #350 and is a shape choice rather than a convenience. Before it, only `shutdown()`
- * reaped, so Ctrl+C left the seat clean and the two paths a developer actually hits by
- * accident did not: `fail()` exits 1 on an unexpected child exit (the API crashes
- * mid-session) and on a readiness timeout (the front end never comes up), and both left
- * a `next-server` holding this seat's `7S00`/`7S40`.
- *
- * The consequence is the one issue #318 documented and issue #295 then measured: the
- * next `verify:browser` run at that seat meets a live server it did not start. It is now
- * refused by name rather than adopted, but a refused run is still a run that cannot
- * start, so the launcher has to stop producing the orphan.
- *
- * `exit` is the right hook because every ending passes through it - `process.exit` from
- * either path, a thrown error, a normal end of the event loop - and because it is
- * synchronous, which is exactly what `reapChildTree` is (`spawnSync` + `process.kill`).
- * Writing a second reap LOOP beside `shutdown()`'s would have been the alternative, and
- * two copies of a teardown are what `dev-portal.mjs` and `dev-admin.mjs` sharing one
- * `shutdown()` already exists to prevent. So there is one loop, in one function, and the
- * `reaped` latch makes calling it twice a no-op - which the signal path does, because it
- * reaps before printing "stopped" (a launcher that says so before it is true is its own
- * small defect) and then exits through this same handler.
+ * The only place that reaps. Wired to `process.on("exit")` because every ending passes
+ * through it synchronously; the `reaped` latch makes a second call a no-op.
  */
 function reapAllChildren() {
   if (reaped) return;
@@ -884,18 +500,8 @@ function reapAllChildren() {
   for (const { child } of children) reapChildTree(child);
 }
 
-/**
- * Register every teardown hook, before any child can exist.
- *
- * Ordering is the point: a child spawned before these are installed is a child no
- * ending reaps. Exported so the issue #350 regression test can build the same wiring
- * around a stand-in child instead of a whole stack.
- *
- * @returns {void}
- */
+/** Must run before any child can exist: a child spawned earlier is reaped by nothing. */
 export function installShutdownHandlers() {
-  // Every ending goes through `exit`, including `fail()`'s `process.exit(1)` on an
-  // unexpected child exit or a readiness timeout, which is what issue #350 reported.
   process.on("exit", reapAllChildren);
   process.on("SIGINT", () => shutdown("SIGINT"));
   process.on("SIGTERM", () => shutdown("SIGTERM"));
@@ -914,37 +520,10 @@ function shutdown(signal) {
   process.exit(0);
 }
 
-// ---------------------------------------------------------------------------
-// The closing banner.
-// ---------------------------------------------------------------------------
-
 /**
- * The `pnpm qcms:create-admin` line to print, or `undefined` when this process cannot
- * prove the connection string holds no real credential.
- *
- * Printing a connection string prints the password inside it, so this may only fire
- * for the one string this module **built itself out of known-synthetic parts** (SEC-8:
- * secrets are never echoed). Two routes lead away from that, and both must close:
- *
- *   1. `QCMS_DB_PASSWORD` set - the developer chose a password of their own.
- *   2. `DATABASE_URL` set - a supported override (see the constant above, which is
- *      `process.env.DATABASE_URL ?? <constructed default>`). This is the route the
- *      first version of this guard missed: it tested only the password, so a
- *      developer pointing the launcher at another database with `DATABASE_URL` got
- *      that database's password echoed verbatim into the banner while
- *      `QCMS_DB_PASSWORD` sat unset and innocent.
- *
- * The test is `!== undefined` rather than a truthiness check on purpose: it mirrors
- * the `??` that builds `DATABASE_URL`, so "the environment supplied it" means exactly
- * the same thing in both places. Either route hands the caller the placeholder line
- * instead, and the developer fills it in.
- *
- * The auth secret in the printed command is generated inline and is deliberately NOT
- * the running API's: `create-admin` validates the value and never uses it (salted
- * password hash, no factor enrolled, the one session it mints is revoked), so the two
- * do not have to match. See `apps/admin/README.md`.
- *
- * @returns {string | undefined}
+ * `undefined` whenever the environment supplied `QCMS_DB_PASSWORD` or `DATABASE_URL`,
+ * because printing a connection string prints the password inside it (SEC-8). The
+ * `!== undefined` tests mirror the `??` that builds `DATABASE_URL`.
  */
 function databaseUrlLine() {
   if (process.env.DATABASE_URL !== undefined || DB_PASSWORD !== "qcms") return undefined;
@@ -972,15 +551,6 @@ function printPortalBanner() {
   );
 }
 
-/**
- * The admin banner, as lines, before anything is written.
- *
- * Pure and exported so the SEC-8 property is asserted against the text a developer
- * actually sees (`dev-stack.test.ts`), rather than against the helper that decides one
- * line of it. A credential-disclosure guard has to be testable at the output.
- *
- * @returns {string[]}
- */
 export function adminBannerLines() {
   const databaseLine = databaseUrlLine() ?? "DATABASE_URL=<your dev database URL> \\";
   return [
@@ -1022,28 +592,11 @@ function printAdminBanner() {
   process.stdout.write(adminBannerLines().join("\n") + "\n");
 }
 
-// ---------------------------------------------------------------------------
-// Main.
-// ---------------------------------------------------------------------------
-
-/**
- * Bring up the dev database, the API, and one front end, and print how to open it.
- *
- * Never returns while the stack is healthy: the child processes keep the event loop
- * alive until Ctrl+C.
- *
- * @param {object} options
- * @param {"portal" | "admin"} options.frontend which front end to start.
- * @param {string} options.name how this run names itself in its own output.
- * @returns {Promise<void>}
- */
 export async function runDevStack({ frontend, name }) {
   label = name;
   installShutdownHandlers();
 
   try {
-    // Said before anything is built, so it is still on screen when the stack is up: an
-    // unpinned secret is only expensive once an account has enrolled a factor.
     if (frontend === "admin" && (process.env.QCMS_ADMIN_AUTH_SECRET ?? "") === "") {
       log(
         "QCMS_ADMIN_AUTH_SECRET is not set, so the API gets a fresh one this run. " +
@@ -1057,21 +610,6 @@ export async function runDevStack({ frontend, name }) {
     const toolkit = await loadDbToolkit();
     await migrateAndSeed(toolkit);
 
-    // One value, both children. Built in one call so there is no seam for a second token
-    // to enter; the starters take a finished environment and cannot reach the token at
-    // all.
-    //
-    // Generated per run unless the operator pins one, which is the same shape
-    // `adminAuthSecret` above already has and is there for the same kind of reason. Issue
-    // #281's note that "nothing outside this process can learn the token" described the
-    // default, not a security boundary: this is a development launcher, the token is a
-    // dev secret, and the alternative to pinning it was reading it out of the running
-    // API's `/proc/<pid>/environ` - which is worse in every way, including as a habit.
-    //
-    // What it buys: a SECOND frontend against this same API and database. `dev:admin`
-    // starts one API and one frontend, so an author checking a published form's public
-    // link had no portal to open it in. Pin the token, start the other frontend's
-    // `next dev` with the same value, and both talk to one stack.
     const envs = stackChildEnvs({
       frontend,
       internalToken: process.env.QCMS_INTERNAL_TOKEN ?? randomSecret(),
