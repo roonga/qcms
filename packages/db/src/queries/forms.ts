@@ -15,9 +15,7 @@ export type FormStatus = "open" | "closed";
 
 /**
  * The `forms` identity row; it carries no status, which is per (form, environment).
- *
- * Hand-authored because `$inferSelect` degrades through this package's emitted `.d.ts`
- * for a `$type<>`-branded table (issue #5).
+ * Hand-authored: `$inferSelect` degrades through the emitted `.d.ts` for a branded table.
  */
 export interface FormRow {
   formId: FormId;

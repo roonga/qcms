@@ -8,9 +8,7 @@ import type { AssignableTo } from "./schema-drift.js";
 
 /**
  * One row of the append-only roster ledger: an instance was `added` or `removed`.
- *
- * Hand-authored because the branded-id columns degrade to an `error` type through this
- * package's emitted `.d.ts` (issue #5).
+ * Hand-authored: the branded-id columns degrade to an `error` type through the emitted `.d.ts`.
  */
 export interface RosterEventRow {
   id: string;
@@ -142,13 +140,10 @@ export async function rosterLedger(
 }
 
 /**
- * Every repeating group this session has a roster row for, each as its minted and present
- * lists in first-`added` order.
- *
- * `occurred_at` is the transaction timestamp and the table carries no sequence, so the
- * `instance_id` tiebreaker is what makes the order total. It is only stable within one
- * mint, so the write side owes at most one mint per group per transaction, stated on
- * `mintForServedGroup` in `apps/api/src/features/responses/roster.ts`.
+ * Every repeating group this session has a roster row for, as minted and present lists in first-`added`
+ * order. `instance_id` breaks `occurred_at` ties but is stable only within one mint, so the write side owes
+ * at most one mint per group per transaction (`mintForServedGroup` in
+ * `apps/api/src/features/responses/roster.ts`).
  */
 export async function readRosters(
   exec: Executor,
@@ -222,12 +217,9 @@ export async function readRoster(
 }
 
 /**
- * Whether this session has already applied a roster-operation token, which is what makes
- * a replayed no-JS roster post a no-op. Scoped to the session, so a token cannot be
- * replayed into another one.
- *
- * The caller must run this and its write inside the session's advisory lock, which is
- * what makes check-then-write one decision and why no database constraint is needed.
+ * Whether this session has applied a roster-operation token, making a replayed no-JS roster post a no-op.
+ * The caller must run this and its write inside the session's advisory lock, which makes check-then-write
+ * one decision.
  */
 export async function rosterOpApplied(
   exec: Executor,

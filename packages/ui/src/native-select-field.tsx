@@ -4,22 +4,10 @@ import type { SelectItem } from "./components/a2ui/select/index.ts";
 import { getSelectStyles } from "./components/a2ui/select/select.styles.ts";
 
 /**
- * The single-choice control in native (no-JS) submit mode, for a question whose option
- * count compiles to a `Select`.
- *
- * The vendored Select cannot serve it: the value rides a `<select>` clipped inside an
- * `aria-hidden`, `tabindex="-1"` container behind a trigger only JavaScript can open,
- * so the question is invisible and inoperable, and the browser cannot report validity
- * on an unfocusable control, abandoning the whole step's submission.
- *
- * The empty-valued first option does two jobs: HTML holds a `required` select invalid
- * while the selected value is empty, so an untouched question never POSTs; and it is
- * the question's only clear gesture, since a chosen option cannot be deselected on the
- * scripted path (docs/COMPONENT_GUIDELINES.md), so posting it beside the answered
- * marker is what the BFF reads as the ADR-33 retraction.
- *
- * Nothing sets `appearance: none`: the browser's disclosure arrow is the affordance
- * that says this opens a list, and there is no script to draw a replacement.
+ * The single-choice control in native (no-JS) submit mode. The vendored Select cannot serve it: its `<select>`
+ * sits in an `aria-hidden` container behind a trigger only JavaScript opens.
+ * The empty-valued first option keeps an untouched `required` select invalid and, posted beside the answered
+ * marker, is the ADR-33 retraction. No `appearance: none`: the browser's arrow is the only affordance.
  */
 export interface NativeSelectFieldProps {
   /** The questionId, which is the posted field name. */

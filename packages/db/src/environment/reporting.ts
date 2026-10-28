@@ -24,10 +24,8 @@ import { workspaceReportingGrantStatements, workspaceReportingStatements } from 
 const MAX_IDENTIFIER_BYTES = 63;
 
 /**
- * The statements below are DDL built from a database row, and `organization.slug` has no
- * CHECK on it and more than one writer, so a slug reaching here has not necessarily
- * passed the API's validator. An identifier cannot be a bind parameter, so this guard is
- * the only thing between a hand-written row and a `CREATE VIEW` built from it.
+ * `organization.slug` has no CHECK and more than one writer, and an identifier cannot be a bind parameter,
+ * so this guard alone stands between a hand-written row and the DDL built from it.
  */
 const WORKSPACE_SLUG_PATTERN = /^[a-z0-9]+(?:-[a-z0-9]+)*$/;
 
@@ -130,14 +128,10 @@ export async function workspaceReportingGrantsForEnvironment(
 }
 
 /**
- * Takes the per-workspace views back from the application role, which must not hold them
- * (ADR-40). Needed only after a restore, where the views come back inside the dump and so
- * fall under the baseline's `ALL TABLES` grant; no migration runs in that order.
- *
- * Each revoke is guarded on the privilege actually being held, because a `REVOKE` on a
- * relation whose `relacl` is NULL materialises that ACL. The guards are nested rather than
- * `AND`ed, because PostgreSQL does not promise to short-circuit and `has_table_privilege`
- * raises on a missing role.
+ * Takes the per-workspace views back from the application role (ADR-40). Needed after a restore, where the
+ * views return inside the dump and fall under the baseline's `ALL TABLES` grant.
+ * Each revoke is guarded on the privilege being held, because `REVOKE` on a NULL `relacl` materialises it;
+ * the guards nest, as `has_table_privilege` raises on a missing role.
  */
 export async function revokeWorkspaceViewsFromEnvironmentRole(
   exec: Executor,

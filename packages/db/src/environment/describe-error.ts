@@ -1,8 +1,6 @@
 /**
- * This unwraps a `cause` into the line it prints, and drizzle's `DrizzleQueryError`
- * carries the failed statement in its own message. So nothing in this package may attach
- * that wrapper as a `cause`, or the statement reaches an operator's terminal (SEC-8); see
- * `refuseWithoutStatement` in `./role.ts`.
+ * Nothing in this package may attach drizzle's `DrizzleQueryError` as a `cause`: its message carries the
+ * failed statement, which would reach an operator's terminal (SEC-8); see `refuseWithoutStatement` in `./role.ts`.
  */
 
 function collapse(text: string): string {

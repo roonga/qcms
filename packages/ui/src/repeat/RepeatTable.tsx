@@ -5,20 +5,9 @@ import { totalLabelFor } from "./repeat-table-node.ts";
 import type { RepeatColumn, RepeatTableNode } from "./repeat-table.schema.ts";
 
 /**
- * The table presentation's `<table>`.
- *
- * A native `<table>` and never `role="grid"`: APG makes author-managed focus movement a
- * defining property of that pattern, so with scripting off a grid is a tab trap.
- * Nothing here may grow a roving tabindex or an edit mode; ADR-43 refuses both by name.
- *
- * The `<caption>` is the table's accessible name, which is why the expansion emits no
- * heading node for a table-presented group. The `<tfoot>` total is presentation only:
- * never an input, never posted, never stored, never exported.
- *
- * The scroll box and every cell are `position: relative`, because this design puts a
- * visually hidden `<label>` in every cell and one with no positioned ancestor resolves
- * against the initial containing block and widens the document (1.4.10 Reflow). The
- * declarations are in `theme-components.css`; the markup is what makes them so.
+ * The table presentation's `<table>`: native and never `role="grid"`, whose author-managed focus is a tab trap
+ * without scripting; nothing here may grow a roving tabindex or edit mode (ADR-43). The `<caption>` is the
+ * accessible name; the `<tfoot>` total is presentation only. Cells are `position: relative` (1.4.10).
  */
 
 function columnTotal(

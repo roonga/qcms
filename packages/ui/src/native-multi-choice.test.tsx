@@ -5,11 +5,9 @@ import { A2UIStepRenderer, type A2UIStepDocument } from "./A2UIStepRenderer.tsx"
 import { NATIVE_FIELD_ANSWERED_PREFIX, NATIVE_FIELD_KIND_PREFIX } from "./native-submit.ts";
 import { loadGoldenForms } from "./test-support/golden.ts";
 
-// HTML has no "at least one of these" constraint, so react-aria puts native `required`
-// on every checkbox and removes it on the re-render after the first selection. A
-// server-rendered page never re-renders, so a partial selection could not pass the
-// step. jsdom pins which attributes are on which element; whether the browser then
-// submits is browser behaviour (ADR-23), asserted in the portal's own suite.
+// HTML has no "at least one of these" constraint, so react-aria puts native `required` on every checkbox and
+// removes it on re-render, which a server-rendered page never does. jsdom pins which attributes are where;
+// browser submission is asserted in the portal's suite (ADR-23).
 
 const kitchenSink = loadGoldenForms().find((f) => f.version === "v1" && f.form === "kitchen-sink");
 if (!kitchenSink) throw new Error("v1 kitchen-sink golden not found");

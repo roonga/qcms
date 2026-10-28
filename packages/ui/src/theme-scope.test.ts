@@ -1,17 +1,6 @@
-// `theme-tokens.test.ts` models the browser by reading the sheet, and a model can agree
-// with itself while the CSS reaches nothing, so this loads the real stylesheets into a
-// document and reads `getComputedStyle` off real elements.
-//
-// jsdom resolves the cascade for elements a rule matches directly, which is what is
-// measured. `border-width` is unreliable in its shorthand handling, reading `0px` on a
-// matched element and an unmatched one alike, so the high-contrast half is measured on
-// `color-scheme`, which the HC scaffold sets on the carrier itself. An unset
-// `box-shadow` now resolves to `none` as in a browser, so it no longer discriminates
-// either.
-//
-// Custom properties inherit here, as they do in CSS, so "not scoped" reads as the
-// host's value rather than an empty string. An unset longhand resolves to its initial
-// value while a shorthand is still empty, which is why both spellings sit below.
+// `theme-tokens.test.ts` models the browser by reading the sheet, which can agree with itself while the CSS
+// reaches nothing, so this loads the real stylesheets and reads `getComputedStyle`. jsdom measures `color-scheme`
+// because its `border-width` shorthand handling is unreliable; custom properties inherit as in CSS.
 
 import { readFileSync } from "node:fs";
 import { join } from "node:path";
@@ -149,10 +138,8 @@ describe("the treatment layer is contained by the carrier", () => {
     // It is measured on rendered pixels in the portal's browser suite.
     expect(token(inside, "box-shadow")).toBe("none");
 
-    // `color-scheme: light` sits on the carrier and reaches the control inside it by
-    // inheritance, while a control outside keeps the initial `normal`, so this pins
-    // the containment of the carrier's own declaration. The control-level half is the
-    // test below.
+    // `color-scheme: light` sits on the carrier and reaches the control inside by inheritance, while one outside
+    // keeps `normal`, so this pins containment of the carrier's own declaration.
     expect(token(inside, "color-scheme")).toBe("light");
     expect(token(outside, "color-scheme")).toBe("normal");
   });
@@ -165,12 +152,9 @@ describe("the treatment layer is contained by the carrier", () => {
     expect(token(inside, "min-height")).toBe("var(--space-control-h)");
     expect(token(inside, "padding-inline")).toBe("var(--space-control-pad-x)");
 
-    // The half the whole approach exists for: a host can import this sheet without
-    // restyling its own control layer. "Untouched" has two spellings under jsdom 30 and both are
-    // asserted as-is rather than normalized away: an unset SHORTHAND still resolves
-    // to `""`, while an unset LONGHAND resolves to its initial value, which for
-    // `min-height` is `auto`. Either way the treatment rule's `var(...)` is absent,
-    // which is the property under test.
+    // A host can import this sheet without restyling its own control layer. Under jsdom 30 an untouched shorthand
+    // resolves to `""` and a longhand to its initial value (`auto` for `min-height`); both are asserted as-is.
+    // Either way the treatment rule's `var(...)` is absent, which is the property under test.
     expect(token(outside, "border-radius")).toBe("");
     expect(token(outside, "min-height")).toBe("auto");
     expect(token(outside, "padding-inline")).toBe("");

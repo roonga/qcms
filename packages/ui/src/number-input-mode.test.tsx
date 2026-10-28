@@ -5,19 +5,9 @@ import { describe, expect, it } from "vitest";
 import { A2UIStepRenderer, type A2UIStepDocument } from "./A2UIStepRenderer.tsx";
 import { numberFieldAdmitsFractions } from "./registry.tsx";
 
-// `useNumberField` chooses `inputMode` from the resolved number format and from
-// platform detection that reads `navigator`, which a server render does not have, so a
-// format admitting fraction digits made the two renders disagree.
-//
-// jsdom is the only layer that can see this: no Playwright project here is WebKit or
-// iOS. A server render is reproduced by removing `navigator`, because react-aria's
-// platform helpers return false for every platform when it is absent, which is exactly
-// the branch Node takes.
-//
-// react-aria memoizes its platform answers except under `NODE_ENV=test`, which is how
-// these tests change platform between renders. Were that memoization active here both
-// residual cases would agree by accident, so the markers below are also this suite's
-// canary for its own mechanism.
+// `useNumberField` chooses `inputMode` from the format and from platform detection that reads `navigator`, so a
+// server render disagreed. A server render is reproduced by removing `navigator`; react-aria skips memoizing
+// platform answers only under NODE_ENV=test, so the markers below also canary that mechanism.
 
 const ANDROID_USER_AGENT =
   "Mozilla/5.0 (Linux; Android 13; Pixel 7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Mobile Safari/537.36";
@@ -140,14 +130,9 @@ describe("a NumberField's inputMode survives hydration", () => {
 });
 
 /**
- * Markers that arm themselves rather than allowlist entries. Neither can be pinned
- * here: the vendored control forwards a fixed prop list and `useNumberField` sets both
- * attributes after spreading a caller's props, so only a prop on the `<Input>` wins,
- * which needs an upstream passthrough (ADR-22).
- *
- * `it.fails` runs the body and requires it to fail, so the day that lands the run goes
- * red and the marker has to be removed deliberately. Any failure satisfies it, so each
- * body holds one assertion and nothing else.
+ * Markers that arm themselves rather than allowlist entries. Neither can be pinned until upstream passes the
+ * attribute through (ADR-22). `it.fails` requires the body to fail, so a fix turns the run red; each body
+ * holds one assertion.
  */
 describe("the residuals that need an upstream passthrough (issue #945)", () => {
   /** No fixture form has such a question, so no browser spec reaches it. */

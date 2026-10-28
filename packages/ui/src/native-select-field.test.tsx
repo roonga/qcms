@@ -4,12 +4,9 @@ import { describe, expect, it } from "vitest";
 import { A2UIStepRenderer, type A2UIStepDocument } from "./A2UIStepRenderer.tsx";
 import { NATIVE_FIELD_ANSWERED_PREFIX, NATIVE_FIELD_KIND_PREFIX } from "./native-submit.ts";
 
-// jsdom pins the markup contract: which element carries the name, whether a respondent
-// can see and reach it, what the browser will validate, and what the form serializes.
-// The browser half is asserted in the portal's own suite (ADR-23).
-//
-// The document is hand-written because no golden form compiles a `Select` at all, which
-// is what kept this control unobserved.
+// jsdom pins the markup contract (name carrier, reachability, validation, serialization); the browser half is
+// asserted in the portal's suite (ADR-23). The document is hand-written because no golden form compiles a
+// `Select`.
 
 const QUESTION = "q_body_type";
 

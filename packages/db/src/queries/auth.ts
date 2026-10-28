@@ -83,9 +83,8 @@ export async function countAdminUsers(exec: Executor): Promise<number> {
   return row?.total ?? 0;
 }
 
-// The `qcms:reset-2fa` break-glass, in plain SQL because the TOTP secret and recovery
-// codes are ciphertext under `QCMS_ADMIN_AUTH_SECRET`: with that key gone better-auth can
-// neither verify nor disable a factor. Who may run it is decided in
+// The `qcms:reset-2fa` break-glass, in plain SQL because the TOTP secret and recovery codes are ciphertext
+// under `QCMS_ADMIN_AUTH_SECRET`. Who may run it is decided in
 // `apps/api/src/features/auth/reset-two-factor.ts`.
 
 /** An admin account, as the reset resolves it from the email an operator typed. */

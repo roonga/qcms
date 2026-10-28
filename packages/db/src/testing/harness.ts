@@ -392,12 +392,10 @@ async function startContainer(
 }
 
 /**
- * Boot an isolated Postgres in a throwaway container and connect to it, migrated to head
- * unless `migrate` says otherwise. One container per test file: call it in `beforeAll` and
- * `teardown()` in `afterAll`.
- *
- * The Drizzle handle is over a `pg.Pool` for correctness, not realism: on a single
- * `pg.Client` two overlapping transactions would share one physical transaction.
+ * Boot an isolated Postgres in a throwaway container, migrated to head unless `migrate` says otherwise. One
+ * container per test file: call in `beforeAll`, `teardown()` in `afterAll`.
+ * The handle is over a `pg.Pool` for correctness: on a single `pg.Client` overlapping transactions would
+ * share one.
  */
 export async function startTestDb(options: StartOptions = {}): Promise<TestDb> {
   const container = await startContainer(

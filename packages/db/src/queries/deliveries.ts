@@ -135,13 +135,8 @@ export async function insertDelivery(
 
 /**
  * Claim up to `limit` due delivery rows, joined to what the deliverer needs.
- *
- * Must be called inside the caller's transaction, which holds the locks until the outcome
- * is recorded: that is what makes the claim exclusive and what makes a crash between POST
- * and commit roll back to a redeliverable state.
- *
- * The two null predicates keep an erased respondent's answers off the transport whatever
- * a caller does.
+ * Call inside the caller's transaction, whose locks make the claim exclusive and roll a crash back to a
+ * redeliverable state. The null predicates keep an erased respondent's answers off the transport.
  */
 export async function claimDueDeliveries(
   exec: Executor,
@@ -332,12 +327,9 @@ export async function resetDeliveryForRedelivery(
 export type RedeliveryRefusal = "cancelled" | "payloadRedacted";
 
 /**
- * Why this delivery may not be redelivered, or `undefined` when it may and when it does
- * not exist.
- *
- * Form-scoped, and not optionally so: this runs before the reset, so an unscoped read
- * would answer 409 where an unknown id answers 404 and disclose that another form's
- * delivery exists and what state it is in.
+ * Why this delivery may not be redelivered, or `undefined` when it may or does not exist.
+ * Form-scoped: an unscoped read would answer 409 where an unknown id answers 404, disclosing that another
+ * form's delivery exists.
  */
 export async function redeliveryRefusalFor(
   exec: Executor,

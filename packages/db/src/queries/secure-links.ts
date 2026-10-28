@@ -7,8 +7,8 @@ import type { Executor } from "./executor.js";
 import type { AssignableTo } from "./schema-drift.js";
 
 /**
- * Server-side state for one secure link. Hand-authored because the branded-id columns
- * degrade to an `error` type through this package's emitted `.d.ts` (issue #5).
+ * Server-side state for one secure link. Hand-authored: the branded-id columns degrade to an `error` type
+ * through the emitted `.d.ts`.
  */
 export interface SecureLinkRow {
   linkId: LinkId;
@@ -72,12 +72,9 @@ export async function getSecureLink(
 }
 
 /**
- * The secure links minted for a form in one environment, newest first; the caller derives
- * display state from the timestamps.
- *
- * `environment` is required rather than optional: a screen that listed every
- * environment's links under a banner naming one would show an operator production links
- * while they believed they were looking at `test`.
+ * The secure links minted for a form in one environment, newest first; the caller derives display state
+ * from the timestamps. `environment` is required: listing every environment's links under a banner naming
+ * one would show production links as `test`.
  */
 export async function listSecureLinks(
   exec: Executor,

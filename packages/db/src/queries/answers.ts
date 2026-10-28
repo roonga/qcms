@@ -10,9 +10,7 @@ import type { AssignableTo } from "./schema-drift.js";
 
 /**
  * One row of the append-only answer ledger: an answer, or a retraction clearing one.
- *
- * Hand-authored rather than `$inferSelect` because the branded-id columns degrade to an
- * `error` type through this package's emitted `.d.ts` (issue #5).
+ * Hand-authored: the branded-id columns degrade to an `error` type through the emitted `.d.ts`.
  */
 export interface AnswerRow {
   id: string;

@@ -1,15 +1,7 @@
 /**
  * Contract: docs/theming.md. `src/fonts.css` is generated from this manifest.
- *
- * Every font is self-hosted, so a portal makes no external request for a typeface:
- * nothing for a CSP to allow (SEC-9).
- *
- * Every family must stay open-licensed and MIT-redistributable, with its upstream
- * copyright notice verbatim on the entry and the license texts beside the binaries,
- * which is what OFL-1.1 and Apache-2.0 each require of a redistribution.
- *
- * An entry may never touch a `--type-*` value: those carry the WCAG 1.4.12 floors and
- * no font selection may lower one.
+ * Every font is self-hosted (SEC-9) and open-licensed, with its upstream copyright notice verbatim on the
+ * entry. An entry may never touch a `--type-*` value: those carry the WCAG 1.4.12 floors.
  */
 
 /** Display order, and the order the generated CSS is emitted in. */
@@ -50,10 +42,9 @@ export interface FontEntry {
 }
 
 /**
- * Token references rather than literal lists: the lists live only in `theme.css` and
- * `scripts/check-font-tokens.mjs` fails the build on a second copy. Being `var()`
- * references, they also make `fonts.css` invalid at computed-value time rather than
- * silently wrong when a host imports it without `theme.css`.
+ * Token references rather than literal lists, which live only in `theme.css` (`scripts/check-font-tokens.mjs`
+ * fails the build on a second copy); as `var()` references they also fail visibly if a host imports
+ * `fonts.css` without `theme.css`.
  */
 const SANS_TAIL = "var(--font-fallback-sans)";
 const SERIF_TAIL = "var(--font-fallback-serif)";
@@ -384,41 +375,16 @@ export function fontClass(key: string): string {
 const SCOPE_ANCHOR = ":is(:root, [data-qcms-theme-scope])";
 
 const CSS_HEADER = `/*
- * GENERATED FILE - do not edit by hand.
- *
- * Source of truth: \`src/font-registry.ts\`. Regenerate with
- * \`pnpm --filter @roonga/qcms-ui fonts:generate\`; \`font-registry.test.ts\` fails if this
- * file and the manifest disagree, so a hand edit here cannot survive a gate.
- *
- * Every face is SELF-HOSTED from \`src/fonts/\` next to this file, so selecting a
- * font makes zero external requests (no CDN, nothing for the CSP to allow).
- * Import it after \`theme.css\`, whose base anchor block declares the System
- * stack that these classes override:
- *
- * Each block is anchored on \`:is(:root, [data-qcms-theme-scope])\`, the scope
- * carrier (ADR-38): a font selection applies to the document root OR to any
- * element carrying \`data-qcms-theme-scope\`, at exactly the specificity the bare
- * \`:root\` anchor had.
- *
- *   @import "@roonga/qcms-ui/theme.css";
- *   @import "@roonga/qcms-ui/theme-components.css";
- *   @import "@roonga/qcms-ui/fonts.css";
- *
- * A block below sets exactly one token, \`--font-portal\`. It must never set a
- * \`--type-*\` value: those carry the WCAG 1.4.12 floors, and no font selection may
- * lower one.
- *
- * Contract documentation: docs/theming.md.
+ * GENERATED FILE - do not edit by hand. Source: \`src/font-registry.ts\`;
+ * regenerate with \`pnpm --filter @roonga/qcms-ui fonts:generate\`.
+ * Self-hosted from \`src/fonts/\`; import after \`theme.css\`. Contract: docs/theming.md.
  */
 `;
 
 /**
- * Render the CSS for a registry: one `@font-face` per self-hosted weight, and one
- * `:is(:root, [data-qcms-theme-scope]).font-<key>` block per entry that sets
- * `--font-portal` and nothing else.
- *
- * Exported so an adopter who extends the manifest can regenerate the stylesheet with
- * their own entries appended, rather than hand-writing `@font-face` rules.
+ * Render the CSS for a registry: one `@font-face` per self-hosted weight and one
+ * `:is(:root, [data-qcms-theme-scope]).font-<key>` block per entry that sets `--font-portal` only.
+ * Exported so an adopter can regenerate the stylesheet with their own entries appended.
  */
 export function renderFontsCss(entries: readonly FontEntry[] = FONT_REGISTRY): string {
   const parts: string[] = [CSS_HEADER];

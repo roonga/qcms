@@ -1,16 +1,6 @@
-// The browser suite measures what these rules do; what it cannot show is the claims
-// about what the blocks may not contain, each of them a state the portal does not
-// render on the happy path or a property whose absence is the decision:
-//
-//  - no `forced-color-adjust`, because every colour that carries meaning has a
-//    system-colour pair and opting an element out only takes the user's choice away;
-//  - only system colours under forced colours, because anything else is forced away
-//    and the rule silently stops doing anything rather than erroring;
-//  - the `prefers-contrast` block moves edges and rings and nothing else, since it
-//    runs with the palette intact and a `--color-*` or `--type-*` token there could
-//    lower a pair or a floor that is asserted only against the base blocks;
-//  - an invalid control keeps its danger edge, rather than trading the error signal
-//    for a contrast step.
+// The browser suite measures what these rules do; this asserts what the blocks may not contain: no
+// `forced-color-adjust`, only system colours under forced colours, and a `prefers-contrast` block that moves
+// edges and rings only, with an invalid control keeping its danger edge.
 
 import { readFileSync } from "node:fs";
 import { join } from "node:path";

@@ -10,19 +10,10 @@ import {
 } from "./native-submit.ts";
 
 /**
- * The date question's control in native (no-JS) submit mode.
- *
- * The vendored DatePicker cannot serve it: its segments are driven by key handlers and
- * its validation mirror is `willValidate` but unfocusable, so the browser abandons the
- * submission outright and a required date was unsubmittable.
- *
- * Three boxes rather than one `<input type="date">`, which draws its parts in the
- * browser's locale with no markup able to move them, so the server render and the
- * hydrated one disagreed whenever browser and deployment did. One labelled box per part
- * is also the established accessible pattern for a memorable date.
- *
- * `minValue` / `maxValue` are not carried, because three boxes have no native way to
- * state a day bound, so the API refuses an out-of-range day after the round trip.
+ * The date question's control in native (no-JS) submit mode. The vendored DatePicker cannot serve it: its
+ * segments need key handlers and its validation mirror is unfocusable, so a required date was unsubmittable.
+ * Three boxes rather than `<input type="date">`, which draws in the browser's locale and disagreed with the
+ * server render. `minValue`/`maxValue` are not carried; the API refuses an out-of-range day.
  */
 export interface NativeDateFieldProps {
   /** The questionId; each box posts under it with its part prefix. */

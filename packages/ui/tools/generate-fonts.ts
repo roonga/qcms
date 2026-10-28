@@ -1,11 +1,7 @@
 /**
- * Writes `src/fonts.css` and `src/fonts/NOTICE.md` from the font manifest.
- *
- *   pnpm --filter @roonga/qcms-ui fonts:generate
- *
- * Both outputs are committed, so the portal imports the stylesheet with no build step
- * and no network. It lives outside `src/` because the import-surface test allows only
- * the a2-react-aria stack in the shipped tree and this needs `node:fs`.
+ * Writes `src/fonts.css` and `src/fonts/NOTICE.md` from the font manifest (`pnpm --filter @roonga/qcms-ui fonts:generate`).
+ * Both outputs are committed, so the portal needs no build step or network. It lives outside `src/` because the
+ * import-surface test allows only the a2-react-aria stack in the shipped tree and this needs `node:fs`.
  */
 
 import { statSync, writeFileSync } from "node:fs";

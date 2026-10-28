@@ -1,13 +1,7 @@
 /**
- * The step a restore needs: `pg_dump --no-privileges` carries no grant, and drizzle's
- * journal rides inside the dump, so a restored database reports every migration applied
- * and re-running `migrate` re-applies nothing.
- *
- * Needs ownership of `control`, each `data_<env>` and each `reporting_<env>`, and nothing
- * else: no `CREATEROLE`, no `SUPERUSER`, no ownership of the database.
- *
- * Every database call here, reads included, runs inside {@link refuseWithoutStatement},
- * so no statement text reaches an operator's terminal through `describeError` (SEC-8).
+ * The step a restore needs: `pg_dump --no-privileges` carries no grant, while drizzle's journal rides in the
+ * dump, so `migrate` re-applies nothing. Every database call runs inside {@link refuseWithoutStatement},
+ * so no statement text reaches an operator's terminal (SEC-8).
  */
 
 import { sql } from "drizzle-orm";

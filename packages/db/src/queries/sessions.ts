@@ -11,8 +11,8 @@ export type AccessMode = (typeof accessMode.enumValues)[number];
 export type SessionStatus = (typeof sessionStatus.enumValues)[number];
 
 /**
- * The `sessions` row. Hand-authored because the enum-bearing table's `$inferSelect`
- * degrades through this package's emitted `.d.ts` (issue #5).
+ * The `sessions` row. Hand-authored: the enum-bearing table's `$inferSelect` degrades through the emitted
+ * `.d.ts`.
  */
 export interface SessionRow {
   sessionId: SessionId;
@@ -31,13 +31,9 @@ export type _SessionRowMatchesTable = AssignableTo<SessionRow, typeof sessions.$
   AssignableTo<typeof sessions.$inferSelect, SessionRow>;
 
 /**
- * Create a respondent session, pinning `(formId, formVersion)`. The only write path that
- * sets `form_version`, which is what makes "a session never migrates form versions"
- * structural.
- *
- * `environment` must be the one this connection's pool serves, or the per-schema CHECK
- * refuses the row. With `linkId` set, the composite foreign key also requires the link to
- * name the same environment; a public session has a NULL `linkId` and skips that key.
+ * Create a respondent session, pinning `(formId, formVersion)`; the only write path that sets
+ * `form_version`. `environment` must be the one this pool serves, or the per-schema CHECK refuses the row.
+ * With `linkId` set the composite foreign key requires the link to name the same environment.
  */
 export async function createSession(
   exec: Executor,

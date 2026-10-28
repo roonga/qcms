@@ -6,18 +6,10 @@ import { addButtonId, ROSTER_OP_FIELD, rosterOpValue } from "./repeat-node.ts";
 import type { RepeatGroupNode } from "./repeat.schema.ts";
 
 /**
- * An expanded repeating group: its children plus the Add control and, on the scripted
- * path, the `role="status"` region.
- *
- * One input per row at any width is a ruling rather than a default: a side-by-side pair
- * makes the reading and tab order diverge from the visual order the moment a rule hides
- * one of the pair in one instance and not another. The layout itself is
- * `.qcms-repeat__fields` in `theme-components.css`.
- *
- * Add is disabled at `max`, which the API refuses independently (SEC-16). Without
- * scripting it carries `formnovalidate`, which is safe only because that post writes no
- * answer (ADR-43), and it is the last focus destination after a removal empties the
- * group, so it needs a stable id.
+ * An expanded repeating group: its children plus the Add control and, when scripted, the `role="status"` region.
+ * One input per row at any width is a ruling: a side-by-side pair splits reading and tab order from the visual
+ * order when a rule hides one of them. Add is disabled at `max` (SEC-16); without scripting it carries
+ * `formnovalidate`, safe because that post writes no answer (ADR-43), and needs a stable id as a focus target.
  */
 
 export function RepeatGroup({

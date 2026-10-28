@@ -6,17 +6,10 @@ import type { AnswerValue, InstanceId, QuestionId, SessionId } from "@roonga/qcm
 import { sessions } from "./sessions.js";
 
 /**
- * The append-only answer ledger (I5, R3). The current value is the latest row per
- * `(question_id, instance_id)`. `answers_reject_update` rejects every UPDATE, and
- * `answers_reject_delete` rejects every DELETE unless a transaction-local setting is
- * opened by one of the two sanctioned whole-session doors, `eraseSession` (ADR-17) and
- * `purgeExpired`.
- *
- * `questionId` is not a foreign key: an answer references the question pinned in the
- * session's form version, not a mutable row in the question library.
- *
- * A cleared answer appends a retraction (ADR-33) rather than mutating a row. No sentinel is
- * ever stored inside `value`, so author-supplied content cannot collide with one.
+ * The append-only answer ledger (I5, R3): the current value is the latest row per `(question_id, instance_id)`.
+ * UPDATE is always rejected, DELETE unless opened by a sanctioned whole-session door (`eraseSession`, ADR-17;
+ * `purgeExpired`). `questionId` is no foreign key: it names a question pinned in the form version.
+ * A cleared answer appends a retraction (ADR-33); no sentinel is ever stored inside `value`.
  */
 export const answers = pgTable(
   "answers",

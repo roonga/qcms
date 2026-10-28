@@ -7,11 +7,9 @@ import { loadGoldenForms } from "./test-support/golden.ts";
 import { ControlledHost } from "./test-support/host.tsx";
 import { SELECT_STEP } from "./test-support/select-step.ts";
 
-// react-stately decides controlled against uncontrolled by `value !== undefined` alone
-// and warns when that decision changes. The direction that matters is back to
-// uncontrolled, because it then serves its own last internal value in place of the
-// parent's absence. jsdom is the layer that can see it: the warning is a dev-mode
-// `console.warn` and both consequences are readable off the rendered control.
+// react-stately decides controlled against uncontrolled by `value !== undefined` and warns when that changes.
+// The direction that matters is back to uncontrolled, which serves its own last internal value; jsdom sees it
+// because the warning is a dev-mode `console.warn`.
 
 const kitchen = loadGoldenForms().find((f) => f.version === "v2" && f.form === "kitchen-sink");
 if (!kitchen) throw new Error("kitchen-sink v2 golden not found");
