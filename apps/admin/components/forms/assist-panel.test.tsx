@@ -770,3 +770,300 @@ describe("AssistPanel", () => {
     expect(screen.getByText(t("forms.assist.emptyHint"))).toBeTruthy();
   });
 });
+
+function renderPanel(onAccept = vi.fn()) {
+  return render(
+    <AssistPanel
+      endpoint="/forms/frm_quote/assist"
+      draft={DRAFT}
+      draftUpdatedAt={undefined}
+      onAccept={onAccept}
+    />,
+  );
+}
+
+function composer(): HTMLElement {
+  return screen.getByLabelText(t("forms.assist.inputLabel"));
+}
+
+/** A proposal frame over the fixture draft, with one added step. */
+function proposalFrame(): string {
+  return frame("proposal", {
+    proposal: {
+      proposedDraft: {
+        ...DRAFT,
+        steps: [...DRAFT.steps, { stepId: "stp_history", title: { en: "Driving history" }, items: [] }],
+      },
+      newQuestions: [],
+      rationale: "Added a driving-history step.",
+      issues: [],
+      warnings: [],
+    },
+  });
+}
+
+/**
+ * A `fetch` stub for a turn that is still running: it writes the given frames
+ * and then leaves the body open until the request's signal aborts, which is what
+ * a real streaming response does. Without the abort half, Stop would be asserted
+ * against a stub that ignores it and the panel could never leave its working
+ * state in the test.
+ */
+function openTurn(
+  capture: (signal: AbortSignal | undefined) => void,
+  frames: readonly string[] = [frame("text", { delta: "Working" })],
+) {
+  return (_url: string, init: RequestInit) => {
+    const signal = init.signal ?? undefined;
+    capture(signal);
+    const body = new ReadableStream<Uint8Array>({
+      start(controller) {
+        controller.enqueue(new TextEncoder().encode(frames.join("")));
+        signal?.addEventListener("abort", () => {
+          controller.error(new DOMException("aborted", "AbortError"));
+        });
+      },
+    });
+    return Promise.resolve(
+      new Response(body, { status: 200, headers: { "content-type": "text/event-stream" } }),
+    );
+  };
+}
+
+function stubFetch(frames: readonly string[]): void {
+  vi.stubGlobal(
+    "fetch",
+    vi.fn().mockResolvedValue(
+      new Response(sseBody(frames), {
+        status: 200,
+        headers: { "content-type": "text/event-stream" },
+      }),
+    ),
+  );
+}
+
+/** The composer (080 exit criterion 5, `plan/agent-everywhere.md` section 4.3). */
+describe("AssistPanel composer", () => {
+  it("is a multi-line area where Enter sends", () => {
+    stubFetch([frame("text", { delta: "On it." })]);
+    renderPanel();
+
+    const area = composer();
+    expect(area.tagName).toBe("TEXTAREA");
+    fireEvent.change(area, { target: { value: "Add a step" } });
+    fireEvent.keyDown(area, { key: "Enter" });
+
+    expect(vi.mocked(fetch)).toHaveBeenCalledTimes(1);
+    const sent = vi.mocked(fetch).mock.calls[0]?.[1]?.body;
+    expect(typeof sent).toBe("string");
+    const body: unknown = JSON.parse(typeof sent === "string" ? sent : "{}");
+    expect(body).toMatchObject({ conversation: [{ role: "user", content: "Add a step" }] });
+  });
+
+  it("leaves Shift+Enter to the browser, so it inserts a newline and sends nothing", () => {
+    stubFetch([frame("text", { delta: "On it." })]);
+    renderPanel();
+
+    const area = composer();
+    fireEvent.change(area, { target: { value: "First line" } });
+    const event = fireEvent.keyDown(area, { key: "Enter", shiftKey: true });
+
+    // Not prevented, which is what lets the textarea do its own thing with it.
+    expect(event).toBe(true);
+    expect(vi.mocked(fetch)).not.toHaveBeenCalled();
+  });
+
+  it("leaves Enter alone while an input method is composing", () => {
+    stubFetch([frame("text", { delta: "On it." })]);
+    renderPanel();
+
+    const area = composer();
+    fireEvent.change(area, { target: { value: "日本語" } });
+    fireEvent.keyDown(area, { key: "Enter", isComposing: true });
+    expect(vi.mocked(fetch)).not.toHaveBeenCalled();
+  });
+
+  /**
+   * Stop (section 4.3).
+   *
+   * Aborting the `fetch` is the whole mechanism, so the assertion is that the
+   * signal the request was made with is aborted - and that the turn does not
+   * then report itself as a provider failure, which is what an abort looks like
+   * from inside the read loop.
+   */
+  it("shows Stop only while a turn runs, and aborts the request", async () => {
+    let signal: AbortSignal | undefined;
+    vi.stubGlobal("fetch", vi.fn().mockImplementation(openTurn((s) => (signal = s))));
+
+    renderPanel();
+    expect(screen.queryByTestId("qcms-assist-stop")).toBeNull();
+
+    fireEvent.change(composer(), { target: { value: "Add a step" } });
+    fireEvent.keyDown(composer(), { key: "Enter" });
+
+    const stop = await screen.findByRole("button", { name: t("forms.assist.stop") });
+    fireEvent.click(stop);
+
+    await waitFor(() => {
+      expect(signal?.aborted).toBe(true);
+    });
+    await waitFor(() => {
+      expect(screen.queryByTestId("qcms-assist-stop")).toBeNull();
+    });
+    // A turn the author ended is not a failure to report.
+    expect(screen.queryByTestId("qcms-assist-error")).toBeNull();
+  });
+});
+
+/** Focus (080 exit criterion 6, section 4.4). */
+describe("AssistPanel focus", () => {
+  it("leaves focus where it was when a card arrives from outside the panel", async () => {
+    stubFetch([proposalFrame()]);
+    const outside = document.createElement("button");
+    document.body.append(outside);
+    renderPanel();
+
+    fireEvent.change(composer(), { target: { value: "Add a step" } });
+    fireEvent.keyDown(composer(), { key: "Enter" });
+    // The author goes back to the page while the turn runs.
+    outside.focus();
+
+    await waitFor(() => {
+      expect(screen.getByTestId("qcms-assist-proposal")).toBeTruthy();
+    });
+    expect(document.activeElement).toBe(outside);
+    outside.remove();
+  });
+
+  it("moves focus to the card heading when a card arrives with focus inside the panel", async () => {
+    stubFetch([proposalFrame()]);
+    renderPanel();
+
+    fireEvent.change(composer(), { target: { value: "Add a step" } });
+    fireEvent.keyDown(composer(), { key: "Enter" });
+    composer().focus();
+
+    const heading = await screen.findByRole("heading", { name: t("forms.assist.proposalHeading") });
+    await waitFor(() => {
+      expect(document.activeElement).toBe(heading);
+    });
+  });
+
+  it("moves focus to the outcome line after Accept, and keeps the line in the record", async () => {
+    stubFetch([proposalFrame()]);
+    const onAccept = vi.fn();
+    renderPanel(onAccept);
+
+    fireEvent.change(composer(), { target: { value: "Add a step" } });
+    fireEvent.keyDown(composer(), { key: "Enter" });
+    await waitFor(() => {
+      expect(screen.getByTestId("qcms-assist-proposal")).toBeTruthy();
+    });
+
+    fireEvent.click(screen.getByRole("button", { name: t("forms.assist.accept") }));
+
+    expect(onAccept).toHaveBeenCalledTimes(1);
+    const line = await screen.findByTestId("qcms-assist-result");
+    expect(line.textContent).toBe(t("forms.assist.resultAccepted"));
+    await waitFor(() => {
+      expect(document.activeElement).toBe(line);
+    });
+    // The card is gone and the record of it is not.
+    expect(screen.queryByTestId("qcms-assist-proposal")).toBeNull();
+  });
+
+  it("moves focus to the outcome line after Discard", async () => {
+    stubFetch([proposalFrame()]);
+    renderPanel();
+
+    fireEvent.change(composer(), { target: { value: "Add a step" } });
+    fireEvent.keyDown(composer(), { key: "Enter" });
+    await waitFor(() => {
+      expect(screen.getByTestId("qcms-assist-proposal")).toBeTruthy();
+    });
+
+    fireEvent.click(screen.getByRole("button", { name: t("forms.assist.discard") }));
+
+    const line = await screen.findByTestId("qcms-assist-result");
+    expect(line.textContent).toBe(t("forms.assist.resultDiscarded"));
+    await waitFor(() => {
+      expect(document.activeElement).toBe(line);
+    });
+  });
+
+  it("moves nothing when a turn simply ends", async () => {
+    stubFetch([frame("text", { delta: "Here is what I found." })]);
+    renderPanel();
+
+    fireEvent.change(composer(), { target: { value: "Tell me" } });
+    fireEvent.keyDown(composer(), { key: "Enter" });
+    const before = document.activeElement;
+
+    await waitFor(() => {
+      expect(screen.getByText("Here is what I found.")).toBeTruthy();
+    });
+    expect(document.activeElement).toBe(before);
+  });
+});
+
+/** The assistant's identity (080 exit criterion 9, issue #1129). */
+describe("AssistPanel identity", () => {
+  it("names the panel from the header mark, with no visible title word", () => {
+    renderPanel();
+
+    const panel = screen.getByTestId("qcms-assist-panel");
+    const labelledBy = panel.getAttribute("aria-labelledby");
+    expect(labelledBy).toBe("qcms-assist-heading");
+
+    const named = document.getElementById(labelledBy ?? "");
+    expect(named?.getAttribute("role")).toBe("img");
+    expect(named?.getAttribute("aria-label")).toBe(t("agent.title"));
+    // The word is the mark's name, not text on screen.
+    expect(named?.textContent).toBe("");
+    expect(screen.queryByRole("heading", { name: t("agent.title") })).toBeNull();
+  });
+
+  it("gives each assistant turn the mark as its avatar", async () => {
+    stubFetch([frame("text", { delta: "Looking now." })]);
+    renderPanel();
+
+    fireEvent.change(composer(), { target: { value: "Go" } });
+    fireEvent.keyDown(composer(), { key: "Enter" });
+
+    await waitFor(() => {
+      expect(screen.getByText("Looking now.")).toBeTruthy();
+    });
+    // Two: the header's and the turn's.
+    expect(screen.getAllByRole("img", { name: t("agent.title") })).toHaveLength(2);
+  });
+
+  it("carries the working state exactly while the live region reports a running turn", async () => {
+    vi.stubGlobal(
+      "fetch",
+      vi.fn().mockImplementation(
+        openTurn(
+          () => undefined,
+          [frame("status", { phase: "thinking" })],
+        ),
+      ),
+    );
+
+    renderPanel();
+    const header = () => screen.getAllByTestId("qcms-assist-mark")[0];
+    expect(header()?.getAttribute("data-working")).toBeNull();
+
+    fireEvent.change(composer(), { target: { value: "Go" } });
+    fireEvent.keyDown(composer(), { key: "Enter" });
+
+    await waitFor(() => {
+      expect(header()?.getAttribute("data-working")).toBe("true");
+    });
+    // The same state the polite region is reporting, in words.
+    expect(screen.getByTestId("qcms-assist-status").textContent).toBe(t("forms.assist.working"));
+
+    fireEvent.click(screen.getByRole("button", { name: t("forms.assist.stop") }));
+    await waitFor(() => {
+      expect(header()?.getAttribute("data-working")).toBeNull();
+    });
+  });
+});

@@ -373,7 +373,9 @@ export function handlePart(
       outcome.finishReason = part.finishReason;
       outcome.inputTokens = part.totalUsage.inputTokens ?? 0;
       outcome.outputTokens = part.totalUsage.outputTokens ?? 0;
-      outcome.reasoningTokens = part.totalUsage.reasoningTokens ?? 0;
+      // Under `outputTokenDetails`, because reasoning tokens are billed output
+      // (`ai` 7.0.147, `LanguageModelUsage`).
+      outcome.reasoningTokens = part.totalUsage.outputTokenDetails.reasoningTokens ?? 0;
       return undefined;
     default:
       return undefined;

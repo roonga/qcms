@@ -159,27 +159,56 @@ function frame(event: AssistEvent): Uint8Array {
 }
 
 /**
- * Relay the assistant's events as an SSE body.
+ * How long a turn may be silent before a keep-alive comment goes out
+ * (streaming improvement 4).
  *
- * A web `ReadableStream` (R4: no Node streams), aborted when the client goes
- * away so a browser tab closing stops the upstream call rather than leaving it
- * billing away.
+ * A tool-calling turn can spend a long time between frames - a model streaming
+ * a whole `FormDefinition`, or a slow first token - and an ingress idle timeout
+ * reads that as a dead connection and cuts the response. An SSE comment is the
+ * protocol's own answer: it keeps bytes moving without adding an event, because
+ * a frame with no `data:` line carries nothing a client could parse.
  */
-function assistStream(
-  deps: Deps,
-  ctx: AssistContext,
-  controller: AbortController,
-): ReadableStream<Uint8Array> {
+export const ASSIST_HEARTBEAT_MS = 15_000;
+
+/** An SSE comment line. No `data:`, so no parser yields anything for it. */
+const HEARTBEAT = ": keep-alive\n\n";
+
+/**
+ * Relay an assist event stream as an SSE body, with a keep-alive comment after
+ * every silent stretch.
+ *
+ * A web `ReadableStream` (R4: no Node streams). Exported with its timing as an
+ * argument so the heartbeat can be driven in a test without waiting out the
+ * production interval; the route always passes {@link ASSIST_HEARTBEAT_MS}.
+ */
+export function assistSseStream(args: {
+  readonly events: AsyncIterable<AssistEvent>;
+  readonly heartbeatMs: number;
+  readonly onError: (error: unknown) => void;
+  readonly onCancel: () => void;
+}): ReadableStream<Uint8Array> {
+  const { events, heartbeatMs, onError, onCancel } = args;
   return new ReadableStream<Uint8Array>({
     async start(stream) {
+      let open = true;
+      let timer: ReturnType<typeof setTimeout> | undefined;
+      const arm = (): void => {
+        timer = setTimeout(() => {
+          if (!open) return;
+          stream.enqueue(encoder.encode(HEARTBEAT));
+          arm();
+        }, heartbeatMs);
+      };
+
+      arm();
       try {
-        for await (const event of deps.draftAssistant.assist(ctx, controller.signal)) {
+        for await (const event of events) {
+          clearTimeout(timer);
           stream.enqueue(frame(event));
+          arm();
         }
       } catch (error) {
-        deps.logger.error("draft assist stream failed", {
-          reason: error instanceof Error ? error.name : "unknown",
-        });
+        onError(error);
         stream.enqueue(
           frame({
             type: "error",
@@ -188,10 +217,32 @@ function assistStream(
           }),
         );
       } finally {
+        open = false;
+        clearTimeout(timer);
         stream.close();
       }
     },
     cancel() {
+      onCancel();
+    },
+  });
+}
+
+/** The route's own relay: the configured assistant, aborted when the client goes away. */
+function assistStream(
+  deps: Deps,
+  ctx: AssistContext,
+  controller: AbortController,
+): ReadableStream<Uint8Array> {
+  return assistSseStream({
+    events: deps.draftAssistant.assist(ctx, controller.signal),
+    heartbeatMs: ASSIST_HEARTBEAT_MS,
+    onError: (error) => {
+      deps.logger.error("draft assist stream failed", {
+        reason: error instanceof Error ? error.name : "unknown",
+      });
+    },
+    onCancel: () => {
       controller.abort();
     },
   });

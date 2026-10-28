@@ -1,3 +1,4 @@
+import AxeBuilder from "@axe-core/playwright";
 import type { Page } from "@playwright/test";
 
 import { expect, test } from "../../portal/e2e/support/gates.js";
@@ -81,10 +82,14 @@ async function publishQuestion(page: Page, slug: string, typeLabel: string): Pro
   await confirmLifecycle(page, /^Publish version 1$/, "Publish");
 }
 
+/** The composer: a multi-line text area since task 080, not a single-line input. */
+function composer(page: Page) {
+  return page.getByTestId("qcms-assist-input").locator("textarea");
+}
+
 /** Type a turn into the panel and send it. */
 async function send(page: Page, message: string): Promise<void> {
-  const input = page.getByTestId("qcms-assist-input").locator("input");
-  await fillStable(input, message);
+  await fillStable(composer(page), message);
   await page.getByTestId("qcms-assist-send").locator("button").click();
 }
 
@@ -268,13 +273,13 @@ test("header tooltips stay open across the gap and close on Escape from anywhere
   await expect(tip).toBeHidden();
 
   // Dismissible from anywhere: focus in the composer, the tooltip opened by hover alone.
-  const composer = page.getByTestId("qcms-assist-input").locator("input");
-  await composer.focus();
+  const field = composer(page);
+  await field.focus();
   await page.mouse.move(x, button.y + button.height / 2);
   await expect(tip).toBeVisible();
   await page.keyboard.press("Escape");
   await expect(tip).toBeHidden();
-  await expect(composer).toBeFocused();
+  await expect(field).toBeFocused();
 
   // And from the focused button itself, where focus stays too.
   await page.mouse.move(x, tipBox.y + tipBox.height + 120);
@@ -283,6 +288,169 @@ test("header tooltips stay open across the gap and close on Escape from anywhere
   await page.keyboard.press("Escape");
   await expect(tip).toBeHidden();
   await expect(toggle).toBeFocused();
+});
+
+/**
+ * A turn is visibly alive from its first second (080 exit criterion 1).
+ *
+ * The claim is an ORDER IN TIME, and only a browser can see it: prose and a
+ * step row in the running state have to be on screen **before** the first tool
+ * result exists. `narrate-then-tools` is the one script that produces that
+ * window, because it streams a call's input phase before the parsed call, and
+ * `handlePart` announces the row off the first of those parts. Every other
+ * script's row appears and settles in the same instant, so no other script can
+ * fail this test.
+ */
+test("streams prose and a running step before the first tool result (exit criterion 1)", async ({
+  page,
+}) => {
+  test.setTimeout(180_000);
+  await signInWithTotp(page, EMAIL, totpSecret);
+  await page.goto(`/forms/${formId}`);
+  await expect(page.getByTestId("qcms-assist-panel")).toBeVisible({ timeout: 30_000 });
+
+  await send(page, `#qcms-fake:narrate-then-tools #qcms-fake-search:${NEEDLE} add a step`);
+
+  // The narration, while the model is still streaming the search call's input.
+  const live = page.getByTestId("qcms-assist-live");
+  await expect(live).toContainText("question library", { timeout: 30_000 });
+  // ...and the row for that call, running rather than settled.
+  await expect(
+    page.getByTestId("qcms-assist-steps").locator("li[data-state='running']"),
+  ).toHaveCount(1, { timeout: 30_000 });
+  // Nothing has finished yet, which is what makes the two assertions above a
+  // statement about the first second of a turn rather than about its end.
+  await expect(page.getByTestId("qcms-assist-steps").locator("li[data-state='done']")).toHaveCount(
+    0,
+  );
+
+  // The header mark carries the working state while the live region says so.
+  const mark = page.getByTestId("qcms-assist-mark").first();
+  await expect(mark).toHaveAttribute("data-working", "true");
+
+  // Then the turn completes: two steps done, and three prose segments, the last
+  // of which is the rationale the card refers to.
+  await expect(page.getByTestId("qcms-assist-proposal")).toBeVisible({ timeout: 60_000 });
+  await expect(page.getByTestId("qcms-assist-steps").locator("li[data-state='done']")).toHaveCount(
+    2,
+  );
+  await expect(mark).not.toHaveAttribute("data-working", "true");
+
+  // The panel's accessible name is the mark's, with no visible title word
+  // (exit criterion 9, issue #1129).
+  await expect(page.getByTestId("qcms-assist-panel")).toHaveAccessibleName("Assistant");
+
+  // axe over the finished turn: the mark, the bubbles, the timeline and the card.
+  const results = await new AxeBuilder({ page })
+    .include('[data-testid="qcms-assist-panel"]')
+    .withTags(["wcag2a", "wcag2aa", "wcag21a", "wcag21aa", "wcag22aa"])
+    .analyze();
+  expect(
+    results.violations.map(
+      (v) => `${v.id}: ${v.nodes.map((node) => node.target.join(" ")).join(" | ")}`,
+    ),
+    "axe violations on a streamed assistant turn",
+  ).toEqual([]);
+});
+
+/** Stop ends a turn, and the author's own stop is not an error (exit criterion 5). */
+test("Stop ends a running turn with no error shown (exit criterion 5)", async ({ page }) => {
+  test.setTimeout(180_000);
+  await signInWithTotp(page, EMAIL, totpSecret);
+  await page.goto(`/forms/${formId}`);
+  await expect(page.getByTestId("qcms-assist-panel")).toBeVisible({ timeout: 30_000 });
+
+  // The step-limit script never proposes and always asks for one more call, so
+  // there is a turn to stop for as long as the test needs one.
+  await send(page, "#qcms-fake:step-limit keep going");
+
+  const stop = page.getByTestId("qcms-assist-stop").locator("button");
+  await expect(stop).toBeVisible({ timeout: 30_000 });
+  await stop.click();
+
+  await expect(page.getByTestId("qcms-assist-stop")).toHaveCount(0, { timeout: 30_000 });
+  await expect(page.getByTestId("qcms-assist-live")).toHaveCount(0);
+  await expect(page.getByTestId("qcms-assist-error")).toHaveCount(0);
+  // Send is available again: the panel is ready for the next turn.
+  await expect(composer(page)).toBeEnabled();
+});
+
+/**
+ * Enter sends and Shift+Enter does not (exit criterion 5), in a real browser.
+ *
+ * jsdom reports the keydown but cannot show that the textarea then grew a line,
+ * which is the half of Shift+Enter that matters to an author.
+ */
+test("Enter sends and Shift+Enter adds a line (exit criterion 5)", async ({ page }) => {
+  test.setTimeout(120_000);
+  await signInWithTotp(page, EMAIL, totpSecret);
+  await page.goto(`/forms/${formId}`);
+  await expect(page.getByTestId("qcms-assist-panel")).toBeVisible({ timeout: 30_000 });
+
+  const field = composer(page);
+  await field.click();
+  await page.keyboard.insertText("first");
+  await page.keyboard.press("Shift+Enter");
+  await page.keyboard.insertText("second");
+  await expect(field).toHaveValue("first\nsecond");
+
+  await page.keyboard.press("Enter");
+  // The composer empties because the turn was sent, and the turn is on screen.
+  await expect(field).toHaveValue("");
+  await expect(page.getByTestId("qcms-assist-conversation")).toContainText("first", {
+    timeout: 30_000,
+  });
+});
+
+/**
+ * Reduced motion (exit criterion 8, section 4.6).
+ *
+ * Read off the computed style rather than off a screenshot: what the criterion
+ * asks is that no animation RUNS, and a paused frame of a blinking caret looks
+ * identical to a static bar.
+ */
+test("runs no animation under reduced motion (exit criterion 8)", async ({ page }) => {
+  test.setTimeout(180_000);
+  await page.emulateMedia({ reducedMotion: "reduce" });
+  await signInWithTotp(page, EMAIL, totpSecret);
+  await page.goto(`/forms/${formId}`);
+  await expect(page.getByTestId("qcms-assist-panel")).toBeVisible({ timeout: 30_000 });
+
+  await send(page, "#qcms-fake:step-limit keep going");
+  await expect(page.getByTestId("qcms-assist-live")).toBeVisible({ timeout: 30_000 });
+
+  const animated = await page.evaluate(() => {
+    const names: string[] = [];
+    for (const selector of [
+      ".qcms-assist-caret",
+      ".qcms-assist-steps__pulse",
+      '.qcms-assist-mark[data-working="true"] .qcms-assist-mark__light',
+    ]) {
+      for (const element of document.querySelectorAll(selector)) {
+        const style = getComputedStyle(element);
+        if (style.animationName !== "none" && style.animationName !== "") {
+          names.push(`${selector}: ${style.animationName}`);
+        }
+      }
+    }
+    return names;
+  });
+  expect(animated, "animations still running under prefers-reduced-motion: reduce").toEqual([]);
+
+  // The working state is still visible, because the visor's glow is a static
+  // filter rather than an animation: reduced motion removes the movement, never
+  // the signal.
+  const mark = page.getByTestId("qcms-assist-mark").first();
+  await expect(mark).toHaveAttribute("data-working", "true");
+
+  const results = await new AxeBuilder({ page })
+    .include('[data-testid="qcms-assist-panel"]')
+    .withTags(["wcag2a", "wcag2aa", "wcag21a", "wcag21aa", "wcag22aa"])
+    .analyze();
+  expect(
+    results.violations.map((v) => v.id),
+    "axe violations on a streaming turn under reduced motion",
+  ).toEqual([]);
 });
 
 /**

@@ -1,8 +1,8 @@
 "use client";
 
-import { useEffect, useRef, useState, type ReactNode } from "react";
+import { useEffect, useRef, useState, type ReactNode, type RefObject } from "react";
 
-import { Alert, Button, Card, TextField } from "@/components/kit";
+import { Alert, Button, Card } from "@/components/kit";
 import {
   acceptedDraft,
   isPendingNewQuestionPin,
@@ -32,6 +32,7 @@ import type { DraftForm, FormIssue } from "@/lib/forms/types";
 import { t, tPlural, type MessageKey } from "@/lib/i18n/en";
 
 import { AssistIconButton } from "./assist-icon-button";
+import { AssistMark } from "./assist-mark";
 import { AssistMarkdown } from "./assist-markdown";
 import { IssueEntry } from "./validation-panel";
 
@@ -109,10 +110,16 @@ export function AssistPanel({
   const [live, setLive] = useState<AssistantTurnView | undefined>(undefined);
   const [proposal, setProposal] = useState<ProposalState | undefined>(undefined);
   const [panelError, setPanelError] = useState<AssistPanelError | undefined>(undefined);
-  const [focusToken, setFocusToken] = useState(0);
+  /** Bumped whenever a card's outcome line should take focus; see the effect below. */
+  const [resultToken, setResultToken] = useState(0);
 
+  const panelRef = useRef<HTMLElement>(null);
   const headingRef = useRef<HTMLHeadingElement>(null);
+  const composerRef = useRef<HTMLTextAreaElement>(null);
+  const resultRef = useRef<HTMLLIElement>(null);
   const abortRef = useRef<AbortController | null>(null);
+  /** Set by Stop, so the abort it causes is not reported as a provider failure. */
+  const stoppedRef = useRef(false);
   const working = live !== undefined;
 
   useEffect(() => {
@@ -129,9 +136,26 @@ export function AssistPanel({
     };
   }, []);
 
+  /**
+   * A card arriving moves focus to its heading **only when focus was already
+   * inside the panel** (section 4.4).
+   *
+   * It used to move unconditionally, which is the behaviour the plan names as
+   * the one that would yank a docked user out of the page the moment phase C
+   * mounts this panel beside every screen: an author typing a step title would
+   * lose their caret because a turn they started a minute ago finished. Someone
+   * who is in the panel, on the other hand, is waiting for exactly this.
+   */
   useEffect(() => {
-    if (proposal !== undefined) headingRef.current?.focus();
+    if (proposal === undefined) return;
+    const panel = panelRef.current;
+    if (panel !== null && panel.contains(document.activeElement)) headingRef.current?.focus();
   }, [proposal]);
+
+  /** After Accept or Discard, focus lands on the outcome line that stays in the record. */
+  useEffect(() => {
+    if (resultToken > 0) resultRef.current?.focus();
+  }, [resultToken]);
 
   function toggleCollapsed() {
     setCollapsed((current) => {
@@ -141,6 +165,9 @@ export function AssistPanel({
       } catch {
         // Persisting is a nicety; the toggle still works for this visit.
       }
+      // Opening the panel moves focus to the composer (section 4.4). Closing it
+      // moves nothing: the top-bar button it would return to is 082's.
+      if (!next) requestAnimationFrame(() => composerRef.current?.focus());
       return next;
     });
   }
@@ -151,7 +178,21 @@ export function AssistPanel({
     setProposal(undefined);
     setPanelError(undefined);
     setInputValue("");
-    setFocusToken((token) => token + 1);
+    composerRef.current?.focus();
+  }
+
+  /**
+   * Stop (section 4.3).
+   *
+   * Aborting the browser request is the whole mechanism: it cancels the SSE
+   * body, the API's relay runs its cancel hook, and the hook aborts the signal
+   * the provider call is running under. There is no second "stop" request, so
+   * nothing can be stopped on screen while still billing upstream.
+   */
+  function stop() {
+    if (!working) return;
+    stoppedRef.current = true;
+    abortRef.current?.abort();
   }
 
   async function send() {
@@ -167,6 +208,7 @@ export function AssistPanel({
 
     const controller = new AbortController();
     abortRef.current = controller;
+    stoppedRef.current = false;
 
     let response: Response;
     try {
@@ -181,7 +223,8 @@ export function AssistPanel({
       });
     } catch {
       setLive(undefined);
-      setPanelError({ kind: "PROVIDER_ERROR" });
+      // Stop aborts this same fetch, and a turn the author ended is not a failure.
+      if (!stoppedRef.current) setPanelError({ kind: "PROVIDER_ERROR" });
       return;
     }
 
@@ -212,7 +255,7 @@ export function AssistPanel({
         setLive(view);
       }
     } catch {
-      setPanelError((current) => current ?? { kind: "PROVIDER_ERROR" });
+      if (!stoppedRef.current) setPanelError((current) => current ?? { kind: "PROVIDER_ERROR" });
     } finally {
       const finished = finishTurn(view);
       setLive(undefined);
@@ -222,16 +265,29 @@ export function AssistPanel({
     }
   }
 
+  /**
+   * Record a card's outcome in the conversation and move focus to it.
+   *
+   * The line stays in the record rather than vanishing with the card, which is
+   * what makes it a focus target at all: a reader who presses Accept needs to
+   * land somewhere that says what happened, and "somewhere" cannot be a node
+   * that is about to unmount.
+   */
+  function recordOutcome(outcome: ResultOutcome) {
+    setTurns((current) => [...current, { role: "result", outcome }]);
+    setProposal(undefined);
+    setResultToken((token) => token + 1);
+  }
+
   function accept() {
     if (proposal === undefined) return;
     onAccept(acceptedDraft(draft, proposal.proposal.proposedDraft), proposal.proposal.newQuestions);
-    setProposal(undefined);
-    setFocusToken((token) => token + 1);
+    recordOutcome("accepted");
   }
 
   function discard() {
-    setProposal(undefined);
-    setFocusToken((token) => token + 1);
+    if (proposal === undefined) return;
+    recordOutcome("discarded");
   }
 
   const statusText = computeStatusText(live, proposal);
@@ -239,14 +295,17 @@ export function AssistPanel({
 
   return (
     <aside
+      ref={panelRef}
       aria-labelledby="qcms-assist-heading"
       data-testid="qcms-assist-panel"
       className="qcms-assist"
     >
       <div className="qcms-assist__header">
-        <h2 id="qcms-assist-heading" className="qcms-assist__title">
-          {t("forms.assist.title")}
-        </h2>
+        {/* The mark in place of the title word (issue #1129). It carries the name
+            itself, and the panel's `aria-labelledby` points at it, so the landmark
+            is still called "Assistant" with no visible heading text. Its working
+            state is the same `working` the live region below reports. */}
+        <AssistMark id="qcms-assist-heading" size={24} working={working} />
         <div className="qcms-assist__actions">
           {!collapsed && (
             <AssistIconButton
@@ -298,7 +357,11 @@ export function AssistPanel({
               className="qcms-assist-chat"
             >
               {turns.map((turn, index) => (
-                <TurnBubble key={`${turn.role}:${String(index)}`} turn={turn} />
+                <TurnBubble
+                  key={`${turn.role}:${String(index)}`}
+                  turn={turn}
+                  resultRef={index === turns.length - 1 ? resultRef : undefined}
+                />
               ))}
               {live !== undefined && <TurnBubble turn={{ role: "assistant", view: live }} live />}
             </ol>
@@ -425,28 +488,56 @@ export function AssistPanel({
             </section>
           )}
 
-          <div className="flex flex-wrap items-end gap-2">
-            <div data-testid="qcms-assist-input" className="min-w-0 flex-1">
-              <TextField
-                key={focusToken}
-                label={t("forms.assist.inputLabel")}
+          {/* The composer (section 4.3). A multi-line text area rather than the
+              kit's single-line `TextField`: a form description is several
+              sentences, and Enter has to send while Shift+Enter adds a line, which
+              a single-line input cannot express. It is never disabled while a turn
+              runs - the author can type the next request, and disabling it would
+              take focus away mid-sentence - only Send is. */}
+          <div className="qcms-assist-composer">
+            <label className="qcms-assist-composer__label" htmlFor={COMPOSER_ID}>
+              {t("forms.assist.inputLabel")}
+            </label>
+            <div data-testid="qcms-assist-input">
+              <textarea
+                id={COMPOSER_ID}
+                ref={composerRef}
+                className="qcms-assist-composer__input"
+                rows={3}
                 value={inputValue}
-                onChange={setInputValue}
-                isDisabled={working}
-                autoFocus={focusToken > 0}
-              />
-            </div>
-            <div data-testid="qcms-assist-send">
-              <Button
-                variant="primary"
-                size="md"
-                isDisabled={working || inputValue.trim() === ""}
-                onPress={() => {
+                onChange={(event) => {
+                  setInputValue(event.target.value);
+                }}
+                onKeyDown={(event) => {
+                  if (event.key !== "Enter" || event.shiftKey) return;
+                  // A composition in progress (an IME candidate list) owns Enter.
+                  if (event.nativeEvent.isComposing) return;
+                  event.preventDefault();
                   void send();
                 }}
-              >
-                {t("forms.assist.send")}
-              </Button>
+              />
+            </div>
+            <p className="qcms-assist-composer__hint">{t("forms.assist.composerHint")}</p>
+            <div className="qcms-assist-composer__actions">
+              {working ? (
+                <div data-testid="qcms-assist-stop">
+                  <Button variant="secondary" size="md" onPress={stop}>
+                    {t("forms.assist.stop")}
+                  </Button>
+                </div>
+              ) : undefined}
+              <div data-testid="qcms-assist-send">
+                <Button
+                  variant="primary"
+                  size="md"
+                  isDisabled={working || inputValue.trim() === ""}
+                  onPress={() => {
+                    void send();
+                  }}
+                >
+                  {t("forms.assist.send")}
+                </Button>
+              </div>
             </div>
           </div>
         </div>
@@ -457,20 +548,33 @@ export function AssistPanel({
 
 const COLLAPSE_STORAGE_KEY = "qcms-assist-collapsed";
 const BODY_ID = "qcms-assist-body";
+const COMPOSER_ID = "qcms-assist-composer";
+
+/** What a card's outcome line says. 083 adds the kinds a run can end in. */
+type ResultOutcome = "accepted" | "discarded";
+
+const RESULT_LABELS: Readonly<Record<ResultOutcome, MessageKey>> = {
+  accepted: "forms.assist.resultAccepted",
+  discarded: "forms.assist.resultDiscarded",
+};
 
 /** One turn as the panel shows it. The assistant's is a timeline, not a string. */
 type DisplayTurn =
   | { readonly role: "user"; readonly content: string }
-  | { readonly role: "assistant"; readonly view: AssistantTurnView };
+  | { readonly role: "assistant"; readonly view: AssistantTurnView }
+  | { readonly role: "result"; readonly outcome: ResultOutcome };
 
 /**
  * The history the API is sent: each turn's prose, exactly as before the timeline
  * existed. An assistant turn that said nothing (only steps, or an error) is left out,
- * as it always was.
+ * as it always was, and a card's outcome line is the panel's own record rather than
+ * something the model is told - telling it is 083's `action-result` turn, under a
+ * closed schema the request shape does not carry yet.
  */
 function toConversation(turns: readonly DisplayTurn[]): readonly AssistTurn[] {
   return turns.flatMap((turn): AssistTurn[] => {
     if (turn.role === "user") return [turn];
+    if (turn.role === "result") return [];
     const content = turnText(turn.view);
     return content === "" ? [] : [{ role: "assistant", content }];
   });
@@ -485,15 +589,31 @@ function toConversation(turns: readonly DisplayTurn[]): readonly AssistTurn[] {
 function TurnBubble({
   turn,
   live = false,
+  resultRef,
 }: {
   readonly turn: DisplayTurn;
   readonly live?: boolean;
+  /** Set on the last turn, so a freshly recorded outcome line can take focus. */
+  readonly resultRef?: RefObject<HTMLLIElement | null> | undefined;
 }) {
   if (turn.role === "user") {
     return (
       <li className="qcms-assist-bubble qcms-assist-bubble--user" data-role="user">
         <span className="qcms-visually-hidden">{t("forms.assist.turnYou")}: </span>
         <span className="whitespace-pre-wrap">{turn.content}</span>
+      </li>
+    );
+  }
+  if (turn.role === "result") {
+    return (
+      <li
+        ref={resultRef}
+        tabIndex={-1}
+        className="qcms-assist-bubble qcms-assist-result"
+        data-role="result"
+        data-testid="qcms-assist-result"
+      >
+        {t(RESULT_LABELS[turn.outcome])}
       </li>
     );
   }
@@ -507,20 +627,24 @@ function TurnBubble({
       aria-busy={live ? true : undefined}
       data-testid={live ? "qcms-assist-live" : undefined}
     >
-      <span className="qcms-visually-hidden">{t("forms.assist.turnAssistant")}: </span>
-      {segments.map((segment, index) => (
-        <Segment
-          key={`${segment.kind}:${String(index)}`}
-          segment={segment}
-          trailing={index === segments.length - 1 && lastIsText ? caret : undefined}
-        />
-      ))}
-      {live && !lastIsText && (
-        <p className="text-sm text-(--color-text-muted)">
-          {segments.length === 0 && t("forms.assist.working")}
-          {caret}
-        </p>
-      )}
+      {/* The mark as the avatar, in place of the word (issue #1129). It carries the
+          name itself, which is why there is no visually hidden "Assistant:" here. */}
+      <AssistMark size={20} />
+      <div className="qcms-assist-bubble__body">
+        {segments.map((segment, index) => (
+          <Segment
+            key={`${segment.kind}:${String(index)}`}
+            segment={segment}
+            trailing={index === segments.length - 1 && lastIsText ? caret : undefined}
+          />
+        ))}
+        {live && !lastIsText && (
+          <p className="text-sm text-(--color-text-muted)">
+            {segments.length === 0 && t("forms.assist.working")}
+            {caret}
+          </p>
+        )}
+      </div>
     </li>
   );
 }

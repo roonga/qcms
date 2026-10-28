@@ -34,7 +34,12 @@ export interface TurnStep {
 }
 
 export type TurnSegment =
-  | { readonly kind: "text"; readonly text: string }
+  /**
+   * One prose segment. `id` is the API's text-segment id: a delta joins this
+   * segment only when it carries the same id, so two sentences either side of a
+   * tool step are two bubbles in arrival order rather than one block of text.
+   */
+  | { readonly kind: "text"; readonly id: string | undefined; readonly text: string }
   | { readonly kind: "steps"; readonly steps: readonly TurnStep[] };
 
 export interface AssistantTurnView {
@@ -75,13 +80,19 @@ function mapSteps(
   return changed ? { segments } : turn;
 }
 
-function appendText(turn: AssistantTurnView, delta: string): AssistantTurnView {
+function appendText(
+  turn: AssistantTurnView,
+  delta: string,
+  id: string | undefined,
+): AssistantTurnView {
   if (delta === "") return turn;
   const last = turn.segments.at(-1);
-  if (last?.kind === "text") {
-    return { segments: [...turn.segments.slice(0, -1), { kind: "text", text: last.text + delta }] };
+  if (last?.kind === "text" && last.id === id) {
+    return {
+      segments: [...turn.segments.slice(0, -1), { kind: "text", id, text: last.text + delta }],
+    };
   }
-  return { segments: [...turn.segments, { kind: "text", text: delta }] };
+  return { segments: [...turn.segments, { kind: "text", id, text: delta }] };
 }
 
 function appendStep(turn: AssistantTurnView, step: TurnStep): AssistantTurnView {
@@ -98,7 +109,7 @@ function appendStep(turn: AssistantTurnView, step: TurnStep): AssistantTurnView 
 export function applyTurnEvent(turn: AssistantTurnView, event: AssistEvent): AssistantTurnView {
   switch (event.type) {
     case "text":
-      return appendText(turn, event.delta);
+      return appendText(turn, event.delta, event.segment);
     case "status":
       return event.phase === "tool"
         ? appendStep(turn, { label: toolStepLabel(event.tool), state: "running", step: event.step })

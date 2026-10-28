@@ -10,8 +10,10 @@ import {
  * Assistant prose, rendered from the safe Markdown subset in `lib/forms/assist-markdown.ts`.
  *
  * Every string reaches React as a text child and nothing here sets HTML, so the parse is
- * the whole of what can appear: no anchors, no images, no raw markup. `trailing` is placed
- * at the end of the last block, which is where the streaming caret belongs.
+ * the whole of what can appear: no images, no raw markup, and an anchor only where the
+ * parse produced a `link` node, which it does only for an admin page route with no query
+ * string and no fragment. `trailing` is placed at the end of the last block, which is
+ * where the streaming caret belongs.
  */
 export function AssistMarkdown({
   text,
@@ -97,6 +99,14 @@ function Inlines({ nodes }: { readonly nodes: readonly MarkdownInline[] }) {
               <em key={index}>
                 <Inlines nodes={node.children} />
               </em>
+            );
+          case "link":
+            // `href` is a same-origin admin page path that passed the closed
+            // route list in `assist-markdown.ts`; nothing else reaches here.
+            return (
+              <a key={index} href={node.href}>
+                <Inlines nodes={node.children} />
+              </a>
             );
         }
       })}

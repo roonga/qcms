@@ -167,8 +167,15 @@ export type AssistEvent =
    * No error text travels: it is assembled from model-supplied input (SEC-8).
    */
   | { readonly type: "tool-outcome"; readonly step: number; readonly outcome: "done" | "failed" }
-  /** A chunk of the assistant's prose (the rationale, streamed). */
-  | { readonly type: "text"; readonly delta: string }
+  /**
+   * A chunk of the assistant's prose.
+   *
+   * `segment` is the provider's own text-segment id, carried so prose segments
+   * interleave with timeline rows in arrival order instead of folding into one
+   * block (streaming improvement 3). The draft card's `rationale` is the last
+   * segment rather than every delta joined.
+   */
+  | { readonly type: "text"; readonly delta: string; readonly segment?: string }
   /** A tool call outside the allowlist was refused server-side (041 security control). */
   | { readonly type: "tool-rejected"; readonly tool: string }
   /** The completed, server-validated proposal. Terminal. */

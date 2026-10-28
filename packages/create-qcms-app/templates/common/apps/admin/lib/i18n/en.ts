@@ -1858,17 +1858,28 @@ export const messages = {
   // draft; never publishes" (there is no publish/erase/link/webhook affordance here
   // at all, by construction), and every diff line is worded so `+`/`~` is never the
   // only signal - the marker travels in the sentence itself.
-  "forms.assist.title": "Assistant",
+  // The `agent.*` namespace (ADR-27), which 082 fills for every screen. `agent.title`
+  // is the assistant's name, and since issue #1129 it is carried by the mark rather
+  // than printed: the panel's `aria-labelledby` points at the mark, whose `aria-label`
+  // is this string, so the landmark is still called "Assistant" with no heading text.
+  "agent.title": "Assistant",
   "forms.assist.collapse": "Collapse the assistant panel",
   "forms.assist.expand": "Expand the assistant panel",
   "forms.assist.emptyHint": "Describe the form you want.",
   "forms.assist.conversationLabel": "Conversation with the assistant",
   "forms.assist.turnYou": "You",
-  "forms.assist.turnAssistant": "Assistant",
   "forms.assist.inputLabel": "Describe the next change",
+  // The composer is multi-line, so Enter cannot mean "a new line" and still send.
+  // The hint says which key does what, because neither is discoverable.
+  "forms.assist.composerHint": "Enter sends. Shift and Enter start a new line.",
   "forms.assist.send": "Send",
+  "forms.assist.stop": "Stop",
   "forms.assist.newConversation": "Start a new conversation",
   "forms.assist.working": "The assistant is working.",
+  // A card's outcome stays in the conversation as a record, and is where focus
+  // lands after Accept or Discard (`plan/agent-everywhere.md` section 4.4).
+  "forms.assist.resultAccepted": "Accepted into the draft.",
+  "forms.assist.resultDiscarded": "Discarded.",
   // The step timeline. Each tool is named by what it does for the author, never by its
   // identifier; `step.other` covers a name this build does not know.
   "forms.assist.stepsLabel": "Steps the assistant took",

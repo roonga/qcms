@@ -56,11 +56,18 @@ describe("the assist SSE relay's keep-alive", () => {
   });
 
   it("carries nothing a client could read as an event", async () => {
-    async function* slow(): AsyncGenerator<AssistEvent> {
-      await sleep(60);
-    }
+    // A turn that says nothing at all and then ends: the whole body is whatever
+    // the keep-alive wrote.
+    const silent: AsyncIterable<AssistEvent> = {
+      [Symbol.asyncIterator]: () => ({
+        next: async () => {
+          await sleep(60);
+          return { done: true, value: undefined };
+        },
+      }),
+    };
 
-    const text = await body(relay(slow(), 20));
+    const text = await body(relay(silent, 20));
     // The whole body is comments: no `data:` line exists, which is what makes
     // the admin parser yield nothing for it (`assist-stream.test.ts`).
     expect(text).not.toContain("data:");
@@ -69,6 +76,7 @@ describe("the assist SSE relay's keep-alive", () => {
 
   it("stops the timer when the turn ends, so nothing is written after close", async () => {
     async function* quick(): AsyncGenerator<AssistEvent> {
+      await Promise.resolve();
       yield { type: "usage", inputTokens: 1, outputTokens: 2, steps: 1 };
     }
 

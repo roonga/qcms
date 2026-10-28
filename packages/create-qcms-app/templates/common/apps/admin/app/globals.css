@@ -4044,10 +4044,38 @@ div:has(> [role="dialog"] [data-qcms-dialog="wide"]) {
   gap: 0.5rem;
   min-block-size: 2rem;
 }
-.qcms-assist__title {
-  font-size: 1rem;
-  font-weight: 600;
-  color: var(--color-text);
+/* The assistant's mark (issue #1129): the Q bubble, the visor, and two lights, all on
+   the theme's primary pair so the mark follows every appearance mode. */
+.qcms-assist-mark {
+  flex-shrink: 0;
+  display: block;
+}
+.qcms-assist-mark__bubble,
+.qcms-assist-mark__light {
+  fill: var(--color-primary);
+}
+.qcms-assist-mark__visor {
+  fill: var(--color-primary-foreground);
+}
+/* The working state. A static glow first, so it is present under reduced motion and
+   in any mode that stops animations; the pulse is added on top of it below. */
+.qcms-assist-mark[data-working="true"] .qcms-assist-mark__visor {
+  filter: drop-shadow(0 0 1.2px var(--color-primary-foreground));
+}
+.qcms-assist-mark[data-working="true"] .qcms-assist-mark__light {
+  animation: qcms-assist-scan 1.4s ease-in-out infinite;
+}
+.qcms-assist-mark[data-working="true"] .qcms-assist-mark__light + .qcms-assist-mark__light {
+  animation-delay: 0.7s;
+}
+@keyframes qcms-assist-scan {
+  0%,
+  100% {
+    opacity: 0.35;
+  }
+  50% {
+    opacity: 1;
+  }
 }
 .qcms-assist__actions {
   display: flex;
@@ -4137,10 +4165,64 @@ div:has(> [role="dialog"] [data-qcms-dialog="wide"]) {
   border-radius: var(--radius-md);
   background-color: var(--color-background-muted);
 }
+/* The assistant turn is the mark in a leading column and the segment column beside it,
+   which is why the segments live in their own wrapper rather than as siblings. */
 .qcms-assist-bubble--assistant {
   align-self: stretch;
-  padding-inline-start: 0.75rem;
-  border-inline-start: 2px solid var(--color-border-strong);
+  flex-direction: row;
+  align-items: flex-start;
+  gap: 0.5rem;
+}
+.qcms-assist-bubble__body {
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+  min-inline-size: 0;
+  flex: 1;
+}
+/* A card's outcome, kept in the conversation as the record focus lands on. */
+.qcms-assist-result {
+  align-self: stretch;
+  font-weight: 600;
+  color: var(--color-text);
+}
+
+/* The composer: a multi-line area, its hint, and Send with Stop beside it. */
+.qcms-assist-composer {
+  display: flex;
+  flex-direction: column;
+  gap: 0.25rem;
+}
+.qcms-assist-composer__label {
+  font-size: 0.8125rem;
+  font-weight: 600;
+  color: var(--color-text);
+}
+.qcms-assist-composer__input {
+  inline-size: 100%;
+  padding: 0.5rem 0.625rem;
+  border: 1px solid var(--color-border-strong);
+  border-radius: var(--radius-md);
+  background-color: var(--color-background);
+  color: var(--color-text);
+  font: inherit;
+  font-size: 0.875rem;
+  line-height: 1.4;
+  resize: vertical;
+}
+.qcms-assist-composer__input:focus-visible {
+  outline: 2px solid var(--color-focus-ring);
+  outline-offset: 1px;
+}
+.qcms-assist-composer__hint {
+  font-size: 0.75rem;
+  color: var(--color-text-muted);
+}
+.qcms-assist-composer__actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.5rem;
+  padding-block-start: 0.25rem;
 }
 
 .qcms-assist-md {
@@ -4256,9 +4338,14 @@ div:has(> [role="dialog"] [data-qcms-dialog="wide"]) {
   border-block-start: 1px solid var(--color-border);
 }
 
+/* Reduced motion (section 4.6). The caret becomes a static bar, the running step's dot
+   stops pulsing, and the mark's lights stop scanning while the visor keeps the static
+   glow the `[data-working]` rule above sets: the state is still visible, and the live
+   region says it in words either way, so nothing is lost by stopping the animation. */
 @media (prefers-reduced-motion: reduce) {
   .qcms-assist-caret,
-  .qcms-assist-steps__pulse {
+  .qcms-assist-steps__pulse,
+  .qcms-assist-mark[data-working="true"] .qcms-assist-mark__light {
     animation: none;
   }
 }

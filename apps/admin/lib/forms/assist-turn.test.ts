@@ -159,3 +159,52 @@ describe("the assistant turn timeline", () => {
     expect(turn).toEqual(EMPTY_TURN);
   });
 });
+
+/** Text segments (080 exit criterion 3, streaming improvement 3). */
+describe("the segment column", () => {
+  function shape(turn: AssistantTurnView): string[] {
+    return turn.segments.map((segment) =>
+      segment.kind === "text" ? `text:${segment.id ?? "?"}:${segment.text}` : "steps",
+    );
+  }
+
+  it("joins deltas that share a segment id and splits where it changes", () => {
+    const turn = fold([
+      { type: "text", delta: "Look", segment: "t0" },
+      { type: "text", delta: "ing up", segment: "t0" },
+      { type: "status", phase: "tool", tool: "search_question_library", step: 1 },
+      { type: "tool-outcome", step: 1, outcome: "done" },
+      { type: "text", delta: "Found it", segment: "t1" },
+    ]);
+    expect(shape(turn)).toEqual(["text:t0:Looking up", "steps", "text:t1:Found it"]);
+  });
+
+  it("starts a new segment when a provider reuses an id after a step", () => {
+    // A provider is not obliged to mint a fresh id per step, and two things said
+    // either side of a tool call are two things whatever the id says.
+    const turn = fold([
+      { type: "text", delta: "Searching", segment: "t0" },
+      { type: "status", phase: "tool", tool: "search_question_library", step: 1 },
+      { type: "text", delta: "Drafting", segment: "t0" },
+    ]);
+    expect(shape(turn)).toEqual(["text:t0:Searching", "steps", "text:t0:Drafting"]);
+  });
+
+  it("folds deltas with no id into one segment, as a stream without them always did", () => {
+    const turn = fold([
+      { type: "text", delta: "one " },
+      { type: "text", delta: "block" },
+    ]);
+    expect(shape(turn)).toEqual(["text:?:one block"]);
+    expect(turnText(turn)).toBe("one block");
+  });
+
+  it("keeps every segment in the history the API is sent", () => {
+    const turn = fold([
+      { type: "text", delta: "First. ", segment: "t0" },
+      { type: "status", phase: "tool", tool: "propose_draft", step: 1 },
+      { type: "text", delta: "Second.", segment: "t1" },
+    ]);
+    expect(turnText(turn)).toBe("First. Second.");
+  });
+});

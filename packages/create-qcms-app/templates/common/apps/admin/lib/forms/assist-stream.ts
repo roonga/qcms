@@ -70,7 +70,13 @@ export type AssistEvent =
       readonly step?: number;
     }
   | { readonly type: "tool-outcome"; readonly step: number; readonly outcome: "done" | "failed" }
-  | { readonly type: "text"; readonly delta: string }
+  /**
+   * A chunk of prose. `segment` is the provider's own text-segment id, which is
+   * what lets two things said either side of a tool step render as two bubbles
+   * instead of one (streaming improvement 3). Absent on a stream from an older
+   * API, where every delta folds into one segment as it used to.
+   */
+  | { readonly type: "text"; readonly delta: string; readonly segment?: string }
   | { readonly type: "tool-rejected"; readonly tool: string }
   | {
       readonly type: "usage";
@@ -157,7 +163,7 @@ function toAssistEvent(raw: unknown): AssistEvent | undefined {
     case "tool-outcome":
       return toToolOutcomeEvent(raw);
     case "text":
-      return typeof raw["delta"] === "string" ? { type: "text", delta: raw["delta"] } : undefined;
+      return toTextEvent(raw);
     case "tool-rejected":
       return typeof raw["tool"] === "string"
         ? { type: "tool-rejected", tool: raw["tool"] }
@@ -173,6 +179,13 @@ function toAssistEvent(raw: unknown): AssistEvent | undefined {
     default:
       return undefined;
   }
+}
+
+function toTextEvent(raw: Record<string, unknown>): AssistEvent | undefined {
+  const delta = raw["delta"];
+  if (typeof delta !== "string") return undefined;
+  const segment = raw["segment"];
+  return { type: "text", delta, ...(typeof segment === "string" ? { segment } : {}) };
 }
 
 function isStepOrdinal(value: unknown): value is number {

@@ -142,4 +142,41 @@ describe("readAssistEvents", () => {
     const events = await collect(body);
     expect(events).toEqual([{ type: "text", delta: "last one" }]);
   });
+
+  it("carries a text delta's segment id, and omits it when the API sent none", async () => {
+    const body = streamOf([
+      frame("text", { delta: "Looking", segment: "t0" }),
+      frame("text", { delta: "no id" }),
+      frame("text", { delta: "bad id", segment: 7 }),
+    ]);
+    const events = await collect(body);
+    expect(events).toEqual([
+      { type: "text", delta: "Looking", segment: "t0" },
+      { type: "text", delta: "no id" },
+      { type: "text", delta: "bad id" },
+    ]);
+  });
+
+  /**
+   * The keep-alive (080 exit criterion 4).
+   *
+   * The API writes `: keep-alive` through a silent stretch so an ingress idle
+   * timeout does not cut the turn. It has no `data:` line, so this parser
+   * already yields nothing for it - and this test is what keeps that true, since
+   * a future parser that learned to read bare `event:` lines would start
+   * emitting an event per heartbeat.
+   */
+  it("yields nothing for a keep-alive comment and keeps reading around it", async () => {
+    const body = streamOf([
+      frame("status", { phase: "thinking" }),
+      ": keep-alive\n\n",
+      ": keep-alive\n\n",
+      frame("text", { delta: "here at last" }),
+    ]);
+    const events = await collect(body);
+    expect(events).toEqual([
+      { type: "status", phase: "thinking" },
+      { type: "text", delta: "here at last" },
+    ]);
+  });
 });

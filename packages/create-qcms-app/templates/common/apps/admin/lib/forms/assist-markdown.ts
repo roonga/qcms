@@ -16,13 +16,27 @@
  *
  * ## What it refuses, and why it is safe by construction
  *
- * The output is a tree of strings and four inline kinds. Nothing here produces markup:
+ * The output is a tree of strings and five inline kinds. Nothing here produces markup:
  * the renderer hands every string to React as a text child, so raw HTML such as
  * `<script>` or `<img onerror>` is shown as the literal characters it is. An image
- * (`![alt](url)`) becomes its alt text and a link (`[text](url)`) becomes its text: no
- * URL survives the parse, so there is nothing for a browser to fetch or follow. That is
- * the control against the classic exfiltration channel, a Markdown image whose URL
- * carries data out without a click; the admin CSP is defence in depth behind it.
+ * (`![alt](url)`) always becomes its alt text and its URL is dropped, which is the
+ * control against the classic exfiltration channel: a URL the browser fetches with no
+ * click. The admin CSP is defence in depth behind it.
+ *
+ * ## Links, and the closed page-route list
+ *
+ * A link survives as a link in exactly one case (Code Owner, 2026-10-24, review finding
+ * B3): its target is a same-origin path that matches an admin **page** route on
+ * {@link ADMIN_PAGE_ROUTES}, with no query string and no fragment. Everything else -
+ * an external URL, a `javascript:` target, a protocol-relative path, a path carrying a
+ * query or a fragment, and any path not on the list - renders as the link's text, as it
+ * did before the rule existed.
+ *
+ * The list is **a closed list of route patterns, not a prefix test**, because the one
+ * target that must never become a link looks exactly like one that may: `/forms/frm_x`
+ * is a page and `/forms/frm_x/export` is the streaming download route handler, which
+ * only an export card may start (083, D4). A prefix test would let a link begin that
+ * download. Task 082 replaces this constant with its screen table and deletes it.
  *
  * Underscores only mark emphasis at a word boundary, so identifiers such as
  * `q_vehicle_make` are never italicised in the middle.
@@ -32,7 +46,73 @@ export type MarkdownInline =
   | { readonly kind: "text"; readonly text: string }
   | { readonly kind: "code"; readonly text: string }
   | { readonly kind: "strong"; readonly children: readonly MarkdownInline[] }
-  | { readonly kind: "em"; readonly children: readonly MarkdownInline[] };
+  | { readonly kind: "em"; readonly children: readonly MarkdownInline[] }
+  /** A link to an admin page route. `href` has already passed {@link adminPageHref}. */
+  | {
+      readonly kind: "link";
+      readonly href: string;
+      readonly children: readonly MarkdownInline[];
+    };
+
+/**
+ * Every admin **page** route under `apps/admin/app/(shell)/`, as it stood when
+ * this landed. A `[segment]` matches one path segment.
+ *
+ * Route handlers are deliberately absent, which is the point of the list:
+ * `forms/[formId]/export`, `forms/[formId]/assist`, `settings/password` and
+ * `settings/recovery-codes` are not pages, so no link can reach them. Task 082
+ * replaces this with `lib/agent/screens.ts` and deletes it.
+ */
+export const ADMIN_PAGE_ROUTES: readonly string[] = [
+  "/forms",
+  "/forms/new",
+  "/forms/[formId]",
+  "/forms/[formId]/rules",
+  "/forms/[formId]/preview",
+  "/forms/[formId]/versions",
+  "/forms/[formId]/versions/[version]",
+  "/forms/[formId]/releases",
+  "/forms/[formId]/links",
+  "/forms/[formId]/webhooks",
+  "/forms/[formId]/responses",
+  "/forms/[formId]/responses/[sessionId]",
+  "/questions",
+  "/questions/new",
+  "/questions/[questionId]",
+  "/responses",
+  "/responses/erasures",
+  "/webhooks",
+  "/workspaces",
+  "/workspaces/[workspaceId]",
+  "/settings",
+];
+
+/** A path segment safe to put in an `href`: no traversal, no encoding tricks. */
+const SEGMENT = /^[A-Za-z0-9._~-]+$/u;
+
+function matchesPattern(pattern: string, segments: readonly string[]): boolean {
+  const expected = pattern.slice(1).split("/");
+  if (expected.length !== segments.length) return false;
+  return expected.every((part, index) =>
+    part.startsWith("[") ? true : part === segments[index],
+  );
+}
+
+/**
+ * The `href` a link target may keep, or `undefined` when it must render as text.
+ *
+ * A fragment is refused alongside a query string: the rule is that the target is
+ * one whole admin page and nothing more, and a fragment is a second thing the
+ * model chose about where the reader lands.
+ */
+export function adminPageHref(target: string): string | undefined {
+  const path = target.trim();
+  if (!path.startsWith("/") || path.startsWith("//")) return undefined;
+  if (path.includes("?") || path.includes("#")) return undefined;
+  const segments = path.slice(1).split("/");
+  if (!segments.every((segment) => SEGMENT.test(segment) && segment !== "..")) return undefined;
+  return ADMIN_PAGE_ROUTES.some((pattern) => matchesPattern(pattern, segments)) ? path : undefined;
+}
 
 export type MarkdownBlock =
   | {
@@ -221,11 +301,19 @@ const readImage: InlineReader = (source, index) => {
   return link === undefined ? undefined : { text: link.label, end: link.end };
 };
 
-/** A link is its text only: never an anchor, and its target is dropped. */
+/**
+ * A link, as an anchor only when its target is an admin page route; otherwise
+ * its text alone, with the target dropped.
+ */
 const readLinkText: InlineReader = (source, index) => {
   if (source[index] !== "[") return undefined;
   const link = readLink(source, index);
-  return link === undefined ? undefined : { nodes: parseInline(link.label), end: link.end };
+  if (link === undefined) return undefined;
+  const children = parseInline(link.label);
+  const href = adminPageHref(link.target);
+  return href === undefined
+    ? { nodes: children, end: link.end }
+    : { nodes: [{ kind: "link", href, children }], end: link.end };
 };
 
 const readEmphasisSpan: InlineReader = (source, index) => {
@@ -310,8 +398,11 @@ function isEmphasisCloser(
   return !(underscore && isWordChar(after));
 }
 
-/** `[label](target)` at `start`: the label and where the construct ends. The target is dropped. */
-function readLink(source: string, start: number): { label: string; end: number } | undefined {
+/** `[label](target)` at `start`: the label, the raw target, and where it ends. */
+function readLink(
+  source: string,
+  start: number,
+): { label: string; target: string; end: number } | undefined {
   const closeLabel = source.indexOf("]", start + 1);
   if (closeLabel === -1 || source[closeLabel + 1] !== "(") return undefined;
   // The target may carry its own balanced parentheses, as `javascript:alert(1)` does.
@@ -319,7 +410,13 @@ function readLink(source: string, start: number): { label: string; end: number }
   for (let index = closeLabel + 2; index < source.length; index += 1) {
     if (source[index] === "(") depth += 1;
     else if (source[index] === ")") depth -= 1;
-    if (depth === 0) return { label: source.slice(start + 1, closeLabel), end: index + 1 };
+    if (depth === 0) {
+      return {
+        label: source.slice(start + 1, closeLabel),
+        target: source.slice(closeLabel + 2, index),
+        end: index + 1,
+      };
+    }
   }
   return undefined;
 }
