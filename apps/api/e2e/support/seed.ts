@@ -1,26 +1,8 @@
 /**
- * The insurance seed toolkit (task 027) - shared with the portal e2e tests (029).
- *
- * These helpers stand up the canonical `insurance` form directly through the
- * `@roonga/qcms-db` helpers (the fast, deterministic path), so scenarios that are about
- * the *respondent* loop, version pinning, mount-split topology, or failure modes
- * don't re-drive the whole authoring API each time. Scenario 1 is the exception:
- * it authors the same form over HTTP to prove the admin surface end to end.
- *
- * Seeding is not a slice-internal reach: it uses only the published `@roonga/qcms-db`
- * and `@roonga/qcms-core` APIs. The compiled A2UI stored here is the committed golden
- * document (ADR-18) - the serve path replays those exact bytes, never recompiles.
- *
- * **This file's reach is wider than its directory, so changes here need
- * `verify:browser` as well as `verify`.** The portal AND admin Playwright suites
- * seed through it: `apps/portal/e2e/support/api-server.ts` calls these helpers in
- * the browser harness's global setup, and every admin spec reads the forms they
- * leave behind. Two other files do not import this one but mirror its publish
- * pipeline: `scripts/dev-stack.mjs` for `pnpm dev:portal` and `pnpm dev:admin`, and
- * `apps/api/scripts/seed-fixtures.ts` for `pnpm dev:seed` against the composed stack.
- * A change to what "seeded" means belongs in all three. Issue #275 is the worked
- * example: a one-line correction here was green under `verify` and red in the admin
- * browser suite.
+ * This file's reach is wider than its directory, so changes here need `verify:browser` as
+ * well as `verify`: the portal and admin Playwright suites seed through it, and
+ * `scripts/dev-stack.mjs` and `apps/api/scripts/seed-fixtures.ts` mirror its publish
+ * pipeline without importing it. A change to what "seeded" means belongs in all three.
  */
 
 import {
@@ -83,11 +65,8 @@ const ACCIDENT_DEF = Q_ACCIDENT_DEF as QuestionVersionInput["definition"];
 const ACCIDENT_COUNT_DEF = Q_ACCIDENT_COUNT_DEF as QuestionVersionInput["definition"];
 
 /**
- * Append one question version and publish it. A form version may only pin a
- * *published* question version, so a seeded pin that stayed draft is a fixture
- * an admin-side compile rejects with `UNPUBLISHED_QUESTION_PIN` (issue #275).
- * The version number comes back from the insert, so this is correct for the
- * first version and for every version appended after it.
+ * A form version may only pin a published question version, so a seeded pin that stayed
+ * draft is a fixture an admin-side compile rejects with `UNPUBLISHED_QUESTION_PIN`.
  */
 async function appendPublishedVersion(
   db: Db,
@@ -98,7 +77,6 @@ async function appendPublishedVersion(
   await publishQuestionVersion(db, { questionId, version: row.version });
 }
 
-/** The library questions the insurance form pins: q_at_fault_accident@2, q_accident_count@1. */
 export async function seedInsuranceQuestions(db: Db): Promise<void> {
   const accident = QuestionId.parse("q_at_fault_accident");
   await createQuestion(db, {
@@ -118,23 +96,15 @@ export async function seedInsuranceQuestions(db: Db): Promise<void> {
   await appendPublishedVersion(db, accidentCount, ACCIDENT_COUNT_DEF);
 }
 
-/** A seeded insurance form's identifiers (plain strings for consumer ergonomics). */
 export interface SeededForm {
   readonly formId: string;
   readonly slug: string;
 }
 
 /**
- * Seed the insurance questions plus a form with one published version storing the
- * golden compiled A2UI. Returns the form id and slug the respondent path uses.
- *
- * `sharedQuestionsSeeded` skips the library questions for a second form that
- * pins the same ones (the kitchen-sink seed takes the same option).
- * `closed` publishes the version, releases it, and then closes **that environment's**
- * intake, which is the state a respondent meets when a link outlives the questionnaire
- * (ADR-39 as amended by Q18). The closed state is per (form, environment) since task
- * 066, so this closes the environment the seed released to - `closedEnvironment` names
- * another when a scenario needs one environment closed and another serving.
+ * `sharedQuestionsSeeded` skips the library questions for a second form that pins the same
+ * ones. The closed state is per (form, environment), so `closed` closes the environment
+ * the seed released to and `closedEnvironment` names another.
  */
 export async function seedInsuranceForm(
   db: Db,
@@ -167,30 +137,11 @@ export async function seedInsuranceForm(
 }
 
 /**
- * Seed a form whose draft pins question versions that were never published, so an
- * admin dry run reports exactly two `UNPUBLISHED_QUESTION_PIN` issues against
- * `stp_history` (issue #625's fixture, made deliberate by issue #275).
+ * Invalid on purpose, on a form nothing else touches: two library questions of its own
+ * ({@link STALE_PIN_QUESTIONS}), each with a single never-published version, both pinned.
  *
- * **Why this exists as its own form.** `apps/admin/e2e/validation-idle.pw.ts`
- * needs a draft with a known, non-zero issue count, and until now it borrowed one:
- * the insurance seed forgot to publish its question versions, so *every* form in
- * the harness carried two issues by accident, and the spec read `frm_auto_quote`.
- * Correcting the seed removed the fixture the spec depended on. Both intents stand
- * here instead: the shared fixture is valid, and the invalid one is invalid on
- * purpose, on a form nothing else touches.
- *
- * **How it is invalid.** It brings two library questions of its own
- * ({@link STALE_PIN_QUESTIONS}), each with a single version that is never
- * published, and pins both. The version number comes back from the insert rather
- * than being written down. Nothing shared moves: the insurance and kitchen-sink
- * fixtures keep exactly the library they had.
- *
- * **A draft and no published version, deliberately.** The state the old accident
- * produced - a *published* form version pinning unpublished questions - is one the
- * real publish path refuses, which is precisely why it was a trap for anyone
- * reading the seed to decide what it could be used for. An unpublished draft is
- * the legitimate way for a form to hold pins that would fail a publish, and it is
- * the state the builder and the rail badge are about.
+ * A draft and no published version, because a published version pinning unpublished
+ * questions is a state the real publish path refuses.
  */
 export async function seedUnpublishedPinForm(
   db: Db,
@@ -221,10 +172,8 @@ export async function seedUnpublishedPinForm(
       formId,
       defaultLocale: "en",
       title: { en: "Draft with unpublished pins" },
-      // One step, both pins on it, no rules. The step id and title are the two the
-      // 625 spec addresses; everything else is as small as a valid draft can be,
-      // because what this fixture is for is the ISSUE COUNT and any extra shape
-      // would be another way for that count to move.
+      // As small as a valid draft can be: extra shape is another way for the issue count
+      // this fixture is about to move.
       steps: [
         {
           stepId: "stp_history",
@@ -233,26 +182,17 @@ export async function seedUnpublishedPinForm(
         },
       ],
       rules: [],
-      // The definition is assembled here rather than parsed off disk, so this is
-      // the same cast the fixture constants above take for the same reason: these
-      // helpers are typed against the kernel's schema and this is a plain object
-      // literal the schema validates at the boundary it is handed to.
+      // Cast: a plain object literal the kernel's schema validates at the boundary it is
+      // handed to, assembled here rather than parsed off disk.
     } as unknown as Parameters<typeof upsertDraft>[1]["definition"],
   });
   return { formId, slug };
 }
 
 /**
- * The two library questions that exist only for the fixture above.
- *
- * **Its own questions rather than another version of the shared ones.** Appending
- * an unpublished version to `q_at_fault_accident` would make that question's
- * LATEST version a draft, which is a visible change to the shared library: the
- * question list renders a latest-version status and the pin picker offers the
- * versions it finds. Roughly forty browser specs read that library. A fixture for
- * one spec has no business moving it, so these are two questions nothing else
- * pins, carrying the same vehicle-domain definitions (task 043) under their own
- * ids.
+ * Its own questions rather than another version of the shared ones: appending an
+ * unpublished version to `q_at_fault_accident` would make the shared library's latest
+ * version a draft, which roughly forty browser specs read.
  */
 const STALE_PIN_QUESTIONS = [
   { questionId: "q_stale_accident", slug: "stale-accident", definition: ACCIDENT_DEF },
@@ -264,19 +204,11 @@ const STALE_PIN_QUESTIONS = [
 ] as const;
 
 /**
- * A question definition under another question id. A definition carries the id it
- * belongs to, so a clone is the only way to reuse one; structural, so the shared
- * fixture constants the other seeds hand to `createQuestionVersion` are untouched.
- */
-/**
- * A fixture's definition with its id stamped on, stored **verbatim**.
- *
- * Nothing parses it against `QuestionDefinition` on the way in, so a fixture has to be
- * written the way the schema would have left it. In particular the schema `prefault`s an
- * empty `constraints` object for every question type, and a stored definition without one
- * crashes the kernel's validator where it destructures the field: a `multiChoice` fixture
- * that left `constraints` out answered 500 rather than refusing anything, which is how
- * this was found. Spell the optional objects out.
+ * Stored verbatim: nothing parses it against `QuestionDefinition` on the way in, so a
+ * fixture has to be written the way the schema would have left it. The schema `prefault`s
+ * an empty `constraints` object for every question type, and a stored definition without
+ * one crashes the kernel's validator where it destructures the field, so spell the
+ * optional objects out.
  */
 function questionDefinitionFor(
   questionId: QuestionId,
@@ -288,32 +220,20 @@ function questionDefinitionFor(
 }
 
 /**
- * Release a seeded version into the environment these fixtures serve (ADR-40, task 065).
- *
- * **Publishing a version reaches no environment**, so a fixture that only published would
- * stand up a form no session can start on. Every seed here therefore releases what it
- * publishes, which keeps "seeded" meaning what it has always meant to the suites that read
- * these forms: a form a respondent can walk.
- *
- * `usr_e2e_seed` is the actor, which is a seed's own identity rather than an administrator:
- * these rows are written through the `@roonga/qcms-db` helpers, not through the release
- * route, exactly as the version beside them is.
+ * Publishing a version reaches no environment (ADR-40), so a seed that only published
+ * would stand up a form no session can start on.
  */
 async function releaseSeededVersion(db: Db, formId: string, version: number): Promise<void> {
   await releaseSeededVersionTo(db, formId, version, DEFAULT_TEST_ENVIRONMENT);
 }
 
 /**
- * Release one version of a seeded form into a **named** environment (ADR-40).
+ * Exported because the browser harness needs a form served in `test` too: a
+ * `/test/l/{token}` address has nothing to serve until something is released there, and a
+ * spec asserting that address would otherwise pass against the closed screen.
  *
- * Exported because the browser harness needs a form served in `test` as well as in the
- * environment its own connection serves: a `/test/l/{token}` address has nothing to serve
- * until something is released there, and a spec asserting the address would otherwise pass
- * against the closed screen for the wrong reason (task 066).
- *
- * It is here rather than in the portal's own harness because the portal depends on neither
- * `@roonga/qcms-core` nor `@roonga/qcms-db` and must not (R2); this file is already the
- * seam its fixtures come through.
+ * Here rather than in the portal's own harness because the portal depends on neither
+ * `@roonga/qcms-core` nor `@roonga/qcms-db` and must not (R2).
  */
 export async function releaseSeededVersionTo(
   db: Db,
@@ -329,10 +249,6 @@ export async function releaseSeededVersionTo(
   });
 }
 
-/**
- * Append another published version of the insurance form (identical bytes). Used
- * by the version-pinning scenario to publish "v2" after a session pinned v1.
- */
 export async function publishInsuranceVersion(db: Db, formId: string): Promise<void> {
   const version = await insertFormVersion(db, {
     formId: FormId.parse(formId),
@@ -343,17 +259,13 @@ export async function publishInsuranceVersion(db: Db, formId: string): Promise<v
     semanticsVersion: "1",
   });
   // Released as well as published, which is what makes the new version the one a session
-  // started after this resolves (ADR-40). The version-pinning scenario depends on exactly
-  // that: a session already open stays on v1 and a new one gets v2.
+  // started after this resolves (ADR-40).
   await releaseSeededVersion(db, formId, version.version);
 }
-
-// --- kitchen-sink form (all seven question types, task 045) -----------------
 
 const KS_DEF = KITCHEN_SINK_DEF as FormVersionInput["definition"];
 const KS_COMPILED = KITCHEN_SINK_GOLDEN as unknown as FormVersionInput["compiled"];
 
-/** Create one library question with a single published version. */
 async function seedQuestionVersion(
   db: Db,
   questionId: string,
@@ -366,13 +278,9 @@ async function seedQuestionVersion(
 }
 
 /**
- * Seed the questions the kitchen-sink form pins that are UNIQUE to it (the eight
- * new types, among them the optional number issue #18's clear case needs and the
- * required/optional single-choice pair above the compiler's option threshold that
- * issue #988's cases need); the two it shares with the insurance form (`q_at_fault_accident`@2,
- * `q_accident_count`) are seeded by {@link seedKitchenSinkSharedQuestions}, split
- * out so a harness that already seeded the insurance form does not re-create them
- * (a duplicate `questions` primary key).
+ * The two questions this form shares with the insurance form are split into
+ * {@link seedKitchenSinkSharedQuestions}, so a harness that already seeded the insurance
+ * form does not re-create them and collide on the `questions` primary key.
  */
 export async function seedKitchenSinkUniqueQuestions(db: Db): Promise<void> {
   await seedQuestionVersion(
@@ -420,9 +328,8 @@ export async function seedKitchenSinkUniqueQuestions(db: Db): Promise<void> {
   );
 }
 
-/** The two questions the kitchen-sink form shares with the insurance form. */
 export async function seedKitchenSinkSharedQuestions(db: Db): Promise<void> {
-  // q_at_fault_accident is pinned @2: create v1 then v2 (identical definitions).
+  // q_at_fault_accident is pinned @2, so create v1 then v2 (identical definitions).
   const accident = QuestionId.parse("q_at_fault_accident");
   await createQuestion(db, {
     workspaceId: SEED_WORKSPACE_ID,
@@ -435,11 +342,8 @@ export async function seedKitchenSinkSharedQuestions(db: Db): Promise<void> {
 }
 
 /**
- * Seed the kitchen-sink questions plus a form with one published version storing
- * the golden compiled A2UI (ADR-18). Returns the form id and slug. Pass
- * `sharedQuestionsSeeded: true` when the two insurance-shared questions already
- * exist (e.g. the insurance form was seeded first in the same database), so they
- * are not re-created.
+ * Pass `sharedQuestionsSeeded: true` when the two insurance-shared questions already
+ * exist, so they are not re-created.
  */
 export async function seedKitchenSinkForm(
   db: Db,
@@ -469,13 +373,6 @@ export async function seedKitchenSinkForm(
   return { formId, slug };
 }
 
-/**
- * Seed the `author-messages` form (task 048): four required questions carrying
- * author-supplied validation messages (ADR-32) and boolean label overrides
- * (ADR-36), plus a published version storing its committed golden compiled A2UI
- * (ADR-18). Its questions are unique to it, so it never collides with the
- * insurance or kitchen-sink seeds and needs no shared-questions flag.
- */
 export async function seedAuthorMessagesForm(
   db: Db,
   opts: { formId?: string; slug?: string } = {},
@@ -508,19 +405,6 @@ export async function seedAuthorMessagesForm(
   return { formId, slug };
 }
 
-/**
- * Seed the `repeat-fleet` form (task 073): one step with a plain required question and
- * one **repeating group** (`open`, `min: 1`, `max: 3`), plus a published version storing
- * its committed golden compiled A2UI (ADR-18).
- *
- * Its questions are unique to it, so it never collides with the insurance,
- * kitchen-sink or author-messages seeds and needs no shared-questions flag.
- *
- * This is the fixture that makes the repeating group reachable in a browser at all.
- * Until it existed the whole feature was green everywhere while no fixture form
- * compiled a `RepeatGroup`, which is exactly how the four no-JS dead ends of issues
- * #920, #974, #18 and #988 each stayed invisible until a fixture carried the shape.
- */
 export async function seedRepeatFleetForm(
   db: Db,
   opts: { formId?: string; slug?: string } = {},
@@ -553,21 +437,6 @@ export async function seedRepeatFleetForm(
   return { formId, slug };
 }
 
-/**
- * Seed the `repeat-table` form (task 077): one step with a plain required question and
- * one **repeating group presented as a table** (`open`, `min: 1`, `max: 3`) whose five
- * columns are exactly the five allowed cell types, plus a published version storing its
- * committed compiled A2UI (ADR-18).
- *
- * Its questions are unique to it (`q_rt_*`), so it never collides with the insurance,
- * kitchen-sink, author-messages or repeat-fleet seeds and needs no shared-questions
- * flag.
- *
- * It is the fixture that makes the table presentation reachable in a browser at all,
- * and the reason it is a separate form from `repeat-fleet` is that `repeat-fleet` pins a
- * `longText` and a `multiChoice`, which a table-presented group is refused at publish
- * for carrying (`TABLE_COLUMN_TYPE_NOT_ALLOWED`, Q12).
- */
 export async function seedRepeatTableForm(
   db: Db,
   opts: { formId?: string; slug?: string } = {},
@@ -600,20 +469,6 @@ export async function seedRepeatTableForm(
   return { formId, slug };
 }
 
-/**
- * Seed the `repeat-tour` form (task 076): one step, one repeating group whose
- * presentation is `perInstanceStep`, `open` with `min: 3, max: 4`, plus a published
- * version storing its committed golden compiled A2UI (ADR-18).
- *
- * This is the fixture that makes the per-instance step presentation reachable in a
- * browser. `min: 3` means the first serve mints three instances, so the one step is three
- * views and the progress indicator says three without the respondent having done anything
- * - which is the exit criterion as a fixture rather than as a sequence of clicks.
- *
- * Its three questions are unique to it (`q_pi_*`), so it never collides with the fleet, the
- * insurance, the kitchen-sink or the author-messages seeds and needs no shared-questions
- * flag.
- */
 export async function seedRepeatTourForm(
   db: Db,
   opts: { formId?: string; slug?: string } = {},
@@ -647,11 +502,9 @@ export async function seedRepeatTourForm(
 }
 
 /**
- * Insert a secure_links row and mint its matching signed token. Uses only the
- * published `@roonga/qcms-core` minting API and the config's link signing key, so the
- * token verifies in any composition built from the same env. Handy for the
- * failure tour's *expired* link, which the mint endpoint (future-expiry only)
- * cannot produce.
+ * Mints with the config's link signing key, so the token verifies in any composition built
+ * from the same env. It is also how a scenario gets an expired link, which the mint
+ * endpoint allows no way to produce.
  */
 export async function mintInsuranceLink(
   db: Db,
@@ -666,9 +519,8 @@ export async function mintInsuranceLink(
     linkId,
     formId: parsedFormId,
     expiresAt: opts.expiresAt,
-    // The environment the seeded link belongs to (Q46). Defaults to the one the
-    // harness's own connection serves, so a fixture that says nothing about
-    // environments seeds a link the default pool can redeem.
+    // Defaults to the environment the harness's own connection serves, so a fixture that
+    // says nothing about environments seeds a link the default pool can redeem (Q46).
     environment: opts.environment ?? DEFAULT_TEST_ENVIRONMENT,
     oneTime,
   });

@@ -7,43 +7,11 @@ import { loadAdminAuthConfig } from "../../src/config.js";
 import { createAdminAuth, type AdminAuth } from "../../src/features/auth/instance.js";
 import { seedGrants } from "../../src/test-support.js";
 
-/**
- * Browser-suite account setup, on the API side of the seam (task 056).
- *
- * The admin Playwright suite needs an account with a password better-auth can verify,
- * and it needs one before the browser opens. It used to create it by importing the
- * admin app's own better-auth instance; the admin has no instance and no database handle
- * any more, so the helper lives here, in the workspace that owns both.
- *
- * That also removes a dependency the admin app should not have had: this module's `pg`,
- * `drizzle-orm` and `@roonga/qcms-db` imports resolve from `apps/api`, which is the process that
- * legitimately owns them, so the admin's harness reaches a database without the admin
- * package declaring a database client. It is the same pattern
- * `apps/portal/e2e/support/db.ts` uses for its independent verification reads.
- *
- * ## Why it bypasses the CLI's zero-admins guard
- *
- * {@link createTestAdmin} calls `signUpEmail` directly rather than going through
- * `createInitialAdmin`. That is not a hole being papered over: the guard is a property
- * of `pnpm qcms:create-admin` (nothing else may create the *first* account) and it is
- * tested where it lives, against a genuinely empty database, in
- * `src/features/auth/bootstrap.integration.test.ts`. What the browser suite is for is
- * the screens, and forcing it through a once-per-database command would let it test
- * exactly one account, once.
- *
- * Nothing else about the flow is shortcut. Enrollment, the TOTP secret, the recovery
- * codes and every verification happen in the browser, through the real screens.
- */
-
-/** One pool and one instance per connection string, so repeated calls are cheap. */
 const instances = new Map<string, { readonly auth: AdminAuth; readonly db: Executor }>();
 
 /**
- * An auth instance over `databaseUrl`, configured exactly as the served API is.
- *
  * `authSecret` must match the secret the harness gives the composed API, or the cookies
- * one side mints are not the cookies the other verifies. The Playwright harness passes
- * the same `FIXED_AUTH_SECRET` to both.
+ * one side mints are not the cookies the other verifies.
  */
 function authFor(
   databaseUrl: string,
@@ -56,20 +24,14 @@ function authFor(
     DATABASE_URL: databaseUrl,
     QCMS_ADMIN_AUTH_SECRET: authSecret,
     QCMS_ADMIN_BASE_URL: adminBaseUrl,
-    // Off for this harness only (issue #178). SEC-1's breach check is a live HTTPS
-    // call to api.pwnedpasswords.com on every password set, and this helper sets one
-    // per test account: leaving it on would make the browser suite depend on a third
-    // party's uptime to exercise screens that have nothing to do with it. The control
-    // itself is covered against a stubbed corpus in
-    // `apps/api/src/features/auth/breached-password.integration.test.ts`, and the
-    // full-stack Compose stack runs it at its shipped default.
+    // Off for this harness only: SEC-1's breach check is a live HTTPS call on every
+    // password set. The control is covered against a stubbed corpus in
+    // `apps/api/src/features/auth/breached-password.integration.test.ts`.
     QCMS_ADMIN_PASSWORD_BREACH_CHECK: "false",
   });
-  // No `search_path`, unlike `openDbHandle` below, and the asymmetry is the plane rather
-  // than an oversight: better-auth's tables are control-plane tables, declared on the
-  // `control` Drizzle schema, so the adapter emits `control."user"` and resolves whatever
-  // the connection's path happens to be. Only the data plane is reached by unqualified
-  // name (ADR-40).
+  // No `search_path`, unlike `openDbHandle` below: better-auth's tables are control-plane
+  // tables declared on the `control` Drizzle schema, so the adapter qualifies them and
+  // only the data plane is reached by unqualified name (ADR-40).
   const pool = new pg.Pool({ connectionString: databaseUrl });
   pool.on("error", () => undefined);
   const db = drizzle(pool, { schema }) as unknown as Executor;
@@ -78,7 +40,6 @@ function authFor(
   return built;
 }
 
-/** What {@link createTestAdmin} needs to reach the run's database and agree on cookies. */
 export interface TestAdminInput {
   readonly databaseUrl: string;
   readonly authSecret: string;
@@ -86,72 +47,38 @@ export interface TestAdminInput {
   readonly email: string;
   readonly password: string;
   /**
-   * The account's display name. Defaults to `E2E Admin`.
-   *
-   * Worth being able to choose since issue #1010. The display name is what the admin
-   * topbar's monogram is derived from, and that button's accessible name has to contain
-   * what it paints (WCAG 2.2 SC 2.5.3). `E2E Admin` gives the initials "EA", and the
-   * addresses this suite generates - `e2e.<label>.<ts>@admin.test` - contain those two
-   * letters once axe looks past the dots and digits, so the rule that checks the
-   * relationship could not fail on this account however broken the button was. A spec
-   * that means to measure that rule names an account here instead.
+   * Defaults to `E2E Admin`, whose initials the generated addresses also contain, so a
+   * spec measuring the topbar monogram's accessible name has to name its own.
    */
   readonly name?: string;
 
   /**
-   * Leave SEC-1's provisional-credential flag set (task 061). Default **false**.
-   *
-   * `signUpEmail` sets `user.mustChangePassword` on every account it creates, because
-   * better-auth applies a declared field's default and the only production caller is
-   * `qcms:create-admin` - where "this credential is provisional" is exactly right.
-   * This helper is not that caller: it stands in for an administrator who already has
-   * a password of their own, so that thirty specs about forms, questions and
-   * responses are not each routed through a password change first.
-   *
-   * The spec that is about the control passes `true` and gets the real bootstrap
-   * state; the full-stack Compose suite gets it from the real `create-admin`.
+   * Defaults to **false**: `signUpEmail` sets the flag on every account it creates, and
+   * this helper stands in for an administrator who already has a password of their own.
    */
   readonly mustChangePassword?: boolean;
 
   /**
-   * Which roles this account holds, as access groups scoped to `all` in the
-   * installation's first workspace. Defaults to **every team role**, plus `forms.owner`
-   * on the member row.
+   * Defaults to every team role, plus `forms.owner` on the member row. An admin session
+   * is necessary and not sufficient (ADR-41), so an account created by `signUpEmail`
+   * alone reaches the membership screens and nothing else.
    *
-   * # Why an account needs grants at all, from task 069
-   *
-   * ADR-41 makes an authenticated admin session **necessary and not sufficient**: the
-   * installation-wide claim administers settings, accounts, memberships and environments
-   * and **authorises no authoring and no response read anywhere** (Q29), and
-   * `forms.owner` touches no form, release, link, webhook or response row at all. So an
-   * account created by `signUpEmail` alone can reach the membership screens and nothing
-   * else, and thirty specs about forms, questions and responses would each be asserting
-   * the grant middleware rather than the screen they are named for.
-   *
-   * This helper stands in for an administrator who has been granted what their job needs,
-   * which is the same thing `mustChangePassword: false` above does for the credential. A
-   * spec that is **about** a narrower grant names one here.
-   *
-   * It writes **no audit row**, deliberately: a fixture is not an act somebody performed,
-   * and a seeded `grant` row would make every count-based assertion start one row behind.
+   * Writes no audit row, so a count-based assertion does not start a row behind.
    */
   readonly grants?: readonly string[];
 
-  /** Whether the member row carries `forms.owner`. Defaults to true. */
+  /** Defaults to true. */
   readonly owner?: boolean;
 }
 
 /**
- * Create an admin account with no TOTP factor yet: enrollment is the browser's job.
+ * `signUpEmail` directly rather than `createInitialAdmin`: the zero-admins guard belongs
+ * to `pnpm qcms:create-admin` and is tested in
+ * `src/features/auth/bootstrap.integration.test.ts`.
  *
- * There is deliberately **no** pool-closing helper, and the reason is a trap worth
- * recording: closing the pool in a spec file's `afterAll` breaks the *next* spec file.
- * Playwright runs the files of a project in one worker process, so this module's state -
- * including the instance memoized against its pool - outlives any single file, and a file
- * that closed the pool left the following file with a live auth instance over a dead one,
- * failing its `beforeAll` with a raw `Failed query: select ... from "user"`. Nothing has
- * to be closed: Playwright exits its workers before `globalTeardown`, so the pool is gone
- * by the time the container stops.
+ * There is deliberately no pool-closing helper. Playwright runs a project's files in one
+ * worker process, so this module's memoized instance outlives any single file and a file
+ * that closed the pool would break the next one's `beforeAll`.
  */
 export async function createTestAdmin(input: TestAdminInput): Promise<void> {
   const { auth, db } = authFor(input.databaseUrl, input.authSecret, input.adminBaseUrl);
@@ -162,8 +89,8 @@ export async function createTestAdmin(input: TestAdminInput): Promise<void> {
   const body = (await created.json()) as { user?: { id?: unknown } };
   const userId = body.user?.id;
 
-  // The grants, before the credential state: an account that is sent to the password
-  // change screen still needs them for the screens it reaches afterwards (task 069).
+  // Before the credential state: an account sent to the password-change screen still
+  // needs grants for the screens it reaches afterwards.
   if (typeof userId === "string") {
     await seedGrants(db, {
       userId,
@@ -173,17 +100,11 @@ export async function createTestAdmin(input: TestAdminInput): Promise<void> {
   }
 
   if (input.mustChangePassword === true) return;
-  // Clear what `signUpEmail` set (see `TestAdminInput.mustChangePassword`). The same
-  // write the API's password-change hook makes, through the same helper, so this
+  // The same write the API's password-change hook makes, through the same helper, so this
   // harness cannot arrive at a state the product cannot.
   if (typeof userId === "string") await clearMustChangePassword(db, userId);
 }
 
-/** A raw SQL read's rows, as `pg` returns them. */
-/**
- * The search path every harness connection uses: the interim request environment's data
- * schema first, then `control`, which is what an API pool connects with (ADR-40).
- */
 const HARNESS_SEARCH_PATH = "-c search_path=data_prod,control";
 
 export interface RawRows<R> {
@@ -191,26 +112,11 @@ export interface RawRows<R> {
 }
 
 /**
- * A Drizzle handle over an arbitrary connection string, a raw-SQL escape hatch, and a
- * closer.
+ * A raw read returns `timestamptz` as a string, not a `Date`, so callers that compare
+ * instants must normalize.
  *
- * For harness code that has to read or drive the run's database directly (the admin
- * operations spec composes its own `Deps` to run webhook delivery passes, then verifies
- * queued rows with two joins the query builders do not express). Lives here for the same
- * reason as the account helper: the database client belongs to the workspace that owns
- * the database, and a harness in another app should not have to declare one.
- *
- * A raw read returns `timestamptz` as a **string**, not a `Date` - the query builder's
- * `mode: "date"` is what converts. Callers that compare instants must normalize.
- *
- * **The search path is not optional since ADR-40.** Every data-plane table - `sessions`,
- * `answers`, `outbox`, `webhooks` - lives in `data_<env>`, one copy per environment, and
- * is declared unqualified so the connection chooses which one it reaches. A pool that sets
- * none resolves `outbox` to nothing at all, and both the raw reads and the composed
- * `Deps` built on this handle fail with `relation "outbox" does not exist`. `prod` is the
- * environment the API serves every request from until 065 and 066 land (Q53), so it holds
- * the rows these harnesses assert on; `control` follows it exactly as an API pool
- * connects, so a read of `forms` resolves too.
+ * The search path is not optional (ADR-40): every data-plane table is declared
+ * unqualified, so a pool that sets none fails with `relation "outbox" does not exist`.
  */
 export function openDbHandle(connectionString: string): {
   readonly db: Executor;

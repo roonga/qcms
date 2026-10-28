@@ -1,13 +1,6 @@
-/**
- * Self-test for the fixture-content guard (task 045). Proves the guard actually
- * catches denylisted health/sensitive terms (so it can never silently no-op) and
- * that this task's vehicle example fixtures are clean of them.
- */
-
 import { describe, expect, it } from "vitest";
 
-// The guard is a plain ESM script wired into `pnpm lint`; a sibling `.d.mts`
-// types its exports (see scripts/check-fixture-domain.d.mts).
+// A sibling `scripts/check-fixture-domain.d.mts` types this plain ESM script's exports.
 import { DENYLIST, scanFixtureDir, scanText } from "../../../../scripts/check-fixture-domain.mjs";
 
 describe("fixture-domain guard (task 045)", () => {

@@ -1,19 +1,3 @@
-/**
- * Scenario 4 - the split enterprise topology (task 027, exit criterion 1).
- *
- * Two separate compositions over **one** database and **one** environment prove
- * the deployment shape from ARCHITECTURE §5.1: a public-only respondent process
- * (admin routes simply do not exist - 404, not 403, per ADR-09) and a separate
- * internal/admin authoring process. The admin process mints a link and reads the
- * response back; the public process runs the respondent through that link. It
- * only works because both share the DB (data is visible across processes) and
- * the env (the link and internal tokens minted by one verify in the other).
- *
- * The single `buildEnv()` call is load-bearing: `validEnv()` regenerates secrets
- * per call, so two compositions that must share tokens have to be built from the
- * same env object.
- */
-
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 
 import {
@@ -32,9 +16,7 @@ import {
   type TestDb,
 } from "./support/index.js";
 
-// The admin-session header on the ONE request below that must 404: the public
-// process has no admin group, so nothing verifies this value (031). Every real
-// admin call goes through AdminClient with a token from `adminLogin`.
+// The public process has no admin group, so nothing verifies this value.
 const ADMIN_HEADERS = {
   "content-type": "application/json",
   "x-qcms-admin-session": "any-value-unverified-here",
@@ -49,7 +31,7 @@ let formId: string;
 
 beforeAll(async () => {
   testDb = await startTestDb();
-  // ONE env, shared by both compositions, so their tokens match.
+  // `buildEnv()` regenerates secrets per call, so both compositions must share one object.
   const env = buildEnv();
   publicApi = composeApi(testDb.db, env, MOUNT.publicOnly);
   adminApi = composeApi(testDb.db, env, MOUNT.adminOnly);
@@ -83,7 +65,6 @@ describe("scenario 4: public-only + admin-only over one db/env", () => {
   });
 
   it("admin mints a link, the public process runs the respondent, admin reads it back", async () => {
-    // Authoring surface: mint a secure link (proves the admin composition works).
     const minted = await admin.mintLinks<{ links: { url: string }[] }>(formId, {
       expiresAt: new Date(Date.now() + 60 * 60 * 1000).toISOString(),
       oneTime: false,
@@ -91,8 +72,6 @@ describe("scenario 4: public-only + admin-only over one db/env", () => {
     expect(minted.status).toBe(201);
     const token = tokenFromLinkUrl(minted.body.links[0]!.url);
 
-    // Respondent surface (separate process): the link - signed with the shared
-    // env's link key - verifies here.
     const start = await respondent.start<StartBody>({ token });
     expect(start.status).toBe(201);
     const { sessionId, sessionToken } = start.body;
@@ -102,8 +81,6 @@ describe("scenario 4: public-only + admin-only over one db/env", () => {
     ).toBe(200);
     expect((await respondent.submit<Receipt>(sessionId, sessionToken)).status).toBe(200);
 
-    // Back on the admin process: the submission written by the public process is
-    // visible - the two compositions share the database.
     const json = await admin.export(formId, { format: "json" });
     expect(json.status).toBe(200);
     const rows = JSON.parse(json.text) as { sessionId: string; accessMode: string }[];

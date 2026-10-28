@@ -1,18 +1,3 @@
-/**
- * Scenario 1 - the full loop (task 027, exit criterion 1).
- *
- * One scripted consumer drives the entire product over HTTP against the real
- * Testcontainers database: an admin authors the insurance question library and
- * form, publishes it, wires a webhook, and mints a secure link; a respondent
- * walks the branching flow through that link; the signed webhook arrives at an
- * in-test receiver and verifies; the response exports as CSV and JSON; and an
- * erasure removes it from every export and lists a tombstone.
- *
- * The suite is a *consumer*: it speaks only `app.request()` (via the support
- * clients) and the seed toolkit - no slice internals. This file authors purely
- * over the admin HTTP API (the server compiles the draft at publish time).
- */
-
 import { DEFAULT_TEST_ENVIRONMENT } from "@roonga/qcms-db/testing";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 
@@ -81,14 +66,12 @@ const FORM_ID = "frm_auto_quote";
 const WEBHOOK_SECRET = "whsec_e2e_full_loop_0123456789";
 
 describe("scenario 1: full loop end to end", () => {
-  // Threaded across the ordered steps below.
   let linkUrl: string;
   let sessionId: string;
   let sessionToken: string;
   let contentHash: string;
 
   it("authors the question library over the admin API and publishes it", async () => {
-    // q_at_fault_accident: create v1, publish it, add v2 (the form pins @2), publish v2.
     const created = await admin.createQuestion<{
       questionId: string;
       version: { version: number };
@@ -106,7 +89,6 @@ describe("scenario 1: full loop end to end", () => {
     expect(v2.body.version).toBe(2);
     expect((await admin.publishQuestionVersion("q_at_fault_accident", 2)).status).toBe(200);
 
-    // q_accident_count: create v1, publish it (the form pins @1).
     const count = await admin.createQuestion<{ questionId: string }>({
       slug: "accident-count",
       definition: Q_ACCIDENT_COUNT_DEF,
@@ -123,17 +105,14 @@ describe("scenario 1: full loop end to end", () => {
 
     const draft = await admin.saveDraft<{ issues: unknown[] }>(FORM_ID, INSURANCE_DEF);
     expect(draft.status).toBe(200);
-    // A valid draft with published pins has no advisory issues.
     expect(draft.body.issues).toEqual([]);
 
     const published = await admin.publishForm<{ version: number }>(FORM_ID);
     expect(published.status).toBe(200);
     expect(published.body.version).toBe(1);
 
-    // And release it, because publishing reaches no environment (ADR-40, task 065): a
-    // version in the library is served nowhere until a release record says where. This
-    // scenario drives the admin surface end to end, so it performs the second act over
-    // HTTP too rather than reaching into the database for it.
+    // Publishing reaches no environment: a version is served nowhere until a release says
+    // where.
     const testRelease = await admin.releaseVersion(FORM_ID, {
       environment: "test",
       version: published.body.version,
@@ -173,7 +152,6 @@ describe("scenario 1: full loop end to end", () => {
     sessionId = start.body.sessionId;
     sessionToken = start.body.sessionToken;
 
-    // First step: only q_at_fault_accident is visible (the follow-up's rule is unsatisfied).
     const step0 = await respondent.getStep<StepBody>(sessionId, sessionToken);
     expect(step0.status).toBe(200);
     expect(step0.body.step?.stepId).toBe("stp_history");
@@ -181,7 +159,6 @@ describe("scenario 1: full loop end to end", () => {
     expect(step0.body.a2uiSpecVersion).toBe(INSURANCE_GOLDEN.a2uiSpecVersion);
     expect(step0.body.flowState.visibleQuestions).toEqual(["q_at_fault_accident"]);
 
-    // q_at_fault_accident = true → the q_accident_count branch appears.
     const revealed = await respondent.answer<StepBody>(
       sessionId,
       sessionToken,
@@ -192,7 +169,6 @@ describe("scenario 1: full loop end to end", () => {
     expect(revealed.body.flowState.visibleQuestions).toContain("q_accident_count");
     expect(revealed.body.flowState.readyToSubmit).toBe(false);
 
-    // q_at_fault_accident = false → the branch disappears and the flow is complete.
     const hidden = await respondent.answer<StepBody>(
       sessionId,
       sessionToken,
@@ -226,7 +202,6 @@ describe("scenario 1: full loop end to end", () => {
     const signature = req.header("x-qcms-signature")!;
     expect(signature).toMatch(/^v1=[0-9a-f]{64}$/);
     expect(verifyWebhookSignature(WEBHOOK_SECRET, timestamp, req.body, signature)).toBe(true);
-    // A tampered body must not verify.
     expect(verifyWebhookSignature(WEBHOOK_SECRET, timestamp, req.body + "x", signature)).toBe(
       false,
     );
@@ -238,7 +213,6 @@ describe("scenario 1: full loop end to end", () => {
     expect(envelope.eventType).toBe("response.submitted");
     expect(envelope.payload.formId).toBe(FORM_ID);
     expect(envelope.payload.contentHash).toBe(contentHash);
-    // Only the visible q_at_fault_accident is locked (hidden q_accident_count excluded, I6).
     expect(envelope.payload.answers.map((a) => a.questionId)).toEqual(["q_at_fault_accident"]);
   });
 
@@ -266,14 +240,12 @@ describe("scenario 1: full loop end to end", () => {
     expect(erased.status).toBe(200);
     expect(erased.body.alreadyErased).toBe(false);
 
-    // No longer in either export.
     const csv = await admin.export(FORM_ID, { format: "csv", version: "1" });
     expect(csv.text).not.toContain(sessionId);
     const json = await admin.export(FORM_ID, { format: "json" });
     const rows = JSON.parse(json.text) as { sessionId: string }[];
     expect(rows.map((r) => r.sessionId)).not.toContain(sessionId);
 
-    // …but a tombstone records the erasure.
     const tombstones = await admin.listTombstones<{ erasures: { sessionId: string }[] }>({
       formId: FORM_ID,
     });
