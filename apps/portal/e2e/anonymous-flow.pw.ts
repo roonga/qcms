@@ -38,7 +38,6 @@ test("anonymous at-fault-accident branch completes on a throttled mobile connect
 }) => {
   const { slug } = readFixtures();
 
-  // Throttle to a slow mobile profile before navigating.
   const client = await page.context().newCDPSession(page);
   await client.send("Network.emulateNetworkConditions", {
     offline: false,
@@ -49,16 +48,10 @@ test("anonymous at-fault-accident branch completes on a throttled mobile connect
 
   await startAnonymousFlow(page, slug);
 
-  // Choosing "Yes" makes the follow-up number question visible + required (the
-  // single-step form still shows "Submit"). Blocked-submit is covered by the
-  // dedicated a11y-axe error-summary spec; here we just complete the flow.
   await chooseAccident(page, "Yes");
   await expect(page.getByText(COUNT_LABEL)).toBeVisible();
   await expect(page.getByTestId("primary-action")).toHaveText("Submit");
 
-  // Answer the number, then blur to post it (the branch is then satisfied). Type
-  // key-by-key: the react-aria NumberField commits per keystroke. The answer posts
-  // on blur, so blur by clicking a neutral heading to move focus fully out.
   const count = page.getByRole("textbox", { name: /how many/i });
   await count.click();
   await count.pressSequentially("10");
@@ -71,8 +64,6 @@ test("anonymous no-accident branch is ready to submit directly", async ({ page }
   const { slug } = readFixtures();
   await startAnonymousFlow(page, slug);
 
-  // Choosing "No" leaves the follow-up not-required, so the single step is
-  // immediately submittable with no further answers.
   await chooseAccident(page, "No");
 
   await submitAndExpectReceipt(page);

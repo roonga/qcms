@@ -26,22 +26,15 @@ test("a JS-disabled respondent completes and submits the fixture via native form
 }) => {
   const { slug } = readFixtures();
 
-  // Start: the entry Start control is a native form POST to the BFF (029).
   await page.goto(`/f/${slug}`);
   await page.getByRole("button", { name: "Start" }).click();
   await page.waitForURL(/\/s\/ses_/);
 
-  // The step SSR-paints the real question inside a natively submittable form.
   await expect(page.getByRole("heading", { name: FORM_HEADING })).toBeVisible();
   await expect(page.getByText(ACCIDENT_LABEL)).toBeVisible();
 
-  // Answer "No" by clicking the visible option label (the real radio input sits
-  // under a decorative indicator). Native label association checks it without JS.
   await page.getByText("No", { exact: true }).click();
 
-  // Submit the whole step: a native <button type=submit> POSTs the form to the
-  // BFF /step route, which forwards the answer, sees the flow is ready, submits
-  // the session, and 303-redirects to the receipt. A full page reload, no JS.
   await stepSubmit(page).click();
 
   await page.waitForURL(/\/done/);

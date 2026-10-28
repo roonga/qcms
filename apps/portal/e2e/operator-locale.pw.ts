@@ -42,7 +42,6 @@ function nativeOrder(scope: Locator): Promise<string[]> {
 test("the date field draws day, month, year before and after hydration", async ({ page }) => {
   const { kitchenSinkSlug } = readFixtures();
 
-  // The server render, with React kept from running.
   const starvation = await starveScripts(page);
   await page.goto(`/f/${kitchenSinkSlug}`);
   await page.getByRole("button", { name: "Start" }).click();
@@ -54,7 +53,6 @@ test("the date field draws day, month, year before and after hydration", async (
   );
   expect(await nativeOrder(nativeGroup)).toEqual(["day", "month", "year"]);
 
-  // The same page, hydrated.
   starvation.restore();
   await page.reload();
   await waitForHydration(page);
@@ -74,9 +72,7 @@ test("the receipt shows the submitted time on the respondent's clock, zone named
   await waitForHydration(page);
 
   const submitted = page.getByTestId("submitted-at");
-  // Kolkata is UTC+5:30, named by ICU as "GMT+5:30" (or "IST" in some data sets).
   await expect(submitted).toHaveText(/(GMT\+5:30|IST)$/u);
   await expect(submitted).not.toContainText("UTC");
-  // The machine-readable instant is still the UTC value from the API.
   await expect(submitted.locator("time")).toHaveAttribute("datetime", /Z$/u);
 });

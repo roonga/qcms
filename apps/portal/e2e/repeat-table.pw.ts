@@ -51,8 +51,6 @@ async function startTableFlow(page: import("@playwright/test").Page): Promise<st
   await page.goto(`/f/${repeatTableSlug}`);
   await page.getByRole("button", { name: "Start" }).click();
   await page.waitForURL(/\/s\/ses_/);
-  // The first serve mints `min: 1`, so the respondent meets one row rather than an empty
-  // table with a button (ADR-42's minting rule).
   await expect(row(page, 1)).toBeVisible();
   await waitForHydration(page);
   return new URL(page.url()).pathname.split("/")[2]!;
@@ -121,23 +119,16 @@ test("the table is a native table with real headers, and no role=grid anywhere",
   await rosterPress(page, ADD);
   await expect(page.locator("tbody tr[data-qcms-instance]")).toHaveCount(2);
 
-  // Searched in the SERVED DOM rather than read off the source: the refusal is about
-  // what reaches a respondent, and the vendored `Table` this layout was built from is a
-  // react-aria `Table`, which renders exactly this role.
   await expect(page.locator('[role="grid"]')).toHaveCount(0);
   await expect(page.locator('[role="gridcell"]')).toHaveCount(0);
 
   const table = page.locator("table[class*='qcms-repeat-table']");
   await expect(table.locator("caption")).toHaveText("Vehicles");
-  // The corner names the row-header column for ONE instance ("Vehicle"), not for the
-  // collection ("Vehicles") - that is the caption's job.
   await expect(table.locator('thead th[scope="col"]').first()).toHaveText("Vehicle");
   await expect(table.locator('thead th[scope="col"]')).toHaveCount(7);
   await expect(table.locator('tbody th[scope="row"]')).toHaveCount(2);
   await expect(row(page, 2).locator('th[scope="row"]')).toHaveText("Vehicle 2");
 
-  // And every cell input is named from the ACCESSIBILITY TREE: `getByRole` with a name
-  // resolves the computed accessible name, so this is what assistive technology speaks.
   for (const ordinal of [1, 2]) {
     await expect(
       page.getByRole("textbox", { name: `Vehicle ${String(ordinal)}, Registration plate` }),
@@ -146,11 +137,8 @@ test("the table is a native table with real headers, and no role=grid anywhere",
       page.getByRole("radiogroup", { name: `Vehicle ${String(ordinal)}, Main use` }),
     ).toBeVisible();
   }
-  // A column's help text is on its header, once, rather than in each of its cells.
   await expect(table.locator(".qcms-repeat-table__colhint")).toHaveCount(1);
 
-  // The scroll box is the only element on a portal page permitted to scroll sideways,
-  // and the page itself still does not.
   expect(await pageOverflow(page)).toBeLessThanOrEqual(0);
 });
 
@@ -162,11 +150,6 @@ test("case 41: at 390px the table reflows to one card per row and the page does 
   await rosterPress(page, ADD);
   await expect(page.locator("tbody tr[data-qcms-instance]")).toHaveCount(2);
 
-  // MEASURED FIRST, because a table is the most likely place on this surface to break
-  // 1.4.10, and because task 073 found that a layout whose min-content width exceeds the
-  // device makes Chromium zoom the whole page out - at which point every later
-  // measurement and every click point is wrong by the scale factor and the failure names
-  // something else entirely.
   const metrics = await page.evaluate(() => ({
     innerWidth: window.innerWidth,
     scale: window.visualViewport?.scale ?? 1,
@@ -176,8 +159,6 @@ test("case 41: at 390px the table reflows to one card per row and the page does 
   expect(metrics.scale, "Chromium zoomed the page out to fit, which is a 1.4.10 failure").toBe(1);
   expect(metrics.overflow, "the portal page may never scroll horizontally").toBeLessThanOrEqual(0);
 
-  // One card per row: the header row is gone and each row's cells stack, so no two cells
-  // of a row share a horizontal band.
   await expect(page.locator("table[class*='qcms-repeat-table'] thead")).toBeHidden();
   const bands = await row(page, 1)
     .locator("td[data-qcms-column]")
@@ -196,9 +177,6 @@ test("case 41: at 390px the table reflows to one card per row and the page does 
     ).toBeGreaterThanOrEqual(stacked[index - 1]!.bottom);
   }
 
-  // EVERY INPUT KEEPS THE SAME ACCESSIBLE NAME, which is the whole reason the label is a
-  // real element clipped by CSS rather than a header relationship: at this width the
-  // header cells are not headers any more, so a name that came from them would be gone.
   for (const ordinal of [1, 2]) {
     await expect(
       page.getByRole("textbox", { name: `Vehicle ${String(ordinal)}, Registration plate` }),
@@ -207,7 +185,6 @@ test("case 41: at 390px the table reflows to one card per row and the page does 
       page.getByRole("group", { name: `Vehicle ${String(ordinal)}, Last service date` }),
     ).toBeVisible();
   }
-  // And here the label is PAINTED, because the card layout is where it has to be read.
   const plateLabel = row(page, 1)
     .locator('td[data-qcms-column="q_rt_plate"] label')
     .filter({ hasText: "Vehicle 1, Registration plate" });
@@ -221,43 +198,10 @@ test("case 44: nothing is pinned, so no focused cell can be obscured (2.4.11)", 
   await startTableFlow(page);
   await rosterPress(page, ADD);
 
-  // 2.4.11 Focus Not Obscured, new at 2.2, whose Understanding names "sticky footers,
-  // sticky headers" in terms.
-  //
-  // THE CRITERION HOLDS BY CONSTRUCTION HERE, BECAUSE THIS TABLE PINS NOTHING (Code
-  // Owner, 2026-10-03). An earlier version of this layout declared `position: sticky`
-  // on the header row and the total footer, and both were inert: sticky resolves
-  // against the nearest scrollport, which is the table's `overflow-x: auto` box, and
-  // that box's block size is its content's, so it never scrolls on the block axis and
-  // neither cell ever detached. The ruling deleted the declarations rather than
-  // constraining the box's height to make them work, because the pin's own geometry is
-  // what creates the obscuring risk. `packages/ui/src/theme-components.css` carries the
-  // reasoning beside the rules.
-  //
-  // SO THIS TEST IS A GUARD AGAINST A FUTURE PIN, and it is written to be sensitive to
-  // one rather than to describe today's layout. It fails the moment a header or footer
-  // cell is given a `position` that takes it out of flow and lands it over row 1, which
-  // is exactly the mechanism a reintroduced `position: sticky` plus a constrained box
-  // height would produce. It is stated as two readings because each alone has a blind
-  // spot: the geometry catches an out-of-flow cell resting over the focused one
-  // whatever is painted, and the hit test catches anything else painted over it
-  // whatever its geometry.
   const plate = page.getByRole("textbox", { name: "Vehicle 1, Registration plate" });
   await plate.focus();
   await expect(plate).toBeFocused();
 
-  // First, the claim the rest of the test rests on, asserted rather than assumed: no
-  // header or footer cell is positioned in a way that can lift it over another row. This
-  // is the assertion that would have caught the inert pins, from the other side, and the
-  // one that fails first if they return.
-  //
-  // THE TEST IS `sticky`, `absolute` OR `fixed`, and not "anything but `static`", because
-  // every cell in this table is `position: relative` on purpose: that is the containing
-  // block each cell's visually hidden label resolves against, and without it the label
-  // resolves against the initial containing block and widens the document (THE 136
-  // PIXELS, `packages/ui/src/theme-components.css`). A relatively positioned cell with no
-  // offsets stays exactly where flow put it. The three values below are the ones that
-  // take a cell out of flow, and a pin is the first of them.
   const OUT_OF_FLOW = ["sticky", "absolute", "fixed"];
   const positions = await page
     .locator("thead th, thead td, tfoot th, tfoot td")
@@ -282,12 +226,6 @@ test("case 44: nothing is pinned, so no focused cell can be obscured (2.4.11)", 
           rect.top < box.bottom &&
           rect.bottom > box.top,
       ).length;
-    // Points well INSIDE the box rather than at its corners, because a control with a
-    // border radius does not occupy its own corners: a point 2px in from one lands
-    // outside the rounded shape and hits the container, which is a true fact about
-    // rounded rectangles and not an obscuring element. And a hit is only obscuring when
-    // it is OUTSIDE the focused element's own ancestor-or-descendant chain: the field
-    // wrapper the control sits in is painted behind it, never over it.
     const points = [
       { x: box.left + box.width / 2, y: box.top + box.height / 2 },
       { x: box.left + box.width * 0.25, y: box.top + box.height / 2 },
@@ -306,9 +244,6 @@ test("case 44: nothing is pinned, so no focused cell can be obscured (2.4.11)", 
   expect(report.overlapping, "a header or footer cell overlaps the focused cell").toBe(0);
   expect(report.covered, "something is painted over the focused cell").toEqual([]);
 
-  // And the same for the landing an Add produces, which is the row header rather than a
-  // cell: a focus destination covered by table chrome is the same failure one element
-  // over, and it is the destination a respondent arrives at without having asked to.
   await rosterPress(page, ADD);
   const landed = page.locator(":focus");
   await expect(landed).toHaveAttribute("id", /^ins_/);
@@ -343,9 +278,6 @@ test("a per-row Remove clears the 44px target floor (2.5.8)", async ({ page }) =
   await startTableFlow(page);
   await rosterPress(page, ADD);
 
-  // A per-row Remove is the control most likely to fall below the portal's
-  // `--space-control-h` floor, because it is one control in one cell of a table that
-  // wants to be narrow. 2.5.8's minimum is 24px; the portal's own floor is 44.
   const box = await page.getByRole("button", { name: removeName(2) }).boundingBox();
   expect(box).not.toBeNull();
   expect(box!.height).toBeGreaterThanOrEqual(44);
@@ -366,12 +298,9 @@ test("case 43: the column total is drawn, is no input, and reaches no answer row
   await fillCell(page, 2, "q_rt_plate", "Registration plate", "BBB222");
   await fillCell(page, 2, "q_rt_odometer", "Odometer reading", "340");
 
-  // Drawn, and summed over the column's own cells.
   const total = page.locator('tfoot td[data-qcms-column="q_rt_odometer"]');
   await expect(total).toContainText("1,540");
   await expect(page.locator("tfoot th")).toHaveText("Total");
-  // And presentation only: no control inside the footer at all, so there is nothing for
-  // the respondent to type into and nothing for the form to serialize.
   await expect(page.locator("tfoot input, tfoot select, tfoot textarea")).toHaveCount(0);
   await expect(page.locator("tfoot [data-qcms-field]")).toHaveCount(0);
 
@@ -380,9 +309,6 @@ test("case 43: the column total is drawn, is no input, and reaches no answer row
 
   const db = await openDb(databaseUrl);
   try {
-    // The locked set holds the questions the author asked and nothing computed: a total
-    // is never an answer, so no row of any grain carries one (ADR-43's out-of-scope list
-    // - an author who needs it stored asks for it as a question).
     const answers = await db.lockedAnswers(sessionId);
     const asked = new Set(answers.map((answer) => answer.questionId));
     expect([...asked].sort()).toEqual(["q_rt_fleet_ref", "q_rt_odometer", "q_rt_plate"]);
@@ -405,28 +331,17 @@ test.describe("without scripting", () => {
   test("a row's Add and Remove ride the __qop Server Action and land focus by autofocus", async ({
     page,
   }) => {
-    // The mechanism is task 073's, unchanged (Q28): a named `__qop` submit button on the
-    // step's own form, whose action is a Next Server Action that applies the roster
-    // operation and re-renders the step in the same 200. What is new here is that the
-    // landing is a table ROW's header rather than an instance card's heading, and that
-    // the table above the reflow is where it has to work too - so this one sets a wide
-    // viewport rather than taking the phone project's, which is in card layout.
     await page.setViewportSize(TABLE_VIEWPORT);
     await page.goto(`/f/${repeatTableSlug}`);
     await page.getByRole("button", { name: "Start" }).click();
     await page.waitForURL(/\/s\/ses_/);
     await expect(page.locator("tbody tr[data-qcms-instance]")).toHaveCount(1);
 
-    // The row's Remove is a submit button carrying the roster operation in its value,
-    // and `formnovalidate`, which is safe only because that post writes no answer.
     const remove = page.getByRole("button", { name: removeName(1) });
     await expect(remove).toHaveAttribute("name", "__qop");
     await expect(remove).toHaveAttribute("value", /^remove:grp_vehicles:ins_/);
     await expect(remove).toHaveAttribute("formnovalidate", "");
 
-    // The press is a POST whose own response is the page, which is the ruled shape. The
-    // timeout is generous because the FIRST `__qop` post in a run pays for the dev server
-    // compiling the Server Action route.
     const served = page.waitForResponse((response) => response.request().isNavigationRequest(), {
       timeout: 120_000,
     });
@@ -434,17 +349,11 @@ test.describe("without scripting", () => {
     expect((await served).status(), "the Add post's own response").toBe(200);
     await expect(page.locator("tbody tr[data-qcms-instance]")).toHaveCount(2);
 
-    // Focus lands by `autofocus` on the new row's header: a 200 answering a POST leaves
-    // the browser on the POST's own URL, which carries no fragment, so a fragment could
-    // never have been the landing (Q28). Exactly one claim on the page, because the flush
-    // algorithm picks one.
     await expect(page.locator("[autofocus]")).toHaveCount(1);
     const landing = page.locator('tbody th[scope="row"][autofocus]');
     await expect(landing).toHaveText("Vehicle 2");
     await expect(landing).toHaveAttribute("tabindex", "-1");
 
-    // And the page still does not scroll sideways with a hidden label in every cell,
-    // which is the trap this layout's `position: relative` declarations exist for.
     expect(await pageOverflow(page)).toBeLessThanOrEqual(0);
   });
 });

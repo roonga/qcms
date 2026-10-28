@@ -88,20 +88,11 @@ test("a refused answer shows the author's wording for the constraint that failed
   const { authorMessagesSlug } = readFixtures();
   await startAuthorMessages(page, authorMessagesSlug);
 
-  // "AB" is 2 characters: minLength (3) is the first constraint the kernel
-  // reports, and the author decorated it.
   await commitRefused(page, AM.plate, "AB");
   await expect(page.getByText(AUTHORED.minLength)).toBeVisible();
-  // Neither default: not the kernel's wording for the very constraint that
-  // failed, and not the generic catalog entry either. The first is what would
-  // appear if the author's message were dropped (issue #322 made it the default),
-  // so asserting it is absent is what proves the override actually took.
   await expect(page.getByText(KERNEL.plateMinLength)).toBeHidden();
   await expect(page.getByText(CATALOG_INVALID)).toBeHidden();
 
-  // "abcdef" clears minLength and fails `pattern`, which the author also
-  // decorated: a DIFFERENT constraint on the SAME question shows a different
-  // message, which is what "per constraint" means at this layer.
   await commitRefused(page, AM.plate, "abcdef");
   await expect(page.getByText(AUTHORED.pattern)).toBeVisible();
   await expect(page.getByText(AUTHORED.minLength)).toBeHidden();
@@ -115,32 +106,11 @@ test("a constraint the author left alone still shows the portal default", async 
   const { authorMessagesSlug } = readFixtures();
   await startAuthorMessages(page, authorMessagesSlug);
 
-  // The VIN carries a custom `required` message but nothing for `minLength` (5),
-  // so two characters is refused on a constraint the author left alone: this one
-  // question shows the author's wording in the summary and the portal's default
-  // here. Per constraint, not per question.
-  //
-  // NOT `maxLength`, which looks like the obvious un-decorated case and is
-  // unreachable from a browser: the compiler forwards it as the input's advisory
-  // `maxlength` attribute, so the control truncates the value and the API is never
-  // asked to refuse it.
-  //
-  // The default IS the kernel's wording since issue #322, and that is the half of
-  // this assertion worth reading twice. The no-JS path has always resolved it
-  // (`app/s/[sessionId]/step/route.ts`); the hydrated path went straight to the
-  // generic catalog entry, so enabling JavaScript made the message strictly less
-  // informative. Both paths now compose one resolution, and the agreement itself
-  // is pinned in `lib/validation-message.test.ts` - the browser cannot show it,
-  // because a native `minlength` attribute stops the no-JS submit before the API
-  // ever sees the value, exactly as the `maxLength` note above describes.
   await commitRefused(page, AM.vin, "AB");
   await expect(page.getByText(DEFAULT_INVALID)).toBeVisible();
   await expect(page.getByText(AUTHORED.required)).toBeHidden();
-  // The generic entry is the LAST resort, not the answer for a named constraint.
   await expect(page.getByText(CATALOG_INVALID)).toBeHidden();
 
-  // Not "everything falls back": the same failing constraint on the neighbouring
-  // question is decorated, so it shows the author's wording instead.
   await commitRefused(page, AM.plate, "AB");
   await expect(page.getByText(AUTHORED.minLength)).toBeVisible();
 });
@@ -149,15 +119,12 @@ test("an overridden boolean label is what the accessibility tree announces", asy
   const { authorMessagesSlug } = readFixtures();
   await startAuthorMessages(page, authorMessagesSlug);
 
-  // Both labels overridden (ADR-36): neither lexicon entry appears in this group.
   const tows = page.getByRole("radiogroup", { name: AM.tows });
   await expect(tows.getByRole("radio", { name: "Yes, I tow" })).toHaveCount(1);
   await expect(tows.getByRole("radio", { name: "No, I never tow" })).toHaveCount(1);
   await expect(tows.getByRole("radio", { name: "Yes", exact: true })).toHaveCount(0);
   await expect(tows.getByRole("radio", { name: "No", exact: true })).toHaveCount(0);
 
-  // A MIXED pair: `yesLabel` overridden, `noLabel` still the compiler's
-  // BOOLEAN_AFFIRMATION lexicon entry. Per-label fallback, not per-question.
   const garaged = page.getByRole("radiogroup", { name: AM.garaged });
   await expect(garaged.getByRole("radio", { name: "Garaged" })).toHaveCount(1);
   await expect(garaged.getByRole("radio", { name: "No", exact: true })).toHaveCount(1);
@@ -167,14 +134,10 @@ test("an override changes the label only: the wire values are untouched", async 
   const { authorMessagesSlug } = readFixtures();
   await startAuthorMessages(page, authorMessagesSlug);
 
-  // Presentation payload only (ADR-36): the two radios still carry the compiler's
-  // BOOLEAN_TRUE_VALUE / BOOLEAN_FALSE_VALUE.
   const tows = page.getByRole("radiogroup", { name: AM.tows });
   await expect(tows.getByRole("radio", { name: "Yes, I tow" })).toHaveValue("true");
   await expect(tows.getByRole("radio", { name: "No, I never tow" })).toHaveValue("false");
 
-  // And the answer the API accepts for the relabelled radio is still a boolean:
-  // the post carries `true`, not the label text.
   const posted = page.waitForResponse(
     (r) => r.url().includes("/answers") && r.request().method() === "POST" && r.status() === 200,
   );

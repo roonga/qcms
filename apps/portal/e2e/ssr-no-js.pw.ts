@@ -24,10 +24,8 @@ test("the flow page SSR-renders real step content with JavaScript disabled", asy
   const { slug } = readFixtures();
 
   await page.goto(`/f/${slug}`);
-  // Native form POST (no JS): submit the Start control and follow the redirect.
   await page.getByRole("button", { name: "Start" }).click();
   await page.waitForURL(/\/s\/ses_/);
 
-  // The step label is present in the server-rendered HTML, no hydration needed.
   await expect(page.getByText("Any at-fault accident in the last 3 years?")).toBeVisible();
 });

@@ -72,8 +72,6 @@ test("an emptied required shortText retracts at its blur commit", async ({ page 
   await fillText(page, KS.fullName, "Ada Lovelace");
   await enterDate(page, "05171990");
 
-  // Emptying the box is not the commit: shortText commits on blur (ADR-31), so
-  // nothing has posted yet and the answer count is still one.
   const name = page.getByRole("textbox", { name: KS.fullName });
   await name.click();
   await name.fill("");
@@ -83,15 +81,11 @@ test("an emptied required shortText retracts at its blur commit", async ({ page 
   await blurActive(page);
   await retracted;
 
-  // Exactly two posts, and the second is the retraction - NOT the empty string
-  // this used to send, which `q_full_name`'s minLength/pattern rejects 422 while
-  // the server keeps the previous answer.
   expect(postsFor(log, "q_full_name")).toEqual([
     { questionId: "q_full_name", value: "Ada Lovelace", status: 200 },
     { questionId: "q_full_name", value: null, status: 200 },
   ]);
 
-  // The consequence: the required question is unanswered again.
   await page.getByTestId("primary-action").click();
   await expect(page.getByTestId("error-summary")).toBeVisible();
   await expect(page.getByTestId("error-summary")).toContainText(KS.fullName);
@@ -99,8 +93,6 @@ test("an emptied required shortText retracts at its blur commit", async ({ page 
   await expect(page.getByRole("heading", { name: "Driving history" })).toHaveCount(0);
   expectNoRejectedPosts(log);
 
-  // Independent DB verification: the answer is gone from the read model while the
-  // whole history, tombstone included, is still in the ledger (R3 / ADR-17).
   const db = await openDb(databaseUrl);
   try {
     const latest = await db.latestAnswers(sessionId);
@@ -128,9 +120,6 @@ test("an emptied optional longText retracts rather than storing an empty string"
   await continueStep(page);
   await chooseRadio(page, "No");
 
-  // The long text is the branch the multi-choice gates, and it is OPTIONAL - the
-  // case where the old empty-string post was ACCEPTED (200) rather than rejected,
-  // and so quietly became an answer of nothing that satisfied presence checks.
   await toggleOption(page, "Breakdown");
   await commitCheckboxGroup(page);
   const detail = page.getByRole("textbox", { name: KS.extraDetail });
@@ -147,8 +136,6 @@ test("an emptied optional longText retracts rather than storing an empty string"
 
   const db = await openDb(databaseUrl);
   try {
-    // Absent, not present-and-empty. This is the assertion the empty-string answer
-    // would fail while every count and status above still passed.
     const latest = await db.latestAnswers(sessionId);
     expect(latest.has("q_extra_detail")).toBe(false);
     const rows = (await db.answerRows(sessionId)).filter((r) => r.questionId === "q_extra_detail");
@@ -169,7 +156,6 @@ test("an emptied required number retracts at its blur commit", async ({ page }) 
   await fillText(page, KS.fullName, "Ada Lovelace");
   await enterDate(page, "05171990");
   await continueStep(page);
-  // "Yes" reveals the required number follow-up.
   await chooseRadio(page, "Yes");
 
   const count = page.getByRole("textbox", { name: KS.count });
@@ -181,7 +167,6 @@ test("an emptied required number retracts at its blur commit", async ({ page }) 
 
   await count.click();
   await count.fill("");
-  // Number commits on blur too, so emptying alone has posted nothing.
   expect(postsFor(log, "q_accident_count")).toHaveLength(1);
 
   const retracted = answerPosted(page);
@@ -192,7 +177,6 @@ test("an emptied required number retracts at its blur commit", async ({ page }) 
     { questionId: "q_accident_count", value: null, status: 200 },
   ]);
 
-  // The revealed required question is unanswered again, so this step is blocked.
   await page.getByTestId("primary-action").click();
   await expect(page.getByTestId("error-summary")).toBeVisible();
   await expect(page.getByRole("heading", { name: "Driving history" })).toBeVisible();
@@ -215,12 +199,8 @@ test("a multiChoice unchecked to empty retracts at its group-exit commit", async
   expect(postsFor(log, "q_optional_cover")).toEqual([
     { questionId: "q_optional_cover", value: ["opt_breakdown"], status: 200 },
   ]);
-  // The gated follow-up is open, which is how the retraction's effect on rule
-  // evaluation becomes visible further down.
   await expect(page.getByRole("textbox", { name: KS.extraDetail })).toBeVisible();
 
-  // Unchecking is not the commit: a multiChoice commits on group exit (ADR-31),
-  // so the group can be emptied without a single request.
   await toggleOption(page, "Breakdown");
   expect(postsFor(log, "q_optional_cover")).toHaveLength(1);
 
@@ -228,20 +208,12 @@ test("a multiChoice unchecked to empty retracts at its group-exit commit", async
   await blurActive(page);
   await retracted;
 
-  // Exactly two posts, and the second is `null` - NOT the `[]` this used to send.
-  // `[]` is a legal multiChoice answer, so the old post was an answer of the empty
-  // set; here it is rejected 422 by `minSelected: 1` while the server kept the
-  // previous selection, and on an unconstrained question it would have been stored
-  // and counted as answered.
   expect(postsFor(log, "q_optional_cover")).toEqual([
     { questionId: "q_optional_cover", value: ["opt_breakdown"], status: 200 },
     { questionId: "q_optional_cover", value: null, status: 200 },
   ]);
   expectNoRejectedPosts(log);
 
-  // The server re-evaluated with the question unanswered, so the rule that read
-  // its selection closed the branch it had opened (R2: the API is the only
-  // evaluator; the portal only rendered what came back).
   await expect(page.getByRole("textbox", { name: KS.extraDetail })).toBeHidden();
 
   await page.getByTestId("primary-action").click();
@@ -279,8 +251,6 @@ test("unchecking one of several options is an answer, not a clear", async ({ pag
   await toggleOption(page, "Windscreen");
   await commitCheckboxGroup(page);
 
-  // Deselecting down to a NON-empty selection is an ordinary answer revision: the
-  // retraction path must not swallow it.
   await toggleOption(page, "Breakdown");
   await commitCheckboxGroup(page);
 
@@ -300,22 +270,12 @@ test("a discrete choice has no clear path: it can be changed, never emptied", as
   await enterDate(page, "05171990");
   await continueStep(page);
 
-  // --- boolean -----------------------------------------------------------------
   await chooseRadio(page, "No");
   const no = page.getByRole("radio", { name: "No", exact: true });
 
-  // Every gesture a respondent might reach for to un-answer a radio. None is a
-  // clear: react-aria emits no change, so no post is made and the radio stays
-  // selected. A boolean or singleChoice question therefore travels unanswered ->
-  // answered -> another answer, and never back to unanswered (whole-session
-  // erasure is the only other door, and is out of ADR-33's scope).
-  //
-  // `force` is load-bearing on the two clicks below, not a flake workaround. The
-  // `radio` role resolves to react-aria's own input, which is visually hidden behind
-  // the label every real selection in this suite clicks (`chooseRadio` goes through
-  // `page.getByText`), so it is never actionable. Bypassing actionability is the point:
-  // the assertion is that this gesture reaches the control and still posts nothing.
-  // eslint-disable-next-line sonarjs/no-forced-browser-interaction -- see above: the bypass is the subject of the test
+  // The `radio` role resolves to react-aria's visually hidden input, so bypassing
+  // actionability is the subject of the test rather than a flake workaround.
+  // eslint-disable-next-line sonarjs/no-forced-browser-interaction -- the bypass is the subject of the test
   await no.click({ force: true });
   await no.focus();
   await page.keyboard.press("Delete");
@@ -323,9 +283,6 @@ test("a discrete choice has no clear path: it can be changed, never emptied", as
   await page.keyboard.press("Escape");
   await page.keyboard.press("Space");
 
-  // Anchor deterministically rather than on a timer: post a DIFFERENT answer and
-  // wait for it. Answer posts are serialized and ordered, so once that post has
-  // landed, anything the radio group was going to send has already sent.
   await toggleOption(page, "Breakdown");
   await commitCheckboxGroup(page);
 
@@ -334,7 +291,6 @@ test("a discrete choice has no clear path: it can be changed, never emptied", as
   ]);
   await expect(no).toBeChecked();
 
-  // --- singleChoice (the same control, on the final step) ----------------------
   await continueStep(page);
   await expect(page.getByRole("heading", { name: "Your cover" })).toBeVisible();
 
@@ -350,8 +306,6 @@ test("a discrete choice has no clear path: it can be changed, never emptied", as
   await page.keyboard.press("Backspace");
   await page.keyboard.press("Escape");
 
-  // Re-selecting the SAME option is not a clear either, and the flow's dedupe
-  // means it is not even a second post; changing to another option is.
   const changed = answerPosted(page);
   await page.getByText("Premium", { exact: true }).click();
   await changed;
