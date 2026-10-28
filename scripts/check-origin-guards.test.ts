@@ -7,129 +7,32 @@ import { trackedFilesUnder } from "./tracked-files.mjs";
 import { declaresUseServer } from "./use-server-directive.mjs";
 
 /**
- * Every state-changing BFF route handler in every Next app carries SEC-9's CSRF belt
- * (issue #487).
+ * SEC-9's CSRF belt, over every state-changing BFF route handler and every
+ * `"use server"` module in every Next app.
  *
- * ## Why this is a repo-level gate and not a per-app one
+ * It lives in `scripts/` because it must see both apps at once: inside one app's Vitest
+ * project turbo would cache it against that package's inputs, so a change to the other
+ * app would be reported green without the file being re-read.
  *
- * The defect it exists to catch is not "the check was written wrongly". It is "the
- * check is in one app and not its twin, while a document asserts it of both".
- * `docs/SECURITY_DESIGN.md` said, unqualified, that BFF route handlers enforce
- * Origin/Sec-Fetch-Site checks on state-changing requests. That was true of the admin
- * and false of the portal, for four tasks, across four state-changing handlers.
- *
- * It was also the fourth instance of that exact pattern in one review pass (compare
- * issues #470, #401, #402, #471). The convention that was supposed to prevent it is
- * written down in `apps/portal/lib/server/config.ts` and its admin twin: there is no
- * shared package for a Next BFF's server code, so the code is a deliberate copy, and
- * "the test matrices on both sides assert the same cases so a change made to one and
- * not the other shows up as a red test". Issue #412 records that those paired
- * matrices are **unenforced**, which is precisely how four of these got through. A
- * convention that depends on an author remembering a twin is not a control. This is.
- *
- * ## Why it lives in `scripts/` rather than in either app
- *
- * Both, and it must see both at once. A cross-app assertion placed inside one app's
- * Vitest project would be cached by turbo against that package's own inputs, so a
- * change to the *other* app would not invalidate it: the gate would report green
- * having never re-read the file that broke it. The `tooling` project runs from the
- * repo root and outside turbo (`pnpm test` is `turbo run test && pnpm test:tooling`),
- * so it is never served from cache and always sees the tree as it is.
- *
- * The cost is that `scripts/` is neither linted nor typechecked, which is the
- * recorded repo-wide state of that project (`vitest.config.ts`, issue #257, and the
- * directory-wide entry in `check-lint-coverage.mjs`). That is a pre-existing gap this
- * file sits inside, not a new one it opens.
- *
- * ## Relationship to `apps/admin/lib/server/shell-route-guards.test.ts`
- *
- * That test enforces three rules over `app/(shell)` only, one of which is this same
- * belt. This one is deliberately narrower in rules and wider in reach: one rule, over
- * every `route.ts` in every app, including the admin's auth routes that sit outside
- * `(shell)` on purpose and are therefore invisible to it. Neither subsumes the other,
- * and this file is not the place to grow the other two rules: an authentication rule
- * expressed over an app with no accounts would be noise.
- *
- * ## What it cannot see
- *
- * Written down because an unwritten limit is how a gate gets trusted past its reach.
- *
- *   - It checks that the belt is **called**, not that the call's answer is used. The
- *     shape in this repo is `if (!isSameOriginPost(request)) return ...`, where the
- *     answer cannot be discarded silently, unlike the returned-Response guard that
- *     rule 1 of the admin's test had to defend against.
- *   - It reads route handlers. **A Server Action is a state-changing entry point too,
- *     and it is NOT exempt from the belt.** This file said the opposite until task 073:
- *     "Server actions are out of scope and do not need the belt: Next verifies the
- *     origin of every action call itself." Next does verify it, and the Code Owner
- *     ruled on 2026-10-01 (R-B2) that the verification is not enough, because it
- *     **admits a request carrying no `Origin` at all** after only a warning, compares
- *     the host while **ignoring the scheme**, and **never reads `Sec-Fetch-Site`**. The
- *     rule below therefore enumerates every `"use server"` module in the tree and
- *     asserts each one calls the belt, exactly as it asserts it of a route handler,
- *     plus the referrer policy each app must serve for its own actions to be admitted
- *     by Next at all. What it cannot read is an action whose belt call is behind a
- *     helper; that is the same shape limit as the route rule above. The behavioural
- *     coverage is in `apps/portal/lib/server/origin-guard.test.ts`, beside the six route
- *     handlers it already drives: it calls the real action with a request carrying neither
- *     a usable `Origin` nor Fetch Metadata and asserts the roster write is never made,
- *     with a same-origin control beside it. That test exists because removing the belt call
- *     from the action left the browser suite green (reviewed on PR #1034): a scan that
- *     reads the call is not a test that the call does anything.
- *   - It cannot know that a route which changes state was spelled `GET`. A handler
- *     that mutates behind a read verb is a different defect, and one no static scan
- *     of verb names can reach.
- *   - **It reads exactly one handler shape: a named top-level `function`, `async` or
- *     not.** `export const POST = ...`, a re-exported binding and a default export are
- *     all legal and all unreadable here. They are not silently skipped, which is the
- *     distinction that matters: {@link unscannableExports} fails on each of them by
- *     name, so the answer to an unreadable shape is a red asking for this file to be
- *     taught, never a green. That rule exists because the `async`-only version of the
- *     handler pattern hid a real handler through PR #500's first review, and the
- *     lesson generalised badly: the miss mode of a scanner must never be silence.
+ * It reads that the belt is CALLED, not that its answer is used, and it cannot see a
+ * call behind a helper or a mutation spelled `GET`. Its miss mode must never be
+ * silence: an export shape it cannot classify fails by name rather than being skipped.
  */
 
 const REPO_ROOT = fileURLToPath(new URL("..", import.meta.url));
 
-/** The belt every state-changing route handler must call, by name. */
 const BELT = "isSameOriginPost(";
 
-/** Where each app is expected to define its own copy of the belt. */
 const BELT_MODULE = "lib/server/route-helpers.ts";
 
-/** Verbs whose handlers change state, so the rule applies to them. */
 const MUTATING_VERBS = new Set(["POST", "PUT", "PATCH", "DELETE"]);
 
-/**
- * The one export shape this scanner can read: a named top-level function, `async` or
- * not.
- *
- * `async` was mandatory here until review of PR #500 caught it. Exactly one mutating
- * handler in the tree is synchronous (`apps/admin/app/two-factor/recovery-codes/
- * confirm/route.ts`, which only clears a cookie and so has nothing to await), and it
- * was therefore invisible to this scan: 11 state-changing handlers found where there
- * were 12. It happens to be belted, so nothing was ever exposed, but removing that
- * belt would have left this gate green. A single unseen handler among many seen ones
- * is the worst shape for a tripwire, because every population check still passes: the
- * admin contributes seven other state-changing handlers, so "this app contributed at
- * least one" answered yes while the twelfth went unread.
- *
- * That is the same defect this file exists to catch, one level up, which is why the
- * response is not only to widen the regex but to add {@link unscannableExports}: from
- * here on an export shape the scanner cannot read is a **red naming the file**, not a
- * silent skip. See "What it cannot see" in the header for what that leaves.
- */
 const SCANNABLE_EXPORT = /^export (?:async )?function (\w+)\s*\(/;
-/** `export const <name>` / `export let <name>`, for the readability rule below. */
 const EXPORTED_BINDING = /^export (?:const|let|var) (\w+)\b/;
 
 /**
- * Next route-segment config exports, which are data rather than handlers.
- *
- * Listed explicitly so that `export const dynamic = "force-dynamic"` passes the
- * readability rule while `export const POST = ...` does not: the latter is a legal Next
- * handler form that this scanner genuinely cannot read, so it must fail loudly and ask
- * to be handled here rather than pass as though it had been checked.
+ * Listed by name so `export const dynamic = ...` passes the readability rule while
+ * `export const POST = ...`, a legal handler form this scanner cannot read, fails.
  */
 const SEGMENT_CONFIG = new Set([
   "dynamic",
@@ -140,32 +43,20 @@ const SEGMENT_CONFIG = new Set([
   "preferredRegion",
   "maxDuration",
 ]);
-/** A closing brace in the first column: where a top-level function body ends. */
 const BODY_END = /^\}/;
-/** A line whose content is a comment, in any of the three spellings Prettier produces. */
 const COMMENT_LINE = /^\s*(?:\/\/|\/\*|\*)/;
-/** A trailing `//` comment. The leading `(^|\s)` keeps it off the `//` in a URL literal. */
+/** The leading `(^|\s)` keeps this off the `//` in a URL literal. */
 const TRAILING_COMMENT = /(^|\s)\/\/.*$/;
 
-/** An app with a Next `app/` directory, which is what makes it a BFF with route handlers. */
 interface NextApp {
-  /** Directory name under `apps/`, for readable failure messages. */
   readonly name: string;
-  /** Absolute path to its `app/` directory. */
   readonly appDir: string;
 }
 
 /**
- * Every app under `apps/` that has an `app/` directory.
- *
- * Derived from the repository rather than listed here on purpose: a third Next app added
- * later is covered the day it lands, which is the failure mode this whole file is about.
- * The self-check below asserts the derivation still finds the two that exist today, so a
- * discovery that silently stops finding anything is a red rather than a vacuous pass.
- *
- * The catalogue is git's, not the working directory's (issue #641): a build leaves
- * `apps/<app>/.next` and a dev server leaves `apps/<app>/.next-dev`, both of which a walk
- * reads as source.
+ * Derived so a third Next app is covered the day it lands. The catalogue is git's, not
+ * the working directory's: a build leaves `.next` and a dev server `.next-dev`, both of
+ * which a walk would read as source.
  */
 function nextApps(): NextApp[] {
   const appsDir = `${REPO_ROOT}apps`;
@@ -179,18 +70,12 @@ function nextApps(): NextApp[] {
     .map((name) => ({ name, appDir: `${appsDir}/${name}/app` }));
 }
 
-/**
- * Every `route.ts` / `route.tsx` under `dir`, recursively, as repo-relative paths.
- *
- * Enumerated through git for the same reason {@link nextApps} is.
- */
 function routeFiles(dir: string, prefix: string): string[] {
   return trackedFilesUnder(dir, { match: /(?:^|\/)route\.tsx?$/ }).map(
     (relative) => `${prefix}${relative}`,
   );
 }
 
-/** The given lines with comment lines dropped and trailing comments cut. */
 function stripComments(lines: string[]): string[] {
   const code: string[] = [];
   let inBlockComment = false;
@@ -209,18 +94,10 @@ function stripComments(lines: string[]): string[] {
 }
 
 /**
- * The code of the handler starting at `start`, bounded by its **own** closing brace and
- * with comments removed.
- *
- * Both bounds are load-bearing, and both were learned in review of PR #250 on the
- * admin's equivalent scan. Slicing to the next `export` line attributes the next
- * handler's JSDoc to this one, and since JSDoc in this repo names the guards, an
- * unguarded handler placed above a documented neighbour inherits its paperwork and
- * passes. Keeping comments lets `// isSameOriginPost is not needed here` satisfy a
- * substring rule as readily as calling it.
- *
- * A body no closing brace bounds is reported as empty, which fails the rule naming the
- * handler. A guard this scanner cannot read is a guard it cannot vouch for.
+ * Both bounds are load-bearing. Slicing to the next `export` line would let an unguarded
+ * handler inherit a documented neighbour's JSDoc, and keeping comments would let a
+ * comment naming the belt satisfy the substring rule as readily as calling it. An
+ * unbounded body reports empty, which fails.
  */
 function handlerBody(lines: string[], start: number, limit: number): string {
   const end = lines.findIndex((line, index) => index > start && BODY_END.test(line));
@@ -228,13 +105,11 @@ function handlerBody(lines: string[], start: number, limit: number): string {
   return stripComments(lines.slice(start, end + 1)).join("\n");
 }
 
-/** One exported route handler: its verb and its own code. */
 interface Handler {
   readonly verb: string;
   readonly body: string;
 }
 
-/** The exported top-level async functions of a route module, with their bodies. */
 function handlers(source: string): Handler[] {
   const lines = source.split("\n");
   const starts: { verb: string; line: number }[] = [];
@@ -242,9 +117,6 @@ function handlers(source: string): Handler[] {
     const match = SCANNABLE_EXPORT.exec(line);
     if (match !== null) starts.push({ verb: match[1] ?? "", line: index });
   }
-  // Each body is bounded by the next handler's `export` line as well as by its own
-  // closing brace, so a handler this parser cannot bound reports empty (and fails)
-  // instead of absorbing its neighbour's belt.
   return starts.map((start, position) => ({
     verb: start.verb,
     body: handlerBody(lines, start.line, starts[position + 1]?.line ?? lines.length),
@@ -252,24 +124,8 @@ function handlers(source: string): Handler[] {
 }
 
 /**
- * The `export` lines of a route module that this scanner cannot read as either a
- * handler or plain segment-config data.
- *
- * The rule PR #500's review made necessary. Widening {@link SCANNABLE_EXPORT} to accept
- * a synchronous handler fixes the one shape that was actually hiding; it does nothing
- * about the next one. A scanner whose miss mode is silence cannot be trusted past the
- * shapes its author happened to think of, so this inverts the default: anything it
- * cannot classify fails, naming the file and the line, and whoever wrote that export
- * teaches this file to read it.
- *
- * Shapes this deliberately refuses, all legal Next or TypeScript:
- *
- *   - `export const POST = async (request) => { ... }`, a legal route handler.
- *   - `export { POST } from "./elsewhere"` and `export { handler as POST }`, where the
- *     body is not in this file at all.
- *   - `export default ...`, which is not a route handler but is not data either.
- *
- * Type-only exports pass, because they carry no body to belt and erase at compile time.
+ * Inverts the default: an export this scanner cannot classify fails by name rather than
+ * being skipped, so no handler shape is trusted past the ones it can read.
  */
 export function unscannableExports(source: string): string[] {
   return source
@@ -284,7 +140,6 @@ export function unscannableExports(source: string): string[] {
     .map((line) => line.trim());
 }
 
-/** The state-changing handlers of a route module whose own body never calls the belt. */
 export function unbeltedHandlers(source: string): string[] {
   return handlers(source)
     .filter((handler) => MUTATING_VERBS.has(handler.verb))
@@ -292,9 +147,7 @@ export function unbeltedHandlers(source: string): string[] {
     .map((handler) => handler.verb);
 }
 
-/** One route module to assert on, flattened across apps so each gets its own test. */
 interface ScannedRoute {
-  /** Repo-relative path, so a red names the file to open. */
   readonly path: string;
   readonly app: string;
   readonly source: string;
@@ -317,18 +170,16 @@ const ROUTES: ScannedRoute[] = APPS.flatMap((app) =>
 
 describe("issue #487: state-changing BFF route handlers carry SEC-9's CSRF belt", () => {
   it("finds the Next apps it is supposed to be scanning", () => {
-    // Without this, a rename of `apps/` or of the `app/` directory turns every
-    // assertion below into a vacuous pass over an empty list. A superset check, not an
-    // exact list: a new Next app is expected to appear and should not fail here.
+    // Non-vacuity: a rename of `apps/` or `app/` would otherwise leave every assertion
+    // below passing over an empty list. A superset, so a new app does not fail here.
     expect(APPS.map((app) => app.name)).toEqual(expect.arrayContaining(["admin", "portal"]));
   });
 
   it.each(APPS)(
     "apps/$name has state-changing route handlers for this gate to check",
     ({ name }) => {
-      // Per app rather than over the total, so that an entire app's handler set going
-      // unscanned is a red rather than a silence. The total was already nonzero while
-      // the portal contributed nothing to it, which is exactly issue #487.
+      // Per app, not over the total: the total was already nonzero while the portal
+      // contributed nothing to it.
       const mutating = ROUTES.filter((route) => route.app === name).reduce(
         (sum, route) => sum + route.mutating,
         0,
@@ -338,16 +189,15 @@ describe("issue #487: state-changing BFF route handlers carry SEC-9's CSRF belt"
   );
 
   it.each(APPS)("apps/$name defines its own belt", ({ name }) => {
-    // The belt is a deliberate copy per app (no shared package exists for a Next BFF's
-    // server code, see `config.ts` in either app). This pins that the copy is present
-    // and exported, so the call sites below cannot be importing it from nowhere.
+    // The belt is a deliberate per-app copy: no shared package exists for a Next BFF's
+    // server code, so the call sites below must not be importing it from nowhere.
     const module = readFileSync(`${REPO_ROOT}apps/${name}/${BELT_MODULE}`, "utf8");
     expect(module).toContain("export function isSameOriginPost(");
   });
 
   it.each(ROUTES)("$path exports only shapes this scan can read", ({ source }) => {
-    // Ordered before the belt rule on purpose: an export this scan cannot read is a
-    // handler it cannot vouch for, and the belt rule below would pass it in silence.
+    // Ordered before the belt rule: the belt rule would pass an unreadable export in
+    // silence.
     expect(unscannableExports(source)).toEqual([]);
   });
 
@@ -356,8 +206,7 @@ describe("issue #487: state-changing BFF route handlers carry SEC-9's CSRF belt"
   });
 
   it("covers the handlers issue #487 was filed about", () => {
-    // The four portal handlers named in the issue, pinned by path. If one is renamed or
-    // deleted the scan silently stops covering it, and this is the line that notices.
+    // Pinned by path: a rename would otherwise drop one out of coverage in silence.
     expect(ROUTES.map((route) => route.path)).toEqual(
       expect.arrayContaining([
         "apps/portal/app/f/[formSlug]/start/route.ts",
@@ -370,32 +219,18 @@ describe("issue #487: state-changing BFF route handlers carry SEC-9's CSRF belt"
 });
 
 /*
- * Fixtures for the rule itself, over sources written here rather than files on disk.
- *
- * The scan above is only worth having while it fails against a broken shape, and every
- * shape that matters is one no file in the tree has: that is the point of the scan
- * passing. So they are written here. Without these, a parser that silently stopped
- * matching anything would report the whole tree green.
+ * Written here rather than on disk: every broken shape worth asserting on is one no file
+ * in the tree has, and a parser that stopped matching would otherwise report green.
  */
 
-/**
- * Every `"use server"` module in the Next apps, as repo-relative paths.
- *
- * Enumerated through git for the same reason the route walk is: a build leaves
- * `.next` and a dev server leaves `.next-dev`, both of which a filesystem walk reads as
- * source, and both contain generated action modules.
- */
 function serverActionModules(): string[] {
   const found: string[] = [];
   for (const app of APPS) {
     const root = `${REPO_ROOT}apps/${app.name}`;
     for (const relative of trackedFilesUnder(root, { match: /\.tsx?$/ })) {
       const source = readFileSync(`${root}/${relative}`, "utf8");
-      // The directive is the first statement of the module, so a mention inside a
-      // comment or a string elsewhere in the file is not one. The scan is shared with
-      // the portal's two equivalents and is a walk rather than one expression, because
-      // the obvious expression backtracks exponentially (CodeQL alerts 22 to 24 on
-      // PR #1034); `scripts/use-server-directive.mjs` carries the reasoning.
+      // A walk rather than one expression: the obvious expression backtracks exponentially
+      // (`scripts/use-server-directive.mjs` carries the reasoning).
       if (declaresUseServer(source)) {
         found.push(`apps/${app.name}/${relative}`);
       }
@@ -406,30 +241,18 @@ function serverActionModules(): string[] {
 
 const SERVER_ACTIONS = serverActionModules();
 
-/**
- * The `Referrer-Policy` each app serves, read out of its proxy, so the claim above is
- * checked against the code rather than against a comment.
- */
+/** Read out of each proxy, so the premise below is checked against code, not prose. */
 function referrerPolicyOf(app: string): string | undefined {
   const source = readFileSync(`${REPO_ROOT}apps/${app}/proxy.ts`, "utf8");
   return /"Referrer-Policy",\s*"([^"]+)"/.exec(source)?.[1];
 }
 
-/** The belt, as an action calls it: the headers variant (task 073, R-B2). */
 const ACTION_BELT = "isSameOriginAction(";
 
 describe("task 073: a Server Action carries the belt too (R-B2)", () => {
   it("calls the belt in every action that changes state", () => {
-    // The same rule the route handlers are held to, over the other entry-point shape.
-    // The portal's action calls the headers variant, because an action is handed its
-    // form data and reaches its own request only through `headers()`; the admin's
-    // actions are unreachable without JavaScript and are the case R-B2 left alone, so
-    // they are listed as the exception rather than silently skipped.
-    // Comments are BLANKED before the match, which is the #663 rule the route scan above
-    // already follows: with them in, `// isSameOriginAction is not needed here` satisfies
-    // a substring rule as readily as calling it, and this module's own docblock names the
-    // function a dozen times. Reviewed on PR #1034, where the rule accepted the whole
-    // file including its prose.
+    // Comments are blanked before the match: with them in, a comment naming the belt
+    // satisfies a substring rule as readily as calling it.
     const unbelted = SERVER_ACTIONS.filter((path) => {
       const source = readFileSync(`${REPO_ROOT}${path}`, "utf8");
       const code = stripComments(source.split("\n")).join("\n");
@@ -440,59 +263,33 @@ describe("task 073: a Server Action carries the belt too (R-B2)", () => {
       "apps/admin/app/(shell)/questions/actions.ts",
       "apps/admin/app/(shell)/responses/actions.ts",
       "apps/admin/app/(shell)/webhooks/actions.ts",
-      // Task 069's membership writes. On the admin, which is the case R-B2 left alone:
-      // the app is unreachable without JavaScript, and every one of these actions is a
-      // thin proxy to a QCMS endpoint whose own grant check is the authority. A belt here
-      // would guard the proxy and not the act.
+      // The admin is the case R-B2 left alone: unreachable without JavaScript, and each of
+      // these actions proxies a QCMS endpoint whose own grant check is the authority.
       "apps/admin/app/(shell)/workspaces/[workspaceId]/actions.ts",
     ]);
   });
 
   it("finds the actions in the tree, and they are exactly these", () => {
-    // An exact list rather than a superset, and deliberately so. A Server Action is a
-    // request entry point that SEC-9's belt does not cover, so a second one on the
-    // PORTAL is a decision someone has to take rather than a file someone can add: this
-    // assertion is where it is taken, and where the referrer-policy premise below is
-    // re-checked against it.
+    // An exact list, not a superset: a second portal action is a decision to take here,
+    // because SEC-9's belt does not cover an action entry point by itself.
     expect(SERVER_ACTIONS).toEqual([
       "apps/admin/app/(shell)/forms/actions.ts",
       "apps/admin/app/(shell)/questions/actions.ts",
       "apps/admin/app/(shell)/responses/actions.ts",
       "apps/admin/app/(shell)/webhooks/actions.ts",
-      // Task 069's membership writes, on the admin: grants, revokes, a member row's role
-      // and the two workspace settings. Each is a proxy to the QCMS endpoint that owns
-      // the act, and the API's grant middleware is what authorises it (SEC-3), so a
-      // caller who reached this action without a grant is refused by the API rather than
-      // by the admin.
       "apps/admin/app/(shell)/workspaces/[workspaceId]/actions.ts",
-      // The no-JS Add and Remove of a repeating group (task 073, ADR-43 as amended).
-      // The one action in this repository reachable WITHOUT scripting, which is the
-      // whole of why the portal's referrer policy had to move.
+      // The one action reachable without scripting, which is why the portal's referrer
+      // policy had to move.
       "apps/portal/app/s/[sessionId]/roster-action.ts",
     ]);
   });
 
   /**
-   * The premise behind "Next verifies the origin itself", asserted per app rather than
-   * stated once, because the two apps depend on it differently.
-   *
-   * Next compares an action request's `Origin` to the `Host` or `X-Forwarded-Host` and
-   * refuses a mismatch. Per Fetch, a **navigation** POST under
-   * `Referrer-Policy: no-referrer` serializes its `Origin` as the literal `null`, which
-   * Next refuses; a `fetch()` is mode `cors` and carries the real origin whatever the
-   * referrer policy says.
-   *
-   * So the rule is not "an app with an action must relax the policy". It is:
-   *
-   * - **the portal** has an action invoked by a no-JS form navigation, so it must serve
-   *   a policy that sends an origin to itself, and it serves `same-origin` (Code Owner,
-   *   2026-10-01, SEC-9 as amended);
-   * - **the admin** requires JavaScript by design, so every action call there is a
-   *   `fetch()` from hydrated React and carries a real origin under any policy. It
-   *   keeps `no-referrer`, which its own belt reasoning depends on.
-   *
-   * Both directions are pinned, so relaxing the admin's policy or tightening the
-   * portal's is a red rather than a silent change to what Next admits.
+   * Per Fetch, a navigation POST under `Referrer-Policy: no-referrer` serializes its
+   * `Origin` as the literal `null`, which Next refuses; a `fetch()` is mode `cors` and
+   * carries the real origin under any policy. So the portal, which has a no-JS action,
+   * must serve `same-origin`, while the admin keeps `no-referrer` (SEC-9 as amended).
+   * Both directions are pinned, so relaxing either is a red.
    */
   it("serves same-origin on the portal, whose action is reachable without scripting", () => {
     expect(referrerPolicyOf("portal")).toBe("same-origin");
@@ -503,9 +300,7 @@ describe("task 073: a Server Action carries the belt too (R-B2)", () => {
   });
 
   it("has an action on every app it read a policy for", () => {
-    // Guards the pair above against going vacuous: if the enumeration silently stopped
-    // finding anything, the two assertions would still pass while checking nothing
-    // about an action. This asserts each named app actually has one.
+    // Non-vacuity: the pair above would still pass if the enumeration found nothing.
     const apps = new Set(SERVER_ACTIONS.map((path) => path.split("/")[1]));
     expect([...apps].sort((a, b) => a.localeCompare(b))).toEqual(["admin", "portal"]);
   });
@@ -525,13 +320,8 @@ const UNGUARDED = [
 ];
 
 /**
- * The synchronous handler shape, which this scan could not see until PR #500's review.
- *
- * A fixture rather than a note, because the regex passed review while being wrong: the
- * only thing that would have caught it is a case asserting the rule fires on a shape no
- * file in the tree had yet. It is in the tree now
- * (`two-factor/recovery-codes/confirm/route.ts`), but the fixture stays regardless, so
- * that deleting that route cannot quietly delete the coverage too.
+ * A fixture rather than a reliance on the one synchronous handler in the tree, so that
+ * deleting that route cannot quietly delete this coverage with it.
  */
 const UNGUARDED_SYNC = [
   "export function POST(request: Request): Response {",
@@ -565,8 +355,8 @@ describe("the rule fails on the shapes it exists to catch", () => {
   });
 
   it("does not let a handler free-ride on its neighbour's belt", () => {
-    // The file contains the belt; the second handler does not. A file-level substring
-    // check passes this, which is why the rule reads each handler's own body.
+    // The file contains the belt and the second handler does not, so a file-level
+    // substring check would pass this.
     expect(unbeltedHandlers([...GUARDED, "", ...UNGUARDED].join("\n"))).toEqual(["POST"]);
   });
 
@@ -611,9 +401,6 @@ describe("the rule fails on the shapes it exists to catch", () => {
   });
 
   it("sees a sync handler hiding among async ones, which is how the miss survived", () => {
-    // The shape that made the original defect invisible to every population check: the
-    // file has belted async handlers, so nothing looked empty, and the one unbelted
-    // sync handler was simply never read.
     const source = [...GUARDED, "", ...UNGUARDED_SYNC];
     expect(unbeltedHandlers(source.join("\n"))).toEqual(["POST"]);
   });

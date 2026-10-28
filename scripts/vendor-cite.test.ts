@@ -17,32 +17,16 @@ import {
 } from "./vendor-cite.mjs";
 
 /**
- * Tests for the citation reader (issue #864).
- *
- * **Every fixture is assembled from fragments rather than written out**, for the same
- * reason `check-vendor-pin.test.ts` interpolates its versions: this file is scanned by
- * the tool it tests and by `check:vendor-pin` beside it. A literal `dist/...` citation
- * here would be read against the real installed vendor - where these invented paths do
- * not exist - and a literal `better-auth@<version>` would be read as an assertion about
- * the pin. A gate that has to exempt its own test file has a hole exactly that shape.
- *
- * The package tree is **built in the test**, never the real `node_modules`: the point of
- * these cases is the resolution rule (which package owns a path, which version answers),
- * and a test that read the installed tree would go green or red for reasons that have
- * nothing to do with the rule.
+ * Every fixture is assembled from fragments rather than written out: this file is
+ * scanned by the tool it tests and by `check:vendor-pin` beside it, so a citation or a
+ * pin written out here would be read as a real claim.
  */
 
 /** Assembled, so no literal citation appears in this file. */
 const DIST = "dist";
 /** Likewise the abbreviation prefix, which would otherwise resolve against nothing. */
 const ABBREV = `${"."}..`;
-/**
- * And the expectation marker, in halves, for the reason `check-harness-tags.mjs`
- * assembles its needles: a marker written out here would bind to a citation this file
- * only ever interpolates, and the gate beside it would report an expectation that
- * follows nothing. A fixture is data, and data that a scanner reads as a claim is the
- * one thing a self-scanning gate cannot have.
- */
+/** In halves, so the gate beside this file does not read the fixture as a claim. */
 const mark = (phrase: string): string => `${"<!"}-- expect: ${phrase} --${">"}`;
 /** Likewise: a literal `name@version` here would read as an assertion about the pin. */
 const AT = "@";
@@ -54,11 +38,7 @@ const MAIN = "better-auth";
 
 /** The context module, shipped by `better-auth` and by nothing else. */
 const CONTEXT_PATH = `${DIST}/context/create-context.mjs`;
-/**
- * The env module, shipped by `@better-auth/core` and by nothing else. This is the pair
- * issue #857 got wrong: prose writes the path without its scope, and reading it under
- * `better-auth` because of that is the defect.
- */
+/** Shipped by `@better-auth/core` and by nothing else, so a path written without its scope must not resolve. */
 const ENV_PATH = `${DIST}/env/env-impl.mjs`;
 
 const CONTEXT_SOURCE = [
@@ -75,7 +55,6 @@ const ENV_SOURCE = [
 const root = mkdtempSync(join(tmpdir(), "qcms-vendor-cite-"));
 const nodeModules = join(root, "node_modules");
 
-/** One package in the pnpm store, at an exact version, with a peer-hash suffix. */
 function install(name: string, version: string, files: Record<string, string[]>): string {
   const directory = join(
     nodeModules,
@@ -96,15 +75,14 @@ function install(name: string, version: string, files: Record<string, string[]>)
 
 const mainRoot = install(MAIN, VERSION, { [CONTEXT_PATH]: CONTEXT_SOURCE });
 const coreRoot = install(CORE, VERSION, { [ENV_PATH]: ENV_SOURCE });
-// A second copy of the same package at a different version. Nothing should ever read
-// it: an exact-version match is what keeps a citation anchored to the asserted pin.
+// A second copy at another version, which nothing should read: an exact-version match
+// is what keeps a citation anchored to the asserted pin.
 install(MAIN, OLDER, { [CONTEXT_PATH]: ["a different file entirely"] });
 
 afterAll(() => {
   rmSync(root, { recursive: true, force: true });
 });
 
-/** The two roots, as `main()` resolves them, so a test can read like the tool does. */
 function sourceOf(pkg: string | null, path: string): string[] | null {
   const owner = pkg ?? MAIN;
   const directory = owner === CORE ? coreRoot : owner === MAIN ? mainRoot : null;
@@ -125,9 +103,6 @@ describe("finding the installed package", () => {
   });
 
   it("does not answer with a copy at another version", () => {
-    // The store holds better-auth twice. Asking for a version it does not have has to
-    // be a miss rather than "the one that sorted first", or a citation would be read
-    // against a version nobody asserted.
     expect(findPackageRoot(nodeModules, MAIN, "1.0.0")).toBeNull();
   });
 
@@ -151,8 +126,6 @@ describe("finding the installed package", () => {
 
 describe("which package owns a cited path", () => {
   it("reads a scoped citation under its own package, not under better-auth", () => {
-    // The whole of issue #857 in one assertion. The env module exists in
-    // @better-auth/core and in no other package, and the citation says so.
     const [citation] = citationsIn(`\`${CORE}/${ENV_PATH}:2\``).citations;
     expect(citation?.pkg).toBe(CORE);
     const { failure } = checkCitation(citation!, sourceOf(citation!.pkg, citation!.path), false);
@@ -166,14 +139,11 @@ describe("which package owns a cited path", () => {
   });
 
   it("fails a path the owning package does not ship", () => {
-    // The same path, written bare, so it resolves under better-auth and is not there.
     const [citation] = citationsIn(`\`${ENV_PATH}:2\``).citations;
     expect(checkCitation(citation!, sourceOf(null, citation!.path), false)).toEqual({
       failure: "no such file",
       shown: [],
     });
-    // ... and it is found under the package that does ship it, which is the hint the
-    // failure message carries so the next reader does not repeat the mistake.
     expect(exists(CORE, citation!.path)).toBe(true);
   });
 });
@@ -189,8 +159,6 @@ describe("reading the cited lines", () => {
   });
 
   it("fails a line that has shifted past the end of the file", () => {
-    // The shape a vendor bump produces when a file shrinks: the path still opens and
-    // the line is gone. `check:vendor-pin` cannot see this at all.
     const [citation] = citationsIn(`\`${CONTEXT_PATH}:9\``).citations;
     const { failure } = checkCitation(citation!, sourceOf(null, citation!.path), false);
     expect(failure).toBe("line 9 is past the end of the file (4 lines)");
@@ -228,8 +196,6 @@ describe("--expect", () => {
   });
 
   it("fails when it does not", () => {
-    // A citation that still opens at a line that still exists, saying something else:
-    // the failure `check:vendor-pin` is blind to and the reason this mode exists.
     const [citation] = citationsIn(`${cited} ${mark("?? isDevelopment")}`).citations;
     expect(checkCitation(citation!, sourceOf(null, citation!.path), true).failure).toBe(
       'does not contain "?? isDevelopment"',
@@ -287,13 +253,10 @@ describe("--expect", () => {
     expect(checkCitation(citation!, sourceOf(null, citation!.path), true).failure).toBe(
       "an expectation needs a cited line; this citation names a path only",
     );
-    // ... and the same citation without the flag is a perfectly good path check.
     expect(checkCitation(citation!, sourceOf(null, citation!.path), false).failure).toBeNull();
   });
 
   it("reports an expectation that binds to nothing rather than ignoring it", () => {
-    // An expectation nothing checks is worse than none, because it reads like one that
-    // is checked. Two lines below its citation is out of reach and says so.
     const far = citationsIn(`${cited}\n\n${mark("enabled")}`);
     expect(far.citations[0]?.expect).toBeNull();
     expect(far.problems).toEqual([expect.stringContaining("follows no citation")]);
@@ -318,9 +281,6 @@ describe("the abbreviated and line-only shapes", () => {
   });
 
   it("resolves `...` against a sibling's directory when nothing cited it in full", () => {
-    // How the abbreviation reads in a document that only ever wrote out the
-    // two-factor plugin's own index. The filesystem breaks the tie, so the rule is
-    // checked against a tree rather than guessed from the text.
     const owns = (_pkg: string | null, path: string): boolean => path === backupCodes;
     const { citations, problems } = citationsIn(
       `\`${twoFactor}:1\` and \`${ABBREV}/backup-codes/index.mjs:2\``,
@@ -345,14 +305,11 @@ describe("the abbreviated and line-only shapes", () => {
   });
 
   it("leaves a line-only reference that follows nothing as ordinary prose", () => {
-    // `:80` in a document about ports is not a citation. Reading it as one is how a
-    // gate earns a false positive and gets switched off.
     expect(citationsIn("the API answers on `:80` in that deployment").citations).toEqual([]);
     expect(citationsIn(`\`${CONTEXT_PATH}:1\`\n\nlater, \`:80\``).citations).toHaveLength(1);
   });
 
   it("ignores both shorthands outside backticks, where they are ordinary prose", () => {
-    // A URL template and a shell path, both real lines in this repository.
     expect(citationsIn(`POST ${ABBREV}/draft/validate`).citations).toEqual([]);
     expect(citationsIn(`node ${ABBREV}/dist/migrate.js`).citations).toEqual([]);
     expect(citationsIn("see :3 of that file").citations).toEqual([]);
@@ -360,7 +317,6 @@ describe("the abbreviated and line-only shapes", () => {
 
   it("resolves the shorthand rules directly, both in order", () => {
     const earlier = citationsIn(`\`${backupCodes}:1\` \`${twoFactor}:1\``).citations;
-    // Rule 1 wins on suffix even though the more recent citation is the other file.
     expect(resolveShorthand("backup-codes/index.mjs", earlier, () => false)).toEqual({
       pkg: null,
       path: backupCodes,
@@ -371,8 +327,6 @@ describe("the abbreviated and line-only shapes", () => {
 
 describe("naming a citation in output", () => {
   it("prints a scoped citation's owner once, not twice", () => {
-    // Echoing the written text produced the scope twice over, once as the owner and
-    // once inside the path it was resolved from.
     const [citation] = citationsIn(`\`${CORE}/${ENV_PATH}:32\``).citations;
     expect(describeCitation(citation!, CORE)).toBe(`${CORE} ${ENV_PATH}:32`);
   });
