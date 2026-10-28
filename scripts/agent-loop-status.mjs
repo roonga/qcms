@@ -1,44 +1,9 @@
 #!/usr/bin/env node
 // @ts-check
 /**
- * Say whether the loop supervisor is running and current (issue #597).
- *
- * `scripts/agent-loop.sh` is the only supervisor, and `docs/DEVELOPER_GUIDE.md` presents
- * it as the way an unattended run survives a usage limit. On 2026-08-01 it stopped: the
- * last line of `agent-loop.log` is a limit-reset sleep that never woke, and every
- * session for the three weeks after that reasoned about a safety net that was not there.
- * Nobody noticed, because nothing anywhere answered the question - and the premise had
- * not gone stale by the time this landed: the first run, on 2026-09-03, reported
- * `STOPPED` with the log 797 hours old. That is the half this script fixes: not
- * supervising the supervisor, but making its absence **visible** to any session that
- * thinks to ask, in one command.
- *
- * Two facts, read rather than assumed, and reported together because either alone
- * misleads:
- *
- * - **Is a supervisor process alive?** Read from `/proc`, matching the script path in a
- *   process command line. Where `/proc` is unavailable the answer is `UNKNOWN`, never
- *   "stopped": a confident wrong all-clear in either direction is the failure #597 is
- *   about.
- * - **Has it moved recently?** `agent-loop.log` gains a line at every iteration
- *   boundary. An alive process with a log that has not moved is a supervisor stuck
- *   inside one iteration, which looks identical to a healthy one from `ps` alone.
- *
- * The staleness window defaults to 6 hours because that is the longest gap the
- * supervisor can legitimately produce: its limit-reset sleep is capped at 21600 seconds
- * (`until_sec` in `scripts/agent-loop.sh`), so a longer silence is not explainable by
- * waiting out a usage limit.
- *
- * The last log line is printed whatever the verdict, because in the #597 case it was the
- * line that named the failure ("limit reset detected ... sleeping until then") and it
- * sat there unread for three weeks beside an mtime that contradicted it.
- *
- * Usage:
- *   node scripts/agent-loop-status.mjs             # human-readable report
- *   node scripts/agent-loop-status.mjs --json      # one JSON object
- *   node scripts/agent-loop-status.mjs --stale-hours 12
- *
- * Exit code: 0 RUNNING, 1 STALLED or STOPPED, 2 UNKNOWN or a usage error.
+ * Reports a live supervisor process and the log's age together, because either alone
+ * misleads: an alive process with a log that has not moved is one stuck inside an
+ * iteration, and a process table that cannot be read is UNKNOWN rather than STOPPED.
  */
 
 import { execFileSync } from "node:child_process";
@@ -49,16 +14,13 @@ import { fileURLToPath, pathToFileURL } from "node:url";
 
 const REPO_ROOT = fileURLToPath(new URL("../", import.meta.url));
 
-/** The supervisor script, by the name that appears in its command line. */
 export const SUPERVISOR_SCRIPT = "agent-loop.sh";
 
-/** The log the supervisor appends to, relative to the primary checkout. */
 export const LOG_NAME = "agent-loop.log";
 
 /**
- * Longest silence a healthy supervisor can produce, in hours. Its limit-reset sleep is
- * capped at 21600 seconds in `scripts/agent-loop.sh`, so anything beyond that is not a
- * usage-limit wait.
+ * The supervisor's limit-reset sleep is capped at 21600 seconds, so a longer silence
+ * cannot be explained by waiting out a usage limit.
  */
 export const DEFAULT_STALE_HOURS = 6;
 
@@ -69,12 +31,8 @@ export const DEFAULT_STALE_HOURS = 6;
  */
 
 /**
- * The primary checkout for whatever working tree `from` sits in. The supervisor runs
- * there and writes its log there, so a lane asking from a linked worktree still gets an
- * answer about the real thing.
- *
- * @param {string} from
- * @returns {string}
+ * The supervisor runs in the primary checkout and writes its log there, so a lane asking
+ * from a linked worktree still gets an answer about the real thing.
  */
 export function primaryCheckout(from) {
   const common = execFileSync(
@@ -85,24 +43,13 @@ export function primaryCheckout(from) {
   return dirname(common);
 }
 
-/** Interpreters the supervisor is launched through. */
 const SHELLS = new Set(["bash", "sh", "dash", "zsh", "ksh"]);
 
 /**
- * Whether a process command line is the supervisor running, rather than a process that
- * merely names the script.
- *
- * The distinction matters more than it looks: `grep agent-loop.sh`, an editor with the
- * file open, or this check itself would each be counted by a substring match, and every
- * one of them would produce the false all-clear #597 is about. So the script has to
- * appear where an interpreter would put it - as the executable itself, or as the script
- * argument of a shell - and it has to carry a path separator, which the documented
- * invocation (`bash scripts/agent-loop.sh`) always does. A run started as a bare
- * `agent-loop.sh` from inside `scripts/` is the one shape this misses, and it is
+ * Not a substring match: a grep, an editor with the file open, or this check itself would
+ * each count and produce a false all-clear. The script has to sit where an interpreter
+ * would put it and carry a path separator, so a bare invocation from inside `scripts/` is
  * reported as no supervisor rather than mis-attributed.
- *
- * @param {string[]} argumentList
- * @returns {boolean}
  */
 export function isSupervisorCommand(argumentList) {
   const args = argumentList.filter((value) => value !== "");
@@ -114,14 +61,8 @@ export function isSupervisorCommand(argumentList) {
 }
 
 /**
- * Live supervisor processes, read from `/proc`.
- *
- * Returns `undefined` when the process table cannot be enumerated at all, which is a
- * different answer from "none running" and is reported as such.
- *
- * @param {string} procRoot
- * @param {number} selfPid
- * @returns {Supervisor[] | undefined}
+ * `undefined` when the process table cannot be enumerated at all, which is a different
+ * answer from "none running" and is reported as such.
  */
 export function findSupervisors(procRoot = "/proc", selfPid = ownPid) {
   /** @type {string[]} */
@@ -162,13 +103,6 @@ export function findSupervisors(procRoot = "/proc", selfPid = ownPid) {
   return found;
 }
 
-/**
- * What `agent-loop.log` currently says.
- *
- * @param {string} path
- * @param {number} now
- * @returns {LogState}
- */
 export function readLog(path, now = Date.now()) {
   /** @type {LogState} */
   const absent = {
@@ -191,7 +125,6 @@ export function readLog(path, now = Date.now()) {
   }
 
   const lines = text.split("\n").filter((line) => line.trim() !== "");
-  /** @param {RegExp} pattern */
   const last = (pattern) => [...lines].reverse().find((line) => pattern.test(line));
   return {
     path,
@@ -205,12 +138,6 @@ export function readLog(path, now = Date.now()) {
   };
 }
 
-/**
- * Combine the two readings into one verdict.
- *
- * @param {{ supervisors: Supervisor[] | undefined; log: LogState; staleHours: number }} input
- * @returns {Status}
- */
 export function assess({ supervisors, log, staleHours }) {
   const processesReadable = supervisors !== undefined;
   const live = supervisors ?? [];
@@ -268,10 +195,6 @@ export function assess({ supervisors, log, staleHours }) {
   };
 }
 
-/**
- * @param {Status} status
- * @returns {string}
- */
 export function render(status) {
   const lines = [`agent-loop: ${status.verdict} - ${status.reason}`];
   for (const supervisor of status.supervisors) {
@@ -297,10 +220,6 @@ export function render(status) {
   return lines.join("\n");
 }
 
-/**
- * @param {string[]} args
- * @returns {{ json: boolean; staleHours: number }}
- */
 export function parseArgs(args) {
   const parsed = { json: false, staleHours: DEFAULT_STALE_HOURS };
   const remaining = [...args];
@@ -319,11 +238,6 @@ export function parseArgs(args) {
   return parsed;
 }
 
-/**
- * @param {string[]} args
- * @param {string} checkout
- * @returns {number}
- */
 export function main(args, checkout) {
   /** @type {ReturnType<typeof parseArgs>} */
   let options;

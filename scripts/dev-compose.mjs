@@ -1,57 +1,17 @@
 // @ts-check
 /**
- * `pnpm dev:up` / `pnpm dev:down` - the whole local stack, with the developer
- * toolbox, ready to sign in to.
+ * Drives the solo topology (`docker-compose.yml`) with the toolbox overlay.
  *
- * The bar this exists to clear: on a machine with nothing running, `pnpm dev:up`
- * returns and you can open the admin in a browser and **sign in**, with a credential
- * the command printed. No hand-assembled database URL, no bootstrap step to remember,
- * no reading two documents to find out which of six ways of starting QCMS this is.
+ * It has a Postgres of its own, which is a different database from the one
+ * `docker-compose.dev.yml` publishes for `pnpm dev:portal`. An administrator created
+ * against that one is invisible here, and the symptom is a sign-in that fails with
+ * nothing wrong anywhere it is looked for, so the bootstrap runs `create-admin` inside
+ * this stack's own `api` container.
  *
- * What it brings up is the solo topology plus the opt-in toolbox overlay:
- *
- *   docker compose -f docker-compose.yml -f docker-compose.dev-tools.yml
- *
- * so four containers a person can open (portal, admin, Grafana, pgweb) and three
- * they cannot (api, postgres, and the collector inside `lgtm`).
- *
- * ## Which stack this is, and which it is not
- *
- * QCMS has three Compose stacks and confusing them is the expensive mistake in this
- * area, so they are named here once:
- *
- *   - **`docker-compose.dev.yml`**, project `qcms-dev` (per seat), one Postgres on
- *     `7S20`. This is what `pnpm dev:portal` and `pnpm dev:admin` run against, with
- *     the API and the front end as ordinary processes on your machine.
- *   - **`docker-compose.yml`**, the solo topology, with a Postgres of **its own**
- *     that is never published. This file drives it, with the toolbox overlaid.
- *   - the same solo topology under `-full-stack-e2e`, thrown away per run by
- *     `scripts/compose-e2e.mjs`.
- *
- * The first two have *different databases*, which is the detail that bites: an
- * administrator created against the `7S20` dev database is invisible to this stack,
- * and the symptom is a sign-in that fails with nothing wrong anywhere it is looked
- * for. So the bootstrap here runs `create-admin` **inside this stack's `api`
- * container**, through the step `compose-e2e.mjs` already uses
- * (`scripts/compose-admin.mjs`).
- *
- * ## Seats, and why the project name matters more than the ports
- *
- * Ports come from this seat's stable block via `scripts/ports.mjs` and are never
- * written here (R8, `docs/PORTS.md`): `7S00` portal, `7S40` admin, `7S50` Grafana,
- * `7S60` pgweb. The project name comes from the same module for the same reason
- * (`localStackProjectName`): two Compose stacks sharing a project name ARE one
- * stack, so a wrong one means `dev:down` tears down nothing, or tears down another
- * lane's. Seat 0 is `qcms-local-stack`, which a person recognises in
- * `docker compose ls` and which collides with neither the dev database nor the e2e
- * stack.
- *
- * A linked worktree with no `QCMS_PORT_SEAT` is refused rather than defaulted
- * (issue #296), by the same guard the e2e harness uses: this command runs
- * `down --volumes --remove-orphans`, so a silently adopted seat 0 would not merely
- * read another lane's stack, it would delete it.
- *
- * Usage:  pnpm dev:up  |  pnpm dev:seed  |  pnpm dev:seed:clear  |  pnpm dev:seed:reset  |  pnpm dev:down
+ * Two Compose stacks sharing a project name are one stack, so a wrong project name
+ * means `dev:down` tears down nothing or tears down another lane's. That is also why a
+ * linked worktree with no `QCMS_PORT_SEAT` is refused rather than defaulted: this
+ * command runs `down --volumes --remove-orphans`, which would delete it.
  */
 
 import { closeSync, fchmodSync, fstatSync, openSync, readFileSync, writeFileSync } from "node:fs";
@@ -65,62 +25,37 @@ import { CommandFailed, DOCKER, REPOSITORY_ROOT, runProcess } from "./docker.mjs
 import { isInDockerContainer } from "./docker-host.mjs";
 import { assertPortSeatChosen, localStackProjectName, stablePort } from "./ports.mjs";
 
-/** The base topology and the toolbox overlay, in overlay order. */
 export const COMPOSE_FILES = ["docker-compose.yml", "docker-compose.dev-tools.yml"];
 
 /**
- * Where the operator-shaped secrets come from.
- *
- * Compose's own default file, and named explicitly rather than left to the implicit
- * load so the error when it is missing names it. `.env.compose.example` is the
- * template; `docs/DEVELOPER_GUIDE.md` is where the one variable that is NOT in that
- * template (`QCMS_DB_VIEWER_PASSWORD`) is documented.
+ * Named explicitly rather than left to Compose's implicit load, so the error when it is
+ * missing names it. `QCMS_DB_VIEWER_PASSWORD` is documented in `docs/DEVELOPER_GUIDE.md`
+ * rather than in the template.
  */
 export const ENV_FILE = ".env";
 
 /**
- * Where `QCMS_ADMIN_AUTH_SECRET` is pinned across restarts.
- *
- * Gitignored by the existing `.env.*` rule, and separate from `.env` on purpose:
- * `.env` is a copy of an operator template that a developer may re-copy, and this
- * value is the one in the set that must NOT change once an account has enrolled.
- * See {@link pinAdminAuthSecret}.
+ * Separate from `.env`, which a developer may re-copy from the template: this is the one
+ * value that must not change once an account has enrolled.
  */
 export const ADMIN_SECRET_FILE = ".env.dev-admin";
 
-/** The variables this command supplies itself, so a preflight must not demand them. */
 export const SUPPLIED_VARIABLES = [
   "QCMS_PORTAL_BASE_URL",
   "QCMS_ADMIN_BASE_URL",
   "QCMS_ADMIN_AUTH_SECRET",
 ];
 
-/** The generated administrator's address. Overridable, and `.test` is reserved (RFC 6761). */
+/** `.test` is reserved for testing and can never resolve (RFC 6761). */
 const DEFAULT_ADMIN_EMAIL = "dev@qcms.test";
 
-/**
- * Every `${NAME:?...}` variable in a Compose file: the ones Compose refuses to
- * interpolate rather than default.
- *
- * Scanned rather than listed, so a `:?` added to either file tomorrow is preflighted
- * without anyone remembering to come back here. A hand-kept copy of this list is
- * exactly the drift `docs/PORTS.md` argues against for ports, for the same reason.
- *
- * @param {string} text
- * @returns {string[]}
- */
+/** Scanned rather than listed, so a `:?` added to either file is preflighted anyway. */
 export function requiredVariablesIn(text) {
   const found = new Set();
   for (const match of text.matchAll(/\$\{([A-Z0-9_]+):\?/g)) found.add(match[1]);
   return [...found];
 }
 
-/**
- * The variables the developer has to supply, in file order, deduplicated.
- *
- * @param {readonly string[]} [files] repo-relative Compose files.
- * @returns {string[]}
- */
 export function requiredVariables(files = COMPOSE_FILES) {
   const supplied = new Set(SUPPLIED_VARIABLES);
   const names = new Set();
@@ -131,18 +66,8 @@ export function requiredVariables(files = COMPOSE_FILES) {
 }
 
 /**
- * The `KEY=VALUE` pairs in an env file, for the preflight and for nothing else.
- *
- * Deliberately naive: it ignores comments and blank lines and strips one layer of
- * surrounding quotes, and it does not implement Compose's full `.env` grammar. It
- * does not have to, and it must not be relied on as if it did - **Compose reads the
- * file itself**, and this parse only decides whether to print a helpful message
- * before handing over. A value this misreads is still passed to Compose verbatim,
- * so the worst case is a preflight that lets something through, never a stack
- * configured from a bad parse.
- *
- * @param {string} text
- * @returns {Record<string, string>}
+ * Deliberately naive, and not Compose's full `.env` grammar: Compose reads the file
+ * itself, so a misread here only makes the preflight lenient, never the stack wrong.
  */
 export function parseEnvFile(text) {
   /** @type {Record<string, string>} */
@@ -161,14 +86,6 @@ export function parseEnvFile(text) {
   return values;
 }
 
-/**
- * The variables that are still missing, given the file and the ambient environment.
- *
- * @param {readonly string[]} required
- * @param {Record<string, string | undefined>} fileValues
- * @param {NodeJS.ProcessEnv} environment
- * @returns {string[]}
- */
 export function missingVariables(required, fileValues, environment) {
   return required.filter((name) => {
     const value = environment[name] ?? fileValues[name] ?? "";
@@ -177,25 +94,9 @@ export function missingVariables(required, fileValues, environment) {
 }
 
 /**
- * The message a developer gets instead of Compose's own.
- *
- * Compose's is one line per variable, emitted from inside an interpolation pass, and
- * it names neither where the value is supposed to live nor which of the two files
- * documents it. `QCMS_DB_VIEWER_PASSWORD` is the sharp case: it is deliberately
- * absent from `.env.compose.example` (that file is the operator's, and the toolbox is
- * a developer's), so the obvious "copy the example" does not produce it and the
- * reader has no way to discover that from the error.
- *
- * No value is ever invented here, and that is a control rather than an omission. The
- * viewer password in particular is undefaulted in the overlay so that a read-only
- * database client cannot be stood up by accident; a default picked in this file
- * would put one in everybody's stack and undo that in a way no test would notice.
- *
- * Pure and exported so the text is asserted rather than reviewed.
- *
- * @param {readonly string[]} missing
- * @param {boolean} envFileExists
- * @returns {string}
+ * No value is ever invented here, which is a control rather than an omission: the viewer
+ * password is undefaulted in the overlay so a read-only database client cannot be stood
+ * up by accident, and a default picked here would put one in everybody's stack.
  */
 export function preflightMessage(missing, envFileExists) {
   const lines = [
@@ -229,27 +130,14 @@ export function preflightMessage(missing, envFileExists) {
 /** Permission bits belonging to group and other: what must be off on a secret file. */
 const GROUP_AND_OTHER = 0o077;
 
-/** What a file holding a secret is allowed to be, at most. */
 const OWNER_ONLY = 0o600;
 
 /**
- * Read the pin file and make it owner-only, both through ONE file descriptor.
+ * One descriptor for both halves: `existsSync` then `readFileSync`, or `statSync` then
+ * `chmodSync`, is a check-then-use race on a path (CodeQL `js/file-system-race`).
  *
- * The descriptor is the point, not an implementation detail. The obvious spelling of
- * each half is a check-then-use race on a path: `existsSync` then `readFileSync`
- * (which CodeQL flags as `js/file-system-race`, correctly), and `statSync` then
- * `chmodSync`, which is the same mistake again and would simply move the alert. A
- * descriptor is bound to the inode at `open`, so `readFileSync(fd)`, `fstatSync(fd)`
- * and `fchmodSync(fd)` all act on the file that was opened, whatever happens to the
- * name meanwhile. There is no window to lose.
- *
- * Only `ENOENT` means "no pin yet". Anything else - a directory in the way, a
- * permission problem - is rethrown, because silently regenerating on those would
- * overwrite a secret this process could not read, which is the enrolment-destroying
- * outcome the pin exists to prevent.
- *
- * @param {string} path
- * @returns {{ secret: string; tightenedFrom?: string } | undefined}
+ * Only `ENOENT` means "no pin yet". Anything else is rethrown, because regenerating
+ * would overwrite a secret this process could not read.
  */
 function readAndSecurePinFile(path) {
   /** @type {number} */
@@ -266,9 +154,8 @@ function readAndSecurePinFile(path) {
     /** @type {string | undefined} */
     let tightenedFrom;
     if ((mode & GROUP_AND_OTHER) !== 0) {
-      // Preserve the owner's own bits and clear everyone else's, rather than forcing
-      // 0600: a developer who deliberately made it 0400 asked for read-only, and
-      // "tighten" must never be a way of adding a write bit back.
+      // Preserve the owner's own bits rather than forcing 0600: a file deliberately made
+      // 0400 asked for read-only, and tightening must never add a write bit back.
       fchmodSync(handle, mode & 0o700);
       tightenedFrom = mode.toString(8);
     }
@@ -280,19 +167,9 @@ function readAndSecurePinFile(path) {
 }
 
 /**
- * Write the pin file and leave it owner-only, through ONE file descriptor.
- *
- * The `mode` argument to `open` shares `writeFileSync`'s limitation: it applies only
- * when the call CREATES the file, and is ignored on one that already exists. That is
- * not a corner case here - the regenerate path runs precisely when a pin file exists
- * but holds nothing usable - so the permission is SET afterwards rather than
- * requested, and set on the descriptor rather than on the name, so it lands on the
- * bytes just written whatever the path resolves to by then. Same reasoning as
- * {@link readAndSecurePinFile}, and it keeps one story for the whole function.
- *
- * @param {string} path
- * @param {string} secret
- * @returns {void}
+ * `open`'s `mode` applies only when the call creates the file and is ignored on one that
+ * exists, which is exactly the regenerate path, so the permission is set afterwards and
+ * on the descriptor rather than on the name.
  */
 function writePinFile(path, secret) {
   const handle = openSync(path, "w", OWNER_ONLY);
@@ -316,48 +193,13 @@ function writePinFile(path, secret) {
 }
 
 /**
- * Pin `QCMS_ADMIN_AUTH_SECRET`, generating one on first use.
+ * Left unset, the API generates a fresh secret every boot, and better-auth stores the
+ * enrolled TOTP secret encrypted under this value: a restart would make an existing
+ * authenticator permanently unverifiable, and the admin ships no re-enrolment screen.
  *
- * Left unset, the API generates a fresh secret every boot, and that costs more than
- * a lost session: better-auth stores the enrolled TOTP secret ENCRYPTED under this
- * value and decrypts with the *current* one, so a restart makes an existing
- * authenticator permanently unverifiable and burns one of ten recovery codes. The
- * admin ships no re-enrolment screen. `apps/admin/README.md` and
- * `.env.compose.example` carry the full account, checked against better-auth's own
- * source rather than inferred.
- *
- * So this command never lets it float. Precedence, and each rung is reported to the
- * developer so an unexpected value is visible rather than mysterious:
- *
- *   1. the ambient environment, when a developer has exported one;
- *   2. `.env.dev-admin`, which is where a previous run put it;
- *   3. a fresh 32-byte value, written there.
- *
- * `.env` is deliberately NOT one of the rungs. A developer who copies
- * `.env.compose.example` again gets that file's placeholder back, and a placeholder
- * silently replacing a pinned secret is the exact failure this exists to prevent.
- * Passing the pinned value in the child environment makes it win over the file for
- * Compose's interpolation.
- *
- * ## The file is made owner-only on EVERY path, not just when it is created
- *
- * `writeFileSync`'s `mode` option applies only when the call creates the file; on an
- * existing one it is silently ignored. Measured rather than assumed: a file created
- * at 0644 and rewritten with `{ mode: 0o600 }` is still 0644 afterwards. So `mode`
- * alone protects exactly the case that needs it least - the file this command just
- * made - and does nothing for the two that matter: a pin file some earlier hand
- * created world-readable, and a rewrite of one. The repository root of this very
- * machine has a `.env.dev-admin` at 0644 holding a live secret, so this is a
- * condition that exists rather than one that might.
- *
- * Both halves are therefore explicit: the write path chmods unconditionally, and the
- * read path tightens what it finds and says so. A comment claiming 0600 while the
- * call delivers 0644 is worse than no claim.
- *
- * @param {object} [io]
- * @param {NodeJS.ProcessEnv} [io.environment]
- * @param {string} [io.path] absolute path to the pin file.
- * @returns {{ secret: string; source: "environment" | "file" | "generated"; tightenedFrom?: string }}
+ * `.env` is deliberately not one of the rungs, because re-copying the template would put
+ * its placeholder back over a pinned secret. The file is made owner-only on every path,
+ * not only when created, since `mode` is ignored on a file that already exists.
  */
 export function pinAdminAuthSecret({
   environment = process.env,
@@ -377,16 +219,7 @@ export function pinAdminAuthSecret({
   return { secret, source: "generated" };
 }
 
-/**
- * What to tell the developer about where the pinned secret came from.
- *
- * Pure and exported so the SEC-8 property is a test rather than a reviewer's promise:
- * these lines name the variable, the file and the mode, and never the value.
- *
- * @param {{ source: "environment" | "file" | "generated"; tightenedFrom?: string }} pin
- * @param {string} [file]
- * @returns {string[]}
- */
+/** Names the variable, the file and the mode, and never the value (SEC-8). */
 export function pinNoticeLines(pin, file = ADMIN_SECRET_FILE) {
   const lines = [
     {
@@ -403,12 +236,7 @@ export function pinNoticeLines(pin, file = ADMIN_SECRET_FILE) {
   return lines;
 }
 
-/**
- * This seat's four published ports, derived and never written down (R8).
- *
- * @param {number} [seat]
- * @returns {{ portal: number; admin: number; observability: number; dbViewer: number }}
- */
+/** Derived from the seat and never written down (R8, `docs/PORTS.md`). */
 export function seatPorts(seat) {
   return {
     portal: stablePort("portal", seat),
@@ -419,26 +247,12 @@ export function seatPorts(seat) {
 }
 
 /**
- * What this command hands Compose on top of `.env`.
+ * better-auth trusts the admin origin and no other, so a base URL that disagrees with
+ * the published port is a sign-in that redirects forever.
  *
- * Pure and exported so two properties are tests rather than review notes: the two
- * base URLs agree with the two published ports (better-auth trusts the admin origin
- * and no other, so a disagreement is a sign-in that redirects forever), and the bind
- * address is loopback whatever the file said.
- *
- * That last one is an override rather than a pass-through, unlike every other value
- * here. `QCMS_BIND_ADDRESS` is legitimately `0.0.0.0` for an operator with a separate
- * ingress host, and `.env` is a copy of the operator's template - but this stack
- * prints a plaintext administrator credential and runs a Grafana whose login is
- * `admin`/`admin`. There is no developer machine on which publishing that to every
- * reachable network is right, which is the same reasoning
- * `docker-compose.dev-tools.yml` uses to write the address into its own publishes
- * rather than read it from a variable.
- *
- * @param {object} options
- * @param {{ portal: number; admin: number; observability: number; dbViewer: number }} options.ports
- * @param {string} options.adminAuthSecret
- * @returns {Record<string, string>}
+ * The bind address is an override rather than a pass-through, unlike every other value
+ * here: this stack prints a plaintext administrator credential and runs a Grafana whose
+ * login is `admin`/`admin`, so it stays on loopback whatever `.env` said.
  */
 export function devStackEnvironmentOverrides({ ports, adminAuthSecret }) {
   return {
@@ -454,20 +268,8 @@ export function devStackEnvironmentOverrides({ ports, adminAuthSecret }) {
 }
 
 /**
- * The closing banner: everything a developer needs next, and the three things that
- * look broken and are not.
- *
- * Pure and exported so what a developer reads is asserted (`dev-compose.test.ts`),
- * including the SEC-8 property that the only credential on screen is the local
- * administrator one this command generated - never the database password, the link
- * or session keys, or the internal token.
- *
- * @param {object} options
- * @param {{ portal: number; admin: number; observability: number; dbViewer: number }} options.ports
- * @param {string} options.project
- * @param {{ email: string; password: string } | undefined} options.credentials `undefined` when an admin already existed.
- * @param {boolean} options.inContainer
- * @returns {string[]}
+ * The only credential on screen is the local administrator one this command generated:
+ * never the database password, the link or session keys, or the internal token (SEC-8).
  */
 export function devStackBannerLines({ ports, project, credentials, inContainer }) {
   const url = (/** @type {number} */ port) => `http://localhost:${String(port)}`;
@@ -540,11 +342,7 @@ export function devStackBannerLines({ ports, project, credentials, inContainer }
   return lines;
 }
 
-/**
- * A bad or missing subcommand: a user error, so it prints without a stack trace.
- */
 class UsageError extends Error {
-  /** @param {string} message */
   constructor(message) {
     super(message);
     this.name = "UsageError";
@@ -552,32 +350,14 @@ class UsageError extends Error {
 }
 
 /**
- * This seat's stack, computed ONCE so `up` and `down` cannot disagree.
- *
- * A `down` that derived the name a second time and got it wrong would silently
- * remove nothing and leave a developer with a stack the documented command cannot
- * stop, so both subcommands read this constant and neither builds a name of its own.
- *
- * `COMPOSE_PROJECT_NAME` still outranks it, the same way it does in
- * `scripts/dev-stack.mjs`: it is Compose's own escape hatch, and a developer who set
- * it meant it. Seat 0 is `qcms-local-stack`, which collides with neither the dev
- * database (`qcms-dev`) nor the e2e stack (`qcms-dev-full-stack-e2e`), so
- * `down --volumes` here cannot reach either.
+ * Computed once so `up` and `down` cannot disagree: a `down` that derived the name again
+ * and got it wrong would remove nothing and leave a stack no documented command stops.
  */
 const project = process.env.COMPOSE_PROJECT_NAME ?? localStackProjectName();
 
 /**
- * The argv prefix every Compose call in this file shares.
- *
- * The `--env-file` is attached only when the file is there: passing it for a file
- * that does not exist is an error from Compose, and `down` has to keep working in
- * exactly that state (see {@link teardownPlaceholders}). Whether it is there comes
- * from the caller's one read of it ({@link envFileState}) rather than a second probe.
- * The project name and the file list never vary, which is what makes `down` address
- * what `up` created.
- *
- * @param {boolean} hasEnvFile
- * @returns {string[]}
+ * `--env-file` is attached only when the file is there, because Compose errors on a
+ * missing one and `down` has to keep working in exactly that state.
  */
 function composeArgs(hasEnvFile) {
   const args = ["compose", "--project-name", project];
@@ -586,29 +366,17 @@ function composeArgs(hasEnvFile) {
   return args;
 }
 
-/**
- * @param {Record<string, string>} overrides
- * @returns {NodeJS.ProcessEnv}
- */
 function composeEnvironment(overrides) {
   return { ...process.env, ...overrides };
 }
 
-/** @param {string} message */
 function log(message) {
   process.stdout.write(`[dev-stack] ${message}\n`);
 }
 
 /**
- * What `.env` currently holds, read ONCE.
- *
- * One read rather than an `existsSync` and a `readFileSync`, for the reason spelled
- * out on {@link readAndSecurePinFile}: the two-step spelling is a check-then-use race
- * and reads as though the file could not change between them. Its `exists` also
- * decides whether `--env-file` is passed, so a single answer drives both and they
- * cannot disagree.
- *
- * @returns {{ exists: boolean; values: Record<string, string> }}
+ * One read rather than `existsSync` then `readFileSync`, which is a check-then-use race.
+ * The same answer decides whether `--env-file` is passed, so the two cannot disagree.
  */
 function envFileState() {
   let text;
@@ -622,35 +390,17 @@ function envFileState() {
   return { exists: true, values: parseEnvFile(text) };
 }
 
-/**
- * Fail before Compose does, with a message that names the fix. `up` only.
- *
- * Deliberately not run for `down`: see {@link teardownPlaceholders}.
- */
+/** `up` only. Deliberately not run for `down`: see {@link teardownPlaceholders}. */
 function preflight({ exists, values }) {
   const missing = missingVariables(requiredVariables(), values, process.env);
   if (missing.length > 0) throw new UsageError(preflightMessage(missing, exists));
 }
 
 /**
- * Placeholder values so a teardown can never be blocked by configuration.
- *
- * Compose interpolates the same files on the way down as on the way up, so a `.env`
- * that has since been edited, emptied or deleted would make `docker compose down`
- * fail on a `:?` variable - leaving a developer holding a running stack that the
- * documented command cannot stop. That is the worst failure this command has, and it
- * is entirely avoidable: **nothing on the teardown path reads these values.** No
- * container is started, and the containers that held them are what is being removed.
- * What Compose actually removes comes from the project label and from the volume and
- * network *declarations*, none of which any of these values can reach.
- *
- * Only genuinely missing variables are filled, so a real `.env` still supplies its
- * own values and this is invisible in the normal case.
- *
- * @param {readonly string[]} required
- * @param {Record<string, string | undefined>} fileValues
- * @param {NodeJS.ProcessEnv} environment
- * @returns {Record<string, string>}
+ * Compose interpolates the same files going down as going up, so an edited or deleted
+ * `.env` would make `down` fail on a `:?` variable and leave a running stack no
+ * documented command stops. Nothing on the teardown path reads these values: what
+ * Compose removes comes from the project label and the volume and network declarations.
  */
 export function teardownPlaceholders(required, fileValues, environment) {
   /** @type {Record<string, string>} */
@@ -677,8 +427,8 @@ export function up() {
 
   const credentials = {
     email: process.env.QCMS_ADMIN_EMAIL?.trim() || DEFAULT_ADMIN_EMAIL,
-    // Generated per run unless the developer supplied one. Never a value written in
-    // this repository: a committed credential is a credential in every clone.
+    // Never a value written in this repository: a committed credential is a credential
+    // in every clone.
     password: process.env.QCMS_ADMIN_PASSWORD || generatePassword("dev-"),
   };
   const outcome = createFirstAdmin({ compose, credentials, environment });
@@ -693,15 +443,6 @@ export function up() {
   );
 }
 
-/**
- * What each seeding subcommand tells the developer it is about to do. Pure and
- * exported so `dev-compose.test.ts` can assert that all three exist and that none of
- * them names a credential (SEC-8).
- *
- * @param {"seed" | "clear" | "reset"} mode
- * @param {string} name the Compose project being written to.
- * @returns {string}
- */
 export function seedNoticeLine(mode, name) {
   return {
     seed: `seeding the sample question library and form into project ${name} ...`,
@@ -714,30 +455,13 @@ export function seedNoticeLine(mode, name) {
  * Run the sample-data loader against the running stack: `pnpm dev:seed`,
  * `pnpm dev:seed:clear`, `pnpm dev:seed:reset`.
  *
- * The Questions screen's empty state has told developers to "run pnpm
- * qcms:seed-fixtures against a development database" since task 032, and against
- * THIS stack there was no way to do it: the loader takes a `DATABASE_URL` and this
- * stack's Postgres is deliberately unpublished. `scripts/compose-seed.mjs` runs it
- * inside the network instead; this function is the part that knows the stack.
- *
- * All three modes take the same door, and for `clear` that is a control rather than a
- * convenience (issue #994). A command that deletes sample data must be unable to
- * reach any database but this stack's, and the way that is guaranteed here is that it
- * has no way to name one: the URL is composed from this stack's own variables and
- * dials `postgres:5432`, a name that resolves only on this Compose network.
+ * For `clear` the shared door is a control rather than a convenience: a command that
+ * deletes sample data must be unable to name any database but this stack's, so the URL
+ * is composed from this stack's own variables and dials `postgres:5432`, a name that
+ * resolves only on this Compose network.
  *
  * It preflights like `up` rather than filling placeholders like `down`, because the
- * database credential is read for real here: a missing `QCMS_DB_PASSWORD` should say
- * so up front instead of surfacing as an authentication failure from Postgres.
- *
- * Seeding an already-seeded stack is the expected second case and reports what it
- * skipped, so this needs no idempotence machinery of its own (R6, and the loader's
- * own docstring). A `clear` that cannot proceed - because the seeded form has been
- * answered, and the answer ledger is append-only and immutable by trigger - comes back
- * as a non-zero exit carrying the loader's own explanation, which `seedFixtures`
- * writes through before throwing.
- *
- * @param {"seed" | "clear" | "reset"} [mode]
+ * database credential is read for real here.
  */
 export function seed(mode = "seed") {
   const envFile = envFileState();
@@ -746,10 +470,8 @@ export function seed(mode = "seed") {
   const environment = composeEnvironment(
     devStackEnvironmentOverrides({
       ports: seatPorts(),
-      // Nothing on this path starts an app service, so this value is never used;
-      // Compose interpolates the whole file whatever is being run, so it has to be
-      // present rather than absent. The same function `up` uses, so it reads the
-      // secret already pinned for this stack rather than inventing a second one.
+      // Never used on this path, but Compose interpolates the whole file whatever is
+      // being run, so it has to be present rather than absent.
       adminAuthSecret: pinAdminAuthSecret().secret,
     }),
   );
@@ -764,9 +486,8 @@ export function seed(mode = "seed") {
 }
 
 export function down() {
-  // No preflight. A teardown that refuses because a value went missing leaves a
-  // running stack the documented command cannot stop; `teardownPlaceholders` fills
-  // whatever is absent instead, and nothing on this path reads any of it.
+  // No preflight: a teardown that refuses because a value went missing leaves a running
+  // stack the documented command cannot stop.
   const envFile = envFileState();
   const environment = composeEnvironment({
     ...teardownPlaceholders(requiredVariables(), envFile.values, process.env),
@@ -775,11 +496,8 @@ export function down() {
       adminAuthSecret: "unused-during-teardown",
     }),
   });
-  // The same project and the same file list the `up` used, or this removes nothing.
-  // `--volumes` takes this stack's database with it, which is what makes the next
-  // `dev:up` a genuinely fresh start (including a re-runnable first-admin bootstrap);
-  // `--remove-orphans` takes the overlay's containers, which are orphans of the base
-  // file and are otherwise left behind.
+  // The same project and file list the `up` used, or this removes nothing. `--volumes`
+  // takes this stack's database; `--remove-orphans` takes the overlay's containers.
   log(`removing project ${project} (containers, network, volumes, orphans) ...`);
   runProcess(
     DOCKER,
@@ -789,15 +507,9 @@ export function down() {
 }
 
 /**
- * What to print for a failure.
- *
- * A `UsageError` is the reader's own mistake and a stack trace would bury the one
- * line that matters. A `CommandFailed` means Compose or Docker already printed the
- * real reason immediately above, so repeating a Node stack on top of it is noise.
+ * A `UsageError` would have its one useful line buried by a stack trace, and a
+ * `CommandFailed` means Compose already printed the real reason immediately above.
  * Everything else is unexpected and keeps its stack.
- *
- * @param {unknown} error
- * @returns {string}
  */
 function describe(error) {
   if (error instanceof UsageError || error instanceof CommandFailed) return error.message;
@@ -805,17 +517,6 @@ function describe(error) {
   return String(error);
 }
 
-/**
- * Every subcommand this file answers to, and what each one does.
- *
- * A table rather than an `if` chain since issue #994 took the count from three to five:
- * the chain had already grown a nested ternary whose only job was to name the command
- * back to the seat guard, and a fourth arm would have had to be added in two places that
- * could disagree. Exported so `dev-compose.test.ts` asserts the usage line names exactly
- * the subcommands that exist.
- *
- * @type {Record<string, () => void>}
- */
 export const SUBCOMMANDS = {
   up,
   seed: () => {
@@ -830,7 +531,6 @@ export const SUBCOMMANDS = {
   down,
 };
 
-/** The usage line, derived from {@link SUBCOMMANDS} rather than written out again. */
 export function usageLine() {
   return `Usage: node scripts/dev-compose.mjs <${Object.keys(SUBCOMMANDS).join("|")}>`;
 }
@@ -839,9 +539,8 @@ function main() {
   const command = process.argv[2] ?? "";
   const run = Object.hasOwn(SUBCOMMANDS, command) ? SUBCOMMANDS[command] : undefined;
   if (run === undefined) throw new UsageError(usageLine());
-  // Before anything is spawned, and for every subcommand. A silent fallback to seat
-  // 0 from a worktree would pick another lane's Compose project name, and `down`
-  // deletes what it finds under it (issue #296) - as, now, does `seed:clear`.
+  // Before anything is spawned, for every subcommand: a silent fallback to seat 0 from
+  // a worktree picks another lane's project name, and `down` deletes what it finds.
   try {
     assertPortSeatChosen(REPOSITORY_ROOT, `pnpm dev:${command}`);
   } catch (error) {
@@ -850,15 +549,12 @@ function main() {
   run();
 }
 
-// Only when run as a command, so the pure helpers above can be imported by
-// `dev-compose.test.ts` without a Compose run firing on import. Same guard as
-// `compose-e2e.mjs` and `check-ports.mjs`.
+// Guarded so the pure helpers above can be imported without a Compose run firing.
 if (process.argv[1] !== undefined && import.meta.url === pathToFileURL(process.argv[1]).href) {
   try {
     main();
   } catch (error) {
-    // Carry Docker's own exit status through, so a caller scripting this sees what
-    // Compose reported rather than a flattened 1.
+    // Carry Docker's own exit status through rather than flattening it to 1.
     process.exitCode = error instanceof CommandFailed ? error.status : 1;
     process.stderr.write(`${describe(error)}\n`);
   }

@@ -1,40 +1,11 @@
 #!/usr/bin/env node
 // @ts-check
 /**
- * The operator environment reference (task 036 exit criterion 2, from 017's config
- * schema).
- *
- * ## The problem this exists to solve
- *
- * An env table in a document is wrong the day after it is written. Someone adds a
- * knob to `apps/api/src/config.ts`, ships it, and the ops guide silently describes
- * a deployment that no longer exists. The failure is invisible: nothing is red, the
- * doc simply lies, and an operator finds out during an incident.
- *
- * So the table is generated from here and asserted against the source in
- * `env-reference.test.ts`, along three axes:
- *
- *   1. **Names.** {@link scanEnvNames} reads every tracked, non-test source file of
- *      an app and reports every environment variable it actually touches. That set
- *      must equal the set this file documents, in both directions. Add a knob and
- *      forget the doc, and the test fails naming it; delete a knob and leave the
- *      row behind, and it fails the other way.
- *   2. **Requirement.** For the API, the *parser helper* a variable is read through
- *      says whether it is required or optional ({@link REQUIREMENT_BY_HELPER}), and
- *      that classification is checked against the `requirement` column. Change
- *      `parseInt_` to `parseRequiredString` and the doc has to follow.
- *   3. **The rendered block.** `docs/operations.md` carries the output of
- *      {@link renderEnvReference} between two markers, compared byte for byte.
- *
- * What is NOT derived is the prose: descriptions and default values are written by
- * hand below, because a useful description cannot be extracted from a parser call.
- * Names and requirement are the parts that drift silently, and those are the parts
- * the machine owns.
- *
- * ## Usage
- *
- *   node scripts/env-reference.mjs           print the generated block
- *   node scripts/env-reference.mjs --write   rewrite the block in docs/operations.md
+ * The operator environment reference, generated here and asserted against the source
+ * in `env-reference.test.ts` on three axes: the names an app actually reads, the
+ * requirement the API's parser helper implies, and the rendered block in
+ * `docs/operations.md` byte for byte. Descriptions and defaults are deliberately not
+ * derived: a useful description cannot be extracted from a parser call.
  */
 
 import { execFileSync } from "node:child_process";
@@ -45,52 +16,32 @@ import { fileURLToPath, pathToFileURL } from "node:url";
 
 import { REPOSITORY_ROOT } from "./docker.mjs";
 
-/** The document that carries the generated block. */
 export const OPERATIONS_DOC = "docs/operations.md";
 
-/** Fence markers around the generated block; everything between them is machine-owned. */
 export const BEGIN_MARKER =
   "<!-- BEGIN GENERATED: env-reference (node scripts/env-reference.mjs --write) -->";
 export const END_MARKER = "<!-- END GENERATED: env-reference -->";
 
 /**
- * Compose files whose `${VAR}` interpolation is part of the operator surface.
- *
- * `docker-compose.dev-tools.yml` is deliberately absent, and the omission is a
- * decision rather than an oversight (issue #417). This list decides what appears in
- * an OPERATOR's reference, and none of that overlay's variables is an operator's to
- * set: it is a developer's toolbox that never runs in a deployment, so a row for it
- * in `docs/operations.md` would document a knob for a stack the reader does not
- * have. Its variables are documented in `docs/DEVELOPER_GUIDE.md` instead, where the
- * audience is. `docker-compose.dev.yml` is absent for the same reason and always was.
- *
- * The overlay's one shared name, `OTEL_EXPORTER_OTLP_ENDPOINT`, is already in the
- * table twice (once for each app that reads it) via the base file, so the operator
- * surface loses nothing by the exclusion.
+ * The dev and dev-tools overlays are deliberately absent: their variables are a
+ * developer's, never an operator's, so a row here would document a stack the reader
+ * of `docs/operations.md` does not have.
  */
 const COMPOSE_FILES = ["docker-compose.yml", "docker-compose.proxy.yml"];
 
-/**
- * Where each process's environment reads live. A DIRECTORY, deliberately, not a
- * file list: a hand-maintained list of files is the same drift the whole module
- * exists to prevent, and a new module reading `process.env` would slip past it.
- */
+/** Directories, never a file list: a new module reading `process.env` must not slip past. */
 const SOURCE_ROOTS = {
   api: ["apps/api/src"],
   portal: ["apps/portal"],
   admin: ["apps/admin"],
 };
 
-/** Test, fixture and browser-spec files: their env reads are harness business. */
 const NOT_PRODUCTION_SOURCE = /(\.test\.|\.spec\.|\.pw\.|\/e2e\/|\/__|test-support)/;
 
 /**
- * Which parser helper in `apps/api/src/config.ts` implies which requirement.
- *
- * This is the coupling that makes axis 2 above real: the helper name IS the
- * validation contract (a `parseRequired*` records an issue when the variable is
- * absent; a `parse*` with a fallback cannot). A variable read outside these helpers
- * is left unclassified and only its NAME is checked.
+ * The helper name IS the validation contract: a `parseRequired*` records an issue when
+ * the variable is absent, a `parse*` with a fallback cannot. A variable read outside
+ * these helpers stays unclassified and only its name is checked.
  */
 export const REQUIREMENT_BY_HELPER = {
   parseRequiredString: "required",
@@ -113,14 +64,11 @@ export const REQUIREMENT_BY_HELPER = {
  */
 
 /**
- * Every environment variable an operator can set, with the prose the generated
- * table renders. Order within a process group is the order it is rendered in:
- * required first, then optional, roughly by how often an operator touches it.
+ * Order within a process group is render order: required first, then optional.
  *
  * @type {readonly EnvVar[]}
  */
 export const ENV_REFERENCE = [
-  // --- API (task 017's composition root) ------------------------------------
   {
     name: "DATABASE_URL",
     process: "api",
@@ -612,7 +560,6 @@ export const ENV_REFERENCE = [
     description: "Display name for the bootstrapped administrator.",
   },
 
-  // --- Portal (BFF) ----------------------------------------------------------
   {
     name: "QCMS_API_BASE_URL",
     process: "portal",
@@ -774,7 +721,6 @@ export const ENV_REFERENCE = [
     description: "Service name reported on exported traces and logs.",
   },
 
-  // --- Admin (BFF) -----------------------------------------------------------
   {
     name: "QCMS_DEV_LOGIN_PREFILL",
     process: "admin",
@@ -894,7 +840,6 @@ export const ENV_REFERENCE = [
     description: "Service name reported on exported traces and logs.",
   },
 
-  // --- Compose-level (read by the Compose files, not by an app) --------------
   {
     name: "QCMS_DB_PASSWORD",
     process: "compose",
@@ -1062,7 +1007,6 @@ export const ENV_REFERENCE = [
   },
 ];
 
-/** Human-readable group headings, in render order. */
 const GROUPS = [
   {
     process: "api",
@@ -1090,60 +1034,23 @@ const GROUPS = [
   },
 ];
 
-// --- source scanning --------------------------------------------------------
-
 /**
  * Replace every comment with equivalent blank space, so a variable NAMED in prose is
  * not counted as a read.
  *
- * ## Why this is a scan and not two `replaceAll` calls (issue #773)
- *
- * It used to be `source.replaceAll(/\/\*[\s\S]*?\*\//g, "")` followed by a pass over
- * whole-line `//` comments, and the ordering was the bug. A regex cannot tell a
- * comment opener from the same two characters written inside something else, so a
- * URL glob in an ordinary line comment - `// matches /api/auth/*` - was read as the
- * START of a block comment, which the first pass then closed at the next block
- * terminator it found, usually the end of the following JSDoc. Everything between
- * disappeared. In the observed case four real `parseBool` reads vanished from the
- * scanned set and the drift gate went red pointing at variables whose reads were
- * still there, several hundred lines from the comment that ate them.
- *
- * Reordering the two passes only moves the hole: a line comment inside a block
- * comment that carries the block terminator would then take that terminator away and
- * swallow forward instead. The same two characters in a string literal (`const path =
- * "/api/auth/*"`) defeat both orderings. So this walks the source once and decides
- * what each `/` is from the state it is in, which is the only thing that answers all
- * three.
- *
- * **The failure mode this class shares is that it fails OPEN**, silently shrinking the
- * corpus the gate reasons about rather than reporting anything (the same shape as
- * #663 and #690). Two things guard against a repeat. An unterminated block comment is
- * an error rather than a silent swallow to end of file. And a `'` or `"` with no
- * partner before the end of its line is treated as an ordinary character rather than
- * as a string that runs away: single- and double-quoted strings cannot contain a raw
- * newline in JavaScript, so a lone quote is an apostrophe in JSX text, and consuming
- * the rest of the file from it would be exactly the silent shrink being fixed.
- *
- * Newlines inside a removed comment are kept, so line numbers survive the strip and a
- * position reported against the result still points into the original file.
- *
- * Regular-expression literals are deliberately not tracked. Doing that needs the
- * preceding token to tell `/` as division from `/` as a delimiter, which is more
- * parser than this gate should carry; the residue is a regex literal that contains a
- * literal `/*` or `//` sequence, which would open a comment here. That case is loud
- * rather than silent: it either terminates and strips a small stretch that the name
- * assertions then report, or it does not terminate and throws above.
- *
- * @param {string} source
- * @returns {string} `source` with comment bodies replaced by their newlines.
+ * A single state machine rather than two regex passes: regexes cannot tell a comment
+ * opener from the same two characters inside a string or another comment, and getting
+ * it wrong fails OPEN, silently shrinking the corpus the gate reasons about. So an
+ * unterminated block comment throws, and a quote with no partner before end of line
+ * is an ordinary character (an apostrophe in JSX text) rather than a runaway string.
+ * Newlines are kept so positions still point into the original file. Regex literals
+ * are deliberately not tracked; one containing `/*` or `//` is the known residue.
  */
 export function stripComments(source) {
-  /** Collected output, joined once at the end. */
   const out = [];
   /**
-   * One entry per template literal currently open. The value is the brace depth its
-   * innermost `${` expression opened at, or `null` while the scan is in the
-   * template's TEXT rather than inside an expression.
+   * One entry per open template literal: the brace depth its innermost `${` opened
+   * at, or `null` while the scan is in the template's text.
    *
    * @type {(number | null)[]}
    */
@@ -1151,7 +1058,6 @@ export function stripComments(source) {
   let braceDepth = 0;
   let index = 0;
 
-  /** True while the scan is in a template literal's text rather than in code. */
   const inTemplateText = () => templates.length > 0 && templates.at(-1) === null;
 
   while (index < source.length) {
@@ -1181,7 +1087,6 @@ export function stripComments(source) {
       continue;
     }
 
-    // Code: comments, strings and template openers are all decided here.
     if (character === "/" && source[index + 1] === "/") {
       let end = index + 2;
       while (end < source.length && source[end] !== "\n") end += 1;
@@ -1233,15 +1138,6 @@ export function stripComments(source) {
   return out.join("");
 }
 
-/**
- * The index of the quote that closes the string opened at `start`, or `undefined` when
- * the line ends first (so the opener was not a string opener at all).
- *
- * @param {string} source
- * @param {number} start index of the opening quote.
- * @param {string} quote the opening quote character.
- * @returns {number | undefined}
- */
 function endOfQuotedString(source, start, quote) {
   for (let index = start + 1; index < source.length; index += 1) {
     const character = source[index];
@@ -1255,10 +1151,8 @@ function endOfQuotedString(source, start, quote) {
   return undefined;
 }
 
-/** `env.NAME` / `process.env.NAME` / `env["NAME"]` - a genuine read. */
 const DIRECT_READ = /\b(?:process\.)?env(?:\.([A-Z][A-Z0-9_]*)|\[\s*"([A-Z][A-Z0-9_]*)"\s*\])/g;
 
-/** A variable name passed as a string literal, which is how the API's parsers take it. */
 const NAME_LITERAL = /"((?:QCMS|TURNSTILE|OTEL)_[A-Z0-9_]*[A-Z0-9]|DATABASE_URL)"/g;
 
 /** `${VAR}` in a Compose file. The `(?<!\$)` skips `$${VAR}`, which is container-side. */
@@ -1270,18 +1164,9 @@ const RATE_CLASS_CALL = /\bparseRateClass\(\s*env,\s*"([A-Z][A-Z0-9_]*)"/g;
 /** The suffixes `parseRateClass` appends, read from its own body rather than assumed. */
 const RATE_CLASS_SUFFIX = /`\$\{prefix\}(_[A-Z][A-Z0-9_]*)`/g;
 
-/** A parser call naming its variable: `parseX(env, "NAME"`. */
 const HELPER_CALL = /\b(parse[A-Za-z_]+)\(\s*\n?\s*env,\s*\n?\s*"([A-Z][A-Z0-9_]*)"/g;
 
-/**
- * `environmentDatabaseUrlVariable(name)` - one call, one variable per environment
- * (ADR-40, Q2).
- *
- * The same shape as `parseRateClass`: a call site that names no variable, because the
- * variable's name is computed. The API reads `QCMS_DATABASE_URL_<ENV>` for each name in
- * `QCMS_ENVIRONMENTS`, so the scanner cannot see a literal and the table would otherwise
- * be told it documents two variables nobody reads.
- */
+/** A call site that names no variable, because the name is computed (ADR-40, Q2). */
 const ENVIRONMENT_URL_CALL = /\benvironmentDatabaseUrlVariable\(/;
 
 /** The prefix that helper interpolates the environment into, read from its own body. */
@@ -1292,15 +1177,8 @@ const DEFAULT_ENVIRONMENT_SET = /env\.QCMS_ENVIRONMENTS \?\? "([a-z0-9,]+)"/;
 
 const API_CONFIG = "apps/api/src/config.ts";
 
-/** Where the one derivation of the per-environment variable name lives. */
 const ENVIRONMENT_NAMING = "packages/db/src/environment/naming.ts";
 
-/**
- * Tracked, non-test source files under `roots`.
- *
- * @param {readonly string[]} roots repo-relative directories.
- * @returns {string[]}
- */
 function sourceFiles(roots) {
   const listed = execFileSync("git", ["ls-files", "-z", ...roots], {
     cwd: REPOSITORY_ROOT,
@@ -1311,7 +1189,6 @@ function sourceFiles(roots) {
     .filter((path) => path !== "" && /\.(ts|tsx)$/.test(path) && !NOT_PRODUCTION_SOURCE.test(path));
 }
 
-/** The suffixes a rate-limit class expands into, derived from `config.ts`. */
 export function rateClassSuffixes() {
   const source = readFileSync(join(REPOSITORY_ROOT, API_CONFIG), "utf8");
   const suffixes = [...source.matchAll(RATE_CLASS_SUFFIX)].map((match) => match[1]);
@@ -1324,15 +1201,9 @@ export function rateClassSuffixes() {
 }
 
 /**
- * The `QCMS_DATABASE_URL_<ENV>` variables the API reads by default (ADR-40, Q2).
- *
- * **Both halves are derived, neither is typed here.** The prefix comes from the one
- * helper that builds the name (`ENVIRONMENT_NAMING`), so a rename moves this with it; the
- * environment names come from the fallback in `parseEnvironments`, so the table documents
- * exactly the set a deployment that configures nothing gets. An operator who adds an
- * environment adds a variable of the same shape, which is what the `QCMS_DATABASE_URL_TEST`
- * row says in prose - the table cannot enumerate a set chosen at deploy time, and this is
- * the same compromise `rateClassSuffixes` makes for a prefix that names a pair.
+ * Both the prefix and the environment names are derived from the source, never typed
+ * here, so the table documents exactly the set a deployment that configures nothing
+ * gets. A set chosen at deploy time cannot be enumerated (ADR-40, Q2).
  */
 export function environmentDatabaseUrlVariables() {
   const naming = readFileSync(join(REPOSITORY_ROOT, ENVIRONMENT_NAMING), "utf8");
@@ -1355,18 +1226,6 @@ export function environmentDatabaseUrlVariables() {
     .map((name) => `${prefix}${name.toUpperCase()}`);
 }
 
-/**
- * What one source TEXT contributes to the scan: the variable names it reads, the
- * rate-class prefixes it names, and whether it reads a per-environment connection string.
- *
- * Split out of {@link scanEnvNames} so the scanner can be exercised on a planted
- * source rather than only on the tree (issue #773). `sourceFiles` lists TRACKED files,
- * so a fixture written to a temporary directory is never scanned, and a regression
- * test for a comment shape that eats reads had no way in.
- *
- * @param {string} text one file's contents, comments and all.
- * @returns {{ names: Set<string>; rateClassPrefixes: Set<string>; readsEnvironmentUrls: boolean }}
- */
 export function scanSourceText(text) {
   const stripped = stripComments(text);
   const names = new Set();
@@ -1382,31 +1241,12 @@ export function scanSourceText(text) {
 }
 
 /**
- * Variables the framework sets, which an operator must never set.
- *
- * The table above is "every environment variable an operator can set", and this gate
- * asserts it against what the source reads, so a variable that is read but is not the
- * operator's would otherwise force a row that tells an operator to set something they
- * must leave alone. Exactly one qualifies today.
- *
- * `NEXT_RUNTIME` is Next's own: it names the runtime a module was compiled for, and Next
- * substitutes a literal for it at build time. `instrumentation.ts` reads it so that the
- * boot-refusal write to `process.stderr` compiles away on the edge target, where that
- * stream does not exist and a bare reference made Turbopack print `Ecmascript file had
- * an error` on every dev boot (issue #829). Setting it in a deployment would not select
- * a runtime, it would only misreport one.
- *
- * Anything added here has to meet the same bar: set by the framework or the platform,
- * read for a compile-time or runtime branch, and harmful rather than useful to set.
+ * Read by the source but NOT an operator's to set, so no row is forced. The bar for
+ * an addition: set by the framework or platform, read for a compile-time or runtime
+ * branch, and harmful rather than useful to set.
  */
 const FRAMEWORK_PROVIDED = new Set(["NEXT_RUNTIME"]);
 
-/**
- * Every environment variable `processName` actually reads, from its source.
- *
- * @param {"api" | "portal" | "admin" | "compose"} processName
- * @returns {Set<string>}
- */
 export function scanEnvNames(processName) {
   const found = new Set();
   if (processName === "compose") {
@@ -1426,7 +1266,6 @@ export function scanEnvNames(processName) {
     for (const prefix of scanned.rateClassPrefixes) rateClassPrefixes.add(prefix);
     if (scanned.readsEnvironmentUrls) readsEnvironmentUrls = true;
   }
-  // One call, one variable per environment in the default set (ADR-40, Q2).
   if (readsEnvironmentUrls) {
     for (const name of environmentDatabaseUrlVariables()) found.add(name);
   }
@@ -1439,16 +1278,8 @@ export function scanEnvNames(processName) {
   return found;
 }
 
-/** The unconditional assembly path: every variable here is read on every boot. */
 const UNCONDITIONAL_ENTRY = "export function loadConfig(env: Env): Config {";
 
-/**
- * The body of the function whose signature line is `signature`, by brace matching.
- *
- * @param {string} source
- * @param {string} signature
- * @returns {string}
- */
 function functionBody(source, signature) {
   const start = source.indexOf(signature);
   if (start === -1) {
@@ -1468,21 +1299,10 @@ function functionBody(source, signature) {
 }
 
 /**
- * Requirement as the API's own parsers imply it: variable name to
- * `"required" | "optional"`, for every variable read through a helper in
- * {@link REQUIREMENT_BY_HELPER}. Variables read some other way are absent.
- *
- * **Bounded to `loadConfig`'s own body, and that bound is the whole subtlety.**
- * A helper name states how strictly a value is validated *if the parse is reached*,
- * not whether an operator must set it. `parseAdminAuth` calls `parseRequiredString`
- * for `QCMS_ADMIN_AUTH_SECRET`, but `loadConfig` only calls `parseAdminAuth` when
- * `mount.admin` is on (`adminAuth: mount.admin ? parseAdminAuth(...) : ...`), so the
- * variable is *conditional*, not required, and reading the helper name alone would
- * classify it wrongly. Calls sitting directly in `loadConfig` have no such guard
- * above them, so there the helper does imply the requirement.
- *
- * Conditional variables are therefore absent from this map by construction, and the
- * table's `"conditional"` rows are prose the scan deliberately does not second-guess.
+ * Bounded to `loadConfig`'s own body: a helper name says how strictly a value is
+ * validated if the parse is reached, not whether an operator must set it. A helper
+ * called behind a guard yields a conditional variable, which is why those are absent
+ * from this map by construction.
  *
  * @returns {Map<string, string>}
  */
@@ -1506,26 +1326,17 @@ export function apiRequirementFromParsers() {
   return classified;
 }
 
-// --- rendering --------------------------------------------------------------
-
-/** Markdown-table cell text for one row's requirement. */
 function requirementCell(entry) {
   if (entry.requirement === "required") return "**required**";
   if (entry.requirement === "conditional") return "conditional";
   return "optional";
 }
 
-/** @param {EnvVar} entry */
 function defaultCell(entry) {
   if (entry.requirement !== "optional") return "-";
   return entry.fallback === "" ? "(none)" : `\`${entry.fallback}\``;
 }
 
-/**
- * Render a Markdown table in the same aligned form Prettier enforces.
- * @param {string[][]} rows header followed by body rows.
- * @returns {string[]}
- */
 function markdownTable(rows) {
   const widths = rows[0].map((_, index) =>
     Math.max(3, ...rows.map((row) => (row[index] ?? "").length)),
@@ -1539,7 +1350,6 @@ function markdownTable(rows) {
   ];
 }
 
-/** The generated block, marker to marker. */
 export function renderEnvReference() {
   const lines = [BEGIN_MARKER, ""];
   for (const group of GROUPS) {
@@ -1557,12 +1367,6 @@ export function renderEnvReference() {
   return lines.join("\n");
 }
 
-/**
- * Replace the generated block in `text`, throwing when the markers are missing.
- *
- * @param {string} text
- * @returns {string}
- */
 export function replaceBlock(text) {
   const begin = text.indexOf(BEGIN_MARKER);
   const end = text.indexOf(END_MARKER);
@@ -1574,7 +1378,6 @@ export function replaceBlock(text) {
   return text.slice(0, begin) + renderEnvReference() + text.slice(end + END_MARKER.length);
 }
 
-/** The block currently sitting in the document. */
 export function currentBlock() {
   const text = readFileSync(join(REPOSITORY_ROOT, OPERATIONS_DOC), "utf8");
   const begin = text.indexOf(BEGIN_MARKER);
@@ -1599,6 +1402,5 @@ export function main() {
 if (import.meta.url === pathToFileURL(argv[1] ?? "").href) {
   process.exitCode = main();
 }
-// `fileURLToPath` is imported for the JSDoc-typed path helpers above to stay
-// consistent with the other scripts; referenced here so the import is not dead.
+// Referenced so the import stays live for the JSDoc-typed path helpers above.
 void fileURLToPath;
