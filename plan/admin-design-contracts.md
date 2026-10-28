@@ -1,5 +1,15 @@
 # Admin design contracts (Wave 3 gate)
 
+**Scoped exception: environment-navigation exploration (2026-10-28).** The Code
+Owner explicitly requires `admin-shell-poc/environment-navigation-poc.html` to guide
+flow, navigation and interaction only. It is **not a source of truth for look and
+feel**, and the general “POCs win” wording below does not give this particular POC
+visual authority. Use existing application components, approved screen contracts
+and design tokens. Its persona permissions and simulated backend behavior are not
+policy. See the [implementation handover](environment-navigation-implementation.md)
+for the agreed flows, audited access rules and implementation gaps. This exception
+does not change the authority of the other screen POCs.
+
 **A ninth contract was added 2026-08-21** (§9, author-authored text of unbounded
 length). It is **not** covered by the confirmation below, which was given over
 eight: it was found by shipping Wave 3 rather than by the POC audit, and it is

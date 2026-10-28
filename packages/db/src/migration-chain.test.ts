@@ -4,42 +4,12 @@ import { fileURLToPath } from "node:url";
 import { describe, expect, it } from "vitest";
 
 /**
- * The migration set, its journal and its snapshot chain agree (issue #780).
+ * `drizzle-kit generate` diffs against the newest committed snapshot, and nothing reads a
+ * snapshot at migration time, so a missing or unlinked one breaks nothing until the next
+ * `generate` re-emits statements the database already has.
  *
- * ## What this is for
- *
- * `drizzle-kit generate` diffs the schema source against the **newest committed
- * snapshot**, so the snapshots are how the generator knows what a database already
- * has. `0017_account_issuer` shipped without one. Nothing noticed, because nothing
- * reads a snapshot at migration time: the migrator resolves the journal and the SQL,
- * so every test, every Testcontainers boot and every deployment kept working.
- *
- * The cost landed on the NEXT author. With 0017's snapshot missing, `generate` diffed
- * against 0016 and re-emitted 0017's `ADD COLUMN "issuer"` and its unique index on top
- * of the new migration, which applied to a database already at 0017 fails. That
- * duplicate reached a pull request (#779) and was caught by reading the generated SQL,
- * which is not a control.
- *
- * ## Why the whole chain and not just "the file exists"
- *
- * A snapshot carries `prevId`, and the generator walks it. Backfilling 0017 without
- * relinking 0018's `prevId` would leave a file on disk and a chain that still skips
- * it - present, and still wrong, which is the worse of the two states because it looks
- * fixed. So the property asserted is the chain: every journal entry has a snapshot,
- * every snapshot names its predecessor, and nothing sits in `meta/` that the journal
- * does not account for.
- *
- * ## Derivation
- *
- * The journal is the source of the migration set; the file listing is only ever used
- * to find what the journal does NOT account for. A hard-coded count would stop
- * covering migration 19 without saying so.
- *
- * `readdirSync` confined to `migrations/` rather than `git ls-files`: this package's
- * lint forbids resolving a command off `PATH`, and the same trade is already recorded
- * in `packages/db/src/import-manifest.test.ts`. The directory holds committed SQL and
- * JSON only, never build output, so the objection that makes a directory walk wrong
- * elsewhere in this repository does not apply here.
+ * `readdirSync` rather than `git ls-files`, because this package's lint forbids resolving
+ * a command off `PATH`.
  */
 
 const MIGRATIONS_DIR = fileURLToPath(new URL("../migrations/", import.meta.url));
@@ -64,18 +34,11 @@ function journalEntries(): JournalEntry[] {
   return [...journal.entries].sort((a, b) => a.idx - b.idx);
 }
 
-/** `17` as `"0017"`, the prefix both the SQL file and the snapshot are named by. */
 function prefixOf(idx: number): string {
   return String(idx).padStart(4, "0");
 }
 
-/**
- * Whether an offset falls inside a `--` comment.
- *
- * The keyword check above has to read SQL rather than prose: the baseline explains at
- * length why there is no `DROP` in it, and a check that could not tell the explanation
- * from the statement would fail on the sentence that documents its own rule.
- */
+/** A migration comment naming `DROP` would otherwise fail the checks below. */
 function inComment(sql: string, index: number | undefined): boolean {
   if (index === undefined) return false;
   const lineStart = sql.lastIndexOf("\n", index) + 1;
@@ -94,25 +57,11 @@ describe("the migration chain is complete", () => {
   const entries = journalEntries();
 
   it("has a journal to reason about", () => {
-    // The floor under every assertion below. An empty or unreadable journal would
-    // leave each of them vacuously true, which is the shape #780 is about: a control
-    // that reports nothing reads exactly like a control that found nothing wrong.
-    //
-    // The floor used to be `> 18`, because the chain was then twenty-two entries long.
-    // The Q41 re-baseline replaced all of them with one, so the floor is what a chain
-    // must hold to be a chain at all. **The property this file asserts is unchanged**;
-    // only the length is, which is exactly what section 4a asks for - a re-baseline is
-    // the change most likely to hollow out its own tests, and a floor left at 18 would
-    // have been deleted rather than re-derived.
     expect(entries.length).toBeGreaterThan(0);
     expect(entries.map((entry) => entry.idx)).toEqual(entries.map((_, index) => index));
   });
 
   it("has a baseline carrying no DROP and no SET SCHEMA at all (Q41, criterion 8)", () => {
-    // The ruling, as an executable fact, **on the file it is about**. Nothing is dropped
-    // because nothing is moved, and nothing is moved because the baseline creates each
-    // table where it belongs the first time. A baseline that reached for either keyword
-    // would be the migrate-in-place shape Q41 removed, and would be it quietly.
     const baseline = entries[0];
     expect(baseline).toBeDefined();
     const sql = readFileSync(`${MIGRATIONS_DIR}${baseline!.tag}.sql`, "utf8");
@@ -123,49 +72,9 @@ describe("the migration chain is complete", () => {
   });
 
   it("drops no table, schema, view, trigger or function anywhere in the tree (Q41, criterion 8)", () => {
-    // The half of criterion 8 that has to hold for **every** migration, now and later,
-    // rather than only for the baseline.
-    //
-    // **This assertion was narrowed by task 066, and the narrowing is to what Q41's own
-    // reasoning forbids.** It read `\b(drop|set schema)\b` over every file in the tree,
-    // which is right for the baseline and is more than the ruling says for the files
-    // after it: Q41 forbids reshaping a database in place - moving tables between schemas
-    // and dropping what the move left behind - and says nothing about ordinary schema
-    // evolution, which is what ADR-18's append-only chain exists to carry. Read the
-    // unnarrowed way it also forbade QCMS ever retiring a column again, which no record
-    // decides and which task 066 met on its first line: Q18 takes `forms.status` and the
-    // `form_status` enum away, and an appended migration can only express that as a
-    // `DROP COLUMN` and a `DROP TYPE`.
-    //
-    // **The exact rule** (Code Owner, 2026-10-17, PR #1060), which this assertion is the
-    // executable form of:
-    //
-    // 1. The baseline carries no `DROP` and no `SET SCHEMA` at all. The case above pins
-    //    that, and it is unnarrowed.
-    // 2. An appended migration **may** drop a column, a type, an index or a constraint.
-    //    Those are ordinary retirements: the field or the check goes, the shape of the
-    //    database and the identity of every table stay.
-    // 3. No migration, baseline or appended, may drop a **table**, a **schema**, a
-    //    **view**, a **materialized view**, a **trigger** or a **function**, and none may
-    //    `ALTER TABLE ... SET SCHEMA`.
-    //
-    // Triggers and functions are in rule 3 rather than rule 2 because of what they hold
-    // here. `form_releases` is append-only by trigger, and the environment guard of Q46 is
-    // a function behind a CHECK: a migration that drops one of those leaves every table
-    // standing and every column in place while quietly retiring the invariant that made
-    // the data trustworthy. That is the same class of change as dropping a table, not the
-    // same class as dropping a column, and it is the harder one to notice in review -
-    // which is the argument for the test refusing it rather than a reader catching it.
-    // Replacing a trigger's function is `CREATE OR REPLACE FUNCTION`, which this rule
-    // leaves alone; it is only the removal that is refused.
-    //
-    // The narrowed regex would otherwise have admitted `DROP TRIGGER` and `DROP FUNCTION`
-    // along with the column and type drops it was narrowed for, which was more than the
-    // ruling grants.
-    //
-    // `DROP SCHEMA ... CASCADE` is what the environment **drop command** runs, and it
-    // lives in `src/environment/sql.ts` rather than in any migration, which is what
-    // keeps ADR-17's two whole-session delete paths at two.
+    // An appended migration may drop a column, type, index or constraint, but a trigger
+    // or function holds an invariant, so dropping one retires it while every table and
+    // column still stands.
     const offending = fileNames()
       .filter((name) => name.endsWith(".sql"))
       .flatMap((name) => {
@@ -190,8 +99,6 @@ describe("the migration chain is complete", () => {
   });
 
   it("has the snapshot every journal entry needs", () => {
-    // The assertion #780 asks for. `0017_snapshot.json` was absent for two months and
-    // this is the line that would have failed in 0017's own pull request.
     const present = new Set(fileNames("meta"));
     const missing = entries
       .filter((entry) => !present.has(`${prefixOf(entry.idx)}_snapshot.json`))
@@ -200,10 +107,6 @@ describe("the migration chain is complete", () => {
   });
 
   it("links each snapshot to the one before it", () => {
-    // A snapshot that exists but is not in the chain is the half-fixed state: the file
-    // is there, and `generate` still diffs against whatever `prevId` actually points
-    // at. Backfilling 0017 without moving 0018's `prevId` off 0016 would pass the test
-    // above and fail this one.
     const chain = entries.map((entry) => ({
       idx: entry.idx,
       snapshot: JSON.parse(
@@ -224,8 +127,6 @@ describe("the migration chain is complete", () => {
   });
 
   it("carries no snapshot the journal does not account for", () => {
-    // The other direction. A snapshot left behind by a migration that was withdrawn
-    // would be diffed against by nothing and would mislead the next reader of `meta/`.
     const accounted = new Set([
       "_journal.json",
       ...entries.map((entry) => `${prefixOf(entry.idx)}_snapshot.json`),
@@ -234,11 +135,8 @@ describe("the migration chain is complete", () => {
   });
 
   it("carries no migration SQL the journal does not account for", () => {
-    // The correspondence between a filename and its journal `tag` is hand-maintained
-    // (issue #428: drizzle-kit names migrations randomly, so every one is renamed in
-    // two places). This half of it is free here: a rename that moved the file and not
-    // the tag leaves an unaccounted file, and one that moved the tag and not the file
-    // fails the SQL assertion above.
+    // drizzle-kit names migrations randomly, so each one is renamed by hand in two
+    // places: the file and its journal `tag`.
     const accounted = new Set(entries.map((entry) => `${entry.tag}.sql`));
     expect(fileNames().filter((name) => !accounted.has(name))).toEqual([]);
   });

@@ -35,23 +35,6 @@ import {
   setWorkspaceShared,
 } from "./index.js";
 
-/**
- * The workspace model against a real Postgres (task 068, ADR-41).
- *
- * Real Postgres rather than a fake, because every property below is one SQL enforces and
- * nothing else does: whether a form can exist without a workspace (criterion 1), whether
- * two forms can share a slug across two workspaces (criterion 3), whether two workspaces
- * can both be the shared library, whether a move touches a published version (criterion
- * 7), and whether a workspace that owns a form can be deleted at all (criterion 5).
- *
- * The rules that need a draft or a request - the publish-time pin rule and the archive
- * refusal - are the API's, and are asserted in
- * `apps/api/src/features/workspaces/workspaces.integration.test.ts` and
- * `apps/api/src/features/forms/forms.integration.test.ts`. What this file asserts is the
- * part of each that is in the database, so a defect in one layer cannot be hidden by the
- * other passing.
- */
-
 let testDb: TestDb;
 
 beforeAll(async () => {
@@ -66,14 +49,7 @@ const emptyDef = {} as unknown as FormDefinition;
 const emptyCompiled = {} as unknown as CompiledForm;
 const emptyQuestionDef = {} as unknown as QuestionDefinition;
 
-/**
- * The constraint a statement was refused by, or the SQLSTATE when the refusal names no
- * constraint (a `NOT NULL` violation names the column instead).
- *
- * Drizzle wraps the driver error in one of its own whose message is the failed query, so
- * both values live on the `cause`. Reading them is what makes an assertion about the
- * guard that fired rather than about something having gone wrong.
- */
+/** Drizzle wraps the driver error, so the constraint, SQLSTATE and column are on the `cause`. */
 async function refusal(run: () => Promise<unknown>): Promise<{
   constraint: string | undefined;
   code: string | undefined;
@@ -90,7 +66,6 @@ async function refusal(run: () => Promise<unknown>): Promise<{
   throw new Error("expected the statement to be refused");
 }
 
-/** A second workspace, created the way a fixture creates one: the row and nothing else. */
 async function makeWorkspace(slug: string): Promise<string> {
   const id = `org_${slug.replace(/-/g, "_")}`;
   await testDb.db
@@ -100,7 +75,6 @@ async function makeWorkspace(slug: string): Promise<string> {
   return id;
 }
 
-/** A form with one published version in the workspace named. */
 async function seedForm(label: string, workspaceId: string): Promise<FormId> {
   const formId = FormId.parse(`frm_${label}`);
   await createForm(testDb.db, {
@@ -122,17 +96,13 @@ async function seedForm(label: string, workspaceId: string): Promise<FormId> {
 
 describe("the workspace reference on forms and questions (criterion 1)", () => {
   it("refuses a form with no workspace, by the column and not by a convention", async () => {
-    // Through raw SQL rather than `createForm`, because the TypeScript signature already
-    // makes the argument mandatory and the point of criterion 1 is that the DATABASE
-    // refuses it: a second write path, a psql session or a future handler that forgot
-    // cannot create an unowned form either.
     const { code, column } = await refusal(() =>
       testDb.db.execute(sql`
         insert into control.forms (form_id, slug, default_locale)
         values ('frm_unowned', 'unowned-slug', 'en')
       `),
     );
-    expect(code).toBe("23502"); // not_null_violation
+    expect(code).toBe("23502");
     expect(column).toBe("workspace_id");
   });
 
@@ -186,8 +156,6 @@ describe("the installation-wide form slug (criterion 3)", () => {
       defaultLocale: "en",
     });
 
-    // The point of "installation-wide rather than per workspace" (ADR-41): `/f/{slug}`
-    // needs no workspace segment, so two workspaces cannot both own `shared-address`.
     const { constraint } = await refusal(() =>
       createForm(testDb.db, {
         workspaceId: second,
@@ -209,7 +177,6 @@ describe("the installation-wide form slug (criterion 3)", () => {
     expect(moved?.workspaceId).toBe(to);
     expect(moved?.slug).toBe("slug_move-slug");
 
-    // The published version is untouched: same row, same compiled bytes, same stamp.
     const after = await getFormVersion(testDb.db, formId, 1);
     expect(after).toEqual(before);
   });
@@ -224,12 +191,11 @@ describe("the shared workspace", () => {
     const { constraint } = await refusal(() => setWorkspaceShared(testDb.db, second, true));
     expect(constraint).toBe("organization_shared_uq");
 
-    // Unmarking the first frees the flag, so an installation can move its library.
     await setWorkspaceShared(testDb.db, first, false);
     expect((await setWorkspaceShared(testDb.db, second, true))?.isShared).toBe(true);
     expect((await getSharedWorkspace(testDb.db))?.id).toBe(second);
 
-    // Leave the flag clear: the suites below assert on a library of their own.
+    // The suites below need the flag clear.
     await setWorkspaceShared(testDb.db, second, false);
     expect(await getSharedWorkspace(testDb.db)).toBeUndefined();
   });
@@ -275,10 +241,6 @@ describe("moving a question between workspaces (Q14)", () => {
     const moved = await moveQuestionToWorkspace(testDb.db, questionId, to);
     expect(moved?.workspaceId).toBe(to);
 
-    // The version a form elsewhere pins is the same row it was before the move, which is
-    // the first half of Q14's grandfathering: it keeps serving (ADR-02, R1, R6). The
-    // second half - that the pin survives into the next draft - is the publish rule's,
-    // and lives in the forms slice.
     const versions = await listQuestionOwnership(testDb.db, [questionId]);
     expect(versions[0]?.workspaceId).toBe(to);
     expect(published?.status).toBe("published");
@@ -310,15 +272,10 @@ describe("archiving a workspace (Q15, criteria 4 and 5)", () => {
 
     const blockers = await findArchiveBlockers(testDb.db, workspaceId);
     expect(blockers.forms).toEqual([openForm, releasedForm].sort());
-    // "Open" is **open in some environment** since task 066 (Q18): there is no
-    // `forms.status`, so only a form with a release that does not say closed is open
-    // anywhere. `archive_open` has no release and is therefore in neither narrower list,
-    // while `forms` above still names it - which is the ruling this case is about.
     expect(blockers.openForms).toEqual([releasedForm]);
     expect(blockers.releasedForms).toEqual([releasedForm]);
     expect(blockers.shared).toBe(false);
 
-    // Reassignment is what clears it - archiving never closes or moves anything itself.
     const elsewhere = await makeWorkspace("archive-elsewhere");
     await moveFormToWorkspace(testDb.db, openForm, elsewhere);
     await moveFormToWorkspace(testDb.db, releasedForm, elsewhere);
@@ -327,37 +284,22 @@ describe("archiving a workspace (Q15, criteria 4 and 5)", () => {
   });
 
   it("names a form in NEITHER narrower list too (Code Owner, 2026-10-16)", async () => {
-    // The reopen loophole, closed at its source. A form that is in neither narrower list
-    // used to be no blocker at all, so it could stay behind - and
-    // `POST /admin/forms/{id}/reopen` checks no workspace state, so the archived
-    // workspace could come to own an open form, which is the state the archive had just
-    // refused. An archived workspace owns no form.
-    //
-    // Since task 066 the form this describes is a **never-released** one rather than a
-    // closed one: the closed state lives on the release state (Q18), so a form with no
-    // release is neither open anywhere nor closable anywhere, and it is exactly the case
-    // both narrower lists miss.
     const workspaceId = await makeWorkspace("archive-closed-form");
     const unreleasedForm = await seedForm("archive_closed", workspaceId);
 
     const blockers = await findArchiveBlockers(testDb.db, workspaceId);
     expect(blockers.forms).toEqual([unreleasedForm]);
-    // Not urgent by either narrower reading, and a blocker all the same.
     expect(blockers.openForms).toEqual([]);
     expect(blockers.releasedForms).toEqual([]);
   });
 
   it("reports the shared library as a blocker of its own (Code Owner, 2026-10-16)", async () => {
-    // Refuse rather than tidy (Q15): clearing `isShared` would change what every other
-    // workspace may pin as a side effect of one operator act. The flag is reported and
-    // the operator unmarks it or hands the library on.
     const workspaceId = await makeWorkspace("archive-library");
     await setWorkspaceShared(testDb.db, workspaceId, true);
 
     const blockers = await findArchiveBlockers(testDb.db, workspaceId);
     expect(blockers).toEqual({ forms: [], openForms: [], releasedForms: [], shared: true });
 
-    // And unmarking is possible even once archived, so the repair path never closes.
     await setWorkspaceShared(testDb.db, workspaceId, false);
     expect((await findArchiveBlockers(testDb.db, workspaceId)).shared).toBe(false);
   });
@@ -371,14 +313,12 @@ describe("archiving a workspace (Q15, criteria 4 and 5)", () => {
     const archived = await archiveWorkspace(testDb.db, workspaceId, at);
     expect(archived?.archivedAt?.toISOString()).toBe(at.toISOString());
 
-    // A second attempt matches nothing, so the stamp of the act that archived it stands.
     const again = await archiveWorkspace(testDb.db, workspaceId, new Date("2027-01-01T00:00:00Z"));
     expect(again).toBeUndefined();
     expect((await getWorkspace(testDb.db, workspaceId))?.archivedAt?.toISOString()).toBe(
       at.toISOString(),
     );
 
-    // No cascade: the question it owns is exactly where it was (criterion 5).
     expect(await countWorkspaceContents(testDb.db, workspaceId)).toEqual({
       forms: 0,
       questions: 1,
@@ -386,10 +326,6 @@ describe("archiving a workspace (Q15, criteria 4 and 5)", () => {
   });
 
   it("refuses to delete a workspace that owns anything, whatever reached the table", async () => {
-    // Criterion 5 is asserted rather than reasoned: no code path deletes a workspace, and
-    // this is the backstop under that claim. `queries/workspaces.ts` offers no delete at
-    // all, so the only way to try is a statement of one's own - and the reference from
-    // `forms` refuses it.
     const workspaceId = await makeWorkspace("archive-undeletable");
     await seedForm("archive_undeletable", workspaceId);
     const { constraint } = await refusal(() =>
@@ -403,7 +339,6 @@ describe("the seeded workspace", () => {
   it("is what a migrated harness database holds, and seeding again changes nothing", async () => {
     const seeded = await getWorkspace(testDb.db, SEED_WORKSPACE_ID);
     expect(seeded?.slug).toBe("default");
-    // Q13: the two-person switch is off on the seeded workspace, like every other.
     expect(seeded?.requireSecondApprover).toBe(false);
     expect(seeded?.isShared).toBe(false);
     expect(seeded?.archivedAt).toBeNull();

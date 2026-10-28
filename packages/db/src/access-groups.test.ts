@@ -16,16 +16,7 @@ import {
   refuseEnvironmentScope,
 } from "./access-groups.js";
 
-/**
- * The access-group naming convention (ADR-41, Q37 with Q38 and Q42; task 069).
- *
- * Every case below is one of the convention's own worked examples or one of the four
- * rules, asserted rather than restated: the table in section 6 of
- * `plan/environments-and-workspaces.md` lists nine cases it was tested against, and the
- * ones that are a team are the ones a derivation has to reproduce.
- */
-
-/** The live set in the order `control.environments` holds it, for the ordering cases. */
+/** `control.environments` order, deliberately not alphabetical. */
 const LIVE = ["test", "prod", "dev"] as const;
 
 describe("the six role names (Q38)", () => {
@@ -71,16 +62,12 @@ describe("the stored name is derived from the fields (Q37 rule 1)", () => {
   });
 
   it("derives a combined set in the environments table's order, not the caller's (Q42)", () => {
-    // `LIVE` is test, prod, dev - deliberately not alphabetical, so a derivation that
-    // sorted the names rather than reading the live set would fail here.
     expect(
       accessGroupNameFor({ role: "responses.viewer", environments: ["dev", "test"] }, LIVE),
     ).toBe("test-dev.responses.viewer");
   });
 
   it("never puts the form scope in a name", () => {
-    // A form list in a name would be a second copy of the scope, stale the first time
-    // somebody added a form (Q37).
     const name = accessGroupNameFor({ role: "responses.viewer", environments: ["prod"] }, LIVE);
     expect(name).toBe("prod.responses.viewer");
   });
@@ -151,9 +138,6 @@ describe("the environment scope (Q42, Q28)", () => {
   });
 
   it("normalises rather than rewriting silently: both halves exist", () => {
-    // Q42 asks for both. The write path normalises what it stores AND refuses a name
-    // whose own segment is out of order, so there is neither a normalisation nobody can
-    // see nor a refusal nobody can satisfy.
     expect([...normaliseEnvironmentScope(["dev", "test"], LIVE)]).toEqual(["test", "dev"]);
     expect([...normaliseEnvironmentScope(["all"], LIVE)]).toEqual(["all"]);
   });
@@ -200,9 +184,6 @@ describe("the full name and the directory name are derived and never stored (Q37
   });
 
   it("means a slug rename changes display only", () => {
-    // The derivation takes the slug as an argument rather than reading a stored copy, so
-    // there is nothing for a rename to leave wrong. That is the whole reason the stored
-    // name drops the workspace segment.
     const stored = "prod.forms.approver";
     expect(accessGroupFullName("hr", stored)).toBe("hr.prod.forms.approver");
     expect(accessGroupFullName("people", stored)).toBe("people.prod.forms.approver");
