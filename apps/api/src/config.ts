@@ -344,10 +344,9 @@ function parseKeyList(env: Env, name: string, minLength: number, issues: string[
 }
 
 /**
- * "Newest first" is enforced because better-auth encrypts under whichever entry comes
- * first, so an oldest-first list boots cleanly and keeps writing under the retired key.
- * Written here rather than handed to better-auth's `parseSecretsEnv`, whose refusals
- * quote the offending entry verbatim (SEC-8).
+ * "Newest first" because better-auth encrypts under the first entry, so an oldest-first
+ * list would keep writing under the retired key. Parsed here, not by `parseSecretsEnv`,
+ * whose refusals quote the offending entry (SEC-8).
  */
 function parseSecretVersions(
   env: Env,
@@ -849,10 +848,9 @@ export function parseAdminAuth(env: Env, issues: string[]): Config["adminAuth"] 
       1_000,
       issues,
     ),
-    // `assertSecureCookiesConfigured`'s refusal for a downgrade at a non-loopback origin
-    // is deliberately NOT enforced here (issue #402). It is safe only because a browser reaches
-    // better-auth solely through the admin BFF, which does refuse to start in that
-    // configuration; a second route into the `/api/auth` group would break the reliance.
+    // `assertSecureCookiesConfigured`'s downgrade refusal is deliberately NOT enforced here:
+    // safe only because browsers reach better-auth solely through the admin BFF, which refuses.
+    // (issue #402) check-comments: allow read by scripts/check-bff-config-guards.test.ts
     secureCookies: parseBool(
       env,
       "QCMS_ADMIN_SECURE_COOKIES",

@@ -131,13 +131,9 @@ export type RosterWriteResult =
   | { readonly ok: false; readonly code: RosterRefusalCode };
 
 /**
- * The caller owns the transaction and must hold the session's advisory lock, or two
- * concurrent serves each see an empty roster and each mint a full set.
- *
- * Call it at most once per group per transaction: `occurred_at` defaults to the
- * transaction timestamp, so two mints for one group share it and the read falls back
- * to the random `instance_id` tiebreaker, interleaving the batches and breaking the
- * first-N window that keeps a re-raised `fromAnswer` count on the same instances.
+ * The caller owns the transaction and holds the session's advisory lock, or concurrent
+ * serves each mint a full set. Call at most once per group per transaction: mints in one
+ * transaction share `occurred_at`, so the `instance_id` tiebreaker interleaves batches.
  */
 export async function mintForServedGroup(
   exec: Executor,
@@ -168,12 +164,8 @@ export async function mintForServedGroup(
 }
 
 /**
- * The per-form `max` is the only bound there is (SEC-16), and it is checked against
- * the live count so a filled-then-emptied group can grow again.
- *
- * The caller must hold the session's advisory lock: the check is a read followed by
- * a write, so two simultaneous Adds would both pass and leave the group past `max`.
- * The one-mint-per-group-per-transaction contract above applies here too.
+ * The per-form `max` (SEC-16) is checked against the live count. The caller holds the
+ * advisory lock, or two simultaneous Adds both pass. One mint per group per transaction.
  */
 export async function addRosterInstance(
   exec: Executor,
@@ -198,12 +190,8 @@ export async function addRosterInstance(
 }
 
 /**
- * Appends a `removed` row, never a delete (I6). `min` is not enforced here: that is
- * a submit-time refusal, so a respondent may empty a group and rebuild it.
- *
- * Caller obligation: `instanceId` must be one this session's roster minted. This
- * function cannot check, and the table is append-only, so a forged id would leave a
- * row forever.
+ * Appends a `removed` row, never a delete (I6). `min` is a submit-time refusal. The caller
+ * must pass an `instanceId` this session minted: the table is append-only.
  */
 export async function removeRosterInstance(
   exec: Executor,
@@ -240,12 +228,8 @@ export async function groupsOwedAMint(
 }
 
 /**
- * A roster row is permanent, so a group is minted only once the respondent can be
- * asked for it: the groups on the step being rendered, plus every `fromAnswer` group
- * wherever it sits, since its count answer is written on an earlier step.
- *
- * The caller owns the transaction and must hold the session's advisory lock, or two
- * concurrent serves each see an empty roster and each mint a full set.
+ * Roster rows are permanent, so mint only groups the respondent can be asked for: those on
+ * the rendered step plus every `fromAnswer` group. The caller holds the advisory lock.
  */
 export async function mintDueAndLoadRosters(
   exec: Executor,

@@ -1,11 +1,7 @@
 /**
- * The gate is ours, not the exporter's: the OTLP exporter defaults to POSTing to
- * `http://localhost:4318`, so without an explicit check every flush in a deployment that
- * configured nothing becomes an unhandled `ECONNREFUSED`.
- *
- * This module imports none of the app graph or any instrumented library: the
- * instrumentations patch their targets on first require, so the SDK has to start before
- * `pg`, `undici` or the app graph loads.
+ * The gate is ours: the OTLP exporter defaults to `http://localhost:4318`, so an
+ * unconfigured deployment would fail every flush. This module imports no instrumented
+ * library, so the SDK starts before `pg`, `undici` or the app graph loads.
  */
 
 import { allowlistingLogRecordProcessor } from "@roonga/qcms-observability/logs";

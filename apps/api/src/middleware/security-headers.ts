@@ -39,11 +39,7 @@ export function securityHeaders(): MiddlewareHandler<ApiEnv> {
     xContentTypeOptions: true,
     // Owned by the ingress (ADR-20), the only hop that terminates TLS.
     strictTransportSecurity: false,
-    // `secureHeaders` is typed `MiddlewareHandler<any>` by Hono, so the cast
-    // narrows an already-permissive vendor type to this app's env rather than
-    // widening or asserting anything about the value. It touches only the
-    // generic parameter: the runtime object is unchanged, and the headers it
-    // actually emits are pinned by `e2e/security/02-transport-and-limits.e2e.ts`
-    // rather than by this signature.
+    // `secureHeaders` is typed `MiddlewareHandler<any>`; the cast only narrows the generic
+    // parameter. Emitted headers are pinned by `02-transport-and-limits.e2e.ts`.
   }) as MiddlewareHandler<ApiEnv>;
 }

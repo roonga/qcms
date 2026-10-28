@@ -1,10 +1,7 @@
 /**
- * A compiled entry under `src/` because it has to run inside the API container, and that
- * image ships only `dist`.
- *
- * Its whole configuration surface is `DATABASE_URL`: the case it recovers from includes a
- * lost `QCMS_ADMIN_AUTH_SECRET`, so requiring that variable would gate the recovery on the
- * thing that broke. Nothing here builds a better-auth instance for the same reason.
+ * A compiled entry under `src/` because the image ships only `dist`. Its only configuration
+ * is `DATABASE_URL`: the case includes a lost `QCMS_ADMIN_AUTH_SECRET`, so no better-auth
+ * instance is built.
  */
 
 import { schema } from "@roonga/qcms-db";

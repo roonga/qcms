@@ -308,7 +308,7 @@ describe("branching answer loop (exit criterion 1)", () => {
     expect(b3.step).toBeNull();
 
     // Cast: `answers` references the enum-bearing `sessions` table, so its
-    // `$inferSelect` resolves to a TS error type through the emitted .d.ts (issue #5).
+    // `$inferSelect` resolves to a TS error type through the emitted .d.ts.
     const ledger = (await answerLedger(testDb.db, SessionId.parse(sessionId))) as {
       questionId: string;
     }[];
@@ -405,33 +405,15 @@ describe("answer retraction (ADR-33)", () => {
   });
 });
 
-// --- the no-JS whole-step round (issue #127) ---------------------------------
-
 /**
- * What the no-JS transport now sends, against the real ledger.
- *
- * The scripted path posts one answer per commit moment (ADR-31), so every case above
- * is a single call. The no-JS path cannot: a native form posts the WHOLE step at
- * once, so the BFF forwards every tagged field of that step in document order,
- * including fields the respondent did not touch. Since issue #127 one of those
- * forwarded calls can be a `null` retraction, because a field the rendered form
- * marked as answered arrived empty.
- *
- * These two cases pin what that round does to the ledger, which is the thing a
- * respondent's data correctness rests on and which no per-call test can show: the
- * tombstone lands beside the round's other writes, and a clear the same round just
- * made invisible does not become a tombstone at all.
+ * A native form posts the WHOLE step, so the BFF forwards every tagged field, including a
+ * `null` retraction for a field the respondent emptied. Pins what that round does to the
+ * ledger.
  */
 describe("a no-JS whole-step round, at the ledger (issue #127)", () => {
   /**
-   * A session on the insurance form, created and signed directly rather than through
-   * `POST /sessions`.
-   *
-   * The suite runs on a frozen clock, so every start-session call in this file falls in
-   * one per-IP rate-limit window (026, 20/hour) and the file already sits at its edge -
-   * two more entries here would 429 the cases that come after. These two are about the
-   * ledger, not about entry, so they spend none of that budget. Same construction as
-   * `sessionOn` in the semantics-gate block, for the same stated reason.
+   * A session created and signed directly, since the frozen clock puts every start-session
+   * call in this file in one per-IP rate-limit window (20/hour) and the file sits at its edge.
    */
   async function ledgerSession(id: string): Promise<{ sessionId: string; sessionToken: string }> {
     const sessionId = SessionId.parse(id);
@@ -496,20 +478,15 @@ describe("a no-JS whole-step round, at the ledger (issue #127)", () => {
     await postAnswer(sessionId, sessionToken, "q_at_fault_accident", true);
     await postAnswer(sessionId, sessionToken, "q_accident_count", 10);
 
-    // The respondent flips the boolean, which closes the branch the number sits on.
-    // The form they submitted was rendered BEFORE the flip, so it still carries the
-    // number's marker and the BFF still forwards a clear for it - second, because the
-    // boolean comes first in the document. By then the question is not visible.
+    // The form was rendered BEFORE the boolean flip, so the BFF still forwards a clear for the
+    // number, which is no longer visible.
     await postAnswer(sessionId, sessionToken, "q_at_fault_accident", false);
     const stale = await postAnswer(sessionId, sessionToken, "q_accident_count", null);
     expect(stale.status).toBe(409);
     expect(((await stale.json()) as ErrBody).error.code).toBe("QUESTION_NOT_VISIBLE");
 
-    // No tombstone. A marker on a stale render cannot write to a question the flow
-    // has since removed, which is what keeps the marker from reaching past the
-    // visibility gate the API applies to every answer write. The whole-step route
-    // swallows this refusal exactly as it does for an ordinary answer to a
-    // just-hidden question.
+    // No tombstone: a stale marker cannot write past the visibility gate. The route swallows
+    // the refusal as for any just-hidden question.
     const ledger = (await answerLedger(testDb.db, sid)) as {
       questionId: string;
       retracted: boolean;
@@ -522,13 +499,8 @@ describe("a no-JS whole-step round, at the ledger (issue #127)", () => {
   });
 });
 
-// --- ADR-33: an empty value is not an answer (issue #128 batch) -------------
-
-// The insurance fixture holds only a boolean and a number, neither of which has
-// an "empty" spelling, so this block seeds the kitchen-sink form for its
-// required shortText and required multiChoice. ONE session for the whole block,
-// deliberately: the fixed clock puts every session create in this file into a
-// single rate-limit window (20/hour), and the file already sits at its edge.
+// Seeds the kitchen-sink form for its required shortText and multiChoice. ONE session for
+// the block: the fixed clock puts every session create in one rate-limit window (20/hour).
 describe("an empty value is refused, never stored and never a retraction (ADR-33)", () => {
   beforeAll(async () => {
     for (const [questionId, slug, file] of [
@@ -570,7 +542,7 @@ describe("an empty value is refused, never stored and never a retraction (ADR-33
       a2uiSpecVersion: KITCHEN_SINK_GOLDEN.a2uiSpecVersion,
       semanticsVersion: "1",
     });
-    // Released, because publishing reaches no environment (ADR-40, task 065).
+    // Released, because publishing reaches no environment (ADR-40).
     await insertFormRelease(testDb.db, {
       formId,
       environment: DEFAULT_TEST_ENVIRONMENT,
@@ -606,10 +578,8 @@ describe("an empty value is refused, never stored and never a retraction (ADR-33
     const afterEmpty = (await (await getStep(sessionId, sessionToken)).json()) as StepBody;
     expect(afterEmpty.flowState.missingRequired).toContain("q_full_name");
 
-    // The empty rule fires ahead of the question's OWN constraints: q_full_name
-    // carries minLength 1 and a pattern, either of which would also have
-    // rejected "", and neither appears. The respondent is told the one true
-    // thing (that was not an answer), not asked to type more.
+    // The empty rule fires ahead of the question's own constraints (minLength, pattern), so the
+    // respondent is told it was not an answer rather than asked to type more.
 
     // 2. Answer it for real, then walk to the multiChoice on the next step.
     const real = await postAnswer(sessionId, sessionToken, "q_full_name", "Ada Lovelace");
@@ -634,24 +604,17 @@ describe("an empty value is refused, never stored and never a retraction (ADR-33
       errors: [EMPTY_ERROR],
     });
 
-    // 4. Whitespace-only text is the OTHER rule (issue #128) and behaves the
-    //    opposite way at this boundary: a legal value, appended, and echoed back
-    //    exactly as typed - the ledger is an audit record, not a cleaned copy.
-    //    That it confers no presence is pinned where presence lives (the kernel
-    //    tests and the golden corpus); the optional longText is used here
-    //    because the only required text question in the fixture set carries a
-    //    pattern that rejects whitespace before presence is ever consulted.
+    // 4. Whitespace-only text is a legal value, appended and echoed as typed; presence is
+    //    pinned in the kernel tests. The optional longText is used because the required text
+    //    question's pattern rejects whitespace first.
     await postAnswer(sessionId, sessionToken, "q_preexisting_conditions", ["opt_asthma"]);
     const blank = await postAnswer(sessionId, sessionToken, "q_medical_history", "   ");
     expect(blank.status).toBe(200);
     const blankBody = (await blank.json()) as StepBody;
     expect(blankBody.values.q_medical_history).toBe("   ");
 
-    // 5. The published `values` contract, exercised on real served bytes (issue
-    //    #153). `HeldValues` is the canonical AnswerValue map rather than
-    //    `z.unknown()`, so this fails loudly the day the projection emits
-    //    something outside the encodings the ledger stores, and it pins that a
-    //    canonical value round-trips unchanged (zero behaviour change intended).
+    // 5. `HeldValues` is the canonical AnswerValue map, so this fails if the projection emits
+    //    something outside the ledger's encodings.
     const parsed = HeldValues.safeParse(blankBody.values);
     expect(parsed.success).toBe(true);
     expect(parsed.data).toEqual(blankBody.values);
@@ -668,10 +631,8 @@ describe("an empty value is refused, never stored and never a retraction (ADR-33
         q_accident_count: 4,
       }).success,
     ).toBe(true);
-    // `null` is not an AnswerValue and never appears in this map: an unanswered
-    // or retracted question is an ABSENT key (ADR-33 - `latestAnswers` resolves a
-    // tombstone to unanswered). The schema refuses it now instead of publishing
-    // it as legal, which is what the unconstrained `z.unknown()` did.
+    // `null` is not an AnswerValue: an unanswered or retracted question is an ABSENT key
+    // (ADR-33).
     expect(HeldValues.safeParse({ q_medical_history: null }).success).toBe(false);
 
     // Only the real answers are on the ledger; both refusals wrote nothing, and
@@ -689,8 +650,6 @@ describe("an empty value is refused, never stored and never a retraction (ADR-33
     ]);
   });
 });
-
-// --- held answers travel with the step (issue #146) -------------------------
 
 // Two sessions for the whole block, on purpose: the fixed clock means every
 // session create in this file counts against one rate-limit window, and the file
@@ -741,10 +700,8 @@ describe("the served step carries the answers the server holds (issue #146)", ()
     expect("q_accident_count" in retracted.values).toBe(false);
     expect(retracted.flowState.missingRequired).toEqual(["q_accident_count"]);
 
-    // Answer it again, then flip the trigger: q_accident_count is hidden while the
-    // ledger keeps its answer (append-only, R3). The values map follows
-    // VISIBILITY, not the ledger, so a hidden question's answer never crosses the
-    // client boundary and the map cannot be used to enumerate the hidden flow.
+    // q_accident_count is hidden while the ledger keeps its answer (R3); the values map follows
+    // VISIBILITY, so a hidden answer never crosses the client boundary.
     await postAnswer(sessionId, sessionToken, "q_accident_count", 9);
     await postAnswer(sessionId, sessionToken, "q_at_fault_accident", false);
     const hidden = (await (await getStepAt(sessionId, sessionToken, 0)).json()) as StepBody;
@@ -754,8 +711,6 @@ describe("the served step carries the answers the server holds (issue #146)", ()
     expect(Object.fromEntries(held)).toEqual({ q_at_fault_accident: false, q_accident_count: 9 });
   });
 });
-
-// --- explicit navigation cursor (ADR-28, task 045) --------------------------
 
 describe("explicit navigation cursor renders the requested step (ADR-28)", () => {
   it("?step renders that visible step even when the flow is complete (no collapse-on-answer)", async () => {
@@ -835,15 +790,8 @@ describe("typed rejects (exit criterion 3)", () => {
   });
 
   /**
-   * Task 048 regression (ADR-32): author-supplied validation messages are
-   * presentation payload compiled into the A2UI document. The API is unchanged by
-   * them - it keeps emitting the kernel's stable `{ code, constraint, message }`
-   * triples and never reads, resolves or forwards an author message.
-   *
-   * Asserted as BYTES, not shape, and against content that carries no messages
-   * (the `insurance` fixture). A response that gained a field, lost one, reordered
-   * keys, or swapped the kernel's default message for an authored one fails here.
-   * `arrayBuffer` rather than `text` so a stray BOM would also be caught.
+   * Author validation messages are presentation payload (ADR-32): the API keeps emitting the
+   * kernel's `{ code, constraint, message }` triples. Asserted as BYTES, via `arrayBuffer`.
    */
   it("048: the 422 body is byte-identical for content carrying no author messages", async () => {
     const { sessionId, sessionToken } = await startSession("auto");
@@ -915,8 +863,6 @@ describe("typed rejects (exit criterion 3)", () => {
   });
 });
 
-// --- the stored semantics stamp gates the serving loop (ADR-16, issue #723) -
-
 describe("the stored semanticsVersion gates serving and answering (ADR-16)", () => {
   beforeAll(async () => {
     // The pinned library questions are already seeded by the first suite.
@@ -937,11 +883,8 @@ describe("the stored semanticsVersion gates serving and answering (ADR-16)", () 
   });
 
   /**
-   * A pinned session on `formId`, created and signed directly rather than
-   * through `POST /sessions`. The suite runs on a frozen clock, so every
-   * start-session call in the file counts against one per-IP rate-limit window
-   * (026); these cases are about the serving loop, not about entry, so they
-   * spend no budget on it.
+   * A pinned session on `formId`, created and signed directly to spare the per-IP
+   * rate-limit window (the frozen clock shares one across the file).
    */
   async function sessionOn(
     formId: string,

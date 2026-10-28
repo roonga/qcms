@@ -11,22 +11,17 @@ import { questionToNode, type TextResolver } from "./mapping.js";
 import type { A2UINode } from "./types.js";
 
 /**
- * The `RepeatGroup` template node (ADR-42, ADR-43). Compilation is answer-blind
- * (ADR-14), so the compiler emits each member control once and the renderer
- * clones the template per live instance, qualifying each clone's name. A
- * qcms-owned node type: nothing upstream describes such a container and the
- * vendored schemas are strict (ADR-22), so `docs/a2ui-mapping.md` and the
- * golden corpus carry the contract.
+ * The `RepeatGroup` template node (ADR-42, ADR-43): compilation is answer-blind (ADR-14),
+ * so each member control is emitted once and the renderer clones it per instance. A
+ * qcms-owned type; `docs/a2ui-mapping.md` and the golden corpus carry the contract.
  */
 
 /** The node type the renderer expands into one group per live instance. */
 export const REPEAT_GROUP_NODE_TYPE = "RepeatGroup";
 
 /**
- * The Add and Remove control names, by language subtag with an English fallback.
- * Nothing authored supplies these, so the lexicon is the whole source and the
- * wording travels in the stored document (ADR-36). `remove` keeps its
- * placeholder, the instance label it names carrying the live ordinal.
+ * Add and Remove control names by language subtag, English fallback. Nothing authored
+ * supplies them, so the wording travels in the stored document (ADR-36).
  */
 type RepeatActions = { readonly add: string; readonly remove: string };
 

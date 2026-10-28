@@ -1,8 +1,6 @@
 /**
- * This file's reach is wider than its directory, so changes here need `verify:browser` as
- * well as `verify`: the portal and admin Playwright suites seed through it, and
- * `scripts/dev-stack.mjs` and `apps/api/scripts/seed-fixtures.ts` mirror its publish
- * pipeline without importing it. A change to what "seeded" means belongs in all three.
+ * Wider reach than its directory: the portal and admin Playwright suites seed through it,
+ * and `scripts/dev-stack.mjs` and `apps/api/scripts/seed-fixtures.ts` mirror its pipeline.
  */
 
 import {
@@ -204,11 +202,8 @@ const STALE_PIN_QUESTIONS = [
 ] as const;
 
 /**
- * Stored verbatim: nothing parses it against `QuestionDefinition` on the way in, so a
- * fixture has to be written the way the schema would have left it. The schema `prefault`s
- * an empty `constraints` object for every question type, and a stored definition without
- * one crashes the kernel's validator where it destructures the field, so spell the
- * optional objects out.
+ * Stored verbatim, so spell out the optional objects: a definition without `constraints`
+ * crashes the kernel's validator.
  */
 function questionDefinitionFor(
   questionId: QuestionId,
@@ -228,12 +223,8 @@ async function releaseSeededVersion(db: Db, formId: string, version: number): Pr
 }
 
 /**
- * Exported because the browser harness needs a form served in `test` too: a
- * `/test/l/{token}` address has nothing to serve until something is released there, and a
- * spec asserting that address would otherwise pass against the closed screen.
- *
- * Here rather than in the portal's own harness because the portal depends on neither
- * `@roonga/qcms-core` nor `@roonga/qcms-db` and must not (R2).
+ * Exported because the browser harness needs a form served in `test`; it lives here since
+ * the portal depends on neither `@roonga/qcms-core` nor `@roonga/qcms-db` (R2).
  */
 export async function releaseSeededVersionTo(
   db: Db,

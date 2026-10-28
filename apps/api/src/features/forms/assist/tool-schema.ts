@@ -1,9 +1,7 @@
 /**
- * Converted Zod schemas hoist recursive `Condition` nodes into a `definitions` block,
- * which LM Studio's schema-to-grammar pass ignores (it reads `$defs`) and which the AI
- * SDK's Google provider refuses outright as a cycle, so the tool set is rejected
- * upstream. Rewriting to a self-contained acyclic document is safe because the schema
- * is only an advertisement: every executor re-parses its input with the full Zod schema.
+ * Zod's `definitions` block for recursive `Condition` nodes is ignored by LM Studio (it
+ * reads `$defs`) and refused as a cycle by the AI SDK's Google provider. Rewriting to an
+ * acyclic document is safe: every executor re-parses with the full Zod schema.
  */
 
 // Taken from `ai` rather than `@types/json-schema` so the tool surface is typed by the

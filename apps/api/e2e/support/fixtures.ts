@@ -30,10 +30,8 @@ export interface CompiledForm {
 const GOLDEN_ROOT = new URL("packages/a2ui-compiler/golden/", REPO_ROOT);
 
 /**
- * The corpus is append-only (ADR-18), so the generation is derived from the compiler's own
- * `COMPILER_VERSION` rather than written down: a hardcoded segment anchors the suite on a
- * shape the compiler has stopped producing, and a version bump landed without its
- * generation throws here rather than reverting to the previous generation's bytes.
+ * The corpus is append-only (ADR-18), so the generation derives from `COMPILER_VERSION`
+ * and a version bump without its generation throws here.
  */
 function currentGoldenGeneration(): string {
   const generations = readdirSync(fileURLToPath(GOLDEN_ROOT), { withFileTypes: true })
@@ -82,7 +80,7 @@ export const Q_COVERAGE_DEF = readFixture(
 );
 /**
  * Optional, because a required number cannot be cleared through the browser at all; and
- * integer, because a question admitting fractions would put issue #945's `inputMode`
+ * integer, because a question admitting fractions would put an `inputMode`
  * mismatch on a seeded page. Appended to `stp_cover` after `q_coverage_level`, so the
  * RadioGroup keeps the tree position `a11y-keyboard.pw.ts` relies on.
  */
@@ -275,15 +273,9 @@ export const REPEAT_TOUR_COMPILED_PATH = "apps/api/e2e/support/fixtures/repeat-t
 export const REPEAT_TOUR_GOLDEN = readFixture(REPEAT_TOUR_COMPILED_PATH) as CompiledForm;
 
 /**
- * The one form `pnpm dev:seed` publishes into the composed stack, pinning every question
- * that seed writes. Its own file rather than
- * `packages/core/fixtures/forms/valid/kitchen-sink.json`, which carries the id and slug
- * `pnpm dev:portal` publishes a different form under and pins `q_at_fault_accident@2`, a
- * version the seed does not create.
- *
- * Health domain, consistently with the library it pins: it sits outside the directory
- * `check-fixture-domain.mjs` scans, and nothing seeds it into the portal paths that rule
- * protects.
+ * The one form `pnpm dev:seed` publishes, pinning every question that seed writes. Not
+ * `kitchen-sink.json`, whose id and slug `pnpm dev:portal` publishes a different form under.
+ * Health domain, so it sits outside the directory `check-fixture-domain.mjs` scans.
  */
 export const SAMPLE_LIBRARY_DEF = readFixture("apps/api/scripts/fixtures/sample-library-form.json");
 

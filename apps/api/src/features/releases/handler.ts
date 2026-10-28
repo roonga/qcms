@@ -1,9 +1,7 @@
 /**
- * A release is a record and copies nothing, and nothing here can re-pin a live session:
- * the control pool holds no privilege on `sessions` in any environment.
- *
- * The membership check is the middleware's (`release: create` in the environment the body
- * names), and nothing here re-asks it.
+ * A release is a record and copies nothing; the control pool holds no privilege on
+ * `sessions`, so nothing here can re-pin a live session. The membership check is the
+ * middleware's.
  */
 
 import type { RouteHandler } from "@hono/zod-openapi";
@@ -166,10 +164,8 @@ export function makeReleaseVersionHandler(
       body.version,
     );
 
-    // The `ALREADY_RELEASED` check shares the transaction with the read that decides
-    // `replacedVersion` and `rollback`, so a concurrent release cannot land between them.
-    // It is not the race guard: the composite primary key refuses the loser and
-    // `releaseRaced` turns that into a 409.
+    // `ALREADY_RELEASED` shares the transaction with the read deciding `replacedVersion` and
+    // `rollback`. The race guard is the composite primary key, which `releaseRaced` maps to 409.
     let current: Awaited<ReturnType<typeof getReleasedVersion>>;
     let release: Awaited<ReturnType<typeof recordRelease>>;
     try {

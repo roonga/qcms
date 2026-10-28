@@ -1,10 +1,7 @@
 /**
- * The lock, the status flip and the outbox event share one transaction, so a durable
- * submission can never miss its event and an event never names a submission that is not.
- *
- * Answer values are never logged (SEC-8); hidden answers stay in the ledger and never
- * cross into the locked set or the webhook payload (I6); a flagged submit returns the
- * same success-shaped receipt as a clean one, so the tell never leaks.
+ * The lock, status flip and outbox event share one transaction. Values are never logged
+ * (SEC-8); hidden answers never reach the locked set or webhook (I6); a flagged submit
+ * returns the same receipt as a clean one.
  */
 
 import type { RouteHandler } from "@hono/zod-openapi";

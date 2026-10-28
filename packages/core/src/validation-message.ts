@@ -3,11 +3,9 @@ import { z } from "zod";
 import { LocalizedText } from "./localized-text.js";
 
 /**
- * The constraint keys an author may decorate (ADR-32). Not
- * {@link ValidationConstraint}: `required` is here although presence is a flow
- * concern, and the codes no author wrote a constraint for are not, there being
- * nothing to decorate. An absent key is the inheritance, so there is no
- * "default" entry.
+ * The constraint keys an author may decorate (ADR-32). Not {@link ValidationConstraint}:
+ * `required` is here and codes no author wrote a constraint for are not. An absent key is
+ * the inheritance.
  */
 export const ValidationMessageKey = z.enum([
   "required",

@@ -142,13 +142,9 @@ export function recordingLogger(): { logger: Logger; lines: Array<Record<string,
 }
 
 /**
- * Writes the rows directly rather than driving better-auth, because the API does not link
- * better-auth; whether the library issues such a row is the admin Playwright suite's
- * question. No password hash is written, so no credential exists.
- *
- * Seeds a full-authority administrator by default: under ADR-41 a session alone reaches
- * the membership surface and nothing else, so a session-only fixture would test the
- * authorisation middleware instead of the slice it is about.
+ * Writes rows directly because the API does not link better-auth; no password hash, so no
+ * credential. Seeds a full-authority administrator by default: under ADR-41 a session alone
+ * reaches only the membership surface.
  */
 export async function seedAdminSession(
   exec: Executor,

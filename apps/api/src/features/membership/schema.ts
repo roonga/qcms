@@ -2,10 +2,8 @@ import { z } from "@hono/zod-openapi";
 
 import { ACCESS_AUDIT_KINDS, ACCESS_GROUP_LABEL_PATTERN, TEAM_ROLES } from "@roonga/qcms-db";
 
-// Two absences are deliberate: no `externalGroupId` on any request body, since it is the
-// directory sync path's join key and `z.strictObject` must refuse the key rather than let
-// a caller set it; and no role on an access-group update, since changing a role would
-// change what a group grants under the people already holding it.
+// No `externalGroupId` on a request body (the directory sync join key; `z.strictObject`
+// refuses it) and no role on an access-group update (it would change what holders get).
 
 export const WorkspaceIdParam = z.object({
   id: z.string().openapi({ param: { name: "id", in: "path" }, example: "org_default_workspace" }),

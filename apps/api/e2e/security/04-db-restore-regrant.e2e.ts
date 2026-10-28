@@ -244,10 +244,8 @@ beforeAll(async () => {
   ]);
   grantLinesInDump = Number(counted.output.trim());
 
-  // `dropdb` is not usable here - this container's single database is the one under test -
-  // so every QCMS schema goes instead. `public` therefore survives with the ACL and owner
-  // the recipe gave it, where the documented procedure recreates the database;
-  // `pnpm qcms:drill-restore` is what exercises that difference.
+  // `dropdb` is unusable here (the container's one database is under test), so every QCMS
+  // schema is dropped instead; `public` keeps its ACL, which `pnpm qcms:drill-restore` covers.
   for (const schema of [...QCMS_SCHEMAS, "drizzle"]) {
     await owner.query(`DROP SCHEMA IF EXISTS ${schema} CASCADE`);
   }

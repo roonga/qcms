@@ -1,14 +1,7 @@
 /**
- * Allowlist redaction for the Next apps' exported spans (SEC-13, ADR-34), the
- * API's control over a different vocabulary. The secure-link token is in the
- * URL, so the root span's name carries it too and the name is rewritten as well
- * as the attribute values; both apps register the processor, a rule inert in one
- * being safer than two that can drift apart.
- *
- * Otherwise the API's rules: an unknown key is dropped rather than inspected, a
- * query string goes whole, and an exception's message and stack never export,
- * the message being where an answer value can plausibly end up. Registered
- * before the exporting processor, so nothing unsanitized is queued.
+ * Allowlist redaction for the Next apps' spans (SEC-13, ADR-34). The secure-link token is in
+ * the URL, so the root span's name is rewritten too. Unknown keys drop, query strings go
+ * whole, and exception message and stack never export.
  */
 
 import type { Attributes } from "@opentelemetry/api";

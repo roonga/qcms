@@ -1,10 +1,7 @@
 import { z } from "@hono/zod-openapi";
 
-// Deliberately not `z.uuid()`, which pins the RFC 9562 version and variant nibbles and
-// would turn an id the column stores happily into a "no such delivery". Also narrower
-// than Postgres's own input grammar, which accepts unhyphenated, braced and
-// arbitrarily-hyphenated spellings: those get a 404 rather than one row answering to
-// several ids.
+// Not `z.uuid()`, which pins version and variant nibbles and would 404 an id the column
+// stores. Narrower than Postgres input, so other spellings 404 rather than alias one row.
 const DELIVERY_ID_SHAPE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 
 // True guarantees a query on `value` cannot raise `22P02`.

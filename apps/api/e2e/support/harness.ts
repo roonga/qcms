@@ -89,11 +89,7 @@ export async function adminLogin(db: TestDb["db"], at: Date = NOW): Promise<stri
 
 /**
  * One real pool per environment, each registered with {@link TestDb.register} so teardown
- * drains it before the container stops. Real pools rather than a faked `forRequest`,
- * because what the suites above assert is which schema a row landed in.
- *
- * The control pool is the harness's own handle: every control-plane table is declared
- * schema-qualified, so any of these connections resolves it.
+ * drains it. Real pools, because the suites assert which schema a row landed in.
  */
 export function environmentDatabases(
   testDb: TestDb,
