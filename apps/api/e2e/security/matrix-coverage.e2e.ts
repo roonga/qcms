@@ -256,10 +256,8 @@ const DOCUMENTED_ROLE_ROWS: Readonly<Record<string, readonly [string, string]>> 
   ],
   "Workspace settings: two-person switch, archive": ["workspace", "update"],
   "Read the access audit": ["audit", "read"],
-  "Create workspaces, mark the shared one, environment settings, user accounts": [
-    "workspace",
-    "update",
-  ],
+  "Create workspaces, mark the shared one, environment settings, user accounts, release-workflow configuration":
+    ["workspace", "update"],
   "Read any response anywhere": ["response", "read"],
 };
 

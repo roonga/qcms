@@ -364,8 +364,8 @@ async function decideRequest(
 ): Promise<GrantContext | undefined> {
   const { policy, path, claim } = input;
 
-  // The four acts the claim holds alone (Q29): creating a workspace, marking the shared
-  // one, the environment list and the installation-wide dead-letter list. No role reaches
+  // The acts the claim holds alone (Q29): creating a workspace, marking the shared
+  // one and the installation-wide dead-letter list. No role reaches
   // them, so a caller holding every grant in the installation is still refused.
   if (policy.installationOnly === true) {
     if (!claim) throw fail.claimOnly();
