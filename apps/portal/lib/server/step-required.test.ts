@@ -1,31 +1,5 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
-/**
- * A required question left blank on the no-JS whole-step route (issue #920).
- *
- * ## What this is pinning, and what it deliberately is not
- *
- * Not the rule. `required` is the kernel's (`evaluateRules`, invariant I9) and the
- * API serves the result on every projection as `flowState.missingRequired`; that
- * the API refuses to store an empty answer and refuses to submit a session with a
- * required gap is pinned where a real Postgres is in play
- * (`apps/api/src/features/responses/**`). Nothing in this file decides whether a
- * question is required or whether it holds an answer, and nothing in the route it
- * exercises does either.
- *
- * What is pinned here is the round trip the respondent feels, and it is asserted on
- * the RE-RENDER CONTEXT rather than on the response status for the same reason
- * `step-retraction.test.ts` gives: the 303 back to the step is what the silent
- * behaviour already returned. Before this change a no-JS respondent who left a
- * required question blank - or who defeated the browser's own `required` with a
- * crafted post - got that identical 303 and a reload of the same step with no
- * message anywhere on it. What changed is the context the reload reads.
- *
- * The browser gate (`apps/portal/e2e/no-js-required.pw.ts`) carries the same three
- * cases end to end with scripting off, including the crafted post, which is the one
- * that proves the API is authoritative whichever path a submission takes.
- */
-
 const PORTAL_BASE = "https://forms.qcms.test";
 
 function stubPortalEnv(): void {
@@ -126,13 +100,6 @@ function projection(options: {
       missingRequired: options.missingRequired ?? [],
     },
     rosters: [],
-    /**
-     * The entries the batch refused (task 073, Q20). A 422 on one cell is a REJECTION
-     * inside a 200 rather than a thrown error, because the batch applies the entries
-     * around it: a respondent who mistyped one field of nine passengers must not lose
-     * the other fifty-three. The whole request throws only when nothing was applied at
-     * all - a lost session, a 5xx, or a 429 for a batch that did not fit the window.
-     */
     rejected: options.rejected ?? [],
   };
 }

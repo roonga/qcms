@@ -32,40 +32,6 @@ import {
   stablePort,
 } from "./port-seat.js";
 
-/**
- * The port seat (issue #255).
- *
- * What this suite guards, stated plainly, because most of it is arithmetic and only
- * one part is the actual defect:
- *
- *  1. **Seat 0 is today's allocation, byte for byte.** That is the compatibility
- *     contract for the whole change: an existing developer and CI set nothing and
- *     notice nothing on the human-facing block.
- *  2. **The arithmetic**, so `7S00/7S10/7S20/7S30` and `17S00/17S10/17S30/17S40` are
- *     what a seat binds, every one is a legal TCP port (which `7xxxx` would not have
- *     been), and an out-of-range seat is an error rather than a nonsense port.
- *  3. **The ephemeral-range assertion**, which is what stops a block being chosen
- *     inside the kernel's auto-assign window and turning into an unreproducible bind
- *     flake.
- *  4. **The occupancy refusal**, which is the defect itself. Before this, a lane
- *     starting a browser run while another lane's dev servers were up reused those
- *     servers silently and reported green for a worktree it never loaded. Ports now
- *     differ per seat, so that cannot happen between seats; the refusal is the
- *     backstop, and it has to actually see a listener and actually attribute it to a
- *     process, or it is decoration. The `occupantOfPort` test below binds a real
- *     socket and asserts the `/proc` walk finds THIS process and its cwd, which is
- *     the same read that caught the original collision by hand.
- *
- * ## This file is also the turbo-passthrough witness
- *
- * `harness-config.ts` resolves its ports from `QCMS_PORT_SEAT` at module load and
- * throws on a bad value, so importing it here means an invalid seat fails the portal
- * project. That is how to prove the variable survives turbo's strict env mode
- * (CLAUDE.md's standing trap): `QCMS_PORT_SEAT=99 pnpm exec turbo run test --filter
- * qcms-portal --force` must FAIL. If it passes, the variable is being stripped and
- * `turbo.json`'s `globalPassThroughEnv` has lost its entry.
- */
-
 /** Sockets opened by a test, closed even if an expectation throws. */
 const opened: Server[] = [];
 
@@ -96,13 +62,6 @@ function occupant(overrides: Partial<SeatPortOccupant> = {}): SeatPortOccupant {
   return { service: "portal", port: 17_000, pid: 4242, cwd: "/elsewhere/qcms", ...overrides };
 }
 
-/**
- * Readiness stubs, so the structural half of the rule is testable without a server.
- *
- * Injected rather than mocked: the real probe spawns a child process against a real
- * port, which these cases have no reason to pay for. The probe ITSELF is covered
- * against real listeners in its own describe block below.
- */
 const alwaysReady: ReadinessProbe = () => true;
 const neverReady: ReadinessProbe = () => false;
 
@@ -113,19 +72,6 @@ afterEach(() => {
   for (const child of spawned.splice(0)) child.kill("SIGKILL");
 });
 
-/**
- * An HTTP server answering `status`, in a SEPARATE process, on a port it picks itself.
- *
- * It has to be a separate process. `probeServiceReady` is synchronous by construction
- * (`spawnSync`), so it blocks this thread's event loop for the whole probe - and an
- * in-process fixture server would therefore never get to answer, deadlocking against
- * the very call under test. Measured, not theorised: the first version of this suite
- * had the server in-process and every probe timed out.
- *
- * The port is reported by the child rather than chosen here, so nothing races another
- * seat, and the listener is left dual-stack (no bind address) because the probe asks
- * for `localhost` and this machine may resolve that either way.
- */
 async function serveInChildProcess(status: number): Promise<number> {
   const source = `require("node:http")
     .createServer((request, response) => { response.writeHead(${String(status)}); response.end(); })

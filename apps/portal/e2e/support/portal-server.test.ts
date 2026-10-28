@@ -8,121 +8,20 @@ import { fileURLToPath } from "node:url";
 
 import { afterAll, afterEach, describe, expect, it } from "vitest";
 
-/**
- * Startup fail-fast for the portal dev-server wrapper (issue #58).
- *
- * The failure class: a portal dev server that dies during e2e startup used to
- * present as a bare 180s Playwright `webServer` timeout, with the cause only in
- * `apps/portal/.playwright/server-logs/portal.log`. Measured on the real thing
- * (`next dev --port 99999`, which reports a fatal `RangeError` and then keeps
- * running), the operator's entire output was one line, `Timed out waiting
- * 180000ms from config.webServer.`, after 199 seconds. These tests pin the three
- * properties that replaced it, and the one that must not change.
- *
- * ## Why this test lives here and not in `scripts/`
- *
- * `scripts/agent-loop.test.ts` is the closest precedent in shape (spawn a real
- * script, assert its exit code and stderr) and this borrows that shape. But the
- * `tooling` Vitest project those files sit in is documented in `vitest.config.ts`
- * as deliberately neither typechecked nor linted, and it is excluded from
- * `turbo run test` (it needs the separate `pnpm test:tooling` invocation).
- * `portal-server.mjs` is portal e2e harness code, so the test belongs to the
- * package that owns it: in the `qcms-portal` project it is typechecked (the
- * portal `tsconfig.json` includes every TypeScript file under the app), linted
- * (the portal `lint` script covers `e2e`), and covered by plain `pnpm test`
- * rather than only `pnpm test:tooling`. It is a `.test.ts`, not a
- * `.pw.ts`, so Playwright never collects it, and ADR-23 keeps Vitest as the only
- * runner below the browser.
- */
-
 const WRAPPER = fileURLToPath(new URL("portal-server.mjs", import.meta.url));
 
-/**
- * Wall-clock ceiling for a fail-fast exit.
- *
- * The property this pins is "seconds, not the webServer timeout": #58 measured
- * 199s before the fix and 2s after, against the 180_000ms
- * `webServer.timeout` in the root `playwright.config.ts`. So the number that has
- * to be ruled out is 180s, and any bound well under it proves the fix decisively.
- * What proves the fail-fast *path* was taken is the mechanism each test asserts
- * alongside this (a nonzero exit code, the fatal-marker message, the quoted log
- * tail); this bound only rules out the hang, so it can afford to be loose.
- *
- * Loose is required, because `elapsedMs` is wall clock across a real
- * child-process lifecycle: spawn, the stub's own Node boot, the wrapper's 300ms
- * flush grace, subtree reaping. That cost scales with the CPU share the runner
- * gets, which is why a loaded GitHub runner measured 23278ms against the original
- * 20000ms ceiling while the duplicate run of the same commit passed (issue #136,
- * the same class as #61). A third of the webServer timeout leaves 2.5x headroom
- * over that worst observation and still fails any regression toward the 180s hang.
- */
 const FAST_FAILURE_BUDGET_MS = 60_000;
 
-/**
- * Per-test timeout for the two tests that assert `FAST_FAILURE_BUDGET_MS`. It has
- * to sit above the budget, or an over-budget run would die on an opaque Vitest
- * timeout instead of on the assertion that names the elapsed time. Derived rather
- * than written out so the two cannot drift apart. Scoped to those two tests, and
- * nothing outside this file changes. The pattern has since been reused twice: for
- * the pair that gained a readiness wait in issue #140 (`SIGTERM_TEST_TIMEOUT_MS`),
- * and for the descendant-reaping test in issue #165
- * (`DESCENDANT_TEST_TIMEOUT_MS`); the two tests with no wait of their own keep the
- * 30s they had.
- */
 const BUDGET_TEST_TIMEOUT_MS = FAST_FAILURE_BUDGET_MS + 30_000;
 
-/**
- * Ceiling on `waitForTeedOutput`, the readiness wait the two SIGTERM tests use in
- * place of a fixed sleep (issue #140).
- *
- * It has to clear three serial process boots under load: this wrapper, the `sh -c`
- * it spawns its command through, and the stub itself, since the first thing the
- * wrapper can echo is something the stub printed. At the ~50x starvation that
- * reproduces #140 that chain measured a little over 20s, so a bound near the
- * fail-fast budget keeps the wait honest to roughly 150x while still failing any
- * wrapper that never speaks at all. Unloaded the wait ends in well under a second,
- * so the ceiling costs nothing in the normal case.
- */
 const WRAPPER_BOOT_BUDGET_MS = 60_000;
 
-/**
- * Per-test timeout for the two SIGTERM tests, derived from the wait they contain
- * for the same reason `BUDGET_TEST_TIMEOUT_MS` is derived: a wait that reaches its
- * ceiling must die on the message that names what it was waiting for, not on an
- * opaque Vitest timeout. The 30s on top covers the SIGTERM round trip after the
- * wait: the wrapper's handler reaps its subtree with a `ps` snapshot, which is
- * itself a process spawn and so is one of the things load stretches.
- */
 const SIGTERM_TEST_TIMEOUT_MS = WRAPPER_BOOT_BUDGET_MS + 30_000;
 
-/**
- * Ceiling on one `waitUntilGone` poll: how long a signalled process is given to
- * leave the process table, including the moment it spends as a zombie waiting to
- * be reaped. Generous for what it measures, because the answer is normally
- * immediate and the cost is only ever paid by a failing run.
- */
 const DESCENDANT_EXIT_BUDGET_MS = 10_000;
 
-/**
- * Per-test timeout for "leaves no surviving descendant behind after a fail-fast
- * exit", derived for the reason `BUDGET_TEST_TIMEOUT_MS` and
- * `SIGTERM_TEST_TIMEOUT_MS` are (issue #165). That test was the last one here
- * carrying a bare `30_000` while containing three serial waits of its own: a
- * wrapper boot chain, then two `waitUntilGone` polls. Under the ~50x starvation
- * that reproduces #140 the boot alone measured a little over 20s, so 30s left the
- * budget marginal and the failure it produced was an opaque Vitest timeout rather
- * than the assertion that names which process survived. Adding up what the test
- * actually waits for keeps the diagnosis in the message.
- */
 const DESCENDANT_TEST_TIMEOUT_MS = WRAPPER_BOOT_BUDGET_MS + DESCENDANT_EXIT_BUDGET_MS * 2;
 
-/**
- * Claim a port from the ephemeral range and release it again. Most tests here
- * want a port that stays CLOSED, so the wrapper's readiness probe never succeeds
- * and they stay in the pre-readiness window that the fail-fast logic is armed in;
- * the readiness test hands the same port to a stub that does listen. Allocating
- * rather than hard-coding keeps a stray listener from silently inverting a result.
- */
 function freePort(): Promise<string> {
   return new Promise((resolve, reject) => {
     const probe = createServer();
@@ -156,16 +55,6 @@ interface Wrapper {
 const tempDirs: string[] = [];
 const running: WrapperProcess[] = [];
 
-/**
- * A last-resort net so a failed expectation cannot leak a stub that holds a port
- * into the next test. It is NOT the mechanism under test: the wrapper is required
- * to have reaped its own subtree before it exits, which
- * "leaves no surviving descendant behind after a fail-fast exit" asserts.
- *
- * Playwright group-SIGKILLs the wrapper only while the wrapper is still alive; it
- * skips that cleanup once the wrapper has self-exited, which is every failure path
- * here. So each wrapper gets its own process group and is killed by negative pid.
- */
 function reap(child: WrapperProcess): void {
   const { pid } = child;
   if (pid === undefined) return;
@@ -248,27 +137,6 @@ async function waitUntilGone(pid: number, timeoutMs = DESCENDANT_EXIT_BUDGET_MS)
   return !isAlive(pid);
 }
 
-/**
- * Wait until `match` shows up in the wrapper's teed stdout.
- *
- * This is the readiness signal the two SIGTERM tests below need (issue #140). A
- * fixed sleep before signalling is not a signal at all: `code === null` from the
- * wrapper means it died from the raw SIGTERM, which is only possible before its
- * `process.on("SIGTERM", ...)` registration has run, and under CPU starvation the
- * wrapper's Node boot outlasts any sleep length picked from an idle machine's
- * timings (~40-50x slowdown reproduces it).
- *
- * Teed output is proof that the registration has happened. `portal-server.mjs`
- * attaches the stdout tee (`child.stdout.on("data", tee)`) before it registers the
- * signal handlers, inside one synchronous module body with no top-level await, so
- * the first `data` event cannot be delivered until the whole body, handlers
- * included, has finished running. Anything the wrapper echoes therefore places it
- * past that registration, which is the only thing this wait needs to establish.
- *
- * The wrapper's own exit is checked each turn so a wrapper that died early fails
- * here with its cause rather than burning the timeout in silence. This project
- * suppresses console output, so the thrown message is the only diagnostic channel.
- */
 async function waitForTeedOutput(
   wrapper: Wrapper,
   match: string,
@@ -292,12 +160,6 @@ async function waitForTeedOutput(
   );
 }
 
-/**
- * The #381 shape: the port is open and every request is answered, but answered
- * with a 500. The stub arms the fatal line off its first request, so the line
- * always lands after the wrapper's first probe has been answered - which is the
- * window the old "any response is ready" rule closed the startup watch in.
- */
 const SERVES_ONLY_ERRORS = `
 import { createServer } from "node:http";
 let armed = false;

@@ -3,23 +3,6 @@ import { openDb } from "./support/db.js";
 import { readFixtures } from "./support/fixtures.js";
 import { waitForHydration } from "./support/hydration.js";
 
-/**
- * The repeating group on the **scripted** path (task 073, ADR-42, ADR-43).
- *
- * The fixture is `repeat-fleet` (`apps/api/e2e/support/fixtures/repeat-fleet-form.json`):
- * one step with a required plain question and one `open` group, `min: 1`, `max: 3`, whose
- * members are a required shortText, an optional date, a longText and a multiChoice.
- *
- * Acceptance cases owned here: **27** (the whole walk, ending in a locked set of the
- * right instances against the right ids, asserted in Postgres), **31** (a summary entry
- * naming the instance, whose anchor lands on that instance's field), **32** (the three
- * focus destinations after a removal), **33** (the status region), **37** (one input per
- * row, at 390 and at the widest project) and **38** (`longText` and `multiChoice` inside
- * a group).
- *
- * The no-JS half of the same fixture is `no-js-repeat.pw.ts`.
- */
-
 const { repeatFleetSlug, databaseUrl } = readFixtures();
 
 /** The group's own controls, by their compiled labels (the compiler's lexicon). */
@@ -40,15 +23,6 @@ async function startRepeatFlow(page: import("@playwright/test").Page): Promise<s
   return new URL(page.url()).pathname.split("/")[2]!;
 }
 
-/**
- * Wait for the answer post for ONE question, by the question in its body.
- *
- * Matching only "a 200 from `/answers`" is a race on a step like this one, and it cost a
- * confusing failure: the fleet reference, the plate, the notes and the extras each post,
- * and a waiter created for the last of them can be satisfied by an earlier one still in
- * flight. The assertion that followed then read the ledger before the post it was actually
- * waiting for had landed, and reported a missing answer that arrived a moment later.
- */
 function answerPosted(page: import("@playwright/test").Page, questionId: string): Promise<unknown> {
   return page.waitForResponse((response) => {
     if (response.request().method() !== "POST" || response.status() !== 200) return false;

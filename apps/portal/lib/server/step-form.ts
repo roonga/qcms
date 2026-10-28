@@ -16,40 +16,6 @@ import {
 
 import { SESSION_FIELD } from "../repeat";
 
-/**
- * Whole-step form decoding for the no-JS submit route: a pure transport mapping, not
- * validation and not rule evaluation (R2). The renderer tags each answer field with its
- * wire kind, and this turns the form-encoded strings back into the canonical JSON shapes
- * the API expects, with no knowledge of the question definitions.
- *
- * A field with no kind tag is not an answer: it is the honeypot decoy, returned verbatim
- * in `extras` for the caller to forward into the submit body.
- *
- * `__qop` is a reserved name beside `__qk__`, `__qa__` and the honeypot's. At most one
- * can arrive, by construction rather than by a rule here: a `<button name value>`
- * contributes to the form data set only when it is the button that submitted the form.
- * Whether the group exists, whether the instance belongs to this session and whether the
- * token has been spent are all the API's to decide.
- *
- * Clearing an answer without scripting needs the `__qa__` marker, because a native form
- * cannot say "I emptied this": it posts an emptied text box exactly as a never-touched
- * one, and an all-unchecked checkbox group not at all. With the marker, empty-and-marked
- * decodes to `null`, an ADR-33 retraction, and empty-and-unmarked to nothing. That stays
- * a decode of what arrived: the marker is a fact about the post rather than a prior state
- * this module looked up, and the `null` is the identical body the scripted path posts, so
- * both transports reach one ledger call.
- *
- * A forged marker retracts the forger's own answer inside their own session, which the
- * scripted path already permits, and a retraction of a question holding no answer is a
- * documented API no-op.
- *
- * A date arrives in three parts under their own names beside a `date` kind tag, and
- * `assembleNativeDate` is the renderer package's own function, so the two sides cannot
- * disagree about the join. Three blank parts are absence, which is what lets the clear
- * rule apply unchanged. A post carrying the `string` kind and the bare name decodes as
- * before.
- */
-
 export interface DecodedAnswer {
   readonly questionId: string;
   /**
@@ -70,23 +36,9 @@ export interface DecodedStepForm {
   readonly rosterOp?: RosterOpRequest;
   /** A label rather than a credential: see {@link SESSION_FIELD}. */
   readonly sessionId?: string;
-  /**
-   * The fields the respondent cleared, with the wire kind each was tagged with. It
-   * exists because the `__qop` Server Action re-renders the post rather than forwarding
-   * it, and a field the respondent emptied has to come back empty: what empty looks like
-   * depends on the kind, an empty selection being `[]` and anything else `""`. The kind
-   * does not belong on `answers`, whose shape is the API's request body.
-   */
   readonly cleared: Readonly<Record<string, NativeFieldKind>>;
   /** The honeypot decoy, to forward to the submit body. */
   readonly extras: Readonly<Record<string, string>>;
-  /**
-   * Every question the posted form asked, whether or not it carried a value. `answers`
-   * cannot stand in for this, because a blank question contributes no answer and a blank
-   * required question is exactly what the caller has to report on. It is a fact about
-   * the post rather than about the flow, so reading it moves no rule evaluation into the
-   * BFF (R2).
-   */
   readonly fields: readonly string[];
 }
 
@@ -210,10 +162,6 @@ export function decodeStepForm(entries: Iterable<[string, FormDataEntryValue]>):
   const cleared: Record<string, NativeFieldKind> = {};
   const fields = [...kindByName.keys()];
 
-  // The kind tags rather than the posted values, because a control can be an answer
-  // field and contribute no entry at all: an all-unchecked checkbox group posts nothing,
-  // and that is precisely the clear that has to be seen. Insertion order follows the
-  // tags' document order, so answers are forwarded in the order the form asked them.
   for (const [name, kind] of kindByName) {
     const value = decodeValue(kind, rawByName.get(name) ?? [], datePartsByName.get(name));
     if (value !== undefined) {

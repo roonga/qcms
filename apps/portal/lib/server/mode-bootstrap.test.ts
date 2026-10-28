@@ -1,23 +1,3 @@
-/**
- * The pre-paint colour-mode precedence chain, proven by RUNNING the emitted
- * bootstrap source (issue #197).
- *
- * `theme.test.ts` covers the server half of the same chain (config, then the
- * cookie the request carried) and `e2e/appearance.pw.ts` covers the browser half
- * with the first-frame no-flash measurement. Neither can see the thing #197 was:
- * the script let a `?mode=` value win BEFORE checking it was a mode at all, so
- * `?mode=potato` resolved to Light and threw away a respondent's stored
- * High-contrast choice. The behaviour lives in generated source, so the honest
- * test is to execute that source rather than to read it.
- *
- * The script is run in a `node:vm` context with stub globals rather than in jsdom:
- * the whole surface it touches is four objects (`location.search`,
- * `document.cookie`, `document.documentElement.classList`, `window.matchMedia`),
- * a full DOM would add a dependency for no extra signal, and the stubs make the
- * absence of `matchMedia` testable, which is the branch a script running in an old
- * or embedded browser takes.
- */
-
 import { runInNewContext } from "node:vm";
 
 import { describe, expect, it } from "vitest";

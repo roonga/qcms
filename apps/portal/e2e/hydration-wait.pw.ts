@@ -1,26 +1,3 @@
-/**
- * The hydration wait every entry helper owns, tested as harness plumbing in its own
- * right. Three things have to hold, none of them visible from a passing flow spec.
- *
- * The marker cannot lie: it is stamped from a mount effect, so it is absent from a
- * server render by construction, and the first test asserts that against the real SSR
- * bytes, because "an effect cannot run on the server" stops being the whole story the
- * moment someone hand-adds the attribute to a rendered element.
- *
- * It cannot pass vacuously: the portal server-renders a fillable fallback form, so a
- * wait that polled for something already true of that markup would protect nothing. The
- * negative half is driven against the real step with its script requests starved over
- * the network, which an earlier version faked by editing the SSR HTML string, fragile
- * and flagged as unsafe HTML handling.
- *
- * And an entry helper's first interaction is not silently discarded: the last test
- * throttles the CPU to widen the gap before React attaches. The mechanism, for whoever
- * debugs this next, is that the pre-hydration click checks the fallback form's native
- * radio, React replaces that markup, the checked state goes with it and no answer is
- * ever posted. Nothing fails at the click; the red arrives as a timeout inside whichever
- * helper awaited the first post.
- */
-
 import { expect, test } from "./support/gates.js";
 
 import { readFixtures } from "./support/fixtures.js";
@@ -29,23 +6,11 @@ import { waitForHydration } from "./support/hydration.js";
 import { starveScripts } from "./support/script-starve.js";
 import { HYDRATED_ATTRIBUTE } from "../lib/hydration.js";
 
-/**
- * Hydration is scheduled work, so throttling the CPU stretches the window from
- * sub-frame to seconds without touching the network or the helper under test. Emulated
- * slowness is the point: it makes an intermittent race deterministic, and at this rate
- * the un-waited helper handed back an inert page every run.
- */
 const CPU_THROTTLE_RATE = 6;
 
 /** How long the wait is given on a page that must never satisfy it. */
 const REJECTION_BUDGET_MS = 3_000;
 
-/**
- * How long the wait is given on a page that MUST satisfy it. Deliberately far below
- * the suite default: a positive half that leaned on the default timeout would still
- * pass if the marker only ever arrived at the last possible moment, which is not the
- * claim being made.
- */
 const RESOLUTION_BUDGET_MS = 15_000;
 
 test("the hydration wait rejects on server-rendered markup and resolves once React attaches", async ({

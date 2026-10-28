@@ -2,27 +2,6 @@ import { describe, expect, it, vi } from "vitest";
 
 import { mergeStepValues } from "../step-values";
 
-/**
- * Both BFF cookies are validated, not asserted (issues #327 and #345).
- *
- * `qcms_step_ctx` carries the no-JS re-render context: the values a respondent
- * just posted and the errors the API refused them with. `qcms_receipt` carries
- * the submit receipt to the completion page. Both are `httpOnly`, which stops the
- * page's own scripts reading them, but both are **unsigned**: a respondent can set
- * either by hand in their own browser, so everything these readers return is
- * attacker-influenced input on the way to a render. Each used to end in a bare
- * `JSON.parse(raw) as ...` - a cast, which checks nothing.
- *
- * Two properties are asserted for each. A cookie this app wrote still round-trips
- * unchanged (the fix must not cost a respondent their re-populated answers or
- * their receipt), and a cookie of any other shape degrades to `undefined`, which
- * is exactly what an absent cookie already returned. Nothing throws: this runs
- * inside a respondent's page render, where an exception is a blank screen.
- *
- * `next/headers` is mocked because the cookie store only exists inside a Next
- * request.
- */
-
 /** The raw cookie values the mocked store hands back, set per case. */
 let cookieValue: string | undefined;
 let receiptCookieValue: string | undefined;
@@ -119,12 +98,6 @@ describe("readStepContext", () => {
     expect(context?.values.q_plate).toBe("ABC-123");
   });
 
-  /**
-   * The whole regression path in one test: the cookie the route really writes for
-   * a respondent who replaces an accepted number with text, read back and merged
-   * over the answers the API still holds. The stale accepted value must not
-   * reappear next to the error message that refuses it.
-   */
   it("blanks a refused number field instead of restoring the accepted answer (NaN -> null)", async () => {
     const written = JSON.stringify({
       values: { q_odometer: Number("abc"), q_plate: "ABC-123" },
@@ -178,11 +151,6 @@ describe("readStepContext", () => {
   });
 });
 
-/**
- * The receipt cookie (issue #345). The positive control runs first on purpose: if
- * it goes red, validation broke the legitimate path, and every rejection below is
- * reading a fixture that was never valid to begin with.
- */
 describe("readReceiptCookie", () => {
   /** Exactly what the API's `receiptFrom` builds: an ISO instant and a hex hash. */
   const written = {

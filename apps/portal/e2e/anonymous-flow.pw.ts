@@ -1,24 +1,3 @@
-/**
- * Anonymous entry -> branching walkthrough -> submit -> completion (task 029,
- * updated for explicit navigation, ADR-28 / task 045). Drives the portal against
- * the composed API booted in globalSetup, on Playwright's Pixel 7 mobile
- * emulation.
- *
- * Branch model note (as-built): the insurance fixture is a SINGLE visible step, so
- * the primary action is always "Submit" (Submit appears only on the final step,
- * and the only step is the final one). The API serves the full compiled step
- * document (ADR-18) and the @roonga/qcms-ui renderer renders exactly that, so both
- * questions are in the DOM; the branch is observable through the *flow
- * projection*: choosing "Yes" makes q_accident_count a visible required question
- * (a Submit is then blocked with the error summary until it is answered), while
- * choosing "No" leaves it not-required and the form immediately submittable.
- * Answering never advances or collapses the step (ADR-28).
- *
- * The "Yes" path additionally throttles the network (CDP
- * Network.emulateNetworkConditions) to prove the insurance fixture still completes
- * on a slow mobile connection.
- */
-
 import { test, expect } from "./support/gates.js";
 import type { Page } from "@playwright/test";
 

@@ -77,18 +77,6 @@ const FOCUSABLE_SELECTOR = [
   "[tabindex]:not([tabindex='-1'])",
 ].join(", ");
 
-/**
- * `.focus()` is silent when it fails, so without this `focusQuestion` would report a
- * success that never happened.
- *
- * `getClientRects()` is the primary test, because unlike `offsetParent` it does not
- * misreport a `position: fixed` element as hidden; `checkVisibility` adds the cases that
- * do generate boxes yet still refuse focus, and is feature-detected.
- *
- * Not a visually-hidden test: a clipped 1x1 control is a real focus target, which is how
- * skip links are built. jsdom performs no layout, so this is only ever meaningful in a
- * browser, which is why these DOM helpers are covered by Playwright.
- */
 function canTakeFocus(element: HTMLElement): boolean {
   if (element.getClientRects().length === 0) return false;
   if (typeof element.checkVisibility === "function") {

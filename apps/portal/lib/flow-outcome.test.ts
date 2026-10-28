@@ -7,13 +7,6 @@ import {
   type FlowFailure,
 } from "./flow-outcome";
 
-/**
- * Local UX list P2 and P9. The hydrated flow read an expired or already-submitted
- * session's 409 as a network failure and said "We could not reach the server" for ever,
- * and it never cleared that notice or the count refusal once either was set. The rules
- * that decide both are here so they can be driven without a browser; the browser half is
- * `e2e/flow-states.pw.ts`.
- */
 describe("refusalOutcome (local UX list P2)", () => {
   it("reloads for the session states the page owns a screen for", () => {
     expect(refusalOutcome(409, "SESSION_EXPIRED")).toBe("reload");

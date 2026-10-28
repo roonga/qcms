@@ -1,24 +1,3 @@
-/**
- * What the hydrated flow does around a press of Continue, and when a round trip does not
- * go the way the press expected (local UX list P2, P4 and P9).
- *
- * - **P4.** Leaving a field posts its answer (ADR-31), and the flow used to mark Continue
- *   and Back `disabled` while that post was in flight. The blur happens on pointer DOWN,
- *   so by pointer UP the button was disabled and the click never fired: the first press
- *   after typing did nothing. The first test reproduces exactly that gap, with the save
- *   held open between the two halves of the press.
- * - **P2.** An expired or already-submitted session is refused with a 409 the page's own
- *   server render has a screen for, and the hydrated flow read it as a network failure
- *   and said "We could not reach the server" for ever. The refusals here are REAL: the
- *   session row is changed under the page, as time or another tab would change it.
- * - **P9.** The failure notice was never cleared and was drawn at the top of the card,
- *   away from the button that caused it. It now sits beside the actions, offers a retry,
- *   and goes away when the retry gets through.
- *
- * The rules behind the last two are pure functions pinned in `lib/flow-outcome.test.ts`;
- * what only this layer can show is that the component wires them to real responses.
- */
-
 import { test, expect } from "./support/gates.js";
 
 import { openDb } from "./support/db.js";
@@ -230,17 +209,6 @@ test("a failed Continue is reported beside the actions and its retry clears it (
   await expect(notice).toHaveCount(0);
 });
 
-/**
- * Issue #1041's not-visible branch, live since the refusal body is read once (local UX
- * list P2). On `main` the second of two body reads found the body consumed, so a
- * `QUESTION_NOT_VISIBLE` 409 painted "We could not reach the server" for good. It now
- * re-reads the step the respondent is ON, at the committed cursor, so posting an answer
- * never moves the page (ADR-28) and no failure notice appears.
- *
- * The 409 is a fulfilled route: making the real API refuse a visible control would need
- * a race between two projections, and what is under test is the client's answer to the
- * refusal, not the API's reasons for sending it.
- */
 test("a not-visible refusal re-reads the current step and moves nothing (#1041)", async ({
   page,
   browserGuard,

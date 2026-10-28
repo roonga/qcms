@@ -1,12 +1,3 @@
-/**
- * Driving helpers for the kitchen-sink form: one place for the gestures every spec
- * repeats, so a control's commit moment is encoded once rather than in each spec.
- *
- * Each helper that commits an answer waits for the post it causes, because the suite's
- * assertions are about what reached the server and a gesture that has not landed yet is
- * indistinguishable from one that never will.
- */
-
 import { expect, type Locator, type Page, type Response } from "@playwright/test";
 
 import { waitForHydration } from "./hydration.js";
@@ -73,11 +64,6 @@ export async function fillText(page: Page, name: string, value: string): Promise
 /** A calendar day's three parts, as react-aria tags its segments. */
 export type DatePartName = "day" | "month" | "year";
 
-/**
- * The order a segmented DateField draws its parts in, read off the page rather than
- * assumed. It follows the portal's `QCMS_LOCALE` (Code Owner ruling 2026-10-19): the
- * harness leaves it unset, so the default `en-GB` gives day, month, year.
- */
 export async function dateSegmentOrder(group: Locator): Promise<DatePartName[]> {
   const types = await group
     .locator('[role="spinbutton"][data-type]')
@@ -95,14 +81,6 @@ export function dateParts(digits: string): Record<DatePartName, string> {
   return { month: digits.slice(0, 2), day: digits.slice(2, 4), year: digits.slice(4) };
 }
 
-/**
- * Enter a date into the segmented DateField, then blur. `digits` is `MMDDYYYY`
- * whatever the configured locale; the helper types the parts in the order the field
- * draws them. The date's commit moment is `completion` (ADR-31): a partial date never
- * posts, and the complete one posts once, when editing ends. Typing all eight digits
- * and blurring is therefore one post - see `commit-moments.pw.ts` for why the
- * control's own "value is non-empty" signal cannot be the trigger.
- */
 export async function enterDate(page: Page, digits: string): Promise<void> {
   const recorded = answerPosted(page);
   const group = page.getByRole("group", { name: KS.dob });
@@ -116,16 +94,6 @@ export async function enterDate(page: Page, digits: string): Promise<void> {
   await recorded;
 }
 
-/**
- * Clear an ALREADY-ANSWERED date and commit, which retracts it (issue #95).
- *
- * Backspace on a react-aria date segment deletes digit-wise, so one press empties
- * a two-digit month and leaves the date incomplete but not empty: the exact state
- * react-aria never reports through `onChange` (it fires only when a date becomes
- * complete, or when every segment is empty). The adapter reads the displayed
- * segments at the commit moment instead, and posts a null clear, so this waits
- * for that POST like any other answer post.
- */
 export async function clearDate(page: Page): Promise<void> {
   const retracted = answerPosted(page);
   const group = page.getByRole("group", { name: KS.dob });
@@ -137,16 +105,6 @@ export async function clearDate(page: Page): Promise<void> {
   await retracted;
 }
 
-/**
- * Empty an ALREADY-ANSWERED text-like control (TextField, TextArea or
- * NumberField) and commit, which retracts the answer (issue #98, ADR-33).
- *
- * Emptying the box is not the commit: text and number both commit on blur
- * (ADR-31), so the retraction posts when focus leaves, and this waits for that
- * POST like any other answer post. An emptied control reports absence rather than
- * an empty-string answer, so what travels is the same `null` clear a cleared date
- * sends (see `clearDate`).
- */
 export async function clearText(page: Page, name: string | RegExp): Promise<void> {
   const retracted = answerPosted(page);
   const field = page.getByRole("textbox", { name });
@@ -185,31 +143,10 @@ export async function chooseRadio(page: Page, label: string): Promise<void> {
   await clickLabelAndAwaitPost(page, label);
 }
 
-/**
- * Choose a SINGLE-CHOICE radio (an OptionId string) by its visible label. Single
- * choice commits on change, like a boolean, because it can gate a branch
- * (ADR-31, issue #31) - so this waits for the post directly and never blurs. It
- * used to have to focus the radio, press Space and then blur, because a
- * single-choice value is a string and the flow posted every string on blur; that
- * workaround is the regression net here, and its removal is what the fix buys.
- */
 export async function chooseSingleChoice(page: Page, label: string): Promise<void> {
   await clickLabelAndAwaitPost(page, label);
 }
 
-/**
- * Choose an option from a `Select` - what a singleChoice question compiles to above
- * seven options (issue #988) - by the question's id and the option's visible label.
- *
- * Driven through the question's own `[data-qcms-field]` wrapper rather than by
- * accessible name, because the vendored trigger's name is its CURRENT VALUE followed
- * by the label ("Select an option What body type is the vehicle?"), so it changes as
- * soon as the first option is chosen. Selecting commits on change, like a radio, so
- * this waits for the post directly and never blurs (ADR-31).
- *
- * The listbox is portalled to the document body, so the option lookup is page-wide
- * rather than scoped to the field.
- */
 export async function chooseFromSelect(
   page: Page,
   questionId: string,
@@ -221,14 +158,6 @@ export async function chooseFromSelect(
   await recorded;
 }
 
-/**
- * Toggle one checkbox option by its visible label WITHOUT committing the group.
- * A multi-choice commits on group exit (ADR-31), so a toggle posts nothing: only
- * `commitCheckboxGroup` does. The explicit `.focus()` afterwards is what makes
- * that exit deterministic - a pointer click on the decorative label selects the
- * box without necessarily focusing its input, and the group's commit is a FOCUS
- * event.
- */
 export async function toggleOption(page: Page, label: string): Promise<void> {
   await page.getByText(label, { exact: true }).click();
   await page.getByRole("checkbox", { name: label, exact: true }).focus();
@@ -256,22 +185,10 @@ export async function checkOption(page: Page, label: string): Promise<void> {
   await commitCheckboxGroup(page);
 }
 
-/**
- * Fast-forward through the kitchen-sink form's first two steps with valid
- * answers and land on step 3 ("Your cover"), whose REQUIRED questions are the
- * single-choice radio group `q_coverage_level` and the single-choice `Select`
- * `q_body_type` (issue #988); it also holds two optional questions that need no
- * answer for the step to complete, the number `q_annual_km` (issue #18) and the
- * Select `q_overnight_parking`. The flow spec drives those steps with its own
- * assertions; this is the plain set-up for a spec whose subject is step 3.
- *
- * "No" is chosen for the accident question so the number follow-up stays hidden
- * and no extra required question is introduced.
- */
 export async function advanceToCoverStep(page: Page, slug: string): Promise<void> {
   await startKitchenSink(page, slug);
   await fillText(page, KS.fullName, "Ada Lovelace");
-  await enterDate(page, "05171990"); // 1990-05-17, given as MMDDYYYY whatever the field order
+  await enterDate(page, "05171990");
   await continueStep(page);
   await chooseRadio(page, "No");
   await checkOption(page, "Breakdown");

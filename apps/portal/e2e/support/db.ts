@@ -1,17 +1,3 @@
-/**
- * Independent Postgres verification for the portal e2e (task 045, exit criterion
- * 4). The kitchen-sink spec opens its OWN connection to the e2e database (the URI
- * comes from the fixtures the harness wrote) and asserts what was persisted,
- * WITHOUT trusting the API's response echo: each stored answer in canonical form,
- * the append-only ledger (a changed answer adds a row, never mutates), and the
- * submission lock (`submittedAt` + `contentHash`).
- *
- * `pg` is not a portal dependency; it is a dependency of `qcms-api`, so we resolve
- * it from there exactly as `api-server.ts` resolves `@hono/node-server` - no new
- * dependency is added to the portal. A raw `pg` read returns `timestamptz` as a
- * STRING (not a Date), which is all these presence checks need.
- */
-
 import { createRequire } from "node:module";
 
 const apiRequire = createRequire(new URL("../../../api/package.json", import.meta.url));
@@ -43,20 +29,6 @@ export interface AnswerRow {
   readonly answeredAt: string;
 }
 
-/**
- * Open a connected client to the e2e database. Remember to `close()` it.
- *
- * **The search path is not optional since ADR-40.** Every data-plane table -
- * `sessions`, `answers`, `submissions` - lives in `data_<env>`, one copy per
- * environment, and is declared unqualified so the connection chooses which one it
- * reaches. A client that sets no `search_path` resolves `answers` to nothing at all
- * and every read below fails with `relation "answers" does not exist`.
- *
- * `prod` is the environment the API serves every request from until tasks 065 and 066
- * land (Q53), so it is the one holding the rows these assertions are about. `control`
- * follows it, exactly as an API pool connects, so a read of `forms` or `form_versions`
- * resolves too.
- */
 export async function openDb(databaseUrl: string): Promise<Db> {
   const client = new Client({
     connectionString: databaseUrl,
@@ -66,7 +38,6 @@ export async function openDb(databaseUrl: string): Promise<Db> {
   return new Db(client);
 }
 
-/** One appended answer row, with the instance it belongs to (task 073). */
 export interface InstanceAnswerRow {
   readonly questionId: string;
   /** Null for a question outside every repeating group. */
@@ -75,14 +46,12 @@ export interface InstanceAnswerRow {
   readonly retracted: boolean;
 }
 
-/** One entry of a sealed submission's answer set (task 073). */
 export interface LockedAnswerRow {
   readonly questionId: string;
   readonly instanceId?: string;
   readonly value: unknown;
 }
 
-/** One row of the append-only roster ledger (task 072). */
 export interface RosterRow {
   readonly groupId: string;
   readonly instanceId: string;
@@ -160,14 +129,6 @@ export class Db {
       : { contentHash: row.content_hash, submittedAt: row.submitted_at };
   }
 
-  /**
-   * Every appended answer row **with its instance**, oldest first (task 073).
-   *
-   * A second reader beside {@link answerRows} rather than a widening of it, because the
-   * existing one is what half a dozen specs assert against and a repeated answer is a
-   * new grain: the ledger's key is `(question_id, instance_id)` since migration 0022,
-   * and `instance_id` is null for every question outside a repeating group.
-   */
   async instanceAnswerRows(sessionId: string): Promise<InstanceAnswerRow[]> {
     const result = await this.client.query<{
       question_id: string;
@@ -189,14 +150,6 @@ export class Db {
     }));
   }
 
-  /**
-   * The sealed answer set, as the submission stored it (task 073).
-   *
-   * This is what a repeat walk has to be judged against rather than the ledger: the
-   * ledger keeps a removed instance's answers forever and the locked set excludes them,
-   * exactly as it excludes a hidden question's (I6, ADR-42). Asserting one without the
-   * other would miss whichever half the code got wrong.
-   */
   async lockedAnswers(sessionId: string): Promise<LockedAnswerRow[]> {
     const result = await this.client.query<{
       locked_answers: { answers: LockedAnswerRow[] };
@@ -204,13 +157,6 @@ export class Db {
     return result.rows[0]?.locked_answers.answers ?? [];
   }
 
-  /**
-   * The roster ledger for a session, oldest first: what was minted and what a
-   * respondent removed (task 072's `answer_group_instances`).
-   *
-   * Append-only, so a removal is a row rather than the absence of one. A spec reads it
-   * to prove that a removed instance was never deleted.
-   */
   async rosterRows(sessionId: string): Promise<RosterRow[]> {
     const result = await this.client.query<{
       group_id: string;
@@ -230,16 +176,6 @@ export class Db {
     }));
   }
 
-  /**
-   * Mark a live session expired, so the API refuses its next request with
-   * `SESSION_EXPIRED` while its token still verifies (local UX list P2). The token's own
-   * expiry is untouched, which is the state an idle respondent's tab is in.
-   *
-   * By STATUS, never by moving `expires_at` against the database's `now()`: the API this
-   * suite runs against has a FIXED clock (`NOW` in `apps/api/e2e/support/harness.ts`,
-   * months away from the wall clock), so a wall-clock "a minute ago" is still in the
-   * API's future and the session stays live. `loadActiveSession` honours either.
-   */
   async expireSession(sessionId: string): Promise<void> {
     await this.client.query(`update sessions set status = 'expired' where session_id = $1`, [
       sessionId,

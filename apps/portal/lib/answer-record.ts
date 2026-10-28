@@ -3,15 +3,6 @@ import type { A2UIAnswerValue, A2UIErrors, A2UIValues } from "@roonga/qcms-ui";
 import type { CommitMoment } from "./visible";
 
 /**
- * The flow's record of what the server has said about each answer: the value it holds,
- * and the value it refused.
- *
- * Its one job is suppressing a post that would say nothing new. What makes that safe is
- * when the record is written: on the post's issue rather than its resolution, with a
- * rollback if the post is refused.
- */
-
-/**
  * An absent entry means the question has no stored answer; the key `"null"` means the
  * server holds an explicit retraction (ADR-33), which is a different state.
  */
@@ -25,16 +16,6 @@ export interface RejectedAnswer {
 
 export type RejectedAnswers = Readonly<Record<string, RejectedAnswer | undefined>>;
 
-/**
- * JSON for its shape fidelity rather than as a wire format: absence has to stay distinct
- * from every real value, and it encodes as `null`, which no real answer can collide with
- * because every string is quoted.
- *
- * A multiChoice value is a set to the kernel (ADR-21), so it is sorted before encoding,
- * or the client and the server would differ on what the same answer is. The sort is the
- * only canonicalization: this key exists to agree with what the server stores, and
- * folding together values the server keeps apart would suppress a post the ledger wants.
- */
 export function answerKey(value: A2UIAnswerValue | undefined): string {
   // Sorted into a copy: `value` is the value currently rendered in the control, and
   // sorting in place would reorder the respondent's selection.
@@ -94,20 +75,6 @@ export function holdsAnswer(record: PostedRecord, name: string): boolean {
   return key !== undefined && key !== answerKey(undefined);
 }
 
-/**
- * Whether focus leaving a control is a commit worth posting. Two rules, both about a
- * post having to assert something:
- *
- * - an empty `completion` control commits nothing, because a never-finished date is not
- *   an answer and the one `null` it can post is the ADR-33 retraction, which arrives
- *   through the change event once editing ends;
- * - an empty control that holds no answer commits nothing either, whatever its moment,
- *   because a retraction needs something to retract. It cost a round trip per control a
- *   respondent tabbed through, plus a 422 whenever the question was required.
- *
- * A non-empty value always commits; suppressing a redundant repeat is `isRecorded`'s job
- * in the caller.
- */
 export function commitsOnFocusExit(
   record: PostedRecord,
   name: string,
@@ -146,19 +113,6 @@ export function withConfirmed(
   return { ...confirmed, [name]: answerKey(value) };
 }
 
-/**
- * Undoes an issued post's optimistic entry when the post was not accepted, without
- * which a refused value would be remembered as held and the retry deduped into silence.
- * It restores absence when the server holds nothing, because no entry is what tells a
- * `completion` clear that the question was never answered.
- *
- * Conditional, compare and swap: if the record no longer holds `key`, a newer post has
- * been issued since and this stale rollback must not clobber it.
- *
- * What it restores comes from `confirmed`, never from `record`, because only the keys
- * the server seeded or accepted were ever true. With two overlapping refusals of one
- * question, the optimistic record's predecessor is the first post's refused value.
- */
 export function withRollback(
   record: PostedRecord,
   confirmed: PostedRecord,
@@ -176,13 +130,6 @@ export function withRollback(
 // One frozen object, so an error-free render is referentially stable.
 const NO_ERRORS: A2UIErrors = Object.freeze({});
 
-/**
- * A rejection message describes one value, so it is shown exactly while the field still
- * holds that value and the edit replacing it is what clears it. Clearing on the next
- * accepted post instead leaves the message up while the respondent types, and leaves it
- * up for ever when the correction restores a value the server already holds, since that
- * commit is deduped and no accepted post ever arrives.
- */
 export function visibleErrors(rejected: RejectedAnswers, values: A2UIValues): A2UIErrors {
   let shown: Record<string, string> | undefined;
   for (const [questionId, entry] of Object.entries(rejected)) {

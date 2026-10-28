@@ -1,20 +1,3 @@
-/**
- * Author-supplied validation messages (ADR-32) and boolean label overrides
- * (ADR-36) in the real browser, task 048.
- *
- * The unit layers pin the pieces (`lib/validation-message.test.ts` for the
- * per-constraint choice, the compiler's `author-messages.test.ts` for the
- * forwarding, the golden corpus for the bytes). What is only true here is that a
- * respondent actually SEES the author's wording where the author put it, that a
- * constraint the author left alone still shows the portal's default, and that an
- * overridden boolean label is what the accessibility tree announces while the wire
- * value underneath it has not moved.
- *
- * The 422s are REAL, driven through the kernel and the API on the seeded
- * `author-messages` form, so each test declares the expected non-2xx through the
- * browser gate's per-test hatch (`gates.ts`) before provoking it.
- */
-
 import { expect, test } from "./support/gates.js";
 import type { Page } from "@playwright/test";
 
@@ -37,17 +20,6 @@ const AUTHORED = {
   pattern: "Use capitals, digits and hyphens only, like ABC-123",
 } as const;
 
-/**
- * The default wording for a constraint the author left alone.
- *
- * Since issue #322 that is the KERNEL's own message for the constraint that
- * failed, not the generic `answer.invalid` catalog entry, and it is the same
- * message the no-JS path has always shown. The generic entry is still the last
- * resort (a 422 with no readable rejection), which is `answer.invalid` below.
- *
- * Verbatim from `packages/core/src/validate-answer.ts`, for `q_am_vin`'s
- * un-decorated `minLength` of 5.
- */
 const DEFAULT_INVALID = "Answer must be at least 5 characters";
 
 /** The generic catalog entry, which no longer answers for a named constraint. */

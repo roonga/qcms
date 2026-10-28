@@ -1,21 +1,3 @@
-/**
- * Where the error summary's "jump to field" links actually land focus, for every
- * question type the kitchen-sink corpus renders (issue #76).
- *
- * The regression this guards: `firstFocusableIn` preferred the first
- * INPUT/TEXTAREA/SELECT in a field, and react-aria's DatePicker renders a
- * `display: none` native text input (its soft-keyboard entry path) that is NOT
- * inside an `aria-hidden` subtree. That input won the preference, `.focus()` on it
- * was a silent no-op, and `focusQuestion` still reported success, so activating a
- * date question's error-summary entry moved focus nowhere (WCAG 2.4.3 / 3.3.1).
- *
- * Assertions are on the PROPERTIES of the focused element (which question wraps
- * it, its tag/role, that it is rendered and not aria-hidden), not on a selector
- * chain into a vendored component's internals. Covering every type in one spec is
- * deliberate: the preference order is shared, so a fix for the date field must be
- * shown not to have moved the target for any other control.
- */
-
 import { expect, test } from "./support/gates.js";
 import type { Page } from "@playwright/test";
 

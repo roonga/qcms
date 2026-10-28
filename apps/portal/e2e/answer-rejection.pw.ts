@@ -1,29 +1,3 @@
-/**
- * What a REFUSED answer does to the flow (issue #122's 422 branch, reachable from
- * a gated spec since issue #166).
- *
- * `step-flow.tsx` wires two rules to a 422 and this is the only layer that sees
- * them wired: the optimistic "what the server holds" entry is rolled back, so the
- * refused value stays retryable; and the message is derived from the refusal plus
- * the value on screen, so it lives exactly as long as the value it describes. The
- * rules themselves are pure functions pinned in `apps/portal/lib/answer-record.test.ts`
- * - what is only true here is that the component calls them, in the right places,
- * with the right arguments, over a real API refusal.
- *
- * The 422 is REAL, not a fulfilled route: `q_full_name`'s pattern forbids a digit,
- * so posting `Ada1` is refused by the kernel through the API (`INVALID_ANSWER`),
- * which also exercises the API's client-safe 4xx reporting the server-log gate
- * allowlists. The browser logs any non-2xx as a `console.error`, so each test
- * declares that 422 through the browser gate's per-test hatch before provoking it
- * (`gates.ts`, {@link ExpectedRequestFailure}); an undeclared status, a different
- * URL, or any other console error still reds the test, and a declaration that never
- * fires reds it too.
- *
- * The post log is pinned whole (`support/answer-log.ts`), because both defects here
- * are about a post that should or should not exist: a retry swallowed by the dedupe
- * is silence, and so is the absent post the last phase depends on.
- */
-
 import { test, expect } from "./support/gates.js";
 
 import { postsFor, watchAnswerPosts } from "./support/answer-log.js";
@@ -48,17 +22,6 @@ const REFUSED = "Ada1";
 /** A value it accepts, and the one the server ends up holding. */
 const HELD = "Ada Lovelace";
 
-/**
- * The message the flow shows under the refused field.
- *
- * The kernel's own wording for `pattern`, verbatim from
- * `packages/core/src/validate-answer.ts`, and not the generic `answer.invalid`
- * catalog entry it used to be: since issue #322 the hydrated path resolves the
- * default the same way the no-JS path always has (author's message, then the
- * kernel's, then the catalog). Nothing about what this spec asserts changed - the
- * message is still derived from the refusal and still lives as long as the value
- * it describes - only which string that derivation lands on.
- */
 const INVALID = "Answer does not match the required format";
 
 /** Wait for one `POST /answers` the API refuses (status 422). */

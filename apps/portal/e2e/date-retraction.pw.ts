@@ -1,22 +1,3 @@
-/**
- * Answer retraction end to end (issue #95, ADR-33): the reproduction from the
- * issue must no longer reproduce.
- *
- * A respondent answers a required date, then clears it. Before this fix the
- * server never learned about the clear (react-aria reports no value change when
- * a complete date becomes incomplete, and the API had no retraction path at all),
- * so it honored the stale stored answer and **Continue advanced**. Now the clear
- * is observed at the commit moment, posted as a null retraction, and appended to
- * the ledger as a tombstone: the question is unanswered again, Continue is
- * blocked, and the error summary names the field.
- *
- * The final assertions open their OWN Postgres connection, so the read model and
- * the audit ledger are verified independently of the API's response echo: the
- * retracted question is gone from the current answers while every row, including
- * the retraction, is still in the ledger (nothing is mutated or deleted, R3 /
- * ADR-17).
- */
-
 import { test, expect } from "./support/gates.js";
 
 import { openDb } from "./support/db.js";

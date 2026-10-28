@@ -1,22 +1,7 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
-/**
- * The BFF forwards `x-request-id` on its API calls (task 054, exit criterion 3).
- *
- * Before this, the browser -> portal -> API hop shared no id at all: the API
- * generated its own per request, so a respondent quoting the id from an error
- * envelope pointed at one log line in one service and nothing in the other.
- *
- * `next/headers` is mocked because the request store only exists inside a Next
- * request; the id itself is minted in `proxy.ts` (see `proxy.test.ts`).
- */
-
 const REQUEST_ID = "req-from-the-proxy";
 
-/**
- * The browser request as this app received it. Mutable so a case can vary the
- * inbound `x-forwarded-for` the ingress wrote (issue #341); reset per test.
- */
 let inbound = new Headers({ "x-request-id": REQUEST_ID });
 
 vi.mock("next/headers", () => ({
@@ -73,14 +58,6 @@ describe("internal API client headers", () => {
   });
 });
 
-/**
- * The client address the API's rate limiters key on (issue #341).
- *
- * Before this, `baseHeaders()` carried no address at all, so the API bucketed
- * every respondent in a deployment together. The first two cases are the fix; the
- * third is the half that stops the fix from being worse than the bug, since the
- * naive version of it lets a caller pick its own bucket.
- */
 describe("vouched client address", () => {
   const startFrom = async (forwardedFor?: string): Promise<Headers | undefined> => {
     if (forwardedFor !== undefined) inbound.set("x-forwarded-for", forwardedFor);
@@ -122,13 +99,6 @@ describe("vouched client address", () => {
   });
 });
 
-/**
- * Every call goes to the request's own environment's API surface (ADR-40, Q21, task 066).
- *
- * The prefix is the whole of how the API chooses a pool for a respondent request, so a
- * call that lost it would read `prod`'s data for a `test` session - and would do it
- * quietly, because the unprefixed route exists and answers.
- */
 describe("the environment's API surface", () => {
   it("calls the unprefixed paths for prod, so a production deployment is unchanged", async () => {
     const { startAnonymousSession, getStep } = await import("./api");

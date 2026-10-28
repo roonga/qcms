@@ -12,17 +12,6 @@ import {
   type ContainerCensus,
 } from "./host-pressure.js";
 
-/**
- * What the machine probe is allowed to claim (issues #395 and #812).
- *
- * The two parsers were pinned here before the pressure rule existed and their cases move
- * with them: `/proc` and `docker ps` are three lines each around a parse, and the parse is
- * where the mistakes are. What is new is the rule built on top - the one that decides
- * whether a run gets told the machine was busy. It has to be wrong in the safe direction
- * in both directions at once: a threshold that fires on a healthy suite teaches readers to
- * skip the block, and one that never fires leaves #395's second occurrence unreported.
- */
-
 /** Waves 11 to 13: eleven Testcontainers across four lanes, and no seat port taken. */
 const CROWDED: ContainerCensus = { running: 14, testcontainers: 11, sessions: 4, qcmsStacks: 1 };
 

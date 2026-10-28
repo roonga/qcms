@@ -1,17 +1,3 @@
-/**
- * The font registry, measured off a live page, because a declared `@font-face` that 404s
- * fails silently: the browser falls back and the page still looks fine. The unit suite
- * proves the manifest; none of that is anything a respondent experiences.
- *
- * Four claims: every request for the whole sweep is same-origin, which is what makes the
- * self-hosting decision real; each family is proven to be the face in use both by
- * `check()` and by a probe string measuring a different advance width than a deliberately
- * nonexistent family, which a silent fallback would match exactly; the WCAG 1.4.12 floors
- * hold under every shipped font, families having different metrics, so one holding is not
- * evidence for another; and the curated-subset config reaches the page, so config through
- * to a real same-origin request is proven end to end.
- */
-
 import { writeFileSync } from "node:fs";
 
 import { FONT_REGISTRY, fontClass, SYSTEM_FONT_KEY } from "@roonga/qcms-ui/fonts";
@@ -64,12 +50,6 @@ function computed(target: Locator, property: string): Promise<string> {
   );
 }
 
-/**
- * The first family of a computed `font-family`, unquoted. Chromium serializes a
- * single-identifier family WITHOUT quotes (`Inter`) and a multi-word one WITH them
- * (`"Open Sans"`), so comparing the raw string against the manifest's quoted name
- * would pass for half the registry and fail for the other half.
- */
 function firstFamily(computedValue: string): string {
   return (computedValue.split(",")[0] ?? "").trim().replace(/^["']|["']$/gu, "");
 }
@@ -84,7 +64,6 @@ async function fontTokens(page: Page): Promise<Readonly<Record<string, string>>>
   }, TOKEN_NAMES);
 }
 
-/** The tokens the fallback contract is made of (issue #27). */
 const TOKEN_NAMES = [
   "--font-fallback-sans",
   "--font-fallback-serif",
@@ -110,12 +89,6 @@ async function applyFont(page: Page, key: string, keys: readonly string[]): Prom
   );
 }
 
-/**
- * The floors, measured off computed style for whatever font is currently applied.
- * `--type-*` values are the carrier and are font-independent, but the RENDERED
- * result is not obviously so: a family with unusual metrics, or a stylesheet whose
- * font class accidentally carried a size, would show up here and nowhere else.
- */
 interface Floors {
   readonly bodySize: number;
   readonly lineHeight: number;

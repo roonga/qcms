@@ -1,19 +1,3 @@
-/**
- * The appearance controls without JavaScript: a real `<form method="post">` writing the
- * same three cookies the scripted controls write.
- *
- * `lib/server/appearance-form.test.ts` proves what the route accepts over hostile
- * strings. Three things no unit test can reach are proved here: the control is reachable
- * with scripting off, which is the regression this closed, `display: none` having removed
- * it from the tab order and the accessibility tree; each axis survives the redirect,
- * asserted on the bytes the server sent back rather than the DOM, the whole point of the
- * cookie being that the next server render is already correct; and the scripted path is
- * unchanged, so there is no second render and no flash.
- *
- * The harness defaults to a non-default font, so every font assertion is a real switch
- * rather than a no-op.
- */
-
 import type { Page } from "@playwright/test";
 import { fontClass } from "@roonga/qcms-ui/fonts";
 
@@ -29,18 +13,6 @@ test.use({ javaScriptEnabled: false });
 const EXPIRED_TITLE = "This link has expired";
 const INVALID_TITLE = "This link is not valid";
 
-/**
- * The disclosure, opened. Native `<details>`, so this needs no scripting.
- *
- * This copy deliberately has NO hydration wait, which is what makes it a separate
- * helper from the one in `appearance.pw.ts` rather than a duplicate of it (issue
- * #946). With `javaScriptEnabled: false` the hydration marker is never stamped, so
- * waiting for it here would be an unconditional timeout - and there is nothing to
- * wait for: the panel this opens is served markup inside a native `<details>`, and
- * that is precisely the claim this file exists to make. The one test below that runs
- * with scripting ON asks for hydration itself, at its own call site, so the scripted
- * path and the no-JS path stay told apart rather than merged.
- */
 async function openAppearance(page: Page): Promise<void> {
   await page.locator('[data-testid="appearance"] > summary').click();
   await expect(page.getByTestId("appearance-mode")).toBeVisible();
@@ -51,28 +23,10 @@ function chip(page: Page, group: "mode" | "density", value: string) {
   return page.locator(`[data-testid="appearance-${group}"] label[data-value="${value}"]`);
 }
 
-/**
- * The `<noscript>`-revealed submit button, which is the whole no-JS seam.
- *
- * Located by class rather than by role, deliberately: a role query does not match an
- * element that is out of the accessibility tree, so it would report "hidden" and
- * "absent" identically - and the difference is the entire design here (rendered
- * always, revealed by CSS). The accessible name is asserted separately, once, where
- * the button is meant to be reachable.
- */
 function applyButton(page: Page) {
   return page.locator("button.qcms-appearance__apply");
 }
 
-/**
- * Submit the form and return the HTML the server sent for the page it redirected to.
- *
- * The assertion target is deliberately the RESPONSE BODY, not the live DOM. With
- * scripting off the two cannot differ, but asserting the bytes says the thing that
- * actually matters: the server read the cookie and stamped the root class itself, so a
- * respondent's next page load is correct in its first byte rather than corrected after
- * it paints.
- */
 async function applyAppearance(page: Page): Promise<string> {
   const served = page.waitForResponse(
     (response) => response.request().isNavigationRequest() && response.status() === 200,

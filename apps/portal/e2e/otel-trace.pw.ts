@@ -1,16 +1,3 @@
-/**
- * The tracing baseline, asserted against real exported OTLP payloads rather than
- * hand-built spans: `globalSetup` boots an in-test receiver and both services export to
- * it (ADR-34).
- *
- * One respondent submit is one trace, which can only hold if the BFF's fetch carried
- * `traceparent` and the API extracted it, with the `pg` spans under the API span. The id
- * the portal echoes to the browser is the id on the API's span and in its log line,
- * which also carries the trace and span ids. And SEC-13 holds: a known answer value
- * appears in no payload or log, and a secure-link token is exported as its template, so
- * redacted rather than merely absent.
- */
-
 import { readFileSync } from "node:fs";
 
 import { readFixtures } from "./support/fixtures.js";
@@ -43,39 +30,12 @@ import {
   type CapturedSpan,
 } from "./support/otlp-receiver.js";
 
-/**
- * The answer value this spec submits and then hunts for. Deliberately unlike any
- * fixture label, id or route so that finding it anywhere in the telemetry is
- * unambiguous evidence of a leak rather than a coincidence - and deliberately a
- * VALID `q_full_name` (the kitchen-sink fixture constrains it to
- * `^[A-Za-z][A-Za-z .,'-]{0,99}$`), because the point is to submit a real answer,
- * not to provoke a rejection.
- */
 const ANSWER_CANARY = "Zzcanaryqx Redactowski";
 
-/**
- * The canary a repeated answer carries (task 075, acceptance case 53). A second
- * string, so a failure says which walk leaked: this one rides in as a `longText`
- * inside an instance of `grp_vehicles`, where the field's own name is
- * `ins_.../q_rf_notes`.
- */
 const REPEAT_ANSWER_CANARY = "Zzrepeatqx Redactowski notes";
 
-/**
- * The instance label the fixture renders, which is **authored `LocalizedText`** and
- * is therefore excluded from every exported signal by §8a already. It is hunted for
- * explicitly because an instance's heading is the one piece of repeat UI text that a
- * span name or an error message could plausibly pick up.
- */
 const INSTANCE_LABEL = "Vehicle 2";
 
-/**
- * Batch export plus receiver write: poll rather than sleep a fixed amount, on the
- * budget the exporters' own configuration implies (issue #901). This was a literal
- * 20s, the twin of the one `apps/admin/e2e/otel-logs.pw.ts` failed on twice in a week;
- * `OTLP_DELIVERY_BUDGET_MS` moves with the batch delay and export timeout the harness
- * sets, so the two specs cannot drift apart from the pipeline or from each other.
- */
 const SPAN_WAIT_MS = OTLP_DELIVERY_BUDGET_MS;
 const POLL_MS = OTLP_POLL_MS;
 
@@ -83,12 +43,6 @@ const POLL_MS = OTLP_POLL_MS;
 interface Waited<T> {
   /** Everything captured by the end of the wait, satisfied or not. */
   readonly captured: readonly T[];
-  /**
-   * The sentence an assertion adds when what it wanted is not in `captured`: what was
-   * waited for, how long it took, and the configuration that set the budget. Without
-   * it a slow pipeline and a broken correlation both read as a missing record, which
-   * is the mis-attribution issue #901 was filed about.
-   */
   readonly note: string;
 }
 

@@ -19,12 +19,7 @@ function required(name: string): string {
   return value;
 }
 
-/**
- * The same spellings the API's `parseBool` and the admin's `boolEnv` accept, which is
- * load-bearing: a knob one app recognises and another ignores looks set and is not.
- * Anything else is refused by name, because for a security flag a loud boot refusal is
- * the fail-closed posture.
- */
+// Anything else is refused by name, because for a security flag a loud boot refusal is the fail-closed posture.
 function boolEnv(name: string, fallback: boolean): boolean {
   const raw = process.env[name];
   if (raw === undefined || raw.trim() === "") return fallback;
@@ -45,18 +40,7 @@ export function internalToken(): string {
   return required("QCMS_INTERNAL_TOKEN");
 }
 
-/**
- * Prefixes that mark a secret as one of the shipped examples rather than real material
- * (SEC-8: a deployment with placeholder secrets must refuse to boot).
- *
- * A deliberate copy of the API's list, since there is no shared package for a Next BFF's
- * server code. `scripts/check-bff-config-guards.test.ts` runs the API's list, this one
- * and the admin's against one corpus, so a spelling added on one side only is a red
- * rather than a silence.
- *
- * Separators are normalised before matching, and matching on the prefix rather than the
- * exact shipped strings keeps the guard working when the example wording changes.
- */
+/** Prefixes that mark a secret as one of the shipped examples rather than real material (SEC-8: a deployment with placeholder secrets must refuse to boot). */
 export const PLACEHOLDER_PREFIXES: readonly string[] = [
   "replace-",
   "change-me",
@@ -78,38 +62,6 @@ export function looksLikePlaceholder(raw: string): boolean {
  */
 const SECRET_VARS: readonly string[] = ["QCMS_INTERNAL_TOKEN"];
 
-/**
- * Refuse to boot when a secret still holds an example-file placeholder.
- *
- * The API refuses too, so a composed deployment never comes up, but a BFF started on its
- * own would present a published token and discover it as a 401 at the first request
- * rather than as a refusal at boot. A boot refusal names the variable; a 401 does not.
- *
- * It reports the variable name and nothing else: SEC-8 forbids echoing the value even
- * when it is known to be worthless, because the same path would handle a real one.
- *
- * The value is split on commas and whitespace before matching, because the API accepts
- * `QCMS_INTERNAL_TOKEN` as a rotation list (first signs, all verify). A placeholder hiding
- * among real entries is refused the same as a lone one.
- *
- * ## Where it runs
- *
- * `instrumentation.ts`, beside {@link assertSecureCookiesConfigured}, for the same reason:
- * Next calls `register()` once per server process before anything serves, so the failure is
- * a boot failure rather than a 500 on the first request.
- *
- * An **unset** or empty value is passed rather than refused. That is a different defect,
- * `internalToken()` already fails loudly on it, and `register()` also runs in build-time
- * server workers where the variable is legitimately absent - the same reason the cookie
- * guard tolerates a missing base URL.
- *
- * ## Twin
- *
- * `apps/admin/lib/server/config.ts` carries this guard over the same variable. **Change
- * one, change the other** - and unlike the cookie guard's twin note, that reminder is
- * backed by a check: `scripts/check-bff-config-guards.test.ts` asserts both apps carry the
- * guard, that both call it at boot, and that all three placeholder vocabularies agree.
- */
 export function assertNoPlaceholderSecrets(): void {
   const offenders = SECRET_VARS.filter((name) => {
     const raw = process.env[name];
@@ -138,15 +90,6 @@ export function portalBaseUrl(): string {
   return base;
 }
 
-/**
- * Whether the cookies this app sets carry `Secure`. Production is the safe default, and
- * Compose's documented localhost profile is the deliberate exception: a plain-HTTP stack
- * would create a session and then fail to resume it, the cookie being dropped.
- *
- * Named for what it decides rather than the environment it guesses from, so the next
- * caller wanting a production check for an unrelated reason does not get a cookie policy
- * instead. The downgrade is guarded by {@link assertSecureCookiesConfigured}.
- */
 export function secureCookies(): boolean {
   return boolEnv("QCMS_SECURE_COOKIES", process.env.NODE_ENV === "production");
 }
@@ -168,30 +111,6 @@ export function isLoopbackHost(host: string): boolean {
   return octets.every((octet) => /^\d{1,3}$/.test(octet) && Number(octet) <= 255);
 }
 
-/**
- * Refuse to boot when cookie security is downgraded at an origin that is not loopback.
- *
- * A refusal rather than a warning: the example env file ships the downgrade, so an
- * operator who then puts the stack behind a TLS ingress carries it forward and nothing
- * complains while the deployment serves HTTPS and hands out a readable session cookie.
- *
- * Off-loopback is read from `QCMS_PORTAL_BASE_URL`, because the browser-facing scheme is
- * not something this process can observe: it sees a container port, not the ingress. It
- * therefore misses a deployment whose base URL is itself wrong, which is already broken
- * visibly, and it permits `https://localhost` with the downgrade on, which is pointless
- * rather than dangerous.
- *
- * It runs from `instrumentation.ts`, so the failure is a boot failure rather than a 500
- * on the first request, and deliberately not inside {@link secureCookies}, which unit
- * fixtures call with no base URL at all. A missing base URL passes: that is a different
- * defect, and `register()` also runs in build-time workers where it is legitimately
- * absent.
- *
- * `apps/admin/lib/server/config.ts` carries the same guard over its own two variables.
- * The variables stay separate on purpose, but the rule must not drift, and nothing
- * computes that the two suites assert the same cases (issue #412). Change one, change
- * the other.
- */
 export function assertSecureCookiesConfigured(): void {
   if (secureCookies()) return;
 
@@ -206,17 +125,6 @@ export function assertSecureCookiesConfigured(): void {
   }
   if (isLoopbackHost(host)) return;
 
-  // Report the value {@link secureCookies} actually compared, not only the one
-  // spelling it recognises as false (issue #409). Branching on `raw === "false"`
-  // alone told an operator who had written `QCMS_SECURE_COOKIES=off` that the
-  // variable was "unset" - while they were looking at the line that sets it - and the
-  // whole job of this line is to say which variable to check.
-  //
-  // Trimmed, because {@link boolEnv} trims: since issue #401 this reader accepts the
-  // shared vocabulary and refuses anything else at the reader, so an unparseable value
-  // throws before it can reach this line and the only cases left here are a genuine
-  // false spelling or a genuinely unset variable. The message quotes what was compared,
-  // which is now the trimmed value. Identical to the admin twin, deliberately.
   const raw = process.env.QCMS_SECURE_COOKIES?.trim();
   const observed =
     raw === undefined || raw === ""
@@ -233,20 +141,6 @@ export function assertSecureCookiesConfigured(): void {
   );
 }
 
-/**
- * Read a `QCMS_LOCALE` value: a BCP 47 tag this runtime's `Intl` supports, returned in
- * canonical form, or {@link DEFAULT_LOCALE} when unset or blank (Code Owner ruling
- * 2026-10-19, ADR-27 amendment).
- *
- * It decides how dates, numbers and lists are FORMATTED and the order a date field
- * draws its day, month and year in. It does not choose a catalog: the portal's copy
- * stays English whatever this says (R7 defers a second catalog).
- *
- * An unparseable tag throws, and so does a well-formed one the runtime has no data for,
- * because `Intl` would otherwise fall back to some other locale silently and the
- * deployment would format in a convention nobody chose. The message never carries the
- * value (SEC-8's rule, applied to every refusal for consistency).
- */
 export function parseLocale(raw: string | undefined): string {
   const trimmed = raw?.trim() ?? "";
   if (trimmed === "") return DEFAULT_LOCALE;

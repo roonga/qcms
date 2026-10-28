@@ -1,31 +1,7 @@
 import { portalBaseUrl } from "./config";
 import { serverLogger } from "./logger";
 
-/**
- * The observability half of SEC-9's CSRF belt. It changes nothing about who is refused:
- * the belt returns before any API call, so a refused request used to produce no line at
- * all, and an absence cannot be counted. Without this we could not tell a
- * correctly-refused forgery from an incorrectly-refused respondent, and the refused
- * population is a known, small, permanent one somebody accepted (issue #1024 measures
- * what the `Referrer-Policy: same-origin` change left of it).
- *
- * SEC-13 is met structurally rather than by redaction: no field emitted here is derived
- * from request content. Each is a selection from a finite vocabulary declared below, so
- * the request decides which constant is chosen and never what it is.
- *
- * `Origin` in particular is attacker-controlled, which is why {@link classifyOrigin}
- * returns a union rather than a string, and the route is reduced to a path template for
- * the same reason: the raw pathname carries a session id on most belted routes.
- *
- * `packages/observability/src/otlp-log-allowlist.ts` carries the export-side half, so
- * the line survives export intact rather than collapsing with its fields stripped.
- *
- * The call lives inside the belt rather than at the call sites, which is what makes one
- * line per refused request a property of the code: the belt is the single choke point,
- * and `scripts/check-origin-guards.test.ts` derives every state-changing handler from
- * disk. The cost is that the route is recognised from the URL rather than named by its
- * handler, which {@link BELTED_ROUTES} maps and `origin-belt-log.test.ts` keeps honest.
- */
+/** The observability half of SEC-9's CSRF belt. */
 
 /** Grep this in the portal's stdout to count belt refusals. */
 export const ORIGIN_BELT_REFUSED = "origin.belt.refused";
@@ -45,18 +21,6 @@ export type BeltRoute =
   | "/s/{sessionId}/submit"
   | "unrecognized";
 
-/**
- * What a refused request gets back, as the respondent experiences it.
- *
- * Derived from the route rather than observed, because the belt runs before the handler
- * builds its response. `origin-belt-log.test.ts` drives each real handler with a refused
- * request and asserts the response matches the value declared here.
- *
- * It tells an operator which runbook symptom a support call is about.
- * `redirect-to-root` is its own member rather than folded into `redirect-to-step`
- * because it is the only refusal that moves a respondent off the page they were reading,
- * and nothing on the page they land on says why.
- */
 export type BeltOutcome =
   | "redirect-to-entry"
   | "redirect-to-root"
@@ -68,30 +32,9 @@ export type BeltOutcome =
   | "rendered-unchanged"
   | "forbidden";
 
-/**
- * The four spec values plus the two cases that are not values: no header at all, which
- * is the population this module exists to count, and a token that is not one of the
- * four, which is `other` rather than the token itself.
- *
- * `same-origin` and `none` are admitted by the belt and so cannot appear on a refusal
- * line. They are in the vocabulary because the classifier is total over what a request
- * can carry, and a vocabulary with holes invites a caller to fill them with the raw
- * header.
- */
 export type BeltFetchSite =
   "absent" | "same-origin" | "same-site" | "cross-site" | "none" | "other";
 
-/**
- * How the request's `Origin` reads against this portal's own base URL. Under the
- * portal's `Referrer-Policy: same-origin` its own no-JS post classifies as `match`;
- * `null` beside an absent `Sec-Fetch-Site` is a post from a page that suppressed its
- * referrer or a sandboxed context, and `absent` beside `absent` is the old-browser shape
- * that is still refused.
- *
- * `unverifiable` means the base URL is unreadable, so there is nothing to compare
- * against. It exists so a configuration fault cannot turn this logging path into a throw
- * inside a security belt.
- */
 export type BeltOrigin = "absent" | "null" | "match" | "mismatch" | "unverifiable";
 
 /** Every member is a constant declared in this file. */
@@ -173,13 +116,6 @@ export function routeOutcome(url: string): BeltOutcome {
   );
 }
 
-/**
- * The pathname of an absolute URL, or `undefined` when it is not one.
- *
- * Total on purpose: `Request.url` is absolute in every runtime the portal runs in,
- * but a throw from a logging helper would become a 500 on a path whose whole job is
- * to refuse quietly, so an unparseable URL degrades to `"unrecognized"` instead.
- */
 function pathnameOf(url: string): string | undefined {
   try {
     return new URL(url).pathname;

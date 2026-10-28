@@ -105,10 +105,6 @@ export const messages = {
   "formUnavailable.body":
     "We could not open the questionnaire. Please try again later or contact the sender.",
 
-  // The ADR-16 semantics refusal. It says "try again" nowhere on purpose: the refusal is
-  // a 409, so a retry against the same deployment sends a respondent round a loop that
-  // cannot end. It names no version either, which is a fact about our evaluator rather
-  // than something they can act on.
   "formSuperseded.title": "This form needs to be republished",
   "formSuperseded.body":
     "This questionnaire was published by an earlier version of the service and can no longer be filled in. Your answers so far are safe. Please contact whoever sent you this form.",

@@ -2,15 +2,6 @@ import { describe, expect, it } from "vitest";
 
 import { DEFAULT_LOCALE, formatDateTime, isInstant } from "./format";
 
-/**
- * The portal's formatter (ADR-27, issue #729; operator locale and respondent zone by the
- * Code Owner ruling of 2026-10-19).
- *
- * The properties asserted: the output depends only on the locale and zone it is handed
- * (never on the runtime it executes in), the default locale is en-GB, a configured locale
- * changes the convention, the zone is named, and nothing unreadable reaches a respondent.
- */
-
 const UTC_DEFAULT = { locale: DEFAULT_LOCALE, timeZone: "UTC" } as const;
 
 /**

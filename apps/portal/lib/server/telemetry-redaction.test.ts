@@ -9,13 +9,6 @@ import {
   sanitizeSpan,
 } from "./telemetry-redaction";
 
-/**
- * SEC-13 on the portal's spans (task 054). The case that matters most here and
- * nowhere else: the secure-link token is a path segment (`/l/<token>`), so it
- * reaches the span NAME as well as the URL attributes, and a `lnk_` token is a
- * credential that may not leave the process in any signal.
- */
-
 /** A ReadableSpan stand-in carrying only the fields the redactor reads. */
 function spanWith(
   name: string,

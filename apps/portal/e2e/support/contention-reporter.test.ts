@@ -13,17 +13,6 @@ const QUIET: HostSnapshot = {
   containers: undefined,
 };
 
-/**
- * A stand-in for one `TestCase`, named by the outcome Playwright would compute for it.
- *
- * `outcome()` is stubbed rather than derived, because deriving it would mean copying
- * Playwright's rule into this file and then testing the copy. The rule itself
- * (playwright 1.62.1, `computeTestCaseOutcome`) is: every attempt matching
- * `expectedStatus` is `expected`, none matching is `unexpected`, a mix is `flaky`. The
- * pairs each fixture below stands for are written at its call site, and the property
- * under test is the one that matters here - the reporter asks the outcome and never the
- * raw status.
- */
 function testCase(title: string, outcome: ReturnType<TestCase["outcome"]>): TestCase {
   return {
     titlePath: () => ["", "resume.pw.ts", title],
@@ -31,13 +20,6 @@ function testCase(title: string, outcome: ReturnType<TestCase["outcome"]>): Test
   } as unknown as TestCase;
 }
 
-/**
- * A failing attempt, whose text carries no contention signature unless one is passed.
- *
- * Cast like the fixture above: a real `TestResult` carries a dozen fields (duration,
- * attachments, steps, worker index) that this reporter never reads, and a literal
- * holding only what it does read says which fields the behaviour depends on.
- */
 function failedResult(message = "expect(received).toBeVisible()"): TestResult {
   return { status: "failed", errors: [{ message }] } as unknown as TestResult;
 }

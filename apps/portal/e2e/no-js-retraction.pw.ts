@@ -1,24 +1,3 @@
-/**
- * Clearing an answer with JavaScript disabled.
- *
- * A native form posts a blank field exactly as it posts a never-touched one, so the
- * decoder read both as absence and the server kept the old answer: one respondent
- * gesture meant "cleared" with scripting on and "no change" with it off.
- *
- * The setup runs with scripting on because the scenario is a resume: the answer being
- * cleared has to have been given earlier. The clear, the submit and what the server
- * keeps all happen with `javaScriptEnabled: false`.
- *
- * Only an optional question can be cleared here, with one exception: HTML has no "at
- * least one of these" constraint, so a required multiChoice group renders without
- * `required` and the API reports a blank one after the round trip. Browser validation
- * stays for everything else (Code Owner ruling, issue #920), so a required text field
- * staying unclearable is the decided behaviour.
- *
- * The assertion is Postgres rather than a 200: the buggy behaviour returned a 200 too,
- * and returned the respondent to a step that looked right.
- */
-
 import type { BrowserContext, Page } from "@playwright/test";
 
 import { openDb } from "./support/db.js";
@@ -42,12 +21,6 @@ function sessionIdOf(url: string): string {
   return new URL(url).pathname.split("/")[2] ?? "";
 }
 
-/**
- * The required boolean is left unanswered on purpose: the no-JS page has no cursor and
- * is served the first incomplete step, so a step whose required questions are all
- * answered is one the respondent never sees. Answering it is therefore the no-JS half's
- * job, and it is also what makes the native form pass constraint validation.
- */
 async function seedHistoryStep(
   context: BrowserContext,
   slug: string,

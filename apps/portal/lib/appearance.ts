@@ -1,18 +1,4 @@
 /**
- * The respondent's three runtime appearance choices (ADR-30), shared by the SSR resolver
- * and the browser controls so the class names, cookie names and parsers are one
- * definition.
- *
- * Not under `lib/server/`: it reads no environment, and the R2 import-surface test
- * forbids a client component from reaching into `lib/server/` at all.
- *
- * Cookies rather than `localStorage`, because the root class has to be correct in the
- * first byte of HTML or the respondent sees a flash, and `localStorage` is unreachable
- * during SSR. These are presentation chrome and never a credential: no `httpOnly`, since
- * the browser has to write them, and nothing about a respondent is inferable from them.
- */
-
-/**
  * Also the root class names, which is the token contract's selector convention. `auto` is
  * absent on purpose: it is a per-deployment config value meaning "consult the OS
  * signals", so a control offering it would offer a state the page can never be in.

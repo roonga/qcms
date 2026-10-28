@@ -1,19 +1,3 @@
-/**
- * Lighthouse accessibility gate (task 030, exit criterion 1): a11y category = 100
- * on the page-load states a fresh navigation can reach - entry, the flow page
- * (session cookie injected), an error message screen, and completion. This is the
- * CI-enforced Lighthouse half; the interactive-only states (post-branch-change,
- * blocked-submit summary) are covered by the axe spec, which runs inside the real
- * cookie-bearing Playwright context.
- *
- * Lighthouse runs its OWN headless Chrome (reusing Playwright's bundled Chromium
- * binary via chrome-launcher), so cookies from the Playwright browser context are
- * not shared. For the cookie-gated flow page we therefore drive a session with
- * Playwright, read the httpOnly session cookie, and hand it to Lighthouse as a
- * request `Cookie` header (`extraHeaders`) so its fresh Chrome renders the real
- * authenticated flow instead of the recovery screen. See `docs/a11y.md`.
- */
-
 import { chromium } from "@playwright/test";
 
 import { expect, test } from "./support/gates.js";

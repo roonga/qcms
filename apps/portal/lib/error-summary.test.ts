@@ -12,26 +12,6 @@ import {
   stepSummaryEntries,
 } from "./error-summary";
 
-/**
- * Issue #21 (WCAG 3.3.1): every error-summary entry used to render the same
- * sentence, so all summary links had the same accessible name and a screen-reader
- * user could not tell which field each one jumped to. The property asserted here
- * is the one that matters, not the wording: with more than one missing required
- * question, each entry's message is DISTINCT and identifies its own question. The
- * link text is the link's accessible name (a plain <a> with text and no
- * aria-label), and the real accessibility tree is asserted in the browser by
- * `e2e/a11y-error-summary.pw.ts`.
- *
- * Issue #326 is the same property for a question the document carried NO label
- * for, which both paths got wrong in opposite directions: the hydrated summary
- * emitted a constant (every label-less entry identical), the no-JS summary
- * emitted the bare per-field message (two questions sharing one authored message
- * identical). Both are now named by POSITION, and both compositions live in this
- * module, so the assertions below cover both paths at once.
- *
- * The kitchen-sink first step: two required questions, plus the honeypot, which is
- * a named node with no label (the missing-label fallback's real-world shape).
- */
 const stepDoc = {
   stepId: "stp_about",
   root: {
@@ -53,25 +33,6 @@ const stepDoc = {
 
 const VISIBLE = ["q_full_name", "q_dob"];
 
-/**
- * The issue #326 shape, built deliberately because the admin UI cannot author it
- * (`trimLocalized` collapses a whitespace-only label and the save then fails, so
- * it takes an authenticated author calling the authoring API directly).
- *
- * Two label-less questions on one step - one with a blank label, one with an
- * empty one - carrying the SAME author `required` message (which ADR-32 permits).
- * That is the single fixture both defects are visible in: a constant would name
- * the pair identically, and so would the bare authored message.
- *
- * Three things about the layout are load-bearing:
- *  - the label-less pair sits at visible positions 2 and 4, so a summary-INDEX
- *    implementation (which would say 1 and 2) fails these assertions;
- *  - `q_hidden` sits between them in the document but is absent from the visible
- *    set, so a whole-DOCUMENT-order implementation (which would say 5 for the
- *    last one) also fails;
- *  - the two labelled questions are unaffected, so the labelled composition is
- *    still pinned in the same fixture.
- */
 const AUTHORED = "Check the vehicle paperwork";
 
 const labelLessDoc = {
@@ -146,10 +107,6 @@ describe("missingRequiredEntries", () => {
   });
 });
 
-/**
- * Issue #326, hydrated path. Before the fix these two entries were both
- * "This question needs an answer.": one accessible name for two links.
- */
 describe("missingRequiredEntries with label-less questions (issue #326)", () => {
   it("gives two label-less questions DIFFERENT accessible names", () => {
     const names = missingRequiredEntries(labelLessDoc, labelLessMissing, labelLessVisible).map(
@@ -180,12 +137,6 @@ describe("missingRequiredEntries with label-less questions (issue #326)", () => 
   });
 });
 
-/**
- * Issue #326, no-JS path (task 044). Before the fix these two entries were both
- * the bare authored message: one accessible name for two links, by the opposite
- * route - too specific to be generic, where the hydrated path was too generic to
- * be specific.
- */
 describe("errorSummaryEntries", () => {
   it("gives two label-less questions DIFFERENT accessible names", () => {
     const names = errorSummaryEntries(labelLessDoc, labelLessErrors, labelLessVisible).map(
@@ -239,15 +190,6 @@ describe("errorSummaryEntries", () => {
   });
 });
 
-/**
- * The no-JS path's missing-required rendering (issue #920).
- *
- * Until this, a respondent with scripting off who left a required question blank got
- * a silent 303 and a reload of the same step: the API refused the submit, correctly,
- * and nothing on the page said so. The set these narrow is the API's own
- * `flowState.missingRequired` (the kernel's, invariant I9), so what is asserted here
- * is the NARROWING and the WORDING, never whether a question is required.
- */
 describe("the no-JS missing-required narrowing (issue #920)", () => {
   it("keeps only questions visible on the step being drawn", () => {
     expect(missingOnStep(["q_dob", "q_accident_count"], VISIBLE, {})).toEqual(["q_dob"]);
@@ -326,12 +268,6 @@ describe("the no-JS missing-required narrowing (issue #920)", () => {
   });
 });
 
-/**
- * Local UX list P7: the hydrated summary listed missing required questions only, so a
- * field showing "not valid" was absent from it and Continue moved past it, while the
- * no-JS path listed refused answers too. Both paths now draw `stepSummaryEntries`, and
- * the hydrated gate reads `refusalsOnStep`.
- */
 describe("the shared step summary (local UX list P7)", () => {
   it("lists a refused answer beside a missing one, in the order the fields are asked", () => {
     const refused: A2UIErrors = { q_dob: "Enter a real date" };

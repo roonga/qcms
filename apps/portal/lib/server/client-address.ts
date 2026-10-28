@@ -1,31 +1,4 @@
-/**
- * The client address the BFF vouches for, which the API's respondent rate limiters key
- * on.
- *
- * `X-Forwarded-For` is a list of claims rather than a fact, so forwarding it verbatim
- * would make a coarse control a forgeable one. The rule is to count trusted hops from
- * the right: each proxy appends the peer it accepted the connection from, so with `H`
- * trusted proxies the client address is the `H`-th entry from the right and no
- * client-supplied padding on the left can move it. `docs/deploy-ingress.md` records why
- * `1` is right for both shipped recipes.
- *
- * Raising `H` past the number of proxies that exist is the one dangerous
- * misconfiguration and cannot be detected from inside the process: the resolver reads
- * into client-supplied territory and per-IP limiting becomes bypassable. Too low is safe
- * but coarse, and `0` restores a single shared bucket deliberately.
- *
- * The inbound header is never forwarded onward, because the API cannot know how many
- * proxies sit in front of the portal. The resolved value is asserted on
- * {@link CLIENT_ADDRESS_HEADER} instead, which travels on the SEC-4 internal-token
- * channel.
- *
- * `apps/admin/lib/server/client-address.ts` is a twin carrying the same rule for the
- * authoring hostname. Change the rule here and you must change it there; the two test
- * suites assert the same chain cases.
- *
- * SEC-13: the address is a rate-limit bucket key and nothing else. It is never logged,
- * never a span attribute, never returned to a browser and never persisted.
- */
+// SEC-13: the address is a rate-limit bucket key and nothing else.
 
 import { headers } from "next/headers";
 
@@ -72,12 +45,6 @@ export function trustedProxyHops(): number {
   return parsed;
 }
 
-/**
- * Ports are stripped rather than tolerated: a per-connection source port would give
- * every request its own bucket, which is the same unlimited outcome as a forgeable
- * header reached by accident. Anything unrecognised yields `undefined`, which the caller
- * turns into the shared bucket.
- */
 function normalizeAddress(raw: string): string | undefined {
   let value = raw.toLowerCase();
   if (value.startsWith("[")) {

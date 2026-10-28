@@ -1,14 +1,3 @@
-/**
- * The shared appearance vocabulary (task 053): the class names, the cookie
- * attributes and the parsers that the SSR path and the browser controls both use.
- *
- * These are small functions, and the reason they are worth pinning is that they are
- * the SEAM: `lib/server/theme.ts` reads them during SSR to build the root class, and
- * `components/appearance-controls.tsx` reads the same ones in the browser to swap it.
- * A divergence between the two shows up as a flash or a stuck control, in a browser,
- * at a point where nothing says which side was wrong.
- */
-
 import { describe, expect, it } from "vitest";
 
 import {
@@ -83,12 +72,6 @@ describe("the appearance cookie", () => {
   });
 });
 
-/**
- * The server half of the same seam (issue #195). The no-JS form's route writes these
- * strings into `Set-Cookie` while the browser controls assign them to
- * `document.cookie`, so what is asserted here is that the two paths cannot disagree
- * about an attribute: there is one writer, and this only decides which axes it runs on.
- */
 describe("the cookies one submission writes", () => {
   it("writes exactly the axes that were chosen, in axis order", () => {
     expect(

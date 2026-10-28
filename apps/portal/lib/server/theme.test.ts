@@ -1,13 +1,3 @@
-/**
- * Per-deployment theme, font, density and brand config resolves from the
- * environment, and the respondent's own choices resolve over it (task 051 exit
- * criterion 2; task 052's curation config; task 053's density, brand mark and
- * cookie precedence). Every accepted value, the defaults, and the typo path are
- * covered here; the browser end of the same wire (config -> `<html>` -> computed
- * style -> a same-origin font request, and the controls writing the cookies back)
- * is asserted in `e2e/theming.pw.ts`, `e2e/fonts.pw.ts` and `e2e/appearance.pw.ts`.
- */
-
 import { FONT_REGISTRY, SYSTEM_FONT_KEY } from "@roonga/qcms-ui/fonts";
 import { afterEach, describe, expect, it } from "vitest";
 

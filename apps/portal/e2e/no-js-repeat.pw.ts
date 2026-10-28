@@ -4,23 +4,6 @@ import { readFixtures } from "./support/fixtures.js";
 import { SESSION_FIELD } from "../lib/repeat.js";
 import { countStepPosts, stepSubmit, submitStep } from "./support/no-js.js";
 
-/**
- * The repeating group without scripting (ADR-42, ADR-43), one of the specs
- * `docs/portal-constraints.md` names as the definition of the no-JS claim.
- *
- * The mechanism, because the assertions only make sense against it: Add and Remove are
- * named submit buttons carrying `formnovalidate`, and a `<button name value>`
- * contributes its pair only when it is the submitter, so one form carries several
- * operations with no repeated field name. The form's action is a Server Action, which
- * applies the operation and re-renders the step in the same 200, and that response is
- * what carries every typed value back; Continue keeps its own URL through `formaction`,
- * so it still reaches the whole-step route and its 303.
- *
- * An Add or Remove post commits no answers, which is what makes `formnovalidate` safe:
- * an emptied previously answered required field on such a post is neither stored nor
- * retracted.
- */
-
 test.use({ javaScriptEnabled: false });
 
 const { repeatFleetSlug, databaseUrl } = readFixtures();
@@ -54,14 +37,6 @@ async function startNoJsRepeat(page: import("@playwright/test").Page): Promise<s
   return new URL(page.url()).pathname.split("/")[2]!;
 }
 
-/**
- * Press a `__qop` button and wait for the page the **200** carries back.
- *
- * A native submission the browser REFUSES looks exactly like one that submitted and
- * changed nothing, so the wait is on the served response rather than on a timeout. The
- * response is a 200 to a POST here rather than a 303 followed by a GET, which is the
- * whole point of the mechanism.
- */
 async function rosterPress(page: import("@playwright/test").Page, name: string): Promise<void> {
   const served = page.waitForResponse((response) => response.request().isNavigationRequest(), {
     timeout: 120_000,
@@ -71,20 +46,6 @@ async function rosterPress(page: import("@playwright/test").Page, name: string):
   expect(response.status(), `the ${name} post's own response`).toBe(200);
 }
 
-/**
- * Post the step the way a browser would, but **without the browser's own validation**.
- *
- * Needed because two of the cases below turn on what the API refuses, and the browser
- * refuses those posts first: HTML `required` blocks an empty required field and
- * `minlength` blocks a plate below the question's floor, so a form the API would reject
- * never leaves the page. `page.request` shares this context's cookies, so this is the same
- * session the page is looking at - a respondent defeating their own form, which is the
- * threat model that makes server-side validation worth having (R2: the API is
- * authoritative). It is the shape `no-js-number.pw.ts` already uses for the same reason.
- *
- * `fields` are raw form entries: a value under its (qualified) field name, and a
- * `__qk__`-prefixed kind tag for each, which is what the decoder iterates.
- */
 async function craftStepPost(
   page: import("@playwright/test").Page,
   sessionId: string,
@@ -103,15 +64,6 @@ async function craftStepPost(
   expect(response.status(), "the crafted whole-step post").toBe(303);
 }
 
-/**
- * Every value posted under one field name, whichever encoding the form used.
- *
- * The step form's enctype is `multipart/form-data`, because its action is a Server
- * Action, and that holds for the Continue control too even though Continue posts to a
- * plain URL through `formaction`. So both readings are tried rather than assumed, and a
- * body in neither encoding yields nothing from both - which is why the assertions that
- * expect nothing also assert something they DO expect to find.
- */
 function postedValues(body: string, field: string): string[] {
   const multipart = multipartValues(body, field);
   if (multipart.length > 0) return multipart;

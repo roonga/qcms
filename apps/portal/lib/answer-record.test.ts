@@ -224,25 +224,6 @@ describe("the field errors a refusal displays (issue #122, symptom 2)", () => {
   });
 });
 
-/**
- * Whether focus leaving a control commits anything (issue #168).
- *
- * The rule this pins is a **posting policy**, not a repair: a retraction of a
- * never-held answer conveys nothing the server does not already know, and the API's
- * `before.has(questionId)` guard already made such a post a no-op, so nothing was
- * ever stored or lost. What it cost was a round trip per control a respondent tabs
- * through, a 422 whenever the question was required, and the `console.error` that
- * followed - which had bent test design, since `e2e/a11y-focus-target.pw.ts`
- * answered every question first to keep a keyboard-traversal spec off the console
- * gate. That workaround is gone with this rule.
- *
- * Driven here rather than only in the browser because this decides whether a
- * network call happens at all, and both directions have to hold: a real retraction
- * must still post (issue #95's whole point), and #146's data-loss scenario - a
- * RESUMED step, where the record comes from the server's answers rather than from
- * this client's writes - is the regression to guard against. `answer-dedupe.pw.ts`
- * and `resume.pw.ts` pin the exact post counts over a real API.
- */
 describe("what focus leaving a control commits (issue #168)", () => {
   const MOMENTS = ["blur", "groupExit"] as const;
 

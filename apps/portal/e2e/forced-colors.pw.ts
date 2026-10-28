@@ -1,23 +1,3 @@
-/**
- * The user-agent-driven contrast baseline, measured in a real browser: `forced-colors:
- * active`, where the agent replaces the palette outright and forces shadows to `none`,
- * and `prefers-contrast: more`, which leaves the palette alone.
- *
- * It has to be a browser test, because none of the defects is a token value and all of
- * them read as perfectly good stylesheets: a Tailwind `ring-*` is a `box-shadow`, so the
- * vendored controls' focus indicator is deleted rather than recoloured while they also
- * set `focus:border-transparent`; and a radio's dot, the date segment being edited and
- * the focused listbox row are bare background fills, so forcing the fill erases the
- * state and not only its colour.
- *
- * Emulating the media feature is not the same as the palette being forced, so every
- * forced-colours case first asserts the body background really is `Canvas`, and then
- * compares against system colours resolved from the live page rather than against
- * literals, the forced palette being the user's and not knowable up front.
- *
- * `docs/theming.md` documents what a theme may override here.
- */
-
 import AxeBuilder from "@axe-core/playwright";
 import type { Locator, Page } from "@playwright/test";
 import { settleTransitions } from "@roonga/qcms-e2e-support/animations";
@@ -41,13 +21,6 @@ import {
 
 const ORIGIN = `http://localhost:${PORTAL_PORT}`;
 
-/**
- * What stops the whole spec measuring the wrong thing: the pre-paint script reads
- * `prefers-contrast: more` as an OS signal, so emulating that feature can land the page
- * in `.hc`, whose mode layer sets heavier edges and a ring of its own, and every
- * assertion below would pass against a mode switch. The cookie is the respondent's own
- * choice and outranks the OS signals.
- */
 async function pinOrdinaryPalette(page: Page): Promise<void> {
   await page.context().addCookies([{ name: MODE_COOKIE, value: "light", url: ORIGIN }]);
 }
@@ -70,12 +43,6 @@ interface SystemPalette {
   readonly grayText: string;
 }
 
-/**
- * A probe element rather than a literal table, because under forced colours the palette
- * belongs to the user. Resolving through `background-color` also proves the value is one
- * the engine honours: an unsupported keyword comes back fully transparent and fails the
- * assertion that uses it rather than silently comparing two unknowns.
- */
 async function resolveColors<const T extends readonly string[]>(
   page: Page,
   values: T,
@@ -208,12 +175,6 @@ async function expectNoAxeViolations(page: Page, label: string): Promise<void> {
   expect(results.passes.length, `axe ran no rules at "${label}"`).toBeGreaterThan(0);
 }
 
-/**
- * The flow page's progressive swap replaces the header's `<details>` wholesale, so a
- * `summary` click landing before hydration opens an element that is then discarded and
- * the panel never appears. On an already-hydrated page the wait resolves on its first
- * poll.
- */
 async function openAppearance(page: Page): Promise<void> {
   await waitForHydration(page);
   const disclosure = page.getByTestId("appearance");

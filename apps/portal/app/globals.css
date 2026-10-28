@@ -1,11 +1,3 @@
-/*
- * Portal global stylesheet. Import order is the token contract's layering (ADR-30), and
- * `adopter-theme.css` is last because it is the documented override surface.
- *
- * A directory missing from the `@source` list below fails silently: the class compiles
- * to nothing while the build, typecheck and lint all pass. `check:tailwind-sources` is
- * the gate for that.
- */
 @import "tailwindcss";
 @import "../../../packages/ui/src/theme.css";
 @import "../../../packages/ui/src/theme-components.css";
@@ -18,12 +10,6 @@
 @source "../lib";
 @source "../../../packages/ui/src";
 
-/*
- * `color-scheme` follows the respondent's mode choice, not the OS, because it is what
- * UA-drawn parts obey and those are not styleable from the token contract. The bare
- * `light dark` is the fallback for a root carrying no mode class, which this app's
- * server render never produces but another consumer of these sheets might.
- */
 html {
   color-scheme: light dark;
 }
@@ -34,12 +20,6 @@ html {
   color-scheme: dark;
 }
 
-/*
- * The WCAG 1.4.12 text-spacing floors, carried by the typography tokens so nothing
- * downstream can drop below them. `--font-portal` takes no inline fallback: the token
- * always resolves, so a second list here could never fire and would only drift
- * (`check:font-tokens`).
- */
 body {
   margin: 0;
   min-height: 100dvh;
@@ -83,12 +63,6 @@ body {
   top: 0.5rem;
 }
 
-/*
- * WCAG 2.4.11, and it has to stay unlayered: the vendored controls' `focus:outline-none`
- * is a Tailwind utility in `@layer utilities`, which unlayered author CSS beats whatever
- * the specificity. The zero-specificity `:where()` lets a more specific unlayered rule
- * replace this outline rather than stack with it.
- */
 :where(a, button, summary, [tabindex]):focus-visible {
   outline: 2px solid var(--color-focus-ring);
   outline-offset: 2px;
@@ -182,12 +156,6 @@ body {
   font-size: var(--type-body);
 }
 
-/*
- * Hidden by default and revealed by the `<noscript>` rule in `app/layout.tsx`: with
- * scripting on the choices apply on click, so a submit button would only offer a
- * reload. Hidden here rather than rendered conditionally so the served HTML is one
- * document, with no hydration boundary and no layout shift.
- */
 .qcms-appearance__apply {
   display: none;
   align-items: center;
@@ -238,13 +206,6 @@ body {
   cursor: pointer;
 }
 
-/*
- * The radio stays real so the browser keeps owning arrow-key traversal, the roving tab
- * stop and the position announcement, which rules out `display: none` and
- * `visibility: hidden`. It is stretched over the chip rather than clipped to a pixel
- * because WCAG 2.5.8 measures this element, so the target and the visible chip have to
- * be one rectangle.
- */
 .qcms-seg__input {
   position: absolute;
   inset: 0;
@@ -312,13 +273,6 @@ body {
   }
 }
 
-/* Below: the chrome half of the two UA-driven contrast queries. The form controls are
-   the component kit's, in `packages/ui/src/theme-components.css`. Both blocks stay at
-   the end of their sheet so they are the only region either file contributes to a merge.
-
-   The Apply button is left out of this one although the `.hc` block above raises it: its
-   border is `--color-primary`, and a neutral border would trade that meaning for
-   contrast the fill already has. */
 @media (prefers-contrast: more) {
   :is(
     .qcms-appearance__summary,
@@ -334,13 +288,6 @@ body {
   }
 }
 
-/*
- * Three chrome-specific losses under forced colours, each restated with a system colour
- * pair: the primary button is a borderless fill, so forcing its background leaves a
- * label with no button around it; the skip link is held off the content by a shadow, and
- * shadows are forced to `none`; the selected chip loses its fill, and `Highlight` is
- * what the platform uses for a chosen item.
- */
 @media (forced-colors: active) {
   .qcms-chrome-button {
     border: 1px solid ButtonBorder;

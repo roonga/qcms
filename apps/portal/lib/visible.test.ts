@@ -71,12 +71,6 @@ describe("documentForVisible", () => {
   });
 });
 
-/**
- * The label map behind the error summary's per-question wording (issue #21). It
- * uses the same convention as the projection above: a node is a question iff it
- * carries a string `name`, so an option (a Radio, labelled but unnamed) is never
- * mistaken for a question.
- */
 describe("questionLabels", () => {
   it("maps every named question in the tree to its label", () => {
     expect([...questionLabels(stepDoc)]).toEqual([
@@ -102,12 +96,6 @@ describe("questionLabels", () => {
   });
 });
 
-/**
- * The ordinal a label-less question is named by in the error summary (issue
- * #326). It counts the step's VISIBLE questions, in document order, because that
- * is what the respondent sees: `documentForVisible` above prunes on exactly the
- * same predicate, so position N here is the Nth field the renderer draws.
- */
 describe("questionPositions", () => {
   const doc = {
     stepId: "stp_about",
@@ -157,14 +145,6 @@ describe("questionPositions", () => {
   });
 });
 
-/**
- * WHEN each answer commits, per ADR-31 (issue #31). A single-choice OptionId, a
- * date and a long-text answer are all strings on the wire, so the flow cannot
- * tell them apart from the value: the control kind in the compiled document is
- * what carries the commit moment. This is the pure half of the fix - that the
- * portal actually posts at each moment and not before is asserted in the browser
- * (`apps/portal/e2e/commit-moments.pw.ts`, ADR-23).
- */
 describe("commitMoments", () => {
   it("reports the radio group as change and the number field as blur", () => {
     expect([...commitMoments(stepDoc)]).toEqual([
@@ -240,16 +220,6 @@ describe("commitMoments", () => {
   });
 });
 
-/**
- * `instanceLabels` reads an instance's resolved label off the EXPANDED tree, and the
- * two presentations carry it on two different node types: the stacked presentation's
- * `RepeatInstance` card and the table presentation's `RepeatRow` (tasks 073 and 077).
- *
- * The consequence of the map missing one is silent and specific: a table-presented
- * group's error summary would read "Registration plate needs an answer" three times
- * over on a three-row step, which is the WCAG 3.3.1 distinctness problem this map
- * exists to solve. So both node types are asserted here, in one shape each.
- */
 function expandedDoc(nodeType: string, children: unknown[]): A2UIStepDocument {
   return {
     stepId: "stp_fleet",

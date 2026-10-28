@@ -1,14 +1,5 @@
 "use client";
 
-/**
- * The server's appearance answer, published by the root layout for the header.
- *
- * A context and not props because `PortalShell` is in the client bundle (a
- * `"use client"` module imports it), so it cannot read `lib/server/theme.ts` or the
- * process environment. Nothing in it is secret: the brand name, the offered fonts, and
- * three choices already visible in the served HTML's root class attribute.
- */
-
 import { createContext, useContext, type ReactNode } from "react";
 
 import type { AppearanceMode, Density } from "@/lib/appearance";

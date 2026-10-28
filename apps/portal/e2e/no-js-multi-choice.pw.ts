@@ -1,41 +1,3 @@
-/**
- * A required multi-choice group with scripting disabled (issue #974, Code Owner
- * ruling 2026-09-19).
- *
- * ## What was broken
- *
- * HTML has no "at least one of these" constraint. react-aria encodes the rule by
- * putting native `required` on EVERY checkbox in a required group and taking it off
- * the moment something is selected - and taking it off is a re-render, which is
- * scripting. So the server-rendered page froze `required` on all of them, where
- * native `required` on a checkbox means THAT box must be checked. Observed on the
- * kitchen sink's "Which optional cover do you want?": one of three checked and
- * Chrome refused the submit with no POST leaving the page; all three checked and it
- * submitted. A respondent who wanted one cover could not pass step two, and step
- * three was unreachable behind it.
- *
- * `no-js-retraction.pw.ts` could not see it because its group is seeded before the
- * no-JS render, and a group that already holds an answer renders no `required` at
- * all.
- *
- * ## The ruling, and why this file is the proof of it
- *
- * The principle recorded on #974: JavaScript is assumed, and the no-JS form is a
- * fallback that must work FUNCTIONALLY, without rapid feedback. So the boxes render
- * without the native attribute and a blank group is reported by the server after the
- * round trip, through the missing-required path issue #964 built. Browser validation
- * is unchanged wherever HTML can carry the rule (the 2026-09-13 ruling on #920), so
- * the first case below also asserts what the step's OTHER required question still
- * refuses.
- *
- * jsdom pins which attribute sits on which element
- * (`packages/ui/src/native-multi-choice.test.tsx`). Only a browser can say whether
- * Chrome then submits the form, which is the whole defect, so that is what these
- * cases assert - and each of them waits on the navigation the POST produces, because
- * a submission the browser refuses is otherwise indistinguishable from one that
- * changed nothing.
- */
-
 import type { BrowserContext, Page } from "@playwright/test";
 
 import { openDb } from "./support/db.js";
@@ -153,12 +115,6 @@ test("a blank required group submits and comes back reported, beside the group a
   }
 });
 
-/**
- * Seed a session parked on "Driving history" with the cover group holding one
- * option, through the scripted path, and leave the required boolean unanswered so
- * the no-JS page is served that step (`no-js-retraction.pw.ts` explains why the
- * setup is scripted: the answer being cleared has to have been given earlier).
- */
 async function seedSeededGroup(context: BrowserContext, slug: string): Promise<string> {
   const scripted = await context.newPage();
   await startKitchenSink(scripted, slug);

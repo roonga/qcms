@@ -1,15 +1,3 @@
-/**
- * The respondent appearance controls and the brand mark, in a real browser. The unit
- * suites prove the resolution rules and the token values; none of them can prove what
- * this file exists for: that a choice survives a reload because the server read the
- * cookie, that a first visit defaults from the OS signals, that there is no flash
- * (sampled on the first frame the page could have painted rather than asserted on the
- * end state), that the selected chip is distinguishable without colour in a two-colour
- * palette, that every target clears WCAG 2.5.8's floor at compact on rendered boxes,
- * that the WCAG 1.4.12 floors hold at every font and density, that the brand comes from
- * config with no engine name left in the shell, and that all of it is axe-clean.
- */
-
 import { writeFileSync } from "node:fs";
 
 import AxeBuilder from "@axe-core/playwright";
@@ -58,17 +46,6 @@ async function liveMode(page: Page): Promise<string | undefined> {
   );
 }
 
-/**
- * The hydration wait is the helper. The flow page's progressive swap unmounts the
- * header's `<details>` and mounts a fresh one, so a `summary` click landing before the
- * swap opens an element about to be thrown away and the panel never appears. That is
- * silent at full speed and reproduces every run under a 6x CPU throttle.
- *
- * It is a wait rather than a longer timeout: on an already-hydrated page it resolves on
- * its first poll. `no-js-appearance.pw.ts` keeps a copy of this helper without the wait,
- * because with scripting off the marker is never stamped and the disclosure is a native
- * `<details>`.
- */
 async function openAppearance(page: Page): Promise<void> {
   await waitForHydration(page);
   const disclosure = page.getByTestId("appearance");
@@ -210,13 +187,6 @@ interface Frame {
   readonly bg: string | null;
 }
 
-/**
- * The no-flash proof has to be a measurement rather than an assertion about the end
- * state, which is always right by the time a test looks. A `requestAnimationFrame`
- * callback runs immediately before that frame is painted, so the first sample carrying a
- * `<body>` is the earliest frame in which a background could have appeared at all: if it
- * already equals the settled colour, no other colour was ever on screen.
- */
 async function recordFirstFrames(page: Page): Promise<void> {
   await page.addInitScript(() => {
     const store = window as unknown as { __qcmsFrames?: Frame[] };
@@ -527,10 +497,6 @@ test("the appearance panel is axe-clean in every mode x density", async ({ page 
     }
   }
 });
-
-/* ==========================================================================
-   The no-JS posture: a control that works without scripting is shown (issue #195).
-   ========================================================================== */
 
 test("without JavaScript the controls are shown, because they now work (issue #195)", async ({
   browser,

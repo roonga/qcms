@@ -1,19 +1,3 @@
-/**
- * The environment's address, in a browser (task 066, ADR-40, Q16, Q21, SEC-14).
- *
- * Criterion 2 asks for the prefix asserted on **both** surfaces. The API's half is
- * asserted against a real Postgres with more than one surface mounted
- * (`apps/api/src/features/responses/start-session/environment-addresses.integration.test.ts`);
- * this is the portal's, and it is only assertable here: what it checks is that a browser
- * which followed a `/test/l/{token}` address **stays** inside `test` for the rest of the
- * flow. A unit test of the proxy can show the rewrite; only a browser shows that the
- * addresses the pages emit carry the prefix too, because that is a property of the
- * rendered HTML and of every redirect the respondent follows.
- *
- * Criterion 3's portal half is here as well: `/<env>/f/{slug}` is not a route, asserted as
- * the response status rather than as a rendered refusal.
- */
-
 import { expect, test } from "./support/gates.js";
 
 import { chooseAccident } from "./support/flow.js";
@@ -35,15 +19,6 @@ test("a test link redeems under its own prefix and the flow stays there", async 
   expect(new URL((await answered).url()).pathname).toMatch(/^\/test\/s\/ses_[^/]+\/answers$/);
 });
 
-/**
- * The no-JS half, in a block of its own so `test.use` scopes the scripting switch to it.
- *
- * The step form's `action` is only on the page a scriptless respondent gets: with
- * JavaScript on, `ProgressiveStep` swaps the native form for the controlled flow and
- * unmounts it, so there is no attribute left to read. A whole context with scripting off
- * is also what every other no-JS spec here uses, and it keeps the console and server-log
- * gates attached to the `page` fixture rather than to a context this file opened itself.
- */
 test.describe("with JavaScript disabled", () => {
   test.use({ javaScriptEnabled: false });
 

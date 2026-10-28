@@ -3,37 +3,6 @@ import { openDb } from "./support/db.js";
 import { readFixtures } from "./support/fixtures.js";
 import { stepSubmit, submitStep } from "./support/no-js.js";
 
-/**
- * The **per-instance step presentation without scripting** (task 076, ADR-28 as amended
- * 2026-08-31 and 2026-09-29, ADR-43).
- *
- * The fixture is `repeat-tour`: one step, one `open` group at `min: 3, max: 4`,
- * `presentation: "perInstanceStep"`, with a required plate and an optional odometer per
- * instance. The first serve mints three instances, so the step is three views.
- *
- * ## Why this path is a different design and not the same one with a feature missing
- *
- * ADR-28's amendment of 2026-08-31 says the no-JS fallback is a **single
- * readiness-labelled button with no Back control**, which is the accepted shape by design
- * (task 044) rather than a shortfall: without script there is no per-step validation round
- * trip to gate a Continue on. So "Back and Continue traverse the views" cannot be a claim
- * about both paths, and what this path does instead is ruled:
- *
- * - the server serves **the first view whose instance is incomplete**, confirmed by the
- *   Code Owner on 2026-09-29, so each press of the one button moves one vehicle forward;
- * - there is **no Back**, and an earlier instance is reached through the review step
- *   rather than through a control this task adds;
- * - the group's **Add control is on the last view**, so an open-ended group can still
- *   grow. It is the same `__qop` named submit button on the same form, posting to 073's
- *   Server Action, which re-renders in its own 200 and lands focus by `autofocus` rather
- *   than by a fragment (Q28, ruled 2026-10-01).
- *
- * Exit criteria proved here: **3** (the walk completes through all three views with one
- * button and no Back, and the Add control is on the last view) and the no-JS half of
- * **2** (answering never moves the page by itself - without scripting nothing moves until
- * the button is pressed, which is the property stated from the other side).
- */
-
 test.use({ javaScriptEnabled: false });
 
 const { repeatTourSlug, databaseUrl } = readFixtures();
@@ -54,13 +23,6 @@ async function startTour(page: import("@playwright/test").Page): Promise<string>
   return new URL(page.url()).pathname.split("/")[2]!;
 }
 
-/**
- * Press a `__qop` button and wait for the page the **200** carries back.
- *
- * The same shape `no-js-repeat.pw.ts` uses and for the same reasons: a native submission
- * the browser refused looks exactly like one that submitted and changed nothing, and the
- * first `__qop` post of a run pays for the dev server compiling the Server Action route.
- */
 async function rosterPress(page: import("@playwright/test").Page, name: string): Promise<void> {
   const served = page.waitForResponse((response) => response.request().isNavigationRequest(), {
     timeout: 120_000,

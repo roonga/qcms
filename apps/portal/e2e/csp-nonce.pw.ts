@@ -1,23 +1,3 @@
-/**
- * The CSP nonce chain end to end (SEC-9), because a nonce that does not match its own
- * header is not a control at all: it either blocks the script or authorizes nothing.
- *
- * Four parts: the nonce the SSR HTML stamps is character for character the one the same
- * response's CSP names; it is minted per request, a constant one being equivalent to
- * `'unsafe-inline'`; `script-src` names neither unsafe keyword, which guards against
- * loosening the policy to quiet a hydration warning; and the browser applied it, the
- * inline script having run and the element's `nonce` IDL property holding the value.
- *
- * The content attribute reads empty in the DOM because of the specification's nonce
- * hiding, not a propagation defect: the browser moves the value into an internal slot so
- * a CSS attribute selector cannot exfiltrate it. The served HTML and the RSC payload both
- * carry the real value, which is why the layout suppresses the hydration warning on that
- * one element and nowhere else.
- *
- * The shared gate still fails this spec on any console error, so a CSP violation reds the
- * run. No allowlist entry for a nonce or hydration warning exists, and none may be added.
- */
-
 import type { Response } from "@playwright/test";
 
 import { readFixtures } from "./support/fixtures.js";

@@ -5,27 +5,6 @@ import {
 } from "@roonga/qcms-ui/repeat-node";
 import type { A2UIAnswerValue, A2UIStepDocument } from "@roonga/qcms-ui";
 
-/**
- * What both portal paths need to know about a repeating group beyond what the renderer
- * draws (ADR-42, ADR-43). Its own module because the two paths have to answer
- * identically: one moves focus itself, the other expresses the same destination as an
- * `autofocus` attribute.
- *
- * Every value import is from `@roonga/qcms-ui/repeat-node`, the React-free subpath, and
- * that is a boundary rather than a preference: the no-JS Server Action imports this
- * module, and reaching the component barrel from a `"use server"` module pulls the whole
- * renderer into the server graph and Next refuses the build.
- */
-
-/**
- * Q11's ruled order: the instance that took the removed one's place, else the previous
- * instance, else the group's Add button.
- *
- * `before` is roster order as the page the respondent pressed on rendered it, which is
- * the only place the removed instance's position exists. The first destination is APG's
- * for a destructive operation on a list; the others are this design's reading of the
- * same reasoning, since APG says nothing about the last-item or only-item cases.
- */
 export function focusAfterRemoval(
   before: readonly string[],
   removed: string,
@@ -40,15 +19,6 @@ export function focusAfterRemoval(
   return addButtonId(groupId);
 }
 
-/**
- * `minted` is the operation's own report of what it created, which is the only
- * trustworthy answer: a replayed post minted nothing, the one-time token having been
- * spent, and the honest landing is then the group's Add button.
- *
- * A `paginated` group has no destination at all: the new instance is a view one page
- * further along, so neither its heading nor the Add button is in this document, and only
- * Continue, Back and Submit may move the rendered page (ADR-28).
- */
 export function focusAfterAdd(
   minted: readonly string[],
   groupId: string,
@@ -161,15 +131,6 @@ export interface RosterActionState {
 
 export const NO_ROSTER_ACTION: RosterActionState = { values: {} };
 
-/**
- * A fifth reserved field name, which exists so the `__qop` Server Action can be a stable
- * module-level reference: `rosterOperation.bind(null, sessionId)` handed to
- * `useActionState` hangs the server render, because Next compares a bound reference's
- * signature asynchronously and that never settles inside a render.
- *
- * It is a label, not a credential. The authority is the session bearer in the httpOnly
- * cookie, and a post naming another session is refused by the API, not here (R2).
- */
 export const SESSION_FIELD = "__qsid";
 
 /**

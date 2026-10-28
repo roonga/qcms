@@ -14,21 +14,6 @@ import {
 } from "./contention.js";
 import { hostPressure, type ContainerCensus } from "./host-pressure.js";
 
-/**
- * What the contention report is allowed to claim (issue #395).
- *
- * The report exists because a red browser gate could be entirely caused by a neighbouring
- * lane while presenting as the branch's own regression. Everything below is about keeping
- * the cure smaller than the disease: the report must never say a run was alone when it was
- * not, must never say it was crowded when it was not, and must never - in any branch - be
- * readable as permission to ignore a failure. A diagnostic that can be misread as a pass
- * is a worse gate than one that says nothing at all.
- *
- * The impure halves (`/proc`, `docker ps`) are covered by parsing their real output shapes
- * rather than by mocking a daemon: the sampling functions are three lines each around a
- * parse, and the parse is where the mistakes are.
- */
-
 /** A neighbour on a given seat, with the fields the report actually prints. */
 function stack(seat: number, port: number, pid?: number): NeighbourStack {
   return { seat, service: "admin", port, pid, cwd: pid === undefined ? undefined : "/w/other" };

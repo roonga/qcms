@@ -1,22 +1,3 @@
-/**
- * Boots the real API on a socket for the portal Playwright suite (task 029).
- *
- * The portal is a strict BFF: its route handlers call an internal API over HTTP
- * (never in-process). To exercise the whole respondent loop end to end the suite
- * therefore needs a *real* API listening on a port, backed by a real database. We
- * reuse the 027 e2e toolkit verbatim: `startTestDb()` (Testcontainers Postgres,
- * migrated to head), `buildEnv()` + `composeApi()` to build the app exactly as
- * `serve.ts` does, and the insurance seed/mint helpers. The composed app is then
- * served with `@hono/node-server`.
- *
- * `@hono/node-server` is a vetted dependency of `qcms-api` (apps/api); the portal
- * does not re-declare it. We resolve it from the api package where it already
- * lives, so this harness adds no new dependency to the portal.
- *
- * The browser harness runs this module inside its traced API child process, so its
- * singleton is process-local and shutdown can flush telemetry after closing it.
- */
-
 import { createRequire } from "node:module";
 import { appendFileSync, mkdirSync, writeFileSync } from "node:fs";
 import { dirname } from "node:path";
@@ -55,12 +36,6 @@ import {
 
 /** The wire-stable SEC-4 internal-token header (matches the portal + API). */
 const INTERNAL_TOKEN_HEADER = "x-qcms-internal-token";
-/**
- * The header carrying the admin's better-auth session token (031). This harness
- * makes exactly one admin call - revoking a link so a spec can assert the revoked
- * outcome - and the middleware now resolves this header against a real `session`
- * row, so the token comes from `adminLogin()` rather than being a marker string.
- */
 const ADMIN_SESSION_HEADER = "x-qcms-admin-session";
 
 /** The minimal shape of `@hono/node-server`'s returned server we depend on. */
@@ -79,43 +54,11 @@ const { serve } = apiRequire("@hono/node-server") as { serve: Serve };
 /** The fixtures the specs read: the form slug and one link token per outcome. */
 export interface PortalFixtures {
   readonly slug: string;
-  /** The kitchen-sink form slug (all seven question types, task 045). */
   readonly kitchenSinkSlug: string;
-  /**
-   * The `author-messages` form slug (task 048): four required questions carrying
-   * ADR-32 validation messages and ADR-36 boolean label overrides.
-   */
   readonly authorMessagesSlug: string;
-  /**
-   * The `repeat-fleet` form slug (task 073): one step with a plain required question
-   * and one repeating group (`open`, `min: 1`, `max: 3`) whose members include a
-   * required shortText, an optional date, a longText and a multiChoice.
-   *
-   * It exists because a repeating group is unreachable in a browser without a fixture
-   * that compiles one, and the four no-JS dead ends of issues #920, #974, #18 and #988
-   * each stayed invisible to every gate for exactly as long as no fixture carried
-   * their shape.
-   */
   readonly repeatFleetSlug: string;
-  /**
-   * The `repeat-tour` form slug (task 076): one step, one `perInstanceStep` group,
-   * `open` with `min: 3, max: 4`, so the step is three views on the first serve.
-   */
   readonly repeatTourSlug: string;
-  /**
-   * The `repeat-table` form slug (task 077): the same group shape presented as a
-   * **table**, with columns of exactly the five allowed cell types (Q12).
-   *
-   * A form of its own rather than a second presentation of `repeat-fleet`, because
-   * that form pins a `longText` and a `multiChoice` and a table-presented group is
-   * refused at publish for carrying either.
-   */
   readonly repeatTableSlug: string;
-  /**
-   * The e2e Postgres connection URI, so a spec can open its OWN client and verify
-   * persisted answers independently of the API's response echo (task 045, exit
-   * criterion 4). A test-only container credential, never a real secret.
-   */
   readonly databaseUrl: string;
   readonly validToken: string;
   readonly expiredToken: string;
@@ -128,26 +71,7 @@ export interface PortalFixtures {
    * closed explanation rather than a link failure.
    */
   readonly closedFormToken: string;
-  /**
-   * A valid link belonging to the **`test`** environment, whose address is therefore
-   * `/test/l/{token}` (ADR-40, Q21, task 066).
-   *
-   * Criterion 2 asks for the prefix asserted on **both** surfaces, and the portal's half
-   * is only assertable through a browser that followed the address: the API's half is
-   * asserted in its own integration suite. The insurance form is released to `test` as
-   * well as to the harness's own environment so this link has something to serve.
-   */
   readonly testEnvironmentToken: string;
-  /**
-   * A form whose draft pins two question versions that were never published, so an
-   * admin dry run reports exactly two issues against its `stp_history` step (issue
-   * #625, given a fixture of its own by issue #275).
-   *
-   * `apps/admin/e2e/validation-idle.pw.ts` is its only reader, and the id travels
-   * through this file rather than being written down there so the two cannot drift.
-   * Nothing else may seed answers, links or versions against it: what the spec
-   * asserts is a COUNT, and a second writer would change it.
-   */
   readonly unpublishedPinFormId: string;
 }
 

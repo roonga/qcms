@@ -11,29 +11,6 @@ import {
   withChromeProfile,
 } from "./chrome-profile.js";
 
-/**
- * The Lighthouse gate must not write into the working tree (issue #248).
- *
- * Everything below is about one property: whatever this machine claims its temp
- * directory is, the profile path this module hands the browser is absolute for the
- * platform actually running. A relative answer here is not a slow test or an ugly
- * one, it is five untracked directories in the repository root after every browser
- * gate, each NAMED after a whole Windows path, carrying a machine path and a personal
- * name into a tree one `git add -A` away from committing them.
- *
- * The launcher's own behaviour (which flag wins, what it creates) is not mocked - it
- * was measured against Chromium directly and the finding is recorded in
- * `chrome-profile.ts`. What is tested here is the part that has to hold on a machine
- * nobody checked by hand.
- */
-
-/**
- * A Windows path, assembled rather than written down.
- *
- * `check:paths` bans a drive-letter literal in committed content, and it is right to:
- * the value under test here is exactly one of those, and spelling it out would put
- * the defect into the tree that the code under test exists to keep out of it.
- */
 function windowsPath(...segments: readonly string[]): string {
   return ["C", ":", "\\", segments.join("\\")].join("");
 }

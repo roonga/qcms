@@ -12,23 +12,6 @@ import {
 } from "./validation-message";
 import { messagesOf, questionMessages } from "./visible";
 
-/**
- * Author-supplied validation messages at the portal seam (task 048, ADR-32).
- *
- * Two properties carry the feature and both are asserted here: the wording is
- * chosen **per constraint** (an author who overrode `pattern` still gets the
- * default for `minLength`), and the error summary stays **label-anchored** so two
- * questions carrying identical custom text still have distinct accessible names
- * (WCAG 3.3.1, the criterion issue #21 established). The browser tree itself is
- * asserted by `e2e/a11y-error-summary.pw.ts`.
- */
-
-/**
- * A step whose two required questions carry the SAME custom `required` message -
- * the case the distinctness guarantee exists for - plus a third question with a
- * per-constraint mix, and the honeypot (a named node with no label and no
- * messages).
- */
 const stepDoc = {
   stepId: "stp_about",
   root: {
@@ -63,12 +46,6 @@ const stepDoc = {
   },
 } as unknown as A2UIStepDocument;
 
-/**
- * The API's visible set for that step, in document order. The summary reads it
- * only for the ordinal a label-less entry is named by (issue #326); the honeypot
- * is in it here so that fallback has a position to use, which the real visible
- * set would not give it.
- */
 const VISIBLE = ["q_plate", "q_vin", "q_odometer", "website"];
 
 describe("questionMessages", () => {
@@ -181,18 +158,6 @@ describe("authorMessageFor", () => {
     expect(authorMessageFor(messages.get("q_plate"), undefined)).toBeUndefined();
   });
 
-  /**
-   * Issue #324. `AUTHORABLE_KEYS` is a plain object literal, so it inherits from
-   * `Object.prototype`; the membership test used to be `in`, which walks that
-   * chain and answered true for every one of these. The constraint string comes
-   * off a validation-error payload, so it is untrusted input reaching a *type
-   * predicate* - a hit narrowed it to `keyof AuthorMessages` and the lookup
-   * returned an inherited function or object typed as `string`.
-   *
-   * These cases exist so the fix cannot be quietly simplified back: `in` and
-   * `Object.hasOwn` are interchangeable for every authorable key, and differ only
-   * here.
-   */
   it("rejects prototype-chain keys: an inherited property is not an authored message", () => {
     for (const key of ["toString", "constructor", "valueOf", "__proto__", "hasOwnProperty"]) {
       expect(authorMessageFor(messages.get("q_plate"), key), key).toBeUndefined();
@@ -207,26 +172,6 @@ describe("authorMessageFor", () => {
   });
 });
 
-/**
- * The two portal paths agree on the wording of a refused answer (issue #322).
- *
- * This is the property that was violated, and it is asserted here rather than in
- * the browser suite because the browser cannot reach it. The constraints whose
- * default wording differs are `minLength` and `pattern`, and the compiler forwards
- * both to the control as native `minlength` / `pattern` attributes: with JavaScript
- * off, the browser's own constraint validation blocks the whole-step submit, so the
- * API is never asked to refuse the value and the no-JS message never renders. (The
- * same trap `e2e/author-messages.pw.ts` already records for `maxLength`.) So the
- * one layer where both resolutions are observable at once is this one.
- *
- * Each path is modelled by the expression its own source composes, not by a shared
- * helper standing in for both, so a change to either composition shows up here as a
- * disagreement rather than being absorbed:
- *
- * - hydrated (`components/step-flow.tsx`): authored, else the shared default.
- * - no-JS: `app/s/[sessionId]/step/route.ts` resolves the shared default and
- *   `components/native-step.tsx` lets the authored wording override it.
- */
 describe("the hydrated and no-JS paths resolve one message", () => {
   const CATALOG = "That answer is not valid.";
 

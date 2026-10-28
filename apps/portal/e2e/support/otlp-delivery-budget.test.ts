@@ -11,32 +11,6 @@ import {
   otlpDeliveryNote,
 } from "./harness-config.js";
 
-/**
- * The telemetry delivery budget, and the wiring it is derived from (issue #901).
- *
- * The defect these cases exist to keep closed was a silent one. `OTEL_BSP_SCHEDULE_DELAY`
- * was set in the browser harness from task 054 onward and reached no processor, because
- * OpenTelemetry JS 2.x reads the batch variables only in the compatibility shims these
- * apps do not construct. Every telemetry spec therefore waited on the library defaults
- * while its comments claimed 500ms, and `otel-logs.pw.ts` failed twice in one week on a
- * 20s poll that was never related to the pipeline it was polling.
- *
- * Nothing about that was observable from a passing suite, so the assertions below pin
- * the two links a green run cannot vouch for:
- *
- *  1. **The value survives the resolver.** A harness constant is a string in an
- *     environment record, and `@roonga/qcms-observability/otel` parses strictly, so
- *     "500" reaching a processor as 500 is a claim worth checking rather than assuming.
- *  2. **Every service is handed all four.** The span pair alone was the original defect;
- *     a future edit that adds a webServer entry, or drops a line from one of the two
- *     that exist, puts a service back on the library defaults with no other symptom.
- *
- * Read as source rather than imported, deliberately: `playwright.config.ts` runs the
- * seat preflight at load, which binds sockets and can refuse outright, and
- * `api-process-entry.ts` starts an SDK and an API server. Neither is importable from a
- * unit test, and what is being checked here is what the file says.
- */
-
 /** One repo file, as text, resolved from this file rather than from the process cwd. */
 function source(relativePath: string): string {
   return readFileSync(new URL(`../../../../${relativePath}`, import.meta.url), "utf8");

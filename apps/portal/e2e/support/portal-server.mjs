@@ -31,28 +31,11 @@ const LOG_TAIL_LINES = 30;
 /** How often to probe the dev server's URL while waiting for it to come up. */
 const READINESS_POLL_MS = 250;
 
-/**
- * Grace period before reading the log tail, so the rest of a stack trace (which
- * arrives in later chunks, or after the `exit` event but before the pipes close)
- * is in the file we are about to quote. Weighed against a full webServer timeout,
- * this is free.
- */
 const FLUSH_GRACE_MS = 300;
 
 /** Cap on the retained startup output that `FATAL_STARTUP` is matched against. */
 const STARTUP_SCAN_WINDOW = 64 * 1024;
 
-/**
- * Process-fatal Node markers, deliberately narrow. Node prints these two only
- * when something installed a handler for the corresponding process event (Next
- * does) and therefore did NOT die: exactly the case Playwright cannot see. A
- * child that dies on its own is covered by the exit path instead.
- *
- * Next's compile-error glyph is intentionally NOT here. A route that fails to
- * compile still leaves a reachable server, so the suite should start and let the
- * server-log gate report it, rather than have the harness kill a dev server that
- * was going to work.
- */
 const FATAL_STARTUP = /^(?:Unhandled Rejection|Uncaught Exception):/m;
 
 mkdirSync(dirname(logPath), { recursive: true });
@@ -84,12 +67,6 @@ function logTail() {
   return lines.slice(-LOG_TAIL_LINES).join("\n");
 }
 
-/**
- * Absolute path to `ps`, never resolved through `PATH`: a writable directory
- * earlier in `PATH` could otherwise shadow it (`sonarjs/no-os-command-from-path`).
- * Both locations are covered because Linux distributions differ on which is the
- * real file and which is the merged-usr symlink.
- */
 const PS_BINARY = ["/bin/ps", "/usr/bin/ps"].find((candidate) => existsSync(candidate));
 
 /**
@@ -123,25 +100,6 @@ function descendantsOf(rootPid) {
   return found;
 }
 
-/**
- * Kill the spawned command and every process under it.
- *
- * Why this has to exist, and why `child.kill()` is not enough: the command runs
- * through `sh -c`, which does not forward signals, so signalling the direct child
- * reaches at most `pnpm` and leaves `next dev` and `next-server` running. On a
- * NORMAL teardown that does not matter, because Playwright SIGKILLs the whole
- * process group and the child is deliberately not `detached`, so it shares this
- * process's group and dies with it. But Playwright skips that cleanup entirely
- * once the wrapper has already exited by itself (`killProcess` short-circuits on
- * `processClosed=true`), which is exactly what the fail-fast path below does. So
- * a self-exiting wrapper must reap its own subtree, or a zombie `next-server`
- * survives holding the port and `reuseExistingServer` latches onto it next run.
- *
- * Deliberately NOT solved with `detached: true` on the child: giving the child its
- * own process group would put it outside the group Playwright SIGKILLs, leaking on
- * every normal teardown instead, and SIGKILL is untrappable so the wrapper could
- * not compensate.
- */
 function reapChildTree() {
   const rootPid = child.pid;
   if (rootPid === undefined) return;
@@ -154,14 +112,6 @@ function reapChildTree() {
   }
 }
 
-/**
- * Report why startup failed and exit nonzero, so Playwright abandons its
- * webServer wait immediately instead of polling to its timeout.
- *
- * `writeSync(2, ...)` rather than `process.stderr.write`: stderr to a pipe can be
- * asynchronous, and the `process.exit` below would truncate the very tail this
- * function exists to print.
- */
 function failFast(reason, exitCode) {
   finished = true;
   writeSync(
@@ -229,24 +179,6 @@ for (const signal of ["SIGINT", "SIGTERM"]) {
   });
 }
 
-/**
- * Highest status code that counts as "this server is serving".
- *
- * Any HTTP response used to settle this probe true, which disarmed the startup
- * watch for a server that was answering nothing but errors (issue #381). The case
- * that found it: `@roonga/qcms-ui`'s `fonts` subpath resolves to `dist`, so in a tree
- * where it had not been built the portal 500'd on every request, including `/`.
- * The wrapper called that ready, cleared `startupOutput`, and never looked at the
- * fatal output again - so the whole failure reduced to Playwright's own poll
- * running out after 180s with a bare "Timed out waiting" and the cause visible
- * only inside the captured log, which is precisely what issue #58's machinery
- * exists to prevent.
- *
- * 400 rather than 500 as the line: a dev server that answers 4xx on `/` is not
- * serving this app either, and Playwright's own `webServer` readiness check draws
- * it in the same place. The portal's `/` is a real page (`app/page.tsx`), so a 200
- * is what a working dev server returns here.
- */
 const READY_STATUS_CEILING = 400;
 
 /** Resolves true when the dev server answers on its port, false otherwise. */

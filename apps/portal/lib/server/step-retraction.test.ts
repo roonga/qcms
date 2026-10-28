@@ -1,27 +1,5 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
-/**
- * Clearing an answer on the no-JS whole-step route (issue #127), at the route.
- *
- * `step-form.test.ts` pins the decoding rule over hand-built form entries. This file
- * pins what the ROUTE does with it, which is the part the respondent feels: the same
- * empty submission either reaches the internal API as an ADR-33 retraction or reaches
- * it not at all, and which of the two it is turns on the renderer's `__qa__` marker
- * and on nothing else.
- *
- * Every case therefore asserts on the **API client**, not on the response status. A
- * 303 back to the step is what the buggy behaviour already returned - it is what the
- * success path returns too - so a status assertion cannot tell "cleared" from
- * "silently ignored", which is the entire subject of the issue. What state changed is
- * decided by whether `submitAnswer` was called and with what body.
- *
- * The API itself is a double here on purpose: this is the BFF's own decision, and the
- * real ledger consequence of the `null` body is pinned where a real Postgres is in
- * play (`packages/db` for the tombstone row, `apps/api` for the endpoint semantics,
- * and `apps/portal/e2e/no-js-retraction.pw.ts` for the whole chain in a browser with
- * scripting off).
- */
-
 const PORTAL_BASE = "https://forms.qcms.test";
 
 function stubPortalEnv(): void {
@@ -134,14 +112,6 @@ async function postStep(
   return await stepRoute.POST(request, { params: Promise.resolve({ sessionId: SESSION_ID }) });
 }
 
-/**
- * The batch's entries as `[answerKey, value]`, in the order the form asked them.
- *
- * One call, not one per answer, since task 073 moved Continue onto the batch endpoint
- * (Q20): a nine-passenger step used to make fifty-four sequential calls and fifty-four
- * advisory locks for one Continue. The assertion is still "what did the server hear",
- * which is what this file is about; only the shape of the call changed.
- */
 function posted(): [string, unknown][] {
   const calls = api.batchAnswers.mock.calls;
   if (calls.length === 0) return [];

@@ -2,12 +2,6 @@ import { describe, expect, it } from "vitest";
 
 import { REQUEST_ID_HEADER, currentRequestId, normalizeRequestId } from "./request-id";
 
-/**
- * The `x-request-id` bridge (task 054, ADR-34 P5). `normalizeRequestId` mirrors
- * the API's own acceptance rule (inbound honoured up to 200 characters,
- * `apps/api/src/middleware/request-logger.ts`), so the portal never forwards a
- * value the API would discard and then log a different id for.
- */
 describe("normalizeRequestId", () => {
   it("keeps a sane inbound id, trimmed", () => {
     expect(normalizeRequestId("req-1")).toBe("req-1");

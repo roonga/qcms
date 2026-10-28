@@ -3,23 +3,6 @@ import { describe, expect, it } from "vitest";
 import { APPEARANCE_ROUTE } from "../appearance.js";
 import { DEFAULT_RETURN, parseAppearanceChoice, safeReturnPath } from "./appearance-form.js";
 
-/**
- * The two respondent-supplied strings the no-JS appearance route trusts nothing about
- * (issue #195): the posted values, and the page to redirect back to.
- *
- * `e2e/no-js-appearance.pw.ts` proves the feature works in a browser with scripting
- * off. It cannot prove these, because the shapes that matter here are the ones no
- * browser sends from the portal's own markup: a hand-built POST naming a font the
- * deployment curated away, and a return target pointing at another origin. A redirect
- * is the one response where reflecting input verbatim is a real vulnerability rather
- * than a cosmetic one, so the interesting cases are all hostile and all written here.
- *
- * `PORTAL_BASE` is only ever the base the `Referer` leg is compared against. The
- * `returnTo` leg deliberately never sees it: `safeReturnPath` resolves a candidate
- * against a synthetic origin, so its answers do not depend on configuration at all,
- * and that property is asserted below rather than assumed.
- */
-
 const PORTAL_BASE = "https://forms.qcms.test";
 
 /** The fonts a deployment offers. Narrower than the registry, which is the point. */

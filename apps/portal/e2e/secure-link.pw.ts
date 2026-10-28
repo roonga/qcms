@@ -1,10 +1,3 @@
-/**
- * Secure-link entry (task 029, exit criterion 1). The `/l/:token` BFF silently
- * verifies the link and either redirects into the flow (valid) or redirects to the
- * friendly typed-error page (expired / consumed / revoked / invalid / closed
- * form). Tokens are minted in globalSetup relative to the API's fixed clock.
- */
-
 import { expect, test } from "./support/gates.js";
 
 import { readFixtures } from "./support/fixtures.js";

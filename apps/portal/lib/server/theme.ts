@@ -1,16 +1,3 @@
-/**
- * Per-deployment theme, font and brand config, and the resolution of the respondent's
- * own appearance choices over it (ADR-30).
- *
- * Config is the deployment's default, and {@link resolveAppearance} is the one place it
- * meets the respondent's cookie: an explicit choice wins. Resolving on the server is
- * what makes the first paint correct.
- *
- * An unrecognised value falls back to the default rather than throwing: a typo in
- * presentation config must not take a deployment down, and the fallback is the shipped
- * brand-neutral default.
- */
-
 import { fontChoices, fontClass, SYSTEM_FONT_KEY, type FontEntry } from "@roonga/qcms-ui/fonts";
 
 // Relative, not the `@/` alias: Vitest resolves no Next path aliases.
@@ -107,16 +94,7 @@ const UNSAFE_IN_ATTRIBUTE = /[\s"'<>\\]/u;
 
 const DATA_IMAGE = /^data:image\/[\w.+-]+[,;]/u;
 
-/**
- * Accepts exactly what the shipped `img-src 'self' data:` policy permits (SEC-9), so a
- * configured logo cannot render as a broken image or put pressure on the CSP to widen.
- *
- * `//host/x` is rejected explicitly: it starts with `/` but is a protocol-relative URL to
- * another origin, which is the case a "starts with a slash" test lets through.
- *
- * Three narrow tests rather than one alternation, whose overlapping quantified classes
- * backtracked super-linearly.
- */
+// Accepts exactly what the shipped `img-src 'self' data:` policy permits (SEC-9), so a configured logo cannot render as a broken image or put pressure on the CSP to widen.
 function isLoadableLogo(value: string): boolean {
   if (value === "" || UNSAFE_IN_ATTRIBUTE.test(value)) return false;
   if (value.startsWith("//")) return false;

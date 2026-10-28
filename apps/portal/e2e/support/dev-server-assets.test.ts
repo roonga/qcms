@@ -2,16 +2,6 @@ import { describe, expect, it } from "vitest";
 
 import { isDevServerAsset, partitionRequests } from "./dev-server-assets.js";
 
-/**
- * The dev-server asset predicate (issue #193).
- *
- * The trap is that `next dev` serves its own error-overlay typeface from the portal's
- * origin, so a wholesale asset count is off by exactly one and reads as a font nobody
- * declared. These tests pin the two properties a spec relies on: the overlay is
- * recognised by WHERE it is served from rather than by its filename, and an asset that
- * is neither ours nor the dev server's lands in a pile that a spec can assert is empty.
- */
-
 const ORIGIN = "http://localhost:7000";
 
 describe("isDevServerAsset", () => {

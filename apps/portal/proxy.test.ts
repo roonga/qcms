@@ -7,15 +7,6 @@ afterEach(() => {
 
 import { proxy } from "./proxy";
 
-/**
- * The nonce contract at its source (SEC-9). Three properties make it a control rather
- * than decoration: the value forwarded to SSR is the value the response CSP names, or
- * the layout stamps a nonce the policy does not authorize; it is unguessable and per
- * request, a predictable one being equivalent to `'unsafe-inline'`; and `script-src`
- * names neither unsafe keyword, so the nonce is the only thing that can authorize inline
- * script, which guards against quieting a hydration warning by loosening the policy.
- */
-
 function responseFor(headers?: HeadersInit): Response {
   const request = new NextRequest(
     "https://portal.example/f/demo",
@@ -88,20 +79,6 @@ describe("portal security-header proxy", () => {
     expect(requestId).toMatch(/^[0-9a-f-]{36}$/);
   });
 
-  /**
-   * `Referrer-Policy: same-origin` is pinned in both directions, because two mechanisms
-   * read it and neither would go red if it moved. Back to `no-referrer` and the `__qop`
-   * Server Action breaks with a framework error, Next refusing the literal `null` origin
-   * a navigation POST then sends. Wider and the portal leaks `/s/{sessionId}` URLs
-   * cross-origin, to Turnstile and to any outbound link a form's help text carries.
-   *
-   * `same-origin` gives up nothing to a third party: a cross-origin request still
-   * receives no `Referer` at all.
-   *
-   * The admin and the API deliberately keep `no-referrer`: neither has a Server Action
-   * reachable without scripting, admin URLs carry form and response identifiers, and the
-   * admin's belt reasoning depends on its form posts arriving with `Origin: null`.
-   */
   it("sets Referrer-Policy: same-origin, which Next's Server Action check requires", () => {
     const response = responseFor();
 
@@ -119,12 +96,6 @@ describe("portal security-header proxy", () => {
   });
 });
 
-/**
- * Every assertion reads the framework's own public shape for a rewrite: the rewrite
- * header and the request-header override pair. Reaching inside the response object would
- * assert against an implementation detail of the edge adapter rather than the contract
- * the route tree sees.
- */
 describe("the environment prefix (task 066)", () => {
   const ENVIRONMENT_HEADER = "x-middleware-request-x-qcms-environment";
   const REWRITE = "x-middleware-rewrite";

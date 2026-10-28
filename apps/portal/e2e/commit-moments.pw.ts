@@ -1,21 +1,3 @@
-/**
- * ADR-31 answer commitment: each control posts at its own commit moment, and the
- * server's same-step re-evaluation lands there.
- *
- * The flow used to decide when to post from the answer value, so a single-choice answer,
- * being a string, waited for focus to leave the radio group while a multi-choice branch
- * moved on every toggle. It now reads the control kind out of the compiled document.
- *
- * Every test asserts the moment in both directions, because "the answer eventually
- * posts" passes on the old behaviour too: at the moment, from the named event alone, and
- * not before, by pinning the exact post count across the whole interaction. A partial
- * date, a per-keystroke number or a per-toggle checkbox would each show up as an extra
- * post, and posts are serialized, so a count taken after an awaited post is a complete
- * accounting.
- *
- * Each test also watches every post's status: any non-200 fails it.
- */
-
 import type { Page } from "@playwright/test";
 
 import { test, expect } from "./support/gates.js";

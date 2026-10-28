@@ -3,16 +3,6 @@ import { authorMessagesOf, documentForVisible } from "@roonga/qcms-ui";
 import { REPEAT_INSTANCE_NODE_TYPE } from "@roonga/qcms-ui/repeat-node";
 import { REPEAT_ROW_NODE_TYPE } from "@roonga/qcms-ui/repeat-table-node";
 
-/**
- * The document conventions the portal reads out of a compiled step, over the `name`-prop
- * convention the visibility projection uses.
- *
- * That projection lives in `@roonga/qcms-ui`, because the admin's draft preview needs an
- * identical one and a second copy is how "what the author saw" and "what the respondent
- * got" would diverge (ARCHITECTURE section 6). It is re-exported here so this module
- * stays the portal's one door to step-document reading.
- */
-
 export { documentForVisible };
 
 interface MutableNode {
@@ -54,20 +44,6 @@ export function questionLabels(document: A2UIStepDocument): ReadonlyMap<string, 
   return labels;
 }
 
-/**
- * What makes an error-summary entry for a label-less question distinguishable (WCAG
- * 3.3.1): no two questions share a position, so distinctness is structural and cannot
- * regress when an author edits content.
- *
- * The position is the question's place on the page and not in the summary, which lists
- * only the errored questions and would therefore call the third field on the step
- * "Question 1".
- *
- * `visibleQuestions` is the API's set, never a re-evaluation here (R2). Walking the
- * document and keeping only the visible names makes the ordering the document's, so the
- * count matches what the renderer draws. With no document to walk, the list's own order
- * stands in, which is the same order.
- */
 export function questionPositions(
   document: A2UIStepDocument | null,
   visibleQuestions: readonly string[],
@@ -111,28 +87,8 @@ export function messagesOf(document: A2UIStepDocument | null): ReadonlyMap<strin
   return document === null ? new Map() : questionMessages(document);
 }
 
-/**
- * When one answer commits (ADR-31). Commitment is a property of the control rather than
- * of the value: it is the moment the respondent has finished saying this one thing.
- *
- * `completion` is a control entered piecewise, where only a complete value is an answer
- * at all, so it can never send `null` for an entry the respondent has not finished.
- * `groupExit` is a multi-select, where per-toggle posting produces `contains` churn and
- * threshold flapping.
- *
- * The server remains the only rule evaluator (R2); this governs posting cadence only.
- */
 export type CommitMoment = "change" | "completion" | "blur" | "groupExit";
 
-/**
- * Keyed by the A2UI control the compiler emits rather than by the question type, because
- * the compiled step document carries the control and not the type.
- *
- * `DatePicker` commits when editing ends rather than when every segment is filled: the
- * vendored react-aria control's only completeness signal is a non-empty value, which it
- * raises on every digit typed into the year, so typing 1990 would post four complete
- * dates and take three refusals on the way.
- */
 const COMMIT_MOMENT_BY_CONTROL: ReadonlyMap<string, CommitMoment> = new Map<string, CommitMoment>([
   ["RadioGroup", "change"],
   ["Select", "change"],
@@ -164,20 +120,6 @@ export function commitMoments(document: A2UIStepDocument): ReadonlyMap<string, C
   return moments;
 }
 
-/**
- * The error summary needs this, or an entry naming a repeated question by its own label
- * reads identically once per instance, which is WCAG 3.3.1's distinctness problem.
- *
- * It reads the nodes the renderer's expansion produced, so the document handed here must
- * be the expanded one.
- *
- * Two node types carry an instance label, one per presentation, and they are listed
- * rather than inferred because the consequence of missing one is silent: that
- * presentation's summary loses its instance names.
- *
- * The instance id is never the label: the map carries the authored `instanceLabel` with
- * its live ordinal resolved (ADR-42).
- */
 export function instanceLabels(document: A2UIStepDocument | null): ReadonlyMap<string, string> {
   const byField = new Map<string, string>();
   if (document === null) return byField;

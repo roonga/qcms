@@ -1,11 +1,3 @@
-/**
- * Keyboard-only walkthrough of the vehicle-insurance fixture (task 030, exit
- * criterion 2), including a branch INSERTION and a branch REMOVAL, plus the skip
- * link, the focus-stays-put insertion policy, the live-region announcements, and
- * a visible focus indicator. Nothing here uses a pointer for a flow action:
- * controls are reached by Tab/focus and operated by Space/Enter/typing.
- */
-
 import { expect, test } from "./support/gates.js";
 import type { Page } from "@playwright/test";
 

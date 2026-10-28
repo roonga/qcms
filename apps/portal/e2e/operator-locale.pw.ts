@@ -1,24 +1,3 @@
-/**
- * The operator-set locale and the respondent's own clock (Code Owner ruling 2026-10-19,
- * local UX list P5).
- *
- * ## What was seen, and what this pins
- *
- * The respondent's date field drew day/month/year in the server render (a native date
- * input, in the browser's locale) and month/day/year after hydration (react-aria on the
- * portal's old bare `en`). The ruling gives the operator `QCMS_LOCALE` (default en-GB),
- * used by the no-JS fallback and by react-aria alike. The harness leaves it unset, so
- * both renders here must draw day, month, year, and the same order in each.
- *
- * The browser context runs in `en-US` deliberately: that is the case where the old
- * native input and the deployment disagreed, so a pass here is not the browser's locale
- * happening to match.
- *
- * The receipt's "Submitted" time is on the respondent's own clock with the zone named.
- * The context is pinned to Asia/Kolkata because it is never UTC and has no daylight
- * saving, so "not UTC" is a decisive assertion on any CI host.
- */
-
 import type { Locator } from "@playwright/test";
 
 import { readFixtures } from "./support/fixtures.js";

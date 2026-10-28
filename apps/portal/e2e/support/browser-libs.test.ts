@@ -10,19 +10,6 @@ import {
   preflightBrowserLibraries,
 } from "./browser-libs.js";
 
-/**
- * The launch preflight (issue #249).
- *
- * The condition it exists for cannot be reproduced on a machine where the gate works,
- * so the parse and the message are tested against recorded `ldd` output rather than
- * against a broken install. The recorded lines are the ones from the issue.
- *
- * The other half of the contract is the one worth being strict about: this preflight
- * must never fail a run that would have succeeded. A wrong refusal here blocks the
- * merge gate itself, which is a larger failure than the confusing error it replaces.
- */
-
-/** Real `ldd` output, from the host in issue #249. Tabs and spacing as emitted. */
 const BROKEN_LDD = [
   "\tlinux-vdso.so.1 (0x00007ffd8b7f2000)",
   "\tlibasound.so.2 => not found",

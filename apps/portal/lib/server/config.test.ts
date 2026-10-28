@@ -11,22 +11,6 @@ import {
   secureCookies,
 } from "./config.js";
 
-/**
- * The server-only BFF configuration readers (task 029, extended for the Compose
- * topology in task 036).
- *
- * `portalBaseUrl()` is required rather than defaulted on purpose: the Start route
- * builds its 303 redirect from it, so an unset value must fail loudly at the first
- * request instead of silently emitting the container-internal origin a respondent's
- * browser cannot follow. That makes "who passes this variable" a real contract, and
- * every process that serves the portal (Compose, the Playwright harness, and
- * `scripts/dev-portal.mjs`) has to honour it.
- *
- * `vi.stubEnv` rather than assignment: `NODE_ENV` is typed read-only by Next's
- * ambient types, and stubbing restores every variable in one call whichever way a
- * case ends.
- */
-
 afterEach(() => {
   vi.unstubAllEnvs();
 });
@@ -75,17 +59,6 @@ describe("secureCookies", () => {
     expect(secureCookies()).toBe(true);
   });
 
-  /**
-   * Issue #401, and a deliberate replacement for the case that used to sit here.
-   *
-   * That case pinned the opposite rule: `yes` was "an unrecognized override value"
-   * the reader ignored in favour of `NODE_ENV`. It is rewritten rather than deleted,
-   * because the lenient behaviour it described was real and was ruled away rather
-   * than found broken (Code Owner, 2026-09-02) - the portal now adopts the same
-   * `boolEnv`/`parseBool` contract the admin and the API already use. The silent
-   * fallback was a configuration that looks set and is not, and it also slipped past
-   * the off-loopback refusal below, which fires on the effective value.
-   */
   it("accepts the API's boolean spellings, so the three processes cannot disagree", () => {
     vi.stubEnv("NODE_ENV", "development");
     for (const raw of ["on", "1", "yes", "TRUE", " true "]) {
@@ -108,20 +81,6 @@ describe("secureCookies", () => {
   });
 });
 
-/**
- * The boot-time refusal (issue #292 point 1).
- *
- * **The admin's `config.test.ts` covers the same decision**, because the two apps
- * disagreeing about exactly this is what the issue was filed about. Nothing computes that
- * the two case lists match, though, and they had already drifted when someone looked
- * (issue #412): the admin carried the raw `0`/`no`/`off` cases and this file did not,
- * which is the gap behind issue #409. Both sides carry them now that issue #401 gave the
- * two readers one parser, but nothing computes that either. A case added here and not
- * there goes unnoticed, so adding one means opening the other file, not trusting a gate.
- *
- * The positive controls come first on purpose: a red then distinguishes "the refusal
- * broke" from "the fixture was never a configuration that boots".
- */
 describe("assertSecureCookiesConfigured", () => {
   describe("permits the configurations it exists to allow", () => {
     it("passes the shape .env.compose.example ships: downgrade on, browsed at http://localhost", () => {
@@ -276,21 +235,6 @@ describe("assertSecureCookiesConfigured", () => {
   });
 });
 
-/**
- * The placeholder boot refusal (issue #491, SEC-8).
- *
- * The fixture is the **literal** value from the committed example files rather than an
- * invented string, so this goes red the moment the guard stops covering what an operator
- * would actually copy. The API's equivalent (`apps/api/src/config-placeholders.test.ts`)
- * makes the same choice for the same reason.
- *
- * Agreement between this app's vocabulary, the admin's and the API's is not asserted
- * here: it cannot be, because a cross-app assertion inside one app's Vitest project is
- * cached against that project's own inputs and would report green having never read the
- * file that broke it (`scripts/check-origin-guards.test.ts` records that lesson at
- * length). It is asserted from the repo root, in
- * `scripts/check-bff-config-guards.test.ts`.
- */
 describe("assertNoPlaceholderSecrets", () => {
   /** Verbatim from the committed example files. */
   const SHIPPED = "replace-with-a-random-32-character-internal-token";
@@ -361,10 +305,6 @@ describe("assertNoPlaceholderSecrets", () => {
   });
 });
 
-/**
- * `QCMS_LOCALE` (Code Owner ruling 2026-10-19, ADR-27 amendment): unset is en-GB, a
- * supported tag is canonicalised, and anything else refuses boot without the value.
- */
 describe("QCMS_LOCALE", () => {
   it("defaults to en-GB when unset or blank", () => {
     vi.stubEnv("QCMS_LOCALE", "");

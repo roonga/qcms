@@ -25,14 +25,6 @@ import { decodeStepForm } from "@/lib/server/step-form";
 import { defaultAnswerMessage, firstAnswerRejection } from "@/lib/validation-message";
 
 /**
- * The no-JS whole-step form POST.
- *
- * Strict BFF (R2): the API validates every answer, decides visibility, and owns the
- * ready-to-submit and honeypot checks. `decodeStepForm` is pure transport, driven by
- * the renderer's kind tags rather than by any question knowledge.
- */
-
-/**
  * Prefixed (Q21): `proxy.ts` rewrote this request's path, so `request.url` carries the
  * unprefixed form and an unprefixed redirect would send a non-prod respondent to
  * `prod`'s address, where their session does not exist.
@@ -121,13 +113,7 @@ function fieldKey(questionId: string, instanceId?: string): string {
     : `${instanceId}${INSTANCE_NAME_SEPARATOR}${questionId}`;
 }
 
-/**
- * The batch endpoint (ADR-43) rather than one call per answer: one request, one session
- * lock, one flow evaluation, which is what makes a repeating group's Continue affordable.
- *
- * A decoded `null` is a retraction rather than a value. The rate limit is per entry, not
- * per request (SEC-16), so a 429 means nothing was applied.
- */
+// The rate limit is per entry, not per request (SEC-16), so a 429 means nothing was applied.
 async function forwardAnswers(
   sessionId: string,
   token: string,
@@ -160,12 +146,6 @@ async function forwardAnswers(
   }
 }
 
-/**
- * Nothing about `required` is decided here: `missingRequired` is the kernel's, and this
- * narrows it twice. To the posted fields, because the set is flow-wide and would
- * otherwise accuse a respondent of a gap on a step they have not been shown. And around
- * a 422, which is missing an answer by construction but already carries a better message.
- */
 function missingOnPostedStep(
   missingRequired: readonly string[],
   fields: readonly string[],
@@ -240,10 +220,6 @@ export async function POST(
       ? []
       : missingOnPostedStep(projection.flowState.missingRequired, fields, errors);
 
-  // The re-render context is written on every path back to the step, including the one
-  // where the projection could not be read: only the missing-required half depends on
-  // that read, and with no projection there is nothing to judge readiness from, so the
-  // round ends here rather than submitting on a guess.
   if (
     projection === undefined ||
     Object.keys(errors).length > 0 ||

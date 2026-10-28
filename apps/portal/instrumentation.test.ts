@@ -4,30 +4,6 @@ import { afterEach, describe, expect, it, vi } from "vitest";
 
 import { register } from "./instrumentation";
 
-/**
- * That the cookie-downgrade refusal is wired into boot. `lib/server/config.test.ts`
- * covers the decision itself; what nothing covered is `register()` calling it, and
- * deleting that call left the whole unit suite green. An unwired refusal does not fail,
- * it succeeds: the deployment the guard exists to stop boots normally.
- *
- * So these cases assert the observable refusal rather than that a function was called.
- * The poisoned environment is real, so nothing here passes against a guard stubbed into
- * a no-op; `process.exit` is spied to throw, which is the closest an in-process test
- * gets to a call that never returns; the message is read back off `process.stderr`; and
- * with an OTLP endpoint configured `registerOTel` must still never be reached, which
- * pins the refusal as terminal and first.
- *
- * The edge-compilation case is about compilation rather than behaviour: Turbopack
- * compiles this file for the edge target too, where a bare `process.stderr` fails to
- * build, so the reference has to stay inside the `NEXT_RUNTIME` block. A source-level
- * assertion is the honest instrument, since no in-process test can observe what a
- * Turbopack target emitted.
- *
- * The twin is `apps/admin/instrumentation.test.ts`: two call sites that can be unwired
- * independently, so one shared test would let one of them rot. Change one, change the
- * other.
- */
-
 vi.mock("@vercel/otel", () => ({ registerOTel: vi.fn() }));
 
 /** Distinguishes the stubbed `process.exit` from any error the code under test throws. */

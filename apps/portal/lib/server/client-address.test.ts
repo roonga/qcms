@@ -1,16 +1,3 @@
-/**
- * The BFF's client-address trust model (issue #341).
- *
- * Two properties, and the second is the one that matters. It is easy to make the
- * API tell respondents apart; it is easy in a way that hands every respondent a
- * bucket of their choosing. So alongside "different clients get different
- * addresses" every case here also asserts that a forged inbound prefix does not
- * move the answer.
- *
- * Against the pre-fix code all of this is vacuous: `baseHeaders()` sent no
- * address at all, so there was nothing to resolve and nothing to forge.
- */
-
 import { afterEach, describe, expect, it, vi } from "vitest";
 
 import {

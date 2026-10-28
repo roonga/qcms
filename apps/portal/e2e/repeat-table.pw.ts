@@ -3,35 +3,6 @@ import { openDb } from "./support/db.js";
 import { readFixtures } from "./support/fixtures.js";
 import { waitForHydration } from "./support/hydration.js";
 
-/**
- * The **table presentation** in a browser (task 077, ADR-43, Q10 and Q12, plan section
- * 4.5).
- *
- * The fixture is `repeat-table` (`apps/api/e2e/support/fixtures/repeat-table-form.json`):
- * one step with a required plain question and one `open` group, `min: 1`, `max: 3`,
- * presented as a table whose five columns are exactly the five allowed cell types.
- *
- * Acceptance cases owned here: **41** (the 390px reflow to one card per row, every input
- * keeping its accessible name, and no horizontal page scroll), **43** (the column total
- * is drawn, is not an input, and reaches no answer row) and **44** (a focused cell in the
- * first row is not obscured, which this table satisfies by pinning nothing). Case **45** -
- * axe on a filled table at
- * every viewport project - lives in `a11y-axe.pw.ts`, which the config already runs on
- * all three projects, so it is asserted where that property is already expressed rather
- * than by widening this file's project list. Cases 39 and 40 are proved in jsdom
- * (`packages/ui/src/repeat-table.test.tsx`) and their DOM half is re-asserted here, since
- * "no `role="grid"` anywhere" is a claim about what reaches a respondent.
- *
- * ## Why this file sets its own viewport, twice
- *
- * The suite runs every spec on the Pixel 7 project (412px), which is **below** the card
- * reflow, so a run that only took the project's width would never see the table layout at
- * all. Each test here states the width its property is about: a wide one for the table,
- * 390px for the reflow. That is the plan's own design width, and it is narrower than the
- * phone project, so the measurement is the tighter of the two rather than the one the
- * harness happens to give.
- */
-
 const { repeatTableSlug, databaseUrl } = readFixtures();
 
 /** Above the reflow: a width with room for five columns and a Remove. */
@@ -78,16 +49,6 @@ function answerPosted(page: import("@playwright/test").Page, questionId: string)
   });
 }
 
-/**
- * Fill one cell by its own accessible name and wait for the answer it commits.
- *
- * `getByRole("textbox")` and not `getByLabel`, and the difference is the vendored
- * `NumberField`: its stepper buttons are wired to the field's label through
- * `aria-labelledby`, so three elements in that cell are "labelled" by the cell's own
- * name and a label query is ambiguous there. The role narrows it to the one control a
- * respondent types into, which is also what the `number` question compiles to
- * (`textbox`, not `spinbutton`, as the conformance snapshots record).
- */
 async function fillCell(
   page: import("@playwright/test").Page,
   ordinal: number,

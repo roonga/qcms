@@ -1,16 +1,3 @@
-/**
- * How busy this machine is, and whether that is enough to doubt a red run: the load
- * averages, the Docker containers running and how many Testcontainers sessions they
- * span.
- *
- * It is evidence rather than a verdict. Nothing here retries, skips or relaxes anything;
- * it gives a reader the one thing a failure message cannot, which is what else was
- * happening at the time.
- *
- * The Docker CLI is looked for at absolute paths, because a daemon that cannot be
- * reached has to read as unknown rather than as idle.
- */
-
 import { spawnSync } from "node:child_process";
 import { existsSync, readFileSync } from "node:fs";
 import { availableParallelism } from "node:os";
@@ -30,29 +17,11 @@ export interface ContainerCensus {
   readonly running: number;
   /** Of those, how many carry a Testcontainers session label. */
   readonly testcontainers: number;
-  /**
-   * How many DISTINCT Testcontainers sessions those containers span.
-   *
-   * The one number that sees a lane holding no seat ports. Every process that boots a
-   * Testcontainers container gets a session id and stamps it on everything it starts,
-   * this run's own containers included, so two sessions means two lanes whatever either
-   * of them is running - a `turbo run test` leaves no other trace a browser suite can
-   * observe (issue #395's second occurrence).
-   */
   readonly sessions: number;
   /** Of those, how many belong to a QCMS Compose stack (`qcms-` prefixed). */
   readonly qcmsStacks: number;
 }
 
-/**
- * Parse `/proc/loadavg`'s three averages.
- *
- * Split out from the read so the parse is testable without a kernel: the file's first
- * three fields are the one, five and fifteen minute averages, and anything that does not
- * produce three finite numbers is reported as "unknown" rather than as zero. Zero is a
- * real, meaningful load figure, and a parse failure that renders as one would read as
- * "the machine was idle" in exactly the report someone is using to decide whether it was.
- */
 export function parseLoadAverage(text: string, cpus: number): HostLoad | undefined {
   const fields = text.trim().split(/\s+/).slice(0, 3).map(Number);
   if (fields.length < 3 || fields.some((value) => !Number.isFinite(value))) return undefined;
@@ -72,15 +41,6 @@ export function hostLoad(): HostLoad | undefined {
 /** How long the container census waits for the Docker CLI before giving up. */
 const DOCKER_CENSUS_TIMEOUT_MS = 5_000;
 
-/**
- * Where the Docker CLI may live, as absolute paths.
- *
- * Probed rather than resolved through `PATH`, the way `scripts/docker-host.mjs` probes for
- * `ip`: launching a subprocess by bare name is what `sonarjs/no-os-command-from-path`
- * exists to stop, and the rule is workspace-wide. Order is by likelihood on the platforms
- * this harness runs on - Debian and Ubuntu first, since that is the dev container, then
- * the two paths a macOS install uses.
- */
 const DOCKER_BINARY_CANDIDATES = [
   "/usr/bin/docker",
   "/usr/local/bin/docker",
@@ -117,14 +77,6 @@ export function parseContainerCensus(stdout: string): ContainerCensus {
   return { running: lines.length, testcontainers, sessions: sessions.size, qcmsStacks };
 }
 
-/**
- * What the Docker daemon is running, or `undefined` when it cannot be asked.
- *
- * The daemon is the resource the seat scheme does not partition, so its occupancy is the
- * number this report exists to carry. `spawnSync` with a hard timeout and every failure
- * swallowed: a census that hangs or throws would convert a diagnostic into a new way for
- * a run to fail, which is the opposite of the point.
- */
 export function containerCensus(): ContainerCensus | undefined {
   const binary = dockerBinary();
   if (binary === undefined) return undefined;
@@ -173,16 +125,6 @@ export function foreignSessions(census: ContainerCensus | undefined): number {
   return Math.max(0, census.sessions - 1);
 }
 
-/**
- * Where a run queue stops being "the machine is working" and starts being "the machine is
- * oversubscribed", as a multiple of the CPU count.
- *
- * Two per CPU rather than one: a passing browser suite with its dev servers, its API and
- * a Postgres container routinely sits around one, so a threshold there would fire on
- * every healthy run and teach a reader to skip the block. Two is where the waves 11 to 13
- * failures were measured, and the cost of the threshold being slightly wrong is
- * asymmetric - an extra paragraph on a red, against a missing one.
- */
 export const LOAD_PRESSURE_PER_CPU = 2;
 
 /** Everything about the machine that could explain a red that this branch cannot. */
@@ -236,14 +178,6 @@ export function renderHostLine(
 /** The memoised line, so a process spawns at most one `docker ps` however often it asks. */
 let sampledLine: string | undefined;
 
-/**
- * {@link renderHostLine}, sampled at most once per process.
- *
- * The caller is the seat refusal, which throws immediately afterwards, so one reading is
- * all the information there is to have - and a `docker ps` per refused port would be
- * several spawns for one answer. Memoising also keeps the unit suite honest: the tests
- * that exercise the refusal pay for one probe between them rather than one each.
- */
 export function hostLineOnce(): string {
   sampledLine ??= renderHostLine();
   return sampledLine;

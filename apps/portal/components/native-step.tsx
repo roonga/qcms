@@ -22,18 +22,6 @@ import { rosterMap } from "@/lib/rosters";
 import type { StepContext } from "@/lib/server/route-helpers";
 import type { StepResponse } from "@/lib/server/api";
 
-/**
- * The no-JS step view: the fallback the SSR paints, in the renderer's native-submit
- * mode, so a respondent with no scripting can complete the form one reload per POST.
- *
- * A step carrying a repeating group has one form and two destinations: Continue posts to
- * the whole-step BFF route, and an Add or Remove posts to the `rosterOperation` Server
- * Action, which re-renders this step in the same 200 response and so carries the typed
- * values back with no cookie and no redirect (ADR-43 as amended). The action is attached
- * to the form and Continue carries a plain URL `formaction`, so the `__qop` buttons stay
- * ordinary markup that needs no framework behaviour to serialize (Q9).
- */
-
 // The author's message for the constraint the API refused on, else the default the BFF
 // route resolved.
 function authoredErrors(
@@ -102,11 +90,6 @@ export function NativeStep({
   const readyToSubmit = initial.flowState.readyToSubmit;
   const submitLabel = readyToSubmit ? t("action.submit") : t("action.continue");
 
-  // Never `rosterOperation.bind(null, sessionId)`: a bound reference handed to
-  // `useActionState` hangs the server render, because Next compares a bound action's
-  // signature asynchronously and that comparison never settles inside a render, so the
-  // POST never gets a response and the process dies accumulating promises. The session
-  // rides as a hidden input instead and the action reads it out of the form data.
   const [rosterState, rosterFormAction] = useActionState(rosterOperation, NO_ROSTER_ACTION);
   const locale = useAppLocale();
 
@@ -144,11 +127,6 @@ export function NativeStep({
   // is found: `missing` names those fields by their qualified name, which only the
   // expanded tree carries.
   const errors: A2UIErrors = { ...refused, ...requiredFieldErrors(expandedDocument, missing) };
-  // Three layers, outermost last, in order of authority: what the API holds, then the
-  // Continue re-render cookie (which wins even when it clears a field, which is what
-  // `mergeStepValues` is for), then the values an Add or Remove carried back in its own
-  // 200. The outermost is a plain spread because the action's values carry no clears: a
-  // cleared field is simply absent from them, nothing having been written.
   const values: A2UIValues = {
     ...mergeStepValues(initial.values, context?.values),
     ...rosterState.values,

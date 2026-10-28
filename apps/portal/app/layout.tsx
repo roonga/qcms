@@ -49,10 +49,6 @@ export default async function RootLayout({ children }: { readonly children: Reac
   const corners = portalCorners();
   const brand = portalBrand();
 
-  // Nothing server-only may cross this boundary: every field is already in the served
-  // HTML or is public config. `mode` is the class this render stamped, which the
-  // controls reconcile against the live root class, since the pre-paint bootstrap can
-  // have landed elsewhere.
   const state: AppearanceState = {
     mode: modeClass(appearance.mode),
     font: appearance.font,
@@ -79,11 +75,7 @@ export default async function RootLayout({ children }: { readonly children: Reac
       suppressHydrationWarning
     >
       <head>
-        {/* The `nonce` prop is required (SEC-9): Next does not nonce app-authored
-            scripts, so dropping it gets this script CSP-blocked. The suppression is
-            needed because the browser's nonce hiding blanks the content attribute
-            React then compares against, making the warning spurious; weakening the CSP
-            to silence it is never an option. */}
+        {/* The `nonce` prop is required (SEC-9): Next does not nonce app-authored scripts, so dropping it gets this script CSP-blocked. */}
         <script
           nonce={nonce}
           suppressHydrationWarning

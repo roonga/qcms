@@ -1,16 +1,3 @@
-/**
- * The Playwright reporter that says whether this run had the machine to itself, so a red
- * run can be read as a defect or as contention rather than guessed at.
- *
- * It samples the host at both ends of the run, because a neighbour that arrived
- * mid-run explains a failure that a start-of-run sample alone would not. The end block
- * is printed only when the run has failures: a green run needs no explanation, and
- * printing one every time trains readers to skip it.
- *
- * Nothing here changes a verdict. It is evidence beside the failures, never a retry, a
- * skip or a relaxed assertion.
- */
-
 import type { Reporter, TestCase, TestResult } from "@playwright/test/reporter";
 
 import { PORT_SEAT } from "../../../../scripts/ports.mjs";
@@ -34,13 +21,6 @@ export function failureText(result: TestResult): string {
   ].join("\n");
 }
 
-/**
- * A blank snapshot, used when sampling itself failed.
- *
- * The reporter must not be able to fail a run that would otherwise have passed, so every
- * sample is wrapped and a failed one degrades to "unknown" rather than throwing out of a
- * Playwright hook.
- */
 const UNKNOWN_SNAPSHOT: HostSnapshot = {
   at: new Date(0).toISOString(),
   load: undefined,
@@ -56,14 +36,6 @@ function sample(seat: number, snapshot: (seat: number) => HostSnapshot): HostSna
   }
 }
 
-/**
- * The seams a unit test replaces.
- *
- * Playwright constructs a reporter with the options object from its config entry, and
- * this one is registered with none, so every field is optional and the defaults are the
- * real thing. A test supplies its own so no `/proc` is read, no `docker` subprocess is
- * spawned, and the report lands in a string instead of the runner's stdout.
- */
 export interface ContentionReporterOptions {
   /** Samples the machine. Defaults to the real host probe. */
   readonly snapshotHost?: (seat: number) => HostSnapshot;

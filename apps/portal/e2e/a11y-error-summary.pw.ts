@@ -1,22 +1,3 @@
-/**
- * Error-summary identification in the real accessibility tree (issue #21, WCAG
- * 3.3.1 Error Identification).
- *
- * Every missing-required entry once rendered the same sentence, so all summary
- * links had the SAME accessible name: a screen-reader user hearing "This question
- * needs an answer." once per entry could not tell which field any link pointed at.
- * Each entry now names its own question.
- *
- * The assertions below are role + accessible-name queries resolved by the browser
- * (Playwright's `getByRole` name filter uses the computed accessible name), not
- * markup snapshots: the link's own text is what a screen reader announces. They
- * also hold the line on what already worked - the anchor still targets
- * `#<questionId>` and clicking an entry still moves focus into that field.
- *
- * The kitchen-sink first step is the fixture with more than one required question
- * (Full name, Date of birth), which is what makes indistinguishable names visible.
- */
-
 import { expect, test } from "./support/gates.js";
 import type { Page } from "@playwright/test";
 
@@ -60,14 +41,6 @@ test("error summary: each link names its own field and jumps to it", async ({ pa
   expect(await focusedQuestion(page)).toBe("q_full_name");
   await expect(page.getByRole("textbox", { name: KS.fullName })).toBeFocused();
 
-  /* ------------------------------------------------------------------------
-     The census, used (issue #162). This is the reviewer workflow the helper
-     exists for, run as live coverage rather than left as a comment: before it,
-     answering "what did the console actually say, and at which level" meant
-     hand-patching `gates.ts` - the very file under review - with a temporary
-     recorder and burning a full suite run.
-     ------------------------------------------------------------------------ */
-
   await page.evaluate(() => {
     console.info("qcms-census-probe");
   });
@@ -85,18 +58,6 @@ test("error summary: each link names its own field and jumps to it", async ({ pa
   expect(wouldFail, "console messages this spec produced that the gate would fail on").toEqual([]);
 });
 
-/**
- * Task 048 (ADR-32): author-supplied messages must not be able to undo issue
- * #21's fix. The hard case is two questions whose authors wrote the SAME custom
- * `required` wording - the exact shape that produced indistinguishable accessible
- * names before #21, now reachable through authored content rather than through a
- * single shared default sentence.
- *
- * The composition stays label-anchored, with the author's wording as the sentence
- * body, so the two entries are still distinct in the browser's accessibility tree.
- * The `author-messages` fixture's `q_am_plate` and `q_am_vin` carry byte-identical
- * `required` messages for exactly this test.
- */
 test("error summary: identical custom messages still have distinct accessible names", async ({
   page,
 }) => {

@@ -1,38 +1,3 @@
-/**
- * A number question with scripting disabled (issue #18, Code Owner ruling
- * 2026-09-19).
- *
- * ## What was broken
- *
- * react-aria's NumberField splits one question across two elements: the box the
- * respondent types into is `<input type="text" required inputmode="numeric">` with
- * NO `name`, and the form value rides a separate `<input type="hidden">` that only
- * JavaScript writes. So typing `3` filled the visible box, left the named field
- * `""`, and satisfied the browser's own `required` check - the visible box is
- * non-empty - and the step submitted with the answer discarded. The API then
- * reported the question missing and, since issue #964, the step said so beside a
- * field that had re-rendered blank. The only feedback a no-JS respondent got about a
- * number question was that their keystrokes had vanished.
- *
- * ## The ruling, and what each case here is for
- *
- * The principle recorded on #974: JavaScript is assumed, and the no-JS form is a
- * fallback that must work FUNCTIONALLY, without rapid feedback. A number question
- * that discards what is typed does not work functionally, so native mode renders a
- * real `<input type="number">` under the question's own name with the compiled
- * `min` / `max` / `step`.
- *
- * Four cases, and they are one story rather than four behaviours: the browser stops
- * what HTML can express (`max`, and `step: 1` for an integer question), the API
- * stops everything else, and the marker that clears an answer now reaches a number
- * for the first time. The markup contract is pinned in jsdom
- * (`packages/ui/src/native-number-field.test.tsx`); what a browser does with it can
- * only be asserted here.
- *
- * Every submit waits on the navigation it produces. A native form submission the
- * browser refuses is otherwise indistinguishable from one that changed nothing.
- */
-
 import type { Page } from "@playwright/test";
 
 import { openDb } from "./support/db.js";
@@ -63,12 +28,6 @@ async function passAboutStep(page: Page): Promise<void> {
   await expect(page.getByRole("heading", { name: "Driving history" })).toBeVisible();
 }
 
-/**
- * Walk to the state the required number is VISIBLE in: step two, at-fault answered
- * "Yes" and one optional cover chosen. The follow-up is behind a rule the API
- * evaluates, so it takes a round trip to appear - the first submit answers the
- * branch question, and the step comes back carrying the number.
- */
 async function revealCount(page: Page): Promise<void> {
   await passAboutStep(page);
   await page.getByText("Yes", { exact: true }).click();

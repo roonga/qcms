@@ -1,29 +1,3 @@
-/**
- * The token contract, measured in a real browser (task 051, exit criteria 1+2).
- *
- * `packages/ui/src/theme-tokens.test.ts` proves the VALUES (every theme x mode
- * pair's WCAG ratio, every 1.4.12 floor) by computing them from `theme.css`. What
- * that cannot prove is that the shipped CSS actually reaches the rendered
- * controls: the vendored a2-react-aria components carry literal Tailwind spacing
- * and radius utilities (ADR-22 keeps those files byte-for-byte upstream), and
- * `theme-components.css` is what re-points them at the tokens. So everything here
- * reads `getComputedStyle` off real elements:
- *
- *  - per-deployment selection: the harness runs the portal on a NON-default theme
- *    and corner preset via `QCMS_PORTAL_THEME` / `QCMS_PORTAL_CORNERS`, and the
- *    served page carries them;
- *  - the four corner presets change controls, the step card and a banner;
- *  - the spacing tokens drive control height, control padding, the label stack and
- *    the question-to-question gap;
- *  - the WCAG 1.4.12 floors hold on rendered text, not just in the token file;
- *  - every theme renders axe-clean in Light, Dark and High-contrast;
- *  - the HC mode layer really is heavier borders, flat surfaces, heavy focus.
- *
- * Mode and theme are switched here by setting the root class / attribute directly.
- * That is the whole selection surface in this slice by design: selection is
- * config-only, and the respondent-facing switcher is task 053.
- */
-
 import AxeBuilder from "@axe-core/playwright";
 import type { Locator, Page } from "@playwright/test";
 import { settleTransitions } from "@roonga/qcms-e2e-support/animations";

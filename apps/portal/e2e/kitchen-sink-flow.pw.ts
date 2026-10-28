@@ -1,22 +1,3 @@
-/**
- * Full-stack kitchen-sink flow (task 045, ADR-28). Drives every one of the seven
- * question types across three steps via explicit Continue/Back navigation, submits
- * from the final step, and then opens its OWN Postgres connection to verify what
- * was persisted - independently of the API's response echo (exit criterion 4).
- *
- * The exit criteria this spec proves:
- * - 1: start -> through every step via Continue -> Submit -> completion receipt.
- * - M (multi-choice): selecting 2+ options keeps them all (the step never
- *      collapses on answer).
- * - G (Back): Back from step k returns to k-1 with the prior answers shown.
- * - N (final Submit): completes without regressing to an earlier step.
- * - 4: independent DB verification - canonical stored answers per type,
- *      append-only ledger (a Back-and-change adds a row), and the submission lock.
- *
- * It runs at three viewports (phone / tablet / desktop) via the config projects,
- * and inherits the browser + server error gates from `support/gates.ts`.
- */
-
 import { test, expect } from "./support/gates.js";
 
 import { openDb } from "./support/db.js";
@@ -49,7 +30,7 @@ test("kitchen-sink: every type via Continue/Back, Submit, and independent DB ver
   await expect(page.getByTestId("primary-action")).toHaveText("Continue");
 
   await fillText(page, KS.fullName, "Ada Lovelace");
-  await enterDate(page, "05171990"); // 1990-05-17, given as MMDDYYYY whatever the field order
+  await enterDate(page, "05171990");
   await continueStep(page);
 
   await expect(page.getByRole("heading", { name: "Driving history" })).toBeVisible();

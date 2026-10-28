@@ -1,11 +1,3 @@
-/**
- * Child-process entry for the browser suite's composed API.
- *
- * Keeping application instrumentation out of Playwright's coordinator process is
- * production-faithful and prevents module-loader hooks from observing Playwright's
- * temporary Babel cache swaps on Windows.
- */
-
 import { startTelemetry } from "../../../api/src/telemetry.js";
 
 import {

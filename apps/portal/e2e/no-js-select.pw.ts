@@ -1,19 +1,3 @@
-/**
- * A single-choice question above the compiler's option threshold, with scripting
- * disabled.
- *
- * Such a question compiles to a `Select`, and the vendored control renders its real
- * `<select>` inside a clipped `aria-hidden` container as an autofill mirror, behind a
- * button only JavaScript can open. Nothing was missing from the wire, but a respondent
- * without scripting could not operate the question, and a required one abandoned the
- * whole step's submission, the browser being unable to report validity on an unfocusable
- * control. No fixture compiled a `Select` at all, which is why every gate was green over
- * it.
- *
- * The principle is that JavaScript is assumed and the no-JS form is a fallback that has
- * to work functionally, without rapid feedback.
- */
-
 import type { Page } from "@playwright/test";
 
 import { openDb } from "./support/db.js";

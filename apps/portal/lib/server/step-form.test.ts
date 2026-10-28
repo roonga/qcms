@@ -2,13 +2,6 @@ import { describe, expect, it } from "vitest";
 
 import { decodeStepForm } from "./step-form";
 
-/**
- * Whole-step form decoding (task 044). The native-submit renderer tags each answer
- * field with a `__qk__<questionId>` kind hint; this decoder turns the wire strings
- * back into canonical JSON shapes for the API (pure transport, no validation - R2).
- * A field with no kind tag is the honeypot decoy, forwarded verbatim in `extras`.
- */
-
 /** Build a FormData from `[name, value]` pairs (a value may repeat for multi). */
 function form(...pairs: [string, string][]): FormData {
   const fd = new FormData();
@@ -74,16 +67,6 @@ describe("decodeStepForm (task 044 transport decoding)", () => {
   });
 });
 
-/**
- * Clearing without JavaScript (issue #127, Code Owner ruling 2026-09-02).
- *
- * The wire cannot distinguish an emptied field from a never-touched one, so the
- * renderer marks the questions that CURRENTLY HOLD AN ANSWER with a `__qa__<id>`
- * hidden companion. These cases pin the whole of the rule that marker buys, and the
- * pair that matters is the first two: the same empty post decodes to a retraction
- * with the marker and to nothing without it. Either one alone passes on the old
- * behaviour.
- */
 describe("decodeStepForm: a marked field submitted empty is a retraction (issue #127)", () => {
   it("decodes an emptied MARKED text field to a null retraction", () => {
     const { answers } = decodeStepForm(
@@ -155,12 +138,6 @@ describe("decodeStepForm: a marked field submitted empty is a retraction (issue 
   });
 });
 
-/**
- * The fields the posted form ASKED, whether or not they carried a value (issue
- * #920). `answers` cannot answer that question: a blank required field contributes
- * no answer at all, and the caller has to narrow the API's flow-wide
- * missing-required set to the step the respondent was actually looking at.
- */
 describe("decodeStepForm reports the questions the form asked (issue #920)", () => {
   it("lists every kind-tagged field in document order, valued or not", () => {
     const { fields, answers } = decodeStepForm(

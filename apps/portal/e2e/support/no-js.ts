@@ -1,43 +1,5 @@
-/**
- * Driving helpers for the specs that run with `javaScriptEnabled: false`.
- *
- * One place for the two things every no-JS step case gets wrong on its own:
- *
- * - **Waiting for the navigation the POST produces.** A native form submission the
- *   browser REFUSES looks, from the test's side, exactly like one that submitted and
- *   changed nothing: same page, same markup, no error. Every assertion after a
- *   submit therefore has to be made on the page the 303 landed on, which means
- *   waiting for the served response rather than for a timeout (the #920 lane lost
- *   hours to this, and issue #974's own reproduction turns on it).
- * - **Scoping the submit to the step card.** Since issue #195 the header's
- *   appearance controls are a second native form on the page with a
- *   `<noscript>`-revealed submit of their own, so an unscoped
- *   `form button[type="submit"]` matches two elements.
- */
-
 import type { Page } from "@playwright/test";
 
-/**
- * The step form's own Continue or Submit control.
- *
- * Narrowed twice, and each exclusion is a real collision rather than caution:
- *
- * - **never the header's** (issue #195): the appearance controls are a second native form
- *   on the page with a `<noscript>`-revealed submit of their own, so an unscoped
- *   `form button[type="submit"]` matches two elements. Hence the step-card scope.
- * - **never a `__qop` button** (task 073): a step carrying a repeating group has two more
- *   submit buttons inside the SAME form, the group's Add and Remove, because that is how
- *   one form reaches several operations without scripting. They are excluded by name
- *   rather than by position, since their count follows the live instance count.
- * - **never the implicit-submission default** (local UX list P3): the same step also
- *   carries a hidden, `aria-hidden` copy of Continue as the form's first submit button, so
- *   that Enter in a field continues rather than pressing a Remove or an Add. A respondent
- *   cannot reach it, so a spec clicks the real control.
- *
- * What is left is exactly one control: the one that posts the step to the whole-step BFF
- * route. On a repeating step that is the control carrying `formaction`, because the form's
- * own action is the Server Action the `__qop` buttons use.
- */
 export function stepSubmit(page: Page) {
   return page
     .getByTestId("step-card")
@@ -53,21 +15,12 @@ export async function submitStep(page: Page): Promise<void> {
   await served;
 }
 
-/** The no-JS date field's three boxes, by part (Code Owner ruling 2026-10-19). */
 export const NATIVE_DATE_BOX = {
   day: (name: string) => `input[name="__qdd__${name}"]`,
   month: (name: string) => `input[name="__qdm__${name}"]`,
   year: (name: string) => `input[name="__qdy__${name}"]`,
 } as const;
 
-/**
- * Fill the no-JS date field from an ISO day.
- *
- * The field is three boxes (day, month, year) in the order `QCMS_LOCALE` writes a date,
- * not one `<input type="date">`, so the server render and the hydrated DateField draw
- * the parts in one order. Each box is addressed by its posted name, so this helper does
- * not depend on that order. An empty `iso` empties all three.
- */
 export async function fillNativeDate(page: Page, name: string, iso: string): Promise<void> {
   const [year = "", month = "", day = ""] = iso === "" ? [] : iso.split("-");
   await page.locator(NATIVE_DATE_BOX.day(name)).fill(day);
@@ -95,27 +48,6 @@ export function countStepPosts(page: Page): () => number {
   return () => posts.length;
 }
 
-/**
- * Walk the kitchen sink's no-JS render from the entry page to the last step ("Your
- * cover"), answering each step's required questions on the way.
- *
- * Two steps of setup rather than none, because every step before it carries a
- * required question. It is worth the walk: this step holds the controls the no-JS
- * assertions are about, and no earlier step carries one that is not behind a branch.
- *
- * What is on it, and who cares about which: the OPTIONAL number `q_annual_km`, which
- * is what the theming and font assertions measure (issue #18); the required
- * single-choice RadioGroup `q_coverage_level`; and, since issue #988, the
- * single-choice `Select` pair - required `q_body_type` and optional
- * `q_overnight_parking` - which is the only place any fixture compiles a `Select` at
- * all. The walk leaves this step's own questions unanswered, so the caller decides
- * which of them to drive.
- *
- * The caller decides how scripting is suppressed. With `javaScriptEnabled: false`
- * this is the respondent's own experience; with `starveScripts` (a page that is
- * scriptable from the test's side while React never runs) it is the same markup with
- * computed styles readable, which is what the theming and font assertions need.
- */
 export async function walkToCoverStep(page: Page, slug: string): Promise<void> {
   await page.goto(`/f/${slug}`);
   await page.getByRole("button", { name: "Start" }).click();

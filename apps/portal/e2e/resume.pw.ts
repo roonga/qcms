@@ -1,20 +1,3 @@
-/**
- * Resume: revisiting `/s/:sessionId` with the valid session cookie resumes at the
- * current step, with no client state required.
- *
- * Three halves are pinned, because each protects a different direction of the same
- * defect: the stored value is displayed, an untouched resumed control posts nothing, and
- * a resumed control the respondent genuinely clears still posts its retraction. A client
- * that mounted holding nothing posted the ADR-33 retraction on focus merely entering and
- * leaving an untouched control, destroying the stored answer.
- *
- * One structural limit on where a resumed step can be asserted: `/s/:id` serves the
- * first incomplete step, so the resumed step's gap question is unanswered by definition.
- * The types covered on the first navigation out of the resumed step are reachable on a
- * true resume too; they are asserted there because a client that mounted holding nothing
- * is the same defect one step over.
- */
-
 import type { Page } from "@playwright/test";
 
 import { expect, test } from "./support/gates.js";
@@ -187,23 +170,6 @@ test("clearing an answer on a resumed step still retracts it", async ({ page }) 
   }
 });
 
-/**
- * A step containing a NumberField survives a reload without a hydration mismatch. The
- * gate was always armed, `gates.ts` failing any spec that logs a console error, but no
- * spec had reloaded such a step: every path above reaches the number question by
- * navigation, which does not hydrate a fresh document.
- *
- * The reload has to land on the number's own step, which `/s/:id` decides by serving the
- * first incomplete one, so the required multiChoice beside it is left as the gap.
- *
- * Two environment-derived attributes on this input can still differ and this spec can
- * observe neither, because no project here is WebKit or iOS: `aria-roledescription`,
- * which react-aria omits on iOS, and `inputMode` for a fraction-admitting question, for
- * which no fixture form has a question. Both need a prop the vendored control does not
- * forward (ADR-22), and `packages/ui/src/number-input-mode.test.tsx` carries the
- * residuals at the jsdom layer, which is the only place this repository can see them
- * (issue #945).
- */
 test("reloading a step that contains a NumberField hydrates without a mismatch", async ({
   page,
 }) => {

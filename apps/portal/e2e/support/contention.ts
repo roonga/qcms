@@ -1,15 +1,3 @@
-/**
- * What else was running on this machine while the browser suite ran, sampled at both ends
- * of the run and printed only when the run has failures.
- *
- * A red browser run has two explanations, a defect and contention, and they are told
- * apart by evidence rather than by instinct: the other seats' harness ports with a
- * listener, the host pressure, and the failure texts that resource contention is known
- * to produce. A neighbour that arrived mid-run is why both ends are sampled.
- *
- * None of it changes a verdict.
- */
-
 import {
   HARNESS_SERVICES,
   MAX_PORT_SEAT,
@@ -64,15 +52,6 @@ export type OccupantLookup = (
   port: number,
 ) => { pid: number | undefined; cwd: string | undefined } | undefined;
 
-/**
- * Every OTHER seat's harness port that has a listener right now.
- *
- * This is the one signal that names a neighbouring **lane** rather than generic load: a
- * listener on seat 3's admin port is another browser harness, and the only thing that
- * puts one there is somebody else's run. It is read from the same `/proc` tables the seat
- * preflight already reads, so it adds no new mechanism, and it is a plain observation
- * rather than a refusal: this run's own ports are none of its business and are skipped.
- */
 export function neighbourStacks(
   selfSeat: number,
   occupantOf: OccupantLookup = occupantOfPort,
@@ -98,15 +77,6 @@ export function snapshotHost(selfSeat: number): HostSnapshot {
   };
 }
 
-/**
- * Failure texts that resource contention produces, and what each one means.
- *
- * Every entry is a shape a run gets when something it depends on was too busy or too slow
- * to answer, never a shape that only an application defect produces. That distinction is
- * what keeps the annotation honest: a matched signature says "this failure is the kind
- * contention causes", which is a claim about the failure's SHAPE, and it is deliberately
- * not the claim that contention caused it. A real regression can refuse a connection too.
- */
 export const CONTENTION_SIGNATURES: readonly {
   readonly name: string;
   readonly pattern: RegExp;
@@ -177,20 +147,6 @@ function neighbourKey(stack: NeighbourStack): string {
   return `${String(stack.seat)}:${stack.service}:${String(stack.port)}`;
 }
 
-/**
- * Every neighbour seen at either end of the run, tagged with which samples saw it.
- *
- * The report's header counts the UNION of the two samples, so the detail lines have to be
- * the union too. They were not: they rendered the start sample and fell back to the end one
- * only when start was empty, so a lane that arrived mid-run - while another was already
- * there - was counted in the header and then missing from the list underneath it. In a
- * report whose entire purpose is to be trusted about what else was on the machine, an
- * internally inconsistent one is worse than none.
- *
- * The tag is kept because the asymmetry is the interesting part: a neighbour that arrived
- * partway through is a different story from one that was there all along, and a reader
- * chasing a red wants to know which.
- */
 export function mergeNeighbours(
   start: readonly NeighbourStack[],
   end: readonly NeighbourStack[],
@@ -252,15 +208,6 @@ export function describeNeighbours(
     });
 }
 
-/**
- * The notice printed at run start when this run does not have the machine to itself.
- *
- * Two ways not to have it, and the notice says which. A live harness port on another seat
- * names a sibling browser lane; host pressure names a machine carrying other work that
- * holds no seat port at all, which is the shape #395's second occurrence had. Printed at
- * the START because it is the only point where the information can still save the run:
- * fifteen minutes before the red, a reader can decide to wait.
- */
 export function renderStartNotice(
   seat: number,
   neighbours: readonly NeighbourStack[],
@@ -280,14 +227,6 @@ export function renderStartNotice(
   ].join("\n");
 }
 
-/**
- * Everything about the machine, at either end of the run, that a red cannot be explained
- * away without.
- *
- * The union of the two samples rather than either one, and for the same reason the
- * neighbour list is a union: a lane that arrived mid-run is exactly the case this is
- * supposed to catch, and a report that read only the start sample would miss it.
- */
 function pressureReasons(start: HostSnapshot, end: HostSnapshot): string[] {
   const atStart = hostPressure(start.load, start.containers).reasons;
   const atEnd = hostPressure(end.load, end.containers).reasons;
@@ -299,31 +238,6 @@ function pressureReasons(start: HostSnapshot, end: HostSnapshot): string[] {
   return [...seen].map((reason) => `  - ${when(reason)}: ${reason}`);
 }
 
-/**
- * The end-of-run block, printed only when the run has failures.
- *
- * It states what was measured and stops there. The closing sentence is the whole point of
- * the issue: it tells the reader that a bisect is cheap and believing the red is not, and
- * it says so with the numbers attached rather than as generic advice.
- *
- * ## The second branch, and why the first one was not enough
- *
- * The original report had two outcomes: a neighbouring seat was named, or the reader was
- * told that nothing argued against reading the failures as their own. The second outcome
- * turned out to be wrong in exactly the case that cost the most. #395's follow-up
- * occurrence was a forced unit run that failed two packages an admin-only diff cannot
- * reach, and the lanes competing with it were running `turbo run test`: no browser
- * harness, no seat ports, nothing for `neighbourStacks` to find, while eleven Postgres
- * containers from other sessions were queued on the one daemon. The report would have
- * printed "nothing here argues against reading these failures as this branch's own" over
- * the most contended machine of the night.
- *
- * So a run is "not alone" when a neighbour is named OR when the host itself was under
- * pressure, which is read from the daemon's Testcontainers sessions and the run queue -
- * both facts about the machine that no diff can cause and that the seat scheme does not
- * partition. The quiet-machine wording is now reached only when the machine really was
- * quiet, which is the only condition under which it was ever true.
- */
 export function renderContentionReport(report: ContentionReport): string {
   const { seat, start, end, failures } = report;
   const annotated = failures.filter((failure) => failure.signature !== undefined);

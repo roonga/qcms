@@ -18,18 +18,6 @@ import {
 import { trackedFilesUnder } from "../../../../scripts/tracked-files.mjs";
 import { declaresUseServer } from "../../../../scripts/use-server-directive.mjs";
 
-/**
- * What a refusal line may contain, and that the set of routes it can name is the set
- * that exists. `origin-guard.test.ts` covers the other half.
- *
- * The route set is derived from disk, because a claim about every belted route made
- * against a hand-written list is a claim about the list. The field vocabulary is checked
- * over hostile requests rather than friendly ones, since SEC-13 is met structurally
- * here. And the line is driven through the real allowlisting processor rather than by
- * reading its two sets, because an unlisted event name or attribute is rewritten or
- * deleted on export.
- */
-
 const PORTAL_BASE = "https://forms.qcms.test";
 
 /**

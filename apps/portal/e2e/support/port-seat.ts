@@ -1,18 +1,3 @@
-/**
- * Harness-side port seating: which ports this run owns, and the refusal that keeps two
- * runs off one set.
- *
- * Playwright will happily adopt a process already listening on a port it wants, which on
- * a shared host means one lane's suite silently drives another lane's dev server, with
- * that lane's code and that lane's database. So a listener is adopted only when it is
- * provably this run's: its working directory is inside this repository root and it
- * answers on its service's readiness path. Anything else is a refusal naming the pid and
- * the directory, because the alternative is a green run against the wrong tree.
- *
- * An unset seat is refused outright from a linked worktree, where the ports are by
- * definition shared with another checkout.
- */
-
 import { spawnSync } from "node:child_process";
 import { existsSync, readFileSync, readdirSync, readlinkSync } from "node:fs";
 import { fileURLToPath } from "node:url";
@@ -52,21 +37,6 @@ export {
 /** A harness service that takes a port from the seat's `17Sxx` block. */
 export type HarnessService = keyof typeof HARNESS_SERVICES;
 
-/**
- * Whether Playwright may legitimately adopt a process already listening for this
- * service, how to name it in a refusal, and where it answers a readiness probe.
- *
- * This is what separates the two kinds of occupancy. The two Next dev servers are
- * `webServer` entries with `reuseExistingServer: !CI`, so a server left behind by a
- * previous run **in this same worktree** is a supported local convenience. The
- * composed API and the OTLP receiver are bound by the Playwright runner process
- * itself, once per run; a live listener on either is a leak or a concurrent run, and
- * never something this run can join, whoever owns it.
- *
- * `readyPath` is the path the corresponding `webServer` entry in
- * `playwright.config.ts` polls, and it exists only for the two reusable services -
- * nothing else is ever probed, because nothing else is ever a candidate.
- */
 const HARNESS_SERVICE_REUSE: Record<
   HarnessService,
   { reusable: boolean; label: string; readyPath?: string }
@@ -188,15 +158,6 @@ export function seatOccupants(seat: number = PORT_SEAT): SeatPortOccupant[] {
   return found;
 }
 
-/**
- * True when `cwd` is inside `repoRoot` (or is it).
- *
- * A prefix test rather than equality, because the dev servers do not sit at the repo
- * root: `next dev` runs with its cwd in the app directory, so a live portal server
- * reports `<repo>/apps/portal` and the admin `<repo>/apps/admin`. Measured, not
- * assumed - an equality test made every one of our own servers unadoptable. The
- * trailing separator is what keeps `/repo` from matching `/repo-other`.
- */
 function isInside(cwd: string, repoRoot: string): boolean {
   const root = withoutTrailingSlash(repoRoot);
   const path = withoutTrailingSlash(cwd);
@@ -212,19 +173,6 @@ const READY_PROBE_SCRIPT = fileURLToPath(new URL("./ready-probe.mjs", import.met
 /** Verdicts already taken this process, keyed by the port and the budget probed. */
 const readyProbeResults = new Map<string, boolean>();
 
-/**
- * True when the occupant answers on its service's readiness path.
- *
- * `spawnSync` rather than `fetch`, because the whole preflight is synchronous: it runs
- * at Playwright config load, which is the only moment before `reuseExistingServer` is
- * acted on, and there is no synchronous HTTP client in Node. `ready-probe.mjs` records
- * the rest of that reasoning.
- *
- * Memoised because `seatPreflight` asks the same question twice (once to refuse, once
- * to decide what to adopt) over one snapshot of occupants, and a probe is a process
- * spawn. One verdict per port per run is also the honest granularity: a server that
- * changed its mind between the two calls is not something to adopt either way.
- */
 export function probeServiceReady(
   occupant: SeatPortOccupant,
   timeoutMs: number = READY_PROBE_TIMEOUT_MS,
@@ -252,21 +200,6 @@ export type ReadinessProbe = (occupant: SeatPortOccupant) => boolean;
 /** Why an occupant cannot be adopted. */
 export type AdoptionRefusal = "not-reusable" | "unattributable" | "foreign-tree" | "not-ready";
 
-/**
- * Why this run may not adopt `occupant`, or `undefined` when it may.
- *
- * The last clause is the one issue #295 added, and it is a different question from the
- * three above it. "A dev server in my worktree" and "a dev server still owned by a live
- * run" are not the same condition, and only the second makes adoption safe. A run
- * killed mid-suite leaves its `next-server` reparented to pid 1, still listening on the
- * seat, still reporting this worktree as its cwd - so it satisfies every structural
- * test and answers nothing. Adopting it converted an interrupted run into hours of
- * two-minute timeouts for whoever ran next, which is the opposite of the clear named
- * error the seat scheme exists to produce.
- *
- * So the orphan is treated as the third case `docs/PORTS.md` argues for rather than
- * being folded into "it is mine": it is refused, named, and replaced.
- */
 export function adoptionRefusal(
   occupant: SeatPortOccupant,
   repoRoot: string,
@@ -302,23 +235,6 @@ export function describeOccupant(occupant: SeatPortOccupant, refusal?: AdoptionR
   )}ms: an orphan from a killed run, not a server to adopt`;
 }
 
-/**
- * Refuse to start when this seat's ports are held by anything this run cannot
- * honestly adopt.
- *
- * Called from `playwright.config.ts` at module load, which is the earliest moment
- * available and, critically, before Playwright evaluates `reuseExistingServer`. A
- * cross-seat clash therefore ends as a loud refusal naming the occupant, never as a
- * silent reuse that reports green for a tree it never loaded.
- *
- * A **live** dev server left listening by a previous run in this same worktree is
- * adopted, unchanged: that is what `reuseExistingServer: !CI` is for locally, and
- * reusing your own tree's server tests your own tree. Everything else is refused,
- * including an occupant whose owner cannot be determined, because "cannot tell whose it
- * is" and "it is mine" must never collapse into the same outcome - and, since issue
- * #295, including one in this worktree that no longer answers, because "it was mine"
- * and "it is serving" must not collapse either.
- */
 export function assertSeatPortsUsable(
   seat: number = PORT_SEAT,
   repoRoot: string = HARNESS_REPO_ROOT,
@@ -353,23 +269,6 @@ export function assertSeatPortsUsable(
   );
 }
 
-/**
- * Refuse an unset seat when running from a linked git worktree.
- *
- * This is the one mechanism here that addresses the residual risk, and it is worth
- * being precise about why the others do not. Per-seat isolation makes two seats
- * unable to meet. The occupancy refusal above is only a **diagnostic**: between its
- * probe and the actual bind there is a window in which another run can claim the
- * port, and a sibling lane lost exactly that race on 2026-08-02. So the remaining way
- * this fails is not a port collision, it is a **seat collision**: two runs that both
- * default to seat 0.
- *
- * The rule and its reasoning now live in `scripts/ports.mjs`, because the full-stack
- * Compose harness needs the identical refusal (issue #296) and two copies of a safety
- * rule are how one of them goes stale. This wrapper keeps the browser harness's own
- * defaults: the repo root resolved from this file, and a hint naming the command a
- * reader of this refusal was actually running.
- */
 export function assertSeatChosen(
   repoRoot: string = HARNESS_REPO_ROOT,
   raw: string | undefined = process.env[PORT_SEAT_ENV_VAR],
@@ -377,18 +276,6 @@ export function assertSeatChosen(
   assertPortSeatChosen(repoRoot, "pnpm verify:browser", raw);
 }
 
-/**
- * Which of this seat's reusable servers are provably ours, right now.
- *
- * Playwright's `reuseExistingServer` is the amplifier that turns a collision from a
- * noisy `EADDRINUSE` into a silent green run against somebody else's tree. It is
- * therefore enabled only where reuse is provably safe: a portal or admin dev server
- * whose `/proc/<pid>/cwd` is this exact worktree **and** which answers a readiness
- * probe now (issue #295). When the port is free at config load it is left OFF, so a run
- * that loses the bind race to another process fails loudly instead of adopting the
- * winner. That is the direction the race must fail in, and it is the part a probe alone
- * cannot give you.
- */
 export function adoptableServices(
   seat: number = PORT_SEAT,
   repoRoot: string = HARNESS_REPO_ROOT,
@@ -402,19 +289,6 @@ export function adoptableServices(
   );
 }
 
-/**
- * Sentinel marking that the preflight has already run in this process tree.
- *
- * Playwright loads `playwright.config.ts` again in every worker process, and by then
- * `globalSetup` has bound the composed API and the OTLP receiver on this seat's
- * ports. Those two are never adoptable by design, so a second, unguarded preflight
- * would refuse the run's *own* servers partway through - measured, not theorised: it
- * failed the first concurrent-seat proof run in exactly that way.
- *
- * An environment sentinel rather than a module-level boolean, because each worker is
- * a separate process. Playwright spawns workers from the runner, so a value set here
- * during the runner's own config load is inherited by every worker.
- */
 export const PREFLIGHT_DONE_VAR = "QCMS_PORT_SEAT_PREFLIGHT_DONE";
 
 /**

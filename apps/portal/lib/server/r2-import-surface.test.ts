@@ -106,16 +106,6 @@ describe("R2 import surface (strict BFF)", () => {
     }
   });
 
-  /**
-   * A graph rule rather than an R2 one, here because this is the file that already
-   * reasons about which module may see which: a Server Action runs in the React Server
-   * Component graph, and a value import from the `@roonga/qcms-ui` barrel pulls the
-   * renderer's hooks into a server module, which Next refuses outright and which takes
-   * the whole portal's boot with it.
-   *
-   * The React-free subpaths are what a server module reads, and a bare `import type` is
-   * erased and harmless.
-   */
   it("keeps a Server Action out of the @roonga/qcms-ui component graph (task 073)", () => {
     const REACT_FREE_SUBPATHS = new Set([
       "@roonga/qcms-ui/native-submit",

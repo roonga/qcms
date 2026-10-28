@@ -1,20 +1,3 @@
-/**
- * An axe scan of every portal page state in the fixture walkthrough, not just the first
- * render. axe runs inside the real cookie-bearing browser context, which is why it, not
- * Lighthouse, covers the scripted states.
- *
- * Each scan asserts zero violations and that axe really ran rules, so a misconfigured
- * builder cannot pass vacuously, and records the rule counts as an annotation so a
- * report reader can see both renders were exercised.
- *
- * The portal server-renders a native no-JS form that React replaces wholesale on
- * hydration, so each page names two DOMs and every scan below says which it audits. The
- * entry page and each step are audited in both renders: a respondent with scripting off
- * sees the fallback, and WCAG applies to them too. The fallback scans are what cover the
- * qcms-owned markup no vendored control provides, such as the native date boxes, the
- * per-field missing-required message and the required checkbox group's ARIA encoding.
- */
-
 import AxeBuilder from "@axe-core/playwright";
 import { rulesNotRun } from "@roonga/qcms-e2e-support/axe";
 import { expect, test } from "./support/gates.js";
@@ -39,20 +22,6 @@ import {
 /** WCAG 2.2 AA, the same rule set the admin gate uses. */
 const TAGS = ["wcag2a", "wcag2aa", "wcag21a", "wcag21aa", "wcag22aa"];
 
-/**
- * Rules run in addition to the tag set above.
- *
- * `label-content-name-mismatch` is WCAG 2.5.3's label-in-name check, and axe keeps it out
- * of a tag-selected run by its `experimental` tag rather than by being disabled, so it
- * has to be named explicitly. The class is live here, because `kit.Menu` turns a trigger
- * label into an `aria-label` and an `aria-label` replaces the content it sits on in the
- * name computation.
- *
- * `runOnly` and `rules` go in one `options()` call rather than through `withTags`:
- * `AxeBuilder#options` replaces its accumulated option object, so `withTags` before it
- * would be silently dropped, and axe consults an explicit `rules[id].enabled` before the
- * tag filter, which is what lets a tag-excluded rule join the run.
- */
 const EXTRA_RULES = { "label-content-name-mismatch": { enabled: true } };
 
 /**

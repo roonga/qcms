@@ -2,42 +2,6 @@ import { expect, test } from "./support/gates.js";
 import { readFixtures } from "./support/fixtures.js";
 import { waitForHydration } from "./support/hydration.js";
 
-/**
- * The **per-instance step presentation** on the scripted path (task 076, ADR-28 as
- * amended 2026-09-29, ADR-42, ADR-43).
- *
- * The fixture is `repeat-tour`
- * (`apps/api/e2e/support/fixtures/repeat-tour-form.json`): one step, one `open` group at
- * `min: 3, max: 4`, `presentation: "perInstanceStep"`, whose members are a required
- * shortText and an optional number, plus one plain **optional** question on the step
- * itself. `min: 3` means the first serve mints three instances, so the step is three
- * **views** before the respondent has done anything, which is this task's exit criterion
- * written as a fixture rather than as a sequence of clicks.
- *
- * The plain question is **optional**, so the Continue gate on each view is that view's
- * own plate and nothing else. It was first added because a step whose every item was a
- * repeating group could not be served at all; Q30 (2026-10-03) fixed that, and
- * `apps/api/src/features/responses/group-only-step.integration.test.ts` now asserts a
- * group-only step is reachable on all three presentations. It stays because of what it
- * buys here: a view narrows the step to one instance of the paginating group and to
- * nothing else, so it appears on every page of the walk, which is asserted below rather
- * than worked around.
- *
- * Exit criteria proved here: **1** (three views, the indicator says three, Back and
- * Continue traverse them in roster order), **2** (answering never moves the page by
- * itself, on this path), and **5** (Submit appears on the last view and nowhere earlier,
- * with that last view belonging to an instance rather than to a plain step).
- *
- * **Issue #1041 is driven from here too**, and the fixture choice is deliberate. The
- * defect is a hydrated-path composition fault and is presentation-independent, so the
- * natural home would be the stacked spec; but `repeat-fleet` carries no rules at all, so
- * a per-instance branch cannot be driven on it without changing a fixture three other
- * specs assert against. `repeat-tour` gained one rule of its own instead, and the
- * ordering itself is pinned directly in `packages/ui/src/repeat.test.tsx`.
- *
- * The no-JS half of the same fixture is `no-js-per-instance.pw.ts`.
- */
-
 const { repeatTourSlug } = readFixtures();
 
 /** The one instance card this view draws. */
@@ -45,13 +9,6 @@ function card(page: import("@playwright/test").Page) {
   return page.locator("fieldset[data-qcms-instance]");
 }
 
-/**
- * This instance's optional odometer field, by role.
- *
- * By role and not `getByLabel`: a `NumberField`'s increment and decrement buttons are
- * labelled from the same text through `aria-labelledby`, so a label locator resolves to
- * three elements and strict mode refuses it. The text box is the field.
- */
 function odometer(page: import("@playwright/test").Page) {
   return card(page).getByRole("textbox", { name: "Odometer reading" });
 }

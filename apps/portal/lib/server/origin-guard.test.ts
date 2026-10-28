@@ -1,35 +1,7 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
-/**
- * SEC-9's CSRF belt on the portal's state-changing BFF routes.
- *
- * Every case asserts on the API client rather than only the status code, because a
- * route that refuses after forwarding the answer has not refused, and the refusal shape
- * on two of these routes is a 303 the success path also emits.
- *
- * The negative cases send a genuinely foreign `Origin`: a request with no `Origin` is
- * not a discriminating probe on every guard shape, so such a test can pass against an
- * unguarded handler.
- *
- * Each refusal case also pins that the belt wrote exactly one log line, and each
- * admitted case that it wrote none. Exactly one, because a duplicate would silently
- * double an operator's refusal count, which is the whole reason the line exists. The
- * capture is a real logger writing into an array rather than a spy, so the assertions
- * read the serialized line the portal's stdout would carry, redaction pass included.
- */
-
 const PORTAL_BASE = "https://forms.qcms.test";
 
-/**
- * The real `./config` is deliberately not mocked: the belt's `Origin` comparison has to
- * run against a genuinely configured base URL, or it would be comparing a stub to
- * itself.
- *
- * Applied at module scope so the route imports cannot observe an unset environment, and
- * re-applied per test because {@link afterEach} clears it. Restoring matters because
- * Vitest shares a worker process across files, so a stub left standing is a value some
- * unrelated test reads without asking for it.
- */
 function stubPortalEnv(): void {
   vi.stubEnv("QCMS_PORTAL_BASE_URL", PORTAL_BASE);
   vi.stubEnv("QCMS_API_BASE_URL", "http://api.internal");
@@ -132,13 +104,6 @@ function refusalLines(): Record<string, unknown>[] {
     .filter((line) => line["msg"] === "origin.belt.refused");
 }
 
-/*
- * The `@/` alias is a tsconfig path Next resolves and Vitest does not, so a route module
- * imported here cannot load its own dependencies by that specifier. Every entry below is
- * alias plumbing rather than a test double: each hands back the real module by a relative
- * path. `route-helpers` in particular must be real, since it is where the belt under test
- * lives and mocking it would make every assertion a tautology.
- */
 vi.mock("@/lib/server/config", async () => await import("./config"));
 vi.mock("@/lib/server/environment", async () => await import("./environment"));
 vi.mock("@/lib/server/route-helpers", async () => await import("./route-helpers"));
@@ -221,12 +186,6 @@ interface GuardedRoute {
   /** Repo-relative, so a red names the file to open. */
   readonly path: string;
   readonly post: (headers: Record<string, string>) => Promise<Response>;
-  /**
-   * Whether the route acted. A predicate rather than "the API spy this route calls",
-   * because one belted route changes state without calling the API at all: the no-JS
-   * appearance form writes presentation cookies, and asserting only on the API client
-   * would declare it guarded while never looking at what it does.
-   */
   readonly acted: (response: Response) => boolean;
   readonly assertRefusal: (response: Response) => void | Promise<void>;
   /**
@@ -365,12 +324,6 @@ describe("isSameOriginPost", () => {
   });
 });
 
-/**
- * The open-redirect class, closed at the handler rather than only at the pure function,
- * which `appearance-form.test.ts` covers. Two things have to hold for such a payload to
- * escape, so both are asserted: the path validator refuses it, and the header is
- * absolute on this deployment's own base.
- */
 describe("app/appearance/route.ts does not emit a Location off this origin", () => {
   const ADMITTED = { "sec-fetch-site": "same-origin" };
 
@@ -481,14 +434,6 @@ describe.each(ROUTES)("$path", (route) => {
   });
 });
 
-/**
- * The belted caller that is a Server Action rather than a route handler (R-B2).
- *
- * Driven here rather than left to the static gate because the two prove different
- * things: with the belt call deleted from the action, the gate goes red while the whole
- * browser suite stays green, every spec in it posting from a real same-origin page. A
- * scan that reads the call is not a test that the call does anything.
- */
 describe("task 073: the Server Action's belt refuses and applies nothing (R-B2)", () => {
   const SESSION = "ses_c0ffee";
 
