@@ -50,9 +50,7 @@ describe("comment length", () => {
 
   it("never counts type tags, which carry the types of a checked JavaScript file", () => {
     const types = [" * @param {string} a", " * @returns {number}"];
-    expect(rules(jsdoc(MAX_COMMENT_LINES, "function f(a) {}", types), "scripts/a.mjs")).toEqual(
-      [],
-    );
+    expect(rules(jsdoc(MAX_COMMENT_LINES, "function f(a) {}", types), "scripts/a.mjs")).toEqual([]);
   });
 
   it("gives exported JSDoc its own limit", () => {
