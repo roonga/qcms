@@ -15,17 +15,6 @@ import {
   render,
 } from "./agent-loop-status.mjs";
 
-/**
- * Supervisor visibility (issue #597).
- *
- * The failure being guarded against is a confident wrong answer, in either direction:
- * the dev seat ran unsupervised for three weeks while both seats believed a safety net
- * was in place, and the correction is not a supervisor that never stops but a check that
- * says truthfully whether it has. So the cases here are the three ways a naive check
- * would lie: a stopped supervisor read as running, a stuck one read as healthy, and an
- * unreadable process table read as "nothing is running".
- */
-
 const temporaryDirectories: string[] = [];
 
 afterAll(() => {
@@ -38,7 +27,6 @@ function temporaryDirectory(): string {
   return directory;
 }
 
-/** A checkout holding an `agent-loop.log` with `contents`, last written `ageHours` ago. */
 function checkoutWithLog(contents: string, ageHours: number): string {
   const directory = temporaryDirectory();
   const path = join(directory, LOG_NAME);
@@ -48,19 +36,17 @@ function checkoutWithLog(contents: string, ageHours: number): string {
   return directory;
 }
 
-/** A `/proc` stand-in holding one process whose command line is `argv`. */
 function procWith(entries: Record<string, string[]>): string {
   const root = temporaryDirectory();
   for (const [pid, argumentList] of Object.entries(entries)) {
     mkdirSync(join(root, pid), { recursive: true });
     writeFileSync(join(root, pid, "cmdline"), `${argumentList.join("\0")}\0`, "utf8");
   }
-  // A non-numeric entry, as the real /proc has, to prove the filter is on the name.
+  // The real /proc carries non-numeric entries too.
   mkdirSync(join(root, "self"), { recursive: true });
   return root;
 }
 
-/** The line the supervisor's log really ended on when #597 was filed. */
 const THE_2026_08_01_LOG = [
   "2026-08-01 05:52:11  iteration 5: launching fresh session",
   "2026-08-01 05:52:11  seat mail: delivering 1 message(s) into the prompt",
@@ -80,8 +66,8 @@ describe("findSupervisors", () => {
   });
 
   it("does not count a process that merely mentions the script", () => {
-    // `grep agent-loop.sh`, an editor with the file open, or this check itself. Counting
-    // one would produce the exact false all-clear the issue is about.
+    // A grep, an open editor or this check itself names the script without being it, and
+    // counting one would be a false all-clear.
     const proc = procWith({
       "201": ["grep", "-r", "agent-loop.sh", "."],
       "202": ["node", "scripts/agent-loop-status.mjs"],
@@ -139,8 +125,6 @@ describe("assess", () => {
   });
 
   it("calls a live supervisor with a long-silent log STALLED", () => {
-    // A process that exists is not a supervisor that is working. `ps` alone cannot tell
-    // the two apart, which is why the log age is read beside it.
     const status = assess({
       supervisors: [{ pid: 1, cwd: "/repo", since: 0, command: "bash agent-loop.sh" }],
       log: log(THE_2026_08_01_LOG, 24),
@@ -197,9 +181,8 @@ describe("render", () => {
 
 describe("parseArgs", () => {
   it("defaults the window to the supervisor's own longest legitimate sleep", () => {
-    // `scripts/agent-loop.sh` caps a limit-reset sleep at 21600 seconds, so a silence
-    // longer than six hours is not explainable by waiting out a usage limit. The two
-    // numbers have to agree or the check reports a healthy supervisor as stalled.
+    // `scripts/agent-loop.sh` caps a limit-reset sleep at 21600 seconds. The two numbers
+    // have to agree or the check calls a healthy supervisor stalled.
     const supervisor = readFileSync(
       fileURLToPath(new URL("agent-loop.sh", import.meta.url)),
       "utf8",

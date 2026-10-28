@@ -32,21 +32,9 @@ import {
 } from "./build-images.mjs";
 
 /**
- * Unit cover for the supply-chain build (task 036, exit criterion 3).
- *
- * **What this file does not do is build an image.** A real `docker buildx` run of the
- * three images takes minutes and pulls a scanner image, which does not belong in
- * `pnpm test`; the workflow in `.github/workflows/images.yml` does the real build and
- * calls the same `assertArtifact` against the real artifact. What is worth asserting
- * cheaply is the part that would silently do the wrong thing: the version derivation,
- * the tag sanitisation, and the OCI traversal that decides whether an attestation is
- * present at all.
- *
- * The traversal is tested against a hand-built OCI directory rather than a recorded
- * one. A fixture copied out of a real build would be 200MB of layers to assert over
- * three JSON documents, and the layout is a published spec: writing it out here also
- * documents the shape the traversal expects, which is otherwise only discoverable by
- * running a build and poking at the result.
+ * No image is built here: `.github/workflows/images.yml` runs the real build and calls
+ * the same `assertArtifact`. The OCI layout is hand-built rather than recorded because
+ * a real export is 200MB of layers for three JSON documents.
  */
 
 const workspaces: string[] = [];
@@ -55,15 +43,6 @@ afterAll(() => {
   for (const directory of workspaces) rmSync(directory, { recursive: true, force: true });
 });
 
-/**
- * Write a minimal OCI directory layout: index -> manifest list -> {image, attestation}.
- *
- * @param predicates predicate types the attestation manifest advertises.
- * @param labels config labels the image manifest's config blob carries.
- * @param sbomPackages npm `name@version` pairs the SBOM predicate lists, for the
- *   dev-dependency assertion (issue #877), which reads the blob's body rather than
- *   its annotation.
- */
 function ociArtifact(
   predicates: string[],
   labels: Record<string, string>,
@@ -80,9 +59,8 @@ function ociArtifact(
     const digest = `${String(next++).padStart(64, "0")}`;
     const file = join(blobs, digest);
     writeFileSync(file, JSON.stringify(value));
-    // Read-only, as buildx writes a real blob. The mode is load-bearing for the
-    // export path: `copyFileSync` inherits it, so a second run into one directory
-    // fails with EACCES unless the destination is removed first.
+    // Read-only as buildx writes it: `copyFileSync` inherits the mode, so a second
+    // export into one directory fails with EACCES unless the destination is removed.
     chmodSync(file, 0o444);
     return `sha256:${digest}`;
   };
@@ -92,15 +70,13 @@ function ociArtifact(
   const attestationDigest = put({
     layers: predicates.map((predicate) => ({
       mediaType: "application/vnd.in-toto+json",
-      // A real in-toto layer points at a blob holding the statement. The traversal
-      // used only to read the annotation; `saveAttestations` copies the blob, so the
-      // fixture has to carry one or the export path would be tested against a shape
-      // buildx does not produce.
+      // A real in-toto layer points at a blob holding the statement, and the export path
+      // copies that blob, so the fixture has to carry one.
       digest: put({
         _type: "https://in-toto.io/Statement/v1",
         predicateType: predicate,
-        // Only the SBOM predicate carries a body anything reads. The purl is where the
-        // package name comes from, so the fixture has to have one.
+        // Only the SBOM predicate carries a body anything reads, and the purl is where the
+        // package name comes from.
         ...(predicate === SPDX_PREDICATE
           ? {
               predicate: {
@@ -139,24 +115,21 @@ describe("version derivation", () => {
   });
 
   it("falls back to the workspace version plus the commit", () => {
-    // An empty override is not an override: an unset variable and one set to "" reach
-    // a shell script identically, and treating "" as a version would stamp an image
-    // with the empty string rather than failing or falling back.
+    // An unset variable and one set to "" reach a shell script identically, so "" must
+    // not stamp an image with the empty string.
     const derived = imageVersion({ QCMS_IMAGE_VERSION: "" });
     expect(derived).toMatch(/^\d+\.\d+\.\d+[^+]*\+[0-9a-f]{7,}(\.dirty)?$/);
   });
 
   it("makes the version legal as a Docker tag without losing the commit", () => {
-    // `+` is valid SemVer build metadata and illegal in an image reference. This
-    // caught a real failure: the first build died on `invalid reference format`.
+    // `+` is valid SemVer build metadata and illegal in an image reference.
     expect(imageTag("0.0.1-alpha.0+83fa947")).toBe("0.0.1-alpha.0_83fa947");
     expect(imageTag("0.0.1-alpha.0+83fa947")).toMatch(/^\w[\w.-]{0,127}$/);
   });
 
   it("gives two different versions two different tags", () => {
-    // Issue #342. `+` used to become `-`, and `-` is legal in a SemVer version, so
-    // `1.0.0+build.5` and `1.0.0-build.5` collided on one tag and the second build
-    // silently moved the first one's. `_` cannot appear in a version at all.
+    // `_` and not `-`: `-` is legal in a SemVer version, so `1.0.0+build.5` and
+    // `1.0.0-build.5` would collide on one tag.
     expect(imageTag("1.0.0+build.5")).not.toBe(imageTag("1.0.0-build.5"));
     expect(imageTag("1.0.0-build.5")).toBe("1.0.0-build.5");
     for (const version of ["1.0.0+build.5", "1.0.0-build.5", "0.0.1-alpha.0+83fa947.dirty"]) {
@@ -189,9 +162,6 @@ describe("OCI artifact traversal", () => {
   });
 
   it("rejects the unstamped Dockerfile default, which is the bug it exists to catch", () => {
-    // Every image carried version=dev before this change, because the Dockerfiles
-    // declared ARG VERSION and nothing passed one. A stamp that silently reverts to
-    // that is the regression worth failing a build over.
     const artifact = ociArtifact(BOTH, { [VERSION_LABEL]: "dev" });
     expect(() => assertArtifact(artifact, "1.2.3", "qcms-api")).toThrow(/expected/);
   });
@@ -209,8 +179,7 @@ describe("the dev-dependency boundary (issue #877)", () => {
   });
 
   it("fails the build on the tooling the API image was found carrying", () => {
-    // The real thing this catches: before the `--no-optional` deploy boundary landed,
-    // the qcms-api SBOM listed 680 npm packages including these three.
+    // These three were in the qcms-api SBOM before the `--no-optional` deploy boundary.
     const artifact = ociArtifact(BOTH, { [VERSION_LABEL]: "1.2.3" }, [
       "hono@4.13.7",
       "vitest@4.1.11",
@@ -237,11 +206,6 @@ describe("the image set", () => {
   });
 });
 
-/**
- * Publishing (issue #763). None of this boots Docker either: what is worth asserting
- * is the part that decides WHAT gets pushed and WHERE, because a wrong reference is
- * either a rejected push or, worse, an accepted one under the wrong name.
- */
 describe("registry references", () => {
   it("names every tag under the registry and namespace", () => {
     expect(imageReferences("roonga", "qcms-api", ["abc123", "latest"])).toEqual([
@@ -252,14 +216,11 @@ describe("registry references", () => {
 
   it("rejects an uppercase namespace rather than letting the registry do it", () => {
     // `github.repository_owner` preserves the case a person typed, and a registry
-    // repository path is lowercase-only. Caught here it reads as a mistake; caught by
-    // GHCR it reads as an outage.
+    // repository path is lowercase-only.
     expect(() => imageReferences("Roonga", "qcms-api", ["latest"])).toThrow(/lowercase/);
   });
 
   it("rejects a tag the reference grammar forbids", () => {
-    // The version stamp contains `+`, which is why imageTag exists; a caller that
-    // forgot to sanitise would otherwise fail deep inside buildx.
     expect(() => imageReferences("roonga", "qcms-api", ["0.0.1+abc"])).toThrow(/legal image tag/);
     expect(() => imageReferences("roonga", "qcms-api", [".leading-dot"])).toThrow(
       /legal image tag/,
@@ -293,12 +254,7 @@ describe("the buildx argument vector", () => {
   });
 });
 
-/**
- * The real manifest list `docker buildx build --sbom=true --provenance=mode=max`
- * writes, copied verbatim from a probe build on buildx v0.35.0 rather than written
- * from memory. Both descriptors are here because the check is a conjunction, and the
- * image descriptor is what proves the conjunction excludes something.
- */
+/** Copied verbatim from a probe build on buildx v0.35.0, not written from memory. */
 const REAL_MANIFEST_LIST = {
   manifests: [
     {
@@ -327,17 +283,11 @@ describe("the pushed manifest check", () => {
   });
 
   it("reports none when the export dropped the attestations", () => {
-    // The failure this exists for: an exporter that quietly ships the image alone.
     const list = JSON.stringify({ manifests: [REAL_MANIFEST_LIST.manifests[0]] });
     expect(attestationManifestCount(list)).toBe(0);
   });
 
-  /**
-   * The conjunction, one missing marker at a time. Each of these passed the earlier
-   * disjunction, which is the direction that matters: this check exists to catch a
-   * lost attestation, so a descriptor that is only half an attestation manifest must
-   * not be counted as one.
-   */
+  /** Each of these passes the earlier disjunction, which is the direction that matters. */
   it("does not count an unknown/unknown platform without the reference annotation", () => {
     const list = JSON.stringify({
       manifests: [{ platform: { architecture: "unknown", os: "unknown" } }],
@@ -392,11 +342,7 @@ describe("argument parsing", () => {
     expect(() => parseArgv(["--push", "--tag", "latest"])).toThrow(/--push needs a value/);
   });
 
-  /**
-   * Every flag here is value-bearing, so a missing value is always a mistake. Without
-   * the guard `String(undefined)` makes it a literal: a directory named `undefined`,
-   * or a pushed tag named `undefined`.
-   */
+  /** Without the guard, `String(undefined)` becomes a literal directory or tag name. */
   it("refuses a valueless --output rather than building into a directory named undefined", () => {
     expect(() => parseArgv(["--output"])).toThrow(/--output needs a value/);
     expect(() => parseArgv(["--output", "--push", "roonga"])).toThrow(/--output needs a value/);
@@ -426,8 +372,6 @@ describe("keeping the attestations (issue #342)", () => {
       "slsa.dev-provenance-v1.json",
       "spdx.dev-Document.json",
     ]);
-    // The document itself, not a stub naming it: the point of uploading these is that
-    // someone can read what was in the build months later.
     const spdx: unknown = JSON.parse(
       readFileSync(join(destination, "qcms-api", "spdx.dev-Document.json"), "utf8"),
     );
@@ -435,9 +379,8 @@ describe("keeping the attestations (issue #342)", () => {
   });
 
   it("can be run twice into the same directory", () => {
-    // An OCI blob is written read-only, and copyFileSync inherits the mode, so a
-    // second run used to fail with EACCES on a file this code had itself written.
-    // Two `pnpm qcms:build-images --attestations` in a row is an ordinary local loop.
+    // Two `--attestations` runs in a row is an ordinary local loop, and an OCI blob is
+    // read-only, so the second copy fails with EACCES unless the destination is removed.
     const artifact = ociArtifact(BOTH, { [VERSION_LABEL]: "1.2.3" });
     const destination = mkdtempSync(join(tmpdir(), "qcms-attestations-"));
     workspaces.push(destination);

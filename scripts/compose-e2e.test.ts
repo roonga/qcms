@@ -15,30 +15,13 @@ import {
 } from "./compose-e2e.mjs";
 
 /**
- * The full-stack Compose harness must refuse an unset seat from a linked worktree
- * (issue #296), and it must refuse it BEFORE it spawns anything.
+ * The seat must be refused before anything spawns: teardown runs `docker compose down
+ * --volumes` under a seat-derived project name, so adopting seat 0 silently would
+ * delete another lane's stack.
  *
- * That ordering is the whole point. `scripts/compose-e2e.mjs` derives its Compose
- * project name from the seat and runs `docker compose down --volumes
- * --remove-orphans` under it on teardown, so a run that silently adopted seat 0
- * would not merely read another lane's stack, it would delete it.
- *
- * The checkout kind is what decides the outcome, and this suite has to control it
- * rather than inherit it: the same assertion would pass vacuously in the primary
- * checkout and fail in a worktree. So each case gets a throwaway root holding a copy
- * of `scripts/`, with `.git` written as a FILE (a linked worktree) or as a DIRECTORY
- * (a primary checkout, and what CI checks out).
- *
- * The whole directory is copied rather than a named list of modules, and that is a
- * correction rather than laziness. A hand-kept list has to be updated whenever the
- * harness gains an import, and forgetting is not a readable failure: the copied
- * script dies in Node's module resolver, so all five assertions below report a
- * missing specifier instead of anything about seats. Copying the directory cannot
- * drift.
- *
- * Both cases are driven with an argv the script rejects anyway, so neither can reach
- * Docker even if the refusal were missing: a missing seat must produce the seat
- * error, and a present `.git` directory must produce the ordinary usage error.
+ * The whole `scripts/` directory is copied into each throwaway root rather than a named
+ * list of modules: a list goes stale on a new import, and the copied script then dies
+ * in Node's module resolver instead of reporting anything about seats.
  */
 
 const SCRIPTS = fileURLToPath(new URL(".", import.meta.url));
@@ -48,7 +31,6 @@ afterAll(() => {
   for (const root of roots) rmSync(root, { recursive: true, force: true });
 });
 
-/** A throwaway repo root carrying the real scripts and the requested `.git` shape. */
 function checkout(kind: "worktree" | "primary"): string {
   const root = mkdtempSync(join(tmpdir(), "qcms-compose-e2e-"));
   roots.push(root);
@@ -59,7 +41,6 @@ function checkout(kind: "worktree" | "primary"): string {
   return root;
 }
 
-/** Run the copied harness with no seat in the environment, and collect stderr. */
 function runWithoutSeat(root: string, args: string[]): { status: number | null; stderr: string } {
   const environment = { ...process.env };
   delete environment.QCMS_PORT_SEAT;
@@ -81,10 +62,6 @@ describe("compose-e2e seat refusal", () => {
   });
 
   it("names the command the reader was actually running", () => {
-    // The browser harness says `pnpm verify:browser`; this one has to say its own,
-    // or the fix offered does not match the failure in front of the reader. Each
-    // subcommand maps to the script it is reached through, rather than every refusal
-    // recommending the self-contained entry point whatever was run.
     const root = checkout("worktree");
     const cases: readonly (readonly [string[], string])[] = [
       [[], "pnpm up:e2e"],
@@ -102,8 +79,6 @@ describe("compose-e2e seat refusal", () => {
   });
 
   it("refuses before it dispatches the subcommand, so nothing is ever spawned", () => {
-    // `down` is the destructive one. It must not reach Docker on a seatless worktree
-    // run, which this proves by getting the seat error instead of a Docker error.
     const { status, stderr } = runWithoutSeat(checkout("worktree"), ["down"]);
     expect(status).toBe(1);
     expect(stderr).toContain("QCMS_PORT_SEAT");
@@ -112,16 +87,11 @@ describe("compose-e2e seat refusal", () => {
   });
 
   it("prints the refusal without a stack trace", () => {
-    // The convention two lines away in the script: a user error prints its message.
-    // A stack trace on "you forgot a variable" buries the one line that matters.
     const { stderr } = runWithoutSeat(checkout("worktree"), ["down"]);
     expect(stderr).not.toMatch(/\n\s+at /);
   });
 
   it("keeps the silent default in a primary checkout, which is also CI", () => {
-    // Seat 0 has to stay byte-identical for an existing developer and for the
-    // workflow. With no subcommand the script still fails, but on usage, not on the
-    // seat: that is the difference this case exists to pin.
     const { status, stderr } = runWithoutSeat(checkout("primary"), []);
     expect(status).toBe(1);
     expect(stderr).toContain("Usage:");
@@ -129,7 +99,6 @@ describe("compose-e2e seat refusal", () => {
   });
 
   it("accepts an explicit seat from a worktree, including 0", () => {
-    // What is refused is silence, not the value.
     const root = checkout("worktree");
     for (const seat of ["0", "3"]) {
       const result = spawnSync(process.execPath, [join(root, "scripts", "compose-e2e.mjs")], {
@@ -147,10 +116,6 @@ describe("composeEnvironmentOverrides", () => {
   const ports = { portalPort: 17100, adminPort: 17140 };
 
   it("is the same in every environment, which is the whole safety property", () => {
-    // `full-stack-e2e` exists to catch auth-boundary regressions, and while CI is
-    // down a local pass is the only evidence there is. If anything here varied by
-    // environment, the local run would exercise a different configuration than CI
-    // and quietly stop covering what it is run for. There is no environment input.
     expect(composeEnvironmentOverrides(ports)).toEqual({
       QCMS_ADMIN_PORT: "17140",
       QCMS_PORTAL_PORT: "17100",
@@ -161,17 +126,14 @@ describe("composeEnvironmentOverrides", () => {
   });
 
   it("never downgrades the admin's Secure cookie flag", () => {
-    // The rejected repair for #316. A Secure cookie can only be stored by a
-    // trustworthy origin, so browsing a gateway address needs this off - and turning
-    // it off is precisely the divergence from CI that must not happen. The origin
-    // stays localhost instead, and this key must never appear.
+    // Turning this off would let a non-localhost origin store the admin cookie, and is
+    // exactly the divergence from CI that must not happen.
     expect("QCMS_ADMIN_SECURE_COOKIES" in composeEnvironmentOverrides(ports)).toBe(false);
   });
 
   it("never touches the Compose bind address", () => {
-    // docker-compose.yml publishes to loopback so the authoring admin is not put on
-    // every network the host can reach. That exposure property is not tradeable, so
-    // the harness reaches the stack over the Compose network instead of widening it.
+    // Compose publishes to loopback so the authoring admin is not put on every network
+    // the host can reach; the harness joins the Compose network instead of widening it.
     expect("QCMS_BIND_ADDRESS" in composeEnvironmentOverrides(ports)).toBe(false);
   });
 
@@ -183,15 +145,6 @@ describe("composeEnvironmentOverrides", () => {
   });
 });
 
-/**
- * Reading the endpoint out of `docker inspect` (issue #335).
- *
- * Both of these replaced `Object.keys(...)[0]`, which was right by Docker's Go map
- * serialization sorting keys lexicographically rather than by anything this harness
- * chose. The point of the change is that a shape it cannot resolve now FAILS at
- * `up()`, naming the service, instead of forwarding a wrong number and surfacing as a
- * Playwright timeout.
- */
 describe("soleTcpPort", () => {
   it("reads the one exposed TCP port", () => {
     expect(soleTcpPort({ "3000/tcp": null }, "portal")).toBe(3000);
@@ -202,9 +155,7 @@ describe("soleTcpPort", () => {
   });
 
   it("refuses to guess between two TCP ports, naming the service and the candidates", () => {
-    // The regression the old code would have shipped: key order is a string sort, so
-    // a debugger on 9229 beside the app on 3000 was right only by luck, and a
-    // hypothetical `10000/tcp` sorts BEFORE `3000/tcp` and would have won.
+    // Docker's key order is a string sort, so `10000/tcp` sorts before `3000/tcp`.
     expect(() => soleTcpPort({ "10000/tcp": null, "3000/tcp": null }, "admin")).toThrow(
       /admin exposes more than one TCP port \(10000\/tcp, 3000\/tcp\)/,
     );
@@ -224,8 +175,6 @@ describe("soleNetworkName", () => {
   });
 
   it("refuses to guess between two networks", () => {
-    // Which network to join is a decision about the stack's shape: the forwarder can
-    // only reach an address on the network this container attaches to.
     expect(() => soleNetworkName({ a_net: {}, b_net: {} }, "portal")).toThrow(
       /portal is on more than one network \(a_net, b_net\)/,
     );
@@ -237,22 +186,12 @@ describe("soleNetworkName", () => {
 });
 
 /**
- * The network join, which is the expensive one (issue #335).
- *
- * The old code wrapped `docker network connect` in `try {} catch {}` meaning "already
- * attached". It also meant network-not-found, no-such-container and daemon errors,
- * and the cost of that conflation was out of all proportion: the forwarder still
- * binds and still prints `ready`, so every forwarded connection then hits Docker's
- * cross-bridge isolation and TIMES OUT rather than being refused.
- *
- * So the outcome is now read back from Docker rather than inferred from an exit
- * status, and these cases are the whole decision: attached is fine however it got
- * that way, not attached is fatal however the connect reported.
+ * A failed join must be fatal rather than swallowed: the forwarder still binds and
+ * prints `ready`, so forwarded connections hit Docker's cross-bridge isolation and
+ * time out instead of being refused.
  */
 describe("joinComposeNetwork", () => {
   it("accepts a connect that failed because the endpoint was already there", () => {
-    // The legitimate case the old catch was written for. An interrupted previous run
-    // leaves this state behind, and attached is exactly as good as attaching.
     expect(() =>
       joinComposeNetwork("stack_default", "self", {
         connect: () => ({ failure: "endpoint with name self already exists in network" }),
@@ -262,9 +201,8 @@ describe("joinComposeNetwork", () => {
   });
 
   it("throws naming the network when the connect really failed", () => {
-    // What used to be swallowed. `docker network connect` reports one failure for
-    // "already attached", "no such network" and "no such container" alike, so the
-    // message is not what separates them: the read-back is.
+    // `docker network connect` reports one failure for "already attached", "no such
+    // network" and "no such container" alike, so only the read-back separates them.
     expect(() =>
       joinComposeNetwork("stack_default", "self", {
         connect: () => ({ failure: "Error response from daemon: network stack_default not found" }),
@@ -283,9 +221,6 @@ describe("joinComposeNetwork", () => {
   });
 
   it("says what the swallowed failure would have cost, so the reader stops here", () => {
-    // The message is the fix: the old symptom was a Playwright timeout minutes later
-    // that never mentioned the network, and a reader who lands on this line must not
-    // have to rediscover why an unattached container times out instead of refusing.
     expect(() =>
       joinComposeNetwork("stack_default", "self", {
         connect: () => ({}),
@@ -303,10 +238,8 @@ describe("joinComposeNetwork", () => {
 
 describe("harness secrets (task 040)", () => {
   it("overrides every placeholder secret the example env file carries", () => {
-    // The API refuses to boot on a placeholder since 040, and the `--env-file`
-    // this harness passes Compose is `.env.compose.example`, whose secret lines
-    // are placeholders. Each one has to be supplied here or the stack will not
-    // come up. Sorted so a new secret in the example file forces this list.
+    // The secret lines in `.env.compose.example` are placeholders the API refuses to
+    // boot on, so each must be supplied here. Sorted, so a new one forces this list.
     expect(Object.keys(harnessSecrets()).sort()).toEqual([
       "QCMS_ADMIN_AUTH_SECRET",
       "QCMS_APP_KEY",
@@ -323,10 +256,6 @@ describe("harness secrets (task 040)", () => {
   });
 
   it("calls the generator once per variable, so no two secrets share a value", () => {
-    // Deterministic counter rather than the real RNG. Comparing two live calls
-    // would pass on a collision only astronomically rarely, but a test whose
-    // green depends on randomness is a test whose green cannot be fully
-    // trusted, and that distinction is the whole subject of this task.
     let n = 0;
     const secrets = harnessSecrets(() => `generated-${String(++n)}`);
     const values = Object.values(secrets);
@@ -339,7 +268,6 @@ describe("harness secrets (task 040)", () => {
     const generate = (): string => `generated-${String(++n)}`;
     const first = harnessSecrets(generate);
     const second = harnessSecrets(generate);
-    // Every value in the second set is drawn after every value in the first.
     expect(Object.values(first)).not.toEqual(Object.values(second));
     expect(first.QCMS_APP_KEY).not.toBe(second.QCMS_APP_KEY);
   });

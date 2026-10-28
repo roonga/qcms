@@ -21,21 +21,8 @@ import {
 } from "./sql-capture.mjs";
 
 /**
- * The Drizzle SQL capture (issue #854).
- *
- * Every assertion below that matters is made against a **real** query helper from
- * `@roonga/qcms-db` rather than a fixture chain written here. A fixture would only
- * prove that Drizzle renders what Drizzle renders; what this script has to be right
- * about is the shapes this repository actually writes - a select with a compound
- * `where`, an order and a row lock; an insert with defaults and a `returning`; an
- * update; a read-modify-write inside a transaction; a raw `sql` template executed
- * through `db.execute`; and the correlated anti-join in `queries/outbox.ts`, which is
- * the statement the tool exists to make readable.
- *
- * These run against the built package. `pnpm test` builds before it tests (turbo's
- * `test` task depends on `build`, and CI runs `pnpm build` first besides), so the
- * guard below is for the one case that skips both: `pnpm test:tooling` on a checkout
- * that has never been built.
+ * These run against the built package, so the guard below covers the one entry point
+ * that builds nothing: `pnpm test:tooling` on a checkout that has never been built.
  */
 
 beforeAll(() => {
@@ -48,7 +35,6 @@ const AT = { $date: "2026-03-01T00:00:00.000Z" };
 const ISO = "2026-03-01T00:00:00.000Z";
 const OUTBOX_ID = "0198c0de-0000-7000-8000-000000000001";
 
-/** Run `main` and capture what it printed, so exit code and output are asserted together. */
 async function run(args: string[]): Promise<{ code: number; out: string[]; err: string[] }> {
   const out: string[] = [];
   const err: string[] = [];
@@ -93,9 +79,6 @@ describe("capture, against real query helpers", () => {
           accessMode: "secure_link",
           expiresAt: new Date(ISO),
           linkId: "lnk_01",
-          // Q46's `environment`, `NOT NULL` on the table and pinned to the schema the
-          // row sits in by a CHECK. `createSession` runs on an environment pool, so the
-          // value is that connection's own environment.
           environment: "prod",
         },
       ],
@@ -103,11 +86,11 @@ describe("capture, against real query helpers", () => {
 
     expect(result.statements).toHaveLength(1);
     const [statement] = result.statements;
-    // Unqualified, which is ADR-40's data plane: the connection's `search_path` chooses
-    // `data_prod` or `data_test`, and no query helper names a data schema.
+    // Unqualified: the connection's `search_path` chooses the data schema, and no query
+    // helper names one (ADR-40).
     expect(statement.sql).toContain('insert into "sessions"');
-    // `status` and `created_at` are column defaults, so they are `default` in the
-    // values list rather than parameters. That distinction is invisible in the builder.
+    // Column defaults render as `default` rather than as parameters, which is invisible
+    // in the builder.
     expect(statement.sql).toContain("values ($1, $2, $3, $4, $5, $6, default, $7, default)");
     expect(statement.sql).toContain('returning "session_id"');
     expect(statement.params).toEqual(["ses_01", "frm_01", 3, "secure_link", "lnk_01", "prod", ISO]);
@@ -140,11 +123,9 @@ describe("capture, against real query helpers", () => {
       'greatest("outbox"."delivered_at", "outbox"."dead_lettered_at") < $1',
     );
 
-    // The list binds as ONE array parameter, not one placeholder per id. That is a
-    // comment in `queries/outbox.ts`, and this is the statement that proves it.
+    // The list binds as one array parameter, not one placeholder per id.
     expect(update.sql).toContain('"outbox"."id" = any($1::uuid[])');
     expect(update.params[0]).toEqual([OUTBOX_ID]);
-    // The correlation lives inside the subquery, and the `or` is parenthesised.
     expect(update.sql).toContain('not exists (select 1 from "webhook_deliveries" "d"');
     expect(update.sql).toContain('"d"."outbox_id" = "outbox"."id"');
     expect(update.sql).toContain(
@@ -165,17 +146,14 @@ describe("capture, against real query helpers", () => {
     expect(read.sql).toContain('select "attempts" from "outbox"');
     expect(read.sql).toContain("for update");
     expect(write.sql).toContain('update "outbox" set "attempts" = $1');
-    // Backoff arithmetic done on the row the probe returned: the fourth attempt is due
-    // 125 minutes later, and 4 is short of the dead-letter threshold.
     expect(write.params.slice(0, 3)).toEqual([4, "2026-03-01T02:05:00.000Z", null]);
   });
 
   it("renders a raw sql template executed through db.execute, parameters and all", async () => {
     const result = await capture({
       name: "listResponses",
-      // The environment comes first, because `reporting_<env>` is on **no** search path
-      // (ADR-40, Q52): it is the one schema a query helper has to name, and it names the
-      // environment it was handed rather than one of its own choosing.
+      // `reporting_<env>` is on no search path (ADR-40, Q52), so it is the one schema a
+      // query helper has to name.
       args: ["prod", { formId: "frm_01", status: "submitted", limit: 25, offset: 0 }],
     });
 
@@ -191,12 +169,10 @@ describe("capture, against real query helpers", () => {
 
   it("returns one row with no columns per statement when no rows are configured", async () => {
     // Without a default row the probe comes back empty and the sweep returns early, so
-    // the anti-join - the statement worth reading - would never be issued.
+    // the anti-join would never be issued.
     const result = await capture({ name: "redactAgedOutboxPayloads", args: [new Date(ISO)] });
 
     expect(result.statements).toHaveLength(2);
-    // The default row carries no columns, so the id the sweep read back is `undefined`
-    // and the array parameter it binds says so. Real values come from `--rows`.
     expect(result.statements[1].params[0]).toEqual([undefined]);
   });
 });
@@ -215,17 +191,12 @@ describe("refusals", () => {
   });
 
   it("refuses a function that issues no statement, naming it", async () => {
-    // `backoffDelayMs` is a pure schedule calculation that happens to be exported
-    // beside the helpers. Printing "0 statements" for it would read like a query
-    // builder that generates no SQL.
     await expect(capture({ name: "backoffDelayMs", args: [3] })).rejects.toThrow(
       /'backoffDelayMs' is not a query builder: it ran without issuing a statement/,
     );
   });
 
   it("reports what it captured when a helper throws part way through", async () => {
-    // No rows at all, so `recordFailure` reads `undefined` for `attempts` and computes
-    // an invalid date. The first statement is still real and still printed.
     const { code, out, err } = await run([
       "recordFailure",
       "--args",
@@ -321,8 +292,7 @@ describe("the exported surface", () => {
     const names = exportedFunctions(await loadQueries());
     expect(names).toContain("claimDue");
     expect(names).toContain("redactAgedOutboxPayloads");
-    // `pgEnum` returns a callable, so `accessMode` and `sessionStatus` would otherwise
-    // sit in this list looking like helpers.
+    // `pgEnum` returns a callable, so its exports would otherwise look like helpers.
     expect(names).not.toContain("accessMode");
     expect(names).not.toContain("sessionStatus");
     expect(names).toEqual([...names].sort((left, right) => left.localeCompare(right)));

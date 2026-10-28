@@ -46,63 +46,34 @@ import {
   writeAtomic,
 } from "./verify-browser-detached.mjs";
 
-/**
- * The detached browser runner (issue #846).
- *
- * The defect it removes is that a harness kill at a per-command cap and a red suite look
- * identical from outside: both are a nonzero exit code over a truncated log. So what
- * these tests pin is the part that makes them distinguishable - the rc file protocol,
- * and the wait loop's exit codes - plus the argument parsing, because a bad argument
- * discovered by Playwright is a bad argument discovered half an hour late.
- *
- * No browser runs here. The suite is replaced by a fake child, which is what makes the
- * kill paths testable at all: a real 30-minute suite cannot be SIGTERMed in a unit test.
- */
-
 const SCRIPT = fileURLToPath(new URL("verify-browser-detached.mjs", import.meta.url));
 const REPO_ROOT = fileURLToPath(new URL("../", import.meta.url));
 
 const temporaryDirectories: string[] = [];
 const spawnedPids: number[] = [];
 
-/**
- * Kill one pid, refusing the values that mean something else entirely.
- *
- * `process.kill(0, ...)` signals the CALLER'S own process group, which here is the
- * Vitest runner: a `pid ?? 0` in a teardown is how a test suite kills itself.
- */
+/** `process.kill(0, ...)` would signal the Vitest runner's own process group. */
 function killPid(pid: number | undefined, signal: NodeJS.Signals): void {
   if (pid === undefined || !Number.isInteger(pid) || pid < 2) return;
   try {
     process.kill(pid, signal);
   } catch {
-    // Already gone, which is the point.
+    // Already gone.
   }
 }
 
-/**
- * Stop a process GROUP by its leader, which is how a supervisor's suite is reached.
- *
- * The guard is the same one `killPid` carries and for the same reason: a negative pid is
- * a group, and `kill(-0)` is this process's own.
- */
+/** A negative pid is a process group, and `kill(-0)` is this process's own. */
 function killGroup(leader: number | undefined, signal: NodeJS.Signals): void {
   if (leader === undefined || !Number.isInteger(leader) || leader < 2) return;
   try {
     process.kill(-leader, signal);
   } catch {
-    // Already gone, which is the point.
+    // Already gone.
   }
 }
 
 afterAll(async () => {
-  // SIGTERM first and SIGKILL only as a fallback, because SIGKILL cannot be trapped: a
-  // supervisor killed outright never runs its own cleanup, and its suite - which is in a
-  // process group of its own by design - is then orphaned. That leak is not theoretical.
-  // This teardown used to SIGKILL straight away, and one `ps` after a day of runs found
-  // 38 fake suites still running, from exactly the test that leaves its runner alive on
-  // purpose. Killing the recorded suite group as well covers the case where the
-  // supervisor has already exited and nothing is left to pass the signal on.
+  // SIGKILL cannot be trapped, so a supervisor killed outright orphans its suite.
   for (const pid of spawnedPids) killPid(pid, "SIGTERM");
   for (const directory of temporaryDirectories) {
     killGroup(readSuiteGroup(join(directory, RUN_FILES.pid)), "SIGTERM");
@@ -121,14 +92,12 @@ function temporaryDirectory(): string {
   return directory;
 }
 
-/** A child that never exits on its own, standing in for the half-hour suite. */
 const SLEEPER = [
   process.execPath,
   "-e",
   "process.stdout.write('fake suite running\\n'); setInterval(() => {}, 1000);",
 ];
 
-/** A child that exits with a chosen code, standing in for a finished suite. */
 function exiter(code: number): string[] {
   return [
     process.execPath,
@@ -137,7 +106,6 @@ function exiter(code: number): string[] {
   ];
 }
 
-/** Run `supervise` the way `start` runs it, but in the foreground of this test. */
 function supervise(directory: string, command: string[], extra: string[] = []): number {
   const child = spawn(
     process.execPath,
@@ -165,7 +133,6 @@ function supervise(directory: string, command: string[], extra: string[] = []): 
   return pid;
 }
 
-/** A port nothing is listening on right now, for the seat-release fixtures. */
 function reserveFreePort(): Promise<number> {
   return new Promise((resolve, reject) => {
     const probe = createServer();
@@ -185,15 +152,8 @@ function reserveFreePort(): Promise<number> {
 }
 
 /**
- * The per-test budget for anything that spawns a supervisor, far above the measured
- * times (53-400 ms) on purpose.
- *
- * Vitest's 5 s default is tighter than `until`'s own bound below, and under host
- * contention (three lanes, load average 40) a `node` spawn can take seconds: the test
- * then dies on the runner's cap instead of on its own assertion, which reads as a broken
- * test rather than a slow machine. It flaked exactly that way once in three runs. With
- * this budget the inner `until` is always what fails first, and it says what it was
- * waiting for.
+ * Far above the measured 53-400 ms: under host contention a `node` spawn can take
+ * seconds, and the inner `until` has to be what fails first.
  */
 const SPAWN_BUDGET_MS = 30_000;
 
@@ -277,9 +237,6 @@ describe("parseArgs", () => {
   });
 
   it("takes the seat and the repo root the seat release is confined to", () => {
-    // Both decide who may be signalled, so a silent default is the failure mode that
-    // matters: `--repo-root` is the tree the ownership test measures against, and `--seat`
-    // is what makes a kill attributable to one afterwards rather than inferred from a port.
     const base = ["supervise", "--log", "/l", "--pid", "/p", "--rc", "/r", "--heartbeat", "/h"];
     expect(parseArgs([...base, "--seat", "6", "--repo-root", "/repo", "--", "true"])).toMatchObject(
       {
@@ -289,13 +246,9 @@ describe("parseArgs", () => {
         command: ["true"],
       },
     );
-    // Absent rather than empty when not given, so `supervise` applies its own defaults (the
-    // checkout this script lives in) instead of measuring against an empty string.
     const without = parseArgs([...base, "--", "true"]);
     expect(without).not.toHaveProperty("seat");
     expect(without).not.toHaveProperty("repoRoot");
-    // Seat 0 is a real seat and must survive the round trip as the string "0", not be
-    // lost to a falsy test somewhere.
     expect(parseArgs([...base, "--seat", "0", "--", "true"])).toMatchObject({ seat: "0" });
     expect(() => parseArgs([...base, "--seat", "--", "true"])).toThrow(/--seat requires a value/);
     expect(() => parseArgs([...base, "--repo-root"])).toThrow(/--repo-root requires a value/);
@@ -314,8 +267,7 @@ describe("playwrightCommand", () => {
   });
 
   it("spells --project with an equals sign, because Playwright's --project is variadic", () => {
-    // The space form swallows the next argument as a second project name and fails with
-    // "Project(s) ... not found" (issue #890). Four lanes hit that in one week.
+    // The space form swallows the next argument as a second project name.
     expect(playwrightCommand({ projects: ["admin-chromium"], shard: "1/2" })).toEqual([
       "pnpm",
       "exec",
@@ -327,9 +279,6 @@ describe("playwrightCommand", () => {
   });
 
   it("stays the command package.json's verify:browser runs", () => {
-    // The detached form and the CI form must be the same suite. If `verify:browser` ever
-    // grows a flag, this is where the drift shows up rather than in a green that proved
-    // something else.
     const manifest = JSON.parse(readFileSync(join(REPO_ROOT, "package.json"), "utf8")) as {
       scripts: Record<string, string>;
     };
@@ -364,10 +313,7 @@ describe("the rc file protocol", () => {
   });
 
   it("separates a signalled SUITE from a signalled runner, because the causes differ", () => {
-    // 77 means something signalled this script: a per-command cap, an operator, another
-    // lane. 78 means Playwright died underneath a runner nobody touched, which is the
-    // host. Issue #902's two reports had `EXIT=143` and no failing test, and no way to
-    // tell those apart without reading the log by eye.
+    // 77: something signalled this script. 78: Playwright died under an unsignalled runner.
     const directory = temporaryDirectory();
     const path = join(directory, RUN_FILES.rc);
     writeAtomic(path, "EXIT=137\nkilled=SIGKILL\nsignal_target=suite\nelapsed_seconds=900\n");
@@ -375,8 +321,6 @@ describe("the rc file protocol", () => {
   });
 
   it("reads a kill with no recorded target as the runner, the conservative reading", () => {
-    // The only shape any previous version of this script wrote. Read as `suite` it would
-    // send a reader looking at the host for a kill that came from the harness.
     const directory = temporaryDirectory();
     const path = join(directory, RUN_FILES.rc);
     writeAtomic(path, "EXIT=143\nkilled=SIGTERM\nelapsed_seconds=1500\n");
@@ -426,7 +370,6 @@ describe("the rc file protocol", () => {
     expect(readSuiteGroup(path)).toBeUndefined();
     writeAtomic(path, "4321\nsuite_group=4330\n# The first line is the runner pid\n");
     expect(readPid(path)).toBe(4321);
-    // What is left to kill when the runner itself was SIGKILLed and ran no cleanup.
     expect(readSuiteGroup(path)).toBe(4330);
     expect(readPid(join(directory, "absent"))).toBeUndefined();
     expect(isAlive(0)).toBe(false);
@@ -480,8 +423,6 @@ describe("supervise", () => {
       const recorded = readFileSync(join(directory, RUN_FILES.rc), "utf8");
       expect(recorded).toMatch(/killed=SIGTERM/);
       expect(recorded).toMatch(/not a test verdict/);
-      // The seat release: the suite's process group goes down with the runner rather than
-      // surviving reparented to pid 1 and holding this seat's harness ports (issue #295).
       await until(() => !isAlive(runner ?? 0));
     },
     SPAWN_BUDGET_MS,
@@ -492,14 +433,8 @@ describe("releasing the seat", () => {
   it(
     "kills a separately-sessioned grandchild holding a port, which the group signal cannot reach",
     async () => {
-      // This is the defect the first head of this branch shipped. Playwright starts each
-      // `webServer` in a session of ITS own, so the two `next dev` servers are not in the
-      // suite's process group and `kill(-pgid)` structurally cannot reach them: measured
-      // twice on a real seat, both `next-server` processes were still bound to their ports
-      // 25 s after the runner was SIGTERMed, while the rc file claimed "Seat released".
-      // The fixture reproduces that shape exactly - a child that puts its listener in
-      // another session - and a fake child with no such grandchild is why the old test was
-      // green.
+      // Playwright starts each `webServer` in a session of its own, so `kill(-pgid)` cannot
+      // reach the servers it spawns.
       const directory = temporaryDirectory();
       const port = await reserveFreePort();
       writeFileSync(
@@ -518,8 +453,6 @@ describe("releasing the seat", () => {
         join(directory, "suite.mjs"),
         [
           'import { spawn } from "node:child_process";',
-          // `setsid`, which is what Playwright's webServer does and what puts the listener
-          // outside this process's group.
           'spawn("setsid", [process.execPath, process.argv[2], process.argv[3]], {',
           '  stdio: "inherit",',
           "});",
@@ -543,7 +476,6 @@ describe("releasing the seat", () => {
       await until(() => listenersOnPorts([port]).length === 1, 20_000);
       const grandchild = listenersOnPorts([port])[0]?.pid;
       expect(grandchild).toBeGreaterThan(1);
-      // It really is in a session of its own, so the group kill below cannot reach it.
       expect(readFileSync(`/proc/${String(grandchild ?? 0)}/stat`, "utf8").split(" ")[5]).toBe(
         String(grandchild),
       );
@@ -557,8 +489,6 @@ describe("releasing the seat", () => {
       expect(recorded).toMatch(/killed=SIGTERM/);
       expect(recorded).toMatch(/Seat released/);
       expect(recorded).not.toMatch(/seat_survivors=/);
-      // Twice SPAWN_BUDGET_MS: this one spawns a supervisor, a suite and a grandchild, and
-      // then waits out a SIGTERM and a port sweep.
     },
     2 * SPAWN_BUDGET_MS,
   );
@@ -566,23 +496,9 @@ describe("releasing the seat", () => {
   it(
     "leaves a bystander on a release port alone when it belongs to another checkout",
     async () => {
-      // The regression test for issue #902, and the shape it actually took. A runner's
-      // release ports come from `QCMS_PORT_SEAT`, and this file's own `startDetached` test
-      // starts a supervisor at a hard-coded seat and then signals it - so every
-      // `pnpm verify` on this host used to sweep a seat no part of it was using and
-      // SIGTERM then SIGKILL whatever held those four ports. Twice that was a neighbouring
-      // lane's live browser gate: `EXIT=143`, no failing test, seat-3 dev servers orphaned.
-      //
-      // The bystander here is that neighbour, reduced to its essentials: it holds a port
-      // the runner will try to release, it is not descended from the runner, and its
-      // working directory is a different checkout. It must survive, and the rc file must
-      // name it as somebody else's rather than as a survivor to go and kill.
       const directory = temporaryDirectory();
       const port = await reserveFreePort();
 
-      // A checkout of its own, which is what makes it foreign: the ownership test resolves
-      // a working directory to its nearest `.git` rather than testing a path prefix,
-      // because lane worktrees nest inside the primary checkout.
       const neighbour = join(temporaryDirectory(), "other-lane");
       mkdirSync(join(neighbour, "apps", "portal"), { recursive: true });
       writeFileSync(join(neighbour, ".git"), "gitdir: /elsewhere\n", "utf8");
@@ -598,13 +514,11 @@ describe("releasing the seat", () => {
         ].join("\n"),
         "utf8",
       );
-      const bystander = spawn(
-        process.execPath,
-        [join(neighbour, "bystander.mjs"), String(port)],
-        // In the neighbour's app directory, exactly as `next dev` runs, and detached so it
-        // is not in any process group the runner's own cleanup addresses.
-        { cwd: join(neighbour, "apps", "portal"), detached: true, stdio: "ignore" },
-      );
+      const bystander = spawn(process.execPath, [join(neighbour, "bystander.mjs"), String(port)], {
+        cwd: join(neighbour, "apps", "portal"),
+        detached: true,
+        stdio: "ignore",
+      });
       bystander.unref();
       const bystanderPid = bystander.pid;
       expect(bystanderPid).toBeGreaterThan(1);
@@ -617,7 +531,6 @@ describe("releasing the seat", () => {
       killPid(runnerPid, "SIGTERM");
       await until(() => readRc(join(directory, RUN_FILES.rc)) !== undefined, 30_000);
 
-      // The whole point. Before the confinement this process was dead and its port free.
       expect(isAlive(bystanderPid ?? 0)).toBe(true);
       expect(listenersOnPorts([port])[0]?.pid).toBe(bystanderPid);
 
@@ -625,15 +538,12 @@ describe("releasing the seat", () => {
       expect(recorded).toMatch(new RegExp(`seat_foreign=${String(port)}:${String(bystanderPid)}:`));
       expect(recorded).toMatch(/foreign-tree/);
       expect(recorded).toMatch(/Do not kill it\. Take a free seat instead\./);
-      // Never filed as a survivor: that field tells the reader to kill what it names.
       expect(recorded).not.toMatch(/seat_survivors=/);
       expect(recorded).not.toMatch(/THE SEAT WAS NOT RELEASED/);
-      // The refusal is in the log too, with the grounds, so a run that hit one can say so.
       expect(readFileSync(join(directory, RUN_FILES.log), "utf8")).toMatch(
         /NOT signalling it, it is not this run's process/,
       );
 
-      // And `wait` passes the distinction on rather than printing a kill instruction.
       const lines: string[] = [];
       const code = await waitForRun({
         directory,
@@ -645,7 +555,6 @@ describe("releasing the seat", () => {
       const printed = lines.join("\n");
       expect(printed).toMatch(/could not claim, and it was left alone/);
       expect(printed).toMatch(/another checkout's process is not yours to kill/);
-      // The rc file is reprinted underneath, which is where the per-grounds advice lives.
       expect(printed).toMatch(/--- end of rc ---/);
 
       killPid(bystanderPid, "SIGKILL");
@@ -656,11 +565,6 @@ describe("releasing the seat", () => {
   it(
     "says nothing was released when it was given no ports to release",
     async () => {
-      // This also pins the handler ordering inside `supervise`: it signals the instant
-      // the pid file appears, which is the narrowest window after the runner advertises
-      // the pid a caller may kill. While the handlers were installed after that file,
-      // this failed one run in three - the runner took Node's default action and wrote no
-      // rc at all, which is the unreadable outcome the whole script exists to prevent.
       const directory = temporaryDirectory();
       const runnerPid = supervise(directory, SLEEPER);
       await until(() => readPid(join(directory, RUN_FILES.pid)) !== undefined);
@@ -696,20 +600,12 @@ describe("releasing the seat", () => {
       [{ port: 17200, pid: 4242, ownership: "descendant" }],
     ).join("\n");
     expect(survived).toMatch(/seat_survivors=17200:4242/);
-    // Never "17200:0": 0 is a real argument to `kill` meaning the caller's own process
-    // group, so an unattributable holder is spelled out instead of being printed as a
-    // pid somebody could copy into a kill command.
     expect(describeListener({ port: 17230, pid: undefined })).toBe("17230:unknown");
     expect(survived).toMatch(/THE SEAT WAS NOT RELEASED/);
     expect(survived).not.toMatch(/Seat released:/);
   });
 
   it("reports a holder it refused to signal under its own field, with opposite advice", () => {
-    // `seat_survivors` is an instruction: those pids are yours, kill them. Pointing that
-    // instruction at a neighbouring lane's live gate is the whole defect of issue #902, so
-    // a holder this runner deliberately left alone must never be filed under it. An
-    // unattributable holder counts as foreign for the same reason the seat preflight
-    // refuses to adopt one: "cannot tell whose it is" is not "it is mine".
     const foreign = releaseLines(
       [17300, 17310],
       [
@@ -718,10 +614,6 @@ describe("releasing the seat", () => {
       ],
     ).join("\n");
     expect(foreign).toMatch(/seat_foreign=17300:4242:foreign-tree,17310:unknown:unattributable/);
-    // The two grounds get opposite advice. Measured on a real seat: a sweep saw the API
-    // port held by an unattributable pid (its own dying Playwright runner, whose fd was
-    // closing mid-scan), and "do not kill it" would be the wrong thing to tell an operator
-    // about their own orphan.
     expect(foreign).toMatch(/foreign-tree: another checkout's process/);
     expect(foreign).toMatch(/Do not kill it\. Take a free seat instead\./);
     expect(foreign).toMatch(/unattributable: the holder could not be identified/);
@@ -730,7 +622,6 @@ describe("releasing the seat", () => {
     expect(foreign).not.toMatch(/seat_survivors=/);
     expect(foreign).not.toMatch(/THE SEAT WAS NOT RELEASED/);
 
-    // Both kinds at once stay in their own fields.
     const both = releaseLines(
       [17300, 17310],
       [
@@ -740,7 +631,6 @@ describe("releasing the seat", () => {
     ).join("\n");
     expect(both).toMatch(/seat_survivors=17300:11/);
     expect(both).toMatch(/seat_foreign=17310:22:foreign-tree/);
-    // Only the grounds that actually occurred get their paragraph.
     expect(both).toMatch(/foreign-tree: another checkout's process/);
     expect(both).not.toMatch(/unattributable: the holder could not be identified/);
     expect(describeForeignListener({ port: 17300, pid: 4242 })).toBe("17300:4242:unattributable");
@@ -748,7 +638,6 @@ describe("releasing the seat", () => {
 });
 
 describe("ownershipOf", () => {
-  /** A fake process tree, so the rule is tested without arranging real processes. */
   function tree(parents: Record<number, number>, directories: Record<number, string>) {
     return {
       parent: (pid: number) => parents[pid],
@@ -757,9 +646,6 @@ describe("ownershipOf", () => {
   }
 
   it("accepts a descendant however deep, which is the normal dev-server case", () => {
-    // next-server <- next dev <- pnpm <- sh -c <- wrapper <- playwright <- suite(500).
-    // `setsid` puts the servers in another session but does not reparent them, so the
-    // chain still reaches the suite pid the runner spawned.
     const { parent, workingDirectory } = tree(
       { 100: 200, 200: 300, 300: 400, 400: 450, 450: 500, 500: 600 },
       {},
@@ -767,15 +653,14 @@ describe("ownershipOf", () => {
     expect(ownershipOf(100, { ancestors: new Set([600, 500]), parent, workingDirectory })).toBe(
       "descendant",
     );
-    // The suite pid itself, which is the group leader the first cleanup step signals.
     expect(ownershipOf(500, { ancestors: new Set([500]), parent, workingDirectory })).toBe(
       "descendant",
     );
   });
 
   it("ends a parent chain that loops rather than spinning on it", () => {
-    // A `/proc` read racing a reparent can produce one, and an unbounded walk over it
-    // would hang the cleanup that is meant to release the seat.
+    // A `/proc` read racing a reparent can produce a cycle, and an unbounded walk over it
+    // would hang the cleanup that releases the seat.
     const { parent } = tree({ 10: 11, 11: 10 }, {});
     expect(
       ownershipOf(10, { ancestors: new Set([999]), parent, workingDirectory: () => undefined }),
@@ -783,25 +668,21 @@ describe("ownershipOf", () => {
   });
 
   it("refuses a pid whose working directory cannot be read at all", () => {
-    // Another user's process, or another PID namespace. "Cannot tell" is not "mine".
     expect(ownershipOf(10, { parent: () => undefined, workingDirectory: () => undefined })).toBe(
       "unattributable",
     );
   });
 
   it("refuses the values that mean something else entirely to kill", () => {
-    // 0 is the caller's own process group and 1 is init. `pid ?? 0` upstream is exactly
-    // how 0 arrives here, so neither may ever be classified as ours.
+    // 0 is the caller's own process group and 1 is init, so neither may ever count as ours.
     for (const pid of [undefined, 0, 1, -1, 1.5]) {
       expect(ownershipOf(pid, { ancestors: new Set([0, 1]) })).toBe("unattributable");
     }
   });
 
   it("accepts this checkout and refuses a lane worktree nested inside it", () => {
-    // The reason the test is by nearest `.git` and not by path prefix. Agent lanes live
-    // under the primary checkout (`.worktrees/`, `.claude/worktrees/`) as well as beside
-    // it, so a prefix test would let a runner in the primary tree call a nested lane's dev
-    // server "mine" and kill it. That is issue #902 by a second route.
+    // Agent lanes nest inside the primary checkout, so a path-prefix test would let a
+    // runner there call a nested lane's dev server its own.
     const root = temporaryDirectory();
     const primary = join(root, "primary");
     const nested = join(primary, ".worktrees", "lane");
@@ -813,16 +694,12 @@ describe("ownershipOf", () => {
     const options = { parent: () => undefined, ancestors: new Set<number>() };
     const at = (directory: string) => ({ ...options, workingDirectory: () => directory });
 
-    // A dev server in the primary checkout's own app directory is the primary's.
     expect(ownershipOf(10, { ...at(join(primary, "apps", "portal")), repoRoot: primary })).toBe(
       "same-tree",
     );
-    // The nested lane's is NOT, even though its path sits under the primary checkout.
     expect(ownershipOf(10, { ...at(join(nested, "apps", "portal")), repoRoot: primary })).toBe(
       "foreign-tree",
     );
-    // And the relationship is not symmetric-blind: from inside the lane, the primary's is
-    // foreign too, and so is the sibling layout.
     expect(ownershipOf(10, { ...at(join(primary, "apps", "portal")), repoRoot: nested })).toBe(
       "foreign-tree",
     );
@@ -834,18 +711,11 @@ describe("ownershipOf", () => {
   });
 
   it("falls back to a containment test when neither side is a checkout", () => {
-    // A fixture directory under the system temporary directory has no `.git` above it.
-    // Refusing outright would break the cleanup for a runner started outside a repository,
-    // so the fallback is the narrowest thing that is still honest.
     const root = temporaryDirectory();
     const options = { parent: () => undefined };
     expect(ownershipOf(10, { ...options, workingDirectory: () => root, repoRoot: root })).toBe(
       "same-tree",
     );
-    // A DESCENDANT of the root, not only the root itself. This is the case the fallback's
-    // comment used to deny while the code allowed it, which is the worst combination for a
-    // comment sitting on a kill decision: `next dev` runs with its cwd in the app directory,
-    // so requiring equality would refuse to clean up after a fixture run's own servers.
     expect(
       ownershipOf(10, {
         ...options,
@@ -856,13 +726,9 @@ describe("ownershipOf", () => {
     expect(ownershipOf(10, { ...options, workingDirectory: () => tmpdir(), repoRoot: root })).toBe(
       "unattributable",
     );
-    // A sibling whose name merely starts with the root's: the separator is what stops it.
     expect(
       ownershipOf(10, { ...options, workingDirectory: () => `${root}-other`, repoRoot: root }),
     ).toBe("unattributable");
-    // And when only ONE side resolves to a checkout the two are not comparable, so the
-    // verdict is unattributable rather than "mine". That is the other half of the fallback,
-    // and `mine === theirs` is what implements it rather than being a tautology.
     expect(
       ownershipOf(10, {
         ...options,
@@ -874,21 +740,13 @@ describe("ownershipOf", () => {
   });
 
   it("refuses a holder descended from a DIFFERENT detached runner, whatever its cwd says", () => {
-    // The one route left after the cross-lane fix, and it does not need two checkouts: a
-    // lane whose seat is 3 running `pnpm verify` in the same checkout as its own live seat-3
-    // gate. That gate's holders are `same-tree` by every honest measure, and the
-    // `already live in this lane` refusal never fires because this file's supervisor writes
-    // to a different scratch lane.
     const root = temporaryDirectory();
     const inMyTree = { workingDirectory: () => root, repoRoot: root };
-    // next-server(10) <- next dev(11) <- another supervisor(12).
     const chain = (pid: number) => ({ 10: 11, 11: 12 })[pid];
     expect(
       ownershipOf(10, { ...inMyTree, parent: chain, isForeignSupervisor: (pid) => pid === 12 }),
     ).toBe("other-run");
 
-    // Ours wins: the suite's chain reaches this supervisor through `ancestors` before the
-    // foreign-supervisor test ever looks at it, so a real run still cleans up after itself.
     expect(
       ownershipOf(10, {
         ...inMyTree,
@@ -902,9 +760,8 @@ describe("ownershipOf", () => {
   it("recognises another supervisor by its argv, past the length the rc file records", () => {
     const nul = String.fromCodePoint(0);
     const deep = "/very/deep".repeat(20);
-    // Uncapped on purpose: the marker sits after an interpreter path and a script path, and
-    // the rc file's 200-character bound would hide it in a deeply nested worktree, silently
-    // answering "not a supervisor" for exactly the runs that matter.
+    // Uncapped: the marker sits past two paths, and the rc file's 200-character bound
+    // would hide it in a deeply nested worktree.
     expect(
       isOtherSupervisor(
         12_345,
@@ -915,7 +772,6 @@ describe("ownershipOf", () => {
     expect(isOtherSupervisor(12_345, () => `/p/node${nul}-e${nul}setInterval(()=>{},1)`)).toBe(
       false,
     );
-    // Never this process: the runner must not classify its own subtree as somebody else's.
     expect(isOtherSupervisor(process.pid)).toBe(false);
     expect(isOtherSupervisor(12_345, () => undefined)).toBe(false);
   });
@@ -923,10 +779,8 @@ describe("ownershipOf", () => {
 
 describe("signalProvenance", () => {
   it("records what is knowable and says plainly that the sender is not", () => {
-    // Linux carries `si_pid` only to an `SA_SIGINFO` handler or a `signalfd` reader, and
-    // Node exposes neither. So the fields are everything that makes the NEXT sighting
-    // attributable without a live process to inspect, which is what issue #902's two
-    // reports had no way to produce.
+    // Node exposes neither an `SA_SIGINFO` handler nor `signalfd`, so `si_pid` is
+    // unavailable and these fields are all the attribution a later reader gets.
     const lines = signalProvenance({
       signal: "SIGTERM",
       target: "runner",
@@ -934,33 +788,24 @@ describe("signalProvenance", () => {
       elapsedSeconds: 871,
       pid: 4242,
       parentPid: 1,
-      // Stated rather than defaulted because this test simulates pids: at runtime the
-      // default is `process.pid`, which really is the runner writing the record.
       runnerPid: 4242,
       host: () => ["loadavg=40.1 38.0 22.5", "mem_available_kb=512000"],
     });
     expect(lines).toContain("signal=SIGTERM");
     expect(lines).toContain("signal_target=runner");
-    // The elapsed time is how the #902 reports were written at all ("175 s, 198 s, 289 s").
     expect(lines).toContain("signal_at_elapsed_seconds=871");
     expect(lines).toContain("signalled_pid=4242");
     expect(lines).toContain("signalled_ppid=1");
-    // Equal to the victim here, and that is the honest way to show a runner kill.
     expect(lines).toContain("runner_pid=4242");
     expect(lines).toContain("seat=3");
     expect(lines).toContain("loadavg=40.1 38.0 22.5");
     expect(lines.join("\n")).toMatch(/No sender pid/);
-    // Never a blank value: "seat=" would read as a seat whose name is the empty string.
     expect(signalProvenance({ signal: "SIGHUP", target: "suite", elapsedSeconds: 1 })).toContain(
       "seat=unrecorded",
     );
   });
 
   it("names the SUITE as the victim for a suite kill, not the runner", () => {
-    // The fields were `runner_*` filled from `process.pid` in both branches, so a
-    // `signal_target=suite` record named the role correctly and then gave the runner's pid
-    // as the process that was hit. Fully attributing a suite-only kill then still needed the
-    // live process tree, which is the one thing a post-mortem does not have.
     const lines = signalProvenance({
       signal: "SIGKILL",
       target: "suite",
@@ -974,21 +819,16 @@ describe("signalProvenance", () => {
     });
     expect(lines).toContain("signal_target=suite");
     expect(lines).toContain("signalled_pid=5150");
-    // The suite's parent IS the runner, and the two fields now differ, which is the point.
     expect(lines).toContain("signalled_ppid=5140");
     expect(lines).toContain("runner_pid=5140");
-    // The victim's own argv, passed in rather than read from `/proc`: by the time this is
-    // written the suite has exited and its `/proc` entry is gone.
     expect(lines).toContain("signalled_command=pnpm exec playwright test");
-    // Omitted rather than written empty when there is no command to report.
     expect(
       signalProvenance({ signal: "SIGTERM", target: "runner", elapsedSeconds: 1 }).join("\n"),
     ).not.toMatch(/signalled_command=/);
   });
 
   it("keeps a parent command line to one line and a bounded length", () => {
-    // It lands in a file whose contract is that a reader parses it a line at a time, so a
-    // newline in somebody else's argv would split a field in half.
+    // A newline in somebody else's argv would split an rc file field in half.
     const nul = String.fromCodePoint(0);
     const newline = String.fromCodePoint(10);
     expect(commandLineOf(9, () => `node${nul}--flag${newline}value${nul}`)).toBe(
@@ -1040,7 +880,6 @@ describe("waitForRun", () => {
       expect(printed).toContain("still running after 1s");
       expect(printed).toContain("re-invoke");
       expect(printed).toContain("fake suite running");
-      // Still alive, which is the difference between this and every other exit here.
       expect(isAlive(readPid(join(directory, RUN_FILES.pid)) ?? 0)).toBe(true);
     },
     SPAWN_BUDGET_MS,
@@ -1070,17 +909,10 @@ describe("waitForRun", () => {
   it(
     "exits 78 when the SUITE died on a signal the runner never saw",
     async () => {
-      // The distinction issue #902 asked for. 77 says something signalled this script: a
-      // per-command cap, an operator, another lane. 78 says Playwright was killed
-      // underneath a runner nobody touched, which points at the host - the OOM killer, a
-      // cgroup limit, or a group signal aimed at the suite's own session. Both used to
-      // arrive as 77 over an `EXIT=143` that read like a red suite.
       const directory = temporaryDirectory();
       supervise(directory, [
         process.execPath,
         "-e",
-        // Kills itself the way the OOM killer would, so the runner sees a signalled child
-        // while never being signalled itself.
         "process.stdout.write('fake suite running\\n'); process.kill(process.pid, 'SIGKILL');",
       ]);
       await until(() => readRc(join(directory, RUN_FILES.rc)) !== undefined, 20_000);
@@ -1088,13 +920,10 @@ describe("waitForRun", () => {
       const recorded = readFileSync(join(directory, RUN_FILES.rc), "utf8");
       expect(recorded).toMatch(/signal_target=suite/);
       expect(recorded).toMatch(/killed=SIGKILL/);
-      // The provenance that makes the next sighting attributable without a live process.
       expect(recorded).toMatch(/signal_at_elapsed_seconds=\d+/);
       expect(recorded).toMatch(/loadavg=/);
       expect(recorded).toMatch(/mem_available_kb=/);
       expect(recorded).toMatch(/look at the host/);
-      // The victim is the SUITE, and it is the suite pid the pid file recorded as the group
-      // leader, not the runner's own. Its parent is the runner.
       const suitePid = readSuiteGroup(join(directory, RUN_FILES.pid));
       const runnerPid = readPid(join(directory, RUN_FILES.pid));
       expect(suitePid).toBeGreaterThan(1);
@@ -1102,7 +931,6 @@ describe("waitForRun", () => {
       expect(recorded).toMatch(new RegExp(`signalled_pid=${String(suitePid)}$`, "m"));
       expect(recorded).toMatch(new RegExp(`signalled_ppid=${String(runnerPid)}$`, "m"));
       expect(recorded).toMatch(new RegExp(`runner_pid=${String(runnerPid)}$`, "m"));
-      // And the command that was hit, which `/proc` can no longer answer for a dead pid.
       expect(recorded).toMatch(/signalled_command=.*-e /);
 
       const lines: string[] = [];
@@ -1116,8 +944,6 @@ describe("waitForRun", () => {
       const printed = lines.join("\n");
       expect(printed).toMatch(/the SUITE was killed by SIGKILL/);
       expect(printed).toMatch(/OOM killer/);
-      // The rc file is reprinted, so the evidence is not something a reader has to know to
-      // go and open.
       expect(printed).toMatch(/--- end of rc ---/);
     },
     SPAWN_BUDGET_MS,
@@ -1126,17 +952,10 @@ describe("waitForRun", () => {
   it(
     "exits 78 for a signal the suite's wrapper swallowed and reported as exit 1",
     async () => {
-      // The other half of the 2026-09-12 ask, and the shape the cross-seat sweep actually
-      // left in its victims. The suite runs as `pnpm exec playwright test`, so the runner's
-      // direct child is pnpm: a signal aimed at Playwright alone never reaches
-      // `child.on("exit")` as a signal, and pnpm prints that it was killed and exits 1. A
-      // reviewer found a live instance of exactly that on this host while #902 was open,
-      // an `EXIT=1` with no `killed=` line over a log saying `killed with SIGTERM`.
       const directory = temporaryDirectory();
       supervise(directory, [
         process.execPath,
         "-e",
-        // Stands in for pnpm reaping a killed grandchild: says so on stdout, exits 1.
         "process.stdout.write('fake suite running\\n');" +
           "process.stdout.write('ELIFECYCLE Command failed.\\n');" +
           "process.stdout.write('[ERR_PNPM_RECURSIVE_EXEC_FIRST_FAIL] Command was killed with SIGTERM\\n');" +
@@ -1145,7 +964,6 @@ describe("waitForRun", () => {
       await until(() => readRc(join(directory, RUN_FILES.rc)) !== undefined, 20_000);
 
       const recorded = readFileSync(join(directory, RUN_FILES.rc), "utf8");
-      // The suite's own exit code was 1, and that is still reported honestly.
       expect(recorded).toMatch(/^EXIT=1$/m);
       expect(recorded).toMatch(/killed=SIGTERM/);
       expect(recorded).toMatch(/signal_target=suite/);
@@ -1159,7 +977,6 @@ describe("waitForRun", () => {
         pollMs: 25,
         out: (line) => lines.push(line),
       });
-      // Before this it was 1, which is indistinguishable from a red suite.
       expect(code).toBe(EXIT_SUITE_SIGNALLED);
       expect(lines.join("\n")).toMatch(/the SUITE was killed by SIGTERM/);
     },
@@ -1167,9 +984,6 @@ describe("waitForRun", () => {
   );
 
   it("reads a wrapper's killed-with line without trusting a bare signal name", () => {
-    // Matched on pnpm's own wording, so ordinary test output naming a signal cannot make a
-    // red suite look like a kill. That direction of mistake is the worse one: it would hide
-    // a real failure behind "re-run it, this is not a red suite".
     expect(
       relayedSignal("x", () => ["[ERR_PNPM_RECURSIVE_EXEC_FIRST_FAIL] killed with SIGKILL"]),
     ).toBe("SIGKILL");
@@ -1201,7 +1015,6 @@ describe("waitForRun", () => {
       expect(recorded).toMatch(new RegExp(`runner_pid=${runner}$`, "m"));
       expect(recorded).toMatch(/signalled_ppid=\d+/);
       expect(recorded).toMatch(/No sender pid/);
-      // The same lines reach the log, where a reader of a truncated run finds them.
       expect(readFileSync(join(directory, RUN_FILES.log), "utf8")).toMatch(/signal_target=runner/);
     },
     SPAWN_BUDGET_MS,
@@ -1209,7 +1022,6 @@ describe("waitForRun", () => {
 
   it("exits 76 when the runner is gone and recorded nothing", async () => {
     const directory = temporaryDirectory();
-    // A pid that cannot be alive: the runner was SIGKILLed before it could write an rc.
     writeAtomic(join(directory, RUN_FILES.pid), "2147483646\n");
     writeFileSync(join(directory, RUN_FILES.log), "half a suite\n", "utf8");
     const lines: string[] = [];
@@ -1246,13 +1058,8 @@ describe("startDetached", () => {
         ...process.env,
         QCMS_AGENT_LANE: "fix-846-start-detached",
         QCMS_AGENT_SCRATCH_ROOT: root,
-        // A seat this test does not own, and the reason the ownership confinement exists
-        // (issue #902). `startDetached` derives the runner's release ports from this value,
-        // so the SIGTERM at the end of this test drives a real seat release over seat 3's
-        // four harness ports - on a host where another lane may be running its browser gate
-        // there. It killed one twice before every holder had to be shown to be this run's.
-        // The seat number is deliberately left as it was: the fix is that the value cannot
-        // matter, and a test that avoided the collision would stop proving that.
+        // A seat this test does not own, left as it is: the point is that the value cannot
+        // matter, and avoiding the collision would stop proving that.
         QCMS_PORT_SEAT: "3",
       };
       const lines: string[] = [];
@@ -1270,13 +1077,9 @@ describe("startDetached", () => {
       expect(lines.join("\n")).toContain("pnpm verify:browser:wait");
       expect(readPid(join(started.directory, RUN_FILES.pid))).toBe(started.pid);
 
-      // The run is in its own session, which is what survives the harness killing the
-      // shell that asked for it.
       const sid = readFileSync(`/proc/${String(started.pid)}/stat`, "utf8").split(" ")[5];
       expect(sid).toBe(String(started.pid));
 
-      // A second start in the same lane is refused rather than clobbering the live run's
-      // log: two browser suites at one seat collide on every harness port.
       const refusal: string[] = [];
       const second = await startDetached({
         command: SLEEPER,
@@ -1289,17 +1092,14 @@ describe("startDetached", () => {
 
       killPid(started.pid, "SIGTERM");
       await until(() => readRc(join(started.directory, RUN_FILES.rc)) !== undefined);
-      // 128ms measured; the budget is set for a host already carrying three browser suites.
+      // 128 ms measured; the budget allows for a host already carrying three browser suites.
     },
     SPAWN_BUDGET_MS,
   );
 
   it("refuses a worktree run with no seat, before it spawns anything", async () => {
-    // A REAL linked worktree, because that is the condition the refusal tests: it is
-    // `.git` being a FILE rather than a directory (`scripts/ports.mjs`,
-    // `isLinkedWorktree`). This checkout is a linked worktree on an agent lane and a
-    // plain clone on CI, so asserting against the repo root would pass here and fail
-    // there - which is exactly what happened at the first head of this branch.
+    // A real linked worktree: the refusal turns on `.git` being a file, and this checkout
+    // is a linked worktree on a lane but a plain clone on CI.
     const root = temporaryDirectory();
     const primary = join(root, "primary");
     const git = (...args: string[]) => execFileSync("git", args, { encoding: "utf8" });
@@ -1324,8 +1124,6 @@ describe("startDetached", () => {
       startDetached({ command: SLEEPER, directory: linked, environment, repoRoot: linked }),
     ).rejects.toThrow(/QCMS_PORT_SEAT is not set/);
 
-    // Nothing was spawned: the refusal is ahead of the child, so a seatless invocation
-    // cannot leak a suite nobody is waiting on.
     expect(existsSync(join(scratch, "fix-846-no-seat", RUN_FILES.pid))).toBe(false);
   });
 });

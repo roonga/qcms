@@ -17,7 +17,6 @@ afterEach(() => {
   for (const child of children.splice(0)) child.kill("SIGKILL");
 });
 
-/** A throwaway origin server that answers every connection with `token`. */
 async function echoServer(token: string): Promise<{ port: number; close: () => void }> {
   const server = createServer((socket) => socket.end(token));
   await new Promise<void>((resolve) => server.listen(0, "127.0.0.1", resolve));
@@ -26,7 +25,6 @@ async function echoServer(token: string): Promise<{ port: number; close: () => v
   return { port: address.port, close: () => server.close() };
 }
 
-/** Read whatever a single connection to `port` produces. */
 async function fetchToken(port: number): Promise<string> {
   return await new Promise((resolve, reject) => {
     const socket = connect({ host: "127.0.0.1", port, timeout: 5000 });
@@ -38,7 +36,6 @@ async function fetchToken(port: number): Promise<string> {
   });
 }
 
-/** An unused loopback port, released immediately before the forwarder claims it. */
 async function freePort(): Promise<number> {
   const server = createServer();
   await new Promise<void>((resolve) => server.listen(0, "127.0.0.1", resolve));
@@ -48,7 +45,6 @@ async function freePort(): Promise<number> {
   return address.port;
 }
 
-/** Start the forwarder as a child process and wait for its `ready` line. */
 async function startChild(routes: unknown): Promise<ChildProcess> {
   const child = spawn(process.execPath, [FORWARDER, JSON.stringify(routes)], {
     stdio: ["pipe", "pipe", "pipe"],
@@ -71,8 +67,6 @@ async function startChild(routes: unknown): Promise<ChildProcess> {
 
 describe("parseRoutes", () => {
   it("rejects malformed input rather than failing later inside a browser timeout", () => {
-    // A bad route would otherwise surface minutes later as a Playwright timeout,
-    // where it reads exactly like an application bug.
     expect(() => parseRoutes("not json")).toThrow("must be JSON");
     expect(() => parseRoutes("[]")).toThrow("non-empty array");
     expect(() => parseRoutes('[{"listenPort":"x","targetHost":"h","targetPort":1}]')).toThrow(
@@ -106,9 +100,8 @@ describe("createForwarder", () => {
   });
 
   it("binds loopback only, never widening what Compose chose to expose", async () => {
-    // The forwarder exists so a container can reach a loopback-published stack. If it
-    // listened on 0.0.0.0 it would re-expose on every interface exactly what
-    // docker-compose.yml's bind address deliberately keeps off them.
+    // Listening on 0.0.0.0 would re-expose on every interface what the compose bind
+    // address deliberately keeps off them.
     const origin = await echoServer("x");
     const listenPort = await freePort();
     const server = createForwarder({
@@ -126,9 +119,7 @@ describe("createForwarder", () => {
 
 describe("forwarder lifetime", () => {
   it("exits when its stdin closes, which is how it notices the parent died", async () => {
-    // The teardown path that survives a parent killed without warning. Without it, a
-    // forwarder outlives its run and holds this seat's harness ports: the orphaned
-    // container class of leak, in a different shape.
+    // Without this path a forwarder outlives its run and holds this seat's harness ports.
     const origin = await echoServer("x");
     const child = await startChild([
       { listenPort: await freePort(), targetHost: "127.0.0.1", targetPort: origin.port },
@@ -160,7 +151,6 @@ describe("forwarder lifetime", () => {
     const exited = new Promise<void>((resolve) => child.on("exit", () => resolve()));
     child.stdin?.end();
     await exited;
-    // Binding the same port again is the proof it was actually released.
     const rebound = createServer();
     await new Promise<void>((resolve, reject) => {
       rebound.once("error", reject);
@@ -172,28 +162,11 @@ describe("forwarder lifetime", () => {
 });
 
 /**
- * The **establishment** timeout added for issue #335.
- *
- * Why it is worth a test: the failure it exists for is the expensive one. A target
- * the forwarder cannot reach - the shape Docker's cross-bridge isolation produces,
- * where the SYN is dropped rather than refused - leaves the connect sitting for the
- * OS retry budget, over two minutes, and the run dies inside a Playwright timeout
- * that names nothing useful. Ten seconds turns that into a connection error attached
- * to the request that caused it.
- *
- * Why it is tested through an injected connection rather than a real socket, unlike
- * every other case in this file: a TCP connect that *hangs* cannot be produced
- * deterministically from a test. Every locally reachable address either connects or
- * refuses, and the addresses that do hang (blackholed routes) depend on the network
- * the suite happens to run on, so a test built on one would pass vacuously the moment
- * an ICMP unreachable came back instead. What is asserted here is exactly what this
- * module decides: the budget it arms, that firing it destroys both sides, and that a
- * successful connect disarms it. The real hang was measured by hand against a
- * container on a network this one had not joined: 20s+ still waiting before, 2002ms
- * with a 2000ms budget after.
+ * Driven through an injected connection rather than a real socket: a TCP connect that
+ * hangs cannot be produced deterministically, and a test built on a blackholed route
+ * would pass vacuously the moment an ICMP unreachable came back instead.
  */
 
-/** A stand-in for the outgoing socket that records what the forwarder does to it. */
 class FakeSocket extends PassThrough {
   timeouts: number[] = [];
   onTimeout?: () => void;
@@ -219,7 +192,6 @@ describe("createForwarder establishment timeout", () => {
     for (const server of servers.splice(0)) server.close();
   });
 
-  /** Drive one accepted connection through a forwarder, returning the injected fake. */
   async function forwardOnce(): Promise<{ outgoing: FakeSocket; client: Socket }> {
     let outgoing: FakeSocket | undefined;
     const server = createForwarder(
@@ -236,8 +208,8 @@ describe("createForwarder establishment timeout", () => {
     const { port } = server.address() as AddressInfo;
     const client = connect({ host: "127.0.0.1", port });
     await new Promise((resolve) => client.once("connect", resolve));
-    // The forwarder builds the outbound side synchronously in its connection handler,
-    // which has run by the time the client's own connect event has.
+    // The outbound side is built synchronously in the connection handler, so it has run
+    // by the time the client's own connect event has.
     if (outgoing === undefined) throw new Error("the forwarder never opened an outbound socket");
     return { outgoing, client };
   }
@@ -253,8 +225,6 @@ describe("createForwarder establishment timeout", () => {
     const clientClosed = new Promise((resolve) => client.once("close", resolve));
     outgoing.onTimeout?.();
     expect(outgoing.wasDestroyed).toBe(true);
-    // The browser-facing side goes too, so the request fails fast instead of hanging
-    // on a forwarder that will never have anything to send it.
     await clientClosed;
   });
 
@@ -267,20 +237,17 @@ describe("createForwarder establishment timeout", () => {
   });
 
   it("is an establishment budget, not an idle one", () => {
-    // Asserted because the value is the whole argument: anything short enough to be
-    // useful as an idle timeout would kill a browser's keep-alive connections between
-    // actions and read as a flaky application.
+    // Anything short enough to be useful as an idle timeout would kill a browser's
+    // keep-alive connections between actions and read as a flaky application.
     expect(CONNECT_TIMEOUT_MS).toBeGreaterThanOrEqual(5_000);
   });
 });
 
 describe("entry-point guard", () => {
   it("still runs main() from a path that percent-encodes", async () => {
-    // The guard compares `import.meta.url` against argv[1]. Built as a `file://`
-    // template it differs the moment the path holds a character that encodes - a
-    // space is enough - and then `main()` silently never runs. The only symptom is
-    // the parent's 30-second "forwarder did not become ready" timeout, which points
-    // nowhere near the cause. `pathToFileURL` is what makes the two comparable.
+    // `pathToFileURL` is what makes the two comparable: a hand-built `file://` template
+    // differs as soon as the path holds a character that encodes, and `main()` then
+    // silently never runs.
     const directory = mkdtempSync(join(tmpdir(), "qcms forward "));
     const copied = join(directory, "loopback-forward.mjs");
     copyFileSync(FORWARDER, copied);

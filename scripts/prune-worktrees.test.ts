@@ -18,14 +18,6 @@ import {
   scan,
 } from "./prune-worktrees.mjs";
 
-/**
- * The worktree orphan sweep (issue #735).
- *
- * What matters here is not that it deletes: it is what it refuses to delete. Every
- * refusal below corresponds to a directory that really sits under `.claude/worktrees`
- * in this repository, so a regression in one of them destroys real work or real data.
- */
-
 const REPO_ROOT = fileURLToPath(new URL("..", import.meta.url));
 
 const temporaryDirectories: string[] = [];
@@ -40,7 +32,6 @@ function temporaryDirectory(prefix: string): string {
   return directory;
 }
 
-/** A repository with a `.claude/worktrees` root, one live linked worktree in it. */
 function fixture(): { repo: string; root: string; live: string } {
   const repo = temporaryDirectory("qcms-prune-repo-");
   const git = (...args: string[]) =>
@@ -59,7 +50,6 @@ function fixture(): { repo: string; root: string; live: string } {
   return { repo, root, live };
 }
 
-/** A directory that looks like a worktree whose git directory no longer exists. */
 function detachedLeftover(root: string, name: string): string {
   const path = join(root, name);
   mkdirSync(path, { recursive: true });
@@ -88,9 +78,8 @@ describe("classify", () => {
   });
 
   it("keeps a directory that is not a worktree leftover at all", () => {
-    // `.claude/worktrees/seat-mail` is the real case: a retired message store that has
-    // no `.git` file and never was a checkout. A sweep that removed it would delete
-    // data rather than reclaim space.
+    // A real directory under `.claude/worktrees` that never was a checkout, so sweeping
+    // it would delete data rather than reclaim space.
     const { root } = fixture();
     const path = join(root, "seat-mail");
     mkdirSync(join(path, "dev"), { recursive: true });
@@ -112,7 +101,7 @@ describe("classify", () => {
     const entry = classify({
       name: "dirty-lane",
       path,
-      registered: new Set(), // pretend git no longer lists it
+      registered: new Set(),
       minAgeMs: 0,
       now: ANCIENT,
     });
@@ -149,8 +138,7 @@ describe("classify", () => {
   });
 
   it("keeps anything modified inside the age window, whatever else is true of it", () => {
-    // The safety net for a lane that is working right now: its directory is new, so it
-    // is never swept even though nothing has registered it yet.
+    // A lane working right now has a new directory and nothing registered yet.
     const { root } = fixture();
     const path = detachedLeftover(root, "just-created");
     const entry = classify({
@@ -256,7 +244,7 @@ describe("parseArgs", () => {
   });
 
   it("rejects an unusable age instead of sweeping with a NaN guard", () => {
-    // `Number("soon")` is NaN, and every comparison against NaN is false, so an
+    // `Number("soon")` is NaN and every comparison against NaN is false, so an
     // unvalidated value would disable the age guard rather than fail.
     expect(() => parseArgs(["--min-age-hours", "soon"])).toThrow(/non-negative number/);
     expect(() => parseArgs(["--unknown"])).toThrow(/unknown option/);
@@ -272,8 +260,6 @@ describe("humanKb", () => {
 });
 
 describe("the sweep is documented where the conductor reads", () => {
-  // #735 asks for the cleanup pass AND for something that says when to run it. The
-  // script alone would repeat the defect: a mechanism nothing ever invokes.
   it.each([".claude/skills/task/SKILL.md", ".claude/skills/next-task/SKILL.md"])(
     "%s names the sweep",
     (file) => {
