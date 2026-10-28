@@ -30,7 +30,7 @@
  * # The installation claim
  *
  * Four rows are the claim's alone (Q29): creating a workspace, marking the shared one,
- * the environment list and the user accounts. The claim **administers and reads no data
+ * the installation-wide dead-letter list and the erasure log. The claim **administers and reads no data
  * anywhere**, so no row below gives it a response read - that is the matrix's `never`
  * row, and it is a decision rather than an omission.
  */

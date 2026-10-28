@@ -21,7 +21,7 @@
  * rather than being written twice.
  *
  * The four acts the claim holds **alone** - creating a workspace, marking the shared one,
- * the environment list and the installation-wide dead-letter list - are the
+ * the installation-wide dead-letter list and the erasure log - are the
  * `installationOnly` rows of `route-policy.ts`, which no role reaches at all.
  */
 
