@@ -1,6 +1,13 @@
 ---
 "@roonga/qcms-db": patch
+"create-qcms-app": patch
 ---
+
+A scaffolded installation gets the authorised operations read model: an operations forms
+query whose every field is gated by the cell that would authorise reading it elsewhere, a
+stateless release review, and an access capability projection the shell can navigate by.
+`operations` joins the reserved environment names, because the route root would collide
+with a per-environment mount prefix.
 
 Three query helpers for the authorised operations read model, and one widening.
 
