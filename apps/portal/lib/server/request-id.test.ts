@@ -26,9 +26,6 @@ describe("normalizeRequestId", () => {
 
 describe("currentRequestId", () => {
   it("is undefined outside a request scope, and never invents an id", async () => {
-    // `headers()` throws here (no Next request store). The BFF must then send no
-    // header at all and let the API generate one, rather than mint a per-fetch id
-    // that correlates nothing.
     await expect(currentRequestId()).resolves.toBeUndefined();
   });
 });

@@ -5,64 +5,41 @@ import { afterEach, describe, expect, it, vi } from "vitest";
 import { register } from "./instrumentation";
 
 /**
- * The cookie-downgrade boot refusal is actually **wired into boot** (issue #409).
+ * That the cookie-downgrade refusal is wired into boot. `lib/server/config.test.ts`
+ * covers the decision itself; what nothing covered is `register()` calling it, and
+ * deleting that call left the whole unit suite green. An unwired refusal does not fail,
+ * it succeeds: the deployment the guard exists to stop boots normally.
  *
- * `lib/server/config.test.ts` already covers `assertSecureCookiesConfigured()`
- * exhaustively: which environments it accepts, which it refuses, and what the
- * message says. What nothing covered is the one line that turns that decision into a
- * control - `register()` calling it. Deleting that call left the whole portal and
- * admin unit suite green (666 tests passed), which is how issue #409 was found.
+ * So these cases assert the observable refusal rather than that a function was called.
+ * The poisoned environment is real, so nothing here passes against a guard stubbed into
+ * a no-op; `process.exit` is spied to throw, which is the closest an in-process test
+ * gets to a call that never returns; the message is read back off `process.stderr`; and
+ * with an OTLP endpoint configured `registerOTel` must still never be reached, which
+ * pins the refusal as terminal and first.
  *
- * That gap matters more than an ordinary uncovered line because of the direction the
- * failure points: an unwired refusal does not fail, it **succeeds**. The deployment
- * the guard exists to stop boots normally, serving a respondent session cookie
- * without `Secure` at a public origin, and every gate we run agrees nothing is wrong.
+ * The edge-compilation case is about compilation rather than behaviour: Turbopack
+ * compiles this file for the edge target too, where a bare `process.stderr` fails to
+ * build, so the reference has to stay inside the `NEXT_RUNTIME` block. A source-level
+ * assertion is the honest instrument, since no in-process test can observe what a
+ * Turbopack target emitted.
  *
- * So these cases deliberately assert the *observable refusal* rather than the fact
- * that some function was called:
- *
- * - the poisoned environment is real (`vi.stubEnv`, the real `lib/server/config`), so
- *   nothing here can pass against a guard that was stubbed into a no-op;
- * - `process.exit` is spied on to **throw**, which is the closest an in-process test
- *   can get to a call that never returns. Asserting that `register()` does not
- *   complete pins "the process stops here", not "a function was reached";
- * - the refusal message is read back off `process.stderr`, so a call that ran but
- *   decided nothing cannot satisfy it;
- * - and with an OTLP endpoint configured, `registerOTel` must still never be reached,
- *   which pins the refusal as terminal and first rather than a warning boot carries on
- *   past.
- *
- * The second thing pinned here is narrower, and it is about compilation rather than
- * behaviour (issue #829). Turbopack compiles `instrumentation.ts` for the edge target as
- * well as the Node one, so a bare `process.stderr` made every dev boot print `Ecmascript
- * file had an error` against this file. The reference now sits inside a
- * `process.env.NEXT_RUNTIME === "nodejs"` block, which Next's build-time substitution
- * turns into dead code on the edge target, and `the edge compilation path` below reads
- * the source to keep it there. A source-level assertion is the honest instrument for
- * that: no in-process test can observe what a Turbopack target did or did not emit.
- *
- * The twin is `apps/admin/instrumentation.test.ts`. The two `register()` functions are
- * separate call sites that can be unwired independently, so they get separate tests
- * rather than one shared one - a single test would let one of them rot silently.
- * **Change one, change the other.**
+ * The twin is `apps/admin/instrumentation.test.ts`: two call sites that can be unwired
+ * independently, so one shared test would let one of them rot. Change one, change the
+ * other.
  */
 
 vi.mock("@vercel/otel", () => ({ registerOTel: vi.fn() }));
 
-/** Distinguishes our stubbed `process.exit` from any error the code under test throws. */
+/** Distinguishes the stubbed `process.exit` from any error the code under test throws. */
 const EXIT_SENTINEL = "process.exit() called: the portal process would have terminated here";
 
-/**
- * The configuration the guard exists to refuse: `Secure` dropped from the respondent
- * session cookie at a public, non-loopback origin.
- */
+/** `Secure` dropped at a public, non-loopback origin. */
 function stubRefusedConfiguration(): void {
   vi.stubEnv("QCMS_SECURE_COOKIES", "false");
   vi.stubEnv("NODE_ENV", "development");
   vi.stubEnv("QCMS_PORTAL_BASE_URL", "https://forms.example.test");
 }
 
-/** The same deployment served over HTTPS with the downgrade off: boot must proceed. */
 function stubAcceptedConfiguration(): void {
   vi.stubEnv("QCMS_SECURE_COOKIES", "true");
   vi.stubEnv("NODE_ENV", "development");
@@ -70,17 +47,14 @@ function stubAcceptedConfiguration(): void {
 }
 
 /**
- * The runtime Next reports through `NEXT_RUNTIME`.
- *
- * `register()` is loaded on both runtimes, so a case has to say which one it speaks for.
+ * `register()` is loaded on both runtimes, so a case has to say which one it speaks for:
  * Vitest is neither, and leaving the variable unset would quietly exercise the edge path
- * in tests written to cover the Node one.
+ * in tests written for the Node one.
  */
 function stubRuntime(runtime: "nodejs" | "edge"): void {
   vi.stubEnv("NEXT_RUNTIME", runtime);
 }
 
-/** Spies on the two calls a refusal is observable through. */
 function watchProcess() {
   const exit = vi.spyOn(process, "exit").mockImplementation((code) => {
     throw new Error(`${EXIT_SENTINEL} (code ${String(code)})`);
@@ -101,19 +75,12 @@ describe("register", () => {
     vi.stubEnv("OTEL_EXPORTER_OTLP_ENDPOINT", undefined);
     const { exit, stderr } = watchProcess();
 
-    // `process.exit` never returns, so a `register()` that runs to completion here
-    // would mean the server went on to serve requests. This is the assertion the
-    // issue is about: it fails the moment the guard call leaves `register()`.
     expect(() => {
       register();
     }).toThrow(EXIT_SENTINEL);
 
-    // Non-zero, so the container dies and the orchestrator reports a failed start
-    // rather than a process that is "running" and 500ing on everything.
     expect(exit).toHaveBeenCalledWith(1);
 
-    // The operator's only copy of the reason: it has to survive to stderr, and it has
-    // to name what to change. A guard that ran but decided nothing writes nothing.
     const written = stderr();
     expect(written).toContain("Refusing to start");
     expect(written).toContain("QCMS_SECURE_COOKIES");
@@ -123,8 +90,6 @@ describe("register", () => {
   it("refuses before registering OpenTelemetry, so nothing else in boot runs first", async () => {
     stubRefusedConfiguration();
     stubRuntime("nodejs");
-    // A fully configured exporter, so the only thing keeping `registerOTel` unreached
-    // is the refusal itself rather than the "no endpoint" early return.
     vi.stubEnv("OTEL_EXPORTER_OTLP_ENDPOINT", "http://collector.example.test:4318");
     const { exit } = watchProcess();
     const { registerOTel } = await import("@vercel/otel");
@@ -142,8 +107,6 @@ describe("register", () => {
     vi.stubEnv("OTEL_EXPORTER_OTLP_ENDPOINT", undefined);
     const { exit, stderr } = watchProcess();
 
-    // The control for the two cases above: they must be red because of the poisoned
-    // environment, not because `register()` refuses everything.
     expect(() => {
       register();
     }).not.toThrow();
@@ -157,9 +120,6 @@ describe("register", () => {
     vi.stubEnv("OTEL_EXPORTER_OTLP_ENDPOINT", undefined);
     const { exit, stderr } = watchProcess();
 
-    // Only the write is gated, never the refusal. `process.exit` exists here because the
-    // test process is Node; in the real edge sandbox it does not, and the rethrow is what
-    // an operator gets instead - the behaviour the `typeof` guard above already chose.
     expect(() => {
       register();
     }).toThrow(EXIT_SENTINEL);
@@ -182,10 +142,6 @@ describe("the edge compilation path", () => {
   it("references process.stderr exactly once, inside the Node-runtime guard", () => {
     const code = moduleCode();
 
-    // Turbopack drops the guarded block on the edge target because Next substitutes a
-    // literal for `NEXT_RUNTIME` before this compiles, so a reference anywhere else - a
-    // second write, or this one hoisted out of the block - is an `Ecmascript file had an
-    // error` line on every `pnpm dev:portal` boot and every build.
     expect(code.split("process.stderr")).toHaveLength(2);
     expect(code).toContain('if (process.env.NEXT_RUNTIME === "nodejs") { process.stderr');
   });

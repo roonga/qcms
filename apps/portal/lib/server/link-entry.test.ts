@@ -28,7 +28,6 @@ beforeEach(() => {
 afterEach(() => vi.unstubAllEnvs());
 
 describe.each(["", "/test"])("secure-link redirects with prefix '%s'", (basePath) => {
-  // Next standalone's request URL uses the container's bind address and internal port.
   const request = (): Request => new Request("http://0.0.0.0:3000/l/opaque-link");
   const context = (): { params: Promise<{ token: string }> } => ({
     params: Promise.resolve({ token: "opaque-link" }),

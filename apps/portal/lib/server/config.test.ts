@@ -58,10 +58,6 @@ describe("secureCookies", () => {
   });
 
   it('honours QCMS_SECURE_COOKIES="false" whatever NODE_ENV says', () => {
-    // The documented localhost Compose profile: a plain-HTTP stack browsed at an
-    // origin the browser does not trust could create a session and then fail to
-    // resume it after Start. `assertSecureCookiesConfigured` below is what keeps
-    // that exception confined to loopback.
     vi.stubEnv("QCMS_SECURE_COOKIES", "false");
     vi.stubEnv("NODE_ENV", "production");
     expect(secureCookies()).toBe(false);
@@ -91,9 +87,6 @@ describe("secureCookies", () => {
    * the off-loopback refusal below, which fires on the effective value.
    */
   it("accepts the API's boolean spellings, so the three processes cannot disagree", () => {
-    // NODE_ENV is stubbed to the opposite of the expected answer in each loop, so a
-    // case that fell back to it instead of parsing the value goes red rather than
-    // passing for the wrong reason.
     vi.stubEnv("NODE_ENV", "development");
     for (const raw of ["on", "1", "yes", "TRUE", " true "]) {
       vi.stubEnv("QCMS_SECURE_COOKIES", raw);
@@ -107,8 +100,6 @@ describe("secureCookies", () => {
   });
 
   it("refuses a value that is not a boolean at all, naming the variable", () => {
-    // The other direction of the same ruling: unparseable is a loud boot failure now,
-    // not a silent fall-through to NODE_ENV.
     vi.stubEnv("NODE_ENV", "production");
     for (const raw of ["maybe", "banana", "2"]) {
       vi.stubEnv("QCMS_SECURE_COOKIES", raw);
@@ -182,8 +173,6 @@ describe("assertSecureCookiesConfigured", () => {
       "http://forms.example.test",
       "http://192.168.1.10:7000",
       "http://0.0.0.0:7000",
-      // A name that merely CONTAINS localhost is not loopback, and an attacker-chosen
-      // hostname is exactly where a sloppy substring check would let the downgrade out.
       "http://localhost.forms.example.test",
     ])("refuses %s when the override is false", (base) => {
       vi.stubEnv("QCMS_SECURE_COOKIES", "false");
@@ -200,9 +189,6 @@ describe("assertSecureCookiesConfigured", () => {
     });
 
     it("refuses every false spelling, not only the literal `false`", () => {
-      // Since issue #401 all four spellings parse as false, so all four reach the
-      // guard and all four are refused. Before that ruling `off`/`0`/`no` fell through
-      // to NODE_ENV and the refusal only fired by accident of the environment.
       vi.stubEnv("NODE_ENV", "production");
       vi.stubEnv("QCMS_PORTAL_BASE_URL", "https://forms.example.test");
       for (const raw of ["false", "0", "no", "off"]) {
@@ -214,10 +200,6 @@ describe("assertSecureCookiesConfigured", () => {
     it.each(["off", "0", "no"])(
       "reports %o as the value it read rather than calling the variable unset",
       (raw) => {
-        // What this pins is that the message names what the operator wrote (issue
-        // #409). Branching on `raw === "false"` alone told someone who had written
-        // `QCMS_SECURE_COOKIES=off` that it was unset, while they were looking at the
-        // line that sets it.
         vi.stubEnv("QCMS_SECURE_COOKIES", raw);
         vi.stubEnv("NODE_ENV", "development");
         vi.stubEnv("QCMS_PORTAL_BASE_URL", "https://forms.example.test");
@@ -237,12 +219,6 @@ describe("assertSecureCookiesConfigured", () => {
     it.each(["TRUE", " true", "  false  "])(
       "no longer reaches this guard with %o, because the reader decided it (issue #401)",
       (raw) => {
-        // These used to fall through to NODE_ENV and produce a refusal whose message
-        // quoted them back verbatim. The strict reader now settles them first: `TRUE`
-        // and ` true` are Secure-on and the guard returns early, and `  false  ` is a
-        // real downgrade whose message quotes the TRIMMED value, because that is what
-        // was compared. Kept as a pair with the admin twin, which trims for the same
-        // reason.
         vi.stubEnv("QCMS_SECURE_COOKIES", raw);
         vi.stubEnv("NODE_ENV", "development");
         vi.stubEnv("QCMS_PORTAL_BASE_URL", "https://forms.example.test");
@@ -258,9 +234,6 @@ describe("assertSecureCookiesConfigured", () => {
     );
 
     it("lets an unparseable value fail at the reader rather than reaching the guard", () => {
-      // The boot still fails, and it fails naming the variable - it just fails one
-      // layer earlier, which is the whole of the #401 ruling. The old behaviour was a
-      // refusal that said "unset" about a variable the operator had set.
       vi.stubEnv("QCMS_SECURE_COOKIES", "banana");
       vi.stubEnv("NODE_ENV", "development");
       vi.stubEnv("QCMS_PORTAL_BASE_URL", "https://forms.example.test");
@@ -290,19 +263,14 @@ describe("assertSecureCookiesConfigured", () => {
         message = error instanceof Error ? error.message : String(error);
       }
 
-      // The variable that has to change, and the one that was read to decide.
       expect(message).toContain("QCMS_SECURE_COOKIES");
       expect(message).toContain("QCMS_PORTAL_BASE_URL");
-      // What was observed, in both halves.
       expect(message).toContain('QCMS_SECURE_COOKIES is set to "false"');
       expect(message).toContain('"https://forms.example.test"');
       expect(message).toContain('host "forms.example.test" is not loopback');
-      // The remedy, actionable without reading the source.
       expect(message).toContain("QCMS_SECURE_COOKIES=true");
       expect(message).toContain("HTTPS");
       expect(message).toContain("http://localhost");
-      // SEC-8: no credential is echoed. The only values quoted are this flag and the
-      // public origin, so nothing secret can reach a log through this path.
       expect(message).not.toMatch(/token|secret|password|key/i);
     });
   });

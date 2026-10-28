@@ -143,11 +143,6 @@ describe("errorDetailsOf", () => {
 
 describe("errorCodeOf", () => {
   it("reads the API's typed code out of the same BFF envelope (issue #743)", () => {
-    // The code is what separates a permanent refusal from a transient one: the
-    // flow branches on UNSUPPORTED_SEMANTICS_VERSION to reload into the terminal
-    // screen instead of inviting a retry that cannot succeed. The status alone
-    // will not do it - 409 is also how a stale post of a hidden question is
-    // refused, and that one is recoverable.
     expect(errorCodeOf({ error: { code: "UNSUPPORTED_SEMANTICS_VERSION" } })).toBe(
       "UNSUPPORTED_SEMANTICS_VERSION",
     );
@@ -157,9 +152,6 @@ describe("errorCodeOf", () => {
   });
 
   it("returns undefined rather than guessing, for a body carrying no code", () => {
-    // A 502 the BFF wrote itself, an unparseable payload, a code that is not a
-    // string: the caller has to fall through to its generic failure handling, so
-    // an absent code must never read as a match.
     expect(errorCodeOf(undefined)).toBeUndefined();
     expect(errorCodeOf({})).toBeUndefined();
     expect(errorCodeOf({ error: "boom" })).toBeUndefined();
@@ -176,15 +168,11 @@ describe("authorMessageFor", () => {
   });
 
   it("returns undefined per constraint, so the default wording applies to the rest", () => {
-    // Same question, a constraint the author did not decorate.
     expect(authorMessageFor(messages.get("q_plate"), "minLength")).toBeUndefined();
-    // A question the author did not decorate at all.
     expect(authorMessageFor(messages.get("q_odometer"), "min")).toBeUndefined();
   });
 
   it("returns undefined for a constraint no author can decorate", () => {
-    // `encoding` and `options` report a value that is not a legal answer of the
-    // question's type at all; there is no authored constraint behind them.
     expect(authorMessageFor(messages.get("q_plate"), "encoding")).toBeUndefined();
     expect(authorMessageFor(messages.get("q_plate"), "options")).toBeUndefined();
   });
@@ -212,9 +200,6 @@ describe("authorMessageFor", () => {
   });
 
   it("never returns a non-string, whatever key it is handed", () => {
-    // The observable half of the same defect: `messages["toString"]` is a
-    // function, which survived the `=== undefined || === ""` filter and reached
-    // React (or `String(value)` interpolation) typed as `string`.
     for (const key of ["toString", "constructor", "valueOf", "__proto__"]) {
       const result = authorMessageFor(messages.get("q_plate"), key);
       expect(typeof result, key).toBe("undefined");
@@ -303,8 +288,6 @@ describe("the hydrated and no-JS paths resolve one message", () => {
   });
 
   it("prefers the kernel's specific wording over the generic catalog entry", () => {
-    // The regression itself, stated as one line: before #322 the hydrated path
-    // returned CATALOG here, so turning JavaScript ON made the message vaguer.
     expect(defaultAnswerMessage({ constraint: "minLength", message: KERNEL }, CATALOG)).toBe(
       KERNEL,
     );
@@ -318,7 +301,6 @@ describe("missingRequiredEntries with author messages", () => {
       "Registration plate: Check the paperwork",
       "VIN: Check the paperwork",
     ]);
-    // The property, not the wording: one accessible name per entry.
     expect(new Set(entries.map((entry) => entry.message)).size).toBe(entries.length);
   });
 
@@ -328,15 +310,11 @@ describe("missingRequiredEntries with author messages", () => {
   });
 
   it("ignores a message for another constraint: only `required` reaches the summary", () => {
-    // q_plate carries a `pattern` message too; the summary is about presence.
     const entries = missingRequiredEntries(stepDoc, ["q_plate"], VISIBLE);
     expect(entries[0]?.message).not.toContain("ABC-123");
   });
 
   it("names a label-less question by position, never by a bare message", () => {
-    // The honeypot is the real-world shape: a named node with no label. A bare
-    // custom message here could produce two indistinguishable entries, and so
-    // could the constant that stood here before issue #326.
     const entries = missingRequiredEntries(stepDoc, ["website"], VISIBLE);
     expect(entries[0]?.message).toBe("Question 4: This question needs an answer.");
   });

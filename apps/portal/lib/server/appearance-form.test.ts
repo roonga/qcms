@@ -50,10 +50,6 @@ describe("the posted values are the enumerated ones or nothing", () => {
     expect(parseAppearanceChoice(submission({ density }), OFFERED).density).toBe(density);
   });
 
-  // The whole submission is refused rather than the offending axis, because the only
-  // thing that produces this form is the portal's own markup and it always posts all
-  // three: anything else was hand-built, and honouring the half of it that happened to
-  // parse would be applying a request nobody made.
   it.each([
     ["a mode that is not a keyword", { mode: "neon", font: "atkinson", density: "compact" }],
     ["`auto`, which is config and never a rendered mode", { mode: "auto" }],
@@ -66,10 +62,6 @@ describe("the posted values are the enumerated ones or nothing", () => {
     expect(parseAppearanceChoice(submission(fields), OFFERED)).toEqual({});
   });
 
-  // Which faces EXIST is the `@roonga/qcms-ui` registry; which of them a deployment
-  // offers is `QCMS_PORTAL_FONTS`. Validating against the registry would let a
-  // respondent pin a face their deployment curated away, and the control could not
-  // switch back from it - the same reasoning `resolveAppearance` applies on the way in.
   it("refuses a real registry key the deployment does not offer", () => {
     expect(parseAppearanceChoice(submission({ font: "opendyslexic" }), OFFERED)).toEqual({});
     expect(
@@ -78,14 +70,10 @@ describe("the posted values are the enumerated ones or nothing", () => {
   });
 
   it("refuses every font when the deployment offers none, rather than accepting any", () => {
-    // Unreachable in the app (System is always offered), so the assertion is that the
-    // empty case fails closed rather than degenerating into a pass-through.
     expect(parseAppearanceChoice(submission({ font: "system" }), [])).toEqual({});
   });
 
   it("ignores an absent axis rather than substituting a default", () => {
-    // An absent axis means "not chosen in this submission". Substituting a default
-    // here would let a submission silently reset an axis the respondent did not touch.
     expect(parseAppearanceChoice(submission({ mode: "dark" }), OFFERED)).toEqual({ mode: "dark" });
   });
 
@@ -116,8 +104,6 @@ describe("the redirect goes back to this portal or to the root, never elsewhere"
     );
   });
 
-  // Every rejection lands on the same answer, so probing this teaches an attacker
-  // nothing about which rule refused them.
   it.each([
     ["an absolute URL on another origin", "https://evil.example/x"],
     [
@@ -125,23 +111,12 @@ describe("the redirect goes back to this portal or to the root, never elsewhere"
       `${PORTAL_BASE}/s/ses_1`,
     ],
     ["a protocol-relative reference", "//evil.example/x"],
-    // The URL parser treats a backslash as a slash for special schemes, so this is the
-    // line above wearing a disguise. It is the case a `startsWith("//")` check misses.
     ["the backslash spelling of a protocol-relative reference", "/\\evil.example/x"],
-    // PR #859's review. Each of these is a SINGLE leading slash that URL parsing rewrites
-    // into a protocol-relative reference: dot-segment normalisation resolves `/..` at the
-    // root to nothing and leaves the `//` behind, and `%2e` is decoded as a dot segment on
-    // the way. Checking the candidate rather than the parser's output passes all of them,
-    // and the route then emitted the result as a relative `Location`, which a browser
-    // resolves as `https://evil.example/`. Reproduced against the real POST handler.
     ["a dot segment that normalises to protocol-relative", "/..//evil.example"],
     ["the same, with a real segment to pop first", "/x/..//evil.example"],
     ["the same, with the dot segment percent-encoded", "/%2e%2e//evil.example"],
     ["the same, spelled with a backslash", "/..\\evil.example"],
     ["two encoded dot segments", "/%2e%2e/%2e%2e//evil.example"],
-    // Percent-encoded separators survive parsing intact, so what they mean depends on
-    // whatever decodes them next. No portal path contains one; they are refused rather
-    // than reasoned about.
     ["an encoded double slash", "/%2F%2Fevil.example"],
     ["an encoded backslash", "/%5Cevil.example"],
     ["a scheme-relative reference with a userinfo trick", "//forms.qcms.test@evil.example/x"],
@@ -155,18 +130,12 @@ describe("the redirect goes back to this portal or to the root, never elsewhere"
     expect(safeReturnPath(candidate, undefined, PORTAL_BASE)).toBe(DEFAULT_RETURN);
   });
 
-  // A redirect to a POST-only route is a 405, so a respondent who submitted the form
-  // would lose the page instead of getting it back with their choice applied.
   it("refuses the appearance route itself as a target", () => {
     expect(safeReturnPath(APPEARANCE_ROUTE, undefined, PORTAL_BASE)).toBe(DEFAULT_RETURN);
     expect(safeReturnPath(`${APPEARANCE_ROUTE}?x=1`, undefined, PORTAL_BASE)).toBe(DEFAULT_RETURN);
   });
 
   it("refuses every dot-segment spelling whatever base URL it is given", () => {
-    // The rewrite happens inside the URL parser, so the refusal cannot be
-    // configuration-dependent. This is the assertion that says the fix lives in the
-    // parser's OUTPUT rather than in a base-URL comparison that happened to catch these
-    // too, which is what the original check believed it was doing.
     for (const base of [undefined, "", "not a url", PORTAL_BASE]) {
       for (const payload of ["/..//evil.example", "/x/..//evil.example", "/%2e%2e//evil.example"]) {
         expect(safeReturnPath(payload, undefined, base), `${payload} @ ${String(base)}`).toBe(
@@ -177,10 +146,6 @@ describe("the redirect goes back to this portal or to the root, never elsewhere"
   });
 
   it("never returns a reference a browser could read as protocol-relative", () => {
-    // The property, over the payloads at once rather than one case at a time: whatever
-    // comes back has a single leading slash, carries no separator in disguise, and
-    // resolves inside this origin. A future rule that admits a new shape has to keep
-    // this true, which a list of individual expectations would not force.
     for (const candidate of [
       "/s/ses_1",
       "/f/road-cover?state=error",
@@ -200,8 +165,6 @@ describe("the redirect goes back to this portal or to the root, never elsewhere"
   });
 
   it("does not depend on the configured base URL to refuse a foreign target", () => {
-    // The candidate leg resolves against a synthetic origin on purpose: an unset or
-    // mis-set `QCMS_PORTAL_BASE_URL` must not be able to turn this check off.
     for (const base of [undefined, "", "not a url", "https://other.example"]) {
       expect(safeReturnPath("//evil.example/x", undefined, base), String(base)).toBe(
         DEFAULT_RETURN,
@@ -212,17 +175,7 @@ describe("the redirect goes back to this portal or to the root, never elsewhere"
 });
 
 describe("the Referer leg, live on this deployment since 2026-10-01", () => {
-  // `proxy.ts` sent `Referrer-Policy: no-referrer` until task 073, under which a form
-  // navigation carries no `Referer` at all and the hidden field did all the work. The
-  // portal now sends `same-origin` (Code Owner, 2026-10-01, SEC-9 as amended), so a
-  // same-origin navigation does carry the submitting page's URL and this leg can
-  // answer. It is held to exactly the rule it always was, which is why the cases below
-  // did not move: the hidden field still wins, and a foreign `Referer` still falls back
-  // to the root.
   it("honours a same-origin Referer at a step when the hidden field is absent", () => {
-    // The case the policy change makes reachable on this deployment rather than only on
-    // one that relaxed the header at its ingress: a respondent changing their appearance
-    // from a step page, with no hidden field, lands back on that step.
     expect(safeReturnPath(undefined, `${PORTAL_BASE}/s/ses_9f3a2b1c`, PORTAL_BASE)).toBe(
       "/s/ses_9f3a2b1c",
     );
