@@ -69,7 +69,6 @@ import {
 import type { CommitMoment } from "@/lib/visible";
 import type { RosterOpResponse, StepResponse } from "@/lib/server/api";
 
-/** A JSON body, or `undefined` when the response carries none (never throws). */
 async function readJsonSafely(res: Response): Promise<unknown> {
   try {
     return await res.json();
@@ -79,42 +78,19 @@ async function readJsonSafely(res: Response): Promise<unknown> {
 }
 
 /**
- * How the flow answers a refused response, read from its status and typed code
- * (`lib/flow-outcome.ts`).
- *
- * Several refusals are not transient: ADR-16's semantics refusal (issue #743), and a
- * session that has expired or has already been submitted. The inline failure notice
- * says "we could not reach the server, please try again", and a retry against those
- * gets the same 409 for ever, so they are answered by reloading the flow page. The
- * page's SSR read meets the same refusal and already owns the copy for each, so the
- * reload puts the respondent in front of a screen that is true, and the wording stays
- * in one place instead of drifting between the hydrated and no-JS paths.
- *
- * "That question is not currently visible" (issue #1041) shares the 409 and is not
- * terminal, which is why the code is read and not only the status. The body is read
- * ONCE here: two predicates that each read it left the second reading a consumed body,
- * so the not-visible branch could never be taken.
+ * The typed code is read as well as the status because the not-visible refusal shares
+ * the 409 with the terminal ones. The body is read once here: two predicates that each
+ * read it left the second reading a consumed body.
  */
 async function readRefusal(res: Response): Promise<RefusalOutcome> {
   return refusalOutcome(res.status, errorCodeOf(await readJsonSafely(res)));
 }
 
-/** What a navigation or a submit came to, so its caller can say the right thing. */
 type RoundTrip = "ok" | "failed" | "leaving";
 
 /**
- * Whether a refused submission was refused for a repeating group's COUNT
- * (`REPEAT_COUNT_OUT_OF_RANGE`, ADR-42).
- *
- * The submit's 422 carries the kernel's whole sweep in `details.errors`, and the portal
- * has always read only the missing-required half of it. A count refusal has no field to
- * hang a message on - it is about a group's size, not a question - so without this branch
- * pressing Submit showed the error summary with nothing in it: the press did nothing and
- * said nothing, which is the silent dead end this surface keeps closing.
- *
- * A respondent reaches it by removing instances below the group's `min`, which the roster
- * operation deliberately allows so they can empty a group and rebuild it (ADR-43); the
- * refusal is the submit's, as ADR-42 rules.
+ * A count refusal (ADR-42) has no field to hang a message on, so without this branch a
+ * blocked Submit draws an empty error summary and says nothing.
  */
 function isCountRefusal(details: unknown): boolean {
   if (typeof details !== "object" || details === null) return false;
@@ -128,7 +104,6 @@ function isCountRefusal(details: unknown): boolean {
   );
 }
 
-/** The localized branch-change announcement for an inserted/removed count. */
 function branchAnnouncement(added: readonly string[], removed: readonly string[]): string {
   if (added.length > 0) {
     return added.length === 1
@@ -144,23 +119,17 @@ function branchAnnouncement(added: readonly string[], removed: readonly string[]
 }
 
 const flowViewOf = (snapshot: StepResponse): FlowView => ({
-  // The RENDERED step document's id (the explicit cursor's step, ADR-28), not
-  // flowState.currentStep (the derived first-incomplete step, which may differ).
+  // The rendered step, not `flowState.currentStep`, which is the derived
+  // first-incomplete step and may differ (ADR-28).
   stepId: snapshot.step?.stepId ?? null,
-  // The instance this page draws, when a `perInstanceStep` group paginates the step
-  // (task 076). Two views of one step share a step id, so without this a Continue from
-  // Vehicle 1 to Vehicle 2 would be no navigation at all: nothing announced and focus
-  // left on the control the respondent had just left.
+  // Two views of one paginated step share a step id, so without the instance a Continue
+  // between them would be no navigation at all.
   instanceId: snapshot.view.instanceId,
   stepIndex: snapshot.progress.stepIndex,
   visibleQuestions: snapshot.flowState.visibleQuestions,
 });
 
-/**
- * The live-region text for a projection change, in priority order: a step change
- * (largest shift) > becoming ready (clearer than reporting the now-hidden
- * questions as a bulk removal) > a branch insertion/removal count.
- */
+// Priority order: a step change, then becoming ready, then a branch count.
 function announcementText(
   delta: FlowDelta,
   becameReady: boolean,
@@ -168,24 +137,15 @@ function announcementText(
   total: number,
   headingText: string | undefined,
   /**
-   * True when the page chrome's own polite region already names this page (task 076): a
-   * per-instance step view, where the indicator reads "Step 2 of 3: Vehicle 2".
-   *
-   * The step-change sentence is then **not** announced here, and that closes a real
-   * double announcement rather than tidying one (reviewer finding, 2026-10-03). The
-   * progress indicator carries `aria-live="polite"` and its text changes on every
-   * navigation, so a sentence identical to it from this region makes a screen reader say
-   * the same thing twice on every Continue. The indicator keeps it, because it is also
-   * visible; this region keeps everything the indicator cannot say - a branch insertion
-   * or removal, and becoming ready to submit.
+   * True when the progress indicator's own polite region already names this page, in
+   * which case the step-change sentence is suppressed here or a screen reader says it
+   * twice on every Continue.
    */
   namedByIndicator: boolean,
 ): string {
   if (delta.stepChanged) {
-    // Silent, not "fall through to the next case": a navigation between two views of one
-    // step changes the whole visible set, so letting it reach the branch case below
-    // reports a move as "2 questions were added below", which is both wrong and worse
-    // than the duplicate it was meant to remove.
+    // Silent rather than falling through: a move between two views of one step changes
+    // the whole visible set, which the branch case below would report as an insertion.
     if (namedByIndicator) return "";
     const current = stepIndex + 1;
     return headingText
@@ -197,12 +157,9 @@ function announcementText(
 }
 
 /**
- * Recover focus after a projection when it would otherwise fall to <body>: the
- * focused question was removed by a branch change (next visible question, else
- * the step heading), or a remount lost focus from a still-visible question
- * (restore it). A branch INSERT keeps focus on the answered control, so this is a
- * no-op there. Step navigation is handled separately (focus the new heading).
- * Owns the within-step focus policy (030).
+ * The within-step focus policy, for the cases where focus would otherwise fall to
+ * `<body>`. A branch insert keeps focus on the answered control, and step navigation is
+ * handled separately, so both are no-ops here.
  */
 function recoverFocus(args: {
   readonly container: HTMLElement | null;
@@ -232,38 +189,11 @@ function recoverFocus(args: {
 }
 
 /**
- * The hydrated flow with an explicit navigation cursor (029/030, ADR-28). The
- * server sends the first `StepResponse` (real content, so the SSR first paint is
- * real); this component owns the local answer values, posts each answer to the
- * same-origin BFF proxy at that control's ADR-31 commit moment, and re-renders
- * branching *within the current step* from the API's returned flow projection.
- *
- * Navigation is a COMMITTED cursor, never a side effect of answering: **Continue**
- * requests the next visible step (only when the current step's required questions
- * are satisfied), **Back** requests the previous one, **Submit** appears only on
- * the final visible step. A step never collapses or advances because a question
- * was answered, so a multi-choice keeps every selection and a late-reopened
- * required question never yanks the respondent backward (findings M/N).
- *
- * The session token never touches client JS - the BFF attaches it from the
- * httpOnly cookie. The portal never evaluates rules; every projection comes from
- * the API, and Continue/Submit gate on the API's authoritative `flowState` (R2).
- *
- * `StepResponse` is imported type-only, so no server module reaches the client
- * bundle (enforced by the R2 import-surface test).
- */
-/**
- * The whole sentence a roster change announces (4.1.3, Q11).
- *
- * A whole sentence and never a changing number: 4.1.3's own Understanding warns that
- * updating only the digit in "3 items" can announce just "three". The instance's own
- * label is what names it, because the `ins_` id is never something a respondent reads
- * (ADR-42).
- *
- * A removed instance is named from the roster it had BEFORE the removal, which is the
- * only place its ordinal still exists. An instance with no resolvable label - a group
- * the stored document does not declare, which is drift rather than a state - makes the
- * sentence name the group instead of naming an opaque id.
+ * A whole sentence and never a changing number: WCAG 4.1.3's own Understanding warns
+ * that updating only the digit in "3 items" can announce just "three". A removed
+ * instance is named from the roster as it was before the removal, which is the only
+ * place its ordinal still exists, and a label-less instance names its group rather than
+ * an opaque `ins_` id.
  */
 function rosterAnnouncement(input: {
   readonly op: "add" | "remove";
@@ -290,11 +220,6 @@ function rosterAnnouncement(input: {
     : t("repeat.removed", { label: named, count: after.length });
 }
 
-/**
- * The page-level notices the flow draws beside its actions (local UX list P9): the
- * "could not reach the server" failure with its Try again, and a submission refused for
- * a repeating group's count.
- */
 function ActionNotices({
   failure,
   countRefused,
@@ -308,8 +233,8 @@ function ActionNotices({
     <>
       {failure !== undefined ? (
         <div
-          // Keyed by the failure's sequence, so a second failure is a fresh alert and is
-          // announced again rather than being an unchanged node.
+          // Keyed by sequence, so a second failure is a fresh alert and is announced
+          // again rather than being an unchanged node.
           key={failure.seq}
           data-testid="flow-failure"
           className="flex flex-wrap items-center justify-between gap-3 rounded-(--radius-card) border border-(--color-danger) bg-(--color-danger-subtle) p-4"
@@ -344,67 +269,45 @@ export function StepFlow({
   readonly sessionId: string;
   readonly initial: StepResponse;
   /**
-   * The environment's address prefix: `""` for `prod` and `/<env>` for every other
-   * (Q21, task 066).
-   *
-   * **A prop and not a derivation.** A client component cannot read the request header
-   * the proxy resolved the environment on, and reading it back out of
-   * `window.location` would make every address below depend on parsing the one the
-   * browser happens to be at. The page that already knows it passes it down, so a
-   * `fetch` from a `test` session's page reaches `test`'s route rather than `prod`'s -
-   * which would answer, and would answer about a session that is a schema away.
+   * A prop and not a derivation: a client component cannot read the request header the
+   * proxy resolved the environment on, and parsing `window.location` would make every
+   * address below depend on the one the browser happens to be at (Q21).
    */
   readonly basePath: string;
 }) {
   const [snapshot, setSnapshot] = useState<StepResponse>(initial);
-  // Seeded from the answers the server already holds for this step (issue #146).
-  // A resumed session used to mount with an empty map, so every previously
-  // answered question on the resumed step rendered EMPTY over a server that still
-  // held the answer. The values arrive beside the compiled document, never inside
-  // it (ADR-18), and they are only ever handed to the renderer as display state:
-  // visibility still comes from `flowState.visibleQuestions` and the
-  // Continue/Submit gate from `missingRequired` / `readyToSubmit`, both computed
-  // by the API and never re-derived here (R2).
+  // Seeded from the answers the server already holds, or a resumed step renders empty
+  // over answers the server has. Display state only: visibility and the Continue gate
+  // stay the API's (R2).
   const [values, setValues] = useState<A2UIValues>(initial.values);
   const locale = useAppLocale();
-  // Which questions the API refused, and which value it refused for each. The
-  // DISPLAYED errors are derived from that plus the values on screen, so a message
-  // lives exactly as long as the value it describes (issue #122, `visibleErrors`).
+  // Which value the API refused per question. The displayed errors are derived from that
+  // plus the values on screen, so a message lives exactly as long as the value it
+  // describes.
   const [rejected, setRejected] = useState<RejectedAnswers>({});
-  // The same refusals, readable from a queued callback: the Continue gate runs behind
-  // any answer post the click itself caused, and must see the refusal that post may
-  // just have recorded rather than the one the last render saw (local UX list P7).
+  // The same refusals, readable from a queued callback: the Continue gate runs behind any
+  // answer post the click itself caused and must see what that post recorded.
   const rejectedRef = useRef<RejectedAnswers>(rejected);
   const errors: A2UIErrors = useMemo(() => visibleErrors(rejected, values), [rejected, values]);
-  // Whether the error summary is drawn, and a counter bumped by every blocked attempt.
-  // Focus moves to the summary on the bump and on nothing else: the summary's entries
-  // change under the respondent as they answer and correct fields, and following that
-  // with focus would pull them out of the field they are typing in.
+  // Focus moves to the summary on the counter's bump and on nothing else: its entries
+  // change as the respondent corrects fields, and following that would pull them out of
+  // the field they are typing in.
   const [showSummary, setShowSummary] = useState(false);
   const [summaryRequest, setSummaryRequest] = useState(0);
-  // The "could not reach the server" notice, as the operation it is about (which is
-  // what its Try again re-runs) and a sequence number. The number keys the alert, so a
-  // second failure of the same operation is a new alert and is announced again.
+  // The sequence number keys the alert, so a second failure of the same operation is a
+  // new node and is announced again.
   const [failure, setFailure] = useState<
     { readonly op: FlowFailure; readonly seq: number } | undefined
   >(undefined);
-  // A Continue, Back or Submit the respondent has pressed and that has not finished
-  // (local UX list P4). The buttons are NOT disabled while an answer saves: a press
-  // that lands while the blur's post is in flight is recorded on the serial queue and
-  // runs when that post has landed, so the first click after typing is never
-  // swallowed. What the guard refuses is a SECOND navigation while one is pending,
-  // which is what keeps a double press from advancing twice or submitting twice. The
-  // ref is the guard (a gesture away, not a render away); the state draws it.
+  // The guard refuses a second navigation while one is pending, which is what keeps a
+  // double press from advancing or submitting twice. The ref is the guard, because a
+  // gesture is not a render away; the state draws it.
   const intentRef = useRef(false);
   const [intentPending, setIntentPending] = useState(false);
-  // Set once the page is being replaced (a submit's redirect, or a reload to the
-  // page's own screen for a terminal refusal). Nothing queued after that runs, and the
-  // buttons stay inert, so a late press cannot race the navigation away.
+  // Set once the page is being replaced. Nothing queued after that runs, so a late press
+  // cannot race the navigation away.
   const leavingRef = useRef(false);
   const [announcement, setAnnouncement] = useState("");
-  // The repeating group's own state (task 073): which group a roster write is in
-  // flight for, the whole sentence its `role="status"` region announces, and the
-  // element the next render lands focus on.
   const [busyGroup, setBusyGroup] = useState<string | undefined>(undefined);
   const [rosterStatus, setRosterStatus] = useState<
     { readonly groupId: string; readonly message: string } | undefined
@@ -412,57 +315,27 @@ export function StepFlow({
   const [pendingFocus, setPendingFocus] = useState<string | undefined>(undefined);
   const valuesRef = useRef<A2UIValues>(values);
   valuesRef.current = values;
-  // The last server projection, read inside queued callbacks so a navigation or
-  // submit guard sees the projection left by any answer post that ran just ahead
-  // of it. Updated ONLY where the snapshot changes (each answer post and each
-  // navigation), never on every render - a render-time reassignment could clobber
-  // the fresh server response with stale state from an interleaved re-render
-  // (setBusy / setValues), making a just-completed answer look unfinished.
+  // Updated only where the snapshot changes, never on every render: a render-time
+  // reassignment could clobber a fresh server response with stale state from an
+  // interleaved re-render, making a just-completed answer look unfinished.
   const snapshotRef = useRef<StepResponse>(snapshot);
-  // Answer posts and navigations are serialized on one queue: a follow-up answer
-  // must not overtake the answer that made its question visible (else the API
-  // rejects it 409 not-visible), and a Continue must evaluate its gate only after
-  // any in-flight answer (e.g. a blur post triggered by the click) has landed.
+  // Answer posts and navigations are serialized on one queue: a follow-up answer must
+  // not overtake the answer that made its question visible, and a Continue must evaluate
+  // its gate only after any in-flight answer has landed.
   const queueRef = useRef<Promise<void>>(Promise.resolve());
-  // The value currently recorded server-side per question, so a blur does not
-  // re-post an answer a change already posted. Without this, selecting a discrete
-  // control (which posts on change) and then clicking Continue/Submit blurs the
-  // control and re-posts the identical value: a redundant append queued ahead of the
-  // advance guard. Seeded from the answers the server holds for this step (issue
-  // #146), so "what the server has"
-  // is known from the first render rather than only from this client's own writes,
-  // and then written by each post as it is ISSUED, rolled back if that post is
-  // refused (issue #122). All of those rules live in `lib/answer-record.ts`; the ref
-  // holds the record because a commit moment must see the write the commit moment
-  // before it made, which is a gesture away, not a render away.
+  // What the server is known to hold per question, so a blur does not re-post what a
+  // change already posted. The rules live in `lib/answer-record.ts`; the ref holds it
+  // because a commit moment must see the write the one before it made, which is a
+  // gesture away, not a render away.
   const lastPostedRef = useRef<PostedRecord>(recordedAnswers(initial.values));
-  // The same record narrowed to what the SERVER has actually confirmed: the answers
-  // it served this step with, plus every post it has since accepted. Never an
-  // optimistic entry. It exists only to answer "what was true before this post" for
-  // a rollback, and it has to be a second record rather than a reading of the first,
-  // because the first deliberately holds in-flight values (issue #169: with two
-  // overlapping refusals of one question, the second post's predecessor in the
-  // optimistic record is the first post's refused value).
+  // A second record rather than a reading of the first, because the first deliberately
+  // holds in-flight values: with two overlapping refusals of one question, the second
+  // post's predecessor in the optimistic record is the first post's refused value.
   const confirmedRef = useRef<PostedRecord>(recordedAnswers(initial.values));
-  // Each question's ADR-31 commit moment, read out of the compiled step document
-  // (issue #31). Derived from the FULL document, not the visibility-pruned copy,
-  // so a question the projection is about to reveal is already classified.
-  // Recomputed only when the step document changes, not on every keystroke.
-  // The live roster per group, as the API derived it (ADR-42): the renderer clones a
-  // `RepeatGroup` template once per live instance from this. The portal derives nothing
-  // from it and could not - liveness is a function of the count source and the API
-  // computes it above the evaluator (R2).
   const rosters = useMemo(() => rosterMap(snapshot.rosters), [snapshot.rosters]);
-  // The EXPANDED document, and the expansion happens here rather than being left to the
-  // renderer because two other things have to read the same names. A repeated question's
-  // field name is `ins_7k2/q_plate` after expansion, and that string is what the commit
-  // moments below key on and what the error summary anchors at. Expanding once and
-  // handing the same tree to all three is what keeps them one set of strings; the
-  // renderer's own expansion is idempotent, so it leaves this alone.
-  // The per-instance step view this page is, or `undefined` for every ordinary page
-  // (task 076, ADR-28 as amended 2026-09-29). The API named it; the portal draws one
-  // instance of the roster it was handed in full and derives nothing else (R2).
   const view = useMemo(() => viewNarrowing(snapshot.view), [snapshot.view]);
+  // Expanded here rather than left to the renderer because the commit moments and the
+  // error summary have to key on the same post-expansion field names.
   const expandedStep = useMemo<A2UIStepDocument | null>(() => {
     const step = snapshot.step as unknown as A2UIStepDocument | null;
     if (step === null) return null;
@@ -479,22 +352,15 @@ export function StepFlow({
     [expandedStep],
   );
 
-  // Flow-level accessibility (task 030): the step content region (for focus
-  // targeting and reading the step heading), the previous flow projection (to
-  // diff for announcements + focus), the question that held focus at the moment
-  // an answer post returned (to recover focus if a branch change removed it),
-  // the error summary (focused on a blocked submit), and the last readiness (to
-  // announce becoming ready).
   const fieldsRef = useRef<HTMLDivElement>(null);
   const prevFlowRef = useRef<FlowView | undefined>(undefined);
   const focusedAtUpdateRef = useRef<string | undefined>(undefined);
   const errorSummaryRef = useRef<HTMLDivElement>(null);
   const primaryRef = useRef<HTMLButtonElement>(null);
-  /** A submission the sweep refused for a group's count (ADR-42), page-level. */
   const [countRefused, setCountRefused] = useState(false);
   const prevReadyRef = useRef<boolean>(initial.flowState.readyToSubmit);
 
-  /** Replace the refusal record, keeping the ref the queued gate reads in step. */
+  // Keeps the ref the queued gate reads in step with the state.
   const updateRejected = useCallback(
     (update: (previous: RejectedAnswers) => RejectedAnswers): void => {
       rejectedRef.current = update(rejectedRef.current);
@@ -503,16 +369,12 @@ export function StepFlow({
     [],
   );
 
-  /** Show the failure notice for one operation (local UX list P9). */
   const reportFailure = useCallback((op: FlowFailure): void => {
     setFailure((previous) => ({ op, seq: (previous?.seq ?? 0) + 1 }));
   }, []);
 
-  /**
-   * A round trip the server answered: drop the notices it makes stale (local UX list
-   * P9). Both used to be set and never cleared, so "We could not reach the server" sat
-   * on the card for the rest of the session over a page that was saving normally.
-   */
+  // Drops the notices a successful round trip makes stale, or they sit on the card for
+  // the rest of a session that is saving normally.
   const noteSuccess = useCallback((success: FlowSuccess): void => {
     setFailure((previous) =>
       failureAfterSuccess(previous?.op, success) === undefined ? undefined : previous,
@@ -520,26 +382,23 @@ export function StepFlow({
     setCountRefused((previous) => countRefusalAfterSuccess(previous, success));
   }, []);
 
-  /** Re-read the flow page, whose server render owns the screen for a terminal refusal. */
+  // The page's server render owns the screen for a terminal refusal, so the wording for
+  // each lives in one place rather than drifting between the two transports.
   const reloadFlow = useCallback((): void => {
     leavingRef.current = true;
     window.location.assign(`${basePath}/s/${encodeURIComponent(sessionId)}`);
   }, [basePath, sessionId]);
 
-  /**
-   * Post one answer and apply what came back. Returns whether the API ACCEPTED it,
-   * which is what decides whether the optimistic record entry stands or is rolled
-   * back (issue #122); every other outcome (a refusal, a lost session, a network
-   * failure) is reported to the respondent here and answered `false`.
-   */
+  // Returns whether the API accepted the answer, which is what decides whether the
+  // optimistic record entry stands or is rolled back.
   const sendAnswer = useCallback(
     async (name: string, value: A2UIAnswerValue | undefined): Promise<boolean> => {
       try {
         const res = await fetch(`${basePath}/s/${encodeURIComponent(sessionId)}/answers`, {
           method: "POST",
           headers: { "content-type": "application/json" },
-          // Carry the committed cursor so the API re-renders THIS step, never
-          // advancing away from it as a side effect of answering (ADR-28).
+          // The committed cursor, so the API re-renders this step rather than advancing
+          // as a side effect of answering (ADR-28).
           body: JSON.stringify({
             questionId: name,
             value: value ?? null,
@@ -548,37 +407,28 @@ export function StepFlow({
         });
         if (res.status === 200) {
           const next = (await res.json()) as StepResponse;
-          // The record already holds this value: it was written when this post was
-          // issued (see `postAnswer`), and writing it again here would clobber a
-          // newer commit of the same question that was issued while this was in
-          // flight.
+          // The record is not written here: `postAnswer` wrote it at issue time, and
+          // writing it again would clobber a newer commit of the same question made
+          // while this post was in flight.
           //
-          // Record which question holds focus right now, so the post-render
-          // effect can recover focus if this projection removes it (task 030).
+          // Which question holds focus now, so the post-render effect can recover it if
+          // this projection removes it.
           focusedAtUpdateRef.current = questionIdOf(document.activeElement);
-          // Update the ref synchronously (not only via the render) so a queued
-          // navigation/advance chained right after this post reads fresh state.
+          // Synchronously, not only via the render, so a queued navigation chained right
+          // after this post reads fresh state.
           snapshotRef.current = next;
           setSnapshot(next);
-          // Drop any earlier refusal for this question: the value that was refused
-          // is no longer what the server holds, so its message can never apply
-          // again, even if the respondent re-enters that value later.
+          // The refused value is no longer what the server holds, so its message can
+          // never apply again even if the respondent re-enters that value.
           updateRejected((prev) => withoutRejection(prev, name));
           noteSuccess({ kind: "answer", questionId: name });
           return true;
         }
         if (res.status === 422) {
-          // The API named which constraint failed; the author may have supplied
-          // their own wording for exactly that constraint (task 048, ADR-32).
-          // Anything else - no message for this constraint, an unauthorable one
-          // like `encoding`, an unreadable body - falls through to the default,
-          // so the fallback is per constraint and never a blank slot.
-          //
-          // That default is `defaultAnswerMessage`, the SAME resolution the no-JS
-          // route uses (issue #322): the kernel's own wording for the constraint
-          // that failed, and only then the generic catalog entry. Reaching for
-          // `t("answer.invalid")` here directly is what made a hydrated
-          // respondent's message strictly vaguer than a JavaScript-disabled one.
+          // The author's own wording for the constraint that failed, if there is one
+          // (ADR-32), then the same `defaultAnswerMessage` resolution the no-JS route
+          // uses. Reaching for the generic catalogue entry here directly is what made a
+          // hydrated respondent's message vaguer than a JavaScript-disabled one.
           const rejection = firstAnswerRejection(errorDetailsOf(await readJsonSafely(res)));
           const authored = authorMessageFor(
             messagesOf(snapshotRef.current.step as unknown as A2UIStepDocument | null).get(name),
@@ -586,8 +436,8 @@ export function StepFlow({
           );
           const message = authored ?? defaultAnswerMessage(rejection, t("answer.invalid"));
           updateRejected((prev) => withRejection(prev, name, value, message));
-          // The server was reached and answered about this question, so a notice saying
-          // it could not be reached is no longer true of it.
+          // The server answered about this question, so a notice saying it could not be
+          // reached is no longer true of it.
           noteSuccess({ kind: "answer", questionId: name });
           return false;
         }
@@ -597,18 +447,12 @@ export function StepFlow({
           return false;
         }
         if (outcome === "notVisible") {
-          // The API refused a field the flow does not show (issue #1041). It is not a
-          // failure the respondent caused or can act on, and it is not the lost session
-          // that `reportFailure` paints: it means this client posted a control the current
-          // projection has already hidden, which a stray reference to a pruned node can
-          // still do. Re-reading the step rather than saying "we could not reach the
-          // server" is the honest answer - the projection the API just evaluated is the
-          // authority on what is on screen (R2), so adopting it removes the control.
+          // This client posted a control the current projection has already hidden, so
+          // adopting that projection is the honest answer rather than claiming the
+          // server could not be reached.
           //
-          // Re-read at the COMMITTED cursor, never the first incomplete step: this branch
-          // was unreachable until the refusal's body was read once (`readRefusal`), and a
-          // cursor-less read here would move the page because an answer was posted,
-          // which ADR-28 forbids.
+          // At the committed cursor, never the first incomplete step: a cursor-less read
+          // would move the page because an answer was posted, which ADR-28 forbids.
           const at = snapshotRef.current.progress.stepIndex;
           if ((await doNavigate(at)) === "failed") reportFailure({ kind: "refresh" });
           return false;
@@ -624,36 +468,32 @@ export function StepFlow({
   );
 
   /**
-   * Commit one answer: the single funnel every commit moment posts through, and the
-   * owner of the "what does the server have" record (issue #122).
+   * The single funnel every commit moment posts through, and the owner of the record of
+   * what the server has.
    *
-   * The record is written HERE, before the request is queued, because the next
-   * commit moment for the same question can arrive before this post resolves: a
-   * `change` control's post is in flight while the respondent's focus is already
-   * leaving it (ADR-31 makes boolean and singleChoice commit on change), and the
-   * blur that follows must see the value as recorded or it re-posts it. It is rolled
-   * back if the post is not accepted, so a refused value stays retryable.
+   * The record is written before the request is queued, because the next commit moment
+   * for the same question can arrive before this post resolves: a `change` control's
+   * post is still in flight while focus is leaving it, and the blur that follows must
+   * see the value as recorded or it re-posts it. It is rolled back if the post is not
+   * accepted, so a refused value stays retryable.
    */
   const postAnswer = useCallback(
     (name: string, value: A2UIAnswerValue | undefined): void => {
-      // Nothing new to say: this exact value is already recorded, or a post
-      // carrying it is in flight. Re-posting is a redundant append that also queues a
-      // round trip ahead of the advance guard for nothing.
+      // Already recorded, or a post carrying it is in flight: re-posting is a redundant
+      // append that also queues a round trip ahead of the advance guard.
       if (isRecorded(lastPostedRef.current, name, value)) return;
       const key = answerKey(value);
       lastPostedRef.current = withIssued(lastPostedRef.current, name, value);
       queueRef.current = queueRef.current.then(async () => {
-        // The page is being replaced; a post now would only race the navigation.
         if (leavingRef.current) return;
         const accepted = await sendAnswer(name, value);
         if (accepted) {
           confirmedRef.current = withConfirmed(confirmedRef.current, name, value);
           return;
         }
-        // The predecessor is read HERE rather than at issue time, and out of the
-        // confirmed record rather than the optimistic one. The queue is serial, so
-        // by now every earlier post for this question has resolved and the confirmed
-        // record is current (issue #169).
+        // The predecessor is read here rather than at issue time, and out of the
+        // confirmed record rather than the optimistic one: the queue is serial, so by now
+        // every earlier post for this question has resolved.
         lastPostedRef.current = withRollback(
           lastPostedRef.current,
           confirmedRef.current,
@@ -666,32 +506,22 @@ export function StepFlow({
   );
 
   /**
-   * The respondent's Add or Remove on the scripted path (task 073, ADR-43).
+   * The Add or Remove on the scripted path (ADR-43). It writes no answer, because every
+   * answer here has already been committed at its own commit moment, and it rides the
+   * same serial queue so it cannot overtake an in-flight commit.
    *
-   * It writes no answer, exactly as the no-JS path's Server Action writes none: every
-   * answer on this path has already been committed at its own ADR-31 commit moment, so
-   * an Add or Remove has nothing to carry. It rides the same serial queue as an answer
-   * post, so it cannot overtake an in-flight commit of the field the respondent has
-   * just left, and the roster it lands on is the one the API returns.
-   *
-   * Focus and the announcement are decided HERE and not by the renderer, because they
-   * are properties of what just happened rather than of what is on screen: after an add
-   * the new instance's heading, and after a removal the instance that took its place,
-   * else the previous one, else the group's Add button (Q11, ruled 2026-09-29). The
-   * destination is computed from the roster BEFORE the operation, which is the only
-   * place the removed instance's position exists.
+   * Focus and the announcement are decided here rather than by the renderer, because
+   * they are properties of what just happened rather than of what is on screen, and the
+   * destination is computed from the roster before the operation, which is the only
+   * place the removed instance's position exists (Q11).
    */
   const applyRosterOp = useCallback(
     (op: "add" | "remove", groupId: string, instanceId: string | undefined): void => {
       const before = rosterMap(snapshotRef.current.rosters)[groupId] ?? [];
-      // Whether this group paginates the step, read from the view the respondent PRESSED
-      // ON and never from the one the operation returns, which is the reading the no-JS
-      // Server Action takes. The difference is not cosmetic: an EMPTY paginated roster
-      // projects `view.groupId: null`, because that page draws no instance, so the
-      // post-operation view would call the first Add to such a group paginated after the
-      // fact and withhold the focus destination for the one case where the new instance
-      // IS drawn on the page it was added from. That was a regression against 073 and
-      // `min: 0` reaches it (reviewer finding, 2026-10-03).
+      // Read from the view the respondent pressed on, never the one the operation
+      // returns: an empty paginated roster projects `view.groupId: null`, so the
+      // post-operation view would withhold the focus destination for the one case where
+      // the new instance is drawn on the page it was added from.
       const paginatedBefore = snapshotRef.current.view.groupId === groupId;
       setBusyGroup(groupId);
       queueRef.current = queueRef.current.then(async () => {
@@ -708,8 +538,7 @@ export function StepFlow({
             }),
           });
           if (res.status !== 200) {
-            // An expired or submitted session refuses a roster write the same way it
-            // refuses an answer, and "try again" is as untrue here as it is there.
+            // "Try again" is as untrue for a roster write as it is for an answer.
             if ((await readRefusal(res)) === "reload") {
               reloadFlow();
               return;
@@ -727,19 +556,10 @@ export function StepFlow({
             groupId,
             message: rosterAnnouncement({ op, before, after, instanceId, templates, groupId }),
           });
-          // After an add on a `perInstanceStep` group there is NO destination, because
-          // the new instance is a new view one page further along and nothing on this
-          // page changed (task 076): Continue, Back and Submit are the only things that
-          // move the rendered page (ADR-28), so an Add that carried the respondent onto
-          // the new instance's page would be the page moving by itself. The status
-          // region still announces the addition, which is Q11's announcement half.
-          //
-          // After a REMOVAL nothing special is needed, and that is worth stating: the
-          // view list shrank, the API clamps the committed cursor into it, and Q11's
-          // three destinations fall out of that arithmetic - the instance that took the
-          // removed one's position lands on the same index, the previous instance is
-          // what the clamp reaches when the removed one was last, and an emptied group
-          // leaves one view with no instance whose only candidate is the Add button.
+          // An add on a paginated group has no destination: the new instance is a view
+          // one page further along, and only Continue, Back and Submit may move the
+          // rendered page (ADR-28). After a removal the API's clamp of the committed
+          // cursor already produces Q11's three destinations.
           setPendingFocus(
             op === "add"
               ? focusAfterAdd(next.minted, groupId, paginatedBefore)
@@ -777,27 +597,17 @@ export function StepFlow({
         else next[name] = value;
         return next;
       });
-      // ADR-31: post exactly at this control's commit moment, so the same-step
-      // reveal the server sends back lands at the moment the respondent finished
-      // saying this one thing. `change` is a whole answer per event (a boolean or
-      // singleChoice selection - posting those on blur is issue #31, where a
-      // branch a singleChoice gates appeared only after focus left the radio
-      // group). `completion`, `blur` and `groupExit` all commit in handleBlur
-      // below. The control kind comes from the compiled document because the value
-      // alone cannot separate a singleChoice OptionId from a date or a long-text
-      // string. Nothing else posts here: a change mid-entry is a keystroke, a
-      // segment or one toggle of a multi-select, none of which is an answer.
+      // ADR-31's commit moment. The moment comes from the compiled document because the
+      // value alone cannot separate a singleChoice OptionId from a date or a long-text
+      // string, and a change mid-entry is a keystroke rather than an answer.
       const moment = moments.get(name) ?? DEFAULT_COMMIT_MOMENT;
       if (moment === "change") {
         postAnswer(name, value);
         return;
       }
-      // ADR-31 (amended) x ADR-33: a previously-answered `completion` control
-      // whose value clears posts its RETRACTION here, because the adapter only
-      // surfaces the clear (`setValue(undefined)`, no blur - so the stale value
-      // cannot re-post behind it) once editing has ended: this change event IS
-      // the commit moment. A never-answered clear is not an answer and posts
-      // nothing; a retraction already posted is deduped in postAnswer.
+      // A previously answered `completion` control posts its ADR-33 retraction here:
+      // the adapter surfaces the clear with no blur behind it, so this change event is
+      // the commit moment. A never-answered clear is not an answer and posts nothing.
       if (
         moment === "completion" &&
         value === undefined &&
@@ -810,51 +620,26 @@ export function StepFlow({
   );
 
   /**
-   * The renderer calls this only when focus leaves the WHOLE control (its
-   * `FieldBlur` wrapper ignores a focusout whose `relatedTarget` is still inside,
-   * and treats `relatedTarget === null` - a click on the page background, or a tab
-   * out of the document - as leaving). That containment check is exactly ADR-31's
-   * `groupExit` for a multiChoice: moving between the group's own checkboxes is
-   * not a commit, leaving the group is. It is also the `blur` commit for number,
-   * longText and shortText, and where a `completion` control commits.
-   *
-   * Whether an EMPTY control commits anything here is `commitsOnFocusExit`, which
-   * carries the two rules and the reasoning. In short: a `completion` control (the
-   * date) commits only a complete value, because its one `null` is the ADR-33
-   * retraction and that travels via handleChange once editing ends; and since issue
-   * #168 every moment applies the `holdsAnswer` guard the `completion` moment
-   * already applied, so focus entering and leaving a never-answered control posts
-   * nothing at all. See `visible.ts` for why the DatePicker's own "value is
-   * non-empty" signal cannot be the trigger.
-   *
-   * That guard is one rule extended, not a fourth rule added: the four ADR-31
-   * moments now agree about what a `null` post means, which they did not before.
-   * ADR-31 is unchanged - it describes WHEN a control commits, and "clearing a
-   * previously answered control" already presupposes a prior answer.
+   * The renderer calls this only when focus leaves the whole control, which is exactly
+   * ADR-31's `groupExit` for a multiChoice as well as the `blur` and `completion`
+   * commits. Whether an empty control commits anything is `commitsOnFocusExit`, which
+   * carries the rules.
    */
   const handleBlur = useCallback(
     (name: string): void => {
       const value = valuesRef.current[name];
       const moment = moments.get(name) ?? DEFAULT_COMMIT_MOMENT;
       if (!commitsOnFocusExit(lastPostedRef.current, name, value, moment)) return;
-      // A control that already committed this value (on change, or on an earlier
-      // blur, or before the page was reloaded) posts nothing here: postAnswer owns
-      // that dedupe, and since issue #122 it recognises a post still in flight too.
       postAnswer(name, value);
     },
     [moments, postAnswer],
   );
 
-  /** Draw the error summary and move focus to it: a blocked Continue or Submit. */
   const requestSummary = useCallback((): void => {
     setShowSummary(true);
     setSummaryRequest((count) => count + 1);
   }, []);
 
-  /**
-   * Submit the session. `leaving` once the browser is on its way to the receipt or to
-   * the page's own screen for a terminal refusal, `failed` for the caller to report.
-   */
   const doSubmit = useCallback(async (): Promise<RoundTrip> => {
     try {
       const res = await fetch(`${basePath}/s/${encodeURIComponent(sessionId)}/submit`, {
@@ -870,8 +655,8 @@ export function StepFlow({
       }
       if (res.status === 422) {
         noteSuccess({ kind: "submitRefused" });
-        // The sweep's own codes, not only its missing-required half: a count refusal has
-        // no field to show a message beside, so it gets a page-level one.
+        // A count refusal has no field to show a message beside, so it gets a
+        // page-level one.
         setCountRefused(isCountRefusal(errorDetailsOf(await readJsonSafely(res))));
         requestSummary();
         return "ok";
@@ -887,27 +672,13 @@ export function StepFlow({
   }, [sessionId]);
 
   /**
-   * Fetch the requested step by cursor index (or the first incomplete step when
-   * `target === "current"`) and render it. The BFF attaches the bearer and
-   * forwards the cursor; the portal performs no rule evaluation (R2).
+   * `target === "current"` asks for the first incomplete step.
    *
-   * The response's held answers are adopted into the displayed values (issue
-   * #146), so navigating to a step this client never filled in - Back to an
-   * earlier step of a resumed session, Continue into a step answered before the
-   * page was reloaded - shows what the server holds instead of empty controls.
-   * Held answers are merged over, not swapped in: a key the server has wins (it is
-   * the ledger), and a key it does not have leaves the local entry alone, so a
-   * value this client is still carrying is never dropped.
-   *
-   * Deliberately NOT done on each answer post's response, even though it returns
-   * the same projection: a post lands while the respondent may be typing in
-   * another already-answered control, and adopting there would overwrite the
-   * characters they just typed with the value the server still holds. A navigation
-   * has no such in-flight edit (it is queued behind any pending post, and focus
-   * moves to the new step's heading).
-   *
-   * Reports nothing itself: the caller knows which operation failed, and that is what
-   * the failure notice's Try again re-runs.
+   * Held answers are merged over the displayed values rather than swapped in, so a key
+   * the server has wins and a value this client is still carrying is never dropped. The
+   * adoption happens here and not on an answer post's response, which returns the same
+   * projection: a post lands while the respondent may be typing in another
+   * already-answered control, and adopting there would overwrite what they just typed.
    */
   const doNavigate = useCallback(
     async (target: number | "current"): Promise<RoundTrip> => {
@@ -916,8 +687,8 @@ export function StepFlow({
         const res = await fetch(`${basePath}/s/${encodeURIComponent(sessionId)}/step${query}`);
         if (res.status === 200) {
           const next = (await res.json()) as StepResponse;
-          // Navigation lands focus on the new step's heading (see the effect), so
-          // no per-question focus recovery is requested here.
+          // Navigation lands focus on the new step's heading, so no per-question
+          // recovery is requested.
           focusedAtUpdateRef.current = undefined;
           snapshotRef.current = next;
           setValues((prev) => ({ ...prev, ...next.values }));
@@ -940,13 +711,9 @@ export function StepFlow({
   );
 
   /**
-   * Record one navigation intent (Continue, Back or Submit) and run it on the serial
-   * queue, behind any answer post still in flight (local UX list P4).
-   *
-   * The press is never lost: it is queued the moment it lands, whatever is saving.
-   * And it is never doubled: while one intent is pending a second press is refused
-   * here, so a double click advances one step and a Submit posts once. Once the page
-   * is leaving, nothing runs and the guard stays closed.
+   * The press is queued the moment it lands, whatever is saving, so it is never lost;
+   * and while one intent is pending a second press is refused here, so a double click
+   * advances one step and a Submit posts once.
    */
   const runIntent = useCallback((intent: () => Promise<void>): void => {
     if (intentRef.current || leavingRef.current) return;
@@ -965,19 +732,12 @@ export function StepFlow({
   }, []);
 
   /**
-   * Advance on Continue/Submit. Queued after any pending answer post so the gate
-   * reads the freshest projection: on a non-final step, Continue advances only
-   * when this step's required questions are satisfied (else the error summary
-   * shows and the step does not advance); on the final step, Submit submits when
-   * ready, shows the error summary when this step still has a gap, or navigates to
-   * the first incomplete step when a re-opened earlier required question blocks it
-   * (finding N - an explicit action, never a silent backward jump).
+   * A re-opened earlier required question sends the respondent to the first incomplete
+   * step as an explicit action, never a silent backward jump.
    *
-   * A field showing a refusal blocks both, on any step (local UX list P7). The server
-   * holds something other than what the respondent is looking at - nothing, or the
-   * answer before the one it refused - so moving on would leave the step with an
-   * answer the respondent believes they gave and the ledger does not have. ADR-28's
-   * "Continue advances only after current-step validation" is what that reads as.
+   * A field showing a refusal blocks Continue and Submit on any step: the server holds
+   * something other than what the respondent is looking at, so moving on would leave the
+   * step with an answer they believe they gave and the ledger does not have (ADR-28).
    */
   const attemptAdvance = useCallback((): void => {
     runIntent(async () => {
@@ -1020,13 +780,9 @@ export function StepFlow({
   }, [doNavigate]);
 
   /**
-   * Re-run the operation the failure notice is about (local UX list P9).
-   *
    * An answer is re-committed from the value on screen through the ordinary funnel, so
-   * the dedupe and the rollback rules apply as they do to any commit: a defined value
-   * posts, and an emptied control posts its retraction only when the server is known to
-   * hold an answer (ADR-31 as noted 2026-09-02). A navigation re-runs the press, through
-   * the same guard as the button.
+   * the dedupe and rollback rules apply as they do to any commit; a navigation re-runs
+   * the press through the same guard as the button.
    */
   const retryFailure = useCallback((): void => {
     const op = failure?.op;
@@ -1058,9 +814,6 @@ export function StepFlow({
   const total = snapshot.progress.totalVisibleSteps;
   const isFirstStep = stepIndex <= 0;
   const isFinalStep = stepIndex >= total - 1;
-  // The chrome's name for a per-instance view ("Vehicle 2"), from the STORED document's
-  // template, so the header says which vehicle rather than only "Step 2 of 3" (ADR-27).
-  // Absent on every page that is not one.
   const viewLabel = viewInstanceLabel(
     instanceLabelTemplates(snapshot.step as unknown as A2UIStepDocument | null),
     rosters,
@@ -1075,24 +828,11 @@ export function StepFlow({
   // Absent rather than `false` when nothing is pending, so the markup is unchanged then.
   const pendingAttr = intentPending ? true : undefined;
 
-  // The error summary lists what blocks Continue/Submit on the CURRENT step: every
-  // field showing a refusal, and every still-missing required question from the API's
-  // authoritative set intersected with this step's visible questions. A refused
-  // question is listed once, by its refusal (`missingOnStep` drops it from the missing
-  // half), exactly as the no-JS path lists it (local UX list P7).
-  //
-  // Each entry names its own question, so the summary links have distinct
-  // accessible names (WCAG 3.3.1, issue #21). The label comes from the step
-  // document the portal already holds, never from a second request; a question
-  // the document gave no label is named by its position among this step's visible
-  // questions instead, which is why the visible set travels with the call (issue
-  // #326 - the constant that stood there made every label-less entry identical).
-  // The EXPANDED document, not the stored one. Every name the API reports as missing
-  // inside a repeating group is qualified (`instanceId/questionId`), and only the expanded
-  // tree carries nodes under those names, so the stored tree yields neither the question's
-  // label nor the instance's: each entry degrades to "Question 2 needs an answer" with no
-  // vehicle named, which is the WCAG 3.3.1 distinctness failure the instance prefix exists
-  // to prevent.
+  // Each entry has to name its own question for the summary links to have distinct
+  // accessible names (WCAG 3.3.1), so the visible set travels with the call to name a
+  // label-less question by position, and the document is the expanded one: only the
+  // expanded tree carries nodes under a repeated question's qualified name, so the
+  // stored tree would name neither the question nor its instance.
   const stepVisibleQuestions = snapshot.flowState.visibleQuestions;
   const stepRefusals = refusalsOnStep(errors, stepVisibleQuestions);
   const summaryEntries = showSummary
@@ -1106,8 +846,7 @@ export function StepFlow({
   const summaryCountRef = useRef(0);
   summaryCountRef.current = summaryEntries.length;
 
-  // Announce step/branch changes and manage focus after each projection (030).
-  // The SSR first paint needs neither (nothing changed yet), so the diff against
+  // The SSR first paint needs neither announcement nor focus move, so the diff against
   // `prevFlowRef` is empty on mount and this becomes active from the first action.
   useEffect(() => {
     const container = fieldsRef.current;
@@ -1120,8 +859,6 @@ export function StepFlow({
     const becameReady = previous !== undefined && !prevReadyRef.current && ready;
     prevReadyRef.current = ready;
 
-    // The step's title heading: the step document's first heading (h1 on the
-    // first step, which also carries the form title; an h2 on later steps).
     const headingText = container?.querySelector("h1, h2")?.textContent?.trim() || undefined;
     setAnnouncement(
       announcementText(
@@ -1130,14 +867,12 @@ export function StepFlow({
         next.stepIndex,
         snapshot.progress.totalVisibleSteps,
         headingText,
-        // On a per-instance view the indicator already says "Step 2 of 3: Vehicle 2", so
-        // this region says nothing about the move and the sentence is heard once.
         viewLabel !== undefined,
       ),
     );
 
-    // Explicit navigation to a different step: land focus at the new step's
-    // heading so keyboard and screen-reader users start at the top of the step.
+    // A different step lands focus at its heading, so keyboard and screen-reader users
+    // start at the top of it.
     if (delta.stepChanged && previous !== undefined) {
       const heading = container?.querySelector<HTMLElement>("h1, h2");
       if (heading) {
@@ -1160,9 +895,7 @@ export function StepFlow({
     });
   }, [snapshot]);
 
-  // A blocked submit/continue moves focus to the error summary (WCAG 3.3.1); its
-  // role="alert" reads the summary heading. Each entry then jumps to its field.
-  // Keyed on the press alone: the entries change as the respondent answers and corrects
+  // Keyed on the press alone (WCAG 3.3.1): the entries change as the respondent corrects
   // fields, and moving focus on that would pull them out of the field they are in.
   useEffect(() => {
     if (summaryRequest > 0 && summaryCountRef.current > 0) {
@@ -1171,17 +904,9 @@ export function StepFlow({
   }, [summaryRequest]);
 
   /**
-   * Land focus where the roster operation said (Q11), after the render that drew it.
-   *
-   * It is a separate effect from the flow-diff one above because it is not a flow
-   * change: the step, the visible set and the answers are all as they were, and only
-   * the group grew or shrank. Reading it after the render is what makes the destination
-   * exist - the heading of an instance added a moment ago is not in the DOM until this
-   * projection has painted.
-   *
-   * The same destination is expressed as an `autofocus` attribute on the no-JS path,
-   * where there is no render to wait for and no script to move focus, so the two paths
-   * land in the same place by construction rather than by two rules.
+   * Separate from the flow-diff effect above because a roster change is not a flow
+   * change, and run after the render because the heading of an instance added a moment
+   * ago is not in the DOM until this projection has painted (Q11).
    */
   useEffect(() => {
     if (pendingFocus === undefined) return;
@@ -1201,18 +926,13 @@ export function StepFlow({
 
   return (
     <PortalShell progress={progress}>
-      {/* The flow page's hydration signal (issue #159), mounted HERE rather than in
-          `PortalShell` on purpose: `NativeStep` shares that shell and is what the
-          server paints, so a marker there would be stamped during the very window
-          the e2e wait exists to close - the one where a click toggles a native
-          control React is about to unmount and no answer is ever posted. Mounted on
-          the controlled flow, the attribute appears only once the progressive swap
-          has committed. See `components/hydration-marker.tsx`. */}
+      {/* Mounted on the controlled flow rather than in `PortalShell`, which `NativeStep`
+          also uses: a marker there would be stamped during the very window the e2e wait
+          exists to close. */}
       <HydrationMarker />
       <div className="flex flex-col gap-6">
-        {/* Polite live region for step and branch-change announcements (030).
-            Always present so screen readers register it; content is read on
-            change. Visually hidden - the change is already visible on screen. */}
+        {/* Always present so screen readers register it; visually hidden because the
+            change it announces is already on screen. */}
         <div aria-live="polite" className="sr-only" data-testid="flow-announcer">
           {announcement}
         </div>
@@ -1258,8 +978,6 @@ export function StepFlow({
               onBlur={handleBlur}
               repeat={{
                 rosters,
-                // The same narrowing the memo above already applied; the renderer's own
-                // expansion is idempotent, so this only keeps the two in step.
                 ...(view !== undefined ? { view } : {}),
                 visible: new Set(snapshot.flowState.visibleQuestions),
                 onAdd: addInstance,
@@ -1267,12 +985,9 @@ export function StepFlow({
                 ...(rosterStatus !== undefined ? { status: rosterStatus } : {}),
                 ...(busyGroup !== undefined ? { busyGroupId: busyGroup } : {}),
               }}
-              // The respondent-facing controls run on the deployment's QCMS_LOCALE rather
-              // than on the renderer package's `en-US` default (ADR-27, issue #729, Code
-              // Owner 2026-10-19): this prop feeds react-aria's `I18nProvider`, so it
-              // decides the date field's segment order, its calendar and its
-              // announcements, and the no-JS view passes the same tag so the order does
-              // not change at hydration.
+              // Feeds react-aria's `I18nProvider`, so it decides the date field's
+              // segment order. The no-JS view passes the same tag, so the order does not
+              // change at hydration.
               locale={locale}
               specVersion={snapshot.a2uiSpecVersion}
             />
@@ -1283,22 +998,17 @@ export function StepFlow({
           </p>
         )}
 
-        {/* The page-level notices sit beside the actions that caused them rather than at
-            the top of the card (local UX list P9): on a phone the top of the card is
-            usually scrolled away from the button the respondent just pressed, so a
-            notice there was announced and never seen. Each is cleared by the next round
-            trip that makes it untrue (`lib/flow-outcome.ts`). */}
+        {/* Beside the actions that caused them rather than at the top of the card: on a
+            phone the top of the card is usually scrolled away from the button the
+            respondent just pressed, so a notice there was announced and never seen. */}
         <ActionNotices failure={failure} countRefused={countRefused} onRetry={retryFailure} />
 
-        {/* Not `disabled` while an answer saves (local UX list P4): a disabled button
-            swallows the click that lands while the blur's post is in flight, which is
-            the first click after typing. A press is recorded and runs when the queue
-            drains, and while one is pending the buttons are `aria-disabled` and refuse a
-            second (`runIntent`), so nothing advances or submits twice. */}
+        {/* `aria-disabled` and not `disabled`: a disabled button swallows the click that
+            lands while the blur's post is in flight, which is the first click after
+            typing. The press is queued instead, and `runIntent` refuses a second. */}
         <div className="flex items-center justify-between gap-3 pt-2">
           {isFirstStep ? (
-            // Back is hidden on the first visible step (042 screen contract); keep the
-            // primary action right-aligned with a spacer.
+            // A spacer, so the primary action stays right-aligned without Back.
             <span aria-hidden="true" />
           ) : (
             <button

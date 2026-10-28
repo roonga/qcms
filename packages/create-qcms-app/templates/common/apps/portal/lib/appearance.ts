@@ -1,116 +1,69 @@
 /**
- * The respondent's three runtime appearance choices (task 053, ADR-30): colour
- * MODE, FONT and DENSITY. Pure, client-safe, and shared - the server resolves
- * these during SSR (`lib/server/theme.ts`) and the header controls re-apply them
- * in the browser (`components/appearance-controls.tsx`), so the class names, the
- * cookie names and the parsers have to be one definition rather than two that
- * agree by inspection.
+ * The respondent's three runtime appearance choices (ADR-30), shared by the SSR resolver
+ * and the browser controls so the class names, cookie names and parsers are one
+ * definition.
  *
- * This module is deliberately NOT under `lib/server/`: it reads no environment and
- * holds no secret, and the R2 import-surface test forbids a client component from
- * reaching into `lib/server/` at all. Which font list a deployment OFFERS, which
- * mode it starts in, and the brand mark are config, and those stay in
- * `lib/server/theme.ts`.
+ * Not under `lib/server/`: it reads no environment, and the R2 import-surface test
+ * forbids a client component from reaching into `lib/server/` at all.
  *
- * WHY COOKIES RATHER THAN localStorage
- * The choice has to be readable on the SERVER, because the root class must be
- * correct in the first byte of HTML or the respondent sees a flash. `localStorage`
- * is unreachable during SSR, so a localStorage-backed control can only correct the
- * page after it loads, which is the flash. A cookie is sent with the navigation,
- * so `app/layout.tsx` stamps the right classes before anything is painted, and
- * font and density then need no pre-paint script at all. Mode keeps one, only
- * because `prefers-color-scheme` / `prefers-contrast` are signals the server
- * cannot see.
- *
- * These cookies are presentation chrome, never a credential: no `httpOnly` (the
- * browser has to write them), `SameSite=Lax`, and `Secure` in production. Nothing
- * about a respondent's answers, session or identity is inferable from them.
+ * Cookies rather than `localStorage`, because the root class has to be correct in the
+ * first byte of HTML or the respondent sees a flash, and `localStorage` is unreachable
+ * during SSR. These are presentation chrome and never a credential: no `httpOnly`, since
+ * the browser has to write them, and nothing about a respondent is inferable from them.
  */
 
 /**
- * The colour modes a respondent can pick. These strings are ALSO the root class
- * names, which is the token contract's selector convention (`docs/theming.md`):
- * Light is the sheet's base anchor block, so `light` is a positive selection rather than
- * an absence, and `dark` / `hc` are the two override layers.
- *
- * `auto` is deliberately absent. It is a per-deployment CONFIG value meaning
- * "consult the OS signals" (`PORTAL_MODES` in `lib/server/theme.ts`), and it never
- * names a rendered mode: the pre-paint script resolves it to one of these three
- * before the first paint, so a control offering it would be offering a state the
- * page can never be in.
+ * Also the root class names, which is the token contract's selector convention. `auto` is
+ * absent on purpose: it is a per-deployment config value meaning "consult the OS
+ * signals", so a control offering it would offer a state the page can never be in.
  */
 export const APPEARANCE_MODES = ["light", "dark", "hc"] as const;
 export type AppearanceMode = (typeof APPEARANCE_MODES)[number];
 
-/**
- * The three density levels, in order from tightest to loosest. Comfortable is the
- * base anchor spacing block in `theme.css`, so it carries no class; the other two
- * are `density-compact` / `density-spacious`.
- */
+// Tightest to loosest. Comfortable is the base anchor spacing block, so it has no class.
 export const DENSITY_LEVELS = ["compact", "comfortable", "spacious"] as const;
 export type Density = (typeof DENSITY_LEVELS)[number];
 
-/** The shipped default: the values the spacing group declares in its base block. */
 export const DEFAULT_DENSITY: Density = "comfortable";
 
-/**
- * The mode cookie, named by task 051 and kept: the pre-paint bootstrap has read
- * `qcms-theme` since then, and `docs/theming.md` documents it as the manual door.
- */
+// `docs/theming.md` documents this name as the manual door.
 export const MODE_COOKIE = "qcms-theme";
-/** The selected font registry key. */
 export const FONT_COOKIE = "qcms-font";
-/** The selected density level. */
 export const DENSITY_COOKIE = "qcms-density";
 
 /**
- * A year. An appearance choice is a preference, not a session: a respondent who
- * needs High-contrast or a dyslexia-friendly face needs it every visit, and
- * re-picking it on each one would be the accessibility failure the control exists
- * to prevent. Nothing is stored that expiry protects.
+ * A year: an appearance choice is a preference and not a session, and a respondent who
+ * needs High contrast or a legibility face needs it every visit. Nothing is stored that
+ * expiry protects.
  */
 export const APPEARANCE_MAX_AGE_SECONDS = 60 * 60 * 24 * 365;
 
-/**
- * The root class for a density level, or `""` for Comfortable (the base block).
- * Mirrors `cornersClass` in `lib/server/theme.ts`: the default level is an absence
- * of class, so removing every density class restores it.
- */
+// The default level is an absence of class, so removing every density class restores it.
 export function densityClass(density: Density): string {
   return density === DEFAULT_DENSITY ? "" : `density-${density}`;
 }
 
-/** Every density root class that may be present, for a remove-then-add swap. */
 export const DENSITY_CLASSES: readonly string[] = DENSITY_LEVELS.map((level) =>
   densityClass(level),
 ).filter((className) => className !== "");
 
 /**
- * An explicit mode choice, or `undefined` when there is none.
- *
- * The `undefined` return is the whole point and is what separates this from the
- * config-side `oneOf` helper: "no cookie" and "a cookie holding nonsense" both
- * have to fall through to the deployment default and then to the OS signals, and a
- * parser that substituted a default here would silently pin the deployment to
- * Light instead.
+ * The `undefined` return is what separates this from the config-side `oneOf` helper: no
+ * cookie and a nonsense cookie both have to fall through to the deployment default and
+ * then to the OS signals, and substituting a default here would pin the deployment.
  */
 export function parseMode(raw: string | undefined): AppearanceMode | undefined {
   return APPEARANCE_MODES.find((mode) => mode === raw);
 }
 
-/** An explicit density choice, or `undefined` when there is none. */
 export function parseDensity(raw: string | undefined): Density | undefined {
   return DENSITY_LEVELS.find((level) => level === raw);
 }
 
 /**
- * The `document.cookie` assignment string for one appearance choice.
- *
- * Pure and separate from the DOM write so the attributes are unit-testable
- * (`appearance.test.ts`) rather than only observable through a browser. The value
- * is never escaped here because every caller passes a validated keyword from the
- * lists above or a registry key, all of which are `[a-z0-9-]`; passing arbitrary
- * text would be a bug at the call site, and `assertCookieSafe` makes it a loud one.
+ * Pure and separate from the DOM write so the attributes are unit-testable. The value is
+ * never escaped, because every caller passes a validated keyword or a registry key;
+ * `assertCookieSafe` makes a call site that does otherwise fail loudly.
  */
 export function appearanceCookie(name: string, value: string, secure: boolean): string {
   assertCookieSafe(value);
@@ -125,11 +78,9 @@ export function appearanceCookie(name: string, value: string, secure: boolean): 
 }
 
 /**
- * Reject anything that is not a bare keyword before it reaches a `Set-Cookie`-shaped
- * string. Every legitimate value is a mode keyword, a density keyword or a font
- * registry key, so this can never fire on correct input - it exists so that a future
- * call site passing respondent-influenced text fails immediately instead of
- * smuggling `;` or a newline into the cookie header.
+ * Never fires on correct input: it exists so a future call site passing
+ * respondent-influenced text fails immediately rather than smuggling a `;` or a newline
+ * into the cookie header.
  */
 function assertCookieSafe(value: string): void {
   if (!/^[a-z0-9-]+$/u.test(value)) {
@@ -138,29 +89,19 @@ function assertCookieSafe(value: string): void {
 }
 
 /**
- * Where the no-JS appearance form posts, and the field that carries the page to
- * come back to (issue #195).
- *
- * Here rather than in the route or the control because BOTH ends need it and one of
- * them is a client component: `components/appearance-controls.tsx` stamps the
- * `action` and the hidden field, `app/appearance/route.ts` reads the field back, and
- * `lib/server/appearance-form.ts` refuses a return target that points at this route
- * (a redirect to a POST-only path is a 405, not a page). A literal repeated at those
- * three sites is a rename away from a form that posts into nothing.
+ * Shared by three sites that would otherwise repeat the literal: the control stamps the
+ * `action` and the hidden field, the route reads the field back, and
+ * `lib/server/appearance-form.ts` refuses a return target pointing at this route, since
+ * redirecting to a POST-only path is a 405 rather than a page.
  */
 export const APPEARANCE_ROUTE = "/appearance";
 
-/** The hidden field naming the page the form was submitted from. */
 export const RETURN_FIELD = "returnTo";
 
 /**
- * One respondent's appearance choice, per axis, with an absent axis meaning "not
- * chosen in this submission" rather than "reset to the default".
- *
- * The form always posts all three (a radio group always has a checked member and a
- * `<select>` always has a value), so in practice every axis is present; the shape is
- * partial because {@link appearanceCookiesFor} is also the honest answer for a
- * submission whose values did not survive validation.
+ * An absent axis means not chosen in this submission rather than reset to the default.
+ * The form always posts all three, so the shape is partial only because
+ * {@link appearanceCookiesFor} is also the answer for values that failed validation.
  */
 export interface AppearanceChoice {
   readonly mode?: AppearanceMode | undefined;
@@ -169,16 +110,9 @@ export interface AppearanceChoice {
 }
 
 /**
- * The `Set-Cookie` strings for a choice, in axis order: the SERVER half of the no-JS
- * appearance form (issue #195).
- *
- * The shared writer the Code Owner's ruling asks for is {@link appearanceCookie}, and
- * it is shared in the literal sense - the browser controls assign its return value to
- * `document.cookie` and the route handler appends the same string to `Set-Cookie`, so
- * the name, `Path`, `Max-Age`, `SameSite` and `Secure` of a cookie written without
- * scripting are the same bytes as one written with it, by construction rather than by
- * two lists agreeing. This function only decides WHICH cookies a choice writes; it
- * adds no attribute of its own.
+ * Decides which cookies a choice writes and adds no attribute of its own: every one
+ * comes from {@link appearanceCookie}, so a cookie written without scripting is the same
+ * bytes as one written with it.
  */
 export function appearanceCookiesFor(choice: AppearanceChoice, secure: boolean): string[] {
   const written: string[] = [];
