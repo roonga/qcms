@@ -1,46 +1,9 @@
 #!/usr/bin/env node
 // @ts-check
 /**
- * Every workflow job is classified, and a Docker-backed one carries its guards
- * (issue #155, deferred from #150).
- *
- * `.github/actions/test-postgres-image` puts the mirrored Postgres on the runner and
- * disables the Ryuk reaper; `.github/actions/assert-no-docker-hub-pulls` proves the
- * run made no Docker Hub call. Both work. Neither guards a job that simply does not
- * mention them, which is the same shape as the defect they exist for: #74's GHCR
- * mirror was in place for weeks while the `verify` job quietly bypassed it. A new
- * Testcontainers job that omitted both would fail nothing and silently reintroduce the
- * Hub dependency #150 removed.
- *
- * ## How "Docker-backed" is decided, and why this way
- *
- * By an explicit classification below, not by a heuristic. The alternatives were
- * considered in #155: matching the script a job runs, or the package whose tests need
- * Docker. Both fail silently in the direction that matters - a new job spelled
- * differently is simply not matched, and a heuristic that misses is indistinguishable
- * from a job that is clean.
- *
- * A list on its own has the same hole (nobody adds the new job to it), so the list is
- * **total**: every job in every workflow must appear, and every entry must name a real
- * job. Adding a job to any workflow fails this gate until someone writes down which of
- * the two actions it needs and why. That is the property #155 asked for - it fails when
- * someone adds a job without thinking, rather than when a pattern misses.
- *
- * The match is exact in both directions: a job must reference the actions its entry
- * names and no others. So a job that gains an action is reclassified deliberately
- * rather than drifting, and no job can reference a guard action while being classified
- * as not needing one.
- *
- * ## What it reads
- *
- * The job keys and the `uses:` lines, by shape rather than with a YAML parser (no
- * dependency for a two-property read). Job keys sit at two spaces under a top-level
- * `jobs:`; every job property is deeper, so a `run: |` body cannot be mistaken for a
- * job. It does not evaluate `if:` conditions: a step guarded off on the plan-only fast
- * lane still counts as referenced, which is correct here - the question is whether the
- * job wires the guard at all.
- *
- * Usage:  node scripts/check-docker-job-guards.mjs
+ * The classification is total in both directions - every job must appear and every
+ * entry must name a real job - because a heuristic that misses a job is
+ * indistinguishable from a job that needs no guard.
  */
 
 import { readdirSync, readFileSync } from "node:fs";
@@ -51,36 +14,19 @@ import { fileURLToPath, pathToFileURL } from "node:url";
 const REPO_ROOT = fileURLToPath(new URL("../", import.meta.url));
 const WORKFLOWS = ".github/workflows";
 
-/** The mirror-and-reaper setup action. */
 export const MIRROR_ACTION = "test-postgres-image";
 
-/** The evidence action: zero Docker Hub calls during the run. */
 export const ASSERT_ACTION = "assert-no-docker-hub-pulls";
 
 /**
- * The build-time setup action: the Docker Hub base image and the BuildKit frontend put
- * on the runner's daemon with retries (Code Owner, 2026-10-11, issue #1050).
- *
- * Modelled here for the reason the two above are. The GHCR mirror was DECLINED for
- * these two images, so a retried pre-pull is the whole of their availability story, and
- * an image-building job that omits it is exactly the silent regression this script
- * exists to catch: it stays green until Docker Hub has a bad five minutes, and then
- * fails for a reason that reads like the diff.
- *
- * `images.yml#build` is the one job that builds images and is classified `false`. It
- * cannot use this action - its builder is a docker-container driver with its own content
- * store, which asks the registry whatever is on the daemon - so it carries
- * `scripts/retry-registry.sh` around the build instead. Its entry says so.
+ * The GHCR mirror was declined for the base image and the BuildKit frontend, so this
+ * retried pre-pull is the whole of their availability story.
  */
 export const PREPULL_ACTION = "prepull-base-images";
 
 /**
- * Every job in every workflow, and the guard actions it must reference.
- *
- * Keyed `<workflow file>#<job id>`. `mirror`, `assert` and `prepull` are exact
- * requirements: true means the job must reference that action, false means it must not.
- * Every entry carries the reason, because the entries that say `false` for a job that
- * clearly touches Docker are the ones a future reader will want to argue with.
+ * Keyed `<workflow file>#<job id>`. Each flag is exact in both directions: `false`
+ * means the job must NOT reference that action.
  *
  * @type {Record<string, { mirror: boolean; assert: boolean; prepull: boolean; why: string }>}
  */
@@ -171,12 +117,6 @@ export const JOB_GUARDS = {
   },
 };
 
-/**
- * The jobs a workflow declares, with the local composite actions each one references.
- *
- * @param {string} workflowText
- * @returns {{ job: string; actions: string[] }[]}
- */
 export function jobsIn(workflowText) {
   const lines = workflowText.split("\n");
   const jobsAt = lines.findIndex((line) => line === "jobs:");
@@ -199,20 +139,10 @@ export function jobsIn(workflowText) {
   return jobs;
 }
 
-/**
- * Compare the declared jobs against the classification.
- *
- * @param {{ job: string; actions: string[] }[]} declared with `job` already keyed
- *   `<workflow>#<id>`.
- * @param {Record<string, { mirror: boolean; assert: boolean; prepull: boolean; why: string }>} guards
- * @returns {string[]} one line per problem, empty when the two agree.
- */
 export function compareGuards(declared, guards) {
   const problems = [];
   const seen = new Set();
-  // The actions this script models. A local action NOT in here is neither required nor
-  // refused, which is deliberate: the modelled set is the one whose absence is silent,
-  // and a checkout or a setup action announces itself by the job failing without it.
+  // An action absent from this set is neither required nor refused.
   const modelled = [MIRROR_ACTION, ASSERT_ACTION, PREPULL_ACTION];
 
   for (const { job, actions } of declared) {
@@ -254,7 +184,6 @@ export function compareGuards(declared, guards) {
   return problems;
 }
 
-/** Run the gate over `.github/workflows`. Returns the process exit code. */
 export function main() {
   const dir = join(REPO_ROOT, WORKFLOWS);
   const files = readdirSync(dir)
@@ -302,8 +231,7 @@ export function main() {
   return 1;
 }
 
-// Only when run as a command, so the test can import the helpers above without the
-// scan firing (and without `process.exit` killing the test run).
+// Guarded so an importing test triggers neither the scan nor the `process.exit`.
 if (argv[1] !== undefined && import.meta.url === pathToFileURL(argv[1]).href) {
   process.exit(main());
 }

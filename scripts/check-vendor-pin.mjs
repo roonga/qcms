@@ -1,122 +1,14 @@
 #!/usr/bin/env node
 // @ts-check
 /**
- * Vendor-pin gate: a better-auth version asserted in prose matches the lockfile
- * (issue #483, upstream half issue #606).
+ * Only a version written immediately after a better-auth package name is checked:
+ * adjacency is what keeps the false-positive rate at zero, so a version named forty
+ * characters from the package is out of reach. It checks the digits only, never whether
+ * a cited `file:line` still points at the branch the prose describes.
  *
- * QCMS justifies security properties by citing better-auth's compiled source at a
- * `file:line` - the secure-cookie prefix rule, the `rateLimit.enabled` resolution,
- * the `$ba$<version>$` key envelope. Every one of those claims names the version it
- * was read against, because a claim about a library's internals is only meaningful
- * against a stated version. When the lockfile moves and the prose does not, a reader
- * checking such a claim cannot tell which of the two numbers is the stale one.
- *
- * That is not hypothetical. Issue #447 existed because the lockfile pinned 1.6.26
- * while eight files asserted 1.6.25, and it was defended with a `git log -S` search
- * that structurally could not detect a version bump. Issue #483 proposed this gate;
- * the drift went live when a grouped Dependabot PR carried better-auth from 1.6.26 to
- * 1.7.1 as line 17 of an 18-package table, leaving sixteen files behind.
- *
- * ## What it does
- *
- *   1. Reads the resolved version of `better-auth` and each `@better-auth/*` package
- *      from `pnpm-lock.yaml` (the `packages:` and `snapshots:` keys).
- *   2. Scans tracked prose and source for a version asserted **immediately** after a
- *      better-auth package name: `better-auth 1.7.10`, `better-auth@1.7.10`,
- *      `@better-auth/core 1.7.10`, `@better-auth/core@1.7.10`.
- *   3. Fails on any assertion whose version is not one the lockfile resolves, naming
- *      the file, the line, and both versions.
- *
- * ## Which files it reads, and the one extension left out on purpose
- *
- * {@link GLOBS} is the file set. It started as prose and source - `*.md`, the
- * TypeScript and JavaScript extensions, `*.yml`, `*.sh`, `*.example` - and that set
- * had a hole in it for several bumps. `docker/api.Dockerfile:38` carried a comment about
- * which optional peers the vendor declares, pinned to a version several bumps behind
- * the lockfile, with the same sentence in the generated
- * `packages/create-qcms-app/templates/common/docker/api.Dockerfile.tmpl`,
- * and every carry since walked straight past both because neither extension was
- * listed. PR #1007's review caught it by hand, which is the failure mode a gate exists
- * to remove. A `RUN` comment explaining why a build step exists is prose, and a
- * generated template copy of a scanned file is the same prose a second time.
- *
- * So Dockerfiles and `*.tmpl` are in scope (Code Owner, 2026-09-29). Every Dockerfile
- * spelling is listed, not only the `docker/*.Dockerfile` this repository writes today:
- * the suffixed form, a bare `Dockerfile` at the root or anywhere below it, and
- * `Dockerfile.*`. A Dockerfile added outside `docker/` is then covered on the day it
- * lands rather than on the day somebody notices.
- *
- * **`*.sql` is deliberately NOT in that set**, and this paragraph exists so the
- * omission reads as a decision rather than as the same oversight one extension along.
- * A released migration is an append-only record, and the version in it is the version
- * whose behaviour the migration describes rather than a claim about the current pin:
- * `packages/db/migrations/0020_account_drops_issuer.sql:1` names the release that
- * reversed the account identity change 1.7.0 through 1.7.2 required, which was true
- * when it was written and is true now. Forcing that number forward would make it
- * false, which is exactly the argument the record areas below rest on. The difference
- * is only where the rule is written down: a record *area* is an {@link EXEMPT} path,
- * and migrations are code rather than an area, so the extension stays out of GLOBS. If
- * a `.sql` file ever needs to assert the live pin, it is in the wrong place.
- *
- * ## Records are exempt, by path
- *
- * A log is allowed to describe a world that no longer exists, and rewriting one
- * corrupts it. `docs/features/061-forced-password-change.md` records the version that
- * was installed when it was drafted, with the date beside it, and that sentence is
- * *true*; forcing it forward to the current pin would make it false. So the
- * dated-record areas are exempt: see {@link EXEMPT}.
- *
- * `docs/PROJECT_GOAL.md` **used to be exempt and is not any more** (Code Owner,
- * 2026-08-31, issue #725). It was named in #483 because that file then mixed
- * append-only ADR history with live decision text, and a superseded ADR-35 paragraph
- * in it named an old version. PR #720 moved the decision record to `docs/adr/`, so
- * what is left there is live decision text and nothing else - which is precisely what
- * this gate exists to check. The exemption was a hole with nothing behind it, and #483
- * caveat 2 always described it as an accepted gap rather than a fit. If a genuinely
- * dated claim ever needs to live in that file, it belongs in a record area instead.
- *
- * **`docs/adr/` is deliberately NOT exempt** either, for the same reason. An exemption
- * is a hole, so a new area gets one only when a real record in it fails the gate. Fail
- * closed by default: the cost of being wrong that way is a build that asks a question,
- * not a document that quietly rots.
- *
- * ## What it cannot see
- *
- * Written down because an unwritten limit is how a gate gets trusted past its reach.
- *
- *   - **A version not adjacent to the package name.** "Passed to better-auth as
- *     `secret`, which in the pinned 1.6.26 means ..." asserts the pin, and this gate
- *     does not match it: the digits are forty characters from the name. Adjacency is
- *     what keeps the false-positive rate at zero, and a gate people disable is worth
- *     less than a gate with a documented gap. Write "better-auth 1.7.10" rather than
- *     "the pinned 1.7.6" and the claim is covered.
- *   - **Whether the cited line is still the right line.** This gate checks the digit.
- *     It cannot check that `dist/cookies/index.mjs:23` still points at the branch the
- *     prose says it does, and that is the more common failure: of the twenty-one
- *     citations carried across the 1.7.1 bump, eight had moved while every behaviour
- *     they described was unchanged. In #447 it went the other way - the reviewer
- *     diffed the two published tarballs and found the cited regions line-identical, so
- *     those stale citations were imprecise from the day they were written rather than
- *     victims of vendor churn. Either way a human reading the vendor is the only thing
- *     that catches it. A bump means re-reading the source, not running `sed`.
- *   - **A package resolved at two versions.** An assertion passes if it matches *any*
- *     resolution, so a tree carrying both 1.7.2 and an older copy would accept prose
- *     naming either. `better-auth` itself resolves once today; the error message
- *     prints the whole set so an ambiguous tree is visible when the gate does fire.
- *
- * ## Why better-auth and nothing else
- *
- * Generalising to arbitrary `<package> <semver>` means deciding what counts as a
- * package mention in prose ("Next 16", "hono 4.13", "R1-R8"), and the false-positive
- * rate is what would get the gate disabled. The list is explicit
- * ({@link TRACKED_PREFIXES}) and short on purpose. `hono` and `pg` are the next
- * candidates on the same test - a version asserted in prose, or a security surface -
- * if the need ever appears.
- *
- * This file writes no stale version beside a package name, so it scans cleanly over
- * itself. `check-vendor-pin.test.ts` interpolates its fixtures for the same reason.
- *
- * Usage:  node scripts/check-vendor-pin.mjs
+ * `*.sql` is deliberately out of {@link GLOBS}: a released migration records the version
+ * whose behaviour it describes, and forcing that number forward would make it false.
+ * Record areas are {@link EXEMPT} paths instead.
  */
 
 import { execFileSync } from "node:child_process";
@@ -131,61 +23,38 @@ import { VENDORED_SOURCE_PATHSPEC } from "./vendored-source.mjs";
 const GIT = process.platform === "win32" ? "git.exe" : "git";
 
 /**
- * Repo root, so every path this gate reads is anchored rather than cwd-relative.
- * Without it a run from a subdirectory would fail to open each file, hit the
- * read guard below, skip every one of them and print OK: a gate reporting clean
- * because it read nothing is the worst failure a gate has.
+ * Anchored rather than cwd-relative: a run from a subdirectory would open nothing, skip
+ * every file through the read guard below, and print OK.
  */
 const REPO_ROOT = execFileSync(GIT, ["rev-parse", "--show-toplevel"], {
   encoding: "utf8",
 }).trim();
 
-/**
- * The package families whose asserted versions this gate checks. A name matches
- * either exactly (`better-auth`) or as a scope prefix (`@better-auth/` covers
- * `@better-auth/core`, `.../utils`, and every adapter).
- */
 export const TRACKED_PREFIXES = ["better-auth", "@better-auth/"];
 
 /**
- * Paths whose version mentions are records, not assertions about the current pin.
- *
- * **An entry ending in `/` is a directory and covers everything beneath it; every
- * other entry is one exact file.** The distinction is load-bearing rather than
- * cosmetic: a plain `startsWith` over the whole list would let `docs/RETRO.md.bak`,
- * `docs/RETRO.md.orig` or a generated `pnpm-lock.yaml.old` inherit an exemption
- * written for a single file, and an exemption that leaks is invisible - the run
- * prints OK and nobody looks again. `isExempt` enforces it and the tests pin it.
- *
- * Each entry is a deliberate choice, not an oversight, and each one names a place
- * whose version mentions are dated records. `docs/PROJECT_GOAL.md` was on this list
- * and was removed (issue #725): it holds no ADR history since PR #720, so it is live
- * text and is scanned like any other.
+ * An entry ending in `/` covers everything beneath it; every other entry is one exact
+ * file. A plain `startsWith` over the whole list would let a neighbouring `.bak` or
+ * `.orig` inherit an exemption written for a single file, and a leaked exemption is
+ * invisible: the run prints OK.
  */
 export const EXEMPT = [
-  // Work orders record what was checked, and when, per the plan-against-official-docs
-  // rule. 056 and 061 both cite 1.6.25 with a drafting date beside it.
+  // Work orders record what was checked, and when.
   "docs/features/",
   // A changeset describes the release it shipped in, in the past tense.
   ".changeset/",
   // A retrospective is a dated account of what was believed at the time.
   "docs/RETRO.md",
-  // Scratch and planning history, excluded by every other gate here for the same
-  // reason (see check-no-em-dash.mjs, check-ports.mjs).
+  // Scratch and planning history, excluded by every other gate here.
   "plan/",
   // The lockfile is the source of truth this gate reads, not a claim about it.
   "pnpm-lock.yaml",
 ];
 
 /**
- * The tracked file set, as `git ls-files` pathspecs. See "Which files it reads, and
- * the one extension left out on purpose" above for why Dockerfiles and `*.tmpl` are
- * here and why `*.sql` is not.
- *
- * A pathspec with a wildcard is matched with `FNM_PATHNAME` off, so `*` crosses a
- * slash and `*.md` reaches every depth. That is also why the bare `Dockerfile` entry
- * needs the wildcarded spelling beside it: with no wildcard in it a pathspec is a
- * literal path, so on its own it would match only one file at the repository root.
+ * A pathspec with a wildcard is matched with `FNM_PATHNAME` off, so `*` crosses a slash.
+ * A pathspec without one is a literal path, which is why the bare `Dockerfile` entry
+ * needs the wildcarded spelling beside it to reach past the repository root.
  */
 export const GLOBS = [
   "*.md",
@@ -207,36 +76,17 @@ export const GLOBS = [
   "*.tmpl",
 ];
 
-/**
- * Whether a repo-relative path is one whose version mentions are records.
- *
- * A directory entry (trailing `/`) matches by prefix; a file entry matches only
- * itself, so a neighbouring `.bak`, `.orig` or generated copy stays in scope.
- *
- * @param {string} file repo-relative path
- * @returns {boolean}
- */
 export function isExempt(file) {
   return EXEMPT.some((entry) => (entry.endsWith("/") ? file.startsWith(entry) : file === entry));
 }
 
 /**
- * A better-auth package name written immediately before a version, in either of the
- * two shapes this repo uses: `name@1.2.3` (a specifier) and `name 1.2.3` (prose).
- *
- * The leading boundary stops `@better-auth/core` matching twice (once as the scoped
- * name, once as a bare `better-auth` inside it) and stops a longer identifier ending
- * in `better-auth` matching at all. The trailing boundary keeps `1.7.1` from matching
- * inside `1.7.11`.
+ * The leading boundary stops a scoped name matching twice and stops a longer identifier
+ * ending in the package name matching at all; the trailing boundary stops a version
+ * matching inside a longer one.
  */
 const ASSERTION = /(?<![\w@-])(@better-auth\/[a-z0-9-]+|better-auth)[@ ](\d+\.\d+\.\d+)(?![\d.])/g;
 
-/**
- * Every version asserted beside a better-auth package name in one file's text.
- *
- * @param {string} text file contents
- * @returns {{ pkg: string, version: string, line: number }[]}
- */
 export function assertionsIn(text) {
   const found = [];
   text.split("\n").forEach((text_, index) => {
@@ -248,15 +98,8 @@ export function assertionsIn(text) {
 }
 
 /**
- * The versions `pnpm-lock.yaml` resolves for each tracked package.
- *
- * Reads the two-space-indented keys that head an entry in `packages:` and in
- * `snapshots:`. A scoped name is quoted there (`'@better-auth/core@1.7.10':`), a bare
- * one is not (`better-auth@1.7.10:`), and a snapshot key carries a peer suffix in
- * parentheses; all three shapes are covered.
- *
- * @param {string} lock contents of pnpm-lock.yaml
- * @returns {Map<string, Set<string>>} package name -> resolved versions
+ * Three key shapes are covered: a quoted scoped name, an unquoted bare one, and a
+ * `snapshots:` key carrying a peer suffix in parentheses.
  */
 export function resolvedVersions(lock) {
   /** @type {Map<string, Set<string>>} */
@@ -271,18 +114,7 @@ export function resolvedVersions(lock) {
   return resolved;
 }
 
-/**
- * Tracked text files this gate reads. Vendored upstream components are excluded, as
- * they are from every other scan here: their contents are not ours to edit.
- *
- * The exclusion is `scripts/vendored-source.mjs`'s single definition. It was written
- * here as the whole of `packages/ui/src/components/`, the same directory-too-wide
- * spelling issue #775 found in four other gates; this one was not named there and is
- * corrected in the same pass, since five gates disagreeing about one path is the defect
- * rather than four.
- *
- * @returns {string[]}
- */
+/** Vendored upstream components are excluded: their contents are not ours to edit. */
 function tracked() {
   const out = execFileSync(GIT, ["ls-files", "-z", ...GLOBS, VENDORED_SOURCE_PATHSPEC], {
     cwd: REPO_ROOT,
@@ -309,12 +141,10 @@ function main() {
     try {
       text = readFileSync(join(REPO_ROOT, file), "utf8");
     } catch {
-      // A tracked path that will not open (a dangling symlink, a file deleted in the
-      // working tree). Anchoring to REPO_ROOT above means this can no longer be the
-      // whole tree, which is the case that would make a skip dangerous.
+      // A tracked path that will not open: anchoring to REPO_ROOT keeps this from ever
+      // being the whole tree, which is the case that would make the skip dangerous.
       continue;
     }
-    // Cheap reject before the regex: most files never mention the vendor at all.
     if (!TRACKED_PREFIXES.some((p) => text.includes(p))) continue;
     for (const { pkg, version, line } of assertionsIn(text)) {
       const versions = resolved.get(pkg);
@@ -352,8 +182,8 @@ function main() {
   return 1;
 }
 
-// Only when run as a command, so `check-vendor-pin.test.ts` can import the pure
-// helpers above without the scan firing (and without `process.exit` killing the run).
+// Only when run as a command, so the test can import the pure helpers without the scan
+// firing and without `process.exit` killing the run.
 if (argv[1] !== undefined && import.meta.url === pathToFileURL(argv[1]).href) {
   process.exit(main());
 }

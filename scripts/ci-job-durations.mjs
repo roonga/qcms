@@ -1,68 +1,25 @@
 #!/usr/bin/env node
 // @ts-check
 /**
- * Print how long a CI job actually takes, from the runs GitHub already has (issue #858).
- *
- * `CONTRIBUTING.md` quotes a p50 and a max for the `browser-e2e` job so that a
- * contributor knows whether a half-hour run is normal or a hang. That number has gone
- * stale three times (issues #299, #744, #858), always the same way: the suite grows with
- * every spec that lands, nobody re-measures, and the sentence quietly turns a typical run
- * into an anomaly. The measurement itself was never hard - a run list and a jobs call -
- * but it was six commands and a pile of date arithmetic, which is enough friction that it
- * was only ever done when somebody filed an issue about it.
- *
- * So this is the refresh, in one command. It reads successful workflow runs on a branch,
- * asks each for the named job, and reports the durations plus p50, p90 and max. Nothing
- * is cached and nothing is committed: the answer is always derived from the API, because
- * a stored number is exactly what goes stale.
- *
- * Two things it deliberately does not do. It does not average across a job rename - it
- * matches the job name exactly, so a run predating a rename simply contributes no sample
- * and is reported as such, rather than being silently blended into figures for a
- * differently-scoped job (`portal-e2e` became `browser-e2e` on 2026-09-06, issue #493).
- * And it measures the JOB, from `started_at` to `completed_at`, not the workflow run: the
- * run includes queue time behind other jobs on a single runner, which tells a contributor
- * nothing about what a local invocation will cost.
- *
- * Percentiles use the nearest-rank method on the ascending samples - the p50 of an even
- * sample count is a real observed run rather than the mean of two, which keeps every
- * printed figure a duration that genuinely happened. With sample counts this small,
- * interpolating would invent precision the data does not carry.
- *
- * Usage:
- *   pnpm ci:durations browser-e2e
- *   pnpm ci:durations browser-e2e --runs 20
- *   pnpm ci:durations "verify (node-24)" --branch main --workflow ci.yml --json
- *
- * The job name is matched exactly, and a matrix job's real name carries its suffix
- * (`verify (node-24)`, not `verify`), so quote anything with a space in it. Guessing
- * wrong is cheap rather than confusing: a run that carries no such job contributes no
- * sample, and a search that finds none reports the names it did see.
- *
- * Requires an authenticated `gh`. Exit code: 0 when samples were found, 1 when none were,
- * 2 on a usage error or a failed `gh` call.
+ * Measures the JOB, from `started_at` to `completed_at`, never the workflow run, whose
+ * duration includes queue time behind other jobs on one runner. The job name is matched
+ * exactly, so a run predating a rename contributes no sample rather than being blended
+ * into figures for a differently-scoped job.
  */
 
 import { execFileSync } from "node:child_process";
 import { argv, exit } from "node:process";
 import { pathToFileURL } from "node:url";
 
-/** The repository these figures are about. */
 export const REPOSITORY = "roonga/qcms";
 
-/** Defaults, all overridable; `runs` is a sample target rather than a scan depth. */
 export const DEFAULTS = {
   workflow: "ci.yml",
   branch: "main",
   runs: 20,
 };
 
-/**
- * How many successful workflow runs to inspect per sample wanted. A job that exists in
- * every run needs 1; the slack covers runs predating the job, or a run where it was
- * skipped. Scanning is one API call per run, so this is a cost ceiling as much as a
- * search depth.
- */
+/** Slack for runs predating the job or skipping it. One API call per run, so also a cost ceiling. */
 export const SCAN_FACTOR = 2;
 
 /**
@@ -88,14 +45,7 @@ export const SCAN_FACTOR = 2;
  * @property {Sample[]} samples
  */
 
-/**
- * The nearest-rank percentile of an ascending array of numbers: the smallest value at or
- * above the requested rank, so every result is an observed sample.
- *
- * @param {number[]} ascending non-empty, sorted ascending
- * @param {number} percentile in (0, 100]
- * @returns {number}
- */
+/** Nearest-rank, not interpolated, so every figure printed is a run that happened. */
 export function nearestRank(ascending, percentile) {
   if (ascending.length === 0) throw new Error("nearestRank needs at least one sample");
   if (!Number.isFinite(percentile) || percentile <= 0 || percentile > 100) {
@@ -105,13 +55,6 @@ export function nearestRank(ascending, percentile) {
   return ascending[Math.min(rank, ascending.length) - 1] ?? 0;
 }
 
-/**
- * Whole seconds between two ISO-8601 instants.
- *
- * @param {string} startedAt
- * @param {string} completedAt
- * @returns {number}
- */
 export function durationSeconds(startedAt, completedAt) {
   const start = Date.parse(startedAt);
   const end = Date.parse(completedAt);
@@ -121,22 +64,10 @@ export function durationSeconds(startedAt, completedAt) {
   return Math.round((end - start) / 1000);
 }
 
-/**
- * @param {number} seconds
- * @returns {string} the same duration in minutes, one decimal place
- */
 export function minutes(seconds) {
   return (seconds / 60).toFixed(1);
 }
 
-/**
- * @param {string} job
- * @param {Sample[]} samples
- * @param {number} scanned successful workflow runs inspected
- * @param {Iterable<string>} [namesSeen] every job name met while scanning, for the
- *   empty-result message
- * @returns {Summary}
- */
 export function summarize(job, samples, scanned, namesSeen = []) {
   const ascending = samples.map((sample) => sample.seconds).sort((a, b) => a - b);
   const dates = samples.map((sample) => sample.startedAt.slice(0, 10)).sort();
@@ -155,16 +86,11 @@ export function summarize(job, samples, scanned, namesSeen = []) {
   };
 }
 
-/**
- * @param {Summary} summary
- * @returns {string}
- */
 export function render(summary) {
   if (summary.count === 0) {
     const head = `ci-job-durations: no '${summary.job}' job in the last ${String(summary.scanned)} successful runs`;
     if (summary.namesSeen.length === 0) return head;
-    // The likeliest cause is a name that is nearly right - a matrix suffix dropped, or a
-    // job renamed - and the answer to that is a list, not another guess.
+    // The likeliest cause is a nearly-right name, so answer with the list rather than a guess.
     return [`${head}. Job names seen:`, ...summary.namesSeen.map((name) => `  ${name}`)].join("\n");
   }
   const lines = [
@@ -180,10 +106,6 @@ export function render(summary) {
   return lines.join("\n");
 }
 
-/**
- * @param {string[]} args
- * @returns {{ job: string; workflow: string; branch: string; runs: number; json: boolean }}
- */
 export function parseArgs(args) {
   const parsed = { job: "", ...DEFAULTS, json: false };
   const remaining = [...args];
@@ -217,20 +139,10 @@ export function parseArgs(args) {
   return parsed;
 }
 
-/**
- * @param {string[]} args
- * @returns {string} stdout
- */
 function gh(args) {
   return execFileSync("gh", args, { encoding: "utf8", maxBuffer: 32 * 1024 * 1024 });
 }
 
-/**
- * Successful runs of a workflow on a branch, newest first.
- *
- * @param {{ workflow: string; branch: string; limit: number }} options
- * @returns {{ databaseId: number; createdAt: string }[]}
- */
 export function listSuccessfulRuns({ workflow, branch, limit }) {
   return JSON.parse(
     gh([
@@ -260,27 +172,12 @@ export function listSuccessfulRuns({ workflow, branch, limit }) {
  * @property {string | null} completed_at
  */
 
-/**
- * Every job in one run, in the API's order.
- *
- * @param {number} runId
- * @returns {Job[]}
- */
 export function runJobs(runId) {
   /** @type {{ jobs: Job[] }} */
   const payload = JSON.parse(gh(["api", `repos/${REPOSITORY}/actions/runs/${String(runId)}/jobs`]));
   return payload.jobs;
 }
 
-/**
- * The named job's completed timings within one run's jobs, or undefined when there is no
- * such job or it did not complete successfully.
- *
- * @param {Job[]} jobs
- * @param {number} runId
- * @param {string} job
- * @returns {Sample | undefined}
- */
 export function sampleFrom(jobs, runId, job) {
   const match = jobs.find(
     (candidate) =>
@@ -295,10 +192,6 @@ export function sampleFrom(jobs, runId, job) {
   };
 }
 
-/**
- * @param {string[]} args
- * @returns {number} exit code
- */
 export function main(args) {
   /** @type {ReturnType<typeof parseArgs>} */
   let options;

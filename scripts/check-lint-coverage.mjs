@@ -1,12 +1,8 @@
 #!/usr/bin/env node
 // @ts-check
 /**
- * Proves that every tracked project JavaScript or TypeScript file is reached by
- * ESLint and every tracked Markdown file is reached by Prettier. Two byte-for-byte
- * copy trees are the only source exclusions, and both are named below with the reason
- * and with what covers them instead.
- *
- * Usage: node scripts/check-lint-coverage.mjs
+ * Two byte-for-byte copy trees are the only source exclusions, and each is named below
+ * with its reason and with what covers it instead.
  */
 
 import { execFileSync } from "node:child_process";
@@ -22,88 +18,50 @@ import { VALUE_FLAGS, WORKSPACE_RUNNER } from "./eslint-workspace.mjs";
 import { isGeneratedCopy } from "./generated-copy.mjs";
 import { isVendoredSource } from "./vendored-source.mjs";
 
-/** Extensions ESLint is configured to parse in this workspace. */
 const SOURCE_GLOBS = ["*.ts", "*.tsx", "*.mts", "*.cts", "*.js", "*.jsx", "*.mjs", "*.cjs"];
 
-/**
- * @param {string[]} args
- * @returns {string} raw stdout
- */
 function git(args) {
   return execFileSync("git", args, { encoding: "utf8" });
 }
 
-/**
- * @param {string} out NUL-separated `git ls-files -z` output.
- * @returns {string[]}
- */
 function splitZ(out) {
   return out.split("\0").filter((entry) => entry !== "");
 }
 
-/** @returns {string[]} every tracked source file this gate covers, repo-relative. */
 export function trackedSourceFiles() {
   return splitZ(git(["ls-files", "-z", ...SOURCE_GLOBS])).sort((a, b) => (a < b ? -1 : 1));
 }
 
-/** @returns {string[]} every tracked Markdown file, repo-relative. */
 export function trackedMarkdownFiles() {
   return splitZ(git(["ls-files", "-z", "*.md"])).sort((a, b) => (a < b ? -1 : 1));
 }
 
 /**
- * Only the byte-for-byte upstream a2ra component copy may bypass ESLint.
- *
- * Re-exported rather than defined here since issue #775: this gate drew the line
- * correctly and four others drew it a directory too wide, so the prefix now lives in
- * `scripts/vendored-source.mjs` and every gate reads the same one.
+ * Only the byte-for-byte upstream copy may bypass ESLint. Re-exported rather than defined
+ * here so every gate reads one prefix and they cannot disagree.
  */
 export { isVendoredSource };
 
 /**
- * Re-exported, not defined here: the generated scaffolding template tree (task 037)
- * has one spelling, in `scripts/generated-copy.mjs`, for the reason that module gives.
- *
- * It is deliberately a SEPARATE concept from `isVendoredSource`. The vendored a2ra
- * components are upstream-owned but genuinely compiled; the template tree is a copy of
- * files this repository already lints at the source, sitting outside every tsconfig and
- * every lint scope. Folding one into the other would tell four other gates to stop
- * scanning 337 files, which is issue #775's defect one directory over.
+ * A separate concept from `isVendoredSource` on purpose: the vendored components are
+ * upstream-owned but compiled, while the template tree is a copy of files already linted
+ * at the source. Folding them together would tell four other gates to stop scanning.
  */
 export { isGeneratedCopy };
 
-/** @returns {string[]} every tracked package.json, repo-relative. */
 export function trackedManifests() {
   return splitZ(git(["ls-files", "-z", "package.json", "*/package.json", "*/*/package.json"])).sort(
     (a, b) => (a < b ? -1 : 1),
   );
 }
 
-/**
- * Whether a token is the `scripts/eslint-workspace.mjs` runner, by any relative spelling.
- *
- * @param {string | undefined} token
- * @returns {boolean}
- */
 function isWorkspaceRunner(token) {
   return token !== undefined && path.posix.basename(token) === WORKSPACE_RUNNER;
 }
 
 /**
- * Where one `lint` script's eslint segments start, and how they were spelled.
- *
- * A segment counts when it runs `eslint` directly or through
- * `scripts/eslint-workspace.mjs`, which is ESLint with the working directory pinned to
- * the workspace root (issue #899). Both forms take their targets the same way, written
- * relative to the package, so the caller reads them identically.
- *
- * `turbo run lint && prettier --check .` yields none, which is the honest answer: the
- * root package lints nothing itself in that segment.
- *
- * @param {string} script the raw `scripts.lint` string.
- * @returns {{ tokens: string[]; index: number; pinned: boolean }[]} one entry per
- *   eslint segment, with `index` at the last token before the first target and
- *   `pinned` true when the segment goes through the runner.
+ * A segment counts when it runs `eslint` directly or through `eslint-workspace.mjs`,
+ * which is ESLint with the working directory pinned. Both take their targets the same way.
  */
 function eslintSegments(script) {
   const segments = [];
@@ -121,12 +79,6 @@ function eslintSegments(script) {
   return segments;
 }
 
-/**
- * The paths the eslint invocations in one `lint` script are handed.
- *
- * @param {string} script the raw `scripts.lint` string.
- * @returns {string[]} targets, exactly as written in the script.
- */
 export function lintTargets(script) {
   const targets = [];
   for (const { tokens, index: start } of eslintSegments(script)) {
@@ -144,33 +96,14 @@ export function lintTargets(script) {
 }
 
 /**
- * Whether every eslint segment in one `lint` script pins the working directory.
- *
- * A bare `eslint` in a package script is a verdict that depends on where it was run
- * from, which is the defect in issue #899: 14 `eslint-plugin-sonarjs` rules only switch
- * on when a test framework is declared at or above the linted file, and that search
- * stops at `context.cwd`. Run from `apps/portal` they were all silently off, so the
- * root sweep reported errors the per-package merge gate could not see. Every lint
- * script therefore goes through `scripts/eslint-workspace.mjs`.
- *
- * @param {string} script the raw `scripts.lint` string.
- * @returns {boolean} true when at least one segment runs ESLint unpinned.
+ * A bare `eslint` gives a verdict that depends on where it ran: several sonarjs rules
+ * only switch on when a test framework is declared at or above the linted file, and that
+ * search stops at `context.cwd`. Run from a package they are silently off.
  */
 export function hasUnpinnedEslint(script) {
   return eslintSegments(script).some(({ pinned }) => !pinned);
 }
 
-/**
- * Where every package's lint run reaches, as repo-relative paths.
- *
- * @param {string[]} manifests tracked package.json paths.
- * @param {string} repoRoot absolute path to the repository root.
- * @returns {{ dirs: string[]; files: Set<string>; missing: { manifest: string; target: string }[]; unpinned: string[] }}
- *   `dirs` are prefixes ending in `/`; `missing` are targets that do not exist on
- *   disk, which is a stale lint script (the #387 item 21 shape) and a failure;
- *   `unpinned` are manifests whose lint script runs ESLint without pinning the
- *   working directory (issue #899) and is therefore a cwd-dependent verdict.
- */
 export function lintScope(manifests, repoRoot) {
   const dirs = [];
   const files = new Set();
@@ -213,13 +146,6 @@ export function lintScope(manifests, repoRoot) {
   return { dirs, files, missing, unpinned };
 }
 
-/**
- * Tracked source files no lint run reaches.
- *
- * @param {string[]} source tracked source files.
- * @param {{ dirs: string[]; files: Set<string> }} scope
- * @returns {string[]}
- */
 export function uncovered(source, scope) {
   const violations = [];
 
@@ -232,12 +158,6 @@ export function uncovered(source, scope) {
   return violations;
 }
 
-/**
- * Markdown files excluded from Prettier or unsupported by it.
- * @param {string[]} files tracked Markdown files.
- * @param {string} repoRoot absolute repository root.
- * @returns {Promise<string[]>}
- */
 export async function uncoveredMarkdown(files, repoRoot) {
   const violations = [];
   for (const file of files) {
@@ -249,11 +169,6 @@ export async function uncoveredMarkdown(files, repoRoot) {
   return violations;
 }
 
-/**
- * Run the gate over the tracked tree.
- *
- * @returns {Promise<number>} the process exit code.
- */
 export async function main() {
   const repoRoot = git(["rev-parse", "--show-toplevel"]).trim();
   const source = trackedSourceFiles();
@@ -347,8 +262,8 @@ export async function main() {
   return 1;
 }
 
-// Only when run as a command, so the test can import the helpers above without the
-// scan firing (and without `process.exit` killing the test run).
+// Only when run as a command, so the test can import the helpers without the scan firing
+// and without `process.exit` killing the run.
 if (argv[1] !== undefined && import.meta.url === pathToFileURL(argv[1]).href) {
   process.exit(await main());
 }
