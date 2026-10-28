@@ -1,19 +1,9 @@
-/**
- * Webhook signing (task 025). Pure, no Docker. Cross-checks the WebCrypto
- * (`crypto.subtle`, R4) HMAC against the independent `node:crypto` reference the
- * consumer recipe in docs/webhooks.md documents - if the two ever diverge, either
- * the implementation or the published recipe is wrong.
- *
- * `node:crypto` is used **here in the test only** as an oracle; the production
- * signer never imports it (R4).
- */
-
 import { createHmac } from "node:crypto";
 import { describe, expect, it } from "vitest";
 
 import { signWebhookBody } from "./signing.js";
 
-/** The documented Node consumer recipe, verbatim. */
+/** The consumer recipe in docs/webhooks.md, verbatim, as an independent oracle. */
 function referenceSignature(secret: string, timestamp: string, body: string): string {
   const hex = createHmac("sha256", secret).update(`${timestamp}.${body}`).digest("hex");
   return `v1=${hex}`;

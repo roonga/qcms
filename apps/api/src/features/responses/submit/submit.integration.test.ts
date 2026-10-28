@@ -1,24 +1,3 @@
-/**
- * Submit-slice tests (task 020), driven through `app.request()` against the
- * **real** kernel and the 013 Testcontainers harness DB - never a mock of our
- * own packages (CONTRIBUTING). Requires Docker.
- *
- * The fixture is the canonical `insurance` form (`@roonga/qcms-core` fixtures): one
- * step `stp_history` with `q_at_fault_accident` (boolean, required) and `q_accident_count`
- * (number, required), the follow-up shown only when `q_at_fault_accident = true`. So:
- *
- * - `q_at_fault_accident = false` → only `q_at_fault_accident` visible, flow complete → a valid
- *   submission whose locked set is `[q_at_fault_accident]` (the hidden `q_accident_count` never
- *   enters the lock, even if stale in the ledger - I6).
- * - `q_at_fault_accident = true` with `q_accident_count` unanswered → a visible required gap →
- *   the submission sweep fails (422); a *hidden* required question never blocks.
- *
- * Covers every exit criterion: happy path + all-or-nothing under an induced
- * mid-transaction failure (1), idempotency (2), hidden-answer exclusion (3),
- * missing visible-required vs hidden-required (4), and the silent anti-abuse
- * flags - honeypot and too-fast - that succeed but withhold the outbox event (5).
- */
-
 import { readFileSync } from "node:fs";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
@@ -133,15 +112,13 @@ afterAll(async () => {
   await testDb?.teardown();
 }, CONTAINER_BOOT_TIMEOUT_MS);
 
-// --- seed helpers -----------------------------------------------------------
-
 async function seedQuestions(): Promise<void> {
   await createQuestion(testDb.db, {
     workspaceId: SEED_WORKSPACE_ID,
     questionId: QuestionId.parse("q_at_fault_accident"),
     slug: "accident",
   });
-  // q_at_fault_accident is pinned @2 by the form; create v1 then v2 (identical definition).
+  // The form pins q_at_fault_accident at v2, so v1 exists only to make v2 the second row.
   await createQuestionVersion(testDb.db, {
     questionId: QuestionId.parse("q_at_fault_accident"),
     definition: Q_ACCIDENT_DEF,
@@ -161,11 +138,8 @@ async function seedQuestions(): Promise<void> {
   });
 }
 
-/**
- * Seed the insurance form with one published version. `semanticsVersion` is the
- * stored stamp (text, ADR-16); it defaults to the one this evaluator implements
- * and is overridden to exercise the gate.
- */
+// `semanticsVersion` defaults to the one this evaluator implements and is overridden only
+// to exercise the gate.
 async function seedForm(
   id: string,
   slug: string,
@@ -187,9 +161,8 @@ async function seedForm(
     a2uiSpecVersion: GOLDEN.a2uiSpecVersion,
     semanticsVersion,
   });
-  // The version has to be **released** to be served: publishing reaches no environment
-  // (ADR-40, task 065), so a fixture that published alone would describe a form no
-  // session can start on.
+  // A published version is served nowhere until it is released, so publishing alone would
+  // describe a form no session can start on.
   await insertFormRelease(testDb.db, {
     formId,
     environment: DEFAULT_TEST_ENVIRONMENT,
@@ -198,8 +171,6 @@ async function seedForm(
   });
   return formId;
 }
-
-// --- request helpers --------------------------------------------------------
 
 interface StartBody {
   sessionId: string;
@@ -213,16 +184,14 @@ interface Receipt {
   contentHash: string;
 }
 
-// `submissions.$inferSelect` resolves to a TS error type through @roonga/qcms-db's
-// emitted .d.ts (issue #5, FK to the enum-bearing `sessions`); read the fields
-// this test asserts on through a narrow local view (same launder as the slices).
+// `submissions.$inferSelect` resolves to a TS error type through @roonga/qcms-db's emitted
+// .d.ts, so the asserted fields are read through a narrow local view instead.
 interface SubmissionView {
   readonly contentHash: string;
   readonly flaggedReason: string | null;
   readonly lockedAnswers: LockedSubmission;
 }
 
-/** A session's submission row (the concrete row is assignable to the view). */
 async function loadSubmission(sessionId: string): Promise<SubmissionView | undefined> {
   return getSubmission(testDb.db, SessionId.parse(sessionId));
 }
@@ -277,7 +246,6 @@ async function getStep(id: string, token: string): Promise<Response> {
   });
 }
 
-/** Count outbox rows for a session (matched on the event payload's sessionId). */
 async function outboxCount(sessionId: string): Promise<number> {
   const res = await testDb.client.query<{ n: number }>(
     `select count(*)::int as n from outbox where payload->>'sessionId' = $1`,
@@ -286,7 +254,6 @@ async function outboxCount(sessionId: string): Promise<number> {
   return res.rows[0]?.n ?? 0;
 }
 
-/** The single outbox event (type + payload) for a session, or undefined. */
 async function outboxEvent(
   sessionId: string,
 ): Promise<{ eventType: string; payload: Record<string, unknown> } | undefined> {
@@ -298,7 +265,6 @@ async function outboxEvent(
   return row === undefined ? undefined : { eventType: row.event_type, payload: row.payload };
 }
 
-/** A session's status straight from the row. */
 async function sessionStatus(sessionId: string): Promise<string | undefined> {
   const res = await testDb.client.query<{ status: string }>(
     `select status from sessions where session_id = $1`,
@@ -307,15 +273,13 @@ async function sessionStatus(sessionId: string): Promise<string | undefined> {
   return res.rows[0]?.status;
 }
 
-/** Drive a session to a valid, complete state (q_at_fault_accident = false → flow complete). */
+// `q_at_fault_accident = false` hides the follow-up, so one answer completes the flow.
 async function completeValidSession(): Promise<StartBody> {
   const started = await startSession();
   const r = await postAnswer(started.sessionId, started.sessionToken, "q_at_fault_accident", false);
   expect(r.status).toBe(200);
   return started;
 }
-
-// --- exit criterion 1: happy path + all-or-nothing --------------------------
 
 describe("happy path and all-or-nothing (exit criterion 1)", () => {
   it("locks the submission, marks the session submitted, and enqueues one outbox event", async () => {
@@ -327,13 +291,11 @@ describe("happy path and all-or-nothing (exit criterion 1)", () => {
     expect(receipt.contentHash).toMatch(/^[0-9a-f]{64}$/);
     expect(receipt.submittedAt).toBe(NOW.toISOString());
 
-    // Submission row present, content hash matches the receipt, clean (unflagged).
     const submission = await loadSubmission(sessionId);
     expect(submission).toBeDefined();
     expect(submission?.contentHash).toBe(receipt.contentHash);
     expect(submission?.flaggedReason).toBeNull();
 
-    // Session flipped to submitted; exactly one outbox event.
     expect(await sessionStatus(sessionId)).toBe("submitted");
     expect(await outboxCount(sessionId)).toBe(1);
 
@@ -346,8 +308,8 @@ describe("happy path and all-or-nothing (exit criterion 1)", () => {
   it("rolls everything back when the outbox insert fails mid-transaction (nothing persists)", async () => {
     const { sessionId, sessionToken } = await completeValidSession();
 
-    // Induce a real failure on the last write of the transaction (the outbox
-    // enqueue), the same fault-trigger technique the erasure tests use.
+    // The outbox enqueue is the last write of the transaction, so a trigger on it fails
+    // the submit after everything else has been written.
     await testDb.client.query(
       `create function __fail_outbox() returns trigger as $$
        begin raise exception 'induced failure'; end; $$ language plpgsql`,
@@ -359,21 +321,17 @@ describe("happy path and all-or-nothing (exit criterion 1)", () => {
 
     try {
       const res = await submit(sessionId, sessionToken);
-      // The induced pg error surfaces as an opaque 500 (unexpected throw).
       expect(res.status).toBe(500);
     } finally {
       await testDb.client.query(`drop trigger __fail_outbox on outbox`);
       await testDb.client.query(`drop function __fail_outbox()`);
     }
 
-    // Nothing committed: no submission, session still in_progress, no outbox row.
     expect(await loadSubmission(sessionId)).toBeUndefined();
     expect(await sessionStatus(sessionId)).toBe("in_progress");
     expect(await outboxCount(sessionId)).toBe(0);
   });
 });
-
-// --- exit criterion 2: idempotency ------------------------------------------
 
 describe("idempotency (exit criterion 2)", () => {
   it("double submit returns the same receipt, one submission row, one outbox row", async () => {
@@ -383,18 +341,14 @@ describe("idempotency (exit criterion 2)", () => {
     const second = (await (await submit(sessionId, sessionToken)).json()) as Receipt;
 
     expect(second).toEqual(first);
-    // Still exactly one submission (PK per session) and one outbox event.
     expect(await outboxCount(sessionId)).toBe(1);
     expect(await sessionStatus(sessionId)).toBe("submitted");
   });
 });
 
-// --- exit criterion 3: hidden-answer exclusion (I6) -------------------------
-
 describe("hidden-answer exclusion (exit criterion 3)", () => {
   it("a hidden question's answer is absent from the lock and webhook, present in the ledger", async () => {
     const { sessionId, sessionToken } = await startSession();
-    // Reveal q_accident_count, answer it, then hide it again (q_at_fault_accident = false).
     expect((await postAnswer(sessionId, sessionToken, "q_at_fault_accident", true)).status).toBe(
       200,
     );
@@ -406,7 +360,6 @@ describe("hidden-answer exclusion (exit criterion 3)", () => {
     const res = await submit(sessionId, sessionToken);
     expect(res.status).toBe(200);
 
-    // Ledger still holds all three appended rows (append-only, I5).
     const ledger = (await answerLedger(testDb.db, SessionId.parse(sessionId))) as {
       questionId: string;
     }[];
@@ -416,12 +369,10 @@ describe("hidden-answer exclusion (exit criterion 3)", () => {
       "q_at_fault_accident",
     ]);
 
-    // The locked set excludes the hidden q_accident_count (I6).
     const submission = await loadSubmission(sessionId);
     const lockedIds = submission?.lockedAnswers.answers.map((a) => a.questionId) ?? [];
     expect(lockedIds).toEqual(["q_at_fault_accident"]);
 
-    // …and so does the webhook payload.
     const event = await outboxEvent(sessionId);
     const webhookIds = (event?.payload.answers as { questionId: string }[]).map(
       (a) => a.questionId,
@@ -430,12 +381,9 @@ describe("hidden-answer exclusion (exit criterion 3)", () => {
   });
 });
 
-// --- exit criterion 4: visible-required blocks, hidden-required does not -----
-
 describe("required-answer sweep (exit criterion 4)", () => {
   it("a missing visible-required answer → 422 naming the id; nothing is submitted", async () => {
     const { sessionId, sessionToken } = await startSession();
-    // q_at_fault_accident = true reveals q_accident_count (required) and leaves it unanswered.
     expect((await postAnswer(sessionId, sessionToken, "q_at_fault_accident", true)).status).toBe(
       200,
     );
@@ -447,14 +395,12 @@ describe("required-answer sweep (exit criterion 4)", () => {
     const details = body.error.details as { missingRequired: string[] };
     expect(details.missingRequired).toContain("q_accident_count");
 
-    // The failed sweep committed nothing.
     expect(await loadSubmission(sessionId)).toBeUndefined();
     expect(await sessionStatus(sessionId)).toBe("in_progress");
   });
 
   it("a hidden required question does not block submit (q_at_fault_accident = false)", async () => {
     const { sessionId, sessionToken } = await completeValidSession();
-    // q_accident_count is required but hidden while q_at_fault_accident = false → submit succeeds.
     const res = await submit(sessionId, sessionToken);
     expect(res.status).toBe(200);
   });
@@ -465,8 +411,8 @@ describe("required-answer sweep (exit criterion 4)", () => {
       200,
     );
     expect((await postAnswer(sessionId, sessionToken, "q_accident_count", 20)).status).toBe(200);
-    // The respondent clears it: a null post appends a retraction (ADR-33), which
-    // the read model resolves to unanswered before the kernel ever sees it.
+    // A null post appends a retraction, which the read model resolves to unanswered
+    // before the kernel sees it.
     expect((await postAnswer(sessionId, sessionToken, "q_accident_count", null)).status).toBe(200);
 
     const blocked = await submit(sessionId, sessionToken);
@@ -478,10 +424,6 @@ describe("required-answer sweep (exit criterion 4)", () => {
     );
     expect(await loadSubmission(sessionId)).toBeUndefined();
 
-    // Hiding the question completes the flow, and the retracted answer reaches
-    // neither the lock nor the webhook payload - so it reaches neither the
-    // reporting view nor the exports, which read the locked set. The ledger keeps
-    // every row, retraction included: nothing was mutated or deleted (R3/ADR-17).
     expect((await postAnswer(sessionId, sessionToken, "q_at_fault_accident", false)).status).toBe(
       200,
     );
@@ -509,39 +451,10 @@ describe("required-answer sweep (exit criterion 4)", () => {
   });
 });
 
-// --- exit criterion 5: silent anti-abuse flags ------------------------------
-
 describe("issue #968: the required-answer sweep runs INSIDE the session lock", () => {
-  /**
-   * The defect, and why a test can see it.
-   *
-   * Until task 073 this handler read the ledger and ran `prepareSubmission` BEFORE it
-   * opened its transaction and took `pg_advisory_xact_lock`. A retraction committed in
-   * the window between the read and the lock was in the ledger and not in the sealed
-   * `lockedAnswers` or its `contentHash`, so the two records of one response disagreed:
-   * the ledger recorded a clear the submission did not reflect. The PR #964 reviewer
-   * read correctly that this could not seal an EMPTY required answer, because the
-   * locked set matched the snapshot that had been swept; what it could do is leave the
-   * audit trail and the audit anchor describing different answer sets, which is the one
-   * thing a submission exists to make impossible.
-   *
-   * **The interleaving is forced rather than raced.** A second connection takes the
-   * session's advisory lock, appends the retraction, and holds the transaction open. The
-   * submit request is fired and blocks on that lock. Only then does the second
-   * connection commit. So the window is held open for as long as the test needs, and
-   * the outcome is deterministic in both directions:
-   *
-   * - with the sweep OUTSIDE the lock, it ran before the commit, saw the answer still
-   *   present, swept clean, and then sealed a submission over an answer the ledger had
-   *   retracted: a **200**;
-   * - with the sweep INSIDE the lock, it runs after the commit, sees the retraction, and
-   *   refuses: a **422**, with nothing written.
-   *
-   * That is what makes this a test against the ordering rather than a claim about it.
-   *
-   * The lock is taken with the same expression the handler uses, so the two cannot
-   * disagree about which lock the session has: `pg_advisory_xact_lock(hashtext($1))`.
-   */
+  // The interleaving is forced rather than raced: a second connection takes the session's
+  // advisory lock with the same expression the handler uses, appends the retraction, and
+  // holds its transaction open until the submit is blocking on that lock.
   it("refuses a submission whose required answer was retracted in the old window", async () => {
     const { sessionId, sessionToken } = await startSession();
     expect((await postAnswer(sessionId, sessionToken, "q_at_fault_accident", true)).status).toBe(
@@ -549,16 +462,13 @@ describe("issue #968: the required-answer sweep runs INSIDE the session lock", (
     );
     expect((await postAnswer(sessionId, sessionToken, "q_accident_count", 20)).status).toBe(200);
 
-    // A connection of this test's own, registered with the harness so teardown drains
-    // it (issue #888). It must be a separate connection: two logical transactions on one
-    // client share a backend, and the first COMMIT would end both and release the lock
-    // early (the harness's own note).
+    // A separate connection: two logical transactions on one client share a backend, and
+    // the first COMMIT would end both and release the lock early.
     const holder = testDb.register(
       new Client({
         connectionString: testDb.connectionUri,
-        // Every data-plane table is declared unqualified, so a client that sets no
-        // search path resolves `answers` to nothing (ADR-40). This is the path an API
-        // pool connects with.
+        // Data-plane tables are declared unqualified, so a client with no search path
+        // resolves `answers` to nothing.
         options: searchPathOptions(DEFAULT_TEST_ENVIRONMENT),
       }),
       "#968",
@@ -566,18 +476,15 @@ describe("issue #968: the required-answer sweep runs INSIDE the session lock", (
     await holder.connect();
     await holder.query("begin");
     await holder.query("select pg_advisory_xact_lock(hashtext($1))", [sessionId]);
-    // The retraction, written but NOT yet committed: the ledger will hold it the moment
-    // this transaction commits, and the submit must not have swept before then.
     await holder.query(
       `insert into answers (session_id, question_id, value, retracted, answered_at)
        values ($1, $2, null, true, now())`,
       [sessionId, "q_accident_count"],
     );
 
-    // Fired, not awaited: it blocks on the lock the holder is sitting on.
+    // Fired, not awaited: it blocks on the lock the holder is sitting on, and the pause
+    // gives it time to get there.
     const submitting = submit(sessionId, sessionToken);
-    // Give it time to reach the lock. With the sweep outside the lock, this is also the
-    // window in which it would have read and swept the pre-retraction ledger.
     await new Promise((resolve) => setTimeout(resolve, 250));
     await holder.query("commit");
 
@@ -588,24 +495,18 @@ describe("issue #968: the required-answer sweep runs INSIDE the session lock", (
     expect((body.error.details as { missingRequired: string[] }).missingRequired).toContain(
       "q_accident_count",
     );
-    // Nothing sealed, and the session is still answerable: the 422 is thrown from
-    // inside the transaction, which rolls back a transaction that had written nothing.
     expect(await loadSubmission(sessionId)).toBeUndefined();
     expect(await sessionStatus(sessionId)).toBe("in_progress");
   });
 
   it("still seals a submission whose ledger did not move under the lock", async () => {
-    // The control, so the test above is not passing because the submit simply refuses
-    // whenever a lock was contended. Same interleaving, no retraction: the holder takes
-    // the lock, the submit blocks, the holder commits, and the submission is sealed.
+    // The control for the case above, which would also pass if submit simply refused
+    // whenever the lock was contended.
     const { sessionId, sessionToken } = await completeValidSession();
 
     const holder = testDb.register(
       new Client({
         connectionString: testDb.connectionUri,
-        // Every data-plane table is declared unqualified, so a client that sets no
-        // search path resolves `answers` to nothing (ADR-40). This is the path an API
-        // pool connects with.
         options: searchPathOptions(DEFAULT_TEST_ENVIRONMENT),
       }),
       "#968 control",
@@ -627,12 +528,9 @@ describe("silent anti-abuse flags (exit criterion 5)", () => {
   it("a honeypot-filled submit succeeds, is flagged, and withholds the outbox event", async () => {
     const { sessionId, sessionToken } = await completeValidSession();
 
-    // Key off the compiler's shared honeypot field name (the compiler↔API
-    // contract): the decoy the compiler emits posts under exactly this key.
     const res = await submit(sessionId, sessionToken, {
       [HONEYPOT_FIELD_NAME]: "http://spam.example",
     });
-    // Same success shape as a clean submission - the tell never leaks.
     expect(res.status).toBe(200);
     const receipt = (await res.json()) as Receipt;
     expect(receipt.contentHash).toMatch(/^[0-9a-f]{64}$/);
@@ -640,30 +538,24 @@ describe("silent anti-abuse flags (exit criterion 5)", () => {
     const submission = await loadSubmission(sessionId);
     expect(submission).toBeDefined();
     expect(submission?.flaggedReason).toBe("HONEYPOT");
-    // Flagged → session still submitted, but NO webhook event enqueued.
     expect(await sessionStatus(sessionId)).toBe("submitted");
     expect(await outboxCount(sessionId)).toBe(0);
   });
 
   it("a submit carrying an undeclared field is accepted, not refused (issue #893)", async () => {
-    // The one request body in this API that stays OPEN. Every other body rejects
-    // an unknown key since #893; this one cannot, because the portal's no-JS path
-    // forwards every posted form field the compiled document did not tag as an
-    // answer control, and because a 400 for one field name beside a 200 for
-    // another would tell a bot which field is the honeypot.
+    // The one request body in this API that stays open: the portal's no-JS path forwards
+    // every posted field, and a 400 for one field name beside a 200 for another would
+    // tell a bot which field is the honeypot.
     const { sessionId, sessionToken } = await completeValidSession();
 
     const res = await submit(sessionId, sessionToken, { anUndeclaredField: "carried through" });
 
     expect(res.status).toBe(200);
-    // Not the honeypot field, so nothing is flagged either: an unknown key is
-    // neither a refusal nor a tell.
     expect((await loadSubmission(sessionId))?.flaggedReason).toBeNull();
   });
 
   it("a too-fast submit succeeds, is flagged, and withholds the outbox event", async () => {
-    // A dedicated app whose config sets a positive min-time threshold (config
-    // seam; default is 0/off). Same signing keys, so the session token verifies.
+    // Its own app, on the same signing keys so the session token still verifies.
     const fastConfig: Config = {
       ...deps.config,
       antiAbuse: { ...deps.config.antiAbuse, minSubmitMs: 60_000 },
@@ -677,7 +569,7 @@ describe("silent anti-abuse flags (exit criterion 5)", () => {
     });
 
     const { sessionId, sessionToken } = await completeValidSession();
-    // Pin createdAt to exactly NOW so elapsed = 0 < threshold (deterministic).
+    // `created_at` pinned to NOW makes the elapsed time exactly zero.
     await testDb.client.query(`update sessions set created_at = $1 where session_id = $2`, [
       NOW.toISOString(),
       sessionId,
@@ -693,8 +585,6 @@ describe("silent anti-abuse flags (exit criterion 5)", () => {
   });
 
   it("a per-form min_submit_ms override flags a below-floor submit (task 026)", async () => {
-    // A form whose own floor (3s) is the authority - no global config floor set,
-    // so this proves the per-form override path, not the config default.
     const gatedFormId = FormId.parse("frm_minfloor");
     await createForm(testDb.db, {
       workspaceId: SEED_WORKSPACE_ID,
@@ -711,7 +601,6 @@ describe("silent anti-abuse flags (exit criterion 5)", () => {
       a2uiSpecVersion: GOLDEN.a2uiSpecVersion,
       semanticsVersion: "1",
     });
-    // Released, because publishing reaches no environment (ADR-40, task 065).
     await insertFormRelease(testDb.db, {
       formId: gatedFormId,
       environment: DEFAULT_TEST_ENVIRONMENT,
@@ -719,13 +608,12 @@ describe("silent anti-abuse flags (exit criterion 5)", () => {
       releasedBy: "usr_fixture",
     });
 
-    // Default app: global antiAbuse.minSubmitMs is 0 (off) - only the form floor bites.
+    // The default app leaves the global floor at 0, so only the form's own figure bites.
     const started = await startSession("minfloor");
     expect(
       (await postAnswer(started.sessionId, started.sessionToken, "q_at_fault_accident", false))
         .status,
     ).toBe(200);
-    // createdAt = NOW so elapsed = 0 < 3s form floor → flagged MIN_TIME.
     await testDb.client.query(`update sessions set created_at = $1 where session_id = $2`, [
       NOW.toISOString(),
       started.sessionId,
@@ -738,8 +626,6 @@ describe("silent anti-abuse flags (exit criterion 5)", () => {
     expect(await outboxCount(started.sessionId)).toBe(0);
   });
 });
-
-// --- session-state rejects + post-submit serving guards ---------------------
 
 describe("session-state rejects and post-submit guards", () => {
   it("submitting a fresh (created, no-answers) session → 409 NOTHING_TO_SUBMIT", async () => {
@@ -773,20 +659,10 @@ describe("session-state rejects and post-submit guards", () => {
   });
 });
 
-// --- the stored semantics stamp at the submit boundary (ADR-16, issue #723) -
-
 describe("the stored semanticsVersion at submit (ADR-16)", () => {
-  /**
-   * A session on `formId`, already carrying the one answer that completes the
-   * flow, built without the entry or serving endpoints.
-   *
-   * Neither endpoint can do this job here. The answer route is behind the same
-   * semantics gate as `/step`, so a form whose stamp is under test cannot be
-   * answered through the API; and the suite runs on a frozen clock, so every
-   * `POST /sessions` counts against one per-IP rate-limit window (026). The
-   * session and the ledger row are written directly instead - exactly what the
-   * loop would have committed.
-   */
+  // Written directly rather than through the endpoints: the answer route sits behind the
+  // same semantics gate as `/step`, so a form whose stamp is under test cannot be
+  // answered through the API.
   async function submittableSessionOn(formId: string, id: string): Promise<StartBody> {
     const sessionId = SessionId.parse(id);
     const expiresAt = new Date(NOW.getTime() + 24 * 60 * 60 * 1000);
@@ -840,8 +716,6 @@ describe("the stored semanticsVersion at submit (ADR-16)", () => {
       "ses_submit_alien_stamp",
     );
 
-    // Unchanged by issue #723: the number reaches the evaluator, which refuses
-    // it, and `prepareSubmission` reports it as a failed sweep.
     const res = await submit(sessionId, sessionToken);
     expect(res.status).toBe(422);
     const body = (await res.json()) as ErrBody;
