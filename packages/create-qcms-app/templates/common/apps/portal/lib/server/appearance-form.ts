@@ -1,8 +1,6 @@
 import { z } from "zod";
 
-// Relative, not the `@/` alias: this module is loaded directly by Vitest
-// (`appearance-form.test.ts`), which does not resolve the Next.js path alias, and
-// every other module under `lib/` imports its siblings the same way.
+// Relative, not the `@/` alias: Vitest resolves no Next path aliases.
 import {
   APPEARANCE_MODES,
   APPEARANCE_ROUTE,
@@ -11,83 +9,50 @@ import {
 } from "../appearance";
 
 /**
- * The two decisions the no-JS appearance route makes about respondent input (issue
- * #195): what the posted values are allowed to be, and where the redirect afterwards
- * is allowed to point.
+ * What the no-JS appearance route's posted values may be, and where its redirect may
+ * point: two pure functions over hostile strings, which is why they are here rather
+ * than in the route (R2).
  *
- * Split out of `app/appearance/route.ts` for the reason `lib/server/step-form.ts` is
- * split out of the no-JS step route: the route's own job is proxy-and-redirect duty
- * (R2), and both of these are pure functions over hostile strings, which is the kind
- * of thing that should be provable at a unit test rather than only through a browser.
- * `appearance-form.test.ts` is that proof.
- *
- * Neither function reads the environment or a cookie. The offered font list is passed
- * in, because which faces a deployment offers is config (`./theme.ts`) and a validator
- * that reached for it would be untestable without stubbing the environment.
+ * Neither reads the environment or a cookie. The offered font list is passed in, because
+ * a validator that reached for config would be untestable without stubbing it.
  */
 
-/** Where a submission with no usable return target goes. */
 export const DEFAULT_RETURN = "/";
 
 /**
- * The origin every candidate return target is resolved against.
+ * A synthetic origin rather than the configured base, and that is the point: the only
+ * property checked is whether a relative reference stays inside its own origin, which it
+ * either does or does not whatever that origin is. A constant means the check cannot be
+ * defeated by an unset or mis-set `QCMS_PORTAL_BASE_URL`.
  *
- * A synthetic host rather than `portalBaseUrl()`, and that is the point rather than a
- * shortcut. The only property being checked is "does this string stay inside our own
- * origin", and a relative reference either does or does not, whatever the origin is:
- * `//evil.example` and `/\evil.example` both resolve to a DIFFERENT origin than
- * whatever base they are given (the URL parser treats a backslash as a slash for
- * special schemes, so the second is the first in disguise), while `/s/ses_1` resolves
- * to the base itself. Using a constant here means the check cannot be defeated by an
- * unset or mis-set `QCMS_PORTAL_BASE_URL`, and cannot silently start passing
- * everything if that variable is ever read as an empty string.
- *
- * `.invalid` is the reserved TLD (RFC 2606), so this can never name a real host.
+ * `.invalid` is reserved (RFC 2606), so this can never name a real host.
  */
 const PROBE_ORIGIN = "https://portal.invalid";
 
 /**
- * An encoded slash or backslash anywhere in the candidate.
- *
- * No path this portal serves contains one, and both are separator characters wearing a
- * disguise: `%2F%2Fevil.example` survives URL parsing intact (percent-encoded slashes are
- * deliberately NOT decoded during path normalisation) and would be handed on as a path
- * whose meaning depends on what decodes it next. Refused rather than reasoned about.
+ * Both are separator characters in disguise, and a percent-encoded slash is deliberately
+ * not decoded during path normalisation, so it would be handed on as a path whose
+ * meaning depends on what decodes it next. No path this portal serves contains one.
  */
 const ENCODED_SEPARATOR = /%2f|%5c/iu;
 
 /**
- * A validated same-origin path to redirect a respondent back to, or `undefined`.
+ * A validated same-origin path, or `undefined`. Every rejection lands on the same
+ * answer, so probing teaches nothing.
  *
- * Accepts a relative reference only, and then only one that resolves inside this
- * origin. Every rejection lands on the same answer, so an attacker learns nothing by
- * probing: an absolute URL, a protocol-relative `//host`, its backslash spelling, a
- * `javascript:` string and a fragment-only reference are all simply "no target".
+ * Checking the candidate for a leading `//` would not be enough, because dot-segment
+ * normalisation resolves `/..//evil.example` to the pathname `//evil.example`: a single
+ * leading slash goes in and a protocol-relative reference comes out, and the origin
+ * check passes because the resolution happened inside the probe origin. So the
+ * leading-`//` test is applied to the parser's output, and a backslash or an encoded
+ * separator anywhere in the candidate is refused outright. The route emits the result as
+ * an absolute URL on the portal's own origin, which is the second, independent control.
  *
- * ## The check that is easy to get wrong, and was (PR #859 review)
+ * The appearance route is refused as a target although it is same-origin, because it
+ * exports `POST` only and redirecting there hands the respondent a 405.
  *
- * Checking the CANDIDATE for a leading `//` is not enough, because URL parsing rewrites
- * the string before anyone reads it. Dot-segment normalisation resolves `/..//evil.example`
- * to the pathname `//evil.example`: a single leading slash goes in and a protocol-relative
- * reference comes out. It has three spellings that all land there - `/..//host`,
- * `/x/..//host`, and `/%2e%2e//host`, because the parser decodes `%2e` as a dot segment -
- * and a backslash is a slash to the parser for a special scheme, so `/..\host` is a fourth.
- * The origin check passes on every one of them, since the resolution happened inside the
- * probe origin; what escapes is the RESULT, once a browser resolves it as a `Location`.
- *
- * So the leading-`//` test is applied to the parser's own output, after normalisation, and
- * a backslash or an encoded separator anywhere in the candidate is refused outright. The
- * route then emits the target as an ABSOLUTE URL on the portal's own origin, so even a
- * bypass of everything above could not produce a Location that leaves this deployment.
- * Two independent controls, because this one is a string check and string checks are where
- * this class of defect lives.
- *
- * The route itself is refused as a target too. It is same-origin and would pass every
- * other rule, but it exports `POST` only, so redirecting there hands the respondent a
- * 405 instead of the page they were reading.
- *
- * The hash is dropped rather than carried. It never reaches a server, so preserving it
- * would only widen what this function has to reason about.
+ * The hash is dropped: it never reaches a server, so carrying it would only widen what
+ * this has to reason about.
  */
 function internalPath(candidate: string | undefined): string | undefined {
   if (candidate === undefined || !candidate.startsWith("/")) return undefined;
