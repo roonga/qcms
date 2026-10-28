@@ -1,1 +1,21 @@
-export { NoRailSection as default } from "../../no-section";
+import { NewQuestionRail } from "@/components/questions/new-question-rail";
+import { blankDefinition } from "@/lib/questions/definition";
+import { questionPanels } from "@/lib/questions/panels";
+import { appLocale } from "@/lib/server/config";
+import { requireAdminSession } from "@/lib/server/session";
+
+/**
+ * The question creation screen's rail.
+ *
+ * Derives the opening document's panels from the same blank definition and the same function
+ * the editor uses, so the first paint carries the rows and no row can name a panel the card
+ * cannot open. `withPreview` is off: there is no stored version to compile.
+ */
+export default async function NewQuestionRailSlot() {
+  await requireAdminSession();
+  return (
+    <NewQuestionRail
+      panels={questionPanels(blankDefinition("shortText", ""), { locale: appLocale() })}
+    />
+  );
+}

@@ -449,8 +449,23 @@ test("the enrollment and recovery-code states have zero violations", async ({ pa
 });
 
 test("the authenticated shell states have zero violations", async ({ page }) => {
+  // Nine screens, three axe modes each, in one test, which outlasts the file's default 60s
+  // budget. One test rather than nine, because each would repeat the sign-in.
+  test.setTimeout(300_000);
   await signInWithTotp(page, EMAIL, totpSecret);
-  for (const path of ["/questions", "/forms", "/responses", "/webhooks", "/settings"]) {
+  // Every screen has a rail, so every state here carries a `<form role="search">`, an
+  // `<aside>` landmark and a `<nav>` inside it.
+  for (const path of [
+    "/questions",
+    "/questions/new",
+    "/forms",
+    "/forms/new",
+    "/responses",
+    "/responses/erasures",
+    "/webhooks",
+    "/workspaces",
+    "/settings",
+  ]) {
     await page.goto(path);
     await expectNoViolations(page, `shell ${path}`);
   }

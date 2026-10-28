@@ -1,4 +1,3 @@
-import Link from "next/link";
 import type { Metadata } from "next";
 
 import { SwitchToTest } from "@/components/forms/switch-to-test";
@@ -25,8 +24,11 @@ export function generateMetadata(): Metadata {
  * library screens - a separate route named "New question" / "New form" - and names the
  * forms list's inline create card as the screen that should change to match it. This is
  * that screen, built to the model the POC points at rather than to a second answer:
- * `/questions/new` is the shipped example, and this file is deliberately its shape (back
- * link, the screen's own `h1`, one card holding the form).
+ * `/questions/new` is the shipped example, and this file is deliberately its shape (the
+ * screen's own `h1`, one card holding the form).
+ *
+ * The way back is the rail's Header (§7.0 ruling 3), so `@rail/forms/new/page.tsx` carries it
+ * rather than this column.
  *
  * No POC draws this screen on its own. The drawing that decides it decides the PATTERN and
  * names its model, and `settings-newquestion-poc.html` is where that model is drawn, so
@@ -51,9 +53,6 @@ export default async function NewFormPage() {
   return (
     <div className="flex flex-col gap-6">
       <div className="flex flex-col gap-1">
-        <Link href="/forms" className="qcms-text-link">
-          {t("forms.backToList")}
-        </Link>
         <h1 className="text-xl font-semibold text-(--color-text)">{t("forms.create.title")}</h1>
       </div>
       <div className="qcms-card">

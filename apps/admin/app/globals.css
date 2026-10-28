@@ -3397,6 +3397,50 @@ div:has(> [role="dialog"] [data-qcms-dialog="wide"]) {
   background-color: var(--color-surface-hover);
 }
 
+/* THE FILTERS PART (§7.0 ruling 2.4). It keeps `.qcms-filters` for its column
+   rhythm and adds what a 240px track needs: the rail's inline padding, so the
+   controls line up with the rows above them. `.qcms-filters__row` is deliberately
+   unused - it is a wrapping flex line with a 10rem floor per field, which this track
+   cannot honour. */
+.qcms-rail__filters {
+  padding-inline: 0.5rem;
+  padding-block-start: 0.75rem;
+  margin-block-start: 0.5rem;
+  border-block-start: 1px solid var(--color-border);
+}
+:root.hc .qcms-rail__filters {
+  border-color: var(--color-border-strong);
+}
+/* The part's visible title and its active count, on one line. The count never
+   truncates, as the Header's does not. */
+.qcms-rail__filters-title {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  margin: 0;
+  font-size: 0.8125rem;
+  font-weight: 700;
+  color: var(--color-text);
+}
+.qcms-rail__filters-title > .qcms-tag {
+  flex-shrink: 0;
+}
+/* Apply, and the clear link under it rather than beside it: at 240px the two side by
+   side wrap "Clear filters" mid-phrase onto a second line anyway. */
+.qcms-rail__filters-apply {
+  display: flex;
+  flex-direction: column;
+  align-items: stretch;
+  gap: 0.5rem;
+}
+.qcms-rail__filters-apply > button {
+  justify-content: center;
+}
+.qcms-rail__filters-apply > a {
+  align-self: start;
+  font-size: 0.8125rem;
+}
+
 /* The builder's own screens, as a block: everything the Form row contains is one thing,
    and the six sibling ROUTES below it are another. Without this the tree was one flat run
    of rows at 2px each, with nothing to say which of them stay on this page. */

@@ -54,19 +54,25 @@ export async function openPanel(page: Page, panel: QuestionPanelName): Promise<v
 }
 
 /**
- * Open a panel **if this screen has one**, and do nothing at all if it does not.
+ * Open a panel **if this screen shows one at a time**, and do nothing at all if it does not.
  *
  * This is what the option and constraint helpers below call, and it is why none of their call
  * sites had to learn about panels. The same step runs on two screens with two shapes:
- * `/questions/new` has no rail and every panel on screen at once, so there is no row to press
- * and nothing to do; the detail screen has a rail and shows one panel, so the row has to be
- * pressed before the fields exist to be typed into.
+ * `/questions/new` shows every panel on screen at once, so there is nothing to open; the
+ * detail screen shows one panel, so the row has to be pressed before the fields exist to be
+ * typed into.
  *
  * Asking the DOM which of the two it is on, rather than taking a flag, is what keeps a helper
  * like `addOption` one helper. The alternative was a boolean threaded through every caller, and
  * the callers that forgot it failed as "the button is not there" five minutes later.
+ *
+ * It asks whether more than one panel is on screen, read off the EDITOR rather than off the
+ * rail. The creation screen's rail also has panel rows, but they are jump anchors and none is
+ * `aria-current`, so a row-based test would press one and then wait for a mark that never
+ * arrives.
  */
 async function ensurePanel(page: Page, panel: QuestionPanelName): Promise<void> {
+  if ((await page.locator("[data-question-panel]").count()) > 1) return;
   const row = page.locator(`[data-rail-panel="${panel}"]`);
   if ((await row.count()) === 0) return;
   if ((await row.getAttribute("aria-current")) === "page") return;

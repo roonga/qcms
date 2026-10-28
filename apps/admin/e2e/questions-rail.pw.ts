@@ -685,3 +685,76 @@ test("1116 opens a panel from the keyboard, which is what an anchor row owes", a
   await expect(page).toHaveURL(/#panel-constraints$/u);
   await expect(page).toHaveURL(/panel=constraints/u);
 });
+
+test("1117 leaves a modified click to the browser, so a panel row opens in a new tab", async ({
+  page,
+}) => {
+  test.setTimeout(300_000);
+  await signInWithTotp(page, EMAIL, totpSecret);
+  await page.setViewportSize({ width: 1280, height: 900 });
+  await page.goto(detailPath());
+
+  // Only a browser can see this: what the guard restores is the browser's own default, which
+  // jsdom does not perform. The Settings rail's rows carry no handler and already behave so.
+  const rail = page.getByTestId("qcms-question-rail");
+  const constraints = rail.locator('[data-rail-panel="constraints"]');
+  const content = rail.locator('[data-rail-panel="content"]');
+  await waitForHydration(page);
+  await expect(content).toHaveAttribute("aria-current", "page");
+
+  const opened = page.context().waitForEvent("page");
+  // Ctrl stands for all three modifiers: they are one branch of one condition.
+  await constraints.click({ modifiers: ["ControlOrMeta"] });
+  const tab = await opened;
+  await tab.close();
+
+  // Nothing moved here: not the panel, not the mark, not this tab's address.
+  await expect(content, "the original tab keeps its panel").toHaveAttribute("aria-current", "page");
+  await expect(constraints).not.toHaveAttribute("aria-current", "page");
+  await expect(page).not.toHaveURL(/panel=constraints/u);
+});
+
+test("1117 states the live document's issue total in the rail's Header, and nowhere else", async ({
+  page,
+}) => {
+  test.setTimeout(300_000);
+  await signInWithTotp(page, EMAIL, totpSecret);
+  await page.setViewportSize({ width: 1280, height: 900 });
+  await page.goto(detailPath());
+
+  const rail = page.getByTestId("qcms-question-rail");
+  const count = rail.getByTestId("qcms-rail-summary-count");
+  // The count is a client island over the editor's live document: nothing before hydration
+  // and nothing at zero.
+  await waitForHydration(page);
+  await expect(count, "no count on a document with no issues").toHaveCount(0);
+
+  // An ACCEPTED save first, and no count after it.
+  await openPanel(page, "constraints");
+  await setNumericConstraint(page, "Shortest answer", "3");
+  await page.getByRole("main").getByRole("button", { name: "Save draft" }).click();
+  await expect(page.getByRole("main").getByText("Draft saved.")).toBeVisible();
+  await expect(count, "an accepted save leaves no count behind").toHaveCount(0);
+
+  // Then the refusal the panel-badge test uses: shortest above longest.
+  await setNumericConstraint(page, "Longest answer", "2");
+  await page.getByRole("main").getByRole("button", { name: "Save draft" }).click();
+
+  await expect(count, "a refused save states the total in the Header").toHaveText("1 issue");
+  // The Header's total is the sum of the badges under it, so the two cannot disagree.
+  await expect(rail.locator('[data-rail-panel="constraints"] [data-rail-issues]')).toHaveText(
+    "1 issue",
+  );
+
+  // And the count is the live document's rather than anything stored: a reload re-reads the
+  // saved draft, which the API never accepted the bad bound into, so the badge goes.
+  //
+  // Read on a fresh document rather than by saving again. A second submit through an
+  // already-refused form does not reach the action: the kit sets the named field's native
+  // custom validity from the verdict, so `requestSubmit()` is blocked, and asserting through
+  // that would be asserting the save model rather than this island.
+  await page.goto(detailPath());
+  await waitForHydration(page);
+  await expect(count, "and nothing here remembers it").toHaveCount(0);
+  await expect(rail.locator("[data-rail-issues]"), "nor does any row").toHaveCount(0);
+});

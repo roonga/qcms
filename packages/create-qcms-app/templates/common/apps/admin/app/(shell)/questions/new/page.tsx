@@ -1,4 +1,3 @@
-import Link from "next/link";
 import type { Metadata } from "next";
 
 import { Card } from "@/components/kit";
@@ -25,6 +24,10 @@ export function generateMetadata(): Metadata {
  * different question (R6). An author who learns that here never has to discover it from
  * a `QUESTION_ID_REUSED` error later.
  *
+ * The way back is the rail's Header (§7.0 ruling 3), so `@rail/questions/new/page.tsx`
+ * carries it. That rail's Sections are this screen's panels: the card below shows every panel
+ * at once, so each row is a jump to one of them.
+ *
  * `requireAdminSession()` is called even though the `(shell)` layout already did: this
  * page reads nothing from the session, but calling it keeps the guarantee local to the
  * file rather than inherited from a layout someone could later move the route out of.
@@ -35,9 +38,6 @@ export default async function NewQuestionPage() {
   return (
     <div className="flex flex-col gap-6">
       <div className="flex flex-col gap-1">
-        <Link href="/questions" className="qcms-text-link">
-          {t("questions.backToList")}
-        </Link>
         {/* The same heading row the detail screen carries, so the action is in the same place on
             both (Code Owner, 2026-09-28). This screen has no version and no panels, so the row
             is the title and the button; `QuestionSave` renders nothing until the editor below

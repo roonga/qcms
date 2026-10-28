@@ -2,11 +2,9 @@ import Link from "next/link";
 import type { Metadata } from "next";
 
 import { EmptyState } from "@/components/empty-state";
-import { Alert, Button, Card, Select, TextField } from "@/components/kit";
+import { Alert } from "@/components/kit";
 import { readFormListFilters } from "@/lib/forms/list-filters";
-import { FORM_SORTS } from "@/lib/forms/types";
 import { t, tPlural } from "@/lib/i18n/en";
-import { LIBRARY_SEARCH_MAX_LENGTH } from "@/lib/library-search";
 import { pageMetadata } from "@/lib/page-title";
 import { optionalProp } from "@/lib/questions/errors";
 import { listForms } from "@/lib/server/forms";
@@ -42,12 +40,18 @@ export function generateMetadata(): Metadata {
  *
  * - **The state is the URL.** A filtered library is a link an author can send and a page
  *   that survives a reload, and nothing about the current view lives in component state.
- * - **A native GET form.** The toolbar is `<form method="get">` over the vendored
+ * - **A native GET form.** The filter form is `<form method="get">` over the vendored
  *   controls, which serialize into hidden native inputs, so Apply is a submission the
  *   browser performs rather than a handler this app writes. Nothing here is an event
  *   handler, which is what keeps the two properties either side of this one true.
  * - **One request either way.** Filters change the query string, never the number of
  *   round trips; `lib/server/request-reads.test.ts` counts them.
+ *
+ * The three controls are in the rail (`components/forms/forms-list-rail.tsx`), and every
+ * property above survives the move: the same GET form over the same controls, one column to
+ * the left. This page keeps the reading of the address, through the same
+ * `readFormListFilters` the slot reads. The filtered-empty panel's "Clear filters" went with
+ * them, so the screen has one control with that name.
  *
  * `plan/admin-shell-poc/library-lists-poc.html` draws all three controls on this screen
  * and says in its own words that they are new because the shipped screen has none. It
@@ -75,7 +79,7 @@ export function generateMetadata(): Metadata {
  *
  * `status` is the third and separate thing: whether the form accepts responses at all
  * (open/closed), which 034's publish flow and the link screens act on, and it is what the
- * Status filter above narrows on.
+ * rail's Status filter narrows on.
  */
 
 export default async function FormsPage({
@@ -108,8 +112,8 @@ export default async function FormsPage({
             one screen are ambiguous to anyone navigating by name, and
             `plan/admin-design-contracts.md` §3 asks the empty state to OFFER the
             creating action rather than to sit beside a copy of it. A filtered-empty
-            library is not that state: the library is not empty, the panel's CTA is
-            "Clear filters", and this link stays. */}
+            library is not that state: the library is not empty, the way out is the
+            rail's clear link, and this link stays. */}
         {!(isEmpty && !isFiltered) && (
           <Link href="/forms/new" className="qcms-button-link">
             {t("forms.new")}
@@ -117,93 +121,17 @@ export default async function FormsPage({
         )}
       </div>
 
-      <div className="qcms-card">
-        <Card padding="md" radius="md" border>
-          {/* A GET form, so a filtered library is a URL: shareable, bookmarkable, and
-              undone by the back button. Apply is a plain navigation rather than a
-              handler this screen has to hydrate. */}
-          <form method="get" className="qcms-filters">
-            <fieldset className="qcms-fieldset qcms-fieldset--flat">
-              <legend className="qcms-visually-hidden">{t("forms.filter.legend")}</legend>
-              <div className="qcms-filters__row">
-                <TextField
-                  name="q"
-                  label={t("forms.filter.search")}
-                  description={t("forms.filter.searchHint")}
-                  defaultValue={search}
-                  // The API caps the term at the same number and answers 400 past it
-                  // (issues #686, #862); this stops the author there instead.
-                  maxLength={LIBRARY_SEARCH_MAX_LENGTH}
-                />
-                <Select
-                  name="status"
-                  label={t("forms.filter.status")}
-                  defaultValue={status ?? ""}
-                  placeholder={t("forms.filter.statusAll")}
-                  items={[
-                    { label: t("forms.filter.statusAll"), value: "" },
-                    { label: t("forms.status.open"), value: "open" },
-                    { label: t("forms.status.closed"), value: "closed" },
-                  ]}
-                />
-                {/* Sort has no "any" option, because there is no such order: the list
-                    comes back in some sequence whatever the URL says, so the control
-                    always shows the one in force. `sort` is resolved rather than raw
-                    for that reason - an unreadable key in the URL shows as the default
-                    here instead of leaving the control blank. */}
-                <Select
-                  name="sort"
-                  label={t("forms.filter.sort")}
-                  defaultValue={sort}
-                  items={FORM_SORTS.map((value) => ({
-                    label: t(`forms.filter.sort.${value}`),
-                    value,
-                  }))}
-                />
-                <div className="flex items-end gap-2">
-                  <Button type="submit" variant="secondary" size="md">
-                    {t("forms.filter.apply")}
-                  </Button>
-                  {/* The filter's own reset, rendered except when the filtered-empty
-                      panel below is carrying it as its CTA
-                      (`plan/admin-design-contracts.md` §3). Same rule as the header's
-                      creating action above: the empty panel OFFERS the way out rather
-                      than sitting beside a second control with the same accessible
-                      name, which is ambiguous to anyone navigating by name. */}
-                  {isFiltered && !isEmpty && (
-                    <Link href="/forms" className="qcms-text-link">
-                      {t("forms.filter.clear")}
-                    </Link>
-                  )}
-                </div>
-              </div>
-            </fieldset>
-          </form>
-        </Card>
-      </div>
-
       {!result.ok && (
         <Alert variant="error">{t("forms.error.listFailed", { message: result.message })}</Alert>
       )}
 
-      {/* `plan/admin-design-contracts.md` §3's panel, in both of its variants. The
-          filtered one keeps the panel and the clear-filters action, swaps the heading to
-          this screen's own "no matches" line, and drops the explanatory sentence: an
-          author who has just typed a filter is not asking what the library is for. The
-          unfiltered one keeps the sentence and offers the creating action, which is the
-          same destination as the header link - an empty screen is where a first-time
-          operator looks, not the corner of the header. */}
+      {/* `plan/admin-design-contracts.md` §3's panel, in both of its variants. The filtered
+          one drops the explanatory sentence, and carries no action: the way out of a filter
+          is the rail's clear link. The unfiltered one offers the creating action, because an
+          empty screen is where a first-time operator looks. */}
       {isEmpty &&
         (isFiltered ? (
-          <EmptyState
-            heading={t("forms.empty.filtered")}
-            testId="qcms-forms-empty"
-            action={
-              <Link href="/forms" className="qcms-button-link">
-                {t("forms.filter.clear")}
-              </Link>
-            }
-          />
+          <EmptyState heading={t("forms.empty.filtered")} testId="qcms-forms-empty" />
         ) : (
           <EmptyState
             heading={t("forms.empty.title")}

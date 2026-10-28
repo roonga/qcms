@@ -98,6 +98,8 @@ vi.mock("@/lib/server/session", () => ({
 }));
 vi.mock("@/lib/server/forms", () => ({
   listForms: () => Promise.resolve(formsResult),
+  // The webhook screen and its rail share one round trip through the memoized wrapper.
+  listAllForms: () => Promise.resolve(formsResult),
 }));
 vi.mock("@/lib/server/questions", () => ({
   listQuestions: () => Promise.resolve(questionsResult),
@@ -237,12 +239,13 @@ describe("the new-form route (issue 685)", () => {
     expect(markup).toContain('data-field="defaultLocale"');
   });
 
-  it("heads the screen with its own name and a way back to the list", async () => {
+  it("heads the screen with its own name, and leaves the way back to the rail", async () => {
     const markup = await renderNewForm();
 
     expect(markup).toMatch(/<h1[^>]*>forms\.create\.title<\/h1>/u);
-    expect(hrefs(markup)).toContain("/forms");
-    expect(markup).toContain("forms.backToList");
+    // The rail's Header carries the back link on every screen (§7.0 ruling 3), so one here
+    // as well would be two ways back on one screen.
+    expect(hrefs(markup)).not.toContain("/forms");
   });
 
   it("says what the permanent id will be, where the choice that mints it is made", async () => {

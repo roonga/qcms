@@ -1,3 +1,5 @@
+import { cache } from "react";
+
 import type {
   AccessGroup,
   AccessGroupList,
@@ -59,29 +61,36 @@ function strings(value: unknown): readonly string[] {
     : [];
 }
 
-/** `GET /admin/workspaces` - the workspaces the caller administers. */
-export async function listWorkspaces(
+/**
+ * `GET /admin/workspaces` - the workspaces the caller administers.
+ *
+ * `cache()` because both membership screens need this list in two React trees of one request:
+ * the page and its `@rail` slot. Every other call here is read by the page alone.
+ */
+export const listWorkspaces: (
   session: AdminSession,
-): Promise<ApiResult<readonly WorkspaceListItem[]>> {
-  const result = await readResult<{ workspaces?: unknown }>(
-    await adminApiFetch(session, "/workspaces"),
-  );
-  if (!result.ok) return result;
-  return {
-    ok: true,
-    data: rows(result.data.workspaces).map((row) => ({
-      workspaceId: str(row["workspaceId"]),
-      name: str(row["name"]),
-      slug: str(row["slug"]),
-      isShared: bool(row["isShared"]),
-      requireSecondApprover: bool(row["requireSecondApprover"]),
-      seedNewEditorsWithTestData: bool(row["seedNewEditorsWithTestData"]),
-      archivedAt: strOrNull(row["archivedAt"]),
-      forms: num(row["forms"]),
-      questions: num(row["questions"]),
-    })),
-  };
-}
+) => Promise<ApiResult<readonly WorkspaceListItem[]>> = cache(
+  async (session: AdminSession): Promise<ApiResult<readonly WorkspaceListItem[]>> => {
+    const result = await readResult<{ workspaces?: unknown }>(
+      await adminApiFetch(session, "/workspaces"),
+    );
+    if (!result.ok) return result;
+    return {
+      ok: true,
+      data: rows(result.data.workspaces).map((row) => ({
+        workspaceId: str(row["workspaceId"]),
+        name: str(row["name"]),
+        slug: str(row["slug"]),
+        isShared: bool(row["isShared"]),
+        requireSecondApprover: bool(row["requireSecondApprover"]),
+        seedNewEditorsWithTestData: bool(row["seedNewEditorsWithTestData"]),
+        archivedAt: strOrNull(row["archivedAt"]),
+        forms: num(row["forms"]),
+        questions: num(row["questions"]),
+      })),
+    };
+  },
+);
 
 /** `GET /admin/workspaces/{id}/members` - the membership list (owners and the claim only). */
 export async function listMembers(

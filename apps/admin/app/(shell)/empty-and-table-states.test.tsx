@@ -183,6 +183,8 @@ vi.mock("@/lib/server/questions", () => ({
 }));
 vi.mock("@/lib/server/forms", () => ({
   listForms: () => Promise.resolve(formsResult),
+  // The webhook screen and its rail share one round trip through the memoized wrapper.
+  listAllForms: () => Promise.resolve(formsResult),
   getForm: () => Promise.resolve(formDetailResult),
 }));
 vi.mock("@/lib/server/webhook-ops", () => ({
@@ -274,9 +276,9 @@ async function renderForms(searchParams: Record<string, string> = {}): Promise<s
  * The forms read on this page is pinned successful and empty by `beforeEach`, so the only
  * alert the assertions below can be seeing is the dead-letter queue's own.
  */
-async function renderWebhooks(): Promise<string> {
+async function renderWebhooks(searchParams: Record<string, string> = {}): Promise<string> {
   const { default: Page } = await import("./webhooks/page.tsx");
-  return renderToStaticMarkup(await Page());
+  return renderToStaticMarkup(await Page({ searchParams: Promise.resolve(searchParams) }));
 }
 
 /**
@@ -363,12 +365,11 @@ describe("the library screens' empty state (issue 514)", () => {
 
     expect(html).toMatch(EMPTY_PANEL);
     expect(html).toContain("questions.empty.filtered");
-    // §3: the filtered variant keeps the panel and the clear-filters CTA, and drops the
-    // explanatory sentence.
+    // §3: the filtered variant keeps the panel and drops the explanatory sentence.
     expect(html).not.toContain("questions.empty.body");
-    // §3's CTA, and the only control on the screen carrying it: the filter card's own
-    // reset stands down while the panel is showing, so the name is unambiguous.
-    expect(html.match(/questions\.filter\.clear/g)).toHaveLength(1);
+    // No clear-filters CTA: the filters are in the rail and so is the control that undoes
+    // them, which is what keeps one control with that name on the screen.
+    expect(html).not.toContain("rail.filters.clear");
     // A filtered library is not an empty one, so the header's creating action stays.
     expect(html).toContain('href="/questions/new"');
   });

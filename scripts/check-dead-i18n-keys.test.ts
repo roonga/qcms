@@ -205,9 +205,11 @@ describe("scoping", () => {
 });
 
 describe("the repository", () => {
+  // A repo-wide scan of every source file against both catalogs, which outgrew the default
+  // 5s budget. `pnpm check:dead-i18n-keys` runs the same scan as a gate.
   it("has no dead catalog key", () => {
     expect(deadKeys()).toEqual([]);
-  });
+  }, 60_000);
 
   it("carries no standing exemption", () => {
     // An entry here is a claim that a key is rendered through a shape the scan cannot
