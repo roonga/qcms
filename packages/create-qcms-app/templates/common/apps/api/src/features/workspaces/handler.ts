@@ -91,10 +91,9 @@ function isUniqueViolation(err: unknown): boolean {
 }
 
 /**
- * better-auth 1.7.10 checks the slug itself and refuses with a vendor `APIError`, which
- * nothing here maps, so without this branch a lost create race is a 500. Matched on the
- * status because that call site leaves `body.code` and `body.message` undefined, and
- * `BAD_REQUEST` has exactly one cause on this endpoint.
+ * better-auth 1.7.10 refuses a taken slug with a vendor `APIError` nothing else maps, so a
+ * lost create race would be a 500. Matched on status: `body.code` is undefined and
+ * `BAD_REQUEST` has one cause here.
  */
 function isVendorSlugRefusal(err: unknown): boolean {
   if (!isAPIError(err)) return false;

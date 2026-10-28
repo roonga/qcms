@@ -1,7 +1,5 @@
-// Mounted on the admin group after the admin-session gate and the environment middleware,
-// ahead of every admin slice: an admin route with no policy row is refused here (SEC-3,
-// ADR-41). A caller that bypasses the admin app and presents a session token reaches this
-// same middleware.
+// Mounted after the admin-session gate and environment middleware, ahead of every admin
+// slice: a route with no policy row is refused (SEC-3, ADR-41).
 
 import { getForm, getQuestion } from "@roonga/qcms-db";
 import type { MiddlewareHandler } from "hono";
@@ -128,10 +126,8 @@ type WorkspaceResolution =
   | { readonly kind: "none" }
   | { readonly kind: "defer" };
 
-// A malformed id defers to the handler because the status for one differs per route and
-// one middleware cannot answer both. Safe: a string that cannot name a form names no form
-// in any workspace, and every form-addressed handler parses its id before it touches
-// anything.
+// A malformed id defers to the handler, whose status differs per route. Safe: a string
+// that cannot name a form names none, and handlers parse the id before using it.
 async function workspaceFor(
   deps: Deps,
   c: Parameters<MiddlewareHandler<ApiEnv>>[0],

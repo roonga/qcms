@@ -1,10 +1,7 @@
 /**
- * `@hono/zod-openapi`'s own validator *returns* a 400 that echoes submitted values, so
- * `onError` never sees it; this hook is installed as the `defaultHook` everywhere and
- * throws instead. A refusal carries the location of each failure and Zod's issue code,
- * never a submitted value (SEC-8, SEC-13). The one exception is an unrecognized key
- * name, which the caller must change and the schema never accepted: it is named, under
- * bounds, because it is attacker-controlled text reflected back to its sender.
+ * `@hono/zod-openapi`'s validator returns a 400 echoing submitted values, bypassing
+ * `onError`; this `defaultHook` throws instead. A refusal carries locations and issue codes,
+ * never values (SEC-8, SEC-13), except an unrecognized key name, which is bounded.
  */
 
 import type { ValidationTargets } from "hono";

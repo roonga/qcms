@@ -1,16 +1,5 @@
 import type { AuthorMessages } from "@roonga/qcms-ui";
 
-/**
- * Chooses the wording for a refused answer's constraint (ADR-32). The kernel and the API
- * stay the validation authority: nothing here evaluates a constraint, and no author
- * message ever reaches the server. The fallback is per constraint, not per question,
- * because the compiled document carries only the keys an author wrote.
- *
- * No `@roonga/qcms-ui` value is imported, only its types: the no-JS BFF route reads a
- * 422's constraint out of an API error, and that package's entry point pulls in React
- * client components a route handler cannot load.
- */
-
 export interface AnswerRejection {
   readonly constraint?: string | undefined;
   /** The kernel's built-in message, quoting constraint bounds but never the value. */
@@ -86,12 +75,6 @@ const AUTHORABLE_KEYS: Readonly<Record<keyof AuthorMessages, true>> = {
   maxSelected: true,
 };
 
-/**
- * `Object.hasOwn`, never `in`: `in` walks the prototype chain, so `toString`,
- * `constructor`, `valueOf` and `__proto__` would all answer true and this predicate
- * would narrow untrusted input to a key it had not established, after which the lookup
- * returns an inherited function typed as `string`.
- */
 function isAuthoredKey(key: string): key is keyof AuthorMessages {
   return Object.hasOwn(AUTHORABLE_KEYS, key);
 }

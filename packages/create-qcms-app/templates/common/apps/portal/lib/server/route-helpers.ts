@@ -12,53 +12,13 @@ import { logOriginBeltRefusal } from "./origin-belt-log";
  * receipt through httpOnly cookies. No rule evaluation.
  */
 
-/**
- * SEC-9's CSRF belt. `SameSite=Lax` on the session cookie is the primary control; this
- * is the second layer for clients that do not enforce it, and a request declaring
- * neither a same-origin `Sec-Fetch-Site` nor a matching `Origin` is refused rather than
- * assumed friendly.
- *
- * `Sec-Fetch-Site` is read first because it is the stronger signal: it distinguishes a
- * same-origin navigation from a cross-site one, where `Origin` only says who claims to
- * have sent the request. `Origin: null` is still refused, because a page can declare
- * `no-referrer` on itself to produce it (ruling R-B1).
- *
- * The refusal log line is emitted here rather than at the call sites, because this
- * function is the single choke point every state-changing handler passes through
- * (`scripts/check-origin-guards.test.ts` derives them from disk). That costs the
- * function its purity, hence the split below, and it records classifications only,
- * never a header value.
- *
- * Secure-link entry is outside the belt entirely: `/l/{token}` exports only `GET`.
- *
- * What it refuses that a respondent might not expect: a browser sending no
- * `Sec-Fetch-Site` and no matching `Origin`. That population is anonymous-entry and
- * no-JS respondents rather than every affected browser, because Begin is a navigation
- * POST whether or not the page hydrated; the same browsers cannot work the no-JS
- * appearance form either. `docs/SECURITY_DESIGN.md` carries the browser-share numbers
- * and `docs/operations.md` the runbook, and issue #1024 re-measures what the
- * `Referrer-Policy: same-origin` change left of it.
- *
- * `apps/admin/lib/server/route-helpers.ts` is a twin over its own base URL, a copy
- * because there is no shared package for a Next BFF's server code. What keeps the two
- * from drifting is the origin-guards gate, not the copy being small.
- */
+/** SEC-9's CSRF belt. */
 export function isSameOriginPost(request: Request): boolean {
   const allowed = admitsAsSameOrigin(request);
   if (!allowed) logOriginBeltRefusal(request);
   return allowed;
 }
 
-/**
- * The same belt for a Server Action, which is handed its form data and reaches its own
- * request only through `headers()`. Wrapping those back into the shape the belt reads
- * keeps the decision, the classification and the refusal line one implementation.
- *
- * It is belted at all because Next's own action check admits a request carrying no
- * `Origin` after only a warning, compares the host while ignoring the scheme, and never
- * reads `Sec-Fetch-Site` (ruling R-B2). Next's check stands behind the belt rather than
- * instead of it.
- */
 export function isSameOriginAction(headers: Headers, pathname: string): boolean {
   let url: string;
   try {
@@ -117,14 +77,6 @@ export interface StepContext {
    * said so the no-JS re-render can show it. Optional for the reason above.
    */
   readonly missingRequired?: readonly string[];
-  /**
-   * A page-level notice for a round trip that wrote nothing and has nothing per field to
-   * say, such as a refused batch, where the re-render would otherwise be the same step
-   * with the same values and no explanation.
-   *
-   * A catalogue key rather than a sentence, because a cookie is not a place to put
-   * prose; an unrecognised key is ignored. Optional for the reason above.
-   */
   readonly notice?: string;
 }
 
@@ -149,33 +101,11 @@ export async function writeReceiptCookie(receipt: SubmitResponse): Promise<void>
   });
 }
 
-/**
- * Same reasoning as {@link stepContextSchema}: the cookie is unsigned, so this seam
- * checks what it hands the completion page rather than asserting it.
- *
- * Strictness mirrors the API's own `SubmitResponse` rather than a guess made here, so a
- * legitimate receipt is refused only if the API breaks its published contract.
- * `z.iso.datetime()` rather than a bare string because the completion page renders the
- * value through `new Date(...)`, where a non-instant reaches the respondent as the
- * literal "Invalid Date".
- *
- * Unknown members are stripped rather than fatal, so a later API that adds a field still
- * reads here while a forged extra member never reaches the page.
- */
 const receiptSchema = z.object({
   submittedAt: z.iso.datetime(),
   contentHash: z.string(),
 });
 
-/**
- * Total over hostile input, and every failure lands on the answer an absent cookie
- * already returned, so `/done` renders the neutral thank-you without the reference.
- *
- * Deliberately not a third "we could not confirm your receipt" state: the submission is
- * already durable by the time this is read, so an alarming message would cast doubt on a
- * submission that succeeded, and the only inputs reaching the rejection branch are a
- * lapsed cookie and a forged one.
- */
 export async function readReceiptCookie(): Promise<SubmitResponse | undefined> {
   const store = await cookies();
   const raw = store.get(RECEIPT_COOKIE)?.value;
@@ -204,14 +134,6 @@ export async function writeStepContext(ctx: StepContext): Promise<void> {
 
 const answerValueSchema = z.union([z.string(), z.number(), z.boolean(), z.array(z.string())]);
 
-/**
- * An entry that does not match is dropped rather than fatal, so one unreadable entry
- * does not cost the respondent the messages beside it.
- *
- * For `errors` and `constraints` only, where dropping does mean "no message for this
- * question". The `values` record must not use it: there, dropping a key and clearing it
- * are different renders (see {@link stepValuesSchema}).
- */
 function lenientRecord<T>(value: z.ZodType<T>) {
   return z.record(z.string(), z.unknown()).transform((raw) => {
     const kept: [string, T][] = [];
@@ -223,33 +145,8 @@ function lenientRecord<T>(value: z.ZodType<T>) {
   });
 }
 
-/**
- * A key whose value does not read is kept and cleared rather than dropped, which is
- * load-bearing one seam downstream: `mergeStepValues` spreads this over the answers the
- * API holds, and under a spread a dropped key lets the stored answer show through while
- * an explicit `undefined` overrides it.
- *
- * The concrete case: an accepted number answer edited to text decodes to `NaN`, which
- * JSON writes as `null`. Dropping that key re-renders the stale accepted answer beside
- * "enter a number", contradicting itself and replacing what the respondent typed.
- */
 const stepValuesSchema = z.record(z.string(), answerValueSchema.optional().catch(undefined));
 
-/**
- * The cookie is `httpOnly`, which blocks script access but not a respondent setting it by
- * hand, and it is unsigned, so this seam parses everything it is handed rather than
- * asserting a shape.
- *
- * Structure is strict and content lenient: anything that is not this envelope is not a
- * context we wrote and is refused outright, while a member that is the right container
- * keeps the entries that read. Every member is optional, because the cookie is a
- * re-render convenience rather than a contract, so one written by an earlier build still
- * reads.
- *
- * Keys are unconstrained on purpose: they are question ids plus the honeypot's name, and
- * the prototype-key hazard lives in the lookup that reads them, not in carrying the
- * string.
- */
 const stepContextSchema = z.object({
   values: stepValuesSchema.optional(),
   errors: lenientRecord(z.string()).optional(),

@@ -4,22 +4,6 @@ import { t } from "./i18n/en";
 import { authorMessageFor } from "./validation-message";
 import { instanceLabels, messagesOf, questionLabels, questionPositions } from "./visible";
 
-/**
- * The error-summary entries for a blocked Continue or Submit, for both portal paths.
- *
- * Every entry names its own question, so no two summary links share an accessible name
- * (WCAG 3.3.1), and an author's message replaces only the sentence body. A question the
- * document gave no label is named by its position among the step's visible questions,
- * which is what makes distinctness structural: no two questions share one, so it cannot
- * regress when an author edits content.
- *
- * Both compositions live in one module because they answer the same question, and
- * answering it independently is how the two paths drifted apart.
- *
- * Nothing here decides `required`: the set arrives from the kernel by way of the API,
- * and these are narrowings and wordings (R2).
- */
-
 export interface ErrorSummaryEntry {
   /** The anchor target is `#<questionId>`. */
   readonly questionId: string;
@@ -110,17 +94,6 @@ export function errorSummaryEntries(
   });
 }
 
-/**
- * The narrowing to the visible set is what makes a forged re-render context inert: the
- * context cookie is `httpOnly` but unsigned, so all a respondent can buy is a message
- * beside a question on their own screen, and the API still refuses the submit. The
- * narrowing around refusals is editorial: the kernel's message about the value it
- * refused says more than "this needs an answer".
- *
- * De-duplicated, because a forged cookie can repeat an id and each surviving id becomes
- * a React key and a summary anchor. Done here rather than at the cookie's schema, so the
- * guarantee sits at the seam that produces the keys.
- */
 export function missingOnStep(
   missingRequired: readonly string[],
   visibleQuestions: readonly string[],
@@ -133,15 +106,6 @@ export function missingOnStep(
   );
 }
 
-/**
- * The same resolution {@link missingRequiredEntries} makes for the summary link, so the
- * two places a respondent reads about one gap cannot say different things.
- *
- * Only the no-JS path draws both the field message and the summary, because it gets one
- * render per POST with nothing re-validating as the respondent types, so the field has
- * to carry the state until the next round trip. Whether the hydrated path should mark
- * the field too is issue #967.
- */
 export function requiredFieldErrors(
   document: A2UIStepDocument | null,
   missing: readonly string[],
@@ -155,13 +119,6 @@ export function requiredFieldErrors(
   return resolved;
 }
 
-/**
- * Refused answers and unanswered required questions arrive as two document-ordered
- * lists, and concatenating them would send a respondent holding one of each back up the
- * form and then down again. `visibleQuestions` is the API's own order for the drawn
- * step, so it is the one thing both lists can be sorted against; an entry outside that
- * set sorts last, and the sort is stable within a rank.
- */
 export function orderedEntries(
   entries: readonly ErrorSummaryEntry[],
   visibleQuestions: readonly string[],

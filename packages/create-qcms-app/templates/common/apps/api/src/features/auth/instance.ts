@@ -26,17 +26,12 @@ import { accessControl, roles } from "../membership/policy.js";
 import { pluginWriteBackstop } from "./plugin-write-backstop.js";
 
 /**
- * `expiresIn` below is the idle window; the absolute 12h cap is not expressible in this
- * config, so it is enforced where a session is read, measured from `session.createdAt`.
- *
- * Both stored factors are ciphertext under the admin auth secret: the TOTP secret
- * (`dist/plugins/two-factor/index.mjs:135-138`) <!-- expect: const encryptedSecret = await symmetricEncrypt( --> and the recovery codes
- * (`.../backup-codes/index.mjs:19-22`). <!-- expect: storeBackupCodes === "encrypted" --> The versioned key set makes that key
- * rotatable: stored material re-encodes under the current version as it is used, and
- * recovery-code blobs re-encode on every redemption
- * (`.../backup-codes/index.mjs:215`). <!-- expect: encodeBackupCodes(validate.updated --> Promoting a new version also changes the
- * cookie-signing secret (`dist/context/create-context.mjs:76`), <!-- expect: secret = secretsArray[0].value --> so it signs every live
- * admin out.
+ * `expiresIn` is the idle window; the absolute 12h cap is enforced where a session is read.
+ * Stored factors are ciphertext under the admin auth secret and re-encode on use:
+ * `dist/plugins/two-factor/index.mjs:135-138` <!-- expect: const encryptedSecret = await symmetricEncrypt( -->
+ * `.../backup-codes/index.mjs:19-22` <!-- expect: storeBackupCodes === "encrypted" -->
+ * `.../backup-codes/index.mjs:215` <!-- expect: encodeBackupCodes(validate.updated -->
+ * Promoting a key version signs every live admin out: `dist/context/create-context.mjs:76` <!-- expect: secret = secretsArray[0].value -->
  */
 
 const COOKIE_PREFIX = "qcms_admin";
@@ -77,24 +72,15 @@ export function warnIfBreachCheckDisabled(
 }
 
 /**
- * Without an explicit `rateLimit.enabled`, whether SEC-1's throttle runs is decided by
- * `NODE_ENV`: `dist/context/create-context.mjs:172` <!-- expect: options.rateLimit?.enabled ?? isProduction --> resolves it as
- * `options.rateLimit?.enabled ?? isProduction`, and `isProduction` is a module-scope
- * `const` in `@better-auth/core/dist/env/env-impl.mjs:32` <!-- expect: isProduction = nodeENV === "production" --> (`nodeENV === "production"`,
- * over a `nodeENV` captured at `:30` on that module's first import).
- *
- * Every field is read back off `await auth.$context`, the object the limiter itself
- * consults, never echoed from the options this file passes in:
- * `dist/api/rate-limiter/index.mjs:293` <!-- expect: if (!ctx.rateLimit.enabled) return --> gates on
- * `ctx.rateLimit.enabled`, and
- * `getIP` (`@better-auth/core/dist/utils/ip.mjs:206`) <!-- expect: ipAddressHeaders || DEFAULT_IP_HEADERS --> reads the header list off
- * `ctx.options.advanced.ipAddress`.
- *
- * The numbers are not reported because they are module-private to the vendor and would be
- * an inference printed as an observation: three attempts per ten
- * seconds (`getDefaultSpecialRules`, `dist/api/rate-limiter/index.mjs:305-311`, <!-- expect: window: 10, max: 3 --> matching
- * `/sign-in`, `/sign-up`, `/change-password` and `/change-email`), and the same shape for
- * `/two-factor/*` (`dist/plugins/two-factor/index.mjs:338-344`). <!-- expect: path.startsWith("/two-factor/") -->
+ * Read back off `await auth.$context`, which the limiter itself consults, never echoed from
+ * the options passed in. Without an explicit `rateLimit.enabled` the default follows `NODE_ENV`:
+ * `dist/context/create-context.mjs:172` <!-- expect: options.rateLimit?.enabled ?? isProduction -->
+ * `@better-auth/core/dist/env/env-impl.mjs:32` <!-- expect: isProduction = nodeENV === "production" -->
+ * `dist/api/rate-limiter/index.mjs:293` <!-- expect: if (!ctx.rateLimit.enabled) return -->
+ * `@better-auth/core/dist/utils/ip.mjs:206` <!-- expect: ipAddressHeaders || DEFAULT_IP_HEADERS -->
+ * The vendor's numbers are module-private, so they are not reported as an observation:
+ * `dist/api/rate-limiter/index.mjs:305-311` <!-- expect: window: 10, max: 3 -->
+ * `dist/plugins/two-factor/index.mjs:338-344` <!-- expect: path.startsWith("/two-factor/") -->
  */
 export interface SignInThrottleState {
   readonly enabled: boolean;
@@ -271,33 +257,16 @@ export function createAdminAuth(input: AdminAuthInput) {
   return betterAuth({
     database: drizzleAdapter(input.db, {
       provider: "pg",
-      // The adapter's own default is `false`
-      // (`@better-auth/drizzle-adapter/dist/index.mjs:563`)
-      // <!-- expect: transaction: config.transaction ?? false -->, and the adapter factory
-      // defaults the same flag the same way
-      // (`@better-auth/core/dist/db/adapter/factory.mjs:31`)
-      // <!-- expect: transaction: cfg.transaction ?? false --> before resolving
-      // `adapter.transaction` to `createAsIsTransaction`
-      // (`@better-auth/core/dist/db/adapter/factory.mjs:422`)
-      // <!-- expect: lazyLoadTransaction = createAsIsTransaction(adapter) -->, which hands
-      // the callback the very adapter it already had
-      // (`@better-auth/core/dist/db/adapter/factory.mjs:18`)
-      // <!-- expect: (adapter) => (fn) => fn(adapter) -->, so at the default a
-      // `runWithTransaction` wrap rolls nothing back.
-      //
-      // `/change-password` wraps the session revocation, the credential write and the
-      // replacement session in one such wrap
-      // (`dist/api/routes/update-user.mjs:173`)
-      // <!-- expect: const newSession = await runWithTransaction( -->, and SEC-1 asks that
-      // to be one act, so it has to commit as one.
-      //
-      // `true` also defers the hooks queued inside the wrap until after the commit
-      // (`@better-auth/core/dist/context/transaction.mjs:65-110`)
-      // <!-- expect: result = await adapter.transaction( -->, the drain-on-failure branch
-      // being guarded on the adapter advertising no transaction
-      // (`@better-auth/core/dist/context/transaction.mjs:106`)
-      // <!-- expect: if (adapter.options?.adapterConfig.transaction === false) -->, which
-      // is what makes the `account.update.after` hook below fail closed.
+      // The default is `false`, where a `runWithTransaction` wrap rolls nothing back:
+      // `@better-auth/drizzle-adapter/dist/index.mjs:563` <!-- expect: transaction: config.transaction ?? false -->
+      // `@better-auth/core/dist/db/adapter/factory.mjs:31` <!-- expect: transaction: cfg.transaction ?? false -->
+      // `@better-auth/core/dist/db/adapter/factory.mjs:422` <!-- expect: lazyLoadTransaction = createAsIsTransaction(adapter) -->
+      // `@better-auth/core/dist/db/adapter/factory.mjs:18` <!-- expect: (adapter) => (fn) => fn(adapter) -->
+      // `/change-password` must commit as one act (SEC-1):
+      // `dist/api/routes/update-user.mjs:173` <!-- expect: const newSession = await runWithTransaction( -->
+      // `true` also defers hooks to commit, so `account.update.after` below fails closed:
+      // `@better-auth/core/dist/context/transaction.mjs:65-110` <!-- expect: result = await adapter.transaction( -->
+      // `@better-auth/core/dist/context/transaction.mjs:106` <!-- expect: if (adapter.options?.adapterConfig.transaction === false) -->
       transaction: true,
       // `@roonga/qcms-db` exports prefixed names and better-auth addresses its models
       // unprefixed, so without this map the adapter finds no tables at all.
@@ -346,21 +315,12 @@ export function createAdminAuth(input: AdminAuthInput) {
       additionalFields: {
         // `input: false` is the load-bearing part: the SEC-3 claim cannot be self-assigned.
         role: { type: "string", required: false, defaultValue: "admin", input: false },
-        // A DECLARED field rather than a column the library has never heard of, because
-        // the gate reads this off the session user and `parseUserOutput` filters the row
-        // against `getFields(options, "user", "output")`
-        // (`dist/db/schema.mjs:25`) <!-- expect: filterOutputFields(user, getFields(options, "user", "output")) -->,
-        // which merges `options.user.additionalFields`
-        // (`dist/db/schema.mjs:12`) <!-- expect: options[modelName]?.additionalFields -->.
-        //
-        // `defaultValue: true` is what SETS the flag, applied by the library on a create
-        // that does not name it
-        // (`dist/db/schema.mjs:95`) <!-- expect: action === "create" -->, so every
-        // account-creation path inherits the marking rather than opting into it.
-        //
-        // `input: false` means no update writes it: a truthy value throws
-        // (`dist/db/schema.mjs:74`) <!-- expect: is not allowed to be set -->
-        // and a falsy one is dropped, so a session holder cannot clear their own flag.
+        // A DECLARED field, since the gate reads it off the session user and output is filtered by declared fields:
+        // `dist/db/schema.mjs:25` <!-- expect: filterOutputFields(user, getFields(options, "user", "output")) -->
+        // `dist/db/schema.mjs:12` <!-- expect: options[modelName]?.additionalFields -->
+        // `defaultValue: true` sets the flag on every account-creation path: `dist/db/schema.mjs:95` <!-- expect: action === "create" -->
+        // `input: false` stops any update writing it, so a session holder cannot clear it:
+        // `dist/db/schema.mjs:74` <!-- expect: is not allowed to be set -->
         mustChangePassword: {
           type: "boolean",
           required: false,
@@ -373,43 +333,16 @@ export function createAdminAuth(input: AdminAuthInput) {
       account: {
         update: {
           /**
-           * Clearing the provisional-credential flag is entirely ours: the library offers
-           * no forced-password-change option and nothing in `databaseHooks` can refuse a
-           * request on a user-field predicate (SEC-1).
-           *
-           * The event that means "a password was successfully changed" is the write
-           * of the new hash to the credential account row, which is
-           * `dist/api/routes/update-user.mjs:175`
-           * <!-- expect: internalAdapter.updateAccount(account.id, { password: passwordHash }) -->.
-           * It is reached only after the `password.verify` of the current password at
-           * `dist/api/routes/update-user.mjs:169`
-           * <!-- expect: password.verify --> succeeded. `updateAccount` routes through
-           * `updateWithHooks`, at `dist/db/internal-adapter.mjs:711`
-           * <!-- expect: updateWithHooks -->, which runs this hook.
-           *
-           * `updateAccount` is also how refreshed OAuth tokens are stored, so the
-           * `providerId` guard keeps a token refresh from clearing the flag.
-           *
-           * `update.after` hooks are queued through `queueAfterTransactionHook`,
-           * which runs the hook inline when no transaction is open and defers it
-           * otherwise:
-           * `@better-auth/core/dist/context/transaction.mjs:139`
-           * <!-- expect: if (!store?.isTransactionActive) return executeHook(); -->,
-           * and `runWithTransaction` drains that list
-           * (`@better-auth/core/dist/context/transaction.mjs:90,109`)
-           * <!-- expect: for (const hook of pendingHooks) -->.
-           * `/change-password` takes the deferred branch
-           * (`dist/api/routes/update-user.mjs:173`)
-           * <!-- expect: const newSession = await runWithTransaction( -->, and with
-           * `transaction: true` above the drain-on-failure branch is guarded on the
-           * adapter advertising no transaction
-           * (`@better-auth/core/dist/context/transaction.mjs:106`)
-           * <!-- expect: if (adapter.options?.adapterConfig.transaction === false) -->,
-           * so a change that does not commit leaves the flag set.
-           *
-           * The write goes through this process's own executor rather than the library's
-           * adapter, so it takes a fresh connection and cannot block on rows the
-           * transaction held.
+           * Clearing the flag is ours (SEC-1): the hash write follows the password verify:
+           * `dist/api/routes/update-user.mjs:175` <!-- expect: internalAdapter.updateAccount(account.id, { password: passwordHash }) -->
+           * `dist/api/routes/update-user.mjs:169` <!-- expect: password.verify -->
+           * `dist/db/internal-adapter.mjs:711` <!-- expect: updateWithHooks -->
+           * The `providerId` guard keeps an OAuth token refresh from clearing the flag. Hooks drain on commit:
+           * `@better-auth/core/dist/context/transaction.mjs:139` <!-- expect: if (!store?.isTransactionActive) return executeHook(); -->
+           * `@better-auth/core/dist/context/transaction.mjs:90,109` <!-- expect: for (const hook of pendingHooks) -->
+           * `dist/api/routes/update-user.mjs:173` <!-- expect: const newSession = await runWithTransaction( -->
+           * `@better-auth/core/dist/context/transaction.mjs:106` <!-- expect: if (adapter.options?.adapterConfig.transaction === false) -->
+           * The write uses this process's own executor, so it cannot block on rows the transaction held.
            */
           after: async (account) => {
             const row = account as { readonly providerId?: unknown; readonly userId?: unknown };
@@ -422,10 +355,8 @@ export function createAdminAuth(input: AdminAuthInput) {
     },
     advanced: {
       cookiePrefix: COOKIE_PREFIX,
-      // The throttle keys on the BFF's vouched address only. better-auth's default
-      // `x-forwarded-for` is browser-controlled at this process (ADR-20), so a caller
-      // rotating it would buy a fresh backoff bucket every attempt. With no vouched
-      // address every caller shares one bucket, which is the closed failure.
+      // Keyed on the BFF's vouched address only: better-auth's default `x-forwarded-for` is
+      // browser-controlled here (ADR-20). With no vouched address every caller shares one bucket.
       ipAddress: { ipAddressHeaders: [CLIENT_ADDRESS_HEADER] },
       // A config value rather than a `NODE_ENV` read: this process cannot see the
       // browser-facing origin's scheme.
@@ -450,12 +381,8 @@ export function createAdminAuth(input: AdminAuthInput) {
           storeBackupCodes: "encrypted",
         },
       }),
-      // SEC-1's breach-corpus check: a k-anonymity lookup that sends only the first five
-      // hex characters of the password's SHA-1, so the password never leaves the process
-      // and the endpoint learns nothing usable (SEC-8). Hooks `ctx.password.hash`, so it
-      // covers every path that sets a password. Fail-closed is the vendor's and is kept:
-      // an unreachable corpus refuses the password, and a structurally offline deployment
-      // turns the check off in configuration rather than at runtime.
+      // SEC-1's breach-corpus check, a k-anonymity lookup sending only five SHA-1 hex characters
+      // (SEC-8). Fail-closed is the vendor's: an offline deployment disables it in configuration.
       haveIBeenPwned({ enabled: adminAuth.breachedPasswordCheck }),
       // Must stay immediately after `haveIBeenPwned`: it wraps whatever `password.hash` is
       // at its turn.
@@ -482,20 +409,16 @@ export function createAdminAuth(input: AdminAuthInput) {
           allowRemovingAllTeams: true,
         },
         organizationHooks: pluginWriteBackstop(input.db),
-        // A workspace is an operator act, not something an administrator makes by signing
-        // in (ADR-41). The server-side `createOrganization` with an explicit `userId` is a
-        // system action and is unaffected (`dist/plugins/organization/routes/crud-org.mjs:57`),
-        // <!-- expect: const isSystemAction = !session && ctx.body.userId -->
-        // which is what lets the bootstrap seed one.
+        // A workspace is an operator act, not a sign-in side effect (ADR-41). A server-side
+        // `createOrganization` with an explicit `userId` is unaffected, so the bootstrap can seed one:
+        // `dist/plugins/organization/routes/crud-org.mjs:57` <!-- expect: const isSystemAction = !session && ctx.body.userId -->
         allowUserToCreateOrganization: false,
         // A workspace is archived, never deleted (Q15).
         disableOrganizationDeletion: true,
         schema: {
           organization: {
-            // Typed fields, never `organization.metadata` (Q39): that column is replaced
-            // wholesale by any holder of `organization: update`, so a decision resting on
-            // it is one anybody with that statement rewrites. All `input: false`, so no
-            // request body sets them.
+            // Typed fields, never `organization.metadata` (Q39), which any holder of
+            // `organization: update` can rewrite. All `input: false`.
             additionalFields: {
               isShared: { type: "boolean", required: false, defaultValue: false, input: false },
               requireSecondApprover: {

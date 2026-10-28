@@ -184,10 +184,8 @@ function proposalBody(
   };
 }
 
-// The environment comparison is load-bearing: a caller authorised against `test`, where a
-// `forms.editor` holds `webhook: configure`, must not reach a `prod` proposal by naming its
-// id, and a mismatch is not-found so they learn nothing about `prod`. An applied proposal
-// is returned rather than hidden, because what to say about one differs per route.
+// The environment comparison is load-bearing: a `test` caller must not reach a `prod`
+// proposal by id, and a mismatch is not-found. An applied proposal is returned, not hidden.
 async function requireProposal(
   deps: Deps,
   input: {

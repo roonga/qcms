@@ -188,13 +188,6 @@ function recoverFocus(args: {
   }
 }
 
-/**
- * A whole sentence and never a changing number: WCAG 4.1.3's own Understanding warns
- * that updating only the digit in "3 items" can announce just "three". A removed
- * instance is named from the roster as it was before the removal, which is the only
- * place its ordinal still exists, and a label-less instance names its group rather than
- * an opaque `ins_` id.
- */
 function rosterAnnouncement(input: {
   readonly op: "add" | "remove";
   readonly before: readonly string[];
@@ -323,10 +316,6 @@ export function StepFlow({
   // not overtake the answer that made its question visible, and a Continue must evaluate
   // its gate only after any in-flight answer has landed.
   const queueRef = useRef<Promise<void>>(Promise.resolve());
-  // What the server is known to hold per question, so a blur does not re-post what a
-  // change already posted. The rules live in `lib/answer-record.ts`; the ref holds it
-  // because a commit moment must see the write the one before it made, which is a
-  // gesture away, not a render away.
   const lastPostedRef = useRef<PostedRecord>(recordedAnswers(initial.values));
   // A second record rather than a reading of the first, because the first deliberately
   // holds in-flight values: with two overlapping refusals of one question, the second
@@ -407,12 +396,6 @@ export function StepFlow({
         });
         if (res.status === 200) {
           const next = (await res.json()) as StepResponse;
-          // The record is not written here: `postAnswer` wrote it at issue time, and
-          // writing it again would clobber a newer commit of the same question made
-          // while this post was in flight.
-          //
-          // Which question holds focus now, so the post-render effect can recover it if
-          // this projection removes it.
           focusedAtUpdateRef.current = questionIdOf(document.activeElement);
           // Synchronously, not only via the render, so a queued navigation chained right
           // after this post reads fresh state.
@@ -425,10 +408,6 @@ export function StepFlow({
           return true;
         }
         if (res.status === 422) {
-          // The author's own wording for the constraint that failed, if there is one
-          // (ADR-32), then the same `defaultAnswerMessage` resolution the no-JS route
-          // uses. Reaching for the generic catalogue entry here directly is what made a
-          // hydrated respondent's message vaguer than a JavaScript-disabled one.
           const rejection = firstAnswerRejection(errorDetailsOf(await readJsonSafely(res)));
           const authored = authorMessageFor(
             messagesOf(snapshotRef.current.step as unknown as A2UIStepDocument | null).get(name),
@@ -447,12 +426,6 @@ export function StepFlow({
           return false;
         }
         if (outcome === "notVisible") {
-          // This client posted a control the current projection has already hidden, so
-          // adopting that projection is the honest answer rather than claiming the
-          // server could not be reached.
-          //
-          // At the committed cursor, never the first incomplete step: a cursor-less read
-          // would move the page because an answer was posted, which ADR-28 forbids.
           const at = snapshotRef.current.progress.stepIndex;
           if ((await doNavigate(at)) === "failed") reportFailure({ kind: "refresh" });
           return false;
@@ -467,16 +440,6 @@ export function StepFlow({
     [sessionId],
   );
 
-  /**
-   * The single funnel every commit moment posts through, and the owner of the record of
-   * what the server has.
-   *
-   * The record is written before the request is queued, because the next commit moment
-   * for the same question can arrive before this post resolves: a `change` control's
-   * post is still in flight while focus is leaving it, and the blur that follows must
-   * see the value as recorded or it re-posts it. It is rolled back if the post is not
-   * accepted, so a refused value stays retryable.
-   */
   const postAnswer = useCallback(
     (name: string, value: A2UIAnswerValue | undefined): void => {
       // Already recorded, or a post carrying it is in flight: re-posting is a redundant
@@ -505,23 +468,9 @@ export function StepFlow({
     [sendAnswer],
   );
 
-  /**
-   * The Add or Remove on the scripted path (ADR-43). It writes no answer, because every
-   * answer here has already been committed at its own commit moment, and it rides the
-   * same serial queue so it cannot overtake an in-flight commit.
-   *
-   * Focus and the announcement are decided here rather than by the renderer, because
-   * they are properties of what just happened rather than of what is on screen, and the
-   * destination is computed from the roster before the operation, which is the only
-   * place the removed instance's position exists (Q11).
-   */
   const applyRosterOp = useCallback(
     (op: "add" | "remove", groupId: string, instanceId: string | undefined): void => {
       const before = rosterMap(snapshotRef.current.rosters)[groupId] ?? [];
-      // Read from the view the respondent pressed on, never the one the operation
-      // returns: an empty paginated roster projects `view.groupId: null`, so the
-      // post-operation view would withhold the focus destination for the one case where
-      // the new instance is drawn on the page it was added from.
       const paginatedBefore = snapshotRef.current.view.groupId === groupId;
       setBusyGroup(groupId);
       queueRef.current = queueRef.current.then(async () => {
@@ -556,10 +505,6 @@ export function StepFlow({
             groupId,
             message: rosterAnnouncement({ op, before, after, instanceId, templates, groupId }),
           });
-          // An add on a paginated group has no destination: the new instance is a view
-          // one page further along, and only Continue, Back and Submit may move the
-          // rendered page (ADR-28). After a removal the API's clamp of the committed
-          // cursor already produces Q11's three destinations.
           setPendingFocus(
             op === "add"
               ? focusAfterAdd(next.minted, groupId, paginatedBefore)
@@ -619,12 +564,6 @@ export function StepFlow({
     [moments, postAnswer],
   );
 
-  /**
-   * The renderer calls this only when focus leaves the whole control, which is exactly
-   * ADR-31's `groupExit` for a multiChoice as well as the `blur` and `completion`
-   * commits. Whether an empty control commits anything is `commitsOnFocusExit`, which
-   * carries the rules.
-   */
   const handleBlur = useCallback(
     (name: string): void => {
       const value = valuesRef.current[name];
@@ -671,15 +610,6 @@ export function StepFlow({
     }
   }, [sessionId]);
 
-  /**
-   * `target === "current"` asks for the first incomplete step.
-   *
-   * Held answers are merged over the displayed values rather than swapped in, so a key
-   * the server has wins and a value this client is still carrying is never dropped. The
-   * adoption happens here and not on an answer post's response, which returns the same
-   * projection: a post lands while the respondent may be typing in another
-   * already-answered control, and adopting there would overwrite what they just typed.
-   */
   const doNavigate = useCallback(
     async (target: number | "current"): Promise<RoundTrip> => {
       try {
@@ -731,14 +661,6 @@ export function StepFlow({
     });
   }, []);
 
-  /**
-   * A re-opened earlier required question sends the respondent to the first incomplete
-   * step as an explicit action, never a silent backward jump.
-   *
-   * A field showing a refusal blocks Continue and Submit on any step: the server holds
-   * something other than what the respondent is looking at, so moving on would leave the
-   * step with an answer they believe they gave and the ledger does not have (ADR-28).
-   */
   const attemptAdvance = useCallback((): void => {
     runIntent(async () => {
       const snap = snapshotRef.current;
@@ -828,11 +750,6 @@ export function StepFlow({
   // Absent rather than `false` when nothing is pending, so the markup is unchanged then.
   const pendingAttr = intentPending ? true : undefined;
 
-  // Each entry has to name its own question for the summary links to have distinct
-  // accessible names (WCAG 3.3.1), so the visible set travels with the call to name a
-  // label-less question by position, and the document is the expanded one: only the
-  // expanded tree carries nodes under a repeated question's qualified name, so the
-  // stored tree would name neither the question nor its instance.
   const stepVisibleQuestions = snapshot.flowState.visibleQuestions;
   const stepRefusals = refusalsOnStep(errors, stepVisibleQuestions);
   const summaryEntries = showSummary

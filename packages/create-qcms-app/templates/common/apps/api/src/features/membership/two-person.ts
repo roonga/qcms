@@ -1,14 +1,6 @@
-// One per-workspace switch, `requireSecondApprover`, governs both a `prod` release and a
-// `prod` webhook endpoint change: the two acts that can put production personal data
-// somewhere new. Off by default, because an installation with a single administrator
-// could otherwise never release to `prod`. It gates `prod` alone, by decision.
-//
-// Every check here compares **accounts**, not roles: one person may hold `forms.editor`
-// and `forms.approver` together. Which roles those accounts hold was already settled by
-// the grant middleware.
-//
-// The switch lives on `control.organization`, which no environment role holds any
-// privilege on, so it is read on the control pool.
+// `requireSecondApprover` governs a `prod` release and a `prod` webhook endpoint change,
+// off by default so a single administrator can release. Checks compare accounts, not roles.
+// Read on the control pool: `control.organization` is outside every environment role.
 
 import { getWorkspace } from "@roonga/qcms-db";
 import type { Executor } from "@roonga/qcms-db";

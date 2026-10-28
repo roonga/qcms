@@ -22,16 +22,9 @@ import { registerAdminAuth } from "./middleware/admin-auth.js";
 import { registerRequestEnvironment } from "./middleware/request-environment.js";
 
 /**
- * `anonymous` is mounted only on `prod`, so a non-prod surface has no form-slug door at
- * all and answers `404` rather than relying on a handler's `403` (SEC-14).
- *
- * Order in `admin` is load-bearing: `registerAdminAuth` first, so an unauthenticated
- * request is refused by the session gate rather than by the environment name it sent, and
- * `registerRequestEnvironment` second, because every slice below reads its per-environment
- * data through it.
- *
- * `auth` sits outside the admin group because it issues the session that group's gate
- * verifies, so it cannot sit behind that gate.
+ * `anonymous` is mounted only on `prod`, so other surfaces answer `404` (SEC-14). In
+ * `admin`, `registerAdminAuth` goes first so the session gate refuses before the
+ * environment name matters, then `registerRequestEnvironment`. `auth` sits outside the group.
  */
 export const appGroups: RouteGroups = {
   respondent: [registerLinkEntry, registerSessionStatus, registerServeStep, registerSubmit],

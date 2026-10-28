@@ -3,15 +3,6 @@
  * when a failure notice it is showing stops being true.
  */
 
-/**
- * The refusals whose screen the flow page already owns, so the flow reloads that page
- * rather than painting a sentence of its own. Each is terminal: the inline "could not
- * reach the server" notice is untrue of them and invites a retry that gets the same
- * refusal for ever.
- *
- * Read by code and not by status alone, because 409 is also how a post of a question the
- * projection has just hidden is refused, and that one is not terminal.
- */
 const PAGE_OWNED_CODES: ReadonlySet<string> = new Set([
   "SESSION_EXPIRED",
   "SESSION_SUBMITTED",
@@ -49,15 +40,6 @@ export type FlowSuccess =
   | { readonly kind: "roster" }
   | { readonly kind: "submitRefused" };
 
-/**
- * Any answered round trip clears the notice, with one exception: a failed answer post is
- * cleared only by a post for the same question, or by a navigation. Another question's
- * save says the server is reachable but not that this answer reached it, and clearing
- * there would take away the one Try again that re-sends it.
- *
- * A navigation clears everything, because the step it lands on is the server's own word
- * on what is held.
- */
 export function failureAfterSuccess(
   failure: FlowFailure | undefined,
   success: FlowSuccess,

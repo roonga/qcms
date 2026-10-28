@@ -1,8 +1,6 @@
-// The proposal is control-plane state and the endpoint is the environment's, so a
-// confirmation cannot be one transaction. Claim on control (audit row in the same
-// transaction), apply on the environment, then stamp applied: a failure part way leaves a
-// confirmed proposal whose endpoint is not live, which is the direction this has to fail
-// in.
+// Control-plane proposal, environment endpoint: not one transaction. Claim on control, apply
+// on the environment, then stamp applied, so a failure leaves a confirmed proposal whose
+// endpoint is not live.
 
 import {
   confirmEndpointProposal,

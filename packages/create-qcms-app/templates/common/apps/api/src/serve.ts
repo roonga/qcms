@@ -1,8 +1,6 @@
 /**
- * `main.ts` is imported dynamically, and is a separate module for that reason: the OTel
- * instrumentations patch `pg` and `node:http` on first require, so a static import would
- * hoist the whole graph above the SDK and leave the process uninstrumented. Anything that
- * must load at boot belongs in `main.ts`, never above this line.
+ * `main.ts` is imported dynamically: the OTel instrumentations patch `pg` and `node:http` on
+ * first require, so a static import would leave the process uninstrumented.
  */
 
 import { startTelemetry } from "./telemetry.js";

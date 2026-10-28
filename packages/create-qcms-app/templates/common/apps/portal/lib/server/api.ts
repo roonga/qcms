@@ -1,3 +1,4 @@
+// R2: proxy only; imports nothing from @roonga/qcms-core (the import-surface test enforces it).
 import type { A2UIAnswerValue } from "@roonga/qcms-ui";
 
 import { CLIENT_ADDRESS_HEADER, currentClientAddress } from "./client-address";
@@ -7,21 +8,6 @@ import { REQUEST_ID_HEADER, currentRequestId } from "./request-id";
 import { serverLogger } from "./logger";
 
 import { splitFieldKey } from "../repeat";
-
-/**
- * The strict BFF's internal API client: proxy and credential duty only. It performs no
- * rule evaluation and holds no validation authority (R2), and imports nothing from
- * `@roonga/qcms-core`, so the types below are structural mirrors of the API's response
- * shapes rather than kernel imports.
- *
- * Every call goes to the request's own environment's API surface (ADR-40, Q21), through
- * {@link apiPath} and nothing else, so no call can forget the prefix: there is no
- * unprefixed path composed anywhere below.
- *
- * The environment is not sent as a header. A respondent request's environment is the
- * group that served it, which is what makes the absence of a non-prod anonymous door a
- * routing fact rather than a handler's good manners (SEC-14).
- */
 
 /** Served verbatim (ADR-18); `null` when the flow is complete. */
 export interface ApiStepDocument {
@@ -137,15 +123,7 @@ interface ErrorEnvelope {
   };
 }
 
-/**
- * Credential and correlation headers for one internal API call. `traceparent` rides the
- * same fetch without appearing here, injected by `@vercel/otel`.
- *
- * The raw `x-forwarded-for` is not forwarded: `client-address.ts` resolves it here,
- * where the number of trusted proxies is known, and vouches for the result on a header
- * the SEC-4 channel protects. With no trustworthy address the header is omitted and the
- * API falls back to its shared bucket.
- */
+// The raw `x-forwarded-for` is not forwarded: `client-address.ts` resolves it here, where the number of trusted proxies is known, and vouches for the result on a header the SEC-4 channel protects.
 async function baseHeaders(token?: string): Promise<Record<string, string>> {
   const headers: Record<string, string> = {
     "content-type": "application/json",
@@ -327,16 +305,6 @@ export async function submitSession(
   return readJson<SubmitResponse>(res);
 }
 
-/**
- * One request, one session lock, one flow evaluation, instead of one call per answer,
- * which is what makes a repeating group's Continue affordable (ADR-43). The API refuses
- * entries individually and lists them in `rejected`, and it spends the answer allowance
- * per entry rather than per request (SEC-16), so a 429 means nothing was applied.
- *
- * The answer key rides as a pair rather than the joined string: the join is the
- * renderer's encoding and the pair is the API's vocabulary, so splitting it is a
- * transport mapping rather than a judgement (R2).
- */
 export async function batchAnswers(
   sessionId: string,
   token: string,

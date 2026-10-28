@@ -11,22 +11,7 @@ import { readSessionToken } from "@/lib/server/session-cookie";
 import { decodeStepForm, type DecodedAnswer } from "@/lib/server/step-form";
 import type { NativeFieldKind } from "@roonga/qcms-ui/native-submit";
 
-/**
- * The no-JS roster operation (ADR-43 as amended).
- *
- * A Server Action rather than a route handler because the response has to be the
- * re-rendered step carrying every typed value: a route handler cannot render the page,
- * and a page segment answers GET and HEAD only.
- *
- * It applies the roster operation and writes no answer, which is what makes
- * `formnovalidate` on the Add and Remove buttons safe.
- *
- * It runs SEC-9's belt itself, because Next's own action check admits a request with no
- * `Origin`, ignores the scheme and never reads `Sec-Fetch-Site`.
- *
- * Its state type lives in `lib/repeat.ts` because a `"use server"` file may export
- * async functions and nothing else.
- */
+// It runs SEC-9's belt itself, because Next's own action check admits a request with no `Origin`, ignores the scheme and never reads `Sec-Fetch-Site`.
 
 function typedValues(
   answers: readonly DecodedAnswer[],

@@ -1,11 +1,6 @@
-// The permissions matrix in section 6 of `plan/environments-and-workspaces.md` is this
-// module's specification. `forms.` roles and `responses.` roles are two families and
-// neither implies any right in the other, so an owner or editor reaches no response
-// without a `responses.` grant of its own (ADR-41, SEC-3).
-//
-// Environment and form conditions are never in a statement: they live in the grant's
-// scope, because the auth plugin has no notion of a scoped role. `dynamicAccessControl`
-// is deliberately unused: a run-time role could recreate a mixed-family role.
+// Specification: section 6 of `plan/environments-and-workspaces.md`. `forms.` and
+// `responses.` roles are separate families and neither implies the other (ADR-41, SEC-3).
+// Conditions live in grant scope; `dynamicAccessControl` stays unused (no mixed-family roles).
 
 import { createAccessControl } from "better-auth/plugins/access";
 import { defaultStatements } from "better-auth/plugins/organization/access";

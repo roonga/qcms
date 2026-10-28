@@ -55,10 +55,6 @@ function ReadFailure({ error }: { readonly error: unknown }) {
         <MessageScreen tone="success" title={t("completion.title")} body={t("completion.body")} />
       );
     case "UNSUPPORTED_SEMANTICS_VERSION":
-      // ADR-16's semantics gate: the pinned snapshot needs semantics this release does
-      // not implement, so no retry or restart can move the flow forward. Hence its own
-      // terminal screen rather than the generic failure or the recovery page, both of
-      // which invite an action that cannot work.
       return (
         <MessageScreen
           tone="error"

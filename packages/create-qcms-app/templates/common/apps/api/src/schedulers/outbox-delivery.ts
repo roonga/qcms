@@ -1,15 +1,7 @@
 /**
- * Delivery is at-least-once, never best-effort. Each delivery transaction holds the
- * row lock across the POST, which is what makes a send exclusive across concurrent
- * deliverers (`SKIP LOCKED`) and crash-safe: a crash between send and commit rolls
- * back to a redeliverable state, so a consumer may see a duplicate and `eventId` plus
- * `contentHash` are its idempotency keys.
- *
- * Only ids and per-pass counts are logged, never the payload, the secret or the
- * signature (SEC-8).
- *
- * The URL re-check before every POST cannot close DNS rebinding; that needs
- * resolve-then-pin at the socket layer (docs/webhooks.md).
+ * At-least-once: the row lock is held across the POST (`SKIP LOCKED`), so a crash rolls back
+ * to redeliverable and `eventId` plus `contentHash` are the idempotency keys. Only ids and
+ * counts are logged (SEC-8). The URL re-check cannot close DNS rebinding (docs/webhooks.md).
  */
 
 import { type FormId, parseFormId } from "@roonga/qcms-core";

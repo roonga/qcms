@@ -56,10 +56,9 @@ import type {
   workspaceSettingsRoute,
 } from "./route.js";
 
-// The only membership write path: the auth plugin's own team and member endpoints are
-// kept off the HTTP allowlist, because its removal cascades run below any endpoint QCMS
-// could gate and would change grants with no audit row. Every write here therefore writes
-// its grant rows and its SEC-15 audit row in one transaction on the control pool.
+// The only membership write path: the auth plugin's team and member endpoints stay off the
+// HTTP allowlist, as their removal cascades change grants with no audit row. Each write
+// puts its grants and SEC-15 audit row in one control-pool transaction.
 
 const fail = {
   notFound: (): ApiError => new ApiError("WORKSPACE_NOT_FOUND", 404, "No such workspace"),
@@ -569,12 +568,9 @@ export function makeAddHolderHandler(deps: Deps): RouteHandler<typeof addHolderR
   };
 }
 
-// Driven by the workspace's `seedNewEditorsWithTestData` setting, off by default. It
-// creates an ordinary visible access group, so an editor still sees dev and test
-// responses only through an explicit, revocable grant, never by implication from an
-// authoring role. Test runs can involve real respondents, so it audits like any other
-// grant on personal data. Scoped to whichever of `dev` and `test` actually exist, since a
-// grant naming an absent environment is refused.
+// Driven by `seedNewEditorsWithTestData` (off by default). An ordinary revocable grant, so
+// an editor sees dev and test responses only by explicit grant, audited as personal data.
+// Scoped to the `dev` and `test` that exist, since a grant naming an absent one is refused.
 async function seedTestDataGrant(
   exec: Executor,
   input: {

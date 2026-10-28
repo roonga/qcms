@@ -1,7 +1,5 @@
-// Responses here must carry ids, urls, event types, attempt counts and value-free error
-// codes only, never a secret, a payload or an answer value (SEC-8). The stored request
-// headers already have the HMAC replaced by `SIGNATURE_MASK` at write time, so no
-// signature can pass through even by accident (SEC-6, SEC-13).
+// Responses carry ids, urls, event types, attempt counts and value-free error codes only
+// (SEC-8). Stored headers already have the HMAC masked at write time (SEC-6, SEC-13).
 
 import type { RouteHandler } from "@hono/zod-openapi";
 import { parseFormId } from "@roonga/qcms-core";
@@ -67,10 +65,8 @@ export function makeDeadLettersHandler(deps: Deps): RouteHandler<typeof deadLett
   };
 }
 
-// Check order matters: a row can carry several timestamps at once, so the most recent
-// outcome has to win. `delivered` outranks `cancelled` because an event that has already
-// left was never cancelled, and `cancelled` outranks `deadLettered` because cancellation
-// is the later, terminal fact.
+// Check order matters: a row can carry several timestamps, so the latest outcome wins.
+// `delivered` beats `cancelled` beats `deadLettered`.
 function deliveryStatus(row: DeliveryView): "delivered" | "cancelled" | "deadLettered" | "pending" {
   if (row.deliveredAt !== null) return "delivered";
   if (row.cancelledAt !== null) return "cancelled";
@@ -139,10 +135,8 @@ export function makeRedeliverHandler(deps: Deps): RouteHandler<typeof redeliverR
   return async (c) => {
     const { id, deliveryId } = c.req.valid("param");
 
-    // Every not-found-ish outcome on this endpoint is one code, so a caller cannot sort
-    // "malformed form" from "no such delivery" from "not your form". Hence the 404 for a
-    // malformed form id, and no separate existence check: the form is threaded into both
-    // queries below, which already match nothing for an unknown one.
+    // Every not-found outcome is one code so a caller cannot tell "malformed form" from "no
+    // such delivery" from "not your form". The form is threaded into both queries below.
     const parsed = parseFormId(id);
     if (!parsed.ok) throw fail.deliveryNotFound();
     const formId = parsed.value;
@@ -151,11 +145,8 @@ export function makeRedeliverHandler(deps: Deps): RouteHandler<typeof redeliverR
     // sits here rather than on the param schema because a schema rejection is a 400.
     if (!isDeliveryId(deliveryId)) throw fail.deliveryNotFound();
 
-    // Refuse before resetting (ADR-17): `redeliveryRefusalFor` reads exactly the columns
-    // the scheduler's claim filters on, so a row that could never be claimed is not put
-    // back on the queue as "pending". This read must stay form-scoped, or it answers 409
-    // for another form's redacted delivery where an unknown id answers 404, which reports
-    // that someone else's row exists.
+    // Refuse before resetting (ADR-17): a row the scheduler could never claim is not requeued.
+    // Keep this read form-scoped, or 409 versus 404 reveals another form's row.
     if (
       (await redeliveryRefusalFor(
         deps.databases.forRequest(c.get("requestEnvironment")).exec,

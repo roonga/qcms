@@ -1,26 +1,5 @@
 "use client";
 
-/**
- * The respondent's appearance controls (ADR-30). See docs/theming.md.
- *
- * Each control swaps a root class and writes a long-lived cookie: the class swap is what
- * the respondent sees immediately, and the cookie makes the next server render already
- * correct, so a reload never flashes back to the deployment default.
- *
- * The selected chip is never colour-only, because this is precisely the control a
- * respondent with a palette of two colours has to operate to fix their own experience.
- *
- * Mode and density are native radio groups drawn as chips, rather than a
- * `role="radiogroup"` of buttons, so roving tab order, arrow-key traversal and the
- * position count come from the browser.
- *
- * Without JavaScript the same markup posts natively to `app/appearance/route.ts`. The
- * seam is one element wide, the Apply button, which is always in the markup and always
- * hidden by CSS, so scripting on costs no second render and no layout shift. Hydrated,
- * {@link AppearanceControls} calls `preventDefault` on the form, which is needed for
- * implicit submission from the `<select>`.
- */
-
 import { fontClass } from "@roonga/qcms-ui/fonts";
 import { usePathname, useSearchParams } from "next/navigation";
 import { useEffect, useState, type ReactNode } from "react";
@@ -145,19 +124,9 @@ function fontGroups(fonts: readonly FontChoice[]): readonly [string, readonly Fo
 
 export function AppearanceControls() {
   const state = useAppearance();
-  // The page to come back to after the no-JS POST, path and query. Both hooks render on
-  // the server too, so the hidden field is correct in the served HTML, which is the only
-  // render a no-JS respondent gets. The query has to ride along, because screens such as
-  // `/link-error?kind=expired` select their whole copy from it;
-  // `lib/server/appearance-form.ts` validates the whole reference before it can become a
-  // `Location`.
   const pathname = usePathname();
   const searchParams = useSearchParams();
   const search = searchParams.toString();
-  // `proxy.ts` strips the environment prefix, so `usePathname()` is the rewritten path on
-  // the server and the browser's own prefixed path after hydration. Prepending the prefix
-  // only when it is absent makes both renders produce the same string, and keeps the
-  // no-JS return address inside the respondent's own environment (Q21).
   const basePath = state?.basePath ?? "";
   const prefixed =
     basePath === "" || pathname === basePath || pathname.startsWith(`${basePath}/`)
@@ -168,11 +137,6 @@ export function AppearanceControls() {
   const [font, setFont] = useState<string>(state?.font ?? "");
   const [density, setDensity] = useState<Density>(state?.density ?? "comfortable");
 
-  // The root class is the truth about the mode; the server's stamp is only its guess at
-  // render time, because the pre-paint script reads inputs that did not exist then. Read
-  // unconditionally rather than only in the cases known to diverge, which would mean
-  // keeping two precedence chains in agreement. It corrects the control only: the page
-  // itself was painted correctly by the script.
   useEffect(() => {
     const live = APPEARANCE_MODES.find((candidate) =>
       document.documentElement.classList.contains(candidate),

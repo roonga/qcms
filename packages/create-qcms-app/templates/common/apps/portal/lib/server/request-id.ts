@@ -1,13 +1,3 @@
-/**
- * The human-facing correlation id (ADR-34 P5): the token a respondent or a tester can
- * quote, which the API echoes on every response.
- *
- * `proxy.ts` is the single minting point, stamping it on the forwarded request headers,
- * from where every Server Component and route handler reads it back and the BFF puts it
- * on its API fetches. `traceparent` is the machine-readable propagation beside it, not
- * instead of it.
- */
-
 import { headers } from "next/headers";
 
 export const REQUEST_ID_HEADER = "x-request-id";
