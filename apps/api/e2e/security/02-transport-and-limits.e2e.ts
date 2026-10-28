@@ -1,23 +1,3 @@
-/**
- * Security scenario 2 - SEC-9 transport hardening and SEC-6 egress signing,
- * asserted against a composed API rather than against the source (task 040).
- *
- * Three families live here because all three are properties of a *response*
- * leaving the process, and all three had the same defect before 040: they were
- * asserted in prose and in the two Next apps, and nowhere on the API.
- *
- * 1. **Response headers.** The API now sets the SEC-9 set (issue #471); the
- *    header block below pins them on a served response, on a refusal, and on a
- *    404, because a header that only appears on 200s is not a control.
- * 2. **No CORS, ever.** §5's "no CORS headers are ever set, and their absence is
- *    a test" was true of the admin proxy and untrue of the API. It is a test now.
- * 3. **Webhook signatures (SEC-6).** Verified through the *documented consumer
- *    recipe* (`docs/webhooks.md`), including the two properties the design
- *    document had wrong until issue #453: a delivery carries exactly **one**
- *    signature, and re-issuing a secret is a **hard cutover** with no overlap
- *    window. Those are asserted as the shipped behaviour, not as a wish.
- */
-
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 
 import {
@@ -50,11 +30,6 @@ let webhookId: string;
 let firstSecret: string;
 let adminToken: string;
 
-/**
- * A raw admin call. `AdminClient` covers the routes the scenario suites need and
- * deliberately not the webhook-update route; going direct here keeps a security
- * probe from growing the shared client for one caller.
- */
 async function adminRequest(
   method: string,
   path: string,
@@ -87,7 +62,6 @@ beforeAll(async () => {
   expect(hook.status).toBe(201);
   webhookId = hook.body.webhookId;
   firstSecret = hook.body.secret;
-  // The server generates it (SEC-6: per-webhook, server-side, shown once).
   expect(firstSecret).toMatch(/^whsec_/);
 });
 
@@ -96,9 +70,6 @@ afterAll(async () => {
   await testDb?.teardown();
 });
 
-// --- SEC-9 response headers -------------------------------------------------
-
-/** The four §5 headers, with the value each must carry. */
 const REQUIRED_HEADERS: readonly (readonly [string, RegExp])[] = [
   ["content-security-policy", /(^|;\s*)frame-ancestors 'none'/],
   ["content-security-policy", /(^|;\s*)default-src 'none'/],
@@ -151,15 +122,10 @@ describe("SEC-9 response headers are set on every API response", () => {
   });
 
   it("does not emit HSTS: the ingress owns it (SEC-9, ADR-20)", async () => {
-    // Asserting the *absence* deliberately. A service that never terminates TLS
-    // claiming a two-year HSTS policy would be a promise it cannot keep, and the
-    // Caddy recipe is the single emitter.
     const res = await composed.app.request("/health");
     expect(res.headers.get("strict-transport-security")).toBeNull();
   });
 });
-
-// --- no CORS, ever ----------------------------------------------------------
 
 describe("the API sets no CORS header on any response (SEC-9)", () => {
   const CORS_HEADERS = [
@@ -191,8 +157,6 @@ describe("the API sets no CORS header on any response (SEC-9)", () => {
     }
   });
 });
-
-// --- body size limit --------------------------------------------------------
 
 describe("request body size limit (SEC-9)", () => {
   it("accepts a body inside the limit", async () => {
@@ -232,8 +196,6 @@ describe("request body size limit (SEC-9)", () => {
   });
 });
 
-// --- the API sets no cookies (SEC-2: the BFF holds them) --------------------
-
 describe("respondent credentials never travel as cookies from the API", () => {
   it("returns the session token in the body and sets no cookie", async () => {
     const res = await composed.app.request("/sessions", {
@@ -249,8 +211,6 @@ describe("respondent credentials never travel as cookies from the API", () => {
     expect(await res.text()).toContain("sessionToken");
   });
 });
-
-// --- error envelope leaks nothing -------------------------------------------
 
 describe("refusals carry no internal detail", () => {
   it("never returns a stack trace or a file path in an error body", async () => {
@@ -277,26 +237,13 @@ describe("refusals carry no internal detail", () => {
   });
 });
 
-// --- SEC-6 webhook signing --------------------------------------------------
-
-/**
- * `X-QCMS-Timestamp` is **unix seconds as a decimal string**
- * (`schedulers/outbox-delivery.ts:289`), not an ISO instant. Writing this helper
- * from `docs/webhooks.md` and running it is what established that: the first
- * draft parsed the header with `new Date(...)` and the suite failed with
- * `Invalid time value`, which is the recipe check doing its job. The wire format
- * is now pinned by `sentAt` below.
- */
+// `X-QCMS-Timestamp` is unix seconds as a decimal string, not an ISO instant.
 function sentAt(timestamp: string): Date {
   expect(timestamp).toMatch(/^\d{10}$/);
   return new Date(Number(timestamp) * 1_000);
 }
 
-/**
- * The verification `docs/webhooks.md` tells a consumer to implement: recompute
- * `HMAC-SHA256(secret, timestamp + "." + body)`, compare to the hex after `v1=`,
- * and reject a timestamp older than the skew bound.
- */
+// The verification `docs/webhooks.md` tells a consumer to implement.
 function consumerAccepts(
   secret: string,
   timestamp: string,
@@ -334,8 +281,7 @@ describe("SEC-6 webhook signatures", () => {
     const req = hits[0] as (typeof hits)[number];
 
     const raw = req.headers["x-qcms-signature"];
-    // The hard-cutover property, asserted structurally: one header, one value.
-    // A dual-signing window would need either two headers or a comma list here.
+    // A dual-signing window would need two headers or a comma list here.
     expect(Array.isArray(raw)).toBe(false);
     const signature = req.header("x-qcms-signature") as string;
     expect(signature).toMatch(/^v1=[0-9a-f]{64}$/);
@@ -370,7 +316,6 @@ describe("SEC-6 webhook signatures", () => {
   it("rejects a replay outside the 5-minute skew bound, byte-identical though it is", () => {
     const { timestamp, signature, body } = firstDelivery;
     const later = new Date(sentAt(timestamp).getTime() + 6 * 60 * 1_000);
-    // The same request, unmodified: only the consumer's clock has moved on.
     expect(verifyWebhookSignature(firstSecret, timestamp, body, signature)).toBe(true);
     expect(consumerAccepts(firstSecret, timestamp, body, signature, later)).toBe(false);
   });
@@ -407,14 +352,11 @@ describe("SEC-6 webhook signatures", () => {
     const timestamp = req.header("x-qcms-timestamp") as string;
     const signature = req.header("x-qcms-signature") as string;
 
-    // The new secret verifies.
     expect(consumerAccepts(secondSecret, timestamp, req.body, signature, sentAt(timestamp))).toBe(
       true,
     );
-    // The old one does not, and there is no second header carrying it. This is
-    // the documented cost of the cutover (SEC-6/SEC-7, issue #453): every
-    // delivery fails at a consumer still holding the previous secret until the
-    // operator hands over the new one and redelivers.
+    // No overlap window: a consumer still holding the previous secret fails every
+    // delivery until the operator hands over the new one.
     expect(consumerAccepts(firstSecret, timestamp, req.body, signature, sentAt(timestamp))).toBe(
       false,
     );

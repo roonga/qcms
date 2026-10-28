@@ -1,21 +1,3 @@
-/**
- * The assist slice through HTTP, against the real kernel and a real database
- * (041). Requires Docker.
- *
- * Three things are proved here that no unit test can:
- *
- *  1. **The PII boundary.** A submitted answer exists in the database while the
- *     turn runs, and the exact bytes the provider was handed are captured and
- *     searched for it. The fixture is asserted present first, so a green here
- *     means the answer was reachable and did not travel, not that there was
- *     nothing to leak.
- *  2. **The refusal, end to end.** A scripted rogue model attempts publish over
- *     the wire; the response refuses, the log records it, and the form is still
- *     unpublished afterwards.
- *  3. **The advisory issues are the server's.** The proposal that comes back
- *     carries the same `PublishError[]` 022's validation produces.
- */
-
 import { parseQuestionDefinition, QuestionId, stepQuestionRefs } from "@roonga/qcms-core";
 import {
   SEED_WORKSPACE_ID,
@@ -49,8 +31,6 @@ import type { AssistEvent } from "./types.js";
 const BOOT_TIMEOUT = 120_000;
 const ADMIN_ONLY = { public: false, internal: false, admin: true } as const;
 
-/** A value that exists only inside a respondent's answer. If it turns up in a
- * provider payload, the boundary is broken. */
 const SENTINEL = "RESPONDENT-ONLY-SENTINEL-VALUE";
 
 let testDb: TestDb;
@@ -59,7 +39,6 @@ let app: ReturnType<typeof createApp>;
 let internalToken: string;
 let adminSessionToken: string;
 let logLines: Record<string, unknown>[];
-/** Every call options object the provider was handed. */
 let providerCalls: unknown[];
 
 beforeAll(async () => {
@@ -157,7 +136,6 @@ function draftFor(formId: string, questionIds: readonly string[]): Record<string
   };
 }
 
-/** Create a form with a saved draft; returns the draft's state token. */
 async function seedForm(formId: string, questionIds: readonly string[]): Promise<string> {
   await post("/forms", { formId, slug: formId.replace("frm_", ""), defaultLocale: "en" });
   const res = await put(`/forms/${formId}/draft`, { definition: draftFor(formId, questionIds) });
@@ -165,7 +143,6 @@ async function seedForm(formId: string, questionIds: readonly string[]): Promise
   return ((await res.json()) as { updatedAt: string }).updatedAt;
 }
 
-/** Read an SSE body back into the events it carried. */
 async function readEvents(res: Response): Promise<AssistEvent[]> {
   const body = await res.text();
   return body
@@ -190,9 +167,8 @@ describe("the assist slice over HTTP", () => {
       await seedPublishedQuestion("q_accident_detail", "Accident detail");
       await seedForm("frm_assist", ["q_at_fault"]);
 
-      // A real respondent answer, in the same database, while the turn runs.
-      // The form is published first so a session can pin a version, then a new
-      // draft is opened for the agent to work against.
+      // The form is published first so a session can pin a version, then a new draft is
+      // opened for the agent to work against.
       expect((await post("/forms/frm_assist/publish")).status).toBe(200);
       await testDb.client.query(
         `insert into sessions (session_id, form_id, form_version, access_mode, environment, expires_at)
@@ -208,8 +184,8 @@ describe("the assist slice over HTTP", () => {
         `select count(*)::int as n from answers where value::text like $1`,
         [`%${SENTINEL}%`],
       );
-      // The fixture is present: what follows is a boundary assertion, not an
-      // assertion about an empty database.
+      // The sentinel is reachable, so the boundary assertion below is not about an
+      // empty database.
       expect((stored.rows[0] as { n: number }).n).toBe(1);
 
       const before = providerCalls.length;
@@ -222,11 +198,8 @@ describe("the assist slice over HTTP", () => {
       expect(proposal, JSON.stringify(events)).toBeDefined();
       if (proposal?.type !== "proposal") throw new Error("unreachable");
       expect(proposal.proposal.proposedDraft.formId).toBe("frm_assist");
-      // The server ran 022's validation: the pinned questions are published, so
-      // this proposal is clean.
       expect(proposal.proposal.issues).toEqual([]);
 
-      // The provider was really called, and none of what it saw was the answer.
       expect(providerCalls.length).toBeGreaterThan(before);
       expect(JSON.stringify(providerCalls)).not.toContain(SENTINEL);
     },
@@ -236,9 +209,6 @@ describe("the assist slice over HTTP", () => {
   it(
     "offers the newest PUBLISHED version of a question, not the newest overall",
     async () => {
-      // Three versions: v1 and v2 published, v3 still a draft. The library must
-      // offer v2 - not v1 (the first row), and not v3 (the highest number, but
-      // unpublishable, so pinning it would only produce a validation issue).
       const questionId = QuestionId.parse("q_versions_only");
       const parsed = parseQuestionDefinition({
         questionId: "q_versions_only",
@@ -255,8 +225,6 @@ describe("the assist slice over HTTP", () => {
         await createQuestionVersion(testDb.db, { questionId, definition: parsed.value });
         if (version < 3) await publishQuestionVersion(testDb.db, { questionId, version });
       }
-      // The fixture really is shaped as described, so what follows is about the
-      // selection rather than about an accidentally-empty library.
       const rows = await listQuestionVersions(testDb.db, questionId);
       expect(rows.map((r) => `${String(r.version)}:${r.status}`)).toEqual([
         "1:published",
@@ -295,7 +263,6 @@ describe("the assist slice over HTTP", () => {
       expect(events.filter((e) => e.type === "proposal")).toHaveLength(0);
       expect(JSON.stringify(logLines)).toContain("draft assistant tool call rejected");
 
-      // Nothing published, and the draft still exists untouched.
       const versions = await testDb.client.query(
         `select count(*)::int as n from form_versions where form_id = 'frm_rogue'`,
       );
@@ -308,10 +275,6 @@ describe("the assist slice over HTTP", () => {
   it(
     "attaches the server's advisory issues when the proposal is not publishable",
     async () => {
-      // A library whose only published question is pinned by the draft, plus a
-      // draft that references a question that does not exist: the proposal the
-      // fake builds inherits the form identity, and validation has something to
-      // say about the draft it validates.
       await seedPublishedQuestion("q_issue_a", "A");
       await seedForm("frm_issues", ["q_issue_a"]);
 
@@ -328,8 +291,6 @@ describe("the assist slice over HTTP", () => {
         },
       });
       const saved = (await res.json()) as { issues: { code: string }[] };
-      // The draft endpoint itself reports the backward target (022), which is
-      // the same validation the assist slice runs.
       expect(saved.issues.map((i) => i.code)).toContain("RULE_BACKWARD_TARGET");
     },
     BOOT_TIMEOUT,
@@ -341,8 +302,7 @@ describe("the assist slice over HTTP", () => {
       await seedPublishedQuestion("q_seeded", "Seeded");
       await seedForm("frm_seeded", ["q_seeded"]);
       expect((await post("/forms/frm_seeded/publish")).status).toBe(200);
-      // Publish removes the open draft, and the builder then shows one seeded from
-      // v1. The assistant must work against that same thing rather than 404.
+      // Publish removes the open draft; the builder then shows one seeded from v1.
       expect(await getDraft(testDb.db, "frm_seeded" as never)).toBeUndefined();
 
       const res = await assist("frm_seeded", "add a follow-up");
@@ -390,8 +350,6 @@ describe("the assist slice over HTTP", () => {
         agentAssisted: true,
       });
 
-      // A plain save afterwards must not quietly erase the provenance the human
-      // is about to publish against.
       const plain = await put(`/forms/frm_prov/draft`, {
         definition: draftFor("frm_prov", ["q_prov"]),
       });
@@ -408,18 +366,7 @@ describe("the assist slice over HTTP", () => {
   );
 });
 
-/**
- * Accepting a proposal that carries NEW questions (issue #823).
- *
- * The defect these pin: accept used to store a draft pinning `q_first_name@1`
- * while the `questions` table stayed empty, so the builder rendered "Version not
- * found" and the assistant's promise that the warning "will resolve once the
- * question is published" named a publish step that could not be performed. What
- * accept has to produce instead is the human-publishes half of ADR-25: the
- * question drafts exist, unpublished, and the advisories say exactly that.
- */
 describe("accepting a proposal with new questions", () => {
-  /** A shortText definition the kernel takes and the authoring boundary allows. */
   function questionDefinition(id: string, label: string): Record<string, unknown> {
     return { questionId: id, type: "shortText", label: { en: label } };
   }
@@ -435,7 +382,6 @@ describe("accepting a proposal with new questions", () => {
     });
   }
 
-  /** Every refusal record the API has written so far, oldest first. */
   function refusalLines(): Record<string, unknown>[] {
     return logLines.filter((line) => line["msg"] === "agent proposal refused");
   }
@@ -466,27 +412,21 @@ describe("accepting a proposal with new questions", () => {
         issues: { code: string; path?: { question?: string } }[];
       };
 
-      // Exactly those two, at version 1, DRAFT. Accept creates; it never publishes.
       expect(body.createdQuestions).toEqual([
         { questionId: "q_first_name", slug: "first-name", version: 1, status: "draft" },
         { questionId: "q_last_name", slug: "last-name", version: 1, status: "draft" },
       ]);
       expect(body.agentAssisted).toBe(true);
 
-      // The rows are really there, and really unpublished.
       expect(await storedVersions("q_first_name")).toEqual([{ version: 1, status: "draft" }]);
       expect(await storedVersions("q_last_name")).toEqual([{ version: 1, status: "draft" }]);
 
-      // The advisories now describe reality. Nothing dangles - every pin resolves to
-      // a stored version - and the set of "publish this first" findings is exactly
-      // the set that was created.
       expect(body.issues.filter((issue) => issue.code === "DANGLING_QUESTION_REF")).toEqual([]);
       const unpublished = body.issues
         .filter((issue) => issue.code === "UNPUBLISHED_QUESTION_PIN")
         .map((issue) => issue.path?.question);
       expect(unpublished).toEqual(["q_first_name", "q_last_name"]);
 
-      // And the draft that pins them is stored, not merely echoed.
       const draft = await getDraft(testDb.db, "frm_new_q" as never);
       expect(draft?.agentAssisted).toBe(true);
     },
@@ -511,7 +451,6 @@ describe("accepting a proposal with new questions", () => {
       const after = await testDb.client.query(`select count(*)::int as n from questions`);
       expect(after.rows[0]).toEqual(before.rows[0]);
 
-      // A pin to a published library question is clean: nothing to publish first.
       expect(body.issues).toEqual([]);
     },
     BOOT_TIMEOUT,
@@ -544,20 +483,16 @@ describe("accepting a proposal with new questions", () => {
         error: { code: string; message: string; details?: { questionId?: string } };
       };
       expect(body.error.code).toBe("INVALID_QUESTION_DEFINITION");
-      // Which question, and why: the operator is looking at a card listing three.
       expect(body.error.message).toContain("q_bad_pattern");
       expect(body.error.message).toContain("'v' flag");
       expect(body.error.details?.questionId).toBe("q_bad_pattern");
 
-      // The boundary refusal takes the same record, with its own `reason`.
       expect(refusalLines().at(-1)).toMatchObject({
         formId: "frm_refused",
         questionId: "q_bad_pattern",
         reason: "INVALID_QUESTION_DEFINITION",
       });
 
-      // No half-accepted state. Neither proposed question exists - not even the one
-      // that was fine - and the stored draft is untouched.
       expect(await storedVersions("q_good_one")).toEqual([]);
       expect(await storedVersions("q_bad_pattern")).toEqual([]);
       const draft = await getDraft(testDb.db, "frm_refused" as never);
@@ -583,41 +518,25 @@ describe("accepting a proposal with new questions", () => {
       );
 
       expect(res.status).toBe(409);
-      // The envelope names the question, because the accept refused a list and the
-      // operator is looking at a card that lists several.
       expect((await res.json()) as { error: { code: string; details?: unknown } }).toMatchObject({
         error: { code: "QUESTION_ID_REUSED", details: { questionId: "q_taken_id" } },
       });
-      // One transaction: the first insert rolled back with the second's refusal.
       expect(await storedVersions("q_fresh_one")).toEqual([]);
       expect(await storedVersions("q_taken_id")).toEqual([{ version: 1, status: "published" }]);
 
-      // Every refusal is recorded, not only the authoring-boundary one, and under the
-      // same event name so the three are counted together. A refused accept is the one
-      // outcome an operator cannot reconstruct from the screen: the proposal that
-      // caused it is gone the moment they ask the assistant again.
       const refusal = refusalLines().at(-1);
       expect(refusal).toMatchObject({
         formId: "frm_reuse",
         questionId: "q_taken_id",
         reason: "QUESTION_ID_REUSED",
       });
-      // Never the definition itself (SEC-8), on any refusal path.
+      // SEC-8: never the definition itself, on any refusal path.
       expect(JSON.stringify(refusal)).not.toContain("Reused");
     },
     BOOT_TIMEOUT,
   );
 });
 
-/**
- * Unknown keys are refused at every depth of a request body (issue #893).
- *
- * `AcceptProposalBody` carries the only NESTED closed objects on the whole request
- * surface - `newQuestions[]` is `{ definition, slug? }` - so this is where the
- * nested half of the policy can be driven over HTTP. The two flag-gated assist
- * bodies also publish in neither committed document, which is why the contract test
- * walks an all-flags-on composition as well as the two files on disk.
- */
 describe("unknown keys are refused inside a nested body object (issue #893)", () => {
   function questionDefinition(id: string, label: string): Record<string, unknown> {
     return { questionId: id, type: "shortText", label: { en: label } };
@@ -647,8 +566,6 @@ describe("unknown keys are refused inside a nested body object (issue #893)", ()
       const body = (await res.json()) as Envelope;
       expect(body.error.code).toBe("INVALID_REQUEST");
       expect(body.error.message).toContain('"unexpectedNested"');
-      // The path locates the offending entry, so a caller with fifty proposed
-      // questions is told which one to fix rather than that one of them is wrong.
       expect(body.error.details?.issues?.[0]).toMatchObject({
         code: "unrecognized_keys",
         path: "newQuestions.0",
@@ -663,8 +580,7 @@ describe("unknown keys are refused inside a nested body object (issue #893)", ()
     async () => {
       await post("/forms", { formId: "frm_nested_ok", slug: "nested-ok", defaultLocale: "en" });
 
-      // `definition` inside the entry is an opaque record: the kernel owns its
-      // shape, so its keys are not the route's business and the accept succeeds.
+      // `definition` is an opaque record the kernel owns, so its keys stay open.
       const res = await post("/forms/frm_nested_ok/draft/assist/accept", {
         definition: draftFor("frm_nested_ok", ["q_nested_ok"]),
         newQuestions: [
@@ -700,8 +616,8 @@ describe("the assist slice when the flag is none", () => {
       });
       expect(res.status).toBe(404);
 
-      // Accept goes with it (issue #823). Gating the mount is what keeps a
-      // default build from carrying a second way to create library questions.
+      // Gating the mount is what keeps a default build from carrying a second way to
+      // create library questions.
       const accept = await offApp.request("/admin/forms/frm_assist/draft/assist/accept", {
         method: "POST",
         headers,

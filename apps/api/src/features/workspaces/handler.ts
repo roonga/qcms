@@ -32,38 +32,6 @@ import type {
   setSharedWorkspaceRoute,
 } from "./route.js";
 
-/**
- * Handlers for the workspace model (ADR-41, task 068).
- *
- * Every route here runs on the **control** pool: a workspace is control-plane state, as
- * are the forms and questions that reference it, and no statement in this slice reaches a
- * data schema at all. That is not incidental - it is the property criterion 5 asserts.
- * **No code path here deletes a workspace and none reaches a response row from one**, so
- * ADR-17's two whole-session delete paths stay at two: archiving stamps one column,
- * moving a form or a question is one `UPDATE` on an identity row, and `@roonga/qcms-db`
- * exports no workspace delete for a future handler to reach for.
- *
- * What is deliberately absent:
- *
- *   - **No role and no membership check.** Task 068 builds the container and grants
- *     nothing; the six roles, the scope, the resolver and the middleware are 069's, and
- *     these routes sit behind the admin-session gate every other admin slice sits behind
- *     and nothing more. A check written before the roles exist would be inventing them.
- *   - **No admin screen.** The plan's 068 section has no screen in it. The workspace and
- *     membership screens arrive with 069, which is where the permissions matrix that
- *     governs them is built.
- *   - **No `requireSecondApprover` write.** The field is declared, defaults off (Q13)
- *     and is read by task 070. Nothing here sets it.
- */
-
-/**
- * The sentence an archive refusal carries: what to do next, for the blockers there are.
- *
- * One function rather than a nested conditional inside the refusal, because there are
- * three real cases and each names a different act: reassign the forms, hand the library
- * on, or both. A refusal that said "this workspace is not empty" would leave an operator
- * to find out which.
- */
 function archiveRefusal(blockers: ArchiveBlockers): string {
   const reassign = "reassign these forms to another workspace";
   const handOn =
@@ -85,12 +53,8 @@ const fail = {
       "A workspace is attributed to the account that created it, so this needs an admin session",
     ),
   /**
-   * Another workspace is already the installation's shared question library.
-   *
-   * At most one is marked shared (ADR-41), so the second request is a refusal naming the
-   * one that holds it rather than a silent move: which workspace owns the library is a
-   * decision about what every other workspace may pin, and moving it quietly would
-   * change that for everybody.
+   * At most one workspace is shared (ADR-41), so the second request names the holder
+   * rather than moving the library quietly: that would change what everybody else may pin.
    */
   alreadyShared: (holder: WorkspaceRow): ApiError =>
     new ApiError(
@@ -100,18 +64,9 @@ const fail = {
       { workspaceId: holder.id, slug: holder.slug },
     ),
   /**
-   * The archive is refused, and the refusal says what to do next.
-   *
-   * **Every form the workspace owns is a blocker** (Code Owner, 2026-10-16, PR #1059), a
-   * closed and never-released one included: `reopen` checks no workspace state, so a
-   * closed form left behind could be reopened afterwards and the archived workspace would
-   * then own an open form - the state the archive had just refused. `openForms` and
-   * `releasedForms` are the same forms narrowed, carried so the operator can tell which
-   * ones are urgent rather than only how many there are.
-   *
-   * **A shared workspace is its own blocker**, and the message says to unmark it or hand
-   * the library on. Clearing `isShared` here would change what every other workspace may
-   * pin as a side effect of one operator act, which is the cascade Q15 refuses.
+   * Every form the workspace owns is a blocker, a closed and never-released one included:
+   * `reopen` checks no workspace state, so a closed form left behind could be reopened
+   * and the archived workspace would then own an open form.
    */
   archiveBlocked: (blockers: ArchiveBlockers): ApiError =>
     new ApiError("WORKSPACE_NOT_EMPTY", 409, archiveRefusal(blockers), {
@@ -129,7 +84,6 @@ const fail = {
   questionNotFound: (): ApiError => new ApiError("QUESTION_NOT_FOUND", 404, "No such question"),
 } as const;
 
-/** True for a Postgres unique-violation (SQLSTATE 23505) on the error or its cause. */
 function isUniqueViolation(err: unknown): boolean {
   const codeOf = (e: unknown): string | undefined =>
     typeof e === "object" && e !== null ? (e as { code?: string }).code : undefined;
@@ -137,33 +91,16 @@ function isUniqueViolation(err: unknown): boolean {
 }
 
 /**
- * True when `createOrganization` refused the slug itself, which is the **other** way a
- * concurrent create loses the race.
- *
- * The plugin checks the slug before inserting, at
- * `dist/plugins/organization/routes/crud-org.mjs:62` of better-auth 1.7.10
- * (`findOrganizationBySlug` then `APIError.from("BAD_REQUEST", ...)`), so a second caller
- * can be refused there rather than by `organization_slug_unique` underneath. Nothing in
- * `app.ts` or `errors.ts` maps a vendor `APIError`, so without this branch that caller
- * would get a 500 from an error the API understands perfectly well.
- *
- * **Matched on the status and not on the body**, deliberately: that call site passes the
- * error-codes entry, which is a plain string, into `APIError.from(status, { code,
- * message })`, so `body.code` and `body.message` both come out `undefined`
- * (`@better-auth/core/dist/error/index.mjs`, `static from`). The status is what survives,
- * and `BAD_REQUEST` has exactly one cause on this endpoint: every other refusal in
- * `createOrganization` is `UNAUTHORIZED` (no user for the id) or `FORBIDDEN` (creation
- * disallowed, or an organisation limit), and the body this handler sends carries only
- * `name`, `slug` and `userId`, so no field validation can raise one either. A wider
- * match would be wrong, which is why the two are checked together rather than
- * `isAPIError` alone.
+ * better-auth 1.7.10 checks the slug itself and refuses with a vendor `APIError`, which
+ * nothing here maps, so without this branch a lost create race is a 500. Matched on the
+ * status because that call site leaves `body.code` and `body.message` undefined, and
+ * `BAD_REQUEST` has exactly one cause on this endpoint.
  */
 function isVendorSlugRefusal(err: unknown): boolean {
   if (!isAPIError(err)) return false;
   return (err as { status?: unknown }).status === "BAD_REQUEST";
 }
 
-/** One workspace as the API reports it, with what it owns. */
 async function workspaceView(
   deps: Deps,
   row: WorkspaceRow,
@@ -185,10 +122,9 @@ async function workspaceView(
     slug: row.slug,
     isShared: row.isShared,
     requireSecondApprover: row.requireSecondApprover,
-    // F17's optional seed (Q39, Q57), on the list because the screen that writes it has
-    // to open on the value it has: a panel that guessed `false` would present a statement
-    // about personal data as though nobody had chosen it. Task 069 is what reads it for a
-    // decision and what writes it.
+    // On the list because the screen that writes it has to open on the value it has: a
+    // panel that guessed `false` would present a statement about personal data as though
+    // nobody had chosen it.
     seedNewEditorsWithTestData:
       (await readSeedNewEditorsWithTestData(deps.databases.control, row.id)) ?? false,
     archivedAt: row.archivedAt === null ? null : row.archivedAt.toISOString(),
@@ -197,14 +133,12 @@ async function workspaceView(
   };
 }
 
-// --- GET /admin/workspaces --------------------------------------------------
-
 export function makeListWorkspacesHandler(
   deps: Deps,
 ): RouteHandler<typeof listWorkspacesRoute, ApiEnv> {
   return async (c) => {
-    // Archived workspaces are **in** the list: a workspace is archived and never deleted
-    // (Q15), and one that still owns questions is exactly what a reader needs to see.
+    // Archived workspaces are in the list: one is archived and never deleted (Q15), and
+    // one that still owns questions is what a reader needs to see.
     const rows = await listWorkspaces(deps.databases.control);
     const workspaces = [];
     for (const row of rows) workspaces.push(await workspaceView(deps, row));
@@ -212,22 +146,10 @@ export function makeListWorkspacesHandler(
   };
 }
 
-// --- POST /admin/workspaces -------------------------------------------------
-
 /**
- * Create a workspace through better-auth's **server-side** `createOrganization` with an
- * explicit `userId` (Q32, ADR-41).
- *
- * The plugin's own HTTP endpoint is unreachable - `features/auth/route.ts`'s allowlist
- * names none of its paths - and `allowUserToCreateOrganization: false` refuses every
- * session-bound call to it, so this is the one path by which a workspace comes into
- * existence. Going through the library rather than inserting the row is what writes the
- * `member` row carrying `forms.owner` (the plugin's `creatorRole`) in the same act, so a
- * workspace never exists without an owner.
- *
- * The slug is pre-checked for a legible 409. The unique index behind it is the backstop,
- * and a race that reaches it is mapped to the same refusal rather than surfacing as a
- * 500.
+ * Goes through better-auth's `createOrganization` rather than inserting the row, because
+ * that writes the owner `member` row in the same act: a workspace never exists without an
+ * owner.
  */
 export function makeCreateWorkspaceHandler(
   deps: Deps,
@@ -246,16 +168,15 @@ export function makeCreateWorkspaceHandler(
         body: { name: body.name, slug: body.slug, userId: principal.userId },
       });
     } catch (err: unknown) {
-      // Two ways to lose the race, one answer. The plugin's own slug check refuses with a
-      // vendor `APIError` and the unique index underneath it with SQLSTATE 23505; which
-      // one fires depends on how the two creates interleave, and neither is a 500.
+      // Two ways to lose the slug race, one answer: the plugin's own check and the unique
+      // index underneath it. Neither is a 500.
       if (isUniqueViolation(err) || isVendorSlugRefusal(err)) throw fail.slugTaken(body.slug);
       throw err;
     }
 
     const row = await getWorkspace(deps.databases.control, created.id);
-    // The row was just written on this connection, so its absence is not a 404 to
-    // report: it would mean the library wrote somewhere this handler cannot read.
+    // Written on this connection moments ago, so its absence is not a 404: it would mean
+    // the library wrote somewhere this handler cannot read.
     if (row === undefined) {
       throw new ApiError("WORKSPACE_NOT_READABLE", 500, "The workspace was created but not found");
     }
@@ -263,24 +184,21 @@ export function makeCreateWorkspaceHandler(
   };
 }
 
-// --- PUT /admin/workspaces/:id/shared ---------------------------------------
-
 export function makeSetSharedWorkspaceHandler(
   deps: Deps,
 ): RouteHandler<typeof setSharedWorkspaceRoute, ApiEnv> {
   return async (c) => {
     const workspaceId = c.req.valid("param").id;
     const { shared } = c.req.valid("json");
-    // **Marking** a workspace shared requires it to be open; **unmarking** does not, and
-    // the asymmetry is deliberate: a workspace archived while it held the library would
-    // otherwise keep it with no way to hand it on, since the archive is not reversible.
+    // Unmarking does not require an open workspace: one archived while it held the
+    // library would otherwise keep it with no way to hand it on.
     const workspace = shared
       ? await requireOpenWorkspace(deps.databases.control, workspaceId)
       : await requireWorkspace(deps.databases.control, workspaceId);
 
     if (shared && !workspace.isShared) {
-      // Read the holder for the refusal's sake. The unique index would refuse the write
-      // anyway, and would name no workspace in doing so.
+      // Read for the refusal's sake: the unique index would refuse the write anyway, and
+      // would name no workspace in doing so.
       const rows = await listWorkspaces(deps.databases.control);
       const holder = rows.find((row) => row.isShared);
       if (holder !== undefined) throw fail.alreadyShared(holder);
@@ -292,36 +210,10 @@ export function makeSetSharedWorkspaceHandler(
   };
 }
 
-// --- POST /admin/workspaces/:id/archive -------------------------------------
-
 /**
- * Archive a workspace, never delete one (Q15).
- *
- * **It refuses rather than tidying up.** An archive is allowed only once the workspace
- * owns **no form at all** and is not the shared question library, and the refusal
- * **names** what stands in the way so an operator knows what to reassign or unmark. An
- * implementation that closed, reassigned or unmarked on the operator's behalf would turn
- * one act into several silent ones, which fails the spirit of Q15 even where it passes
- * the letter: closing a form stops new sessions for real respondents, moving a form
- * changes who can see it, and unmarking the library changes what every other workspace
- * may pin.
- *
- * **Both conditions are the Code Owner's of 2026-10-16** (PR #1059), widening what this
- * task first built. The first reading refused only an open form or a released version,
- * which left a closed never-released form behind and `POST /admin/forms/{id}/reopen` able
- * to reopen it, so an archived workspace could come to own an open form. The second
- * reading is Q15 literally: an archived workspace owns no form. The shared-library
- * condition is the same shape of answer to the same question. `findArchiveBlockers` is
- * where both live, with the reasoning.
- *
- * "No released version" reads `control.form_releases`, which is task 065's table and the
- * reason this task depends on it (Q63). It is now a narrowing of the form list rather
- * than a condition of its own, and it stays in the refusal because "this one was
- * serving in production" is what an operator needs to read first.
- *
- * **There is no unarchive, and that is a decision rather than an omission** (Code Owner,
- * 2026-10-16). An archive is terminal: ADR-41's Note records the absence, to be revisited
- * only if task 069's membership screens need it.
+ * It refuses rather than tidying up: nothing is closed, reassigned or unmarked on the
+ * operator's behalf, because each of those acts has consequences of its own (Q15). An
+ * archive is terminal and there is no unarchive.
  */
 export function makeArchiveWorkspaceHandler(
   deps: Deps,
@@ -340,28 +232,16 @@ export function makeArchiveWorkspaceHandler(
 
     const archived = await archiveWorkspace(deps.databases.control, workspaceId, deps.clock.now());
     // `archiveWorkspace` matches only an unarchived row, so `undefined` here is the
-    // concurrent-archive race the pre-read cannot close. The answer is the same refusal.
+    // concurrent-archive race the pre-read cannot close.
     if (archived === undefined) throw fail.alreadyArchived();
     return c.json({ workspace: await workspaceView(deps, archived) }, 200);
   };
 }
 
-// --- POST /admin/forms/:id/workspace ----------------------------------------
-
 /**
- * Move a form to another workspace.
- *
- * The companion of Q14's question move, and the act that makes an archive possible:
- * archiving is the last step and never a cascade, so a workspace's forms are reassigned
- * first. One `UPDATE` on the identity row, so no published version changes hands, no
- * compiled document is touched and no public address moves (criterion 7) - the slug is
- * unique installation-wide precisely so that an ownership change re-points nothing.
- *
- * **It does not re-check the form's existing pins.** A form that pinned a question from
- * its old workspace keeps serving every published version it has (R1, ADR-02), and
- * whether its **next draft** may keep those pins is the publish rule's answer, computed
- * from the state at that time. Deciding it here would be deciding it twice, from the
- * older of the two states.
+ * One `UPDATE` on the identity row: the slug is unique installation-wide, so an ownership
+ * change re-points no public address. Existing pins are not re-checked - whether the next
+ * draft may keep them is the publish rule's answer, from the state at that time.
  */
 export function makeMoveFormHandler(deps: Deps): RouteHandler<typeof moveFormRoute, ApiEnv> {
   return async (c) => {
@@ -381,18 +261,9 @@ export function makeMoveFormHandler(deps: Deps): RouteHandler<typeof moveFormRou
   };
 }
 
-// --- POST /admin/questions/:id/workspace ------------------------------------
-
 /**
- * Move a question to another workspace (Q14).
- *
- * One `UPDATE` on the identity row and no version is touched, which is what makes the
- * grandfathering true rather than promised: a form elsewhere that already pins one of
- * this question's versions **keeps serving it**, because the version is immutable content
- * this statement does not reach, and **keeps that pin in its next draft**, because the
- * publish rule grandfathers a placement that was already in the previous published
- * version. What is refused afterwards is a **new** pin from another workspace, through
- * the same path that refuses a pin to a `deprecated` version.
+ * No version is touched, so a form elsewhere that already pins one keeps serving it and
+ * keeps that pin in its next draft. Only a new cross-workspace pin is refused.
  */
 export function makeMoveQuestionHandler(
   deps: Deps,

@@ -1,19 +1,3 @@
-/**
- * OpenAPI document guards (task 027, exit criterion 4).
- *
- * These run in the ordinary unit project (`pnpm test`, no Docker) and enforce
- * three properties of the committed `docs/openapi/*.json`:
- *
- * 1. **Drift** - the committed files deep-equal freshly generated output. A
- *    route schema change that is not regenerated (`pnpm openapi:generate`) fails
- *    here, the same guard shape as the golden corpora and the env reference.
- * 2. **Validity** - each document validates against the OpenAPI spec via a
- *    third-party validator (`@seriousme/openapi-schema-validator`), so a
- *    structurally invalid document cannot be committed.
- * 3. **Partition** - every route the composed app mounts appears in exactly one
- *    document; the two documents never overlap.
- */
-
 import { readFileSync } from "node:fs";
 import { fileURLToPath } from "node:url";
 
@@ -31,12 +15,10 @@ function readCommitted(name: string): OpenApiDocument {
   return JSON.parse(readFileSync(path, "utf8")) as OpenApiDocument;
 }
 
-/** Flatten a document to its `"METHOD path"` operation set. */
 function operations(doc: OpenApiDocument): Set<string> {
   const ops = new Set<string>();
   for (const [path, item] of Object.entries(doc.paths ?? {})) {
     for (const method of Object.keys(item)) {
-      // Only HTTP verbs are operations; `parameters` etc. are not.
       if (["get", "put", "post", "delete", "patch", "options", "head"].includes(method)) {
         ops.add(`${method.toUpperCase()} ${path}`);
       }
@@ -81,7 +63,6 @@ describe("committed OpenAPI documents (exit criterion 4)", () => {
 });
 
 describe("respondent write endpoints carry responses:write (SEC-5, issues #7 and #15)", () => {
-  /** The `MachineToken` scopes annotated on a `"METHOD path"` operation. */
   function scopesFor(doc: OpenApiDocument, method: string, path: string): string[] {
     const op = (doc.paths?.[path] as Record<string, unknown> | undefined)?.[method] as
       { security?: Array<Record<string, string[]>> } | undefined;
@@ -89,7 +70,6 @@ describe("respondent write endpoints carry responses:write (SEC-5, issues #7 and
     return requirement?.MachineToken ?? [];
   }
 
-  // Start a session (#7), append an answer (#7), submit the session (#15).
   // Parameterized because the lint rule rejects three same-shaped `it` blocks.
   it.each(["/sessions", "/sessions/{id}/answers", "/sessions/{id}/submit"])(
     "POST %s requires responses:write, not responses:read",
@@ -109,7 +89,6 @@ describe("respondent write endpoints carry responses:write (SEC-5, issues #7 and
 });
 
 describe("route partition - every mounted route in exactly one document", () => {
-  // The full enterprise composition (all surfaces): the ground-truth route set.
   const fullApp = createApp(
     makeDeps({ env: validEnv() }),
     { public: true, internal: true, admin: true },
@@ -132,7 +111,6 @@ describe("route partition - every mounted route in exactly one document", () => 
   });
 });
 
-/** The query parameters an operation declares, by name. */
 function queryParams(doc: OpenApiDocument, method: string, path: string): Map<string, unknown> {
   const op = (doc.paths?.[path] as Record<string, unknown> | undefined)?.[method] as
     { parameters?: Array<{ name?: string; in?: string; schema?: unknown }> } | undefined;
@@ -143,16 +121,14 @@ function queryParams(doc: OpenApiDocument, method: string, path: string): Map<st
   return found;
 }
 
-/** The status codes an operation documents, as strings. */
 function responseCodes(doc: OpenApiDocument, method: string, path: string): string[] {
   const op = (doc.paths?.[path] as Record<string, unknown> | undefined)?.[method] as
     { responses?: Record<string, unknown> } | undefined;
   return Object.keys(op?.responses ?? {});
 }
 
-// The committed document rather than the generated one: the drift guard above
-// already ties the two together, so asserting here on what is on disk is what
-// makes this a contract test rather than a second reading of the same object.
+// The committed document, not the generated one: asserting on what is on disk is what
+// makes these contract tests rather than a second reading of the same object.
 const committedAdmin = readCommitted("admin");
 
 describe("the form library list declares its filters in the contract (issue 686)", () => {
@@ -169,8 +145,6 @@ describe("the form library list declares its filters in the contract (issue 686)
     expect(params.get("sort")).toMatchObject({
       enum: ["slug-asc", "slug-desc", "published-desc", "published-asc"],
     });
-    // Bounded, so an unbounded search term is refused by the contract and not only
-    // by the handler that would otherwise scan every row with it.
     expect(params.get("search")).toMatchObject({ maxLength: 200 });
   });
 
@@ -180,11 +154,6 @@ describe("the form library list declares its filters in the contract (issue 686)
 });
 
 describe("the question library list bounds its search term too (issue #862)", () => {
-  // The question library was the unbounded half of the pair 686 left behind: the
-  // forms list capped its search at 200 and this one had no bound at all, so an
-  // arbitrarily long pattern reached the per-row match. The bound belongs in the
-  // published contract and not only in the handler, because a generated client is
-  // entitled to know what the route will refuse before it sends it.
   it("publishes ?search with the same 200-character cap the form list carries", () => {
     expect(queryParams(committedAdmin, "get", "/admin/questions").get("search")).toMatchObject({
       type: "string",
@@ -213,11 +182,6 @@ describe("the question library list bounds its search term too (issue #862)", ()
 });
 
 describe("the settings patch publishes its empty-patch rule (issue #242)", () => {
-  // `UpdateFormSettingsBody` rejects an all-absent body with a 400, and that rule
-  // was a Zod `.refine()` with no JSON Schema expression: the published schema
-  // showed two optional fields, no `required` array, and nothing at all about the
-  // rule. The server was right and the contract was wrong. `minProperties: 1` is
-  // the machine-readable form, so this asserts the machine-readable form.
   const schema = (committedAdmin.components?.schemas?.["UpdateFormSettingsBody"] ?? {}) as {
     minProperties?: number;
     description?: string;
@@ -255,12 +219,6 @@ describe("the settings patch publishes its empty-patch rule (issue #242)", () =>
   });
 });
 
-// --- the request-body unknown-key policy (issue #893) -----------------------
-
-/**
- * A JSON Schema node as the generator spells one. Only the members this walk
- * follows; a document carries more, and nothing here depends on the rest.
- */
 interface SchemaNode {
   readonly $ref?: string;
   readonly type?: string;
@@ -272,22 +230,9 @@ interface SchemaNode {
   readonly oneOf?: readonly SchemaNode[];
 }
 
-/**
- * The object schemas reachable from a request body that are deliberately OPEN,
- * each with the reason it is open. Everything else reachable from a request body
- * must publish `additionalProperties: false`, and a schema that is neither closed
- * nor listed here fails the walk below - which is what makes a new body schema
- * strict by default rather than by remembering (issue #893).
- *
- * A label is the component name when the schema is a named component, and
- * otherwise the path the walk took to reach it from the body.
- *
- * `additionalProperties: false` belongs on closed objects only. Every entry here
- * is a *map*: its keys are the caller's own data, so closing it would refuse the
- * data itself rather than a mistake. Each still declares what its values are,
- * which the walk asserts separately - an open map may not degrade to
- * "anything at all, unstated".
- */
+// Anything reachable from a request body and not listed here must publish
+// `additionalProperties: false`. An entry belongs here only when its keys are the
+// caller's own data, so closing it would refuse the data rather than a mistake.
 const OPEN_REQUEST_BODY_SCHEMAS: Record<string, string> = {
   FormDefinitionInput:
     "The form definition is opaque at the route boundary so the kernel validates its " +
@@ -303,12 +248,6 @@ const OPEN_REQUEST_BODY_SCHEMAS: Record<string, string> = {
     "test bench. The keys are question ids, which are the caller's data.",
   "PreviewDraftBody.answers":
     "A questionId -> AnswerValue map of the author's walk-through state, keyed by question id.",
-  // The hypothetical rosters both admin preview routes take (074, ADR-42). A map keyed by
-  // `groupId` is open for exactly the reason the two answer maps above are: the KEYS are the
-  // caller's own ids, so there is no fixed property set to close over. Every key and every id
-  // inside is parsed as a `GroupId` and an `InstanceId` by the handler and dropped when it is
-  // neither, so an undeclared key reaches nothing - and the roster is echoed back in the
-  // response, so what the API used is visible rather than inferred.
   "PreviewConditionBody.instances":
     "A groupId -> InstanceId[] map of the hypothetical roster the rule test bench minted. The " +
     "keys are group ids, which are the caller's data.",
@@ -332,12 +271,10 @@ const OPEN_REQUEST_BODY_SCHEMAS: Record<string, string> = {
     "unnamed for the same flag-gating reason.",
 };
 
-/** The component name a local `$ref` points at. */
 function refName(ref: string): string {
   return ref.slice(ref.lastIndexOf("/") + 1);
 }
 
-/** The `"METHOD path"` operations of a document that declare a JSON request body. */
 function jsonRequestBodies(doc: OpenApiDocument): Map<string, SchemaNode> {
   const bodies = new Map<string, SchemaNode>();
   for (const [path, item] of Object.entries(doc.paths ?? {})) {
@@ -352,7 +289,6 @@ function jsonRequestBodies(doc: OpenApiDocument): Map<string, SchemaNode> {
   return bodies;
 }
 
-/** The child nodes of a schema, each with the label the walk reaches it under. */
 function children(node: SchemaNode, label: string): Array<[string, SchemaNode]> {
   const out: Array<[string, SchemaNode]> = [];
   for (const [key, child] of Object.entries(node.properties ?? {}))
@@ -367,13 +303,6 @@ function children(node: SchemaNode, label: string): Array<[string, SchemaNode]> 
   return out;
 }
 
-/**
- * Every object schema reachable from a request body in `doc`, keyed by its label.
- *
- * A named component is recorded under its component name and visited once, so the
- * same definition referenced from three bodies is one entry and one allowlist line.
- * An inline schema is recorded under the path the walk took to it.
- */
 function reachableObjectSchemas(doc: OpenApiDocument): Map<string, SchemaNode> {
   const components = (doc.components?.schemas ?? {}) as Record<string, SchemaNode>;
   const found = new Map<string, SchemaNode>();
@@ -398,7 +327,6 @@ function reachableObjectSchemas(doc: OpenApiDocument): Map<string, SchemaNode> {
   return found;
 }
 
-/** Labels of the schemas in `doc` that neither close nor declare a reason to be open. */
 function unknownKeyPolicyViolations(doc: OpenApiDocument): string[] {
   const violations: string[] = [];
   for (const [label, node] of reachableObjectSchemas(doc)) {
@@ -409,48 +337,14 @@ function unknownKeyPolicyViolations(doc: OpenApiDocument): string[] {
   return violations.sort((a, b) => a.localeCompare(b));
 }
 
-/**
- * The all-surfaces composition with the agent-authoring flag on, so the two
- * flag-gated assist bodies are walked as well. A default build publishes neither,
- * so the committed documents alone would leave them unguarded - and they carry the
- * only nested closed objects in the whole request surface.
- */
+// The agent-authoring flag is on so the two flag-gated assist bodies are walked: a
+// default build publishes neither, so the committed documents leave them unguarded.
 const allSurfaces = createApp(
   makeDeps({ env: validEnv({ QCMS_FLAG_AGENT_AUTHORING: "fake" }) }),
-  // No non-prod respondent surface. One is mounted with the same registrars as `prod`'s,
-  // so it declares no body this walk would not already have reached, and adding one would
-  // only duplicate every respondent path under a prefix.
   { public: true, internal: true, admin: true, environments: [] },
   { groups: appGroups },
 ).getOpenAPIDocument({ openapi: "3.0.3", info: { title: "all surfaces", version: "0" } });
 
-// Task 073 moved the respondent count from 3 to 5 and the all-surfaces one from 17
-// to 19: the batch answer write and the roster operation each add a request body
-// (`BatchAnswerBody`, `RosterOpBody`), and both are `z.strictObject`.
-//
-// Task 065 moved the admin count from 12 to 14 and the all-surfaces one from 19 to 21:
-// releasing a version and the combined publish-and-release action each add a request body
-// (`ReleaseVersionBody`, `PublishAndReleaseBody`), and both are `z.strictObject`.
-//
-// Task 068 moved the admin count from 14 to 18 and the all-surfaces one from 21 to 25:
-// creating a workspace, marking one shared and the two ownership moves each add a request
-// body (`CreateWorkspaceBody`, `SharedWorkspaceBody`, and `MoveToWorkspaceBody` on the
-// form route and the question route), and every one is a `z.strictObject`.
-//
-// Task 066 then moved the respondent count from 5 to 6, the admin one from 18 to 20 and
-// the all-surfaces one from 25 to 28. Secure-link entry is its own route and so its own
-// body (`StartLinkSessionBody`), which is the split SEC-14's 404 claim rests on; close
-// and reopen each gained a body naming the environment whose intake they act on
-// (`FormEnvironmentBody`, Q18). Every one is a `z.strictObject`.
-//
-// Task 069 moves the admin count from 20 to 25 and the all-surfaces one from 28 to 33:
-// the membership surface adds five request bodies - the member row's role, an access
-// group's creation and its re-scope, a holder, and the two per-workspace settings
-// (`SetMemberRoleBody`, `CreateAccessGroupBody`, `UpdateAccessGroupBody`, `AddHolderBody`,
-// `WorkspaceSettingsBody`). Every one is a `z.strictObject`, which is what keeps
-// `externalGroupId` a key the API refuses rather than strips (Q39, criterion 15): a body
-// that stripped it would answer 200 to a caller who thought they had set the directory
-// mapping's join key.
 const WALKED: ReadonlyArray<readonly [string, OpenApiDocument, number]> = [
   ["respondent", readCommitted("respondent"), 6],
   ["admin", committedAdmin, 25],
@@ -459,23 +353,17 @@ const WALKED: ReadonlyArray<readonly [string, OpenApiDocument, number]> = [
 
 describe("every request body rejects unknown keys (issue #893)", () => {
   it.each(WALKED)("%s: every object reachable from a body is closed or reasoned", (_name, doc) => {
-    // The failure lists the labels, so a new body schema that forgot
-    // `z.strictObject` names itself here rather than needing to be hunted.
     expect(unknownKeyPolicyViolations(doc)).toEqual([]);
   });
 
   it.each(WALKED)(
     "%s: walks the request bodies it is supposed to (%d of them)",
     (_name, doc, count) => {
-      // Pinned so the guard cannot go quiet. A route that loses its body, or a new
-      // route that gains one, moves this number and has to be looked at.
       expect(jsonRequestBodies(doc).size).toBe(count);
     },
   );
 
   it("an open map still says what its values are", () => {
-    // The other half of the policy: `additionalProperties: false` belongs on closed
-    // objects, and an open map may not answer with a bare `true` or with nothing.
     const reachable = reachableObjectSchemas(allSurfaces);
     const untyped = Object.keys(OPEN_REQUEST_BODY_SCHEMAS).filter(
       (label) => typeof reachable.get(label)?.additionalProperties !== "object",
@@ -498,7 +386,6 @@ describe("every request body rejects unknown keys (issue #893)", () => {
 });
 
 describe("the request-body walk is not vacuous", () => {
-  /** A one-route document whose body is the pre-#893 shape: a plain, open object. */
   function documentWithBody(schema: SchemaNode): OpenApiDocument {
     return {
       openapi: "3.0.3",
@@ -560,10 +447,6 @@ describe("the request-body walk is not vacuous", () => {
 });
 
 describe("the #893 example is refused on the key it actually carries", () => {
-  // `{"unknownField": 1}` on the settings patch used to satisfy `minProperties: 1`
-  // as far as a generated client could tell, while the server stripped the key and
-  // refused the resulting empty patch. Both facts are now published together: one
-  // property is still enough, and an undeclared property is not a property.
   const schema = (committedAdmin.components?.schemas?.["UpdateFormSettingsBody"] ?? {}) as {
     minProperties?: number;
     additionalProperties?: unknown;

@@ -1,53 +1,18 @@
 /**
- * The deterministic fake provider (041).
- *
- * This is a scripted `LanguageModelV3`, not a scripted `DraftAssistant`: it is
- * plugged into the *same* `streamText` loop the real providers use, so the tool
- * allowlist, the tool dispatch, the stop-reason handling and the event mapping
- * that CI exercises are the production ones. Only the network call is replaced.
- *
- * That is also what makes it a usable adversary. A hostile model is not a bug in
- * our code to be mocked away; it is the threat 041's allowlist exists for, and
- * the only honest way to test a refusal is to have something actually attempt
- * the forbidden call. The `rogue-*` scripts do exactly that.
- *
- * **Selecting a script.** The last user turn may carry a directive
- * `#qcms-fake:<script>`; without one the `default` script runs. This is test-only
- * machinery and is only reachable when `QCMS_FLAG_AGENT_AUTHORING=fake`, a
- * provider id that exists for the test compositions.
- *
- * The `default` script is deliberately *adaptive rather than canned*: it searches
- * the real question library and builds its proposal from whatever published
- * questions it finds, so an e2e run gets a draft that references the fixtures
- * that run authored, and the proposal actually publishes.
+ * Test-only: a scripted model plugged into the production `streamText` loop, so the
+ * real allowlist, dispatch and event mapping are what CI exercises. The `rogue-*`
+ * scripts attempt forbidden verbs, which is the only honest way to test a refusal.
  */
 
 import { simulateReadableStream } from "ai";
 import { MockLanguageModelV3 } from "ai/test";
 
-/** The directive that picks a script, and the scripts themselves. */
 const DIRECTIVE = "#qcms-fake:";
 
-/**
- * An optional directive that fixes the library search the `default` script runs.
- *
- * The browser suite shares one database with every other spec, so "the first two
- * published questions" is whatever else happened to be seeded. A spec that wants
- * its proposal to pin *its own* fixtures says so: `#qcms-fake-search:<needle>`.
- * Test-only, like the whole module.
- */
+/** The browser suite shares one database, so a spec can pin its own fixtures. */
 const SEARCH_DIRECTIVE = "#qcms-fake-search:";
 
-/**
- * An optional directive that fixes the id suffix the `propose-questions` script
- * invents: `#qcms-fake-new:<word>` proposes `q_fake_new_<word>`.
- *
- * It exists because a proposed question is *created* when the human accepts it
- * (issue #823) and a `questionId` is never reused (R6), so a canned id would
- * work exactly once against the browser suite's shared database and then fail
- * every later run with `QUESTION_ID_REUSED`. A spec supplies a word unique to
- * itself. Test-only, like the whole module.
- */
+/** A `questionId` is never reused, so a canned id would work for exactly one run. */
 const NEW_QUESTION_DIRECTIVE = "#qcms-fake-new:";
 
 export const FAKE_SCRIPTS = [
@@ -69,7 +34,6 @@ export const FAKE_SCRIPTS = [
 
 export type FakeScript = (typeof FAKE_SCRIPTS)[number];
 
-/** The tool each rogue script reaches for: exactly the verbs 041 forbids. */
 const ROGUE_TOOLS: Readonly<Record<string, string>> = {
   "rogue-publish": "publish_form",
   "rogue-erase": "erase_session",
@@ -79,7 +43,6 @@ const ROGUE_TOOLS: Readonly<Record<string, string>> = {
 
 type PromptMessage = { role: string; content: unknown };
 
-/** Flatten every text part of a message's content into one string. */
 function messageText(content: unknown): string {
   if (typeof content === "string") return content;
   if (!Array.isArray(content)) return "";
@@ -99,7 +62,6 @@ function userText(prompt: readonly PromptMessage[]): string {
     .join("\n");
 }
 
-/** The first whitespace-delimited word after `directive`, or undefined. */
 function wordAfter(text: string, directive: string): string | undefined {
   const at = text.lastIndexOf(directive);
   if (at < 0) return undefined;
@@ -121,7 +83,6 @@ function pickSearchQuery(prompt: readonly PromptMessage[]): string | undefined {
   return wordAfter(userText(prompt), SEARCH_DIRECTIVE);
 }
 
-/** Every tool result in the prompt so far, keyed by tool name. */
 function toolResults(prompt: readonly PromptMessage[]): Map<string, unknown> {
   const results = new Map<string, unknown>();
   for (const message of prompt) {
@@ -137,7 +98,6 @@ function toolResults(prompt: readonly PromptMessage[]): Map<string, unknown> {
   return results;
 }
 
-/** The current draft, lifted back out of the preamble the assistant sent. */
 function currentDraft(prompt: readonly PromptMessage[]): Record<string, unknown> | undefined {
   const text = userText(prompt);
   const open = text.indexOf("```json");
@@ -175,15 +135,7 @@ function libraryHits(results: Map<string, unknown>): LibraryHit[] {
   return hits;
 }
 
-/**
- * The proposal the `default` script makes, and why it has the shape it has.
- *
- * One step carrying both questions, with a forward-only rule that reveals the
- * second when the first is answered (ADR-16). That is the work order's own example,
- * and it is the arrangement worth exercising end to end: within a single step the
- * reveal is visible without any navigation, so a branch that fails to appear
- * cannot be mistaken for a step that was never reached.
- */
+/** One step, so a reveal that fails cannot be mistaken for a step never reached. */
 function buildProposal(
   draft: Record<string, unknown>,
   hits: readonly LibraryHit[],
@@ -221,8 +173,6 @@ function buildProposal(
   };
 }
 
-// --- stream construction ----------------------------------------------------
-
 type StreamPart = Record<string, unknown>;
 
 function textParts(text: string): StreamPart[] {
@@ -249,23 +199,13 @@ function finishPart(finishReason: string): StreamPart {
 function toolCallPart(toolName: string, input: unknown, nonce = ""): StreamPart {
   return {
     type: "tool-call",
-    // Tool call ids must be unique across a turn, so a script that calls the
-    // same tool on every step has to vary it.
+    // Tool call ids must be unique across a turn.
     toolCallId: `call_${toolName}${nonce}`,
     toolName,
     input: JSON.stringify(input),
   };
 }
 
-/**
- * A model that gets one call wrong, is told, and carries on.
- *
- * That is what a real local model doing real work looks like, and what used to
- * discard the whole turn (found live on 2026-09-05). Round one asks
- * `propose_draft` for a definition the schema refuses, so the SDK reports a
- * `tool-error` part and hands the failure back as that call's result; the rest
- * is the default script's own path, ending with `stop` and a real proposal.
- */
 function planRecoveredStep(
   prompt: readonly PromptMessage[],
   results: Map<string, unknown>,
@@ -295,11 +235,7 @@ function planRecoveredStep(
   return [...textParts("I have proposed the draft."), finishPart("stop")];
 }
 
-/**
- * The id the `propose-questions` script proposes, sanitised to the `q_[a-z0-9_]+`
- * grammar (002) so a directive word can never produce an id the kernel refuses -
- * which would test the refusal path while claiming to test the accept path.
- */
+/** Sanitised to the `q_[a-z0-9_]+` grammar so a directive word cannot produce a refused id. */
 function newQuestionId(prompt: readonly PromptMessage[]): string {
   const word = (wordAfter(userText(prompt), NEW_QUESTION_DIRECTIVE) ?? "question")
     .toLowerCase()
@@ -308,22 +244,8 @@ function newQuestionId(prompt: readonly PromptMessage[]): string {
 }
 
 /**
- * The `propose-questions` script: propose ONE question the library does not have,
- * then a draft that pins it.
- *
- * One question rather than several, because what needs pinning end to end is the
- * flow - propose, accept, the definition becomes an unpublished library draft,
- * the pin resolves once a human publishes it (issue #823). A second question
- * would exercise the same path twice. The *list* behaviours (a refusal failing
- * the whole accept, a reused id rolling the batch back) are pinned against a real
- * database in `assist.integration.test.ts`, where they can be asserted precisely;
- * a scripted model is the wrong instrument for them.
- *
- * Deliberately NOT the `default` script's job. `default` proposes a draft over
- * questions that already exist and publishes cleanly, and a great many specs rely
- * on exactly that; a proposal carrying a new question cannot publish until
- * someone publishes the question, so folding the two together would have made
- * every one of those specs depend on a two-stage publish they do not care about.
+ * Kept out of the `default` script: a proposal carrying a new question cannot publish
+ * until someone publishes that question, and most specs rely on a clean publish.
  */
 function planProposeQuestionsStep(
   prompt: readonly PromptMessage[],
@@ -381,10 +303,6 @@ function planProposeQuestionsStep(
   ];
 }
 
-/**
- * One tool call that runs, then the provider fails on the next step: the shape that
- * tells a step that finished apart from a turn that did not.
- */
 function planToolThenErrorStep(prompt: readonly PromptMessage[]): StreamPart[] {
   if (prompt.some((m) => m.role === "tool")) {
     return [{ type: "error", error: new Error("upstream provider unavailable") }];
@@ -396,7 +314,6 @@ function planToolThenErrorStep(prompt: readonly PromptMessage[]): StreamPart[] {
   ];
 }
 
-/** Plan the parts this step emits, given everything that has happened so far. */
 function planStep(prompt: readonly PromptMessage[], script: FakeScript): StreamPart[] {
   const rogueTool = ROGUE_TOOLS[script];
   if (rogueTool !== undefined) {
@@ -413,12 +330,8 @@ function planStep(prompt: readonly PromptMessage[], script: FakeScript): StreamP
     return [{ type: "error", error: new Error("upstream provider unavailable") }];
   }
   if (script === "provider-rejected") {
-    // The shape a provider emits mid-stream for a permanent refusal, as
-    // observed live on a real account with no balance (issue #818): a 429 that
-    // the SDK has already marked non-retryable. Scripted as the payload rather
-    // than as an `APICallError` because that is the path the live failure took,
-    // and because the flag is what `providerRetryAdvice` reads - not the class,
-    // and never the vendor text carried alongside it.
+    // Scripted as a raw mid-stream payload rather than an `APICallError` because that is
+    // the path a live permanent refusal takes, and the flag is what is read, not the class.
     return [
       {
         type: "error",
@@ -439,9 +352,7 @@ function planStep(prompt: readonly PromptMessage[], script: FakeScript): StreamP
     return [...textParts("Here is the start of a form"), finishPart("length")];
   }
   if (script === "step-limit") {
-    // Never proposes and always asks for one more tool call, so the loop runs
-    // until `stopWhen: stepCountIs(maxSteps)` cuts it off. That is what makes
-    // STEP_LIMIT reachable in a test rather than only in theory.
+    // Never proposes and always asks for one more call, so the step ceiling is what stops it.
     const round = prompt.filter((m) => m.role === "tool").length;
     return [
       ...textParts("Let me look at the library again."),
@@ -483,10 +394,6 @@ function planStep(prompt: readonly PromptMessage[], script: FakeScript): StreamP
   ];
 }
 
-/**
- * The scripted model. Deterministic in the only sense that matters: the same
- * conversation and the same library produce the same proposal, every run.
- */
 export function fakeAssistantModel(): MockLanguageModelV3 {
   return new MockLanguageModelV3({
     provider: "qcms-fake",

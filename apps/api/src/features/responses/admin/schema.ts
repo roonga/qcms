@@ -1,24 +1,9 @@
-/**
- * Request/response schemas for the response listing / export / erasure admin
- * slices (task 023). Zod is the single schema language (017); these drive both
- * request validation and the generated OpenAPI documents (027).
- *
- * Answer *values* ride through opaque (`z.unknown()`): they are canonical
- * encodings the reporting view already froze (015), echoed as-is. The export
- * route declares no `200` body schema - it streams `text/csv` / `application/json`
- * as a raw `Response`, which a content-typed response would forbid.
- */
-
 import { z } from "@hono/zod-openapi";
 
-// --- params -----------------------------------------------------------------
-
-/** `:id` path param - a `frm_…` form id (validated as a FormId in-handler). */
 export const FormIdParam = z.object({
   id: z.string().openapi({ param: { name: "id", in: "path" }, example: "frm_intake" }),
 });
 
-/** `:id`/`:sessionId` path params (form-scoped response detail). */
 export const FormResponseParams = z.object({
   id: z.string().openapi({ param: { name: "id", in: "path" }, example: "frm_intake" }),
   sessionId: z
@@ -26,16 +11,8 @@ export const FormResponseParams = z.object({
     .openapi({ param: { name: "sessionId", in: "path" }, example: "ses_abc123" }),
 });
 
-/**
- * `:id`/`:sessionId` path params for the per-response **mutations** (erase,
- * unflag) - issue #305.
- *
- * Identical in shape to {@link FormResponseParams}, and deliberately so: both
- * mutations now sit under the same form-scoped path as the detail read, because
- * a session id alone never established which form the caller was acting within.
- * The form segment is what the scoped queries filter on, so it is load bearing
- * rather than decorative.
- */
+/** The form segment is what the mutations' scoped queries filter on: a session id alone
+ * never established which form the caller was acting within. */
 export const FormSessionParams = z.object({
   id: z.string().openapi({ param: { name: "id", in: "path" }, example: "frm_intake" }),
   sessionId: z
@@ -43,9 +20,6 @@ export const FormSessionParams = z.object({
     .openapi({ param: { name: "sessionId", in: "path" }, example: "ses_abc123" }),
 });
 
-// --- query filters ----------------------------------------------------------
-
-/** `GET /admin/forms/:id/responses` filters (all parsed in-handler). */
 export const ListResponsesQuery = z.object({
   version: z
     .string()
@@ -74,21 +48,8 @@ export const ListResponsesQuery = z.object({
 });
 
 /**
- * `GET /admin/forms/:id/export` parameters. `version` is required for CSV.
- *
- * `shape` is CSV-only and defaults to `long` (Q17, ruled 2026-09-29 by the Code
- * Owner). It picks between the long shape - `responses.csv` for every question
- * outside a repeating group, plus one file per group, zipped when the version has
- * one - and the wide shape, a single flat file with each group's member questions
- * folded in as indexed columns (`q_passport__1` … `q_passport__<max>`).
- *
- * **A wide export's header is the version's `max`, so it changes when `max`
- * changes.** Raise a group's `max` in a later version and that version's wide
- * export has more columns, silently, from a consumer's point of view. The
- * `version` requirement above is what makes a wide export automatable at all: a
- * consumer that automates one **pins the version it bound to**, and a consumer
- * that wants a header which does not move takes the long shape, which is the
- * default for that reason.
+ * `version` is required for CSV. A wide export's header is the version's `max`, so it
+ * grows when `max` does: a consumer pins the version, or takes the long default.
  */
 export const ExportQuery = z.object({
   format: z
@@ -113,7 +74,6 @@ export const ExportQuery = z.object({
     .openapi({ param: { name: "to", in: "query" } }),
 });
 
-/** `GET /admin/erasures` filters. */
 export const ListErasuresQuery = z.object({
   formId: z
     .string()
@@ -129,27 +89,19 @@ export const ListErasuresQuery = z.object({
     .openapi({ param: { name: "pageSize", in: "query" }, example: "50" }),
 });
 
-// --- request bodies ---------------------------------------------------------
-
-/** `POST /admin/forms/:id/responses/:sessionId/erase` - the erasure reason (audit). */
 export const EraseBody = z
   .strictObject({ reason: z.string().min(1).openapi({ example: "subject_request" }) })
   .openapi("EraseBody");
 
-// --- responses --------------------------------------------------------------
-
 const AccessMode = z.enum(["anonymous", "secure_link"]);
 
-/** One row in the response list: identity, provenance, flag, answer preview. */
 export const ResponseListItem = z
   .object({
     sessionId: z.string().openapi({ example: "ses_abc123" }),
     formVersion: z.number().int().positive().openapi({ example: 2 }),
     submittedAt: z.iso.datetime(),
     accessMode: AccessMode,
-    /** `null` = clean; a reason string = flagged and withheld from webhooks (020). */
     flaggedReason: z.string().nullable().openapi({ example: null }),
-    /** The locked answer set keyed by questionId (canonical encodings). */
     answers: z.record(z.string(), z.unknown()),
   })
   .openapi("ResponseListItem");
@@ -163,12 +115,6 @@ export const ResponseListResponse = z
   })
   .openapi("ResponseListResponse");
 
-/**
- * One append-only ledger revision (audit history): an answer, or a **retraction**
- * that cleared the question (ADR-33). `retracted` is the discriminator, always
- * present, so a reader never has to infer intent from an absent value: a
- * retraction carries `value: null` and `retracted: true`, an answer the reverse.
- */
 export const LedgerEntry = z
   .object({
     questionId: z.string().openapi({ example: "q_full_name" }),
@@ -182,7 +128,6 @@ export const LedgerEntry = z
   })
   .openapi("LedgerEntry");
 
-/** `GET /admin/forms/:id/responses/:sessionId` - full detail + audit ledger. */
 export const ResponseDetailResponse = z
   .object({
     sessionId: z.string().openapi({ example: "ses_abc123" }),
@@ -191,16 +136,12 @@ export const ResponseDetailResponse = z
     submittedAt: z.iso.datetime(),
     accessMode: AccessMode,
     flaggedReason: z.string().nullable(),
-    /** The audit anchor (009): any holder can re-derive and verify the locked set. */
     contentHash: z.string().openapi({ example: "a1b2c3…" }),
-    /** The locked answers keyed by questionId (canonical encodings). */
     answers: z.record(z.string(), z.unknown()),
-    /** The append-only answer ledger, oldest first - the audit history. */
     ledger: z.array(LedgerEntry),
   })
   .openapi("ResponseDetailResponse");
 
-/** One tombstone row (compliance evidence). */
 export const TombstoneItem = z
   .object({
     sessionId: z.string().openapi({ example: "ses_abc123" }),
@@ -215,7 +156,6 @@ export const ErasuresResponse = z
   .object({ erasures: z.array(TombstoneItem) })
   .openapi("ErasuresResponse");
 
-/** `POST /admin/forms/:id/responses/:sessionId/erase` - the resulting tombstone (idempotent). */
 export const EraseResponse = z
   .object({
     sessionId: z.string().openapi({ example: "ses_abc123" }),
@@ -223,52 +163,20 @@ export const EraseResponse = z
     formVersion: z.number().int().positive().openapi({ example: 2 }),
     erasedAt: z.iso.datetime(),
     reason: z.string().openapi({ example: "subject_request" }),
-    /** `true` when this call was a no-op over an already-erased session (016). */
     alreadyErased: z.boolean().openapi({ example: false }),
   })
   .openapi("EraseResponse");
 
 /**
- * `GET /admin/forms/:id/responses/:sessionId/erasure-scope` - which environment an erasure
- * would act in, and where else the same subject identifier has something (Q7, task 067).
- *
- * # Why the answer is a list of offers rather than a cross-environment erasure
- *
- * ADR-17's Note: an erasure acts in **the selected environment only**, so no single act
- * crosses a boundary and `prod` cannot be reached from `test` by accident. The cost is
- * that a data subject's request is several deliberate acts; the benefit is that none of
- * them is the wrong one. This read is what makes the cost visible instead of leaving an
- * operator to remember it: the screen says where else there is something and offers to go
- * and erase it there, each repetition its **own confirmed act in its own environment**.
- *
- * # Why each entry carries existence and nothing else
- *
- * `hasSession` and `alreadyErased` are the whole of what an offer needs, and they are the
- * same existence-without-content the tombstone is built on. No answer, no version and no
- * timestamp crosses an environment boundary here, so a `responses.eraser` scoped to
- * `test` learns nothing about a production response beyond the fact that erasing in
- * `test` has not finished the job.
- *
- * # Why an environment the caller cannot erase in is absent
- *
- * An offer the caller would be refused is worse than no offer: it reads as a product
- * defect, and it discloses that something exists in an environment they hold no grant in.
- * So the list is narrowed to the environments where this caller holds
- * `response: erase` with this form in scope, by the same decision function the middleware
- * uses, and an empty list means "nothing more that you can do", which is exactly what an
- * operator needs to read.
+ * Carries existence and nothing else, and names only environments this caller may erase
+ * in: no answer, version or timestamp crosses an environment boundary, and existence is
+ * not disclosed where the caller holds no grant.
  */
 export const ErasureScopeResponse = z
   .object({
     sessionId: z.string().openapi({ example: "ses_abc123" }),
-    /** The environment an erasure performed from this screen would act in. */
     environment: z.string().openapi({ example: "prod" }),
-    /** Whether this environment has already been erased, so the screen is a tombstone. */
     alreadyErased: z.boolean().openapi({ example: false }),
-    /**
-     * The other environments holding something for this subject identifier, narrowed to
-     * the ones this caller may erase in. Each is an **offer**, never an act.
-     */
     otherEnvironments: z
       .array(
         z.object({
@@ -280,11 +188,9 @@ export const ErasureScopeResponse = z
   })
   .openapi("ErasureScopeResponse");
 
-/** `POST /admin/forms/:id/responses/:sessionId/unflag` - whether a withheld response was released. */
 export const UnflagResponse = z
   .object({
     sessionId: z.string().openapi({ example: "ses_abc123" }),
-    /** `true` when this call released the withheld `response.submitted` event. */
     released: z.boolean().openapi({ example: true }),
   })
   .openapi("UnflagResponse");

@@ -1,21 +1,3 @@
-/**
- * Route definitions for the admin form-authoring slices (task 022).
- *
- * The form library, exposed on the **admin** surface. Every route is declared
- * with `@hono/zod-openapi` `createRoute` (017's mandatory convention) so the
- * generated OpenAPI documents (027) cannot drift, and each carries its SEC-5
- * scope intent via `withScopes` - `forms:read` for the reads, `forms:write` for
- * the authoring mutations (draft, publish, close/reopen). Scopes are inert at
- * launch (the `/api/v1` surface is reserved); annotating them now makes Phase-4
- * activation wiring, not archaeology.
- *
- * The admin group is guarded by two middlewares before any route here runs: the
- * internal service-token gate (SEC-4, applied to every mounted group by the
- * composition root) and the admin-auth gate (`registerAdminAuth`, 021). In a
- * public-only process the admin group is not mounted at all, so these paths
- * simply do not exist - a request 404s, never 403s (ADR-09).
- */
-
 import { createRoute } from "@hono/zod-openapi";
 
 import type { SliceRegistrar } from "../../app.js";
@@ -76,7 +58,6 @@ export const createFormRoute = createRoute({
       description: "The created form and its empty draft",
       content: { "application/json": { schema: CreatedFormResponse } },
     },
-    // 400: malformed formId/locale. 409: formId already in use.
     ...errorResponses(400, 401, 409),
   },
   ...withScopes("forms:write"),
@@ -94,11 +75,6 @@ export const listFormsRoute = createRoute({
       description: "The form library",
       content: { "application/json": { schema: ListFormsResponse } },
     },
-    // 400: the query schema refuses an unknown status, an unknown sort key or an
-    // over-long search term before the handler runs, the same way the question
-    // library's list route does (issue 686). There is no page parameter here: the
-    // POC draws a pager and records it as an upstream gap, and inventing one on the
-    // way past would be a second decision riding on this one.
     ...errorResponses(400, 401),
   },
   ...withScopes("forms:read"),
@@ -134,7 +110,6 @@ export const putDraftRoute = createRoute({
       description: "The saved draft and advisory validation issues",
       content: { "application/json": { schema: SavedDraftResponse } },
     },
-    // 422: the body is not a parseable FormDefinition, or its formId mismatches.
     ...errorResponses(400, 401, 404, 422),
   },
   ...withScopes("forms:write"),
@@ -173,23 +148,13 @@ export const previewConditionRoute = createRoute({
       description: "The match verdict, or the typed reason it could not be reached",
       content: { "application/json": { schema: PreviewConditionResponse } },
     },
-    // 404: no such form. 422: the definition's formId contradicts the path id.
-    // Note what is deliberately NOT an error: an unparseable draft, an unknown
-    // ruleId, and answers the evaluator cannot use all return 200 with an
-    // `unavailable` outcome, because the bench reads a work-in-progress draft.
+    // An unparseable draft, an unknown ruleId or unusable answers return 200 with an
+    // `unavailable` outcome, not an error: the bench reads a work-in-progress draft.
     ...errorResponses(400, 401, 404, 422),
   },
   ...withScopes("forms:write"),
 });
 
-/**
- * The live draft preview (034).
- *
- * Deliberately absent from the frozen 027 contract, which predates it: the
- * screen contract records it as a thin extension of 022's draft slice that task 034
- * lands. It is a dry run in the strictest sense - it compiles, it evaluates, and
- * it writes nothing.
- */
 export const previewDraftRoute = createRoute({
   method: "post",
   path: "/forms/{id}/draft/preview",
@@ -204,9 +169,8 @@ export const previewDraftRoute = createRoute({
       description: "The compiled draft documents and the visible set for the given answers",
       content: { "application/json": { schema: PreviewDraftResponse } },
     },
-    // 422 carries the publish issues verbatim when the draft cannot compile: a
-    // preview of a draft that could not be published would be a lie about what a
-    // respondent would see, so the pane renders the issue list instead.
+    // 422 carries the publish issues verbatim: previewing a draft that could not be
+    // published would misrepresent what a respondent would see.
     ...errorResponses(400, 401, 404, 422),
   },
   ...withScopes("forms:write"),
@@ -242,7 +206,6 @@ export const publishFormRoute = createRoute({
       description: "The new published version",
       content: { "application/json": { schema: PublishedResponse } },
     },
-    // 409: no draft to publish. 422: publish invariants fail (PublishError[]).
     ...errorResponses(400, 401, 404, 409, 422),
   },
   ...withScopes("forms:write"),
@@ -265,8 +228,6 @@ export const publishAndReleaseFormRoute = createRoute({
       description: "The new published version and the environment it was released to",
       content: { "application/json": { schema: PublishedAndReleasedResponse } },
     },
-    // 400: an environment this deployment does not serve. 409: no draft to publish.
-    // 422: publish invariants fail (PublishError[]).
     ...errorResponses(400, 401, 404, 409, 422),
   },
   ...withScopes("forms:write"),
@@ -283,9 +244,6 @@ export const closeFormRoute = createRoute({
       description: "The form's new lifecycle status in that environment",
       content: { "application/json": { schema: FormStatusResponse } },
     },
-    // 400: a malformed id, or an environment this deployment does not serve.
-    // 409: nothing is released in that environment, so there is no intake to close,
-    // or it is closed already.
     ...errorResponses(400, 401, 404, 409),
   },
   ...withScopes("forms:write"),
@@ -323,10 +281,7 @@ export const getFormVersionRoute = createRoute({
   ...withScopes("forms:read"),
 });
 
-/**
- * Register every admin form route on an admin group. The admin-auth gate
- * (`registerAdminAuth`) must precede this in the admin bucket so it runs first.
- */
+/** `registerAdminAuth` must precede this in the admin bucket so its gate runs first. */
 export const registerForms: SliceRegistrar = (group, deps: Deps): void => {
   group.openapi(createFormRoute, makeCreateFormHandler(deps));
   group.openapi(listFormsRoute, makeListFormsHandler(deps));

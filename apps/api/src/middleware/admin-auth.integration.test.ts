@@ -1,21 +1,3 @@
-/**
- * Admin-auth middleware tests (task 031, exit criterion 1 - the middleware half).
- *
- * The companion half lives in the admin Playwright suite: "an unauthenticated
- * admin *page* redirects to sign-in". Here we prove the API side: an
- * unauthenticated (or out-of-policy) call to any `/admin` route is `401` before a
- * handler runs, and a real, in-policy better-auth session is the only thing that
- * passes.
- *
- * Driven through `app.request()` against the 013 Testcontainers harness DB,
- * because verification is a database read: mocking it would test nothing. The
- * probe route below is registered *after* `registerAdminAuth` in the admin bucket
- * so it sits behind the gate exactly as a real slice does, and it echoes the
- * resolved principal so the SEC-3 `role` claim is observable.
- *
- * Requires Docker.
- */
-
 import { clearMustChangePassword } from "@roonga/qcms-db";
 import { CONTAINER_BOOT_TIMEOUT_MS, startTestDb, type TestDb } from "@roonga/qcms-db/testing";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
@@ -27,21 +9,12 @@ import { internalTokenFor, makeDeps, seedAdminSession, validEnv } from "../test-
 import { ADMIN_SESSION_HEADER, registerAdminAuth } from "./admin-auth.js";
 
 const ADMIN_ONLY = { public: false, internal: false, admin: true } as const;
-/** The pinned instant every seeded session is anchored to (fixedClock's). */
+/** Must stay `fixedClock`'s instant. */
 const NOW = new Date("2026-07-20T00:00:00.000Z");
 const TWELVE_HOURS_MS = 12 * 60 * 60 * 1000;
 
-/**
- * A minimal admin slice: it exists only to observe what got past the gate, so a
- * pass/fail here is the middleware's verdict and nothing else's.
- *
- * `/admin/whoami` is a **fixture route**, not one the product serves, so it has no row in
- * the permissions matrix and the grant middleware is deliberately **not** composed below
- * (PR #1061's S2 fix made an unrouted-by-the-table admin route a 403 at runtime, which is
- * exactly what this fixture would meet). The subject here is the admin-session gate; the
- * grant gate has its own suites, and `membership.integration.test.ts` asserts the refusal
- * this fixture would otherwise collect.
- */
+// A fixture route with no row in the permissions matrix, so the grant middleware is
+// deliberately not composed below: it would answer 403 before the gate under test runs.
 const registerPrincipalProbe: SliceRegistrar = (group) => {
   group.get("/whoami", (c) => c.json({ principal: c.get("adminPrincipal") }));
 };
@@ -94,8 +67,6 @@ describe("admin-auth: an unauthenticated /admin call is 401", () => {
   });
 
   it("rejects a token that is a valid session's USER id rather than its token", async () => {
-    // Guards the join: resolving on the wrong column would authenticate anyone
-    // who knows a user id.
     const { userId } = await seedAdminSession(testDb.db, { at: NOW, label: "byuserid" });
     expect((await whoami(compose(), userId)).status).toBe(401);
   });
@@ -112,7 +83,6 @@ describe("admin-auth: an unauthenticated /admin call is 401", () => {
     const unknown = (await (await whoami(compose(), "st_never-issued-either")).json()) as {
       error: { code: string; message: string };
     };
-    // Byte-identical envelopes: an attacker cannot distinguish the two cases.
     expect(expired).toEqual(unknown);
     expect(expired.error.message).toBe("Admin authentication required");
   });
@@ -127,7 +97,6 @@ describe("admin-auth: a real, in-policy session authenticates", () => {
       principal: { userId: string; role: string; scopes: string[] };
     };
     expect(body.principal.userId).toBe(userId);
-    // Launch ships a single role; the claim is carried so Phase 4 RBAC is additive.
     expect(body.principal.role).toBe("admin");
     expect(body.principal.scopes).toContain("forms:write");
   });
@@ -144,8 +113,6 @@ describe("admin-auth: session lifetime policy (SEC-1)", () => {
   });
 
   it("rejects a session past the 12h absolute lifetime even when its idle window is open", async () => {
-    // The shape an idle-window-only implementation gets wrong: issued 13h ago and
-    // kept warm, so `expiresAt` is comfortably in the future.
     const { token } = await seedAdminSession(testDb.db, {
       at: new Date(NOW.getTime() - 13 * 60 * 60 * 1000),
       expiresInMs: 14 * 60 * 60 * 1000,
@@ -181,8 +148,6 @@ describe("admin-auth: 2FA policy (SEC-1)", () => {
       twoFactorEnabled: false,
       label: "unenrolled",
     });
-    // The default policy is `required`, so a signed-in-but-not-enrolled admin
-    // reaches the enrollment screens (better-auth in the shell) and no API route.
     expect((await whoami(compose(), token)).status).toBe(401);
   });
 
@@ -199,9 +164,6 @@ describe("admin-auth: 2FA policy (SEC-1)", () => {
 
 describe("admin-auth: the provisional bootstrap credential (SEC-1, task 061)", () => {
   it("rejects a session whose account still holds the password create-admin set", async () => {
-    // The admin app's gate is what sends this admin to the forced-change screen. This
-    // is the half that makes "and nothing else" true of the DATA as well: a caller who
-    // went round the BFF, or a BFF route that forgot its guard, meets a 401 here.
     const { token } = await seedAdminSession(testDb.db, {
       at: NOW,
       mustChangePassword: true,
@@ -211,9 +173,6 @@ describe("admin-auth: the provisional bootstrap credential (SEC-1, task 061)", (
   });
 
   it("is not relaxed by QCMS_ADMIN_2FA=optional", async () => {
-    // That hatch exists because enrollment needs a device a developer may not have;
-    // changing a password needs nothing, so it buys no exemption from this gate. A
-    // hatch that quietly widened to a second control is how one gets left on.
     const { token } = await seedAdminSession(testDb.db, {
       at: NOW,
       mustChangePassword: true,
@@ -240,8 +199,7 @@ describe("admin-auth: the provisional bootstrap credential (SEC-1, task 061)", (
   });
 
   it("accepts the same session once the flag is cleared", async () => {
-    // Exit criterion 4 on this side: nothing lingers. `clearMustChangePassword` is the
-    // same write the password-change database hook makes.
+    // `clearMustChangePassword` is the same write the password-change hook makes.
     const { token, userId } = await seedAdminSession(testDb.db, {
       at: NOW,
       mustChangePassword: true,

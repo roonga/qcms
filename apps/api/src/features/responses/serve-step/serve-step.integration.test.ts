@@ -1,25 +1,3 @@
-/**
- * Serving-loop slice tests (task 019), driven through `app.request()` against
- * the **real** kernel and the 013 Testcontainers harness DB - never a mock of
- * our own packages (CONTRIBUTING). Requires Docker.
- *
- * The fixture is the canonical `insurance` form (`@roonga/qcms-core` fixtures): one
- * step `stp_history` with `q_at_fault_accident` (boolean, required) and `q_accident_count`
- * (number, required), the follow-up shown only when `q_at_fault_accident = true`. Its
- * published `form_versions` row stores the committed golden compiled A2UI
- * document, so exit criterion 2 asserts the served step equals the *stored*
- * bytes - the handler has no compiler dependency and cannot recompile (ADR-18).
- *
- * Covers every exit criterion: the branching answer loop (1), served step
- * equals the stored compiled document (2), the typed rejects - invalid value,
- * hidden question, unknown question, submitted/expired session (3), and
- * concurrent answers serialized by the advisory lock (4).
- *
- * It also pins the ADR-16 semantics gate on this loop (issue #723): a stored
- * stamp the evaluator does not implement, or one that is not a number at all,
- * refuses both endpoints instead of being branched under current semantics.
- */
-
 import { readFileSync } from "node:fs";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
@@ -89,7 +67,6 @@ const Q_ACCIDENT_COUNT_DEF = readFixture(
   "number.json",
 ) as Parameters<typeof createQuestionVersion>[1]["definition"];
 
-/** The committed golden compiled document for the insurance fixture (ADR-18). */
 interface CompiledDoc {
   readonly stepId: string;
   readonly root: unknown;
@@ -100,8 +77,6 @@ interface Compiled {
   readonly a2uiSpecVersion: string;
 }
 
-/** The kitchen-sink fixture and its golden: the one fixture form carrying a text
- * and a multiChoice question, which the ADR-33 empty-value block needs. */
 const KITCHEN_SINK_DEF = readFixture(
   "packages",
   "core",
@@ -147,16 +122,13 @@ afterAll(async () => {
   await testDb?.teardown();
 }, CONTAINER_BOOT_TIMEOUT_MS);
 
-// --- seed helpers -----------------------------------------------------------
-
-/** Seed the two library questions the insurance form pins (q_at_fault_accident@2, q_accident_count@1). */
 async function seedQuestions(): Promise<void> {
   await createQuestion(testDb.db, {
     workspaceId: SEED_WORKSPACE_ID,
     questionId: QuestionId.parse("q_at_fault_accident"),
     slug: "accident",
   });
-  // q_at_fault_accident is pinned @2 by the form; create v1 then v2 (identical definition).
+  // The form pins q_at_fault_accident@2, so v1 then v2 with the same definition.
   await createQuestionVersion(testDb.db, {
     questionId: QuestionId.parse("q_at_fault_accident"),
     definition: Q_ACCIDENT_DEF,
@@ -176,11 +148,6 @@ async function seedQuestions(): Promise<void> {
   });
 }
 
-/**
- * Seed the insurance form with one published version storing `compiled`.
- * `semanticsVersion` is the stored stamp (text, ADR-16); it defaults to the one
- * this evaluator implements and is overridden to exercise the gate.
- */
 async function seedForm(
   id: string,
   slug: string,
@@ -202,9 +169,7 @@ async function seedForm(
     a2uiSpecVersion: GOLDEN.a2uiSpecVersion,
     semanticsVersion,
   });
-  // The version has to be **released** to be served: publishing reaches no environment
-  // (ADR-40, task 065), so a fixture that published alone would describe a form no
-  // session can start on.
+  // A version has to be released to be served: publishing reaches no environment (ADR-40).
   await insertFormRelease(testDb.db, {
     formId,
     environment: DEFAULT_TEST_ENVIRONMENT,
@@ -213,8 +178,6 @@ async function seedForm(
   });
   return formId;
 }
-
-// --- request helpers --------------------------------------------------------
 
 interface StartBody {
   sessionId: string;
@@ -252,7 +215,6 @@ async function getStep(id: string, token?: string): Promise<Response> {
   return app.request(`/sessions/${id}/step`, { headers });
 }
 
-/** GET the step at an explicit visible-step cursor index (ADR-28). */
 async function getStepAt(id: string, token: string, index: number): Promise<Response> {
   return app.request(`/sessions/${id}/step?step=${String(index)}`, {
     headers: { "x-qcms-internal-token": internalToken, authorization: `Bearer ${token}` },
@@ -276,8 +238,6 @@ async function postAnswer(
   });
 }
 
-// --- exit criterion 2: served step equals the stored compiled document ------
-
 describe("get-step serves the stored compiled document (exit criterion 2)", () => {
   beforeAll(async () => {
     await seedQuestions();
@@ -290,11 +250,9 @@ describe("get-step serves the stored compiled document (exit criterion 2)", () =
     expect(res.status).toBe(200);
     const body = (await res.json()) as StepBody;
 
-    // Deep-equals the STORED golden document for stp_history (JSONB does not
-    // preserve key order, so structural equality - not byte-exact).
+    // Structural equality, not byte-exact: JSONB does not preserve key order.
     expect(body.step).toEqual(GOLDEN.documents[0]);
     expect(body.a2uiSpecVersion).toBe(GOLDEN.a2uiSpecVersion);
-    // Initially only q_at_fault_accident is visible (q_accident_count's rule is unsatisfied).
     expect(body.flowState.currentStep).toBe("stp_history");
     expect(body.flowState.visibleQuestions).toEqual(["q_at_fault_accident"]);
     expect(body.flowState.missingRequired).toEqual(["q_at_fault_accident"]);
@@ -303,8 +261,7 @@ describe("get-step serves the stored compiled document (exit criterion 2)", () =
   });
 
   it("serves the exact stored bytes even when they are not a valid compile (proves no recompile)", async () => {
-    // A sentinel document the real compiler would never emit for this form: if
-    // the handler recompiled it would produce the Form/Flex tree, not this.
+    // A document the real compiler would never emit for this form.
     const sentinelRoot = { type: "Text", props: { as: "h1" }, children: "SENTINEL-STORED-19" };
     const sentinel = {
       documents: [{ stepId: "stp_history", root: sentinelRoot }],
@@ -321,13 +278,10 @@ describe("get-step serves the stored compiled document (exit criterion 2)", () =
   });
 });
 
-// --- exit criterion 1: branching answer loop --------------------------------
-
 describe("branching answer loop (exit criterion 1)", () => {
   it("q_at_fault_accident=true reveals q_accident_count; q_at_fault_accident=false hides it; ledger keeps all rows", async () => {
     const { sessionId, sessionToken } = await startSession("auto");
 
-    // 1) q_at_fault_accident = true → the follow-up q_accident_count becomes visible.
     const r1 = await postAnswer(sessionId, sessionToken, "q_at_fault_accident", true);
     expect(r1.status).toBe(200);
     const b1 = (await r1.json()) as StepBody;
@@ -336,7 +290,6 @@ describe("branching answer loop (exit criterion 1)", () => {
     expect(b1.flowState.missingRequired).toEqual(["q_accident_count"]);
     expect(b1.flowState.readyToSubmit).toBe(false);
 
-    // 2) answer q_accident_count → flow complete, no current step.
     const r2 = await postAnswer(sessionId, sessionToken, "q_accident_count", 10);
     expect(r2.status).toBe(200);
     const b2 = (await r2.json()) as StepBody;
@@ -347,7 +300,6 @@ describe("branching answer loop (exit criterion 1)", () => {
     expect(b2.flowState.missingRequired).toEqual([]);
     expect(b2.progress).toEqual({ stepIndex: 1, totalVisibleSteps: 1 });
 
-    // 3) q_at_fault_accident = false → the follow-up disappears again.
     const r3 = await postAnswer(sessionId, sessionToken, "q_at_fault_accident", false);
     expect(r3.status).toBe(200);
     const b3 = (await r3.json()) as StepBody;
@@ -355,10 +307,8 @@ describe("branching answer loop (exit criterion 1)", () => {
     expect(b3.flowState.readyToSubmit).toBe(true);
     expect(b3.step).toBeNull();
 
-    // Ledger holds all three appended rows (append-only, I5). The row type is
-    // laundered through a local view - `answers` references the enum-bearing
-    // `sessions` table, so its `$inferSelect` resolves to a TS error type through
-    // @roonga/qcms-db's emitted .d.ts (issue #5); only `questionId` is read here.
+    // Cast: `answers` references the enum-bearing `sessions` table, so its
+    // `$inferSelect` resolves to a TS error type through the emitted .d.ts (issue #5).
     const ledger = (await answerLedger(testDb.db, SessionId.parse(sessionId))) as {
       questionId: string;
     }[];
@@ -367,14 +317,11 @@ describe("branching answer loop (exit criterion 1)", () => {
       "q_accident_count",
       "q_at_fault_accident",
     ]);
-    // latestAnswers reflects the latest per question.
     const latest = await latestAnswers(testDb.db, SessionId.parse(sessionId));
     expect(latest.get(QuestionId.parse("q_at_fault_accident"))).toBe(false);
     expect(latest.get(QuestionId.parse("q_accident_count"))).toBe(10);
   });
 });
-
-// --- answer retraction (ADR-33, issue #95) ----------------------------------
 
 describe("answer retraction (ADR-33)", () => {
   it("a null value retracts: the question becomes required-missing again and the ledger records it", async () => {
@@ -387,16 +334,12 @@ describe("answer retraction (ADR-33)", () => {
     ).json()) as StepBody;
     expect(answered.flowState.readyToSubmit).toBe(true);
 
-    // The respondent clears the number: post null on the same route.
     const res = await postAnswer(sessionId, sessionToken, "q_accident_count", null);
     expect(res.status).toBe(200);
     const body = (await res.json()) as StepBody;
-    // The flow re-evaluates with the question UNANSWERED, so the required gap is
-    // back and the flow is no longer submittable. This is what stops Continue.
     expect(body.flowState.missingRequired).toEqual(["q_accident_count"]);
     expect(body.flowState.readyToSubmit).toBe(false);
 
-    // The read model omits it; the audit ledger keeps every row, retraction last.
     const latest = await latestAnswers(testDb.db, sid);
     expect(latest.has(QuestionId.parse("q_accident_count"))).toBe(false);
     expect(latest.get(QuestionId.parse("q_at_fault_accident"))).toBe(true);
@@ -411,7 +354,6 @@ describe("answer retraction (ADR-33)", () => {
       ["q_accident_count", null, true],
     ]);
 
-    // Answering again after the retraction restores the flow.
     const reanswered = (await (
       await postAnswer(sessionId, sessionToken, "q_accident_count", 7)
     ).json()) as StepBody;
@@ -423,14 +365,11 @@ describe("answer retraction (ADR-33)", () => {
     const { sessionId, sessionToken } = await startSession("auto");
     const sid = SessionId.parse(sessionId);
 
-    // The sibling case from issue #95: a never-answered required control commits
-    // empty. It used to 422 with "invalid value" on a question nobody answered.
     const res = await postAnswer(sessionId, sessionToken, "q_at_fault_accident", null);
     expect(res.status).toBe(200);
     const body = (await res.json()) as StepBody;
     expect(body.flowState.missingRequired).toEqual(["q_at_fault_accident"]);
     expect(body.flowState.readyToSubmit).toBe(false);
-    // No ledger noise: a tombstone over nothing records no event.
     expect((await answerLedger(testDb.db, sid)) as unknown[]).toEqual([]);
   });
 
@@ -439,8 +378,6 @@ describe("answer retraction (ADR-33)", () => {
     const sid = SessionId.parse(sessionId);
     await postAnswer(sessionId, sessionToken, "q_at_fault_accident", true);
 
-    // Only a literal null takes the retraction branch; every other value goes to
-    // the kernel exactly as before, and the retraction branch can never carry one.
     const invalid = await postAnswer(sessionId, sessionToken, "q_accident_count", "ten");
     expect(invalid.status).toBe(422);
     expect(((await invalid.json()) as ErrBody).error.code).toBe("INVALID_ANSWER");
@@ -451,8 +388,6 @@ describe("answer retraction (ADR-33)", () => {
   it("is authorized exactly like an answer write: hidden question 409, unknown 404, no token 401", async () => {
     const { sessionId, sessionToken } = await startSession("auto");
 
-    // q_accident_count is hidden until q_at_fault_accident = true: a retraction
-    // may not reach it either (it would otherwise probe the hidden flow).
     const hidden = await postAnswer(sessionId, sessionToken, "q_accident_count", null);
     expect(hidden.status).toBe(409);
     expect(((await hidden.json()) as ErrBody).error.code).toBe("QUESTION_NOT_VISIBLE");

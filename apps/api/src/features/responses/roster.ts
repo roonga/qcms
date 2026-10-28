@@ -1,81 +1,3 @@
-/**
- * The live-roster derivation (task 072, ADR-42, `plan/repeating-groups-and-table-input.md`
- * section 5.2).
- *
- * `answer_group_instances` records what was **minted** and what was **explicitly
- * removed**. It is not the live roster for two of the three count sources, and
- * that is the whole of this module: liveness is a function of the count source,
- * and this is where the function lives.
- *
- * | Count source | The live roster is                                                  | Who shortens it                        |
- * | ------------ | ------------------------------------------------------------------- | -------------------------------------- |
- * | `open`       | every instance whose latest event is `added`, in first-`added` order | nobody; removal is an explicit row     |
- * | `fixed`      | the first `count` of that list                                       | this module, against the group's count |
- * | `fromAnswer` | the first N of that list, N the count answer clamped to min and max  | this module, against the count answer  |
- *
- * **Where it runs: in the API, above `evaluateRules`.** The `rosters` map the
- * evaluator receives is already truncated and ordered, so the evaluator stays a
- * pure function of what it is handed and determinism (I7) is checkable at its
- * boundary: the same `(snapshot, answers, rosters)` gives the same `FlowState`,
- * and the truncation is a separate, testable step whose own inputs are the roster
- * table and the count answer.
- *
- * That is also what makes ADR-42's two asymmetric behaviours fall out rather than
- * be special-cased. Lowering a `fromAnswer` count hides the trailing instance with
- * **no** `removed` row, so raising it again re-lives the **same** instance with
- * its answers intact; a removed `open` instance has a `removed` row and is gone
- * for good, and an added replacement is a new id (Q5, ruled 2026-09-29). Neither
- * path ever deletes an answer: a removed instance's answers stay in the ledger and
- * are excluded from evaluation, from the locked submission and from reporting
- * exactly as a hidden question's are (I6).
- *
- * **The roster this module produces never holds one instance id twice**, per
- * group per session. The kernel treats the roster it is handed as a trusted
- * input: given an id twice it evaluates that instance twice and returns duplicate
- * `visible` and `missingRequired` entries and a duplicated instance in the locked
- * submission, with no error raised anywhere. The guarantee is therefore owed
- * here, and it is held twice over - `readRosters` admits an instance at its first
- * `added` row and never again, and {@link liveInstances}, the one seam where a
- * `RosterMap` is built, deduplicates before it truncates. The mint side is closed
- * too: a fresh id is generated against the ids already in the group.
- *
- * **It is held in code and not by a database constraint, and that is ruled rather
- * than pending** (Code Owner, 2026-09-30). The invariant is cross-row ("at most
- * one `added` row per `(session, group, instance)`"), so the only shapes that
- * express it in SQL are a partial UNIQUE index or a third trigger, and either
- * would be a **fifth guard** on a table ADR-40's amendment counts four for,
- * taking that record's per-environment totals from seventeen guards and
- * twenty-five objects to eighteen and twenty-six. Those totals are the reconciled
- * figures task 064 checks its generator against, and the ruling keeps them:
- * **ADR-40 stays at seventeen guards, eight foreign keys and twenty-five
- * objects**, and no constraint is added. So the three points above are the whole
- * of the mechanism rather than a stopgap, which is why each one carries a test.
- *
- * **What task 073 added here.** The serving glue: {@link mintDueAndLoadRosters},
- * which mints whatever a serve or an answer write has made due and returns the live
- * map in one call, and {@link applyRosterOp}, which is the respondent's Add or
- * Remove **behind its one-time operation token**. Everything above it is still 072's
- * and unchanged.
- *
- * **The token, in one paragraph, because it is the part that is easy to get wrong.**
- * The no-JS roster operation answers its POST with a **200 re-render** rather than a
- * 303 (ADR-43, confirmed by the Code Owner on 2026-09-30): the values that must
- * survive an Add are the whole step rather than a refused subset, and the whole step
- * at nine instances does not fit a 4 KB cookie, so the carrier is the POST body and
- * the response is a page. A POST whose response is a page can be replayed by a reload
- * or by Back, and replaying an Add would add a second instance. So the rendered page
- * mints a token into each `__qop` button's value, this module records it with the row
- * it writes, and a token already spent is a **no-op that returns the roster as it
- * stands**. A **refused** Add records nothing, so a refusal cannot be replayed into an
- * acceptance either. The check and the write are one decision because the caller holds
- * the session's advisory lock, which is why no database constraint is needed (the
- * roster's own no-duplicates rule was ruled into code on 2026-09-30 for the same
- * reason).
- *
- * It does not decide an HTTP envelope: the routes are task 073's and they map
- * {@link RosterRefusalCode} onto the API's error shape.
- */
-
 import {
   countBounds,
   type AnswerMap,
@@ -101,15 +23,7 @@ import {
   rosterOpApplied,
 } from "@roonga/qcms-db";
 
-/**
- * A fresh, branded instance id: `ins_` + 16 random hex bytes (matches
- * `^ins_[a-z0-9_]+$`). Minted once per instance, never reused across sessions and
- * never renumbered within one - the ordinal a respondent reads ("Passenger 2") is
- * the instance's position in the live roster and is presentation only (ADR-42).
- *
- * Spelled exactly as `newSessionId` in the start-session slice: `crypto`, not
- * `node:crypto`, so the handler path stays Fetch API pure (R4).
- */
+/** WebCrypto rather than `node:crypto`: the handler path stays Fetch API pure (R4). */
 export function newInstanceId(): InstanceId {
   const bytes = new Uint8Array(16);
   crypto.getRandomValues(bytes);
@@ -118,14 +32,8 @@ export function newInstanceId(): InstanceId {
 }
 
 /**
- * `count` fresh instance ids, none of them equal to one already in `taken` and
- * none equal to another.
- *
- * 16 random bytes make a repeat a 128-bit collision, so this loop is not a
- * probability play: it is what makes "a roster never holds the same instance id
- * twice" a property of the mint rather than a property of the random source. The
- * evaluator treats the roster as trusted input, so the cost of being wrong once
- * is a silently duplicated instance in the flow and in the locked submission.
+ * The evaluator trusts the roster, so a duplicate id would silently duplicate an
+ * instance: distinctness is a property of the mint, not of the random source.
  */
 function mintDistinct(count: number, taken: Iterable<InstanceId>): InstanceId[] {
   const seen = new Set<InstanceId>(taken);
@@ -140,20 +48,8 @@ function mintDistinct(count: number, taken: Iterable<InstanceId>): InstanceId[] 
 }
 
 /**
- * The answer to a `fromAnswer` group's count question, as a count: a finite
- * number floored to an integer, or `undefined` when the question is unanswered or
- * holds anything else.
- *
- * The count question is pinned **outside** every group (a group may not contain a
- * group, and publish refuses a count question that does not precede the group's
- * whole span), so it is keyed by a bare `questionId` in the answer map and never
- * instance-qualified.
- *
- * A non-number is treated as unanswered rather than as an error. Publish already
- * refuses a count question that is not a `number` question
- * (`REPEAT_COUNT_NOT_A_NUMBER`), so this branch is unreachable on a published
- * snapshot; it is here because this function is total over unvalidated input, in
- * the same spirit as the evaluator's totality extensions.
+ * The count question sits outside every group, so it is keyed by a bare `questionId`.
+ * A non-number counts as unanswered: total over input publish already refuses.
  */
 function countAnswerOf(count: RepeatCount, answers: AnswerMap): number | undefined {
   if (count.source !== "fromAnswer") return undefined;
@@ -168,46 +64,24 @@ function clamp(value: number, min: number, max: number | undefined): number {
 }
 
 /**
- * How many instances the live roster may hold, or `undefined` when the count
- * source sets no length at all.
- *
- * `open` returns `undefined`: its live set **is** the event record, and the
- * group's `max` bounds what may be added (SEC-16, enforced on the add) rather than
- * what is live now. Truncating an `open` group here would silently hide an
- * instance the respondent can see, which is the opposite of what removal means for
- * that source.
+ * `open` sets no limit: its `max` bounds what may be added (SEC-16, checked on the
+ * add), and truncating here would hide an instance the respondent can see.
  */
 export function liveInstanceLimit(count: RepeatCount, answers: AnswerMap): number | undefined {
   if (count.source === "open") return undefined;
   if (count.source === "fixed") return count.count;
   const answered = countAnswerOf(count, answers);
-  // No count answer yet: the count is not known, so nothing is live. `min` is not
-  // read in as a floor here, because a floor would make a group live before the
-  // respondent had said how big it is; `min` is enforced at submit
-  // (`REPEAT_COUNT_OUT_OF_RANGE`) and as the clamp below once an answer exists.
+  // `min` is deliberately not a floor here: it would make a group live before the
+  // respondent said how big it is. It is enforced at submit and by the clamp below.
   if (answered === undefined) return 0;
   const bounds = countBounds(count);
   return clamp(answered, bounds.min, bounds.max);
 }
 
 /**
- * How many `added` rows a group should have by now: the minting target.
- *
- * Measured against rows **ever minted**, never against the live set, and that is
- * load-bearing in both directions. An `open` group whose only instance the
- * respondent removed must not have a replacement minted on the next serve, which
- * a live-set comparison would do. A `fromAnswer` count lowered from 3 to 2 and
- * raised back to 3 must re-live the instance it already minted rather than mint a
- * fourth, which is what makes its answers come back (acceptance case 18, owned by
- * 071, and the behaviour this function is the storage half of).
- *
- * - `fixed` mints its `count` the first time the group's step is served.
- * - `open` mints `min` instances, or **one** when `min` is 0, the first time its
- *   step is served, so the respondent sees a card to fill rather than an empty
- *   group with a button. Every later instance is an explicit Add.
- * - `fromAnswer` mints nothing at session start, because the count is not known
- *   then; it mints up to the answered N on the write of the count answer and the
- *   difference on each later raise.
+ * Compared against rows ever minted, never the live set: a removed `open` instance
+ * must not be replaced, and a lowered-then-raised `fromAnswer` count must re-live
+ * the instance it already minted so its answers come back.
  */
 export function mintTarget(count: RepeatCount, answers: AnswerMap): number {
   if (count.source === "fixed") return count.count;
@@ -216,21 +90,8 @@ export function mintTarget(count: RepeatCount, answers: AnswerMap): number {
 }
 
 /**
- * One group's live roster: the present instances, deduplicated, truncated to what
- * the count source allows, in first-`added` order.
- *
- * **No instance id appears twice**, and this is the boundary that owes it. The
- * evaluator treats the roster as a trusted input: handed an id twice it evaluates
- * that instance twice and yields duplicate `visible` entries, duplicate
- * `missingRequired` entries and a duplicated instance in the locked submission,
- * with no error anywhere. `readRosters` already holds the guarantee by
- * construction (an instance enters `minted` at its first `added` row and never
- * again), so this is defence in depth at the one seam where a `RosterMap` is
- * produced, and it is what the contract is asserted against: any future caller
- * building a `GroupRoster` some other way is covered by the same line.
- *
- * Deduplication runs **before** the truncation, so a limit counts distinct
- * instances rather than rows.
+ * Deduplicates before truncating, so a limit counts distinct instances: the one seam
+ * where a `RosterMap` is built, and the evaluator trusts what it is handed.
  */
 export function liveInstances(
   count: RepeatCount,
@@ -242,15 +103,6 @@ export function liveInstances(
   return limit === undefined ? present : present.slice(0, limit);
 }
 
-/**
- * The `RosterMap` the evaluator is handed: one entry per repeating group the form
- * declares, each already truncated and ordered.
- *
- * Every group gets an entry, including one with no roster row yet, so a caller
- * reading the map cannot tell "no such group" from "a group with nothing in it"
- * by an absent key - the evaluator's own contract already treats a missing entry
- * as empty, and stating it makes the projection 073 builds on total.
- */
 export function deriveRosters(
   steps: readonly Step[],
   rosters: ReadonlyMap<GroupId, GroupRoster>,
@@ -263,10 +115,6 @@ export function deriveRosters(
   return live;
 }
 
-/**
- * Read the session's roster rows and derive the live `RosterMap` in one step: the
- * call a serving handler makes beside `latestAnswers` before it evaluates.
- */
 export async function loadRosters(
   exec: Executor,
   sessionId: SessionId,
@@ -276,68 +124,23 @@ export async function loadRosters(
   return deriveRosters(steps, await readRosters(exec, sessionId), answers);
 }
 
-/** Why a roster write was refused. 073 maps this onto its error envelope. */
 export type RosterRefusalCode =
-  /** An Add on a group whose count source is not `open`: its size is not the
-   * respondent's to change. */
   | "REPEAT_NOT_ADDABLE"
-  /** A Remove naming an instance this session's roster never minted: the caller
-   * obligation on {@link removeRosterInstance}, enforced rather than trusted. */
   | "UNKNOWN_INSTANCE"
-  /** An Add that would take the group past the `max` its author declared
-   * (SEC-16: the per-form bound is the only bound there is). */
   | "REPEAT_MAX_REACHED";
 
-/** The outcome of a roster write: the instances it minted, or why it refused. */
 export type RosterWriteResult =
   | { readonly ok: true; readonly minted: readonly InstanceId[] }
   | { readonly ok: false; readonly code: RosterRefusalCode };
 
 /**
- * Mint whatever the count source says is missing for one group, and return the
- * live roster that results.
+ * The caller owns the transaction and must hold the session's advisory lock, or two
+ * concurrent serves each see an empty roster and each mint a full set.
  *
- * **Idempotent under replay by construction**: it appends `target - minted.length`
- * rows and nothing when that is not positive, so serving the same step twice mints
- * nothing the second time because the rows are already there. There is no
- * "have we served this before" flag anywhere, which is what makes the property
- * hold across a reload, a resumed session and a retried request alike.
- *
- * Called on the first serve of a group's step for `fixed` and `open`, and on the
- * write of a `fromAnswer` group's count answer. Calling it on every serve is
- * correct and is what 073 does: the extra call is one read of a list the handler
- * already holds.
- *
- * The caller owns the transaction (R5) and is expected to hold the session's
- * advisory lock, as the answer write does: two concurrent serves of one step
- * would otherwise each see an empty roster and each mint a full set.
- *
- * **Contract: call this at most once per group per transaction.** `occurred_at`
- * defaults to `now()`, which in Postgres is the **transaction** timestamp and not
- * the statement's, so two mints for one group inside one transaction write rows
- * sharing a timestamp to the microsecond. The roster read then orders that
- * combined set by its `instance_id` tiebreaker alone (see {@link readRosters} in
- * `packages/db/src/queries/rosters.ts`), and an `instance_id` is 128 random bits,
- * so the two batches interleave at random rather than the second following the
- * first.
- *
- * What that breaks is the first-N guarantee, not merely a display order.
- * {@link liveInstances} takes the **first** N of the minted list for `fixed` and
- * `fromAnswer`, so an instance minted in the earlier batch and already answered
- * can be sorted out of the live window by a later batch's ids. Lowering a
- * `fromAnswer` count and raising it again would then re-live a *different*
- * instance, moving a respondent's answers between cards. That is exactly the
- * property `roster.integration.test.ts` pins in "lowers a fromAnswer count and
- * raises it again, re-living the same instance with its answers intact", and it is
- * why this contract is written down rather than left to be discovered.
- *
- * Keeping to it is cheap and is what 073 does: a serve resolves each group once,
- * and the batch answer endpoint carries a whole step in one transaction (ADR-43),
- * so it mints per group after applying the step's answers rather than once per
- * entry. **Ruled: no ordering column is added** (Code Owner, 2026-10-01). ADR-42
- * fixes this table's column set, and a monotonic column would also be a fifth
- * guard on a table ADR-40's amendment counts four for, moving the per-environment
- * totals the 064 generator is checked against.
+ * Call it at most once per group per transaction: `occurred_at` defaults to the
+ * transaction timestamp, so two mints for one group share it and the read falls back
+ * to the random `instance_id` tiebreaker, interleaving the batches and breaking the
+ * first-N window that keeps a re-raised `fromAnswer` count on the same instances.
  */
 export async function mintForServedGroup(
   exec: Executor,
@@ -358,13 +161,8 @@ export async function mintForServedGroup(
     groupId: input.group.groupId,
     instanceIds: mintDistinct(shortfall, minted),
   });
-  // Re-read rather than splice the fresh ids onto the list in hand. Roster order is
-  // `(occurred_at, instance_id)` and every row one mint writes shares a timestamp,
-  // so the order of a batch is the read's to decide; assembling it here would give
-  // this call a different answer from the next read of the same rows, and a roster
-  // that reorders between two reads is exactly what a `fromAnswer` count lowered
-  // and raised again must not meet. One extra query, and only on the call that
-  // actually minted.
+  // Re-read rather than splice the fresh ids on: a mint's rows share a timestamp, so
+  // their order is the read's to decide and assembling it here would disagree with it.
   return liveInstances(
     input.group.count,
     await readRoster(exec, input.sessionId, input.group.groupId),
@@ -373,34 +171,12 @@ export async function mintForServedGroup(
 }
 
 /**
- * The respondent's Add on an `open` group: one appended `added` row.
+ * The per-form `max` is the only bound there is (SEC-16), and it is checked against
+ * the live count so a filled-then-emptied group can grow again.
  *
- * Refused past the group's `max`, which after the 2026-09-29 ruling that removed
- * every installation-wide ceiling (Q14) is the only bound that exists (SEC-16).
- * The bound is checked against the **live** count rather than the minted one: an
- * instance the respondent removed has freed its place, and counting it would make
- * a group that had been filled and emptied permanently unable to grow.
- *
- * A group whose count source is not `open` refuses the Add outright: a `fixed`
- * group's size is its author's and a `fromAnswer` group's is the count answer's,
- * so there is no Add button on either and a post that names one is drift.
- *
- * **The caller must hold the session's advisory lock**, the same requirement
- * {@link mintForServedGroup} states and for a sharper reason: the `max` check is a
- * read followed by a write, not one atomic statement. Two simultaneous Add posts
- * on one group each read `live.length === max - 1`, each pass the bound, and each
- * append, leaving the group one past the `max` that SEC-16 calls the whole of the
- * mitigation now that Q14 has removed every installation-wide ceiling. The
- * mechanism already exists and needs nothing new: `pg_advisory_xact_lock` keyed on
- * the session, as `serve-step/handler.ts` takes it. **No caller holds it at this
- * head because there is no caller**: nothing outside the tests reaches this
- * function, since 073 owns the routes. This is the contract those routes inherit,
- * and 073 is where a concurrency test belongs, next to the handler that takes the
- * lock.
- *
- * The one-mint-per-group-per-transaction contract on {@link mintForServedGroup}
- * applies here too: an Add is a mint, so a transaction that already minted for
- * this group must not also Add to it.
+ * The caller must hold the session's advisory lock: the check is a read followed by
+ * a write, so two simultaneous Adds would both pass and leave the group past `max`.
+ * The one-mint-per-group-per-transaction contract above applies here too.
  */
 export async function addRosterInstance(
   exec: Executor,
@@ -425,24 +201,12 @@ export async function addRosterInstance(
 }
 
 /**
- * The respondent's Remove: one appended `removed` row, never a delete (I6).
+ * Appends a `removed` row, never a delete (I6). `min` is not enforced here: that is
+ * a submit-time refusal, so a respondent may empty a group and rebuild it.
  *
- * Removing an instance that is not live is a no-op that still appends, because
- * the roster is a log: a second Remove on the same instance records that the
- * respondent pressed it and changes no derived list. Nothing here refuses a
- * removal that would take a group below its `min`; that is a submit-time refusal
- * (`REPEAT_COUNT_OUT_OF_RANGE`, ADR-42), so a respondent can empty a group,
- * rebuild it and only be stopped at the end.
- *
- * **Caller obligation: the `instanceId` must be one this session's roster minted.**
- * This function is not handed the roster, so it cannot check, and a no-op that
- * still appends is only harmless for an id the session owns. A forged `ins_` value
- * appends a `removed` row under a key no roster lists: nothing is disclosed and no
- * derived list moves, but the table is append-only and only an erasure clears it.
- * The caller has the roster in hand already (it needs it to render the Remove
- * control at all), so the check is a lookup, not a query. Task 073 owns the route
- * and implements it, and the same obligation covers `appendAnswer` and
- * `retractAnswer` in `@roonga/qcms-db`.
+ * Caller obligation: `instanceId` must be one this session's roster minted. This
+ * function cannot check, and the table is append-only, so a forged id would leave a
+ * row forever.
  */
 export async function removeRosterInstance(
   exec: Executor,
@@ -460,22 +224,9 @@ export async function removeRosterInstance(
 }
 
 /**
- * The groups that still owe a mint: their minted history is shorter than the target the
- * count source asks for, ignoring the render-step gate (task 076, Q30's serve consequence,
- * Code Owner 2026-10-10).
- *
- * It answers "which steps has this session not opened yet", which is what a **cursor-less
- * serve** needs. `mintDueAndLoadRosters` below asks a narrower question - which groups are
- * due on the step being rendered - and cannot be reused for this, because the step being
- * rendered is exactly what is being chosen.
- *
- * It compares against `minted`, not against the live set, for the same reason the mint
- * does: a respondent who removed every instance of an `open` group has a full minted
- * history and owes nothing, so a serve must not keep sending them back to that step. A
- * target of zero owes nothing either, which is what keeps a `fromAnswer` group whose count
- * is unanswered from capturing the serve.
- *
- * Read-only. The caller owns the transaction and the mint.
+ * Which steps this session has not opened yet, for a cursor-less serve: compared
+ * against `minted` so a group the respondent emptied owes nothing and the serve does
+ * not keep sending them back to it.
  */
 export async function groupsOwedAMint(
   exec: Executor,
@@ -492,42 +243,18 @@ export async function groupsOwedAMint(
 }
 
 /**
- * Mint whatever this request has made due, and return the live `RosterMap`.
+ * A roster row is permanent, so a group is minted only once the respondent can be
+ * asked for it: the groups on the step being rendered, plus every `fromAnswer` group
+ * wherever it sits, since its count answer is written on an earlier step.
  *
- * **Which groups are due, and why it is not "all of them".** A mint is auditable and
- * a roster row is permanent, so an instance is minted when the respondent can
- * actually be asked for it and not before:
- *
- * - **the groups on the step being rendered** - a `fixed` group mints its `count` and
- *   an `open` group mints `min` (or one, when `min` is 0) the first time its own step
- *   is served, so a respondent sees a card to fill rather than an empty group with a
- *   button;
- * - **every `fromAnswer` group in the form, wherever it sits** - its target follows
- *   the count answer, which is written on a step that is by construction earlier than
- *   the group's own (publish refuses a count question that does not precede the
- *   group's whole span), so the mint has to happen on the write of that answer rather
- *   than on the serve of a step the respondent has not reached.
- *
- * Idempotent, because {@link mintForServedGroup} is: it compares against the rows
- * ever **minted** rather than against the live set, so serving the same step twice
- * mints nothing the second time and a `fromAnswer` count lowered and raised again
- * re-lives the instance it already has instead of minting a fourth.
- *
- * **One re-read, and only when something was written.** The roster order is
- * `(occurred_at, instance_id)` and every row one mint writes shares a timestamp, so
- * the order of a batch is the read's to decide; assembling it in memory would give
- * this call a different answer from the next read of the same rows.
- *
- * The caller owns the transaction (R5) and is expected to hold the session's advisory
- * lock, as the answer write does: two concurrent serves of one step would otherwise
- * each see an empty roster and each mint a full set.
+ * The caller owns the transaction and must hold the session's advisory lock, or two
+ * concurrent serves each see an empty roster and each mint a full set.
  */
 export async function mintDueAndLoadRosters(
   exec: Executor,
   input: {
     sessionId: SessionId;
     steps: readonly Step[];
-    /** The step this request renders, or `null` when the flow draws none. */
     renderStep: StepId | null;
     answers: AnswerMap;
   },
@@ -559,31 +286,17 @@ export async function mintDueAndLoadRosters(
   );
 }
 
-/** The outcome of a respondent's roster operation. */
 export type RosterOpResult =
   | {
       readonly ok: true;
-      /** True when the token had already been spent: nothing was written. */
       readonly replayed: boolean;
       readonly minted: readonly InstanceId[];
     }
   | { readonly ok: false; readonly code: RosterRefusalCode };
 
 /**
- * The respondent's Add or Remove, behind its one-time operation token.
- *
- * The token is checked **first**, before the group's own rules, so a replay of a post
- * that was accepted is a no-op whatever the roster looks like now: a respondent who
- * adds a ninth instance, reaches `max`, and then reloads the response must not be
- * told their reload was refused - the operation already happened and the page they
- * are looking at is its result.
- *
- * A **refusal** records nothing, so it is not idempotent and does not need to be: a
- * replayed refused Add is refused again, which is the same answer.
- *
- * `min` is not enforced on a removal, deliberately: a group below `min` is refused at
- * submit (`REPEAT_COUNT_OUT_OF_RANGE`, ADR-42), so a respondent can empty a group,
- * rebuild it, and only be stopped at the end.
+ * The one-time token is checked before the group's own rules, so replaying an accepted
+ * post is a no-op whatever the roster looks like now. A refusal records nothing.
  */
 export async function applyRosterOp(
   exec: Executor,
@@ -600,17 +313,7 @@ export async function applyRosterOp(
   }
   if (input.group.count.source !== "open") return { ok: false, code: "REPEAT_NOT_ADDABLE" };
   if (input.op === "remove") {
-    // The caller obligation on `removeRosterInstance` above, DISCHARGED here rather than
-    // documented. A removal naming an id this session's roster never minted would append a
-    // `removed` row under a key no roster lists: nothing is disclosed and no derived list
-    // moves, because every read starts from `minted`, but the table is append-only and
-    // only an erasure clears it, so a forged id would leave a row forever. The roster is
-    // already in hand - the route needs it to render the Remove control at all - so this
-    // is a lookup rather than a query. Raised in review of PR #1034, finding 5.
-    //
-    // A removal of an instance that WAS minted and is already removed still appends, which
-    // is the no-op the docblock above describes: the respondent pressed the button, the log
-    // records it, and no derived list moves.
+    // The table is append-only, so a forged instance id would leave a row forever.
     if (!(input.roster?.minted ?? []).includes(input.instanceId)) {
       return { ok: false, code: "UNKNOWN_INSTANCE" };
     }
