@@ -718,9 +718,9 @@ async function* deferred(
  * validation, so nothing security-relevant is deferred here.
  */
 /** Spread-shaped, because `exactOptionalPropertyTypes` refuses an explicit `undefined`. */
-function optionalProviderOptions(
-  options: ProviderOptions | undefined,
-): { providerOptions?: ProviderOptions } {
+function optionalProviderOptions(options: ProviderOptions | undefined): {
+  providerOptions?: ProviderOptions;
+} {
   return options === undefined ? {} : { providerOptions: options };
 }
 

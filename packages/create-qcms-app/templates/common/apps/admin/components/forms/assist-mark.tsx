@@ -55,7 +55,14 @@ export function AssistMark({
         className="qcms-assist-mark__bubble"
         d="M12 2.5a9.5 9.5 0 1 0 5.6 17.2l3.9 1.8-1.2-4.1A9.5 9.5 0 0 0 12 2.5z"
       />
-      <rect className="qcms-assist-mark__visor" x="5.6" y="8.6" width="12.8" height="5.2" rx="2.6" />
+      <rect
+        className="qcms-assist-mark__visor"
+        x="5.6"
+        y="8.6"
+        width="12.8"
+        height="5.2"
+        rx="2.6"
+      />
       <rect className="qcms-assist-mark__light" x="8" y="10.2" width="2.6" height="2" rx="1" />
       <rect className="qcms-assist-mark__light" x="13.4" y="10.2" width="2.6" height="2" rx="1" />
     </svg>

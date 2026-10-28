@@ -93,9 +93,7 @@ const SEGMENT = /^[A-Za-z0-9._~-]+$/u;
 function matchesPattern(pattern: string, segments: readonly string[]): boolean {
   const expected = pattern.slice(1).split("/");
   if (expected.length !== segments.length) return false;
-  return expected.every((part, index) =>
-    part.startsWith("[") ? true : part === segments[index],
-  );
+  return expected.every((part, index) => (part.startsWith("[") ? true : part === segments[index]));
 }
 
 /**

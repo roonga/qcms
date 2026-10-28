@@ -792,7 +792,10 @@ function proposalFrame(): string {
     proposal: {
       proposedDraft: {
         ...DRAFT,
-        steps: [...DRAFT.steps, { stepId: "stp_history", title: { en: "Driving history" }, items: [] }],
+        steps: [
+          ...DRAFT.steps,
+          { stepId: "stp_history", title: { en: "Driving history" }, items: [] },
+        ],
       },
       newQuestions: [],
       rationale: "Added a driving-history step.",
@@ -1060,12 +1063,11 @@ describe("AssistPanel thinking disclosure", () => {
   it("shows the running indicator while the summary is still arriving", async () => {
     vi.stubGlobal(
       "fetch",
-      vi.fn().mockImplementation(
-        openTurn(
-          () => undefined,
-          [frame("reasoning", { delta: "weighing it up" })],
+      vi
+        .fn()
+        .mockImplementation(
+          openTurn(() => undefined, [frame("reasoning", { delta: "weighing it up" })]),
         ),
-      ),
     );
     renderPanel();
 
@@ -1136,12 +1138,9 @@ describe("AssistPanel identity", () => {
   it("carries the working state exactly while the live region reports a running turn", async () => {
     vi.stubGlobal(
       "fetch",
-      vi.fn().mockImplementation(
-        openTurn(
-          () => undefined,
-          [frame("status", { phase: "thinking" })],
-        ),
-      ),
+      vi
+        .fn()
+        .mockImplementation(openTurn(() => undefined, [frame("status", { phase: "thinking" })])),
     );
 
     renderPanel();
