@@ -1,5 +1,5 @@
-// Import the transport constants from the React-free subpath, so this server-only
-// BFF module never pulls the @roonga/qcms-ui client components into a Server Component.
+// The React-free subpath, so this server-only module never pulls the `@roonga/qcms-ui`
+// client components into a Server Component.
 import {
   assembleNativeDate,
   NATIVE_DATE_PART_PREFIX,
@@ -17,157 +17,75 @@ import {
 import { SESSION_FIELD } from "../repeat";
 
 /**
- * Whole-step form decoding for the no-JS submit route (task 044).
+ * Whole-step form decoding for the no-JS submit route: a pure transport mapping, not
+ * validation and not rule evaluation (R2). The renderer tags each answer field with its
+ * wire kind, and this turns the form-encoded strings back into the canonical JSON shapes
+ * the API expects, with no knowledge of the question definitions.
  *
- * PURE transport mapping - NOT validation and NOT rule evaluation (R2). The
- * native-submit renderer (`@roonga/qcms-ui`) tags each answer field with its wire kind
- * (a `__qk__<questionId>` hidden input); this decoder turns the form-encoded
- * strings back into the canonical JSON shapes the internal API's answer endpoint
- * expects (a JSON boolean, a number, a string, an array), WITHOUT any knowledge
- * of the question definitions. The API remains the sole validation authority: it
- * re-validates every decoded value and rejects anything wrong (the BFF here never
- * decides whether a value is acceptable, visible, or required).
+ * A field with no kind tag is not an answer: it is the honeypot decoy, returned verbatim
+ * in `extras` for the caller to forward into the submit body.
  *
- * A field with no kind tag is not an answer - it is the anti-abuse honeypot decoy
- * (026), returned verbatim in `extras` so the caller can forward it into the
- * session-submit body where the API's honeypot check reads it.
+ * `__qop` is a reserved name beside `__qk__`, `__qa__` and the honeypot's. At most one
+ * can arrive, by construction rather than by a rule here: a `<button name value>`
+ * contributes to the form data set only when it is the button that submitted the form.
+ * Whether the group exists, whether the instance belongs to this session and whether the
+ * token has been spent are all the API's to decide.
  *
- * ## The roster operation, the fourth reserved name (task 073, ADR-43, Q9)
+ * Clearing an answer without scripting needs the `__qa__` marker, because a native form
+ * cannot say "I emptied this": it posts an emptied text box exactly as a never-touched
+ * one, and an all-unchecked checkbox group not at all. With the marker, empty-and-marked
+ * decodes to `null`, an ADR-33 retraction, and empty-and-unmarked to nothing. That stays
+ * a decode of what arrived: the marker is a fact about the post rather than a prior state
+ * this module looked up, and the `null` is the identical body the scripted path posts, so
+ * both transports reach one ledger call.
  *
- * `__qop` joins `__qk__`, `__qa__` and the honeypot's `website` as a name this
- * decoder reserves. It is how a respondent adds or removes an instance of a repeating
- * group **without scripting**: the Add and Remove controls are named **submit
- * buttons** on the step's own form, and a `<button name value>` contributes its name
- * and value to the form data set **only when it is the button that submitted the
- * form**. So a whole-step POST carries every field on the step plus **at most one**
- * `__qop` entry, or none, and no ordering rule and no repeated name is relied on
- * anywhere.
+ * A forged marker retracts the forger's own answer inside their own session, which the
+ * scripted path already permits, and a retraction of a question holding no answer is a
+ * documented API no-op.
  *
- * The value is `add:grp_passengers:op_7f3` or
- * `remove:grp_passengers:ins_7k2:op_7f3`, and the last part is the **one-time
- * operation token** the rendered page minted. Decoding it here is still a pure
- * transport mapping: whether the group exists, whether the instance belongs to this
- * session and whether the token has been spent are all the API's to decide, against
- * the pinned snapshot and the roster rather than against a regular expression.
- *
- * **An `__qop` post commits NO answers** (Code Owner, 2026-09-30), and that is the
- * caller's rule rather than this module's: the answers are still decoded, because the
- * typed values have to be carried back into the re-render, and the caller is what
- * does not forward them to the ledger.
- *
- * ## Clearing an answer without JavaScript (issue #127)
- *
- * A native form cannot say "I emptied this". It posts an emptied text box exactly
- * as it posts a never-touched one (`name=""`), and posts an all-unchecked checkbox
- * group as nothing at all - the name simply does not appear. Under R2 this module
- * holds no answer state and may not ask the API what it holds, so it read both as
- * absence and dropped them. The scripted path had retracted an emptied control
- * since issue #98, so the same respondent gesture meant "cleared" with JavaScript
- * on and "no change" with it off, and a no-JS respondent who emptied a required
- * field submitted with the stale answer still standing.
- *
- * The renderer now emits a second hidden companion, `__qa__<questionId>`, for each
- * question that CURRENTLY HOLDS AN ANSWER (Code Owner ruling, 2026-09-02). That
- * turns the two indistinguishable posts into two different posts, and the rule
- * below is the whole of the change:
- *
- * | posted | marked answered | decoded |
- * | --- | --- | --- |
- * | a value | either | that value, as before |
- * | empty or absent | no | nothing, as before ("never answered") |
- * | empty or absent | yes | `null`, an ADR-33 retraction |
- *
- * This stays a pure decode of what arrived. The marker is a fact ABOUT THE POST,
- * carried by the form that produced it, not a prior state this module went and
- * looked up, so no answer-state authority and no rule evaluation move here. The
- * `null` it produces is the identical body the scripted path posts to the identical
- * endpoint, so both transports reach one ledger call.
- *
- * A forged marker retracts the forger's own answer inside their own session, which
- * the scripted path already permits by posting `null` directly; and a retraction of
- * a question holding no answer is a documented API no-op, so a marker on a
- * never-answered field appends nothing.
- *
- * **Number fields reach this rule too, since issue #18.** They used to be out of
- * scope by construction: a react-aria NumberField carried its form value in a hidden
- * input that JavaScript syncs, so with scripting off the respondent's edit never
- * reached the wire and the seeded answer is what serialized - a marked number could
- * not arrive empty, so it could not retract, and could not be cleared at all. The
- * renderer now emits a real `<input type="number">` under the question's own name in
- * native mode (Code Owner ruling, 2026-09-19), so an emptied number arrives empty
- * beside its marker and decodes to the same `null` retraction as any other cleared
- * field. Nothing here changed to accommodate it, which is the point: the rule was
- * always about the post rather than about the control.
- *
- * **A date arrives in three parts, since the 2026-10-19 ruling.** The no-JS date
- * control is a day, a month and a year box in the configured locale's order, each
- * posting under its own `__qdd__` / `__qdm__` / `__qdy__` name beside a `date` kind
- * tag, and `assembleNativeDate` (the renderer package's own function, so the two sides
- * cannot disagree about the join) turns them into the `YYYY-MM-DD` string the scripted
- * path posts. Three blank parts are absence, which is what lets the clear rule above
- * apply unchanged; anything else passes through as typed for the API to judge. A post
- * still carrying the `string` kind and the bare name (a hand-built post, or a page
- * rendered by an earlier build) decodes exactly as before.
+ * A date arrives in three parts under their own names beside a `date` kind tag, and
+ * `assembleNativeDate` is the renderer package's own function, so the two sides cannot
+ * disagree about the join. Three blank parts are absence, which is what lets the clear
+ * rule apply unchanged. A post carrying the `string` kind and the bare name decodes as
+ * before.
  */
 
-/** One decoded answer, ready to POST to the internal API's per-question endpoint. */
 export interface DecodedAnswer {
   readonly questionId: string;
   /**
-   * The canonical value; the API validates it (the BFF never does). A literal
-   * `null` is a **retraction** rather than a value: the field was marked as holding
-   * an answer and arrived empty, so the respondent cleared it (ADR-33, issue #127).
-   * `null` is unambiguous here because it is not an `AnswerValue` in any encoding,
-   * and it is what the API's answer endpoint already reads as a retraction.
+   * The API validates this; the BFF never does. A literal `null` is a retraction rather
+   * than a value, and it is unambiguous because it is not an `AnswerValue` in any
+   * encoding (ADR-33).
    */
   readonly value: unknown;
 }
 
-/** The result of decoding a whole-step form POST. */
 export interface DecodedStepForm {
   readonly answers: readonly DecodedAnswer[];
   /**
-   * The roster operation this post carried, when it carried one (task 073, ADR-43).
-   *
-   * At most one, by construction rather than by a rule this decoder enforces: only
-   * the pressed submit button contributes its name and value. A post carrying two
-   * `__qop` entries is therefore not a shape a browser produces, and the first is
-   * taken - a forged second entry can only name an operation the API would accept from
-   * the same respondent anyway, in their own session, and it is refused or applied on
-   * its own merits either way.
+   * At most one can arrive, so the first is taken: a forged second entry could only name
+   * an operation the API would accept from the same respondent in their own session
+   * anyway.
    */
   readonly rosterOp?: RosterOpRequest;
-  /**
-   * The session the form was rendered for, from the reserved `__qsid` hidden input.
-   * A label rather than a credential: see {@link SESSION_FIELD}.
-   */
+  /** A label rather than a credential: see {@link SESSION_FIELD}. */
   readonly sessionId?: string;
   /**
-   * The fields the respondent CLEARED on this post, each with the wire kind the renderer
-   * tagged it with. A subset of `answers`, where each appears with `value: null`.
-   *
-   * It exists because one caller has to RE-RENDER the post rather than forward it: the
-   * `__qop` Server Action, which writes no answer and hands the step back. A field the
-   * respondent emptied has to come back empty rather than showing the answer the API still
-   * holds (`plan/repeating-groups-and-table-input.md` section 4.2), and what empty looks
-   * like depends on the kind: an empty selection is `[]` and an empty anything-else is
-   * `""`. The kind is the only thing that carries that distinction, and it does not belong
-   * on `answers`, whose shape is the API's request body.
+   * The fields the respondent cleared, with the wire kind each was tagged with. It
+   * exists because the `__qop` Server Action re-renders the post rather than forwarding
+   * it, and a field the respondent emptied has to come back empty: what empty looks like
+   * depends on the kind, an empty selection being `[]` and anything else `""`. The kind
+   * does not belong on `answers`, whose shape is the API's request body.
    */
   readonly cleared: Readonly<Record<string, NativeFieldKind>>;
-  /** Non-answer fields (the honeypot decoy) to forward to the submit body. */
+  /** The honeypot decoy, to forward to the submit body. */
   readonly extras: Readonly<Record<string, string>>;
   /**
-   * Every question the posted form ASKED, in document order - the kind-tagged
-   * names, whether or not they carried a value (issue #920).
-   *
-   * `answers` cannot stand in for this: a question left blank contributes no
-   * answer at all, and a blank required question is exactly the case the caller
-   * has to report on. This is a fact about the post rather than about the flow -
-   * "these are the fields that were on the page I submitted" - so reading it moves
-   * no answer state and no rule evaluation into the BFF (R2). The caller uses it
-   * only to narrow the API's own authoritative missing-required set to the step
-   * the respondent was actually looking at.
+   * Every question the posted form asked, whether or not it carried a value. `answers`
+   * cannot stand in for this, because a blank question contributes no answer and a blank
+   * required question is exactly what the caller has to report on. It is a fact about
+   * the post rather than about the flow, so reading it moves no rule evaluation into the
+   * BFF (R2).
    */
   readonly fields: readonly string[];
 }
@@ -186,10 +104,8 @@ const DATE_PARTS = Object.entries(NATIVE_DATE_PART_PREFIX) as readonly (readonly
 ])[];
 
 /**
- * Decode one wire field (its raw string value(s)) to its canonical shape by kind.
- * Returns `undefined` for a field that carries no answer - absent, blank, or with
- * nothing selected - which the caller reads as a clear or as silence depending on
- * the answered marker. Coercion only - never a validity judgement.
+ * Coercion only, never a validity judgement. `undefined` means the field carried no
+ * answer, which the caller reads as a clear or as silence depending on the marker.
  */
 function decodeValue(
   kind: NativeFieldKind,
@@ -206,8 +122,8 @@ function decodeValue(
     case "number": {
       const raw = raws[0];
       if (raw === undefined || raw.trim() === "") return undefined;
-      // Number("") is 0, hence the blank guard above; a non-numeric string yields
-      // NaN, which the API rejects as an encoding error (the BFF does not judge).
+      // `Number("")` is 0, hence the blank guard above. A non-numeric string yields NaN,
+      // which the API rejects as an encoding error; the BFF does not judge it.
       return Number(raw);
     }
     case "radio": {
@@ -215,7 +131,7 @@ function decodeValue(
       if (raw === undefined || raw === "") return undefined;
       if (raw === "true") return true;
       if (raw === "false") return false;
-      return raw; // a singleChoice OptionId
+      return raw;
     }
     case "string": {
       const raw = raws[0];
@@ -224,7 +140,6 @@ function decodeValue(
   }
 }
 
-/** The raw values (grouped by name), the kind tags, the answered markers, the op. */
 interface Partitioned {
   readonly rawByName: ReadonlyMap<string, string[]>;
   readonly kindByName: ReadonlyMap<string, NativeFieldKind>;
@@ -234,7 +149,6 @@ interface Partitioned {
   readonly sessionId: string | undefined;
 }
 
-/** Split form entries into raw value groups, `__qk__` kinds, `__qa__` markers, `__qop`. */
 function partition(entries: Iterable<[string, FormDataEntryValue]>): Partitioned {
   const rawByName = new Map<string, string[]>();
   const kindByName = new Map<string, NativeFieldKind>();
@@ -242,12 +156,8 @@ function partition(entries: Iterable<[string, FormDataEntryValue]>): Partitioned
   const datePartsByName = new Map<string, Partial<Record<DatePart, string>>>();
   let rosterOp: RosterOpRequest | undefined;
   let sessionId: string | undefined;
-  /**
-   * The two reserved WHOLE-name fields, taken before anything else so that neither can
-   * land in `extras` or be mistaken for an answer or for the honeypot: the form's own
-   * session and the pressed Add or Remove button (073). Returns true when the entry was
-   * one of them and is therefore spent.
-   */
+  // The reserved whole-name fields, taken before anything else so neither can land in
+  // `extras` or be mistaken for an answer or for the honeypot.
   const takeReserved = (key: string, entry: string): boolean => {
     if (key === SESSION_FIELD) {
       sessionId ??= entry;
@@ -267,7 +177,7 @@ function partition(entries: Iterable<[string, FormDataEntryValue]>): Partitioned
       return true;
     }
     if (key.startsWith(NATIVE_FIELD_ANSWERED_PREFIX)) {
-      // Presence is the signal; the value is not read (see the prefix's docblock).
+      // Presence is the signal; the value is not read.
       answered.add(key.slice(NATIVE_FIELD_ANSWERED_PREFIX.length));
       return true;
     }
@@ -283,7 +193,7 @@ function partition(entries: Iterable<[string, FormDataEntryValue]>): Partitioned
     return false;
   };
   for (const [key, entry] of entries) {
-    if (typeof entry !== "string") continue; // ignore any file parts
+    if (typeof entry !== "string") continue;
     if (takeReserved(key, entry) || takePrefixed(key, entry)) continue;
     const list = rawByName.get(key);
     if (list === undefined) rawByName.set(key, [entry]);
@@ -292,11 +202,7 @@ function partition(entries: Iterable<[string, FormDataEntryValue]>): Partitioned
   return { rawByName, kindByName, answered, datePartsByName, rosterOp, sessionId };
 }
 
-/**
- * Partition a whole-step form POST into decoded answers and honeypot extras.
- * Accepts any iterable of `[name, value]` entries (a `FormData`); file entries
- * and unknown kind tags are ignored.
- */
+/** File entries and unknown kind tags are ignored. */
 export function decodeStepForm(entries: Iterable<[string, FormDataEntryValue]>): DecodedStepForm {
   const { rawByName, kindByName, answered, datePartsByName, rosterOp, sessionId } =
     partition(entries);
@@ -304,12 +210,10 @@ export function decodeStepForm(entries: Iterable<[string, FormDataEntryValue]>):
   const cleared: Record<string, NativeFieldKind> = {};
   const fields = [...kindByName.keys()];
 
-  // Iterate the KIND TAGS, not the posted values. A control can be an answer field
-  // and contribute no entry at all - an all-unchecked checkbox group posts nothing,
-  // and that is precisely the clear that has to be seen - so the set of answer
-  // fields is the set the renderer tagged, and the posted values are looked up
-  // against it. Insertion order follows the tags' document order, which is the
-  // fields' own order, so answers are forwarded in the order the form asked them.
+  // The kind tags rather than the posted values, because a control can be an answer
+  // field and contribute no entry at all: an all-unchecked checkbox group posts nothing,
+  // and that is precisely the clear that has to be seen. Insertion order follows the
+  // tags' document order, so answers are forwarded in the order the form asked them.
   for (const [name, kind] of kindByName) {
     const value = decodeValue(kind, rawByName.get(name) ?? [], datePartsByName.get(name));
     if (value !== undefined) {
@@ -319,14 +223,10 @@ export function decodeStepForm(entries: Iterable<[string, FormDataEntryValue]>):
       answers.push({ questionId: name, value: null });
       cleared[name] = kind;
     }
-    // Otherwise: never answered, still not answered. Nothing to post.
   }
 
-  // Whatever is left with no kind tag is not an answer: the honeypot decoy (or any
-  // other non-answer field). Forward it so the API's anti-abuse check sees it on the
-  // final submit (026). An `__qa__` marker naming a field with no kind tag is
-  // neither an answer nor an extra: `partition` has already set it aside, and
-  // nothing here can act on it.
+  // Whatever is left with no kind tag is not an answer, so it is forwarded for the API's
+  // anti-abuse check to see on the final submit.
   const extras: Record<string, string> = {};
   for (const [name, raws] of rawByName) {
     if (kindByName.has(name)) continue;
