@@ -1,21 +1,9 @@
 #!/usr/bin/env node
 // @ts-check
 /**
- * Prints the SQL and parameters Drizzle would send for one `@roonga/qcms-db` query
- * helper. No connection, container or network is needed: Drizzle's dialect turns a
- * builder into `{ sql, params }` on its own, and the driver underneath is a callback
- * that records what it was handed and hands back rows.
- *
- * Because the helper is run rather than inspected, one that reads its own result needs
- * one, so by default every statement returns one row with no columns and `--rows`
- * supplies real values where a helper does arithmetic on what it read.
- *
- * In `--args`, a `Date` is written `{"$date": "2026-01-01T00:00:00.000Z"}`: JSON has no
- * date, and an ISO-looking string is a string in this repository's schemas as often as
- * it is a timestamp.
- *
- * `packages/db` is reached by path rather than by name because the repository root
- * declares no workspace dependencies.
+ * Prints the SQL and parameters Drizzle would send for one `@roonga/qcms-db` query helper, with no
+ * connection. Each statement returns one row with no columns unless `--rows` supplies values. In
+ * `--args` a `Date` is `{"$date": "..."}`; `packages/db` is reached by path as the root declares no workspace dependencies.
  */
 
 import { existsSync } from "node:fs";
@@ -247,10 +235,8 @@ export function createRecordingExecutor(drizzle, schema, rows) {
   // same recording handle to capture a read-modify-write helper's statements in order.
   executor.transaction = /** @param {Function} run */ (run) => run(executor);
 
-  // `db.execute` answers with a bare row array under the proxy driver and a
-  // node-postgres `QueryResult` under the real one, and helpers writing a raw `sql`
-  // template read `.rows` off it. This runs after `client` has recorded, so it changes
-  // what the caller reads back and never what was sent.
+  // `db.execute` answers with a bare row array under the proxy driver and a `QueryResult` under the real
+  // one, and helpers read `.rows`. This runs after `client` has recorded, so it never changes what was sent.
   const proxyExecute = /** @type {Function} */ (executor.execute).bind(executor);
   executor.execute = /** @param {unknown} query */ async (query) => {
     const result = await proxyExecute(query);
@@ -261,12 +247,8 @@ export function createRecordingExecutor(drizzle, schema, rows) {
 }
 
 /**
- * Every exported function, which is the candidate set `--list` prints and the refusal
- * message points at.
- *
- * A `pgEnum` is callable, so the schema's enums would otherwise sit in this list. They
- * are dropped by the property that makes them enums rather than by name, so a new one
- * never has to be remembered.
+ * Every exported function, the candidate set `--list` prints. A `pgEnum` is callable, so enums are
+ * dropped by the property that makes them enums rather than by name.
  *
  * @param {Record<string, unknown>} queries
  * @returns {string[]}

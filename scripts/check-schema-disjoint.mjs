@@ -1,14 +1,9 @@
 #!/usr/bin/env node
 // @ts-check
 /**
- * The search path puts the data plane first, so a table name declared in both schemas
- * silently resolves to the environment's copy, with both declarations individually
- * correct (ADR-40, criterion 3a).
- *
- * The declaration lists are parsed rather than imported, because `check:all` runs
- * without a build. The parse fails loudly when it cannot read a list: a control that
- * reports nothing reads exactly like one that found nothing wrong. A table missing from
- * a list is out of reach here and is caught by `packages/db/src/migrations.test.ts`.
+ * The search path puts the data plane first, so a table declared in both schemas silently resolves
+ * to the environment's copy (ADR-40). The lists are parsed, not imported, because `check:all` runs
+ * without a build; a table missing from a list is caught by `packages/db/src/migrations.test.ts`.
  */
 import { readFileSync } from "node:fs";
 import process from "node:process";

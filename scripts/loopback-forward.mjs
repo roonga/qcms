@@ -1,16 +1,5 @@
 /**
- * Makes `http://localhost` real inside the dev container, so the suite browses the same
- * origin it does in CI. Chromium treats `http://localhost` as a trustworthy origin and a
- * bare gateway address as not, so browsing the gateway instead silently drops every
- * `Secure` cookie and sign-in appears to succeed and bounce.
- *
- * It forwards to the service containers on the Compose network rather than to a published
- * port, because the publish stays bound to loopback on the host and a sibling container
- * cannot reach that whatever address it dials.
- *
- * Its own process because the parent blocks its event loop for the whole run, and it exits
- * when stdin closes so it cannot outlive the run holding this seat's ports.
- *
+ * Makes `http://localhost` real in the dev container: Chromium trusts it, not a bare gateway address.
  * `check:ports` exempts this line, so keep the container-internal port in it:
  * node scripts/loopback-forward.mjs '[{"listenPort":17100,"targetHost":"172.20.0.5","targetPort":3000}]'
  */

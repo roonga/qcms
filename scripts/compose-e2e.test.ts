@@ -15,13 +15,8 @@ import {
 } from "./compose-e2e.mjs";
 
 /**
- * The seat must be refused before anything spawns: teardown runs `docker compose down
- * --volumes` under a seat-derived project name, so adopting seat 0 silently would
- * delete another lane's stack.
- *
- * The whole `scripts/` directory is copied into each throwaway root rather than a named
- * list of modules: a list goes stale on a new import, and the copied script then dies
- * in Node's module resolver instead of reporting anything about seats.
+ * The seat must be refused before anything spawns: adopting seat 0 would make teardown delete another
+ * lane's stack. The whole `scripts/` directory is copied into each throwaway root because a module list goes stale.
  */
 
 const SCRIPTS = fileURLToPath(new URL(".", import.meta.url));

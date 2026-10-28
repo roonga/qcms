@@ -1,15 +1,8 @@
 // @ts-check
 /**
- * `@typescript-eslint/no-floating-promises` cannot see this shape: `void` is that rule's
- * sanctioned way of saying "deliberately not awaited", and `ignoreVoid: false` reports
- * the intentional fire-and-forget calls this codebase uses on purpose.
- *
- * Out of scope on purpose: `await p.then(cb)` and `return p.then(cb)`, which hand the
- * rejection somewhere that can still see it; an expression-bodied arrow returning a
- * chain, where the discard is the caller's (`no-misused-promises` owns that); and
- * `p.then(onOk, undefined)`, since two arguments is the only signal available.
- *
- * Syntax-only, so it can falsely report a non-promise object that has a `then` method.
+ * `@typescript-eslint/no-floating-promises` cannot see this shape: `void` is its sanctioned "not
+ * awaited", and `ignoreVoid: false` reports intentional fire-and-forget calls. Out of scope: awaited
+ * or returned chains, expression-bodied arrows, and `p.then(onOk, undefined)`. Syntax-only.
  */
 
 /**

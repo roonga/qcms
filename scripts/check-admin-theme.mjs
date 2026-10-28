@@ -1,11 +1,8 @@
 #!/usr/bin/env node
 // @ts-check
 /**
- * A colour written outside the token sheet looks right in whichever mode the author had
- * open and is wrong in the other two. The landed sheet is compared byte for byte with
- * its design copy because a hand-edit keeps the published contrast table while losing
- * the property it certifies. The naming check reads catalog VALUES only, so code
- * identifiers (`apps/admin`, `qcms-admin`) stay untouched.
+ * A colour outside the token sheet is wrong in two of the three modes. The landed sheet is compared
+ * byte for byte with its design copy; the naming check reads catalog VALUES only.
  */
 
 import { readFileSync, readdirSync, statSync } from "node:fs";

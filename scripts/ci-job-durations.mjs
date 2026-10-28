@@ -1,10 +1,8 @@
 #!/usr/bin/env node
 // @ts-check
 /**
- * Measures the JOB, from `started_at` to `completed_at`, never the workflow run, whose
- * duration includes queue time behind other jobs on one runner. The job name is matched
- * exactly, so a run predating a rename contributes no sample rather than being blended
- * into figures for a differently-scoped job.
+ * Measures the JOB (`started_at` to `completed_at`), never the workflow run, which includes queue time.
+ * The job name is matched exactly, so a renamed job contributes no sample to the old figures.
  */
 
 import { execFileSync } from "node:child_process";

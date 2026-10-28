@@ -1,11 +1,8 @@
 #!/usr/bin/env node
 // @ts-check
 /**
- * `tsc` deletes nothing, so output from an earlier configuration survives every later
- * build and keeps resolving. `--force` makes it worse: turbo tars whatever matches the
- * `outputs` glob when the task ends, so a forced rebuild re-caches the stale artifact
- * and restores it elsewhere. Only removing the directory first makes `dist` a function
- * of the current source.
+ * `tsc` deletes nothing, so stale output survives later builds, and a forced turbo rebuild re-caches
+ * it. Removing the directory first makes `dist` a function of the current source.
  */
 
 import { existsSync, rmSync } from "node:fs";

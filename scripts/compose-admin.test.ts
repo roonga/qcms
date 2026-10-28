@@ -68,10 +68,8 @@ describe("generatePassword", () => {
 });
 
 /**
- * The password must stay out of the docker CLI's own argv, where `/proc/<pid>/cmdline`
- * is world-readable (SEC-8). Each absence case is paired with one that finds the value
- * where the mechanism should deliver it, because absence alone is satisfied by passing
- * nothing at all.
+ * The password must stay out of the docker CLI's argv (SEC-8). Each absence case is paired with one
+ * that finds the value where the mechanism delivers it.
  */
 describe("buildAdminExec", () => {
   const CREDENTIALS = {

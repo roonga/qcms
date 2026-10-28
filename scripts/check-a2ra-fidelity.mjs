@@ -1,12 +1,8 @@
 #!/usr/bin/env node
 // @ts-check
 /**
- * The manifest holds hashes of the UPSTREAM bytes at the pin, never of what is on disk.
- * A self-generated manifest would be a mirror: edit a vendored file, regenerate, and the
- * gate goes green having checked nothing (ADR-22).
- *
- * `--refresh` is the only mode that opens a socket, which is what lets the verify mode
- * run offline. It cannot prove the manifest itself was generated honestly; that is review.
+ * The manifest holds hashes of the UPSTREAM bytes at the pin, never of what is on disk: a
+ * self-generated manifest would be a mirror (ADR-22). `--refresh` is the only mode that opens a socket.
  */
 
 import { createHash } from "node:crypto";

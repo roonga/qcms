@@ -1,17 +1,7 @@
 /**
- * A vendored `a2-react-aria` component is registered in eight places, and this is the one
- * red that names all eight. It holds no per-component data of its own, so it is not a
- * ninth place to register one.
- *
- * `packages/ui/a2ra-manifest.json` is the anchor because it is the only list of vendored
- * components that cannot be quietly satisfied: `pnpm check:a2ra-fidelity` regenerates it
- * from upstream at the pinned commit, so a component cannot appear in it without existing
- * upstream, nor be vendored without appearing in it.
- *
- * Each place's list is parsed out of its source rather than imported, because the eight
- * span four workspaces, two apps and a Markdown document, and no single Vitest project can
- * load all of them. Parsing fails open, so every parser has an anti-vacuity assertion in
- * `describe("the derivations")` below: an empty set makes every claim over it vacuous.
+ * A vendored `a2-react-aria` component is registered in eight places and this is the one red that
+ * names all eight, anchored on `packages/ui/a2ra-manifest.json`. The lists are parsed, not imported,
+ * and parsing fails open, so each parser has an anti-vacuity assertion in "the derivations" below.
  */
 import { readFileSync } from "node:fs";
 import { join } from "node:path";
@@ -428,11 +418,8 @@ function adrCommitMoments(): ReadonlyMap<string, string> {
 }
 
 /**
- * Bounded to the "Question-type mapping" section, because the honeypot section carries a
- * table of the same shape and would contribute a `honeypot` question type.
- *
- * A type maps to a SET of controls, because `singleChoice` has two renderings either side
- * of the seven-option threshold and both must commit at the moment ADR-31 gives the type.
+ * Bounded to the "Question-type mapping" section, because the honeypot section has a same-shaped
+ * table. A type maps to a SET of controls: `singleChoice` has two renderings either side of the threshold.
  */
 function controlForQuestionType(): ReadonlyMap<string, ReadonlySet<string>> {
   const mapping = between(
@@ -456,11 +443,8 @@ function controlForQuestionType(): ReadonlyMap<string, ReadonlySet<string>> {
 }
 
 /**
- * Only the properties of the classification itself. Three of ADR-31's conditions are
- * behaviour at a moment and cannot be checked here: date retraction
- * (`packages/ui/src/date-retraction.test.tsx`), same-step visibility ordering
- * (`apps/portal/e2e/commit-moments.pw.ts`) and when a retraction is posted
- * (`apps/portal/lib/answer-record.test.ts`).
+ * Only the properties of the classification itself; date retraction, same-step visibility ordering
+ * and retraction posting are behaviour, asserted elsewhere.
  */
 describe("the ADR-31 commit-moment classification (issue #91)", () => {
   it("condition: every moment is one of the four ADR-31 admits", () => {

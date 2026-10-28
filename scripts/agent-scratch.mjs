@@ -1,11 +1,9 @@
 #!/usr/bin/env node
 // @ts-check
 /**
- * The harness advertises its scratchpad as session-specific; it is not. One directory
- * per checkout is reused by every session, so lanes that pick the obvious log name
- * overwrite each other and can read a previous day's result as their own. The lane key
- * is the branch because the branch is the claim, and a named path is made run-fresh so
- * a stale file cannot be mistaken for this run's output.
+ * The harness calls its scratchpad session-specific, but one directory per checkout is shared by
+ * every session. The lane key is the branch, and a named path is made run-fresh so a stale file
+ * cannot pass as this run's output.
  */
 
 import { execFileSync } from "node:child_process";

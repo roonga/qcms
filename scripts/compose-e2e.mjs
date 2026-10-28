@@ -1,11 +1,7 @@
 /**
- * The full-stack browser-smoke harness: bring the solo Compose stack up in an isolated
- * Compose project, bootstrap an administrator in it, drive the suite, take it down.
- *
- * It takes the seat's HARNESS port block, not the stable one the same compose file
- * defaults to, and its project name carries a `-full-stack-e2e` suffix: two Compose
- * stacks sharing a project name are one stack, and `down --volumes --remove-orphans`
- * here would otherwise delete the dev database running under the same seat.
+ * The full-stack browser-smoke harness. It uses the seat's HARNESS port block and a `-full-stack-e2e`
+ * project suffix: stacks sharing a project name are one stack, and `down --volumes --remove-orphans`
+ * would otherwise delete the dev database under the same seat.
  */
 
 import { chmodSync, existsSync, readFileSync, unlinkSync, writeFileSync } from "node:fs";
@@ -36,12 +32,9 @@ export const credentialsPath = join(root, ".e2e-full-stack-credentials.json");
 const portalPort = harnessPort("portal");
 const adminPort = harnessPort("admin");
 /**
-/**
- * Must be identical in every environment, or a local pass stops covering what CI runs.
- * Hence the browsed origin is always `http://localhost`, which Chromium treats as
- * trustworthy so `Secure` cookies work; and hence no `QCMS_BIND_ADDRESS` and no cookie
- * flag here, leaving the compose file's loopback publish and the containers' own
- * `NODE_ENV` to decide.
+ * Identical in every environment so a local pass covers what CI runs: the browsed origin is always
+ * `http://localhost` (trustworthy to Chromium, so `Secure` cookies work), with no bind-address or
+ * cookie-flag override.
  *
  * @param {object} options
  * @param {number} options.portalPort
@@ -59,11 +52,8 @@ export function composeEnvironmentOverrides({ portalPort, adminPort }) {
 }
 
 /**
-/**
- * The `--env-file` carries placeholders the API now refuses to boot on, so real values
- * are generated here. Shell environment beats `--env-file` in Compose interpolation.
- * Hex rather than base64url, so a generated value can never begin with a placeholder
- * prefix by chance.
+ * The `--env-file` carries placeholders the API refuses to boot on, so real values are generated
+ * here and beat it in Compose interpolation. Hex, so a value cannot begin with a placeholder prefix.
  *
  * @param {() => string} [generate]
  * @returns {Record<string, string>}
@@ -106,7 +96,6 @@ class CommandFailed extends Error {
 }
 
 /**
-/**
  * Throws rather than exiting: `process.exit()` does not unwind, so it would skip
  * `runComplete()`'s `finally { down(); }` and strand the containers and volume.
  */
@@ -129,7 +118,6 @@ function capture(command, args) {
 }
 
 /**
-/**
  * Exported so `drill-restore.mjs` addresses the same project name and env file rather
  * than reconstructing them: the project name is what `down()` deletes a stack under.
  *
@@ -148,11 +136,8 @@ export function composeCapture(args) {
   return capture(docker, [...compose, ...args]);
 }
 
-// Inside the dev container the Docker host is another machine and the stack's publish is
-// bound to its loopback, which no sibling container can reach at any address. Measured:
-// an unpublished sibling port times out, and connects after `docker network connect`. So
-// this joins the Compose network and forwards this container's own loopback, which is
-// also why the compose file's bind can be left alone.
+// In the dev container the stack's publish is bound to the Docker host's loopback, which no sibling
+// container can reach, so this joins the Compose network and forwards its own loopback.
 
 let forwarder;
 
@@ -171,7 +156,6 @@ function selfContainerId() {
   }
 }
 
-/**
 /**
  * More than one network is a refusal, not a pick: `Object.keys(...)[0]` would be a
  * lexicographic artifact of Docker's Go map serialization, and which network to join is
@@ -193,7 +177,6 @@ export function soleNetworkName(networks, service) {
   return names[0];
 }
 
-/**
 /**
  * Read from the container because the listening port is the image's business, never a
  * QCMS allocation. UDP keys are filtered out, and several TCP ports is a refusal rather
@@ -239,7 +222,6 @@ function serviceEndpoint(service) {
   };
 }
 
-/**
 /**
  * An id Docker cannot resolve throws here, naming where the id came from, rather than
  * silently skipping the join and leaving the forwarder pointing into an isolated bridge.
@@ -295,7 +277,6 @@ export function joinComposeNetwork(network, containerId, io = {}) {
 }
 
 /**
-/**
  * Output captured rather than inherited, so the reason lands inside the thrown error.
  *
  * @param {string} network
@@ -313,7 +294,6 @@ function connectContainerToNetwork(network, containerId) {
   return {};
 }
 
-/**
 /**
  * A no-op outside a container: on a host checkout and on CI the published port is already
  * on `localhost`, and the container-only path must never run where it is not needed.
@@ -411,10 +391,7 @@ function stopLoopbackForwarding() {
 }
 
 /**
-/**
- * Deliberately not exported: `createInitialAdmin` is the sole door an account comes
- * through and it closes the moment one exists (SEC-1), so "bootstrap another
- * administrator" is not an operation this harness can offer anything.
+ * Not exported: `createInitialAdmin` is the sole door and closes once an account exists (SEC-1).
  *
  * @returns {{ email: string, password: string }}
  */
@@ -516,7 +493,6 @@ async function runComplete({ headed = false } = {}) {
 }
 
 /**
-/**
  * So the seat refusal offers the fix for the command in front of the reader.
  *
  * @param {string | undefined} command
@@ -536,10 +512,9 @@ function invokedAs(command) {
 
 async function main() {
   const command = process.argv[2];
-  // Before anything is spawned: the seat picks this stack's Compose project name, and
-  // `down()` runs `down --volumes --remove-orphans` under it, so an adopted seat does not
-  // just read another lane's stack, it deletes it. Rethrown as a UsageError so the
-  // message prints without a stack trace burying it.
+  // Before anything spawns: `down()` runs `down --volumes --remove-orphans` under the seat's project
+  // name, so an adopted seat would delete another lane's stack. Rethrown as a UsageError so the
+  // message prints without a stack trace.
   try {
     assertPortSeatChosen(root, invokedAs(command));
   } catch (error) {

@@ -1,13 +1,9 @@
 #!/usr/bin/env node
 // @ts-check
 /**
- * Fails when the diff against the default branch touches a publishable package and no
- * changeset added in that same diff names it. The publishable set is derived from each
- * package.json's `private` field and the changesets `ignore` list, never hardcoded, so
- * adding a package cannot make this gate stale.
- *
- * Markdown, test directories and colocated test files are exempt: they alter nothing a
- * consumer can call. It compares committed state, so uncommitted work is invisible to it.
+ * Fails when the diff touches a publishable package and no changeset in that diff names it. The
+ * publishable set comes from `private` and the changesets `ignore` list, never a hardcoded list.
+ * Markdown and test files are exempt; only committed state is compared.
  */
 
 import { execFileSync } from "node:child_process";
@@ -71,12 +67,8 @@ export function parseWorkspaceGlobs(yaml) {
 }
 
 /**
- * Exported because `scripts/image-dev-deps.mjs` derives the same workspace manifest set,
- * and a second expander is how the two would come to disagree; its message carries no
- * script prefix because two callers raise it.
- *
- * An unsupported glob shape throws rather than being skipped: a silently unexpanded glob
- * would stop the gate guarding those packages.
+ * Exported so `scripts/image-dev-deps.mjs` shares one expander. Throws on an unsupported glob shape
+ * rather than silently ceasing to guard those packages.
  *
  * @param {string} root
  * @param {string[]} globs

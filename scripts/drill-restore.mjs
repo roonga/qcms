@@ -1,17 +1,7 @@
 /**
- * The restore drill: destroy the database for real, restore it, and let the product
- * judge the result.
- *
- * Row counts alone would pass a restore whose auth tables came back unusable, so the
- * pre-dump administrator is checked by identity and a form published before the dump is
- * requested from the running portal. That check drives the RESPONDENT surface because the
- * two alternatives are controls working correctly: MFA enrolment is one-shot, and
- * `createInitialAdmin` closes as soon as one account exists (SEC-1).
- *
- * The `postgres` container keeps running and only the database inside it is dropped:
- * inside the dev container the suite reaches portal and admin through a loopback
- * forwarder holding the container IP addresses resolved at `up()`, so recreating either
- * would strand it and read as a restore bug.
+ * The restore drill: destroy the database, restore it, and let the product judge the result. The
+ * pre-dump administrator is checked by identity and a form is requested from the running portal,
+ * because row counts alone pass unusable auth tables. The `postgres` container keeps running, since recreating portal or admin would strand the loopback forwarder.
  */
 
 import { mkdtempSync, readFileSync, rmSync } from "node:fs";
@@ -33,11 +23,8 @@ const CONTAINER_DUMP = "/tmp/qcms-drill.dump.sql";
 const MIGRATE_ROLE = "qcms_migrate";
 
 /**
-/**
- * Read out of `control.environments` so an environment created after this shipped is
- * covered without a code change. A query rather than a `data_%` pattern, because an
- * environment whose row exists and whose schema does not is exactly the half-restored
- * database this drill looks for (ADR-40).
+ * Read from `control.environments` so a later environment is covered. A query rather than a `data_%`
+ * pattern: a row without its schema is the half-restored state this drill looks for (ADR-40).
  *
  * @returns {string[]}
  */
@@ -71,11 +58,8 @@ export function schemasForEnvironments(psqlOutput) {
 }
 
 /**
-/**
- * Derived rather than a hand-written table list, so a table added later is still covered.
- * Views are counted beside tables because a restore that brought back every row and no
- * reporting view would look perfect and serve nothing. `query_to_xml` is the idiom for a
- * count over a dynamic relation name inside one query.
+ * Derived rather than a hand-written table list. Views count too: a restore with every row and no
+ * reporting view serves nothing.
  *
  * @param {string[]} schemas
  * @returns {string}
@@ -256,12 +240,8 @@ function grantDifference(expected, actual) {
 }
 
 /**
-/**
- * `pg_dump --no-privileges` carries no grant and the drizzle journal rides inside the
- * dump, so a post-restore `migrate` re-applies nothing.
- *
- * `--no-deps` is load-bearing: without it Compose starts `db-roles`, which re-assigns
- * every schema's ownership and would make the assertions below vacuous.
+ * `pg_dump --no-privileges` carries no grant. `--no-deps` is load-bearing: otherwise Compose starts
+ * `db-roles`, which re-assigns ownership and makes the assertions below vacuous.
  */
 function regrant() {
   // `--no-TTY` because this runs from a script with no terminal and Compose allocates one
@@ -270,10 +250,8 @@ function regrant() {
 }
 
 /**
-/**
- * Asserted per environment from `control.environments`, so an operator-created one is
- * covered. Ownership is read for `reporting_<env>` too: left on the superuser it would
- * refuse the next `qcms-db-environment reporting` run.
+ * Asserted per environment from `control.environments`. Ownership is read for `reporting_<env>` too:
+ * left on the superuser it would refuse the next `qcms-db-environment reporting` run.
  */
 function assertRestoredGrants() {
   const rows = psql([
@@ -337,15 +315,9 @@ function assertRestoredGrants() {
 }
 
 /**
-/**
- * Privileges every `qcms%` role effectively HOLDS, not what is stored: a `REVOKE` on a
- * relation whose ACL is NULL materialises an owner entry that never goes away, so a
- * stored-ACL reading reports a difference in a privilege nobody holds.
- *
- * Reads the `.sql` file rather than importing the built package, because a recovery drill
- * must not depend on `packages/db/dist` existing. `public` is excluded, since the
- * documented procedure recreates the database and its ownership genuinely changes; the
- * property that matters is asserted in {@link assertRestoredGrants}.
+ * Privileges every `qcms%` role effectively HOLDS, not the stored ACL, where a `REVOKE` on a NULL ACL
+ * leaves a phantom owner entry. Reads the `.sql` file so the drill needs no `packages/db/dist`. `public`
+ * is excluded: the documented procedure recreates the database.
  *
  * @returns {string}
  */
@@ -359,11 +331,8 @@ function grantSnapshot() {
 }
 
 /**
- * Three separate facts because they fail separately: a dump that captured the account row
- * but not the two-factor enrolment leaves an account nobody can sign in as.
- *
- * Table names are better-auth's, quoted because `user` is reserved and `twoFactor` is
- * camel-cased.
+ * Three facts because they fail separately: an account row without its two-factor enrolment cannot
+ * sign in. Names are better-auth's, quoted for reserved `user` and camel-cased `twoFactor`.
  *
  * @param {string} email
  */
@@ -397,7 +366,6 @@ function quoteSql(value) {
   return `'${value.replaceAll("'", "''")}'`;
 }
 
-/**
 /**
  * Read back out of the restored database rather than remembered from before the dump,
  * which is the stronger direction: it proves the rows came back.
@@ -464,12 +432,8 @@ function decodeEntities(html) {
 }
 
 /**
-/**
- * Asserting a label from `form_versions.compiled` renders is what proves the restored
- * jsonb is what gets served (ADR-18, never a recompilation).
- *
- * `GET /f/:slug` is deliberately not used: it is static, takes no database and echoes its
- * own slug, so it answers 200 against a completely empty database.
+ * Asserting a label from `form_versions.compiled` proves the restored jsonb is what is served (ADR-18).
+ * `GET /f/:slug` is not used: it is static and answers 200 against an empty database.
  *
  * @param {string} slug
  * @param {string[]} labels

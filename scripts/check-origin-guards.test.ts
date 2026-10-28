@@ -7,16 +7,9 @@ import { trackedFilesUnder } from "./tracked-files.mjs";
 import { declaresUseServer } from "./use-server-directive.mjs";
 
 /**
- * SEC-9's CSRF belt, over every state-changing BFF route handler and every
- * `"use server"` module in every Next app.
- *
- * It lives in `scripts/` because it must see both apps at once: inside one app's Vitest
- * project turbo would cache it against that package's inputs, so a change to the other
- * app would be reported green without the file being re-read.
- *
- * It reads that the belt is CALLED, not that its answer is used, and it cannot see a
- * call behind a helper or a mutation spelled `GET`. Its miss mode must never be
- * silence: an export shape it cannot classify fails by name rather than being skipped.
+ * SEC-9's CSRF belt over every state-changing BFF route handler and `"use server"` module in every
+ * Next app. It lives in `scripts/` so turbo cannot cache it against one app's inputs. It reads that
+ * the belt is CALLED, not that its answer is used; an unclassifiable export fails by name.
  */
 
 const REPO_ROOT = fileURLToPath(new URL("..", import.meta.url));
@@ -94,10 +87,8 @@ function stripComments(lines: string[]): string[] {
 }
 
 /**
- * Both bounds are load-bearing. Slicing to the next `export` line would let an unguarded
- * handler inherit a documented neighbour's JSDoc, and keeping comments would let a
- * comment naming the belt satisfy the substring rule as readily as calling it. An
- * unbounded body reports empty, which fails.
+ * Both bounds are load-bearing: slicing to the next `export` would let a handler inherit a neighbour's
+ * JSDoc, and keeping comments would let a comment naming the belt satisfy the rule.
  */
 function handlerBody(lines: string[], start: number, limit: number): string {
   const end = lines.findIndex((line, index) => index > start && BODY_END.test(line));
@@ -285,11 +276,8 @@ describe("task 073: a Server Action carries the belt too (R-B2)", () => {
   });
 
   /**
-   * Per Fetch, a navigation POST under `Referrer-Policy: no-referrer` serializes its
-   * `Origin` as the literal `null`, which Next refuses; a `fetch()` is mode `cors` and
-   * carries the real origin under any policy. So the portal, which has a no-JS action,
-   * must serve `same-origin`, while the admin keeps `no-referrer` (SEC-9 as amended).
-   * Both directions are pinned, so relaxing either is a red.
+   * Per Fetch, a navigation POST under `Referrer-Policy: no-referrer` sends `Origin: null`, which Next
+   * refuses, so the portal (a no-JS action) serves `same-origin` and the admin keeps `no-referrer` (SEC-9).
    */
   it("serves same-origin on the portal, whose action is reachable without scripting", () => {
     expect(referrerPolicyOf("portal")).toBe("same-origin");

@@ -11,19 +11,14 @@ import { defineConfig } from "vitest/config";
 const MAX_WORKERS = "25%";
 
 /**
- * `fsModuleCache` is off because the cache is one directory shared by every Vitest
- * process in the checkout and invalidating it is an `rm -rf`, so the ten concurrent
- * processes `pnpm test` starts race to an `ENOTEMPTY` startup error. A per-project
- * `fsModuleCachePath` does not help: the clear always includes the shared root.
+ * `fsModuleCache` is off: the cache is one directory shared by every Vitest process in the checkout
+ * and invalidating it is an `rm -rf`, so concurrent processes race to an `ENOTEMPTY` startup error.
  */
 const PROJECT_DEFAULTS = { maxWorkers: MAX_WORKERS, fsModuleCache: false } as const;
 
 /**
- * Replaces a `"packages/*"` glob, which cannot carry {@link PROJECT_DEFAULTS}: a
- * globbed directory's project is built from what that directory declares, and
- * `extends` inside the directory's own config does not carry `maxWorkers` either.
- * `name` is passed in both shapes because an entry that does not name itself is
- * named by its index, and every `--project <name>` caller depends on the name.
+ * Replaces a `"packages/*"` glob, which cannot carry {@link PROJECT_DEFAULTS}. `name` is passed in both
+ * shapes because an entry that does not name itself is named by its index, and `--project <name>` depends on it.
  */
 function workspaceProjects(parent: string): object[] {
   const parentDirectory = fileURLToPath(new URL(parent, import.meta.url));
@@ -108,9 +103,8 @@ export default defineConfig({
         },
       },
     ],
-    // `include` matches relative to the PROJECT root in Vitest 5, so `src/**` and not
-    // `packages/core/src/**`: the repo-relative spelling matched nothing and still
-    // exited 0 against the threshold. `packages/core`'s `coverage` script chains
+    // `include` matches relative to the PROJECT root in Vitest 5, so `src/**`: the repo-relative spelling
+    // matched nothing and still exited 0. `packages/core`'s `coverage` script chains
     // `scripts/check-coverage-measured.mjs` because Vitest cannot fail an empty report.
     coverage: {
       provider: "v8",

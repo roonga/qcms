@@ -1,8 +1,6 @@
 /**
- * The only place the port arithmetic is written down; `docs/PORTS.md` holds the rule
- * and the table (ADR-37). The harness block is `17Sxx` rather than `7Sxxx` because
- * the latter exceeds 65535, and it sits below `ip_local_port_range` so a fixed
- * listener cannot lose a race to a kernel-assigned socket.
+ * The only place the port arithmetic is written down (`docs/PORTS.md`, ADR-37). The harness block is
+ * `17Sxx` because `7Sxxx` exceeds 65535, and it sits below `ip_local_port_range`.
  */
 
 import { readFileSync, statSync } from "node:fs";

@@ -1,9 +1,7 @@
 import { PORT_SEAT, harnessPort } from "../../portal/e2e/support/port-seat.js";
 
-// The host must stay `localhost` in every environment: only a trustworthy origin may
-// store a `Secure` cookie, so a bare gateway address drops the session and two-factor
-// cookies. Inside the dev container the harness forwards loopback instead
-// (`scripts/loopback-forward.mjs`).
+// The host must stay `localhost`: only a trustworthy origin may store a `Secure` cookie, so a
+// bare gateway address drops the session cookies (`scripts/loopback-forward.mjs` covers the dev container).
 
 export const FULL_STACK_PORTAL_URL =
   process.env.QCMS_PORTAL_BASE_URL ??

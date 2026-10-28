@@ -1,11 +1,8 @@
 // @ts-check
 /**
- * `pnpm deploy --prod` prunes `devDependencies` but not `optionalDependencies`, so
- * resolved optional peers put the whole test tooling back into a production image;
- * `--no-optional` is what removes them (`docker/api.Dockerfile`). The dev set is
- * derived from the manifests rather than listed, so it cannot be a list of the names
- * that were wrong once. It does not reach a package another workspace package declares
- * as a production dependency.
+ * `pnpm deploy --prod` prunes `devDependencies` but not `optionalDependencies`; `--no-optional` removes
+ * them (`docker/api.Dockerfile`). The dev set is derived from the manifests, not listed. It does not
+ * reach a package another workspace package declares as a production dependency.
  */
 
 import { existsSync, readFileSync } from "node:fs";

@@ -1,15 +1,9 @@
 #!/usr/bin/env node
 // @ts-check
 /**
- * The browser gate outlasts every per-command harness cap, and a cap kill is
- * indistinguishable from a red suite by exit code alone, so the run is detached and its
- * verdict written to a file. `wait` exit codes sit in the `sysexits.h` range Playwright
- * never uses, so none can be read as a test verdict.
- *
- * The seat release goes by PORT, because Playwright's dev servers sit in process groups
- * the suite's leader cannot address. A port holder is therefore signalled only once
- * {@link ownershipOf} shows it belongs to this run; anything else is named and left
- * alone, because lane worktrees nest and a sweep by port alone killed a neighbour's gate.
+ * The browser gate outlasts every harness cap and a cap kill looks like a red suite, so the run is
+ * detached and its verdict written to a file. The seat is released by PORT, signalling a holder only
+ * once {@link ownershipOf} shows it belongs to this run.
  */
 
 import { spawn } from "node:child_process";
@@ -480,11 +474,9 @@ export async function startDetached({
 }
 
 /**
- * The suite gets a process group of its own, but that is measurably not enough:
- * Playwright starts each `webServer` in a session of its own, so the dev servers sit in
- * groups the suite's leader cannot address and survive the group signal. Hence
- * {@link releaseSeat} by port. Never `pkill -f`: the gate command names are identical
- * across every lane on this host, so a pattern kill is lane-agnostic.
+ * The suite gets its own process group, but Playwright starts each `webServer` in a session of its own
+ * and the dev servers survive the group signal; hence {@link releaseSeat} by port. Never `pkill -f`:
+ * gate command names are identical across lanes.
  *
  * @param {SuperviseArgs} args
  * @returns {Promise<number>}
@@ -982,12 +974,9 @@ function gitEntryExists(path) {
 }
 
 /**
- * Two grounds, both needed: `descendant`, the parent chain reaching this runner or its
- * suite; and `same-tree`, a cwd inside this checkout, which is the only thing left once
- * the cleanup has reparented the dev servers to pid 1. Both are overruled by `other-run`,
- * because a lane's own live gate in its own checkout is `same-tree` by every other
- * measure. Nothing else is signalled: "I cannot account for this" and "it is mine" must
- * not collapse into one outcome.
+ * Two grounds: `descendant` (the parent chain reaches this runner or suite) and `same-tree` (cwd inside
+ * this checkout, all that is left once dev servers are reparented to pid 1), both overruled by
+ * `other-run`. Nothing else is signalled.
  *
  * @param {number | undefined} pid
  * @param {{ ancestors?: Set<number>; repoRoot?: string; parent?: (pid: number) => number | undefined; workingDirectory?: (pid: number) => string | undefined; checkoutRoot?: (directory: string) => string | undefined }} options
@@ -1156,13 +1145,9 @@ function signalPid(pid, signal, skipPids, note) {
 }
 
 /**
- * By port and not by ancestry, because Playwright starts each `webServer` in a session of
- * its own and both dev servers measurably survive a signal to the suite's group. One pid
- * per call, never a pattern match: `pkill -f "pnpm verify"` is lane-agnostic on this host.
- *
- * Holding one of this seat's ports does not make a process ours, so every holder is
- * checked with {@link ownershipOf} first and one that cannot be shown to be this run's is
- * named and left alone. Only an empty return earns "seat released".
+ * By port, not ancestry, because both dev servers survive a signal to the suite's group. One pid per
+ * call, never a pattern match. Every holder is checked with {@link ownershipOf} first; only an empty
+ * return earns "seat released".
  *
  * @param {{ ports: number[]; ancestors?: Set<number>; repoRoot?: string; graceMs?: number; note?: (line: string) => void; pollMs?: number; skipPids?: Set<number>; settleMs?: number }} options
  * @returns {Promise<PortListener[]>}

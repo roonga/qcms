@@ -1,22 +1,9 @@
 #!/usr/bin/env node
 // @ts-check
 /**
- * Scans the SBOM the build already produced rather than the image, which needs no pull
- * and no registry credential: a branch publishes no image to pull back out of GHCR.
- * The cost is file locations, which the SPDX round-trip drops.
- *
- * `--fail-on` is the blocking floor and `--notify-on` the reporting floor, decoupled on
- * purpose. `--fail-on-unfixed` widens the blocking floor only, so a finding with no
- * published fix is always reported and never reds a job: the blocking floor is
- * fixable-only by default because the base image carries criticals with no fix in
- * Debian 12, and a floor nothing in this repository can clear is a floor people learn
- * to ignore. The open decision and the per-CVE evidence are in
- * `docs/SECURITY_DESIGN.md` §9.
- *
- * The vulnerability database is fetched at run time, so the same tree scans differently
- * on different days. That is only tolerable because the `Images` workflow publishes no
- * required context: a red scan reports beside a mergeable pull request. Moving this job
- * into a required context is a decision for the Code Owner.
+ * Scans the SBOM the build already produced rather than the image, which needs no pull or registry
+ * credential. `--fail-on` is the blocking floor (fixable-only by default), `--notify-on` the reporting
+ * floor (`docs/SECURITY_DESIGN.md` §9). The vulnerability database is fetched at run time, so the `Images` workflow publishes no required context.
  */
 
 import { execFileSync } from "node:child_process";
@@ -146,11 +133,9 @@ export function atOrAbove(list, floor, includeUnfixed) {
 }
 
 /**
- * Three ways the scan goes green while meaning nothing, each a failure here instead: an
- * SBOM with no packages, a report with no vulnerability database behind it, and deb
- * packages in the SBOM with no distro in the report. The last is specific to scanning an
- * SBOM: without the distro the scanner matches the npm half and silently skips every
- * operating-system package.
+ * Three ways a scan goes green meaning nothing, each a failure here: an SBOM with no packages, a
+ * report with no vulnerability database, and deb packages with no distro (the scanner would skip
+ * every operating-system package).
  *
  * @param {{ image: string, document: any, report: any }} input
  */
@@ -366,12 +351,9 @@ function capitalise(word) {
 }
 
 /**
- * `sbom:` keeps this off the registry, and grype refuses the in-toto envelope, so the
- * caller unwraps to bare SPDX first.
- *
- * No `--fail-on` at the scanner: grype exits 2 for a crossed floor and 1 for a database
- * error, so letting it own the verdict collapses the two. Here any non-zero exit from
- * grype is a failure to scan and the floors are this script's business.
+ * `sbom:` keeps this off the registry, and grype refuses the in-toto envelope, so the caller unwraps
+ * to bare SPDX. No `--fail-on` at the scanner: it exits 2 for a crossed floor and 1 for a database
+ * error, so any non-zero exit here is a failure to scan.
  *
  * @param {string} scanner
  * @param {string} sbomPath

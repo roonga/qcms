@@ -25,14 +25,10 @@ import {
   seatPreflight,
 } from "./apps/portal/e2e/support/port-seat.js";
 
-/**
- * Runs at config load, before Playwright evaluates any `webServer`, so before
- * `reuseExistingServer` can adopt anything. The returned set is what this run may adopt:
- * a server inside this worktree that answers a probe now. A free port yields `false`, so
- * a lost bind race fails loudly rather than running green against another worktree.
- */
 // Read BEFORE the preflight, which is what sets the sentinel.
 const FIRST_LOAD = process.env[PREFLIGHT_DONE_VAR] !== "1";
+// A free port yields `false`, so a lost bind race fails loudly rather than adopting another
+// worktree's server.
 const ADOPTABLE = seatPreflight();
 
 // A downloaded browser whose OS libraries are missing fails every test minutes later

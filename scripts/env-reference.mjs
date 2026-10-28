@@ -1,11 +1,9 @@
 #!/usr/bin/env node
 // @ts-check
 /**
- * The operator environment reference, generated here and asserted against the source
- * in `env-reference.test.ts` on three axes: the names an app actually reads, the
- * requirement the API's parser helper implies, and the rendered block in
- * `docs/operations.md` byte for byte. Descriptions and defaults are deliberately not
- * derived: a useful description cannot be extracted from a parser call.
+ * The operator environment reference, generated here and asserted against the source in
+ * `env-reference.test.ts`: names read, requirement implied by the parser helper, and the rendered
+ * `docs/operations.md` block. Descriptions and defaults are not derived.
  */
 
 import { execFileSync } from "node:child_process";
@@ -1035,16 +1033,9 @@ const GROUPS = [
 ];
 
 /**
- * Replace every comment with equivalent blank space, so a variable NAMED in prose is
- * not counted as a read.
- *
- * A single state machine rather than two regex passes: regexes cannot tell a comment
- * opener from the same two characters inside a string or another comment, and getting
- * it wrong fails OPEN, silently shrinking the corpus the gate reasons about. So an
- * unterminated block comment throws, and a quote with no partner before end of line
- * is an ordinary character (an apostrophe in JSX text) rather than a runaway string.
- * Newlines are kept so positions still point into the original file. Regex literals
- * are deliberately not tracked; one containing `/*` or `//` is the known residue.
+ * Replace every comment with blank space so a variable NAMED in prose is not counted as a read. A
+ * state machine, because regexes cannot tell a comment opener inside a string, and failing open would
+ * silently shrink the corpus. Regex literals are not tracked; one containing `/*` or `//` is the residue.
  *
  * @param {string} source
  * @returns {string}

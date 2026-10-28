@@ -1,11 +1,8 @@
 #!/usr/bin/env node
 // @ts-check
 /**
- * A wrapper rather than the command as the step: `changeset status` also asks git what
- * changed since its configured base branch, and in CI that branch exists only as a
- * remote ref, so the command exits nonzero on every pull request. This tolerates that
- * one failure, and only after independently confirming the base branch does not
- * resolve here. Every other nonzero exit stays a failure.
+ * A wrapper because `changeset status` exits nonzero in CI, where the base branch exists only as
+ * a remote ref. That one failure is tolerated, only after confirming the base does not resolve.
  */
 
 import { execFileSync, spawnSync } from "node:child_process";

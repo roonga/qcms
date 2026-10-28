@@ -287,11 +287,9 @@ test.describe.serial("conditional form journey", () => {
       expect(response.headers()["set-cookie"] ?? "").not.toContain("qcms_session=");
     });
 
-    // Only here: this is the one suite running the portal as a production build, and
-    // `next dev` answers differently. Next gates an action id on its length before it
-    // reaches the module map, so the malformed and well-formed refusals differ. The ids
-    // below are literals no build ever minted, so the per-build salt cannot affect them.
-    // The request must be multipart, or Next renders the page instead of refusing.
+    // This suite alone runs the portal as a production build, where Next gates an action id on its
+    // length before the module map; `next dev` answers differently. The request must be multipart,
+    // or Next renders the page instead of refusing.
 
     /** A well-formed action id, 42 lowercase hex characters, that no build ever minted. */
     const UNKNOWN_ACTION_ID = "00112233445566778899aabbccddeeff0011223344";

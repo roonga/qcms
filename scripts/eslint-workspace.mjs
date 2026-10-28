@@ -1,14 +1,9 @@
 #!/usr/bin/env node
 // @ts-check
 /**
- * Every `lint` script goes through here so one file gets one verdict. `context.cwd`
- * comes from the process and cannot be pinned by the config, and plugins resolve
- * against it: `eslint-plugin-sonarjs` bounds its upward search for a test framework
- * there, so rules that are active from the root silently return an empty visitor when
- * ESLint runs in a package directory.
- *
- * Positional targets are rewritten to the root; a path-valued flag is passed through
- * untouched and so must already be written relative to the root.
+ * Every `lint` script goes through here so one file gets one verdict: `context.cwd` comes from the
+ * process and plugins such as `eslint-plugin-sonarjs` bound their search there, so rules go inert in a
+ * package directory. Positional targets are rewritten to the root; a path-valued flag must already be root-relative.
  */
 
 import { spawnSync } from "node:child_process";

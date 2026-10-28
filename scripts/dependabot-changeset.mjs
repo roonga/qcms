@@ -1,18 +1,9 @@
 #!/usr/bin/env node
 // @ts-check
 /**
- * Writes the changeset `check:changeset` wants for a dependency-only bump and
- * regenerates the scaffolding templates `check:templates` wants, because a bot bump
- * breaks both gates and fixing one hides the other.
- *
- * It generates a changeset ONLY for the shape it can describe honestly: dependency
- * ranges in a package's own manifest or in a generated template app manifest.
- * Anything else is refused loudly, so the pull request fails for a reason specific to
- * it rather than for being a bot's.
- *
- * Run by hand, never from a workflow (Code Owner ruling): a push made with
- * `GITHUB_TOKEN` raises no `pull_request` event, so the new head would carry no runs
- * and every required context would sit at "Expected".
+ * Writes the changeset `check:changeset` wants for a dependency-only bump and regenerates the
+ * templates `check:templates` wants. Anything other than dependency ranges in a package or template
+ * manifest is refused loudly. Run by hand, never from a workflow: a `GITHUB_TOKEN` push raises no `pull_request` event.
  */
 
 import { execFileSync } from "node:child_process";

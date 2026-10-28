@@ -1,18 +1,9 @@
 #!/usr/bin/env node
 // @ts-check
 /**
- * The action-pin rule as functions over text. SEC-11 of `docs/SECURITY_DESIGN.md` carries the
- * reasoning, the sources and the first-party carve-out.
- *
- * The reader's default is refusal: a line it recognises as putting `uses` in key position is
- * either parsed as the one canonical form or refused by file and line. A gate that claims the
- * inventory cannot shrink quietly cannot afford to `continue` past a spelling it does not
- * know, and nine valid YAML spellings can each carry an unpinned third-party action.
- *
- * It is not a YAML parser and does not see every way the language can spell a key. It guards
- * against drift and honest mistakes, not against someone deliberately obfuscating a key;
- * review is what covers that. A block scalar's body is the one thing still skipped, because a
- * `uses:` inside `run: |` is shell text.
+ * The action-pin rule as functions over text; SEC-11 of `docs/SECURITY_DESIGN.md` has the reasoning.
+ * An unrecognised spelling of `uses` is refused by file and line rather than skipped. This is not a
+ * YAML parser: deliberate obfuscation of a key is left to review.
  */
 
 /**
@@ -338,12 +329,8 @@ export function usesReferences(file, text) {
 }
 
 /**
- * The directories the `github-actions` updater is configured to search, normalised with no
- * leading or trailing slash (the repository root is the empty string).
- *
- * The fuller YAML reader lives in a test file, and importing that from a module would
- * register its suites inside whatever imported it. So this reads the three keys it needs and
- * throws on a shape it does not recognise.
+ * The directories the `github-actions` updater searches, with no leading or trailing slash (the
+ * root is the empty string). Throws on a shape it does not recognise.
  *
  * @param {string} dependabotYaml
  * @returns {string[]}
@@ -446,12 +433,9 @@ function stripQuotes(text) {
 }
 
 /**
- * The semantics are GitHub's, quoted in SEC-11 (Dependabot options reference,
- * `directories or directory`, read 2026-09-19): a directory `D` reaches
- * `D/.github/workflows/<file>` and `D/action.yml`, and NOT
- * `D/.github/actions/<name>/action.yml` - which is why a third-party reference inside a local
- * composite action would be a pin with no updater. `directories` supports the wildcard `*`,
- * so a segment wildcard is honoured here and `**` spans segments.
+ * A directory `D` reaches `D/.github/workflows/<file>` and `D/action.yml`, not
+ * `D/.github/actions/<name>/action.yml` (GitHub's semantics, SEC-11). `*` matches within a
+ * segment and `**` spans segments.
  *
  * @param {string} path repository-relative, slash-separated
  * @param {string[]} directories from `dependabotActionsDirectories`
@@ -603,15 +587,9 @@ export function pinProblems(references, dependabotDirectories) {
     }
   }
 
-  // One repository, one pin, for first-party references as well as third-party ones: the
-  // carve-out above is about the FORM of a first-party pin, not about whether this repository
-  // may run two releases of one action at once. Dependabot moves every occurrence together,
-  // so a divergence after this point is a hand edit.
-  //
-  // Keyed on the repository rather than the action path, so one release publishing several
-  // sub-actions groups together, and case-insensitively, because GitHub resolves
-  // `Pnpm/Action-Setup` to the same repository. Local and `docker://` references are outside
-  // the grouping because neither has a repository pin to compare.
+  // One pin per repository, first-party included and case-insensitively: Dependabot moves every
+  // occurrence together, so a divergence is a hand edit. Local and `docker://` references have no
+  // repository pin to compare.
   /** @type {Map<string, Reference[]>} */
   const byRepository = new Map();
   for (const reference of references) {
@@ -639,10 +617,8 @@ export function pinProblems(references, dependabotDirectories) {
 }
 
 /**
- * For a third-party reference the version comment is part of the pin: Dependabot moves the
- * SHA and the comment together, so one SHA documented as two releases is a hand edit. For a
- * first-party reference the comment carries no requirement, so it is not part of the identity
- * and reddening that pair would enforce a rule the ruling does not state.
+ * For a third-party reference the version comment is part of the pin; for a first-party one it
+ * carries no requirement, so it is not part of the identity.
  *
  * @param {Reference} reference
  */

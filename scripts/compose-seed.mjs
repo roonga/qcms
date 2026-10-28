@@ -1,12 +1,8 @@
 // @ts-check
 /**
- * The loader runs in a container on the Compose network because the stack's Postgres is
- * deliberately unpublished and the dev container drives the host daemon, where this
- * checkout's path does not exist.
- *
- * The database URL travels in the environment, never in argv: `/proc/<pid>/cmdline` is
- * world-readable on Linux. `clear` and `reset` go through this same door so that a
- * command which deletes data cannot reach any database but this stack's.
+ * The loader runs in a container on the Compose network because the stack's Postgres is unpublished
+ * and the dev container drives the host daemon. The database URL travels in the environment, never in
+ * argv; `clear` and `reset` use the same door so they cannot reach any other database.
  */
 
 import { spawnSync } from "node:child_process";
@@ -34,12 +30,8 @@ export function databaseUrlFor(environment) {
 }
 
 /**
- * Only the mode travels in argv, and it is one of three literals: no credential may
- * ever appear there. It is appended after the service name, which is where Compose
- * passes arguments through to the image's entrypoint, so the container's own layout
- * stays out of this file.
- *
- * `run --rm` rather than `exec`, because this container is not part of the stack.
+ * Only the mode travels in argv, one of three literals, appended after the service name so Compose
+ * passes it to the entrypoint. `run --rm` rather than `exec`: this container is not part of the stack.
  *
  * @param {object} options
  * @param {readonly string[]} options.compose
