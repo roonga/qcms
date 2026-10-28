@@ -28,18 +28,6 @@ import {
   purgeExpired,
 } from "./index.js";
 
-/**
- * The instance ledger against a real Postgres (task 072, ADR-42). Acceptance cases
- * 22 and 25 of `plan/repeating-groups-and-table-input.md` section 11 live here;
- * case 23 is in `../schema/append-only.test.ts`, case 24 in
- * `./erasure.integration.test.ts` and case 26 in `../migrations.test.ts`.
- *
- * Real Postgres rather than a fake, because everything asserted below is a
- * property of SQL: whether `DISTINCT ON` treats two NULL instance ids as the same
- * cell, whether a delete reaches a second table through one door, and whether the
- * roster comes back in the order the rows were written.
- */
-
 let testDb: TestDb;
 
 beforeAll(async () => {
@@ -74,8 +62,6 @@ async function seedSession(
   });
   const sessionId = SessionId.parse(`ses_${id}`);
   await createSession(testDb.db, {
-    // Q46's column is NOT NULL and a CHECK pins it to the schema the row sits in, so a
-    // session is written with the environment its connection resolves in (ADR-40).
     environment: DEFAULT_TEST_ENVIRONMENT,
     sessionId,
     formId,
@@ -106,9 +92,6 @@ describe("the answer ledger keyed by instance (acceptance case 22)", () => {
     const two = ins("two");
     const t0 = Date.now();
 
-    // The same question answered in two instances. Before migration 0022 the
-    // DISTINCT ON would have kept exactly one of these two rows, silently - the same
-    // class of collision ADR-42 names in the reporting view's `jsonb_object_agg`.
     await appendAnswer(testDb.db, {
       sessionId,
       questionId: passport,
@@ -123,7 +106,6 @@ describe("the answer ledger keyed by instance (acceptance case 22)", () => {
       value: "P2",
       answeredAt: new Date(t0 + 1000),
     });
-    // A revision of the first cell, which must beat its own earlier row and no other.
     await appendAnswer(testDb.db, {
       sessionId,
       questionId: passport,
@@ -131,7 +113,6 @@ describe("the answer ledger keyed by instance (acceptance case 22)", () => {
       value: "P1-corrected",
       answeredAt: new Date(t0 + 2000),
     });
-    // A question outside every group: unqualified, exactly as before ADR-42.
     await appendAnswer(testDb.db, {
       sessionId,
       questionId: meal,
@@ -143,13 +124,9 @@ describe("the answer ledger keyed by instance (acceptance case 22)", () => {
     expect(latest.size).toBe(3);
     expect(latest.get(answerKey(passport, one))).toBe("P1-corrected");
     expect(latest.get(answerKey(passport, two))).toBe("P2");
-    // The bare `questionId` key is the same key it has always been, which is what
-    // lets every existing caller read an unrepeated question unchanged.
     expect(latest.get(meal)).toBe("vegetarian");
     expect(latest.get(passport)).toBeUndefined();
 
-    // All four rows persist: the ledger is append-only and the revision above added
-    // a row rather than replacing one.
     const ledger = await answerLedger(testDb.db, sessionId);
     expect(ledger).toHaveLength(4);
     expect(ledger.map((row) => [row.questionId, row.instanceId, row.value])).toEqual([
@@ -174,7 +151,6 @@ describe("the answer ledger keyed by instance (acceptance case 22)", () => {
       });
     }
 
-    // ADR-33's Note: a retraction is per instance and clears that cell alone.
     await retractAnswer(testDb.db, {
       sessionId,
       questionId: passport,
@@ -186,7 +162,6 @@ describe("the answer ledger keyed by instance (acceptance case 22)", () => {
     expect(latest.get(answerKey(passport, ins("a")))).toBe("P-ins_a");
     expect(latest.get(answerKey(passport, ins("b")))).toBeUndefined();
     expect(latest.get(answerKey(passport, ins("c")))).toBe("P-ins_c");
-    // The tombstone is in the ledger, which is the whole point of the append.
     expect(await answerLedger(testDb.db, sessionId)).toHaveLength(4);
   });
 });
@@ -195,8 +170,6 @@ describe("the roster read", () => {
   it("returns the minted list in first-added order and the present list without the removed", async () => {
     const sessionId = await seedSession("roster_order");
     const t0 = new Date("2026-03-01T00:00:00.000Z");
-    // Three separate mints so the order is the write order rather than the
-    // tiebreaker's, which is the ordinary case: an `open` group's Add per press.
     await addInstances(testDb.db, {
       sessionId,
       groupId: pax,
@@ -217,7 +190,6 @@ describe("the roster read", () => {
     });
 
     const before = await readRoster(testDb.db, sessionId, pax);
-    // Insertion order, not id order: `zzz` was minted first and is first.
     expect(before.minted).toEqual([ins("zzz"), ins("mmm"), ins("aaa")]);
     expect(before.present).toEqual([ins("zzz"), ins("mmm"), ins("aaa")]);
 
@@ -229,7 +201,6 @@ describe("the roster read", () => {
     });
 
     const after = await readRoster(testDb.db, sessionId, pax);
-    // Removal is an append: the instance stays minted for good and leaves `present`.
     expect(after.minted).toEqual([ins("zzz"), ins("mmm"), ins("aaa")]);
     expect(after.present).toEqual([ins("zzz"), ins("aaa")]);
     expect(await rosterLedger(testDb.db, sessionId)).toHaveLength(4);
@@ -237,9 +208,6 @@ describe("the roster read", () => {
 
   it("orders a batch mint by instance id, deterministically across reads", async () => {
     const sessionId = await seedSession("roster_batch");
-    // One call, one statement, one timestamp: `occurred_at` cannot order these, so
-    // `instance_id` is the tiebreaker and the order is total and repeatable. A
-    // `fromAnswer` count lowered and raised again depends on exactly this.
     await addInstances(testDb.db, {
       sessionId,
       groupId: pax,
@@ -252,18 +220,10 @@ describe("the roster read", () => {
   });
 
   it("returns the whole session's ledger in (occurred_at, instance_id, id) order", async () => {
-    // Issue #1033: the ledger's ordering had only length assertions, so the order
-    // its own doc promises was unasserted. Task 075 is the first consumer to put
-    // the audit beside the roster it audits, and an order nothing checks is an
-    // order that can change under a refactor without failing anything.
     const sessionId = await seedSession("roster_ledger_order");
     const bags = GroupId.parse("grp_bags");
     const t0 = new Date("2026-06-01T00:00:00.000Z");
 
-    // Two groups, one timestamp: `occurred_at` cannot order these, so the whole
-    // session's rows sort by `instance_id` and the two groups interleave. That is
-    // the read's documented behaviour - it is one audit of one session, not a
-    // per-group listing.
     await addInstances(testDb.db, {
       sessionId,
       groupId: pax,
@@ -290,8 +250,6 @@ describe("the roster read", () => {
       [bags, ins("c1"), "added"],
       [pax, ins("a1"), "removed"],
     ]);
-    // Restricted to one group's `added` rows, the audit agrees with the roster it
-    // audits - the property the two reads' shared leading columns exist for.
     const roster = await readRoster(testDb.db, sessionId, pax);
     expect(
       ledger
@@ -301,12 +259,6 @@ describe("the roster read", () => {
   });
 
   it("is deterministic, not causal, when a mint and its removal share a timestamp", async () => {
-    // The other half of #1033. `id` is a random v4 uuid, so appending it makes the
-    // sequence repeatable and cannot make the `added` row sort first: an instance
-    // minted and removed inside one transaction gives two rows sharing
-    // `occurred_at` and `instance_id`, and the smaller uuid wins. What this asserts
-    // is therefore what the tiebreaker really buys - the same order on every read -
-    // and the comment on `rosterLedger` no longer claims more than that.
     const sessionId = await seedSession("roster_ledger_tie");
     const same = new Date("2026-06-02T00:00:00.000Z");
     await addInstances(testDb.db, {
@@ -326,18 +278,13 @@ describe("the roster read", () => {
     const second = await rosterLedger(testDb.db, sessionId);
     expect(first.map((row) => row.id)).toEqual(second.map((row) => row.id));
     expect(new Set(first.map((row) => row.event))).toEqual(new Set(["added", "removed"]));
-    // `event` is what tells an auditor which row is the mint; the sequence does not.
     expect(first).toHaveLength(2);
   });
 
   it("holds an instance id once even when the table carries a repeated added row", async () => {
     const sessionId = await seedSession("roster_dupe");
     await addInstances(testDb.db, { sessionId, groupId: pax, instanceIds: [ins("solo")] });
-    // Forced through raw SQL, because the query helper refuses a batch that repeats
-    // an id and no code path in the API writes one. The guarantee under test is the
-    // read's, and it has to hold whatever the table holds: the evaluator treats the
-    // roster as trusted input, so one id twice becomes duplicate `visible` entries,
-    // a duplicated instance in the locked submission, and no error anywhere.
+    // Raw SQL because the helper refuses a batch that repeats an id.
     await testDb.client.query(
       `insert into answer_group_instances (session_id, group_id, instance_id, event)
          values ($1, $2, 'ins_solo', 'added')`,
@@ -346,7 +293,6 @@ describe("the roster read", () => {
     const roster = await readRoster(testDb.db, sessionId, pax);
     expect(roster.minted).toEqual([ins("solo")]);
     expect(roster.present).toEqual([ins("solo")]);
-    // And the whole-session read agrees, since it is a separate derivation.
     expect((await readRosters(testDb.db, sessionId)).get(pax)?.present).toEqual([ins("solo")]);
   });
 
@@ -400,9 +346,6 @@ describe("purgeExpired reaches the roster table (acceptance case 25)", () => {
     });
     await removeInstance(testDb.db, { sessionId: purgeable, groupId: pax, instanceId: ins("p2") });
 
-    // A session the horizon spares - expired, but exactly at the horizon, which the
-    // strictly-before boundary retains - so the assertion below is about the purge's
-    // scope and not about the table being empty.
     const spared = await seedSession("purge_roster_spared", horizon);
     await addInstances(testDb.db, { sessionId: spared, groupId: pax, instanceIds: [ins("s1")] });
 
@@ -412,9 +355,6 @@ describe("purgeExpired reaches the roster table (acceptance case 25)", () => {
     const result = await purgeExpired(testDb.db, horizon);
     expect(result.purgedSessionIds).toContain(purgeable);
 
-    // By count against a real Postgres, not by reading the helper: the purge's table
-    // list is hand-kept, so a missing entry here is silent respondent data kept past
-    // the retention horizon.
     expect(await rowCount("answers", purgeable)).toBe(0);
     expect(await rowCount("answer_group_instances", purgeable)).toBe(0);
     expect(await rowCount("sessions", purgeable)).toBe(0);

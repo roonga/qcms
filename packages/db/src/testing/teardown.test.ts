@@ -1,11 +1,4 @@
-/**
- * The ordering contract of the harness teardown (issue #888).
- *
- * Every assertion here is about order and completeness rather than about Postgres, so this
- * file runs on fakes and needs no Docker. The real-container half of the pin lives in
- * `harness.integration.test.ts`, where a pooled client is genuinely checked out against a
- * genuinely running server.
- */
+/** Runs on fakes and needs no Docker. */
 
 import { describe, expect, it, vi } from "vitest";
 
@@ -16,16 +9,12 @@ import {
   guardConnectionErrors,
 } from "./teardown.js";
 
-/** A recorder every fake in this file appends to, so one array holds the whole order. */
 type Journal = string[];
 
-/** The `pg.Client`-shaped fake: an `end()` and an `error` event. */
 interface FakeClient {
   end(): Promise<void>;
   on(event: "error", listener: (error: unknown) => void): void;
-  /** Deliver an `error` event to whatever the guard attached. */
   emitError(error: unknown): void;
-  /** How many `error` listeners are attached, so double-guarding is visible. */
   listenerCount(): number;
   ended(): boolean;
 }
@@ -52,7 +41,6 @@ function fakeClient(journal: Journal, label: string, failOnEnd = false): FakeCli
   };
 }
 
-/** The `pg.Pool`-shaped fake: checkouts that must come back before `end()` can settle. */
 interface FakePool {
   end(): Promise<void>;
   on(event: "error", listener: (error: unknown) => void): void;
@@ -66,8 +54,7 @@ function fakePool(journal: Journal, label: string): FakePool {
   let closed = false;
   return {
     async end() {
-      // The behaviour that makes this issue's third shape fatal: pg ends its idle clients
-      // and then waits for the checked-out one, so a leaked checkout never lets end settle.
+      // pg ends its idle clients and then waits for the checked-out one.
       if (checkedOut.size > 0) await new Promise(() => undefined);
       await Promise.resolve();
       closed = true;
@@ -91,7 +78,6 @@ function fakePool(journal: Journal, label: string): FakePool {
   };
 }
 
-/** A started-container fake that records when it was asked to stop. */
 interface FakeContainer {
   stop(): Promise<unknown>;
   stops(): number;
@@ -110,7 +96,6 @@ function fakeContainer(journal: Journal, probe: () => string = () => ""): FakeCo
   };
 }
 
-/** The `AggregateError` a failed drain raises, or undefined when `run()` resolved. */
 async function captureRunFailure(run: () => Promise<void>): Promise<unknown> {
   try {
     await run();
@@ -187,8 +172,6 @@ describe("createHarnessTeardown drain order", () => {
     teardown.register(pool, "pool again");
     await pool.connect();
 
-    // A second entry would carry no checkout tracking of its own, so its `end()` would wait
-    // on the held client forever and the container would never be stopped.
     await teardown.run();
 
     expect(journal).toEqual(["release:pool", "end:pool", "stop"]);
@@ -200,14 +183,11 @@ describe("createHarnessTeardown and a client checked out at teardown time", () =
     const journal: Journal = [];
     const teardown = createHarnessTeardown(fakeContainer(journal));
     const pool = teardown.register(fakePool(journal, "pool"), "pool");
-    await pool.connect(); // checked out, and deliberately never released by the test
+    await pool.connect(); // deliberately never released by the test
 
     expect(pool.checkedOutCount()).toBe(1);
     await teardown.run();
 
-    // Release strictly before the pool closes, and the stop strictly after both. Without
-    // the release, `end()` never settles, so the container stop is issued late and next to
-    // a live connection, which is the third shape in issue #888.
     expect(journal).toEqual(["release:pool", "end:pool", "stop"]);
     expect(pool.checkedOutCount()).toBe(0);
   });
@@ -250,7 +230,6 @@ describe("createHarnessTeardown and a client checked out at teardown time", () =
     pool.connect((client: unknown) => handed.push(client));
     await teardown.run();
 
-    // The callback still received its client untouched, and the drain still happened.
     expect(handed).toHaveLength(1);
     expect(journal).toEqual(["end:callback", "stop"]);
   });
@@ -266,7 +245,6 @@ describe("createHarnessTeardown when a drain fails", () => {
 
     const failure = await captureRunFailure(() => teardown.run());
 
-    // The container is stopped (no leak) and the good connection still drained.
     expect(container.stops()).toBe(1);
     expect(journal).toEqual(["end:good", "stop"]);
     expect(failure).toBeInstanceOf(AggregateError);
@@ -274,8 +252,6 @@ describe("createHarnessTeardown when a drain fails", () => {
     expect(failure.message).toBe(DRAIN_FAILED_MESSAGE);
     expect(String(failure.errors[0])).toContain("bad client");
 
-    // The one caller that cannot rethrow this - `startTestDb`'s failure path - logs a
-    // string, so the detail has to survive being flattened into one.
     expect(describeDrainFailure(failure)).toContain("bad client did not close cleanly");
     expect(describeDrainFailure(failure)).toContain("bad refused to close");
   });
@@ -291,7 +267,6 @@ describe("describeDrainFailure", () => {
       DRAIN_FAILED_MESSAGE,
     );
 
-    // The bug this exists for: the aggregate's own message is the constant, nothing more.
     expect(aggregate.message).toBe(DRAIN_FAILED_MESSAGE);
 
     expect(describeDrainFailure(aggregate)).toBe(
@@ -333,8 +308,6 @@ describe("guardConnectionErrors", () => {
         }),
       );
 
-      // Nothing is scheduled, so nothing is rethrown: the 57P01 an idle connection raises
-      // when its server is shut down has no test to fail and must not kill the worker.
       expect(vi.getTimerCount()).toBe(0);
     } finally {
       vi.useRealTimers();
@@ -365,8 +338,6 @@ describe("guardConnectionErrors", () => {
 
       client.emitError(new Error('null value in column "id" violates not-null constraint'));
 
-      // Scheduled on a fresh turn, where it reaches the runner as an unhandled error
-      // rather than disappearing into a listener that returns undefined.
       expect(vi.getTimerCount()).toBe(1);
       expect(() => vi.runAllTimers()).toThrow("violates not-null constraint");
     } finally {

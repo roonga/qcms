@@ -1,63 +1,15 @@
 /*
  * ADOPTER OVERRIDE POINT (the single documented re-skin surface; ADR-26, ADR-30).
  *
- * Read `docs/theming.md` first. Most deployments never need this file at all,
- * because theme selection is CONFIGURATION, not CSS:
+ * Read `docs/theming.md` before using it. Theme, corners, mode, density, font and brand
+ * are configuration, so most deployments need nothing here. This file is imported last,
+ * so a declaration here wins; override token names from the four-group contract and
+ * never edit `globals.css`, `theme.css` or a component.
  *
- *   QCMS_PORTAL_THEME=slate|harbor|sand|plum     which predefined palette
- *   QCMS_PORTAL_CORNERS=sharp|subtle|rounded|pill  which corner preset
- *   QCMS_PORTAL_MODE=auto|light|dark|hc          the default colour mode
- *   QCMS_PORTAL_DENSITY=compact|comfortable|spacious   the default spacing
- *   QCMS_PORTAL_FONT=<registry key>              the default font
- *   QCMS_PORTAL_FONTS=<registry keys>            the fonts offered to respondents
- *   QCMS_PORTAL_BRAND_NAME=<text>                header mark and document title
- *   QCMS_PORTAL_BRAND_LOGO=</path or data: URI>  optional logo beside the text
+ * A `--font-*` value ends in `--font-fallback-sans|serif|mono` rather than a fallback
+ * list of its own. The type scale carries the WCAG 1.4.12 floors and
+ * `--space-control-h` the WCAG 2.5.8 target size, and an override here is outside the
+ * gate that verifies the shipped themes, so check your own contrast pairs.
  *
- * Mode, font and density are also RESPONDENT controls (the header's Appearance
- * disclosure): the values above are only what a first-time visitor gets.
- *
- * This file is for the deployment that wants values the predefined themes do not
- * offer. It is imported last, so anything declared here wins over
- * `@roonga/qcms-ui/theme.css`. Override token NAMES from the four-group contract; never
- * edit globals.css, theme.css, or a component.
- *
- *   1. Typography: `--font-portal` for body text, `--font-mono` for the
- *      submission reference (self-host the files and add an `@font-face` block
- *      here, then name the family). END THE VALUE IN THE MATCHING FALLBACK TOKEN
- *      rather than writing a fallback list of your own:
- *
- *        --font-portal: "Your Face", var(--font-fallback-sans);
- *
- *      `--font-fallback-sans`, `--font-fallback-serif` and `--font-fallback-mono`
- *      are declared once, in `@roonga/qcms-ui/theme.css`, and are what a respondent
- *      whose device lacks your face actually reads (issue #27). Overriding one of
- *      the three tails is allowed and is how a deployment adds a script-specific
- *      face for its audience. The type scale (`--type-*`) carries the WCAG 1.4.12
- *      floors: raising a size is fine, lowering one below its floor is an
- *      accessibility regression, not a style choice.
- *   2. Colour: any `--color-*` name. Provide a value per mode you support -
- *      `:root` (Light), `:root.dark`, `:root.hc` - and keep every text/background
- *      pair at WCAG 2.2 AA (`:root.hc` is the AAA layer: 7:1 body text). The four
- *      shipped themes are verified by `packages/ui/src/theme-tokens.test.ts`; an
- *      override here is outside that gate, so check your own pairs.
- *   3. Spacing / radius: `--space-*` and `--radius-*` if a preset is not enough.
- *      Keep `--space-control-h` at or above 24px (WCAG 2.5.8 target size).
- *
- * Scope an override to one theme with the attribute selector, so the other
- * predefined themes keep working:
- *
- *   :root[data-theme="slate"] { --color-primary: #2c6e63; }
- *
- * Example (commented out - this file ships empty of overrides so the configured
- * predefined theme shows through):
- *
- *   :root {
- *     --font-portal: "Inter", var(--font-fallback-sans);
- *     --color-primary: #6d28d9;
- *     --color-primary-foreground: #ffffff;
- *   }
- *   :root.dark {
- *     --color-primary: #a78bfa;
- *     --color-primary-foreground: #0b0f1a;
- *   }
+ * It ships empty of overrides so the configured theme shows through.
  */

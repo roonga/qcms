@@ -2,18 +2,6 @@ import { describe, expect, it } from "vitest";
 
 import { parseArgs } from "./cli-args.js";
 
-/**
- * `qcms-db-environment`'s argument parsing (tasks 064 and 067).
- *
- * The parsing exists as its own module so these cases can exist at all: the entry file
- * ends with `process.exitCode = await main()`, so a test that imported it would run the
- * command. The rules worth holding are the ones an operator meets at a shell - a duration
- * that is not a number, a flag on the wrong subcommand, and the settings flags that were
- * **unreachable until this task wired them**, which is the defect these cases exist to keep
- * closed: task 064 created the columns and the `settings` argument, 066 reads the challenge
- * provider and 067 reads the two retention windows, and nothing was passing any of them.
- */
-
 function parsed(argv: string[]) {
   const result = parseArgs(argv);
   if (!result.ok) throw new Error(`refused: ${result.refusal}`);
@@ -50,16 +38,12 @@ describe("create", () => {
       name: "dev",
       password: "secret",
       challengeProvider: "turnstile",
-      // `0` is a supported setting and means "at the next sweep", which is why the floor is
-      // zero and why this case asserts it survives rather than being read as absent.
       deliverySnippetTtlMs: 0,
       outboxPayloadTtlMs: 86_400_000,
     });
   });
 
   it("leaves an omitted setting absent rather than defaulting it", () => {
-    // Absent means `NULL` on the row, which means the installation-wide typed value stands.
-    // A parser that defaulted here would write a policy nobody asked for.
     const args = parsed(["create", "dev", "--challenge-provider", "none"]);
     expect(args.deliverySnippetTtlMs).toBeUndefined();
     expect(args.outboxPayloadTtlMs).toBeUndefined();
@@ -91,8 +75,6 @@ describe("drop", () => {
   });
 
   it("refuses the settings flags, which are written at create", () => {
-    // Not silently ignored: an operator who typed them expects them to take effect, and a
-    // command that accepted and dropped them would be the worst of both.
     expect(refusal(["drop", "dev", "--outbox-payload-ttl-ms", "0"])).toMatch(
       /takes none of the per-environment settings flags/,
     );
@@ -117,8 +99,6 @@ describe("reporting", () => {
   });
 
   it("refuses a partial one-pair form", () => {
-    // A password with no pair names no role to create, and a pair with no password would
-    // create a role nobody can log in as - which looks like success and is not.
     expect(refusal(["reporting", "--password", "secret"])).toMatch(/together or none of them/);
     expect(refusal(["reporting", "--workspace", "home"])).toMatch(/together or none of them/);
   });

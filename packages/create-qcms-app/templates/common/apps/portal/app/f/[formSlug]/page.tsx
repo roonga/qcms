@@ -2,13 +2,8 @@ import { EntryView } from "@/components/entry-view";
 import { MessageScreen } from "@/components/message-screen";
 import { t, type MessageKey } from "@/lib/i18n/en";
 
-/**
- * Anonymous entry (`/f/:formSlug`). The API is internal and has no
- * unauthenticated form-meta endpoint (R2), so the entry shows a neutral
- * invitation and a Start control that POSTs to the `/f/:formSlug/start` BFF route
- * (works with or without JS). `?state=` renders the friendly outcomes the start
- * route redirects back with (closed / not found / generic error).
- */
+// A neutral invitation rather than form metadata: the API is internal and has no
+// unauthenticated form-meta endpoint (R2).
 const STATE_KEYS: Record<string, { title: MessageKey; body: MessageKey }> = {
   closed: { title: "formClosed.title", body: "formClosed.body" },
   notfound: { title: "formUnavailable.title", body: "formUnavailable.body" },

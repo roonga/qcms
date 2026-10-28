@@ -30,7 +30,7 @@
  * # The installation claim
  *
  * Four rows are the claim's alone (Q29): creating a workspace, marking the shared one,
- * the environment list and the user accounts. The claim **administers and reads no data
+ * the installation-wide dead-letter list and the erasure log. The claim **administers and reads no data
  * anywhere**, so no row below gives it a response read - that is the matrix's `never`
  * row, and it is a decision rather than an omission.
  */
@@ -628,7 +628,7 @@ export const ROUTE_POLICIES: readonly RoutePolicy[] = [
     // The installation-wide dead-letter list. It names no form, so no workspace owns it,
     // and it carries delivery state rather than response content - the one answer-bearing
     // column an event can hold is redacted by the retention sweep (#329) and is not read
-    // here. The claim's, like the environment list.
+    // here. The claim's.
     method: "GET",
     path: "/admin/outbox/dead-letters",
     resource: "webhook",
