@@ -105,6 +105,102 @@ export const ReleasedResponse = z
   })
   .openapi("ReleasedResponse");
 
+// --- the candidate review (decision 5's read half, Q89) ---------------------
+
+/**
+ * `POST /admin/forms/{id}/release-review` - which source is being considered.
+ *
+ * The draft or one exact immutable version, and nothing else: an approver may review and
+ * release an existing version without holding `form: write` or `form: publish`, which is
+ * the whole reason the source is a choice rather than "the newest thing".
+ *
+ * It names **no environment**, deliberately. The review answers every target the caller
+ * may release into, so a body naming one would be a filter the caller could use to ask
+ * about an environment they hold nothing in.
+ */
+export const ReleaseReviewBody = z
+  .strictObject({
+    source: z.discriminatedUnion("kind", [
+      z.strictObject({ kind: z.literal("draft") }),
+      z.strictObject({ kind: z.literal("version"), version: z.number().int().positive() }),
+    ]),
+  })
+  .openapi("ReleaseReviewBody");
+
+/** One reason a target refuses the candidate, with what would satisfy it. */
+const ReleaseBlocker = z
+  .object({
+    /**
+     * `TEST_RELEASE_REQUIRED` while the deployment runs on the derived default workflow,
+     * which is the code this deployment has today (F5): `PRIOR_RELEASE_REQUIRED` replaces
+     * it once a workflow revision is configured, which phase 3 builds.
+     * `ALREADY_RELEASED` is the candidate already serving there;
+     * `DRAFT_PUBLISH_NOT_ALLOWED` is a draft aimed at a target the workflow refuses a
+     * combined publish into; `APPROVER_IS_AUTHOR` and `APPROVER_UNKNOWN_AUTHOR` are the
+     * two-person rule's refusals, reported here before the commit rather than after it.
+     */
+    code: z.string().openapi({ example: "TEST_RELEASE_REQUIRED" }),
+    /** The environments any one of which would satisfy a prerequisite; empty otherwise. */
+    requiresAnyOf: z.array(z.string()),
+  })
+  .openapi("ReleaseBlocker");
+
+/** A committed release row that satisfied a target's prerequisite (decision 2). */
+const ReleaseEvidence = z
+  .object({
+    environment: z.string(),
+    version: z.number().int().positive(),
+    sequence: z.number().int().positive(),
+    releasedAt: z.iso.datetime(),
+  })
+  .openapi("ReleaseEvidence");
+
+export const ReleaseReviewResponse = z
+  .object({
+    source: z.discriminatedUnion("kind", [
+      z.object({ kind: z.literal("draft") }),
+      z.object({
+        kind: z.literal("version"),
+        version: z.number().int().positive(),
+        /** The account that published it, which the two-person rule compares against. */
+        publishedBy: z.string().nullable(),
+      }),
+    ]),
+    /**
+     * The configured workflow revision this review was evaluated against, or `null` with
+     * `source: "default"` where no revision is written - which is every deployment until
+     * phase 3 builds the configuration (decision 1).
+     */
+    workflowRevision: z.number().int().nullable(),
+    workflowSource: z.enum(["default", "configured"]),
+    /**
+     * One entry per environment the caller holds `release: create` in, in canonical
+     * order. **Only** those: a target the caller could not release into is not named at
+     * all, which is what keeps this read from being an environment list for somebody the
+     * environment narrowing already answered.
+     */
+    targets: z.array(
+      z.object({
+        environment: z.string(),
+        /** What is serving there now, or null when nothing is. */
+        currentVersion: z.number().int().positive().nullable(),
+        currentSequence: z.number().int().positive().nullable(),
+        /** Whether intake is closed there. Releasing does not reopen it (Q18). */
+        closed: z.boolean(),
+        evidence: z.array(ReleaseEvidence),
+        blockers: z.array(ReleaseBlocker),
+        twoPerson: z.object({
+          applies: z.boolean(),
+          /** True when this caller is the account that published the candidate. */
+          refusedAsAuthor: z.boolean(),
+        }),
+        /** True for the one protected production identifier (ADR-40). */
+        protected: z.boolean(),
+      }),
+    ),
+  })
+  .openapi("ReleaseReviewResponse");
+
 /** Narrow the history to one environment. */
 export const ReleaseHistoryQuery = z.object({
   environment: EnvironmentName.optional().openapi({

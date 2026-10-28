@@ -246,6 +246,35 @@ export const MyAccessResponse = z
     userId: z.string(),
     /** Whether the caller holds the installation-wide administrator claim. */
     installationAdmin: z.boolean(),
+    /**
+     * Which areas of the admin this caller has at all (F1, Code Owner 2026-10-29, Q90).
+     *
+     * **Derived from the same policy decision that gates each area's routes**, which is
+     * the whole of G12: a navigation contract computed from role names would offer a mode
+     * whose routes then refuse, and one computed from a client's own reading of `grants`
+     * below would be a second implementation of the matrix in a browser. Each flag is the
+     * question "does any workspace this caller holds a grant in allow the cell that area's
+     * routes require".
+     *
+     * It is a **projection, not an authority**: every route still decides. And it is
+     * narrow on purpose - four booleans about the caller's own access, no other person's
+     * membership and no form or workspace names, so a failed discovery is never a
+     * permission answer.
+     */
+    capabilities: z.object({
+      /**
+       * The operations area: any one of `form: read`, `response: read`, `response: erase`
+       * or `response: dispose`, anywhere. False for a `forms.owner` alone and for the
+       * installation claim alone, neither of which reaches a form cell (G06).
+       */
+      operations: z.boolean(),
+      /** Workspace management: `workspace: read`, which is an owner's and the claim's. */
+      workspaces: z.boolean(),
+      /** Site configuration: the installation claim alone (F8). */
+      siteConfiguration: z.boolean(),
+      /** The authoring area: `form: read` or `question: read` in some workspace. */
+      authoring: z.boolean(),
+    }),
     workspaces: z.array(
       z.object({
         workspaceId: z.string(),

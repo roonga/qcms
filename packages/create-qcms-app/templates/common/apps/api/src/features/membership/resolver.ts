@@ -33,6 +33,7 @@ import {
 } from "@roonga/qcms-db";
 import type { Executor } from "@roonga/qcms-db";
 
+import type { ResolvedMembership } from "./context.js";
 import { type AccessDecision, type AccessRequest, type HeldGrant, decideAccess } from "./policy.js";
 
 /**
@@ -62,12 +63,15 @@ const CLAIM_GRANT: HeldGrant = {
   forms: ["all"],
 };
 
-/** What the caller holds in one workspace, with the claim folded in. */
-export interface ResolvedMembership {
-  readonly workspaceId: string;
-  readonly memberRole: string | undefined;
-  readonly grants: readonly HeldGrant[];
-}
+/**
+ * What the caller holds in one workspace, with the claim folded in.
+ *
+ * Declared in `context.ts` and re-exported here, because the request context carries it
+ * for an `anyOf` row (Q87) and `openapi.ts` types that context: the declaration lives in
+ * the module with no database import, and this is where callers of the resolver look for
+ * it.
+ */
+export type { ResolvedMembership } from "./context.js";
 
 /**
  * Resolve one caller's grants in one workspace.

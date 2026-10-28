@@ -6,7 +6,22 @@
  * `ApiEnv` needs this.
  */
 
+import type { HeldGrant } from "./policy.js";
 import type { RoutePolicy } from "./route-policy.js";
+
+/**
+ * What a caller holds in one workspace, as the context carries it.
+ *
+ * Structurally the resolver's own `ResolvedMembership`, restated here for the reason this
+ * module exists at all: `openapi.ts` types the request context from it and the resolver
+ * imports the database package, so importing that type would put a database import in
+ * every module that reads a request.
+ */
+export interface ResolvedMembership {
+  readonly workspaceId: string;
+  readonly memberRole: string | undefined;
+  readonly grants: readonly HeldGrant[];
+}
 
 /**
  * What the middleware leaves on the request for the handler that runs after it.
@@ -25,6 +40,16 @@ export interface GrantContext {
    * forms.
    */
   readonly workspaceIds?: readonly string[];
+  /**
+   * For an `anyOf` row, what the caller holds in each of those workspaces (Q87).
+   *
+   * The handler asks {@link decideAccess} per (form, cell, environment) against these,
+   * because an `anyOf` row's cells carry scopes the middleware cannot judge without a row
+   * in hand: `response: read` is form-scoped and the route names no form. Carried here
+   * rather than re-read, so one resolution decides the route and its projection - a
+   * second read is a second chance to disagree with the first.
+   */
+  readonly memberships?: readonly ResolvedMembership[];
   /** The environment the act names, where it names one. */
   readonly environment?: string;
   /** The role that allowed the act, for the audit row's detail and for a log line. */

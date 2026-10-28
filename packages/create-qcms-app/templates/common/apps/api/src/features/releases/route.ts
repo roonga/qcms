@@ -25,6 +25,7 @@ import { errorResponses, jsonBody, withScopes } from "../../openapi.js";
 import {
   makeEnvironmentSetHandler,
   makeReleaseHistoryHandler,
+  makeReleaseReviewHandler,
   makeReleaseVersionHandler,
 } from "./handler.js";
 import {
@@ -32,6 +33,8 @@ import {
   ReleaseHistoryQuery,
   FormIdParam,
   ReleaseHistoryResponse,
+  ReleaseReviewBody,
+  ReleaseReviewResponse,
   ReleaseVersionBody,
   ReleasedResponse,
 } from "./schema.js";
@@ -79,6 +82,36 @@ export const releaseHistoryRoute = createRoute({
   ...withScopes("forms:read"),
 });
 
+export const releaseReviewRoute = createRoute({
+  method: "post",
+  path: "/forms/{id}/release-review",
+  summary: "What releasing a draft or a version into each permitted target would do (admin)",
+  description:
+    "A read, and it writes nothing: no version, no release, no review token and no " +
+    "access-audit row. It reports one target per environment the caller holds " +
+    "`release: create` in and no others, with what is serving there, whether intake is " +
+    "closed, the committed release rows that satisfy the target's prerequisite, the " +
+    "blockers that remain, and whether the two-person rule applies and would refuse this " +
+    "account as the version's author. Until a release-workflow revision is configured " +
+    "the review reports `workflowSource: default`, which is this deployment's derived " +
+    "test and prod behaviour, and a missing production prerequisite keeps the " +
+    "TEST_RELEASE_REQUIRED code. A version with a prior release in the target itself is " +
+    "a rollback and is eligible there regardless of prerequisites; the two-person rule " +
+    "still applies to it. The review is a report rather than a reservation: the " +
+    "confirmation rechecks every expectation in its own transaction.",
+  tags,
+  request: { params: FormIdParam, body: jsonBody(ReleaseReviewBody) },
+  responses: {
+    200: {
+      description: "The source, the workflow revision and one entry per permitted target",
+      content: { "application/json": { schema: ReleaseReviewResponse } },
+    },
+    // 404: no such form, no such published version, or no open draft to review.
+    ...errorResponses(400, 401, 403, 404),
+  },
+  ...withScopes("forms:read"),
+});
+
 export const environmentSetRoute = createRoute({
   method: "get",
   path: "/environments",
@@ -103,4 +136,5 @@ export const registerReleases: SliceRegistrar = (group, deps: Deps): void => {
   group.openapi(environmentSetRoute, makeEnvironmentSetHandler(deps));
   group.openapi(releaseHistoryRoute, makeReleaseHistoryHandler(deps));
   group.openapi(releaseVersionRoute, makeReleaseVersionHandler(deps));
+  group.openapi(releaseReviewRoute, makeReleaseReviewHandler(deps));
 };

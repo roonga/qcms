@@ -76,7 +76,10 @@ export const myAccessRoute = createRoute({
     "owner or the installation administrator learns what they hold, since the " +
     "membership list itself is theirs alone to see. `environments` per workspace is " +
     "what the environment switcher offers: only the environments the caller holds in " +
-    "some grant, with `all` expanded against the live set.",
+    "some grant, with `all` expanded against the live set. `capabilities` says which " +
+    "areas of the admin the caller has at all, derived from the same policy decision " +
+    "that gates each area's routes, so a navigation contract cannot offer a mode whose " +
+    "routes refuse. It is a projection and authorises nothing.",
   tags,
   request: {},
   responses: {
