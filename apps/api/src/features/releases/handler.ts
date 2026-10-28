@@ -30,9 +30,11 @@
 
 import type { RouteHandler } from "@hono/zod-openapi";
 import {
+  getDraft,
   getForm,
   getFormVersion,
   getReleasedVersion,
+  getWorkspace,
   isScopeAll,
   listEnvironmentNames,
   listEnvironments,
@@ -46,11 +48,17 @@ import { FormId, parseFormId } from "@roonga/qcms-core";
 import type { Deps } from "../../deps.js";
 import { ApiError } from "../../errors.js";
 import type { ApiEnv } from "../../openapi.js";
-import { holdsInstallationClaim } from "../membership/resolver.js";
+import { decideAccess, PRODUCTION_ENVIRONMENT } from "../membership/policy.js";
+import { holdsInstallationClaim, resolveGrants } from "../membership/resolver.js";
 import { approvalForRelease } from "../membership/two-person.js";
 import { recordRelease } from "./release.js";
-import { requireProductionCandidate } from "./workflow.js";
-import type { environmentSetRoute, releaseHistoryRoute, releaseVersionRoute } from "./route.js";
+import { requireProductionCandidate, usesTestWorkflow } from "./workflow.js";
+import type {
+  environmentSetRoute,
+  releaseHistoryRoute,
+  releaseReviewRoute,
+  releaseVersionRoute,
+} from "./route.js";
 
 // --- typed failures (envelope codes the admin app keys off) -----------------
 
@@ -58,6 +66,9 @@ const fail = {
   invalidId: (): ApiError => new ApiError("INVALID_FORM_ID", 400, "Malformed form id"),
   formNotFound: (): ApiError => new ApiError("FORM_NOT_FOUND", 404, "No such form"),
   versionNotFound: (): ApiError => new ApiError("VERSION_NOT_FOUND", 404, "No such form version"),
+  /** A review of the draft on a form that has none open. */
+  draftNotFound: (): ApiError =>
+    new ApiError("DRAFT_NOT_FOUND", 404, "This form has no open draft to review"),
   unknownEnvironment: (name: string): ApiError =>
     new ApiError("UNKNOWN_ENVIRONMENT", 400, `This deployment serves no environment named ${name}`),
   /**
@@ -296,6 +307,169 @@ export function makeReleaseHistoryHandler(
 
     const releases = await listFormReleases(deps.databases.control, formId, environment);
     return c.json({ releases: releases.map((row) => releaseBody(row)) }, 200);
+  };
+}
+
+// --- POST /admin/forms/:id/release-review -----------------------------------
+
+/**
+ * What releasing one source into each environment the caller may release into would do
+ * (decision 5's read half, Q89; Code Owner, 2026-10-29).
+ *
+ * # Stateless, and that is the decision rather than a simplification
+ *
+ * There is no review token, no stored candidate and no row of any kind: the commit
+ * (phase 3) carries the caller's expectations and rechecks everything inside its
+ * transaction, so a review is a **report** and never a reservation. A stored review would
+ * be a second source of truth about release eligibility, and the one that the commit did
+ * not read.
+ *
+ * # Why the targets are filtered here and not by a route row
+ *
+ * The row is `release: read`, which names no environment, because this handler acts in
+ * none. What it reports per environment is filtered by `release: create` **in that
+ * environment**, asked of the same {@link decideAccess} the middleware uses - so an editor
+ * scoped to `test` is told about `test`, an approver scoped to `prod` about `prod`, and
+ * neither learns anything about the other's target. That is the Q7 erasure-scope shape:
+ * the environments an offer is made for are each decided before the offer is made.
+ *
+ * # Evidence and blockers on the default workflow
+ *
+ * The configuration table is phase 3's, so this reads the **derived default** (decision 1
+ * stated as data): `prod` requires a prior release of that version in `test` or `prod`
+ * when both are served, a combined draft publish into `prod` is refused there, and every
+ * other environment has no prerequisite. Evidence is the committed rows that satisfied it,
+ * and the blocker code stays `TEST_RELEASE_REQUIRED` until a revision is written (F5), so
+ * the existing client's handling of that code keeps working.
+ *
+ * The **rollback exception** is decision 2's: a version with any prior release row in the
+ * target itself is eligible there regardless of prerequisites, and the two-person rule
+ * still applies to it.
+ */
+export function makeReleaseReviewHandler(
+  deps: Deps,
+): RouteHandler<typeof releaseReviewRoute, ApiEnv> {
+  return async (c) => {
+    const formId = requireFormId(c.req.valid("param").id);
+    const { source } = c.req.valid("json");
+
+    const exec = deps.databases.control;
+    const form = await getForm(exec, formId);
+    if (form === undefined) throw fail.formNotFound();
+
+    const candidate =
+      source.kind === "version" ? await getFormVersion(exec, formId, source.version) : undefined;
+    if (source.kind === "version" && candidate === undefined) throw fail.versionNotFound();
+    if (source.kind === "draft" && (await getDraft(exec, formId)) === undefined) {
+      throw fail.draftNotFound();
+    }
+
+    const principal = c.get("adminPrincipal");
+    if (principal === undefined) throw fail.noPrincipal();
+    const workspaceId = c.get("grantContext")?.workspaceId ?? form.workspaceId;
+    const membership = await resolveGrants(exec, {
+      userId: principal.userId,
+      workspaceId,
+      claim: holdsInstallationClaim(principal.role),
+    });
+
+    const releases = await listFormReleases(exec, formId);
+    const workflowEnabled = usesTestWorkflow(deps.databases.names);
+    const workspace = await getWorkspace(exec, workspaceId);
+    const requiresSecond = workspace?.requireSecondApprover ?? false;
+    // The canonical order (Q42), narrowed to the pools this process holds, so the review
+    // lists targets in the order every other environment list uses.
+    const rows = await listEnvironments(exec);
+    const served = rows
+      .map((row) => row.name)
+      .filter((name) => deps.databases.names.includes(name));
+
+    const targets = [];
+    for (const environment of served) {
+      const mayRelease = decideAccess({
+        memberRole: membership.memberRole,
+        grants: membership.grants,
+        request: { resource: "release", action: "create", environment, formId },
+      }).allowed;
+      if (!mayRelease) continue;
+
+      const here = releases.filter((release) => release.environment === environment);
+      // Newest first already (`listFormReleases` orders by released_at then sequence).
+      const current = here[0];
+      const version = candidate?.version;
+      const rollback =
+        version !== undefined && here.some((release) => release.version === version);
+      const prerequisite =
+        workflowEnabled && environment === PRODUCTION_ENVIRONMENT ? ["test", "prod"] : [];
+      const evidence =
+        version === undefined
+          ? []
+          : releases.filter(
+              (release) =>
+                release.version === version &&
+                (prerequisite.length === 0
+                  ? release.environment === environment
+                  : prerequisite.includes(release.environment)),
+            );
+
+      const blockers: { code: string; requiresAnyOf: string[] }[] = [];
+      if (prerequisite.length > 0 && !rollback) {
+        if (source.kind === "draft") {
+          // Today's behaviour, stated: a combined publish into `prod` is refused while
+          // `test` is served, because the version would have no prior release anywhere.
+          blockers.push({ code: "DRAFT_PUBLISH_NOT_ALLOWED", requiresAnyOf: [...prerequisite] });
+        } else if (evidence.length === 0) {
+          blockers.push({ code: "TEST_RELEASE_REQUIRED", requiresAnyOf: [...prerequisite] });
+        }
+      }
+      if (version !== undefined && current?.version === version) {
+        blockers.push({ code: "ALREADY_RELEASED", requiresAnyOf: [] });
+      }
+
+      const applies = environment === PRODUCTION_ENVIRONMENT && requiresSecond;
+      const author = candidate?.publishedBy ?? null;
+      const refusedAsAuthor = applies && author !== null && author === principal.userId;
+      if (applies && source.kind === "version") {
+        if (author === null) blockers.push({ code: "APPROVER_UNKNOWN_AUTHOR", requiresAnyOf: [] });
+        else if (refusedAsAuthor) blockers.push({ code: "APPROVER_IS_AUTHOR", requiresAnyOf: [] });
+      }
+
+      targets.push({
+        environment,
+        currentVersion: current?.version ?? null,
+        currentSequence: current?.sequence ?? null,
+        closed: current?.closed ?? false,
+        evidence: evidence.map((release) => ({
+          environment: release.environment,
+          version: release.version,
+          sequence: release.sequence,
+          releasedAt: release.releasedAt.toISOString(),
+        })),
+        blockers,
+        twoPerson: { applies, refusedAsAuthor },
+        protected: environment === PRODUCTION_ENVIRONMENT,
+      });
+    }
+
+    return c.json(
+      {
+        source:
+          source.kind === "draft"
+            ? ({ kind: "draft" } as const)
+            : ({
+                kind: "version" as const,
+                version: source.version,
+                publishedBy: candidate?.publishedBy ?? null,
+              } as const),
+        // Null until phase 3 writes a revision (decision 1): a deployment with no row
+        // keeps exactly today's derived behaviour and says so rather than reporting a
+        // revision nobody wrote.
+        workflowRevision: null,
+        workflowSource: "default" as const,
+        targets,
+      },
+      200,
+    );
   };
 }
 

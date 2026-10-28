@@ -21,7 +21,8 @@
  *
  * # What a row says
  *
- * The (resource, action) the route is - or **two**, where a route is two acts - where its
+ * The (resource, action) the route is - or **two**, where a route is two acts, or **any
+ * one of several**, where a route is one screen several grants reach - where its
  * **workspace** comes from, whether the act names an **environment** and **where that
  * environment is read from**, and whether it names a **form**. Nothing in a row is about
  * the caller: the caller's grants are read at the request, and `policy.ts` is what judges
@@ -94,8 +95,43 @@ export interface RoutePolicy {
    * `route-policy.test.ts` asserts every row's answer against the **shipped OpenAPI
    * document** - a `"body"` row's schema carries `environment` and a `"switcher"` row's
    * does not - so a row that claims the wrong source is a red test rather than a bypass.
+   *
+   * `"query"` is the third source (Code Owner, 2026-10-29, Q87): the environment is an
+   * explicit query parameter, which is what the Operations context is - a selection the
+   * caller made rather than a switcher a browser remembered. The rule above is unchanged,
+   * because the handler reads the same parameter: `route-policy.test.ts` asserts a
+   * `"query"` row declares an `environment` query parameter in the shipped document and no
+   * `environment` in a body.
    */
-  readonly environmentFrom?: "body" | "switcher";
+  readonly environmentFrom?: "body" | "switcher" | "query";
+  /**
+   * The cells a row admits **any one of**, where no single cell can authorise the route
+   * without widening one (Code Owner, 2026-10-29, Q87).
+   *
+   * One route needs it: `GET /admin/operations/forms` is the Operations discovery query,
+   * and the whole of D3 is that five different grants reach it and each sees a different
+   * projection of a different subset of forms. Giving it `form: read` alone would strand
+   * every `responses.*` holder (G02); giving it `response: read` alone would hand a
+   * `forms.viewer` a cell the matrix does not give them.
+   *
+   * **A row's `resource`/`action` stays its primary cell**, and `anyOf` names every cell
+   * the route admits, the primary included. The middleware admits a caller who holds at
+   * least one of them **as a statement** in at least one of their workspaces and refuses
+   * everybody else; it narrows nothing further, because the narrowing is per form and per
+   * cell and belongs to the handler, which gets the middleware's own resolved grants on
+   * the context rather than resolving them a second time.
+   *
+   * That split is deliberate and is the one place this table hands a decision onward.
+   * An `anyOf` row's two scopes cannot be decided here: `response: read` is form-scoped,
+   * and this route names no form in its path, so there is no form id for
+   * {@link decideAccess} to judge until the handler has a row in hand. What the middleware
+   * can prove - that this caller holds some operational cell somewhere - is what it
+   * proves, and the handler asks the same decision function per (form, cell, environment)
+   * before it puts a single field in a row. A caller holding nothing in the requested
+   * environment therefore gets an **empty page rather than a 403** (G12), and a caller
+   * holding no operational cell at all is refused.
+   */
+  readonly anyOf?: readonly { readonly resource: Resource; readonly action: string }[];
   /**
    * A **second** cell this route also requires, evaluated against the same workspace and
    * the same environment.
@@ -128,6 +164,28 @@ export interface RoutePolicy {
    */
   readonly audit?: "read" | "export" | "erasure" | "grant" | "revoke" | "setting";
 }
+
+/**
+ * The cells that make a caller an **operational** caller (Code Owner, 2026-10-29, Q87).
+ *
+ * The four acts somebody performs against a form's live data in one environment: reading
+ * its control-plane state, reading its responses, erasing one, and releasing a withheld
+ * one. Their union is what `GET /admin/operations/forms` admits and what the Operations
+ * capability on `GET /admin/me/access` reports (F1), so the two cannot disagree about who
+ * has an Operations area at all - which is G12's point, since a navigation contract that
+ * offered a mode the route then refused would be a 403 the shell walked into.
+ *
+ * `form: read` rather than `release: read` for the control-plane half, because the forms
+ * table's own fields are the form's: a caller who may not read the form has no business
+ * being told which version is serving it. The two always travel together in the matrix.
+ */
+export const OPERATIONAL_CELLS: readonly { readonly resource: Resource; readonly action: string }[] =
+  [
+    { resource: "form", action: "read" },
+    { resource: "response", action: "read" },
+    { resource: "response", action: "erase" },
+    { resource: "response", action: "dispose" },
+  ];
 
 /**
  * Every admin route, as a cell of the matrix.
@@ -462,6 +520,29 @@ export const ROUTE_POLICIES: readonly RoutePolicy[] = [
     workspace: "form",
   },
   {
+    // The candidate review (Code Owner, 2026-10-29, Q89; decision 5's read half). A
+    // **read** of what a release of one source into each environment would do, and it
+    // writes nothing at all: no version, no release row, no review token, no audit row.
+    //
+    // `release: read`, which is the three `forms.` roles' cell, and it names **no
+    // environment**, which is the one thing to read twice on this row. The rule the
+    // review of PR #1061 wrote is that the environment the policy checks is the
+    // environment the handler acts in, and this handler **acts in none**: it reads
+    // control-plane release rows and reports per target. The targets it reports are the
+    // ones the caller holds `release: create` in, decided by the handler with the same
+    // {@link decideAccess} the middleware uses, once per served environment, so a target
+    // the caller could not release into is never named - the same shape as the Q7
+    // erasure-scope row one slice over.
+    //
+    // A `POST` for a read because the source is a body (a draft or an exact version) and
+    // because the phase 3 commit takes the same shape; it is idempotent and safe.
+    method: "POST",
+    path: "/admin/forms/{id}/release-review",
+    resource: "release",
+    action: "read",
+    workspace: "form",
+  },
+  {
     method: "POST",
     path: "/admin/forms/{id}/releases",
     resource: "release",
@@ -635,6 +716,33 @@ export const ROUTE_POLICIES: readonly RoutePolicy[] = [
     action: "read",
     workspace: "installation",
     installationOnly: true,
+  },
+
+  // --- Operations discovery: the one `anyOf` row --------------------------------
+  {
+    // D3 (Code Owner, 2026-10-29, Q87): the bounded Operations forms query. The union of
+    // the caller's operational cells, because the screen it serves is the one place five
+    // different grants meet - a `forms.viewer` reading release state, a `responses.viewer`
+    // reading counts, an eraser with no read at all - and no single cell admits them
+    // without widening one.
+    //
+    // `caller`, like the two library lists, because the answer is a filter and not a yes.
+    // `query` for the environment, because the Operations context is an explicit selection
+    // rather than a remembered switcher (C6 keeps the response and webhook rows as they
+    // are: phase 4 sends the selection as that header).
+    method: "GET",
+    path: "/admin/operations/forms",
+    resource: "form",
+    action: "read",
+    workspace: "caller",
+    anyOf: OPERATIONAL_CELLS,
+    namesEnvironment: true,
+    environmentFrom: "query",
+    // **No `audit` kind, and this is F4 rather than an omission** (Code Owner,
+    // 2026-10-29, Q91): an aggregate response count is not a SEC-15 read and writes no
+    // row. Showing one still needs `response: read` for that exact form and environment,
+    // which the handler asks per row. SEC-15's `read` means somebody looked at answers,
+    // and an audit that recorded every list render would bury the rows that do.
   },
 
   // --- responses: the data family, both dimensions ------------------------------

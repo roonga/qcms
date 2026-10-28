@@ -57,13 +57,12 @@ import { resolveWorkspaceForNewObject } from "../workspaces/resolve.js";
 import type { AccessRequest } from "./policy.js";
 import { decideAccess, holdsStatement } from "./policy.js";
 import {
-  type ResolvedMembership,
   holdsInstallationClaim,
   resolveCallerWorkspaces,
   resolveGrants,
   workspacesAllowing,
 } from "./resolver.js";
-import type { GrantContext } from "./context.js";
+import type { GrantContext, ResolvedMembership } from "./context.js";
 import { GRANT_EXEMPT_ROUTES, type RoutePolicy, policyForRequest } from "./route-policy.js";
 
 const fail = {
@@ -110,6 +109,22 @@ const fail = {
    * one caller who would send it is a caller trying to be authorised against one
    * environment while the handler acts in another.
    */
+  /**
+   * A route whose environment is an explicit query parameter was sent none (Q87).
+   *
+   * The Operations context is a selection, so there is nothing to fall back to: a
+   * switcher header a browser remembered is exactly what this route does not read, and
+   * authorising against it would authorise a caller for an environment they did not
+   * choose.
+   */
+  environmentInQueryMissing: (): ApiError =>
+    new ApiError(
+      "INVALID_REQUEST",
+      400,
+      "This route acts in the environment its `environment` query parameter names, so the " +
+        "request has to name one. There is no default: the operations context is an " +
+        "explicit choice.",
+    ),
   environmentNotInBody: (): ApiError =>
     new ApiError(
       "INVALID_REQUEST",
@@ -202,6 +217,19 @@ async function environmentFor(
   const switcher = deps.databases.forRequest(c.get("requestEnvironment")).environment;
   const named = (await readBody(c)) as { environment?: unknown } | undefined;
   const inBody = typeof named?.environment === "string" ? named.environment : undefined;
+
+  if (policy.environmentFrom === "query") {
+    // The Operations context, which is an explicit selection (Q87). Read from the same
+    // query parameter the handler reads, for the reason the body and the switcher are
+    // read where their own handlers read them. A request naming none is refused here
+    // rather than defaulted: defaulting would authorise a caller against an environment
+    // they did not choose, and the parameter is required on the one route that has it, so
+    // the validator refuses it a moment later anyway.
+    if (inBody !== undefined) throw fail.environmentNotInBody();
+    const inQuery = new URL(c.req.url).searchParams.get("environment");
+    if (inQuery === null || inQuery === "") throw fail.environmentInQueryMissing();
+    return inQuery;
+  }
 
   if (policy.environmentFrom === "body") {
     // The handler reads the body, so the body is what is authorised. A body that names
@@ -386,6 +414,7 @@ async function decideRequest(
       userId: input.userId,
       claim,
     });
+    if (policy.anyOf !== undefined) return anyOfContext(policy, resolved, environment);
     const workspaceIds = workspacesAllowing(resolved, request);
     if (workspaceIds.length === 0) {
       throw fail.refused(
@@ -407,6 +436,61 @@ async function decideRequest(
     request,
     ...(environment === undefined ? {} : { environment }),
   });
+}
+
+/**
+ * The context an `anyOf` row leaves behind, or a refusal (Q87).
+ *
+ * # What is decided here and what is deliberately not
+ *
+ * **Decided:** whether this caller is an operational caller at all - does any workspace
+ * they hold a grant in declare any one of the row's cells. A caller holding none is
+ * refused, naming the row's primary cell, because they have no Operations area: a
+ * `forms.owner` alone and the installation claim alone reach no form cell anywhere (D3's
+ * two "None" rows, G06).
+ *
+ * **Not decided:** which forms, and which fields of each. Neither scope can be judged
+ * here - `response: read` is form-scoped and this route names no form in its path - so
+ * the handler judges per (form, cell, environment) with the **memberships resolved here**,
+ * which is why they travel on the context. The alternative is the thing this context
+ * exists to prevent: a handler resolving the caller's grants a second time is a second
+ * chance to disagree with the first.
+ *
+ * So a caller holding `response: read` in `test` who asks for `prod` is **admitted and
+ * gets an empty page** (G12), not a 403: they hold the cell, and the environment narrows
+ * the rows rather than the route. That distinction is what lets the shell tell "you have
+ * no access here" from "there is nothing here" without guessing.
+ */
+function anyOfContext(
+  policy: RoutePolicy,
+  resolved: readonly ResolvedMembership[],
+  environment: string | undefined,
+): GrantContext {
+  const cells = policy.anyOf ?? [];
+  const holding = resolved.filter((membership) =>
+    cells.some((cell) =>
+      holdsStatement(
+        { memberRole: membership.memberRole, grants: membership.grants },
+        cell.resource,
+        cell.action,
+      ),
+    ),
+  );
+  if (holding.length === 0) {
+    throw fail.refused(
+      decideAccess({
+        memberRole: undefined,
+        grants: [],
+        request: { resource: policy.resource, action: policy.action },
+      }).reason ?? "Refused",
+    );
+  }
+  return {
+    policy,
+    workspaceIds: holding.map((membership) => membership.workspaceId),
+    memberships: holding,
+    ...(environment === undefined ? {} : { environment }),
+  };
 }
 
 /** Decide an act in one named workspace, and answer the context it leaves behind. */

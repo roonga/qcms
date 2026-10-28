@@ -85,6 +85,8 @@ export async function insertFormRelease(
 export interface FormEnvironmentState {
   readonly version: number;
   readonly closed: boolean;
+  /** When the newest row for the pair was written: a release, a close or a reopen. */
+  readonly releasedAt: Date;
 }
 
 /** The form's released version and closed reading in one environment. */
@@ -94,7 +96,9 @@ export async function getFormEnvironmentState(
   environment: string,
 ): Promise<FormEnvironmentState | undefined> {
   const row = await getReleasedVersion(exec, formId, environment);
-  return row === undefined ? undefined : { version: row.version, closed: row.closed };
+  return row === undefined
+    ? undefined
+    : { version: row.version, closed: row.closed, releasedAt: row.releasedAt };
 }
 
 /** {@link getReleasedVersion}'s reading for every form in one environment, in one query. */
@@ -102,17 +106,56 @@ export async function environmentStatesByForm(
   exec: Executor,
   environment: string,
 ): Promise<Map<FormId, FormEnvironmentState>> {
-  const rows = await exec.execute<{ form_id: FormId; version: number; closed: boolean }>(
+  const rows = await exec.execute<{
+    form_id: FormId;
+    version: number;
+    closed: boolean;
+    released_at: Date | string;
+  }>(
     sql`select distinct on (${formReleases.formId})
                ${formReleases.formId} as form_id,
                ${formReleases.version} as version,
-               ${formReleases.closed} as closed
+               ${formReleases.closed} as closed,
+               ${formReleases.releasedAt} as released_at
           from ${formReleases}
          where ${formReleases.environment} = ${environment}
          order by ${formReleases.formId}, ${formReleases.sequence} desc`,
   );
   return new Map(
-    rows.rows.map((row) => [row.form_id, { version: Number(row.version), closed: row.closed }]),
+    rows.rows.map((row) => [
+      row.form_id,
+      {
+        version: Number(row.version),
+        closed: row.closed,
+        releasedAt: row.released_at instanceof Date ? row.released_at : new Date(row.released_at),
+      },
+    ]),
+  );
+}
+
+/**
+ * When each form was last released to **any** environment, in one query.
+ *
+ * The Operations forms table's "last release" column (Q87), which is a different question
+ * from {@link environmentStatesByForm}: that one answers what is serving in the selected
+ * environment, and this one answers when the form last moved anywhere, so a form serving
+ * an old version in `prod` still reads as recently released when its `test` release
+ * landed yesterday. One query for the whole page rather than one per row, because that
+ * table is the one screen that asks the question N times.
+ */
+export async function lastReleaseAtByForm(exec: Executor): Promise<Map<FormId, Date>> {
+  const rows = await exec
+    .select({
+      formId: formReleases.formId,
+      lastReleaseAt: sql<Date | string>`max(${formReleases.releasedAt})`.as("last_release_at"),
+    })
+    .from(formReleases)
+    .groupBy(formReleases.formId);
+  return new Map(
+    rows.map((row) => [
+      row.formId,
+      row.lastReleaseAt instanceof Date ? row.lastReleaseAt : new Date(row.lastReleaseAt),
+    ]),
   );
 }
 

@@ -489,6 +489,15 @@ export const FormDetailResponse = z
      * has to say before the operator acts rather than after a 403.
      */
     requiresSecondApprover: z.boolean().openapi({ example: false }),
+    /**
+     * The release-workflow projection for the switcher's environment (G10).
+     *
+     * **Deprecated (F6, Code Owner 2026-10-29, Q90).** `POST /admin/forms/{id}/release-review`
+     * is its replacement: it answers per target rather than for whichever environment a
+     * switcher happened to hold, which is what Q84 decided the publish wizard needs. This
+     * field keeps serving the current wizard unchanged and is removed in phase 5 once that
+     * client reads the review instead. Nothing new should read it.
+     */
     workflow: z.object({
       enabled: z.boolean(),
       environment: z.string(),

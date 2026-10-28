@@ -202,6 +202,34 @@ export async function getLatestPublishedVersion(
   return row;
 }
 
+/**
+ * The localised title of each named form's newest published version, in one query.
+ *
+ * The Operations forms table's display name (Q87). It reads **published versions and
+ * never the open draft**, which is the point rather than an optimisation: a response-only
+ * caller may be told what a form is called and may not be shown a draft body, and a query
+ * that cannot reach a draft cannot leak one. A form with nothing published is absent, and
+ * its caller falls back to the slug.
+ *
+ * One query for the page rather than one per row, so the table's identity column costs
+ * the same at fifty forms as at five.
+ */
+export async function publishedTitlesByForm(
+  exec: Executor,
+  formIds: readonly FormId[],
+): Promise<Map<FormId, unknown>> {
+  if (formIds.length === 0) return new Map();
+  const rows = await exec
+    .selectDistinctOn([formVersions.formId], {
+      formId: formVersions.formId,
+      title: sql<unknown>`${formVersions.definition} -> 'title'`.as("title"),
+    })
+    .from(formVersions)
+    .where(inArray(formVersions.formId, [...formIds]))
+    .orderBy(formVersions.formId, desc(formVersions.version));
+  return new Map(rows.map((row) => [row.formId, row.title]));
+}
+
 /** All versions of a form, newest first. */
 export async function listFormVersions(exec: Executor, formId: FormId): Promise<FormVersionRow[]> {
   return exec

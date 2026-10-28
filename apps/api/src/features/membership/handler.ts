@@ -41,7 +41,9 @@ import {
 import type { Deps } from "../../deps.js";
 import { ApiError } from "../../errors.js";
 import type { ApiEnv } from "../../openapi.js";
-import { holdsInstallationClaim } from "./resolver.js";
+import { holdsStatement, type Resource } from "./policy.js";
+import { holdsInstallationClaim, resolveCallerWorkspaces } from "./resolver.js";
+import { OPERATIONAL_CELLS } from "./route-policy.js";
 import type {
   addHolderRoute,
   auditRoute,
@@ -332,10 +334,12 @@ export function makeMyAccessHandler(deps: Deps): RouteHandler<typeof myAccessRou
       byWorkspace.set(grant.workspaceId, slot);
     }
 
+    const claim = holdsInstallationClaim(principal.role);
     return c.json(
       {
         userId: principal.userId,
-        installationAdmin: holdsInstallationClaim(principal.role),
+        installationAdmin: claim,
+        capabilities: await areasFor(exec, { userId: principal.userId, claim }),
         workspaces: [...byWorkspace.values()].map((workspace) => ({
           ...workspace,
           environments: environmentsHeld(workspace.grants, live),
@@ -343,6 +347,53 @@ export function makeMyAccessHandler(deps: Deps): RouteHandler<typeof myAccessRou
       },
       200,
     );
+  };
+}
+
+/**
+ * Which areas of the admin a caller has (F1, Q90).
+ *
+ * # Derived, and derived from the one decision function
+ *
+ * Each flag asks whether **any** workspace the caller holds a grant in allows the cell
+ * that area's routes require, through the same {@link decideAccess} the grant middleware
+ * calls. So the contract cannot drift from enforcement: a role whose statements change
+ * moves both at once, and a seventh role would need no change here at all. The
+ * alternative - a list of role names, or a client reading `grants` and deciding for
+ * itself - is the thing G12 refuses, because a mode offered by one implementation and
+ * refused by another is a 403 the shell walks into.
+ *
+ * Both scopes are **deliberately ignored**, which is the same judgement `holdsStatement`
+ * records one module over: this answers "is there an area here at all", and which
+ * environments and forms inside it are reachable is each area's own routes' answer. An
+ * eraser scoped to one form in `test` has an Operations area; what is in it is
+ * `GET /admin/operations/forms`' answer, per form and per environment.
+ */
+async function areasFor(
+  exec: Executor,
+  input: { readonly userId: string; readonly claim: boolean },
+): Promise<{
+  operations: boolean;
+  workspaces: boolean;
+  siteConfiguration: boolean;
+  authoring: boolean;
+}> {
+  const resolved = await resolveCallerWorkspaces(exec, input);
+  const anywhere = (resource: Resource, action: string): boolean =>
+    resolved.some((membership) =>
+      holdsStatement(
+        { memberRole: membership.memberRole, grants: membership.grants },
+        resource,
+        action,
+      ),
+    );
+  return {
+    operations: OPERATIONAL_CELLS.some((cell) => anywhere(cell.resource, cell.action)),
+    workspaces: anywhere("workspace", "read"),
+    // The claim's alone (F8). Not a cell: the configuration routes it leads to are
+    // `installationOnly` rows, which no role reaches however it is scoped.
+    siteConfiguration: input.claim,
+    authoring: anywhere("form", "read") || anywhere("question", "read"),
   };
 }
 

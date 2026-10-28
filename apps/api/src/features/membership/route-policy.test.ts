@@ -4,7 +4,12 @@ import { fileURLToPath } from "node:url";
 import { describe, expect, it } from "vitest";
 
 import { ACTIONS, isEnvironmentScoped, isFormScoped } from "./policy.js";
-import { GRANT_EXEMPT_ROUTES, ROUTE_POLICIES, policyForRequest } from "./route-policy.js";
+import {
+  GRANT_EXEMPT_ROUTES,
+  OPERATIONAL_CELLS,
+  ROUTE_POLICIES,
+  policyForRequest,
+} from "./route-policy.js";
 
 /**
  * Every mounted admin route is a cell of the permissions matrix (task 069, criterion 11).
@@ -176,6 +181,21 @@ describe("every row names an action the policy declares", () => {
       return resolved?.properties !== undefined && "environment" in resolved.properties;
     };
 
+    /** Whether this route declares a required `environment` **query** parameter (Q87). */
+    const declaresEnvironmentQuery = (row: (typeof ROUTE_POLICIES)[number]): boolean => {
+      const operation = document.paths[row.path]?.[row.method.toLowerCase()] as
+        | { parameters?: { name?: string; in?: string; required?: boolean }[] }
+        | undefined;
+      return (
+        operation?.parameters?.some(
+          (parameter) =>
+            parameter.name === "environment" &&
+            parameter.in === "query" &&
+            parameter.required === true,
+        ) === true
+      );
+    };
+
     for (const row of ROUTE_POLICIES) {
       const label = `${row.method} ${row.path}`;
       // A flag-gated route has no entry to compare against; neither of the two names an
@@ -195,6 +215,15 @@ describe("every row names an action the policy declares", () => {
       expect(row.environmentFrom === "body", `${label}: environmentFrom vs its OpenAPI body`).toBe(
         declaresEnvironment(row),
       );
+      // The third source (Q87): a `"query"` row declares a **required** `environment`
+      // query parameter, which is the one the middleware reads and the one the handler
+      // reads. A row claiming `"query"` without declaring it would be a gate reading a
+      // parameter nothing validates, which is the shape of the defect this case exists
+      // for one source over.
+      expect(
+        row.environmentFrom === "query",
+        `${label}: environmentFrom vs its OpenAPI query parameters`,
+      ).toBe(declaresEnvironmentQuery(row));
     }
   });
 
@@ -202,12 +231,46 @@ describe("every row names an action the policy declares", () => {
     // `publish-and-release` is why this is "one of its cells" rather than "its cell": its
     // primary act is `form: publish`, which is environment-agnostic because publishing
     // releases a version nowhere, and its `also` act is `release: create`, which is not.
+    // The Operations row is the second reason and the same shape one dimension over: its
+    // primary cell is `form: read`, which is workspace-wide, and three of its `anyOf`
+    // cells are response acts, which are not.
     for (const row of ROUTE_POLICIES) {
-      const scoped =
-        isEnvironmentScoped(row.resource, row.action) ||
-        (row.also !== undefined && isEnvironmentScoped(row.also.resource, row.also.action));
+      const cells = [
+        { resource: row.resource, action: row.action },
+        ...(row.also === undefined ? [] : [row.also]),
+        ...(row.anyOf ?? []),
+      ];
+      const scoped = cells.some((cell) => isEnvironmentScoped(cell.resource, cell.action));
       expect(row.namesEnvironment === true, `${row.method} ${row.path}`).toBe(scoped);
     }
+  });
+
+  it("gives the Operations row every operational cell, and gives no other row an `anyOf`", () => {
+    // D3 (Q87): the union of the four operational cells, admitted by a row shape that
+    // exists for this one screen. A second `anyOf` row is a decision somebody should
+    // argue for, so the count and the names are both asserted - the same shape the
+    // two-cell rows above are held to.
+    const withAnyOf = ROUTE_POLICIES.filter((row) => row.anyOf !== undefined);
+    expect(withAnyOf.map((row) => `${row.method} ${row.path}`)).toEqual([
+      "GET /admin/operations/forms",
+    ]);
+    const row = policyForRequest("GET", "/admin/operations/forms");
+    expect(row?.resource).toBe("form");
+    expect(row?.action).toBe("read");
+    expect(row?.workspace).toBe("caller");
+    expect(row?.environmentFrom).toBe("query");
+    expect(row?.anyOf?.map((cell) => `${cell.resource}:${cell.action}`)).toEqual([
+      "form:read",
+      "response:read",
+      "response:erase",
+      "response:dispose",
+    ]);
+    // **No SEC-15 kind**, which is F4 (Q91) rather than an omission: an aggregate
+    // response count is not a read of anybody's answers and writes no row.
+    expect(row?.audit).toBeUndefined();
+    // The row's `anyOf` is the same list the capability projection reads, so the
+    // navigation contract and the route cannot disagree about who has an Operations area.
+    expect(row?.anyOf).toBe(OPERATIONAL_CELLS);
   });
 
   it("gives `publish-and-release` both of its cells, and names every row that has two", () => {

@@ -150,6 +150,70 @@ export async function fetchResponsePage(
   return res.rows.map(normalizeRow);
 }
 
+/** How many responses one form has in one environment, submitted and still open. */
+export interface ResponseCounts {
+  /** Submitted and not erased: the rows the response list would show. */
+  readonly submitted: number;
+  /** Started and neither submitted, expired nor erased. */
+  readonly inProgress: number;
+}
+
+/**
+ * {@link ResponseCounts} for several forms in one environment, in two queries (Q87, Q91).
+ *
+ * # Why two sources rather than one count of `sessions`
+ *
+ * `submitted` is read from the **erasure-safe `responses` view**, so an erased response
+ * is not counted: erasing deletes the submission and leaves the session shell behind, and
+ * a count taken from `sessions.status` would keep reporting a response the respondent had
+ * exercised their right to have removed - and would disagree with the list the same
+ * caller can open. `inProgress` has no such view, because an unfinished session has
+ * nothing to project, so it is counted from `sessions` in the two live statuses.
+ *
+ * Two grouped queries for the whole page, never one pair per row: the aggregate is the
+ * one field on the Operations table that costs a query, so it costs two for fifty forms.
+ *
+ * **It writes no audit row and the caller must not write one for it** (F4, Q91): an
+ * aggregate is not a SEC-15 read. Showing it still needs `response: read` for that exact
+ * form and environment, which is the caller's to establish - this function authorises
+ * nothing and is given the form ids that passed that test.
+ */
+export async function responseCountsByForm(
+  exec: Executor,
+  environment: string,
+  formIds: readonly FormId[],
+): Promise<Map<FormId, ResponseCounts>> {
+  if (formIds.length === 0) return new Map();
+  const ids = sql.join(
+    formIds.map((id) => sql`${id}`),
+    sql`, `,
+  );
+  const submitted = await exec.execute<{ formId: FormId; count: number }>(sql`
+    select r.form_id as "formId", count(*)::int as "count"
+    from ${reportingSchema(environment)} r
+    where r.form_id in (${ids})
+    group by r.form_id
+  `);
+  const open = await exec.execute<{ formId: FormId; count: number }>(sql`
+    select s.form_id as "formId", count(*)::int as "count"
+    from sessions s
+    where s.form_id in (${ids}) and s.status in ('created', 'in_progress')
+    group by s.form_id
+  `);
+
+  const counts = new Map<FormId, ResponseCounts>();
+  for (const id of formIds) counts.set(id, { submitted: 0, inProgress: 0 });
+  for (const row of submitted.rows) {
+    const existing = counts.get(row.formId);
+    if (existing !== undefined) counts.set(row.formId, { ...existing, submitted: row.count });
+  }
+  for (const row of open.rows) {
+    const existing = counts.get(row.formId);
+    if (existing !== undefined) counts.set(row.formId, { ...existing, inProgress: row.count });
+  }
+  return counts;
+}
+
 /** A tombstone row: the existence of an erased response without its content. */
 export interface TombstoneRow {
   readonly sessionId: SessionId;

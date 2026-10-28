@@ -451,10 +451,16 @@ const allSurfaces = createApp(
 // `externalGroupId` a key the API refuses rather than strips (Q39, criterion 15): a body
 // that stripped it would answer 200 to a caller who thought they had set the directory
 // mapping's join key.
+//
+// Issue #1174 moves the admin count from 25 to 26 and the all-surfaces one from 33 to 34:
+// the candidate review takes a body naming its source, the draft or one exact immutable
+// version (`ReleaseReviewBody`, decision 5's read half). A `z.strictObject` with a
+// discriminated union inside it, so an unknown key in either arm is refused rather than
+// stripped - which matters on a route whose two arms differ by one field.
 const WALKED: ReadonlyArray<readonly [string, OpenApiDocument, number]> = [
   ["respondent", readCommitted("respondent"), 6],
-  ["admin", committedAdmin, 25],
-  ["all surfaces with every flag on", allSurfaces, 33],
+  ["admin", committedAdmin, 26],
+  ["all surfaces with every flag on", allSurfaces, 34],
 ];
 
 describe("every request body rejects unknown keys (issue #893)", () => {
