@@ -1,20 +1,5 @@
-/**
- * Route definitions for the outbox delivery-operations admin slices (task 025) -
- * the operator surface for webhook dead-letters: inspect and manually redeliver.
- * 035 renders this.
- *
- * Every route is declared with `@hono/zod-openapi` `createRoute` (017's
- * convention) and carries its SEC-5 scope via `withScopes`. The launch scope
- * taxonomy has **no dedicated operations scope**; these delivery-ops actions are
- * the closest fit to `webhooks:manage` (the same authority that configures the
- * webhooks whose deliveries are being operated), so they annotate with it. A
- * `webhooks:operate` (or `outbox:manage`) split is a Phase-4 refinement. Scopes
- * are inert at launch (the `/api/v1` surface is reserved, R7).
- *
- * The admin group is guarded by the internal service-token gate (SEC-4) and the
- * admin-auth gate (`registerAdminAuth`) before any handler runs; in a public-only
- * process the group is not mounted, so these paths 404, never 403 (ADR-09).
- */
+// The scope taxonomy has no operations scope, so these delivery-ops routes annotate with
+// `webhooks:manage`: the same authority that configures the webhooks being operated.
 
 import { createRoute } from "@hono/zod-openapi";
 
@@ -44,7 +29,6 @@ export const deliveriesRoute = createRoute({
       description: "The form's recent deliveries, newest first",
       content: { "application/json": { schema: DeliveriesResponse } },
     },
-    // 400: malformed form id. 404: no such form.
     ...errorResponses(400, 401, 404),
   },
   ...withScopes("webhooks:manage"),
@@ -76,19 +60,13 @@ export const redeliverRoute = createRoute({
       description: "The delivery, reset to due-now; the next pass re-attempts it",
       content: { "application/json": { schema: RedeliverResponse } },
     },
-    // 400: a path parameter that is not a well-formed id is refused by the route
-    // schema. 404: no such delivery **in this form**; a delivery of another form
-    // takes the same 404 (#305). 409: the response it carries is no longer held
-    // (ADR-17), so its queued payload must not be re-sent.
     ...errorResponses(400, 401, 404, 409),
   },
   ...withScopes("webhooks:manage"),
 });
 
-/**
- * Register the outbox delivery-ops routes on an admin group. The admin-auth gate
- * (`registerAdminAuth`) must precede this in the admin bucket so it runs first.
- */
+// `registerAdminAuth` must be registered on the admin bucket before this, so the auth
+// gate runs ahead of these handlers.
 export const registerOutboxOps: SliceRegistrar = (group, deps: Deps): void => {
   group.openapi(deadLettersRoute, makeDeadLettersHandler(deps));
   group.openapi(deliveriesRoute, makeDeliveriesHandler(deps));
