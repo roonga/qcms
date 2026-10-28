@@ -337,7 +337,7 @@ export function resolveSpawn(
   }
   const named = command.includes("/") || command.includes("\\");
   if (named) {
-    if (!/.(?:cmd|bat)$/i.test(command)) return { command, args, shell: false };
+    if (!/\.(?:cmd|bat)$/i.test(command)) return { command, args, shell: false };
     return { command: [command, ...args].map(quoteForShell).join(" "), args: [], shell: true };
   }
   const shim = join(packageRoot, "node_modules", ".bin", `${command}.CMD`);
