@@ -628,7 +628,7 @@ export const ROUTE_POLICIES: readonly RoutePolicy[] = [
     // The installation-wide dead-letter list. It names no form, so no workspace owns it,
     // and it carries delivery state rather than response content - the one answer-bearing
     // column an event can hold is redacted by the retention sweep (#329) and is not read
-    // here. The claim's, like the environment list.
+    // here. The claim's.
     method: "GET",
     path: "/admin/outbox/dead-letters",
     resource: "webhook",
