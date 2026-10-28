@@ -212,6 +212,11 @@ describe("the §3.2 matrix and the probe inventory stay in step", () => {
       // the two-person rule's own surface, and a probe set that lost them would still cover
       // the endpoint slice and claim the same coverage.
       "/admin/forms/{id}/webhooks/proposals",
+      // Operations discovery (Q87, issue #1174). Its own prefix because it is the one
+      // admin route a response-only caller can reach at all: a probe set that lost it
+      // would still cover `/admin/forms` and claim the same coverage, while the route
+      // that exists precisely for the callers `/admin/forms` refuses went unasserted.
+      "/admin/operations/forms",
     ]) {
       expect(
         adminPaths.some((path) => path.includes(slice)),
@@ -258,6 +263,11 @@ const DOCUMENTED_ROLE_ROWS: Readonly<Record<string, readonly [string, string]>> 
   "Read the access audit": ["audit", "read"],
   "Create workspaces, mark the shared one, environment settings, user accounts, release-workflow configuration":
     ["workspace", "update"],
+  // Issue #1174's row (Q87). Its route is the one `anyOf` row, so the cell named here is
+  // that row's **primary** cell: this map is many-to-one by design, and the assertion
+  // below is that a route performs the documented act rather than that the act is one
+  // cell. The other three cells of the union have their own documented rows above.
+  "Discover operational form metadata in an environment": ["form", "read"],
   "Read any response anywhere": ["response", "read"],
 };
 

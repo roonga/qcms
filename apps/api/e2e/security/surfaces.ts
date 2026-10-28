@@ -267,6 +267,34 @@ export const SURFACES: readonly Surface[] = [
     anonymousReachable: false,
     readControl: true,
   },
+  {
+    // The candidate review (Q89, issue #1174). A `POST` that writes nothing, so it is a
+    // `readControl` as well as a gate probe: a review that answered 403 to the fully
+    // credentialed administrator would be a positive control nobody had.
+    name: "POST /admin/forms/{id}/release-review",
+    row: "authoring",
+    group: "admin",
+    method: "POST",
+    path: (ctx) => `/admin/forms/${ctx.formId}/release-review`,
+    body: { source: { kind: "version", version: 1 } },
+    anonymousReachable: false,
+    readControl: true,
+  },
+  {
+    // Operations discovery (Q87, issue #1174). The `authoring` row of the credential
+    // table, like every other admin read: that table is about what a caller presents, and
+    // an admin session is as necessary here as anywhere. **Which grant may then call it is
+    // the role table's own row**, "Discover operational form metadata in an environment",
+    // and the per-persona assertions are
+    // `apps/api/src/features/operations/operations.integration.test.ts`.
+    name: "GET /admin/operations/forms",
+    row: "authoring",
+    group: "admin",
+    method: "GET",
+    path: () => "/admin/operations/forms?environment=prod",
+    anonymousReachable: false,
+    readControl: true,
+  },
   // The workspace slice (ADR-41, task 068). Six routes, one entry each rather than one
   // representative, because the route *shapes* differ in what they would do if a gate
   // ever let a caller through: a list, a create, a switch, the archive, and the two

@@ -430,13 +430,17 @@ describe("the closed state is per (form, environment) (Q18, task 066)", () => {
     expect(closed?.version).toBe(2);
     expect(closed?.closed).toBe(true);
     expect(closed?.fromEnvironment).toBeNull();
+    // `releasedAt` is the newest row's own timestamp, whichever of the three acts wrote
+    // it (issue #1174 added it, for the operations table's release column).
     expect(await getFormEnvironmentState(testDb.db, formId, "prod")).toEqual({
       version: 2,
       closed: true,
+      releasedAt: expect.any(Date),
     });
     expect(await getFormEnvironmentState(testDb.db, formId, "test")).toEqual({
       version: 1,
       closed: false,
+      releasedAt: expect.any(Date),
     });
 
     const reopened = await reopenFormInEnvironment(testDb.db, {
@@ -449,6 +453,7 @@ describe("the closed state is per (form, environment) (Q18, task 066)", () => {
     expect(await getFormEnvironmentState(testDb.db, formId, "prod")).toEqual({
       version: 2,
       closed: false,
+      releasedAt: expect.any(Date),
     });
   });
 
@@ -503,6 +508,7 @@ describe("the closed state is per (form, environment) (Q18, task 066)", () => {
     expect(await getFormEnvironmentState(testDb.db, formId, "prod")).toEqual({
       version: 2,
       closed: true,
+      releasedAt: expect.any(Date),
     });
   });
 
@@ -531,8 +537,16 @@ describe("the closed state is per (form, environment) (Q18, task 066)", () => {
     });
 
     const states = await environmentStatesByForm(testDb.db, "prod");
-    expect(states.get(closedForm)).toEqual({ version: 1, closed: true });
-    expect(states.get(openForm)).toEqual({ version: 1, closed: false });
+    expect(states.get(closedForm)).toEqual({
+      version: 1,
+      closed: true,
+      releasedAt: expect.any(Date),
+    });
+    expect(states.get(openForm)).toEqual({
+      version: 1,
+      closed: false,
+      releasedAt: expect.any(Date),
+    });
     expect(states.has(otherEnvironment)).toBe(false);
   });
 });
