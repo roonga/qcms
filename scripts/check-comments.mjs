@@ -301,8 +301,9 @@ export function scanText(path, text) {
       }
     });
 
-    const jsdoc = !first.line && first.text.startsWith("/**") && first.exported;
-    const counted = jsdoc ? describedLines(prose) : prose.filter((line) => line !== "").length;
+    const anyJsdoc = !first.line && first.text.startsWith("/**");
+    const jsdoc = anyJsdoc && first.exported;
+    const counted = anyJsdoc ? describedLines(prose) : prose.filter((line) => line !== "").length;
     const limit = jsdoc ? MAX_EXPORT_JSDOC_LINES : MAX_COMMENT_LINES;
     if (counted > limit) {
       hits.push({

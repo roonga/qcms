@@ -48,6 +48,13 @@ describe("comment length", () => {
     expect(rules(jsdoc(MAX_COMMENT_LINES + 1, "function f() {}"))).toEqual(["length"]);
   });
 
+  it("never counts type tags, which carry the types of a checked JavaScript file", () => {
+    const types = [" * @param {string} a", " * @returns {number}"];
+    expect(rules(jsdoc(MAX_COMMENT_LINES, "function f(a) {}", types), "scripts/a.mjs")).toEqual(
+      [],
+    );
+  });
+
   it("gives exported JSDoc its own limit", () => {
     expect(rules(jsdoc(MAX_EXPORT_JSDOC_LINES, "export function f() {}"))).toEqual([]);
     expect(rules(jsdoc(MAX_EXPORT_JSDOC_LINES + 1, "export function f() {}"))).toEqual(["length"]);
