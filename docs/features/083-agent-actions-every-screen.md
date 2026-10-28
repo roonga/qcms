@@ -89,7 +89,9 @@ Both caps in `plan/agent-everywhere.md` section 16 are ruled as recommended (Cod
 
 ## Delivery
 
-**080 to 083 are implemented and merged as one branch and one PR** (Code Owner, 2026-10-24), on `feat/080-agent-everywhere`. The branch is the claim for all four.
+**080 and 081 ship first, in their own branch and PR, ahead of the environment navigation shell; 082 and this task follow later** (Code Owner, 2026-10-29, superseding the 2026-10-24 ruling below **for delivery only**). Everything else that ruling settled stands, and the commit order within each branch is unchanged: 080 then 081 on the first branch, 082 then D0 then D1 to D9 on what follows.
+
+_The ruling this supersedes, kept because the rest of this section implements it:_ **080 to 083 are implemented and merged as one branch and one PR** (Code Owner, 2026-10-24), on `feat/080-agent-everywhere`. The branch is the claim for all four.
 
 - **Commit order, one recoverable commit (or a small run) per step:** 080, 081, 082, D0, then D1 to D9 in order. Each step leaves the branch building and its own tests green before the next starts, so an interruption parks on a coherent boundary and a `HANDOFF.md` can name the last completed step.
 - **D0 before any screen group.** D1 to D9 each add the descriptors, templates, the trailing argument and the audit call for one screen group, with its tests; none is started until D0's criteria 1, 2 and 7 pass on the branch.
