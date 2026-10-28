@@ -1,30 +1,3 @@
-/**
- * Route definitions for the workspace model (ADR-41, task 068).
- *
- * Six routes on the **admin** surface, behind the SEC-4 internal-service-token gate and
- * the admin-session gate like every other admin slice: the workspace list, the one path
- * by which a workspace comes into existence, the shared-library switch, the archive, and
- * the two ownership moves.
- *
- * # Why the two move routes live in this slice
- *
- * `POST /forms/{id}/workspace` and `POST /questions/{id}/workspace` are addressed under
- * the form and question collections and are registered here, because what they change is
- * ownership and because they share this slice's rules: the same "the target workspace
- * exists and is not archived" check, and the same reason for existing - archiving is the
- * last step, so a workspace's contents are reassigned first (Q15). Keeping them beside
- * the archive refusal that demands them is what stops the two drifting apart. The paths
- * are distinct from every route the forms and questions slices mount, so the mount order
- * in `registrars.ts` decides nothing here.
- *
- * # Scopes
- *
- * The forms pair rather than a new `workspaces:*` member of the SEC-5 taxonomy, which is
- * fixed (`openapi.ts`). A workspace owns forms and questions and the acts below are acts
- * on the authoring plane; the authority that will actually gate them is ADR-41's
- * `forms.owner`, which task 069 builds. Scopes stay inert at launch either way.
- */
-
 import { createRoute } from "@hono/zod-openapi";
 
 import type { SliceRegistrar } from "../../app.js";
@@ -83,7 +56,6 @@ export const createWorkspaceRoute = createRoute({
       description: "The workspace just created",
       content: { "application/json": { schema: WorkspaceResponse } },
     },
-    // 409: the slug is taken.
     ...errorResponses(400, 401, 409),
   },
   ...withScopes("forms:write"),
@@ -103,7 +75,6 @@ export const setSharedWorkspaceRoute = createRoute({
       description: "The workspace as it now stands",
       content: { "application/json": { schema: WorkspaceResponse } },
     },
-    // 409: another workspace already holds the library, or this one is archived.
     ...errorResponses(400, 401, 404, 409),
   },
   ...withScopes("forms:write"),
@@ -128,8 +99,6 @@ export const archiveWorkspaceRoute = createRoute({
       description: "The archived workspace",
       content: { "application/json": { schema: WorkspaceResponse } },
     },
-    // 409: the workspace still owns a form, or it is the shared library, or it is
-    // archived already.
     ...errorResponses(401, 404, 409),
   },
   ...withScopes("forms:write"),

@@ -1,49 +1,8 @@
-/**
- * The pending `prod` endpoint change: propose, confirm, withdraw and apply (Q30, Q51;
- * task 070, carrying task 067's criterion 8a).
- *
- * # Why an endpoint change is two acts where a release is one
- *
- * Q51 gives the two-person rule two shapes deliberately. A release names a version that
- * already exists and can be judged in one look, so it is one act. **An endpoint change is a
- * new value somebody has to read before it is live**, so it is proposed, held pending and
- * confirmed by a different account - and until it is confirmed it takes effect on nothing:
- * the live endpoint rows in `data_<env>.webhooks` are untouched, so the deliverer keeps
- * posting to the URL that was already agreed and the proposed URL receives nothing at all.
- *
- * SEC-14's per-environment egress allowlist stays the network backstop underneath, because
- * an endpoint that should not have been set is still an endpoint a firewall can refuse.
- *
- * # The two pools, and why the order is the conservative one
- *
- * The proposal is control-plane state and the endpoint is the environment's, so a
- * confirmation cannot be one transaction (`@roonga/qcms-db`'s
- * `schema/control/endpoint-proposals.ts` says why the proposal lives where it does). Three
- * steps, in this order:
- *
- *   1. **claim**, on the control pool: one conditional `UPDATE` stamps the confirming
- *      account, so two confirmations racing cannot both win, and the SEC-15 row rides the
- *      same transaction (Q61) so a confirmation cannot exist without a record of it;
- *   2. **apply**, on that environment's pool: the endpoint write, idempotent by the
- *      `webhook_id` the proposal minted;
- *   3. **stamp applied**, on the control pool.
- *
- * A failure between 1 and 3 leaves a row saying `confirmed_at` with `applied_at` null, and
- * **the endpoint is not live**. That is the direction this control has to fail in: the
- * alternative order would leave production personal data flowing to a new URL with nothing
- * recording who agreed to it. The resume path is a second confirmation, which
- * {@link resumeEndpointProposal} serves for a row already claimed by a different account
- * than the proposer.
- *
- * # What the audit row carries, and what it does not
- *
- * Every propose, confirm and withdraw writes a SEC-15 row of kind `setting` (Q61), with the
- * environment and the form filled in because the act names both. **The URL is not in it.**
- * The audit is readable by a workspace's `forms.owner`, who is not in the `forms` family at
- * all and whom Q58 never gave an unmasked endpoint URL; putting the proposed URL in a
- * `detail` would route round that ruling through the audit screen. The proposal row carries
- * the URL and the endpoint read applies Q58's masking to it.
- */
+// The proposal is control-plane state and the endpoint is the environment's, so a
+// confirmation cannot be one transaction. Claim on control (audit row in the same
+// transaction), apply on the environment, then stamp applied: a failure part way leaves a
+// confirmed proposal whose endpoint is not live, which is the direction this has to fail
+// in.
 
 import {
   confirmEndpointProposal,
@@ -65,19 +24,11 @@ import type { FormId } from "@roonga/qcms-core";
 import type { Deps } from "../../deps.js";
 import { ApiError } from "../../errors.js";
 
-/** The three configure acts a proposal can carry. */
 export type EndpointChangeKind = "create" | "update" | "deactivate";
 
-/** The refusals this mechanism raises. */
 export const proposalFailures = {
-  /**
-   * A second pending change to the same endpoint.
-   *
-   * A 409 rather than a silent replacement. Two pending changes would make "confirm this
-   * one" ambiguous, and the confirmation of the second would overwrite a value its own
-   * confirmer had read in a different screen. The unique index refuses it at the database
-   * too, and this is what makes the answer a sentence rather than a constraint violation.
-   */
+  // Refused rather than silently replaced: two pending changes would let a confirmer
+  // approve a value they read on a different screen.
   alreadyPending: (): ApiError =>
     new ApiError(
       "ENDPOINT_CHANGE_PENDING",
@@ -85,20 +36,13 @@ export const proposalFailures = {
       "This endpoint already has a change waiting for a second approver. Confirm or " +
         "withdraw that one first.",
     ),
-  /** No such proposal in this form and this environment. */
   notFound: (): ApiError =>
     new ApiError(
       "ENDPOINT_PROPOSAL_NOT_FOUND",
       404,
       "No such pending endpoint change for this form in this environment",
     ),
-  /**
-   * The confirming account is the proposing one (Q51, criterion 7).
-   *
-   * A **403**: the request is well formed and what is missing is a second account, which
-   * no retry by this one can supply. This is the whole point of the mechanism, so it is
-   * refused here, by a predicate in the claiming statement, and by a CHECK on the table.
-   */
+  // Also refused by a predicate in the claiming statement and by a CHECK on the table.
   selfConfirmation: (): ApiError =>
     new ApiError(
       "PROPOSER_CANNOT_CONFIRM",
@@ -106,7 +50,6 @@ export const proposalFailures = {
       "You proposed this change, so you cannot confirm it. A different account holding " +
         "forms.approver with prod in scope has to.",
     ),
-  /** Somebody else confirmed or withdrew it first. */
   notPending: (): ApiError =>
     new ApiError(
       "ENDPOINT_PROPOSAL_NOT_PENDING",
@@ -116,20 +59,16 @@ export const proposalFailures = {
     ),
 } as const;
 
-/**
- * Whether a driver error is a unique-violation (23505).
- *
- * Two keys reach it and both are races this module settles rather than reports: the
- * `one_open` index, where the loser of two proposals gets a 409, and `webhooks_pkey`, where
- * the loser of two resumes of the same `create` gets an idempotent success.
- */
+// Unique-violation (23505). Both keys that reach it are races this module settles rather
+// than reports.
 function isPendingKeyViolation(error: unknown): boolean {
   const code = (error as { code?: string })?.code;
   const causeCode = (error as { cause?: { code?: string } })?.cause?.code;
   return code === "23505" || causeCode === "23505";
 }
 
-/** The `detail` one of these acts writes to its SEC-15 row. See the header for what is absent. */
+// No URL in the audit detail: a workspace's `forms.owner` can read the audit and Q58 never
+// gave them an unmasked endpoint URL.
 function auditDetail(
   act: "propose" | "confirm" | "withdraw",
   proposal: EndpointProposalRow,
@@ -142,14 +81,8 @@ function auditDetail(
   );
 }
 
-/**
- * Store a proposed change pending, with its audit row, in one transaction on the control
- * pool.
- *
- * The caller has already validated whatever the act carries - the URL against the SSRF
- * policy, the secret encrypted - because a proposal of a value that would be refused on
- * apply is a proposal that wastes a second approver's attention.
- */
+// The caller has already validated the URL against the SSRF policy and encrypted the
+// secret, so a stored proposal cannot be refused on apply.
 export async function proposeEndpointChange(
   deps: Deps,
   input: {
@@ -166,9 +99,8 @@ export async function proposeEndpointChange(
   },
 ): Promise<EndpointProposalRow> {
   const exec = deps.databases.control;
-  // Read before write so the ordinary case is a sentence rather than a constraint
-  // violation; the unique index is still what makes two concurrent proposals impossible,
-  // and the catch below is what turns the loser into the same 409.
+  // Advisory only: the unique index is what makes two concurrent proposals impossible, and
+  // the catch below turns the loser into the same 409.
   if (await hasPendingEndpointProposal(exec, input.environment, input.webhookId)) {
     throw proposalFailures.alreadyPending();
   }
@@ -190,7 +122,6 @@ export async function proposeEndpointChange(
       await writeAccessAuditRow(tx, {
         actor: input.proposedBy,
         workspaceId: input.workspaceId,
-        // Q61: the environment and the form are filled in because this act names both.
         environment: input.environment,
         formId: input.formId,
         kind: "setting",
@@ -205,16 +136,9 @@ export async function proposeEndpointChange(
   }
 }
 
-/**
- * Confirm a pending change: claim it for the confirming account, apply it, stamp it
- * applied.
- *
- * **The proposal's own environment is what the apply runs in**, and the caller has already
- * refused a mismatch against the environment the request was authorised for. That is the
- * rule PR #1061's review wrote, applied one layer along: a proposal for `prod` confirmed by
- * a request whose switcher said `test` would have been authorised against `test`, where a
- * `forms.editor` suffices.
- */
+// The apply runs in the proposal's own environment, and the caller must already have
+// refused a mismatch: a `prod` proposal confirmed through a `test` request would have been
+// authorised against `test`, where a `forms.editor` suffices.
 export async function confirmEndpointChange(
   deps: Deps,
   input: {
@@ -226,8 +150,8 @@ export async function confirmEndpointChange(
   const { proposal } = input;
   if (proposal.proposedBy === input.confirmedBy) throw proposalFailures.selfConfirmation();
 
-  // Step 1: claim, with the audit row in the same transaction. The predicate is what picks
-  // the winner of a race; `undefined` means somebody else got there first.
+  // The statement's predicate picks the winner of a race; `undefined` means somebody else
+  // got there first.
   const claimed = await deps.databases.control.transaction(async (tx) => {
     const row = await confirmEndpointProposal(tx, {
       proposalId: proposal.proposalId,
@@ -251,18 +175,8 @@ export async function confirmEndpointChange(
   return applyConfirmedProposal(deps, claimed);
 }
 
-/**
- * Finish a confirmation whose apply did not land, without recording a second confirmation.
- *
- * The resume path the two-pool order above costs. It is **not** a second confirmation: the
- * confirming account of record stays whoever claimed the row, so the two-person property is
- * untouched, and no new audit row is written because no new act was performed - the act was
- * recorded when it happened and this is the mechanical consequence completing.
- *
- * A caller reaching it still had to pass the same gate as a confirmation (`webhook:
- * configure` in `prod`, which is a `forms.approver`'s cell) and is still refused if they
- * are the proposer, so it is not a way round anything.
- */
+// Finishes an apply that did not land. Not a second confirmation: the confirming account
+// of record stays whoever claimed the row, so no new audit row is written.
 export async function resumeEndpointProposal(
   deps: Deps,
   input: { readonly proposal: EndpointProposalRow; readonly confirmedBy: string },
@@ -271,22 +185,15 @@ export async function resumeEndpointProposal(
   return applyConfirmedProposal(deps, input.proposal);
 }
 
-/**
- * Steps 2 and 3: write the endpoint in its own environment, then stamp the proposal
- * applied.
- *
- * Idempotent by `webhook_id`, which is why that id is minted at propose time even for a
- * `create`: a repeated apply writes the same row rather than a second endpoint.
- */
+// Idempotent by `webhook_id`, which is why that id is minted at propose time even for a
+// `create`: a repeated apply writes the same row rather than a second endpoint.
 async function applyConfirmedProposal(
   deps: Deps,
   proposal: EndpointProposalRow,
 ): Promise<EndpointProposalRow> {
   const exec = deps.databases.forRequest(proposal.environment).exec;
   await applyToEndpoint(exec, deps, proposal);
-  // `undefined` here means a concurrent resume stamped it first, which is the same end
-  // state: the row is applied and the endpoint is live. The proposal as it stands is
-  // returned so the caller answers with a consistent body either way.
+  // `undefined` means a concurrent resume stamped it first, which is the same end state.
   const stamped = await markEndpointProposalApplied(deps.databases.control, {
     proposalId: proposal.proposalId,
     appliedAt: deps.clock.now(),
@@ -294,13 +201,8 @@ async function applyConfirmedProposal(
   return stamped ?? proposal;
 }
 
-/**
- * The columns one proposal changes on the endpoint row, as an update patch.
- *
- * A null on the proposal means "this act does not name that field" rather than "set it to
- * null", which is why each one is spread conditionally: a proposal that only flips `active`
- * must not blank the URL its confirmer never looked at.
- */
+// A null on the proposal means the act does not name that field, not "set it to null": a
+// proposal that only flips `active` must not blank the URL its confirmer never looked at.
 function endpointPatch(
   proposal: EndpointProposalRow,
   now: Date,
@@ -321,7 +223,6 @@ function endpointPatch(
   };
 }
 
-/** The endpoint write one proposal describes, in its own environment's data plane. */
 async function applyToEndpoint(
   exec: Executor,
   deps: Deps,
@@ -333,25 +234,15 @@ async function applyToEndpoint(
     return;
   }
   // A repeated apply of a `create` must not mint a second endpoint, so an existing row
-  // wins and the write becomes the update it would have been. The id is minted at propose
-  // time precisely so this is decidable (`newProposalId`'s sibling in `handler.ts`).
+  // wins and the write becomes the update it would have been.
   const existing =
     proposal.kind === "create"
       ? await getWebhook(exec, proposal.formId, proposal.webhookId)
       : undefined;
   if (proposal.kind === "create" && existing === undefined) {
-    // `url` and `secret_encrypted` are `NOT NULL` on the endpoint, and a `create` proposal
-    // always carries both: the create route validated the URL and encrypted the secret
-    // before it proposed anything.
-    //
-    // **The primary-key violation is an idempotent success, not an error** (PR #1100's
-    // review, finding 7). Two resumes of the same unapplied `create` can both read
-    // `undefined` from the check above within one round trip, and the loser's insert then
-    // hits `webhooks_pkey`. There is nothing wrong with that caller's request and nothing
-    // for them to retry: the row the proposal describes exists, written from this same
-    // proposal by the same id, which is why the id is minted at propose time. So the loser
-    // falls through to the update below, which writes the proposal's own values over a row
-    // that already holds them, and both callers answer 200 with the change applied.
+    // A primary-key violation here is an idempotent success: two resumes of the same
+    // unapplied `create` can both read `undefined` above, and the loser's row is the one
+    // this proposal describes anyway, so it falls through to the update.
     try {
       await insertWebhook(exec, {
         webhookId: proposal.webhookId,
@@ -368,7 +259,6 @@ async function applyToEndpoint(
   await updateWebhook(exec, proposal.formId, proposal.webhookId, endpointPatch(proposal, now));
 }
 
-/** Withdraw a pending change, with its audit row, in one transaction on the control pool. */
 export async function withdrawEndpointChange(
   deps: Deps,
   input: {
@@ -399,7 +289,6 @@ export async function withdrawEndpointChange(
   return withdrawn;
 }
 
-/** A fresh `wep_` proposal id: 16 random hex bytes, like the `whk_` id one table over. */
 export function newProposalId(): string {
   const bytes = new Uint8Array(16);
   crypto.getRandomValues(bytes);

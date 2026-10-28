@@ -1,53 +1,19 @@
-/**
- * Request/response schemas for the serving-loop slice (task 019): `GET
- * /sessions/{id}/step` and `POST /sessions/{id}/answers`.
- *
- * Zod is the single schema language (017's convention); these drive both
- * runtime validation of requests and the generated OpenAPI documents (027).
- *
- * The response is a deliberately **narrow projection** of the kernel's
- * `FlowState` (ADR-18, SEC): clients receive the current step's stored compiled
- * A2UI document, the answers already held for that step's visible questions, and
- * which of those questions are currently visible / still missing - never the full
- * rule graph, never the inventory of hidden questions, never an answer to a
- * question the flow hides. `step` is served verbatim from the pinned
- * `form_versions.compiled` JSONB, so it is modelled as an opaque document the
- * API does not re-shape (`root` is the A2UI node tree, passed through untouched),
- * and the held answers travel beside it rather than being written into it.
- */
-
 import { z } from "@hono/zod-openapi";
 import { AnswerValue } from "@roonga/qcms-core";
 
 /**
- * The most answers one batch may carry.
- *
- * **Not an instance ceiling** (Q14 removed every installation-wide one): it is a
- * malformed-request bound on an array the transport has to allocate before anything
- * validates it, in the same spirit as the request-size limits already in force. The
- * real bound on a step's field count is the form's own `max` per group, enforced at
- * publish and on every add (SEC-16), and the real bound on what a batch may SPEND is
- * the per-session answer allowance it pays per entry.
+ * A malformed-request bound on an array the transport allocates before validation, not
+ * an instance ceiling: what a batch may spend is the per-session answer allowance.
  */
 export const MAX_BATCH_ANSWERS = 2000;
 
-/** Path params for the session-scoped serving routes. */
 export const SessionParams = z.object({
   id: z.string().openapi({ param: { name: "id", in: "path" }, example: "ses_9f3a2b1c" }),
 });
 
 /**
- * Optional query for the serving reads: the explicit navigation cursor (ADR-28).
- *
- * `step` is the 0-based index of the visible step the portal wants RENDERED. With
- * it, the handler serves exactly that visible step's stored document (clamped to
- * the visible range), so a step never collapses or advances as a side effect of
- * answering (findings M/N). Without it, the first incomplete step is served
- * (resume, no-JS, and the 019/029 callers - behaviour is unchanged). The cursor
- * changes only which document is drawn; it is NEVER a validation authority -
- * `flowState` (currentStep / readyToSubmit / missingRequired) stays the sole
- * authority the portal reads to gate Continue/Submit, and the portal performs no
- * rule evaluation of its own (R2).
+ * The navigation cursor changes only which document is drawn; it is never a validation
+ * authority, and `flowState` stays the sole authority gating Continue and Submit.
  */
 export const StepQuery = z.object({
   step: z.coerce
@@ -64,13 +30,7 @@ export const StepQuery = z.object({
 });
 export type StepQuery = z.infer<typeof StepQuery>;
 
-/**
- * One stored compiled A2UI document (a `CompiledForm` document, task 011): the
- * step's id and its A2UI node tree. Served verbatim from the pinned snapshot -
- * `root` is opaque to the API (the renderer, 028, interprets it), so it is
- * `unknown` rather than a recursive schema the API would have to keep in step
- * with the compiler.
- */
+/** `root` is opaque to the API, so `unknown` rather than a schema tracking the compiler. */
 export const StepDocument = z
   .object({
     stepId: z.string().openapi({ example: "stp_history" }),
@@ -78,13 +38,7 @@ export const StepDocument = z
   })
   .openapi("StepDocument");
 
-/**
- * The client-safe flow projection (SEC): only what the current step needs to
- * render its branching. `visibleQuestions` are the currently-visible questions
- * **of the current step** (a follow-up appears/disappears here as answers
- * change); `missingRequired` are the visible required questions still
- * unanswered. Neither hidden questions nor the rule graph are ever exposed.
- */
+/** Neither hidden questions nor the rule graph ever cross this boundary (SEC). */
 export const FlowStateProjection = z
   .object({
     currentStep: z.string().nullable().openapi({ example: "stp_history" }),
@@ -106,30 +60,11 @@ export const FlowStateProjection = z
   .openapi("FlowStateProjection");
 
 /**
- * The live instance roster per repeating group, in document order of the groups and
- * roster order within each (ADR-42, ADR-43).
+ * Already derived and truncated above the evaluator, so what crosses this boundary is
+ * the list the renderer expands rather than anything it interprets.
  *
- * **Already derived and already truncated.** The `answer_group_instances` table
- * records what was minted and what was explicitly removed, and liveness is a function
- * of the count source: only an `open` group's live set is the event record itself,
- * while a `fixed` group's is the first `count` of it and a `fromAnswer` group's is the
- * first N for the current count answer, clamped. That derivation runs in the API above
- * the evaluator, so what crosses this boundary is the list the renderer expands and
- * nothing it has to interpret.
- *
- * **This is how the roster reaches the renderer, and it is deliberately not the
- * compiler's seam.** A compiled `RepeatGroup` is a template carrying its member
- * controls once: the compiler is pure and answer-blind and an instance count is
- * answer-dependent, so `StepResolverContext` is NOT widened (ADR-14 as amended
- * 2026-09-30) and the roster travels beside the document exactly as `values` do. The
- * portal still evaluates nothing (R2).
- *
- * An instance id is an opaque, random, session-scoped branded id carrying no
- * respondent content (SEC-16), and it is never a visible label: it appears in field
- * names, DOM ids, anchors and the no-JS fragment, and in no heading, legend, message
- * or caption. A count IS respondent-derived, which is why the redacted outbox payload
- * carries none (Q19) - but a respondent reading their own session over their own
- * session-authed request is not that boundary.
+ * An instance id is opaque, random and session-scoped, carrying no respondent content
+ * (SEC-16), and it is never a visible label.
  */
 export const RosterProjection = z
   .array(
@@ -140,7 +75,6 @@ export const RosterProjection = z
   )
   .openapi("RosterProjection");
 
-/** Where the respondent is in the visible flow (for a progress indicator). */
 export const StepProgress = z
   .object({
     stepIndex: z.number().int().openapi({
@@ -152,20 +86,8 @@ export const StepProgress = z
   .openapi("StepProgress");
 
 /**
- * Which **view** this response draws (task 076, ADR-28 as amended 2026-09-29, Q22).
- *
- * A `perInstanceStep` group paginates one step into one page per live instance, so a
- * step id no longer identifies a page. The cursor indexes views, and this says which one
- * the response is: the group that paginates the drawn step, and the one instance of it
- * this page draws. **Both keys are `null` for every other page**, which is every page of
- * every form with no such group, so a client that ignores this key is as correct as it
- * was before this task.
- *
- * It is a projection of what the server already decided rather than an input: the
- * instance named here is live in this session's roster and the view was in the list the
- * cursor was clamped against. An instance id is not secret - it is already in field
- * names, DOM ids and anchors - and the reason the wire carries no compound cursor is
- * about what a forged value could reach, not about disclosure (ADR-28's amendment).
+ * A projection of what the server already decided rather than an input. Both keys are
+ * null for every page a `perInstanceStep` group does not paginate.
  */
 export const StepViewProjection = z
   .object({
@@ -175,52 +97,18 @@ export const StepViewProjection = z
   .openapi("StepViewProjection");
 
 /**
- * The answers the server already holds for the questions on the RENDERED step
- * (issue #146), keyed by questionId, in the canonical `AnswerValue` encoding the
- * ledger stores. A question with no current answer is simply absent, and a
- * question whose newest ledger row is an ADR-33 retraction is absent too
- * (`latestAnswers` resolves a tombstone to unanswered), so a retracted answer
- * comes back as unanswered rather than as a stale value.
+ * Scoped to the rendered step's visible questions, so an answer to a question the flow
+ * hides never crosses this boundary (SEC); answer values are never logged (SEC-8).
+ * Display data only: visibility and readiness stay in `flowState` (R2).
  *
- * This is the separate path by which stored answers reach a client without
- * touching the compiled document (ADR-18): the served A2UI stays the immutable,
- * content-only bytes from the pinned snapshot, and the values ride beside it. It
- * is pure display data and never a decision: visibility stays in
- * `flowState.visibleQuestions` and readiness in `missingRequired` /
- * `readyToSubmit`, which the client reads and never re-derives (R2).
+ * `null` is outside the union deliberately, because a retraction is an ABSENT key
+ * (ADR-33).
  *
- * Scoped to the rendered step's **visible** questions, which keeps the
- * hidden-flow property intact (SEC): an answer to a question the current flow
- * hides never crosses this boundary, so the client cannot learn that such a
- * question exists from the values map either. The values are the respondent's own
- * answers over their own session-authed request, and they are never logged
- * (SEC-8).
- *
- * **The value type is the kernel's own `AnswerValue` union, not `z.unknown()`
- * (issue #153).** The invariant above used to live only in this comment and in
- * the generated document's prose, which left the published contract saying "any
- * value, nullable" while the code guaranteed something far narrower. Reusing
- * `@roonga/qcms-core`'s schema rather than spelling a parallel one here is the point: one
- * definition of what an answer may be, the same one `validateAnswer` enforces
- * before a row reaches the ledger, so the document cannot drift from the storage.
- * `null` is outside the union deliberately - a retraction is an ABSENT key
- * (ADR-33), so a null value here would be a bug, and the schema refuses it now
- * instead of publishing it as legal.
- *
- * The union stays untagged, as the kernel leaves it: a date and a singleChoice
- * option are both strings, and pairing a value with its question type is
- * `validateAnswer`'s job, so the document says "one of the canonical encodings"
- * and no more.
- *
- * It is left INLINE rather than registered as a named `AnswerValue` component,
- * and that is a constraint rather than a preference. `zod-to-openapi` installs
- * `.openapi()` by extending zod's prototypes, and zod 4 copies those methods onto
- * each schema AT CONSTRUCTION, so a schema built before `@hono/zod-openapi` is
- * evaluated never gains the method. `@roonga/qcms-core`'s schemas are built whenever the
- * kernel module happens to load first, which under Vitest depends on the importing
- * test's import order - so `AnswerValue.openapi(...)` here is green in one entry
- * graph and a `TypeError` in another. Nothing about the emitted document depends
- * on it: the generator reads the schema structurally.
+ * `AnswerValue` is left inline rather than registered as a named component:
+ * `zod-to-openapi` installs `.openapi()` on zod's prototypes and zod 4 copies those
+ * methods onto each schema at construction, so a kernel schema built before
+ * `@hono/zod-openapi` is evaluated never gains the method. The generator reads the
+ * schema structurally, so the emitted document is unaffected.
  */
 export const HeldValues = z.record(z.string(), AnswerValue).openapi({
   description:
@@ -228,12 +116,6 @@ export const HeldValues = z.record(z.string(), AnswerValue).openapi({
   example: { q_at_fault_accident: true, q_accident_count: 2 },
 });
 
-/**
- * The serving-loop response, returned by both the get-step read and the
- * submit-answer write (the portal re-renders branching from the write's
- * response, 029). When the flow is complete `step` is `null`,
- * `flowState.readyToSubmit` is `true`, and `flowState.missingRequired` is empty.
- */
 export const StepResponse = z
   .object({
     step: StepDocument.nullable(),
@@ -252,23 +134,12 @@ export const StepResponse = z
 export type StepResponse = z.infer<typeof StepResponse>;
 
 /**
- * Submit-answer request body. `value` is validated by the kernel
- * (`validateAnswer`, 009) against the pinned question version, so it is accepted
- * as `unknown` here and never re-shaped by the transport schema - the canonical
- * form the ledger stores is the kernel's output.
+ * `value` stays `unknown` here because the kernel validates it against the pinned
+ * question version and its output is the canonical form the ledger stores.
  *
- * A literal `null` is the **retraction** request (ADR-33): "the respondent
- * cleared this question". It is the one wire value that is not an answer, which
- * is why it can be spelled on this route without ambiguity - `null` is not a
- * legal `AnswerValue` for any question type, so it can never collide with real
- * content. The handler routes it to a tombstone append instead of validation.
- *
- * It is also the *only* spelling of a clear. `""` and `[]` are refused by the
- * kernel (`EMPTY_ANSWER_NOT_ALLOWED`, 422) rather than stored as answers or
- * quietly reinterpreted as retractions: nothing is appended, and the error names
- * `null` as what to send instead. Whitespace-only text is a different case - it
- * is a legal value, stored as typed, that simply confers no presence, so it
- * cannot satisfy a required question (issue #128).
+ * A literal `null` is the retraction (ADR-33) and is the only spelling of a clear: it is
+ * not a legal `AnswerValue` for any question type, so it can never collide with real
+ * content. `""` and `[]` are refused rather than reinterpreted as retractions.
  */
 export const SubmitAnswerBody = z
   .strictObject({
@@ -287,27 +158,10 @@ export const SubmitAnswerBody = z
 export type SubmitAnswerBody = z.infer<typeof SubmitAnswerBody>;
 
 /**
- * The batch answer body (Q20, ADR-43): one Continue's answers, in one request.
+ * A Continue's answers only: the roster operation is its own post and commits none.
  *
- * **Why it exists.** The no-JS path posts a **whole step**, and `forwardAnswers` made
- * one `POST /sessions/{id}/answers` per decoded answer, sequentially, each taking the
- * session's advisory lock and re-evaluating the flow. Nine passengers times six
- * questions is fifty-four round trips and fifty-four advisory locks for one Continue.
- * This carries them in one request, under one lock, with one flow evaluation.
- *
- * **It carries a Continue's answers only.** The roster operation is its own post and
- * commits no answers, so the earlier claim that the batch makes the two one
- * transaction does not hold and is withdrawn (ADR-43).
- *
- * **It is rate limited per ENTRY, not per request** (SEC-16). `answersPerSessionLimiter`
- * spends one unit per request, which is correct while one request carries one answer;
- * leaving it there would multiply a per-session allowance written for one answer by
- * the batch size, and with no installation-wide instance ceiling the batch size is the
- * author's `max`. So a batch of N answers spends N units of the same allowance, and a
- * batch that would exceed the remainder is refused rather than partially applied.
- *
- * `answers` is bounded here only against a malformed or hostile request; the real
- * bound is the form's own shape and the request-size limits already in force.
+ * Rate limited per entry rather than per request (SEC-16), so a batch of N answers
+ * spends N units of the per-session answer allowance.
  */
 export const BatchAnswerBody = z
   .strictObject({
@@ -320,14 +174,8 @@ export const BatchAnswerBody = z
 export type BatchAnswerBody = z.infer<typeof BatchAnswerBody>;
 
 /**
- * One refused entry of a batch: which field, and why.
- *
- * A batch is **not** all-or-nothing on validation, and that mirrors what the no-JS
- * route already did one call at a time: a 422 on one field fills that field's error
- * slot and the remaining answers still go, because a respondent who mistyped one cell
- * of nine passengers must not lose the other fifty-three. What IS all-or-nothing is
- * the rate limit: a batch that cannot be paid for in full is refused before any entry
- * is applied.
+ * A batch is not all-or-nothing on validation: a refused entry leaves the rest applied,
+ * so one mistyped cell does not lose the others. The rate limit is all-or-nothing.
  */
 export const BatchAnswerRejection = z
   .object({
@@ -338,11 +186,6 @@ export const BatchAnswerRejection = z
   })
   .openapi("BatchAnswerRejection");
 
-/**
- * The batch response: the projection after the whole batch, plus the entries it
- * refused. The projection is the same `StepResponse` a single answer write returns, so
- * a caller reads `flowState` and `values` from it exactly as before.
- */
 export const BatchAnswerResponse = z
   .object({
     step: StepDocument.nullable(),
@@ -358,20 +201,11 @@ export const BatchAnswerResponse = z
 export type BatchAnswerResponse = z.infer<typeof BatchAnswerResponse>;
 
 /**
- * The roster-operation body (ADR-43): the respondent's Add or Remove.
+ * Commits no answers: the typed values ride the step POST and reach the ledger only on
+ * Continue, which is what makes `formnovalidate` on Add and Remove safe.
  *
- * **It commits no answers**, and that is the ruling of 2026-09-30 rather than an
- * omission: the typed values ride the step POST, are carried back for the re-render,
- * and reach the ledger only on Continue under the ordinary validation an ordinary
- * Continue does. That is what makes `formnovalidate` on the Add and Remove buttons
- * safe rather than merely convenient, and it is why `docs/portal-constraints.md`'s "a
- * required question cannot be cleared without scripting" bullet is unchanged.
- *
- * `opToken` is the **one-time operation token** the rendered page minted into the
- * button's value. It is recorded with the roster row, so a replayed post - a reload of
- * the 200 re-render, or a Back that resubmits - applies nothing and returns the roster
- * as it stands. It is not a credential: it is scoped to the session it was minted in
- * and refusing a replay is its only job.
+ * `opToken` is recorded with the roster row, so a replayed post applies nothing. It is
+ * not a credential: refusing a replay within its own session is its only job.
  */
 export const RosterOpBody = z
   .strictObject({
@@ -391,7 +225,6 @@ export const RosterOpBody = z
   .openapi("RosterOpBody");
 export type RosterOpBody = z.infer<typeof RosterOpBody>;
 
-/** The roster operation's response: the projection after it, and what it did. */
 export const RosterOpResponse = z
   .object({
     step: StepDocument.nullable(),
@@ -401,9 +234,7 @@ export const RosterOpResponse = z
     rosters: RosterProjection,
     view: StepViewProjection,
     progress: StepProgress,
-    /** True when the token had already been spent, so nothing was written. */
     replayed: z.boolean(),
-    /** The instance this operation minted, when it minted one. */
     minted: z.array(z.string()),
   })
   .openapi("RosterOpResponse");
