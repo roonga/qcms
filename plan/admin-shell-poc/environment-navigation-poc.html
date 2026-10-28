@@ -1,0 +1,3251 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>QCMS · Environment navigation concept</title>
+    <style>
+      :root {
+        color-scheme: light;
+        --ink: #182333;
+        --muted: #526178;
+        --line: #dce3ec;
+        --paper: #fff;
+        --canvas: #f5f7fa;
+        --blue: #2456c6;
+        --blue-pale: #eaf0fc;
+        --green: #1d704b;
+        --green-pale: #eaf5ee;
+        --amber: #81550e;
+        --amber-pale: #fff5de;
+        --font: "Lexend", ui-sans-serif, system-ui, sans-serif;
+      }
+      * {
+        box-sizing: border-box;
+      }
+      body {
+        margin: 0;
+        color: var(--ink);
+        background: var(--canvas);
+        font-family: var(--font);
+        font-size: 14px;
+        line-height: 1.55;
+      }
+      button,
+      input,
+      select,
+      textarea {
+        font: inherit;
+      }
+      button,
+      select {
+        cursor: pointer;
+      }
+      button,
+      .button {
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        gap: 8px;
+        min-height: 40px;
+        padding: 8px 15px;
+        border: 1px solid var(--line);
+        border-radius: 6px;
+        background: var(--paper);
+        color: var(--ink);
+        text-decoration: none;
+        font-weight: 600;
+      }
+      button:hover,
+      .button:hover {
+        background: var(--canvas);
+        border-color: #a4b0c1;
+      }
+      button.primary {
+        color: white;
+        background: var(--blue);
+        border-color: var(--blue);
+      }
+      button.primary:hover {
+        background: #1d46a3;
+      }
+      button:disabled {
+        cursor: not-allowed;
+        opacity: 0.5;
+      }
+      :focus-visible {
+        outline: 3px solid var(--blue);
+        outline-offset: 3px;
+      }
+      a {
+        color: var(--blue);
+      }
+      h1,
+      h2,
+      h3,
+      p {
+        margin-top: 0;
+      }
+      h1 {
+        font-size: 29px;
+        line-height: 1.25;
+        letter-spacing: -0.7px;
+        margin-bottom: 9px;
+      }
+      h2 {
+        font-size: 18px;
+        letter-spacing: -0.25px;
+        margin-bottom: 8px;
+      }
+      h3 {
+        font-size: 14px;
+        margin-bottom: 4px;
+      }
+      p {
+        margin-bottom: 15px;
+      }
+      .muted,
+      small {
+        color: var(--muted);
+      }
+      small {
+        font-size: 12px;
+      }
+      .eyebrow {
+        font-size: 11px;
+        font-weight: 700;
+        letter-spacing: 1.1px;
+        text-transform: uppercase;
+        color: var(--muted);
+        margin-bottom: 10px;
+      }
+      .demo {
+        min-height: 48px;
+        background: #182333;
+        color: white;
+        display: flex;
+        align-items: center;
+        gap: 14px;
+        justify-content: space-between;
+        padding: 7px 24px;
+      }
+      .demo small {
+        color: #d0d9e6;
+      }
+      .demo select {
+        color: white;
+        background: #263447;
+        border: 1px solid #65758a;
+        border-radius: 5px;
+        padding: 6px 9px;
+        max-width: 250px;
+      }
+      .demo button {
+        min-height: 30px;
+        padding: 4px 10px;
+        color: white;
+        background: transparent;
+        border-color: #65758a;
+        font-size: 12px;
+      }
+      .demo-controls {
+        display: flex;
+        align-items: center;
+        gap: 10px;
+      }
+      .shell {
+        display: grid;
+        grid-template-columns: 224px minmax(0, 1fr);
+        min-height: calc(100vh - 48px);
+      }
+      aside {
+        display: flex;
+        flex-direction: column;
+        border-right: 1px solid var(--line);
+        padding: 28px 16px 18px;
+        background: var(--paper);
+      }
+      .brand {
+        display: flex;
+        align-items: center;
+        gap: 9px;
+        padding: 0 12px;
+        font-weight: 750;
+        font-size: 19px;
+        letter-spacing: -0.6px;
+      }
+      .brand-mark {
+        display: grid;
+        place-items: center;
+        width: 30px;
+        height: 30px;
+        background: var(--blue);
+        color: white;
+        border-radius: 8px;
+        font-size: 18px;
+      }
+      .workspace {
+        margin: 27px 9px 26px;
+        padding-bottom: 21px;
+        border-bottom: 1px solid var(--line);
+      }
+      .workspace strong {
+        display: block;
+        font-size: 13px;
+      }
+      .workspace small {
+        display: block;
+        margin-bottom: 5px;
+      }
+      nav {
+        display: flex;
+        flex-direction: column;
+        gap: 5px;
+      }
+      nav a {
+        display: flex;
+        gap: 12px;
+        align-items: center;
+        min-height: 44px;
+        padding: 10px 13px;
+        color: var(--muted);
+        text-decoration: none;
+        border-radius: 6px;
+        font-weight: 550;
+      }
+      nav a:hover {
+        background: var(--canvas);
+      }
+      nav a[aria-current="page"] {
+        background: var(--blue-pale);
+        color: var(--blue);
+      }
+      nav svg {
+        width: 18px;
+        height: 18px;
+        flex-shrink: 0;
+      }
+      .nav-divider {
+        margin: 20px 10px 9px;
+        border-top: 1px solid var(--line);
+      }
+      .account {
+        margin-top: auto;
+        padding: 30px 12px 0;
+        display: flex;
+        gap: 10px;
+        align-items: center;
+      }
+      .avatar {
+        display: grid;
+        place-items: center;
+        width: 33px;
+        height: 33px;
+        border-radius: 50%;
+        background: #e6ebf2;
+        font-size: 12px;
+        font-weight: 700;
+      }
+      main {
+        padding: 30px 48px 60px;
+        min-width: 0;
+      }
+      .content {
+        max-width: 1120px;
+        margin: 0 auto;
+      }
+      .crumb {
+        display: flex;
+        gap: 8px;
+        align-items: center;
+        font-size: 12px;
+        color: var(--muted);
+        min-height: 24px;
+        margin-bottom: 25px;
+      }
+      .crumb a {
+        color: var(--muted);
+        text-decoration: none;
+      }
+      .heading,
+      .row {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        gap: 16px;
+      }
+      .heading {
+        align-items: flex-start;
+        margin-bottom: 24px;
+      }
+      .actions {
+        display: flex;
+        gap: 9px;
+        align-items: center;
+        flex-wrap: wrap;
+      }
+      .tag {
+        display: inline-flex;
+        align-items: center;
+        gap: 6px;
+        padding: 3px 9px;
+        background: var(--canvas);
+        border: 1px solid var(--line);
+        border-radius: 5px;
+        font-size: 11px;
+        font-weight: 600;
+        white-space: nowrap;
+      }
+      .tag.green {
+        background: var(--green-pale);
+        color: var(--green);
+        border-color: #cee4d5;
+      }
+      .tag.blue {
+        background: var(--blue-pale);
+        color: var(--blue);
+        border-color: #cfdbf4;
+      }
+      .tag.amber {
+        background: var(--amber-pale);
+        color: var(--amber);
+        border-color: #eddeb7;
+      }
+      .tabs {
+        display: flex;
+        gap: 25px;
+        border-bottom: 1px solid var(--line);
+        margin: 7px 0 26px;
+        overflow-x: auto;
+      }
+      .tabs a {
+        white-space: nowrap;
+        text-decoration: none;
+        padding: 12px 0;
+        color: var(--muted);
+        border-bottom: 2px solid transparent;
+        font-weight: 600;
+        font-size: 13px;
+      }
+      .tabs a[aria-current="page"] {
+        color: var(--blue);
+        border-color: var(--blue);
+      }
+      .card {
+        padding: 24px;
+        background: var(--paper);
+        border: 1px solid var(--line);
+        border-radius: 9px;
+        margin-bottom: 20px;
+      }
+      .card.flush {
+        padding: 0;
+        overflow: hidden;
+      }
+      .card-top {
+        padding: 20px 24px;
+        border-bottom: 1px solid var(--line);
+      }
+      .card-top h2,
+      .card-top p {
+        margin-bottom: 0;
+      }
+      .grid {
+        display: grid;
+        grid-template-columns: minmax(0, 1fr) 290px;
+        gap: 22px;
+        align-items: start;
+      }
+      .stat-grid {
+        display: grid;
+        grid-template-columns: repeat(3, 1fr);
+        gap: 16px;
+        margin-bottom: 22px;
+      }
+      .stat {
+        background: white;
+        border: 1px solid var(--line);
+        padding: 19px 23px;
+        border-radius: 8px;
+      }
+      .stat strong {
+        display: block;
+        font-size: 28px;
+        letter-spacing: -0.5px;
+        margin-top: 6px;
+      }
+      .notice {
+        padding: 13px 16px;
+        border-radius: 6px;
+        background: var(--blue-pale);
+        color: #24467d;
+        font-size: 12px;
+        margin-bottom: 20px;
+      }
+      .notice.amber {
+        background: var(--amber-pale);
+        color: var(--amber);
+      }
+      label.field {
+        display: block;
+        margin: 19px 0;
+        font-weight: 600;
+        font-size: 12px;
+      }
+      label.field input,
+      label.field textarea,
+      label.field select {
+        display: block;
+        margin-top: 7px;
+        width: 100%;
+      }
+      input,
+      textarea,
+      select {
+        padding: 10px 11px;
+        border: 1px solid #b8c4d4;
+        border-radius: 5px;
+        background: var(--paper);
+        color: var(--ink);
+        min-height: 40px;
+      }
+      textarea {
+        resize: vertical;
+      }
+      input[type="checkbox"] {
+        width: 17px;
+        min-height: 17px;
+        accent-color: var(--blue);
+      }
+      label.check {
+        display: flex;
+        align-items: flex-start;
+        gap: 10px;
+        margin: 21px 0;
+      }
+      .check input {
+        margin-top: 3px;
+      }
+      table {
+        width: 100%;
+        border-collapse: collapse;
+        text-align: left;
+      }
+      th {
+        font-size: 10px;
+        text-transform: uppercase;
+        letter-spacing: 0.8px;
+        color: var(--muted);
+        background: #fafbfd;
+        font-weight: 650;
+      }
+      th,
+      td {
+        padding: 15px 23px;
+        border-bottom: 1px solid var(--line);
+      }
+      tr:last-child td {
+        border-bottom: 0;
+      }
+      td {
+        font-size: 13px;
+      }
+      td small {
+        display: block;
+        margin-top: 3px;
+      }
+      td button {
+        min-height: 33px;
+        padding: 5px 11px;
+        font-size: 12px;
+      }
+      .table-scroll {
+        overflow-x: auto;
+      }
+      .text-button {
+        padding: 0;
+        min-height: 28px;
+        border: 0;
+        background: transparent;
+        color: var(--blue);
+      }
+      .flow {
+        display: flex;
+        gap: 0;
+        margin: 28px 0;
+        overflow-x: auto;
+        padding-bottom: 4px;
+      }
+      .stage {
+        flex: 1;
+        min-width: 125px;
+        position: relative;
+        border-top: 2px solid #c7d5ec;
+        padding: 19px 13px 5px 0;
+      }
+      .stage::before {
+        content: "";
+        position: absolute;
+        width: 10px;
+        height: 10px;
+        background: var(--blue);
+        border: 3px solid var(--canvas);
+        outline: 1px solid #c7d5ec;
+        border-radius: 50%;
+        top: -6px;
+        left: 0;
+      }
+      .stage strong {
+        display: block;
+        font-size: 13px;
+        margin-bottom: 7px;
+      }
+      .stage small {
+        display: block;
+        margin-top: 6px;
+      }
+      .env-context {
+        background: white;
+        border: 1px solid var(--line);
+        border-left: 3px solid var(--blue);
+        padding: 18px 22px;
+        display: flex;
+        align-items: end;
+        gap: 20px;
+        border-radius: 7px;
+        margin-bottom: 12px;
+      }
+      .env-context label {
+        font-size: 11px;
+        color: var(--muted);
+        font-weight: 600;
+      }
+      .env-context select {
+        display: block;
+        margin-top: 5px;
+        min-width: 170px;
+      }
+      .env-context .tag {
+        margin-left: auto;
+        margin-bottom: 7px;
+      }
+      .question-row {
+        padding: 18px 0;
+        border-bottom: 1px solid var(--line);
+        display: flex;
+        gap: 14px;
+      }
+      .question-row:last-child {
+        border: 0;
+      }
+      .number {
+        width: 25px;
+        height: 25px;
+        display: grid;
+        place-items: center;
+        background: var(--canvas);
+        border-radius: 5px;
+        font-size: 11px;
+        color: var(--muted);
+      }
+      .mini-input {
+        border: 1px solid var(--line);
+        height: 36px;
+        width: min(100%, 350px);
+        border-radius: 4px;
+        margin-top: 9px;
+      }
+      .version-number {
+        font-size: 20px;
+        font-weight: 650;
+        color: var(--blue);
+      }
+      dialog {
+        border: 1px solid var(--line);
+        border-radius: 12px;
+        padding: 0;
+        width: min(610px, calc(100% - 28px));
+        color: var(--ink);
+        max-height: 90vh;
+      }
+      dialog::backdrop {
+        background: rgb(18 29 46 / 0.48);
+      }
+      .dialog-body {
+        padding: 28px;
+      }
+      .dialog-actions {
+        display: flex;
+        flex-wrap: wrap;
+        justify-content: flex-end;
+        gap: 10px;
+        padding: 18px 28px;
+        border-top: 1px solid var(--line);
+        background: #fafbfd;
+      }
+      .comparison {
+        display: grid;
+        grid-template-columns: 1fr 28px 1fr;
+        align-items: center;
+        gap: 10px;
+        margin: 22px 0;
+      }
+      .comparison > div {
+        padding: 17px;
+        border: 1px solid var(--line);
+        border-radius: 7px;
+      }
+      .comparison strong {
+        display: block;
+        font-size: 28px;
+        margin-top: 5px;
+      }
+      .comparison .target {
+        border-color: #b8cbef;
+        background: var(--blue-pale);
+      }
+      .toast {
+        position: fixed;
+        bottom: 24px;
+        left: 50%;
+        transform: translateX(-50%);
+        color: white;
+        background: #182333;
+        border-radius: 8px;
+        padding: 13px 20px;
+        box-shadow: 0 8px 30px rgb(0 0 0 / 0.15);
+        max-width: calc(100% - 30px);
+        z-index: 5;
+      }
+      .toast:empty {
+        display: none;
+      }
+      .empty {
+        text-align: center;
+        padding: 45px 20px;
+      }
+      .stack > * + * {
+        margin-top: 12px;
+      }
+      .spaced {
+        margin-top: 24px;
+      }
+      [hidden] {
+        display: none !important;
+      }
+      .skip {
+        position: absolute;
+        left: 10px;
+        top: -100px;
+        z-index: 10;
+        background: white;
+        padding: 12px;
+      }
+      .skip:focus {
+        top: 8px;
+      }
+      .wizard-steps {
+        display: flex;
+        gap: 20px;
+        padding: 0;
+        margin: 0 0 26px;
+        list-style: none;
+        color: var(--muted);
+        font-size: 12px;
+      }
+      .wizard-steps li {
+        display: flex;
+        gap: 7px;
+        align-items: center;
+      }
+      .wizard-steps span {
+        display: grid;
+        place-items: center;
+        width: 25px;
+        height: 25px;
+        border-radius: 50%;
+        background: var(--canvas);
+        border: 1px solid var(--line);
+      }
+      .wizard-steps [aria-current="step"] {
+        color: var(--blue);
+        font-weight: 700;
+      }
+      .wizard-steps [aria-current="step"] span {
+        background: var(--blue);
+        color: white;
+        border-color: var(--blue);
+      }
+      .wizard-select {
+        width: 100%;
+      }
+      .destination-list {
+        padding: 0;
+        margin: 0;
+        border: 0;
+      }
+      .destination {
+        display: flex;
+        gap: 12px;
+        align-items: flex-start;
+        padding: 16px;
+        border: 1px solid var(--line);
+        border-radius: 7px;
+        margin: 11px 0;
+        cursor: pointer;
+      }
+      .destination:has(input:checked) {
+        border-color: var(--blue);
+        background: var(--blue-pale);
+      }
+      .destination input {
+        margin-top: 4px;
+        min-height: 16px;
+        accent-color: var(--blue);
+        flex-shrink: 0;
+      }
+      .destination strong,
+      .destination small {
+        display: block;
+      }
+      .destination.unavailable {
+        cursor: default;
+        background: var(--canvas);
+      }
+      .restriction {
+        color: var(--amber);
+        margin-top: 5px;
+      }
+      .sr-only {
+        position: absolute;
+        width: 1px;
+        height: 1px;
+        overflow: hidden;
+        clip-path: inset(50%);
+      }
+      @media (max-width: 1050px) {
+        main {
+          padding: 25px;
+        }
+        .grid {
+          grid-template-columns: 1fr;
+        }
+        .shell {
+          grid-template-columns: 195px minmax(0, 1fr);
+        }
+      }
+      @media (max-width: 700px) {
+        .demo {
+          align-items: flex-start;
+          padding: 10px 15px;
+          flex-direction: column;
+          gap: 8px;
+        }
+        .demo-controls {
+          flex-wrap: wrap;
+        }
+        .shell {
+          display: block;
+        }
+        aside {
+          padding: 15px;
+          border-right: 0;
+          border-bottom: 1px solid var(--line);
+        }
+        .brand {
+          padding: 0;
+        }
+        .workspace,
+        .account,
+        .nav-divider {
+          display: none;
+        }
+        nav {
+          margin-top: 14px;
+          display: grid;
+          grid-template-columns: repeat(2, minmax(0, 1fr));
+        }
+        nav a {
+          padding: 8px 10px;
+          font-size: 12px;
+          white-space: nowrap;
+        }
+        nav svg {
+          display: none;
+        }
+        main {
+          padding: 23px 17px 55px;
+        }
+        h1 {
+          font-size: 25px;
+        }
+        .heading {
+          flex-direction: column;
+        }
+        .stat-grid {
+          grid-template-columns: 1fr;
+          gap: 8px;
+        }
+        .stat {
+          padding: 13px 17px;
+        }
+        .stat strong {
+          font-size: 23px;
+        }
+        .env-context {
+          flex-wrap: wrap;
+          padding: 14px;
+          gap: 12px;
+        }
+        .env-context select {
+          min-width: 130px;
+          max-width: 100%;
+        }
+        .env-context .tag {
+          margin-left: 0;
+        }
+        .card {
+          padding: 19px;
+        }
+        th,
+        td {
+          padding: 13px 16px;
+        }
+      }
+      .application-bar {
+        display: flex;
+        align-items: center;
+        gap: 20px;
+        padding: 12px 25px;
+        border-bottom: 1px solid var(--line);
+        background: white;
+        position: sticky;
+        top: 0;
+        z-index: 2;
+        min-height: 72px;
+      }
+      .area-nav {
+        flex-direction: row;
+        gap: 8px;
+      }
+      .area-nav a {
+        padding: 10px 15px;
+      }
+      .operations-brand {
+        display: flex;
+        align-items: center;
+        gap: 10px;
+        color: #23436f;
+        font-size: 18px;
+      }
+      .operations-brand svg {
+        width: 23px;
+        height: 23px;
+      }
+      .operations-scope {
+        display: flex;
+        align-items: center;
+        gap: 16px;
+        margin-left: auto;
+      }
+      .operations-scope label {
+        color: var(--muted);
+        font-size: 11px;
+        font-weight: 650;
+      }
+      .operations-scope select {
+        display: block;
+        margin-top: 4px;
+        min-width: 160px;
+      }
+      .operations-scope .tag {
+        align-self: center;
+      }
+      .section-label {
+        margin: 0 13px 9px;
+      }
+      body[data-mode="operations"] .application-bar {
+        background: #edf2fa;
+        border-bottom-color: #c5d3e8;
+      }
+      body[data-mode="operations"] aside {
+        background: #f8fafd;
+      }
+      body[data-mode="operations"] .shell {
+        min-height: calc(100vh - 145px);
+      }
+      @media (max-width: 1100px) {
+        .application-bar {
+          flex-wrap: wrap;
+        }
+        .operations-scope {
+          order: 3;
+          flex-basis: 100%;
+          margin-left: 0;
+        }
+        #operations-exit {
+          margin-left: auto;
+        }
+      }
+      @media (max-width: 700px) {
+        .application-bar {
+          padding: 12px 15px;
+          gap: 12px;
+          position: static;
+        }
+        .area-nav {
+          display: flex;
+          margin: 0;
+          gap: 3px;
+          flex-wrap: wrap;
+        }
+        .area-nav a {
+          padding: 8px 10px;
+        }
+        .operations-scope {
+          display: grid;
+          grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+          gap: 10px;
+        }
+        .operations-scope select {
+          min-width: 0;
+          width: 100%;
+        }
+        .operations-scope .tag {
+          justify-self: start;
+        }
+        .section-label {
+          margin: 15px 10px 0;
+        }
+        .operations-brand {
+          font-size: 17px;
+        }
+      }
+      .application-identity {
+        display: flex;
+        align-items: center;
+        gap: 14px;
+        flex-shrink: 0;
+      }
+      .application-identity .brand {
+        padding: 0;
+      }
+      .application-bar #account {
+        padding: 0;
+        margin: 0 0 0 auto;
+        flex-shrink: 0;
+      }
+      .application-bar #account small {
+        display: none;
+      }
+      .application-bar #account strong {
+        font-size: 12px;
+      }
+      body[data-mode="operations"] .application-bar #account {
+        margin-left: 0;
+      }
+      .rail-context {
+        font-weight: 650;
+        font-size: 14px;
+        padding: 0 13px;
+        margin-bottom: 23px;
+      }
+      .shell.without-rail {
+        grid-template-columns: minmax(0, 1fr);
+      }
+      @media (max-width: 700px) {
+        .application-bar {
+          flex-wrap: wrap;
+        }
+        .application-bar #account {
+          display: flex;
+          order: 1;
+          margin-left: auto;
+        }
+        #application-area {
+          order: 2;
+          flex-basis: 100%;
+        }
+        #operations-exit {
+          order: 2;
+        }
+        body[data-mode="operations"] #application-area {
+          flex-basis: auto;
+        }
+        body[data-mode="operations"] .application-bar #account {
+          margin-left: auto;
+        }
+        .rail-context {
+          margin-bottom: 8px;
+          padding: 0 10px;
+        }
+        aside #section-label {
+          margin-top: 0;
+        }
+      }
+      .operations-entry {
+        display: flex;
+        align-items: center;
+        margin-left: 16px;
+        padding-left: 22px;
+        border-left: 1px solid var(--line);
+      }
+      .area-nav .operations-link {
+        border: 1px solid #cdd8e9;
+        color: #244d86;
+        background: #f4f7fc;
+      }
+      .area-nav .operations-link:hover {
+        background: var(--blue-pale);
+      }
+      @media (max-width: 700px) {
+        .operations-entry {
+          flex-basis: 100%;
+          border-left: 0;
+          border-top: 1px solid var(--line);
+          padding: 9px 0 0;
+          margin: 5px 0 0;
+        }
+      }
+      .list-filters {
+        display: grid;
+        grid-template-columns: minmax(210px, 2fr) minmax(160px, 1.4fr) minmax(120px, 1fr) minmax(
+            140px,
+            1fr
+          );
+        gap: 16px;
+      }
+      .list-filters label {
+        display: flex;
+        flex-direction: column;
+        gap: 7px;
+        font-size: 12px;
+        font-weight: 600;
+      }
+      .list-filters input,
+      .list-filters select {
+        width: 100%;
+        min-width: 0;
+      }
+      .list-filters .actions {
+        grid-column: 1 / -1;
+      }
+      .list-results {
+        margin: 24px 0 12px;
+      }
+      .list-results p {
+        margin: 0;
+      }
+      .list-pagination {
+        margin-top: 15px;
+      }
+      @media (max-width: 900px) {
+        .list-filters {
+          grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+        }
+      }
+      @media (max-width: 520px) {
+        .list-filters {
+          grid-template-columns: minmax(0, 1fr);
+        }
+        .list-results {
+          align-items: flex-start;
+          flex-direction: column;
+          gap: 5px;
+        }
+      }
+      .operations-tools {
+        flex-direction: row;
+        flex-wrap: wrap;
+        gap: 4px;
+        margin-top: 5px;
+      }
+      .operations-tools a {
+        font-size: 12px;
+        min-height: 32px;
+        padding: 5px 9px;
+      }
+      .utility-button {
+        padding: 0;
+        width: 35px;
+        min-height: 35px;
+        border: 0;
+        background: transparent;
+        font-size: 20px;
+      }
+      .application-bar {
+        flex-wrap: wrap;
+      }
+      .application-bar #account {
+        margin-left: 0;
+      }
+      body[data-mode="normal"] #appearance {
+        margin-left: auto;
+      }
+      #account button.avatar {
+        padding: 0;
+        min-height: 33px;
+        border: 0;
+        color: var(--ink);
+      }
+      @media (max-width: 700px) {
+        #appearance {
+          order: 1;
+          margin-left: auto;
+        }
+        .application-bar #account {
+          margin-left: 0;
+        }
+        .operations-tools {
+          margin: 5px 0 0;
+        }
+      }
+      body[data-mode="workspaces"] .application-bar {
+        background: #edf2fa;
+        border-bottom-color: #c5d3e8;
+      }
+      body[data-mode="workspaces"] aside {
+        background: #f8fafd;
+      }
+      @media (max-width: 700px) {
+        body[data-mode="workspaces"] #application-area {
+          flex-basis: auto;
+        }
+      }
+    </style>
+  </head>
+  <body>
+    <a class="skip" href="#main">Skip to content</a>
+    <header class="demo">
+      <div><strong>Navigation concept</strong> <small> · Interactive sample data</small></div>
+      <div class="demo-controls">
+        <label for="persona">Explore as</label>
+        <select id="persona">
+          <option value="all">Alex · Full access</option>
+          <option value="editor">Alex · Editor</option>
+          <option value="testeditor">Alex · Test-only editor</option>
+          <option value="approver">Morgan · Approver</option>
+          <option value="responses">Riley · Response operator</option>
+          <option value="owner">Alex · Site owner</option>
+          <option value="workspaceowner">Jordan · Workspace owner</option>
+        </select>
+        <button id="reset">Reset demo</button>
+      </div>
+    </header>
+    <div class="application-bar" role="region" aria-label="Application navigation">
+      <div class="application-identity">
+        <div class="brand"><span class="brand-mark">q</span> QCMS</div>
+      </div>
+      <div id="application-area"></div>
+      <div id="operations-scope" class="operations-scope"></div>
+      <div id="operations-exit"></div>
+      <button
+        id="appearance"
+        class="utility-button"
+        type="button"
+        data-action="appearance"
+        aria-label="Appearance"
+        title="Appearance"
+      >
+        ◐
+      </button>
+      <div class="account" id="account"></div>
+    </div>
+    <div class="shell">
+      <aside>
+        <div id="rail-context" class="rail-context"></div>
+        <div id="section-label" class="eyebrow section-label"></div>
+        <nav id="nav" aria-label="Primary"></nav>
+      </aside>
+      <main id="main" tabindex="-1"><div class="content" id="content"></div></main>
+    </div>
+    <dialog id="dialog" aria-labelledby="dialog-title"><div id="dialog-content"></div></dialog>
+    <div class="toast" role="status" id="toast"></div>
+    <script>
+      const $ = (selector) => document.querySelector(selector);
+      const escape = (value) =>
+        String(value).replace(
+          /[&<>"']/g,
+          (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" })[c],
+        );
+      const profiles = {
+        all: {
+          name: "Alex Chen",
+          detail: "Author, approver & owner",
+          edit: true,
+          release: true,
+          responses: true,
+          admin: true,
+        },
+        editor: { name: "Alex Chen", detail: "Forms editor", edit: true, release: true },
+        testeditor: {
+          name: "Alex Chen",
+          detail: "Forms editor · Test only",
+          edit: true,
+          release: true,
+          environments: ["test"],
+        },
+        approver: { name: "Morgan Lee", detail: "Forms approver", release: true, prod: true },
+        responses: { name: "Riley Patel", detail: "Responses viewer & eraser", responses: true },
+        owner: { name: "Alex Chen", detail: "Site owner", admin: true },
+        workspaceowner: {
+          name: "Jordan Blake",
+          detail: "Workspace owner",
+          ownedWorkspaces: ["Customer experience"],
+        },
+      };
+      const labels = { dev: "Development", test: "Test", stg: "Staging", prod: "Production" };
+      const formCatalog = [
+        ["onboarding", "Customer onboarding", "Customer experience"],
+        ["feedback", "Customer feedback", "Customer experience"],
+        ["enquiries", "General enquiries", "Customer experience"],
+        ["complaints", "Customer complaints", "Customer experience"],
+        ["returns", "Returns request", "Customer experience"],
+        ["warranty", "Warranty registration", "Customer experience"],
+        ["appointments", "Appointment request", "Customer experience"],
+        ["support", "Technical support", "Customer experience"],
+        ["accessibility", "Accessibility feedback", "Customer experience"],
+        ["subscription", "Subscription preferences", "Customer experience"],
+        ["events", "Event registration", "Customer experience"],
+        ["research", "Research participation", "Customer experience"],
+        ["leave", "Leave request", "People operations"],
+        ["expenses", "Expense reimbursement", "Finance"],
+        ["new-starter", "New starter details", "People operations"],
+        ["training", "Training registration", "People operations"],
+        ["equipment", "Equipment request", "People operations"],
+        ["exit", "Exit feedback", "People operations"],
+        ["wellbeing", "Wellbeing check-in", "People operations"],
+        ["recruitment", "Candidate application", "People operations"],
+        ["invoice", "Invoice enquiry", "Finance"],
+        ["purchase", "Purchase request", "Finance"],
+        ["supplier", "Supplier registration", "Finance"],
+        ["refund", "Refund approval", "Finance"],
+        ["budget", "Budget request", "Finance"],
+        ["bank", "Bank details change", "Finance"],
+        ["incident", "Incident report", "Compliance"],
+        ["privacy", "Privacy request", "Compliance"],
+        ["consent", "Consent review", "Compliance"],
+        ["risk", "Risk assessment", "Compliance"],
+        ["declaration", "Conflict declaration", "Compliance"],
+        ["audit", "Audit evidence request", "Compliance"],
+      ];
+      const forms = Object.fromEntries(formCatalog.map(([id, name]) => [id, name]));
+      const formWorkspaces = Object.fromEntries(
+        formCatalog.map(([id, , workspace]) => [id, workspace]),
+      );
+      let operationsListContext = { q: "", status: "all", workspace: "all", sort: "name", page: 1 };
+      let role = "all";
+      let config, records, versions, draft, questionLabel, historyEntries;
+      let wizard = null;
+      let deliveryFailures, erasureEvents;
+      let operationsContext = { tab: "forms", env: "dev", form: "" };
+      let normalContext = { view: "forms", tab: "", form: "onboarding" };
+      let toastTimer;
+      const person = () => profiles[role];
+      const canReadForms = () => Boolean(person().edit || person().release);
+      const managedWorkspaces = () =>
+        person().admin
+          ? [...new Set(Object.values(formWorkspaces))]
+          : person().ownedWorkspaces || [];
+      const canManageWorkspaces = () => managedWorkspaces().length > 0;
+      const canManageWorkspace = (name) =>
+        managedWorkspaces().includes(name === "all" ? "Customer experience" : name);
+      const envName = (env) => labels[env] || env;
+      const isProtected = (env) => env === config.protected;
+      const canOperate = (env) =>
+        Boolean(
+          person().release &&
+          (!person().environments || person().environments.includes(env)) &&
+          (!isProtected(env) || person().prod || role === "all"),
+        );
+      const record = (env, form = "onboarding") => records[form][env];
+      const tag = (text, kind = "") => '<span class="tag ' + kind + '">' + escape(text) + "</span>";
+      const button = (text, action, data = "", primary = false, disabled = false) =>
+        '<button type="button" data-action="' +
+        action +
+        '" ' +
+        data +
+        (primary ? ' class="primary"' : "") +
+        (disabled ? " disabled" : "") +
+        ">" +
+        escape(text) +
+        "</button>";
+      const link = (text, hash, cls = "") =>
+        '<a class="' + cls + '" href="#' + hash + '">' + escape(text) + "</a>";
+      const state = () => {
+        const params = new URLSearchParams(location.hash.slice(1));
+        const operationsOnly =
+          !canReadForms() && !canManageWorkspaces() && !person().admin && person().responses;
+        const requestedView = params.get("view");
+        const workspaceOnly =
+          canManageWorkspaces() &&
+          !canReadForms() &&
+          !person().admin &&
+          !person().responses &&
+          !person().release;
+        const view = operationsOnly
+          ? "operations"
+          : workspaceOnly && !["workspaces", "workspace"].includes(requestedView)
+            ? "workspaces"
+            : requestedView ||
+              (canReadForms()
+                ? "forms"
+                : person().responses
+                  ? "operations"
+                  : canManageWorkspaces()
+                    ? "workspaces"
+                    : "administration");
+        const selected = forms[params.get("form")] ? params.get("form") : "";
+        const form =
+          view === "operations"
+            ? operationsOnly && requestedView !== "operations"
+              ? ""
+              : selected
+            : selected || "onboarding";
+        const rawPage = Number(params.get("page") || 1);
+        return {
+          view,
+          form,
+          tab:
+            view === "operations" && ["delivery-failures", "erasures"].includes(params.get("tab"))
+              ? params.get("tab")
+              : view === "operations" && (!form || params.get("tab") === "forms")
+                ? "forms"
+                : params.get("tab") || (view === "operations" ? "overview" : "draft"),
+          env: config.envs.includes(params.get("env")) ? params.get("env") : config.envs[0],
+          q: params.get("q") || "",
+          status: ["all", "open", "closed", "unreleased"].includes(params.get("status"))
+            ? params.get("status")
+            : "all",
+          workspace: Object.values(formWorkspaces).includes(params.get("workspace"))
+            ? params.get("workspace")
+            : "all",
+          sort:
+            ["name", "released", "responses"].includes(params.get("sort")) &&
+            (params.get("sort") !== "responses" || person().responses)
+              ? params.get("sort")
+              : "name",
+          page: Number.isSafeInteger(rawPage) && rawPage > 0 ? rawPage : 1,
+        };
+      };
+      const url = (view, tab = "", env = "", form = "onboarding") =>
+        new URLSearchParams({
+          view,
+          ...(tab ? { tab } : {}),
+          ...(env ? { env } : {}),
+          ...(form && tab !== "forms" ? { form } : {}),
+          ...(view === "operations" && !["delivery-failures", "erasures"].includes(tab)
+            ? {
+                ...(operationsListContext.q ? { q: operationsListContext.q } : {}),
+                ...(operationsListContext.status !== "all"
+                  ? { status: operationsListContext.status }
+                  : {}),
+                ...(operationsListContext.workspace !== "all"
+                  ? { workspace: operationsListContext.workspace }
+                  : {}),
+                ...(operationsListContext.sort !== "name"
+                  ? { sort: operationsListContext.sort }
+                  : {}),
+                ...(operationsListContext.page > 1
+                  ? { page: String(operationsListContext.page) }
+                  : {}),
+              }
+            : {}),
+        }).toString();
+      function applyOperationsFilters(reset = false) {
+        operationsListContext = reset
+          ? { q: "", status: "all", workspace: "all", sort: "name", page: 1 }
+          : {
+              q: $("#ops-search").value.trim(),
+              status: $("#ops-status").value,
+              workspace: $("#ops-workspace").value,
+              sort: $("#ops-sort").value,
+              page: 1,
+            };
+        if (reset && $("#ops-search")) {
+          $("#ops-search").value = "";
+          $("#ops-workspace").value = "all";
+          $("#ops-status").value = "all";
+          $("#ops-sort").value = "name";
+        }
+        navigate("operations", "forms", state().env, "");
+      }
+      function navigate(view, tab = "", env = "", form = "onboarding") {
+        const next = url(view, tab, env, form);
+        if (location.hash.slice(1) === next) render();
+        else location.hash = next;
+      }
+      function notify(message) {
+        clearTimeout(toastTimer);
+        $("#toast").textContent = message;
+        toastTimer = setTimeout(() => {
+          $("#toast").textContent = "";
+        }, 6500);
+      }
+      function seed(nextConfig) {
+        config = nextConfig || {
+          envs: ["dev", "test", "stg", "prod"],
+          protected: "prod",
+          sequential: true,
+          multi: false,
+          second: false,
+        };
+        operationsContext = { tab: "forms", env: config.envs[0], form: "" };
+        operationsListContext = { q: "", status: "all", workspace: "all", sort: "name", page: 1 };
+        normalContext = { view: "forms", tab: "", form: "onboarding" };
+        records = {};
+        deliveryFailures = Object.fromEntries(
+          config.envs.map((env) => [
+            env,
+            [
+              {
+                id: "evt-" + env + "-01",
+                form: "onboarding",
+                reason: "Endpoint returned 503",
+                attempts: 6,
+              },
+              {
+                id: "evt-" + env + "-02",
+                form: "feedback",
+                reason: "Delivery timed out",
+                attempts: 6,
+              },
+            ],
+          ]),
+        );
+        erasureEvents = Object.fromEntries(
+          config.envs.map((env) => [
+            env,
+            [
+              {
+                session: "sample-" + env + "-erased-01",
+                form: "feedback",
+                version: 7,
+                reason: "Respondent request",
+                at: "27 Oct, 10:00",
+              },
+            ],
+          ]),
+        );
+        for (const [index, form] of Object.keys(forms).entries()) {
+          records[form] = {};
+          for (const env of config.envs) {
+            const version =
+              index > 1 && index % 7 === 0
+                ? null
+                : config.envs.indexOf(env) < 2 && !isProtected(env)
+                  ? 8
+                  : 7;
+            records[form][env] = {
+              version,
+              closed: version !== null && index > 1 && (index + config.envs.indexOf(env)) % 4 === 0,
+              history: version === null ? [] : [7, ...(version === 8 ? [8] : [])],
+              links: [],
+              webhook: "https://example.com/" + env + "/events",
+              proposal: null,
+              responses: version === null ? 0 : (isProtected(env) ? 124 : 6) + index * 3,
+              lastReleased:
+                version === null
+                  ? null
+                  : Date.UTC(2026, 9, 27, 11, 20) -
+                    index * 3600000 -
+                    config.envs.indexOf(env) * 1800000,
+            };
+          }
+        }
+        versions = [
+          {
+            number: 8,
+            author: "Morgan Lee",
+            title: "Customer onboarding",
+            question: "Work email address",
+            note: "Clarified contact details and added an optional company field.",
+          },
+          {
+            number: 7,
+            author: "Morgan Lee",
+            title: "Customer onboarding",
+            question: "Email address",
+            note: "Current customer onboarding baseline.",
+          },
+        ];
+        draft = { title: "Customer onboarding", question: "Work email address", company: true };
+        questionLabel = "Work email address";
+        historyEntries = [];
+      }
+      function eligibility(env, version) {
+        if (!canOperate(env)) return "An approver with access to this environment is required.";
+        if (config.second && isProtected(env) && version.author === person().name)
+          return (
+            "A different approver must release this version. It was published by " +
+            version.author +
+            "."
+          );
+        const index = config.envs.indexOf(env);
+        if (
+          config.sequential &&
+          index > 0 &&
+          !record(env).history.includes(version.number) &&
+          !record(config.envs[index - 1]).history.includes(version.number)
+        )
+          return (
+            "Release v" +
+            version.number +
+            " to " +
+            envName(config.envs[index - 1]) +
+            " first, as required by this site's flow."
+          );
+        return "";
+      }
+      function icon(type) {
+        const paths = {
+          forms:
+            '<rect x="4" y="3" width="16" height="18" rx="2"/><path d="M8 8h8M8 12h8M8 16h5"/>',
+          questions:
+            '<path d="M9 8a3 3 0 1 1 5 2c-2 1-2 2-2 3M12 17h.01"/><circle cx="12" cy="12" r="10"/>',
+          operations: '<path d="M3 12h4l3-8 4 16 3-8h4"/>',
+          administration:
+            '<circle cx="12" cy="12" r="4"/><path d="M12 2v3M12 19v3M2 12h3M19 12h3M5 5l2 2M17 17l2 2M5 19l2-2M17 7l2-2"/>',
+        };
+        return (
+          '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round">' +
+          paths[type] +
+          "</svg>"
+        );
+      }
+      function tabs(items, current, makeUrl) {
+        return (
+          '<div class="tabs" aria-label="Section">' +
+          items
+            .map(
+              ([id, text]) =>
+                '<a href="#' +
+                makeUrl(id) +
+                '"' +
+                (id === current ? ' aria-current="page"' : "") +
+                ">" +
+                escape(text) +
+                "</a>",
+            )
+            .join("") +
+          "</div>"
+        );
+      }
+      function header(title, subtitle, actions = "", badge = "") {
+        const scope = state();
+        const workspaceLabel =
+          scope.view === "operations"
+            ? scope.form && scope.tab !== "forms"
+              ? formWorkspaces[scope.form]
+              : "Operations"
+            : scope.view === "settings"
+              ? "Your account"
+              : ["workspaces", "workspace", "administration"].includes(scope.view)
+                ? "Installation"
+                : "Customer experience";
+        return (
+          '<div class="heading"><div><div class="eyebrow">' +
+          escape(workspaceLabel) +
+          "</div><h1>" +
+          escape(title) +
+          '</h1><div class="muted">' +
+          escape(subtitle) +
+          '</div></div><div class="actions">' +
+          badge +
+          actions +
+          "</div></div>"
+        );
+      }
+      function operationalSections() {
+        return [
+          ["overview", "Overview"],
+          ...(person().responses ? [["responses", "Responses"]] : []),
+          ...(person().release
+            ? [
+                ["links", "Links"],
+                ["webhooks", "Webhooks"],
+              ]
+            : []),
+        ];
+      }
+      function workspaceUrl(name, tab = "members") {
+        return url("workspace", tab, "", "") + "&workspace=" + encodeURIComponent(name);
+      }
+      function exitOperationsUrl() {
+        if (
+          normalContext.view === "settings" ||
+          (normalContext.view === "workspaces" && canManageWorkspaces())
+        )
+          return url(normalContext.view, normalContext.tab, "", "");
+        if (normalContext.view === "workspace" && canManageWorkspace(normalContext.workspace))
+          return workspaceUrl(normalContext.workspace, normalContext.tab);
+        if (normalContext.view === "administration" && person().admin) return url("administration");
+        if (canReadForms())
+          return url(
+            ["forms", "form", "questions"].includes(normalContext.view)
+              ? normalContext.view
+              : "forms",
+            normalContext.tab,
+            "",
+            normalContext.form,
+          );
+        return person().admin
+          ? url("administration")
+          : canManageWorkspaces()
+            ? url("workspaces", "", "", "")
+            : "";
+      }
+      function operationsScope(s) {
+        return (
+          '<label for="ops-env">Environment<select id="ops-env" aria-label="Environment">' +
+          config.envs
+            .map(
+              (env) =>
+                '<option value="' +
+                env +
+                '"' +
+                (env === s.env ? " selected" : "") +
+                ">" +
+                escape(envName(env)) +
+                "</option>",
+            )
+            .join("") +
+          "</select></label>" +
+          tag(
+            isProtected(s.env) ? "Production data" : "Non-production data",
+            isProtected(s.env) ? "amber" : "blue",
+          )
+        );
+      }
+      function render() {
+        const s = state();
+        const operationsAllowed = Boolean(person().release || person().responses);
+        const operationsMode = s.view === "operations" && operationsAllowed;
+        const workspaceMode = ["workspaces", "workspace"].includes(s.view) && canManageWorkspaces();
+        if (operationsMode) {
+          operationsContext = { tab: "forms", env: s.env, form: "" };
+          if (!["delivery-failures", "erasures"].includes(s.tab))
+            operationsListContext = {
+              q: s.q,
+              status: s.status,
+              workspace: s.workspace,
+              sort: s.sort,
+              page: s.page,
+            };
+        } else if (
+          (["forms", "form", "questions"].includes(s.view) && canReadForms()) ||
+          (s.view === "administration" && person().admin) ||
+          s.view === "settings"
+        )
+          normalContext = { view: s.view, tab: s.tab, form: s.form, workspace: s.workspace };
+        document.body.dataset.mode = operationsMode
+          ? "operations"
+          : workspaceMode
+            ? "workspaces"
+            : "normal";
+        const areas = [];
+        if (canReadForms())
+          areas.push(
+            ["questions", "Questions", url("questions")],
+            ["forms", "Forms", url("forms")],
+          );
+        if (operationsAllowed)
+          areas.push([
+            "operations",
+            "Operations",
+            url("operations", operationsContext.tab, operationsContext.env, operationsContext.form),
+          ]);
+        if (canManageWorkspaces())
+          areas.push(["workspaces", "Workspaces", url("workspaces", "", "", "")]);
+        if (person().admin)
+          areas.push(["administration", "Site configuration", url("administration")]);
+        $("#application-area").innerHTML = workspaceMode
+          ? '<div class="operations-brand">' +
+            icon("administration") +
+            '<strong>Workspaces</strong></div><nav class="operations-tools" aria-label="Workspace areas">' +
+            link("All workspaces", url("workspaces", "", "", "")) +
+            "</nav>"
+          : operationsMode
+            ? '<div class="operations-brand">' +
+              icon("operations") +
+              '<strong>Operations</strong></div><nav class="operations-tools" aria-label="Operations areas">' +
+              [
+                ["forms", "Forms"],
+                ...(person().release ? [["delivery-failures", "Delivery failures"]] : []),
+                ...(person().responses ? [["erasures", "Erasure log"]] : []),
+              ]
+                .map(
+                  ([id, label]) =>
+                    '<a href="#' +
+                    url("operations", id, s.env, "") +
+                    '"' +
+                    (s.tab === id ? ' aria-current="page"' : "") +
+                    ">" +
+                    escape(label) +
+                    "</a>",
+                )
+                .join("") +
+              "</nav>"
+            : '<nav class="area-nav" aria-label="Application areas">' +
+              areas
+                .filter(([id]) => id !== "operations")
+                .map(
+                  ([id, label, target]) =>
+                    '<a href="#' +
+                    target +
+                    '"' +
+                    ((id === "forms" && s.view === "form") ||
+                    (id === "workspaces" && s.view === "workspace") ||
+                    id === s.view
+                      ? ' aria-current="page"'
+                      : "") +
+                    ">" +
+                    escape(label) +
+                    "</a>",
+                )
+                .join("") +
+              (operationsAllowed
+                ? '<span class="operations-entry"><a class="operations-link" href="#' +
+                  url(
+                    "operations",
+                    operationsContext.tab,
+                    operationsContext.env,
+                    operationsContext.form,
+                  ) +
+                  '">' +
+                  icon("operations") +
+                  '<span>Operations</span><span aria-hidden="true">→</span></a></span>'
+                : "") +
+              "</nav>";
+        $("#operations-scope").hidden = !operationsMode;
+        $("#operations-scope").innerHTML = operationsMode ? operationsScope(s) : "";
+        $("#operations-exit").innerHTML = workspaceMode
+          ? canReadForms() || person().admin
+            ? link("Exit workspaces", exitOperationsUrl(), "button")
+            : ""
+          : operationsMode && (canReadForms() || canManageWorkspaces() || person().admin)
+            ? link("Exit operations", exitOperationsUrl(), "button")
+            : "";
+        const sideItems = operationsMode
+          ? s.form && !["forms", "delivery-failures", "erasures"].includes(s.tab)
+            ? [
+                ["forms", "All forms", url("operations", "forms", s.env, "")],
+                ...operationalSections().map(([id, label]) => [
+                  id,
+                  label,
+                  url("operations", id, s.env, s.form),
+                ]),
+              ]
+            : []
+          : s.view === "form" && canReadForms()
+            ? [
+                ...(person().edit ? [["draft", "Draft", url("form", "draft")]] : []),
+                ["versions", "Versions", url("form", "versions")],
+              ]
+            : s.view === "questions" && canReadForms()
+              ? [
+                  ["details", "Question details", url("questions", "details")],
+                  ["usage", "Used by", url("questions", "usage")],
+                ]
+              : s.view === "workspace" && canManageWorkspace(s.workspace)
+                ? [
+                    ["members", "Members"],
+                    ["groups", "Access groups"],
+                    ["workspace-settings", "Workspace settings"],
+                    ["audit", "Access audit"],
+                  ].map(([id, label]) => [
+                    id,
+                    label,
+                    workspaceUrl(s.workspace === "all" ? "Customer experience" : s.workspace, id),
+                  ])
+                : s.view === "settings"
+                  ? [
+                      ["account", "Account"],
+                      ["change-password", "Change password"],
+                      ["two-factor", "Two-factor authentication"],
+                    ].map(([id, label]) => [id, label, url("settings", id, "", "")])
+                  : s.view === "administration" && person().admin
+                    ? [["administration", "Release flow", url("administration")]]
+                    : [];
+        const currentSide = operationsMode
+          ? operationalSections().some(([id]) => id === s.tab)
+            ? s.tab
+            : "overview"
+          : s.view === "form"
+            ? person().edit && s.tab === "draft"
+              ? "draft"
+              : "versions"
+            : s.view === "questions"
+              ? s.tab === "usage"
+                ? "usage"
+                : "details"
+              : s.view === "workspace"
+                ? ["members", "groups", "workspace-settings", "audit"].includes(s.tab)
+                  ? s.tab
+                  : "members"
+                : s.view === "settings"
+                  ? ["account", "change-password", "two-factor"].includes(s.tab)
+                    ? s.tab
+                    : "account"
+                  : "administration";
+        $("#rail-context").textContent = operationsMode
+          ? forms[s.form] || "Forms"
+          : s.view === "form"
+            ? "Customer onboarding"
+            : s.view === "questions"
+              ? "Contact email"
+              : s.view === "workspace"
+                ? s.workspace === "all"
+                  ? "Customer experience"
+                  : s.workspace
+                : s.view === "settings"
+                  ? "Your account"
+                  : "This installation";
+        $("#section-label").textContent = operationsMode
+          ? "Operations"
+          : s.view === "form"
+            ? "Form navigation"
+            : s.view === "questions"
+              ? "Question navigation"
+              : s.view === "workspace"
+                ? "Workspace navigation"
+                : s.view === "settings"
+                  ? "Account settings"
+                  : "Site configuration";
+        $("#nav").setAttribute(
+          "aria-label",
+          operationsMode ? "Operations navigation" : "Context navigation",
+        );
+        document.querySelector("aside").hidden = !sideItems.length;
+        document.querySelector(".shell").classList.toggle("without-rail", !sideItems.length);
+        $("#nav").innerHTML = sideItems
+          .map(
+            ([id, label, target]) =>
+              '<a href="#' +
+              target +
+              '"' +
+              (currentSide === id ? ' aria-current="page"' : "") +
+              ">" +
+              icon(
+                operationsMode
+                  ? "operations"
+                  : s.view === "questions"
+                    ? "questions"
+                    : s.view === "administration"
+                      ? "administration"
+                      : "forms",
+              ) +
+              escape(label) +
+              "</a>",
+          )
+          .join("");
+        const initials = person()
+          .name.split(" ")
+          .map((x) => x[0])
+          .join("");
+        $("#account").innerHTML =
+          '<button class="avatar" data-action="account-menu" aria-label="' +
+          escape(initials + ", account menu for " + person().name) +
+          '" title="Account menu">' +
+          escape(initials) +
+          "</button>";
+        const allowed =
+          s.view === "operations"
+            ? operationsAllowed
+            : s.view === "administration"
+              ? Boolean(person().admin)
+              : s.view === "settings" ||
+                (s.view === "workspaces" && canManageWorkspaces()) ||
+                (s.view === "workspace" && canManageWorkspace(s.workspace)) ||
+                (["forms", "form", "questions"].includes(s.view) && canReadForms());
+        let html =
+          '<div class="crumb">' +
+          (operationsMode
+            ? "Operations / " +
+              escape(envName(s.env)) +
+              " / " +
+              escape(
+                s.form && !["forms", "delivery-failures", "erasures"].includes(s.tab)
+                  ? forms[s.form]
+                  : { "delivery-failures": "Delivery failures", erasures: "Erasure log" }[s.tab] ||
+                      "Forms",
+              )
+            : escape(
+                (["settings", "workspaces", "workspace", "administration"].includes(s.view)
+                  ? ""
+                  : "Customer experience / ") +
+                  (s.view === "form"
+                    ? "Forms / Customer onboarding"
+                    : {
+                        forms: "Forms",
+                        questions: "Question library",
+                        administration: "Site configuration",
+                        workspaces: "Workspaces",
+                        workspace: "Workspace management",
+                        settings: "Settings",
+                      }[s.view] || "Page"),
+              )) +
+          "</div>";
+        if (!allowed)
+          html +=
+            '<div class="card empty"><h1>This section needs another role</h1><p class="muted">Choose an available section in the navigation.</p></div>';
+        else if (s.view === "forms") html += formsView();
+        else if (s.view === "form") html += formView(s);
+        else if (s.view === "questions") html += questionsView(s);
+        else if (s.view === "operations") html += operationsView(s);
+        else if (s.view === "administration") html += administrationView();
+        else if (s.view === "workspaces") html += workspacesView();
+        else if (s.view === "workspace") html += workspaceView(s);
+        else if (s.view === "settings") html += settingsView(s);
+        $("#content").innerHTML = html;
+        document.title =
+          "QCMS · " +
+          ({
+            form: "Customer onboarding",
+            operations: envName(s.env) + " operations",
+            forms: "Forms",
+            questions: "Question library",
+            administration: "Release flow",
+            workspaces: "Workspaces",
+            workspace: "Workspace management",
+            settings: "Account settings",
+          }[s.view] || "Concept");
+      }
+      function formsView() {
+        return (
+          header(
+            "Forms",
+            "Create shared content. Release each version where it belongs.",
+            "",
+            tag("Shared authoring", "blue"),
+          ) +
+          '<div class="card flush table-scroll"><table><thead><tr><th>Form</th><th>Draft</th><th>Published</th><th>Released in</th></tr></thead><tbody><tr><td>' +
+          link("Customer onboarding", url("form", person().edit ? "draft" : "versions")) +
+          "<small>Collect contact and company details</small></td><td>" +
+          tag("Changes ready") +
+          "</td><td>v" +
+          versions[0].number +
+          "</td><td>" +
+          config.envs.map((env) => tag(envName(env) + " · v" + record(env).version)).join(" ") +
+          '</td></tr><tr><td>Customer feedback<small>Post-service feedback</small></td><td><span class="muted">No changes</span></td><td>v8</td><td>' +
+          link("View operations", url("operations", "overview", config.envs[0], "feedback")) +
+          '</td></tr></tbody></table></div><p class="muted"><small>Questions, drafts and version history are shared. Each environment has its own released version and respondent data.</small></p>'
+        );
+      }
+      function formView(s) {
+        const current = person().edit && s.tab === "draft" ? "draft" : "versions";
+        let html = header(
+          "Customer onboarding",
+          "Contact details, company information and consent.",
+          button("Publish", "publish-wizard", "", true),
+          tag("Shared across environments", "blue"),
+        );
+        if (current === "draft") {
+          html +=
+            '<div class="grid"><div><div class="card"><div class="row"><h2>Form draft</h2>' +
+            tag("Editable") +
+            '</div><p class="muted">Build the next version. Released versions stay unchanged.</p><label class="field">Form title<input id="draft-title" value="' +
+            escape(draft.title) +
+            '"></label><label class="field">Contact question<input id="draft-question" value="' +
+            escape(draft.question) +
+            '"></label><label class="check"><input id="draft-company" type="checkbox"' +
+            (draft.company ? " checked" : "") +
+            '> Include optional company name</label><div class="actions">' +
+            button("Preview draft", "preview") +
+            button("Use latest library question", "update-question") +
+            '</div></div><div class="notice">This draft is shared. Editing it does not change any released form.</div></div><div class="card"><div class="eyebrow">Next version</div><h2>Ready when you are</h2><p class="muted">Use Publish to choose a version, select an accessible environment and review the change.</p><p><small>The wizard follows this site’s configured flow. A new draft becomes immutable only when you confirm.</small></p></div></div>';
+        } else {
+          html +=
+            '<div class="row"><div><h2>Versions and availability</h2><p class="muted">See which version is running in each environment, then publish from one place.</p></div>' +
+            tag(config.sequential ? "Ordered release flow" : "Flexible destinations") +
+            "</div>";
+          html +=
+            '<div class="flow">' +
+            config.envs
+              .map(
+                (env) =>
+                  '<div class="stage"><strong>' +
+                  escape(envName(env)) +
+                  "</strong>" +
+                  tag("v" + record(env).version, isProtected(env) ? "green" : "blue") +
+                  "<small>" +
+                  (record(env).closed ? "Intake closed" : "Intake open") +
+                  "</small>" +
+                  link("Open operations", url("operations", "overview", env)) +
+                  "</div>",
+              )
+              .join("") +
+            "</div>";
+          html +=
+            '<div class="card flush table-scroll"><table><thead><tr><th>Version</th><th>Content</th><th>Published by</th><th>Available in</th><th>Review</th></tr></thead><tbody>' +
+            versions
+              .map((v) => {
+                const available = config.envs.filter((env) => record(env).version === v.number);
+                return (
+                  "<tr><td><strong>v" +
+                  v.number +
+                  "</strong></td><td>" +
+                  escape(v.note) +
+                  "<small>Question: " +
+                  escape(v.question) +
+                  "</small></td><td>" +
+                  escape(v.author) +
+                  "</td><td>" +
+                  (available.length
+                    ? available
+                        .map((env) =>
+                          link(
+                            envName(env),
+                            url("operations", "overview", env),
+                            "tag " + (isProtected(env) ? "green" : "blue"),
+                          ),
+                        )
+                        .join(" ")
+                    : '<span class="muted">Not currently released</span>') +
+                  "</td><td>" +
+                  button("Review v" + v.number, "snapshot", 'data-version="' + v.number + '"') +
+                  "</td></tr>"
+                );
+              })
+              .join("") +
+            '</tbody></table></div><p class="muted"><small>Available in shows current releases. Publishing to another environment reuses the exact version; it does not create a copy.</small></p>';
+          html +=
+            '<div class="card spaced"><h2>Release history</h2>' +
+            (historyEntries.length
+              ? historyEntries.map((entry) => "<p>" + escape(entry) + "</p>").join("")
+              : '<p class="muted">Sample baseline · Morgan Lee<br>' +
+                config.envs
+                  .map((env) => escape(envName(env)) + ": v" + record(env).version)
+                  .join(" · ") +
+                "</p>") +
+            "</div>";
+        }
+        return html;
+      }
+      function questionsView(s) {
+        if (s.tab === "usage")
+          return (
+            header(
+              "Used by",
+              "Forms using Contact email.",
+              "",
+              tag("Shared across environments", "blue"),
+            ) +
+            '<div class="card"><h2>Customer onboarding</h2><p class="muted">Published forms retain their pinned question versions.</p>' +
+            link("Open form", url("form", person().edit ? "draft" : "versions"), "button") +
+            "</div>"
+          );
+        return (
+          header(
+            "Contact email",
+            "Reusable question · Shared version history.",
+            "",
+            tag("Shared across environments", "blue"),
+          ) +
+          '<div class="grid"><div class="card"><h2>Contact email</h2><p class="muted">q_contact_email · Email · Published question v3</p><label class="field">Question label<input id="library-label" value="' +
+          escape(questionLabel) +
+          '"' +
+          (!person().edit ? " readonly" : "") +
+          '></label><div class="actions">' +
+          (person().edit
+            ? button("Publish question version", "publish-question", "", true)
+            : tag("Read only")) +
+          '</div><p class="spaced"><small>Forms keep their pinned question versions. Update a form draft explicitly to use the new question version.</small></p></div><div class="card"><h2>Used by</h2><p>' +
+          link("Customer onboarding", url("form", person().edit ? "draft" : "versions")) +
+          '</p><p class="muted">A published form retains its original question content.</p></div></div>'
+        );
+      }
+      function workspacesView() {
+        const names = managedWorkspaces();
+        return (
+          header("Workspaces", "Manage workspace access and review your own grants.") +
+          (canManageWorkspaces()
+            ? '<div class="card flush table-scroll"><table><thead><tr><th>Workspace</th><th>Forms</th><th>Manage</th></tr></thead><tbody>' +
+              names
+                .map(
+                  (name) =>
+                    "<tr><td>" +
+                    escape(name) +
+                    "</td><td>" +
+                    formCatalog.filter(([, , workspace]) => workspace === name).length +
+                    "</td><td>" +
+                    link("Open " + name, workspaceUrl(name), "button") +
+                    "</td></tr>",
+                )
+                .join("") +
+              "</tbody></table></div>"
+            : '<div class="notice">You do not administer a workspace. Your own access is shown below.</div>') +
+          myAccessBody()
+        );
+      }
+      function myAccessBody() {
+        return (
+          '<div class="card"><h2>My access</h2><p>' +
+          escape(person().name) +
+          " · " +
+          escape(person().detail) +
+          '</p><p class="muted">' +
+          (person().admin
+            ? "Installation administration is separate from form and response permissions."
+            : person().ownedWorkspaces
+              ? "Workspace ownership grants management access. Authoring and response access require separate grants."
+              : "Your role applies only within its workspace, form and environment grants.") +
+          "</p><p><small>Sample role: " +
+          escape(role) +
+          " · " +
+          (person().ownedWorkspaces
+            ? "Manages " + person().ownedWorkspaces.map(escape).join(", ")
+            : person().environments
+              ? person().environments.map(envName).map(escape).join(", ")
+              : "All configured environments in this demo") +
+          "</small></p></div>"
+        );
+      }
+      function workspaceView(s) {
+        const name = s.workspace === "all" ? "Customer experience" : s.workspace;
+        const tab = ["members", "groups", "workspace-settings", "audit"].includes(s.tab)
+          ? s.tab
+          : "members";
+        const headings = {
+          members: "Members",
+          groups: "Access groups",
+          "workspace-settings": "Workspace settings",
+          audit: "Access audit",
+        };
+        let html = header(headings[tab], name);
+        if (tab === "members")
+          html +=
+            '<div class="card flush table-scroll"><table><thead><tr><th>Member</th><th>Workspace role</th></tr></thead><tbody><tr><td>Alex Chen</td><td>Owner</td></tr>' +
+            (name === "Customer experience" ? "<tr><td>Jordan Blake</td><td>Owner</td></tr>" : "") +
+            "<tr><td>Morgan Lee</td><td>Member</td></tr><tr><td>Riley Patel</td><td>Member</td></tr></tbody></table></div>";
+        if (tab === "groups")
+          html +=
+            '<div class="card flush table-scroll"><table><thead><tr><th>Access group</th><th>Role</th><th>Environments</th></tr></thead><tbody><tr><td>Authoring</td><td>forms.editor</td><td>' +
+            escape(
+              config.envs
+                .filter((env) => !isProtected(env))
+                .map(envName)
+                .join(", "),
+            ) +
+            "</td></tr><tr><td>Production approval</td><td>forms.approver</td><td>" +
+            escape(envName(config.protected)) +
+            "</td></tr><tr><td>Response operations</td><td>responses.viewer, responses.eraser</td><td>Explicit environment and form scope</td></tr></tbody></table></div>";
+        if (tab === "workspace-settings")
+          html +=
+            '<div class="card"><h2>Production approval</h2><p>' +
+            tag(
+              config.second ? "Different approver required" : "Second-person requirement off",
+              config.second ? "blue" : "",
+            ) +
+            '</p><p class="muted">The existing workspace screen manages approval requirements and default test-data access for new editors. Personal account settings remain separate.</p></div>';
+        if (tab === "audit")
+          html +=
+            '<div class="card"><h2>Access changes</h2><p>Sample event · Access group granted to Morgan Lee.</p><p class="muted">Membership, grant and workspace-setting changes are audited. The existing application exposes the audit to workspace owners and installation administrators.</p></div>';
+        return (
+          html +
+          '<div class="notice">Read-only sample management panels. This prototype does not modify workspace memberships or grants.</div>'
+        );
+      }
+      function settingsBody(tab) {
+        if (tab === "change-password")
+          return '<div class="card"><h2>Change password</h2><p>Change your account password and revoke other sessions.</p><p class="muted">This navigation preview does not collect passwords or update a live account.</p></div>';
+        if (tab === "two-factor")
+          return (
+            '<div class="card"><h2>Two-factor authentication</h2><p>' +
+            tag("Enrolled", "green") +
+            '</p><h3>Re-enrolment</h3><p class="muted">The existing flow signs out and returns through sign-in and enrolment.</p><h3>Recovery codes</h3><p class="muted">The existing application supports password-confirmed regeneration of recovery codes.</p></div>'
+          );
+        return (
+          '<div class="card"><h2>Account</h2><p>Signed in as ' +
+          escape(person().name) +
+          '</p><p class="muted">Account settings are personal and independent of workspace administration.</p></div>'
+        );
+      }
+      function settingsView(s) {
+        const tab = ["account", "change-password", "two-factor"].includes(s.tab)
+          ? s.tab
+          : "account";
+        return (
+          header("Settings", "Your account, password and two-factor authentication.") +
+          settingsBody(tab)
+        );
+      }
+      function deliveryFailuresView(s) {
+        const entries = deliveryFailures[s.env];
+        return (
+          header(
+            "Delivery failures",
+            envName(s.env) + " · All accessible forms",
+            button("Retry all", "retry-all", "", true, !entries.length || !canOperate(s.env)),
+          ) +
+          (entries.length
+            ? '<div class="card flush table-scroll"><table><thead><tr><th>Form</th><th>Event</th><th>Attempts</th><th>Last failure</th><th>Action</th></tr></thead><tbody>' +
+              entries
+                .map(
+                  (item) =>
+                    "<tr><td>" +
+                    link(forms[item.form], url("operations", "webhooks", s.env, item.form)) +
+                    "</td><td>" +
+                    escape(item.id) +
+                    "</td><td>" +
+                    item.attempts +
+                    "</td><td>" +
+                    escape(item.reason) +
+                    "</td><td>" +
+                    button(
+                      "Retry",
+                      "retry-delivery",
+                      'data-id="' + item.id + '"',
+                      false,
+                      !canOperate(s.env),
+                    ) +
+                    "</td></tr>",
+                )
+                .join("") +
+              "</tbody></table></div>"
+            : '<div class="card empty"><h2>No delivery failures</h2><p class="muted">No stuck deliveries in this environment.</p></div>') +
+          '<div class="notice">Retries are simulated in this POC; no webhook request is sent.</div>'
+        );
+      }
+      function erasureLogView(s) {
+        return (
+          header("Erasure log", envName(s.env) + " · Erasure evidence across accessible forms.") +
+          '<div class="card flush table-scroll"><table><thead><tr><th>Session</th><th>Form</th><th>Version</th><th>Erased at</th><th>Reason</th></tr></thead><tbody>' +
+          erasureEvents[s.env]
+            .map(
+              (item) =>
+                "<tr><td>" +
+                escape(item.session) +
+                "</td><td>" +
+                escape(forms[item.form]) +
+                "</td><td>v" +
+                item.version +
+                "</td><td>" +
+                escape(item.at) +
+                "</td><td>" +
+                escape(item.reason) +
+                "</td></tr>",
+            )
+            .join("") +
+          '</tbody></table></div><p class="muted">Erasure is performed from a selected response, not from this log.</p>'
+        );
+      }
+      function operationsFormsView(s) {
+        const query = s.q.toLocaleLowerCase();
+        const workspaceNames = [...new Set(Object.values(formWorkspaces))].sort();
+        const matches = formCatalog
+          .filter(([id, name, workspace]) => {
+            const r = record(s.env, id);
+            return (
+              (!query || (name + " " + id).toLocaleLowerCase().includes(query)) &&
+              (s.workspace === "all" || s.workspace === workspace) &&
+              (s.status === "all" ||
+                (s.status === "unreleased" && r.version === null) ||
+                (s.status === "open" && r.version !== null && !r.closed) ||
+                (s.status === "closed" && r.version !== null && r.closed))
+            );
+          })
+          .sort((a, b) =>
+            s.sort === "released"
+              ? (record(s.env, b[0]).lastReleased || 0) - (record(s.env, a[0]).lastReleased || 0) ||
+                a[1].localeCompare(b[1])
+              : s.sort === "responses"
+                ? record(s.env, b[0]).responses - record(s.env, a[0]).responses ||
+                  a[1].localeCompare(b[1])
+                : a[1].localeCompare(b[1]),
+          );
+        const pageSize = 10,
+          pages = Math.max(1, Math.ceil(matches.length / pageSize)),
+          page = Math.min(s.page, pages),
+          offset = (page - 1) * pageSize;
+        operationsListContext.page = page;
+        const options = (values, current) =>
+          values
+            .map(
+              ([value, label]) =>
+                '<option value="' +
+                escape(value) +
+                '"' +
+                (value === current ? " selected" : "") +
+                ">" +
+                escape(label) +
+                "</option>",
+            )
+            .join("");
+        let html = header(
+          "Forms in " + envName(s.env),
+          "Find a form to manage intake, links, responses and webhook delivery.",
+        );
+        html +=
+          '<form id="ops-filter-form" class="card list-filters" role="search" aria-label="Filter operational forms"><label for="ops-search">Search forms<input id="ops-search" type="search" name="q" value="' +
+          escape(s.q) +
+          '" placeholder="Search by form name or ID"></label><label for="ops-workspace">Workspace<select id="ops-workspace" aria-label="Workspace">' +
+          options(
+            [["all", "All accessible workspaces"], ...workspaceNames.map((name) => [name, name])],
+            s.workspace,
+          ) +
+          '</select></label><label for="ops-status">Intake<select id="ops-status" aria-label="Intake">' +
+          options(
+            [
+              ["all", "All states"],
+              ["open", "Open"],
+              ["closed", "Closed"],
+              ["unreleased", "Not released"],
+            ],
+            s.status,
+          ) +
+          '</select></label><label for="ops-sort">Sort by<select id="ops-sort" aria-label="Sort by">' +
+          options(
+            [
+              ["name", "Form name"],
+              ["released", "Latest release"],
+              ...(person().responses ? [["responses", "Most responses"]] : []),
+            ],
+            s.sort,
+          ) +
+          '</select></label><div class="actions"><button class="primary" type="submit">Apply filters</button>' +
+          button("Clear filters", "ops-clear") +
+          "</div></form>";
+        html +=
+          '<div class="row list-results"><p role="status">' +
+          (matches.length
+            ? offset +
+              1 +
+              "–" +
+              Math.min(offset + pageSize, matches.length) +
+              " of " +
+              matches.length +
+              " forms"
+            : "No forms match these filters") +
+          "</p><small>" +
+          escape(envName(s.env)) +
+          " · " +
+          (s.workspace === "all" ? "All accessible workspaces" : escape(s.workspace)) +
+          "</small></div>";
+        if (!matches.length)
+          return (
+            html +
+            '<div class="card empty"><h2>No matching forms</h2><p class="muted">Try another name, workspace or intake state.</p>' +
+            button("Clear filters", "ops-clear") +
+            "</div>"
+          );
+        html +=
+          '<div class="card flush table-scroll"><table><caption class="sr-only">Operational forms in ' +
+          escape(envName(s.env)) +
+          "</caption><thead><tr><th>Form</th><th>Workspace</th><th>Released version</th><th>Intake</th><th>Responses</th><th>Last release</th></tr></thead><tbody>" +
+          matches
+            .slice(offset, offset + pageSize)
+            .map(([id, name, workspace]) => {
+              const r = record(s.env, id);
+              return (
+                "<tr><td>" +
+                link(name, url("operations", "overview", s.env, id)) +
+                "<small>" +
+                escape(id) +
+                "</small></td><td>" +
+                escape(workspace) +
+                "</td><td>" +
+                (r.version === null ? "—" : "v" + r.version) +
+                "</td><td>" +
+                tag(
+                  r.version === null ? "Not released" : r.closed ? "Closed" : "Open",
+                  r.version === null ? "" : r.closed ? "amber" : "green",
+                ) +
+                "</td><td>" +
+                (person().responses ? r.responses : '<span class="muted">Restricted</span>') +
+                "</td><td>" +
+                (r.lastReleased
+                  ? new Intl.DateTimeFormat("en-AU", {
+                      month: "short",
+                      day: "numeric",
+                      hour: "2-digit",
+                      minute: "2-digit",
+                      timeZone: "UTC",
+                    }).format(r.lastReleased)
+                  : "—") +
+                "</td></tr>"
+              );
+            })
+            .join("") +
+          '</tbody></table></div><div class="row list-pagination"><small>Page ' +
+          page +
+          " of " +
+          pages +
+          '</small><div class="actions">' +
+          button("Previous", "ops-page", 'data-page="' + (page - 1) + '"', false, page === 1) +
+          button("Next", "ops-page", 'data-page="' + (page + 1) + '"', false, page === pages) +
+          "</div></div>";
+        return html;
+      }
+      function operationsView(s) {
+        if (s.tab === "delivery-failures" && person().release) return deliveryFailuresView(s);
+        if (s.tab === "erasures" && person().responses) return erasureLogView(s);
+        if (!s.form || s.tab === "forms") return operationsFormsView(s);
+        const r = record(s.env, s.form);
+        const activeTab = [
+          "overview",
+          ...(person().responses ? ["responses"] : []),
+          ...(person().release ? ["links", "webhooks"] : []),
+        ].includes(s.tab)
+          ? s.tab
+          : "overview";
+        let html = header(
+          operationalSections().find(([id]) => id === activeTab)[1],
+          forms[s.form] + " · " + envName(s.env),
+        );
+        if (activeTab === "overview") {
+          html +=
+            '<div class="stat-grid"><div class="stat"><small>Released version</small><strong>' +
+            (r.version === null ? "Not released" : "v" + r.version) +
+            '</strong></div><div class="stat"><small>Intake</small><strong>' +
+            (r.version === null ? "Not available" : r.closed ? "Closed" : "Open") +
+            '</strong></div><div class="stat"><small>' +
+            (person().responses ? "Submitted responses" : "Response access") +
+            "</small><strong>" +
+            (person().responses ? r.responses : "Restricted") +
+            '</strong></div></div><div class="card"><div class="row"><div><h2>' +
+            escape(forms[s.form]) +
+            " in " +
+            escape(envName(s.env)) +
+            '</h2><p class="muted">' +
+            (r.version === null
+              ? "This form has not been released in this environment."
+              : r.closed
+                ? "New sessions are currently refused."
+                : "New sessions start on v" + r.version + ".") +
+            " Existing sessions keep their original version.</p></div>" +
+            button(
+              r.closed ? "Reopen intake" : "Close intake",
+              "intake",
+              "",
+              false,
+              !canOperate(s.env) || r.version === null,
+            ) +
+            '</div><div class="actions">' +
+            (person().release
+              ? link(
+                  "Get " + envName(s.env) + " link",
+                  url("operations", "links", s.env, s.form),
+                  "button",
+                )
+              : "") +
+            (person().responses
+              ? link(
+                  "View " + envName(s.env) + " responses",
+                  url("operations", "responses", s.env, s.form),
+                  "button",
+                )
+              : "") +
+            "</div></div>";
+          if (!person().responses)
+            html +=
+              '<div class="notice">Response data needs a separate responses role, even if you can edit or release forms.</div>';
+        } else if (activeTab === "responses") {
+          html +=
+            '<div class="row"><div><h2>' +
+            escape(envName(s.env)) +
+            ' responses</h2><p class="muted">' +
+            r.responses +
+            " submissions · " +
+            escape(forms[s.form]) +
+            "</p></div>" +
+            button("Export responses", "export") +
+            '</div><div class="card flush table-scroll"><table><thead><tr><th>Session</th><th>Status</th><th>Form version</th><th>Received</th></tr></thead><tbody>' +
+            (r.responses ? [1, 2, 3] : [])
+              .map(
+                (n) =>
+                  "<tr><td>sample-" +
+                  escape(s.env) +
+                  "-00" +
+                  n +
+                  "</td><td>" +
+                  tag("Submitted", "green") +
+                  "</td><td>v" +
+                  (n === 3 ? Math.max(7, r.version - 1) : r.version) +
+                  "</td><td>Today, 10:" +
+                  (20 + n * 4) +
+                  "</td></tr>",
+              )
+              .join("") +
+            "</tbody></table></div>";
+        } else if (activeTab === "links") {
+          html +=
+            '<div class="row"><div><h2>' +
+            escape(envName(s.env)) +
+            ' links</h2><p class="muted">New sessions follow this environment\'s released version.</p></div>' +
+            button(
+              "Create secure link",
+              "create-link",
+              "",
+              true,
+              !canOperate(s.env) || r.version === null,
+            ) +
+            "</div>" +
+            (r.links.length
+              ? r.links
+                  .map(
+                    (item, index) =>
+                      '<div class="card"><div class="row"><div><strong>Review link ' +
+                      (index + 1) +
+                      '</strong><p class="muted">' +
+                      escape(envName(s.env)) +
+                      " · " +
+                      (item.revoked ? "Revoked" : "Active") +
+                      "</p></div>" +
+                      button(
+                        item.revoked ? "Revoked" : "Revoke",
+                        "revoke-link",
+                        'data-index="' + index + '"',
+                        false,
+                        item.revoked || !canOperate(s.env),
+                      ) +
+                      "</div><code>" +
+                      escape(item.path) +
+                      "</code></div>",
+                  )
+                  .join("")
+              : '<div class="card empty"><h2>No secure links yet</h2><p class="muted">Create a link for ' +
+                escape(envName(s.env)) +
+                " to exercise the released form.</p></div>");
+          html +=
+            '<div class="notice">Sample links demonstrate navigation only; they do not open a respondent session.</div>';
+        } else {
+          html +=
+            '<div class="card"><h2>' +
+            escape(envName(s.env)) +
+            ' webhook</h2><p class="muted">Only submissions in this environment use this endpoint.</p><p><strong>Active endpoint</strong><br>' +
+            escape(r.webhook) +
+            '</p><label class="field">New endpoint<input id="webhook-url" type="url" value="' +
+            escape(r.webhook) +
+            '"></label>' +
+            button(
+              config.second && isProtected(s.env) ? "Propose endpoint change" : "Update endpoint",
+              "webhook",
+              "",
+              true,
+              !canOperate(s.env),
+            ) +
+            (r.proposal
+              ? '<div class="notice spaced"><strong>Pending proposal</strong><p>' +
+                escape(r.proposal.url) +
+                "<br>Proposed by " +
+                escape(r.proposal.author) +
+                "</p>" +
+                button(
+                  "Confirm endpoint change",
+                  "confirm-webhook",
+                  "",
+                  false,
+                  !canOperate(s.env) || r.proposal.author === person().name,
+                ) +
+                "</div>"
+              : "") +
+            "</div>";
+        }
+
+        return html;
+      }
+      function administrationView() {
+        return (
+          header(
+            "Release flow",
+            "Choose how this installation moves published versions between environments.",
+          ) +
+          '<div class="grid"><form id="flow-form" class="card"><h2>Environments and release rules</h2><p class="muted">Set the destinations your team needs. Authoring remains shared.</p><label class="field">Start with a flow<select id="flow-preset"><option value="custom">Current configuration</option><option value="single">Production only</option><option value="pair">Test → Production</option><option value="four">Dev → Test → Staging → Production</option><option value="flexible">Flexible destinations</option></select></label><label class="field">Environment names, in order<input id="flow-envs" value="' +
+          escape(config.envs.join(", ")) +
+          '" required pattern="[a-z][a-z0-9_-]*(, *[a-z][a-z0-9_-]*)*"><small>Comma-separated names, for example: dev, test, stg, prod.</small></label><label class="field">Protected production environment<input id="flow-protected" value="' +
+          escape(config.protected) +
+          '" required></label><label class="check"><input type="checkbox" id="flow-sequential"' +
+          (config.sequential ? " checked" : "") +
+          '><span><strong>Require the preceding environment</strong><br><small>Each candidate must have been released to the preceding environment before it can advance.</small></span></label><label class="check"><input type="checkbox" id="flow-multi"' +
+          (config.multi ? " checked" : "") +
+          '><span><strong>Allow publishing to multiple environments</strong><br><small>Each selected environment must already meet its release prerequisites. One selection cannot satisfy another environment’s prerequisite.</small></span></label><label class="check"><input type="checkbox" id="flow-second"' +
+          (config.second ? " checked" : "") +
+          '><span><strong>Require a different production approver</strong><br><small>The account that published a version cannot release it to production.</small></span></label><button class="primary" type="submit">Apply demo flow</button><p class="spaced"><small>Changing the flow resets the sample releases so you can explore another setup.</small></p></form><div class="card"><div class="eyebrow">Configured by the owner</div><h2>Your flow, your destinations</h2><p class="muted">The release screen uses these names and rules. Adding an environment does not add another question library or form draft.</p><p class="muted">Production operations require an approver. Response access is always granted separately.</p><div class="notice">Concept configuration. These controls do not change the running installation.</div></div></div>'
+        );
+      }
+      function modal(body, footer, cancellable = true) {
+        $("#dialog-content").innerHTML =
+          '<div class="dialog-body">' +
+          body +
+          '</div><div class="dialog-actions">' +
+          (cancellable ? button("Cancel", "cancel") : "") +
+          footer +
+          "</div>";
+        $("#dialog").showModal();
+      }
+      function closeModal() {
+        $("#dialog").close();
+        wizard = null;
+      }
+      function snapshot(version) {
+        modal(
+          '<div class="eyebrow">Immutable published content</div><h2 id="dialog-title">Version ' +
+            version.number +
+            '</h2><p class="muted">Published by ' +
+            escape(version.author) +
+            "</p><h3>" +
+            escape(version.title) +
+            '</h3><div class="question-row"><span class="number">1</span><div><strong>' +
+            escape(version.question) +
+            '</strong><div class="mini-input"></div></div></div><p class="muted spaced">' +
+            escape(version.note) +
+            "</p>",
+          button("Done", "cancel", "", true),
+        );
+      }
+      function wizardCandidate() {
+        return wizard.selection === "draft"
+          ? wizard.draftVersion
+          : versions.find((v) => v.number === Number(wizard.selection));
+      }
+      function destinationReason(env) {
+        const candidate = wizardCandidate();
+        if (wizard.selection !== "draft" && record(env).version === candidate.number)
+          return "This version is already available here.";
+        return eligibility(env, candidate);
+      }
+      function startWizard() {
+        wizard = {
+          step: 1,
+          selection:
+            person().edit && state().tab === "draft" ? "draft" : String(versions[0].number),
+          draftVersion: person().edit ? publishedVersion() : null,
+          targets: null,
+          library: false,
+          expected: {},
+        };
+        renderWizard();
+      }
+      function renderWizard() {
+        const candidate = wizardCandidate();
+        const combined = wizard.selection === "draft";
+        const accessible = config.envs.filter(canOperate);
+        const progress =
+          '<ol class="wizard-steps" aria-label="Publishing progress">' +
+          ["Version", "Environment", "Review"]
+            .map(
+              (name, index) =>
+                "<li" +
+                (wizard.step === index + 1 ? ' aria-current="step"' : "") +
+                "><span>" +
+                (index + 1) +
+                "</span>" +
+                name +
+                "</li>",
+            )
+            .join("") +
+          "</ol>";
+        let body = progress;
+        let footer = wizard.step > 1 ? button("Back", "wizard-back") : "";
+        if (wizard.step === 1) {
+          body +=
+            '<h2 id="dialog-title" tabindex="-1">What would you like to publish?</h2><p class="muted">Create a new version from the shared draft, or make an existing version available elsewhere.</p><label class="field" for="wizard-version">Version</label><select id="wizard-version" class="wizard-select" aria-label="Version">' +
+            (person().edit
+              ? '<option value="draft"' +
+                (combined ? " selected" : "") +
+                ">Current draft · create v" +
+                wizard.draftVersion.number +
+                "</option>"
+              : "") +
+            versions
+              .map(
+                (v) =>
+                  '<option value="' +
+                  v.number +
+                  '"' +
+                  (wizard.selection === String(v.number) ? " selected" : "") +
+                  ">v" +
+                  v.number +
+                  " · " +
+                  escape(v.author) +
+                  "</option>",
+              )
+              .join("") +
+            '</select><div class="card spaced"><h3>' +
+            escape(candidate.title) +
+            "</h3><p>" +
+            escape(candidate.question) +
+            "</p><small>" +
+            (combined
+              ? "A new immutable snapshot will be created when you confirm."
+              : "This published version will be reused exactly as it is.") +
+            "</small></div>";
+          if (combined && (!candidate.title.trim() || !candidate.question.trim()))
+            body +=
+              '<div class="notice amber">The draft needs a form title and contact question before it can be published.</div>';
+          footer += button(
+            "Continue",
+            "wizard-next",
+            "",
+            true,
+            combined && (!candidate.title.trim() || !candidate.question.trim()),
+          );
+        } else if (wizard.step === 2) {
+          if (wizard.targets === null) {
+            const first = accessible.find((env) => !destinationReason(env));
+            wizard.targets = first ? [first] : [];
+            wizard.library = !first && combined;
+          }
+          body +=
+            '<h2 id="dialog-title" tabindex="-1">Where should v' +
+            candidate.number +
+            ' be available?</h2><p class="muted">' +
+            (config.multi
+              ? "Choose one or more accessible environments. Each destination must meet the site’s release rules independently."
+              : "Choose one accessible environment. This site allows one destination per publication.") +
+            '</p><fieldset class="destination-list"><legend class="sr-only">Destination environments</legend>';
+          body += accessible
+            .map((env) => {
+              const reason = destinationReason(env);
+              return (
+                '<label class="destination' +
+                (reason ? " unavailable" : "") +
+                '"><input type="' +
+                (config.multi ? "checkbox" : "radio") +
+                '" name="wizard-environment" value="' +
+                env +
+                '"' +
+                (wizard.targets.includes(env) && !reason ? " checked" : "") +
+                (reason ? " disabled" : "") +
+                "><span><strong>" +
+                escape(envName(env)) +
+                "</strong><small>Currently v" +
+                record(env).version +
+                " · Intake " +
+                (record(env).closed ? "closed" : "open") +
+                "</small>" +
+                (reason ? '<small class="restriction">' + escape(reason) + "</small>" : "") +
+                "</span></label>"
+              );
+            })
+            .join("");
+          if (combined)
+            body +=
+              '<label class="destination"><input type="' +
+              (config.multi ? "checkbox" : "radio") +
+              '" name="wizard-environment" value="library"' +
+              (wizard.library ? " checked" : "") +
+              "><span><strong>Create version for later release</strong><small>No environment changes. This choice replaces any selected destinations.</small></span></label>";
+          body += "</fieldset>";
+          if (!accessible.length)
+            body +=
+              '<div class="notice amber">Your role has no accessible release environments.' +
+              (combined
+                ? " You can still create a version for an approver."
+                : " Ask the site owner for the appropriate environment access.") +
+              "</div>";
+          if (config.multi && wizard.targets.length)
+            body +=
+              "<p><small>" +
+              wizard.targets.length +
+              " environment" +
+              (wizard.targets.length === 1 ? "" : "s") +
+              " selected. One version will be used for every destination.</small></p>";
+          footer += button(
+            "Review",
+            "wizard-next",
+            "",
+            true,
+            !wizard.library &&
+              (!wizard.targets.length || wizard.targets.some((env) => destinationReason(env))),
+          );
+        } else {
+          const targets = selectedTargets();
+          const reasons = targets.map(destinationReason).filter(Boolean);
+          body +=
+            '<h2 id="dialog-title" tabindex="-1">' +
+            (wizard.library
+              ? "Review version publication"
+              : targets.length === 1
+                ? "Review publication to " + escape(envName(targets[0]))
+                : "Review publication to " + targets.length + " environments") +
+            '</h2><p class="muted">Customer onboarding · ' +
+            (combined
+              ? "Create one new immutable version"
+              : "Reuse one existing immutable version") +
+            "</p>";
+          if (wizard.library)
+            body +=
+              '<div class="card"><small>New published version</small><h3>v' +
+              candidate.number +
+              "</h3></div>";
+          else
+            body += targets
+              .map(
+                (env) =>
+                  '<section class="card"><h3>' +
+                  escape(envName(env)) +
+                  '</h3><div class="comparison"><div><small>Currently released</small><strong>v' +
+                  record(env).version +
+                  '</strong></div><span aria-hidden="true">→</span><div class="target"><small>Version to publish</small><strong>v' +
+                  candidate.number +
+                  "</strong></div></div><small>Intake " +
+                  (record(env).closed
+                    ? "will remain closed. Reopen separately when ready."
+                    : "is open.") +
+                  "</small>" +
+                  (record(env).version > candidate.number
+                    ? "<p><strong>This is a rollback.</strong> Existing sessions and operational settings are preserved.</p>"
+                    : "") +
+                  "</section>",
+              )
+              .join("");
+          body +=
+            "<h3>Content to publish</h3><p>" +
+            escape(candidate.title) +
+            '<br><span class="muted">Contact question: ' +
+            escape(candidate.question) +
+            "</span></p><p><small>" +
+            (combined ? "Will be published by " : "Originally published by ") +
+            escape(candidate.author) +
+            "</small></p>";
+          const evidence = config.envs.filter((env) =>
+            record(env).history.includes(candidate.number),
+          );
+          if (!combined && evidence.length)
+            body +=
+              "<p><small>Previously released in " +
+              evidence.map(envName).map(escape).join(", ") +
+              ". This does not record a successful test.</small></p>";
+          body +=
+            '<div class="notice' +
+            (reasons.length ? " amber" : "") +
+            '">' +
+            (reasons.length
+              ? reasons.map(escape).join("<br>")
+              : wizard.library
+                ? "No environment changes. This version will be available for a future release."
+                : "One confirmation updates all " +
+                  targets.length +
+                  " selected destination" +
+                  (targets.length === 1 ? "" : "s") +
+                  ". Existing sessions keep their original version.") +
+            "</div>";
+          footer += button(
+            wizard.library
+              ? "Publish v" + candidate.number
+              : targets.length === 1
+                ? "Publish v" + candidate.number + " to " + envName(targets[0])
+                : "Publish v" + candidate.number + " to " + targets.length + " environments",
+            "wizard-confirm",
+            "",
+            true,
+            Boolean(reasons.length),
+          );
+        }
+        modal(body, footer);
+        $("#dialog-title").focus({ preventScroll: true });
+      }
+      function selectedTargets() {
+        return config.envs.filter((env) => (wizard.targets || []).includes(env));
+      }
+      function confirmWizard() {
+        if (!wizard || wizard.step !== 3) return;
+        const candidate = wizardCandidate();
+        const combined = wizard.selection === "draft";
+        const targets = selectedTargets();
+        if (wizard.library && (!combined || !person().edit || targets.length)) return;
+        if (!wizard.library && (!targets.length || (!config.multi && targets.length > 1))) return;
+        const reason = targets.map(destinationReason).find(Boolean);
+        if (reason) {
+          wizard.targets = targets.filter((env) => !destinationReason(env));
+          wizard.step = 2;
+          renderWizard();
+          return notify(reason);
+        }
+        const changed = targets.filter((env) => record(env).version !== wizard.expected[env]);
+        if (changed.length) {
+          for (const env of targets) wizard.expected[env] = record(env).version;
+          renderWizard();
+          return notify(
+            "A destination changed. Review all current versions before confirming again.",
+          );
+        }
+        if (combined) versions.unshift(candidate);
+        for (const env of targets) {
+          record(env).version = candidate.number;
+          record(env).lastReleased = Date.now();
+          record(env).history.push(candidate.number);
+          historyEntries.unshift(
+            "v" + candidate.number + " released to " + envName(env) + " by " + person().name + ".",
+          );
+        }
+        wizard.step = 4;
+        navigate("form", "versions");
+        modal(
+          '<div class="eyebrow">Publication complete</div><h2 id="dialog-title" tabindex="-1">v' +
+            candidate.number +
+            (wizard.library
+              ? " is ready for release"
+              : targets.length === 1
+                ? " is available in " + escape(envName(targets[0]))
+                : " is available in " + targets.length + " environments") +
+            "</h2><p>" +
+            (wizard.library
+              ? "The immutable version is in the version library. No environment changed."
+              : "The same immutable version is now available in every selected environment.") +
+            "</p>" +
+            targets
+              .map(
+                (env) =>
+                  "<p>" +
+                  tag(envName(env), "blue") +
+                  " Intake " +
+                  (record(env).closed ? "remains closed." : "is open.") +
+                  "</p>",
+              )
+              .join("") +
+            (!wizard.library
+              ? '<div class="notice">Existing sessions keep their original version.</div>'
+              : ""),
+          button("Done", "cancel") +
+            targets
+              .map((env) =>
+                button(
+                  "Open " + envName(env) + " operations",
+                  "wizard-operations",
+                  'data-env="' + env + '"',
+                  targets.length === 1,
+                ),
+              )
+              .join(""),
+          false,
+        );
+        $("#dialog-title").focus({ preventScroll: true });
+      }
+      function publishedVersion() {
+        return {
+          number: versions[0].number + 1,
+          author: person().name,
+          title: draft.title,
+          question: draft.question,
+          note:
+            "Updated contact question: " +
+            draft.question +
+            (draft.company ? "; includes optional company name." : "."),
+        };
+      }
+      function captureDraft() {
+        if ($("#draft-title"))
+          draft = {
+            title: $("#draft-title").value,
+            question: $("#draft-question").value,
+            company: $("#draft-company").checked,
+          };
+      }
+      document.addEventListener("click", (event) => {
+        const el = event.target.closest("[data-action]");
+        if (!el || el.disabled) return;
+        const action = el.dataset.action;
+        const s = state();
+        captureDraft();
+        if (action === "ops-clear") return applyOperationsFilters(true);
+        if (action === "ops-page") {
+          operationsListContext.page = Number(el.dataset.page);
+          navigate("operations", "forms", s.env, "");
+          return;
+        }
+        if (action === "account-menu")
+          return modal(
+            '<h2 id="dialog-title">Account menu</h2><p>Signed in as ' +
+              escape(person().name) +
+              '</p><div class="stack">' +
+              button("Settings", "account-section", 'data-section="account"') +
+              button("Change password", "account-section", 'data-section="change-password"') +
+              button("Two-factor authentication", "account-section", 'data-section="two-factor"') +
+              button("My access", "my-access") +
+              button("Sign out", "demo-signout") +
+              "</div>",
+            button("Close", "cancel"),
+            false,
+          );
+        if (action === "account-section") {
+          if (!["operations", "workspaces", "workspace"].includes(s.view)) {
+            const section = el.dataset.section;
+            closeModal();
+            return navigate("settings", section, "", "");
+          }
+          return modal(
+            '<h2 id="dialog-title">Account settings</h2>' + settingsBody(el.dataset.section),
+            button("Close", "cancel"),
+            false,
+          );
+        }
+        if (action === "my-access")
+          return modal(
+            '<h2 id="dialog-title">My access</h2>' + myAccessBody(),
+            button("Close", "cancel"),
+            false,
+          );
+        if (action === "demo-signout")
+          return modal(
+            '<h2 id="dialog-title">Signed out · Demo</h2><p>This preview does not end a live application session.</p>',
+            button("Return to demo", "cancel", "", true),
+            false,
+          );
+        if (action === "appearance")
+          return modal(
+            '<h2 id="dialog-title">Appearance</h2><p>' +
+              tag("Light preview", "blue") +
+              '</p><p>The existing app has a header appearance control for Light, Dark and High contrast.</p><p class="muted">Theme variants are outside this navigation POC; the control keeps its place beside the account avatar.</p>',
+            button("Close", "cancel"),
+            false,
+          );
+        if (action === "retry-delivery" && canOperate(s.env)) {
+          deliveryFailures[s.env] = deliveryFailures[s.env].filter(
+            (item) => item.id !== el.dataset.id,
+          );
+          render();
+          return notify("Sample delivery queued for retry in " + envName(s.env) + ".");
+        }
+        if (action === "retry-all" && canOperate(s.env)) {
+          deliveryFailures[s.env] = [];
+          render();
+          return notify("Sample deliveries queued for retry in " + envName(s.env) + ".");
+        }
+        if (action === "cancel") return closeModal();
+        if (action === "preview")
+          modal(
+            '<div class="eyebrow">Draft preview · Hypothetical answers</div><h2 id="dialog-title">' +
+              escape(draft.title) +
+              '</h2><label class="field">' +
+              escape(draft.question) +
+              '<input type="email" placeholder="you@example.com"></label>' +
+              (draft.company
+                ? '<label class="field">Company name <span class="muted">(optional)</span><input></label>'
+                : "") +
+              '<p class="muted">This preview creates no respondent session.</p>',
+            button("Done", "cancel", "", true),
+          );
+        if (action === "update-question") {
+          draft.question = questionLabel;
+          render();
+          notify("Draft reference updated. Published versions are unchanged.");
+        }
+        if (action === "publish-question" && person().edit) {
+          questionLabel = $("#library-label").value;
+          notify("New question version published. Update the form draft to use it.");
+        }
+        if (action === "snapshot")
+          snapshot(versions.find((v) => v.number === Number(el.dataset.version)));
+        if (action === "publish-wizard" && canReadForms()) startWizard();
+        if (action === "wizard-back" && wizard) {
+          wizard.step -= 1;
+          renderWizard();
+        }
+        if (action === "wizard-next" && wizard) {
+          if (wizard.step === 1) {
+            if (
+              wizard.selection === "draft" &&
+              (!wizardCandidate().title.trim() || !wizardCandidate().question.trim())
+            )
+              return;
+            wizard.step = 2;
+          } else if (wizard.step === 2) {
+            const targets = selectedTargets();
+            if (!wizard.library && (!targets.length || targets.some(destinationReason))) return;
+            wizard.expected = Object.fromEntries(targets.map((env) => [env, record(env).version]));
+            wizard.step = 3;
+          }
+          renderWizard();
+        }
+        if (action === "wizard-confirm") confirmWizard();
+        if (action === "wizard-operations" && wizard?.step === 4) {
+          const env = el.dataset.env;
+          if (!selectedTargets().includes(env)) return;
+          closeModal();
+          navigate("operations", "overview", env);
+        }
+        if (action === "intake" && canOperate(s.env)) {
+          record(s.env, s.form).closed = !record(s.env, s.form).closed;
+          render();
+          notify(
+            envName(s.env) + " intake " + (record(s.env, s.form).closed ? "closed." : "reopened."),
+          );
+        }
+        if (action === "create-link" && canOperate(s.env)) {
+          const r = record(s.env, s.form);
+          r.links.push({
+            path:
+              (isProtected(s.env) ? "" : "/" + s.env) + "/l/sample-link-" + (r.links.length + 1),
+            revoked: false,
+          });
+          render();
+          notify("Sample secure link created for " + envName(s.env) + ".");
+        }
+        if (action === "revoke-link" && canOperate(s.env)) {
+          record(s.env, s.form).links[Number(el.dataset.index)].revoked = true;
+          render();
+          notify("Link revoked in " + envName(s.env) + ".");
+        }
+        if (action === "export" && person().responses) {
+          const csv =
+            "session,environment,form,version,status\nsample-001," +
+            s.env +
+            "," +
+            s.form +
+            "," +
+            record(s.env, s.form).version +
+            ",submitted\n";
+          const objectUrl = URL.createObjectURL(new Blob([csv], { type: "text/csv" }));
+          const anchor = document.createElement("a");
+          anchor.href = objectUrl;
+          anchor.download = "sample-" + s.env + "-responses.csv";
+          anchor.click();
+          setTimeout(() => URL.revokeObjectURL(objectUrl), 1000);
+          notify("Sample " + envName(s.env) + " responses exported.");
+        }
+        if (action === "webhook" && canOperate(s.env)) {
+          const input = $("#webhook-url");
+          if (!input.reportValidity()) return;
+          let endpoint;
+          try {
+            endpoint = new URL(input.value);
+          } catch {
+            return notify("Enter a valid HTTPS endpoint.");
+          }
+          if (endpoint.protocol !== "https:") return notify("Use an HTTPS endpoint.");
+          const r = record(s.env, s.form);
+          if (config.second && isProtected(s.env))
+            r.proposal = { url: endpoint.href, author: person().name };
+          else r.webhook = endpoint.href;
+          render();
+          notify(
+            r.proposal
+              ? "Proposal pending. A different approver must confirm."
+              : "Endpoint updated in " + envName(s.env) + ".",
+          );
+        }
+        if (action === "confirm-webhook" && canOperate(s.env)) {
+          const r = record(s.env, s.form);
+          if (r.proposal && r.proposal.author !== person().name) {
+            r.webhook = r.proposal.url;
+            r.proposal = null;
+            render();
+            notify("Endpoint change confirmed.");
+          }
+        }
+      });
+      document.addEventListener("input", (event) => {
+        if (event.target.id.startsWith("draft-")) captureDraft();
+      });
+      document.addEventListener("change", (event) => {
+        if (event.target.id === "wizard-version" && wizard) {
+          wizard.selection = event.target.value;
+          wizard.targets = null;
+          wizard.library = false;
+          renderWizard();
+          $("#wizard-version").focus();
+        }
+        if (event.target.name === "wizard-environment" && wizard) {
+          const control = event.target.value;
+          if (control === "library") {
+            wizard.library = event.target.checked;
+            if (wizard.library) wizard.targets = [];
+          } else {
+            wizard.library = false;
+            wizard.targets = event.target.checked
+              ? config.multi
+                ? [...new Set([...wizard.targets, control])]
+                : [control]
+              : wizard.targets.filter((env) => env !== control);
+          }
+          renderWizard();
+          document
+            .querySelector('input[name="wizard-environment"][value="' + control + '"]')
+            ?.focus();
+        }
+        if (event.target.id === "draft-company") captureDraft();
+        if (event.target.id === "ops-env") {
+          const current = state();
+          operationsListContext.page = 1;
+          navigate(
+            "operations",
+            current.tab,
+            $("#ops-env").value,
+            current.tab === "forms" ? "" : current.form,
+          );
+        }
+        if (["ops-workspace", "ops-status", "ops-sort"].includes(event.target.id))
+          applyOperationsFilters();
+        if (event.target.id === "flow-preset") {
+          const presets = {
+            single: ["prod"],
+            pair: ["test", "prod"],
+            four: ["dev", "test", "stg", "prod"],
+            flexible: ["dev", "test", "stg", "prod"],
+          };
+          const names = presets[event.target.value];
+          if (names) {
+            $("#flow-envs").value = names.join(", ");
+            $("#flow-protected").value = "prod";
+            $("#flow-sequential").checked = event.target.value !== "flexible" && names.length > 1;
+            $("#flow-multi").checked = event.target.value === "flexible";
+          }
+        }
+      });
+      document.addEventListener("submit", (event) => {
+        if (event.target.id === "ops-filter-form") {
+          event.preventDefault();
+          applyOperationsFilters();
+          return;
+        }
+        if (event.target.id !== "flow-form") return;
+        event.preventDefault();
+        const envs = $("#flow-envs")
+          .value.split(",")
+          .map((x) => x.trim());
+        const protectedEnv = $("#flow-protected").value.trim();
+        if (!envs.includes(protectedEnv))
+          return notify("The protected production environment must be in the environment list.");
+        if (new Set(envs).size !== envs.length)
+          return notify("Use a unique name for each environment.");
+        seed({
+          envs,
+          protected: protectedEnv,
+          sequential: $("#flow-sequential").checked,
+          multi: $("#flow-multi").checked,
+          second: $("#flow-second").checked,
+        });
+        render();
+        notify("Demo flow applied.");
+      });
+      $("#persona").addEventListener("change", (event) => {
+        captureDraft();
+        if ($("#dialog").open) closeModal();
+        role = event.target.value;
+        const destination = canReadForms()
+          ? "form"
+          : person().responses
+            ? "operations"
+            : canManageWorkspaces()
+              ? "workspaces"
+              : "administration";
+        navigate(
+          destination,
+          destination === "operations" ? "forms" : canReadForms() ? "versions" : "",
+          state().env,
+          destination === "operations" ? "" : "onboarding",
+        );
+      });
+      $("#reset").addEventListener("click", () => {
+        if ($("#dialog").open) closeModal();
+        seed();
+        role = "all";
+        $("#persona").value = role;
+        navigate("forms");
+        notify("Sample data reset.");
+      });
+      $("#dialog").addEventListener("click", (event) => {
+        if (event.target === $("#dialog")) closeModal();
+      });
+      window.addEventListener("hashchange", () => {
+        render();
+        $("#main").focus({ preventScroll: true });
+      });
+      seed();
+      render();
+    </script>
+  </body>
+</html>
