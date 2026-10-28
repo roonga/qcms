@@ -850,7 +850,7 @@ export function parseAdminAuth(env: Env, issues: string[]): Config["adminAuth"] 
       issues,
     ),
     // `assertSecureCookiesConfigured`'s refusal for a downgrade at a non-loopback origin
-    // is deliberately NOT enforced here. It is safe only because a browser reaches
+    // is deliberately NOT enforced here (issue #402). It is safe only because a browser reaches
     // better-auth solely through the admin BFF, which does refuse to start in that
     // configuration; a second route into the `/api/auth` group would break the reliance.
     secureCookies: parseBool(
