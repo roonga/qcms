@@ -41,6 +41,8 @@ export const VERSION_LABEL = "org.opencontainers.image.version";
  * Both halves are needed: the package version alone repeats across every build
  * between two releases, the SHA alone does not say which release line this is. A
  * dirty tree is marked, because the label is the only place that fact survives.
+ *
+ * @returns {string}
  */
 export function imageVersion(env = process.env) {
   const override = env.QCMS_IMAGE_VERSION;
@@ -62,6 +64,9 @@ export function imageVersion(env = process.env) {
  * A tag cannot carry SemVer's `+`, and the replacement must be `_` for injectivity:
  * `-` is legal in a SemVer version, so `1.0.0+build.5` and `1.0.0-build.5` would
  * collide on one tag and the second build would silently move the first one's.
+ *
+ * @param {string} version
+ * @returns {string}
  */
 export function imageTag(version) {
   return version.replaceAll("+", "_");
@@ -73,10 +78,20 @@ export function ensureBuilder() {
   runProcess(DOCKER, ["buildx", "create", "--name", BUILDER, "--driver", "docker-container"]);
 }
 
+/**
+ * @param {string} directory
+ * @param {string} digest
+ * @returns {string}
+ */
 function ociBlobPath(directory, digest) {
   return join(directory, "blobs", "sha256", digest.replace("sha256:", ""));
 }
 
+/**
+ * @param {string} directory
+ * @param {string} digest
+ * @returns {any}
+ */
 function readOciBlob(directory, digest) {
   return JSON.parse(readFileSync(ociBlobPath(directory, digest), "utf8"));
 }
@@ -85,6 +100,7 @@ function readOciBlob(directory, digest) {
  * One walk, two readers, so the label reader and the blob reader cannot come to
  * disagree about which entry is the attestation.
  *
+ * @param {string} directory
  * @returns {{ entry: any, manifest: any }[]}
  */
 function ociManifests(directory) {
@@ -98,6 +114,10 @@ function ociManifests(directory) {
 
 const PREDICATE_ANNOTATION = "in-toto.io/predicate-type";
 
+/**
+ * @param {string} directory
+ * @returns {{ labels: Record<string, string>, predicates: string[] }}
+ */
 export function inspectOciArtifact(directory) {
   /** @type {string[]} */
   const predicates = [];
@@ -117,6 +137,10 @@ export function inspectOciArtifact(directory) {
   return { labels, predicates };
 }
 
+/**
+ * @param {string} directory
+ * @returns {{ predicate: string, path: string }[]}
+ */
 export function attestationBlobs(directory) {
   /** @type {{ predicate: string, path: string }[]} */
   const found = [];
@@ -136,6 +160,9 @@ export function attestationBlobs(directory) {
  * The scheme goes and path separators become hyphens, so the name is legal on every
  * filesystem a CI artifact is unpacked on: `https://spdx.dev/Document` becomes
  * `spdx.dev-Document.json`.
+ *
+ * @param {string} predicate
+ * @returns {string}
  */
 export function attestationFileName(predicate) {
   return `${predicate.replace(/^https?:\/\//, "").replaceAll("/", "-")}.json`;
@@ -146,6 +173,9 @@ export function attestationFileName(predicate) {
  * (0444) and `copyFileSync` inherits that mode, so a second run into the same
  * directory would fail with EACCES on a file this function itself wrote.
  *
+ * @param {string} directory
+ * @param {string} name
+ * @param {string} outputRoot
  * @returns {string[]} the files written.
  */
 export function saveAttestations(directory, name, outputRoot) {
@@ -163,6 +193,8 @@ export function saveAttestations(directory, name, outputRoot) {
  * Separate from {@link assertArtifact} because it reads the attestation's BODY rather
  * than its descriptor. Both run before a push.
  *
+ * @param {string} directory
+ * @param {string} name
  * @returns {number} how many npm packages the SBOM listed, for the build log.
  */
 export function assertNoDevPackages(directory, name) {
@@ -175,6 +207,11 @@ export function assertNoDevPackages(directory, name) {
   return assertNoDevDependencies(JSON.parse(readFileSync(sbom.path, "utf8")), name);
 }
 
+/**
+ * @param {string} directory
+ * @param {string} version
+ * @param {string} name
+ */
 export function assertArtifact(directory, version, name) {
   const { labels, predicates } = inspectOciArtifact(directory);
   const problems = [];
@@ -204,6 +241,11 @@ export function assertArtifact(directory, version, name) {
  * One function for both the local build and the push, so the two cannot drift on the
  * flags that decide what the artifact contains. Only `--tag` and `--output` differ,
  * and neither is part of the build graph, so the push re-exports from cache.
+ *
+ * @param {{ name: string, dockerfile: string }} image
+ * @param {string} version
+ * @param {{ tags: string[], output: string }} exporter
+ * @returns {string[]}
  */
 export function buildArgv(image, version, { tags, output }) {
   return [
@@ -228,6 +270,11 @@ export function buildArgv(image, version, { tags, output }) {
  * A repository path must be lowercase and a tag is `[A-Za-z0-9_][A-Za-z0-9._-]{0,127}`.
  * Both are checked here rather than left to the registry, because a rejected push in
  * CI reads as an infrastructure failure instead of as the mistake it is.
+ *
+ * @param {string} namespace
+ * @param {string} name
+ * @param {string[]} tags
+ * @returns {string[]}
  */
 export function imageReferences(namespace, name, tags) {
   if (!/^[a-z0-9][a-z0-9._-]*$/.test(namespace)) {
@@ -251,6 +298,7 @@ export function imageReferences(namespace, name, tags) {
  * another non-image entry could adopt; only the annotation names this entry as the
  * attestation for a specific image.
  *
+ * @param {string} rawManifestList
  * @returns {number} how many attestation manifests the list carries.
  */
 export function attestationManifestCount(rawManifestList) {
@@ -267,6 +315,11 @@ export function attestationManifestCount(rawManifestList) {
 /**
  * Attestations are written only after {@link assertArtifact} has passed, so a saved
  * attestation is always one this run also verified.
+ *
+ * @param {{ name: string, dockerfile: string }} image
+ * @param {string} version
+ * @param {string} outputRoot
+ * @param {string | undefined} attestationRoot
  */
 export function buildImage(image, version, outputRoot, attestationRoot) {
   const destination = join(outputRoot, image.name);
@@ -292,6 +345,11 @@ export function buildImage(image, version, outputRoot, attestationRoot) {
 /**
  * The pushed manifest is read back, because "the local copy had an SBOM" and "the
  * registry copy has one" are different claims and only the second is what a user pulls.
+ *
+ * @param {{ name: string, dockerfile: string }} image
+ * @param {string} version
+ * @param {string} namespace
+ * @param {string[]} tags
  */
 export function pushImage(image, version, namespace, tags) {
   const references = imageReferences(namespace, image.name, tags);
@@ -311,6 +369,12 @@ export function pushImage(image, version, namespace, tags) {
  * Without this guard a missing value reads as `undefined` and `String()` turns it
  * into the literal "undefined", so `--output` would build into a directory of that
  * name and `--tag` would push that tag.
+ *
+ * @param {string[]} argv
+ * @param {number} flagIndex
+ * @param {string} flag
+ * @param {string} example
+ * @returns {string}
  */
 function valueAfter(argv, flagIndex, flag, example) {
   const value = argv[flagIndex + 1];
@@ -320,6 +384,11 @@ function valueAfter(argv, flagIndex, flag, example) {
   return value;
 }
 
+/**
+ * @param {string[]} argv
+ * @returns {{ outputRoot: string, namespace: string | undefined, tags: string[],
+ *   attestationRoot: string | undefined }}
+ */
 export function parseArgv(argv) {
   const outputIndex = argv.indexOf("--output");
   const pushIndex = argv.indexOf("--push");

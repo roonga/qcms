@@ -18,18 +18,29 @@ const UNRESOLVABLE_BASE = /Failed to find where HEAD diverged from/;
 /**
  * Defaulted, not required, and to the same value changesets itself defaults to, so
  * this gate's diagnosis matches the command's behaviour rather than merely resembling it.
+ *
+ * @param {string} configText
+ * @returns {string}
  */
 export function baseBranchFrom(configText) {
   const config = JSON.parse(configText);
   return typeof config.baseBranch === "string" ? config.baseBranch : "master";
 }
 
+/**
+ * @param {{ code: number, output: string, baseBranchResolves: boolean }} run
+ * @returns {"ok" | "no-base-ref" | "failed"}
+ */
 export function classify({ code, output, baseBranchResolves }) {
   if (code === 0) return "ok";
   if (!baseBranchResolves && UNRESOLVABLE_BASE.test(output)) return "no-base-ref";
   return "failed";
 }
 
+/**
+ * @param {string} ref
+ * @returns {boolean}
+ */
 function refResolves(ref) {
   try {
     execFileSync("git", ["rev-parse", "--verify", "--quiet", `${ref}^{commit}`], {
@@ -42,6 +53,7 @@ function refResolves(ref) {
   }
 }
 
+/** @returns {number} */
 function main() {
   const baseBranch = baseBranchFrom(readFileSync(".changeset/config.json", "utf8"));
   const baseBranchResolves = refResolves(baseBranch);

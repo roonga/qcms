@@ -23,11 +23,18 @@ const ALREADY_BOOTSTRAPPED = /refusing: this deployment already has \d+ admin ac
 /**
  * The prefix is required because base64url may begin with `-`, and a credential a
  * human pastes into a terminal must not open with something a shell reads as a flag.
+ *
+ * @param {string} prefix
+ * @returns {string}
  */
 export function generatePassword(prefix) {
   return `${prefix}${randomBytes(24).toString("base64url")}`;
 }
 
+/**
+ * @param {{ status: number; stderr: string }} result
+ * @returns {"created" | "already-bootstrapped" | "failed"}
+ */
 export function classifyBootstrap({ status, stderr }) {
   if (status === 0) return "created";
   if (ALREADY_BOOTSTRAPPED.test(stderr)) return "already-bootstrapped";
@@ -39,6 +46,12 @@ export function classifyBootstrap({ status, stderr }) {
  * from its own environment and sends the value over the daemon socket. `--env
  * NAME=value` would put the password in the CLI's own argv, and `/proc/<pid>/cmdline`
  * is world-readable on Linux while `/proc/<pid>/environ` is not.
+ *
+ * @param {object} options
+ * @param {readonly string[]} options.compose
+ * @param {{ email: string; password: string }} options.credentials
+ * @param {NodeJS.ProcessEnv} options.environment
+ * @returns {{ argv: string[]; environment: NodeJS.ProcessEnv }}
  */
 export function buildAdminExec({ compose, credentials, environment }) {
   return {
@@ -66,6 +79,12 @@ export function buildAdminExec({ compose, credentials, environment }) {
 /**
  * Not built on the `docker.mjs` helpers: both throw on a non-zero exit, and here one
  * specific non-zero exit is an expected answer.
+ *
+ * @param {object} options
+ * @param {readonly string[]} options.compose
+ * @param {{ email: string; password: string }} options.credentials
+ * @param {NodeJS.ProcessEnv} options.environment
+ * @returns {"created" | "already-bootstrapped"}
  */
 export function createFirstAdmin({ compose, credentials, environment }) {
   const exec = buildAdminExec({ compose, credentials, environment });

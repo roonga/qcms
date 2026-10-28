@@ -45,6 +45,7 @@ const PROBE_PATH = "/s/ses_probe_action_id_stability";
 const READY_TIMEOUT_MS = 30_000;
 const READY_POLL_MS = 250;
 
+/** @param {string} line */
 function say(line) {
   stdout.write(`${line}\n`);
 }
@@ -54,6 +55,8 @@ function say(line) {
  * `.next/**` as the portal build's output, so a cache hit would restore a previous
  * build's `.rscinfo` and this script would compare a build against a copy of itself.
  *
+ * @param {string} label
+ * @param {string | undefined} key
  * @returns {{ ids: Record<string, string>, actionId: string, encryptionKey: string, tree: string }}
  */
 function cleanBuild(label, key) {
@@ -93,6 +96,13 @@ function cleanBuild(label, key) {
   return { ids, actionId, encryptionKey: manifest.encryptionKey ?? "", tree };
 }
 
+/**
+ * @template T
+ * @param {string} label
+ * @param {string} tree
+ * @param {(origin: string) => Promise<T>} probe
+ * @returns {Promise<T>}
+ */
 async function serving(label, tree, probe) {
   const port = stablePort("portal");
   const origin = `http://127.0.0.1:${String(port)}`;
@@ -146,6 +156,8 @@ async function serving(label, tree, probe) {
  * Multipart and nothing else: Next renders the page for a url-encoded POST that is not
  * a fetch action, so a url-encoded probe would pass both rounds and measure nothing.
  *
+ * @param {string} origin
+ * @param {string} actionId
  * @returns {Promise<{ status: number, refused: boolean, body: string }>}
  */
 async function replay(origin, actionId) {
@@ -170,6 +182,10 @@ async function replay(origin, actionId) {
 /** @type {string[]} */
 const failures = [];
 
+/**
+ * @param {boolean} condition
+ * @param {string} what
+ */
 function check(condition, what) {
   say(`${condition ? "ok  " : "FAIL"} ${what}`);
   if (!condition) failures.push(what);

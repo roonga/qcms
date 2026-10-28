@@ -19,6 +19,10 @@ const DEFAULT_TARGET = "dist";
 /**
  * Deliberately blunt guards for a script whose job is a recursive delete: an absolute
  * path, a parent traversal, or a missing sibling `package.json` means stop, not guess.
+ *
+ * @param {string} packageRoot
+ * @param {string} target
+ * @returns {{ ok: true; path: string } | { ok: false; reason: string }}
  */
 export function resolveTarget(packageRoot, target) {
   if (target === "" || isAbsolute(target) || target.split(/[/\\]/).includes("..")) {
@@ -33,6 +37,7 @@ export function resolveTarget(packageRoot, target) {
   return { ok: true, path: resolve(packageRoot, target) };
 }
 
+/** @returns {number} */
 function main() {
   const target = argv[2] ?? DEFAULT_TARGET;
   const resolved = resolveTarget(cwd(), target);

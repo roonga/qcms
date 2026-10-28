@@ -36,6 +36,9 @@ const CITATION = /\bADR-(\d{1,3})\b/g;
 /**
  * Read from the index rather than from the record documents' own headings: a decision
  * missing from the index is undiscoverable whatever its document says.
+ *
+ * @param {string} indexText
+ * @returns {Set<string>}
  */
 export function definedAdrs(indexText) {
   const defined = new Set();
@@ -48,11 +51,20 @@ export function definedAdrs(indexText) {
   return defined;
 }
 
-/** `07` and `7` are the same decision, so zero padding must not read as missing. */
+/**
+ * `07` and `7` are the same decision, so zero padding must not read as missing.
+ *
+ * @param {string} digits
+ * @returns {string}
+ */
 function normalize(digits) {
   return String(Number(digits));
 }
 
+/**
+ * @param {string} text
+ * @returns {{ adr: string; line: number }[]}
+ */
 export function citationsIn(text) {
   const found = [];
   text.split("\n").forEach((line, index) => {

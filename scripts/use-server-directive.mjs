@@ -6,6 +6,9 @@
  * space, a form feed or a paragraph separator still declares the directive, and under a
  * narrower set it would read as declaring nothing, putting a real Server Action out of
  * the enumerating gate's reach.
+ *
+ * @param {string} source
+ * @returns {boolean}
  */
 export function declaresUseServer(source) {
   let index = 0;

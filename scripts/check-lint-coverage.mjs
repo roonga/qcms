@@ -20,18 +20,28 @@ import { isVendoredSource } from "./vendored-source.mjs";
 
 const SOURCE_GLOBS = ["*.ts", "*.tsx", "*.mts", "*.cts", "*.js", "*.jsx", "*.mjs", "*.cjs"];
 
+/**
+ * @param {string[]} args
+ * @returns {string}
+ */
 function git(args) {
   return execFileSync("git", args, { encoding: "utf8" });
 }
 
+/**
+ * @param {string} out
+ * @returns {string[]}
+ */
 function splitZ(out) {
   return out.split("\0").filter((entry) => entry !== "");
 }
 
+/** @returns {string[]} */
 export function trackedSourceFiles() {
   return splitZ(git(["ls-files", "-z", ...SOURCE_GLOBS])).sort((a, b) => (a < b ? -1 : 1));
 }
 
+/** @returns {string[]} */
 export function trackedMarkdownFiles() {
   return splitZ(git(["ls-files", "-z", "*.md"])).sort((a, b) => (a < b ? -1 : 1));
 }
@@ -49,12 +59,17 @@ export { isVendoredSource };
  */
 export { isGeneratedCopy };
 
+/** @returns {string[]} */
 export function trackedManifests() {
   return splitZ(git(["ls-files", "-z", "package.json", "*/package.json", "*/*/package.json"])).sort(
     (a, b) => (a < b ? -1 : 1),
   );
 }
 
+/**
+ * @param {string | undefined} token
+ * @returns {boolean}
+ */
 function isWorkspaceRunner(token) {
   return token !== undefined && path.posix.basename(token) === WORKSPACE_RUNNER;
 }
@@ -62,6 +77,9 @@ function isWorkspaceRunner(token) {
 /**
  * A segment counts when it runs `eslint` directly or through `eslint-workspace.mjs`,
  * which is ESLint with the working directory pinned. Both take their targets the same way.
+ *
+ * @param {string} script
+ * @returns {{ tokens: string[]; index: number; pinned: boolean }[]}
  */
 function eslintSegments(script) {
   const segments = [];
@@ -79,6 +97,10 @@ function eslintSegments(script) {
   return segments;
 }
 
+/**
+ * @param {string} script
+ * @returns {string[]}
+ */
 export function lintTargets(script) {
   const targets = [];
   for (const { tokens, index: start } of eslintSegments(script)) {
@@ -99,11 +121,19 @@ export function lintTargets(script) {
  * A bare `eslint` gives a verdict that depends on where it ran: several sonarjs rules
  * only switch on when a test framework is declared at or above the linted file, and that
  * search stops at `context.cwd`. Run from a package they are silently off.
+ *
+ * @param {string} script
+ * @returns {boolean}
  */
 export function hasUnpinnedEslint(script) {
   return eslintSegments(script).some(({ pinned }) => !pinned);
 }
 
+/**
+ * @param {string[]} manifests
+ * @param {string} repoRoot
+ * @returns {{ dirs: string[]; files: Set<string>; missing: { manifest: string; target: string }[]; unpinned: string[] }}
+ */
 export function lintScope(manifests, repoRoot) {
   const dirs = [];
   const files = new Set();
@@ -146,6 +176,11 @@ export function lintScope(manifests, repoRoot) {
   return { dirs, files, missing, unpinned };
 }
 
+/**
+ * @param {string[]} source
+ * @param {{ dirs: string[]; files: Set<string> }} scope
+ * @returns {string[]}
+ */
 export function uncovered(source, scope) {
   const violations = [];
 
@@ -158,6 +193,11 @@ export function uncovered(source, scope) {
   return violations;
 }
 
+/**
+ * @param {string[]} files
+ * @param {string} repoRoot
+ * @returns {Promise<string[]>}
+ */
 export async function uncoveredMarkdown(files, repoRoot) {
   const violations = [];
   for (const file of files) {
@@ -169,6 +209,7 @@ export async function uncoveredMarkdown(files, repoRoot) {
   return violations;
 }
 
+/** @returns {Promise<number>} */
 export async function main() {
   const repoRoot = git(["rev-parse", "--show-toplevel"]).trim();
   const source = trackedSourceFiles();

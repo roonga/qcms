@@ -38,6 +38,9 @@ export const CONNECT_TIMEOUT_MS = 10_000;
 /**
  * Validated rather than trusted: a malformed entry would otherwise surface minutes later
  * inside a Playwright timeout, reading like an application bug.
+ *
+ * @param {string} raw
+ * @returns {ForwardRoute[]}
  */
 export function parseRoutes(raw) {
   let parsed;
@@ -64,6 +67,12 @@ export function parseRoutes(raw) {
 /**
  * Errors destroy both sockets rather than propagating: a browser giving up mid-request is
  * normal, and an unhandled `ECONNRESET` would take the forwarder and the whole run down.
+ *
+ * @param {ForwardRoute} route
+ * @param {object} [options]
+ * @param {number} [options.connectTimeoutMs]
+ * @param {(options: { host: string; port: number }) => import("node:net").Socket}
+ * @returns {import("node:net").Server}
  */
 export function createForwarder(
   { listenPort, targetHost, targetPort },

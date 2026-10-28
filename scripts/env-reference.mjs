@@ -1045,6 +1045,9 @@ const GROUPS = [
  * is an ordinary character (an apostrophe in JSX text) rather than a runaway string.
  * Newlines are kept so positions still point into the original file. Regex literals
  * are deliberately not tracked; one containing `/*` or `//` is the known residue.
+ *
+ * @param {string} source
+ * @returns {string}
  */
 export function stripComments(source) {
   const out = [];
@@ -1138,6 +1141,12 @@ export function stripComments(source) {
   return out.join("");
 }
 
+/**
+ * @param {string} source
+ * @param {number} start
+ * @param {string} quote
+ * @returns {number | undefined}
+ */
 function endOfQuotedString(source, start, quote) {
   for (let index = start + 1; index < source.length; index += 1) {
     const character = source[index];
@@ -1179,6 +1188,10 @@ const API_CONFIG = "apps/api/src/config.ts";
 
 const ENVIRONMENT_NAMING = "packages/db/src/environment/naming.ts";
 
+/**
+ * @param {readonly string[]} roots
+ * @returns {string[]}
+ */
 function sourceFiles(roots) {
   const listed = execFileSync("git", ["ls-files", "-z", ...roots], {
     cwd: REPOSITORY_ROOT,
@@ -1226,6 +1239,10 @@ export function environmentDatabaseUrlVariables() {
     .map((name) => `${prefix}${name.toUpperCase()}`);
 }
 
+/**
+ * @param {string} text
+ * @returns {{ names: Set<string>; rateClassPrefixes: Set<string>; readsEnvironmentUrls: boolean }}
+ */
 export function scanSourceText(text) {
   const stripped = stripComments(text);
   const names = new Set();
@@ -1247,6 +1264,10 @@ export function scanSourceText(text) {
  */
 const FRAMEWORK_PROVIDED = new Set(["NEXT_RUNTIME"]);
 
+/**
+ * @param {"api" | "portal" | "admin" | "compose"} processName
+ * @returns {Set<string>}
+ */
 export function scanEnvNames(processName) {
   const found = new Set();
   if (processName === "compose") {
@@ -1280,6 +1301,11 @@ export function scanEnvNames(processName) {
 
 const UNCONDITIONAL_ENTRY = "export function loadConfig(env: Env): Config {";
 
+/**
+ * @param {string} source
+ * @param {string} signature
+ * @returns {string}
+ */
 function functionBody(source, signature) {
   const start = source.indexOf(signature);
   if (start === -1) {
@@ -1332,11 +1358,16 @@ function requirementCell(entry) {
   return "optional";
 }
 
+/** @param {EnvVar} entry */
 function defaultCell(entry) {
   if (entry.requirement !== "optional") return "-";
   return entry.fallback === "" ? "(none)" : `\`${entry.fallback}\``;
 }
 
+/**
+ * @param {string[][]} rows
+ * @returns {string[]}
+ */
 function markdownTable(rows) {
   const widths = rows[0].map((_, index) =>
     Math.max(3, ...rows.map((row) => (row[index] ?? "").length)),
@@ -1367,6 +1398,10 @@ export function renderEnvReference() {
   return lines.join("\n");
 }
 
+/**
+ * @param {string} text
+ * @returns {string}
+ */
 export function replaceBlock(text) {
   const begin = text.indexOf(BEGIN_MARKER);
   const end = text.indexOf(END_MARKER);

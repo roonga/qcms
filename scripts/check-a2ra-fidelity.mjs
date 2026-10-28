@@ -34,6 +34,10 @@ const UI_PACKAGE = "packages/ui";
  */
 const UPSTREAM_REPO_SOURCES = {};
 
+/**
+ * @param {string} text
+ * @returns {string}
+ */
 export function sha256(text) {
   return createHash("sha256").update(text, "utf8").digest("hex");
 }
@@ -43,6 +47,9 @@ export function sha256(text) {
  * refresh, so a mismatch between them is how a pin move that forgot the refresh goes red
  * instead of measuring the tree against the wrong upstream. An unparseable URL is an
  * error rather than a skip.
+ *
+ * @param {string} configText
+ * @returns {{ owner: string; repo: string; pin: string; registry: string; componentsDir: string }}
  */
 export function upstreamPin(configText) {
   /** @type {{ componentsDir?: unknown; registry?: unknown }} */
@@ -75,6 +82,9 @@ export function upstreamPin(configText) {
 /**
  * Derived from git rather than walked: a walk would read a stray editor backup as a
  * vendored file and report drift about the machine rather than the repository.
+ *
+ * @param {string} vendoredRoot
+ * @returns {string[]}
  */
 export function vendoredFiles(vendoredRoot) {
   return trackedFilesUnder(vendoredRoot);
@@ -83,6 +93,9 @@ export function vendoredFiles(vendoredRoot) {
 /**
  * Read from the tree rather than from a list, so adding or removing a component cannot
  * leave the refresh fetching a stale set.
+ *
+ * @param {string[]} files
+ * @returns {string[]}
  */
 export function installedComponents(files) {
   const names = new Set();
@@ -93,6 +106,11 @@ export function installedComponents(files) {
   return [...names].sort((a, b) => (a < b ? -1 : a > b ? 1 : 0));
 }
 
+/**
+ * @param {{ files: { path: string; sha256: string; origin: string }[] }} manifest
+ * @param {Map<string, string>} actual
+ * @returns {{ changed: string[]; missing: string[]; extra: string[] }}
+ */
 export function compare(manifest, actual) {
   const changed = [];
   const missing = [];
@@ -114,6 +132,10 @@ export function compare(manifest, actual) {
   return { changed, missing, extra };
 }
 
+/**
+ * @param {string} url
+ * @returns {Promise<string>}
+ */
 async function fetchText(url) {
   const response = await fetch(url);
   if (!response.ok) {
@@ -122,6 +144,11 @@ async function fetchText(url) {
   return await response.text();
 }
 
+/**
+ * @param {ReturnType<typeof upstreamPin>} pin
+ * @param {string[]} files
+ * @returns {Promise<object>}
+ */
 async function refreshManifest(pin, files) {
   const components = installedComponents(files);
   /** @type {{ path: string; sha256: string; origin: string }[]} */
@@ -181,6 +208,10 @@ async function refreshManifest(pin, files) {
   };
 }
 
+/**
+ * @param {string[]} args
+ * @returns {Promise<number>}
+ */
 export async function main(args = []) {
   const pin = upstreamPin(readFileSync(join(REPO_ROOT, A2RA_CONFIG), "utf8"));
   const vendoredDir = `${UI_PACKAGE}/${pin.componentsDir}`;

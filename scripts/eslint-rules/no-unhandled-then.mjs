@@ -15,6 +15,9 @@
 /**
  * `await` is deliberately absent: an awaited chain is not this defect, and its
  * expression is an `AwaitExpression`, so it never reaches here anyway.
+ *
+ * @param {any} node
+ * @returns {any}
  */
 function unwrap(node) {
   let current = node;
@@ -31,7 +34,12 @@ function unwrap(node) {
   return current;
 }
 
-/** `undefined` for a computed key that is not a string literal, which is out of reach. */
+/**
+ * `undefined` for a computed key that is not a string literal, which is out of reach.
+ *
+ * @param {any} member
+ * @returns {string | undefined}
+ */
 function memberName(member) {
   if (member.computed) {
     return member.property.type === "Literal" && typeof member.property.value === "string"
@@ -45,6 +53,9 @@ function memberName(member) {
  * Walks outermost inwards past `.finally(...)` only. Any other unrecognised call stops
  * the walk with nothing, since this rule has no business reporting a chain it cannot
  * read. A `finally` handler does not handle a rejection; it re-raises it.
+ *
+ * @param {any} node
+ * @returns {any}
  */
 function unhandledTerminalThen(node) {
   let current = unwrap(node);
@@ -83,6 +94,7 @@ export const noUnhandledThen = {
   },
   create(context) {
     return {
+      /** @param {any} statement */
       ExpressionStatement(statement) {
         const expression =
           statement.expression.type === "UnaryExpression" &&

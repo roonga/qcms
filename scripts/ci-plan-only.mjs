@@ -49,6 +49,10 @@ export const MARKDOWN_SUFFIX = ".md";
  */
 export const DOCS_OFF_LANE = ["docs/SECURITY_DESIGN.md"];
 
+/**
+ * @param {string} path
+ * @returns {boolean}
+ */
 export function isDocsMarkdown(path) {
   if (!path.startsWith(DOCS_PREFIX)) return false;
   if (!path.endsWith(MARKDOWN_SUFFIX)) return false;
@@ -57,13 +61,22 @@ export function isDocsMarkdown(path) {
 
 const LOG_LIMIT = 40;
 
+/**
+ * @param {string} path
+ * @returns {boolean}
+ */
 export function isFastLanePath(path) {
   if (FAST_LANE_PREFIXES.some((prefix) => path.startsWith(prefix))) return true;
   if (isDocsMarkdown(path)) return true;
   return FAST_LANE_FILES.includes(path);
 }
 
-/** An empty list is NOT plan-only: "saw nothing" must never read as "saw only prose". */
+/**
+ * An empty list is NOT plan-only: "saw nothing" must never read as "saw only prose".
+ *
+ * @param {readonly string[]} files
+ * @returns {boolean}
+ */
 export function isPlanOnly(files) {
   const paths = files.filter((path) => path !== "");
   if (paths.length === 0) return false;
@@ -77,7 +90,12 @@ export function isPlanOnly(files) {
  */
 export const ADMIN_ONLY_PREFIXES = ["apps/admin/", "docs/", ...FAST_LANE_PREFIXES];
 
-/** An empty list is NOT admin-only, on the same rule as {@link isPlanOnly}. */
+/**
+ * An empty list is NOT admin-only, on the same rule as {@link isPlanOnly}.
+ *
+ * @param {readonly string[]} files
+ * @returns {boolean}
+ */
 export function isAdminOnly(files) {
   const paths = files.filter((path) => path !== "");
   if (paths.length === 0) return false;
@@ -86,6 +104,11 @@ export function isAdminOnly(files) {
   );
 }
 
+/**
+ * @param {readonly string[]} args
+ * @param {string | undefined} [cwd]
+ * @returns {string}
+ */
 function git(args, cwd) {
   return execFileSync(GIT, [...args], { encoding: "utf8", cwd });
 }
@@ -93,6 +116,9 @@ function git(args, cwd) {
 /**
  * No `.trim()` and no newline split: trimming rewrites the committable path
  * ` plan/evil.ts` into one that classifies as prose.
+ *
+ * @param {string} raw
+ * @returns {string[]}
  */
 export function parsePaths(raw) {
   return raw.split("\0").filter((path) => path !== "");
@@ -101,6 +127,10 @@ export function parsePaths(raw) {
 /**
  * Three-dot: HEAD is the merge commit and the base branch may have moved, so two-dot
  * would report the base branch's own newer commits as changes.
+ *
+ * @param {string} baseRef
+ * @param {{ cwd?: string }} [options]
+ * @returns {string[] | null}
  */
 export function changedFiles(baseRef, options = {}) {
   const cwd = options.cwd;
@@ -113,6 +143,11 @@ export function changedFiles(baseRef, options = {}) {
   return parsePaths(git(["diff", "--name-only", "--no-renames", "-z", `${base}...HEAD`], cwd));
 }
 
+/**
+ * @param {string} name
+ * @param {boolean} value
+ * @param {string} why
+ */
 function report(name, value, why) {
   stdout.write(`${name}=${value} (${why})\n`);
   const outputFile = env["GITHUB_OUTPUT"];
@@ -124,6 +159,8 @@ function report(name, value, why) {
 /**
  * Writes every classification, not only the one in mind: an output this script never
  * wrote arrives as the empty string, one `== 'false'` away from inverting.
+ *
+ * @param {string} why
  */
 function reportAllFalse(why) {
   report("plan_only", false, why);

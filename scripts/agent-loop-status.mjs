@@ -33,6 +33,9 @@ export const DEFAULT_STALE_HOURS = 6;
 /**
  * The supervisor runs in the primary checkout and writes its log there, so a lane asking
  * from a linked worktree still gets an answer about the real thing.
+ *
+ * @param {string} from
+ * @returns {string}
  */
 export function primaryCheckout(from) {
   const common = execFileSync(
@@ -50,6 +53,9 @@ const SHELLS = new Set(["bash", "sh", "dash", "zsh", "ksh"]);
  * each count and produce a false all-clear. The script has to sit where an interpreter
  * would put it and carry a path separator, so a bare invocation from inside `scripts/` is
  * reported as no supervisor rather than mis-attributed.
+ *
+ * @param {string[]} argumentList
+ * @returns {boolean}
  */
 export function isSupervisorCommand(argumentList) {
   const args = argumentList.filter((value) => value !== "");
@@ -63,6 +69,10 @@ export function isSupervisorCommand(argumentList) {
 /**
  * `undefined` when the process table cannot be enumerated at all, which is a different
  * answer from "none running" and is reported as such.
+ *
+ * @param {string} procRoot
+ * @param {number} selfPid
+ * @returns {Supervisor[] | undefined}
  */
 export function findSupervisors(procRoot = "/proc", selfPid = ownPid) {
   /** @type {string[]} */
@@ -103,6 +113,11 @@ export function findSupervisors(procRoot = "/proc", selfPid = ownPid) {
   return found;
 }
 
+/**
+ * @param {string} path
+ * @param {number} now
+ * @returns {LogState}
+ */
 export function readLog(path, now = Date.now()) {
   /** @type {LogState} */
   const absent = {
@@ -125,6 +140,7 @@ export function readLog(path, now = Date.now()) {
   }
 
   const lines = text.split("\n").filter((line) => line.trim() !== "");
+  /** @param {RegExp} pattern */
   const last = (pattern) => [...lines].reverse().find((line) => pattern.test(line));
   return {
     path,
@@ -138,6 +154,10 @@ export function readLog(path, now = Date.now()) {
   };
 }
 
+/**
+ * @param {{ supervisors: Supervisor[] | undefined; log: LogState; staleHours: number }} input
+ * @returns {Status}
+ */
 export function assess({ supervisors, log, staleHours }) {
   const processesReadable = supervisors !== undefined;
   const live = supervisors ?? [];
@@ -195,6 +215,10 @@ export function assess({ supervisors, log, staleHours }) {
   };
 }
 
+/**
+ * @param {Status} status
+ * @returns {string}
+ */
 export function render(status) {
   const lines = [`agent-loop: ${status.verdict} - ${status.reason}`];
   for (const supervisor of status.supervisors) {
@@ -220,6 +244,10 @@ export function render(status) {
   return lines.join("\n");
 }
 
+/**
+ * @param {string[]} args
+ * @returns {{ json: boolean; staleHours: number }}
+ */
 export function parseArgs(args) {
   const parsed = { json: false, staleHours: DEFAULT_STALE_HOURS };
   const remaining = [...args];
@@ -238,6 +266,11 @@ export function parseArgs(args) {
   return parsed;
 }
 
+/**
+ * @param {string[]} args
+ * @param {string} checkout
+ * @returns {number}
+ */
 export function main(args, checkout) {
   /** @type {ReturnType<typeof parseArgs>} */
   let options;

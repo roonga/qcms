@@ -117,6 +117,10 @@ export const JOB_GUARDS = {
   },
 };
 
+/**
+ * @param {string} workflowText
+ * @returns {{ job: string; actions: string[] }[]}
+ */
 export function jobsIn(workflowText) {
   const lines = workflowText.split("\n");
   const jobsAt = lines.findIndex((line) => line === "jobs:");
@@ -139,6 +143,11 @@ export function jobsIn(workflowText) {
   return jobs;
 }
 
+/**
+ * @param {{ job: string; actions: string[] }[]} declared
+ * @param {Record<string, { mirror: boolean; assert: boolean; prepull: boolean; why: string }>} guards
+ * @returns {string[]}
+ */
 export function compareGuards(declared, guards) {
   const problems = [];
   const seen = new Set();

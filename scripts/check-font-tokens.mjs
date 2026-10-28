@@ -76,7 +76,12 @@ export function fontFaceRanges(css) {
   return ranges;
 }
 
-/** Values are whitespace-normalized, because Prettier reflows a long one onto continuations. */
+/**
+ * Values are whitespace-normalized, because Prettier reflows a long one onto continuations.
+ *
+ * @param {string} css
+ * @param {(name: string) => boolean} matches
+ */
 export function declarations(css, matches) {
   const faces = fontFaceRanges(css);
   const found = [];

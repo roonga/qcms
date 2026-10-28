@@ -14,6 +14,10 @@ import { join } from "node:path";
 import { expandGlobs, parseWorkspaceGlobs } from "./check-changeset.mjs";
 import { REPOSITORY_ROOT } from "./docker.mjs";
 
+/**
+ * @param {string} [root]
+ * @returns {string[]}
+ */
 export function workspaceManifestPaths(root = REPOSITORY_ROOT) {
   const globs = parseWorkspaceGlobs(readFileSync(join(root, "pnpm-workspace.yaml"), "utf8"));
   const paths = ["package.json"];
@@ -34,6 +38,9 @@ const TYPES_SCOPE = "@types/";
  * `peerDependencies` is deliberately not an exemption: the pair the API image was found
  * carrying is declared exactly that way, so treating a peer as production would exempt
  * the defect.
+ *
+ * @param {string} [root]
+ * @returns {Set<string>}
  */
 export function devOnlyDependencies(root = REPOSITORY_ROOT) {
   /** @type {Set<string>} */
@@ -59,6 +66,9 @@ const NPM_PURL = "pkg:npm/";
  * Accepts the in-toto statement buildx attaches or the SPDX document inside it. The
  * name comes from the purl, not SPDX's `name` field: the purl is unambiguous about the
  * ecosystem and round-trips a percent-encoded scoped name.
+ *
+ * @param {any} document
+ * @returns {{ name: string, version: string }[]}
  */
 export function sbomNpmPackages(document) {
   const spdx = document?.predicate ?? document;
@@ -79,6 +89,11 @@ export function sbomNpmPackages(document) {
   return packages;
 }
 
+/**
+ * @param {any} document
+ * @param {Set<string>} devOnly
+ * @returns {string[]}
+ */
 export function devPackagesInSbom(document, devOnly) {
   const found = new Set();
   for (const { name, version } of sbomNpmPackages(document)) {
@@ -90,6 +105,10 @@ export function devPackagesInSbom(document, devOnly) {
 /**
  * An SBOM listing no npm package at all fails rather than passing vacuously: that is
  * how this gate would otherwise go quietly green after a syft field change.
+ *
+ * @param {any} document
+ * @param {string} name
+ * @param {string} [root]
  */
 export function assertNoDevDependencies(document, name, root = REPOSITORY_ROOT) {
   const npmPackages = sbomNpmPackages(document);

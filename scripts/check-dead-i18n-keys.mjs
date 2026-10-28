@@ -42,6 +42,10 @@ export const ALLOWED = {};
  */
 const ROOTS = ["apps", "packages"];
 
+/**
+ * @param {string} path
+ * @returns {boolean}
+ */
 export function isTestFile(path) {
   return (
     /\.test\.tsx?$/.test(path) ||
@@ -55,6 +59,10 @@ export function isTestFile(path) {
 /**
  * Syntax only: no `ts.Program` and no type checker, so this costs a parse per file rather
  * than a whole-program typecheck.
+ *
+ * @param {string} path
+ * @param {string} text
+ * @returns {ts.SourceFile}
  */
 function parse(path, text) {
   const kind = path.endsWith(".tsx") ? ts.ScriptKind.TSX : ts.ScriptKind.TS;
@@ -64,6 +72,9 @@ function parse(path, text) {
 /**
  * Recognised structurally, by the shape both apps share, rather than by path, so a third
  * app's catalog is in scope on the day it lands wherever it is put.
+ *
+ * @param {ts.SourceFile} source
+ * @returns {{ keys: string[]; node: ts.ObjectLiteralExpression } | undefined}
  */
 export function catalogIn(source) {
   let found;
@@ -95,6 +106,10 @@ export function catalogIn(source) {
  * in it at all, and its template head is the only evidence the keys under it are reachable.
  *
  * Nodes inside `skip` are not read, so a catalog does not keep its own keys alive.
+ *
+ * @param {ts.SourceFile} source
+ * @param {ts.Node | undefined} skip
+ * @returns {Set<string>}
  */
 export function literalsIn(source, skip) {
   const found = new Set();
@@ -115,6 +130,10 @@ export function literalsIn(source, skip) {
 /**
  * A prefix must contain a `.` and be at least three characters, which separates an
  * assembled key from an unrelated short string that happens to open the same way.
+ *
+ * @param {string} key
+ * @param {ReadonlySet<string>} literals
+ * @returns {boolean}
  */
 export function isReferenced(key, literals) {
   if (literals.has(key)) return true;
@@ -128,6 +147,9 @@ export function isReferenced(key, literals) {
 /**
  * A catalog's references are looked for in its own app only: the apps never import each
  * other, so a key named in a sibling tree is a coincidence rather than a reference.
+ *
+ * @param {string} path
+ * @returns {string | undefined}
  */
 export function ownerOf(path) {
   const parts = path.split("/");
@@ -135,6 +157,7 @@ export function ownerOf(path) {
   return `${parts[0]}/${parts[1]}`;
 }
 
+/** @returns {string[]} */
 export function scanned() {
   const files = [];
   for (const root of ROOTS) {
@@ -147,6 +170,10 @@ export function scanned() {
   return files.sort((a, b) => (a < b ? -1 : a > b ? 1 : 0));
 }
 
+/**
+ * @param {readonly string[]} files
+ * @returns {{ catalogs: Map<string, { path: string; keys: string[] }>; literals: Map<string, Set<string>> }}
+ */
 export function survey(files) {
   const catalogs = new Map();
   const literals = new Map();
@@ -172,6 +199,10 @@ export function survey(files) {
   return { catalogs, literals };
 }
 
+/**
+ * @param {ReturnType<typeof survey>} [surveyed]
+ * @returns {{ owner: string; catalog: string; key: string }[]}
+ */
 export function deadKeys(surveyed = survey(scanned())) {
   const { catalogs, literals } = surveyed;
   const dead = [];
@@ -186,6 +217,7 @@ export function deadKeys(surveyed = survey(scanned())) {
   return dead;
 }
 
+/** @returns {number} */
 export function main() {
   // One survey, read twice: it parses every tracked source file, so surveying again for
   // the totals printed on the success line would double the gate's whole cost.

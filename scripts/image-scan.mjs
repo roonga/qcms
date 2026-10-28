@@ -48,6 +48,10 @@ export const EXIT_OK = 0;
 export const EXIT_ERROR = 1;
 export const EXIT_BLOCKED = 2;
 
+/**
+ * @param {string} severity
+ * @returns {number}
+ */
 export function severityRank(severity) {
   const index = SEVERITIES.indexOf(String(severity).toLowerCase());
   if (index === -1) {
@@ -61,6 +65,9 @@ export function severityRank(severity) {
 /**
  * Accepts the in-toto statement the build persists or the bare SPDX document, because a
  * fixture is easier to write as the document itself.
+ *
+ * @param {any} statement
+ * @returns {any}
  */
 export function spdxDocument(statement) {
   return statement?.predicate ?? statement;
@@ -69,6 +76,9 @@ export function spdxDocument(statement) {
 /**
  * Keyed off the purl and not SPDX's own `name`: the deb and npm halves of these images
  * share that field, and a purl is unambiguous about the ecosystem.
+ *
+ * @param {any} document
+ * @returns {Record<string, number>}
  */
 export function purlEcosystems(document) {
   const spdx = spdxDocument(document);
@@ -86,6 +96,11 @@ export function purlEcosystems(document) {
   return counts;
 }
 
+/**
+ * @param {any} report
+ * @returns {{ id: string, severity: string, ecosystem: string, name: string,
+ *   version: string, fixState: string, fixVersions: string[] }[]}
+ */
 export function findings(report) {
   return (report?.matches ?? []).map((/** @type {any} */ match) => ({
     id: String(match?.vulnerability?.id ?? ""),
@@ -98,6 +113,10 @@ export function findings(report) {
   }));
 }
 
+/**
+ * @param {ReturnType<typeof findings>} list
+ * @returns {Record<string, number>}
+ */
 export function severityCounts(list) {
   /** @type {Record<string, number>} */
   const counts = Object.fromEntries(SEVERITIES.map((severity) => [severity, 0]));
@@ -105,6 +124,12 @@ export function severityCounts(list) {
   return counts;
 }
 
+/**
+ * @param {ReturnType<typeof findings>} list
+ * @param {string} floor
+ * @param {boolean} includeUnfixed
+ * @returns {ReturnType<typeof findings>}
+ */
 export function atOrAbove(list, floor, includeUnfixed) {
   const minimum = severityRank(floor);
   return list
@@ -126,6 +151,8 @@ export function atOrAbove(list, floor, includeUnfixed) {
  * packages in the SBOM with no distro in the report. The last is specific to scanning an
  * SBOM: without the distro the scanner matches the npm half and silently skips every
  * operating-system package.
+ *
+ * @param {{ image: string, document: any, report: any }} input
  */
 export function assertScanIsAnswerable({ image, document, report }) {
   const ecosystems = purlEcosystems(document);
@@ -156,6 +183,10 @@ export function assertScanIsAnswerable({ image, document, report }) {
   }
 }
 
+/**
+ * @param {{ image: string, document: any, report: any }} input
+ * @param {{ failOn: string, notifyOn: string, failOnUnfixed: boolean }} floors
+ */
 export function summarizeImage({ image, document, report }, floors) {
   const list = findings(report);
   const ecosystems = purlEcosystems(document);
@@ -180,6 +211,9 @@ export function summarizeImage({ image, document, report }, floors) {
  * Every value here reaches the issue body from data. A `|` injects a column, a newline
  * ends the table, an `@name` notifies a person. The code span neutralises `#`, `@` and
  * `[`, but not the pipe or the newline inside a table, so those are handled first.
+ *
+ * @param {string} value
+ * @returns {string}
  */
 export const MAX_CELL_LENGTH = 200;
 
@@ -209,6 +243,9 @@ export function escapeCell(value) {
 /**
  * The images share a base, so an unfiltered listing repeats every operating-system
  * finding once per image.
+ *
+ * @param {{ image: string }[]} summaries
+ * @param {"blocking" | "reportedFixable" | "reportedUnfixed"} key
  */
 export function mergeFindings(summaries, key) {
   /** @type {Map<string, any>} */
@@ -242,6 +279,11 @@ function findingRow(row) {
   return `| ${escapeCell(row.severity)} | ${escapeCell(row.id)} | ${escapeCell(row.ecosystem)} | ${escapeCell(`${row.name}@${row.version}`)} | ${escapeCell(fix)} | ${row.images.join(", ")} |`;
 }
 
+/**
+ * @param {ReturnType<typeof summarizeImage>[]} summaries
+ * @param {{ failOn: string, notifyOn: string, failOnUnfixed: boolean }} floors
+ * @returns {string}
+ */
 export function renderReport(summaries, floors) {
   const lines = [];
   const blockingScope = floors.failOnUnfixed
@@ -294,6 +336,9 @@ export function renderReport(summaries, floors) {
 /**
  * Over the merged rows and not the Markdown, which carries counts that drift with
  * unrelated severities. The scheduled job stays silent while this does not move.
+ *
+ * @param {ReturnType<typeof summarizeImage>[]} summaries
+ * @returns {string}
  */
 export function reportDigest(summaries) {
   const rows = [
@@ -327,6 +372,11 @@ function capitalise(word) {
  * No `--fail-on` at the scanner: grype exits 2 for a crossed floor and 1 for a database
  * error, so letting it own the verdict collapses the two. Here any non-zero exit from
  * grype is a failure to scan and the floors are this script's business.
+ *
+ * @param {string} scanner
+ * @param {string} sbomPath
+ * @param {string} reportPath
+ * @returns {any}
  */
 export function runScanner(scanner, sbomPath, reportPath) {
   execFileSync(scanner, [`sbom:${sbomPath}`, "--output", "json", "--file", reportPath], {
@@ -335,6 +385,10 @@ export function runScanner(scanner, sbomPath, reportPath) {
   return JSON.parse(readFileSync(reportPath, "utf8"));
 }
 
+/**
+ * @param {string[]} argv
+ * @param {Record<string, string | undefined>} [env]
+ */
 export function parseArgv(argv, env = process.env) {
   const value = (flag, fallback) => {
     const index = argv.indexOf(flag);

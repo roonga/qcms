@@ -49,13 +49,22 @@ export const SUPPLIED_VARIABLES = [
 /** `.test` is reserved for testing and can never resolve (RFC 6761). */
 const DEFAULT_ADMIN_EMAIL = "dev@qcms.test";
 
-/** Scanned rather than listed, so a `:?` added to either file is preflighted anyway. */
+/**
+ * Scanned rather than listed, so a `:?` added to either file is preflighted anyway.
+ *
+ * @param {string} text
+ * @returns {string[]}
+ */
 export function requiredVariablesIn(text) {
   const found = new Set();
   for (const match of text.matchAll(/\$\{([A-Z0-9_]+):\?/g)) found.add(match[1]);
   return [...found];
 }
 
+/**
+ * @param {readonly string[]} [files]
+ * @returns {string[]}
+ */
 export function requiredVariables(files = COMPOSE_FILES) {
   const supplied = new Set(SUPPLIED_VARIABLES);
   const names = new Set();
@@ -68,6 +77,9 @@ export function requiredVariables(files = COMPOSE_FILES) {
 /**
  * Deliberately naive, and not Compose's full `.env` grammar: Compose reads the file
  * itself, so a misread here only makes the preflight lenient, never the stack wrong.
+ *
+ * @param {string} text
+ * @returns {Record<string, string>}
  */
 export function parseEnvFile(text) {
   /** @type {Record<string, string>} */
@@ -86,6 +98,12 @@ export function parseEnvFile(text) {
   return values;
 }
 
+/**
+ * @param {readonly string[]} required
+ * @param {Record<string, string | undefined>} fileValues
+ * @param {NodeJS.ProcessEnv} environment
+ * @returns {string[]}
+ */
 export function missingVariables(required, fileValues, environment) {
   return required.filter((name) => {
     const value = environment[name] ?? fileValues[name] ?? "";
@@ -97,6 +115,10 @@ export function missingVariables(required, fileValues, environment) {
  * No value is ever invented here, which is a control rather than an omission: the viewer
  * password is undefaulted in the overlay so a read-only database client cannot be stood
  * up by accident, and a default picked here would put one in everybody's stack.
+ *
+ * @param {readonly string[]} missing
+ * @param {boolean} envFileExists
+ * @returns {string}
  */
 export function preflightMessage(missing, envFileExists) {
   const lines = [
@@ -138,6 +160,9 @@ const OWNER_ONLY = 0o600;
  *
  * Only `ENOENT` means "no pin yet". Anything else is rethrown, because regenerating
  * would overwrite a secret this process could not read.
+ *
+ * @param {string} path
+ * @returns {{ secret: string; tightenedFrom?: string } | undefined}
  */
 function readAndSecurePinFile(path) {
   /** @type {number} */
@@ -170,6 +195,10 @@ function readAndSecurePinFile(path) {
  * `open`'s `mode` applies only when the call creates the file and is ignored on one that
  * exists, which is exactly the regenerate path, so the permission is set afterwards and
  * on the descriptor rather than on the name.
+ *
+ * @param {string} path
+ * @param {string} secret
+ * @returns {void}
  */
 function writePinFile(path, secret) {
   const handle = openSync(path, "w", OWNER_ONLY);
@@ -200,6 +229,11 @@ function writePinFile(path, secret) {
  * `.env` is deliberately not one of the rungs, because re-copying the template would put
  * its placeholder back over a pinned secret. The file is made owner-only on every path,
  * not only when created, since `mode` is ignored on a file that already exists.
+ *
+ * @param {object} [io]
+ * @param {NodeJS.ProcessEnv} [io.environment]
+ * @param {string} [io.path]
+ * @returns {{ secret: string; source: "environment" | "file" | "generated"; tightenedFrom?: string }}
  */
 export function pinAdminAuthSecret({
   environment = process.env,
@@ -219,7 +253,13 @@ export function pinAdminAuthSecret({
   return { secret, source: "generated" };
 }
 
-/** Names the variable, the file and the mode, and never the value (SEC-8). */
+/**
+ * Names the variable, the file and the mode, and never the value (SEC-8).
+ *
+ * @param {{ source: "environment" | "file" | "generated"; tightenedFrom?: string }} pin
+ * @param {string} [file]
+ * @returns {string[]}
+ */
 export function pinNoticeLines(pin, file = ADMIN_SECRET_FILE) {
   const lines = [
     {
@@ -236,7 +276,12 @@ export function pinNoticeLines(pin, file = ADMIN_SECRET_FILE) {
   return lines;
 }
 
-/** Derived from the seat and never written down (R8, `docs/PORTS.md`). */
+/**
+ * Derived from the seat and never written down (R8, `docs/PORTS.md`).
+ *
+ * @param {number} [seat]
+ * @returns {{ portal: number; admin: number; observability: number; dbViewer: number }}
+ */
 export function seatPorts(seat) {
   return {
     portal: stablePort("portal", seat),
@@ -253,6 +298,11 @@ export function seatPorts(seat) {
  * The bind address is an override rather than a pass-through, unlike every other value
  * here: this stack prints a plaintext administrator credential and runs a Grafana whose
  * login is `admin`/`admin`, so it stays on loopback whatever `.env` said.
+ *
+ * @param {object} options
+ * @param {{ portal: number; admin: number; observability: number; dbViewer: number }} options.ports
+ * @param {string} options.adminAuthSecret
+ * @returns {Record<string, string>}
  */
 export function devStackEnvironmentOverrides({ ports, adminAuthSecret }) {
   return {
@@ -270,6 +320,13 @@ export function devStackEnvironmentOverrides({ ports, adminAuthSecret }) {
 /**
  * The only credential on screen is the local administrator one this command generated:
  * never the database password, the link or session keys, or the internal token (SEC-8).
+ *
+ * @param {object} options
+ * @param {{ portal: number; admin: number; observability: number; dbViewer: number }} options.ports
+ * @param {string} options.project
+ * @param {{ email: string; password: string } | undefined} options.credentials
+ * @param {boolean} options.inContainer
+ * @returns {string[]}
  */
 export function devStackBannerLines({ ports, project, credentials, inContainer }) {
   const url = (/** @type {number} */ port) => `http://localhost:${String(port)}`;
@@ -343,6 +400,7 @@ export function devStackBannerLines({ ports, project, credentials, inContainer }
 }
 
 class UsageError extends Error {
+  /** @param {string} message */
   constructor(message) {
     super(message);
     this.name = "UsageError";
@@ -358,6 +416,9 @@ const project = process.env.COMPOSE_PROJECT_NAME ?? localStackProjectName();
 /**
  * `--env-file` is attached only when the file is there, because Compose errors on a
  * missing one and `down` has to keep working in exactly that state.
+ *
+ * @param {boolean} hasEnvFile
+ * @returns {string[]}
  */
 function composeArgs(hasEnvFile) {
   const args = ["compose", "--project-name", project];
@@ -366,10 +427,15 @@ function composeArgs(hasEnvFile) {
   return args;
 }
 
+/**
+ * @param {Record<string, string>} overrides
+ * @returns {NodeJS.ProcessEnv}
+ */
 function composeEnvironment(overrides) {
   return { ...process.env, ...overrides };
 }
 
+/** @param {string} message */
 function log(message) {
   process.stdout.write(`[dev-stack] ${message}\n`);
 }
@@ -377,6 +443,8 @@ function log(message) {
 /**
  * One read rather than `existsSync` then `readFileSync`, which is a check-then-use race.
  * The same answer decides whether `--env-file` is passed, so the two cannot disagree.
+ *
+ * @returns {{ exists: boolean; values: Record<string, string> }}
  */
 function envFileState() {
   let text;
@@ -401,6 +469,11 @@ function preflight({ exists, values }) {
  * `.env` would make `down` fail on a `:?` variable and leave a running stack no
  * documented command stops. Nothing on the teardown path reads these values: what
  * Compose removes comes from the project label and the volume and network declarations.
+ *
+ * @param {readonly string[]} required
+ * @param {Record<string, string | undefined>} fileValues
+ * @param {NodeJS.ProcessEnv} environment
+ * @returns {Record<string, string>}
  */
 export function teardownPlaceholders(required, fileValues, environment) {
   /** @type {Record<string, string>} */
@@ -443,6 +516,11 @@ export function up() {
   );
 }
 
+/**
+ * @param {"seed" | "clear" | "reset"} mode
+ * @param {string} name
+ * @returns {string}
+ */
 export function seedNoticeLine(mode, name) {
   return {
     seed: `seeding the sample question library and form into project ${name} ...`,
@@ -462,6 +540,8 @@ export function seedNoticeLine(mode, name) {
  *
  * It preflights like `up` rather than filling placeholders like `down`, because the
  * database credential is read for real here.
+ *
+ * @param {"seed" | "clear" | "reset"} [mode]
  */
 export function seed(mode = "seed") {
   const envFile = envFileState();
@@ -510,6 +590,9 @@ export function down() {
  * A `UsageError` would have its one useful line buried by a stack trace, and a
  * `CommandFailed` means Compose already printed the real reason immediately above.
  * Everything else is unexpected and keeps its stack.
+ *
+ * @param {unknown} error
+ * @returns {string}
  */
 function describe(error) {
   if (error instanceof UsageError || error instanceof CommandFailed) return error.message;
@@ -517,6 +600,7 @@ function describe(error) {
   return String(error);
 }
 
+/** @type {Record<string, () => void>} */
 export const SUBCOMMANDS = {
   up,
   seed: () => {

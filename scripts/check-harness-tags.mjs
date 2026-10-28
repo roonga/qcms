@@ -47,6 +47,10 @@ export const HARNESS_TAG_PATTERNS = [
   new RegExp(`${CLOSE}antml:`),
 ];
 
+/**
+ * @param {string} text
+ * @returns {{ tag: string; line: number; excerpt: string }[]}
+ */
 export function harnessTagsIn(text) {
   const found = [];
   text.split("\n").forEach((line, index) => {

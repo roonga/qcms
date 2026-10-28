@@ -48,6 +48,9 @@ export const HARNESS_SERVICES = {
 /**
  * A bad value throws rather than being coerced: coercion would land the run on seat 0
  * and adopt another seat's servers.
+ *
+ * @param {string | undefined} raw
+ * @returns {number}
  */
 export function resolvePortSeat(raw) {
   const value = raw?.trim() ?? "";
@@ -63,8 +66,13 @@ export function resolvePortSeat(raw) {
   return Number(value);
 }
 
+/** @type {number} */
 export const PORT_SEAT = resolvePortSeat(process.env[PORT_SEAT_ENV_VAR]);
 
+/**
+ * @param {number} seat
+ * @returns {number}
+ */
 function checkedSeat(seat) {
   if (!Number.isInteger(seat) || seat < MIN_PORT_SEAT || seat > MAX_PORT_SEAT) {
     throw new Error(
@@ -75,14 +83,28 @@ function checkedSeat(seat) {
   return seat;
 }
 
+/**
+ * @param {keyof typeof STABLE_SERVICES} service
+ * @param {number} [seat]
+ * @returns {number}
+ */
 export function stablePort(service, seat = PORT_SEAT) {
   return STABLE_BLOCK_BASE + checkedSeat(seat) * SEAT_BLOCK_SIZE + STABLE_SERVICES[service];
 }
 
+/**
+ * @param {keyof typeof HARNESS_SERVICES} service
+ * @param {number} [seat]
+ * @returns {number}
+ */
 export function harnessPort(service, seat = PORT_SEAT) {
   return HARNESS_BLOCK_BASE + checkedSeat(seat) * SEAT_BLOCK_SIZE + HARNESS_SERVICES[service];
 }
 
+/**
+ * @param {number} [seat]
+ * @returns {{ service: keyof typeof HARNESS_SERVICES; port: number }[]}
+ */
 export function harnessPorts(seat = PORT_SEAT) {
   return Object.keys(HARNESS_SERVICES).map((service) => ({
     service: /** @type {keyof typeof HARNESS_SERVICES} */ (service),
@@ -94,11 +116,18 @@ export function harnessPorts(seat = PORT_SEAT) {
  * A per-seat project name is required, not tidiness: two stacks sharing one project
  * name are one stack, and `up -d` with a changed port mapping recreates the running
  * container against the same volume, taking the other seat's database away.
+ *
+ * @param {number} [seat]
+ * @returns {string}
  */
 export function composeProjectName(seat = PORT_SEAT) {
   return checkedSeat(seat) === DEFAULT_PORT_SEAT ? "qcms-dev" : `qcms-dev-s${String(seat)}`;
 }
 
+/**
+ * @param {number} [seat]
+ * @returns {string}
+ */
 export function localStackProjectName(seat = PORT_SEAT) {
   return checkedSeat(seat) === DEFAULT_PORT_SEAT
     ? "qcms-local-stack"
@@ -107,7 +136,12 @@ export function localStackProjectName(seat = PORT_SEAT) {
 
 export const EPHEMERAL_RANGE_PATH = "/proc/sys/net/ipv4/ip_local_port_range";
 
-/** Read rather than hard-coded: the range is tunable and CI runners differ. */
+/**
+ * Read rather than hard-coded: the range is tunable and CI runners differ.
+ *
+ * @param {string} [path]
+ * @returns {{ low: number; high: number } | undefined}
+ */
 export function ephemeralPortRange(path = EPHEMERAL_RANGE_PATH) {
   let text;
   try {
@@ -123,6 +157,10 @@ export function ephemeralPortRange(path = EPHEMERAL_RANGE_PATH) {
 /**
  * A fixed listener inside the ephemeral window rarely loses its port to a
  * kernel-assigned socket, which is unreproducible, so it is refused at startup.
+ *
+ * @param {number} [seat]
+ * @param {{ low: number; high: number } | undefined} [range]
+ * @returns {void}
  */
 export function assertSeatPortsOutsideEphemeralRange(
   seat = PORT_SEAT,
@@ -146,7 +184,12 @@ export function assertSeatPortsOutsideEphemeralRange(
   );
 }
 
-/** A loop rather than a `/\/+$/` replace, which `sonarjs/super-linear-regex` rejects. */
+/**
+ * A loop rather than a `/\/+$/` replace, which `sonarjs/super-linear-regex` rejects.
+ *
+ * @param {string} path
+ * @returns {string}
+ */
 export function withoutTrailingSlash(path) {
   let end = path.length;
   while (end > 0 && path[end - 1] === "/") end -= 1;
@@ -156,6 +199,9 @@ export function withoutTrailingSlash(path) {
 /**
  * A linked worktree has a `.git` file where a primary checkout has a directory. No
  * `.git` at all reports false, because there is nothing reliable to infer.
+ *
+ * @param {string} repoRoot
+ * @returns {boolean}
  */
 export function isLinkedWorktree(repoRoot) {
   let gitEntry;
@@ -171,6 +217,11 @@ export function isLinkedWorktree(repoRoot) {
  * Scoped to linked worktrees because the residual risk is a seat collision, not a
  * port collision: two runs both defaulting to seat 0 share one Compose project, and
  * teardown there runs `down --volumes` on the other lane's stack (`docs/PORTS.md`).
+ *
+ * @param {string} repoRoot
+ * @param {string} command
+ * @param {string | undefined} [raw]
+ * @returns {void}
  */
 export function assertPortSeatChosen(repoRoot, command, raw = process.env[PORT_SEAT_ENV_VAR]) {
   if ((raw ?? "").trim() !== "") return;

@@ -92,6 +92,7 @@ function tryGit(args, cwd) {
   }
 }
 
+/** @param {string | undefined} cwd */
 function resolveBaseRef(cwd) {
   for (const ref of [`origin/${DEFAULT_BRANCH}`, DEFAULT_BRANCH]) {
     if (tryGit(["rev-parse", "--verify", "--quiet", `${ref}^{commit}`], cwd) !== undefined) {
@@ -105,6 +106,8 @@ function resolveBaseRef(cwd) {
  * Comparing the manifests with their dependency blocks removed is what makes the
  * refusal reliable: it catches a `files`, `exports` or `version` edit riding along.
  *
+ * @param {string} beforeText
+ * @param {string} afterText
  * @returns {{ moves: DependencyMove[], otherFieldsChanged: boolean }}
  */
 export function manifestDependencyMoves(beforeText, afterText) {
@@ -134,6 +137,10 @@ export function manifestDependencyMoves(beforeText, afterText) {
   return { moves, otherFieldsChanged: strip(before) !== strip(after) };
 }
 
+/**
+ * @param {{ field: string }[]} moves
+ * @returns {"minor" | "patch"}
+ */
 export function bumpFor(moves) {
   return moves.some((move) => move.field === CONTRACT_FIELD) ? "minor" : "patch";
 }
@@ -141,11 +148,18 @@ export function bumpFor(moves) {
 /**
  * The narrowness is the point: only a generated manifest is describable dependency
  * maintenance, never a generated source file or a hand-written static template.
+ *
+ * @param {string} filePath
+ * @returns {string | undefined}
  */
 export function templateManifestApp(filePath) {
   return TEMPLATE_APP_MANIFEST.exec(filePath)?.[1];
 }
 
+/**
+ * @param {DependencyMove[]} moves
+ * @returns {DependencyMove[]}
+ */
 function mergeScopes(moves) {
   /** @type {Map<string, DependencyMove & { scopes: string[] }>} */
   const merged = new Map();
@@ -171,6 +185,8 @@ function mergeScopes(moves) {
  * regenerated for a reason that is not a dependency range would make a changeset
  * saying "only the ranges below moved" false.
  *
+ * @param {{ path: string, before: string | undefined, after: string }[]} manifests
+ * @param {string[]} others
  * @returns {{ moves: DependencyMove[], refusal?: string }}
  */
 export function templateManifestMoves(manifests, others) {
@@ -206,6 +222,9 @@ export function templateManifestMoves(manifests, others) {
 /**
  * Derived from the branch, so a second run rewrites its own file rather than adding a
  * second one.
+ *
+ * @param {string} branch
+ * @returns {string}
  */
 export function changesetFileName(branch) {
   const slug = branch
@@ -218,6 +237,10 @@ export function changesetFileName(branch) {
   return `dependabot-${slug === "" ? "deps" : slug}.md`;
 }
 
+/**
+ * @param {PackageEntry[]} entries
+ * @returns {string}
+ */
 export function renderChangeset(entries) {
   const frontmatter = entries.map((entry) => `"${entry.name}": ${entry.bump}`).join("\n");
   const sections = entries.map((entry) => {
@@ -276,6 +299,11 @@ export function renderChangeset(entries) {
  * shows up in the diff against the base, one not yet re-synced shows up as a
  * disagreement between the generated tree and the working tree.
  *
+ * @param {string} mergeBase
+ * @param {string | undefined} cwd
+ * @param {Map<string, string>} templates
+ * @param {Map<string, string>} current
+ * @param {string[]} committed
  * @returns {{ moves: DependencyMove[], refusal?: string, drift: string[] }}
  */
 function planTemplates(mergeBase, cwd, templates, current, committed) {
@@ -307,6 +335,16 @@ function planTemplates(mergeBase, cwd, templates, current, committed) {
   return { moves, refusal, drift: [...drift, ...stale].sort() };
 }
 
+/**
+ * @param {string} mergeBase
+ * @param {Options} options
+ * @returns {{
+ *   entries: PackageEntry[],
+ *   refusal?: string,
+ *   alreadyCovered: string[],
+ *   templateDrift: string[],
+ * }}
+ */
 export function plan(mergeBase, options = {}) {
   const cwd = options.cwd;
   const nameStatus = git(["diff", "--name-status", "-M", mergeBase, "HEAD"], cwd);
@@ -443,6 +481,8 @@ export function plan(mergeBase, options = {}) {
  * Async because the regeneration it delegates to hands its output to Prettier, so no
  * separate `pnpm format` is needed.
  *
+ * @param {string[]} args
+ * @param {Options} options
  * @returns {Promise<number>} process exit code
  */
 export async function main(args = process.argv.slice(2), options = {}) {

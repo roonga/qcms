@@ -14,6 +14,10 @@
  */
 export const GENERATED_COPY_PREFIX = "packages/create-qcms-app/templates/";
 
+/**
+ * @param {string} file
+ * @returns {boolean}
+ */
 export function isGeneratedCopy(file) {
   return file.startsWith(GENERATED_COPY_PREFIX);
 }

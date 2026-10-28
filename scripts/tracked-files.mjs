@@ -12,6 +12,11 @@ const GIT = process.platform === "win32" ? "git.exe" : "git";
 /** Room for a NUL-separated listing of a large tree. */
 const MAX_BUFFER = 32 * 1024 * 1024;
 
+/**
+ * @param {string} root
+ * @param {{ match?: RegExp }} [options]
+ * @returns {string[]}
+ */
 export function trackedFilesUnder(root, options = {}) {
   if (!existsSync(root) || !statSync(root).isDirectory()) {
     throw new Error(`trackedFilesUnder: not a directory: ${root}`);

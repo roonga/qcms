@@ -83,6 +83,10 @@ export const MIN_PHRASE = 3;
  * @property {string | null} expect phrase the cited lines must contain, if any
  */
 
+/**
+ * @param {string | undefined} text
+ * @returns {Span[]}
+ */
 export function parseSpans(text) {
   if (text === undefined || text === "") return [];
   return text.split(",").map((part) => {
@@ -94,6 +98,11 @@ export function parseSpans(text) {
 /**
  * Suffix match first, then ancestor directories of the most recent citation, longest
  * first. The order is what makes the resolution deterministic rather than a guess.
+ *
+ * @param {string} tail
+ * @param {Citation[]} earlier
+ * @param {(pkg: string | null, path: string) => boolean} exists
+ * @returns {{ pkg: string | null, path: string } | null}
  */
 export function resolveShorthand(tail, earlier, exists) {
   for (let i = earlier.length - 1; i >= 0; i -= 1) {
@@ -114,6 +123,11 @@ export function resolveShorthand(tail, earlier, exists) {
   return null;
 }
 
+/**
+ * @param {string} text
+ * @param {(pkg: string | null, path: string) => boolean} [exists]
+ * @returns {{ citations: Citation[], problems: string[] }}
+ */
 export function citationsIn(text, exists = () => false) {
   const lineOf = lineIndex(text);
   /** @type {{ index: number, kind: "full" | "shorthand" | "line", m: RegExpExecArray }[]} */
@@ -206,6 +220,10 @@ export function citationsIn(text, exists = () => false) {
   return { citations, problems };
 }
 
+/**
+ * @param {string} text
+ * @returns {(index: number) => number}
+ */
 function lineIndex(text) {
   /** @type {number[]} */
   const starts = [0];
@@ -227,6 +245,11 @@ function lineIndex(text) {
  * `@better-auth/core@<version>` lives under `@better-auth+core@<version>_<hash>`.
  * The version must match exactly: a tree carrying two copies would otherwise hand back
  * whichever the directory listing returned first.
+ *
+ * @param {string} nodeModules
+ * @param {string} name
+ * @param {string} version
+ * @returns {string | null}
  */
 export function findPackageRoot(nodeModules, name, version) {
   const prefix = `${name.replace("/", "+")}@${version}`;
@@ -253,6 +276,11 @@ export function findPackageRoot(nodeModules, name, version) {
   return null;
 }
 
+/**
+ * @param {Map<string, Set<string>>} resolved
+ * @param {string} name
+ * @returns {{ version: string } | { error: string }}
+ */
 export function pinnedVersion(resolved, name) {
   const versions = resolved.get(name);
   if (versions === undefined || versions.size === 0) {
@@ -271,11 +299,20 @@ export function pinnedVersion(resolved, name) {
 /**
  * Whitespace only, so a phrase still matches across a line the vendor's formatter
  * wrapped. Case and punctuation stay part of the phrase.
+ *
+ * @param {string} text
+ * @returns {string}
  */
 export function collapse(text) {
   return text.replace(/\s+/g, " ").trim();
 }
 
+/**
+ * @param {Citation} citation
+ * @param {string[] | null} source
+ * @param {boolean} enforceExpect
+ * @returns {{ failure: string | null, shown: string[] }}
+ */
 export function checkCitation(citation, source, enforceExpect) {
   if (source === null) return { failure: "no such file", shown: [] };
   /** @type {string[]} */
@@ -315,6 +352,11 @@ export function checkCitation(citation, source, enforceExpect) {
   return { failure: null, shown };
 }
 
+/**
+ * @param {Citation} citation
+ * @param {string} owner
+ * @returns {string}
+ */
 export function describeCitation(citation, owner) {
   const spans = citation.spans
     .map((span) =>
@@ -330,6 +372,10 @@ export function describeCitation(citation, owner) {
   return `${owner} ${citation.path}${at}${written}`;
 }
 
+/**
+ * @param {string[]} args
+ * @returns {{ pkg: string, expect: boolean, quiet: boolean }}
+ */
 export function parseArgs(args) {
   let pkg = DEFAULT_PACKAGE;
   let expect = false;
@@ -360,6 +406,10 @@ export function parseArgs(args) {
   return { pkg, expect, quiet };
 }
 
+/**
+ * @param {string} repoRoot
+ * @returns {string[]}
+ */
 function tracked(repoRoot) {
   const out = execFileSync(GIT, ["ls-files", "-z", ...GLOBS, VENDORED_SOURCE_PATHSPEC], {
     cwd: repoRoot,
@@ -368,6 +418,10 @@ function tracked(repoRoot) {
   return out.split("\0").filter((p) => p !== "" && !isExempt(p));
 }
 
+/**
+ * @param {string[]} args
+ * @returns {number}
+ */
 export function main(args) {
   /** @type {{ pkg: string, expect: boolean, quiet: boolean }} */
   let options;
@@ -501,6 +555,12 @@ export function main(args) {
   return 1;
 }
 
+/**
+ * @param {Citation} citation
+ * @param {string} owner
+ * @param {(pkg: string | null, path: string) => boolean} exists
+ * @returns {string | null}
+ */
 function otherOwner(citation, owner, exists) {
   if (exists(citation.pkg, citation.path)) return null;
   for (const candidate of ["better-auth", "@better-auth/core"]) {

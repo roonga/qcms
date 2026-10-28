@@ -38,6 +38,8 @@ const MIGRATE_ROLE = "qcms_migrate";
  * covered without a code change. A query rather than a `data_%` pattern, because an
  * environment whose row exists and whose schema does not is exactly the half-restored
  * database this drill looks for (ADR-40).
+ *
+ * @returns {string[]}
  */
 function dataSchemas() {
   return schemasForEnvironments(
@@ -50,7 +52,10 @@ function dataSchemas() {
   );
 }
 
-/** @param {string} psqlOutput one environment name per line, in `position` order */
+/**
+ * @param {string} psqlOutput one environment name per line, in `position` order
+ * @returns {string[]}
+ */
 export function schemasForEnvironments(psqlOutput) {
   const names = psqlOutput
     .split("\n")
@@ -71,6 +76,9 @@ export function schemasForEnvironments(psqlOutput) {
  * Views are counted beside tables because a restore that brought back every row and no
  * reporting view would look perfect and serve nothing. `query_to_xml` is the idiom for a
  * count over a dynamic relation name inside one query.
+ *
+ * @param {string[]} schemas
+ * @returns {string}
  */
 function fingerprint(schemas) {
   const list = schemas.map((name) => `'${name}'`).join(", ");
@@ -91,6 +99,9 @@ function fingerprint(schemas) {
 /**
  * Credentials come from the container's own `POSTGRES_*` environment, so the drill never
  * has to agree with `docker-compose.yml` about what the database is called.
+ *
+ * @param {string[]} args
+ * @returns {string}
  */
 function psql(args) {
   return composeCapture([
@@ -106,6 +117,9 @@ function psql(args) {
 /**
  * `--` comments must go first: collapsing newlines around one would swallow the rest of
  * the query into that comment and `psql` would run a truncated statement.
+ *
+ * @param {string} sql
+ * @returns {string}
  */
 function oneLine(sql) {
   return sql
@@ -114,6 +128,7 @@ function oneLine(sql) {
     .trim();
 }
 
+/** @returns {string} */
 export function privilegeMapSql() {
   return readFileSync(
     join(REPOSITORY_ROOT, "packages", "db", "privileges", "privilege-map.sql"),
@@ -121,6 +136,7 @@ export function privilegeMapSql() {
   );
 }
 
+/** @param {string} value */
 function shellQuote(value) {
   return `'${value.replaceAll("'", `'\\''`)}'`;
 }
@@ -128,6 +144,8 @@ function shellQuote(value) {
 /**
  * Not narrowed to a schema list, because this also runs after the drop, when
  * `control.environments` is gone and the question is whether anything of ours is left.
+ *
+ * @returns {number}
  */
 function tableCount() {
   const out = psql([
@@ -163,6 +181,8 @@ function assertPublicEmpty() {
 /**
  * Through a file in the container rather than this process's stdio: a captured stdout
  * invites the whitespace and encoding trims that make a restore fail later.
+ *
+ * @param {string} hostPath
  */
 function dumpTo(hostPath) {
   composeRun([
@@ -202,6 +222,7 @@ function destroyDatabase() {
   ]);
 }
 
+/** @param {string} hostPath */
 function restoreFrom(hostPath) {
   composeRun(["cp", hostPath, `postgres:${CONTAINER_DUMP}`]);
   composeRun([
@@ -215,6 +236,11 @@ function restoreFrom(hostPath) {
   ]);
 }
 
+/**
+ * @param {string} expected
+ * @param {string} actual
+ * @returns {string}
+ */
 function grantDifference(expected, actual) {
   const split = (text) => new Set(text.split("\n").filter((line) => line.trim() !== ""));
   const before = split(expected);
@@ -320,6 +346,8 @@ function assertRestoredGrants() {
  * must not depend on `packages/db/dist` existing. `public` is excluded, since the
  * documented procedure recreates the database and its ownership genuinely changes; the
  * property that matters is asserted in {@link assertRestoredGrants}.
+ *
+ * @returns {string}
  */
 function grantSnapshot() {
   return psql([
@@ -364,6 +392,7 @@ function assertAdminSurvived(email) {
   process.stdout.write(`drill-restore: ${email} survived with its credential and 2FA enrolment\n`);
 }
 
+/** @param {string} value */
 function quoteSql(value) {
   return `'${value.replaceAll("'", "''")}'`;
 }
@@ -372,6 +401,8 @@ function quoteSql(value) {
 /**
  * Read back out of the restored database rather than remembered from before the dump,
  * which is the stronger direction: it proves the rows came back.
+ *
+ * @returns {{ slug: string, labels: string[] }}
  */
 function readRestoredPublishedForm() {
   const slug = psql([
@@ -418,6 +449,10 @@ function readRestoredPublishedForm() {
   return { slug, labels: /** @type {string[]} */ (labels) };
 }
 
+/**
+ * @param {string} html
+ * @returns {string}
+ */
 function decodeEntities(html) {
   return html
     .replaceAll("&lt;", "<")
@@ -435,6 +470,9 @@ function decodeEntities(html) {
  *
  * `GET /f/:slug` is deliberately not used: it is static, takes no database and echoes its
  * own slug, so it answers 200 against a completely empty database.
+ *
+ * @param {string} slug
+ * @param {string[]} labels
  */
 export async function assertPortalServesRestoredForm(slug, labels) {
   const base = `http://localhost:${String(harnessPort("portal"))}`;
@@ -501,6 +539,7 @@ export async function assertPortalServesRestoredForm(slug, labels) {
   );
 }
 
+/** @param {string} message */
 function step(message) {
   process.stdout.write(`\ndrill-restore: ${message}\n`);
 }

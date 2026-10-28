@@ -24,6 +24,9 @@ const NOT_IN_CHECK_ALL = new Set(["check:plan"]);
 /**
  * Anchored on the `pnpm` invocation, so a check name merely mentioned in prose, a path
  * or a comment is not counted.
+ *
+ * @param {string} text
+ * @returns {string[]}
  */
 export function checkScriptsIn(text) {
   const found = [];
@@ -35,7 +38,12 @@ export function checkScriptsIn(text) {
   return found;
 }
 
-/** Read from the script body, not a second list, so this gate cannot drift from it. */
+/**
+ * Read from the script body, not a second list, so this gate cannot drift from it.
+ *
+ * @param {string} packageJsonText
+ * @returns {string[]}
+ */
 export function checkAllEntries(packageJsonText) {
   /** @type {{ scripts?: Record<string, string> }} */
   const manifest = JSON.parse(packageJsonText);
@@ -49,6 +57,9 @@ export function checkAllEntries(packageJsonText) {
 /**
  * Comment lines are dropped first: the workflow names check scripts in its own prose,
  * and counting those would report parity it does not have.
+ *
+ * @param {string} workflowText
+ * @returns {string[]}
  */
 export function workflowEntries(workflowText) {
   const commandLines = workflowText
@@ -60,6 +71,11 @@ export function workflowEntries(workflowText) {
   );
 }
 
+/**
+ * @param {string[]} inCheckAll
+ * @param {string[]} inWorkflow
+ * @returns {{ missingFromWorkflow: string[]; missingFromCheckAll: string[] }}
+ */
 export function compareLists(inCheckAll, inWorkflow) {
   return {
     missingFromWorkflow: inCheckAll.filter((name) => !inWorkflow.includes(name)),
@@ -67,6 +83,7 @@ export function compareLists(inCheckAll, inWorkflow) {
   };
 }
 
+/** @returns {number} */
 function main() {
   const packageJsonText = readFileSync(fileURLToPath(new URL(PACKAGE_JSON, REPO_ROOT)), "utf8");
   const workflowText = readFileSync(fileURLToPath(new URL(WORKFLOW, REPO_ROOT)), "utf8");

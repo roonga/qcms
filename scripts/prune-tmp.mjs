@@ -63,6 +63,9 @@ export const DEFAULT_MIN_AGE_MINUTES = 60;
 /**
  * The basename is what is matched, so a name carrying path separators cannot smuggle
  * a claimed prefix in from a parent directory.
+ *
+ * @param {string} name
+ * @returns {{ prefix: string; creator: string } | undefined}
  */
 export function matchPrefix(name) {
   const leaf = basename(name);
@@ -79,6 +82,10 @@ export function matchPrefix(name) {
  * `relative` rather than a string comparison, so `/tmp2` is not read as inside `/tmp`.
  * The empty relative path is rejected too: the sweep removes entries under the root,
  * never the root.
+ *
+ * @param {string} root
+ * @param {string} path
+ * @returns {boolean}
  */
 export function withinRoot(root, path) {
   const step = relative(root, resolve(path));
@@ -90,6 +97,10 @@ export function withinRoot(root, path) {
  * top-level entries change, so a long install writing deep inside it looks older than
  * it is. A safety net, not a proof: the tree is not walked. Floored, because
  * `lstatSync` reports sub-millisecond precision while `Date.now()` truncates.
+ *
+ * @param {string} path
+ * @param {boolean} isDirectory
+ * @returns {number}
  */
 export function newestTopLevelMtime(path, isDirectory) {
   let newest = lstatSync(path).mtimeMs;
@@ -111,7 +122,12 @@ export function newestTopLevelMtime(path, isDirectory) {
   return Math.floor(newest);
 }
 
-/** Symbolic links are counted but never followed. */
+/**
+ * Symbolic links are counted but never followed.
+ *
+ * @param {string} path
+ * @returns {number}
+ */
 export function countInodes(path) {
   let total = 1;
   /** @type {import("node:fs").Dirent[]} */
@@ -127,11 +143,23 @@ export function countInodes(path) {
   return total;
 }
 
+/**
+ * @param {{ name: string; root: string; minAgeMs: number; now: number }} input
+ * @returns {Entry | undefined}
+ */
 export function classify({ name, root, minAgeMs, now }) {
   const owner = matchPrefix(name);
   if (owner === undefined) return undefined;
 
   const path = resolve(root, name);
+  /**
+   * @param {Verdict} verdict
+   * @param {string} detail
+   * @param {boolean} removable
+   * @param {"directory" | "file"} kind
+   * @param {number} ageMinutes
+   * @returns {Entry}
+   */
   const entry = (verdict, detail, removable, kind, ageMinutes) => ({
     name,
     path,
@@ -177,6 +205,10 @@ export function classify({ name, root, minAgeMs, now }) {
   );
 }
 
+/**
+ * @param {{ tmpRoot: string; minAgeMinutes: number; now?: number }} options
+ * @returns {{ root: string; entries: Entry[] }}
+ */
 export function scan({ tmpRoot, minAgeMinutes, now = Date.now() }) {
   const root = resolvedRoot(tmpRoot);
   const minAgeMs = minAgeMinutes * 60 * 1000;
@@ -199,6 +231,9 @@ export function scan({ tmpRoot, minAgeMinutes, now = Date.now() }) {
 /**
  * Links in the root are resolved first so the containment check compares real paths
  * (`/tmp` is a link to `/private/tmp` on macOS).
+ *
+ * @param {string} tmpRoot
+ * @returns {string}
  */
 export function resolvedRoot(tmpRoot) {
   try {
@@ -208,6 +243,10 @@ export function resolvedRoot(tmpRoot) {
   }
 }
 
+/**
+ * @param {string[]} args
+ * @returns {{ apply: boolean; count: boolean; strict: boolean; minAgeMinutes: number }}
+ */
 export function parseArgs(args) {
   const parsed = {
     apply: false,
@@ -233,6 +272,11 @@ export function parseArgs(args) {
   return parsed;
 }
 
+/**
+ * @param {string[]} args
+ * @param {string} tmpRoot
+ * @returns {number}
+ */
 export function main(args, tmpRoot) {
   /** @type {ReturnType<typeof parseArgs>} */
   let options;

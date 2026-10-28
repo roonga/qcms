@@ -68,10 +68,18 @@ const ANSI_PATTERN = new RegExp(
   "g",
 );
 
+/**
+ * @param {string} text
+ * @returns {string}
+ */
 export function stripAnsi(text) {
   return text.replace(ANSI_PATTERN, "");
 }
 
+/**
+ * @param {string} output
+ * @returns {boolean}
+ */
 export function isBuildLockContention(output) {
   return CONTENTION_PATTERN.test(stripAnsi(output));
 }
@@ -82,6 +90,10 @@ export function isBuildLockContention(output) {
  *
  * Matching is on the inode alone because {@link lockHolders} confirms every candidate
  * against that process's open descriptors, which an inode collision cannot survive.
+ *
+ * @param {string} text
+ * @param {number} inode
+ * @returns {number[]}
  */
 export function parseLockHolderPids(text, inode) {
   /** @type {number[]} */
@@ -113,9 +125,13 @@ export function parseLockHolderPids(text, inode) {
 
 /** Each read is best-effort: a process can exit between two of them. */
 export const nodeProcIo = {
+  /** @param {string} path */
   readText: (path) => readFileSync(path, "utf8"),
+  /** @param {string} path */
   readDir: (path) => readdirSync(path),
+  /** @param {string} path */
   readLink: (path) => readlinkSync(path),
+  /** @param {string} path */
   inodeOf: (path) => Number(statSync(path).ino),
 };
 
@@ -123,6 +139,10 @@ export const nodeProcIo = {
  * `/proc` is a moving target, so every read may fail and the answer is then shorter:
  * on a diagnostic path the honest failure mode is silence rather than a crash. This
  * only reads; it signals nothing.
+ *
+ * @param {string} lockPath
+ * @param {ProcIo} [io]
+ * @returns {string[]}
  */
 export function lockHolders(lockPath, io = nodeProcIo) {
   /** @type {number} */
@@ -148,7 +168,14 @@ export function lockHolders(lockPath, io = nodeProcIo) {
   return lines;
 }
 
-/** The confirmation that makes matching on an inode alone safe. */
+/**
+ * The confirmation that makes matching on an inode alone safe.
+ *
+ * @param {number} pid
+ * @param {string} lockPath
+ * @param {ProcIo} io
+ * @returns {boolean}
+ */
 function holdsFile(pid, lockPath, io) {
   /** @type {string[]} */
   let entries;
@@ -169,6 +196,12 @@ function holdsFile(pid, lockPath, io) {
   return false;
 }
 
+/**
+ * @param {ProcIo} io
+ * @param {string} path
+ * @param {boolean} asLink
+ * @returns {string}
+ */
 function procValue(io, path, asLink) {
   try {
     return asLink ? io.readLink(path) : io.readText(path);
@@ -177,6 +210,11 @@ function procValue(io, path, asLink) {
   }
 }
 
+/**
+ * @param {number} pid
+ * @param {ProcIo} io
+ * @returns {string}
+ */
 function commandOf(pid, io) {
   const raw = procValue(io, `/proc/${pid}/cmdline`, false);
   const command = raw.replaceAll(String.fromCharCode(0), " ").trim();
@@ -192,6 +230,16 @@ function commandOf(pid, io) {
 /**
  * The loop re-runs the build rather than polling the lock and then building: an attempt
  * is the poll, so it cannot race the way a separate check-then-act would.
+ *
+ * @param {object} options
+ * @param {() => Promise<Attempt>} options.run
+ * @param {() => string[]} options.holders
+ * @param {(line: string) => void} options.log
+ * @param {(ms: number) => Promise<void>} options.sleep
+ * @param {() => number} options.now
+ * @param {number} options.waitMs
+ * @param {number} options.pollMs
+ * @returns {Promise<number>}
  */
 export async function buildWaitingForLock({ run, holders, log, sleep, now, waitMs, pollMs }) {
   const startedAt = now();
@@ -230,10 +278,18 @@ export async function buildWaitingForLock({ run, holders, log, sleep, now, waitM
   }
 }
 
+/**
+ * @param {number} ms
+ * @returns {number}
+ */
 function seconds(ms) {
   return Math.round(ms / 1000);
 }
 
+/**
+ * @param {string[]} args
+ * @returns {{ ok: true; lockDir: string; command: string; commandArgs: string[] } | { ok: false; reason: string }}
+ */
 export function parseArgs(args) {
   let lockDir = DEFAULT_LOCK_DIR;
   let index = 0;
@@ -252,6 +308,11 @@ export function parseArgs(args) {
  * pnpm puts the package's `node_modules/.bin` on `PATH`, but a hand-run from the app
  * directory has no such `PATH`, and `spawn next ENOENT` is a poor answer to "why did my
  * build not start". A name carrying a path separator is the caller's to resolve.
+ *
+ * @param {string} command
+ * @param {string} packageRoot
+ * @param {(path: string) => boolean} [exists]
+ * @returns {string}
  */
 export function resolveCommand(command, packageRoot, exists = existsSync) {
   if (command.includes("/") || command.includes("\\")) return command;
@@ -270,6 +331,10 @@ export const FORWARDED_SIGNALS = /** @type {const} */ (["SIGTERM", "SIGINT", "SI
  * `FORCE_COLOR` is set when this process has a terminal, because piping the child's
  * output would otherwise take its colours away. Piping still costs the child its TTY,
  * so `next build` lays its output out at a default width.
+ *
+ * @param {string} command
+ * @param {string[]} args
+ * @returns {Promise<Attempt>}
  */
 function spawnAttempt(command, args) {
   return new Promise((resolveAttempt) => {
@@ -278,6 +343,10 @@ function spawnAttempt(command, args) {
       env: stdout.isTTY ? { ...env, FORCE_COLOR: env.FORCE_COLOR ?? "1" } : env,
     });
     let output = "";
+    /**
+     * @param {Buffer} chunk
+     * @param {NodeJS.WriteStream} sink
+     */
     const tee = (chunk, sink) => {
       sink.write(chunk);
       output = (output + chunk.toString("utf8")).slice(-OUTPUT_TAIL_UNITS);
@@ -325,11 +394,16 @@ function spawnAttempt(command, args) {
   });
 }
 
+/**
+ * @param {NodeJS.Signals} signal
+ * @returns {number}
+ */
 function signalNumber(signal) {
   const known = { SIGHUP: 1, SIGINT: 2, SIGQUIT: 3, SIGKILL: 9, SIGTERM: 15 };
   return known[/** @type {keyof typeof known} */ (signal)] ?? 0;
 }
 
+/** @returns {Promise<number>} */
 async function main() {
   const parsed = parseArgs(argv.slice(2));
   if (!parsed.ok) {
@@ -351,6 +425,11 @@ async function main() {
   });
 }
 
+/**
+ * @param {string | undefined} raw
+ * @param {number} fallback
+ * @returns {number}
+ */
 export function positiveNumber(raw, fallback) {
   if (raw === undefined) return fallback;
   const value = Number(raw);

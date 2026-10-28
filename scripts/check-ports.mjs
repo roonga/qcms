@@ -245,6 +245,11 @@ export function sanctionedPorts() {
   return allowed;
 }
 
+/**
+ * @param {string} prefix
+ * @param {Record<string, number>} services
+ * @returns {string}
+ */
 export function slotList(prefix, services) {
   return Object.entries(services)
     .map(([service, offset]) => `${prefix}${String(offset).padStart(2, "0")} ${service}`)
@@ -279,16 +284,27 @@ const PATTERNS = [
   { name: "prose", re: /\bport\s+([\d_]{4,5})\b/gi },
 ];
 
+/** @returns {string[]} */
 function tracked() {
   const out = execFileSync(GIT, ["ls-files", "-z", ...GLOBS, ...EXCLUDES], { encoding: "utf8" });
   return out.split("\0").filter((path) => path !== "");
 }
 
-/** Exact repo-relative path, never a substring or suffix - see ALLOWED above. */
+/**
+ * Exact repo-relative path, never a substring or suffix - see ALLOWED above.
+ *
+ * @param {string} file
+ * @param {number} value
+ * @returns {string | undefined}
+ */
 export function exemption(file, value) {
   return ALLOWED.find((rule) => rule.file === file && rule.value === value)?.why;
 }
 
+/**
+ * @param {string} text
+ * @returns {{ port: number; line: number; source: string }[]}
+ */
 export function portsIn(text) {
   const lines = text.split("\n");
   const found = [];

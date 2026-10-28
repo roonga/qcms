@@ -27,6 +27,8 @@ const PLACEHOLDER = /^(?:~|<|\$\{|\$[A-Za-z_]|%[A-Za-z_])/;
 /**
  * Each pattern captures the identifying part only, and every separator is written
  * escaped, so this file carries no resolvable machine path: the gate scans itself.
+ *
+ * @type {{ kind: string; re: RegExp; home?: boolean }[]}
  */
 const PATTERNS = [
   { kind: "posix home", re: /\/home\/([^\s/"'`\\|]+)/g, home: true },
@@ -42,6 +44,8 @@ const PATTERNS = [
  * `match` is the captured text rather than the whole path, so an exemption can be written
  * without putting a resolvable machine path in this file. Every entry must still fire:
  * `check-paths.test.ts` fails on a dead one.
+ *
+ * @type {{ file: string; kind: string; match: string; why: string }[]}
  */
 export const ALLOWED = [
   {
@@ -58,11 +62,21 @@ export const ALLOWED = [
   },
 ];
 
+/**
+ * @param {string} file
+ * @param {string} kind
+ * @param {string} match
+ * @returns {string | undefined}
+ */
 export function exemption(file, kind, match) {
   return ALLOWED.find((rule) => rule.file === file && rule.kind === kind && rule.match === match)
     ?.why;
 }
 
+/**
+ * @param {string} text
+ * @returns {{ kind: string; match: string; text: string; line: number }[]}
+ */
 export function pathsIn(text) {
   const found = [];
   text.split("\n").forEach((line, index) => {
@@ -80,12 +94,14 @@ export function pathsIn(text) {
   return found;
 }
 
+/** @returns {string[]} */
 export function scanned() {
   return trackedFilesUnder(REPO_ROOT, { match: TEXT_FILES }).filter(
     (file) => !EXCLUDED.some((pattern) => pattern.test(file)),
   );
 }
 
+/** @returns {number} */
 export function main() {
   const violations = [];
   const files = scanned();

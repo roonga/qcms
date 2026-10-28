@@ -45,7 +45,12 @@ function resolveBaseRef() {
   return undefined;
 }
 
-/** A narrow reader rather than a YAML dependency: it is a four-line file we own. */
+/**
+ * A narrow reader rather than a YAML dependency: it is a four-line file we own.
+ *
+ * @param {string} yaml
+ * @returns {string[]}
+ */
 export function parseWorkspaceGlobs(yaml) {
   const globs = [];
   let inPackages = false;
@@ -72,6 +77,10 @@ export function parseWorkspaceGlobs(yaml) {
  *
  * An unsupported glob shape throws rather than being skipped: a silently unexpanded glob
  * would stop the gate guarding those packages.
+ *
+ * @param {string} root
+ * @param {string[]} globs
+ * @returns {string[]}
  */
 export function expandGlobs(root, globs) {
   const dirs = [];
@@ -102,6 +111,10 @@ function readIgnoredPackages(root) {
   return Array.isArray(config.ignore) ? config.ignore : [];
 }
 
+/**
+ * @param {string} [root]
+ * @returns {{ name: string, dir: string }[]}
+ */
 export function findPublishablePackages(root = process.cwd()) {
   const globs = parseWorkspaceGlobs(readFileSync(join(root, "pnpm-workspace.yaml"), "utf8"));
   const ignored = new Set(readIgnoredPackages(root));
@@ -125,6 +138,9 @@ export function isExemptPath(filePath) {
  * Narrow by design: `@changesets/parse` is only a transitive dependency, so under pnpm's
  * strict layout it is not resolvable from a root script, and a direct devDependency for
  * three lines of frontmatter fails the minimal-dependency rule.
+ *
+ * @param {string} text
+ * @returns {string[]}
  */
 export function parseChangesetPackages(text) {
   const lines = text.replaceAll("\r\n", "\n").split("\n");
@@ -138,7 +154,12 @@ export function parseChangesetPackages(text) {
   return names;
 }
 
-/** A rename line lists both the old and the new path, and both matter. */
+/**
+ * A rename line lists both the old and the new path, and both matter.
+ *
+ * @param {string} raw
+ * @returns {{ status: string, paths: string[] }[]}
+ */
 function parseNameStatus(raw) {
   const changes = [];
   for (const line of raw.split("\n")) {

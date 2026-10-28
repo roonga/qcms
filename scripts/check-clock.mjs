@@ -29,6 +29,10 @@ const wallClockNow = () => Date.now();
 /** Milliseconds on the monotonic clock, which can only ever move forwards. */
 const monotonicNow = () => Number(hrtime.bigint() / 1000n) / 1000;
 
+/**
+ * @param {number} ms
+ * @returns {Promise<void>}
+ */
 const timerWait = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
 
 /**
@@ -36,6 +40,9 @@ const timerWait = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
  * rather than failed. Spawned and not completed is a failure: a harness that will not let
  * a foreground `sleep` run is as likely to kill or refuse it as to short-circuit it, and
  * calling that "not measured" would pass on a machine where shell waiting is broken.
+ *
+ * @param {number} seconds
+ * @returns {{ spawned: boolean; completed: boolean; detail: string }}
  */
 function runSleepBinary(seconds) {
   const result = spawnSync("sleep", [String(seconds)], { stdio: "ignore" });
@@ -51,6 +58,11 @@ function runSleepBinary(seconds) {
   return { spawned: true, completed: true, detail: "exit 0" };
 }
 
+/**
+ * @param {() => void | Promise<void>} wait
+ * @param {{ wall: () => number; monotonic: () => number }} clocks
+ * @returns {Promise<{ wall: number; monotonic: number }>}
+ */
 export async function timeBothClocks(wait, clocks) {
   const wallBefore = clocks.wall();
   const monotonicBefore = clocks.monotonic();
@@ -74,10 +86,15 @@ export async function timeBothClocks(wait, clocks) {
 /**
  * Ordered so the most fundamental fault is named first: a wall clock that does not advance
  * makes every other reading here untrustworthy, the timer readings included.
+ *
+ * @param {Measurements} measured
+ * @param {{ sleepMs?: number; minAdvanceMs?: number }} [limits]
+ * @returns {{ ok: boolean; lines: string[] }}
  */
 export function verdict(measured, limits = {}) {
   const sleepMs = limits.sleepMs ?? SLEEP_MS;
   const minAdvanceMs = limits.minAdvanceMs ?? MIN_ADVANCE_MS;
+  /** @param {number} value */
   const ms = (value) => `${value.toFixed(0)}ms`;
   const asked = `asked for ${ms(sleepMs)}, floor ${ms(minAdvanceMs)}`;
 
@@ -144,6 +161,17 @@ export function verdict(measured, limits = {}) {
   return { ok: false, lines };
 }
 
+/**
+ * @param {{
+ *   clocks?: { wall: () => number; monotonic: () => number };
+ *   wait?: (ms: number) => void | Promise<void>;
+ *   sleepBinary?: (seconds: number) => { spawned: boolean; completed: boolean; detail: string };
+ *   sleepMs?: number;
+ *   minAdvanceMs?: number;
+ *   log?: (line: string) => void;
+ * }} [options]
+ * @returns {Promise<number>}
+ */
 export async function main(options = {}) {
   const clocks = options.clocks ?? { wall: wallClockNow, monotonic: monotonicNow };
   const wait = options.wait ?? timerWait;

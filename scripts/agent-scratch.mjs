@@ -20,6 +20,9 @@ export const DEFAULT_ROOT_NAME = "qcms-agent-scratch";
 /**
  * Bounded so a long branch name cannot push the path past a filesystem limit. The slug
  * is lossy, which is safe only because the branch namespace leads with a unique number.
+ *
+ * @param {string} name
+ * @returns {string}
  */
 export function laneSlug(name) {
   const slug = name
@@ -35,11 +38,16 @@ export function laneSlug(name) {
 /**
  * A detached HEAD keys on its short SHA rather than a shared fallback name, since a
  * shared fallback is the defect this file exists to remove.
+ *
+ * @param {string} directory
+ * @param {NodeJS.ProcessEnv} environment
+ * @returns {string}
  */
 export function resolveLane(directory, environment) {
   const override = environment.QCMS_AGENT_LANE?.trim();
   if (override !== undefined && override !== "") return laneSlug(override);
 
+  /** @param {string[]} args */
   const git = (args) =>
     execFileSync("git", ["-C", directory, ...args], {
       encoding: "utf8",
@@ -58,12 +66,20 @@ export function resolveLane(directory, environment) {
   return laneSlug(branch);
 }
 
+/**
+ * @param {NodeJS.ProcessEnv} environment
+ * @returns {string}
+ */
 export function resolveRoot(environment) {
   const configured = environment.QCMS_AGENT_SCRATCH_ROOT?.trim();
   if (configured !== undefined && configured !== "") return resolve(configured);
   return join(tmpdir(), DEFAULT_ROOT_NAME);
 }
 
+/**
+ * @param {{ directory: string; environment: NodeJS.ProcessEnv; lane?: string; name?: string; printLane?: boolean }} options
+ * @returns {string}
+ */
 export function scratchPath({ directory, environment, lane, name, printLane = false }) {
   const key = lane === undefined ? resolveLane(directory, environment) : laneSlug(lane);
   if (printLane) return key;
@@ -81,6 +97,10 @@ export function scratchPath({ directory, environment, lane, name, printLane = fa
   return file;
 }
 
+/**
+ * @param {string[]} args
+ * @returns {{ lane?: string; name?: string; printLane: boolean }}
+ */
 export function parseArgs(args) {
   /** @type {{ lane?: string; name?: string; printLane: boolean }} */
   const parsed = { printLane: false };
@@ -104,6 +124,12 @@ export function parseArgs(args) {
   return parsed;
 }
 
+/**
+ * @param {string[]} args
+ * @param {string} directory
+ * @param {NodeJS.ProcessEnv} environment
+ * @returns {number}
+ */
 export function main(args, directory, environment) {
   try {
     const { lane, name, printLane } = parseArgs(args);

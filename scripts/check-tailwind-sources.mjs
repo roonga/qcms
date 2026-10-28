@@ -27,6 +27,10 @@ const OUTSIDE_THE_BUNDLE = {
 /**
  * Refuses rather than skips an unmodelled directive: silently ignoring `@source not`
  * would let a narrowing pass unseen.
+ *
+ * @param {string} css
+ * @param {string} cssPath
+ * @returns {string[]}
  */
 export function sourceRootsIn(css, cssPath) {
   const roots = [];
@@ -48,10 +52,16 @@ export function sourceRootsIn(css, cssPath) {
   return roots;
 }
 
+/**
+ * @param {string} file
+ * @param {string} root
+ * @returns {boolean}
+ */
 function isInside(file, root) {
   return file === root || file.startsWith(`${root}/`);
 }
 
+/** @returns {string[]} */
 export function appsWithStylesheets() {
   const appsRoot = path.join(REPO_ROOT, "apps");
   const found = new Set();
@@ -64,6 +74,10 @@ export function appsWithStylesheets() {
   return [...found].sort();
 }
 
+/**
+ * @param {string} app
+ * @returns {{ roots: string[]; missingRoots: string[]; unscanned: string[] }}
+ */
 export function auditApp(app) {
   const cssPath = `${app}/${STYLESHEET}`;
   const css = readFileSync(path.join(REPO_ROOT, cssPath), "utf8");
@@ -88,6 +102,7 @@ export function auditApp(app) {
   return { roots, missingRoots, unscanned };
 }
 
+/** @returns {number} */
 function main() {
   const apps = appsWithStylesheets();
   if (apps.length === 0) {

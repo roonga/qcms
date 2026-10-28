@@ -44,12 +44,22 @@ export const VALUE_FLAGS = new Set([
   "--max-warnings",
 ]);
 
+/**
+ * @param {string} target
+ * @param {string} fromDir
+ * @returns {string}
+ */
 function toWorkspaceRelative(target, fromDir) {
   if (path.isAbsolute(target)) return target;
   const relative = path.relative(WORKSPACE_ROOT, path.resolve(fromDir, target));
   return relative === "" ? "." : relative.split(path.sep).join("/");
 }
 
+/**
+ * @param {string[]} args
+ * @param {string} fromDir
+ * @returns {string[]}
+ */
 export function rewriteArgs(args, fromDir) {
   /** @type {string[]} */
   const rewritten = [];
@@ -69,7 +79,11 @@ export function rewriteArgs(args, fromDir) {
   return rewritten;
 }
 
-/** Resolved from this file, not the caller, so every package lints with one ESLint. */
+/**
+ * Resolved from this file, not the caller, so every package lints with one ESLint.
+ *
+ * @returns {string}
+ */
 export function eslintBin() {
   const manifestPath = createRequire(import.meta.url).resolve("eslint/package.json");
   const manifest = /** @type {{ bin: string | Record<string, string> }} */ (
@@ -80,6 +94,11 @@ export function eslintBin() {
   return path.resolve(path.dirname(manifestPath), entry);
 }
 
+/**
+ * @param {string[]} args
+ * @param {string} [fromDir]
+ * @returns {number}
+ */
 export function run(args, fromDir = process.cwd()) {
   const result = spawnSync(process.execPath, [eslintBin(), ...rewriteArgs(args, fromDir)], {
     cwd: WORKSPACE_ROOT,

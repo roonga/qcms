@@ -23,6 +23,10 @@ const KERNEL_SRC = path.join(REPO_ROOT, "packages", "core", "src");
 /** Vitest excludes test files, so demanding them would fail on a correct run. */
 const SOURCE_FILE = /^(?!.*\.test\.ts$).*\.ts$/;
 
+/**
+ * @param {string} absolute
+ * @returns {string}
+ */
 function repoRelative(absolute) {
   return path.relative(REPO_ROOT, absolute).split(path.sep).join("/");
 }

@@ -31,6 +31,9 @@ export const DEFAULT_MIN_AGE_HOURS = 24;
 /**
  * A lane runs from a linked tree whose own root directory is empty, so this resolves back
  * to the primary checkout and the sweep always looks at the one place that accumulates.
+ *
+ * @param {string} from
+ * @returns {string}
  */
 export function primaryCheckout(from) {
   const common = execFileSync(
@@ -41,6 +44,10 @@ export function primaryCheckout(from) {
   return dirname(common);
 }
 
+/**
+ * @param {string} repoRoot
+ * @returns {{ registered: Set<string>; missing: string[] }}
+ */
 export function readRegistry(repoRoot) {
   const output = execFileSync("git", ["-C", repoRoot, "worktree", "list", "--porcelain"], {
     encoding: "utf8",
@@ -63,6 +70,9 @@ export function readRegistry(repoRoot) {
 /**
  * Floored: `statSync` reports sub-millisecond precision while `Date.now()` truncates, so
  * a file written moments ago can read as newer than now and reverse an age comparison.
+ *
+ * @param {string} directory
+ * @returns {number}
  */
 export function newestTopLevelMtime(directory) {
   let newest = statSync(directory).mtimeMs;
@@ -76,6 +86,10 @@ export function newestTopLevelMtime(directory) {
   return Math.floor(newest);
 }
 
+/**
+ * @param {string} directory
+ * @returns {string | undefined}
+ */
 export function linkedGitDir(directory) {
   let contents;
   try {
@@ -87,7 +101,17 @@ export function linkedGitDir(directory) {
   return match === null ? undefined : match[1].trim();
 }
 
+/**
+ * @param {{ name: string; path: string; registered: Set<string>; minAgeMs: number; now: number }} input
+ * @returns {Entry}
+ */
 export function classify({ name, path, registered, minAgeMs, now }) {
+  /**
+   * @param {Verdict} verdict
+   * @param {string} detail
+   * @param {boolean} removable
+   * @returns {Entry}
+   */
   const entry = (verdict, detail, removable) => ({ name, path, verdict, detail, removable });
 
   if (registered.has(path)) return entry("registered", "live worktree, git lists it", false);
@@ -129,6 +153,10 @@ export function classify({ name, path, registered, minAgeMs, now }) {
   return entry("orphan-clean", "unregistered and clean", true);
 }
 
+/**
+ * @param {{ repoRoot: string; root: string; minAgeHours: number; now?: number }} options
+ * @returns {{ entries: Entry[]; missing: string[] }}
+ */
 export function scan({ repoRoot, root, minAgeHours, now = Date.now() }) {
   const rootPath = resolve(repoRoot, root);
   const { registered, missing } = readRegistry(repoRoot);
@@ -155,6 +183,9 @@ export function scan({ repoRoot, root, minAgeHours, now = Date.now() }) {
  * `du` counts each inode once per directory it walks and pnpm hardlinks from one store,
  * so a sum over several trees overstates what a sweep frees. It ranks sizes; it does not
  * predict free space.
+ *
+ * @param {string} directory
+ * @returns {number | undefined}
  */
 export function sizeKb(directory) {
   try {
@@ -166,6 +197,10 @@ export function sizeKb(directory) {
   }
 }
 
+/**
+ * @param {number} kb
+ * @returns {string}
+ */
 export function humanKb(kb) {
   const units = ["KB", "MB", "GB", "TB"];
   let value = kb;
@@ -177,6 +212,10 @@ export function humanKb(kb) {
   return `${value.toFixed(value >= 10 || unit === 0 ? 0 : 1)} ${units[unit]}`;
 }
 
+/**
+ * @param {string[]} args
+ * @returns {{ apply: boolean; size: boolean; strict: boolean; root: string; minAgeHours: number }}
+ */
 export function parseArgs(args) {
   const parsed = {
     apply: false,
@@ -207,6 +246,11 @@ export function parseArgs(args) {
   return parsed;
 }
 
+/**
+ * @param {string[]} args
+ * @param {string} repoRoot
+ * @returns {number}
+ */
 export function main(args, repoRoot) {
   /** @type {ReturnType<typeof parseArgs>} */
   let options;

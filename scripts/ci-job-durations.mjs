@@ -45,7 +45,13 @@ export const SCAN_FACTOR = 2;
  * @property {Sample[]} samples
  */
 
-/** Nearest-rank, not interpolated, so every figure printed is a run that happened. */
+/**
+ * Nearest-rank, not interpolated, so every figure printed is a run that happened.
+ *
+ * @param {number[]} ascending
+ * @param {number} percentile
+ * @returns {number}
+ */
 export function nearestRank(ascending, percentile) {
   if (ascending.length === 0) throw new Error("nearestRank needs at least one sample");
   if (!Number.isFinite(percentile) || percentile <= 0 || percentile > 100) {
@@ -55,6 +61,11 @@ export function nearestRank(ascending, percentile) {
   return ascending[Math.min(rank, ascending.length) - 1] ?? 0;
 }
 
+/**
+ * @param {string} startedAt
+ * @param {string} completedAt
+ * @returns {number}
+ */
 export function durationSeconds(startedAt, completedAt) {
   const start = Date.parse(startedAt);
   const end = Date.parse(completedAt);
@@ -64,10 +75,21 @@ export function durationSeconds(startedAt, completedAt) {
   return Math.round((end - start) / 1000);
 }
 
+/**
+ * @param {number} seconds
+ * @returns {string}
+ */
 export function minutes(seconds) {
   return (seconds / 60).toFixed(1);
 }
 
+/**
+ * @param {string} job
+ * @param {Sample[]} samples
+ * @param {number} scanned
+ * @param {Iterable<string>} [namesSeen]
+ * @returns {Summary}
+ */
 export function summarize(job, samples, scanned, namesSeen = []) {
   const ascending = samples.map((sample) => sample.seconds).sort((a, b) => a - b);
   const dates = samples.map((sample) => sample.startedAt.slice(0, 10)).sort();
@@ -86,6 +108,10 @@ export function summarize(job, samples, scanned, namesSeen = []) {
   };
 }
 
+/**
+ * @param {Summary} summary
+ * @returns {string}
+ */
 export function render(summary) {
   if (summary.count === 0) {
     const head = `ci-job-durations: no '${summary.job}' job in the last ${String(summary.scanned)} successful runs`;
@@ -106,6 +132,10 @@ export function render(summary) {
   return lines.join("\n");
 }
 
+/**
+ * @param {string[]} args
+ * @returns {{ job: string; workflow: string; branch: string; runs: number; json: boolean }}
+ */
 export function parseArgs(args) {
   const parsed = { job: "", ...DEFAULTS, json: false };
   const remaining = [...args];
@@ -139,10 +169,18 @@ export function parseArgs(args) {
   return parsed;
 }
 
+/**
+ * @param {string[]} args
+ * @returns {string}
+ */
 function gh(args) {
   return execFileSync("gh", args, { encoding: "utf8", maxBuffer: 32 * 1024 * 1024 });
 }
 
+/**
+ * @param {{ workflow: string; branch: string; limit: number }} options
+ * @returns {{ databaseId: number; createdAt: string }[]}
+ */
 export function listSuccessfulRuns({ workflow, branch, limit }) {
   return JSON.parse(
     gh([
@@ -172,12 +210,22 @@ export function listSuccessfulRuns({ workflow, branch, limit }) {
  * @property {string | null} completed_at
  */
 
+/**
+ * @param {number} runId
+ * @returns {Job[]}
+ */
 export function runJobs(runId) {
   /** @type {{ jobs: Job[] }} */
   const payload = JSON.parse(gh(["api", `repos/${REPOSITORY}/actions/runs/${String(runId)}/jobs`]));
   return payload.jobs;
 }
 
+/**
+ * @param {Job[]} jobs
+ * @param {number} runId
+ * @param {string} job
+ * @returns {Sample | undefined}
+ */
 export function sampleFrom(jobs, runId, job) {
   const match = jobs.find(
     (candidate) =>
@@ -192,6 +240,10 @@ export function sampleFrom(jobs, runId, job) {
   };
 }
 
+/**
+ * @param {string[]} args
+ * @returns {number}
+ */
 export function main(args) {
   /** @type {ReturnType<typeof parseArgs>} */
   let options;

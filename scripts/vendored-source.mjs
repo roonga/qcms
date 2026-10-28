@@ -19,6 +19,10 @@ export const VENDORED_SOURCE_PATTERN = new RegExp(
   `^${VENDORED_SOURCE_PREFIX.replaceAll(/[.*+?^${}()|[\]\\]/g, String.raw`\$&`)}`,
 );
 
+/**
+ * @param {string} file
+ * @returns {boolean}
+ */
 export function isVendoredSource(file) {
   return file.startsWith(VENDORED_SOURCE_PREFIX);
 }

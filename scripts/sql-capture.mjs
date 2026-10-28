@@ -38,6 +38,7 @@ export const STATEMENT_LIMIT = 50;
 
 /** A refusal a caller is meant to print, rather than a bug. */
 export class SqlCaptureError extends Error {
+  /** @param {string} message */
   constructor(message) {
     super(message);
     this.name = "SqlCaptureError";
@@ -60,6 +61,9 @@ export class SqlCaptureError extends Error {
  * Tagged rather than sniffed: `secure_links` and the answer ledger carry string columns
  * whose fixture values are ISO-shaped, so promoting any such string would change what a
  * capture is a capture of.
+ *
+ * @param {unknown} value
+ * @returns {unknown}
  */
 export function reviveArgs(value) {
   if (Array.isArray(value)) return value.map(reviveArgs);
@@ -78,6 +82,11 @@ export function reviveArgs(value) {
   return Object.fromEntries(entries.map(([key, member]) => [key, reviveArgs(member)]));
 }
 
+/**
+ * @param {string} option
+ * @param {string} text
+ * @returns {unknown}
+ */
 function parseJson(option, text) {
   try {
     return JSON.parse(text);
@@ -88,6 +97,10 @@ function parseJson(option, text) {
   }
 }
 
+/**
+ * @param {unknown} value
+ * @returns {(unknown[][] | null)[]}
+ */
 export function parseRows(value) {
   if (!Array.isArray(value)) {
     throw new SqlCaptureError("--rows must be a JSON array, one element per statement");
@@ -103,6 +116,10 @@ export function parseRows(value) {
   });
 }
 
+/**
+ * @param {string[]} args
+ * @returns {{ name?: string; args: unknown[]; rows: (unknown[][] | null)[]; list: boolean }}
+ */
 export function parseArgs(args) {
   /** @type {string | undefined} */
   let name;
@@ -113,6 +130,11 @@ export function parseArgs(args) {
   let list = false;
   const remaining = [...args];
 
+  /**
+   * @param {string} option
+   * @param {string | undefined} inline
+   * @returns {string}
+   */
   const valueFor = (option, inline) => {
     const value = inline ?? remaining.shift();
     if (value === undefined) throw new SqlCaptureError(`${option} requires a value`);
@@ -157,6 +179,8 @@ export function parseArgs(args) {
  * that is what the built package imports, and two copies of Drizzle would disagree
  * about every `instanceof`. Neither path needs `default` unwrapping, because
  * `cjs-module-lexer` exposes the named binding from the `.cjs` build too.
+ *
+ * @returns {Promise<{ drizzle: Function }>}
  */
 export async function loadProxyDriver() {
   const require = createRequire(DB_PACKAGE_JSON);
@@ -171,6 +195,7 @@ export async function loadProxyDriver() {
   return import(pathToFileURL(entry).href);
 }
 
+/** @returns {Promise<Record<string, unknown>>} */
 export async function loadQueries() {
   if (!existsSync(DB_ENTRY)) {
     throw new SqlCaptureError(
@@ -180,6 +205,11 @@ export async function loadQueries() {
   return import(DB_ENTRY.href);
 }
 
+/**
+ * @param {(unknown[][] | null)[]} rows
+ * @param {number} index
+ * @returns {unknown[][]}
+ */
 export function rowsForStatement(rows, index) {
   const configured = index < rows.length ? rows[index] : undefined;
   if (configured === null) return [];
@@ -188,9 +218,19 @@ export function rowsForStatement(rows, index) {
   return configured ?? [[]];
 }
 
+/**
+ * @param {Function} drizzle
+ * @param {unknown} schema
+ * @param {(unknown[][] | null)[]} rows
+ * @returns {{ executor: Record<string, unknown>; statements: CapturedStatement[] }}
+ */
 export function createRecordingExecutor(drizzle, schema, rows) {
   /** @type {CapturedStatement[]} */
   const statements = [];
+  /**
+   * @param {string} sql
+   * @param {unknown[]} params
+   */
   const client = (sql, params) => {
     if (statements.length >= STATEMENT_LIMIT) {
       throw new SqlCaptureError(
@@ -205,14 +245,14 @@ export function createRecordingExecutor(drizzle, schema, rows) {
 
   // The proxy driver refuses transactions outright, so the callback runs against the
   // same recording handle to capture a read-modify-write helper's statements in order.
-  executor.transaction = (run) => run(executor);
+  executor.transaction = /** @param {Function} run */ (run) => run(executor);
 
   // `db.execute` answers with a bare row array under the proxy driver and a
   // node-postgres `QueryResult` under the real one, and helpers writing a raw `sql`
   // template read `.rows` off it. This runs after `client` has recorded, so it changes
   // what the caller reads back and never what was sent.
   const proxyExecute = /** @type {Function} */ (executor.execute).bind(executor);
-  executor.execute = async (query) => {
+  executor.execute = /** @param {unknown} query */ async (query) => {
     const result = await proxyExecute(query);
     return Array.isArray(result) ? { rows: result, rowCount: result.length } : result;
   };
@@ -227,6 +267,9 @@ export function createRecordingExecutor(drizzle, schema, rows) {
  * A `pgEnum` is callable, so the schema's enums would otherwise sit in this list. They
  * are dropped by the property that makes them enums rather than by name, so a new one
  * never has to be remembered.
+ *
+ * @param {Record<string, unknown>} queries
+ * @returns {string[]}
  */
 export function exportedFunctions(queries) {
   return Object.keys(queries)
@@ -238,6 +281,11 @@ export function exportedFunctions(queries) {
     .sort((left, right) => left.localeCompare(right));
 }
 
+/**
+ * @param {Record<string, unknown>} queries
+ * @param {string} name
+ * @returns {Function}
+ */
 export function resolveQueryBuilder(queries, name) {
   if (!(name in queries)) {
     throw new SqlCaptureError(
@@ -253,6 +301,10 @@ export function resolveQueryBuilder(queries, name) {
   return candidate;
 }
 
+/**
+ * @param {{ name: string; args?: unknown[]; rows?: (unknown[][] | null)[] }} request
+ * @returns {Promise<Capture>}
+ */
 export async function capture({ name, args = [], rows = [] }) {
   const queries = await loadQueries();
   const builder = resolveQueryBuilder(queries, name);
@@ -277,6 +329,10 @@ export async function capture({ name, args = [], rows = [] }) {
   return failure === undefined ? { name, statements } : { name, statements, failure };
 }
 
+/**
+ * @param {Capture} result
+ * @returns {string[]}
+ */
 export function formatCapture({ name, statements }) {
   const count = statements.length;
   const lines = [`${name}: ${String(count)} statement${count === 1 ? "" : "s"}`];
@@ -296,6 +352,10 @@ export function formatCapture({ name, statements }) {
   return lines;
 }
 
+/**
+ * @param {string[]} args
+ * @returns {Promise<number>}
+ */
 export async function main(args) {
   try {
     const request = parseArgs(args);

@@ -16,6 +16,10 @@ export const DOCKER_PUBLISH_HOST_ENV_VAR = "QCMS_DOCKER_PUBLISH_HOST";
 /** Docker's marker file, present in every container it starts. */
 export const DOCKER_ENV_MARKER = "/.dockerenv";
 
+/**
+ * @param {string} [marker]
+ * @returns {boolean}
+ */
 export function isInDockerContainer(marker = DOCKER_ENV_MARKER) {
   return existsSync(marker);
 }
@@ -33,6 +37,9 @@ const DEFAULT_ROUTE_DESTINATION = "00000000";
  * The kernel writes the address in host byte order printed as big-endian hex, so the
  * low byte of the parsed number is the first octet. An all-zero gateway is an on-link
  * default route with no address to dial, and yields `undefined` rather than `0.0.0.0`.
+ *
+ * @param {string} field
+ * @returns {string | undefined}
  */
 export function ipv4FromRouteField(field) {
   if (!/^[0-9A-Fa-f]{8}$/.test(field)) return undefined;
@@ -43,6 +50,10 @@ export function ipv4FromRouteField(field) {
     .join(".");
 }
 
+/**
+ * @param {string} [path]
+ * @returns {string | undefined}
+ */
 export function gatewayFromRouteTable(path = ROUTE_TABLE_PATH) {
   let text;
   try {
@@ -61,6 +72,10 @@ export function gatewayFromRouteTable(path = ROUTE_TABLE_PATH) {
   return undefined;
 }
 
+/**
+ * @param {readonly string[]} [candidates]
+ * @returns {string | undefined}
+ */
 export function gatewayFromIpRoute(candidates = IP_BINARY_CANDIDATES) {
   for (const binary of candidates) {
     if (!existsSync(binary)) continue;
@@ -71,10 +86,18 @@ export function gatewayFromIpRoute(candidates = IP_BINARY_CANDIDATES) {
   return undefined;
 }
 
+/** @returns {string | undefined} */
 export function defaultRouteGateway() {
   return gatewayFromRouteTable() ?? gatewayFromIpRoute();
 }
 
+/**
+ * @param {object} [options]
+ * @param {string | undefined} [options.override]
+ * @param {boolean} [options.inContainer]
+ * @param {() => string | undefined} [options.gateway]
+ * @returns {string}
+ */
 export function publishedPortHost({
   override = process.env[DOCKER_PUBLISH_HOST_ENV_VAR],
   inContainer = existsSync(DOCKER_ENV_MARKER),

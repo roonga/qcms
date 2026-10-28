@@ -42,6 +42,11 @@ const adminPort = harnessPort("admin");
  * trustworthy so `Secure` cookies work; and hence no `QCMS_BIND_ADDRESS` and no cookie
  * flag here, leaving the compose file's loopback publish and the containers' own
  * `NODE_ENV` to decide.
+ *
+ * @param {object} options
+ * @param {number} options.portalPort
+ * @param {number} options.adminPort
+ * @returns {Record<string, string>}
  */
 export function composeEnvironmentOverrides({ portalPort, adminPort }) {
   return {
@@ -59,6 +64,9 @@ export function composeEnvironmentOverrides({ portalPort, adminPort }) {
  * are generated here. Shell environment beats `--env-file` in Compose interpolation.
  * Hex rather than base64url, so a generated value can never begin with a placeholder
  * prefix by chance.
+ *
+ * @param {() => string} [generate]
+ * @returns {Record<string, string>}
  */
 export function harnessSecrets(generate = () => randomBytes(32).toString("hex")) {
   return {
@@ -78,6 +86,7 @@ const e2eEnvironment = {
 
 /** A bad or missing subcommand: a user error, so it prints without a stack trace. */
 class UsageError extends Error {
+  /** @param {string} message */
   constructor(message) {
     super(message);
     this.name = "UsageError";
@@ -85,6 +94,10 @@ class UsageError extends Error {
 }
 
 class CommandFailed extends Error {
+  /**
+   * @param {string} command
+   * @param {number} status
+   */
   constructor(command, status) {
     super(`${command} exited with status ${String(status)}`);
     this.name = "CommandFailed";
@@ -103,6 +116,11 @@ function run(command, args, environment = process.env) {
   if (result.status !== 0) throw new CommandFailed(command, result.status ?? 1);
 }
 
+/**
+ * @param {string} command
+ * @param {string[]} args
+ * @returns {string}
+ */
 function capture(command, args) {
   const result = spawnSync(command, args, { cwd: root, env: e2eEnvironment, encoding: "utf8" });
   if (result.error) throw result.error;
@@ -114,11 +132,18 @@ function capture(command, args) {
 /**
  * Exported so `drill-restore.mjs` addresses the same project name and env file rather
  * than reconstructing them: the project name is what `down()` deletes a stack under.
+ *
+ * @param {string[]} args
+ * @returns {void}
  */
 export function composeRun(args) {
   run(docker, [...compose, ...args], e2eEnvironment);
 }
 
+/**
+ * @param {string[]} args
+ * @returns {string}
+ */
 export function composeCapture(args) {
   return capture(docker, [...compose, ...args]);
 }
@@ -133,7 +158,11 @@ let forwarder;
 
 let joinedNetwork;
 
-/** The hostname, which is the container id unless someone passed `--hostname`. */
+/**
+ * The hostname, which is the container id unless someone passed `--hostname`.
+ *
+ * @returns {string | undefined}
+ */
 function selfContainerId() {
   try {
     return readFileSync("/etc/hostname", "utf8").trim() || undefined;
@@ -147,6 +176,10 @@ function selfContainerId() {
  * More than one network is a refusal, not a pick: `Object.keys(...)[0]` would be a
  * lexicographic artifact of Docker's Go map serialization, and which network to join is
  * a real decision about the stack's shape.
+ *
+ * @param {Record<string, { IPAddress?: string }>} networks
+ * @param {string} service
+ * @returns {string}
  */
 export function soleNetworkName(networks, service) {
   const names = Object.keys(networks ?? {});
@@ -165,6 +198,10 @@ export function soleNetworkName(networks, service) {
  * Read from the container because the listening port is the image's business, never a
  * QCMS allocation. UDP keys are filtered out, and several TCP ports is a refusal rather
  * than a pick: nothing in the list says which one serves the application.
+ *
+ * @param {Record<string, unknown>} exposed
+ * @param {string} service
+ * @returns {number}
  */
 export function soleTcpPort(exposed, service) {
   const tcp = Object.keys(exposed ?? {}).filter((key) => key.endsWith("/tcp"));
@@ -181,6 +218,10 @@ export function soleTcpPort(exposed, service) {
   return port;
 }
 
+/**
+ * @param {string} service
+ * @returns {{ network: string; address: string; port: number }}
+ */
 function serviceEndpoint(service) {
   const containerId = capture(docker, [...compose, "ps", "--quiet", service]);
   if (containerId === "") throw new Error(`compose-e2e: service ${service} has no container`);
@@ -202,6 +243,9 @@ function serviceEndpoint(service) {
 /**
  * An id Docker cannot resolve throws here, naming where the id came from, rather than
  * silently skipping the join and leaving the forwarder pointing into an isolated bridge.
+ *
+ * @param {string} containerId
+ * @returns {string[]}
  */
 function attachedNetworkNames(containerId) {
   let raw;
@@ -251,7 +295,13 @@ export function joinComposeNetwork(network, containerId, io = {}) {
 }
 
 /**
-/** Output captured rather than inherited, so the reason lands inside the thrown error. */
+/**
+ * Output captured rather than inherited, so the reason lands inside the thrown error.
+ *
+ * @param {string} network
+ * @param {string} containerId
+ * @returns {{ failure?: string }}
+ */
 function connectContainerToNetwork(network, containerId) {
   const result = spawnSync(docker, ["network", "connect", network, containerId], {
     cwd: root,
@@ -267,6 +317,8 @@ function connectContainerToNetwork(network, containerId) {
 /**
  * A no-op outside a container: on a host checkout and on CI the published port is already
  * on `localhost`, and the container-only path must never run where it is not needed.
+ *
+ * @returns {Promise<void>}
  */
 async function startLoopbackForwarding() {
   if (!isInDockerContainer()) return;
@@ -363,6 +415,8 @@ function stopLoopbackForwarding() {
  * Deliberately not exported: `createInitialAdmin` is the sole door an account comes
  * through and it closes the moment one exists (SEC-1), so "bootstrap another
  * administrator" is not an operation this harness can offer anything.
+ *
+ * @returns {{ email: string, password: string }}
  */
 function bootstrapAdmin() {
   const credentials = {
@@ -432,6 +486,10 @@ export function test({ headed = false } = {}) {
   else run(pnpm, args, e2eEnvironment);
 }
 
+/**
+ * @param {unknown} error
+ * @returns {string}
+ */
 function describe(error) {
   if (error instanceof CommandFailed || error instanceof UsageError) return error.message;
   if (error instanceof Error) return error.stack ?? error.message;
@@ -458,7 +516,12 @@ async function runComplete({ headed = false } = {}) {
 }
 
 /**
-/** So the seat refusal offers the fix for the command in front of the reader. */
+/**
+ * So the seat refusal offers the fix for the command in front of the reader.
+ *
+ * @param {string | undefined} command
+ * @returns {string}
+ */
 function invokedAs(command) {
   const scripts = {
     up: "docker:up",

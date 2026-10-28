@@ -294,6 +294,13 @@ async function ignoreDuplicate(fn) {
   }
 }
 
+/**
+ * @param {string} name
+ * @param {string} command
+ * @param {string[]} args
+ * @param {Record<string, string>} env
+ * @returns {import("node:child_process").ChildProcess}
+ */
 export function startChild(name, command, args, env) {
   const child = spawn(command, args, {
     cwd: REPO_ROOT,
@@ -312,6 +319,19 @@ export function startChild(name, command, args, env) {
   return child;
 }
 
+/**
+ * @param {object} options
+ * @param {string} options.databaseUrl
+ * @param {string} options.apiPort
+ * @param {string} options.portalBaseUrl
+ * @param {string} options.adminBaseUrl
+ * @param {string} options.internalToken
+ * @param {string} options.linkKeys
+ * @param {string} options.sessionKeys
+ * @param {string} options.appKey
+ * @param {string} options.adminAuthSecret
+ * @returns {Record<string, string>}
+ */
 export function apiChildEnv({
   databaseUrl,
   apiPort,
@@ -356,6 +376,15 @@ async function startApi(env) {
   log("API is healthy.");
 }
 
+/**
+ * @param {"portal" | "admin"} frontend
+ * @param {object} options
+ * @param {string} options.apiBaseUrl
+ * @param {string} options.internalToken
+ * @param {string} options.portalBaseUrl
+ * @param {string} options.adminBaseUrl
+ * @returns {Record<string, string>}
+ */
 export function frontendChildEnv(
   frontend,
   { apiBaseUrl, internalToken, portalBaseUrl, adminBaseUrl },
@@ -379,6 +408,12 @@ export function frontendChildEnv(
   };
 }
 
+/**
+ * @param {object} options
+ * @param {"portal" | "admin"} options.frontend
+ * @param {string} options.internalToken
+ * @returns {{ api: Record<string, string>, frontend: Record<string, string> }}
+ */
 export function stackChildEnvs({ frontend, internalToken }) {
   return {
     api: apiChildEnv({
@@ -401,6 +436,9 @@ export function stackChildEnvs({ frontend, internalToken }) {
   };
 }
 
+/**
+ * @type {Record<"portal" | "admin", { pkg: string; port: string; baseUrl: string; readyPath: string; readyLabel: string }>}
+ */
 const FRONTENDS = {
   portal: {
     pkg: "qcms-portal",
@@ -436,6 +474,10 @@ async function startFrontend(frontend, env) {
 /** Probed rather than resolved through `PATH` (`sonarjs/no-os-command-from-path`). */
 const PS_BINARY = ["/bin/ps", "/usr/bin/ps"].find((candidate) => existsSync(candidate));
 
+/**
+ * @param {number} rootPid
+ * @returns {number[]}
+ */
 export function descendantsOf(rootPid) {
   if (PS_BINARY === undefined) return [];
   const listed = spawnSync(PS_BINARY, ["-e", "-o", "pid=,ppid="], { encoding: "utf8" });
@@ -463,6 +505,9 @@ export function descendantsOf(rootPid) {
 /**
  * Unlike `child.kill()`, `process.kill()` does not know a pid is spent, so an exited
  * child is skipped outright: the kernel may have recycled its number onto anything.
+ *
+ * @param {import("node:child_process").ChildProcess} child
+ * @returns {number[]}
  */
 export function reapChildTree(child) {
   if (child.pid === undefined) return [];
@@ -500,7 +545,11 @@ function reapAllChildren() {
   for (const { child } of children) reapChildTree(child);
 }
 
-/** Must run before any child can exist: a child spawned earlier is reaped by nothing. */
+/**
+ * Must run before any child can exist: a child spawned earlier is reaped by nothing.
+ *
+ * @returns {void}
+ */
 export function installShutdownHandlers() {
   process.on("exit", reapAllChildren);
   process.on("SIGINT", () => shutdown("SIGINT"));
@@ -524,6 +573,8 @@ function shutdown(signal) {
  * `undefined` whenever the environment supplied `QCMS_DB_PASSWORD` or `DATABASE_URL`,
  * because printing a connection string prints the password inside it (SEC-8). The
  * `!== undefined` tests mirror the `??` that builds `DATABASE_URL`.
+ *
+ * @returns {string | undefined}
  */
 function databaseUrlLine() {
   if (process.env.DATABASE_URL !== undefined || DB_PASSWORD !== "qcms") return undefined;
@@ -551,6 +602,7 @@ function printPortalBanner() {
   );
 }
 
+/** @returns {string[]} */
 export function adminBannerLines() {
   const databaseLine = databaseUrlLine() ?? "DATABASE_URL=<your dev database URL> \\";
   return [
@@ -592,6 +644,12 @@ function printAdminBanner() {
   process.stdout.write(adminBannerLines().join("\n") + "\n");
 }
 
+/**
+ * @param {object} options
+ * @param {"portal" | "admin"} options.frontend
+ * @param {string} options.name
+ * @returns {Promise<void>}
+ */
 export async function runDevStack({ frontend, name }) {
   label = name;
   installShutdownHandlers();

@@ -17,6 +17,9 @@ import { CommandFailed, DOCKER, REPOSITORY_ROOT } from "./docker.mjs";
  * The password deliberately has no default, unlike the user and database: Compose
  * refuses to interpolate without it, so an empty default could only compose a URL that
  * cannot work and turn a missing credential into an authentication failure.
+ *
+ * @param {NodeJS.ProcessEnv} environment
+ * @returns {string}
  */
 export function databaseUrlFor(environment) {
   const user = environment.QCMS_DB_USER ?? "qcms";
@@ -37,6 +40,13 @@ export function databaseUrlFor(environment) {
  * stays out of this file.
  *
  * `run --rm` rather than `exec`, because this container is not part of the stack.
+ *
+ * @param {object} options
+ * @param {readonly string[]} options.compose
+ * @param {string} options.databaseUrl
+ * @param {NodeJS.ProcessEnv} options.environment
+ * @param {"seed" | "clear" | "reset"} [options.mode]
+ * @returns {{ argv: string[]; environment: NodeJS.ProcessEnv }}
  */
 export function buildSeedRun({ compose, databaseUrl, environment, mode = "seed" }) {
   if (mode !== "seed" && mode !== "clear" && mode !== "reset")
@@ -61,6 +71,13 @@ export function buildSeedRun({ compose, databaseUrl, environment, mode = "seed" 
 /**
  * Not built on `runProcess`, which inherits stdio: the loader's own last lines are the
  * value of this command and must be shown whether it returns or throws.
+ *
+ * @param {object} options
+ * @param {readonly string[]} options.compose
+ * @param {string} options.databaseUrl
+ * @param {NodeJS.ProcessEnv} options.environment
+ * @param {"seed" | "clear" | "reset"} [options.mode]
+ * @returns {void}
  */
 export function seedFixtures({ compose, databaseUrl, environment, mode = "seed" }) {
   const run = buildSeedRun({ compose, databaseUrl, environment, mode });

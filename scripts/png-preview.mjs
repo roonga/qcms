@@ -60,6 +60,7 @@ const COLOUR_TYPE_NAMES = new Map([
 
 /** A refusal a caller is meant to print rather than a bug. */
 export class PngError extends Error {
+  /** @param {string} message */
   constructor(message) {
     super(message);
     this.name = "PngError";
@@ -70,6 +71,7 @@ export class PngError extends Error {
  * An IDAT split can fall mid-deflate-stream, so the parts are concatenated and
  * inflated as one stream rather than individually.
  *
+ * @param {Buffer} file
  * @returns {{ header: Buffer; data: Buffer }}
  */
 export function readChunks(file) {
@@ -102,6 +104,10 @@ export function readChunks(file) {
   return { header, data: Buffer.concat(parts) };
 }
 
+/**
+ * @param {Buffer} header
+ * @returns {{ width: number; height: number; bitDepth: number; colourType: number; channels: number }}
+ */
 export function readHeader(header) {
   if (header.length < 13) throw new PngError("malformed PNG: IHDR is shorter than 13 bytes");
   const width = header.readUInt32BE(0);
@@ -136,6 +142,11 @@ export function readHeader(header) {
 /**
  * The Paeth predictor (PNG spec, 9.4): whichever of left, above and upper-left the
  * estimate `a + b - c` lands nearest to, ties going left then above.
+ *
+ * @param {number} a
+ * @param {number} b
+ * @param {number} c
+ * @returns {number}
  */
 export function paeth(a, b, c) {
   const p = a + b - c;
@@ -150,6 +161,10 @@ export function paeth(a, b, c) {
  * Reverse the per-scanline filters (PNG spec, 9.2). `a`, `b` and `c` are the bytes one
  * pixel left, on the previous scanline, and one pixel left on the previous scanline;
  * all three read as zero outside the image.
+ *
+ * @param {Buffer} raw
+ * @param {{ width: number; height: number; channels: number }} shape
+ * @returns {Uint8Array}
  */
 export function unfilter(raw, { width, height, channels }) {
   const stride = width * channels;
@@ -190,6 +205,10 @@ export function unfilter(raw, { width, height, channels }) {
   return out;
 }
 
+/**
+ * @param {Buffer} file
+ * @returns {DecodedPng}
+ */
 export function decodePng(file) {
   const { header, data } = readChunks(file);
   const shape = readHeader(header);
@@ -207,6 +226,11 @@ export function decodePng(file) {
 /**
  * Rec. 709 coefficients rather than a channel mean, which would make blue text read
  * far darker than it looks.
+ *
+ * @param {Uint8Array} samples
+ * @param {number} at
+ * @param {number} channels
+ * @returns {number}
  */
 export function luminance(samples, at, channels) {
   const grey = channels < 3;
@@ -219,6 +243,10 @@ export function luminance(samples, at, channels) {
   return value * alpha + 255 * (1 - alpha);
 }
 
+/**
+ * @param {number} requested
+ * @returns {number}
+ */
 export function boundWidth(requested) {
   if (!Number.isInteger(requested) || requested < MIN_WIDTH || requested > MAX_WIDTH) {
     throw new PngError(
@@ -232,6 +260,8 @@ export function boundWidth(requested) {
  * Rows are halved because a terminal cell is about twice as tall as it is wide, so
  * without it a square image prints as a tall rectangle.
  *
+ * @param {DecodedPng} image
+ * @param {number} columns
  * @returns {{ columns: number; rows: number; cellWidth: number; cellHeight: number; lines: string[] }}
  */
 export function asciiPreview(image, columns) {
@@ -269,6 +299,10 @@ export function asciiPreview(image, columns) {
   };
 }
 
+/**
+ * @param {string[]} args
+ * @returns {{ file: string; width: number }}
+ */
 export function parseArgs(args) {
   /** @type {string | undefined} */
   let file;
@@ -296,6 +330,10 @@ export function parseArgs(args) {
   return { file, width };
 }
 
+/**
+ * @param {string[]} args
+ * @returns {number}
+ */
 export function main(args) {
   try {
     const { file, width } = parseArgs(args);

@@ -76,6 +76,10 @@ export const GLOBS = [
   "*.tmpl",
 ];
 
+/**
+ * @param {string} file
+ * @returns {boolean}
+ */
 export function isExempt(file) {
   return EXEMPT.some((entry) => (entry.endsWith("/") ? file.startsWith(entry) : file === entry));
 }
@@ -87,6 +91,10 @@ export function isExempt(file) {
  */
 const ASSERTION = /(?<![\w@-])(@better-auth\/[a-z0-9-]+|better-auth)[@ ](\d+\.\d+\.\d+)(?![\d.])/g;
 
+/**
+ * @param {string} text
+ * @returns {{ pkg: string, version: string, line: number }[]}
+ */
 export function assertionsIn(text) {
   const found = [];
   text.split("\n").forEach((text_, index) => {
@@ -100,6 +108,9 @@ export function assertionsIn(text) {
 /**
  * Three key shapes are covered: a quoted scoped name, an unquoted bare one, and a
  * `snapshots:` key carrying a peer suffix in parentheses.
+ *
+ * @param {string} lock
+ * @returns {Map<string, Set<string>>}
  */
 export function resolvedVersions(lock) {
   /** @type {Map<string, Set<string>>} */
@@ -114,7 +125,11 @@ export function resolvedVersions(lock) {
   return resolved;
 }
 
-/** Vendored upstream components are excluded: their contents are not ours to edit. */
+/**
+ * Vendored upstream components are excluded: their contents are not ours to edit.
+ *
+ * @returns {string[]}
+ */
 function tracked() {
   const out = execFileSync(GIT, ["ls-files", "-z", ...GLOBS, VENDORED_SOURCE_PATHSPEC], {
     cwd: REPO_ROOT,
