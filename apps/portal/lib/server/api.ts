@@ -1,3 +1,4 @@
+// R2: proxy only; imports nothing from @roonga/qcms-core (the import-surface test enforces it).
 import type { A2UIAnswerValue } from "@roonga/qcms-ui";
 
 import { CLIENT_ADDRESS_HEADER, currentClientAddress } from "./client-address";
