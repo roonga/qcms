@@ -32,7 +32,7 @@ export const EXCLUDED_PATHS = [
   { prefix: "plan/", why: "scratch tree" },
 ];
 
-const GENERATED = /\.generated\.|(^|\/)__snapshots__\/|\.snap$/;
+const GENERATED = /(?:\.generated\.)|(?:(?:^|\/)__snapshots__\/)|(?:\.snap$)/;
 
 export function isExcluded(path) {
   return EXCLUDED_PATHS.some(({ prefix }) => path.startsWith(prefix)) || GENERATED.test(path);
