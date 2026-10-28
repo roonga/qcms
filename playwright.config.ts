@@ -178,10 +178,8 @@ export default defineConfig({
     // reproducible in place); passing runs record nothing anywhere.
     screenshot: process.env.CI ? "only-on-failure" : "off",
     trace: process.env.CI ? "on-first-retry" : "off",
-    // A per-action cap well under the test timeout, so a hung click or `inputValue` is
-    // reported by name instead of consuming the whole test budget and reporting only
-    // that the test ran out of time (issue #1126). Generous enough for a first request
-    // to a route `next dev` has not compiled yet.
+    // Under the test timeout, so a hung action is named rather than reported only as the
+    // test running out of time. Generous enough for a route `next dev` has not compiled.
     actionTimeout: 30_000,
   },
   projects: [

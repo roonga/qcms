@@ -2,15 +2,6 @@ import { describe, expect, it } from "vitest";
 
 import { GIT_BIN_OVERRIDE_ENV_VAR, gitBinary, gitCandidates } from "./git-binary.ts";
 
-/**
- * Tests for the git locator the two admin source-listing checks share (issue #1126).
- *
- * The property is that neither the candidate list nor the override can become a `PATH`
- * lookup, since avoiding one is the whole reason this module exists rather than a bare
- * `git`. Both halves of the override guard are driven, because a guard that only rejects
- * the easy case is the one that lets the real miss through.
- */
-
 const WINDOWS_ENV = {
   ProgramFiles: "/fake/program-files",
   "ProgramFiles(x86)": "/fake/program-files-x86",
@@ -56,14 +47,13 @@ describe("gitBinary", () => {
   });
 
   it("names every probed location, and the override, when git is nowhere", () => {
-    // Fake Windows roots, so the assertion holds on whatever host runs the suite.
+    // Fake roots, so the assertion holds on whatever host runs the suite.
     expect(() => gitBinary(WINDOWS_ENV, "win32")).toThrow(
       new RegExp(`no git binary at any of:.*program-files.*${GIT_BIN_OVERRIDE_ENV_VAR}`, "s"),
     );
   });
 
   it("finds git on the host this suite is running on", () => {
-    // The case the two source-listing checks depend on, asserted where they run.
     expect(gitBinary()).toMatch(/git/);
   });
 });

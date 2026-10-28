@@ -1,30 +1,14 @@
 import { existsSync } from "node:fs";
 import { isAbsolute, join } from "node:path";
 
-/**
- * Where the tests that ask git for the admin's source list find git (issue #1126).
- *
- * Two admin checks list sources with `git ls-files` rather than walking the tree
- * (`app/(shell)/table-cell-rules.test.ts` and `app/(shell)/table-anchors.test.tsx`, both
- * for issue #629). They each carried their own POSIX-only candidate list, which is a
- * stable red on a native Windows checkout and two places to fix it. One module, shared.
- *
- * The override's name and its two rules match
- * `packages/create-qcms-app/scripts/sync-templates.mjs`, so the one variable a developer
- * sets works for every git-using check in the repository.
- */
+/** Overrides the probe below with an absolute path, as `sync-templates.mjs` also reads. */
 export const GIT_BIN_OVERRIDE_ENV_VAR = "QCMS_GIT_BIN";
 
-/**
- * Not `NodeJS.ProcessEnv`: Next's own types make `NODE_ENV` required on it, so a test
- * fixture naming two variables would not be assignable.
- */
+// Not `NodeJS.ProcessEnv`: Next's types make `NODE_ENV` required on it, so a fixture
+// naming two variables would not be assignable.
 type Environment = Readonly<Record<string, string | undefined>>;
 
-/**
- * Absolute candidates, never a bare `git`: a bare name is a `PATH` lookup, which is what
- * `sonarjs/no-os-command-from-path` forbids workspace-wide.
- */
+// Absolute, never a bare `git`: `sonarjs/no-os-command-from-path` forbids a PATH lookup.
 const POSIX_CANDIDATES = [
   "/usr/bin/git",
   "/bin/git",
@@ -32,11 +16,8 @@ const POSIX_CANDIDATES = [
   "/opt/homebrew/bin/git",
 ];
 
-/**
- * The Windows install locations, built from the environment rather than written out: a
- * drive-letter literal here would be a machine-specific path, which `check:paths` forbids
- * in committed text and which is wrong on a machine that installed elsewhere anyway.
- */
+// Built from the environment because a drive-letter literal is a machine-specific path,
+// which `check:paths` forbids in committed text.
 function windowsCandidates(environment: Environment): string[] {
   const systemWide = [environment.ProgramFiles, environment["ProgramFiles(x86)"]]
     .filter((root): root is string => root !== undefined && root !== "")
@@ -48,7 +29,7 @@ function windowsCandidates(environment: Environment): string[] {
   return [...systemWide, ...perUser];
 }
 
-/** Everything that would be probed, in order, on this platform. */
+/** Every location that would be probed, in order, on this platform. */
 export function gitCandidates(
   environment: Environment = process.env,
   platform: NodeJS.Platform = process.platform,
@@ -63,7 +44,7 @@ export function gitBinary(
 ): string {
   const override = environment[GIT_BIN_OVERRIDE_ENV_VAR];
   if (override !== undefined && override !== "") {
-    // A relative override would be a PATH lookup, which is the thing being avoided (#458).
+    // A relative override would be the PATH lookup this module exists to avoid.
     if (!isAbsolute(override)) {
       throw new Error(
         `${GIT_BIN_OVERRIDE_ENV_VAR}=${override} is not an absolute path, so it would be ` +

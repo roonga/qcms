@@ -328,8 +328,6 @@ describe("arguments and resolution", () => {
     writeFileSync(script, "", "utf8");
     writeFileSync(shim, "", "utf8");
 
-    // Issue #1126. POSIX runs the extensionless script with no shell at all; Windows
-    // cannot execute that file and cannot start a `.cmd` without one.
     expect(resolveSpawn("next", ["build"], dir, "linux")).toEqual({
       command: script,
       args: ["build"],
@@ -351,8 +349,8 @@ describe("arguments and resolution", () => {
   });
 
   it("spawns a Windows command that already names an executable path directly", () => {
-    // No shell where none is needed, because a shell would report a missing command as
-    // its own exit 1 and take the wrapper's 127 and its message with it.
+    // No shell where none is needed: a shell would report a missing command as its own
+    // exit 1 and take the wrapper's 127 with it.
     const dir = tempDir();
     expect(resolveSpawn(join(dir, "tool.exe"), ["build"], dir, "win32")).toEqual({
       command: join(dir, "tool.exe"),

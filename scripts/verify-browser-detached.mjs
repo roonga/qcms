@@ -499,10 +499,8 @@ export async function startDetached({
   confirmMs = START_CONFIRM_MS,
   platform = process.platform,
 } = {}) {
-  // Refused rather than ported (issue #1126). The whole design is POSIX: a session of its
-  // own from `setsid`, a process group to signal, and `/proc/<pid>/cwd` to attribute a
-  // port's occupant. Windows has no equivalent of any of the three, so a port would be a
-  // different mechanism wearing this one's name.
+  // Refused rather than ported: this needs a session of its own, a process group to
+  // signal, and `/proc/<pid>/cwd`, and Windows has no equivalent of any of the three.
   if (platform === "win32") {
     out("verify:browser:detached does not run on native Windows.");
     out("It needs POSIX sessions, process groups and /proc, which Windows does not have.");

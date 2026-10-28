@@ -78,8 +78,6 @@ describe("statusInvocation", () => {
   });
 
   it("hands Windows one line and a shell, so PATHEXT can find pnpm.cmd", () => {
-    // Issue #1126: Node refuses to start a `.cmd` without a shell, and argv plus a
-    // shell is deprecated, so argv has to be empty here.
     expect(statusInvocation("win32")).toEqual({
       command: "pnpm exec changeset status",
       args: [],

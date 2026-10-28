@@ -1295,8 +1295,6 @@ describe("startDetached", () => {
   );
 
   it("refuses a native Windows start and names where the gate does run", async () => {
-    // Issue #1126. Checked before the seat assertion and before any spawn, so the answer
-    // on Windows is one message rather than a `setsid` ENOENT several frames down.
     const lines: string[] = [];
     const refused = await startDetached({
       command: SLEEPER,

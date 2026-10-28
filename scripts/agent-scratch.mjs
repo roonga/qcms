@@ -104,9 +104,8 @@ export function resolveLane(directory, environment) {
   try {
     branch = git(["rev-parse", "--abbrev-ref", "HEAD"]);
   } catch (error) {
-    // A spawn failure and a refusal from git are different defects with different fixes,
-    // and reporting both as "not a git working tree" sent one lane looking at the wrong
-    // one (issue #1126). `ENOENT` here means git could not be started at all.
+    // A spawn failure and a refusal from git need different fixes, so they are reported
+    // apart: `ENOENT` means git could not be started at all.
     const detail = /** @type {NodeJS.ErrnoException} */ (error);
     if (detail.code === "ENOENT") {
       throw new Error(

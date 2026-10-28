@@ -400,10 +400,6 @@ export function resolveCommand(command, packageRoot, exists = existsSync) {
 /**
  * One argument, quoted for `cmd.exe`, which takes a doubled quote as a literal one.
  *
- * Always quoted rather than only when a space is present: `Program Files` and a profile
- * name with a space both appear in these paths, and a rule with no exceptions is the one
- * that cannot be wrong about which case it is in.
- *
  * @param {string} value
  * @returns {string}
  */
@@ -412,18 +408,15 @@ function quoteForShell(value) {
 }
 
 /**
- * What to hand `spawn`, per platform (issue #1126).
+ * What to hand `spawn`, per platform.
  *
- * `node_modules/.bin/next` is a POSIX shell script, so Windows cannot execute it; the
- * shim it can run is `next.CMD`, and Node refuses to start a `.cmd` at all without a
- * shell. The Windows branch therefore resolves the `.CMD` shim and asks for a shell, as
- * one quoted string rather than argv plus `shell` (which is deprecated, DEP0190). The
- * POSIX path is unchanged: the resolved script, no shell, argv passed through.
+ * `node_modules/.bin/next` is a POSIX shell script Windows cannot execute; the shim it
+ * can run is `next.CMD`, which Node refuses to start without a shell. One quoted string
+ * rather than argv plus `shell`, which is deprecated (DEP0190).
  *
  * A shell is asked for only where it is needed, because it costs the diagnosis: a shell
- * reports a command it cannot find as its own exit 1, so `next-build: could not start`
- * and its 127 are only reachable while Node does the spawning. So a Windows command that
- * already names a path Node can execute is still spawned directly.
+ * reports a command it cannot find as its own exit 1, so the 127 and its message are
+ * only reachable while Node does the spawning.
  *
  * @param {string} command
  * @param {string[]} args
@@ -488,7 +481,7 @@ function spawnAttempt(command, args) {
       env: stdout.isTTY ? { ...env, FORCE_COLOR: env.FORCE_COLOR ?? "1" } : env,
       shell: plan.shell,
     };
-    // Argv is omitted entirely in the shell case, so DEP0190 never fires.
+    // Argv is omitted in the shell case, so DEP0190 never fires.
     const child = plan.shell
       ? spawn(plan.command, options)
       : spawn(plan.command, plan.args, options);

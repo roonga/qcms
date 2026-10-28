@@ -380,9 +380,8 @@ function source(relative: string): string {
 /**
  * Every file under one of `apps/admin`'s directories, as paths relative to `apps/admin`.
  *
- * Separators are forced to `/` because every path this suite compares against - a route
- * literal, an expected message, a repo-relative path in prose - is written POSIX-style,
- * and `relative()` answers with backslashes on Windows (issue #1126).
+ * Separators are forced to `/` because every path this suite compares against is written
+ * POSIX-style and `relative()` answers with backslashes on Windows.
  */
 function filesUnder(top: string, keep: (name: string) => boolean): readonly string[] {
   return readdirSync(join(APP_ROOT, top), { recursive: true, withFileTypes: true })

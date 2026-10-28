@@ -202,8 +202,8 @@ function startWrapper(stubSource: string, port: string): Wrapper {
     env: {
       ...process.env,
       PORTAL_PORT: port,
-      // Quoted for the reason the admin wrapper's own test gives: the wrapper runs this
-      // through a shell, and on Windows both halves can hold a path with a space.
+      // Quoted: the wrapper runs this through a shell, and on Windows both halves can
+      // hold a path with a space.
       QCMS_PORTAL_SERVER_COMMAND: `"${process.execPath}" "${stub}"`,
       QCMS_PORTAL_SERVER_LOG: join(dir, "portal.log"),
     },

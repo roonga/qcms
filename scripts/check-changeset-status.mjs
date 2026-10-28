@@ -77,12 +77,11 @@ export function classify({ code, output, baseBranchResolves }) {
 }
 
 /**
- * How to invoke `pnpm exec changeset status`, per platform (issue #1126).
+ * How to invoke `pnpm exec changeset status`, per platform.
  *
- * `pnpm` on Windows is `pnpm.cmd`, and Node refuses to start a `.cmd` without a shell,
- * so the Windows branch hands the whole line to one and lets `PATHEXT` resolve the shim.
- * It is a single string rather than argv plus `shell`, which is deprecated (DEP0190).
- * The POSIX branch is unchanged: argv, no shell.
+ * `pnpm` on Windows is `pnpm.cmd`, which Node refuses to start without a shell, so that
+ * branch hands the whole line to one and lets `PATHEXT` resolve the shim. One string
+ * rather than argv plus `shell`, which is deprecated (DEP0190).
  *
  * @param {NodeJS.Platform} platform
  * @returns {{ command: string, args: string[], shell: boolean }}
@@ -121,7 +120,7 @@ function main() {
     stdio: ["ignore", "pipe", "pipe"],
     shell: invocation.shell,
   };
-  // Argv is omitted entirely in the shell case, so DEP0190 never fires.
+  // Argv is omitted in the shell case, so DEP0190 never fires.
   const run = invocation.shell
     ? spawnSync(invocation.command, options)
     : spawnSync(invocation.command, invocation.args, options);

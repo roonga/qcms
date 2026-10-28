@@ -342,12 +342,8 @@ export function isExcludedAppPath(path) {
 const GIT_CANDIDATES = ["/usr/bin/git", "/bin/git", "/usr/local/bin/git", "/opt/homebrew/bin/git"];
 
 /**
- * The same question answered for Windows, where `check:templates` could not run at all
- * without an override (issue #1126).
- *
- * Built from the environment rather than written out: a drive-letter literal is a
- * machine-specific path, which `check:paths` forbids in committed text, and it would be
- * wrong on a machine that installed elsewhere in any case.
+ * The same locations on Windows, built from the environment because a drive-letter
+ * literal is a machine-specific path, which `check:paths` forbids in committed text.
  *
  * @param {NodeJS.ProcessEnv} environment
  * @returns {string[]}

@@ -293,7 +293,7 @@ If the answers say load, say so in the report with the numbers and re-run on a q
 
 ## Windows and WSL
 
-**A native Windows checkout runs `pnpm verify` and nothing heavier.** That is the whole rule, and the rest of this section is why and what to do instead (issue #1126). Cross-platform defects in the scripts and the unit tests were fixed; the three gates below were not ported, because what they need is not a shell difference.
+**A native Windows checkout runs `pnpm verify` and nothing heavier.** The three gates below were not ported, because what they need is not a shell difference. A handful of wrapper and scaffolding-CLI tests inside `pnpm verify` also still need POSIX process semantics (signals and a POSIX shell); they are listed in issue #1126 and are container-only too.
 
 | Gate                                     | Native Windows             | Where it runs            |
 | ---------------------------------------- | -------------------------- | ------------------------ |
@@ -314,7 +314,7 @@ cd ~/src/qcms-wt/<branch-slug>
 pnpm install --frozen-lockfile && pnpm build && pnpm verify
 ```
 
-**Docker Desktop is shared, so port seats are shared across both sides.** A seat is a machine-wide claim whichever side of the boundary asked for it, and the Windows and WSL views of the Docker daemon are the same daemon. Pick a seat from `docs/PORTS.md` the way a second lane on one host would, and never run `pnpm dev:down` while another seat is live. Note that the occupancy half of the seat guard is currently inert (issue #1138), so a collision is not reported for you: the seat you chose is the only thing keeping two runs apart.
+**Docker Desktop is shared, so port seats are shared across both sides.** A seat is a machine-wide claim whichever side of the boundary asked for it, and the Windows and WSL views of the Docker daemon are the same daemon. Pick a seat from `docs/PORTS.md` the way a second lane on one host would, and never run `pnpm dev:down` while another seat is live. The occupancy half of the seat guard is inert (issue #1138), so a collision is not reported for you: the seat you chose is the only thing keeping two runs apart.
 
 **Run `pnpm build` once in a fresh worktree before `test:tooling:no-build`.** That script's name is accurate - it skips the build - and several tooling tests read `dist/`, so in a worktree that has never been built they fail for a missing artifact rather than for anything the branch did.
 

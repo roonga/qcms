@@ -253,9 +253,8 @@ export async function signOut(page: Page): Promise<void> {
 export async function enrollNewAdmin(page: Page, email: string): Promise<string> {
   await submitSignIn(page, email);
   await expect(page).toHaveURL(/\/two-factor\/enroll$/);
-  // The URL changes when the navigation commits, which is before the enrol page has a
-  // DOM to read: against a cold dev server `readSetupKey` otherwise lands mid-navigation
-  // and fails with "Execution context was destroyed" (issue #1126).
+  // The URL commits before the enrol page has a DOM, so without this `readSetupKey`
+  // lands mid-navigation on a cold dev server and the context is destroyed under it.
   await waitForHydration(page);
   const secret = await readSetupKey(page);
   await submitTotp(page, secret);

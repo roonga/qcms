@@ -358,8 +358,7 @@ describe("the marker class and the retired handler", () => {
    * files the scan must reach: the stylesheet the marker lived in, and one component.
    */
   it("reaches the admin sources it is meant to scan", () => {
-    // Separators forced to `/`, which is the spelling the two names below are written in
-    // and the one git itself answers with (issue #1126).
+    // Separators forced to `/`, the spelling the two expected names are written in.
     const relative = files.map((path) =>
       path
         .slice(adminRoot.length + 1)

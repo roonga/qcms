@@ -394,13 +394,9 @@ function lineIndex(text) {
  * nobody asserted. A non-pnpm layout is handled by the direct `node_modules/<name>`
  * fallback, which is checked against the manifest's own version for the same reason.
  *
- * On Windows pnpm truncates a store directory name to 60 characters, so the entry that
- * holds the package can carry neither the version nor the whole name
- * (`@better-auth+drizzle-adapte_<hash>`) and the prefix match above cannot see it. The
- * second pass reads each candidate's own manifest instead, which keeps the exact-version
- * guarantee without depending on the directory name at all. It is a fallback rather than
- * the only rule because the prefix match answers in one `existsSync` on a tree with
- * thousands of store entries.
+ * Windows needs the second pass: pnpm truncates a store directory name to 60 characters,
+ * so the prefix is not there to match and only the installed manifest can confirm the
+ * version.
  *
  * @param {string} nodeModules path to a `node_modules` directory
  * @param {string} name package name
@@ -443,7 +439,6 @@ function manifestVersion(root) {
     const manifest = JSON.parse(readFileSync(join(root, "package.json"), "utf8"));
     return typeof manifest.version === "string" ? manifest.version : null;
   } catch {
-    // Not installed here; the caller reports the miss once, with the version.
     return null;
   }
 }

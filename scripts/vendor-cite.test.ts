@@ -104,7 +104,7 @@ const coreRoot = install(CORE, VERSION, { [ENV_PATH]: ENV_SOURCE });
 // it: an exact-version match is what keeps a citation anchored to the asserted pin.
 install(MAIN, OLDER, { [CONTEXT_PATH]: ["a different file entirely"] });
 
-/** A scoped package whose store entry pnpm truncated to 60 characters on Windows. */
+/** A store entry pnpm truncated to 60 characters, as it does on Windows. */
 const TRUNCATED = `${"@better-auth"}/drizzle-adapter`;
 const truncatedRoot = installAt(
   `${"@better-auth+drizzle-adapte"}_peerhashpeerhashpeerhashpeerhashpeer`,
@@ -152,8 +152,6 @@ describe("finding the installed package", () => {
   });
 
   it("finds a package whose store directory pnpm truncated past its version", () => {
-    // Issue #1126: the 60-character cap on Windows removes the `name@version` prefix the
-    // first pass matches on, so only the manifest can say what is installed there.
     expect(findPackageRoot(nodeModules, TRUNCATED, VERSION)).toBe(truncatedRoot);
   });
 
