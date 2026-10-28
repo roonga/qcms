@@ -35,8 +35,6 @@ describe("isDevServerAsset", () => {
   });
 
   it("does not match a portal path that merely mentions the prefix", () => {
-    // A form slug is respondent-facing and arbitrary, so the prefix must be anchored
-    // at the start of the pathname rather than searched for anywhere in the URL.
     expect(isDevServerAsset(`${ORIGIN}/f/__nextjs_font-survey`)).toBe(false);
   });
 
@@ -63,8 +61,6 @@ describe("partitionRequests", () => {
   });
 
   it("never lets dev-server chrome satisfy a declared asset, even on a name collision", () => {
-    // The overlay ships `geist-latin.woff2`. A registry entry one rename away from that
-    // stem would otherwise make "our file arrived" true while our file 404ed.
     const result = partitionRequests([`${ORIGIN}/__nextjs_font/geist-latin.woff2`], (url) =>
       url.includes("/geist-latin."),
     );

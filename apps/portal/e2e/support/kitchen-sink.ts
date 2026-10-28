@@ -1,20 +1,10 @@
 /**
- * Driving helpers for the kitchen-sink form (task 045). One place for the
- * react-aria control quirks so the flow spec reads as a script: radios and
- * checkboxes sit under a decorative indicator that intercepts pointer events (so
- * click the visible label text, not the input); the NumberField emits per
- * keystroke (type key-by-key); the DatePicker is a segmented DateField, drawn in the
- * order the portal's QCMS_LOCALE writes a date (en-GB DD/MM/YYYY by default), that
- * only emits a value once all segments are complete.
+ * Driving helpers for the kitchen-sink form: one place for the gestures every spec
+ * repeats, so a control's commit moment is encoded once rather than in each spec.
  *
- * WHEN each answer posts is ADR-31's commit table, which these helpers encode so
- * a spec reads as a script rather than as event plumbing: booleans and single
- * choice post on change, the date posts when its last segment completes, text and
- * number post on blur, and a multi-choice posts when focus leaves the whole
- * checkbox GROUP (so `checkOption` toggles AND exits). Answer posts are
- * serialized, so we wait for each `/answers` 200 (or the navigation `/step` 200)
- * before the next action. The commit moments themselves are the subject of
- * `commit-moments.pw.ts`; here they are only the driving convention.
+ * Each helper that commits an answer waits for the post it causes, because the suite's
+ * assertions are about what reached the server and a gesture that has not landed yet is
+ * indistinguishable from one that never will.
  */
 
 import { expect, type Locator, type Page, type Response } from "@playwright/test";
@@ -118,13 +108,9 @@ export async function enterDate(page: Page, digits: string): Promise<void> {
   const group = page.getByRole("group", { name: KS.dob });
   const order = await dateSegmentOrder(group);
   const parts = dateParts(digits);
-  // Click the FIRST segment directly: react-aria handles the pointer event and makes
-  // the segment ready for keyboard entry (a programmatic .focus() on the segment span
-  // does not always enable typing). Typing auto-advances the rest.
   const first = group.getByRole("spinbutton", { name: new RegExp(order[0] ?? "month", "i") });
   await first.click();
   await page.keyboard.type(order.map((part) => parts[part]).join("")); // e.g. 17/05/1990
-  // Confirm the segments actually filled before blurring (guards a missed focus).
   await expect(group.getByRole("spinbutton", { name: /month/i })).not.toHaveText(/mm/i);
   await blurActive(page);
   await recorded;

@@ -1,35 +1,16 @@
 /**
- * Harness-side port seating: which `17Sxx` ports this run owns, and the refusal that
- * stops it adopting somebody else's (issue #255).
+ * Harness-side port seating: which ports this run owns, and the refusal that keeps two
+ * runs off one set.
  *
- * The arithmetic and the rule itself live in `scripts/ports.mjs`, which is the one
- * place either is written down; `docs/PORTS.md` is the authoritative prose. This
- * module re-exports what the harness needs and adds the part that only the harness
- * needs: reading `/proc` to find out who is already listening on this seat's ports,
- * and refusing to start when the answer is anyone but us.
+ * Playwright will happily adopt a process already listening on a port it wants, which on
+ * a shared host means one lane's suite silently drives another lane's dev server, with
+ * that lane's code and that lane's database. So a listener is adopted only when it is
+ * provably this run's: its working directory is inside this repository root and it
+ * answers on its service's readiness path. Anything else is a refusal naming the pid and
+ * the directory, because the alternative is a green run against the wrong tree.
  *
- * ## Why the refusal exists
- *
- * The harness ports used to be compile-time literals (3100 / 3200 / 4010 / 4319) and
- * the root Playwright config sets `reuseExistingServer: !CI`. So a second agent lane
- * starting a browser run while the first lane's dev servers were up did not fail to
- * bind and did not warn: Playwright *reused* the first lane's servers, and the second
- * lane's specs exercised the first lane's worktree while reporting a full green run.
- * A false green there is indistinguishable from a real one, and the merge gate treats
- * a green browser suite as evidence. Seats make the ports differ, so two seats cannot
- * meet at all; this refusal is the backstop for everything else that might be sitting
- * on the block, and it names the occupant the way the original collision was found by
- * hand - by reading `/proc/<pid>/cwd`.
- *
- * ## Why `/proc` alone is not the whole test (issue #295)
- *
- * The adoption rule was originally structural: a reusable service, in this worktree.
- * An orphan satisfies all of it. A run killed mid-suite leaves its `next-server`
- * reparented to pid 1, still bound to the seat, still naming this worktree as its cwd,
- * and answering nothing - so the next run adopted it and every test died on a
- * two-minute timeout, with hours more queued. So adoption also requires the listener to
- * answer a readiness probe **now**, which is the only question that distinguishes "a
- * server this run may join" from "a corpse holding a port".
+ * An unset seat is refused outright from a linked worktree, where the ports are by
+ * definition shared with another checkout.
  */
 
 import { spawnSync } from "node:child_process";
@@ -93,8 +74,6 @@ const HARNESS_SERVICE_REUSE: Record<
   portal: { reusable: true, label: "portal dev server", readyPath: "/" },
   api: { reusable: false, label: "composed API (globalSetup)" },
   otlp: { reusable: false, label: "in-test OTLP receiver" },
-  // `/healthz` rather than `/`, for the reason the admin `webServer` entry records:
-  // the admin's pages need the API that globalSetup has not booted yet.
   admin: { reusable: true, label: "admin dev server", readyPath: "/healthz" },
 };
 
@@ -122,8 +101,6 @@ function listeningSocketInodes(port: number): Set<string> {
     try {
       text = readFileSync(table, "utf8");
     } catch {
-      // No `/proc` (or no permission): occupancy is then only detectable, not
-      // attributable, which the caller handles by reporting an unknown pid.
       continue;
     }
     for (const line of text.split("\n").slice(1)) {
@@ -145,14 +122,13 @@ function processHoldsAny(entry: string, targets: Set<string>): boolean {
   try {
     descriptors = readdirSync(`/proc/${entry}/fd`);
   } catch {
-    // Another user's process, or one that exited mid-scan.
     return false;
   }
   for (const descriptor of descriptors) {
     try {
       if (targets.has(readlinkSync(`/proc/${entry}/fd/${descriptor}`))) return true;
     } catch {
-      // The descriptor closed between the listing and the readlink.
+      // A descriptor the process closed between the listing and the read.
     }
   }
   return false;
@@ -257,15 +233,12 @@ export function probeServiceReady(
   const cached = readyProbeResults.get(key);
   if (cached !== undefined) return cached;
   const { readyPath } = HARNESS_SERVICE_REUSE[occupant.service];
-  // Only the reusable services have a path, and only they ever reach this function.
   const probed =
     readyPath === undefined
       ? undefined
       : spawnSync(
           process.execPath,
           [READY_PROBE_SCRIPT, String(occupant.port), readyPath, String(timeoutMs)],
-          // A hard ceiling above the probe's own budget: the probe settles itself, and
-          // this is the backstop for a child that never runs at all.
           { stdio: "ignore", timeout: timeoutMs * 2 },
         );
   const ready = probed?.status === 0;
@@ -362,10 +335,6 @@ export function assertSeatPortsUsable(
     [
       `Port seat ${String(seat)} is not usable from ${repoRoot}:`,
       ...refused.map((entry) => describeOccupant(entry.occupant, entry.refusal)),
-      // What the machine looked like when the seat was refused (issue #395). The refusal
-      // above says the seat is taken; this says whether the machine is also full, which is
-      // what decides between "move to a free seat and go" and "another lane is mid-run and
-      // a free seat buys a slower suite rather than a green one".
       `  ${hostLine()}`,
       "",
       `Pick a free seat with ${PORT_SEAT_ENV_VAR}=<${String(MIN_PORT_SEAT)}-${String(MAX_PORT_SEAT)}>`,

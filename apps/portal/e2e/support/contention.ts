@@ -1,42 +1,13 @@
 /**
- * What else was running on this machine while the browser suite ran (issue #395).
+ * What else was running on this machine while the browser suite ran, sampled at both ends
+ * of the run and printed only when the run has failures.
  *
- * ## The failure this exists for
+ * A red browser run has two explanations, a defect and contention, and they are told
+ * apart by evidence rather than by instinct: the other seats' harness ports with a
+ * listener, the host pressure, and the failure texts that resource contention is known
+ * to produce. A neighbour that arrived mid-run is why both ends are sampled.
  *
- * A `verify:browser` run on one seat came back with eight failures and 65 tests never
- * run, every failure the FIRST test of an admin spec, all of them at sign-in, on a diff
- * of three visually-hidden paragraphs and five strings. The seat guard had done its job:
- * no port was shared and no collision was reported. Another lane was simply running
- * gates at the same time, against the same Docker daemon, and the run went red for that
- * reason while presenting as an ordinary regression in the auth path. It cost a bisect,
- * and it was only bisected because the red happened to be implausible enough to doubt.
- *
- * The seat scheme partitions **ports**. It does not partition the Docker daemon, the CPU
- * or the page cache, and nothing told the lane that its red might not be its own. That is
- * a gate-integrity problem rather than a flake: a red browser suite is a merge gate, and
- * under parallelism it can be entirely caused by a neighbour.
- *
- * ## What this module does, and what it deliberately does not
- *
- * It **attributes**, it never excuses. Every function here is read-only: it samples the
- * host at run start and again at run end, it labels a failure's text against a list of
- * signatures that resource contention produces, and it hands the caller a block of prose
- * to print. Nothing it returns can change a verdict, mark a test flaky, retry anything, or
- * turn a red into a green. A run that fails still fails, with the same exit code and the
- * same failure list; it just no longer fails silently about the company it was keeping.
- *
- * The judgement stays with the reader on purpose. "Another seat's stack was live and four
- * of your failures are connection refusals" is a fact worth putting in front of someone;
- * "therefore this red is not yours" is a conclusion only they can draw, because a genuine
- * regression and a contention red can hold that shape at the same time.
- *
- * ## The machine probe lives next door
- *
- * `/proc/loadavg` and the `docker ps` census are in `host-pressure.ts`, not here. The seat
- * refusal in `port-seat.ts` prints the same reading when it refuses a seat, and this module
- * reads `/proc` through that same file, so leaving the probe here would make the pair
- * circular. What stayed is everything specific to the REPORT: which failures are
- * contention-shaped, which neighbouring seats were live, and the prose.
+ * None of it changes a verdict.
  */
 
 import {
@@ -143,10 +114,6 @@ export const CONTENTION_SIGNATURES: readonly {
 }[] = [
   {
     name: "connection refused",
-    // `ERR_CONNECTION_REFUSED` (Chromium's net error) and `connection refused` (a
-    // socket's own wording) are the same event with different separators, so the
-    // character class covers both rather than letting the net-error form fall through to
-    // the vaguer navigation signature below.
     pattern: /ECONNREFUSED|connect(?:ion)?[ _]refused/i,
     why: "nothing was listening where a dependency should have been",
   },
@@ -166,13 +133,6 @@ export const CONTENTION_SIGNATURES: readonly {
     why: "the shared Docker daemon did not deliver a container in time",
   },
   {
-    // Added from a live incident rather than from imagination. A forced turbo run in the
-    // same tree deletes and rewrites every package's `dist/` (`scripts/clean-dist.mjs`
-    // then `tsc`), and a `next dev` server serving that tree resolves imports at request
-    // time, so for the seconds the directory is missing the dev server answers
-    // `Module not found: Can't resolve '@roonga/qcms-ui/fonts'` and the server-log gate reds a
-    // spec that touched nothing. It is a build racing a running server, not a defect, and
-    // it is invisible to every network-shaped signature above.
     name: "workspace rebuild",
     pattern: /Module not found: Can't resolve '@roonga\/qcms-/i,
     why: "a concurrent build replaced a workspace package under a running dev server",
@@ -332,9 +292,6 @@ function pressureReasons(start: HostSnapshot, end: HostSnapshot): string[] {
   const atStart = hostPressure(start.load, start.containers).reasons;
   const atEnd = hostPressure(end.load, end.containers).reasons;
   const seen = new Set([...atStart, ...atEnd]);
-  // The same three labels the neighbour list uses, and for the same reason: a reading that
-  // held all the way through is a different story from one that only appeared while the
-  // suite was running, and a reader chasing a red wants to know which.
   const when = (reason: string): string => {
     if (atStart.includes(reason) && atEnd.includes(reason)) return "throughout";
     return atStart.includes(reason) ? "at start" : "at end";
@@ -370,8 +327,6 @@ function pressureReasons(start: HostSnapshot, end: HostSnapshot): string[] {
 export function renderContentionReport(report: ContentionReport): string {
   const { seat, start, end, failures } = report;
   const annotated = failures.filter((failure) => failure.signature !== undefined);
-  // One merged list, and the header counts derived FROM it, so the summary line and the
-  // detail lines under it can never disagree about who was there.
   const neighbours = mergeNeighbours(start.neighbours, end.neighbours);
   const neighbourSeats = [...new Set(neighbours.map((stack) => stack.seat))].sort((a, b) => a - b);
   const pressure = pressureReasons(start, end);

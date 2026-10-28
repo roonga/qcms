@@ -1,52 +1,14 @@
 /**
- * Where the Lighthouse gate's own Chrome keeps its temporary profile (issue #248).
+ * Where the Lighthouse gate's own Chrome keeps its temporary profile.
  *
- * ## The defect
+ * Chrome needs a writable profile directory and picks one itself by default, which on a
+ * shared host puts two seats in the same place and makes one of them fail for a reason
+ * that has nothing to do with the page under test. So each run gets its own directory,
+ * created fresh and removed afterwards.
  *
- * Every `pnpm verify:browser` on a WSL host left five untracked directories at the
- * repository root whose NAMES were whole Windows paths, of the shape
- * `<drive>:\<user profile>\AppData\Local\lighthouse.<random>` - backslashes and all,
- * as one directory name.
- *
- * They are one careless `git add -A` from putting a machine-specific path and a
- * personal name into committed content, both of which this repository bans outright,
- * and nothing ever removed them - one set per run, for as long as the gate has
- * existed. A `.gitignore` entry would hide that and keep littering the tree, so the
- * write is stopped instead.
- *
- * ## Two writes, not one
- *
- * The Lighthouse audit drives a SECOND, separate Chrome through `chrome-launcher`,
- * and on WSL `chrome-launcher`'s `getPlatform()` answers `"wsl"` rather than
- * `"linux"`. That changes two things, and both had to be addressed:
- *
- *  1. **The profile it creates.** With no `userDataDir` option it calls its own
- *     `makeTmpDir()`, whose `wsl` branch overwrites `process.env.TEMP` with the
- *     Windows host's `LOCALAPPDATA` and then takes the `win32` path, so the profile
- *     is `mkdtemp`ed under a Windows drive path. Nothing on Linux interprets the
- *     backslashes, so the whole string becomes ONE relative directory under the
- *     process cwd - the repository root, for `pnpm verify:browser`. Passing any
- *     `userDataDir` skips `makeTmpDir()` entirely, which closes this half.
- *
- *  2. **The flag it passes to Chrome.** `chrome-launcher` assumes a WSL caller is
- *     launching the *Windows* Chrome, so it rewrites the directory through
- *     `wslpath -w`, turning `/tmp/x` into the UNC form under the distribution's
- *     `wsl.localhost` share. The browser here is Playwright's **Linux** Chromium,
- *     which takes that as a relative name and creates it under the cwd. Measured on
- *     this repository, the cwd was left with a directory named after the UNC form -
- *     the same defect wearing a different name, so passing `userDataDir` alone is
- *     not a fix.
- *
- * The second half is closed by appending our own `--user-data-dir` to `chromeFlags`.
- * `chrome-launcher` pushes its (converted) flag first and the caller's `chromeFlags`
- * after it, and Chrome's command line keeps the LAST value of a repeated switch. Also
- * measured rather than assumed: launching Chromium with the converted flag followed
- * by the POSIX one populates the POSIX directory and leaves the cwd empty, and with
- * the converted flag alone the cwd gains the backslashed directory.
- *
- * Passing `userDataDir` also turns OFF `chrome-launcher`'s own cleanup (it removes
- * only a directory it made), so the caller owns removal. {@link withChromeProfile} is
- * the supported entry point because it is the shape that cannot forget.
+ * The temp root is probed rather than assumed, because the platform default is not always
+ * writable in a container, and a profile that cannot be created has to fail with the
+ * reason rather than as a bare Chrome launch error.
  */
 
 import { mkdtempSync, rmSync } from "node:fs";

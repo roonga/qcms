@@ -40,8 +40,6 @@ describe("parseLoadAverage", () => {
   });
 
   it("reports unknown rather than zero when the file is not what it expects", () => {
-    // Zero is a real load figure. A parse failure rendered as one would read as "the
-    // machine was idle" in the very report someone is using to decide whether it was.
     expect(parseLoadAverage("", 8)).toBeUndefined();
     expect(parseLoadAverage("not a load average at all", 8)).toBeUndefined();
     expect(parseLoadAverage("1.0 2.0", 8)).toBeUndefined();
@@ -62,8 +60,6 @@ describe("parseContainerCensus", () => {
   });
 
   it("counts the SESSIONS those containers belong to, not just the containers", () => {
-    // The number that sees a lane holding no seat port. Three containers can be one suite
-    // using three, or three lanes using one each, and only the second is a neighbour.
     const census = parseContainerCensus(
       [
         "relaxed_bell\tsession-a",
@@ -77,8 +73,6 @@ describe("parseContainerCensus", () => {
   });
 
   it("treats Docker's empty-label placeholder as no label", () => {
-    // `docker ps` prints `<no value>` for a label a container does not carry, and a
-    // census that counted that string would report every container as Testcontainers.
     expect(parseContainerCensus("some_container\t<no value>\n")).toEqual({
       running: 1,
       testcontainers: 0,
@@ -126,9 +120,6 @@ describe("hostPressure", () => {
   });
 
   it("says nothing about a machine that is merely working", () => {
-    // A passing browser suite runs two dev servers, an API and a Postgres container and
-    // sits around one per cpu. A rule that fired here would fire on every healthy run,
-    // and a block that appears on healthy runs is a block readers learn to skip.
     expect(
       hostPressure({ oneMinute: 8, fiveMinute: 6, fifteenMinute: 4, cpus: 8 }, OURS_ALONE).reasons,
     ).toHaveLength(0);
@@ -144,8 +135,6 @@ describe("hostPressure", () => {
   });
 
   it("claims nothing at all when neither reading could be taken", () => {
-    // "Could not measure" and "measured, and it was quiet" must not collapse: the second
-    // is an argument about a red and the first is not.
     expect(hostPressure(undefined, undefined).reasons).toHaveLength(0);
   });
 });

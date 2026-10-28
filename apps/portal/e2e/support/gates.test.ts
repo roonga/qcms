@@ -108,8 +108,6 @@ const CAUGHT_BEFORE: readonly Case[] = [
   { why: "Next.js error glyph", line: "⨯ unhandledRejection: [Error: boom]" },
   {
     why: "a bare thrown Error:",
-    // The composed API's own harness port, derived rather than written: R8 keeps
-    // even a synthetic log line off an invented number (docs/PORTS.md).
     line: `Error: connect ECONNREFUSED 127.0.0.1:${String(API_PORT)}`,
   },
   { why: "the unhandledRejection event name", line: "unhandledRejection [Error: boom]" },
@@ -303,8 +301,6 @@ describe("the spec-scoped server allowance (issue #314)", () => {
   });
 
   it("still fails the gate for every test that does not carry it", () => {
-    // The default: `scanAppended` applies no spec allowance at all, which is the
-    // verdict every other test in the suite gets on this line.
     expect(gateVerdict("portal", TRUNCATED_JSON)).toEqual([TRUNCATED_JSON]);
   });
 
@@ -313,8 +309,6 @@ describe("the spec-scoped server allowance (issue #314)", () => {
   });
 
   it("does not cover a different parse fault in the same test", () => {
-    // Anchored to the whole line, so the allowance cannot be widened by accident
-    // into "any SyntaxError this spec provokes".
     const other = "SyntaxError: Unexpected token '<', \"<!DOCTYPE \"... is not valid JSON";
     expect(gateVerdict("portal", other, throttled)).toEqual([other]);
   });
@@ -389,18 +383,13 @@ const PRE_143_SERVER_ALLOW_ABORTED = /\bError: aborted\b/;
 
 describe("SGR escapes are stripped before any pattern runs (issue #143)", () => {
   it("catches a fault whose Error token is split by a colour escape", () => {
-    // Before: the raw line contains no literal `Error:`, so the fault pattern
-    // found nothing and the gate stayed silent. That is the blinding case.
     expect(PRE_143_PORTAL_ERROR.test(RESET_MID_TOKEN)).toBe(false);
-    // After: stripped first, so the gate sees `TypeError:` and reports it.
     expect(gateVerdict("portal", RESET_MID_TOKEN)).toEqual([
       "TypeError: Cannot read properties of undefined",
     ]);
   });
 
   it("allowlists a benign line whose allowlisted phrase is split by a colour escape", () => {
-    // The same hole in the other direction: `SERVER_ALLOW` could not recognise its
-    // own justified line, so the gate would have cried wolf on a client abort.
     expect(PRE_143_PORTAL_ERROR.test(RESET_INSIDE_ABORTED)).toBe(true);
     expect(PRE_143_SERVER_ALLOW_ABORTED.test(RESET_INSIDE_ABORTED)).toBe(false);
     expect(gateVerdict("portal", RESET_INSIDE_ABORTED)).toEqual([]);
@@ -508,12 +497,6 @@ describe("the allowlisted browser shapes stay silent (issue #147)", () => {
   });
 
   it("no longer allowlists the issue #144 DatePicker residue (issue #148)", () => {
-    // This case asserted `toBeNull()` while the entry existed. The upstream
-    // `value?: string | null` change landed and was re-vendored, so the adapter
-    // keeps the DatePicker controlled from first render and the warning is not
-    // emitted at all any more. The entry is deleted, and this assertion is the
-    // tripwire that keeps it deleted: were it re-added to silence a recurrence,
-    // this fails rather than the recurrence going quiet (the #147 blind spot).
     expect(
       browserConsoleFault("warning", "WARN: A component changed from uncontrolled to controlled."),
     ).toBe("console.warning: WARN: A component changed from uncontrolled to controlled.");
@@ -529,8 +512,6 @@ describe("the allowlisted browser shapes stay silent (issue #147)", () => {
  * answer instead of a hole.
  */
 describe("info, log and debug are not gated (issue #147)", () => {
-  // `as const` keeps each `type` a literal, so these rows are checked against
-  // Playwright's own level union rather than widened to `string`.
   const ungated = [
     { type: "info", text: "Download the React DevTools for a better development experience" },
     { type: "log", text: "[HMR] connected" },
@@ -600,9 +581,6 @@ describe("a declared request failure exempts only itself (issue #166)", () => {
   });
 
   it("is anchored, so a fault that quotes the shape is still a fault", () => {
-    // The same "no text smuggled in front of the marker" property #131 established
-    // for the server gate's `[browser]` anchor: a page error whose message happens
-    // to contain the browser's own sentence is not a resource-load failure.
     expect(matchExpectedFailure(DECLARED, `Caught: ${ANSWERS_422}`, ANSWERS_URL)).toBeUndefined();
   });
 

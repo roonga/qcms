@@ -49,25 +49,17 @@ describe("safeTmpRoot", () => {
   });
 
   it("refuses the Windows path a WSL shell inherits", () => {
-    // The exact shape of the defect: `os.tmpdir()` on POSIX reads TMPDIR/TMP/TEMP,
-    // and chrome-launcher's own wsl branch goes further and assigns LOCALAPPDATA to
-    // TEMP. Either way Node is handed a string that is not a path on this platform,
-    // and `mkdtemp` then makes ONE directory whose name contains backslashes.
     expect(safeTmpRoot(INHERITED_WINDOWS_LOCAL, "linux")).toBe("/tmp");
     expect(safeTmpRoot(INHERITED_WINDOWS_TEMP, "linux")).toBe("/tmp");
   });
 
   it("refuses any other relative or empty answer", () => {
-    // Not a WSL-only guard. An empty or relative TMPDIR is just as much a write into
-    // the cwd, and the cwd of this gate is the repository root.
     expect(safeTmpRoot("", "linux")).toBe("/tmp");
     expect(safeTmpRoot("tmp", "linux")).toBe("/tmp");
     expect(safeTmpRoot("./scratch", "linux")).toBe("/tmp");
   });
 
   it("accepts a native Windows temp directory when actually on Windows", () => {
-    // The same string that must be refused on Linux is the correct answer on win32,
-    // which is why the test is platform-specific rather than a blanket ban.
     expect(safeTmpRoot(INHERITED_WINDOWS_TEMP, "win32")).toBe(INHERITED_WINDOWS_TEMP);
   });
 });
@@ -78,7 +70,6 @@ describe("createChromeProfile", () => {
     try {
       expect(existsSync(dir)).toBe(true);
       expect(dir).toContain(PROFILE_PREFIX);
-      // The property that matters, stated directly: nothing lands under the repo.
       const repoRoot = new URL("../../../../", import.meta.url).pathname;
       expect(dir.startsWith(repoRoot)).toBe(false);
       if (process.platform !== "win32") expect(posix.isAbsolute(dir)).toBe(true);
@@ -101,8 +92,6 @@ describe("withChromeProfile", () => {
   });
 
   it("removes the profile after the body throws, and rethrows", async () => {
-    // A failed audit is the common case for this gate, and a profile leaked per
-    // failure is how a temp root fills up over a day of red runs.
     let seen = "";
     await expect(
       withChromeProfile((dir) => {
@@ -114,8 +103,6 @@ describe("withChromeProfile", () => {
   });
 
   it("tolerates a profile the browser already removed", async () => {
-    // `rmSync(..., { force: true })` is what makes teardown idempotent. A Chrome that
-    // cleaned up after itself must not turn a completed audit red in the `finally`.
     await expect(
       withChromeProfile((dir) => {
         rmSync(dir, { recursive: true, force: true });
@@ -127,9 +114,6 @@ describe("withChromeProfile", () => {
 
 describe("userDataDirFlag", () => {
   it("renders the directory unconverted", () => {
-    // The point of the repeated flag: chrome-launcher pushes the `wslpath -w` form
-    // first, this one comes after it in `chromeFlags`, and Chrome keeps the last
-    // value of a repeated switch.
     const dir = join(safeTmpRoot("/scratch", "linux"), `${PROFILE_PREFIX}abc`);
     expect(userDataDirFlag(dir)).toBe(`--user-data-dir=${dir}`);
   });

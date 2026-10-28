@@ -69,9 +69,6 @@ describe("otherSeats", () => {
 
 describe("neighbourStacks", () => {
   it("never reports this run's own ports as a neighbour", () => {
-    // Every port occupied, including seat 1's own. The run's own servers are the whole
-    // reason its ports are busy, and reporting them would make the notice fire on every
-    // single run, which is how a warning stops being read.
     const found = neighbourStacks(1, () => ({ pid: 42, cwd: "/w" }));
     expect(found.every((entry) => entry.seat !== 1)).toBe(true);
     expect(found.map((entry) => entry.port).some((port) => port >= 17100 && port < 17200)).toBe(
@@ -99,14 +96,10 @@ describe("describeNeighbours", () => {
   });
 
   it("still names a seat whose occupant could not be attributed", () => {
-    // `/proc` can refuse to name another user's process. "Somebody is on seat 5" is the
-    // load-bearing half; the pid is the convenience.
     expect(describeNeighbours([stack(5, 17540)])).toEqual(["  - seat 5: admin 17540"]);
   });
 
   it("says when a neighbour only appeared at one end of the run", () => {
-    // The asymmetry is the interesting part: one that arrived partway through is a
-    // different story from one that was there all along.
     const merged = mergeNeighbours([stack(3, 17340, 11)], [stack(7, 17740, 12)]);
     expect(describeNeighbours(merged)).toEqual([
       "  - seat 3: admin 17340 (pid 11, cwd /w/other) [gone by the end of the run]",
@@ -153,9 +146,6 @@ describe("classifyFailure", () => {
   });
 
   it("recognises a concurrent build pulled out from under a running dev server", () => {
-    // Taken verbatim from a real red: a forced turbo run in the same tree rewrote every
-    // package's `dist/`, and the portal dev server answered this for the seconds the
-    // directory was missing. The server-log gate then failed a spec that touched nothing.
     expect(
       classifyFailure(
         "[portal] Error: Module not found: Can't resolve '@roonga/qcms-ui/fonts'\n" +
@@ -165,9 +155,6 @@ describe("classifyFailure", () => {
   });
 
   it("leaves an ordinary assertion failure unlabelled", () => {
-    // The annotation's whole value is that it is selective. A classifier that matched a
-    // plain expectation failure would put a contention note under every red run, and a
-    // note that always appears is a note nobody reads.
     expect(
       classifyFailure('expect(received).toHaveText(expected)\nExpected: "Saved"\nReceived: "Save"'),
     ).toBeUndefined();
@@ -190,8 +177,6 @@ describe("renderStartNotice", () => {
   });
 
   it("still warns when the machine is busy and no other seat is taken", () => {
-    // The warning is worth more at the start than at the end: fifteen minutes before the
-    // red, waiting is still a choice the reader can make.
     const notice = renderStartNotice(1, [], hostPressure(CROWDED.load, CROWDED.containers).reasons);
 
     expect(notice).toContain("seat 1 holds its own ports, but this machine is NOT quiet");
@@ -218,10 +203,6 @@ describe("renderContentionReport", () => {
   });
 
   it("lists every neighbour the header counts, including one that only arrived later", () => {
-    // The defect this pins: the header counted the union of both samples while the detail
-    // lines rendered the start sample, so a lane that arrived mid-run - while another was
-    // already there - was counted above and missing below. A report about who else was on
-    // the machine has to agree with itself, or it is worse than no report.
     const report = renderContentionReport({
       seat: 1,
       start: { ...EMPTY, neighbours: [stack(3, 17340, 9)] },
@@ -245,8 +226,6 @@ describe("renderContentionReport", () => {
   });
 
   it("never suggests the run passed, in either branch", () => {
-    // The one property this whole feature must not break. It annotates a red; it does
-    // not soften one, and no phrasing here may read as permission to merge on it.
     const busy: HostSnapshot = { ...EMPTY, neighbours: [stack(3, 17340, 9)] };
     for (const snapshot of [EMPTY, busy]) {
       const report = renderContentionReport({
@@ -286,11 +265,6 @@ describe("renderContentionReport", () => {
   });
 
   it("says the machine was busy even when no neighbour held a seat port", () => {
-    // Issue #395's second occurrence, which the first version of this report got wrong.
-    // The competing lanes were running `turbo run test`: no browser harness, no seat
-    // ports, nothing for `neighbourStacks` to find, and eleven Postgres containers from
-    // other sessions on the one daemon. The report used to answer that with "nothing here
-    // argues against reading these failures as this branch's own".
     const report = renderContentionReport({
       seat: 1,
       start: CROWDED,
@@ -305,7 +279,6 @@ describe("renderContentionReport", () => {
     );
     expect(report).toContain("1m load 18.42 over 8 cpus (2.30 per cpu");
     expect(report).toContain("This run was not alone");
-    // And the sentence that was wrong here is gone from this branch.
     expect(report).not.toContain("nothing here argues against");
     expect(report).not.toContain("Treat these failures as this branch's own");
   });
@@ -319,8 +292,6 @@ describe("renderContentionReport", () => {
 
     const report = renderContentionReport({ seat: 1, start: quiet, end: quiet, failures: failing });
 
-    // One session is this run's own and 1.5 over 8 cpus is a working machine, not a
-    // crowded one. A threshold that fired here would fire on every healthy run.
     expect(report).not.toContain("NOT QUIET");
     expect(report).toContain("the host looked quiet");
   });
