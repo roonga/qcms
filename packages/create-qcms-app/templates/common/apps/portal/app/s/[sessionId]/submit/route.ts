@@ -5,19 +5,12 @@ import { currentBasePath } from "@/lib/server/environment";
 import { apiErrorResponse, isSameOriginPost, writeReceiptCookie } from "@/lib/server/route-helpers";
 import { clearSessionToken, readSessionToken } from "@/lib/server/session-cookie";
 
-/**
- * BFF proxy: submit the session (020). The client posts the (loose) submit body,
- * the BFF attaches the session bearer, forwards to the API, stores the returned
- * receipt in a short-lived httpOnly cookie for the completion page, drops the
- * session cookie, and tells the client where to go. No evaluation here (R2).
- */
 export async function POST(
   request: Request,
   ctx: { params: Promise<{ sessionId: string }> },
 ): Promise<NextResponse> {
-  // SEC-9's CSRF belt (issue #487), above the credential read. Submit is the one
-  // irreversible step in the respondent flow, so a cross-site caller must not reach
-  // even the cookie.
+  // SEC-9's CSRF belt, above the credential read: a cross-site caller must not reach
+  // even the session cookie.
   if (!isSameOriginPost(request)) {
     return NextResponse.json({ error: { code: "forbidden" } }, { status: 403 });
   }
@@ -37,8 +30,8 @@ export async function POST(
     const receipt = await submitSession(sessionId, token, body);
     await writeReceiptCookie(receipt);
     await clearSessionToken();
-    // The environment's own completion address (Q21, task 066): the browser follows this
-    // itself, so an unprefixed path would move a `test` respondent onto `prod`'s surface.
+    // Prefixed: the browser follows this itself, so an unprefixed path would move a
+    // non-prod respondent onto `prod`'s surface (Q21).
     return NextResponse.json({ ok: true, redirect: `${await currentBasePath()}/done` });
   } catch (error) {
     return apiErrorResponse(error);
