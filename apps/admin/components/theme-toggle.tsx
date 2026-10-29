@@ -171,13 +171,22 @@ export function ThemeToggle({
   /**
    * Tabbing past the last control closes the popover, which is what a non-modal dialog
    * owes a keyboard operator: focus is not contained, so without this the popover stays
-   * open behind whatever they moved to. A null `relatedTarget` is a press rather than a
-   * tab out, and the handler above has already put focus back where it belongs.
+   * open behind whatever they moved to.
+   *
+   * Read on the next tick from `activeElement` rather than from `relatedTarget`, because
+   * a press inside the panel reports focus moving to nothing or to the body on its way
+   * back to the control, and closing on either of those shut the panel under the
+   * operator. Where focus SETTLES is the only honest answer, and the body is not an
+   * answer: it means focus was dropped, not moved out.
    */
   const onPanelBlur = (event: React.FocusEvent<HTMLDivElement>): void => {
-    const next = event.relatedTarget;
-    if (next === null || event.currentTarget.contains(next)) return;
-    setOpen(false);
+    const panel = event.currentTarget;
+    globalThis.setTimeout(() => {
+      const active = document.activeElement;
+      if (active === null || active === document.body) return;
+      if (panel.contains(active)) return;
+      setOpen(false);
+    }, 0);
   };
 
   return (
