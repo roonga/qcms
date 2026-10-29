@@ -30,7 +30,12 @@ export const FAKE_SCRIPTS = [
   "no-proposal",
   "length",
   "step-limit",
+  "narrate-then-tools",
+  "reasoning",
 ] as const;
+
+/** Asserted present under `summary` and absent everywhere under `off`. */
+export const FAKE_REASONING_SENTINEL = "qcms-reasoning-sentinel-7f3a";
 
 export type FakeScript = (typeof FAKE_SCRIPTS)[number];
 
@@ -175,11 +180,23 @@ function buildProposal(
 
 type StreamPart = Record<string, unknown>;
 
-function textParts(text: string): StreamPart[] {
+/** The id varies so the proposal rationale can quote only the last segment. */
+function textParts(text: string, id = "t0"): StreamPart[] {
   return [
-    { type: "text-start", id: "t0" },
-    { type: "text-delta", id: "t0", delta: text },
-    { type: "text-end", id: "t0" },
+    { type: "text-start", id },
+    { type: "text-delta", id, delta: text },
+    { type: "text-end", id },
+  ];
+}
+
+/** The input phase that precedes a parsed call; the timeline row appears on its first part. */
+function toolInputParts(toolName: string, input: unknown, nonce = ""): StreamPart[] {
+  // The input phase keys on `id`, which the matching `tool-call` spells `toolCallId`.
+  const id = `call_${toolName}${nonce}`;
+  return [
+    { type: "tool-input-start", id, toolName },
+    { type: "tool-input-delta", id, delta: JSON.stringify(input) },
+    { type: "tool-input-end", id },
   ];
 }
 
@@ -213,14 +230,14 @@ function planRecoveredStep(
   const round = prompt.filter((m) => m.role === "tool").length;
   if (round === 0) {
     return [
-      ...textParts("Let me propose that straight away."),
+      ...textParts("Let me propose that straight away.", "t0"),
       toolCallPart("propose_draft", { definition: { formId: 42 } }, "_bad"),
       finishPart("tool-calls"),
     ];
   }
   if (round === 1) {
     return [
-      ...textParts("That was malformed. Let me look the questions up first."),
+      ...textParts("That was malformed. Let me look the questions up first.", "t1"),
       toolCallPart("search_question_library", { limit: 10 }),
       finishPart("tool-calls"),
     ];
@@ -232,7 +249,7 @@ function planRecoveredStep(
       finishPart("tool-calls"),
     ];
   }
-  return [...textParts("I have proposed the draft."), finishPart("stop")];
+  return [...textParts("I have proposed the draft.", "t3"), finishPart("stop")];
 }
 
 /** Sanitised to the `q_[a-z0-9_]+` grammar so a directive word cannot produce a refused id. */
@@ -255,7 +272,7 @@ function planProposeQuestionsStep(
 
   if (!results.has("propose_questions")) {
     return [
-      ...textParts("This needs a question the library does not have yet."),
+      ...textParts("This needs a question the library does not have yet.", "t0"),
       toolCallPart("propose_questions", {
         questions: [
           {
@@ -298,6 +315,7 @@ function planProposeQuestionsStep(
   return [
     ...textParts(
       "I proposed one new question and a step that pins it. Accepting will create it as an unpublished draft in the library; publish it there and the pin resolves.",
+      "t2",
     ),
     finishPart("stop"),
   ];
@@ -314,11 +332,112 @@ function planToolThenErrorStep(prompt: readonly PromptMessage[]): StreamPart[] {
   ];
 }
 
+/**
+ * The `narrate-then-tools` script: three prose segments split by two tool steps, each
+ * call's input streaming before the parsed call so a row is observably running.
+ */
+function planNarrateStep(
+  prompt: readonly PromptMessage[],
+  results: Map<string, unknown>,
+): StreamPart[] {
+  if (!results.has("search_question_library")) {
+    const query = pickSearchQuery(prompt);
+    const input = { limit: 10, ...(query === undefined ? {} : { query }) };
+    return [
+      ...textParts("Let me look through the question library first.", "t0"),
+      ...toolInputParts("search_question_library", input),
+      toolCallPart("search_question_library", input),
+      finishPart("tool-calls"),
+    ];
+  }
+  if (!results.has("propose_draft")) {
+    const draft = currentDraft(prompt) ?? {};
+    const input = { definition: buildProposal(draft, libraryHits(results)) };
+    return [
+      ...textParts("Found what I need. Drafting the form now.", "t1"),
+      ...toolInputParts("propose_draft", input),
+      toolCallPart("propose_draft", input),
+      finishPart("tool-calls"),
+    ];
+  }
+  return [
+    ...textParts(
+      "I added a driving-history step and gated the follow-up on it, so the second question only appears once the first is answered.",
+      "t2",
+    ),
+    finishPart("stop"),
+  ];
+}
+
+/** Emits reasoning parts unconditionally, so `off` is proven to drop them, not to skip asking. */
+function planReasoningStep(
+  prompt: readonly PromptMessage[],
+  results: Map<string, unknown>,
+): StreamPart[] {
+  const reasoning: StreamPart[] = [
+    { type: "reasoning-start", id: "r0" },
+    {
+      type: "reasoning-delta",
+      id: "r0",
+      delta: `Checking the library first. **${FAKE_REASONING_SENTINEL}** is my note to self.`,
+    },
+    { type: "reasoning-end", id: "r0" },
+  ];
+
+  if (!results.has("search_question_library")) {
+    const query = pickSearchQuery(prompt);
+    return [
+      ...reasoning,
+      ...textParts("Let me look at the library.", "t0"),
+      toolCallPart("search_question_library", {
+        limit: 10,
+        ...(query === undefined ? {} : { query }),
+      }),
+      finishPart("tool-calls"),
+    ];
+  }
+  if (!results.has("propose_draft")) {
+    const draft = currentDraft(prompt) ?? {};
+    return [
+      ...reasoning,
+      toolCallPart("propose_draft", { definition: buildProposal(draft, libraryHits(results)) }),
+      finishPart("tool-calls"),
+    ];
+  }
+  return [
+    ...reasoning,
+    ...textParts("I proposed a driving-history step with a gated follow-up.", "t2"),
+    finishPart("stop"),
+  ];
+}
+
+/** Zero except `narrate-then-tools`, whose running row needs a duration to be observable. */
+const CHUNK_DELAY_MS: Readonly<Partial<Record<FakeScript, number>>> = {
+  "narrate-then-tools": 150,
+};
+
+/** Scripts whose next step depends on what has already run, keyed by name. */
+const STATEFUL_PLANNERS: Readonly<
+  Partial<
+    Record<
+      FakeScript,
+      (prompt: readonly PromptMessage[], results: Map<string, unknown>) => StreamPart[]
+    >
+  >
+> = {
+  "tool-error-recovered": planRecoveredStep,
+  "propose-questions": planProposeQuestionsStep,
+  "narrate-then-tools": planNarrateStep,
+  reasoning: planReasoningStep,
+};
+
 function planStep(prompt: readonly PromptMessage[], script: FakeScript): StreamPart[] {
   const rogueTool = ROGUE_TOOLS[script];
   if (rogueTool !== undefined) {
+    // The input phase is scripted too: a `tool-input-start` outside the allowlist must show nothing.
     return [
-      ...textParts("Publishing this for you."),
+      ...textParts("Publishing this for you.", "t0"),
+      ...toolInputParts(rogueTool, { formId: "frm_any" }),
       toolCallPart(rogueTool, { formId: "frm_any" }),
       finishPart("tool-calls"),
     ];
@@ -355,21 +474,15 @@ function planStep(prompt: readonly PromptMessage[], script: FakeScript): StreamP
     // Never proposes and always asks for one more call, so the step ceiling is what stops it.
     const round = prompt.filter((m) => m.role === "tool").length;
     return [
-      ...textParts("Let me look at the library again."),
+      ...textParts("Let me look at the library again.", `t${String(round)}`),
       toolCallPart("search_question_library", { limit: 1 }, `_${String(round)}`),
       finishPart("tool-calls"),
     ];
   }
 
   const results = toolResults(prompt);
-
-  if (script === "tool-error-recovered") {
-    return planRecoveredStep(prompt, results);
-  }
-
-  if (script === "propose-questions") {
-    return planProposeQuestionsStep(prompt, results);
-  }
+  const planner = STATEFUL_PLANNERS[script];
+  if (planner !== undefined) return planner(prompt, results);
 
   if (!results.has("search_question_library")) {
     const query = pickSearchQuery(prompt);
@@ -400,12 +513,13 @@ export function fakeAssistantModel(): MockLanguageModelV3 {
     modelId: "qcms-fake-assistant",
     doStream: ({ prompt }) => {
       const messages = prompt as unknown as readonly PromptMessage[];
-      const parts = planStep(messages, pickScript(messages));
+      const script = pickScript(messages);
+      const parts = planStep(messages, script);
       return Promise.resolve({
         stream: simulateReadableStream({
           chunks: [{ type: "stream-start", warnings: [] }, ...parts],
           initialDelayInMs: 0,
-          chunkDelayInMs: 0,
+          chunkDelayInMs: CHUNK_DELAY_MS[script] ?? 0,
         }),
       } as unknown as Awaited<ReturnType<MockLanguageModelV3["doStream"]>>);
     },

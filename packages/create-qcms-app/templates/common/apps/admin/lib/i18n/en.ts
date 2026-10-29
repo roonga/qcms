@@ -1867,17 +1867,23 @@ export const messages = {
   // draft; never publishes" (there is no publish/erase/link/webhook affordance here
   // at all, by construction), and every diff line is worded so `+`/`~` is never the
   // only signal - the marker travels in the sentence itself.
-  "forms.assist.title": "Assistant",
+  // `agent.title` is the mark's `aria-label`, which names the panel landmark (ADR-27).
+  "agent.title": "Assistant",
   "forms.assist.collapse": "Collapse the assistant panel",
   "forms.assist.expand": "Expand the assistant panel",
   "forms.assist.emptyHint": "Describe the form you want.",
   "forms.assist.conversationLabel": "Conversation with the assistant",
   "forms.assist.turnYou": "You",
-  "forms.assist.turnAssistant": "Assistant",
   "forms.assist.inputLabel": "Describe the next change",
+  "forms.assist.composerHint": "Enter sends. Shift and Enter start a new line.",
   "forms.assist.send": "Send",
+  "forms.assist.stop": "Stop",
   "forms.assist.newConversation": "Start a new conversation",
   "forms.assist.working": "The assistant is working.",
+  "forms.assist.resultAccepted": "Accepted into the draft.",
+  "forms.assist.resultDiscarded": "Discarded.",
+  "forms.assist.thinking": "Thinking",
+  "forms.assist.thoughtFor": "Thought for {seconds} s",
   // The step timeline. Each tool is named by what it does for the author, never by its
   // identifier; `step.other` covers a name this build does not know.
   "forms.assist.stepsLabel": "Steps the assistant took",

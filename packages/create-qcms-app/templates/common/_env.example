@@ -144,6 +144,18 @@ QCMS_ADMIN_BASE_URL=
 # (conditional)
 # QCMS_AGENT_MODEL=
 
+# Whether the model provider's own reasoning summary is shown in the assistant
+# panel (task 081): off (default) or summary. Under summary the API asks the
+# provider for a summarized view of its thinking and forwards it to the panel
+# as a collapsed Thinking disclosure; under off reasoning is dropped even when
+# a provider emits it unasked. Reasoning text is never logged, stored,
+# exported in telemetry or replayed into the next turn (SEC-8); only a token
+# count is logged. Reasoning tokens are billed output, bounded per turn by
+# QCMS_AGENT_MAX_STEPS. Read by the API alone: the admin never learns the
+# value.
+# (optional, default off)
+# QCMS_AGENT_THINKING=
+
 # AES-256-GCM key (at least 32 characters) encrypting secrets at rest (SEC-6).
 # It covers exactly one column, the per-webhook HMAC signing secret; stored
 # two-factor material belongs to QCMS_ADMIN_AUTH_SECRET, not to this key

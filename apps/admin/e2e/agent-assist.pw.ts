@@ -1,3 +1,4 @@
+import AxeBuilder from "@axe-core/playwright";
 import type { Page } from "@playwright/test";
 
 import { expect, test } from "../../portal/e2e/support/gates.js";
@@ -81,10 +82,14 @@ async function publishQuestion(page: Page, slug: string, typeLabel: string): Pro
   await confirmLifecycle(page, /^Publish version 1$/, "Publish");
 }
 
+/** The composer is a multi-line text area. */
+function composer(page: Page) {
+  return page.getByTestId("qcms-assist-input").locator("textarea");
+}
+
 /** Type a turn into the panel and send it. */
 async function send(page: Page, message: string): Promise<void> {
-  const input = page.getByTestId("qcms-assist-input").locator("input");
-  await fillStable(input, message);
+  await fillStable(composer(page), message);
   await page.getByTestId("qcms-assist-send").locator("button").click();
 }
 
@@ -268,13 +273,13 @@ test("header tooltips stay open across the gap and close on Escape from anywhere
   await expect(tip).toBeHidden();
 
   // Dismissible from anywhere: focus in the composer, the tooltip opened by hover alone.
-  const composer = page.getByTestId("qcms-assist-input").locator("input");
-  await composer.focus();
+  const field = composer(page);
+  await field.focus();
   await page.mouse.move(x, button.y + button.height / 2);
   await expect(tip).toBeVisible();
   await page.keyboard.press("Escape");
   await expect(tip).toBeHidden();
-  await expect(composer).toBeFocused();
+  await expect(field).toBeFocused();
 
   // And from the focused button itself, where focus stays too.
   await page.mouse.move(x, tipBox.y + tipBox.height + 120);
@@ -283,6 +288,190 @@ test("header tooltips stay open across the gap and close on Escape from anywhere
   await page.keyboard.press("Escape");
   await expect(tip).toBeHidden();
   await expect(toggle).toBeFocused();
+});
+
+test("streams prose and a running step before the first tool result (exit criterion 1)", async ({
+  page,
+}) => {
+  test.setTimeout(180_000);
+  await signInWithTotp(page, EMAIL, totpSecret);
+  await page.goto(`/forms/${formId}`);
+  await expect(page.getByTestId("qcms-assist-panel")).toBeVisible({ timeout: 30_000 });
+
+  await send(page, `#qcms-fake:narrate-then-tools #qcms-fake-search:${NEEDLE} add a step`);
+
+  // The narration, while the model is still streaming the search call's input.
+  const live = page.getByTestId("qcms-assist-live");
+  await expect(live).toContainText("question library", { timeout: 30_000 });
+  // ...and the row for that call, running rather than settled.
+  await expect(
+    page.getByTestId("qcms-assist-steps").locator("li[data-state='running']"),
+  ).toHaveCount(1, { timeout: 30_000 });
+  await expect(page.getByTestId("qcms-assist-steps").locator("li[data-state='done']")).toHaveCount(
+    0,
+  );
+
+  // The header mark carries the working state while the live region says so.
+  const mark = page.getByTestId("qcms-assist-mark").first();
+  await expect(mark).toHaveAttribute("data-working", "true");
+
+  // Then the turn completes: two steps done.
+  await expect(page.getByTestId("qcms-assist-proposal")).toBeVisible({ timeout: 60_000 });
+  await expect(page.getByTestId("qcms-assist-steps").locator("li[data-state='done']")).toHaveCount(
+    2,
+  );
+  await expect(mark).not.toHaveAttribute("data-working", "true");
+
+  // The panel is named by the mark, with no visible title word.
+  await expect(page.getByTestId("qcms-assist-panel")).toHaveAccessibleName("Assistant");
+
+  // axe over the finished turn: the mark, the bubbles, the timeline and the card.
+  const results = await new AxeBuilder({ page })
+    .include('[data-testid="qcms-assist-panel"]')
+    .withTags(["wcag2a", "wcag2aa", "wcag21a", "wcag21aa", "wcag22aa"])
+    .analyze();
+  expect(
+    results.violations.map(
+      (v) => `${v.id}: ${v.nodes.map((node) => node.target.join(" ")).join(" | ")}`,
+    ),
+    "axe violations on a streamed assistant turn",
+  ).toEqual([]);
+});
+
+test("Stop ends a running turn with no error shown (exit criterion 5)", async ({ page }) => {
+  test.setTimeout(180_000);
+  await signInWithTotp(page, EMAIL, totpSecret);
+  await page.goto(`/forms/${formId}`);
+  await expect(page.getByTestId("qcms-assist-panel")).toBeVisible({ timeout: 30_000 });
+
+  // The step-limit script never proposes and always asks for one more call, so
+  // there is a turn to stop for as long as the test needs one.
+  await send(page, "#qcms-fake:step-limit keep going");
+
+  const stop = page.getByTestId("qcms-assist-stop").locator("button");
+  await expect(stop).toBeVisible({ timeout: 30_000 });
+  await stop.click();
+
+  await expect(page.getByTestId("qcms-assist-stop")).toHaveCount(0, { timeout: 30_000 });
+  await expect(page.getByTestId("qcms-assist-live")).toHaveCount(0);
+  await expect(page.getByTestId("qcms-assist-error")).toHaveCount(0);
+  // Send is available again: the panel is ready for the next turn.
+  await expect(composer(page)).toBeEnabled();
+});
+
+test("Enter sends and Shift+Enter adds a line (exit criterion 5)", async ({ page }) => {
+  test.setTimeout(120_000);
+  await signInWithTotp(page, EMAIL, totpSecret);
+  await page.goto(`/forms/${formId}`);
+  await expect(page.getByTestId("qcms-assist-panel")).toBeVisible({ timeout: 30_000 });
+
+  const field = composer(page);
+  await field.click();
+  await page.keyboard.insertText("first");
+  await page.keyboard.press("Shift+Enter");
+  await page.keyboard.insertText("second");
+  await expect(field).toHaveValue("first\nsecond");
+
+  await page.keyboard.press("Enter");
+  // The composer empties because the turn was sent, and the turn is on screen.
+  await expect(field).toHaveValue("");
+  await expect(page.getByTestId("qcms-assist-conversation")).toContainText("first", {
+    timeout: 30_000,
+  });
+});
+
+/** The harness API runs with `QCMS_AGENT_THINKING=summary`; the page renders the disclosure only because reasoning frames arrive. */
+test("shows the thinking disclosure, collapsed and in plain text (081 exit criterion 2)", async ({
+  page,
+}) => {
+  test.setTimeout(180_000);
+  await signInWithTotp(page, EMAIL, totpSecret);
+  await page.goto(`/forms/${formId}`);
+  await expect(page.getByTestId("qcms-assist-panel")).toBeVisible({ timeout: 30_000 });
+
+  await send(page, `#qcms-fake:reasoning #qcms-fake-search:${NEEDLE} add a step`);
+
+  const disclosure = page.getByTestId("qcms-assist-thinking").first();
+  await expect(disclosure).toBeVisible({ timeout: 60_000 });
+  // Collapsed, and reporting how long it took once the summary has ended.
+  await expect(disclosure).toContainText("Thinking");
+  await expect(disclosure).toContainText(/Thought for \d+ s/u, { timeout: 60_000 });
+
+  // axe closed...
+  const closed = await new AxeBuilder({ page })
+    .include('[data-testid="qcms-assist-panel"]')
+    .withTags(["wcag2a", "wcag2aa", "wcag21a", "wcag21aa", "wcag22aa"])
+    .analyze();
+  expect(
+    closed.violations.map((v) => `${v.id}: ${v.nodes.map((n) => n.target.join(" ")).join(" | ")}`),
+    "axe violations with the thinking disclosure closed",
+  ).toEqual([]);
+
+  // ...and open, with the sentinel visible and its Markdown as characters.
+  await disclosure.locator("summary").click();
+  await expect(disclosure).toContainText("qcms-reasoning-sentinel-7f3a");
+  await expect(disclosure).toContainText("**qcms-reasoning-sentinel-7f3a**");
+  await expect(disclosure.locator("strong")).toHaveCount(0);
+
+  const open = await new AxeBuilder({ page })
+    .include('[data-testid="qcms-assist-panel"]')
+    .withTags(["wcag2a", "wcag2aa", "wcag21a", "wcag21aa", "wcag22aa"])
+    .analyze();
+  expect(
+    open.violations.map((v) => `${v.id}: ${v.nodes.map((n) => n.target.join(" ")).join(" | ")}`),
+    "axe violations with the thinking disclosure open",
+  ).toEqual([]);
+});
+
+test("runs no animation under reduced motion (exit criterion 8)", async ({ page }) => {
+  test.setTimeout(180_000);
+  await page.emulateMedia({ reducedMotion: "reduce" });
+  await signInWithTotp(page, EMAIL, totpSecret);
+  await page.goto(`/forms/${formId}`);
+  await expect(page.getByTestId("qcms-assist-panel")).toBeVisible({ timeout: 30_000 });
+
+  await send(page, "#qcms-fake:step-limit keep going");
+  await expect(page.getByTestId("qcms-assist-live")).toBeVisible({ timeout: 30_000 });
+
+  const animated = await page.evaluate(() => {
+    const names: string[] = [];
+    const check = (label: string, element: Element) => {
+      const style = getComputedStyle(element);
+      if (style.animationName !== "none" && style.animationName !== "") {
+        names.push(`${label}: ${style.animationName}`);
+      }
+    };
+    for (const selector of [
+      ".qcms-assist-caret",
+      ".qcms-assist-steps__pulse",
+      '.qcms-assist-mark[data-working="true"] .qcms-assist-mark__light',
+    ]) {
+      for (const element of document.querySelectorAll(selector)) check(selector, element);
+    }
+
+    // Probed on its own element: the disclosure settles faster than a browser can be pointed at it.
+    const probe = document.createElement("span");
+    probe.className = "qcms-assist-think__pulse";
+    document.body.append(probe);
+    check(".qcms-assist-think__pulse", probe);
+    probe.remove();
+
+    return names;
+  });
+  expect(animated, "animations still running under prefers-reduced-motion: reduce").toEqual([]);
+
+  // The visor glow is a static filter, so the working state stays visible.
+  const mark = page.getByTestId("qcms-assist-mark").first();
+  await expect(mark).toHaveAttribute("data-working", "true");
+
+  const results = await new AxeBuilder({ page })
+    .include('[data-testid="qcms-assist-panel"]')
+    .withTags(["wcag2a", "wcag2aa", "wcag21a", "wcag21aa", "wcag22aa"])
+    .analyze();
+  expect(
+    results.violations.map((v) => v.id),
+    "axe violations on a streaming turn under reduced motion",
+  ).toEqual([]);
 });
 
 /**

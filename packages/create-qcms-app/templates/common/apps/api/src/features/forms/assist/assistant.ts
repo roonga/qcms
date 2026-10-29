@@ -2,7 +2,6 @@ import {
   APICallError,
   stepCountIs,
   streamText,
-  type JSONValue,
   type LanguageModel,
   type StopCondition,
   type TextStreamPart,
@@ -11,10 +10,11 @@ import {
 
 import type { FormDefinition } from "@roonga/qcms-core";
 
-import type { Config } from "../../../config.js";
+import type { AgentThinking, Config } from "../../../config.js";
 import type { Logger } from "../../../logger.js";
 import { fakeAssistantModel } from "./fake-model.js";
 import { buildSystemPrompt, SYSTEM_PROMPT_VERSION } from "./system-prompt.js";
+import { thinkingProviderOptions, type ProviderOptions } from "./thinking.js";
 import {
   assistToolSet,
   createProposalState,
@@ -23,11 +23,14 @@ import {
 } from "./tools.js";
 import type { AssistContext, AssistEvent, DraftAssistant } from "./types.js";
 
-/** Spelled locally rather than importing the SDK's internal provider package. */
-type ProviderOptions = Record<string, Record<string, JSONValue>>;
+export interface TextSegment {
+  readonly id: string;
+  text: string;
+}
 
-interface RunOutcome {
-  rationale: string;
+export interface RunOutcome {
+  /** Split where the provider's text-segment id changes. */
+  readonly textSegments: TextSegment[];
   steps: number;
   inputTokens: number;
   outputTokens: number;
@@ -41,6 +44,21 @@ interface RunOutcome {
   toolErrors: number;
   /** The SDK's call id stays here; only the ordinal reaches the client. */
   readonly toolSteps: Map<string, number>;
+  /** Counted, never quoted (SEC-8). */
+  reasoningTokens: number;
+}
+
+/** Append a delta, starting a new segment when the id changes. */
+export function appendTextSegment(segments: TextSegment[], id: string, delta: string): string {
+  const last = segments.at(-1);
+  if (last !== undefined && last.id === id) last.text += delta;
+  else segments.push({ id, text: delta });
+  return id;
+}
+
+/** The proposal's rationale quotes only this segment. */
+function lastSegmentText(segments: readonly TextSegment[]): string {
+  return segments.at(-1)?.text ?? "";
 }
 
 /** A first user turn rather than part of the system prompt, which must stay cacheable. */
@@ -94,13 +112,15 @@ export function aiSdkDraftAssistant(options: {
   readonly providerId: string;
   readonly logger: Logger;
   readonly providerOptions?: ProviderOptions;
+  /** Defaults to `off`. */
+  readonly thinking?: AgentThinking;
 }): DraftAssistant {
-  const { model, providerId, logger, providerOptions } = options;
+  const { model, providerId, logger, providerOptions, thinking = "off" } = options;
 
   return {
     assist(ctx: AssistContext, signal: AbortSignal): AsyncIterable<AssistEvent> {
       const state = createProposalState();
-      return runTurn({ ctx, signal, model, providerId, logger, providerOptions, state });
+      return runTurn({ ctx, signal, model, providerId, logger, providerOptions, state, thinking });
     },
   };
 }
@@ -140,21 +160,66 @@ export function toolOutcomeEvent(
   return { type: "tool-outcome", step, outcome: errored || refused ? "failed" : "done" };
 }
 
-function handlePart(part: TextStreamPart<ToolSet>, outcome: RunOutcome): AssistEvent | undefined {
+/**
+ * Announce an allowlisted tool step once per call id. A name outside the allowlist
+ * yields nothing and is refused only on the parsed `tool-call`.
+ */
+function announceToolStep(
+  outcome: RunOutcome,
+  callId: string,
+  toolName: string,
+): AssistEvent | undefined {
+  if (!isAllowedToolName(toolName) || outcome.toolSteps.has(callId)) return undefined;
+  const step = outcome.toolSteps.size + 1;
+  outcome.toolSteps.set(callId, step);
+  return { type: "status", phase: "tool", tool: toolName, step };
+}
+
+export function newRunOutcome(): RunOutcome {
+  return {
+    textSegments: [],
+    steps: 0,
+    inputTokens: 0,
+    outputTokens: 0,
+    finishReason: "unknown",
+    rejectedTool: undefined,
+    providerError: undefined,
+    providerRetryable: true,
+    providerStatus: undefined,
+    toolErrors: 0,
+    toolSteps: new Map(),
+    reasoningTokens: 0,
+  };
+}
+
+/** Map one SDK stream part to an event, recording what the terminal events need. */
+export function handlePart(
+  part: TextStreamPart<ToolSet>,
+  outcome: RunOutcome,
+  thinking: AgentThinking = "off",
+): AssistEvent | undefined {
   switch (part.type) {
+    // Dropped under `off` even when a provider emits it unasked (SEC-8); never buffered.
+    case "reasoning-delta":
+      return thinking === "summary" ? { type: "reasoning", delta: part.text } : undefined;
+    case "reasoning-end":
+      return thinking === "summary" ? { type: "reasoning-end" } : undefined;
     case "start-step":
       outcome.steps += 1;
       return { type: "status", phase: "thinking" };
     case "text-delta":
-      outcome.rationale += part.text;
-      return { type: "text", delta: part.text };
+      return {
+        type: "text",
+        delta: part.text,
+        segment: appendTextSegment(outcome.textSegments, part.id, part.text),
+      };
+    case "tool-input-start":
+      return announceToolStep(outcome, part.id, part.toolName);
     case "tool-call":
       // Defence in depth: the only place the outcome is made refused, so the turn ends
       // refused rather than half-done. `stopOnRejectedTool` is what ends the loop.
       if (isAllowedToolName(part.toolName)) {
-        const step = outcome.toolSteps.size + 1;
-        outcome.toolSteps.set(part.toolCallId, step);
-        return { type: "status", phase: "tool", tool: part.toolName, step };
+        return announceToolStep(outcome, part.toolCallId, part.toolName);
       }
       outcome.rejectedTool = part.toolName;
       return undefined;
@@ -172,6 +237,7 @@ function handlePart(part: TextStreamPart<ToolSet>, outcome: RunOutcome): AssistE
       outcome.finishReason = part.finishReason;
       outcome.inputTokens = part.totalUsage.inputTokens ?? 0;
       outcome.outputTokens = part.totalUsage.outputTokens ?? 0;
+      outcome.reasoningTokens = part.totalUsage.outputTokenDetails.reasoningTokens ?? 0;
       return undefined;
     default:
       return undefined;
@@ -197,21 +263,10 @@ async function* runTurn(args: {
   logger: Logger;
   providerOptions: ProviderOptions | undefined;
   state: ProposalState;
+  thinking: AgentThinking;
 }): AsyncGenerator<AssistEvent> {
-  const { ctx, signal, model, providerId, logger, providerOptions, state } = args;
-  const outcome: RunOutcome = {
-    rationale: "",
-    steps: 0,
-    inputTokens: 0,
-    outputTokens: 0,
-    finishReason: "unknown",
-    rejectedTool: undefined,
-    providerError: undefined,
-    providerRetryable: true,
-    providerStatus: undefined,
-    toolErrors: 0,
-    toolSteps: new Map(),
-  };
+  const { ctx, signal, model, providerId, logger, providerOptions, state, thinking } = args;
+  const outcome = newRunOutcome();
 
   const result = streamText({
     model,
@@ -226,7 +281,7 @@ async function* runTurn(args: {
 
   try {
     for await (const part of result.stream) {
-      const event = handlePart(part, outcome);
+      const event = handlePart(part, outcome, thinking);
       if (event !== undefined) yield event;
     }
   } catch (error) {
@@ -287,6 +342,8 @@ async function* finishTurn(args: {
     toolRejected: outcome.rejectedTool !== undefined,
     // A count, never the text: a tool error's message is assembled from model input (SEC-8).
     toolErrors: outcome.toolErrors,
+    // Reasoning text is never logged (SEC-8); only the count.
+    reasoningTokens: outcome.reasoningTokens,
   });
 
   yield {
@@ -345,7 +402,7 @@ async function* finishTurn(args: {
     proposal: {
       proposedDraft: state.proposedDraft,
       newQuestions: state.newQuestions,
-      rationale: outcome.rationale.trim(),
+      rationale: lastSegmentText(outcome.textSegments).trim(),
       issues,
       warnings,
     },
@@ -412,6 +469,13 @@ async function* deferred(
   yield* assistant.assist(ctx, signal);
 }
 
+/** Spread-shaped, because `exactOptionalPropertyTypes` refuses an explicit `undefined`. */
+function optionalProviderOptions(options: ProviderOptions | undefined): {
+  providerOptions?: ProviderOptions;
+} {
+  return options === undefined ? {} : { providerOptions: options };
+}
+
 /**
  * Vendor packages are imported on first use so a `none` deployment loads none of them
  * and the composition root stays synchronous; config validation already settled the key.
@@ -424,7 +488,13 @@ export function selectDraftAssistant(config: Config, logger: Logger): DraftAssis
   return {
     assist(ctx: AssistContext, signal: AbortSignal): AsyncIterable<AssistEvent> {
       pending ??= resolveModel(agent).then((model) =>
-        aiSdkDraftAssistant({ model, providerId: agent.provider, logger }),
+        aiSdkDraftAssistant({
+          model,
+          providerId: agent.provider,
+          logger,
+          thinking: agent.thinking,
+          ...optionalProviderOptions(thinkingProviderOptions(agent.provider, agent.thinking)),
+        }),
       );
       return deferred(pending, ctx, signal);
     },

@@ -112,22 +112,40 @@ function frame(event: AssistEvent): Uint8Array {
   return encoder.encode(`event: ${event.type}\ndata: ${JSON.stringify(event)}\n\n`);
 }
 
-/** Aborted when the client goes away, so a closed tab stops the upstream call. */
-function assistStream(
-  deps: Deps,
-  ctx: AssistContext,
-  controller: AbortController,
-): ReadableStream<Uint8Array> {
+/** Silence before a keep-alive comment, so an ingress idle timeout does not cut a long turn. */
+export const ASSIST_HEARTBEAT_MS = 15_000;
+
+const HEARTBEAT = ": keep-alive\n\n";
+
+/** Relay events as an SSE body with a keep-alive comment per silent stretch; timing is injectable for tests. */
+export function assistSseStream(args: {
+  readonly events: AsyncIterable<AssistEvent>;
+  readonly heartbeatMs: number;
+  readonly onError: (error: unknown) => void;
+  readonly onCancel: () => void;
+}): ReadableStream<Uint8Array> {
+  const { events, heartbeatMs, onError, onCancel } = args;
   return new ReadableStream<Uint8Array>({
     async start(stream) {
+      let open = true;
+      let timer: ReturnType<typeof setTimeout> | undefined;
+      const arm = (): void => {
+        timer = setTimeout(() => {
+          if (!open) return;
+          stream.enqueue(encoder.encode(HEARTBEAT));
+          arm();
+        }, heartbeatMs);
+      };
+
+      arm();
       try {
-        for await (const event of deps.draftAssistant.assist(ctx, controller.signal)) {
+        for await (const event of events) {
+          clearTimeout(timer);
           stream.enqueue(frame(event));
+          arm();
         }
       } catch (error) {
-        deps.logger.error("draft assist stream failed", {
-          reason: error instanceof Error ? error.name : "unknown",
-        });
+        onError(error);
         stream.enqueue(
           frame({
             type: "error",
@@ -136,10 +154,31 @@ function assistStream(
           }),
         );
       } finally {
+        open = false;
+        clearTimeout(timer);
         stream.close();
       }
     },
     cancel() {
+      onCancel();
+    },
+  });
+}
+
+function assistStream(
+  deps: Deps,
+  ctx: AssistContext,
+  controller: AbortController,
+): ReadableStream<Uint8Array> {
+  return assistSseStream({
+    events: deps.draftAssistant.assist(ctx, controller.signal),
+    heartbeatMs: ASSIST_HEARTBEAT_MS,
+    onError: (error) => {
+      deps.logger.error("draft assist stream failed", {
+        reason: error instanceof Error ? error.name : "unknown",
+      });
+    },
+    onCancel: () => {
       controller.abort();
     },
   });

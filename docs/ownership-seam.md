@@ -93,13 +93,13 @@ regeneration and `git add` the result rather than merging two sets of counts.
 
 <!-- BEGIN GENERATED: ownership-seam (pnpm qcms:sync-templates) -->
 
-### Scaffolded paths (481 files common to both shapes)
+### Scaffolded paths (483 files common to both shapes)
 
 | Path                                                                 | Files |
 | -------------------------------------------------------------------- | ----- |
 | `(project root)`                                                     | 8     |
-| `apps/`                                                              | 470   |
-| `apps/admin/`                                                        | 288   |
+| `apps/`                                                              | 472   |
+| `apps/admin/`                                                        | 289   |
 | `apps/admin/app/`                                                    | 77    |
 | `apps/admin/app/(shell)/`                                            | 58    |
 | `apps/admin/app/(shell)/@rail/`                                      | 24    |
@@ -164,8 +164,8 @@ regeneration and `git add` the result rather than merging two sets of counts.
 | `apps/admin/app/two-factor/recovery-codes/`                          | 2     |
 | `apps/admin/app/two-factor/recovery-codes/confirm/`                  | 1     |
 | `apps/admin/app/two-factor/recovery/verify/`                         | 1     |
-| `apps/admin/components/`                                             | 104   |
-| `apps/admin/components/forms/`                                       | 39    |
+| `apps/admin/components/`                                             | 105   |
+| `apps/admin/components/forms/`                                       | 40    |
 | `apps/admin/components/membership/`                                  | 7     |
 | `apps/admin/components/ops/`                                         | 11    |
 | `apps/admin/components/questions/`                                   | 15    |
@@ -177,12 +177,12 @@ regeneration and `git add` the result rather than merging two sets of counts.
 | `apps/admin/lib/ops/`                                                | 11    |
 | `apps/admin/lib/questions/`                                          | 9     |
 | `apps/admin/lib/server/`                                             | 27    |
-| `apps/api/`                                                          | 108   |
-| `apps/api/src/`                                                      | 105   |
-| `apps/api/src/features/`                                             | 73    |
+| `apps/api/`                                                          | 109   |
+| `apps/api/src/`                                                      | 106   |
+| `apps/api/src/features/`                                             | 74    |
 | `apps/api/src/features/auth/`                                        | 5     |
-| `apps/api/src/features/forms/`                                       | 12    |
-| `apps/api/src/features/forms/assist/`                                | 9     |
+| `apps/api/src/features/forms/`                                       | 13    |
+| `apps/api/src/features/forms/assist/`                                | 10    |
 | `apps/api/src/features/links/`                                       | 3     |
 | `apps/api/src/features/membership/`                                  | 9     |
 | `apps/api/src/features/outbox/`                                      | 3     |
@@ -241,7 +241,7 @@ regeneration and `git add` the result rather than merging two sets of counts.
 
 ### QCMS-internal references in the scaffolded source
 
-`1749` lines across `355` scaffolded files cite a QCMS issue, ADR, SEC control, plan task or repository path.
+`1758` lines across `355` scaffolded files cite a QCMS issue, ADR, SEC control, plan task or repository path.
 
 These are comments, and they stay (issue #457, tier 3). They are the engineering
 rationale for code you now own, which is worth more to you than a tidy file, and
@@ -256,7 +256,7 @@ rather than documented: the images no longer claim to be built from this
 repository, and no scaffolded message names a script your project does not define.
 
 <details>
-<summary>Every scaffolded file (481)</summary>
+<summary>Every scaffolded file (483)</summary>
 
 ```
 .dockerignore
@@ -354,6 +354,7 @@ apps/admin/components/environment-scope.tsx
 apps/admin/components/environment-switcher.tsx
 apps/admin/components/forms/agent-provenance-tag.tsx
 apps/admin/components/forms/assist-icon-button.tsx
+apps/admin/components/forms/assist-mark.tsx
 apps/admin/components/forms/assist-markdown.tsx
 apps/admin/components/forms/assist-panel.tsx
 apps/admin/components/forms/condition-editor.tsx
@@ -571,6 +572,7 @@ apps/api/src/features/forms/assist/handler.ts
 apps/api/src/features/forms/assist/route.ts
 apps/api/src/features/forms/assist/schema.ts
 apps/api/src/features/forms/assist/system-prompt.ts
+apps/api/src/features/forms/assist/thinking.ts
 apps/api/src/features/forms/assist/tool-schema.ts
 apps/api/src/features/forms/assist/tools.ts
 apps/api/src/features/forms/assist/types.ts

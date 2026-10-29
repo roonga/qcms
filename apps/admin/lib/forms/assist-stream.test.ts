@@ -142,4 +142,45 @@ describe("readAssistEvents", () => {
     const events = await collect(body);
     expect(events).toEqual([{ type: "text", delta: "last one" }]);
   });
+
+  it("carries a text delta's segment id, and omits it when the API sent none", async () => {
+    const body = streamOf([
+      frame("text", { delta: "Looking", segment: "t0" }),
+      frame("text", { delta: "no id" }),
+      frame("text", { delta: "bad id", segment: 7 }),
+    ]);
+    const events = await collect(body);
+    expect(events).toEqual([
+      { type: "text", delta: "Looking", segment: "t0" },
+      { type: "text", delta: "no id" },
+      { type: "text", delta: "bad id" },
+    ]);
+  });
+
+  it("reads the reasoning variants, and drops one with no delta", async () => {
+    const body = streamOf([
+      frame("reasoning", { delta: "weighing it up" }),
+      frame("reasoning", {}),
+      frame("reasoning-end", {}),
+    ]);
+    const events = await collect(body);
+    expect(events).toEqual([
+      { type: "reasoning", delta: "weighing it up" },
+      { type: "reasoning-end" },
+    ]);
+  });
+
+  it("yields nothing for a keep-alive comment and keeps reading around it", async () => {
+    const body = streamOf([
+      frame("status", { phase: "thinking" }),
+      ": keep-alive\n\n",
+      ": keep-alive\n\n",
+      frame("text", { delta: "here at last" }),
+    ]);
+    const events = await collect(body);
+    expect(events).toEqual([
+      { type: "status", phase: "thinking" },
+      { type: "text", delta: "here at last" },
+    ]);
+  });
 });
