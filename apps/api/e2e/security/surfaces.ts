@@ -225,6 +225,62 @@ export const SURFACES: readonly Surface[] = [
     readControl: true,
   },
   {
+    name: "POST /admin/forms/{id}/release-batch",
+    row: "authoring",
+    group: "admin",
+    method: "POST",
+    path: (ctx) => `/admin/forms/${ctx.formId}/release-batch`,
+    body: {
+      idempotencyKey: "00000000-0000-4000-8000-000000000000",
+      expectedWorkflowRevision: null,
+      source: { kind: "version", version: 1 },
+      targets: [{ environment: "test", expectedSequence: null }],
+    },
+    anonymousReachable: false,
+  },
+  {
+    name: "POST /admin/forms/{id}/publish-batch",
+    row: "authoring",
+    group: "admin",
+    method: "POST",
+    path: (ctx) => `/admin/forms/${ctx.formId}/publish-batch`,
+    body: {
+      idempotencyKey: "00000000-0000-4000-8000-000000000001",
+      expectedWorkflowRevision: null,
+      source: { kind: "draft", draftRevision: 1 },
+      targets: [{ environment: "test", expectedSequence: null }],
+    },
+    anonymousReachable: false,
+  },
+  {
+    name: "GET /admin/forms/{id}/release-batches/{key}",
+    row: "authoring",
+    group: "admin",
+    method: "GET",
+    path: (ctx) =>
+      `/admin/forms/${ctx.formId}/release-batches/00000000-0000-4000-8000-000000000000`,
+    anonymousReachable: false,
+  },
+  {
+    name: "GET /admin/release-workflow",
+    row: "authoring",
+    group: "admin",
+    method: "GET",
+    path: () => "/admin/release-workflow",
+    anonymousReachable: false,
+    readControl: true,
+  },
+  {
+    // The installation claim's own row, like `POST /admin/workspaces`: no grant reaches it.
+    name: "PUT /admin/release-workflow",
+    row: "authoring",
+    group: "admin",
+    method: "PUT",
+    path: () => "/admin/release-workflow",
+    body: { expectedRevision: null, rules: [] },
+    anonymousReachable: false,
+  },
+  {
     // The credential table's `authoring` row, like every other admin read. Which grant
     // may call it is the role table's own row, asserted per persona in
     // `apps/api/src/features/operations/operations.integration.test.ts`.

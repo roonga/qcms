@@ -37,6 +37,12 @@ export const formDrafts = controlSchema.table("form_drafts", {
   definition: jsonb("definition").$type<FormDefinition>().notNull(),
   /** Provenance shown on the publish confirmation, not a permission. */
   agentAssisted: boolean("agent_assisted").notNull().default(false),
+  /**
+   * Bumped on every save, so a publish confirmation can name the draft it reviewed and the
+   * commit can refuse one that moved underneath it. `updatedAt` cannot do that job: two
+   * saves in one clock tick carry the same timestamp.
+   */
+  revision: integer("revision").notNull().default(1),
   updatedAt: timestamp("updated_at", { withTimezone: true, mode: "date" }).notNull().defaultNow(),
 });
 

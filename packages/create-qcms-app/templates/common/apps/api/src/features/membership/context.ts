@@ -26,6 +26,9 @@ export interface GrantContext {
   // can decide per form and cell without a second resolution.
   readonly memberships?: readonly ResolvedMembership[];
   readonly environment?: string;
+  // For an `environmentFrom: "targets"` row, the destinations the gate authorised, in the
+  // order the body listed them.
+  readonly environments?: readonly string[];
   readonly role?: string;
   // Absent is not a default meaning `"whole"`: the handler treats anything but `"whole"`
   // as masked, which is the fail-closed direction.

@@ -116,6 +116,10 @@ describe("@roonga/qcms-db migrations", { timeout: MIGRATION_STEP_TIMEOUT_MS }, (
       "form_releases_reject_update",
       "form_versions_reject_update",
       "question_versions_freeze_published",
+      "release_workflow_revisions_reject_delete",
+      "release_workflow_revisions_reject_update",
+      "release_workflow_rules_reject_delete",
+      "release_workflow_rules_reject_update",
     ]);
   });
 

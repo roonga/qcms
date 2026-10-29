@@ -104,7 +104,9 @@ const ReleaseEvidence = z
 export const ReleaseReviewResponse = z
   .object({
     source: z.discriminatedUnion("kind", [
-      z.object({ kind: z.literal("draft") }),
+      // The revision a confirmation carries back, so a draft saved between review and
+      // confirmation is refused rather than published unseen.
+      z.object({ kind: z.literal("draft"), draftRevision: z.number().int().positive() }),
       z.object({
         kind: z.literal("version"),
         version: z.number().int().positive(),
@@ -134,6 +136,106 @@ export const ReleaseReviewResponse = z
     ),
   })
   .openapi("ReleaseReviewResponse");
+
+/**
+ * One destination. `expectedSequence` is the newest release-state sequence the review
+ * reported, so it covers the released version and the intake state together: a close and a
+ * reopen each append a row. `fromEnvironment` records the path and authorises nothing (F7).
+ */
+const BatchTarget = z
+  .strictObject({
+    environment: EnvironmentName,
+    expectedSequence: z.number().int().positive().nullable(),
+    fromEnvironment: EnvironmentName.optional(),
+  })
+  .openapi("ReleaseBatchTarget");
+
+const IdempotencyKey = z.uuid().openapi({ example: "6f9619ff-8b86-d011-b42d-00c04fc964ff" });
+
+/**
+ * Null means "no revision is configured", which is the derived default. A commit carrying
+ * the wrong expectation is refused and writes nothing.
+ */
+const ExpectedWorkflowRevision = z.number().int().positive().nullable();
+
+export const ReleaseBatchBody = z
+  .strictObject({
+    idempotencyKey: IdempotencyKey,
+    expectedWorkflowRevision: ExpectedWorkflowRevision,
+    source: z.strictObject({
+      kind: z.literal("version"),
+      version: z.number().int().positive(),
+    }),
+    targets: z.array(BatchTarget).min(1),
+  })
+  .openapi("ReleaseBatchBody");
+
+export const PublishBatchBody = z
+  .strictObject({
+    idempotencyKey: IdempotencyKey,
+    expectedWorkflowRevision: ExpectedWorkflowRevision,
+    source: z.strictObject({
+      kind: z.literal("draft"),
+      draftRevision: z.number().int().positive(),
+    }),
+    /** Empty is "create a version without releasing it", which needs `form: publish` alone. */
+    targets: z.array(BatchTarget),
+  })
+  .openapi("PublishBatchBody");
+
+export const ReleaseBatchResponse = z
+  .object({
+    version: z.number().int().positive(),
+    releases: z.array(ReleaseRecord),
+    /** True when this answer is the stored result of an earlier attempt with the same key. */
+    replayed: z.boolean(),
+  })
+  .openapi("ReleaseBatchResponse");
+
+export const IdempotencyKeyParam = z.object({
+  id: z.string().openapi({ param: { name: "id", in: "path" }, example: "frm_signup" }),
+  key: z.string().openapi({ param: { name: "key", in: "path" } }),
+});
+
+/** One destination's rule, as the configuration reads and writes it. */
+const ReleaseWorkflowRule = z
+  .strictObject({
+    environment: EnvironmentName,
+    requiresPriorReleaseIn: z.array(EnvironmentName),
+    allowsDraftPublish: z.boolean(),
+    allowsInBatch: z.boolean(),
+  })
+  .openapi("ReleaseWorkflowRule");
+
+export const ReleaseWorkflowResponse = z
+  .object({
+    revision: z.number().int().positive().nullable(),
+    source: z.enum(["default", "configured"]),
+    environments: z.array(
+      z.object({
+        name: EnvironmentName,
+        position: z.number().int().positive(),
+        /**
+         * True for the production environment alone, and read-only: it reports the role
+         * split and the workspace second-approver switch, which this configuration cannot
+         * alter whatever its rules say.
+         */
+        protected: z.boolean(),
+        requiresPriorReleaseIn: z.array(EnvironmentName),
+        allowsDraftPublish: z.boolean(),
+        allowsInBatch: z.boolean(),
+      }),
+    ),
+  })
+  .openapi("ReleaseWorkflowResponse");
+
+export const ReleaseWorkflowBody = z
+  .strictObject({
+    expectedRevision: z.number().int().positive().nullable(),
+    rules: z.array(ReleaseWorkflowRule),
+    note: z.string().max(500).optional(),
+  })
+  .openapi("ReleaseWorkflowBody");
 
 export const ReleaseHistoryQuery = z.object({
   environment: EnvironmentName.optional().openapi({

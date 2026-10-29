@@ -277,6 +277,11 @@ export const FormDetailResponse = z
     draftSource: z.enum(["open", "seeded", "none"]).openapi({ example: "open" }),
     /** Always false for a seeded draft. */
     draftAgentAssisted: z.boolean().openapi({ example: false }),
+    /**
+     * Bumped on every save, and null when there is no open draft. A publish confirmation
+     * carries it back, so a draft saved in between is refused rather than published unseen.
+     */
+    draftRevision: z.number().int().positive().nullable(),
     draftUpdatedAt: z.string().nullable(),
     versions: z.array(FormVersionSummary),
     settings: FormSettings,

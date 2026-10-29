@@ -70,7 +70,13 @@ import { workspaceFilterFor } from "../membership/context.js";
 import { approvalForRelease } from "../membership/two-person.js";
 import type { ApiEnv } from "../../openapi.js";
 import { recordRelease } from "../releases/release.js";
-import { usesTestWorkflow, productionVersions, testReleaseRequired } from "../releases/workflow.js";
+import { commitReleaseBatch, intentHashOf, storedResult } from "../releases/batch.js";
+import {
+  productionVersions,
+  readWorkflow,
+  requireDraftEligible,
+  usesTestWorkflow,
+} from "../releases/workflow.js";
 import { resolveGrants, holdsInstallationClaim } from "../membership/resolver.js";
 import { decideAccess } from "../membership/policy.js";
 import { resolveWorkspaceForNewObject } from "../workspaces/resolve.js";
@@ -84,6 +90,7 @@ import type {
   previewConditionRoute,
   previewDraftRoute,
   publishAndReleaseFormRoute,
+  publishBatchRoute,
   publishFormRoute,
   putDraftRoute,
   reopenFormRoute,
@@ -133,6 +140,14 @@ const fail = {
     new ApiError("FORM_SLUG_TAKEN", 409, `The slug "${slug}" is already in use`),
   formNotFound: (): ApiError => new ApiError("FORM_NOT_FOUND", 404, "No such form"),
   noDraft: (): ApiError => new ApiError("NO_DRAFT", 409, "This form has no open draft to publish"),
+  draftMoved: (): ApiError =>
+    new ApiError(
+      "STALE_REVIEW",
+      409,
+      "The draft was saved after the review this confirmation carries. Nothing was " +
+        "written; read the review again and confirm the new one.",
+      { field: "draftRevision" },
+    ),
   unknownEnvironment: (name: string): ApiError =>
     new ApiError("UNKNOWN_ENVIRONMENT", 400, `This deployment serves no environment named ${name}`),
   /**
@@ -665,6 +680,7 @@ export function makeGetFormHandler(deps: Deps): RouteHandler<typeof getFormRoute
         releasedDefinition:
           versions.find((v) => v.version === environmentState?.version)?.definition ?? null,
         draftAgentAssisted: openDraft?.agentAssisted ?? false,
+        draftRevision: openDraft?.revision ?? null,
         draftUpdatedAt: openDraft?.updatedAt.toISOString() ?? null,
         versions: versions.map((v) => ({
           version: v.version,
@@ -1283,7 +1299,7 @@ export function makeUpdateFormSettingsHandler(
 async function freezeDraft(
   deps: Deps,
   formId: FormId,
-): Promise<{ snapshot: FrozenSnapshot; compiled: CompiledForm }> {
+): Promise<{ snapshot: FrozenSnapshot; compiled: CompiledForm; draftRevision: number }> {
   const form = await getForm(deps.databases.control, formId);
   if (form === undefined) throw fail.formNotFound();
 
@@ -1299,7 +1315,7 @@ async function freezeDraft(
 
   // Projected once: the stored copy is served forever and the serve path never recompiles
   // (ADR-18).
-  return { snapshot, compiled: compileForm(snapshot, {}) };
+  return { snapshot, compiled: compileForm(snapshot, {}), draftRevision: draft.revision };
 }
 
 /**
@@ -1384,8 +1400,13 @@ export function makePublishAndReleaseFormHandler(
       releasedBy: principal.userId,
     });
 
-    if (usesTestWorkflow(deps.databases.names) && environment === "prod")
-      throw testReleaseRequired();
+    // The same rule the batch confirmation applies, so this older route is not a way round
+    // a configured workflow: a destination that forbids a combined publish refuses, and so
+    // does one with a prerequisite, which a version frozen here could not satisfy.
+    requireDraftEligible(
+      await readWorkflow(deps.databases.control, deps.databases.names),
+      environment,
+    );
     const frozen = await freezeDraft(deps, formId);
 
     const result = await deps.databases.control.transaction(async (tx) => {
@@ -1415,6 +1436,67 @@ export function makePublishAndReleaseFormHandler(
       },
       200,
     );
+  };
+}
+
+/**
+ * Freeze the shared draft once and release that one snapshot into every named destination,
+ * or into none, in one transaction. The draft is compiled before the transaction opens, so
+ * a malformed one costs no database work; the revision it was compiled from is rechecked
+ * under the form's lock.
+ */
+export function makePublishBatchHandler(
+  deps: Deps,
+): RouteHandler<typeof publishBatchRoute, ApiEnv> {
+  return async (c) => {
+    const formId = requireFormId(c.req.valid("param").id);
+    const body = c.req.valid("json");
+    for (const target of body.targets) {
+      requireEnvironment(deps, target.environment);
+      if (target.fromEnvironment !== undefined) requireEnvironment(deps, target.fromEnvironment);
+    }
+
+    const principal = c.get("adminPrincipal");
+    if (principal === undefined) throw fail.noPrincipal();
+    const form = await getForm(deps.databases.control, formId);
+    if (form === undefined) throw fail.formNotFound();
+
+    // Before the draft is read: the first attempt consumed it, so a replay has nothing to
+    // freeze and would answer "no draft to publish" instead of the result it produced.
+    const intentHash = await intentHashOf(body);
+    const replayed = await storedResult(deps, {
+      principalId: principal.userId,
+      formId,
+      idempotencyKey: body.idempotencyKey,
+      intentHash,
+    });
+    if (replayed !== undefined) return c.json(replayed, 200);
+
+    const now = deps.clock.now();
+    const frozen = await freezeDraft(deps, formId);
+    if (frozen.draftRevision !== body.source.draftRevision) throw fail.draftMoved();
+
+    const result = await commitReleaseBatch(deps, {
+      formId,
+      workspaceId: c.get("grantContext")?.workspaceId ?? form.workspaceId,
+      principalId: principal.userId,
+      idempotencyKey: body.idempotencyKey,
+      intentHash,
+      expectedWorkflowRevision: body.expectedWorkflowRevision,
+      source: {
+        kind: "draft",
+        draftRevision: body.source.draftRevision,
+        freeze: (tx) => writeVersion(tx, formId, frozen, now, principal.userId),
+      },
+      targets: body.targets.map((target) => ({
+        environment: target.environment,
+        expectedSequence: target.expectedSequence,
+        ...(target.fromEnvironment === undefined
+          ? {}
+          : { fromEnvironment: target.fromEnvironment }),
+      })),
+    });
+    return c.json(result, 200);
   };
 }
 

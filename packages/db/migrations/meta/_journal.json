@@ -43,6 +43,13 @@
       "when": 1792662830267,
       "tag": "0005_two_person_rule",
       "breakpoints": true
+    },
+    {
+      "idx": 6,
+      "version": "7",
+      "when": 1793270922411,
+      "tag": "0006_release_workflow",
+      "breakpoints": true
     }
   ]
 }

@@ -34,6 +34,7 @@ describe("query helper import surface", () => {
     "getFormVersion",
     "getLatestPublishedVersion",
     "listFormVersions",
+    "lockForm",
     "moveFormToWorkspace",
     "publishedTitlesByForm",
     "updateFormSettings",
@@ -162,6 +163,12 @@ describe("query helper import surface", () => {
     "confirmEndpointProposal",
     "markEndpointProposalApplied",
     "withdrawEndpointProposal",
+    "effectiveReleaseWorkflow",
+    "insertReleaseWorkflowRevision",
+    "latestReleaseWorkflowRevision",
+    "getReleaseBatch",
+    "insertReleaseBatch",
+    "purgeExpiredReleaseBatches",
   ];
 
   it("exposes exactly the intended query-helper surface", () => {

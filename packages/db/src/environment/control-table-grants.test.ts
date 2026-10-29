@@ -5,6 +5,11 @@ import { describe, expect, it } from "vitest";
 
 import { ACCESS_AUDIT_TABLE } from "../schema/control/access-audit.js";
 import { ENDPOINT_PROPOSALS_TABLE } from "../schema/control/endpoint-proposals.js";
+import { RELEASE_BATCHES_TABLE } from "../schema/control/release-batches.js";
+import {
+  RELEASE_WORKFLOW_REVISIONS_TABLE,
+  RELEASE_WORKFLOW_RULES_TABLE,
+} from "../schema/control/release-workflow.js";
 import {
   CONTROL_READ_TABLES,
   grantAccessAuditStatements,
@@ -26,6 +31,10 @@ const AUDIT_MIGRATION = fileURLToPath(
 
 const PROPOSALS_MIGRATION = fileURLToPath(
   new URL("../../migrations/0005_two_person_rule.sql", import.meta.url),
+);
+
+const WORKFLOW_MIGRATION = fileURLToPath(
+  new URL("../../migrations/0006_release_workflow.sql", import.meta.url),
 );
 
 describe("the `form_releases` grants", () => {
@@ -135,5 +144,45 @@ describe("the pending `prod` endpoint change's grants (task 070, Q30 with Q51)",
 
   it("records the publishing account the release rule compares against (Q51)", () => {
     expect(sql).toContain('ALTER TABLE "control"."form_versions" ADD COLUMN "published_by" text');
+  });
+});
+
+describe("the release-workflow and confirmation tables' grants (Q85, Q89)", () => {
+  const sql = readFileSync(WORKFLOW_MIGRATION, "utf8");
+  const tables = [
+    RELEASE_WORKFLOW_REVISIONS_TABLE,
+    RELEASE_WORKFLOW_RULES_TABLE,
+    RELEASE_BATCHES_TABLE,
+  ];
+
+  it("are exactly the statements the generator emits, verbatim", () => {
+    for (const table of tables) {
+      const statements = grantControlTableStatements(table);
+      expect(statements, table).toHaveLength(1);
+      for (const statement of statements) expect(sql).toContain(statement);
+    }
+  });
+
+  it("gives no environment role any privilege at all on any of the three", () => {
+    for (const table of tables) {
+      expect(CONTROL_READ_TABLES).not.toContain(table);
+      expect(sql).not.toContain(`ON "control"."${table}" TO %I`);
+      expect(grantEnvironmentStatements("staging").join("\n")).not.toContain(table);
+    }
+    expect(sql).not.toContain("FROM control.environments AS environment");
+  });
+
+  it("makes both workflow tables append-only and leaves the replay cache sweepable", () => {
+    for (const table of [RELEASE_WORKFLOW_REVISIONS_TABLE, RELEASE_WORKFLOW_RULES_TABLE]) {
+      expect(sql).toContain(`CREATE TRIGGER "${table}_reject_update"`);
+      expect(sql).toContain(`CREATE TRIGGER "${table}_reject_delete"`);
+    }
+    expect(sql).not.toContain(`CREATE TRIGGER "${RELEASE_BATCHES_TABLE}_reject_delete"`);
+  });
+
+  it("adds the draft revision a confirmation rechecks (F2)", () => {
+    expect(sql).toContain(
+      'ALTER TABLE "control"."form_drafts" ADD COLUMN "revision" integer DEFAULT 1 NOT NULL',
+    );
   });
 });

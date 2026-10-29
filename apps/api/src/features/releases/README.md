@@ -7,11 +7,20 @@ every environment (ADR-18); what varies per environment is which published versi
 
 ## Routes
 
-| Method | Path                   | Cell (`route-policy.ts`)                 | Notes                                                                                                                                                    |
-| ------ | ---------------------- | ---------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `POST` | `/forms/{id}/releases` | `release: create`, environment from body | Release or promote a published version. Writes one record, copies nothing.                                                                               |
-| `GET`  | `/forms/{id}/releases` | `release: read`                          | The release history, newest first, each rollback marked. `?environment=`. It is also what "released where" is read from: the newest row per environment. |
-| `GET`  | `/environments`        | grant-exempt, narrowed to held grants    | The live set, in `position` order, for the Q6 switcher.                                                                                                  |
+| Method | Path                                | Cell (`route-policy.ts`)                          | Notes                                                                                                                                                    |
+| ------ | ----------------------------------- | ------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `POST` | `/forms/{id}/releases`              | `release: create`, environment from body          | Release or promote a published version. Writes one record, copies nothing.                                                                               |
+| `GET`  | `/forms/{id}/releases`              | `release: read`                                   | The release history, newest first, each rollback marked. `?environment=`. It is also what "released where" is read from: the newest row per environment. |
+| `POST` | `/forms/{id}/release-review`        | `release: read`                                   | What releasing one source into each permitted destination would do. Writes nothing.                                                                      |
+| `POST` | `/forms/{id}/release-batch`         | `release: create`, environment **per target**     | One existing version into every named destination, atomically.                                                                                           |
+| `GET`  | `/forms/{id}/release-batches/{key}` | `release: read`                                   | The stored result of one confirmation, scoped to the calling account.                                                                                    |
+| `GET`  | `/release-workflow`                 | `release: read` over the caller's workspaces      | The rules in force per destination, the derived default included.                                                                                        |
+| `PUT`  | `/release-workflow`                 | `workspace: update`, installation-only, `setting` | Append the next revision. No grant reaches it.                                                                                                           |
+| `GET`  | `/environments`                     | grant-exempt, narrowed to held grants             | The live set, in `position` order, for the Q6 switcher.                                                                                                  |
+
+The combined **publish and release batch** lives in the forms slice
+(`POST /forms/{id}/publish-batch`), because it publishes: it shares that slice's validation
+and compile, and calls `commitReleaseBatch` here for the rest.
 
 There is **no `GET /releases`**. An earlier draft of this table listed one, for "the
 current release per form across forms", and no such route was ever registered. What
@@ -82,9 +91,9 @@ because "released version 4 after version 7" is the shape an incident review rea
 
 - **No copy of a version, in any form.** Promotion is a record; a copy would break R1, R6
   and ADR-18 at once.
-- **Ordering depends on the deployment** (ADR-40 amendment, 2026-10-26). When both
-  test and prod are served, a production candidate needs prior test or prod release
-  history. Prod-only deployments still permit a direct release.
+- **Ordering is the configured workflow's** (ADR-40's amendment of 2026-10-29). With no
+  revision written and both test and prod served, a production candidate needs prior test
+  or prod release history. Prod-only deployments still permit a direct release.
 - **No approval rule.** `approvedBy` exists from this task and is written by task 070's
   two-person rule for `prod` (Q51). Nothing here enforces who may fill it.
 - **No membership check.** The workspace role and its environment scope arrive with tasks
@@ -126,12 +135,73 @@ rewrite it, and a close is never observed as a version change. **A release does 
 reopen a closed environment** - it carries the current value forward, because closing is a
 deliberate operational act and releasing a version is not a request to resume intake.
 
-## Test-to-production workflow (2026-10-26)
+## The configurable release workflow (Q85, Q86)
 
-This section describes the default revision of the configurable release workflow ruled on
-2026-10-29 (ADR-40's amendment of that date; contracts in
-`plan/environment-phase1-decisions.md`). Until a deployment writes a workflow revision,
-the behaviour below is exactly what runs.
+Installation-wide, versioned rule rows in `control.release_workflow_revisions` and
+`control.release_workflow_rules`, written over HTTP by the installation claim alone and
+read by every `forms.` role. **No row is seeded**: with no revision, `readWorkflow` answers
+`defaultWorkflowRules`, which is the derived behaviour of the section below stated as data,
+and reports `source: "default"`. An environment a configured revision wrote no row for
+constrains nothing.
+
+Three rules per destination, and one exception that is not a rule:
+
+- `requiresPriorReleaseIn` is the environments a committed release of the same version must
+  exist in. **Evidence is any committed release row**, read before the transaction's first
+  write; a sibling destination in the same confirmation never supplies it.
+- **The rollback exception.** A version with any prior release row in the destination itself
+  is eligible there whatever the prerequisites say, because moving back to what that
+  environment already served is a rollback rather than a promotion. That is why the default
+  revision's `prod` rule names `test` alone and the historical prod candidate still
+  releases: the rule and the exception together are exactly the earlier behaviour.
+- **The two-person rule is not an evidence rule.** `approvalForRelease` runs for every
+  production destination, rollback included, and no rule here can switch it off.
+- `allowsDraftPublish` and `allowsInBatch` govern the combined publish and the multi-target
+  confirmation. `allowsInBatch` may be true for `prod`; the two-person rule and the draft
+  refusal still apply per destination.
+
+The refusal code follows the source: `TEST_RELEASE_REQUIRED` on the default revision, which
+is what the existing release dialog reads, and `PRIOR_RELEASE_REQUIRED` once a revision is
+written. The write validates every name against the served set, refuses a destination that
+requires a prior release in itself, refuses a duplicate row and refuses a cycle, and it
+creates, renames and drops no environment: that stays the operator command's.
+
+## One confirmation is one transaction (Q89)
+
+`batch.ts` is the whole of it, and it is one function because two routes perform it:
+`POST /forms/{id}/release-batch` here and `POST /forms/{id}/publish-batch` in the forms
+slice, which passes a `freeze` callback so the snapshot is written inside the same
+transaction.
+
+1. `SELECT ... FOR UPDATE` on the `control.forms` row through `lockForm`: one publish or
+   release per form at a time. Taken **before** the replay lookup, so two copies of one
+   request cannot both find no stored result.
+2. `control.release_batches` by `(principal, form, key)`: an equal intent hash replays the
+   stored result, a different one is `422`. Only successes are stored, so a refusal leaves
+   the key free to retry.
+3. Recheck the workflow revision, the draft `revision`, each destination's newest
+   `sequence`, the prerequisite evidence and `approvalForRelease` per destination. **Every
+   recheck runs before the first write**, so nothing is written for a confirmation one of
+   whose destinations is refused.
+4. Freeze the draft **once**, then `recordRelease` per destination carrying `closed`
+   forward, then store the result.
+
+The expectation per destination is the **sequence** rather than the version number, because
+a close and a reopen each append a row: one expectation therefore covers the released
+version and the intake state together, and a close that landed after the review is a
+`STALE_REVIEW` rather than a release that quietly reopened intake.
+
+The composite primary key stays the race backstop, and a `23505` becomes `RELEASE_RACED`.
+`fromEnvironment` is recorded per destination and derived from no sibling (F7).
+
+Authorisation is the route's rather than the handler's: `environmentFrom: "targets"` makes
+the middleware evaluate the cell once per listed environment and refuse on the first
+failure, naming only that environment. A `publish-batch` with no destination is "create a
+version without releasing it" and is authorised by `form: publish` alone.
+
+## Test-to-production workflow
+
+This section describes the **default revision**: what runs until a deployment writes one.
 
 The admin's top switch fixes the release target; the release dialog selects a version,
 not another environment. Its server action confirms the environment shown before

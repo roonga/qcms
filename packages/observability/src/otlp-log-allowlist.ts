@@ -22,6 +22,7 @@ const SAFE_EVENTS = new Set([
   "outbox delivery pass",
   "outbox delivery pass failed",
   "outbox payload answers redacted",
+  "release confirmation results purged",
   "request",
   "retention sweep",
   "scheduler task failed",

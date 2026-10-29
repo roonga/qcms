@@ -6,6 +6,11 @@
 import type { Executor } from "../queries/executor.js";
 import { ACCESS_AUDIT_TABLE } from "../schema/control/access-audit.js";
 import { ENDPOINT_PROPOSALS_TABLE } from "../schema/control/endpoint-proposals.js";
+import { RELEASE_BATCHES_TABLE } from "../schema/control/release-batches.js";
+import {
+  RELEASE_WORKFLOW_REVISIONS_TABLE,
+  RELEASE_WORKFLOW_RULES_TABLE,
+} from "../schema/control/release-workflow.js";
 import { CONTROL_ROLE, CONTROL_SCHEMA } from "../schema/schemas.js";
 
 import {
@@ -150,6 +155,24 @@ export const GRANT_SOURCES: readonly GrantSource[] = [
     scope: "installation",
     inMigrationTree: true,
     statements: () => grantControlTableStatements(ENDPOINT_PROPOSALS_TABLE),
+  },
+  {
+    name: `${CONTROL_SCHEMA}.${RELEASE_WORKFLOW_REVISIONS_TABLE} (migration 0006)`,
+    scope: "installation",
+    inMigrationTree: true,
+    statements: () => grantControlTableStatements(RELEASE_WORKFLOW_REVISIONS_TABLE),
+  },
+  {
+    name: `${CONTROL_SCHEMA}.${RELEASE_WORKFLOW_RULES_TABLE} (migration 0006)`,
+    scope: "installation",
+    inMigrationTree: true,
+    statements: () => grantControlTableStatements(RELEASE_WORKFLOW_RULES_TABLE),
+  },
+  {
+    name: `${CONTROL_SCHEMA}.${RELEASE_BATCHES_TABLE} (migration 0006)`,
+    scope: "installation",
+    inMigrationTree: true,
+    statements: () => grantControlTableStatements(RELEASE_BATCHES_TABLE),
   },
   {
     name: "control.two_factor_resets is migrate-only (baseline, last)",

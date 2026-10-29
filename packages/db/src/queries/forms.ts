@@ -48,6 +48,21 @@ export async function getForm(exec: Executor, formId: FormId): Promise<FormRow |
   return row;
 }
 
+/**
+ * Read a form identity and hold its row until the transaction ends, which is what
+ * serialises one publish or release confirmation per form. Call inside a transaction: a
+ * lock taken outside one is released immediately and guards nothing.
+ */
+export async function lockForm(exec: Executor, formId: FormId): Promise<FormRow | undefined> {
+  const [row] = await exec
+    .select()
+    .from(forms)
+    .where(eq(forms.formId, formId))
+    .limit(1)
+    .for("update");
+  return row;
+}
+
 /** Every form identity, ordered by `formId` for a stable listing. */
 export async function listForms(
   exec: Executor,
@@ -113,6 +128,9 @@ export async function upsertDraft(
       set: {
         definition: input.definition,
         agentAssisted: sql`${formDrafts.agentAssisted} or ${agentAssisted}`,
+        // Bumped here rather than by the caller, so no save path can forget it and leave a
+        // publish confirmation unable to tell that the draft moved.
+        revision: sql`${formDrafts.revision} + 1`,
         updatedAt: sql`now()`,
       },
     })
