@@ -189,7 +189,10 @@ test("a real otplib code completes the challenge and the shell nav marks the act
   await expect(page).toHaveURL(/\/questions$/);
 
   const nav = page.getByRole("navigation", { name: "Primary" });
-  for (const item of ["Questions", "Forms", "Responses", "Webhooks", "Settings"]) {
+  // Settings is not here: it belongs to the signed-in account rather than to an area, so
+  // it is under the avatar. This account holds every area, so both focused-mode entries
+  // are offered beside the authoring menus.
+  for (const item of ["Questions", "Forms", "Responses", "Webhooks", "Workspaces", "Operations"]) {
     await expect(nav.getByRole("link", { name: item })).toBeVisible();
   }
   // The active item is announced, not only coloured (WCAG 1.4.1).

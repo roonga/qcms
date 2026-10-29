@@ -133,6 +133,19 @@ export async function submitRecoveryCode(page: Page, code: string): Promise<void
 }
 
 /**
+ * Whether the browser has left the auth screens for the shell.
+ *
+ * The landing area is the caller's own now: an Operations-only account reaches
+ * `/operations` and a workspace-only one `/workspaces`, so a helper every spec shares
+ * cannot wait for one route. A spec that is about a particular landing asserts it itself.
+ */
+const AUTH_ROUTES = /^\/(sign-in|two-factor|change-password)(\/|$)/;
+
+function reachedTheShell(url: URL): boolean {
+  return url.pathname !== "/" && !AUTH_ROUTES.test(url.pathname);
+}
+
+/**
  * Sign in an already-enrolled account all the way to the shell, via its TOTP factor.
  *
  * The `waitForURL` is not decoration. `click()` returns once the navigation has been
@@ -144,7 +157,7 @@ export async function submitRecoveryCode(page: Page, code: string): Promise<void
 export async function signInWithTotp(page: Page, email: string, secret: string): Promise<void> {
   await submitSignIn(page, email);
   await submitTotp(page, secret);
-  await page.waitForURL(/\/questions$/);
+  await page.waitForURL(reachedTheShell);
 }
 
 /**
@@ -260,7 +273,7 @@ export async function enrollNewAdmin(page: Page, email: string): Promise<string>
   await submitTotp(page, secret);
   await expect(page).toHaveURL(/\/two-factor\/recovery-codes$/);
   await page.getByRole("button", { name: "I have saved these codes" }).click();
-  await page.waitForURL(/\/questions$/);
+  await page.waitForURL(reachedTheShell);
   return secret;
 }
 
