@@ -70,7 +70,7 @@ import { workspaceFilterFor } from "../membership/context.js";
 import { approvalForRelease } from "../membership/two-person.js";
 import type { ApiEnv } from "../../openapi.js";
 import { recordRelease } from "../releases/release.js";
-import { commitReleaseBatch, intentHashOf } from "../releases/batch.js";
+import { commitReleaseBatch, intentHashOf, storedResult } from "../releases/batch.js";
 import {
   draftPublishNotAllowed,
   productionVersions,
@@ -1468,6 +1468,17 @@ export function makePublishBatchHandler(
     const form = await getForm(deps.databases.control, formId);
     if (form === undefined) throw fail.formNotFound();
 
+    // Before the draft is read: the first attempt consumed it, so a replay has nothing to
+    // freeze and would answer "no draft to publish" instead of the result it produced.
+    const intentHash = intentHashOf(body);
+    const replayed = await storedResult(deps, {
+      principalId: principal.userId,
+      formId,
+      idempotencyKey: body.idempotencyKey,
+      intentHash,
+    });
+    if (replayed !== undefined) return c.json(replayed, 200);
+
     const now = deps.clock.now();
     const frozen = await freezeDraft(deps, formId);
     if (frozen.draftRevision !== body.source.draftRevision) throw fail.draftMoved();
@@ -1477,7 +1488,7 @@ export function makePublishBatchHandler(
       workspaceId: c.get("grantContext")?.workspaceId ?? form.workspaceId,
       principalId: principal.userId,
       idempotencyKey: body.idempotencyKey,
-      intentHash: intentHashOf(body),
+      intentHash,
       expectedWorkflowRevision: body.expectedWorkflowRevision,
       source: {
         kind: "draft",

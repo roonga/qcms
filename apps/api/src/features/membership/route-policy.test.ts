@@ -200,11 +200,75 @@ describe("every row names an action the policy declares", () => {
     expect(row?.anyOf).toBe(OPERATIONAL_CELLS);
   });
 
+  it("evaluates every batch route's cell per destination, and names every row that does", () => {
+    const perTarget = ROUTE_POLICIES.filter((row) => row.environmentFrom === "targets");
+    expect([...perTarget.map((row) => `${row.method} ${row.path}`)].sort()).toEqual([
+      "POST /admin/forms/{id}/publish-batch",
+      "POST /admin/forms/{id}/release-batch",
+    ]);
+    // Each declares a `targets` array and no `environment` of its own, so the gate reads
+    // exactly the list the handler acts on.
+    const document = JSON.parse(readFileSync(ADMIN_OPENAPI, "utf8")) as {
+      paths: Record<string, Record<string, { requestBody?: unknown }>>;
+      components?: { schemas?: Record<string, { properties?: Record<string, unknown> }> };
+    };
+    for (const row of perTarget) {
+      const operation = document.paths[row.path]?.[row.method.toLowerCase()] as {
+        requestBody?: { content?: { "application/json"?: { schema?: { $ref?: string } } } };
+      };
+      const ref = operation.requestBody?.content?.["application/json"]?.schema?.$ref ?? "";
+      const schema = document.components?.schemas?.[ref.split("/").pop() ?? ""];
+      expect(Object.keys(schema?.properties ?? {}), `${row.method} ${row.path}`).toContain(
+        "targets",
+      );
+      expect(Object.keys(schema?.properties ?? {})).not.toContain("environment");
+    }
+    // The release half is environment-scoped on both, which is what makes the per-target
+    // evaluation the thing that authorises a destination.
+    const release = policyForRequest("POST", "/admin/forms/frm_x/release-batch");
+    expect(release?.resource).toBe("release");
+    expect(release?.action).toBe("create");
+    const publish = policyForRequest("POST", "/admin/forms/frm_x/publish-batch");
+    expect(publish?.resource).toBe("form");
+    expect(publish?.action).toBe("publish");
+    expect(publish?.also).toEqual({ resource: "release", action: "create" });
+  });
+
+  it("keeps the release-workflow write out of every grant's reach and its read in three", () => {
+    const write = policyForRequest("PUT", "/admin/release-workflow");
+    expect(write?.installationOnly).toBe(true);
+    expect(write?.workspace).toBe("installation");
+    // No tenth resource: the write reuses the workspace cell the claim already holds.
+    expect(write?.resource).toBe("workspace");
+    expect(write?.action).toBe("update");
+    expect(write?.audit).toBe("setting");
+    const read = policyForRequest("GET", "/admin/release-workflow");
+    expect(read?.resource).toBe("release");
+    expect(read?.action).toBe("read");
+    expect(read?.workspace).toBe("caller");
+    expect(read?.installationOnly).toBeUndefined();
+  });
+
+  it("names exactly five installation-only rows", () => {
+    expect(
+      ROUTE_POLICIES.filter((row) => row.installationOnly === true).map(
+        (row) => `${row.method} ${row.path}`,
+      ),
+    ).toEqual([
+      "POST /admin/workspaces",
+      "PUT /admin/workspaces/{id}/shared",
+      "PUT /admin/release-workflow",
+      "GET /admin/outbox/dead-letters",
+      "GET /admin/erasures",
+    ]);
+  });
+
   it("gives `publish-and-release` both of its cells, and names every row that has two", () => {
     const withSecond = ROUTE_POLICIES.filter((row) => row.also !== undefined);
     expect([...withSecond.map((row) => `${row.method} ${row.path}`)].sort()).toEqual([
       "POST /admin/forms/{id}/draft/assist/accept",
       "POST /admin/forms/{id}/publish-and-release",
+      "POST /admin/forms/{id}/publish-batch",
     ]);
     const combined = policyForRequest("POST", "/admin/forms/frm_x/publish-and-release");
     expect(combined?.resource).toBe("form");

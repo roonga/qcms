@@ -124,6 +124,27 @@ function isReleaseKeyViolation(error: unknown): boolean {
   return code === "23505" || causeCode === "23505";
 }
 
+/**
+ * The stored result for a key already used, or `undefined`. A fast path for a confirmation
+ * whose first attempt consumed the draft: without it a replay would freeze nothing and
+ * report "no draft to publish" instead of the result it already produced. The same lookup
+ * runs again under the form's lock, which is what decides a race.
+ */
+export async function storedResult(
+  deps: Deps,
+  input: {
+    readonly principalId: string;
+    readonly formId: FormId;
+    readonly idempotencyKey: string;
+    readonly intentHash: string;
+  },
+): Promise<BatchResult | undefined> {
+  const stored = await getReleaseBatch(deps.databases.control, input);
+  if (stored === undefined) return undefined;
+  if (stored.intentHash !== input.intentHash) throw fail.keyReused();
+  return { ...(stored.result as BatchResult), replayed: true };
+}
+
 /** Stable key order, so the same intent hashes the same whatever a client serialises first. */
 function canonical(value: unknown): unknown {
   if (Array.isArray(value)) return value.map((member) => canonical(member));

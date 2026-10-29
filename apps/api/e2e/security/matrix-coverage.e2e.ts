@@ -146,6 +146,8 @@ describe("the §3.2 matrix and the probe inventory stay in step", () => {
       // Its own prefix because it is the one admin route a response-only caller can
       // reach: a probe set that lost it would still claim the `/admin/forms` coverage.
       "/admin/operations/forms",
+      // The installation-wide release workflow, whose write no grant reaches.
+      "/admin/release-workflow",
     ]) {
       expect(
         adminPaths.some((path) => path.includes(slice)),
@@ -187,6 +189,7 @@ const DOCUMENTED_ROLE_ROWS: Readonly<Record<string, readonly [string, string]>> 
   // The one `anyOf` row, so this names its primary cell; the other three cells of the
   // union have their own documented rows above.
   "Discover operational form metadata in an environment": ["form", "read"],
+  "Read the release-workflow configuration": ["release", "read"],
   "Read any response anywhere": ["response", "read"],
 };
 

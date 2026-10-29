@@ -841,7 +841,9 @@ describe("the candidate review", () => {
     const prod = approver.body.targets[0];
     expect(prod?.evidence).toEqual([]);
     expect(prod?.blockers.map((blocker) => blocker.code)).toEqual(["TEST_RELEASE_REQUIRED"]);
-    expect(prod?.blockers[0]?.requiresAnyOf.sort()).toEqual(["prod", "test"]);
+    // The default revision's rule names `test` alone: a prior release in `prod` itself is
+    // the rollback exception rather than a prerequisite, and is handled as one.
+    expect(prod?.blockers[0]?.requiresAnyOf).toEqual(["test"]);
   });
 
   it("reports the two-person rule, and refuses the author before the commit does", async () => {
