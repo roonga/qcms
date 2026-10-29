@@ -131,7 +131,7 @@ test("entering Workspaces replaces the navigation too, and Exit returns", async 
 test("an Operations-only caller lands in Operations and is offered no authoring menu", async ({
   page,
 }) => {
-  await enrollNewAdmin(page, OPERATIONS_ONLY);
+  await enrollNewAdmin(page, OPERATIONS_ONLY, /\/operations$/);
 
   await page.goto("/");
 
@@ -143,7 +143,7 @@ test("an Operations-only caller lands in Operations and is offered no authoring 
 });
 
 test("a workspace-only caller lands in Workspaces with no Exit at all", async ({ page }) => {
-  workspacesSecret = await enrollNewAdmin(page, WORKSPACES_ONLY);
+  workspacesSecret = await enrollNewAdmin(page, WORKSPACES_ONLY, /\/workspaces$/);
 
   await page.goto("/");
 
@@ -158,7 +158,7 @@ test("a workspace-only caller lands in Workspaces with no Exit at all", async ({
 test("a denied bookmark offers a permitted route and names nothing it refused", async ({
   page,
 }) => {
-  await signInWithTotp(page, WORKSPACES_ONLY, workspacesSecret);
+  await signInWithTotp(page, WORKSPACES_ONLY, workspacesSecret, /\/workspaces$/);
 
   await page.goto("/operations");
 
@@ -178,7 +178,7 @@ test("a denied bookmark offers a permitted route and names nothing it refused", 
 });
 
 test("a rejected workspace bookmark still has All workspaces", async ({ page }) => {
-  await signInWithTotp(page, WORKSPACES_ONLY, workspacesSecret);
+  await signInWithTotp(page, WORKSPACES_ONLY, workspacesSecret, /\/workspaces$/);
 
   await page.goto("/workspaces/ws_not_a_workspace");
 

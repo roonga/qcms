@@ -133,17 +133,16 @@ export async function submitRecoveryCode(page: Page, code: string): Promise<void
 }
 
 /**
- * Whether the browser has left the auth screens for the shell.
+ * Where a full-grant account lands, which is every spec in this suite but the few that
+ * seed a narrower persona.
  *
- * The landing area is the caller's own now: an Operations-only account reaches
- * `/operations` and a workspace-only one `/workspaces`, so a helper every spec shares
- * cannot wait for one route. A spec that is about a particular landing asserts it itself.
+ * The landing area is the caller's own: an Operations-only account reaches `/operations`
+ * and a workspace-only one `/workspaces`. That is the exception rather than the rule here,
+ * so it is an argument a spec passes rather than a looser wait for everybody - a predicate
+ * that accepted any non-auth route would stop reporting a sign-in that landed somewhere
+ * nobody chose.
  */
-const AUTH_ROUTES = /^\/(sign-in|two-factor|change-password)(\/|$)/;
-
-function reachedTheShell(url: URL): boolean {
-  return url.pathname !== "/" && !AUTH_ROUTES.test(url.pathname);
-}
+const DEFAULT_LANDING = /\/questions$/;
 
 /**
  * Sign in an already-enrolled account all the way to the shell, via its TOTP factor.
@@ -154,10 +153,15 @@ function reachedTheShell(url: URL): boolean {
  * page the test had never actually reached. Waiting for the shell here means every caller
  * starts from a known place.
  */
-export async function signInWithTotp(page: Page, email: string, secret: string): Promise<void> {
+export async function signInWithTotp(
+  page: Page,
+  email: string,
+  secret: string,
+  landing: RegExp = DEFAULT_LANDING,
+): Promise<void> {
   await submitSignIn(page, email);
   await submitTotp(page, secret);
-  await page.waitForURL(reachedTheShell);
+  await page.waitForURL(landing);
 }
 
 /**
@@ -263,7 +267,11 @@ export async function signOut(page: Page): Promise<void> {
  * Read the secret inside the flow, never cached across tests: a sign-in by an account
  * with no confirmed factor re-provisions enrollment, so each visit carries a new one.
  */
-export async function enrollNewAdmin(page: Page, email: string): Promise<string> {
+export async function enrollNewAdmin(
+  page: Page,
+  email: string,
+  landing: RegExp = DEFAULT_LANDING,
+): Promise<string> {
   await submitSignIn(page, email);
   await expect(page).toHaveURL(/\/two-factor\/enroll$/);
   // The URL commits before the enrol page has a DOM, so without this `readSetupKey`
@@ -273,7 +281,7 @@ export async function enrollNewAdmin(page: Page, email: string): Promise<string>
   await submitTotp(page, secret);
   await expect(page).toHaveURL(/\/two-factor\/recovery-codes$/);
   await page.getByRole("button", { name: "I have saved these codes" }).click();
-  await page.waitForURL(reachedTheShell);
+  await page.waitForURL(landing);
   return secret;
 }
 
