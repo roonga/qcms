@@ -349,10 +349,9 @@ describe("the scope carrier and the specificity model it is measured with", () =
     expect(compareSpecificity(specificityOf(SCOPE_ANCHOR), shared)).toBeLessThan(0);
   });
 
-  // The tie the two-axis model rests on: a theme's light-HC accent has to reach the dark
-  // field, and it does so only because it is emitted after the shared `.dark.hc` block at
-  // the same weight. Decided by specificity instead and the dark field would flatten
-  // every theme back to slate's accent.
+  // The tie the two-axis model rests on: a theme's light-HC accent reaches the dark field
+  // only because it is emitted after the shared `.dark.hc` block at the same weight.
+  // Decided by specificity instead, the dark field would flatten to slate's accent.
   it("leaves shared .dark.hc exactly as specific as a per-theme .hc accent", () => {
     const shared = specificityOf(`${SCOPE_ANCHOR}.dark.hc`);
     const accent = specificityOf(`${SCOPE_ANCHOR}[data-theme="harbor"].hc`);
@@ -504,9 +503,8 @@ describe("High-contrast is one mode layer, not a palette per theme", () => {
 
   /**
    * The rule a new theme follows: measure the light-HC accent against the dark-HC
-   * background, and own a `.dark.hc` accent only when it misses. Asserted as the
-   * measurement rather than as a list of themes, so a fifth theme is told what it owes
-   * by the gate rather than by whoever reviews it.
+   * background and own a `.dark.hc` accent only when it misses. The measurement rather
+   * than a list of themes, so a fifth theme is told what it owes by the gate.
    */
   it("gives a theme a dark-HC accent exactly when its light-HC accent misses on that field", () => {
     const target = TEXT_TARGET["dark-hc"];

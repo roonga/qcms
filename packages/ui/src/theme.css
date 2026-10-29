@@ -443,15 +443,9 @@
 }
 
 /*
- * High-contrast is polarity crossed with contrast, not a third palette: `.hc` is the light field, `.dark.hc` the
- * dark one, and a theme contributes only its accent to each. Source order is load-bearing, and the order is six
- * fixed groups: light blocks, dark blocks, shared `.hc`, shared `.dark.hc`, per-theme `.hc` accents, per-theme
- * `.dark.hc` accents. The shared `.hc` block is (0,2,0), the same as a theme's light block, so it wins on order
- * alone. Shared `.dark.hc` is (0,3,0) and ties with a per-theme `.hc` accent, so the accent wins on order and
- * carries into the dark field; a per-theme `.dark.hc` accent is (0,4,0) and wins on specificity.
- *
- * A theme owes a `.dark.hc` accent only when its light-HC accent misses 7:1 against the dark-HC background, which
- * `theme-tokens.test.ts` measures for every theme.
+ * Polarity x contrast in six groups whose SOURCE ORDER is load-bearing: light, dark, shared `.hc` (0,2,0, so it
+ * wins on order over a theme's light block), shared `.dark.hc` (0,3,0, tied with a per-theme `.hc` accent, which
+ * therefore carries into the dark field), per-theme `.hc`, per-theme `.dark.hc` (0,4,0). The test asserts it.
  */
 
 :is(:root, [data-qcms-theme-scope]).hc {
