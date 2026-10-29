@@ -1,5 +1,6 @@
 ---
 "@roonga/qcms-db": minor
+"@roonga/qcms-observability": patch
 "create-qcms-app": patch
 ---
 
@@ -36,3 +37,6 @@ the same timestamp, and a confirmation has to be able to tell that the draft mov
 
 `lockForm` reads a form identity and holds its row for the rest of the transaction, which
 is what serialises one publish or release confirmation per form.
+
+The OTLP log allowlist gains the one line that sweep writes, which carries a count and
+nothing else.
