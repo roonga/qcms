@@ -355,6 +355,10 @@ services:
       QCMS_AGENT_API_KEY: ${QCMS_AGENT_API_KEY:-}
       QCMS_AGENT_BASE_URL: ${QCMS_AGENT_BASE_URL:-}
       QCMS_AGENT_MAX_STEPS: ${QCMS_AGENT_MAX_STEPS:-}
+      # Forwarded to `api` and to nothing else: the admin renders the Thinking
+      # disclosure because the events arrived, never because it learned a value
+      # (ADR-24, task 081).
+      QCMS_AGENT_THINKING: ${QCMS_AGENT_THINKING:-}
       QCMS_RL_AGENT_ASSIST_WINDOW_MS: ${QCMS_RL_AGENT_ASSIST_WINDOW_MS:-}
       QCMS_RL_AGENT_ASSIST_MAX: ${QCMS_RL_AGENT_ASSIST_MAX:-}
     depends_on:

@@ -4044,10 +4044,35 @@ div:has(> [role="dialog"] [data-qcms-dialog="wide"]) {
   gap: 0.5rem;
   min-block-size: 2rem;
 }
-.qcms-assist__title {
-  font-size: 1rem;
-  font-weight: 600;
-  color: var(--color-text);
+.qcms-assist-mark {
+  flex-shrink: 0;
+  display: block;
+}
+.qcms-assist-mark__bubble,
+.qcms-assist-mark__light {
+  fill: var(--color-primary);
+}
+.qcms-assist-mark__visor {
+  fill: var(--color-primary-foreground);
+}
+/* Static glow first, so the working state shows under reduced motion. */
+.qcms-assist-mark[data-working="true"] .qcms-assist-mark__visor {
+  filter: drop-shadow(0 0 1.2px var(--color-primary-foreground));
+}
+.qcms-assist-mark[data-working="true"] .qcms-assist-mark__light {
+  animation: qcms-assist-scan 1.4s ease-in-out infinite;
+}
+.qcms-assist-mark[data-working="true"] .qcms-assist-mark__light + .qcms-assist-mark__light {
+  animation-delay: 0.7s;
+}
+@keyframes qcms-assist-scan {
+  0%,
+  100% {
+    opacity: 0.35;
+  }
+  50% {
+    opacity: 1;
+  }
 }
 .qcms-assist__actions {
   display: flex;
@@ -4139,8 +4164,58 @@ div:has(> [role="dialog"] [data-qcms-dialog="wide"]) {
 }
 .qcms-assist-bubble--assistant {
   align-self: stretch;
-  padding-inline-start: 0.75rem;
-  border-inline-start: 2px solid var(--color-border-strong);
+  flex-direction: row;
+  align-items: flex-start;
+  gap: 0.5rem;
+}
+.qcms-assist-bubble__body {
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+  min-inline-size: 0;
+  flex: 1;
+}
+.qcms-assist-result {
+  align-self: stretch;
+  font-weight: 600;
+  color: var(--color-text);
+}
+
+.qcms-assist-composer {
+  display: flex;
+  flex-direction: column;
+  gap: 0.25rem;
+}
+.qcms-assist-composer__label {
+  font-size: 0.8125rem;
+  font-weight: 600;
+  color: var(--color-text);
+}
+.qcms-assist-composer__input {
+  inline-size: 100%;
+  padding: 0.5rem 0.625rem;
+  border: 1px solid var(--color-border-strong);
+  border-radius: var(--radius-md);
+  background-color: var(--color-background);
+  color: var(--color-text);
+  font: inherit;
+  font-size: 0.875rem;
+  line-height: 1.4;
+  resize: vertical;
+}
+.qcms-assist-composer__input:focus-visible {
+  outline: 2px solid var(--color-focus-ring);
+  outline-offset: 1px;
+}
+.qcms-assist-composer__hint {
+  font-size: 0.75rem;
+  color: var(--color-text-muted);
+}
+.qcms-assist-composer__actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.5rem;
+  padding-block-start: 0.25rem;
 }
 
 .qcms-assist-md {
@@ -4243,6 +4318,35 @@ div:has(> [role="dialog"] [data-qcms-dialog="wide"]) {
   }
 }
 
+/* Shimmer only while the summary is still arriving. */
+.qcms-assist-think {
+  font-size: 0.8125rem;
+  color: var(--color-text-muted);
+}
+.qcms-assist-think > summary {
+  display: flex;
+  align-items: center;
+  gap: 0.375rem;
+  cursor: pointer;
+}
+.qcms-assist-think__took {
+  color: var(--color-text-muted);
+}
+.qcms-assist-think__pulse {
+  inline-size: 6px;
+  block-size: 6px;
+  border-radius: 50%;
+  background-color: var(--color-primary);
+  animation: qcms-assist-pulse 1.2s ease-in-out infinite;
+}
+.qcms-assist-think__body {
+  margin-block-start: 0.375rem;
+  padding-inline-start: 0.75rem;
+  border-inline-start: 2px solid var(--color-border);
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+}
+
 .qcms-assist-card {
   display: flex;
   flex-direction: column;
@@ -4256,9 +4360,15 @@ div:has(> [role="dialog"] [data-qcms-dialog="wide"]) {
   border-block-start: 1px solid var(--color-border);
 }
 
+/* Reduced motion (section 4.6). The caret becomes a static bar, the running step's dot
+   stops pulsing, and the mark's lights stop scanning while the visor keeps the static
+   glow the `[data-working]` rule above sets: the state is still visible, and the live
+   region says it in words either way, so nothing is lost by stopping the animation. */
 @media (prefers-reduced-motion: reduce) {
   .qcms-assist-caret,
-  .qcms-assist-steps__pulse {
+  .qcms-assist-steps__pulse,
+  .qcms-assist-think__pulse,
+  .qcms-assist-mark[data-working="true"] .qcms-assist-mark__light {
     animation: none;
   }
 }

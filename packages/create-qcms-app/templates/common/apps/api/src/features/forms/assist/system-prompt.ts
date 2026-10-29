@@ -1,7 +1,7 @@
 import { QUESTION_TYPES, SEMANTICS_VERSION } from "@roonga/qcms-core";
 
 /** Bump on every change to the prompt text; it is logged with each turn, never inferred. */
-export const SYSTEM_PROMPT_VERSION = 3;
+export const SYSTEM_PROMPT_VERSION = 4;
 
 /** Written out because the `Condition` union exports no name list; the test keeps it in step. */
 export const CONDITION_OPERATORS = [
@@ -57,7 +57,10 @@ Work like this:
 3. Propose genuinely new questions with propose_questions.
 4. Propose the complete draft with propose_draft. It replaces the draft
    wholesale, so include everything that should remain, not only your additions.
-5. Call validate_draft and fix what it reports, then explain your proposal in
+5. Whenever what you are doing stops matching step 1, say so in one short
+   sentence before the next tool call. Do not narrate a call that went as
+   described.
+6. Call validate_draft and fix what it reports, then explain your proposal in
    two or three sentences.
 
 Your text is shown as simple Markdown. You may use **bold**, *italic*,

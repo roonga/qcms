@@ -34,8 +34,16 @@ export interface TurnStep {
 }
 
 export type TurnSegment =
-  | { readonly kind: "text"; readonly text: string }
-  | { readonly kind: "steps"; readonly steps: readonly TurnStep[] };
+  /** One prose segment; a delta joins it only when it carries the same `id`. */
+  | { readonly kind: "text"; readonly id: string | undefined; readonly text: string }
+  | { readonly kind: "steps"; readonly steps: readonly TurnStep[] }
+  /** The provider's reasoning summary; `endedAt` is set by `reasoning-end` or the turn ending. */
+  | {
+      readonly kind: "thinking";
+      readonly text: string;
+      readonly startedAt: number;
+      readonly endedAt: number | undefined;
+    };
 
 export interface AssistantTurnView {
   readonly segments: readonly TurnSegment[];
@@ -75,13 +83,19 @@ function mapSteps(
   return changed ? { segments } : turn;
 }
 
-function appendText(turn: AssistantTurnView, delta: string): AssistantTurnView {
+function appendText(
+  turn: AssistantTurnView,
+  delta: string,
+  id: string | undefined,
+): AssistantTurnView {
   if (delta === "") return turn;
   const last = turn.segments.at(-1);
-  if (last?.kind === "text") {
-    return { segments: [...turn.segments.slice(0, -1), { kind: "text", text: last.text + delta }] };
+  if (last?.kind === "text" && last.id === id) {
+    return {
+      segments: [...turn.segments.slice(0, -1), { kind: "text", id, text: last.text + delta }],
+    };
   }
-  return { segments: [...turn.segments, { kind: "text", text: delta }] };
+  return { segments: [...turn.segments, { kind: "text", id, text: delta }] };
 }
 
 function appendStep(turn: AssistantTurnView, step: TurnStep): AssistantTurnView {
@@ -94,11 +108,52 @@ function appendStep(turn: AssistantTurnView, step: TurnStep): AssistantTurnView 
   return { segments: [...turn.segments, { kind: "steps", steps: [step] }] };
 }
 
-/** Apply one stream event to the turn. Events that carry nothing visible return it unchanged. */
-export function applyTurnEvent(turn: AssistantTurnView, event: AssistEvent): AssistantTurnView {
+/** Append to the open thinking segment (the last, with no `endedAt`), or open one. */
+function appendThinking(turn: AssistantTurnView, delta: string, now: number): AssistantTurnView {
+  if (delta === "") return turn;
+  const last = turn.segments.at(-1);
+  if (last?.kind === "thinking" && last.endedAt === undefined) {
+    return {
+      segments: [...turn.segments.slice(0, -1), { ...last, text: last.text + delta }],
+    };
+  }
+  return {
+    segments: [
+      ...turn.segments,
+      { kind: "thinking", text: delta, startedAt: now, endedAt: undefined },
+    ],
+  };
+}
+
+/** Settle every open thinking segment. */
+function endThinking(turn: AssistantTurnView, now: number): AssistantTurnView {
+  let changed = false;
+  const segments = turn.segments.map((segment): TurnSegment => {
+    if (segment.kind !== "thinking" || segment.endedAt !== undefined) return segment;
+    changed = true;
+    return { ...segment, endedAt: now };
+  });
+  return changed ? { segments } : turn;
+}
+
+/**
+ * Apply one stream event to the turn. Events that carry nothing visible return
+ * it unchanged.
+ *
+ * `now` is an argument so the fold stays pure and durations are testable.
+ */
+export function applyTurnEvent(
+  turn: AssistantTurnView,
+  event: AssistEvent,
+  now: number = Date.now(),
+): AssistantTurnView {
   switch (event.type) {
     case "text":
-      return appendText(turn, event.delta);
+      return appendText(turn, event.delta, event.segment);
+    case "reasoning":
+      return appendThinking(turn, event.delta, now);
+    case "reasoning-end":
+      return endThinking(turn, now);
     case "status":
       return event.phase === "tool"
         ? appendStep(turn, { label: toolStepLabel(event.tool), state: "running", step: event.step })
@@ -115,12 +170,13 @@ export function applyTurnEvent(turn: AssistantTurnView, event: AssistEvent): Ass
 }
 
 /**
- * The turn once its stream has ended, for whatever reason. Settled steps keep their
- * outcome; a step with no outcome is `interrupted`, never `done`.
+ * The turn once its stream has ended, for whatever reason. A step with no outcome is
+ * `interrupted`, never `done`; an unclosed thinking segment is closed.
  */
-export function finishTurn(turn: AssistantTurnView): AssistantTurnView {
-  return mapSteps(turn, (step) =>
-    step.state === "running" ? { ...step, state: "interrupted" } : step,
+export function finishTurn(turn: AssistantTurnView, now: number = Date.now()): AssistantTurnView {
+  return endThinking(
+    mapSteps(turn, (step) => (step.state === "running" ? { ...step, state: "interrupted" } : step)),
+    now,
   );
 }
 

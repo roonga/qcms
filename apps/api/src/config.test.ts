@@ -535,6 +535,53 @@ describe("draft assistant configuration (041)", () => {
       apiKey: KEY,
       baseUrl: undefined,
       maxSteps: 4,
+      thinking: "off",
+    });
+  });
+
+  describe("QCMS_AGENT_THINKING", () => {
+    function agentEnv(extra: Record<string, string> = {}) {
+      return validEnv({
+        QCMS_FLAG_AGENT_AUTHORING: "anthropic",
+        QCMS_AGENT_MODEL: "some-model",
+        QCMS_AGENT_API_KEY: KEY,
+        ...extra,
+      });
+    }
+
+    it("defaults to off when unset", () => {
+      const config = loadConfig(agentEnv());
+      expect(config.agent).toMatchObject({ thinking: "off" });
+    });
+
+    it("takes summary", () => {
+      const config = loadConfig(agentEnv({ QCMS_AGENT_THINKING: "summary" }));
+      expect(config.agent).toMatchObject({ thinking: "summary" });
+    });
+
+    it("treats an empty value as unset rather than as an error", () => {
+      const config = loadConfig(agentEnv({ QCMS_AGENT_THINKING: "   " }));
+      expect(config.agent).toMatchObject({ thinking: "off" });
+    });
+
+    it("stops boot on any other value, naming the variable and echoing no value", () => {
+      let thrown: unknown;
+      try {
+        loadConfig(agentEnv({ QCMS_AGENT_THINKING: "verbose-please" }));
+      } catch (error) {
+        thrown = error;
+      }
+      expect(thrown).toBeInstanceOf(ConfigError);
+      const message = thrown instanceof Error ? thrown.message : "";
+      expect(message).toContain("QCMS_AGENT_THINKING");
+      expect(message).toContain("off");
+      expect(message).toContain("summary");
+      expect(message).not.toContain("verbose-please");
+    });
+
+    it("is not required, and not read, when no provider is configured", () => {
+      const config = loadConfig(validEnv({ QCMS_AGENT_THINKING: "nonsense" }));
+      expect(config.agent).toEqual({ provider: "none" });
     });
   });
 

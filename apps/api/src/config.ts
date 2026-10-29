@@ -256,9 +256,16 @@ export interface Config {
         /** Required for `openai-compatible`. */
         readonly baseUrl: string | undefined;
         readonly maxSteps: number;
+        /** Drops every reasoning part under `off`, even one a provider emits unasked (SEC-8). */
+        readonly thinking: AgentThinking;
       };
 }
 
+export const AGENT_THINKING = ["off", "summary"] as const;
+
+export type AgentThinking = (typeof AGENT_THINKING)[number];
+
+/** Thrown when the environment fails validation; message names vars, never values. */
 export class ConfigError extends Error {
   readonly issues: readonly string[];
   constructor(issues: readonly string[]) {
@@ -739,11 +746,26 @@ export function isLocalAgentEndpoint(baseUrl: string): boolean {
   return isPrivateIpv4(hostname);
 }
 
+/** Fail-fast; the issue names the variable and its values, never the supplied value (SEC-8). */
+function parseAgentThinking(env: Env, issues: string[]): AgentThinking {
+  const raw = env.QCMS_AGENT_THINKING;
+  if (raw === undefined || raw.trim() === "") return "off";
+  const value = raw.trim();
+  const known = AGENT_THINKING.find((candidate) => candidate === value);
+  if (known === undefined) {
+    issues.push(`QCMS_AGENT_THINKING must be one of: ${AGENT_THINKING.join(", ")}`);
+    return "off";
+  }
+  return known;
+}
+
+/** Secrets exist only in the enabled arm; every issue names an env var, never a value (SEC-8). */
 function parseAgent(env: Env, flags: Flags, issues: string[]): Config["agent"] {
   const provider = flags.agentAuthoring;
   if (provider === "none") return { provider: "none" };
 
   const maxSteps = parseInt_(env, "QCMS_AGENT_MAX_STEPS", DEFAULTS.agentMaxSteps, 1, issues);
+  const thinking = parseAgentThinking(env, issues);
 
   // The test provider talks to nothing, so requiring a key would make the CI
   // composition carry a credential-shaped value for no reason.
@@ -754,6 +776,7 @@ function parseAgent(env: Env, flags: Flags, issues: string[]): Config["agent"] {
       apiKey: "",
       baseUrl: undefined,
       maxSteps,
+      thinking,
     };
   }
 
@@ -788,6 +811,7 @@ function parseAgent(env: Env, flags: Flags, issues: string[]): Config["agent"] {
     apiKey: apiKey?.trim() ?? "",
     baseUrl,
     maxSteps,
+    thinking,
   };
 }
 

@@ -73,7 +73,12 @@ export type AssistEvent =
     }
   /** No error text travels: it would be assembled from model-supplied input (SEC-8). */
   | { readonly type: "tool-outcome"; readonly step: number; readonly outcome: "done" | "failed" }
-  | { readonly type: "text"; readonly delta: string }
+  /** `segment` is the provider's text-segment id, so prose interleaves with timeline rows. */
+  | { readonly type: "text"; readonly delta: string; readonly segment?: string }
+  /** Provider reasoning summary, forwarded only under `summary`; never logged, stored or replayed (SEC-8). */
+  | { readonly type: "reasoning"; readonly delta: string }
+  | { readonly type: "reasoning-end" }
+  /** A tool call outside the allowlist was refused server-side. */
   | { readonly type: "tool-rejected"; readonly tool: string }
   | { readonly type: "proposal"; readonly proposal: AssistProposal }
   | { readonly type: "error"; readonly code: AssistErrorCode; readonly message: string }
