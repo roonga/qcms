@@ -259,43 +259,43 @@ pnpm verify           # the landing gate: check:all, then build, typecheck, lint
 QCMS_PORT_SEAT=0 pnpm verify:browser   # the Playwright suite (portal e2e + a11y + Lighthouse), see below
 ```
 
-| `.github/workflows/ci.yml` step                                        | Covered by                                                                                           |
-| ---------------------------------------------------------------------- | ---------------------------------------------------------------------------------------------------- |
-| `pnpm build` (both occurrences)                                        | `pnpm build`                                                                                         |
-| `pnpm typecheck`                                                       | `pnpm typecheck`                                                                                     |
-| `pnpm lint`                                                            | `pnpm lint` (turbo eslint + `prettier --check .` + `check:fixture-domain`)                           |
-| `pnpm test`                                                            | `pnpm test` (turbo test incl. the api e2e project, + `test:tooling`)                                 |
-| `pnpm test:golden-drift`                                               | `pnpm test:golden-drift`                                                                             |
-| `pnpm check:golden-append-only`                                        | `pnpm check:all`                                                                                     |
-| `pnpm check:changeset`                                                 | `pnpm check:all`                                                                                     |
-| `pnpm check:changeset-status`                                          | `pnpm check:all`                                                                                     |
-| `pnpm check:no-control-chars`                                          | `pnpm check:all`                                                                                     |
-| `pnpm check:licenses`                                                  | `pnpm check:all`                                                                                     |
-| `pnpm check:no-em-dash`                                                | `pnpm check:all`                                                                                     |
-| `pnpm check:ports`                                                     | `pnpm check:all`                                                                                     |
-| `pnpm check:paths`                                                     | `pnpm check:all`                                                                                     |
-| `pnpm check:a2ra-fidelity`                                             | `pnpm check:all`                                                                                     |
-| `pnpm check:security-hygiene`                                          | `pnpm check:all`                                                                                     |
-| `pnpm check:vendor-pin`                                                | `pnpm check:all`                                                                                     |
-| `pnpm check:duplication`                                               | `pnpm check:all`                                                                                     |
-| `pnpm check:admin-theme`                                               | `pnpm check:all`                                                                                     |
-| `pnpm check:font-tokens`                                               | `pnpm check:all`                                                                                     |
-| `pnpm check:dead-i18n-keys`                                            | `pnpm check:all`                                                                                     |
-| `pnpm check:lint-coverage`                                             | `pnpm check:all`                                                                                     |
-| `pnpm check:harness-tags`                                              | `pnpm check:all`                                                                                     |
-| `pnpm check:adr-citations`                                             | `pnpm check:all`                                                                                     |
-| `pnpm check:docker-job-guards`                                         | `pnpm check:all`                                                                                     |
-| `pnpm check:ci-parity`                                                 | `pnpm check:all`                                                                                     |
-| `pnpm check:templates`                                                 | `pnpm check:all`                                                                                     |
-| `pnpm check:comments` (comment length, history markers; `apps/admin/` excluded)             | `pnpm check:all`                                                                                     |
-| `changes (ci)` PR body step (`scripts/check-pr-body.mjs`)              | Not a local gate (reads the PR body)                                                                 |
-| `pnpm check:plan` (fast-lane pull requests only)                       | `pnpm check:plan` - a superset of `check:all`, see "The instruction and plan fast lane" below        |
-| `api-e2e` job (`--project qcms-api-e2e`)                               | `pnpm test` (apps/api's `test` script runs that project)                                             |
-| `browser-e2e` job (`playwright test`: portal **and admin**)            | **`pnpm verify:browser`** - deliberately not in `verify`                                             |
-| `full-stack-e2e` job in `e2e.yml` (`pnpm docker:up` + `pnpm test:e2e`) | **`QCMS_PORT_SEAT=<0-9> pnpm up:e2e`** - deliberately not in `verify` or `verify:browser`, see below |
-| `create-app-e2e` job in `create-app-e2e.yml`                           | **`QCMS_PORT_SEAT=<0-9> pnpm qcms:scaffold-e2e`** - deliberately not in `verify`, see below          |
-| `codeql.yml`, `mirror-test-images.yml`                                 | Not local gates (GitHub-hosted analysis, `plan/` excluded / image mirroring)                         |
-| `scan` job in `images.yml` (grype over the three image SBOMs)          | **`pnpm qcms:scan-images`** - deliberately not in `verify`, see `docs/operations.md`                 |
+| `.github/workflows/ci.yml` step                                                 | Covered by                                                                                           |
+| ------------------------------------------------------------------------------- | ---------------------------------------------------------------------------------------------------- |
+| `pnpm build` (both occurrences)                                                 | `pnpm build`                                                                                         |
+| `pnpm typecheck`                                                                | `pnpm typecheck`                                                                                     |
+| `pnpm lint`                                                                     | `pnpm lint` (turbo eslint + `prettier --check .` + `check:fixture-domain`)                           |
+| `pnpm test`                                                                     | `pnpm test` (turbo test incl. the api e2e project, + `test:tooling`)                                 |
+| `pnpm test:golden-drift`                                                        | `pnpm test:golden-drift`                                                                             |
+| `pnpm check:golden-append-only`                                                 | `pnpm check:all`                                                                                     |
+| `pnpm check:changeset`                                                          | `pnpm check:all`                                                                                     |
+| `pnpm check:changeset-status`                                                   | `pnpm check:all`                                                                                     |
+| `pnpm check:no-control-chars`                                                   | `pnpm check:all`                                                                                     |
+| `pnpm check:licenses`                                                           | `pnpm check:all`                                                                                     |
+| `pnpm check:no-em-dash`                                                         | `pnpm check:all`                                                                                     |
+| `pnpm check:ports`                                                              | `pnpm check:all`                                                                                     |
+| `pnpm check:paths`                                                              | `pnpm check:all`                                                                                     |
+| `pnpm check:a2ra-fidelity`                                                      | `pnpm check:all`                                                                                     |
+| `pnpm check:security-hygiene`                                                   | `pnpm check:all`                                                                                     |
+| `pnpm check:vendor-pin`                                                         | `pnpm check:all`                                                                                     |
+| `pnpm check:duplication`                                                        | `pnpm check:all`                                                                                     |
+| `pnpm check:admin-theme`                                                        | `pnpm check:all`                                                                                     |
+| `pnpm check:font-tokens`                                                        | `pnpm check:all`                                                                                     |
+| `pnpm check:dead-i18n-keys`                                                     | `pnpm check:all`                                                                                     |
+| `pnpm check:lint-coverage`                                                      | `pnpm check:all`                                                                                     |
+| `pnpm check:harness-tags`                                                       | `pnpm check:all`                                                                                     |
+| `pnpm check:adr-citations`                                                      | `pnpm check:all`                                                                                     |
+| `pnpm check:docker-job-guards`                                                  | `pnpm check:all`                                                                                     |
+| `pnpm check:ci-parity`                                                          | `pnpm check:all`                                                                                     |
+| `pnpm check:templates`                                                          | `pnpm check:all`                                                                                     |
+| `pnpm check:comments` (comment length, history markers; `apps/admin/` excluded) | `pnpm check:all`                                                                                     |
+| `changes (ci)` PR body step (`scripts/check-pr-body.mjs`)                       | Not a local gate (reads the PR body)                                                                 |
+| `pnpm check:plan` (fast-lane pull requests only)                                | `pnpm check:plan` - a superset of `check:all`, see "The instruction and plan fast lane" below        |
+| `api-e2e` job (`--project qcms-api-e2e`)                                        | `pnpm test` (apps/api's `test` script runs that project)                                             |
+| `browser-e2e` job (`playwright test`: portal **and admin**)                     | **`pnpm verify:browser`** - deliberately not in `verify`                                             |
+| `full-stack-e2e` job in `e2e.yml` (`pnpm docker:up` + `pnpm test:e2e`)          | **`QCMS_PORT_SEAT=<0-9> pnpm up:e2e`** - deliberately not in `verify` or `verify:browser`, see below |
+| `create-app-e2e` job in `create-app-e2e.yml`                                    | **`QCMS_PORT_SEAT=<0-9> pnpm qcms:scaffold-e2e`** - deliberately not in `verify`, see below          |
+| `codeql.yml`, `mirror-test-images.yml`                                          | Not local gates (GitHub-hosted analysis, `plan/` excluded / image mirroring)                         |
+| `scan` job in `images.yml` (grype over the three image SBOMs)                   | **`pnpm qcms:scan-images`** - deliberately not in `verify`, see `docs/operations.md`                 |
 
 `check:changeset` is new with this gate: it enforces the "Changeset for any change to a publishable package" merge requirement (issue #55, folded into #19), locally and in CI.
 
