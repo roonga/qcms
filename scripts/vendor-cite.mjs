@@ -228,13 +228,8 @@ function lineIndex(text) {
 }
 
 /**
- * pnpm's store encodes a scope as `+` and appends a peer-dependency hash, so
- * `@better-auth/core@<version>` lives under `@better-auth+core@<version>_<hash>`.
- * The version must match exactly: a tree carrying two copies would otherwise hand back
- * whichever the directory listing returned first.
- *
- * Windows needs the second pass: pnpm truncates a store directory name to 60 characters,
- * so only the installed manifest can confirm the version.
+ * Matches the version exactly, since a tree can carry two copies. On Windows pnpm truncates
+ * store names to 60 characters, so only the installed manifest can confirm the version.
  *
  * @param {string} nodeModules
  * @param {string} name

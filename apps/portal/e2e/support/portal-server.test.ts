@@ -180,7 +180,7 @@ createServer((_req, res) => {
 setInterval(() => {}, 1000);
 `;
 
-/** The #58 shape: a fatal error is reported, but the process keeps running. */
+/** A fatal error is reported, but the process keeps running. */
 const FATAL_THEN_HANGS = `
 process.stdout.write("> qcms-portal@0.0.0 dev\\n> next dev --port 99999\\n");
 process.stdout.write("Unhandled Rejection: RangeError: options.port should be >= 0 and < 65536.\\n");
