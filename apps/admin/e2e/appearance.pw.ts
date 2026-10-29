@@ -215,23 +215,28 @@ test("Inter is the app face, and the file behind it really loaded", async ({ pag
 });
 
 /**
- * The data face is the other half of the rev 8 pair, and it is NOT provable from the
- * body: `--font-mono` reaches ids, hashes and versions, so the proof has to be an
- * element that actually carries it. The sign-in screen has none, so this reads the
- * token off the root and then checks the file loaded - the same two-step the test
- * above makes, minus the inheritance leg.
+ * The data face is the other half of the rev 8 pair, and it cannot be proved the way the
+ * one above is. `--font-mono` reaches ids, hashes and versions, and the sign-in screen
+ * shows none, so the face is declared and deliberately still `unloaded`: a browser fetches
+ * a webfont when something on the page asks for it and not before. Asking for it is
+ * therefore the test - `document.fonts.load` resolves to the matched faces only if the
+ * declaration resolves to a file the browser can parse, which is the failure a token
+ * assertion on its own would miss.
  */
-test("JetBrains Mono is the data face and its file loaded", async ({ page }) => {
+test("JetBrains Mono is the data face and its file parses", async ({ page }) => {
   await page.goto("/sign-in");
   expect(await tokenLength(page.locator(":root"), "--font-mono")).toMatch(/^"JetBrains Mono"/u);
 
-  const statuses = await page.evaluate(async () => {
-    await document.fonts.ready;
-    return [...document.fonts]
-      .filter((face) => face.family === "JetBrains Mono")
-      .map((f) => f.status);
+  const declared = await page.evaluate(
+    () => [...document.fonts].filter((face) => face.family === "JetBrains Mono").length,
+  );
+  expect(declared, "the mono face should be declared exactly once").toBe(1);
+
+  const loaded = await page.evaluate(async () => {
+    const faces = await document.fonts.load('400 1rem "JetBrains Mono"');
+    return faces.map((face) => face.status);
   });
-  expect(statuses, "the mono face should be declared once").toEqual(["loaded"]);
+  expect(loaded, "and its file should load when something asks for it").toEqual(["loaded"]);
 });
 
 test("the mode control moves through all three modes and persists across a reload", async ({

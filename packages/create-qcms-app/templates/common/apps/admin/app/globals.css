@@ -3421,7 +3421,10 @@ div:has(> [role="dialog"] [data-qcms-dialog="wide"]) {
   flex-direction: column;
   gap: var(--admin-rail-row-gap);
   padding-block: 0;
-  margin-block-start: var(--space-4);
+  /* The rail's own rhythm is 2px inside a group and 8px between groups (Code Owner,
+     2026-08-30), which `e2e/rail-screens.pw.ts` measures. The 16px above a button row
+     in rev 8's density rules is a rule about content, not about this column. */
+  margin-block-start: var(--space-2);
 }
 .qcms-rail__actions > button {
   flex: 1 1 auto;
