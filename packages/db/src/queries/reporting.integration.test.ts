@@ -24,6 +24,7 @@ import {
   listResponses,
   listTombstones,
   markSubmitted,
+  responseCountsByForm,
 } from "./index.js";
 
 /** Requires Docker. */
@@ -215,6 +216,52 @@ describe("listResponses", () => {
     });
     expect(res.total).toBe(1);
     expect(res.rows.map((r) => r.sessionId)).toEqual([kept]);
+  });
+});
+
+describe("responseCountsByForm", () => {
+  it("counts submitted and open sessions per form, and never counts an erased response", async () => {
+    // Erasing deletes the submission and leaves the session shell, so a count taken from
+    // `sessions.status` would keep reporting a response the respondent had removed.
+    const counted = await seedFormVersion("frm_count_a", 1);
+    const other = await seedFormVersion("frm_count_b", 1);
+    const erased = SessionId.parse("ses_count_erased");
+    for (const id of ["ses_count_one", "ses_count_two"]) {
+      await seedSubmitted({
+        formId: counted,
+        version: 1,
+        sessionId: SessionId.parse(id),
+        entries: [{ questionId: "q_t", value: "x" }],
+        submittedAt: new Date("2026-04-01T00:00:00.000Z"),
+      });
+    }
+    await seedSubmitted({
+      formId: counted,
+      version: 1,
+      sessionId: erased,
+      entries: [{ questionId: "q_t", value: "secret" }],
+      submittedAt: new Date("2026-04-03T00:00:00.000Z"),
+    });
+    await eraseSession(testDb.db, counted, erased, "subject_request");
+    // One session started and never submitted, which is the `inProgress` half.
+    await createSession(testDb.db, {
+      environment: DEFAULT_TEST_ENVIRONMENT,
+      sessionId: SessionId.parse("ses_count_open"),
+      formId: counted,
+      formVersion: 1,
+      accessMode: "anonymous",
+      expiresAt: new Date(Date.now() + 86_400_000),
+    });
+
+    const counts = await responseCountsByForm(testDb.db, DEFAULT_TEST_ENVIRONMENT, [
+      counted,
+      other,
+    ]);
+    expect(counts.get(counted)).toEqual({ submitted: 2, inProgress: 1 });
+    // A form named with nothing in it is zero rather than absent, so a caller does not
+    // have to tell "no responses" from "not asked about".
+    expect(counts.get(other)).toEqual({ submitted: 0, inProgress: 0 });
+    expect((await responseCountsByForm(testDb.db, DEFAULT_TEST_ENVIRONMENT, [])).size).toBe(0);
   });
 });
 

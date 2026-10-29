@@ -41,7 +41,9 @@ import {
 import type { Deps } from "../../deps.js";
 import { ApiError } from "../../errors.js";
 import type { ApiEnv } from "../../openapi.js";
-import { holdsInstallationClaim } from "./resolver.js";
+import { holdsStatement, type Resource } from "./policy.js";
+import { holdsInstallationClaim, resolveCallerWorkspaces } from "./resolver.js";
+import { OPERATIONAL_CELLS } from "./route-policy.js";
 import type {
   addHolderRoute,
   auditRoute,
@@ -278,10 +280,12 @@ export function makeMyAccessHandler(deps: Deps): RouteHandler<typeof myAccessRou
       byWorkspace.set(grant.workspaceId, slot);
     }
 
+    const claim = holdsInstallationClaim(principal.role);
     return c.json(
       {
         userId: principal.userId,
-        installationAdmin: holdsInstallationClaim(principal.role),
+        installationAdmin: claim,
+        capabilities: await areasFor(exec, { userId: principal.userId, claim }),
         workspaces: [...byWorkspace.values()].map((workspace) => ({
           ...workspace,
           environments: environmentsHeld(workspace.grants, live),
@@ -289,6 +293,39 @@ export function makeMyAccessHandler(deps: Deps): RouteHandler<typeof myAccessRou
       },
       200,
     );
+  };
+}
+
+/**
+ * Which areas a caller has, each asking whether any workspace they hold a grant in allows
+ * the cell that area's routes require. Both scopes are ignored: what is inside an area is
+ * that area's own routes' answer.
+ */
+async function areasFor(
+  exec: Executor,
+  input: { readonly userId: string; readonly claim: boolean },
+): Promise<{
+  operations: boolean;
+  workspaces: boolean;
+  siteConfiguration: boolean;
+  authoring: boolean;
+}> {
+  const resolved = await resolveCallerWorkspaces(exec, input);
+  const anywhere = (resource: Resource, action: string): boolean =>
+    resolved.some((membership) =>
+      holdsStatement(
+        { memberRole: membership.memberRole, grants: membership.grants },
+        resource,
+        action,
+      ),
+    );
+  return {
+    operations: OPERATIONAL_CELLS.some((cell) => anywhere(cell.resource, cell.action)),
+    workspaces: anywhere("workspace", "read"),
+    // Not a cell: site configuration leads to `installationOnly` rows, which no role
+    // reaches however it is scoped.
+    siteConfiguration: input.claim,
+    authoring: anywhere("form", "read") || anywhere("question", "read"),
   };
 }
 

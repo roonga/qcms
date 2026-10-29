@@ -53,6 +53,7 @@ export {
   getLatestPublishedVersion,
   listFormVersions,
   moveFormToWorkspace,
+  publishedTitlesByForm,
   updateFormSettings,
 } from "./forms.js";
 
@@ -189,8 +190,10 @@ export {
   type ResponseListRow,
   type ResponseDetailRow,
   type ResponseFilter,
+  type ResponseCounts,
   type TombstoneRow,
   listResponses,
+  responseCountsByForm,
   getResponse,
   fetchResponsePage,
   listTombstones,
@@ -234,6 +237,7 @@ export {
   getFormEnvironmentState,
   getReleasedVersion,
   insertFormRelease,
+  lastReleaseAtByForm,
   listFormReleases,
   listReleasedVersions,
   reopenFormInEnvironment,

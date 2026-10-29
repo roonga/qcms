@@ -9,6 +9,7 @@ import {
 } from "@roonga/qcms-db";
 import type { Executor } from "@roonga/qcms-db";
 
+import type { ResolvedMembership } from "./context.js";
 import { type AccessDecision, type AccessRequest, type HeldGrant, decideAccess } from "./policy.js";
 
 // The better-auth field is declared `input: false`, so no request body can set it.
@@ -27,11 +28,7 @@ const CLAIM_GRANT: HeldGrant = {
   forms: ["all"],
 };
 
-export interface ResolvedMembership {
-  readonly workspaceId: string;
-  readonly memberRole: string | undefined;
-  readonly grants: readonly HeldGrant[];
-}
+export type { ResolvedMembership } from "./context.js";
 
 export async function resolveGrants(
   exec: Executor,

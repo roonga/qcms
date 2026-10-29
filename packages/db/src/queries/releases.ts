@@ -1,4 +1,4 @@
-import { and, desc, eq, sql } from "drizzle-orm";
+import { and, desc, eq, inArray, sql } from "drizzle-orm";
 
 import type { FormId } from "@roonga/qcms-core";
 
@@ -82,6 +82,8 @@ export async function insertFormRelease(
 export interface FormEnvironmentState {
   readonly version: number;
   readonly closed: boolean;
+  /** When the newest row for the pair was written: a release, a close or a reopen. */
+  readonly releasedAt: Date;
 }
 
 /** The form's released version and closed reading in one environment. */
@@ -91,25 +93,76 @@ export async function getFormEnvironmentState(
   environment: string,
 ): Promise<FormEnvironmentState | undefined> {
   const row = await getReleasedVersion(exec, formId, environment);
-  return row === undefined ? undefined : { version: row.version, closed: row.closed };
+  return row === undefined
+    ? undefined
+    : { version: row.version, closed: row.closed, releasedAt: row.releasedAt };
 }
 
 /** {@link getReleasedVersion}'s reading for every form in one environment, in one query. */
 export async function environmentStatesByForm(
   exec: Executor,
   environment: string,
+  formIds?: readonly FormId[],
 ): Promise<Map<FormId, FormEnvironmentState>> {
-  const rows = await exec.execute<{ form_id: FormId; version: number; closed: boolean }>(
+  if (formIds !== undefined && formIds.length === 0) return new Map();
+  const narrowed =
+    formIds === undefined
+      ? sql``
+      : sql` and ${formReleases.formId} in (${sql.join(
+          formIds.map((id) => sql`${id}`),
+          sql`, `,
+        )})`;
+  const rows = await exec.execute<{
+    form_id: FormId;
+    version: number;
+    closed: boolean;
+    released_at: Date | string;
+  }>(
     sql`select distinct on (${formReleases.formId})
                ${formReleases.formId} as form_id,
                ${formReleases.version} as version,
-               ${formReleases.closed} as closed
+               ${formReleases.closed} as closed,
+               ${formReleases.releasedAt} as released_at
           from ${formReleases}
-         where ${formReleases.environment} = ${environment}
+         where ${formReleases.environment} = ${environment}${narrowed}
          order by ${formReleases.formId}, ${formReleases.sequence} desc`,
   );
   return new Map(
-    rows.rows.map((row) => [row.form_id, { version: Number(row.version), closed: row.closed }]),
+    rows.rows.map((row) => [
+      row.form_id,
+      {
+        version: Number(row.version),
+        closed: row.closed,
+        releasedAt: row.released_at instanceof Date ? row.released_at : new Date(row.released_at),
+      },
+    ]),
+  );
+}
+
+/**
+ * When each named form was last released to any environment, in one query.
+ *
+ * A different question from {@link environmentStatesByForm}, which answers what is
+ * serving in one environment.
+ */
+export async function lastReleaseAtByForm(
+  exec: Executor,
+  formIds: readonly FormId[],
+): Promise<Map<FormId, Date>> {
+  if (formIds.length === 0) return new Map();
+  const rows = await exec
+    .select({
+      formId: formReleases.formId,
+      lastReleaseAt: sql<Date | string>`max(${formReleases.releasedAt})`.as("last_release_at"),
+    })
+    .from(formReleases)
+    .where(inArray(formReleases.formId, [...formIds]))
+    .groupBy(formReleases.formId);
+  return new Map(
+    rows.map((row) => [
+      row.formId,
+      row.lastReleaseAt instanceof Date ? row.lastReleaseAt : new Date(row.lastReleaseAt),
+    ]),
   );
 }
 

@@ -168,6 +168,20 @@ export const MyAccessResponse = z
   .object({
     userId: z.string(),
     installationAdmin: z.boolean(),
+    // Which areas of the admin this caller has at all, each derived from the cell that
+    // area's routes require, so a navigation contract cannot offer a mode whose routes
+    // refuse. A projection, not an authority: every route still decides.
+    capabilities: z.object({
+      // Any one of the operational cells anywhere. False for a `forms.owner` alone and
+      // for the installation claim alone, neither of which reaches a form cell.
+      operations: z.boolean(),
+      // `workspace: read`, which is an owner's and the claim's.
+      workspaces: z.boolean(),
+      // The installation claim alone.
+      siteConfiguration: z.boolean(),
+      // `form: read` or `question: read` in some workspace.
+      authoring: z.boolean(),
+    }),
     workspaces: z.array(
       z.object({
         workspaceId: z.string(),

@@ -147,6 +147,57 @@ export async function fetchResponsePage(
   return res.rows.map(normalizeRow);
 }
 
+/** How many responses one form has in one environment, submitted and still open. */
+export interface ResponseCounts {
+  /** Submitted and not erased: the rows the response list would show. */
+  readonly submitted: number;
+  /** Started and neither submitted, expired nor erased. */
+  readonly inProgress: number;
+}
+
+/**
+ * {@link ResponseCounts} for several forms in one environment, in two grouped queries.
+ *
+ * `submitted` comes from the erasure-safe `responses` view, so an erased response is not
+ * counted; `inProgress` is counted from `sessions`, which has no such view. It authorises
+ * nothing and writes no audit row: the caller establishes `response: read` per form.
+ */
+export async function responseCountsByForm(
+  exec: Executor,
+  environment: string,
+  formIds: readonly FormId[],
+): Promise<Map<FormId, ResponseCounts>> {
+  if (formIds.length === 0) return new Map();
+  const ids = sql.join(
+    formIds.map((id) => sql`${id}`),
+    sql`, `,
+  );
+  const submitted = await exec.execute<{ formId: FormId; count: number }>(sql`
+    select r.form_id as "formId", count(*)::int as "count"
+    from ${reportingSchema(environment)} r
+    where r.form_id in (${ids})
+    group by r.form_id
+  `);
+  const open = await exec.execute<{ formId: FormId; count: number }>(sql`
+    select s.form_id as "formId", count(*)::int as "count"
+    from sessions s
+    where s.form_id in (${ids}) and s.status in ('created', 'in_progress')
+    group by s.form_id
+  `);
+
+  const counts = new Map<FormId, ResponseCounts>();
+  for (const id of formIds) counts.set(id, { submitted: 0, inProgress: 0 });
+  for (const row of submitted.rows) {
+    const existing = counts.get(row.formId);
+    if (existing !== undefined) counts.set(row.formId, { ...existing, submitted: row.count });
+  }
+  for (const row of open.rows) {
+    const existing = counts.get(row.formId);
+    if (existing !== undefined) counts.set(row.formId, { ...existing, inProgress: row.count });
+  }
+  return counts;
+}
+
 /** A tombstone row: the existence of an erased response without its content. */
 export interface TombstoneRow {
   readonly sessionId: SessionId;

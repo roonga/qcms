@@ -6,9 +6,11 @@
 
 import type { RouteHandler } from "@hono/zod-openapi";
 import {
+  getDraft,
   getForm,
   getFormVersion,
   getReleasedVersion,
+  getWorkspace,
   isScopeAll,
   listEnvironmentNames,
   listEnvironments,
@@ -22,16 +24,24 @@ import { FormId, parseFormId } from "@roonga/qcms-core";
 import type { Deps } from "../../deps.js";
 import { ApiError } from "../../errors.js";
 import type { ApiEnv } from "../../openapi.js";
-import { holdsInstallationClaim } from "../membership/resolver.js";
+import { decideAccess, PRODUCTION_ENVIRONMENT } from "../membership/policy.js";
+import { holdsInstallationClaim, resolveGrants } from "../membership/resolver.js";
 import { approvalForRelease } from "../membership/two-person.js";
 import { recordRelease } from "./release.js";
-import { requireProductionCandidate } from "./workflow.js";
-import type { environmentSetRoute, releaseHistoryRoute, releaseVersionRoute } from "./route.js";
+import { requireProductionCandidate, usesTestWorkflow } from "./workflow.js";
+import type {
+  environmentSetRoute,
+  releaseHistoryRoute,
+  releaseReviewRoute,
+  releaseVersionRoute,
+} from "./route.js";
 
 const fail = {
   invalidId: (): ApiError => new ApiError("INVALID_FORM_ID", 400, "Malformed form id"),
   formNotFound: (): ApiError => new ApiError("FORM_NOT_FOUND", 404, "No such form"),
   versionNotFound: (): ApiError => new ApiError("VERSION_NOT_FOUND", 404, "No such form version"),
+  draftNotFound: (): ApiError =>
+    new ApiError("DRAFT_NOT_FOUND", 404, "This form has no open draft to review"),
   unknownEnvironment: (name: string): ApiError =>
     new ApiError("UNKNOWN_ENVIRONMENT", 400, `This deployment serves no environment named ${name}`),
   /**
@@ -222,6 +232,205 @@ export function makeReleaseHistoryHandler(
     const releases = await listFormReleases(deps.databases.control, formId, environment);
     return c.json({ releases: releases.map((row) => releaseBody(row)) }, 200);
   };
+}
+
+/**
+ * What releasing one source into each permitted target would do. It writes nothing: the
+ * review is a report rather than a reservation, and the commit rechecks every expectation.
+ *
+ * The route names no environment because this acts in none; the targets reported are the
+ * ones the caller holds `release: create` in, decided per environment here.
+ */
+export function makeReleaseReviewHandler(
+  deps: Deps,
+): RouteHandler<typeof releaseReviewRoute, ApiEnv> {
+  return async (c) => {
+    const formId = requireFormId(c.req.valid("param").id);
+    const { source } = c.req.valid("json");
+
+    const exec = deps.databases.control;
+    const form = await getForm(exec, formId);
+    if (form === undefined) throw fail.formNotFound();
+
+    const candidate =
+      source.kind === "version" ? await getFormVersion(exec, formId, source.version) : undefined;
+    if (source.kind === "version" && candidate === undefined) throw fail.versionNotFound();
+    if (source.kind === "draft" && (await getDraft(exec, formId)) === undefined) {
+      throw fail.draftNotFound();
+    }
+
+    const principal = c.get("adminPrincipal");
+    if (principal === undefined) throw fail.noPrincipal();
+    const workspaceId = c.get("grantContext")?.workspaceId ?? form.workspaceId;
+    const membership = await resolveGrants(exec, {
+      userId: principal.userId,
+      workspaceId,
+      claim: holdsInstallationClaim(principal.role),
+    });
+
+    const releases = await listFormReleases(exec, formId);
+    const workflowEnabled = usesTestWorkflow(deps.databases.names);
+    const workspace = await getWorkspace(exec, workspaceId);
+    const rows = await listEnvironments(exec);
+    const served = rows
+      .map((row) => row.name)
+      .filter((name) => deps.databases.names.includes(name));
+
+    const targets = served
+      .filter(
+        (environment) =>
+          decideAccess({
+            memberRole: membership.memberRole,
+            grants: membership.grants,
+            request: { resource: "release", action: "create", environment, formId },
+          }).allowed,
+      )
+      .map((environment) =>
+        reviewTarget({
+          environment,
+          releases,
+          workflowEnabled,
+          requiresSecond: workspace?.requireSecondApprover ?? false,
+          isDraft: source.kind === "draft",
+          version: candidate?.version,
+          author: candidate?.publishedBy ?? null,
+          caller: principal.userId,
+        }),
+      );
+
+    return c.json(
+      {
+        source:
+          source.kind === "draft"
+            ? ({ kind: "draft" } as const)
+            : ({
+                kind: "version" as const,
+                version: source.version,
+                publishedBy: candidate?.publishedBy ?? null,
+              } as const),
+        workflowRevision: null,
+        workflowSource: "default" as const,
+        targets,
+      },
+      200,
+    );
+  };
+}
+
+interface Blocker {
+  readonly code: string;
+  readonly requiresAnyOf: string[];
+}
+
+/**
+ * One target of a review: what is serving, the evidence and the two-person reading.
+ * Nothing here reads a grant; the handler has already chosen the targets.
+ */
+function reviewTarget(input: {
+  readonly environment: string;
+  readonly releases: readonly FormReleaseHistoryRow[];
+  readonly workflowEnabled: boolean;
+  readonly requiresSecond: boolean;
+  readonly isDraft: boolean;
+  readonly version: number | undefined;
+  readonly author: string | null;
+  readonly caller: string;
+}): {
+  environment: string;
+  currentVersion: number | null;
+  currentSequence: number | null;
+  closed: boolean;
+  evidence: { environment: string; version: number; sequence: number; releasedAt: string }[];
+  blockers: Blocker[];
+  twoPerson: { applies: boolean; refusedAsAuthor: boolean };
+  protected: boolean;
+} {
+  const { environment, releases, version } = input;
+  const here = releases.filter((release) => release.environment === environment);
+  const current = here[0];
+  // A version already released in the target itself is a rollback, eligible regardless of
+  // prerequisites.
+  const rollback = version !== undefined && here.some((release) => release.version === version);
+  const prerequisite =
+    input.workflowEnabled && environment === PRODUCTION_ENVIRONMENT ? ["test", "prod"] : [];
+  const evidence =
+    version === undefined ? [] : evidenceFor(releases, version, environment, prerequisite);
+
+  const applies = environment === PRODUCTION_ENVIRONMENT && input.requiresSecond;
+  const refusedAsAuthor = applies && input.author !== null && input.author === input.caller;
+  const blockers = blockersFor({
+    prerequisite,
+    rollback,
+    isDraft: input.isDraft,
+    hasEvidence: evidence.length > 0,
+    alreadyReleased: version !== undefined && current?.version === version,
+    twoPersonApplies: applies,
+    authorKnown: input.author !== null,
+    refusedAsAuthor,
+  });
+
+  return {
+    environment,
+    currentVersion: current?.version ?? null,
+    currentSequence: current?.sequence ?? null,
+    closed: current?.closed ?? false,
+    evidence: evidence.map((release) => ({
+      environment: release.environment,
+      version: release.version,
+      sequence: release.sequence,
+      releasedAt: release.releasedAt.toISOString(),
+    })),
+    blockers,
+    twoPerson: { applies, refusedAsAuthor },
+    protected: environment === PRODUCTION_ENVIRONMENT,
+  };
+}
+
+/** Every reason one target refuses one candidate, from conditions already decided. */
+function blockersFor(input: {
+  readonly prerequisite: readonly string[];
+  readonly rollback: boolean;
+  readonly isDraft: boolean;
+  readonly hasEvidence: boolean;
+  readonly alreadyReleased: boolean;
+  readonly twoPersonApplies: boolean;
+  readonly authorKnown: boolean;
+  readonly refusedAsAuthor: boolean;
+}): Blocker[] {
+  const blockers: Blocker[] = [];
+  const requiresAnyOf = [...input.prerequisite];
+  if (input.prerequisite.length > 0 && !input.rollback) {
+    // A combined publish into a target with a prerequisite is refused: the version would
+    // have no prior release anywhere.
+    if (input.isDraft) blockers.push({ code: "DRAFT_PUBLISH_NOT_ALLOWED", requiresAnyOf });
+    else if (!input.hasEvidence) blockers.push({ code: "TEST_RELEASE_REQUIRED", requiresAnyOf });
+  }
+  if (input.alreadyReleased) blockers.push({ code: "ALREADY_RELEASED", requiresAnyOf: [] });
+  if (input.twoPersonApplies && !input.isDraft) {
+    if (!input.authorKnown) blockers.push({ code: "APPROVER_UNKNOWN_AUTHOR", requiresAnyOf: [] });
+    else if (input.refusedAsAuthor) {
+      blockers.push({ code: "APPROVER_IS_AUTHOR", requiresAnyOf: [] });
+    }
+  }
+  return blockers;
+}
+
+/**
+ * The committed rows that satisfy a target's rule: rows in a required environment, or,
+ * with no prerequisite, rows in the target itself, which is what marks a rollback.
+ */
+function evidenceFor(
+  releases: readonly FormReleaseHistoryRow[],
+  version: number,
+  environment: string,
+  prerequisite: readonly string[],
+): FormReleaseHistoryRow[] {
+  return releases.filter((release) => {
+    if (release.version !== version) return false;
+    return prerequisite.length === 0
+      ? release.environment === environment
+      : prerequisite.includes(release.environment);
+  });
 }
 
 export function makeEnvironmentSetHandler(
