@@ -114,6 +114,12 @@ describe("history markers", () => {
     }
   });
 
+  it("catches a bare number", () => {
+    for (const sample of ["pre-#331 spelling", "(#449)", "before #120"]) {
+      expect(scan(`// ${sample}`), sample).toEqual([expect.objectContaining({ rule: "history" })]);
+    }
+  });
+
   it("reports the line inside a block", () => {
     expect(scan(["/*", " * fine", " * issue #9", " */"].join("\n"))).toEqual([
       expect.objectContaining({ line: 3, rule: "history" }),
@@ -121,7 +127,7 @@ describe("history markers", () => {
   });
 
   it("leaves near misses alone", () => {
-    for (const sample of ["ADR-24 and SEC-8", "version 1.2.3", "a 2026-13-40 shape", "task 42"]) {
+    for (const sample of ["ADR-24 and SEC-8", "version 1.2.3", "a 2026-13-40 shape", "task 42", "colour #fff", "&#123;"]) {
       expect(scan(`// ${sample}`), sample).toEqual([]);
     }
   });

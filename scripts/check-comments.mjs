@@ -76,7 +76,7 @@ export const HISTORY_MARKERS = [
  * after one belongs to it until the next tag.
  */
 const TYPE_TAG =
-  /^@(param|arg|argument|returns?|throws|template|typeParam|type|typedef|callback|property|prop|satisfies|yields|deprecated|see)\b/;
+  /^@(param|arg|argument|returns?|throws|template|typeParam|type|typedef|callback|property|prop|satisfies|yields)\b/;
 const ANY_TAG = /^@[A-Za-z]+/;
 
 function isAllowedLine(line) {
