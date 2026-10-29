@@ -4,13 +4,13 @@ import type { ReactNode } from "react";
 import { AccountMenu } from "@/components/account-menu";
 import { AdminNav } from "@/components/admin-nav";
 import { Announcer } from "@/components/announcer";
-import { AppearanceMenu } from "@/components/appearance-menu";
 import { EnvironmentBanner } from "@/components/environment-banner";
 import { EnvironmentScope } from "@/components/environment-scope";
 import { EnvironmentSwitcher } from "@/components/environment-switcher";
 import { MeasuredMain } from "@/components/measured-main";
+import { ThemeToggle } from "@/components/theme-toggle";
 import { TopbarHeight } from "@/components/topbar-height";
-import { MODE_COOKIE, parseMode } from "@/lib/appearance";
+import { MODE_COOKIE, parseAppearance } from "@/lib/appearance";
 import { shownEnvironment } from "@/lib/environment";
 import { secureCookies } from "@/lib/server/config";
 import { resolvedEnvironment } from "@/lib/server/environments";
@@ -86,7 +86,7 @@ export default async function ShellLayout({
   // module by construction (the R2 import-surface test) - and it is the same function
   // the enrollment cookies and the API's better-auth instance decide from, so all three
   // cookie families on this origin carry the same `Secure` attribute (see its doc).
-  const mode = parseMode((await cookies()).get(MODE_COOKIE)?.value);
+  const appearance = parseAppearance((await cookies()).get(MODE_COOKIE)?.value);
   // The environment set is the API's answer, not a literal here (ADR-40: the set is a
   // table and an operator may add to it), and the selection is validated against it so a
   // cookie naming an environment this deployment no longer serves falls through to
@@ -184,7 +184,7 @@ export default async function ShellLayout({
                 </span>
               </div>
             )}
-            <AppearanceMenu mode={mode} secureCookies={secureCookies()} />
+            <ThemeToggle appearance={appearance} secureCookies={secureCookies()} />
             <AccountMenu email={session.email} name={session.name} />
           </div>
         </div>

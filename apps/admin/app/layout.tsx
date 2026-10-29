@@ -4,7 +4,7 @@ import type { ReactNode } from "react";
 
 import { HydrationMarker } from "@/components/hydration-marker";
 import { LocaleProvider } from "@/components/locale-context";
-import { MODE_COOKIE, parseMode } from "@/lib/appearance";
+import { MODE_COOKIE, appearanceClassName, parseAppearance } from "@/lib/appearance";
 import { t } from "@/lib/i18n/en";
 import { appLocale } from "@/lib/server/config";
 
@@ -31,17 +31,17 @@ export const viewport: Viewport = {
  * which keeps the app's CSP free of any `script-src` allowance of our own (see
  * `lib/server/csp.ts`).
  *
- * Mode is resolved in two halves, and the split is what removes the script:
+ * Appearance is resolved in two halves, and the split is what removes the script:
  *
- * - An EXPLICIT choice is a cookie, readable here, stamped as the root class before
+ * - An EXPLICIT choice is a cookie, readable here, stamped as the root classes before
  *   a byte of HTML leaves. No flash, and no client code involved in the first paint.
- * - NO choice means no class at all, and the token sheet's own
- *   `prefers-color-scheme` block then applies the dark values (`app/theme.css`).
- *   That is the one input a server cannot see, handled by the one mechanism that
- *   does not need to run in the document.
+ * - Auto polarity means no polarity class at all, and the token sheet's own
+ *   `prefers-color-scheme` blocks then apply the dark field (`app/theme.css`), at
+ *   either contrast level. That is the one input a server cannot see, handled by the
+ *   one mechanism that does not need to run in the document.
  *
- * High-contrast is never inferred by either half, which is the constraint task 055
- * makes explicit: `.hc` appears only when the cookie says the operator chose it.
+ * High contrast is never inferred by either half: `.hc` appears only when the cookie
+ * says the operator chose it.
  *
  * Reading a cookie makes every route dynamic. That costs nothing here: every screen
  * in this app is already per-request (session lookups, search params), and there is
@@ -105,10 +105,10 @@ const REQUIRES_JS_CSS =
   ".qcms-requires-js{display:flex!important}";
 
 export default async function AdminRootLayout({ children }: { readonly children: ReactNode }) {
-  const mode = parseMode((await cookies()).get(MODE_COOKIE)?.value);
+  const appearance = parseAppearance((await cookies()).get(MODE_COOKIE)?.value);
 
   return (
-    <html lang="en" className={mode ?? undefined}>
+    <html lang="en" className={appearanceClassName(appearance)}>
       <head>
         {/* The scripting gate. See `REQUIRES_JS_CSS` above for the whole argument. */}
         <noscript>
