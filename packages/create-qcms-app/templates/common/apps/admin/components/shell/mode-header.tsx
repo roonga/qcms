@@ -1,8 +1,12 @@
 import Link from "next/link";
 
 import { t } from "@/lib/i18n/en";
-import { restoredModePath, type RememberedContext } from "@/lib/shell/context";
-import { exitMode, type FocusedShellMode, type ShellCapabilities } from "@/lib/shell/modes";
+import {
+  exitMode,
+  landingPathForMode,
+  type FocusedShellMode,
+  type ShellCapabilities,
+} from "@/lib/shell/modes";
 
 /**
  * A focused mode's own header, in place of the application navigation.
@@ -13,14 +17,12 @@ import { exitMode, type FocusedShellMode, type ShellCapabilities } from "@/lib/s
 export function ModeHeader({
   mode,
   capabilities,
-  context,
 }: {
   readonly mode: FocusedShellMode;
   readonly capabilities: ShellCapabilities;
-  readonly context: RememberedContext;
 }) {
   const leavingFor = exitMode(mode, capabilities);
-  const exit = leavingFor === undefined ? undefined : restoredModePath(leavingFor, context);
+  const exit = leavingFor === undefined ? undefined : landingPathForMode(leavingFor);
 
   return (
     <div className="qcms-modeheader" data-testid="qcms-mode-header" data-mode={mode}>

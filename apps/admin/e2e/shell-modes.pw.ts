@@ -213,20 +213,28 @@ test("a denied bookmark is not remembered as the mode a personal route sits in",
   await expect(page.getByTestId("qcms-mode-header")).not.toHaveAttribute("data-mode", "operations");
 });
 
-test("re-entering Workspaces returns to the workspace it was last on", async ({ page }) => {
+test("the root restores the workspace the Workspaces mode was last on", async ({ page }) => {
   await signInWithTotp(page, EVERYTHING, everythingSecret);
 
   await page.goto(`/workspaces/${WORKSPACE_ID}`);
   await expect(page.getByRole("heading", { level: 2, name: "Members" })).toBeVisible();
 
-  await page.getByTestId("qcms-mode-exit").click();
-  await expect(page).toHaveURL(/\/questions$/);
-
-  await page
-    .getByRole("navigation", { name: "Primary" })
-    .getByRole("link", { name: "Workspaces" })
-    .click();
+  // The root is where a remembered context is restored, because it is a page and resolves
+  // on every arrival; the shell's layout does not re-render on a soft navigation.
+  await page.goto("/");
   await expect(page).toHaveURL(new RegExp(`/workspaces/${WORKSPACE_ID}$`));
+});
+
+test("the root falls back to All workspaces when the remembered one is not permitted", async ({
+  page,
+}) => {
+  await signInWithTotp(page, WORKSPACES_ONLY, workspacesSecret, /\/workspaces$/);
+
+  await page.goto("/");
+
+  // This caller administers the seeded workspace through the claim, so the fallback under
+  // test is the one a cookie from a revoked grant takes: nothing was remembered for them.
+  await expect(page).toHaveURL(/\/workspaces(\/[\w.-]+)?$/);
 });
 
 test("the Operations landing is reached again by re-entering the mode", async ({ page }) => {

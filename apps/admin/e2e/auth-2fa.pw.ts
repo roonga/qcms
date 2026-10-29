@@ -381,8 +381,15 @@ test("the account menu names the operator and routes to the password screen", as
   await expect(menu.locator(".qcms-menu__email")).toHaveCount(0);
   // The rule the slot brings with it, between the header and the first action.
   await expect(page.locator(".qcms-menu .qcms-menu__sep")).toHaveCount(1);
-  // The header is a label, not a stop: exactly two items are reachable.
-  await expect(menu.getByRole("menuitem")).toHaveText(["Change password", "Sign out"]);
+  // The header is a label, not a stop: only the items are reachable. Settings and My
+  // access are here rather than in the application navigation, because they belong to the
+  // signed-in account rather than to an area.
+  await expect(menu.getByRole("menuitem")).toHaveText([
+    "Settings",
+    "My access",
+    "Change password",
+    "Sign out",
+  ]);
   // A real anchor, from the item's `href` slot, so it middle-clicks and copies like a
   // link. A row that only ran an action would look identical until someone tried that.
   await expect(menu.getByRole("menuitem", { name: "Change password" })).toHaveAttribute(

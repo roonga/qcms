@@ -6,7 +6,7 @@ import { useEffect, type ReactNode } from "react";
 import { AdminNav } from "@/components/admin-nav";
 import { ModeHeader } from "@/components/shell/mode-header";
 import { t } from "@/lib/i18n/en";
-import { shellModeCookie, shellWorkspaceCookie, type RememberedContext } from "@/lib/shell/context";
+import { shellModeCookie, shellWorkspaceCookie } from "@/lib/shell/context";
 import {
   declaredMode,
   focusedMode,
@@ -28,15 +28,12 @@ import {
 export function ShellChrome({
   capabilities,
   rememberedMode,
-  context,
   secureCookies,
   trailing,
 }: {
   readonly capabilities: ShellCapabilities;
   /** Which mode the shell was last in, so a personal route can stay inside it. */
   readonly rememberedMode: ShellMode | undefined;
-  /** What each mode remembered, already checked against what this caller still holds. */
-  readonly context: RememberedContext;
   readonly secureCookies: boolean;
   readonly trailing: ReactNode;
 }) {
@@ -61,9 +58,9 @@ export function ShellChrome({
     <>
       <div className="min-w-0 flex-1 basis-40">
         {focused === undefined ? (
-          <AdminNav capabilities={capabilities} context={context} />
+          <AdminNav capabilities={capabilities} />
         ) : (
-          <ModeHeader mode={focused} capabilities={capabilities} context={context} />
+          <ModeHeader mode={focused} capabilities={capabilities} />
         )}
       </div>
       <div className="flex flex-shrink-0 items-center gap-x-2">{trailing}</div>

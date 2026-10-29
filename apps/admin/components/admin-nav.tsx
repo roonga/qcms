@@ -4,7 +4,6 @@ import Link from "next/link";
 import { usePathname } from "next/navigation";
 
 import { t } from "@/lib/i18n/en";
-import { restoredModePath, type RememberedContext } from "@/lib/shell/context";
 import {
   AUTHORING_PATH,
   OPERATIONS_PATH,
@@ -51,18 +50,12 @@ function NavLink({
   href,
   label,
   pathname,
-  activeFor = href,
 }: {
   readonly href: string;
   readonly label: string;
   readonly pathname: string;
-  /**
-   * What the active mark tests, when it is not {@link href}. The Workspaces entry points
-   * at a remembered workspace but is lit by the whole area.
-   */
-  readonly activeFor?: string;
 }) {
-  const active = isActive(pathname, activeFor);
+  const active = isActive(pathname, href);
   return (
     // One class in both states: the active treatment is selected by `aria-current` in
     // `globals.css`, so the accessible signal and the visual one cannot drift apart.
@@ -72,13 +65,7 @@ function NavLink({
   );
 }
 
-export function AdminNav({
-  capabilities,
-  context,
-}: {
-  readonly capabilities: ShellCapabilities;
-  readonly context: RememberedContext;
-}) {
+export function AdminNav({ capabilities }: { readonly capabilities: ShellCapabilities }) {
   const pathname = usePathname();
   const items = ITEMS.filter((item) => item.area === undefined || capabilities[item.area]);
 
@@ -90,16 +77,9 @@ export function AdminNav({
             <NavLink href={item.href} label={item.label} pathname={pathname} />
           </li>
         ))}
-        {/* Entering Workspaces restores the one it was last on, while the caller still
-            administers it, so this entry's href is not the area's own path. */}
         {capabilities.workspaces && (
           <li>
-            <NavLink
-              href={restoredModePath("workspaces", context)}
-              label={t("nav.workspaces")}
-              pathname={pathname}
-              activeFor={WORKSPACES_PATH}
-            />
+            <NavLink href={WORKSPACES_PATH} label={t("nav.workspaces")} pathname={pathname} />
           </li>
         )}
         {capabilities[SEPARATED.area] && (
