@@ -496,8 +496,13 @@ test("both topbar menus have zero violations while OPEN, in every mode", async (
   // lands on, so they have to be measured where they actually are. The preview strip is
   // `aria-hidden` and unfocusable, which is the `aria-hidden-focus` rule this sweep
   // would report if either stopped being true.
-  await page.getByRole("switch", { name: /High contrast/u }).click();
-  await page.getByRole("radio", { name: "Dark", exact: true }).click();
+  // The label rather than the role: react-aria's switch and radio are visually hidden
+  // inputs inside their labels, and a click aimed at the input is intercepted by one.
+  await page
+    .getByRole("switch", { name: /High contrast/u })
+    .locator("..")
+    .click();
+  await page.getByRole("radio", { name: "Dark", exact: true }).locator("..").click();
   await expectNoViolations(page, "appearance panel open, dark field at high contrast");
   await page.keyboard.press("Escape");
 

@@ -173,6 +173,13 @@ function polarity(page: Page, name: "Auto" | "Light" | "Dark"): Locator {
   return page.getByRole("radio", { name, exact: true });
 }
 
+/**
+ * The painted control, which is what a pointer actually hits: react-aria renders the
+ * radio and the switch as visually hidden inputs inside their labels, so a click aimed
+ * at the role lands on the label instead and Playwright reports it as intercepted.
+ */
+const painted = (control: Locator): Locator => control.locator("..");
+
 function contrastSwitch(page: Page): Locator {
   return page.getByRole("switch", { name: /High contrast/u });
 }
@@ -191,10 +198,10 @@ async function choose(
   options: { readonly polarity?: "Auto" | "Light" | "Dark"; readonly high?: boolean },
 ): Promise<void> {
   await openAppearance(page);
-  if (options.polarity !== undefined) await polarity(page, options.polarity).click();
+  if (options.polarity !== undefined) await painted(polarity(page, options.polarity)).click();
   if (options.high !== undefined) {
     const toggle = contrastSwitch(page);
-    if ((await toggle.isChecked()) !== options.high) await toggle.click();
+    if ((await toggle.isChecked()) !== options.high) await painted(toggle).click();
   }
   await page.keyboard.press("Escape");
   await expect(panel(page)).toBeHidden();
@@ -543,9 +550,8 @@ test("the chosen polarity is distinguishable without colour, in both HC fields",
     await openAppearance(page);
     await settleTransitions(page);
     const label = dark ? "dark HC" : "light HC";
-    // `..` because the radio element is the input and the painted segment is its label.
-    const chosen = polarity(page, dark ? "Dark" : "Light").locator("..");
-    const other = polarity(page, "Auto").locator("..");
+    const chosen = painted(polarity(page, dark ? "Dark" : "Light"));
+    const other = painted(polarity(page, "Auto"));
 
     // Two non-colour differences on the segment, each of which survives a two-colour
     // palette: the heavier weight carries at distance and the drawn edge survives a

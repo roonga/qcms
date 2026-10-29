@@ -319,7 +319,7 @@ test("switching the island restyles the island only, in both directions", async 
   // Direction two: the OPERATOR's own mode control moves, through the real menu rather
   // than by poking a class, and the island's selection survives it.
   await openAppearance(page);
-  await page.getByRole("radio", { name: ADMIN_POLARITY.dark, exact: true }).click();
+  await page.getByRole("radio", { name: ADMIN_POLARITY.dark, exact: true }).locator("..").click();
   await expect(appearanceTrigger(page)).toHaveAccessibleName(`Appearance: ${ADMIN_POLARITY.dark}`);
   await page.keyboard.press("Escape");
   await settleTransitions(page);
@@ -539,7 +539,10 @@ test("axe is green with the island and the chrome in opposite modes", async ({ p
   // And the reverse: island in Light, chrome in High contrast, through the real menu.
   await setIsland(page, "Harbor", "Light");
   await openAppearance(page);
-  await page.getByRole("switch", { name: /High contrast/u }).click();
+  await page
+    .getByRole("switch", { name: /High contrast/u })
+    .locator("..")
+    .click();
   await expect(appearanceTrigger(page)).toHaveAccessibleName(
     `Appearance: ${ADMIN_POLARITY.light}, high contrast`,
   );
