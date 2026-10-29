@@ -65,6 +65,76 @@ export const ReleasedResponse = z
   })
   .openapi("ReleasedResponse");
 
+/**
+ * The source a review considers: the draft, or one exact immutable version.
+ *
+ * It names no environment, because the review answers every target the caller may release
+ * into rather than one the request chose.
+ */
+export const ReleaseReviewBody = z
+  .strictObject({
+    source: z.discriminatedUnion("kind", [
+      z.strictObject({ kind: z.literal("draft") }),
+      z.strictObject({ kind: z.literal("version"), version: z.number().int().positive() }),
+    ]),
+  })
+  .openapi("ReleaseReviewBody");
+
+const ReleaseBlocker = z
+  .object({
+    // `TEST_RELEASE_REQUIRED` while the workflow is the derived default;
+    // `ALREADY_RELEASED`, `DRAFT_PUBLISH_NOT_ALLOWED`, `APPROVER_IS_AUTHOR` and
+    // `APPROVER_UNKNOWN_AUTHOR` otherwise.
+    code: z.string().openapi({ example: "TEST_RELEASE_REQUIRED" }),
+    // Environments any one of which would satisfy a prerequisite; empty otherwise.
+    requiresAnyOf: z.array(z.string()),
+  })
+  .openapi("ReleaseBlocker");
+
+/** A committed release row that satisfied a target's prerequisite. */
+const ReleaseEvidence = z
+  .object({
+    environment: z.string(),
+    version: z.number().int().positive(),
+    sequence: z.number().int().positive(),
+    releasedAt: z.iso.datetime(),
+  })
+  .openapi("ReleaseEvidence");
+
+export const ReleaseReviewResponse = z
+  .object({
+    source: z.discriminatedUnion("kind", [
+      z.object({ kind: z.literal("draft") }),
+      z.object({
+        kind: z.literal("version"),
+        version: z.number().int().positive(),
+        publishedBy: z.string().nullable(),
+      }),
+    ]),
+    // Null while no workflow revision is configured, which reports `workflowSource:
+    // "default"` and today's derived behaviour.
+    workflowRevision: z.number().int().nullable(),
+    workflowSource: z.enum(["default", "configured"]),
+    // One entry per environment the caller holds `release: create` in, and no others.
+    targets: z.array(
+      z.object({
+        environment: z.string(),
+        currentVersion: z.number().int().positive().nullable(),
+        currentSequence: z.number().int().positive().nullable(),
+        closed: z.boolean(),
+        evidence: z.array(ReleaseEvidence),
+        blockers: z.array(ReleaseBlocker),
+        twoPerson: z.object({
+          applies: z.boolean(),
+          // True when this caller published the candidate.
+          refusedAsAuthor: z.boolean(),
+        }),
+        protected: z.boolean(),
+      }),
+    ),
+  })
+  .openapi("ReleaseReviewResponse");
+
 export const ReleaseHistoryQuery = z.object({
   environment: EnvironmentName.optional().openapi({
     param: { name: "environment", in: "query" },

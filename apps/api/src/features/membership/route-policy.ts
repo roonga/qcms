@@ -20,10 +20,15 @@ export interface RoutePolicy {
   readonly namesEnvironment?: true;
   // The policy's environment must be exactly the handler's. Four routes declare no body, so
   // a body-then-switcher fallback would let a `test` caller act on `prod`.
-  readonly environmentFrom?: "body" | "switcher";
+  // `query` is an explicit query parameter, which the gate and the handler both read.
+  readonly environmentFrom?: "body" | "switcher" | "query";
   // A second cell the route also requires, evaluated against the same workspace and
   // environment before any handler runs, so neither half can be forgotten.
   readonly also?: { readonly resource: Resource; readonly action: string };
+  // Cells the route admits any one of, the primary included. The middleware admits a
+  // caller holding one of them as a statement somewhere; the scopes cannot be judged
+  // there, so the handler decides per form, cell and environment.
+  readonly anyOf?: readonly { readonly resource: Resource; readonly action: string }[];
   readonly namesForm?: true;
   // No role reaches the route: a caller holding every grant in the installation is still
   // refused.
@@ -33,6 +38,21 @@ export interface RoutePolicy {
   // transaction.
   readonly audit?: "read" | "export" | "erasure" | "grant" | "revoke" | "setting";
 }
+
+/**
+ * The cells that make a caller an operational caller: the acts performed against a form's
+ * live data in one environment. The union admits `GET /admin/operations/forms` and is the
+ * same list the Operations capability reports, so the two cannot disagree.
+ */
+export const OPERATIONAL_CELLS: readonly {
+  readonly resource: Resource;
+  readonly action: string;
+}[] = [
+  { resource: "form", action: "read" },
+  { resource: "response", action: "read" },
+  { resource: "response", action: "erase" },
+  { resource: "response", action: "dispose" },
+];
 
 // Ordered by path, because a reader arrives with a path and the question "who may call
 // this".
@@ -315,6 +335,15 @@ export const ROUTE_POLICIES: readonly RoutePolicy[] = [
     workspace: "form",
   },
   {
+    // It names no environment because it acts in none: the handler reports one target per
+    // environment the caller holds `release: create` in, decided per environment.
+    method: "POST",
+    path: "/admin/forms/{id}/release-review",
+    resource: "release",
+    action: "read",
+    workspace: "form",
+  },
+  {
     method: "POST",
     path: "/admin/forms/{id}/releases",
     resource: "release",
@@ -466,6 +495,20 @@ export const ROUTE_POLICIES: readonly RoutePolicy[] = [
     action: "read",
     workspace: "installation",
     installationOnly: true,
+  },
+
+  {
+    // The union of the operational cells, because no single cell admits the five grants
+    // this screen serves without widening one. No audit kind: an aggregate response count
+    // is not a SEC-15 read, though showing one needs `response: read` per form.
+    method: "GET",
+    path: "/admin/operations/forms",
+    resource: "form",
+    action: "read",
+    workspace: "caller",
+    anyOf: OPERATIONAL_CELLS,
+    namesEnvironment: true,
+    environmentFrom: "query",
   },
 
   {

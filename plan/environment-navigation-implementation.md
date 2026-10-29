@@ -314,6 +314,18 @@ settings, even if an Operations screen links to their authorized editor.
 | 6. Operational integration | Responses, Links, Webhooks, intake, global queues/logs and workspace mode                 | Existing functions preserved under real permissions; actual links work in the chosen environment                           |
 | 7. Shipping                | E2E/CI coverage, template sync, changeset, user/security/architecture docs                | Required gates green; exact PR head independently reviewed; comments resolved before merge                                 |
 
+**Phase 1 is ruled (PR #1163) and phase 2 has landed (issue #1174).** Phase 2 delivered
+the authorized read model and nothing beyond it: the `anyOf` route-policy row shape and
+`environmentFrom: "query"`, `GET /admin/operations/forms` with its per-role projection and
+cursor pagination, the stateless `POST /admin/forms/{id}/release-review`, and
+`capabilities` on `GET /admin/me/access`. The release-workflow configuration table and its
+two routes (decisions 1 and 4), the batch commit and its idempotency (decision 5's write
+half), the draft `revision` of F2 and `environmentFrom: "targets"` are phase 3's, so the
+review reports `workflowSource: default` and `workflowRevision: null` until then, and a
+missing production prerequisite keeps the `TEST_RELEASE_REQUIRED` code (F5). The dispose
+and erase journeys stay on their existing routes (G05, F3) and their user documentation
+lands with phase 6's screens.
+
 Read-model work can start after its contract decisions without waiting for the whole
 shell. Do not wire a cosmetic wizard to repeated single-target mutations while
 waiting for phase 3. Do not release navigation that strands response-only users

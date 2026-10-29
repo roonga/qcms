@@ -4,7 +4,12 @@ import { fileURLToPath } from "node:url";
 import { describe, expect, it } from "vitest";
 
 import { ACTIONS, isEnvironmentScoped, isFormScoped } from "./policy.js";
-import { GRANT_EXEMPT_ROUTES, ROUTE_POLICIES, policyForRequest } from "./route-policy.js";
+import {
+  GRANT_EXEMPT_ROUTES,
+  OPERATIONAL_CELLS,
+  ROUTE_POLICIES,
+  policyForRequest,
+} from "./route-policy.js";
 
 const ADMIN_OPENAPI = fileURLToPath(
   new URL("../../../../../docs/openapi/admin.json", import.meta.url),
@@ -123,6 +128,19 @@ describe("every row names an action the policy declares", () => {
       return resolved?.properties !== undefined && "environment" in resolved.properties;
     };
 
+    const declaresEnvironmentQuery = (row: (typeof ROUTE_POLICIES)[number]): boolean => {
+      const operation = document.paths[row.path]?.[row.method.toLowerCase()] as
+        { parameters?: { name?: string; in?: string; required?: boolean }[] } | undefined;
+      return (
+        operation?.parameters?.some(
+          (parameter) =>
+            parameter.name === "environment" &&
+            parameter.in === "query" &&
+            parameter.required === true,
+        ) === true
+      );
+    };
+
     for (const row of ROUTE_POLICIES) {
       const label = `${row.method} ${row.path}`;
       // A flag-gated route has no document entry to compare against.
@@ -141,16 +159,45 @@ describe("every row names an action the policy declares", () => {
       expect(row.environmentFrom === "body", `${label}: environmentFrom vs its OpenAPI body`).toBe(
         declaresEnvironment(row),
       );
+      expect(
+        row.environmentFrom === "query",
+        `${label}: environmentFrom vs its OpenAPI query parameters`,
+      ).toBe(declaresEnvironmentQuery(row));
     }
   });
 
   it("names an environment exactly when one of its cells is environment-scoped", () => {
     for (const row of ROUTE_POLICIES) {
-      const scoped =
-        isEnvironmentScoped(row.resource, row.action) ||
-        (row.also !== undefined && isEnvironmentScoped(row.also.resource, row.also.action));
+      const cells = [
+        { resource: row.resource, action: row.action },
+        ...(row.also === undefined ? [] : [row.also]),
+        ...(row.anyOf ?? []),
+      ];
+      const scoped = cells.some((cell) => isEnvironmentScoped(cell.resource, cell.action));
       expect(row.namesEnvironment === true, `${row.method} ${row.path}`).toBe(scoped);
     }
+  });
+
+  it("gives the operations row every operational cell, and gives no other row an `anyOf`", () => {
+    const withAnyOf = ROUTE_POLICIES.filter((row) => row.anyOf !== undefined);
+    expect(withAnyOf.map((row) => `${row.method} ${row.path}`)).toEqual([
+      "GET /admin/operations/forms",
+    ]);
+    const row = policyForRequest("GET", "/admin/operations/forms");
+    expect(row?.resource).toBe("form");
+    expect(row?.action).toBe("read");
+    expect(row?.workspace).toBe("caller");
+    expect(row?.environmentFrom).toBe("query");
+    expect(row?.anyOf?.map((cell) => `${cell.resource}:${cell.action}`)).toEqual([
+      "form:read",
+      "response:read",
+      "response:erase",
+      "response:dispose",
+    ]);
+    // No audit kind: an aggregate response count is not a SEC-15 read.
+    expect(row?.audit).toBeUndefined();
+    // The same list the capability projection reads, so the two cannot disagree.
+    expect(row?.anyOf).toBe(OPERATIONAL_CELLS);
   });
 
   it("gives `publish-and-release` both of its cells, and names every row that has two", () => {
