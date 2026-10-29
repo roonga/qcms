@@ -180,11 +180,15 @@ export function ThemeToggle({
    * answer: it means focus was dropped, not moved out.
    */
   const onPanelBlur = (event: React.FocusEvent<HTMLDivElement>): void => {
+    // The dialog, not this wrapper: react-aria focuses the dialog element itself when the
+    // panel opens, and that element is this wrapper's PARENT, so measuring containment
+    // from here would read the opening focus as a move out.
     const panel = event.currentTarget;
+    const region = panel.closest('[role="dialog"]') ?? panel;
     globalThis.setTimeout(() => {
       const active = document.activeElement;
       if (active === null || active === document.body) return;
-      if (panel.contains(active)) return;
+      if (region.contains(active)) return;
       setOpen(false);
     }, 0);
   };
