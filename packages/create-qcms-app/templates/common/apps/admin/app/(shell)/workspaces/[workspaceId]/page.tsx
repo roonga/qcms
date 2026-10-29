@@ -1,4 +1,3 @@
-import Link from "next/link";
 import type { Metadata } from "next";
 
 import { Alert } from "@/components/kit";
@@ -69,6 +68,10 @@ export async function generateMetadata({
  * state: an empty table would say "nothing is granted here" to somebody who was told
  * nothing at all.
  *
+ * The rail's Sections are the four panels and its Header is the way back (§7.0 ruling 3), so
+ * this column carries no "All workspaces" link. `listWorkspaces` is memoized per request, so
+ * the rail reading the name costs no second round trip.
+ *
  * # Why the reads are parallel and the writes are not
  *
  * The four reads are independent and are issued together. The writes are Server Actions
@@ -98,9 +101,6 @@ export default async function WorkspacePage({
   return (
     <div className="flex min-w-0 flex-col gap-8">
       <div className="flex flex-col gap-1">
-        <Link href="/workspaces" className="text-xs text-(--color-link) underline">
-          {t("membership.workspace.back")}
-        </Link>
         <h1 className="text-xl font-semibold text-(--color-text)">
           {t("membership.workspace.title", { name: workspace?.name ?? workspaceId })}
         </h1>

@@ -3,6 +3,7 @@ import type { Metadata } from "next";
 
 import { Alert } from "@/components/kit";
 import { t } from "@/lib/i18n/en";
+import { readResponsesIndexFilters } from "@/lib/ops/list-filters";
 import { pageMetadata } from "@/lib/page-title";
 import { listForms } from "@/lib/server/forms";
 import { requireAdminSession } from "@/lib/server/session";
@@ -20,10 +21,21 @@ export function generateMetadata(): Metadata {
  * response list - the API has no route for one, and inventing a client-side merge
  * would give an operator a count and a page number that describe nothing the server
  * agrees with.
+ *
+ * The one filter is a search over the forms in the list, which is `GET /admin/forms`'s own
+ * `search`, so the filtering stays where the data is. The control is in the rail
+ * (`components/ops/responses-index-rail.tsx`) and both trees read the address through
+ * `readResponsesIndexFilters`. A list that matches nothing gets the no-forms sentence, which
+ * claims nothing about why.
  */
-export default async function ResponsesPage() {
+export default async function ResponsesPage({
+  searchParams,
+}: {
+  readonly searchParams: Promise<Record<string, string | string[] | undefined>>;
+}) {
   const session = await requireAdminSession();
-  const forms = await listForms(session);
+  const { search } = readResponsesIndexFilters(await searchParams);
+  const forms = await listForms(session, { search });
 
   return (
     <div className="flex flex-col gap-6">

@@ -253,12 +253,10 @@ export function QuestionEditor({
   // Hand the rail this document's panels and the counts its badges are drawn from. Nothing
   // else crosses: the selection lives in the module both trees read, and the document stays
   // this component's.
-  usePublishQuestionPanels(
-    useMemo(
-      () => (addressedPanel === undefined ? undefined : { panels, issueCounts: counts }),
-      [addressedPanel, panels, counts],
-    ),
-  );
+  //
+  // Published on the creation screen too: its rail's Sections are this document's panels.
+  // `addressedPanel` still decides whether this screen shows one panel or all of them.
+  usePublishQuestionPanels(useMemo(() => ({ panels, issueCounts: counts }), [panels, counts]));
 
   // Hand the heading row's Save button this action's pending state. `undefined` while the
   // version is frozen: there is nothing to save, so contract §6 asks for no control at all

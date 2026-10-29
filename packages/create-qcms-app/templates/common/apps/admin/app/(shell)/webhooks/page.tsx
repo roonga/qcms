@@ -7,8 +7,9 @@ import { t } from "@/lib/i18n/en";
 import { pageMetadata } from "@/lib/page-title";
 import { readState } from "@/lib/read-state";
 import { shownEnvironment } from "@/lib/environment";
+import { readWebhookOpsFilters } from "@/lib/ops/list-filters";
 import { resolvedEnvironment } from "@/lib/server/environments";
-import { listForms } from "@/lib/server/forms";
+import { listAllForms } from "@/lib/server/forms";
 import { listDeadLetters } from "@/lib/server/webhook-ops";
 import { requireAdminSession } from "@/lib/server/session";
 
@@ -28,14 +29,33 @@ export function generateMetadata(): Metadata {
  * delivery is an operational fact about the deployment and the operator's question is
  * "is anything stuck", not "is anything stuck on this one form". Configuration is
  * per-form and stays on the form, which is where an author works.
+ *
+ * The rail's form filter narrows the rows rather than the read, because the route is global
+ * and takes no form parameter. That is an equality test on a field the row carries, over rows
+ * the API already selected and ordered, so it does not decide anything R2 reserves. It is
+ * applied inside the ok branch, so a queue that could not be read does not become empty.
  */
-export default async function WebhooksPage() {
+export default async function WebhooksPage({
+  searchParams,
+}: {
+  readonly searchParams: Promise<Record<string, string | string[] | undefined>>;
+}) {
   const session = await requireAdminSession();
+  const { formId } = readWebhookOpsFilters(await searchParams);
   const [deadLetters, forms, resolved] = await Promise.all([
     listDeadLetters(session),
-    listForms(session),
+    // Memoized per request, so the rail beside this column shares the answer rather than
+    // asking for it again (`lib/server/forms.ts`).
+    listAllForms(session),
     resolvedEnvironment(session),
   ]);
+  const shownQueue =
+    formId === undefined || !deadLetters.ok
+      ? deadLetters
+      : {
+          ok: true as const,
+          data: deadLetters.data.filter((row) => row.formId === formId),
+        };
   // The queue is one environment's, so redelivery carries the environment this render read
   // it from and is refused once another tab has switched away from it (A1).
   const shown = shownEnvironment(resolved);
@@ -61,7 +81,7 @@ export default async function WebhooksPage() {
        * The queue decides what a failure looks like; the page only stops lying to it.
        */}
       <DeadLetters
-        deadLetters={readState(deadLetters)}
+        deadLetters={readState(shownQueue)}
         redeliver={redeliverAction.bind(null, shown)}
         redeliverAll={redeliverAllAction.bind(null, shown)}
       />

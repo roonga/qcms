@@ -189,9 +189,8 @@ export function useQuestionPanel(address: QuestionPanelId): QuestionPanelId {
  * Publish the editor's live panels and issue counts for the rail to render, or `undefined`
  * when it has none to offer.
  *
- * `undefined` is a real state rather than a placeholder, and the editor passes it on
- * `/questions/new`: that screen has no rail, shows every panel at once and switches nothing, so
- * there is nothing for a rail to be current on.
+ * `undefined` means NO EDITOR IS MOUNTED, which is what a rail reads before hydration or
+ * beside another screen. Both question screens publish.
  *
  * Called through an effect, so the value the rail reads is the one the editor last committed
  * rather than one from a render React discarded. The cleanup clears it, which is what stops a

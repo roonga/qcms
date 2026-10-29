@@ -93,13 +93,13 @@ regeneration and `git add` the result rather than merging two sets of counts.
 
 <!-- BEGIN GENERATED: ownership-seam (pnpm qcms:sync-templates) -->
 
-### Scaffolded paths (471 files common to both shapes)
+### Scaffolded paths (483 files common to both shapes)
 
 | Path                                                                 | Files |
 | -------------------------------------------------------------------- | ----- |
 | `(project root)`                                                     | 8     |
-| `apps/`                                                              | 460   |
-| `apps/admin/`                                                        | 277   |
+| `apps/`                                                              | 472   |
+| `apps/admin/`                                                        | 289   |
 | `apps/admin/app/`                                                    | 77    |
 | `apps/admin/app/(shell)/`                                            | 58    |
 | `apps/admin/app/(shell)/@rail/`                                      | 24    |
@@ -164,18 +164,18 @@ regeneration and `git add` the result rather than merging two sets of counts.
 | `apps/admin/app/two-factor/recovery-codes/`                          | 2     |
 | `apps/admin/app/two-factor/recovery-codes/confirm/`                  | 1     |
 | `apps/admin/app/two-factor/recovery/verify/`                         | 1     |
-| `apps/admin/components/`                                             | 96    |
-| `apps/admin/components/forms/`                                       | 39    |
-| `apps/admin/components/membership/`                                  | 5     |
-| `apps/admin/components/ops/`                                         | 9     |
-| `apps/admin/components/questions/`                                   | 12    |
+| `apps/admin/components/`                                             | 105   |
+| `apps/admin/components/forms/`                                       | 40    |
+| `apps/admin/components/membership/`                                  | 7     |
+| `apps/admin/components/ops/`                                         | 11    |
+| `apps/admin/components/questions/`                                   | 15    |
 | `apps/admin/components/test-support/`                                | 3     |
-| `apps/admin/lib/`                                                    | 97    |
+| `apps/admin/lib/`                                                    | 100   |
 | `apps/admin/lib/forms/`                                              | 29    |
 | `apps/admin/lib/i18n/`                                               | 2     |
-| `apps/admin/lib/membership/`                                         | 1     |
-| `apps/admin/lib/ops/`                                                | 10    |
-| `apps/admin/lib/questions/`                                          | 8     |
+| `apps/admin/lib/membership/`                                         | 2     |
+| `apps/admin/lib/ops/`                                                | 11    |
+| `apps/admin/lib/questions/`                                          | 9     |
 | `apps/admin/lib/server/`                                             | 27    |
 | `apps/api/`                                                          | 109   |
 | `apps/api/src/`                                                      | 106   |
@@ -241,7 +241,7 @@ regeneration and `git add` the result rather than merging two sets of counts.
 
 ### QCMS-internal references in the scaffolded source
 
-`1747` lines across `346` scaffolded files cite a QCMS issue, ADR, SEC control, plan task or repository path.
+`1751` lines across `355` scaffolded files cite a QCMS issue, ADR, SEC control, plan task or repository path.
 
 These are comments, and they stay (issue #457, tier 3). They are the engineering
 rationale for code you now own, which is worth more to you than a tidy file, and
@@ -256,7 +256,7 @@ rather than documented: the images no longer claim to be built from this
 repository, and no scaffolded message names a script your project does not define.
 
 <details>
-<summary>Every scaffolded file (471)</summary>
+<summary>Every scaffolded file (483)</summary>
 
 ```
 .dockerignore
@@ -366,6 +366,7 @@ apps/admin/components/forms/form-page-header.tsx
 apps/admin/components/forms/form-production-review.tsx
 apps/admin/components/forms/form-settings-panel.tsx
 apps/admin/components/forms/form-subtree-rail.tsx
+apps/admin/components/forms/forms-list-rail.tsx
 apps/admin/components/forms/group-panel.tsx
 apps/admin/components/forms/library-picker.tsx
 apps/admin/components/forms/link-state-tag.tsx
@@ -399,7 +400,9 @@ apps/admin/components/membership/access-groups-panel.tsx
 apps/admin/components/membership/audit-panel.tsx
 apps/admin/components/membership/members-panel.tsx
 apps/admin/components/membership/my-access-panel.tsx
+apps/admin/components/membership/workspace-rail.tsx
 apps/admin/components/membership/workspace-settings-panel.tsx
+apps/admin/components/membership/workspaces-rail.tsx
 apps/admin/components/menu-slots.ts
 apps/admin/components/mode-glyph.tsx
 apps/admin/components/operator-time.tsx
@@ -410,12 +413,15 @@ apps/admin/components/ops/erasure-elsewhere.tsx
 apps/admin/components/ops/ops-tags.tsx
 apps/admin/components/ops/response-browser.tsx
 apps/admin/components/ops/response-detail.tsx
+apps/admin/components/ops/responses-index-rail.tsx
 apps/admin/components/ops/tombstone-card.tsx
 apps/admin/components/ops/webhook-config.tsx
+apps/admin/components/ops/webhook-ops-rail.tsx
 apps/admin/components/preview-theme-island.tsx
 apps/admin/components/questions/constraints-editor.tsx
 apps/admin/components/questions/lifecycle-actions.tsx
 apps/admin/components/questions/messages-editor.tsx
+apps/admin/components/questions/new-question-rail.tsx
 apps/admin/components/questions/option-grid-editor.tsx
 apps/admin/components/questions/published-on-day.tsx
 apps/admin/components/questions/question-editor.tsx
@@ -423,9 +429,12 @@ apps/admin/components/questions/question-panel-rows.tsx
 apps/admin/components/questions/question-preview.tsx
 apps/admin/components/questions/question-save.tsx
 apps/admin/components/questions/question-versions-rail.tsx
+apps/admin/components/questions/questions-list-rail.tsx
 apps/admin/components/questions/questions-table.tsx
+apps/admin/components/questions/rail-issue-count.tsx
 apps/admin/components/questions/status-tag.tsx
 apps/admin/components/rail-disclosure.tsx
+apps/admin/components/rail-filters.tsx
 apps/admin/components/rail-frame.tsx
 apps/admin/components/recovery-codes.tsx
 apps/admin/components/row-menu.tsx
@@ -480,12 +489,14 @@ apps/admin/lib/i18n/format.ts
 apps/admin/lib/initials.ts
 apps/admin/lib/library-search.ts
 apps/admin/lib/measure.ts
+apps/admin/lib/membership/rail-panels.ts
 apps/admin/lib/membership/types.ts
 apps/admin/lib/ops/answers.ts
 apps/admin/lib/ops/browse.ts
 apps/admin/lib/ops/erasure.ts
 apps/admin/lib/ops/export.ts
 apps/admin/lib/ops/labels.ts
+apps/admin/lib/ops/list-filters.ts
 apps/admin/lib/ops/paging.ts
 apps/admin/lib/ops/post-action-focus.ts
 apps/admin/lib/ops/response-filters.ts
@@ -498,6 +509,7 @@ apps/admin/lib/questions/definition.ts
 apps/admin/lib/questions/editor-bridge.ts
 apps/admin/lib/questions/editor-state.ts
 apps/admin/lib/questions/errors.ts
+apps/admin/lib/questions/list-filters.ts
 apps/admin/lib/questions/option-grid.ts
 apps/admin/lib/questions/panels.ts
 apps/admin/lib/questions/types.ts

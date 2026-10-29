@@ -1,4 +1,3 @@
-import Link from "next/link";
 import type { Metadata } from "next";
 
 import { EmptyState } from "@/components/empty-state";
@@ -24,6 +23,8 @@ export function generateMetadata(): Metadata {
  * evidence - the log can be shown to whoever asks whether a subject request was
  * honoured, without showing them what was erased.
  *
+ * The way back is the rail's Header (§7.0 ruling 3) rather than this column.
+ *
  * A server component with no client half: this screen has no action on it. That is
  * deliberate rather than unfinished. Erasure is performed on the response it erases,
  * where the operator can see what they are about to destroy; a "delete" button on a
@@ -39,12 +40,6 @@ export default async function ErasureLogPage() {
         <h1 className="text-xl font-semibold text-(--color-text)">{t("ops.erasures.title")}</h1>
         <p className="text-sm text-(--color-text-muted)">{t("ops.erasures.intro")}</p>
       </div>
-
-      <p>
-        <Link className="qcms-text-link" href="/responses">
-          {t("ops.erasures.back")}
-        </Link>
-      </p>
 
       {/* A FAILED READ RENDERS THE ALERT AND NOTHING ELSE
           (`plan/admin-design-contracts.md` §3, issue #513's rule). This screen used to

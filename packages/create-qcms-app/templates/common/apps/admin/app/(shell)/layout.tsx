@@ -60,20 +60,20 @@ export default async function ShellLayout({
    * renders beside `<main>` instead of inside it.
    *
    * EVERY ROUTE HAS A PAGE IN THE SLOT, AND THAT IS A CORRECTNESS REQUIREMENT RATHER THAN
-   * TIDINESS (issue 701, and issue 633 before it). Only ten routes have a rail, but all
-   * eighteen have a page here, because on a soft navigation Next keeps the previously
-   * active state of a slot the new URL does not match and consults `default.tsx` only after
-   * a full-page load - the file convention's own reference says so. A screen with no match
-   * therefore did not get an empty rail: it got the PREVIOUS screen's, and walking from
-   * Settings to the question library left the Settings rail standing beside a table it says
-   * nothing about. The seven screens that carry no rail have a page that returns `null`,
-   * which is a different thing from having no page at all. `lib/rail-routes.test.ts` reads
-   * both trees off the filesystem and fails the moment one has a route the other does not.
+   * TIDINESS. Every route has a page here, because on
+   * a soft navigation Next keeps the previously active state of a slot the new URL does not
+   * match and consults `default.tsx` only after a full-page load - the file convention's own
+   * reference says so. A screen with no match therefore did not get an empty rail: it got
+   * the PREVIOUS screen's, and walking from Settings to the question library left the
+   * Settings rail standing beside a table it says nothing about.
+   *
+   * Every page renders a rail (§7.0 ruling 1). `lib/rail-routes.test.ts` reads both trees
+   * off the filesystem and fails the moment one has a route the other does not.
    *
    * WHY IT MATTERS THAT IT IS BESIDE `<main>` AND NOT INSIDE IT. `<main>`'s width is capped
    * per route (issue 558), and §6 asks that width question about the CONTENT column. A rail
    * nested inside that cap would make the cap govern rail-plus-content instead, quietly
-   * taking 240px off the measure nine screens were assigned and standing the rail on
+   * taking 240px off the measure every screen was assigned and standing the rail on
    * `<main>`'s padding rather than on the shell's edge. Outside it, the two systems compose
    * the way both documents describe.
    */
@@ -207,9 +207,11 @@ export default async function ShellLayout({
           carrying "Signed in as ...", and that strip is what stopped a rail reaching the
           bottom of the screen: the rail ended where this element ended and the footer sat
           under it. The email is shell chrome rather than a credential and it was never only
-          here - the account menu carries it on every screen, including the seven with no
-          rail - so the line went rather than moving somewhere it would have been absent
-          half the time (Code Owner decision, 2026-08-23). */}
+          here - the account menu carries it on every screen - so the line went rather than
+          moving somewhere it would have been absent half the time (Code Owner decision).
+
+          Every screen has a rail (§7.0 ruling 1), so above `--bp-sidebar` the grid branch
+          always renders; the flex fallback is what every width below it takes. */}
       {/* What every environment-sensitive control below reads to disable itself while the
           environment is unknown, and the watcher that re-reads this tab when it comes back
           into view under a selection another tab changed (local UX list A1, A12). */}

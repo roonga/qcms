@@ -23,11 +23,14 @@ import {
  * values to the API and reads them back out of the URL. What they cannot prove is that
  * the controls exist as controls: a vendored `Select` is a server-rendered button with a
  * hidden native `<select>` behind it, an author operates it by name, and the whole
- * toolbar is a `<form method="get">` whose Apply is a real navigation. So the assertions
+ * filter form is a `<form method="get">` whose Apply is a real navigation. So the assertions
  * here are the two properties a stubbed render cannot see - that pressing each control
  * and pressing Apply lands on a URL carrying that control's parameter, and that opening
  * such a URL cold reproduces the same view with the same controls showing the same
  * values.
+ *
+ * The controls are in the rail, and every locator below still resolves: the same
+ * `<form class="qcms-filters">` over the same named controls.
  *
  * ## Why the fixtures are three forms and not one
  *
@@ -221,9 +224,9 @@ test("says something useful when the filters match nothing, and offers the way b
   await expect(page.getByText("No form matches this search.")).toBeVisible();
   await expect(page.getByTestId("qcms-forms-count")).toHaveCount(0);
 
-  // One control with that name, not two: the panel carries it while the toolbar's link
-  // stands down.
-  await page.getByRole("link", { name: "Clear filters" }).click();
+  // The panel's own CTA (contract §3). The rail offers one too, so this is scoped to the
+  // column rather than resolved by name across the screen.
+  await page.getByRole("main").getByRole("link", { name: "Clear filters" }).click();
   await expect(page).toHaveURL(/\/forms$/);
   await expect(page.getByRole("table", { name: "Form library" })).toBeVisible();
 });

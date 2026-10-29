@@ -102,13 +102,10 @@ export function RailFrame({
   /** At most one status tag. */
   readonly tag?: ReactNode;
   /**
-   * The one count the collapsed Header carries, already written out.
-   *
-   * The issue total on the form rail; the active filter count on a list screen, once #1117
-   * gives those rails their filters. At most one, which is why this is a string rather
-   * than a slot.
+   * The one count the collapsed Header carries, drawn as a {@link RailCount}. A slot rather
+   * than a string, so a caller can pass a client island that decides what to draw.
    */
-  readonly count?: string;
+  readonly count?: ReactNode;
   /** The Header's secondary lines: what this rail states about its subject. */
   readonly lines?: ReactNode;
   readonly sections?: ReactNode;
@@ -136,11 +133,7 @@ export function RailFrame({
         <summary className="qcms-rail__summary">
           <span className="qcms-rail__summary-text">{title}</span>
           {tag}
-          {count !== undefined && (
-            <span className="qcms-tag qcms-tag--draft" data-testid="qcms-rail-summary-count">
-              {count}
-            </span>
-          )}
+          {count}
           {/* Decorative: the disclosure's state is already announced by the element
               itself, so a second statement of it here would only be said twice. */}
           <span className="qcms-rail__chevron" aria-hidden="true">
@@ -161,5 +154,17 @@ export function RailFrame({
         </div>
       </RailDisclosure>
     </aside>
+  );
+}
+
+/**
+ * The Header's one count, in the badge every rail draws it in. Rendered only above zero:
+ * "no issues" and "no filter set" are the absence of the badge.
+ */
+export function RailCount({ children }: { readonly children: ReactNode }) {
+  return (
+    <span className="qcms-tag qcms-tag--draft" data-testid="qcms-rail-summary-count">
+      {children}
+    </span>
   );
 }

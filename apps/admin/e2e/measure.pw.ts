@@ -333,7 +333,7 @@ test("675 spends one section-padding token on the bar and the column alike, at 1
   await page.setViewportSize({ width: 1280, height: 900 });
   await setScreenEnvironment(page, "/webhooks");
   await page.goto("/webhooks");
-  await expect(page.locator(".qcms-rail"), "a screen with no rail").toHaveCount(0);
+  // The subject is the padding two elements spend, not what sits between them.
 
   const pads = await page.evaluate(() => {
     const bar = document.querySelector("header > div");
@@ -373,15 +373,11 @@ test("648 puts the wordmark, the nav and the content column on one left edge, at
   // inline padding. It carried `mx-auto max-w-5xl` until issue 648, which put the wordmark
   // ~145px in from the page edge at 1280 while the content column started at 24px.
   //
-  // A screen with NO rail is the one where the three edges must coincide exactly; on a
-  // railed screen the column deliberately starts at the rail's edge instead, which is
-  // asserted in the sweep above.
+  // The column starts at the rail's edge rather than the viewport's, so each track's edge is
+  // compared with its own origin: the bar's with the page edge, the column's with the rail.
   await setScreenEnvironment(page, "/webhooks");
   await page.goto("/webhooks");
-  // Same reason as the sweep's helper: three rail components, one shared class. Asserting
-  // the class is absent is the claim "no rail occupies the first track here", which is what
-  // makes the three edges below comparable to the viewport's origin.
-  await expect(page.locator(".qcms-rail"), "a screen with no rail").toHaveCount(0);
+  await expect(page.locator(".qcms-rail")).toHaveCount(1);
 
   const edges = await page.evaluate(() => {
     // THE EDGE IS THE CONTENT EDGE, NOT THE BORDER EDGE, and the distinction is the whole
@@ -414,6 +410,7 @@ test("648 puts the wordmark, the nav and the content column on one left edge, at
       // padding. Together those rule out the shape this issue reported - a centred 1024px
       // box whose contents merely happen to start on its left.
       barWidth: header === null ? Number.NaN : header.getBoundingClientRect().width,
+      railRight: document.querySelector(".qcms-rail")?.getBoundingClientRect().right ?? Number.NaN,
       trailingRight:
         trailing === null || trailing === undefined
           ? Number.NaN
@@ -425,7 +422,10 @@ test("648 puts the wordmark, the nav and the content column on one left edge, at
   expect(edges.barWidth, "the bar spans the viewport rather than being capped").toBe(
     edges.viewport,
   );
-  expect(edges.wordmark, "the wordmark starts at the shared edge").toBe(edges.main);
+  // Equal offsets, so a centred bar still fails here.
+  expect(edges.main - edges.railRight, "the column's text starts one pad past the rail").toBe(
+    edges.wordmark,
+  );
   // The footer that used to share this edge is gone (Code Owner decision, 2026-08-23): it
   // spanned both tracks below the rail and was what stopped a rail reaching the bottom of
   // the screen. The email it carried is in the account menu, on every screen.
