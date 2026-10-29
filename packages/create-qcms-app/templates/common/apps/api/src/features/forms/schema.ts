@@ -290,16 +290,20 @@ export const FormDetailResponse = z
      * so nothing else can tell them the second-approver rule applies before a 403.
      */
     requiresSecondApprover: z.boolean().openapi({ example: false }),
-    workflow: z.object({
-      enabled: z.boolean(),
-      environment: z.string(),
-      canEdit: z.boolean(),
-      canPublish: z.boolean(),
-      canRelease: z.boolean(),
-      eligibleVersions: z.array(z.number().int().positive()),
-      preferredVersion: z.number().int().positive().nullable(),
-      currentVersion: z.number().int().positive().nullable(),
-    }),
+    // Deprecated: `POST /admin/forms/{id}/release-review` answers per target rather than
+    // for whichever environment the switcher held. Nothing new should read this.
+    workflow: z
+      .object({
+        enabled: z.boolean(),
+        environment: z.string(),
+        canEdit: z.boolean(),
+        canPublish: z.boolean(),
+        canRelease: z.boolean(),
+        eligibleVersions: z.array(z.number().int().positive()),
+        preferredVersion: z.number().int().positive().nullable(),
+        currentVersion: z.number().int().positive().nullable(),
+      })
+      .openapi({ deprecated: true }),
   })
   .openapi("FormDetailResponse");
 

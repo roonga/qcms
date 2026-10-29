@@ -430,14 +430,15 @@ describe("the closed state is per (form, environment) (Q18, task 066)", () => {
     expect(closed?.version).toBe(2);
     expect(closed?.closed).toBe(true);
     expect(closed?.fromEnvironment).toBeNull();
-    expect(await getFormEnvironmentState(testDb.db, formId, "prod")).toEqual({
-      version: 2,
-      closed: true,
-    });
-    expect(await getFormEnvironmentState(testDb.db, formId, "test")).toEqual({
-      version: 1,
-      closed: false,
-    });
+    // `releasedAt` is the newest row's own timestamp, whichever of the three acts wrote it.
+    const closedProd = await getFormEnvironmentState(testDb.db, formId, "prod");
+    expect(closedProd?.version).toBe(2);
+    expect(closedProd?.closed).toBe(true);
+    expect(closedProd?.releasedAt).toBeInstanceOf(Date);
+    const closedTest = await getFormEnvironmentState(testDb.db, formId, "test");
+    expect(closedTest?.version).toBe(1);
+    expect(closedTest?.closed).toBe(false);
+    expect(closedTest?.releasedAt).toBeInstanceOf(Date);
 
     const reopened = await reopenFormInEnvironment(testDb.db, {
       formId,
@@ -446,10 +447,10 @@ describe("the closed state is per (form, environment) (Q18, task 066)", () => {
     });
     expect(reopened?.closed).toBe(false);
     expect(reopened?.version).toBe(2);
-    expect(await getFormEnvironmentState(testDb.db, formId, "prod")).toEqual({
-      version: 2,
-      closed: false,
-    });
+    const reopenedState = await getFormEnvironmentState(testDb.db, formId, "prod");
+    expect(reopenedState?.version).toBe(2);
+    expect(reopenedState?.closed).toBe(false);
+    expect(reopenedState?.releasedAt).toBeInstanceOf(Date);
   });
 
   it("refuses to close an environment the form was never released to", async () => {
@@ -500,10 +501,10 @@ describe("the closed state is per (form, environment) (Q18, task 066)", () => {
       closed: current?.closed ?? false,
     });
 
-    expect(await getFormEnvironmentState(testDb.db, formId, "prod")).toEqual({
-      version: 2,
-      closed: true,
-    });
+    const carried = await getFormEnvironmentState(testDb.db, formId, "prod");
+    expect(carried?.version).toBe(2);
+    expect(carried?.closed).toBe(true);
+    expect(carried?.releasedAt).toBeInstanceOf(Date);
   });
 
   it("reads one environment's newest row per form for the library list", async () => {
@@ -531,8 +532,12 @@ describe("the closed state is per (form, environment) (Q18, task 066)", () => {
     });
 
     const states = await environmentStatesByForm(testDb.db, "prod");
-    expect(states.get(closedForm)).toEqual({ version: 1, closed: true });
-    expect(states.get(openForm)).toEqual({ version: 1, closed: false });
+    expect(states.get(closedForm)?.version).toBe(1);
+    expect(states.get(closedForm)?.closed).toBe(true);
+    expect(states.get(closedForm)?.releasedAt).toBeInstanceOf(Date);
+    expect(states.get(openForm)?.version).toBe(1);
+    expect(states.get(openForm)?.closed).toBe(false);
+    expect(states.get(openForm)?.releasedAt).toBeInstanceOf(Date);
     expect(states.has(otherEnvironment)).toBe(false);
   });
 });

@@ -143,6 +143,9 @@ describe("the §3.2 matrix and the probe inventory stay in step", () => {
       "/admin/workspaces/{id}/members",
       "/admin/workspaces/{id}/access-groups",
       "/admin/forms/{id}/webhooks/proposals",
+      // Its own prefix because it is the one admin route a response-only caller can
+      // reach: a probe set that lost it would still claim the `/admin/forms` coverage.
+      "/admin/operations/forms",
     ]) {
       expect(
         adminPaths.some((path) => path.includes(slice)),
@@ -181,6 +184,9 @@ const DOCUMENTED_ROLE_ROWS: Readonly<Record<string, readonly [string, string]>> 
   "Read the access audit": ["audit", "read"],
   "Create workspaces, mark the shared one, environment settings, user accounts, release-workflow configuration":
     ["workspace", "update"],
+  // The one `anyOf` row, so this names its primary cell; the other three cells of the
+  // union have their own documented rows above.
+  "Discover operational form metadata in an environment": ["form", "read"],
   "Read any response anywhere": ["response", "read"],
 };
 

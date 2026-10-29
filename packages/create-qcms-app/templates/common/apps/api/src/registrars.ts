@@ -4,6 +4,7 @@ import { registerFormsAssist } from "./features/forms/assist/route.js";
 import { registerForms } from "./features/forms/route.js";
 import { registerLinks } from "./features/links/route.js";
 import { registerMembership } from "./features/membership/route.js";
+import { registerOperations } from "./features/operations/route.js";
 import { registerOutboxOps } from "./features/outbox/route.js";
 import { registerQuestions } from "./features/questions/route.js";
 import { registerReleases } from "./features/releases/route.js";
@@ -47,6 +48,9 @@ export const appGroups: RouteGroups = {
     registerMembership,
     registerLinks,
     registerWebhooks,
+    // Operations discovery: what a response-only caller needs to find its own forms,
+    // which `GET /admin/forms` cannot serve without widening `form: read`.
+    registerOperations,
     registerOutboxOps,
   ],
   auth: [registerAdminAuthProxy],

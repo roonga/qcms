@@ -214,6 +214,29 @@ export const SURFACES: readonly Surface[] = [
     readControl: true,
   },
   {
+    // A `POST` that writes nothing, so it is a positive control as well as a gate probe.
+    name: "POST /admin/forms/{id}/release-review",
+    row: "authoring",
+    group: "admin",
+    method: "POST",
+    path: (ctx) => `/admin/forms/${ctx.formId}/release-review`,
+    body: { source: { kind: "version", version: 1 } },
+    anonymousReachable: false,
+    readControl: true,
+  },
+  {
+    // The credential table's `authoring` row, like every other admin read. Which grant
+    // may call it is the role table's own row, asserted per persona in
+    // `apps/api/src/features/operations/operations.integration.test.ts`.
+    name: "GET /admin/operations/forms",
+    row: "authoring",
+    group: "admin",
+    method: "GET",
+    path: () => "/admin/operations/forms?environment=prod",
+    anonymousReachable: false,
+    readControl: true,
+  },
+  {
     name: "GET /admin/workspaces",
     row: "authoring",
     group: "admin",

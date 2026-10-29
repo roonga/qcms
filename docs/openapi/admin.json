@@ -576,7 +576,8 @@
               "eligibleVersions",
               "preferredVersion",
               "currentVersion"
-            ]
+            ],
+            "deprecated": true
           }
         },
         "required": [
@@ -1696,6 +1697,233 @@
         ],
         "additionalProperties": false
       },
+      "ReleaseReviewResponse": {
+        "type": "object",
+        "properties": {
+          "source": {
+            "oneOf": [
+              {
+                "type": "object",
+                "properties": {
+                  "kind": {
+                    "type": "string",
+                    "enum": [
+                      "draft"
+                    ]
+                  }
+                },
+                "required": [
+                  "kind"
+                ]
+              },
+              {
+                "type": "object",
+                "properties": {
+                  "kind": {
+                    "type": "string",
+                    "enum": [
+                      "version"
+                    ]
+                  },
+                  "version": {
+                    "type": "integer",
+                    "minimum": 0,
+                    "exclusiveMinimum": true
+                  },
+                  "publishedBy": {
+                    "type": "string",
+                    "nullable": true
+                  }
+                },
+                "required": [
+                  "kind",
+                  "version",
+                  "publishedBy"
+                ]
+              }
+            ]
+          },
+          "workflowRevision": {
+            "type": "integer",
+            "nullable": true
+          },
+          "workflowSource": {
+            "type": "string",
+            "enum": [
+              "default",
+              "configured"
+            ]
+          },
+          "targets": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "properties": {
+                "environment": {
+                  "type": "string"
+                },
+                "currentVersion": {
+                  "type": "integer",
+                  "nullable": true,
+                  "minimum": 0,
+                  "exclusiveMinimum": true
+                },
+                "currentSequence": {
+                  "type": "integer",
+                  "nullable": true,
+                  "minimum": 0,
+                  "exclusiveMinimum": true
+                },
+                "closed": {
+                  "type": "boolean"
+                },
+                "evidence": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/ReleaseEvidence"
+                  }
+                },
+                "blockers": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/ReleaseBlocker"
+                  }
+                },
+                "twoPerson": {
+                  "type": "object",
+                  "properties": {
+                    "applies": {
+                      "type": "boolean"
+                    },
+                    "refusedAsAuthor": {
+                      "type": "boolean"
+                    }
+                  },
+                  "required": [
+                    "applies",
+                    "refusedAsAuthor"
+                  ]
+                },
+                "protected": {
+                  "type": "boolean"
+                }
+              },
+              "required": [
+                "environment",
+                "currentVersion",
+                "currentSequence",
+                "closed",
+                "evidence",
+                "blockers",
+                "twoPerson",
+                "protected"
+              ]
+            }
+          }
+        },
+        "required": [
+          "source",
+          "workflowRevision",
+          "workflowSource",
+          "targets"
+        ]
+      },
+      "ReleaseEvidence": {
+        "type": "object",
+        "properties": {
+          "environment": {
+            "type": "string"
+          },
+          "version": {
+            "type": "integer",
+            "minimum": 0,
+            "exclusiveMinimum": true
+          },
+          "sequence": {
+            "type": "integer",
+            "minimum": 0,
+            "exclusiveMinimum": true
+          },
+          "releasedAt": {
+            "type": "string",
+            "format": "date-time"
+          }
+        },
+        "required": [
+          "environment",
+          "version",
+          "sequence",
+          "releasedAt"
+        ]
+      },
+      "ReleaseBlocker": {
+        "type": "object",
+        "properties": {
+          "code": {
+            "type": "string",
+            "example": "TEST_RELEASE_REQUIRED"
+          },
+          "requiresAnyOf": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          }
+        },
+        "required": [
+          "code",
+          "requiresAnyOf"
+        ]
+      },
+      "ReleaseReviewBody": {
+        "type": "object",
+        "properties": {
+          "source": {
+            "oneOf": [
+              {
+                "type": "object",
+                "properties": {
+                  "kind": {
+                    "type": "string",
+                    "enum": [
+                      "draft"
+                    ]
+                  }
+                },
+                "required": [
+                  "kind"
+                ],
+                "additionalProperties": false
+              },
+              {
+                "type": "object",
+                "properties": {
+                  "kind": {
+                    "type": "string",
+                    "enum": [
+                      "version"
+                    ]
+                  },
+                  "version": {
+                    "type": "integer",
+                    "minimum": 0,
+                    "exclusiveMinimum": true
+                  }
+                },
+                "required": [
+                  "kind",
+                  "version"
+                ],
+                "additionalProperties": false
+              }
+            ]
+          }
+        },
+        "required": [
+          "source"
+        ],
+        "additionalProperties": false
+      },
       "WorkspaceListResponse": {
         "type": "object",
         "properties": {
@@ -1852,6 +2080,29 @@
           "installationAdmin": {
             "type": "boolean"
           },
+          "capabilities": {
+            "type": "object",
+            "properties": {
+              "operations": {
+                "type": "boolean"
+              },
+              "workspaces": {
+                "type": "boolean"
+              },
+              "siteConfiguration": {
+                "type": "boolean"
+              },
+              "authoring": {
+                "type": "boolean"
+              }
+            },
+            "required": [
+              "operations",
+              "workspaces",
+              "siteConfiguration",
+              "authoring"
+            ]
+          },
           "workspaces": {
             "type": "array",
             "items": {
@@ -1927,6 +2178,7 @@
         "required": [
           "userId",
           "installationAdmin",
+          "capabilities",
           "workspaces"
         ]
       },
@@ -2896,6 +3148,150 @@
         },
         "required": [
           "proposal"
+        ]
+      },
+      "OperationsFormsResponse": {
+        "type": "object",
+        "properties": {
+          "environment": {
+            "type": "string"
+          },
+          "forms": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "properties": {
+                "formId": {
+                  "type": "string"
+                },
+                "slug": {
+                  "type": "string"
+                },
+                "defaultLocale": {
+                  "type": "string"
+                },
+                "displayName": {
+                  "type": "string"
+                },
+                "workspace": {
+                  "type": "object",
+                  "properties": {
+                    "workspaceId": {
+                      "type": "string"
+                    },
+                    "slug": {
+                      "type": "string"
+                    },
+                    "name": {
+                      "type": "string"
+                    }
+                  },
+                  "required": [
+                    "workspaceId",
+                    "slug",
+                    "name"
+                  ]
+                },
+                "hasRelease": {
+                  "type": "boolean"
+                },
+                "release": {
+                  "type": "object",
+                  "nullable": true,
+                  "properties": {
+                    "version": {
+                      "type": "integer"
+                    },
+                    "releasedAt": {
+                      "type": "string"
+                    },
+                    "closed": {
+                      "type": "boolean"
+                    }
+                  },
+                  "required": [
+                    "version",
+                    "releasedAt",
+                    "closed"
+                  ]
+                },
+                "lastReleaseAt": {
+                  "type": "string",
+                  "nullable": true
+                },
+                "counts": {
+                  "type": "object",
+                  "nullable": true,
+                  "properties": {
+                    "submitted": {
+                      "type": "integer"
+                    },
+                    "inProgress": {
+                      "type": "integer"
+                    }
+                  },
+                  "required": [
+                    "submitted",
+                    "inProgress"
+                  ]
+                },
+                "capabilities": {
+                  "type": "array",
+                  "items": {
+                    "type": "string"
+                  }
+                }
+              },
+              "required": [
+                "formId",
+                "slug",
+                "defaultLocale",
+                "displayName",
+                "workspace",
+                "hasRelease",
+                "release",
+                "lastReleaseAt",
+                "counts",
+                "capabilities"
+              ]
+            }
+          },
+          "total": {
+            "type": "integer"
+          },
+          "nextCursor": {
+            "type": "string",
+            "nullable": true
+          },
+          "workspaces": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "properties": {
+                "workspaceId": {
+                  "type": "string"
+                },
+                "slug": {
+                  "type": "string"
+                },
+                "name": {
+                  "type": "string"
+                }
+              },
+              "required": [
+                "workspaceId",
+                "slug",
+                "name"
+              ]
+            }
+          }
+        },
+        "required": [
+          "environment",
+          "forms",
+          "total",
+          "nextCursor",
+          "workspaces"
         ]
       },
       "DeadLettersResponse": {
@@ -5749,6 +6145,95 @@
         }
       }
     },
+    "/admin/forms/{id}/release-review": {
+      "post": {
+        "summary": "What releasing a draft or a version into each permitted target would do (admin)",
+        "description": "A read, and it writes nothing: no version, no release, no review token and no access-audit row. It reports one target per environment the caller holds `release: create` in and no others, with what is serving there, whether intake is closed, the committed release rows that satisfy the target's prerequisite, the blockers that remain, and whether the two-person rule applies and would refuse this account as the version's author. Until a release-workflow revision is configured the review reports `workflowSource: default`, which is this deployment's derived test and prod behaviour, and a missing production prerequisite keeps the TEST_RELEASE_REQUIRED code. A version with a prior release in the target itself is a rollback and is eligible there regardless of prerequisites; the two-person rule still applies to it. The review is a report rather than a reservation: the confirmation rechecks every expectation in its own transaction.",
+        "tags": [
+          "releases"
+        ],
+        "security": [
+          {
+            "MachineToken": [
+              "forms:read"
+            ]
+          }
+        ],
+        "parameters": [
+          {
+            "schema": {
+              "type": "string",
+              "example": "frm_signup"
+            },
+            "required": true,
+            "name": "id",
+            "in": "path"
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ReleaseReviewBody"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "The source, the workflow revision and one entry per permitted target",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ReleaseReviewResponse"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Bad request",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Missing or invalid credentials",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Forbidden",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Not found",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/admin/workspaces": {
       "get": {
         "summary": "Every workspace, with what it owns (admin)",
@@ -6192,7 +6677,7 @@
     "/admin/me/access": {
       "get": {
         "summary": "Which workspaces, roles, environments and forms the caller holds (admin)",
-        "description": "Every caller's own grants and nobody else's. It is how everybody who is not an owner or the installation administrator learns what they hold, since the membership list itself is theirs alone to see. `environments` per workspace is what the environment switcher offers: only the environments the caller holds in some grant, with `all` expanded against the live set.",
+        "description": "Every caller's own grants and nobody else's. It is how everybody who is not an owner or the installation administrator learns what they hold, since the membership list itself is theirs alone to see. `environments` per workspace is what the environment switcher offers: only the environments the caller holds in some grant, with `all` expanded against the live set. `capabilities` says which areas of the admin the caller has at all, derived from the same policy decision that gates each area's routes, so a navigation contract cannot offer a mode whose routes refuse. It is a projection and authorises nothing.",
         "tags": [
           "membership"
         ],
@@ -7993,6 +8478,143 @@
           },
           "409": {
             "description": "Conflict",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/admin/operations/forms": {
+      "get": {
+        "summary": "The forms a caller may operate in one environment (admin)",
+        "description": "Bounded search, workspace and intake filters, stable sorting and cursor pagination. A caller reaches it holding any one of `form: read`, `response: read`, `response: erase` or `response: dispose`, and each row carries only the fields the cells they hold for that form and environment would authorise elsewhere: release state needs `form: read`, and response counts need `response: read` for that exact form and environment. A count writes no access-audit row, because an aggregate is not a read of anybody's answers. No caller is served a draft, a draft flag, a latest version or a publication time. The environment is an explicit query parameter with no default, and a caller holding nothing in it is served an empty page rather than a refusal.",
+        "tags": [
+          "operations"
+        ],
+        "security": [
+          {
+            "MachineToken": [
+              "forms:read"
+            ]
+          }
+        ],
+        "parameters": [
+          {
+            "schema": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 53,
+              "example": "prod"
+            },
+            "required": true,
+            "name": "environment",
+            "in": "query"
+          },
+          {
+            "schema": {
+              "type": "string",
+              "maxLength": 200
+            },
+            "required": false,
+            "name": "q",
+            "in": "query"
+          },
+          {
+            "schema": {
+              "type": "string",
+              "maxLength": 64
+            },
+            "required": false,
+            "name": "workspaceId",
+            "in": "query"
+          },
+          {
+            "schema": {
+              "type": "string",
+              "enum": [
+                "open",
+                "closed",
+                "unreleased"
+              ]
+            },
+            "required": false,
+            "name": "intake",
+            "in": "query"
+          },
+          {
+            "schema": {
+              "type": "string",
+              "enum": [
+                "slug-asc",
+                "slug-desc",
+                "released-desc",
+                "released-asc",
+                "submitted-desc",
+                "submitted-asc"
+              ]
+            },
+            "required": false,
+            "name": "sort",
+            "in": "query"
+          },
+          {
+            "schema": {
+              "type": "string",
+              "maxLength": 512
+            },
+            "required": false,
+            "name": "cursor",
+            "in": "query"
+          },
+          {
+            "schema": {
+              "type": "string",
+              "maxLength": 8,
+              "example": "25"
+            },
+            "required": false,
+            "name": "limit",
+            "in": "query"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "The page of forms, the matching total and the next cursor",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/OperationsFormsResponse"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Bad request",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Missing or invalid credentials",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Forbidden",
             "content": {
               "application/json": {
                 "schema": {

@@ -51,6 +51,16 @@ const fail = {
       400,
       "This route acts in the environment its body names, so the body has to name one.",
     ),
+  // No default: the operations context is an explicit choice, and a remembered switcher
+  // header would authorise a caller for an environment they did not pick.
+  environmentInQueryMissing: (): ApiError =>
+    new ApiError(
+      "INVALID_REQUEST",
+      400,
+      "This route acts in the environment its `environment` query parameter names, so the " +
+        "request has to name one. There is no default: the operations context is an " +
+        "explicit choice.",
+    ),
   // Refused rather than ignored: such a route declares no `environment`, so a body
   // carrying one is a caller seeking authorisation against an environment other than the
   // one the handler will act in.
@@ -107,6 +117,13 @@ async function environmentFor(
   const switcher = deps.databases.forRequest(c.get("requestEnvironment")).environment;
   const named = (await readBody(c)) as { environment?: unknown } | undefined;
   const inBody = typeof named?.environment === "string" ? named.environment : undefined;
+
+  if (policy.environmentFrom === "query") {
+    if (inBody !== undefined) throw fail.environmentNotInBody();
+    const inQuery = new URL(c.req.url).searchParams.get("environment");
+    if (inQuery === null || inQuery === "") throw fail.environmentInQueryMissing();
+    return inQuery;
+  }
 
   if (policy.environmentFrom === "body") {
     // Falling back to the switcher here would authorise against an environment the
@@ -234,6 +251,7 @@ async function decideRequest(
       userId: input.userId,
       claim,
     });
+    if (policy.anyOf !== undefined) return anyOfContext(policy, resolved, environment);
     const workspaceIds = workspacesAllowing(resolved, request);
     if (workspaceIds.length === 0) {
       throw fail.refused(
@@ -255,6 +273,46 @@ async function decideRequest(
     request,
     ...(environment === undefined ? {} : { environment }),
   });
+}
+
+/**
+ * Admit a caller holding any one of an `anyOf` row's cells as a statement, and carry the
+ * resolved memberships so the handler can narrow per form without resolving again.
+ *
+ * Neither scope is judged here: a form-scoped cell needs a form, and the route names
+ * none. So a caller holding a cell but nothing in the requested environment is admitted
+ * and served an empty page, which a refusal could not be told apart from.
+ */
+function anyOfContext(
+  policy: RoutePolicy,
+  resolved: readonly ResolvedMembership[],
+  environment: string | undefined,
+): GrantContext {
+  const cells = policy.anyOf ?? [];
+  const holding = resolved.filter((membership) =>
+    cells.some((cell) =>
+      holdsStatement(
+        { memberRole: membership.memberRole, grants: membership.grants },
+        cell.resource,
+        cell.action,
+      ),
+    ),
+  );
+  if (holding.length === 0) {
+    throw fail.refused(
+      decideAccess({
+        memberRole: undefined,
+        grants: [],
+        request: { resource: policy.resource, action: policy.action },
+      }).reason ?? "Refused",
+    );
+  }
+  return {
+    policy,
+    workspaceIds: holding.map((membership) => membership.workspaceId),
+    memberships: holding,
+    ...(environment === undefined ? {} : { environment }),
+  };
 }
 
 async function decideInOneWorkspace(
