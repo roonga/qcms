@@ -47,18 +47,22 @@ test.beforeAll(async () => {
 test("the membership area is reachable from the shell's navigation", async ({ page }) => {
   totpSecret = await enrollNewAdmin(page, EMAIL);
 
-  await page.getByRole("link", { name: "Workspaces" }).click();
+  await page
+    .getByRole("navigation", { name: "Primary" })
+    .getByRole("link", { name: "Workspaces" })
+    .click();
   await expect(page.getByRole("heading", { level: 1, name: "Workspaces" })).toBeVisible();
 
-  // The seeded workspace is there, and the reader's own access is beside it: everybody
-  // reads their own grants, because a workspace's membership list is its owners' to see.
+  // The reader's own access is a route under the avatar rather than a panel here, and the
+  // mode's rail reaches it: everybody reads their own grants, because a workspace's
+  // membership list is its owners' to see.
+  await page.getByRole("link", { name: "My access" }).first().click();
   await expect(page.getByRole("heading", { level: 2, name: "Your own access" })).toBeVisible();
   await expect(
     page.getByText("You hold the installation-wide claim", { exact: false }),
   ).toBeVisible();
-  // And what that claim does NOT grant is on the same line, because an administrator who
-  // meets a refused response screen should be able to read why where they read what they
-  // hold.
+  // And what that claim does NOT grant is on the same line, because an operator who meets
+  // a refused response screen should be able to read why where they read what they hold.
   await expect(
     page.getByText("It grants no response read, export or erasure anywhere", { exact: false }),
   ).toBeVisible();

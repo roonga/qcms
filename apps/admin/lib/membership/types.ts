@@ -13,6 +13,8 @@
  * `scopeNote` explains.
  */
 
+import type { ShellCapabilities } from "../shell/modes.ts";
+
 /** One workspace, as the list screen shows it. */
 export interface WorkspaceListItem {
   readonly workspaceId: string;
@@ -124,6 +126,11 @@ export interface MyAccessWorkspace {
 export interface MyAccess {
   readonly userId: string;
   readonly installationAdmin: boolean;
+  /**
+   * Which areas of the admin this caller has at all, projected by the API from the cell
+   * each area's routes require. A navigation convenience; every route still decides.
+   */
+  readonly capabilities: ShellCapabilities;
   readonly workspaces: readonly MyAccessWorkspace[];
 }
 

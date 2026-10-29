@@ -199,6 +199,37 @@ export const messages = {
   "nav.webhooks": "Webhooks",
   "nav.workspaces": "Workspaces",
   "nav.settings": "Settings",
+  // The Operations entry is separated from the authoring menus, because entering it
+  // replaces them rather than adding a sixth peer to them.
+  "nav.operations": "Operations",
+
+  // THE SHELL'S MODES. A focused mode states its own name where the application
+  // navigation would be, and offers the way out only when the caller holds another area.
+  "shell.mode.operations.name": "Operations",
+  "shell.mode.operations.exit": "Exit Operations",
+  "shell.mode.operations.announce": "Operations. The authoring menus are not shown here.",
+  "shell.mode.workspaces.name": "Workspaces",
+  "shell.mode.workspaces.exit": "Exit Workspaces",
+  "shell.mode.workspaces.announce": "Workspaces. The authoring menus are not shown here.",
+
+  // A bookmark into an area this caller does not hold. It names nothing it was refused:
+  // resolving an identifier to a title would tell an outsider that it exists.
+  "shell.denied.title": "You do not have access to this area",
+  "shell.denied.body":
+    "Your access may have changed, or the address may belong to an area you were never " +
+    "granted. Nothing about it is shown here.",
+  "shell.denied.recover": "Go to an area you can use",
+  "shell.denied.myAccess": "See what you can access",
+
+  "operations.intro": "The forms you can operate, and the installation's delivery queues.",
+
+  // Everybody holds this, so it is where a caller with no feature grant lands rather than
+  // being given a fabricated authoring screen.
+  "access.title": "My access",
+  "access.intro": "What this account holds, and who to ask for more.",
+  "access.none":
+    "You hold no form, question, response or workspace grant yet. Ask an owner of the " +
+    "workspace you need to add you to one of its access groups.",
 
   "signIn.title": "Sign in to QCMS",
   "signIn.email": "Email",
@@ -2578,8 +2609,8 @@ export const messages = {
   "membership.area.twoPerson": "Second approver required",
   "membership.area.counts": "{forms} form(s), {questions} question(s)",
   "membership.workspace.title": "{name}",
-  "membership.workspace.notFound":
-    "No such workspace, or you do not manage it. Your own grants are on /workspaces.",
+  "membership.workspace.notFound": "No such workspace, or you do not manage it.",
+  "membership.workspace.allWorkspaces": "All workspaces",
 
   "membership.members.heading": "Members",
   "membership.members.intro":

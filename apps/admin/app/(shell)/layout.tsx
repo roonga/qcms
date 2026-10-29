@@ -2,12 +2,12 @@ import { cookies } from "next/headers";
 import type { ReactNode } from "react";
 
 import { AccountMenu } from "@/components/account-menu";
-import { AdminNav } from "@/components/admin-nav";
 import { Announcer } from "@/components/announcer";
 import { EnvironmentBanner } from "@/components/environment-banner";
 import { EnvironmentScope } from "@/components/environment-scope";
 import { EnvironmentSwitcher } from "@/components/environment-switcher";
 import { MeasuredMain } from "@/components/measured-main";
+import { ShellChrome } from "@/components/shell/shell-chrome";
 import { ThemeToggle } from "@/components/theme-toggle";
 import { TopbarHeight } from "@/components/topbar-height";
 import { MODE_COOKIE, parseAppearance } from "@/lib/appearance";
@@ -15,6 +15,7 @@ import { shownEnvironment } from "@/lib/environment";
 import { secureCookies } from "@/lib/server/config";
 import { resolvedEnvironment } from "@/lib/server/environments";
 import { t } from "@/lib/i18n/en";
+import { navigableCapabilities, rememberedMode, shellAccess } from "@/lib/server/shell";
 import { requireAdminSession } from "@/lib/server/session";
 
 /**
@@ -86,7 +87,12 @@ export default async function ShellLayout({
   // module by construction (the R2 import-surface test) - and it is the same function
   // the enrollment cookies and the API's better-auth instance decide from, so all three
   // cookie families on this origin carry the same `Secure` attribute (see its doc).
-  const appearance = parseAppearance((await cookies()).get(MODE_COOKIE)?.value);
+  const cookieStore = await cookies();
+  const appearance = parseAppearance(cookieStore.get(MODE_COOKIE)?.value);
+  // Which areas this caller has, so the navigation offers no area that would refuse. A
+  // read that failed is not a refusal: `navigableCapabilities` narrows nothing then, and
+  // every route behind an entry decides for itself.
+  const accessPromise = shellAccess(session);
   // The environment set is the API's answer, not a literal here (ADR-40: the set is a
   // table and an operator may add to it), and the selection is validated against it so a
   // cookie naming an environment this deployment no longer serves falls through to
@@ -100,7 +106,11 @@ export default async function ShellLayout({
   // read of the set that failed is `unknown`, never `prod`: the banner says so, the
   // switcher has nothing to offer, and environment-sensitive actions are disabled here and
   // refused by their server actions.
-  const resolved = await resolvedEnvironment(session);
+  // Issued together with the capability read above, not after it: both are API round trips
+  // on every page in the app, and awaiting them in sequence puts one of them on the
+  // critical path of every render for nothing.
+  const [access, resolved] = await Promise.all([accessPromise, resolvedEnvironment(session)]);
+  const capabilities = navigableCapabilities(access);
 
   return (
     <div className="flex min-h-dvh flex-col">
@@ -155,38 +165,42 @@ export default async function ShellLayout({
               to an operator: the product is QCMS and the respondent app is the
               Portal (Code Owner naming call, 2026-07-30). */}
           <span className="qcms-wordmark flex-shrink-0">{t("app.title")}</span>
-          <div className="min-w-0 flex-1 basis-40">
-            <AdminNav />
-          </div>
-          <div className="flex flex-shrink-0 items-center gap-x-2">
-            {/* The one global environment control (Q6). First in the trailing group,
+          <ShellChrome
+            capabilities={capabilities}
+            rememberedMode={rememberedMode(cookieStore)}
+            secureCookies={secureCookies()}
+            trailing={
+              <>
+                {/* The one global environment control (Q6). First in the trailing group,
                 because it is the widest-reaching of the three: appearance changes how a
                 screen looks and the account menu is about who is signed in, while this one
                 changes which rows every screen is showing. */}
-            {resolved.status === "known" ? (
-              <EnvironmentSwitcher
-                environments={resolved.environments}
-                selected={resolved.environment}
-                secureCookies={secureCookies()}
-              />
-            ) : (
-              // Nothing to offer: the set is what the menu lists, and it could not be read.
-              // Not a button, because pressing it could do nothing.
-              <div
-                className="qcms-envswitch"
-                data-testid="qcms-environment-switcher"
-                data-environment=""
-                data-nonprod="true"
-                data-pending="false"
-              >
-                <span className="qcms-envtrigger qcms-envtrigger--static">
-                  {t("environment.unknown")}
-                </span>
-              </div>
-            )}
-            <ThemeToggle appearance={appearance} secureCookies={secureCookies()} />
-            <AccountMenu email={session.email} name={session.name} />
-          </div>
+                {resolved.status === "known" ? (
+                  <EnvironmentSwitcher
+                    environments={resolved.environments}
+                    selected={resolved.environment}
+                    secureCookies={secureCookies()}
+                  />
+                ) : (
+                  // Nothing to offer: the set is what the menu lists, and it could not be read.
+                  // Not a button, because pressing it could do nothing.
+                  <div
+                    className="qcms-envswitch"
+                    data-testid="qcms-environment-switcher"
+                    data-environment=""
+                    data-nonprod="true"
+                    data-pending="false"
+                  >
+                    <span className="qcms-envtrigger qcms-envtrigger--static">
+                      {t("environment.unknown")}
+                    </span>
+                  </div>
+                )}
+                <ThemeToggle appearance={appearance} secureCookies={secureCookies()} />
+                <AccountMenu email={session.email} name={session.name} />
+              </>
+            }
+          />
         </div>
         {/* The persistent banner (Q6), INSIDE the sticky bar rather than under it, which
             is two properties for one decision: it stays on screen while the operator

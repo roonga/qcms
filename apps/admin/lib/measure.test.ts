@@ -14,7 +14,7 @@ import {
 /**
  * The route-to-cap table is the mechanism, so these are its tests (issues 558, 648, 657).
  *
- * Each of the twenty-one screens takes the cap its own POC draws, or - for the four with no POC - the cap of the screen it is shaped like, and the acceptance asks
+ * Each of the twenty-three screens takes the cap its own POC draws, or - for the six with no POC - the cap of the screen it is shaped like, and the acceptance asks
  * that adding one more make its cap an obvious one-line decision. Issue 685 is the first
  * time that promise was called in: `/forms/new` arrived and its cap was one row. A table
  * only earns
@@ -73,7 +73,7 @@ describe("the route-to-cap table", () => {
     expect(Object.values(MEASURE_BY_ROUTE)).not.toContain("default");
   });
 
-  it("counts the drawings: twelve at 1600, three at 40rem, two at 1080", () => {
+  it("counts the drawings: twelve at 1600, four at 40rem, two at 1080", () => {
     // Restated from the POCs rather than derived from the table, so a wrong row is a
     // failure here instead of a table that agrees with itself.
     const measures = Object.values(MEASURE_BY_ROUTE);
@@ -81,7 +81,9 @@ describe("the route-to-cap table", () => {
     // Twelve since task 065's release screen, which takes the width of the version
     // history it sits beside rather than a number of its own.
     expect(count("wide")).toBe(12);
-    expect(count("prose")).toBe(3);
+    // Four since My access, which is one panel of the reader's own grants and so takes the
+    // account screen's prose width. No POC draws it.
+    expect(count("prose")).toBe(4);
     expect(count("list")).toBe(2);
     // Two each since task 069's membership screens, and **neither is a drawing**: no POC
     // draws either, so each takes the cap of the screen it is shaped like - a list and a
@@ -89,9 +91,11 @@ describe("the route-to-cap table", () => {
     // six-column log at the erasure log's. The counts are restated here rather than
     // derived for the reason the comment above gives, and these two are the rows a POC for
     // either screen corrects first.
-    expect(count("ops")).toBe(2);
+    // Three `ops` since the Operations forms table, which is `/responses`' shape and so
+    // takes its cap until a drawing says otherwise.
+    expect(count("ops")).toBe(3);
     expect(count("log")).toBe(2);
-    expect(measures).toHaveLength(21);
+    expect(measures).toHaveLength(23);
   });
 
   it("offers no cap that no route can take, which is what issue 668 left behind", () => {

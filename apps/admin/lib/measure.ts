@@ -219,6 +219,19 @@ export const MEASURE_BY_ROUTE = {
    * cap at all (`:229`), so its three screens are pure per-screen statements: where the
    * author wanted a per-screen width they wrote an inner class for it.
    */
+  /**
+   * **No POC draws these two**, and that is stated rather than papered over. The caps are
+   * chosen from what each screen is, by the reading the drawn rows apply to their files.
+   *
+   * `/me/access` is one panel of the reader's own grants: prose, like the account screen
+   * `/settings` takes.
+   *
+   * `/operations` is the forms table a caller operates, which is the same shape as
+   * `/responses` below and takes that screen's `ops` cap. The table that fills it is the
+   * first thing to correct this row if its columns ask for more.
+   */
+  "/me/access": "prose",
+  "/operations": "ops",
   "/responses": "ops",
   /** `deployment-ops-poc.html` `.ops-inner--erasures` 1180. */
   "/responses/erasures": "log",

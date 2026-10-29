@@ -401,7 +401,8 @@ const ROUTES: readonly GuardedRoute[] = [
     post: (headers) =>
       confirmRoute.POST(formPost("/two-factor/recovery-codes/confirm", headers, form({}))),
     reached: () => seams.clearRecoveryCodesCookie,
-    refusalLocation: "/questions",
+    // The shell home, which is the root resolver: there is no one area every caller holds.
+    refusalLocation: "/",
     logged: {
       beltRoute: "/two-factor/recovery-codes/confirm",
       beltOutcome: "redirect-without-message",

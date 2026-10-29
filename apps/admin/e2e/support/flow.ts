@@ -133,6 +133,12 @@ export async function submitRecoveryCode(page: Page, code: string): Promise<void
 }
 
 /**
+ * Where a full-grant account lands. A narrower persona passes its own, rather than every
+ * spec here waiting for any route, which would stop reporting a sign-in that went astray.
+ */
+const DEFAULT_LANDING = /\/questions$/;
+
+/**
  * Sign in an already-enrolled account all the way to the shell, via its TOTP factor.
  *
  * The `waitForURL` is not decoration. `click()` returns once the navigation has been
@@ -141,10 +147,15 @@ export async function submitRecoveryCode(page: Page, code: string): Promise<void
  * page the test had never actually reached. Waiting for the shell here means every caller
  * starts from a known place.
  */
-export async function signInWithTotp(page: Page, email: string, secret: string): Promise<void> {
+export async function signInWithTotp(
+  page: Page,
+  email: string,
+  secret: string,
+  landing: RegExp = DEFAULT_LANDING,
+): Promise<void> {
   await submitSignIn(page, email);
   await submitTotp(page, secret);
-  await page.waitForURL(/\/questions$/);
+  await page.waitForURL(landing);
 }
 
 /**
@@ -263,7 +274,11 @@ export async function signOut(page: Page): Promise<void> {
  * Read the secret inside the flow, never cached across tests: a sign-in by an account
  * with no confirmed factor re-provisions enrollment, so each visit carries a new one.
  */
-export async function enrollNewAdmin(page: Page, email: string): Promise<string> {
+export async function enrollNewAdmin(
+  page: Page,
+  email: string,
+  landing: RegExp = DEFAULT_LANDING,
+): Promise<string> {
   await submitSignIn(page, email);
   await expect(page).toHaveURL(/\/two-factor\/enroll$/);
   // The URL commits before the enrol page has a DOM, so without this `readSetupKey`
@@ -273,7 +288,7 @@ export async function enrollNewAdmin(page: Page, email: string): Promise<string>
   await submitTotp(page, secret);
   await expect(page).toHaveURL(/\/two-factor\/recovery-codes$/);
   await page.getByRole("button", { name: "I have saved these codes" }).click();
-  await page.waitForURL(/\/questions$/);
+  await page.waitForURL(landing);
   return secret;
 }
 

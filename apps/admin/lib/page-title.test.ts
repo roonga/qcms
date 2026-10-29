@@ -113,6 +113,8 @@ describe("every route titles its own browser tab", () => {
       "/forms/[formId]/versions/[version]",
       "/forms/[formId]/webhooks",
       "/forms/new",
+      "/me/access",
+      "/operations",
       "/questions",
       "/questions/[questionId]",
       "/questions/new",

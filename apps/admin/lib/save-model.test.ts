@@ -91,7 +91,7 @@ const SCREENS: readonly ScreenRow[] = [
   {
     route: "app/page.tsx",
     model: "readonly",
-    why: "A redirect to /forms. It renders nothing.",
+    why: "A redirect to the caller's first permitted area. It renders nothing.",
   },
   {
     route: "app/sign-in/page.tsx",
@@ -321,6 +321,26 @@ const SCREENS: readonly ScreenRow[] = [
     model: "manual",
     statedBy: QUESTION_SAVE,
     why: "The question editor in edit mode. Same document, same explicit press. The lifecycle actions moved to this screen's rail in issue 650 and are inventoried on that slot's own row; they are discrete operations and report no save state either way.",
+  },
+  {
+    route: "app/(shell)/me/access/page.tsx",
+    model: "readonly",
+    why: "What this account holds. A grant is not something its holder changes, so there is nothing on the screen to store.",
+  },
+  {
+    route: "app/(shell)/@rail/me/access/page.tsx",
+    model: "readonly",
+    why: "A rail Header and nothing else.",
+  },
+  {
+    route: "app/(shell)/operations/page.tsx",
+    model: "readonly",
+    why: "The forms a caller operates. A list screen stores nothing; its filters live in the address.",
+  },
+  {
+    route: "app/(shell)/@rail/operations/page.tsx",
+    model: "readonly",
+    why: "A rail Header, which the forms table's filters join.",
   },
   {
     route: "app/(shell)/responses/page.tsx",

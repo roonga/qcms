@@ -93,16 +93,16 @@ regeneration and `git add` the result rather than merging two sets of counts.
 
 <!-- BEGIN GENERATED: ownership-seam (pnpm qcms:sync-templates) -->
 
-### Scaffolded paths (487 files common to both shapes)
+### Scaffolded paths (499 files common to both shapes)
 
 | Path                                                                 | Files |
 | -------------------------------------------------------------------- | ----- |
 | `(project root)`                                                     | 8     |
-| `apps/`                                                              | 476   |
-| `apps/admin/`                                                        | 289   |
-| `apps/admin/app/`                                                    | 77    |
-| `apps/admin/app/(shell)/`                                            | 58    |
-| `apps/admin/app/(shell)/@rail/`                                      | 24    |
+| `apps/`                                                              | 488   |
+| `apps/admin/`                                                        | 301   |
+| `apps/admin/app/`                                                    | 81    |
+| `apps/admin/app/(shell)/`                                            | 62    |
+| `apps/admin/app/(shell)/@rail/`                                      | 26    |
 | `apps/admin/app/(shell)/@rail/forms/`                                | 13    |
 | `apps/admin/app/(shell)/@rail/forms/[formId]/`                       | 11    |
 | `apps/admin/app/(shell)/@rail/forms/[formId]/links/`                 | 1     |
@@ -115,6 +115,9 @@ regeneration and `git add` the result rather than merging two sets of counts.
 | `apps/admin/app/(shell)/@rail/forms/[formId]/versions/[version]/`    | 1     |
 | `apps/admin/app/(shell)/@rail/forms/[formId]/webhooks/`              | 1     |
 | `apps/admin/app/(shell)/@rail/forms/new/`                            | 1     |
+| `apps/admin/app/(shell)/@rail/me/`                                   | 1     |
+| `apps/admin/app/(shell)/@rail/me/access/`                            | 1     |
+| `apps/admin/app/(shell)/@rail/operations/`                           | 1     |
 | `apps/admin/app/(shell)/@rail/questions/`                            | 3     |
 | `apps/admin/app/(shell)/@rail/questions/[questionId]/`               | 1     |
 | `apps/admin/app/(shell)/@rail/questions/new/`                        | 1     |
@@ -138,6 +141,9 @@ regeneration and `git add` the result rather than merging two sets of counts.
 | `apps/admin/app/(shell)/forms/[formId]/versions/[version]/`          | 1     |
 | `apps/admin/app/(shell)/forms/[formId]/webhooks/`                    | 1     |
 | `apps/admin/app/(shell)/forms/new/`                                  | 2     |
+| `apps/admin/app/(shell)/me/`                                         | 1     |
+| `apps/admin/app/(shell)/me/access/`                                  | 1     |
+| `apps/admin/app/(shell)/operations/`                                 | 1     |
 | `apps/admin/app/(shell)/questions/`                                  | 4     |
 | `apps/admin/app/(shell)/questions/[questionId]/`                     | 1     |
 | `apps/admin/app/(shell)/questions/new/`                              | 1     |
@@ -164,19 +170,21 @@ regeneration and `git add` the result rather than merging two sets of counts.
 | `apps/admin/app/two-factor/recovery-codes/`                          | 2     |
 | `apps/admin/app/two-factor/recovery-codes/confirm/`                  | 1     |
 | `apps/admin/app/two-factor/recovery/verify/`                         | 1     |
-| `apps/admin/components/`                                             | 105   |
+| `apps/admin/components/`                                             | 110   |
 | `apps/admin/components/forms/`                                       | 40    |
 | `apps/admin/components/membership/`                                  | 7     |
 | `apps/admin/components/ops/`                                         | 11    |
 | `apps/admin/components/questions/`                                   | 15    |
+| `apps/admin/components/shell/`                                       | 5     |
 | `apps/admin/components/test-support/`                                | 3     |
-| `apps/admin/lib/`                                                    | 100   |
+| `apps/admin/lib/`                                                    | 103   |
 | `apps/admin/lib/forms/`                                              | 29    |
 | `apps/admin/lib/i18n/`                                               | 2     |
 | `apps/admin/lib/membership/`                                         | 2     |
 | `apps/admin/lib/ops/`                                                | 11    |
 | `apps/admin/lib/questions/`                                          | 9     |
-| `apps/admin/lib/server/`                                             | 27    |
+| `apps/admin/lib/server/`                                             | 28    |
+| `apps/admin/lib/shell/`                                              | 2     |
 | `apps/api/`                                                          | 113   |
 | `apps/api/src/`                                                      | 110   |
 | `apps/api/src/features/`                                             | 78    |
@@ -242,7 +250,7 @@ regeneration and `git add` the result rather than merging two sets of counts.
 
 ### QCMS-internal references in the scaffolded source
 
-`1746` lines across `352` scaffolded files cite a QCMS issue, ADR, SEC control, plan task or repository path.
+`1743` lines across `350` scaffolded files cite a QCMS issue, ADR, SEC control, plan task or repository path.
 
 These are comments, and they stay (issue #457, tier 3). They are the engineering
 rationale for code you now own, which is worth more to you than a tidy file, and
@@ -257,7 +265,7 @@ rather than documented: the images no longer claim to be built from this
 repository, and no scaffolded message names a script your project does not define.
 
 <details>
-<summary>Every scaffolded file (487)</summary>
+<summary>Every scaffolded file (499)</summary>
 
 ```
 .dockerignore
@@ -279,7 +287,9 @@ apps/admin/app/(shell)/@rail/forms/[formId]/versions/page.tsx
 apps/admin/app/(shell)/@rail/forms/[formId]/webhooks/page.tsx
 apps/admin/app/(shell)/@rail/forms/new/page.tsx
 apps/admin/app/(shell)/@rail/forms/page.tsx
+apps/admin/app/(shell)/@rail/me/access/page.tsx
 apps/admin/app/(shell)/@rail/no-section.ts
+apps/admin/app/(shell)/@rail/operations/page.tsx
 apps/admin/app/(shell)/@rail/questions/[questionId]/page.tsx
 apps/admin/app/(shell)/@rail/questions/new/page.tsx
 apps/admin/app/(shell)/@rail/questions/page.tsx
@@ -308,6 +318,8 @@ apps/admin/app/(shell)/forms/new/page.tsx
 apps/admin/app/(shell)/forms/page.tsx
 apps/admin/app/(shell)/forms/published-cell.tsx
 apps/admin/app/(shell)/layout.tsx
+apps/admin/app/(shell)/me/access/page.tsx
+apps/admin/app/(shell)/operations/page.tsx
 apps/admin/app/(shell)/questions/[questionId]/page.tsx
 apps/admin/app/(shell)/questions/actions.ts
 apps/admin/app/(shell)/questions/new/page.tsx
@@ -442,6 +454,11 @@ apps/admin/components/save-model.tsx
 apps/admin/components/searchable-select.tsx
 apps/admin/components/settings-panels.tsx
 apps/admin/components/settings-section-rail.tsx
+apps/admin/components/shell/denied-recovery.tsx
+apps/admin/components/shell/mode-header.tsx
+apps/admin/components/shell/my-access-rail.tsx
+apps/admin/components/shell/operations-rail.tsx
+apps/admin/components/shell/shell-chrome.tsx
 apps/admin/components/test-support/git-binary.ts
 apps/admin/components/test-support/jsx-cells.ts
 apps/admin/components/test-support/markup.ts
@@ -542,10 +559,13 @@ apps/admin/lib/server/request-id.ts
 apps/admin/lib/server/responses.ts
 apps/admin/lib/server/route-helpers.ts
 apps/admin/lib/server/session.ts
+apps/admin/lib/server/shell.ts
 apps/admin/lib/server/telemetry-redaction.ts
 apps/admin/lib/server/webhook-ops.ts
 apps/admin/lib/settings-panel.ts
 apps/admin/lib/settings-sections.ts
+apps/admin/lib/shell/context.ts
+apps/admin/lib/shell/modes.ts
 apps/admin/lib/time-zone.ts
 apps/admin/lib/topbar.ts
 apps/admin/next.config.ts

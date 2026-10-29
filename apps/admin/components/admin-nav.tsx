@@ -4,63 +4,89 @@ import Link from "next/link";
 import { usePathname } from "next/navigation";
 
 import { t } from "@/lib/i18n/en";
+import {
+  AUTHORING_PATH,
+  OPERATIONS_PATH,
+  WORKSPACES_PATH,
+  type ShellCapabilities,
+} from "@/lib/shell/modes";
 
 /**
- * The shell's primary navigation (task 031; screen contract region "shell top bar").
+ * The shell's application navigation.
  *
- * A client component for exactly one reason: the active item. The screen contract makes
- * "active state visible" and `aria-current` normative, and a layout cannot know which
- * child route rendered, so the pathname has to be read where it is available.
- * `usePathname` works during server rendering of a client component too, so the
- * active state is correct in the first HTML rather than appearing on hydration.
+ * A client component for one reason: the active item. A layout cannot know which child
+ * route rendered, and `usePathname` resolves during server rendering too, so the active
+ * state is right in the first HTML rather than appearing on hydration.
  *
- * Active matching is prefix-based, not exact, because tasks 032-035 add nested routes
- * (`/forms/{id}/builder`) that must keep "Forms" lit. The prefix is anchored with a
- * trailing-slash test so `/formsomething` could never light it.
+ * Which items exist is the capability projection's answer rather than a string match here.
+ * An entry whose area the caller does not hold is absent rather than disabled, so the
+ * navigation never names an area it would then refuse. Settings and My access are not here
+ * at all: they belong to the signed-in account and live under the avatar.
  *
- * `aria-current="page"` is the accessible half of the same signal, and the underline
- * is the visual half: colour alone would fail WCAG 1.4.1.
+ * Active matching is prefix-based, because a form's sections must keep Forms lit, and it is
+ * anchored with a trailing-slash test so `/formsomething` could never light it.
  */
 const ITEMS = [
-  { href: "/questions", label: t("nav.questions") },
-  { href: "/forms", label: t("nav.forms") },
-  { href: "/responses", label: t("nav.responses") },
-  { href: "/webhooks", label: t("nav.webhooks") },
-  // Membership and the access audit (ADR-41, task 069). Its own item rather than a
-  // Settings panel, for the reason Settings itself gives: that area is "account, change
-  // password, 2FA, nothing else", and a workspace's membership is neither an account
-  // setting nor one administrator's. It also is not form-scoped, so it has no home on a
-  // form screen.
-  { href: "/workspaces", label: t("nav.workspaces") },
-  { href: "/settings", label: t("nav.settings") },
+  { href: AUTHORING_PATH, label: t("nav.questions"), area: "authoring" },
+  { href: "/forms", label: t("nav.forms"), area: "authoring" },
+  // The two global operational screens, until the forms table that replaces the picker
+  // moves them into the Operations mode.
+  { href: "/responses", label: t("nav.responses"), area: undefined },
+  { href: "/webhooks", label: t("nav.webhooks"), area: undefined },
 ] as const;
+
+/** Entering it replaces the menus above rather than joining them, so it is drawn apart. */
+const SEPARATED = {
+  href: OPERATIONS_PATH,
+  label: t("nav.operations"),
+  area: "operations",
+} as const;
 
 function isActive(pathname: string, href: string): boolean {
   return pathname === href || pathname.startsWith(`${href}/`);
 }
 
-export function AdminNav() {
+function NavLink({
+  href,
+  label,
+  pathname,
+}: {
+  readonly href: string;
+  readonly label: string;
+  readonly pathname: string;
+}) {
+  const active = isActive(pathname, href);
+  return (
+    // One class in both states: the active treatment is selected by `aria-current` in
+    // `globals.css`, so the accessible signal and the visual one cannot drift apart.
+    <Link href={href} aria-current={active ? "page" : undefined} className="qcms-nav__link">
+      {label}
+    </Link>
+  );
+}
+
+export function AdminNav({ capabilities }: { readonly capabilities: ShellCapabilities }) {
   const pathname = usePathname();
+  const items = ITEMS.filter((item) => item.area === undefined || capabilities[item.area]);
+
   return (
     <nav aria-label={t("nav.label")}>
       <ul className="flex flex-wrap items-center gap-1">
-        {ITEMS.map((item) => {
-          const active = isActive(pathname, item.href);
-          return (
-            <li key={item.href}>
-              {/* One class in both states: the active treatment is selected by the
-                  `aria-current` attribute in `globals.css`, so the accessible signal
-                  and the visual one cannot drift apart the way two class strings can. */}
-              <Link
-                href={item.href}
-                aria-current={active ? "page" : undefined}
-                className="qcms-nav__link"
-              >
-                {item.label}
-              </Link>
-            </li>
-          );
-        })}
+        {items.map((item) => (
+          <li key={item.href}>
+            <NavLink href={item.href} label={item.label} pathname={pathname} />
+          </li>
+        ))}
+        {capabilities.workspaces && (
+          <li>
+            <NavLink href={WORKSPACES_PATH} label={t("nav.workspaces")} pathname={pathname} />
+          </li>
+        )}
+        {capabilities[SEPARATED.area] && (
+          <li className="qcms-nav__separated">
+            <NavLink href={SEPARATED.href} label={SEPARATED.label} pathname={pathname} />
+          </li>
+        )}
       </ul>
     </nav>
   );

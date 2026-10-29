@@ -1,5 +1,7 @@
 import { describe, expect, it } from "vitest";
 
+import { NO_CAPABILITIES } from "../shell/modes.ts";
+
 import { holdsEraserGrantAnywhere, RESPONSES_ERASER_ROLE, type MyAccess } from "./types.ts";
 
 /**
@@ -14,7 +16,12 @@ import { holdsEraserGrantAnywhere, RESPONSES_ERASER_ROLE, type MyAccess } from "
  */
 
 function access(workspaces: MyAccess["workspaces"]): MyAccess {
-  return { userId: "usr_1", installationAdmin: false, workspaces };
+  return {
+    userId: "usr_1",
+    installationAdmin: false,
+    capabilities: NO_CAPABILITIES,
+    workspaces,
+  };
 }
 
 function grant(role: string) {
