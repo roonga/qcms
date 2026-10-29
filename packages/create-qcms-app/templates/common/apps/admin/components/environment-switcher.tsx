@@ -13,7 +13,7 @@ import { t } from "@/lib/i18n/en";
  *
  * One control in the shell, selecting the environment for **every** screen, beside the
  * appearance and account menus - the trailing group is where this app puts a control that
- * is on every page. Its mechanism is `AppearanceMenu`'s, and deliberately so: write one
+ * is on every page. Its mechanism is `ThemeToggle`'s, and deliberately so: write one
  * long-lived cookie, then let the next server render be correct.
  *
  * ## Why it refreshes, where the appearance menu does not

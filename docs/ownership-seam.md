@@ -242,7 +242,7 @@ regeneration and `git add` the result rather than merging two sets of counts.
 
 ### QCMS-internal references in the scaffolded source
 
-`1755` lines across `355` scaffolded files cite a QCMS issue, ADR, SEC control, plan task or repository path.
+`1746` lines across `352` scaffolded files cite a QCMS issue, ADR, SEC control, plan task or repository path.
 
 These are comments, and they stay (issue #457, tier 3). They are the engineering
 rationale for code you now own, which is worth more to you than a tidy file, and
@@ -345,7 +345,7 @@ apps/admin/app/two-factor/recovery/verify/route.ts
 apps/admin/components/account-menu.tsx
 apps/admin/components/admin-nav.tsx
 apps/admin/components/announcer.tsx
-apps/admin/components/appearance-menu.tsx
+apps/admin/components/appearance-glyph.tsx
 apps/admin/components/auth-screen.tsx
 apps/admin/components/copy-entity-id.tsx
 apps/admin/components/empty-state.tsx
@@ -405,7 +405,6 @@ apps/admin/components/membership/workspace-rail.tsx
 apps/admin/components/membership/workspace-settings-panel.tsx
 apps/admin/components/membership/workspaces-rail.tsx
 apps/admin/components/menu-slots.ts
-apps/admin/components/mode-glyph.tsx
 apps/admin/components/operator-time.tsx
 apps/admin/components/ops/dead-letters.tsx
 apps/admin/components/ops/delivery-dashboard.tsx
@@ -446,6 +445,7 @@ apps/admin/components/settings-section-rail.tsx
 apps/admin/components/test-support/git-binary.ts
 apps/admin/components/test-support/jsx-cells.ts
 apps/admin/components/test-support/markup.ts
+apps/admin/components/theme-toggle.tsx
 apps/admin/components/topbar-height.tsx
 apps/admin/instrumentation.ts
 apps/admin/lib/announce.ts
