@@ -459,6 +459,23 @@ describe("the release-workflow configuration", () => {
     await clearWorkflow();
   });
 
+  it("answers the loser of a concurrent write with the same 409, never a 500", async () => {
+    await clearWorkflow();
+    const write = async (): Promise<{ status: number; body: Record<string, unknown> }> =>
+      call(claim.token, "PUT", "/release-workflow", { expectedRevision: null, rules: [] });
+    // Both read "no revision" before either inserts, so one of them meets the primary key
+    // rather than the stale read. The answer has to be the same either way.
+    const [first, second] = await Promise.all([write(), write()]);
+    const statuses = [first.status, second.status].sort((a, b) => a - b);
+    expect(statuses).toEqual([200, 409]);
+    const loser = first.status === 409 ? first : second;
+    expect(codeOf(loser.body)).toBe("WORKFLOW_REVISION_STALE");
+    // One revision, not two: the loser wrote nothing.
+    const read = await call(editorTest.token, "GET", "/release-workflow");
+    expect(read.body.revision).toBe(1);
+    await clearWorkflow();
+  });
+
   it("writes one access-audit setting row per active workspace, naming no content", async () => {
     await clearWorkflow();
     const before = await listAccessAudit(control, SEED_WORKSPACE_ID, { kind: "setting" });
@@ -945,6 +962,85 @@ describe("one confirmation is one transaction", () => {
           (blocker) => blocker.code,
         ),
       ).toEqual(["PRIOR_RELEASE_REQUIRED"]);
+    } finally {
+      await clearWorkflow();
+    }
+  });
+
+  it("applies the same draft rule to the older publish-and-release route", async () => {
+    await clearWorkflow();
+    // `test` may take a combined publish but needs a prior `prod` release of that version,
+    // which a version frozen in the same act cannot have. The older single-destination
+    // route must not be a way round that.
+    expect(
+      (
+        await call(claim.token, "PUT", "/release-workflow", {
+          expectedRevision: null,
+          rules: [
+            {
+              environment: "test",
+              requiresPriorReleaseIn: ["prod"],
+              allowsDraftPublish: true,
+              allowsInBatch: true,
+            },
+          ],
+        })
+      ).status,
+    ).toBe(200);
+    try {
+      const formId = await seedForm(0);
+      await saveDraft(editorTest.token, formId);
+      const refused = await call(editorTest.token, "POST", `/forms/${formId}/publish-and-release`, {
+        environment: "test",
+      });
+      expect(refused.status).toBe(409);
+      expect(codeOf(refused.body)).toBe("PRIOR_RELEASE_REQUIRED");
+      expect(await listFormVersions(control, formId)).toEqual([]);
+      expect(await listFormReleases(control, formId)).toEqual([]);
+      expect(await getDraft(control, formId)).toBeDefined();
+      expect(await releasedEvents("test", formId)).toBe(0);
+
+      // The batch route refuses the same destination for the same reason, which is the
+      // point of the two paths sharing one rule.
+      const batch = await call(editorTest.token, "POST", `/forms/${formId}/publish-batch`, {
+        idempotencyKey: KEYS(),
+        expectedWorkflowRevision: 1,
+        source: { kind: "draft", draftRevision: (await getDraft(control, formId))!.revision },
+        targets: [{ environment: "test", expectedSequence: null }],
+      });
+      expect(codeOf(batch.body)).toBe("PRIOR_RELEASE_REQUIRED");
+      expect(await listFormVersions(control, formId)).toEqual([]);
+    } finally {
+      await clearWorkflow();
+    }
+  });
+
+  it("still allows publish-and-release where the configured rule asks for nothing", async () => {
+    await clearWorkflow();
+    expect(
+      (
+        await call(claim.token, "PUT", "/release-workflow", {
+          expectedRevision: null,
+          rules: [
+            {
+              environment: "test",
+              requiresPriorReleaseIn: [],
+              allowsDraftPublish: true,
+              allowsInBatch: true,
+            },
+          ],
+        })
+      ).status,
+    ).toBe(200);
+    try {
+      const formId = await seedForm(0);
+      await saveDraft(editorTest.token, formId);
+      const done = await call(editorTest.token, "POST", `/forms/${formId}/publish-and-release`, {
+        environment: "test",
+      });
+      expect(done.status).toBe(200);
+      expect(await listFormVersions(control, formId)).toHaveLength(1);
+      expect((await listFormReleases(control, formId, "test")).length).toBe(1);
     } finally {
       await clearWorkflow();
     }

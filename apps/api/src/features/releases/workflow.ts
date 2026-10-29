@@ -184,6 +184,20 @@ export function batchNotAllowed(environment: string): ApiError {
 }
 
 /**
+ * Refuse a destination that cannot take a version frozen in the same act: one that forbids
+ * a combined publish, or one with a prerequisite the new version cannot satisfy, having
+ * reached no environment yet. Shared with `publish-and-release`, which must not be a way
+ * round a configured rule.
+ */
+export function requireDraftEligible(workflow: EffectiveWorkflow, environment: string): void {
+  const rule = ruleFor(workflow, environment);
+  if (rule.allowsDraftPublish && rule.requiresPriorReleaseIn.length === 0) return;
+  if (workflow.source === "default") throw testReleaseRequired();
+  if (!rule.allowsDraftPublish) throw draftPublishNotAllowed(environment);
+  throw priorReleaseRequired(environment, rule.requiresPriorReleaseIn);
+}
+
+/**
  * Refuse a destination whose prerequisite the committed history does not satisfy. The
  * caller passes the history so a transaction reads it once for every target.
  */

@@ -15,15 +15,12 @@ import { ApiError } from "../../errors.js";
 import { approvalForRelease } from "../membership/two-person.js";
 import { recordRelease } from "./release.js";
 import {
-  draftPublishNotAllowed,
   batchNotAllowed,
-  priorReleaseRequired,
   readWorkflow,
+  requireDraftEligible,
   requirePrerequisite,
   ruleFor,
-  testReleaseRequired,
   type EffectiveWorkflow,
-  type WorkflowRule,
 } from "./workflow.js";
 
 /** One destination of a confirmation, carrying what the review showed. */
@@ -277,7 +274,7 @@ async function recheckTargets(
     if ((current?.sequence ?? null) !== target.expectedSequence) {
       throw fail.staleReview("sequence", target.environment);
     }
-    if (version === undefined) requireDraftEligible(workflow, rule, target.environment);
+    if (version === undefined) requireDraftEligible(workflow, target.environment);
     else {
       if (current?.version === version) throw fail.alreadyReleased(version, target.environment);
       requirePrerequisite({ workflow, releases, environment: target.environment, version });
@@ -294,21 +291,6 @@ async function recheckTargets(
     );
   }
   return approvals;
-}
-
-/**
- * A version frozen in this act has reached no environment, so a destination with a
- * prerequisite cannot be satisfied by anything and is refused with the same code.
- */
-function requireDraftEligible(
-  workflow: EffectiveWorkflow,
-  rule: WorkflowRule,
-  environment: string,
-): void {
-  if (rule.allowsDraftPublish && rule.requiresPriorReleaseIn.length === 0) return;
-  if (workflow.source === "default") throw testReleaseRequired();
-  if (!rule.allowsDraftPublish) throw draftPublishNotAllowed(environment);
-  throw priorReleaseRequired(environment, rule.requiresPriorReleaseIn);
 }
 
 /** One release row and one `form.released` event per destination, in the order listed. */

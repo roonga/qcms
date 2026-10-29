@@ -72,11 +72,9 @@ import type { ApiEnv } from "../../openapi.js";
 import { recordRelease } from "../releases/release.js";
 import { commitReleaseBatch, intentHashOf, storedResult } from "../releases/batch.js";
 import {
-  draftPublishNotAllowed,
   productionVersions,
   readWorkflow,
-  ruleFor,
-  testReleaseRequired,
+  requireDraftEligible,
   usesTestWorkflow,
 } from "../releases/workflow.js";
 import { resolveGrants, holdsInstallationClaim } from "../membership/resolver.js";
@@ -1402,14 +1400,13 @@ export function makePublishAndReleaseFormHandler(
       releasedBy: principal.userId,
     });
 
-    // The configured workflow decides whether a destination may take a version frozen in
-    // the same act; the derived default keeps the code the release dialog already reads.
-    const workflow = await readWorkflow(deps.databases.control, deps.databases.names);
-    if (!ruleFor(workflow, environment).allowsDraftPublish) {
-      throw workflow.source === "default"
-        ? testReleaseRequired()
-        : draftPublishNotAllowed(environment);
-    }
+    // The same rule the batch confirmation applies, so this older route is not a way round
+    // a configured workflow: a destination that forbids a combined publish refuses, and so
+    // does one with a prerequisite, which a version frozen here could not satisfy.
+    requireDraftEligible(
+      await readWorkflow(deps.databases.control, deps.databases.names),
+      environment,
+    );
     const frozen = await freezeDraft(deps, formId);
 
     const result = await deps.databases.control.transaction(async (tx) => {

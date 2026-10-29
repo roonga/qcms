@@ -601,30 +601,38 @@ export function makeReleaseWorkflowWriteHandler(
       rows.map((row) => row.name),
     );
 
-    await exec.transaction(async (tx) => {
-      const current = await latestReleaseWorkflowRevision(tx);
-      if ((current ?? null) !== body.expectedRevision) throw fail.workflowRevisionStale();
-      const revision = await insertReleaseWorkflowRevision(tx, {
-        createdBy: principal.userId,
-        note: body.note ?? null,
-        rules: body.rules.map((rule) => ({ ...rule })),
-        createdAt: deps.clock.now(),
-      });
-      // Installation-wide, so the row lands in every workspace's audit: the rule governs
-      // what each of them may release, and an owner reading a refused release needs the
-      // reason to be readable from the workspace the refusal happened in.
-      for (const workspace of await listActiveWorkspaces(tx)) {
-        await writeAccessAuditRow(tx, {
-          actor: principal.userId,
-          workspaceId: workspace.id,
-          kind: "setting",
-          detail:
-            `setting=releaseWorkflow value=revision ${String(revision.revision)}; ` +
-            ruleSummary(body.rules),
-          occurredAt: deps.clock.now(),
+    // The read and the insert leave a window: two writers can both read the same newest
+    // revision and race for the next number. The primary key is the backstop, and its
+    // violation is the same answer the stale read gives rather than a 500.
+    try {
+      await exec.transaction(async (tx) => {
+        const current = await latestReleaseWorkflowRevision(tx);
+        if ((current ?? null) !== body.expectedRevision) throw fail.workflowRevisionStale();
+        const revision = await insertReleaseWorkflowRevision(tx, {
+          createdBy: principal.userId,
+          note: body.note ?? null,
+          rules: body.rules.map((rule) => ({ ...rule })),
+          createdAt: deps.clock.now(),
         });
-      }
-    });
+        // Installation-wide, so the row lands in every workspace's audit: the rule governs
+        // what each of them may release, and an owner reading a refused release needs the
+        // reason to be readable from the workspace the refusal happened in.
+        for (const workspace of await listActiveWorkspaces(tx)) {
+          await writeAccessAuditRow(tx, {
+            actor: principal.userId,
+            workspaceId: workspace.id,
+            kind: "setting",
+            detail:
+              `setting=releaseWorkflow value=revision ${String(revision.revision)}; ` +
+              ruleSummary(body.rules),
+            occurredAt: deps.clock.now(),
+          });
+        }
+      });
+    } catch (error) {
+      if (isReleaseKeyViolation(error)) throw fail.workflowRevisionStale();
+      throw error;
+    }
 
     const workflow = await readWorkflow(
       exec,
