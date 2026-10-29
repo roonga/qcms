@@ -320,9 +320,7 @@ test("switching the island restyles the island only, in both directions", async 
   // than by poking a class, and the island's selection survives it.
   await openAppearance(page);
   await page.getByRole("radio", { name: ADMIN_POLARITY.dark, exact: true }).click();
-  await expect(appearanceTrigger(page)).toHaveAccessibleName(
-    `Appearance: ${ADMIN_POLARITY.dark}`,
-  );
+  await expect(appearanceTrigger(page)).toHaveAccessibleName(`Appearance: ${ADMIN_POLARITY.dark}`);
   await page.keyboard.press("Escape");
   await settleTransitions(page);
 

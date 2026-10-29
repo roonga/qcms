@@ -296,12 +296,15 @@ async function expectNoViolations(page: Page, state: string): Promise<void> {
   const originalScroll = await page.evaluate(() => window.scrollY);
   try {
     for (const mode of MODES) {
-      await page.evaluate((rootClasses) => {
-        for (const candidate of ["light", "dark", "hc"]) {
-          document.documentElement.classList.remove(candidate);
-        }
-        for (const candidate of rootClasses) document.documentElement.classList.add(candidate);
-      }, mode.rootClasses as readonly string[]);
+      await page.evaluate(
+        (rootClasses) => {
+          for (const candidate of ["light", "dark", "hc"]) {
+            document.documentElement.classList.remove(candidate);
+          }
+          for (const candidate of rootClasses) document.documentElement.classList.add(candidate);
+        },
+        mode.rootClasses as readonly string[],
+      );
       await settleTransitions(page);
       // ANALYSED FROM THE TOP OF THE PAGE, because a scroll offset is not part of the
       // state being swept and axe measures at whichever one it finds.

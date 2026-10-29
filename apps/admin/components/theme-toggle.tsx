@@ -206,66 +206,66 @@ export function ThemeToggle({
                 </div>
               </RadioGroup>
               <p className="qcms-appearance__hint">
-              {appearance.polarity === "auto" && resolved !== undefined
-                ? t("appearance.hint.following", { resolved: polarityLabel(resolved) })
-                : t("appearance.hint.fixed")}
-            </p>
-            <Switch
-              className="qcms-appearance__switch"
-              isSelected={highContrast}
-              onChange={(selected) =>
-                apply({ ...appearance, contrast: selected ? "high" : "normal" })
-              }
-            >
-              <span className="qcms-appearance__switchlabel">
-                {t("appearance.contrast.legend")}
-              </span>
-              {/* The word, not the knob's position: a switch whose state is carried only
+                {appearance.polarity === "auto" && resolved !== undefined
+                  ? t("appearance.hint.following", { resolved: polarityLabel(resolved) })
+                  : t("appearance.hint.fixed")}
+              </p>
+              <Switch
+                className="qcms-appearance__switch"
+                isSelected={highContrast}
+                onChange={(selected) =>
+                  apply({ ...appearance, contrast: selected ? "high" : "normal" })
+                }
+              >
+                <span className="qcms-appearance__switchlabel">
+                  {t("appearance.contrast.legend")}
+                </span>
+                {/* The word, not the knob's position: a switch whose state is carried only
                   by where a dot sits is colour-and-shape alone (WCAG 1.4.1). */}
-              <span className="qcms-appearance__switchstate">
-                {highContrast ? t("appearance.contrast.on") : t("appearance.contrast.off")}
-              </span>
-              <span className="qcms-appearance__track" aria-hidden="true" />
-            </Switch>
-            <p className="qcms-appearance__note">{t("appearance.contrast.note")}</p>
-            {/* A POINTER SHORTCUT AND NOTHING ELSE, so it is hidden from assistive
+                <span className="qcms-appearance__switchstate">
+                  {highContrast ? t("appearance.contrast.on") : t("appearance.contrast.off")}
+                </span>
+                <span className="qcms-appearance__track" aria-hidden="true" />
+              </Switch>
+              <p className="qcms-appearance__note">{t("appearance.contrast.note")}</p>
+              {/* A POINTER SHORTCUT AND NOTHING ELSE, so it is hidden from assistive
                 technology: every state it offers is already reachable from the two
                 controls above, and announcing four more buttons that duplicate them
                 would make the panel longer to hear for no new function. The tiles refuse
                 focus for the same reason, which is also what keeps them out of axe's
                 `aria-hidden-focus` rule. */}
-            <div className="qcms-appearance__preview" aria-hidden="true">
-              {PREVIEW_STATES.map(({ state, value }) => {
-                const current =
-                  value.polarity === resolved && value.contrast === appearance.contrast;
-                return (
-                  <button
-                    key={state}
-                    type="button"
-                    tabIndex={-1}
-                    data-current={current ? "true" : "false"}
-                    className="qcms-appearance__tile"
-                    // A press that moved focus into a hidden subtree would also fire the
-                    // blur handler above and close the panel under the pointer.
-                    onPointerDown={(event) => event.preventDefault()}
-                    onClick={() => apply(value)}
-                  >
-                    {/* The scoped carrier: `app/theme.css` gives this attribute the
+              <div className="qcms-appearance__preview" aria-hidden="true">
+                {PREVIEW_STATES.map(({ state, value }) => {
+                  const current =
+                    value.polarity === resolved && value.contrast === appearance.contrast;
+                  return (
+                    <button
+                      key={state}
+                      type="button"
+                      tabIndex={-1}
+                      data-current={current ? "true" : "false"}
+                      className="qcms-appearance__tile"
+                      // A press that moved focus into a hidden subtree would also fire the
+                      // blur handler above and close the panel under the pointer.
+                      onPointerDown={(event) => event.preventDefault()}
+                      onClick={() => apply(value)}
+                    >
+                      {/* The scoped carrier: `app/theme.css` gives this attribute the
                         state's real token values, and everything inside paints from
                         them. */}
-                    <span className="qcms-themepreview" data-state={state}>
-                      <span className="qcms-themepreview__bar" />
-                      <span className="qcms-themepreview__text" />
-                    </span>
-                    <span className="qcms-appearance__tilecaption">
-                      <span className="qcms-appearance__tilecheck">
-                        {current ? SELECTED_MARK : ""}
+                      <span className="qcms-themepreview" data-state={state}>
+                        <span className="qcms-themepreview__bar" />
+                        <span className="qcms-themepreview__text" />
                       </span>
-                      {PREVIEW_LABEL[state]}
-                    </span>
-                  </button>
-                );
-              })}
+                      <span className="qcms-appearance__tilecaption">
+                        <span className="qcms-appearance__tilecheck">
+                          {current ? SELECTED_MARK : ""}
+                        </span>
+                        {PREVIEW_LABEL[state]}
+                      </span>
+                    </button>
+                  );
+                })}
               </div>
             </div>
           </AriaDialog>
