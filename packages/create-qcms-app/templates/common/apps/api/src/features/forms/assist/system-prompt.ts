@@ -1,52 +1,9 @@
-/**
- * The draft assistant's system prompt (041).
- *
- * **This file is reviewed like code.** The prompt is the agent's whole
- * understanding of the domain contracts, so a change to it is a behaviour change
- * to the product and goes through the same review as a change to the evaluator.
- * `SYSTEM_PROMPT_VERSION` is bumped whenever the text changes, and the version
- * travels with every logged turn so a bad proposal can be traced to the prompt
- * that produced it.
- *
- * The contract sections are **assembled from `@roonga/qcms-core`** where the kernel
- * exposes the list (question types, semantics version) rather than retyped, so
- * the prompt cannot silently drift from the schema it describes. The operator
- * table is written out because the DSL is a Zod discriminated union with no
- * exported name list. `system-prompt.test.ts` closes both directions: it parses
- * every operator named here, and its sample table is typed
- * `Record<Condition["op"], unknown>`, so an operator the kernel GAINS fails the
- * typecheck rather than leaving this list quietly behind.
- */
-
 import { QUESTION_TYPES, SEMANTICS_VERSION } from "@roonga/qcms-core";
 
-/**
- * Bump on every text change. Logged with each turn; never inferred.
- *
- * **2** since task 074: the three whole-group operators joined
- * {@link CONDITION_OPERATORS} and the repeating group's own paragraph joined the
- * draft-shape section. Task 071 had left them undocumented on purpose, because a
- * proposal cannot invent a `groupId` for a group no author could create; 074 is
- * the task where an author can create one, so the exclusion went away with it.
- *
- * **3**: the model says what it is about to do before its first tool call, so
- * text streams early rather than after the last tool, and it is told which
- * Markdown subset the panel renders.
- */
+/** Bump on every change to the prompt text; it is logged with each turn, never inferred. */
 export const SYSTEM_PROMPT_VERSION = 3;
 
-/**
- * The condition operators of the rules DSL (DOMAIN_SCHEMA §3). Kept in step with
- * `@roonga/qcms-core`'s `Condition` union by `system-prompt.test.ts`: a removed verb
- * fails at runtime when its sample no longer parses, and an added one fails at
- * typecheck when the sample table is missing its key.
- *
- * **Sixteen since task 074** (ADR-42, ADR-03 as amended 2026-09-29). The three
- * whole-group operators are listed last because they read a `groupId` rather than
- * a `questionId`, which the prompt's own Rules DSL section then spells out: a
- * model that offered one against a question, or nested one inside another, would
- * write a draft publish refuses.
- */
+/** Written out because the `Condition` union exports no name list; the test keeps it in step. */
 export const CONDITION_OPERATORS = [
   "equals",
   "notEquals",
@@ -66,7 +23,6 @@ export const CONDITION_OPERATORS = [
   "instanceCount",
 ] as const;
 
-/** Canonical `AnswerValue` encodings (DOMAIN_SCHEMA §2.4), one line per type. */
 const ANSWER_ENCODINGS: readonly (readonly [string, string])[] = [
   ["shortText / longText", "NFC-normalized string"],
   ["number", "finite IEEE double; `integer` is a validation constraint, not an encoding"],
@@ -80,11 +36,7 @@ function encodingTable(): string {
   return ANSWER_ENCODINGS.map(([type, encoding]) => `- ${type}: ${encoding}`).join("\n");
 }
 
-/**
- * Build the system prompt. Pure and deterministic: the same inputs produce the
- * same bytes, which is what makes prompt caching worthwhile on the providers
- * that offer it, and what makes the golden-ish prompt test meaningful.
- */
+/** Must stay deterministic: identical bytes are what make upstream prompt caching work. */
 export function buildSystemPrompt(): string {
   return `You are a form-authoring assistant for QCMS, a questionnaire engine.
 

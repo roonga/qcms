@@ -2,15 +2,8 @@ import { defineConfig, devices } from "@playwright/test";
 
 import { FULL_STACK_ADMIN_URL } from "./apps/e2e/support/full-stack-config.js";
 
-/**
- * Isolated full-stack smoke test over the Docker Compose topology. Unlike the main
- * Playwright configuration, it owns its own Compose project and creates its own
- * first administrator.
- *
- * The stack's addresses come from `apps/e2e/support/full-stack-config.ts`, which
- * reads the two environment names `scripts/compose-e2e.mjs` exports and otherwise
- * derives this seat's harness ports (R8, `docs/PORTS.md`).
- */
+// No `webServer`: `scripts/compose-e2e.mjs` owns the stack's lifecycle and exports
+// the addresses this config reads.
 export default defineConfig({
   testDir: "./apps/e2e",
   testMatch: "full-stack-conditional-form.pw.ts",

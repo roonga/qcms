@@ -1,27 +1,13 @@
 /**
- * Fixture-content guard (task 045): FAIL THE BUILD if an example-form fixture
- * contains health/sensitive terms. Example forms are rendered to real
- * respondents, so their content must stay in a neutral (vehicle) domain (043);
- * this keeps medical content from silently creeping back into the seeded
- * kitchen-sink form the portal e2e AND `pnpm dev:portal` publish.
- *
- * SCOPE: only the example-form fixture files this task owns - the vehicle
- * kitchen-sink definition, its two unique question fixtures, and the compiled
- * golden generated from them, all under `apps/api/e2e/support/fixtures/`. It does
- * NOT scan docs/ADRs (which legitimately discuss insurance/health in prose), the
- * frozen kernel golden corpus, or the dev:portal script's own prose (its
- * health-check endpoint references would be false positives) - the seed consumes
- * exactly these JSON files, so scanning them covers the dev:portal fixture too.
- *
- * Wired into `pnpm lint` (so it runs in CI via the lint job) and exercised by a
- * positive self-test (apps/api/e2e/support/check-fixture-domain.test.ts).
+ * Example forms are rendered to real respondents, so their content must stay in the
+ * neutral vehicle domain (043). Scope is only the fixture JSON the seed consumes:
+ * docs and the frozen golden corpus discuss health in prose legitimately.
  */
 
 import { readdirSync, readFileSync } from "node:fs";
 import { join } from "node:path";
 import { fileURLToPath, pathToFileURL } from "node:url";
 
-/** Case-insensitive denylist of health/sensitive substrings (task 045). */
 export const DENYLIST = [
   "medical",
   "diabetes",
@@ -35,18 +21,15 @@ export const DENYLIST = [
   "prescription",
 ];
 
-/** The one directory holding this task's vehicle example-form fixtures. */
 export const FIXTURE_DIR = fileURLToPath(
   new URL("../apps/api/e2e/support/fixtures/", import.meta.url),
 );
 
-/** Return every denylist term found (case-insensitively) in `text`. */
 export function scanText(label, text) {
   const lower = text.toLowerCase();
   return DENYLIST.filter((term) => lower.includes(term)).map((term) => ({ file: label, term }));
 }
 
-/** Scan every `.json` file in `dir`, returning all denylist hits. */
 export function scanFixtureDir(dir = FIXTURE_DIR) {
   const hits = [];
   for (const file of readdirSync(dir).sort()) {

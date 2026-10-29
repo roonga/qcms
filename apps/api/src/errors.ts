@@ -1,18 +1,9 @@
-/**
- * The API error model (task 017).
- *
- * `ApiError` is the one throwable a handler or middleware raises to produce a
- * deliberate, client-safe response. The error-envelope middleware turns it into
- * `{ error: { code, message, details? } }` at the carried status. Anything the
- * handler does *not* wrap in `ApiError` (a programming bug, a driver throw) is
- * treated as unexpected: the middleware logs it with a stack and an id and
- * returns an opaque 500 - internals never reach the body (SEC-8 hygiene).
- */
+// Anything not wrapped in `ApiError` renders as an opaque 500: internals never reach
+// the response body (SEC-8).
 
-/** HTTP status codes the error model uses; kept as a plain number union. */
 export type ApiErrorStatus = 400 | 401 | 403 | 404 | 409 | 413 | 422 | 429 | 500 | 503;
 
-/** The serialized envelope body shape (mirrored by the Zod schema in openapi.ts). */
+/** Mirrored by the Zod schema in openapi.ts. */
 export interface ErrorEnvelope {
   readonly error: {
     readonly code: string;
@@ -22,11 +13,9 @@ export interface ErrorEnvelope {
 }
 
 export class ApiError extends Error {
-  /** Stable, machine-readable error code (e.g. `"unauthorized"`). */
   readonly code: string;
-  /** HTTP status to respond with. */
   readonly status: ApiErrorStatus;
-  /** Optional, client-safe structured detail - never secrets. */
+  /** Client-safe only: never secrets. */
   readonly details?: unknown;
 
   constructor(code: string, status: ApiErrorStatus, message: string, details?: unknown) {
@@ -39,7 +28,6 @@ export class ApiError extends Error {
     }
   }
 
-  /** The client-safe envelope for this error. */
   toEnvelope(): ErrorEnvelope {
     return {
       error: {
@@ -51,7 +39,6 @@ export class ApiError extends Error {
   }
 }
 
-/** Convenience constructors for the codes this task raises. */
 export const errors = {
   unauthorized: (message = "Unauthorized"): ApiError => new ApiError("unauthorized", 401, message),
   tooManyRequests: (message = "Too Many Requests", details?: unknown): ApiError =>

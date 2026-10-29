@@ -7,15 +7,9 @@ import { forms } from "./forms.js";
 import { controlSchema } from "../schemas.js";
 
 /**
- * Server-side state for secure-link tokens.
- *
- * A valid signature is never sufficient on its own (SEC-2): consumption and revocation are
- * checked here, so a leaked one-time link cannot be replayed and a revoked link stops
- * working immediately.
- *
- * `environment` is `NOT NULL` because a `MATCH SIMPLE` composite foreign key is not checked
- * at all when a referencing column is NULL, and the `CHECK` on the `sessions` side passes
- * on NULL too.
+ * Server-side state for secure-link tokens. A valid signature is never sufficient alone (SEC-2): consumption
+ * and revocation are checked here. `environment` is `NOT NULL` because a `MATCH SIMPLE` composite foreign key
+ * is unchecked when a referencing column is NULL, and the `sessions` side's `CHECK` passes on NULL too.
  */
 export const secureLinks = controlSchema.table(
   "secure_links",

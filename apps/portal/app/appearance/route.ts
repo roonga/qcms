@@ -8,15 +8,6 @@ import { portalBaseUrl, secureCookies } from "@/lib/server/config";
 import { isSameOriginPost } from "@/lib/server/route-helpers";
 import { portalFontChoices } from "@/lib/server/theme";
 
-/**
- * The no-JS appearance form's target.
- *
- * `returnTo` is respondent input, so the redirect target is guarded twice:
- * {@link safeReturnPath} refuses anything outside this origin, and the `Location` is
- * built as an absolute URL on this portal's configured base, which makes a
- * protocol-relative path that survives validation unreachable rather than merely fixed.
- */
-
 function seeOther(path: string, setCookies: readonly string[] = []): Response {
   const headers = new Headers({ Location: absoluteOnThisPortal(path) });
   for (const cookie of setCookies) headers.append("Set-Cookie", cookie);

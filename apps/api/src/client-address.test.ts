@@ -1,14 +1,8 @@
-/**
- * The API's half of the client-address contract (issue #341): it reads the header
- * a BFF vouched on, and nothing else.
- */
-
 import { Hono } from "hono";
 import { describe, expect, it } from "vitest";
 
 import { CLIENT_ADDRESS_HEADER, UNKNOWN_CLIENT_ADDRESS, clientAddress } from "./client-address.js";
 
-/** Echoes whatever `clientAddress` resolved, so a case can assert the key directly. */
 function echoApp(): Hono {
   const app = new Hono();
   app.get("/", (c) => c.text(clientAddress(c)));

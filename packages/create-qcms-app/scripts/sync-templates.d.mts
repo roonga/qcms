@@ -1,13 +1,4 @@
-/**
- * Hand-written types for `sync-templates.mjs`, so `sync-templates.test.ts` can import
- * it under the workspace's `strict` settings.
- *
- * The same arrangement `scripts/check-admin-theme.d.mts` and
- * `scripts/check-fixture-domain.d.mts` use at the repository root: the generator
- * itself stays plain JavaScript (it has to run before anything is built, including
- * itself), and this file is the surface its test compiles against. Only what the test
- * touches is declared; the module has more exports than this.
- */
+/** Types for `sync-templates.mjs`, declaring only what its test touches. */
 
 export declare const REPOSITORY_ROOT: string;
 export declare const TEMPLATE_DIR: string;

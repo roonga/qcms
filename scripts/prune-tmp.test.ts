@@ -27,14 +27,8 @@ import {
 } from "./prune-tmp.mjs";
 
 /**
- * The temporary-directory sweep (issue #918).
- *
- * Every test here runs against a fake temporary root, never the real one: the whole
- * subject is a recursive delete under a directory shared by every process on the
- * machine, so a test that pointed at the real `os.tmpdir()` would be the exact accident
- * the script exists to avoid. As with the worktree sweep, what matters is less that it
- * deletes than what it refuses to delete, and each refusal below is a directory that
- * really sits in `/tmp` on the development host.
+ * Every test runs against a fake temporary root, never the real `os.tmpdir()`: the
+ * subject is a recursive delete under a directory every process on the machine shares.
  */
 
 const REPO_ROOT = fileURLToPath(new URL("..", import.meta.url));
@@ -45,14 +39,12 @@ afterAll(() => {
   for (const root of temporaryRoots) rmSync(root, { recursive: true, force: true });
 });
 
-/** A throwaway directory standing in for `os.tmpdir()`. */
 function fakeTmp(): string {
   const root = mkdtempSync(join(tmpdir(), "qcms-prune-tmp-fixture-"));
   temporaryRoots.push(root);
   return root;
 }
 
-/** A directory of `files` files under `root`, as a stamped workspace looks. */
 function workspace(root: string, name: string, files = 3): string {
   const path = join(root, name);
   mkdirSync(path, { recursive: true });
@@ -63,8 +55,6 @@ function workspace(root: string, name: string, files = 3): string {
 }
 
 /**
- * Backdate an entry, and every immediate child of it, by `minutes`.
- *
  * The children matter: the age guard reads the newest mtime among a directory and its
  * top-level entries, so ageing only the directory would leave it looking new.
  */
@@ -89,8 +79,6 @@ describe("TEMP_PREFIXES", () => {
     for (const { prefix, creator } of TEMP_PREFIXES) {
       expect(prefix).not.toBe("");
       expect(creator).not.toBe("");
-      // A creator that reads as a repository path has to be one, or the list has gone
-      // stale and the sweep is removing directories nothing in the tree still makes.
       if (/^[\w./-]+\.(?:ts|mjs|sh)$/.test(creator)) {
         expect(existsSync(join(REPO_ROOT, creator)), `${creator} (for ${prefix})`).toBe(true);
       }
@@ -179,7 +167,6 @@ describe("classify", () => {
   });
 
   it("keeps an old directory whose top-level entry was just written", () => {
-    // A long install writes into a workspace whose own mtime stopped moving hours ago.
     const root = fakeTmp();
     const path = age(workspace(root, "qcms-scaffold-installing"), DEFAULT_MIN_AGE_MINUTES * 4);
     writeFileSync(join(path, "just-written.txt"), "now\n", "utf8");

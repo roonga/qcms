@@ -12,14 +12,6 @@ import {
 import { REQUEST_ID_HEADER, normalizeRequestId } from "./lib/server/request-id";
 
 /**
- * Portal security headers (SEC-9), `x-request-id` minting (ADR-34 P5) and
- * environment-prefix resolution (ADR-40, Q21, SEC-14).
- *
- * The `proxy` export name is part of the Next file convention, which resolves
- * `mod.proxy || mod.default`.
- */
-
-/**
  * An unlisted first segment resolves to `prod` and is left unrewritten, so
  * `/staging/s/ses_1` gets the unprefixed route tree's own 404.
  */
@@ -80,11 +72,6 @@ export function proxy(request: NextRequest): NextResponse {
   response.headers.set(REQUEST_ID_HEADER, requestId);
   response.headers.set("Content-Security-Policy", csp);
   response.headers.set("X-Content-Type-Options", "nosniff");
-  // `same-origin` rather than `no-referrer` (SEC-9 as amended): under `no-referrer` a
-  // navigation POST serializes `Origin` as the literal `null`, and Next's Server Action
-  // handler refuses that, which aborted the no-JS repeat Add and Remove. Nothing
-  // cross-origin gains a referrer. The admin and the API keep `no-referrer`, whose own
-  // belt reasoning depends on form posts arriving with `Origin: null`.
   response.headers.set("Referrer-Policy", "same-origin");
   response.headers.set("X-Frame-Options", "DENY");
   return response;

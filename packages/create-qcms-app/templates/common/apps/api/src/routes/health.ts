@@ -1,16 +1,5 @@
-/**
- * Liveness and readiness (task 017; ARCHITECTURE §5.1).
- *
- * Both are mounted in every process shape and require no credential (they are
- * liveness/readiness signals for orchestrators and monitors):
- *
- * - `/health` - static `ok`. The process is up and serving.
- * - `/ready` - probes the database with a bounded timeout. Ready → 200; a DB
- *   that is down or slow → **503 with a clean body** (never a 500 - a failing
- *   dependency is an expected state, not a crash).
- *
- * Declared with `createRoute` (017's convention); the handlers are fetch-pure.
- */
+// Both probes are mounted in every process shape and require no credential. A dependency
+// that is down or slow answers 503 with a clean body, never a 500: it is an expected state.
 
 import { createRoute, type OpenAPIHono, z } from "@hono/zod-openapi";
 import { sql } from "drizzle-orm";
@@ -57,7 +46,7 @@ const readyRoute = createRoute({
   },
 });
 
-/** Race a DB round-trip against a timeout; resolve true/false, never reject. */
+/** Never rejects: a probe failure is an answer, not an error for the envelope. */
 async function probeDb(deps: Deps): Promise<boolean> {
   const timeoutMs = deps.config.readiness.dbTimeoutMs;
   let timer: ReturnType<typeof setTimeout> | undefined;
@@ -75,7 +64,6 @@ async function probeDb(deps: Deps): Promise<boolean> {
   }
 }
 
-/** Register `/health` and `/ready` on the given app. */
 export function registerHealthRoutes(app: OpenAPIHono<ApiEnv>, deps: Deps): void {
   app.openapi(healthRoute, (c) => c.json({ status: "ok" as const }, 200));
 

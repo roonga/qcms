@@ -1,12 +1,7 @@
 /**
- * Structured server logging for every QCMS service (SEC-8, ADR-34). An injected
- * interface, API handlers staying fetch-pure (R4). A field whose key looks like
- * a secret or like respondent content is redacted before serialization, as a
- * backstop rather than the primary control.
- *
- * Two sinks, deliberately unequal: `write` takes the whole redacted line for an
- * operator inside the process boundary, the OTLP path scalar fields only,
- * because an exported record lands outside our erasure reach.
+ * Structured server logging (SEC-8, ADR-34), an injected interface (R4). Secret-like and
+ * content-like keys are redacted before serialization, as a backstop. `write` takes the
+ * whole line; the OTLP path takes scalar fields only, as exports leave our erasure reach.
  */
 
 import { trace } from "@opentelemetry/api";

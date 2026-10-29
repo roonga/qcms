@@ -1,11 +1,3 @@
-/**
- * Portal OpenTelemetry registration (ADR-34).
- *
- * Do not add fetch or undici instrumentation here: Next already emits a span for
- * every server-side fetch and `@vercel/otel` propagates context on it, so a second
- * one double-instruments the BFF hop.
- */
-
 import { registerOTel } from "@vercel/otel";
 import { allowlistingLogRecordProcessor } from "@roonga/qcms-observability/logs";
 import { batchLogExportTimings } from "@roonga/qcms-observability/otel";
@@ -36,21 +28,6 @@ function apiOrigin(): string | undefined {
   }
 }
 
-/**
- * Refuse to start on a configuration this process must not serve.
- *
- * Exiting rather than only throwing is load-bearing: Next catches an error from this
- * hook and leaves a process listening that answers every request with a 500, which
- * reads as "running" to an operator because neither app has a Compose healthcheck.
- *
- * `process.exit` and `process.stderr` are absent on Next's edge runtime, which loads
- * this hook too, hence the guards. The `NEXT_RUNTIME` check is about compilation, not
- * the call: Turbopack compiles this file for the edge target, where a bare
- * `process.stderr` reference fails to build, and Next substitutes a literal for that
- * variable so the edge bundle drops the branch entirely.
- *
- * The twin is `apps/admin/instrumentation.ts`. Change one, change the other.
- */
 function refuseUnsafeConfiguration(): void {
   try {
     assertSecureCookiesConfigured();

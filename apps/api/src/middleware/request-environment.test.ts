@@ -4,22 +4,8 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 
 import type { ApiEnv } from "../openapi.js";
 
-/**
- * The environment reaches the trace (SEC-13; task 067, criterion 6).
- *
- * `telemetry-redaction.test.ts` asserts the allowlist **keeps** `qcms.environment`, which
- * is half the criterion and the half that is easy to satisfy: an attribute nothing sets is
- * allowlisted for nothing. This is the other half - that both of the two places an
- * environment is chosen record it - and it is a separate file because the two halves fail
- * for unrelated reasons.
- *
- * `@opentelemetry/api` is mocked rather than an SDK registered, because the assertion is
- * about **what this middleware does**, not about what an exporter makes of it: the real
- * module is a no-op when no provider is registered, so a test against it would pass
- * whatever the middleware did. The composed-app end of the same property is
- * `apps/admin/e2e/otel-logs.pw.ts`'s territory.
- */
-
+// Mocked rather than driven through a registered SDK: the real module is a no-op when
+// no provider is registered, so a test against it would pass whatever happened here.
 const setAttribute = vi.fn();
 const activeSpan = { value: undefined as { setAttribute: typeof setAttribute } | undefined };
 
@@ -36,7 +22,6 @@ beforeEach(() => {
   activeSpan.value = { setAttribute };
 });
 
-/** An app that answers with whatever the middleware left on the context. */
 function appWith(middleware: MiddlewareHandler<ApiEnv>): Hono<ApiEnv> {
   const app = new Hono<ApiEnv>();
   app.use("*", middleware);
@@ -52,9 +37,8 @@ describe("the environment on the span", () => {
 
     expect(await res.text()).toBe("test");
     expect(setAttribute).toHaveBeenCalledWith(ENVIRONMENT_ATTRIBUTE, "test");
-    // The attribute key is the one the allowlist names. Asserted as the constant and as
-    // its spelling, because the two live in different modules and a rename of one is a
-    // silent drop at the exporter.
+    // The allowlist naming this key lives in another module, so a rename of either side
+    // is a silent drop at the exporter.
     expect(ENVIRONMENT_ATTRIBUTE).toBe("qcms.environment");
   });
 
@@ -67,10 +51,6 @@ describe("the environment on the span", () => {
   });
 
   it("records nothing for an admin request that named no environment", async () => {
-    // An absent header is not an error: the client named nothing, and the fall back to
-    // `prod` happens at pool selection rather than here. So there is no environment to
-    // record at this point, and recording the default would be this middleware asserting
-    // a choice it did not make.
     const deps = makeDeps();
     const res = await appWith(requestEnvironment(deps)).request("/probe");
 
@@ -84,9 +64,7 @@ describe("the environment on the span", () => {
       headers: { "x-qcms-environment": "nowhere" },
     });
 
-    // The middleware throws; this app has no error handler, so what matters here is that
-    // the request did not reach the handler and no attribute was recorded for a name the
-    // process holds no pool for.
+    // The middleware throws and this app has no error handler, so only "not 200" holds.
     expect(res.status).not.toBe(200);
     expect(setAttribute).not.toHaveBeenCalled();
   });

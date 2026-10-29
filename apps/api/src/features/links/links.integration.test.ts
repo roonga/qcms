@@ -1,16 +1,3 @@
-/**
- * Secure-link admin slice tests (task 024), driven through `app.request()`
- * against the real kernel and the 013 Testcontainers harness DB. Requires
- * Docker.
- *
- * Covers every exit criterion touching links:
- *  1. Mint → verify loop: a minted URL's token passes 018's start-session and
- *     creates a session pinned to the link's form; a revoked link is rejected;
- *     batch mint respects the documented cap.
- *  2. Rotation: a link minted under the old key still verifies after a new key
- *     is prepended to `QCMS_LINK_KEYS` (newest signs, all verify - 010).
- */
-
 import { FormId, importCompactTokenKey, verifySecureLink } from "@roonga/qcms-core";
 import {
   SEED_WORKSPACE_ID,
@@ -52,30 +39,15 @@ const emptyDef = {} as unknown as VersionInput["definition"];
 const emptyCompiled = {} as unknown as VersionInput["compiled"];
 
 const FORM_ID = FormId.parse("frm_links_it");
-// A second form that mints nothing, so a link addressed through it is provably a
-// cross-form request rather than an unknown id (#478).
 const OTHER_FORM_ID = FormId.parse("frm_links_it_other");
 let testDb: TestDb;
 let deps: Deps;
 let app: ReturnType<typeof createApp>;
 let internalToken: string;
-// A real better-auth session row seeded per suite (031): the admin-auth
-// middleware verifies it against the database, so a made-up marker no longer
-// authenticates anything.
 let adminSessionToken: string;
 let linkKeyA: string;
-// A fixed base env so every rebuilt app (rotation) shares the internal token,
-// session keys, and app key - only QCMS_LINK_KEYS varies across builds.
 let baseEnv: Record<string, string | undefined>;
 
-/**
- * Build an app over the shared db with a given link-key list, and optionally a different
- * request clock.
- *
- * The clock is a parameter because ONE display state is derived from it rather than stored:
- * a link expires by the calendar catching up with its `expiresAt`, so the only way to
- * observe `expired` without waiting is to ask a later clock about the same rows.
- */
 function buildApp(
   linkKeys: string,
   at: Date = NOW,
@@ -96,7 +68,6 @@ function buildApp(
 
 beforeAll(async () => {
   testDb = await startTestDb();
-  // A single fixed link key so mint (admin) and verify (start-session) share it.
   linkKeyA = synthSecret();
   baseEnv = validEnv({ QCMS_LINK_KEYS: linkKeyA });
   ({ deps, app } = buildApp(linkKeyA));
@@ -117,10 +88,8 @@ beforeAll(async () => {
     a2uiSpecVersion: "1.0.0",
     semanticsVersion: "1",
   });
-  // Redeeming a link resolves what is **released** to the session's environment (ADR-40,
-  // task 065), so the fixture releases the version it publishes. Since task 066 the mint
-  // names its environment too (Q19) - `mint` below sends it, because the field is
-  // required and has no default.
+  // Redeeming a link resolves what is released to the session's environment, so the
+  // fixture must release the version it publishes.
   await insertFormRelease(testDb.db, {
     formId: FORM_ID,
     environment: DEFAULT_TEST_ENVIRONMENT,
@@ -140,8 +109,6 @@ afterAll(async () => {
   await testDb?.teardown();
 }, CONTAINER_BOOT_TIMEOUT_MS);
 
-// --- request helpers --------------------------------------------------------
-
 function adminHeaders(): Record<string, string> {
   return {
     "content-type": "application/json",
@@ -150,12 +117,6 @@ function adminHeaders(): Record<string, string> {
   };
 }
 
-/**
- * Mint into the environment this harness serves.
- *
- * `environment` is spread **first**, so a case that wants to name another one - or to omit
- * it and see the refusal - overrides it from its own body (Q19).
- */
 async function mint(
   targetApp: ReturnType<typeof createApp>,
   body: Record<string, unknown>,
@@ -167,7 +128,6 @@ async function mint(
   });
 }
 
-/** Revoke a link through a named form's route (#478). */
 async function revoke(formId: string, linkId: string): Promise<Response> {
   return app.request(`/admin/forms/${formId}/links/${linkId}/revoke`, {
     method: "POST",
@@ -175,13 +135,10 @@ async function revoke(formId: string, linkId: string): Promise<Response> {
   });
 }
 
-/** Start a session from a link token via the public start-session slice. */
 async function startFromToken(
   targetApp: ReturnType<typeof createApp>,
   token: string,
 ): Promise<Response> {
-  // `POST /sessions/link` since task 066: secure-link entry is its own route, so the two
-  // entry modes can ride different mount decisions (Q21, criterion 3).
   return targetApp.request("/sessions/link", {
     method: "POST",
     headers: { "content-type": "application/json", "x-qcms-internal-token": internalToken },
@@ -189,7 +146,6 @@ async function startFromToken(
   });
 }
 
-/** Every link of FORM_ID as `{ linkId: state }`, read through one app's own clock. */
 async function listStates(
   targetApp: ReturnType<typeof createApp>,
 ): Promise<Record<string, string>> {
@@ -201,13 +157,10 @@ async function listStates(
   return Object.fromEntries(links.map((link) => [link.linkId, link.state]));
 }
 
-/** Pull the compact token out of a minted `/l/<token>` URL. */
 function tokenFromUrl(url: string): string {
   const marker = "/l/";
   return url.slice(url.indexOf(marker) + marker.length);
 }
-
-// --- tests ------------------------------------------------------------------
 
 describe("secure-link minting → 018 verification loop (exit criterion 1)", () => {
   it("mints a link whose token starts a session pinned to the form", async () => {
@@ -220,7 +173,6 @@ describe("secure-link minting → 018 verification loop (exit criterion 1)", () 
     const link = links[0]!;
     expect(link.url.startsWith("https://forms.example.test/l/")).toBe(true);
 
-    // The minted token verifies under the deployment's link keys (018's engine).
     const token = tokenFromUrl(link.url);
     const keys = await Promise.all(
       deps.config.keys.link.map((k) => importCompactTokenKey(new TextEncoder().encode(k))),
@@ -228,7 +180,6 @@ describe("secure-link minting → 018 verification loop (exit criterion 1)", () 
     const verified = await verifySecureLink(token, keys, NOW, FORM_ID);
     expect(verified.ok).toBe(true);
 
-    // ...and drives start-session end-to-end → a session pinned to the form.
     const started = await startFromToken(app, token);
     expect(started.status).toBe(201);
     const session = (await started.json()) as { sessionId: string; formVersion: number };
@@ -246,26 +197,21 @@ describe("secure-link minting → 018 verification loop (exit criterion 1)", () 
     expect(revoked.status).toBe(200);
     expect((await revoked.json()) as { state: string }).toMatchObject({ state: "revoked" });
 
-    // 018 rejects thereafter (signature is valid, but the row forbids use).
     const started = await startFromToken(app, token);
     expect(started.status).toBe(403);
     expect((await started.json()) as { error: { code: string } }).toMatchObject({
       error: { code: "LINK_REVOKED" },
     });
 
-    // A second revoke is not in a revocable state → 404.
     const again = await revoke(FORM_ID, linkId);
     expect(again.status).toBe(404);
   });
 
   it("refuses to revoke a link through another form's route (#478)", async () => {
-    // A real link, minted under FORM_ID.
     const res = await mint(app, { expiresAt: FUTURE, oneTime: false });
     const { links } = (await res.json()) as { links: Array<{ linkId: string }> };
     const linkId = links[0]!.linkId;
 
-    // The fixture is real: it is listed under its own form and is not yet
-    // revoked. Without this the 404 below could be a 404 about nothing.
     const listed = await app.request(`/admin/forms/${FORM_ID}/links`, { headers: adminHeaders() });
     const listing = (await listed.json()) as {
       links: Array<{ linkId: string; state: string; revokedAt: string | null }>;
@@ -273,22 +219,18 @@ describe("secure-link minting → 018 verification loop (exit criterion 1)", () 
     const before = listing.links.find((l) => l.linkId === linkId);
     expect(before).toMatchObject({ state: "active", revokedAt: null });
 
-    // Naming the other form takes the same 404 an unknown link takes: the scoped
-    // update matches no row, so "not in this form" and "no such link" are one code.
     const cross = await revoke(OTHER_FORM_ID, linkId);
     expect(cross.status).toBe(404);
     expect((await cross.json()) as { error: { code: string } }).toMatchObject({
       error: { code: "LINK_NOT_FOUND" },
     });
 
-    // ...and it refused *before* mutating: the link is still revocable.
     const after = await app.request(`/admin/forms/${FORM_ID}/links`, { headers: adminHeaders() });
     const afterListing = (await after.json()) as {
       links: Array<{ linkId: string; revokedAt: string | null }>;
     };
     expect(afterListing.links.find((l) => l.linkId === linkId)?.revokedAt).toBeNull();
 
-    // Positive control at the same layer: its own form still revokes it.
     expect((await revoke(FORM_ID, linkId)).status).toBe(200);
   });
 
@@ -299,7 +241,7 @@ describe("secure-link minting → 018 verification loop (exit criterion 1)", () 
     expect(links).toHaveLength(5);
 
     const over = await mint(app, { expiresAt: FUTURE, count: MAX_LINK_BATCH + 1 });
-    expect(over.status).toBe(400); // zod max(cap) rejects before any row is written
+    expect(over.status).toBe(400);
   });
 
   it("rejects a non-future expiry", async () => {
@@ -313,7 +255,6 @@ describe("secure-link minting → 018 verification loop (exit criterion 1)", () 
     const { links } = (await res.json()) as {
       links: Array<{ state: string; revokedAt: string | null }>;
     };
-    // The revoked link from an earlier test is present with state "revoked".
     expect(links.some((l) => l.state === "revoked" && l.revokedAt !== null)).toBe(true);
     expect(links.every((l) => ["active", "consumed", "expired", "revoked"].includes(l.state))).toBe(
       true,
@@ -321,18 +262,8 @@ describe("secure-link minting → 018 verification loop (exit criterion 1)", () 
   });
 
   it("derives all four display states, including the two no browser fixture reaches", async () => {
-    // Issue 278. `active` and `revoked` are the only states the admin's screenshot gate and
-    // axe sweep have ever rendered, because reaching the other two through the product
-    // needs a respondent and a calendar. Both are ordinary here, and this is the layer that
-    // owns the derivation: `linkState` in `handler.ts` reads the row against the request
-    // clock, and the chip above it is generic over whatever it says
-    // (`components/forms/link-state-tag-states.test.tsx`).
-    //
-    // A MINUTE'S EXPIRY, not `FUTURE`, and the reason is the admin session rather than the
-    // links: the second app below reads these rows through a later clock, and the seeded
-    // better-auth session is checked against that same clock. A clock five months on makes
-    // every admin request a 401 before it can reach a link at all, so the gap between the
-    // two readings is kept to minutes - which is all the derivation needs.
+    // A minute's expiry rather than `FUTURE`: the later-clock app below also checks the
+    // seeded admin session against that clock, so a large gap would 401 every request.
     const soon = new Date(NOW.getTime() + 60_000).toISOString();
     const minted = await mint(app, { expiresAt: soon, oneTime: true, count: 3 });
     expect(minted.status).toBe(201);
@@ -344,12 +275,9 @@ describe("secure-link minting → 018 verification loop (exit criterion 1)", () 
     const spent = fresh[1]!;
     const closed = fresh[2]!;
 
-    // CONSUMED is what a one-time link becomes when a respondent walks through it, which is
-    // the whole point of the flag: start-session stamps `consumedAt` on the way past.
     const started = await startFromToken(app, tokenFromUrl(spent.url));
     expect(started.status).toBe(201);
 
-    // REVOKED is the operator's own act, and it wins over everything below it.
     expect((await revoke(FORM_ID, closed.linkId)).status).toBe(200);
 
     const now = await listStates(app);
@@ -357,10 +285,6 @@ describe("secure-link minting → 018 verification loop (exit criterion 1)", () 
     expect(now[spent.linkId]).toBe("consumed");
     expect(now[closed.linkId]).toBe("revoked");
 
-    // EXPIRED is stored nowhere: it is the calendar passing `expiresAt`, so the same three
-    // rows read differently through a clock past that instant. That is also what makes the
-    // precedence order in `linkState` observable - a consumed or revoked link that is also
-    // past its expiry still reports the thing that happened to it, not the thing time did.
     const afterExpiry = new Date(Date.parse(soon) + 1000);
     const { app: later } = buildApp(linkKeyA, afterExpiry);
     const then = await listStates(later);
@@ -368,7 +292,6 @@ describe("secure-link minting → 018 verification loop (exit criterion 1)", () 
     expect(then[spent.linkId]).toBe("consumed");
     expect(then[closed.linkId]).toBe("revoked");
 
-    // All four, from one fixture and two clocks.
     expect(new Set([...Object.values(now), ...Object.values(then)])).toEqual(
       new Set(["active", "consumed", "expired", "revoked"]),
     );
@@ -386,20 +309,16 @@ describe("secure-link minting → 018 verification loop (exit criterion 1)", () 
 
 describe("key rotation: old-key links still verify after prepending a new key (exit criterion 2)", () => {
   it("a link minted under the old key verifies on an app whose key list prepends a new key", async () => {
-    // Mint under the original key (app/deps built with linkKeyA).
     const res = await mint(app, { expiresAt: FUTURE, oneTime: false });
     const { links } = (await res.json()) as { links: Array<{ linkId: string; url: string }> };
     const token = tokenFromUrl(links[0]!.url);
 
-    // Rotate: a brand-new key signs, the old key still verifies (prepend newest).
     const linkKeyB = synthSecret();
     const rotated = buildApp(`${linkKeyB} ${linkKeyA}`);
 
-    // The old-key token still starts a session on the rotated app.
     const started = await startFromToken(rotated.app, token);
     expect(started.status).toBe(201);
 
-    // And a fresh mint on the rotated app (signed with the new key) also verifies.
     const freshRes = await mint(rotated.app, { expiresAt: FUTURE });
     const fresh = (await freshRes.json()) as { links: Array<{ url: string }> };
     const freshStarted = await startFromToken(rotated.app, tokenFromUrl(fresh.links[0]!.url));

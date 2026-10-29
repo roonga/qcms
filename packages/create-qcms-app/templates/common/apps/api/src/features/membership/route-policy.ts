@@ -1,142 +1,42 @@
-/**
- * Which cell of the permissions matrix each admin route is (SEC-3, ADR-41; task 069).
- *
- * # Why a table and not a check in every handler
- *
- * ADR-41 asks for enforcement "per route group and per route", and there are two ways to
- * write that. A call at the top of each handler is one, and it has a failure mode this
- * project has already met twice: a new route lands and nobody remembers the call, so the
- * route is served to anybody the group's gate let in and every test still passes. The
- * same shape as the surfaces inventory of task 040, and the same answer - the rows are
- * **data**, the middleware walks them, and a route with **no row is refused**.
- *
- * That is the property worth having: an admin route added without a decision about who
- * may call it fails closed and says so, rather than being open and silent. The refusal is
- * the middleware's, at runtime, and it asks the **router** whether a path is served
- * rather than asking this table - the first version asked the table, which is circular,
- * and served a route it had never heard of (PR #1061's review).
- * `route-policy.test.ts` closes the loop the other way by deriving the mounted route set
- * from the shipped OpenAPI document, so a route with no row is a red gate before it is
- * ever a refusal in production.
- *
- * # What a row says
- *
- * The (resource, action) the route is - or **two**, where a route is two acts - where its
- * **workspace** comes from, whether the act names an **environment** and **where that
- * environment is read from**, and whether it names a **form**. Nothing in a row is about
- * the caller: the caller's grants are read at the request, and `policy.ts` is what judges
- * them.
- *
- * # The installation claim
- *
- * Four rows are the claim's alone (Q29): creating a workspace, marking the shared one,
- * the installation-wide dead-letter list and the erasure log. The claim **administers and reads no data
- * anywhere**, so no row below gives it a response read - that is the matrix's `never`
- * row, and it is a decision rather than an omission.
- */
+// A route with **no row is refused**: failing closed beats open and silent (SEC-3,
+// ADR-41). Whether a path is served is the router's question, not this table's.
 
 import type { Resource } from "./policy.js";
 
-/**
- * Where a route's workspace comes from.
- *
- *   - **`form`**: the form named by the `{id}` path segment owns it. The ordinary case,
- *     and `control.forms.workspace_id` is where it is read from (task 068).
- *   - **`question`**: the question named by `{id}` owns it.
- *   - **`path`**: the `{id}` segment **is** the workspace id. The workspace routes.
- *   - **`body`**: the request body's optional `workspaceId`, resolved the way task 068
- *     resolves it for a new form or question - that workspace, or the installation's only
- *     one, or a refusal naming the candidates. The create routes, which have no form or
- *     question to read an owner off yet.
- *   - **`caller`**: **every** workspace the caller holds the action in, rather than one.
- *     The library lists, which are the one shape where the answer is a filter and not a
- *     yes: a `forms.viewer` in one workspace sees that workspace's forms, and ADR-41's
- *     whole premise is that two groups share an installation without seeing each other's
- *     forms and questions. The middleware resolves the set and the handler narrows its
- *     read to it.
- *   - **`installation`**: no workspace at all. The act is the installation claim's, so
- *     there is no membership to resolve.
- */
+// `caller` yields a filter rather than a yes: the handler narrows its read to the
+// workspaces the caller holds the act in. `installation` means no workspace.
 export type WorkspaceSource = "form" | "question" | "path" | "body" | "caller" | "installation";
 
-/** One row: a route, the cell of the matrix it is, and where its subjects come from. */
 export interface RoutePolicy {
   readonly method: "GET" | "POST" | "PUT" | "PATCH" | "DELETE";
-  /**
-   * The path as the OpenAPI document spells it, including the `/admin` prefix and the
-   * `{...}` placeholders. Matched segment by segment, so a placeholder matches one
-   * segment and nothing else.
-   */
+  // As the OpenAPI document spells it; matched segment by segment, so a placeholder
+  // matches exactly one segment.
   readonly path: string;
   readonly resource: Resource;
   readonly action: string;
   readonly workspace: WorkspaceSource;
-  /**
-   * True when the act names an environment. The policy refuses an environment-scoped act
-   * that names none, so this and `isEnvironmentScoped` have to agree -
-   * `route-policy.test.ts` asserts they do.
-   */
+  // Must agree with `isEnvironmentScoped`, since the policy refuses an
+  // environment-scoped act that names no environment.
   readonly namesEnvironment?: true;
-  /**
-   * **Where that environment comes from**, which every `namesEnvironment` row states.
-   *
-   * `"body"` for a route whose declared request body carries `environment` and whose
-   * handler reads it; `"switcher"` for a route whose handler reads the Q6 switcher's
-   * header. The rule it exists to keep is the one PR #1061's review broke with a probe:
-   * **the environment the policy checks is exactly the environment the handler acts in**.
-   *
-   * Reading the body first and falling back to the switcher looked equivalent and was not.
-   * Four of these routes declare **no body**, and `@hono/zod-openapi` validates only what
-   * a route declares, so a `forms.editor` scoped to `test` could send
-   * `x-qcms-environment: prod` with `{"environment":"test"}`, be authorised against
-   * `test`, and have the handler revoke a **production** link.
-   *
-   * `route-policy.test.ts` asserts every row's answer against the **shipped OpenAPI
-   * document** - a `"body"` row's schema carries `environment` and a `"switcher"` row's
-   * does not - so a row that claims the wrong source is a red test rather than a bypass.
-   */
+  // The policy's environment must be exactly the handler's. Four routes declare no body, so
+  // a body-then-switcher fallback would let a `test` caller act on `prod`.
   readonly environmentFrom?: "body" | "switcher";
-  /**
-   * A **second** cell this route also requires, evaluated against the same workspace and
-   * the same environment.
-   *
-   * One route needs it: `POST /forms/{id}/publish-and-release` is F2's convenience, and it
-   * is **two** acts - a publish and a release into the environment its body names. The
-   * first version gave it the publish cell alone and left the release half to the handler,
-   * which never asked, so a `forms.editor` reached a production release through the
-   * route F2 added to make releasing convenient (PR #1061's review).
-   *
-   * It lives on the row rather than in the handler for the reason the whole table does: a
-   * handler that has to remember a check is a handler that can forget one, and the
-   * forgetting is silent. Here both cells are evaluated before any handler runs, and the
-   * refusal names whichever one failed.
-   */
+  // A second cell the route also requires, evaluated against the same workspace and
+  // environment before any handler runs, so neither half can be forgotten.
   readonly also?: { readonly resource: Resource; readonly action: string };
-  /** True when the act names a form, so the data family's form scope can narrow it. */
   readonly namesForm?: true;
-  /**
-   * True when the route is the installation claim's alone: no role reaches it, and a
-   * caller holding every grant in the installation is still refused (Q29).
-   */
+  // No role reaches the route: a caller holding every grant in the installation is still
+  // refused.
   readonly installationOnly?: true;
-  /**
-   * The SEC-15 kind this route's act writes, where it writes one.
-   *
-   * On the table rather than in the handler so "no path reads or exports without a row"
-   * is a property a reader can check against the route list (criterion 8). The handlers
-   * are what write it, because the row rides the read's own transaction.
-   */
+  // Here rather than in the handler so "no path reads or exports without an audit row" is
+  // checkable against the route list; the handlers write the row inside the read's own
+  // transaction.
   readonly audit?: "read" | "export" | "erasure" | "grant" | "revoke" | "setting";
 }
 
-/**
- * Every admin route, as a cell of the matrix.
- *
- * Ordered by path so a reader can find a route, not by resource: the question a reader
- * arrives with is "who may call this", and they have the path.
- */
+// Ordered by path, because a reader arrives with a path and the question "who may call
+// this".
 export const ROUTE_POLICIES: readonly RoutePolicy[] = [
-  // --- the installation claim's four rows (Q29) ----------------------------------
   {
     method: "POST",
     path: "/admin/workspaces",
@@ -146,9 +46,8 @@ export const ROUTE_POLICIES: readonly RoutePolicy[] = [
     installationOnly: true,
   },
   {
-    // Marking the shared question library changes what **every other** workspace may
-    // pin, so it is not one workspace's owner's to decide (the matrix's last-but-one
-    // row: "create workspaces, mark the shared one ... installation admin").
+    // Marking the shared question library changes what every other workspace may pin, so
+    // it is not one workspace owner's to decide.
     method: "PUT",
     path: "/admin/workspaces/{id}/shared",
     resource: "workspace",
@@ -157,13 +56,7 @@ export const ROUTE_POLICIES: readonly RoutePolicy[] = [
     installationOnly: true,
   },
 
-  // --- the workspace's own administration: `forms.owner` or the claim ------------
   {
-    // The workspace list, narrowed to the workspaces the caller holds `workspace: read`
-    // in - which is the ones they own (Q35) - and the whole set for the installation
-    // claim, whose administration spans every workspace. An authoring grant holder does
-    // not appear here and does not need to: their own workspaces come back from the
-    // capability endpoint, which is what Q35 gives everybody.
     method: "GET",
     path: "/admin/workspaces",
     resource: "workspace",
@@ -253,21 +146,13 @@ export const ROUTE_POLICIES: readonly RoutePolicy[] = [
     workspace: "path",
   },
 
-  // --- the capability endpoint: every caller's own grants, and nobody else's -----
-  //
-  // No row, deliberately: it is not a cell of the matrix. Q35 gives the membership list
-  // to owners and the claim, and gives **everybody** their own grants, so a grant check
-  // in front of it would be a check on the thing it exists to tell you. The middleware
-  // names it as the one admin route that needs no grant, and `route-policy.test.ts`
-  // asserts that exemption is exactly one route long.
+  // The capability endpoint has no row deliberately: it reports what the caller holds, so
+  // a grant check in front of it would check the thing it exists to tell you. It is named
+  // in `GRANT_EXEMPT_ROUTES` instead.
 
-  // --- questions -----------------------------------------------------------------
   {
-    // The question library list. `caller`, not one workspace: the handler narrows the
-    // read to the workspaces the caller holds `question: read` in, plus the shared
-    // question library, which every workspace's editors may see and pin from (finding
-    // 10). The shared workspace's questions are the one thing that crosses a workspace
-    // boundary, and no response ever does.
+    // The handler adds the shared question library to the caller's own workspaces. Shared
+    // questions are the only thing that crosses a workspace boundary; no response does.
     method: "GET",
     path: "/admin/questions",
     resource: "question",
@@ -324,10 +209,7 @@ export const ROUTE_POLICIES: readonly RoutePolicy[] = [
     workspace: "question",
   },
   {
-    // Moving a question between workspaces (Q14). An act on both workspaces, and the one
-    // this row names is the **source**: the target is checked by the handler, which
-    // refuses an archived one. An owner of neither cannot move a question out from under
-    // a workspace they do not administer.
+    // This row names the **source** workspace; the handler checks the target separately.
     method: "POST",
     path: "/admin/questions/{id}/workspace",
     resource: "workspace",
@@ -335,11 +217,7 @@ export const ROUTE_POLICIES: readonly RoutePolicy[] = [
     workspace: "question",
   },
 
-  // --- forms ---------------------------------------------------------------------
   {
-    // The form library list, narrowed to the caller's own workspaces for the reason the
-    // question list is. There is no shared-library exception here: a form belongs to one
-    // workspace and is never pinned from another.
     method: "GET",
     path: "/admin/forms",
     resource: "form",
@@ -355,20 +233,8 @@ export const ROUTE_POLICIES: readonly RoutePolicy[] = [
     action: "write",
     workspace: "form",
   },
-  // --- the two flag-gated agent-authoring routes (task 041) ---
-  //
-  // **Mounted only when `QCMS_FLAG_AGENT_AUTHORING` is on, and absent from the shipped
-  // OpenAPI document for exactly that reason** (`openapi-document.ts` generates with the
-  // flag off). So the derivation in `route-policy.test.ts` cannot see them, and they had
-  // no row until the runtime refusal of PR #1061's S2 fix made their absence a 403 in
-  // their own suite. That is the derivation's blind spot found by the thing that was
-  // supposed to be redundant with it, and the test now names these two rows explicitly.
-  //
-  // The cells follow the routes' own declared scopes rather than a new judgement: assist
-  // is `forms:write`, and accept is `forms:write` **and** `questions:write`, because it
-  // materialises the proposal's new questions as drafts in the library. Neither names an
-  // environment: an agent turn and an accept both act on the draft, which is one object
-  // per form and belongs to no environment.
+  // The agent-authoring routes exist only under `QCMS_FLAG_AGENT_AUTHORING`, so the test's
+  // route derivation cannot see them; name their rows here or they become a 403.
   {
     method: "POST",
     path: "/admin/forms/{id}/draft/assist",
@@ -392,8 +258,7 @@ export const ROUTE_POLICIES: readonly RoutePolicy[] = [
     workspace: "form",
   },
   {
-    // Q36: editor-only and environment-agnostic, because it writes nothing and reads no
-    // response, so there is no environment to scope it to.
+    // Environment-agnostic: it writes nothing and reads no response.
     method: "POST",
     path: "/admin/forms/{id}/draft/preview",
     resource: "form",
@@ -422,9 +287,8 @@ export const ROUTE_POLICIES: readonly RoutePolicy[] = [
     workspace: "form",
   },
   {
-    // Publishing releases it nowhere (ADR-40), so it is workspace-wide and names no
-    // environment. That asymmetry is load-bearing: an author needs one grant and not one
-    // per environment.
+    // Publishing releases a version nowhere, so it names no environment and an author
+    // needs one grant rather than one per environment.
     method: "POST",
     path: "/admin/forms/{id}/publish",
     resource: "form",
@@ -432,25 +296,14 @@ export const ROUTE_POLICIES: readonly RoutePolicy[] = [
     workspace: "form",
   },
   {
-    // F2's churn mitigation: one intent, one act, and **two cells of the matrix**. The
-    // first version of this row carried the publish half and said "the handler asks for
-    // the release half as well"; the handler never asked, and PR #1061's review probed
-    // it: a `forms.editor` scoped to `test` got past the gate to a **production** release
-    // through the route F2 added to make releasing convenient, which is the row "Release
-    // to prod: `forms.approver`, prod in scope" and a pre-emption of task 070's
-    // two-person rule.
-    //
-    // So the release half is on the row, in `also`, where the middleware evaluates it
-    // before any handler runs. A handler that has to remember a check is a handler that
-    // can forget one, and this is what forgetting looked like.
+    // Two acts: without the `also` release half, a `forms.editor` scoped to `test`
+    // reaches a production release through this route.
     method: "POST",
     path: "/admin/forms/{id}/publish-and-release",
     resource: "form",
     action: "publish",
     workspace: "form",
     also: { resource: "release", action: "create" },
-    // The release half is environment-scoped and the body is where this route's
-    // environment comes from, exactly as `POST /releases` takes it.
     namesEnvironment: true,
     environmentFrom: "body",
   },
@@ -496,7 +349,6 @@ export const ROUTE_POLICIES: readonly RoutePolicy[] = [
     workspace: "form",
   },
 
-  // --- links ---------------------------------------------------------------------
   {
     method: "GET",
     path: "/admin/forms/{id}/links",
@@ -523,7 +375,6 @@ export const ROUTE_POLICIES: readonly RoutePolicy[] = [
     environmentFrom: "switcher",
   },
 
-  // --- webhooks and the outbox ---------------------------------------------------
   {
     method: "GET",
     path: "/admin/forms/{id}/webhooks",
@@ -559,12 +410,8 @@ export const ROUTE_POLICIES: readonly RoutePolicy[] = [
     environmentFrom: "switcher",
   },
   {
-    // What is waiting for a second approver (Q30, Q51; task 070). The **endpoint read's**
-    // cell, like the endpoint list above, and it names no environment for the same reason
-    // that one does not: a configuration read is workspace-wide and environment-agnostic in
-    // the matrix (Q39), because authoring roles are workspace-wide and only the write
-    // actions are environment-scoped. The handler reads the switcher to choose which
-    // environment's pending list to show, exactly as the endpoint list does.
+    // A configuration read, so workspace-wide and naming no environment; the handler
+    // still reads the switcher to choose which environment's pending list to show.
     method: "GET",
     path: "/admin/forms/{id}/webhooks/proposals",
     resource: "webhook",
@@ -572,22 +419,9 @@ export const ROUTE_POLICIES: readonly RoutePolicy[] = [
     workspace: "form",
   },
   {
-    // Confirming a pending endpoint change: `webhook: configure` in the switcher's
-    // environment, so in `prod` the matrix's production split means only a
-    // `forms.approver` holding `prod` in scope reaches it (069's `policy.ts`). That is
-    // criterion 7's "a second account without `forms.approver` holding `prod` cannot
-    // confirm", enforced by the same table as every other cell rather than by a check this
-    // handler could forget.
-    //
-    // **`switcher`, and the handler compares the proposal's own environment against it.**
-    // A `prod` proposal confirmed by a request whose switcher said `test` would be
-    // authorised against `test`, where a `forms.editor` suffices - the exact bypass PR
-    // #1061's review found one route over - so a mismatch is not found.
-    //
-    // No `audit` kind: the SEC-15 row rides the confirmation's own transaction on the
-    // control pool, and the kinds this column names are the response-data ones plus the
-    // grant family. The `setting` row this writes is Q61's, and the handler writes it
-    // beside the state change rather than from this column.
+    // The handler must compare the proposal's own environment against the switcher's: a
+    // `prod` proposal confirmed under a `test` switcher would be authorised against
+    // `test`, where a `forms.editor` suffices.
     method: "POST",
     path: "/admin/forms/{id}/webhooks/proposals/{proposalId}/confirm",
     resource: "webhook",
@@ -597,9 +431,8 @@ export const ROUTE_POLICIES: readonly RoutePolicy[] = [
     environmentFrom: "switcher",
   },
   {
-    // Withdrawing one. The same cell as confirming it, because ending a proposed
-    // production change is the same authority as agreeing to one, and either account may
-    // do it - which it was is in the audit.
+    // Same cell as confirming: ending a proposed production change is the same authority
+    // as agreeing to one.
     method: "DELETE",
     path: "/admin/forms/{id}/webhooks/proposals/{proposalId}",
     resource: "webhook",
@@ -625,10 +458,8 @@ export const ROUTE_POLICIES: readonly RoutePolicy[] = [
     environmentFrom: "switcher",
   },
   {
-    // The installation-wide dead-letter list. It names no form, so no workspace owns it,
-    // and it carries delivery state rather than response content - the one answer-bearing
-    // column an event can hold is redacted by the retention sweep (#329) and is not read
-    // here. The claim's.
+    // Installation-wide and safe to be so: it carries delivery state, never response
+    // content.
     method: "GET",
     path: "/admin/outbox/dead-letters",
     resource: "webhook",
@@ -637,7 +468,6 @@ export const ROUTE_POLICIES: readonly RoutePolicy[] = [
     installationOnly: true,
   },
 
-  // --- responses: the data family, both dimensions ------------------------------
   {
     method: "GET",
     path: "/admin/forms/{id}/responses",
@@ -683,21 +513,8 @@ export const ROUTE_POLICIES: readonly RoutePolicy[] = [
     audit: "erasure",
   },
   {
-    // Q7's cross-environment offer (task 067). The **eraser's** cell, in the selected
-    // environment, because asking where else an erasure would have to be repeated is part
-    // of performing one: a caller who may not erase here has no business being told what
-    // exists elsewhere. It names this form, so the data family's form scope narrows it
-    // like every other response row.
-    //
-    // **The other environments are not this row's to authorise**, and that is the point of
-    // the rule PR #1061's review wrote: the environment the policy checks is exactly the
-    // environment the handler acts in, and this handler **acts in none of them** - it
-    // reads existence and offers. It asks the same decision function, per environment,
-    // before it includes one, so an offer the caller would be refused is never made.
-    //
-    // No `audit` kind: SEC-15's kinds are closed and `read` means a response read. This
-    // reads whether a session id exists, which is what `GET /admin/erasures` reads and
-    // writes no row for either.
+    // The eraser's cell in the selected environment. The handler re-asks per environment
+    // before including another, so a caller is not told what exists elsewhere.
     method: "GET",
     path: "/admin/forms/{id}/responses/{sessionId}/erasure-scope",
     resource: "response",
@@ -708,10 +525,7 @@ export const ROUTE_POLICIES: readonly RoutePolicy[] = [
     namesForm: true,
   },
   {
-    // Releasing a withheld response is a **disposition** on response data rather than a
-    // read of it, so it is the eraser's row and carries its own action. It writes no
-    // audit row, because it is neither a read, an export nor an erasure - SEC-15's kinds
-    // are closed and a sixth was added for a setting rather than for this.
+    // A disposition on response data rather than a read, so it is the eraser's row.
     method: "POST",
     path: "/admin/forms/{id}/responses/{sessionId}/unflag",
     resource: "response",
@@ -722,10 +536,8 @@ export const ROUTE_POLICIES: readonly RoutePolicy[] = [
     namesForm: true,
   },
   {
-    // The tombstone list: which sessions were erased, with **no answer content in it at
-    // all** (ADR-17's existence without content). Installation-wide, so it names no
-    // workspace and no form, and **no role holds it** - it is operator state, the
-    // claim's, and Q29 is intact because a tombstone is not a response.
+    // The tombstone list carries no answer content, so installation-wide operator state
+    // rather than a response read.
     method: "GET",
     path: "/admin/erasures",
     resource: "response",
@@ -735,32 +547,14 @@ export const ROUTE_POLICIES: readonly RoutePolicy[] = [
   },
 ];
 
-/**
- * The two admin routes that need no grant, each because it **is** an answer about what the
- * caller holds rather than an act on anything.
- *
- * `GET /admin/me/access` is the capability answer (Q35): everybody reads their own grants,
- * so a grant check in front of it would be a check on the thing it exists to tell you.
- *
- * `GET /admin/environments` is the live set, narrowed by its own handler to **the
- * environments the caller holds in some grant** (Q25) and served whole to the installation
- * claim. It is here rather than as a row because the matrix has no cell for it: every
- * role needs to know which environments it can act in - an approver to choose a release
- * target, a `responses.viewer` to choose whose responses to read, an owner to scope an
- * access group - and the matrix's environment row is about **settings**, which are the
- * operator command's and never reach HTTP at all. A caller holding nothing gets an empty
- * list, which is the same "reaches nothing" every other refusal gives them.
- *
- * **Two, and `route-policy.test.ts` asserts both the count and the names.** An exemption
- * list is the thing that grows, so each member carries its reason here rather than a flag
- * on a row, and a third is a change somebody reviews.
- */
+// Each is an answer about what the caller holds rather than an act on anything, and each
+// narrows its own result to the caller's grants. An exemption list is the thing that
+// grows, so a third member is a change somebody reviews.
 export const GRANT_EXEMPT_ROUTES: readonly string[] = [
   "GET /admin/me/access",
   "GET /admin/environments",
 ];
 
-/** Whether a concrete path matches a template, segment by segment. */
 function matchesTemplate(template: string, path: string): boolean {
   const want = template.split("/");
   const got = path.split("/");
@@ -768,18 +562,9 @@ function matchesTemplate(template: string, path: string): boolean {
   return want.every((segment, index) => segment.startsWith("{") || segment === got[index]);
 }
 
-/**
- * The row for one request, or `undefined` when there is none.
- *
- * `undefined` is a **refusal** at the middleware, not a pass: an admin route with no row
- * is a route nobody decided who may call, and serving it would be the failure this table
- * exists to prevent.
- */
+// `undefined` is a refusal at the middleware, never a pass.
 export function policyForRequest(method: string, path: string): RoutePolicy | undefined {
-  // The longest matching template wins, so a literal segment beats a placeholder: both
-  // `/admin/forms/{id}/responses/{sessionId}` and a hypothetical
-  // `/admin/forms/{id}/responses/latest` would match the same request shape, and the
-  // literal is the more specific statement.
+  // Most literal segments wins, so a literal beats a placeholder where both match.
   const candidates = ROUTE_POLICIES.filter(
     (row) => row.method === method && matchesTemplate(row.path, path),
   );

@@ -1,12 +1,9 @@
 import type { LogRecordProcessor, ReadWriteLogRecord } from "@opentelemetry/sdk-logs";
 
 /**
- * The exported event vocabulary. An unlisted `msg` becomes `application.event`,
- * the correct fail direction for privacy (ADR-34); the coverage test beside this
- * file requires every message literal in the workspace to be listed here or
- * recorded there as intentionally opaque. An entry is admissible only when its
- * body is a constant declared at the call site and the attributes it sets carry
- * no value a request or a model chose (SEC-8).
+ * The exported event vocabulary. An unlisted `msg` becomes `application.event` (ADR-34); the
+ * coverage test requires every literal listed or recorded as opaque. An entry needs a
+ * constant body and attributes carrying no request- or model-chosen value (SEC-8).
  */
 const SAFE_EVENTS = new Set([
   "admin two-factor reset",

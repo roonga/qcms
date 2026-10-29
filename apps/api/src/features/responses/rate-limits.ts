@@ -1,22 +1,3 @@
-/**
- * Respondent rate limiters (task 026), built on 017's pluggable store +
- * middleware. One limiter per endpoint class, each keyed by the natural abuse
- * unit and namespaced so classes never share a bucket:
- *
- * - **session-create** - per client address (no session exists yet).
- * - **answers (per session)** - the sustained-rate + burst ceiling on one flow.
- * - **answers (per IP)** - a wide backstop against many-session floods.
- * - **submit (per session)** - the per-session submit ceiling.
- * - **roster (per session, per IP)** - the repeating-group Add and Remove (073,
- *   SEC-16), which is a distinct action that is cheap to repeat and therefore gets its
- *   own class rather than riding the answer write's.
- *
- * Over a class's limit the shared `rateLimit` middleware throws a 429 with
- * `Retry-After` and the `x-ratelimit-*` headers, and leaks no internal state
- * (SECURITY). The middlewares mount on the specific route path in each slice's
- * registrar; the store comes from `deps` (in-memory default, Redis-swappable).
- */
-
 import type { Context, MiddlewareHandler } from "hono";
 
 import { clientAddress } from "../../client-address.js";
@@ -24,24 +5,14 @@ import type { Deps } from "../../deps.js";
 import { errors } from "../../errors.js";
 import { rateLimit } from "../../rate-limit.js";
 
-/**
- * The client address the calling BFF vouched for, or the shared fallback bucket.
- *
- * Delegates to `client-address.ts`, which is where the trust model lives: this
- * used to read the first `x-forwarded-for` entry, i.e. whichever claim the client
- * chose to write. IP remains a soft signal (proxies and NAT share addresses); it
- * is never logged as PII here (SEC-13).
- */
 export function clientIp(c: Context): string {
   return clientAddress(c);
 }
 
-/** The session id from the `/sessions/{id}/…` path param (the per-session key). */
 function sessionParam(c: Context): string {
   return c.req.param("id") ?? "unknown-session";
 }
 
-/** `POST /sessions` - per client IP. */
 export function sessionCreateLimiter(deps: Deps): MiddlewareHandler {
   const { windowMs, max } = deps.config.rateLimit.sessionCreate;
   return rateLimit({
@@ -52,7 +23,6 @@ export function sessionCreateLimiter(deps: Deps): MiddlewareHandler {
   });
 }
 
-/** `POST /sessions/{id}/answers` - per session (sustained + burst). */
 export function answersPerSessionLimiter(deps: Deps): MiddlewareHandler {
   const { windowMs, max } = deps.config.rateLimit.answersPerSession;
   return rateLimit({
@@ -63,7 +33,6 @@ export function answersPerSessionLimiter(deps: Deps): MiddlewareHandler {
   });
 }
 
-/** `POST /sessions/{id}/answers` - per client IP (flood backstop). */
 export function answersPerIpLimiter(deps: Deps): MiddlewareHandler {
   const { windowMs, max } = deps.config.rateLimit.answersPerIp;
   return rateLimit({
@@ -74,7 +43,6 @@ export function answersPerIpLimiter(deps: Deps): MiddlewareHandler {
   });
 }
 
-/** `POST /sessions/{id}/submit` - per session. */
 export function submitPerSessionLimiter(deps: Deps): MiddlewareHandler {
   const { windowMs, max } = deps.config.rateLimit.submitPerSession;
   return rateLimit({
@@ -85,7 +53,6 @@ export function submitPerSessionLimiter(deps: Deps): MiddlewareHandler {
   });
 }
 
-/** `POST /sessions/{id}/roster` - per session (task 073, SEC-16). */
 export function rosterPerSessionLimiter(deps: Deps): MiddlewareHandler {
   const { windowMs, max } = deps.config.rateLimit.rosterPerSession;
   return rateLimit({
@@ -96,7 +63,6 @@ export function rosterPerSessionLimiter(deps: Deps): MiddlewareHandler {
   });
 }
 
-/** `POST /sessions/{id}/roster` - per client IP (flood backstop). */
 export function rosterPerIpLimiter(deps: Deps): MiddlewareHandler {
   const { windowMs, max } = deps.config.rateLimit.rosterPerIp;
   return rateLimit({
@@ -107,39 +73,15 @@ export function rosterPerIpLimiter(deps: Deps): MiddlewareHandler {
   });
 }
 
-/** The bucket key the per-session answer allowance is spent from. */
 function answersSessionKey(sessionId: string): string {
   return `rl:answers-session:${sessionId}`;
 }
 
 /**
- * Spend `entries` units of the per-session **answer** allowance, and refuse the whole
- * batch when they do not fit (task 073, Q20, SEC-16).
- *
- * **Why the batch counts entries rather than requests.** `answersPerSessionLimiter`
- * spends one unit per request, which is exactly right while one request carries one
- * answer. The batch endpoint carries a whole step, which at nine passengers and six
- * questions is fifty-four answers, so leaving the limiter as it is would multiply a
- * per-session allowance written for ONE answer by the batch size - and with no
- * installation-wide instance ceiling (Q14) the batch size is whatever `max` the
- * author declared. Saying the limits were "unchanged" would then be a weakening dressed
- * as continuity. **The configured allowance does not move; what is fixed is the unit
- * it is spent in.**
- *
- * **It is the SAME bucket** the single-answer route's middleware spends from, so the
- * allowance is genuinely shared and a caller cannot get a second one by batching.
- *
- * **Refused rather than partially applied.** The spend happens before any entry is
- * written, so a batch that cannot be paid for in full writes nothing. The units are
- * spent either way, which is what a fixed-window counter does and is the honest
- * behaviour: an over-large batch has cost the window's allowance.
- *
- * **Why a loop and not a `cost` argument on the store.** `RateLimitStore` is a
- * documented adopter seam (the in-memory default is Redis-swappable), and adding an
- * optional `cost` to `hit` would leave an existing implementation silently
- * under-counting - a weakened limit that no test would see. Spending one unit at a
- * time works against every implementation of the interface as it stands, and the cost
- * is N increments of a map for a batch the request-size limits already bound.
+ * Spends one unit per entry from the same bucket the single-answer route uses, so
+ * batching cannot buy a second allowance; spent before any write, so an unaffordable
+ * batch writes nothing. One unit at a time because `RateLimitStore.hit` has no cost
+ * argument and adding one would leave adopter implementations under-counting.
  */
 export async function spendAnswerAllowance(
   deps: Deps,
@@ -148,17 +90,9 @@ export async function spendAnswerAllowance(
   stepBound: number,
 ): Promise<void> {
   const { windowMs, max } = deps.config.rateLimit.answersPerSession;
-  // A batch may spend up to the STEP's own bound (Code Owner, 2026-10-02, ruling Q29), so
-  // the effective ceiling for this request is whichever is larger. Without that, a valid
-  // step was permanently un-continuable under the shipped defaults: `max` is 10 answers per
-  // 5 seconds, a step with a three-instance group of four members posts 13 entries, every
-  // retry re-posts the same set into the same fixed window, and the respondent met a 429
-  // forever. Found by Copilot and confirmed by the reviewer on PR #1034.
-  //
-  // It is a FLOOR and not a replacement: an installation that raises `max` above the bound
-  // keeps its own number. And the bound is the author's own declaration, `max` times the
-  // member count per group plus the step's other fields, so it cannot be inflated by a
-  // caller: a request over it is refused below before a unit is spent.
+  // The step's own bound is a floor on the ceiling: otherwise a step larger than `max`
+  // is permanently un-continuable, since every retry re-posts the same set into the same
+  // fixed window. The bound is the author's declaration, so a caller cannot inflate it.
   const ceiling = Math.max(max, stepBound);
   if (entries > stepBound) throw errors.tooManyRequests();
   const key = answersSessionKey(sessionId);

@@ -1,15 +1,3 @@
-/**
- * The `DraftAssistant` implementations and their selector (041).
- *
- * One tool loop, built on the Vercel AI SDK's `streamText`, serves every
- * provider: switching vendor or model is configuration (`QCMS_FLAG_AGENT_AUTHORING`
- * + `QCMS_AGENT_MODEL` + `QCMS_AGENT_API_KEY` + optional `QCMS_AGENT_BASE_URL`)
- * and a restart, never a code change (ADR-24 semantics). The deterministic
- * `fake` provider is the *same* loop with a scripted model swapped in, which is
- * what lets CI exercise the real allowlist, the real tool dispatch and the real
- * event mapping without a provider account.
- */
-
 import {
   APICallError,
   stepCountIs,
@@ -35,11 +23,9 @@ import {
 } from "./tools.js";
 import type { AssistContext, AssistEvent, DraftAssistant } from "./types.js";
 
-/** The SDK's per-provider options passthrough, spelled without importing its
- * internal provider package. */
+/** Spelled locally rather than importing the SDK's internal provider package. */
 type ProviderOptions = Record<string, Record<string, JSONValue>>;
 
-/** What the loop learned by the time the stream ended. */
 interface RunOutcome {
   rationale: string;
   steps: number;
@@ -48,28 +34,16 @@ interface RunOutcome {
   finishReason: string;
   rejectedTool: string | undefined;
   providerError: string | undefined;
-  /** What the provider said about trying again. See {@link providerRetryAdvice}. */
   providerRetryable: boolean;
-  /** The upstream HTTP status, when the failure had one. Logged, never rendered. */
+  /** Logged, never rendered. */
   providerStatus: number | undefined;
-  /**
-   * How many individual tool calls failed during the turn. Counted, never
-   * quoted: a tool error's text is assembled from model-supplied input.
-   */
+  /** Counted, never quoted: a tool error's text is assembled from model-supplied input. */
   toolErrors: number;
-  /**
-   * The step ordinal each allowlisted tool call was announced with, keyed by the
-   * SDK's call id. The id stays here; only the ordinal reaches the client.
-   */
+  /** The SDK's call id stays here; only the ordinal reaches the client. */
   readonly toolSteps: Map<string, number>;
 }
 
-/**
- * The current draft is handed to the model as the first user turn rather than
- * folded into the system prompt, so the system prompt stays byte-identical
- * across turns. That is what makes it worth caching upstream, and it is the only
- * reason the split exists.
- */
+/** A first user turn rather than part of the system prompt, which must stay cacheable. */
 function draftPreamble(draft: FormDefinition): string {
   return [
     "The current draft of this form is:",
@@ -89,38 +63,13 @@ function toModelMessages(ctx: AssistContext): { role: "user" | "assistant"; cont
 }
 
 function errorMessage(error: unknown): string {
-  // Provider errors are relayed to an authenticated admin, so the message is
-  // useful. It is the SDK's own message and never carries our key (SEC-8).
+  // The SDK's own message, relayed to an authenticated admin; it never carries our key (SEC-8).
   return error instanceof Error ? error.message : "The model provider call failed";
 }
 
 /**
- * Whether the provider said trying again could work (issue #818).
- *
- * One error code held two conditions with opposite guidance: "the vendor is
- * down", where waiting is the right advice, and "this account cannot pay for the
- * call", where waiting is the wrong advice and the operator has to go and do
- * something. A real turn against a funded-then-emptied account showed the second
- * one rendered as the first - `429 insufficient_quota`, `isRetryable: false`,
- * and an assist panel saying "try again shortly".
- *
- * The SDK already knows. It sets `isRetryable` at the point the failure is built
- * (429 and 5xx are retryable by default; a provider narrows that, and the OpenAI
- * package explicitly excludes `insufficient_quota`), so the distinction is
- * available **without parsing vendor text**, which is what keeps SEC-8 intact:
- * nothing here reads a vendor message, a vendor code or a URL, and none of them
- * reaches the operator.
- *
- * Two shapes carry the flag - `APICallError` for a failed request, and the
- * plain stream-error payload a provider emits mid-stream - and only the first is
- * re-exported by `ai`. The second is read structurally rather than by pulling in
- * `@ai-sdk/provider-utils` for one type guard.
- *
- * **Defaults to `true`**, deliberately. Absent a definite "this will not
- * succeed" from the provider, the operator gets the advice they got before this
- * split existed. A wrongly-permanent message sends someone to check an account
- * that is fine; a wrongly-transient one is the failure being fixed here, and
- * only positive evidence should trigger it.
+ * Reads the SDK's own `isRetryable` so nothing here parses vendor text (SEC-8), and
+ * defaults to `true` so only positive evidence produces permanent-failure advice.
  */
 function providerRetryAdvice(error: unknown): boolean {
   if (APICallError.isInstance(error)) return error.isRetryable;
@@ -131,7 +80,6 @@ function providerRetryAdvice(error: unknown): boolean {
   return true;
 }
 
-/** The upstream status code, when the failure carried one. */
 function providerStatusCode(error: unknown): number | undefined {
   if (APICallError.isInstance(error)) return error.statusCode;
   if (typeof error === "object" && error !== null && "statusCode" in error) {
@@ -141,14 +89,6 @@ function providerStatusCode(error: unknown): number | undefined {
   return undefined;
 }
 
-/**
- * Build the assistant over any AI SDK language model.
- *
- * `providerOptions` is the SDK's per-provider passthrough, and it is the seam
- * through which provider-specific capabilities (Anthropic prompt caching over
- * the frozen system prompt, reasoning budgets, safety settings) are configured
- * without this file learning anything vendor-shaped.
- */
 export function aiSdkDraftAssistant(options: {
   readonly model: LanguageModel;
   readonly providerId: string;
@@ -165,19 +105,6 @@ export function aiSdkDraftAssistant(options: {
   };
 }
 
-/**
- * Record a stream failure as a provider error.
- *
- * It used to ask first whether the failure was a refused tool, on a
- * `NoSuchToolError.isInstance` guard it shared with {@link noteToolFailure}
- * (issue #840). The guard matched in neither place. The SDK settles an
- * unallowlisted verb entirely inside `parseToolCall`, which catches its own
- * `NoSuchToolError` and returns an `invalid: true` tool-call part rather than
- * throwing, so no refusal is thrown past the stream or enqueued as an `error`
- * part for this function to see (read against ai 7.0.92,
- * `src/generate-text/parse-tool-call.ts`). The refusal has exactly one route,
- * and it is {@link handlePart}'s `tool-call` case.
- */
 function noteFailure(outcome: RunOutcome, raw: unknown): void {
   outcome.providerError = errorMessage(raw);
   outcome.providerRetryable = providerRetryAdvice(raw);
@@ -185,42 +112,9 @@ function noteFailure(outcome: RunOutcome, raw: unknown): void {
 }
 
 /**
- * Record one failed tool call, which is **not** a failed turn.
- *
- * A `tool-error` part means one call did not execute: the model sent input the
- * schema refused, or an executor threw. The SDK hands the error back to the
- * model as that call's result and the loop carries on, which is exactly what a
- * capable model does with it - fix the arguments and call again. Every local
- * model observed doing real work has produced at least one.
- *
- * It used to be routed into {@link noteFailure} alongside a genuine stream
- * failure, and because a provider error is terminal that made one bad call
- * anywhere in a turn discard everything the turn went on to produce. Observed on
- * 2026-09-05: a turn that malformed a `propose_draft` call, corrected itself,
- * proposed successfully and finished with `stop` in six of twelve steps was
- * reported to the operator as "the assistant is unavailable right now" with the
- * proposal thrown away. The narration had already streamed, so the panel showed
- * a described proposal and then an unavailable provider.
- *
- * A refused verb arrives here too, and is deliberately **not counted** (issue
- * #840). The SDK reports an unallowlisted call twice - as the parsed `tool-call`
- * part, `toolName` intact and `invalid: true`, and then as the paired
- * `tool-error` part for the same call - and {@link handlePart} has already
- * recorded the refusal off the first of them. Counting the second made every
- * refused turn log `toolErrors: 1` for a call no executor ever ran, which is the
- * opposite of what the field is read for: a non-zero count means a model
- * correcting itself, and a refusal is not that. This function used to try to
- * recognise the refusal instead of skipping it, on a guard that never matched -
- * see {@link noteFailure} for why. Teaching that guard the stringified shape the
- * SDK does deliver was the alternative and was rejected: it would mean reading a
- * tool name back out of prose the SDK formats (a format 7.0.0 itself changed,
- * "preserve error type prefix in getErrorMessage"), to recover something the
- * part beside it already carries structurally. The membership test is
- * {@link isAllowedToolName}, the same one everything else in the slice uses.
- *
- * Nothing about the refusal depends on this: `outcome.rejectedTool` is what ends
- * the turn refused, and {@link stopOnRejectedTool} is what ends the loop at the
- * refusing step (issue #814). Neither reads this counter.
+ * One failed tool call is not a failed turn: the SDK hands the error back and the model
+ * usually corrects itself. A refused verb also arrives here and is deliberately not
+ * counted, since {@link handlePart} already recorded it off the paired `tool-call` part.
  */
 function noteToolFailure(outcome: RunOutcome, toolName: string): void {
   if (!isAllowedToolName(toolName)) return;
@@ -228,14 +122,8 @@ function noteToolFailure(outcome: RunOutcome, toolName: string): void {
 }
 
 /**
- * The outcome of one announced tool call, for the panel's step timeline.
- *
- * A step is `done` only on evidence that it worked: a final `tool-result` whose
- * executor did not refuse the input (`propose_draft` answers `accepted: false` for a
- * proposal naming another form, which is a result, not a success). A `tool-error` is
- * `failed`. A call that was never announced - a refused verb - has no step and
- * produces nothing, so the refusal path is unchanged. No text from the result or the
- * error is forwarded. Exported for its unit test.
+ * An executor that refused its input answers `accepted: false`, which is a result and
+ * not a success. No text from the result or the error is forwarded.
  */
 export function toolOutcomeEvent(
   toolSteps: ReadonlyMap<string, number>,
@@ -252,11 +140,6 @@ export function toolOutcomeEvent(
   return { type: "tool-outcome", step, outcome: errored || refused ? "failed" : "done" };
 }
 
-/**
- * Map one SDK stream part onto the slice's own event vocabulary, recording what
- * the turn's terminal events will need. Returns `undefined` for parts that only
- * update the outcome.
- */
 function handlePart(part: TextStreamPart<ToolSet>, outcome: RunOutcome): AssistEvent | undefined {
   switch (part.type) {
     case "start-step":
@@ -266,14 +149,8 @@ function handlePart(part: TextStreamPart<ToolSet>, outcome: RunOutcome): AssistE
       outcome.rationale += part.text;
       return { type: "text", delta: part.text };
     case "tool-call":
-      // Defence in depth: `assistToolSet` never offered a verb outside the
-      // allowlist and `runAssistTool` would refuse it, but the refusal is
-      // *observed* here so the turn ends refused rather than half-done. What
-      // ends the loop is `stopOnRejectedTool`, which reads the same allowlist
-      // off the SDK's step record; this line is what makes the outcome refused,
-      // and it is the only place that does. The paired `tool-error` part the SDK
-      // emits next is the same refused call arriving a second time, and
-      // `noteToolFailure` skips it rather than counting it (issue #840).
+      // Defence in depth: the only place the outcome is made refused, so the turn ends
+      // refused rather than half-done. `stopOnRejectedTool` is what ends the loop.
       if (isAllowedToolName(part.toolName)) {
         const step = outcome.toolSteps.size + 1;
         outcome.toolSteps.set(part.toolCallId, step);
@@ -302,37 +179,9 @@ function handlePart(part: TextStreamPart<ToolSet>, outcome: RunOutcome): AssistE
 }
 
 /**
- * Stop the loop at the step that reached for a verb outside the allowlist
- * (issue #814).
- *
- * The refusal was always **recorded** the moment it was observed, and no
- * proposal has ever survived one. What did not happen is the loop ending: the
- * only stop condition was `stepCountIs(maxSteps)`, so a model that asked for
- * `publish` was handed the SDK's "no such tool" result and asked again, up to
- * the full budget. A refused turn therefore billed a real provider for up to
- * `QCMS_AGENT_MAX_STEPS` round trips to reach a conclusion that was settled at
- * the first one, and the refused-state screenshot in #814 shows the same
- * narration eight times over.
- *
- * This is composed with the ceiling rather than replacing it, and it reads the
- * SDK's own step record rather than {@link RunOutcome}. Both choices are load
- * bearing:
- *
- * - **`stopWhen`, not an abort on the rejection event.** Aborting would end the
- *   turn through the failure path, where an `AbortError` has to be told apart
- *   from a genuine provider failure before {@link finishTurn} can still reach
- *   the refusal. `stopWhen` is the loop's own termination seam, so the turn ends
- *   the way a completed turn ends and the refusal copy stays in exactly one
- *   place: nothing about the recorded outcome, the logged record or the emitted
- *   events changes, only how many steps ran before them.
- * - **The step record, not the outcome field.** `outcome.rejectedTool` is set by
- *   {@link handlePart} as *this process* drains `result.stream`, which is
- *   decoupled from the SDK's internal loop; a predicate reading it would be
- *   racing the consumer. `steps` is what the loop has already committed, so the
- *   answer is the same on every run.
- *
- * The membership test is {@link isAllowedToolName}, the same one the tool set,
- * the dispatch door and the event mapping use. There is one allowlist.
+ * Stops a refused turn billing a real provider for the rest of the step budget. Reads the
+ * SDK's step record, since `outcome.rejectedTool` is set by the draining consumer and
+ * would race.
  */
 const stopOnRejectedTool: StopCondition<ToolSet> = ({ steps }) =>
   steps
@@ -371,10 +220,7 @@ async function* runTurn(args: {
     tools: assistToolSet(ctx, state),
     stopWhen: [stepCountIs(ctx.maxSteps), stopOnRejectedTool],
     abortSignal: signal,
-    // The SDK's per-provider passthrough. Empty by default; this is the seam a
-    // deployment uses for vendor capabilities (prompt caching over the frozen
-    // system prompt, reasoning budgets, safety settings) without this file
-    // learning anything vendor-shaped.
+    // The seam for vendor capabilities, so nothing in this file is vendor-shaped.
     providerOptions: providerOptions ?? {},
   });
 
@@ -391,22 +237,8 @@ async function* runTurn(args: {
 }
 
 /**
- * Why a turn ended with no proposal, named precisely.
- *
- * The three cases are genuinely different problems with genuinely different
- * fixes, and telling them apart is the whole point of having three codes:
- *
- * - `LENGTH` - the model ran out of output room mid-answer. Ask for less.
- * - `STEP_LIMIT` - the model was still working when `QCMS_AGENT_MAX_STEPS` cut
- *   the loop off. It was making progress; it needed more room to make. This is
- *   the one that most needs its own name, because a step-exhausted turn and a
- *   turn where the model simply never answered look identical from the outside,
- *   and anyone tuning a prompt against a real model has to be able to tell which
- *   they are looking at. `tool-calls` as the last finish reason is what makes it
- *   unambiguous: the model had asked for another tool and the ceiling, not the
- *   model, is what stopped it.
- * - `NO_PROPOSAL` - the model finished of its own accord without proposing.
- *   Rephrase, or the model is not up to the task.
+ * `tool-calls` as the last finish reason is what separates a step-exhausted turn from
+ * one where the model simply never answered; they look identical otherwise.
  */
 function emptyTurnError(outcome: RunOutcome, maxSteps: number): AssistEvent {
   if (outcome.finishReason === "length") {
@@ -420,14 +252,8 @@ function emptyTurnError(outcome: RunOutcome, maxSteps: number): AssistEvent {
     return {
       type: "error",
       code: "STEP_LIMIT",
-      // The step ceiling is an operator setting, so the sentence says the behaviour and
-      // not the variable that sets it (issue #910). Every `AssistEvent` is framed into
-      // the SSE response body by `handler.ts`, which puts this string in front of a
-      // client, and ADR-24's "clients receive behavior, not flag values" has reached any
-      // environment identifier in a response body since the Code Owner widened it on
-      // 2026-09-12. The admin never renders this prose anyway - it keys on `code` and
-      // reads `forms.assist.error.STEP_LIMIT` out of its own catalog - so the operator
-      // half lives where an operator sets the ceiling, in `docs/operations.md`.
+      // This string reaches a client, so it names the behaviour and never the
+      // environment variable behind it (ADR-24).
       message:
         "The assistant reached its step limit before proposing a draft. " +
         "Try a smaller request, or raise the assistant's step ceiling " +
@@ -441,16 +267,7 @@ function emptyTurnError(outcome: RunOutcome, maxSteps: number): AssistEvent {
   };
 }
 
-/**
- * Turn the accumulated outcome into terminal events.
- *
- * The refusal is emitted **and logged** here, which is the "rejected and logged"
- * half of 041's allowlist control. A refused turn produces no proposal at all:
- * a model that reached for `publish` does not get its other work accepted. It
- * also reaches here at the refusing step rather than at the step ceiling, which
- * is issue #814; the events are identical either way, so this function did not
- * have to change for that.
- */
+/** A refused turn produces no proposal at all, whatever else it managed to do. */
 async function* finishTurn(args: {
   ctx: AssistContext;
   state: ProposalState;
@@ -468,9 +285,7 @@ async function* finishTurn(args: {
     outputTokens: outcome.outputTokens,
     finishReason: outcome.finishReason,
     toolRejected: outcome.rejectedTool !== undefined,
-    // A count, never the text: a tool error's message is assembled from input
-    // the model wrote (SEC-8). Non-zero on a turn that still proposed is normal
-    // and is how a model correcting itself looks from here.
+    // A count, never the text: a tool error's message is assembled from model input (SEC-8).
     toolErrors: outcome.toolErrors,
   });
 
@@ -497,15 +312,8 @@ async function* finishTurn(args: {
   }
 
   if (outcome.providerError !== undefined) {
-    // Two conditions, two codes, opposite advice (issue #818). The record is
-    // logged here because the panel deliberately shows the operator no vendor
-    // detail: without this line a permanent refusal leaves no trace an operator
-    // can act on. Every field is ours - a provider id from configuration, a
-    // boolean the SDK set, an HTTP status - and no vendor message, code or URL
-    // is written (SEC-8). The event name is classified in the OTLP export
-    // vocabulary (SEC-13); its attributes are outside the attribute allowlist
-    // and are dropped on export, so what leaves the process is the name and a
-    // count.
+    // Logged because the panel shows the operator no vendor detail, so a permanent
+    // refusal would otherwise leave no trace. No vendor message, code or URL (SEC-8).
     logger.warn("draft assistant provider failure", {
       provider: providerId,
       retryable: outcome.providerRetryable,
@@ -529,9 +337,7 @@ async function* finishTurn(args: {
     return;
   }
 
-  // The advisory validation the UI is handed is always the server's own, run
-  // here even if the model already called validate_draft: the agent never hands
-  // the UI a proposal it validated for itself (041).
+  // Always the server's own validation, even if the model already called validate_draft.
   const { issues, warnings } = await ctx.validate(state.proposedDraft);
 
   yield {
@@ -546,11 +352,7 @@ async function* finishTurn(args: {
   };
 }
 
-/**
- * The inert assistant for a deployment with the flag off. Nothing mounts the
- * assist routes there, so this is only ever reached by a composition error; it
- * fails loudly rather than silently doing nothing.
- */
+/** Only reachable by a composition error, since nothing mounts the routes when off. */
 const UNAVAILABLE: AssistEvent = {
   type: "error",
   code: "PROVIDER_ERROR",
@@ -558,8 +360,7 @@ const UNAVAILABLE: AssistEvent = {
 };
 
 async function* once(event: AssistEvent): AsyncGenerator<AssistEvent> {
-  // The await is structural, not incidental: the interface is an async iterable
-  // and a generator with no suspension point is not one the linter accepts.
+  // Structural: the linter rejects an async generator with no suspension point.
   await Promise.resolve();
   yield event;
 }
@@ -568,13 +369,6 @@ export const unavailableDraftAssistant: DraftAssistant = {
   assist: () => once(UNAVAILABLE),
 };
 
-/**
- * Resolve the configured provider to a language model.
- *
- * Every arm is the same two lines - construct the vendor provider with the key
- * and optional base URL, then name the model - which is the point: the vendor
- * differences live entirely inside the AI SDK provider packages.
- */
 async function resolveModel(agent: Extract<Config["agent"], { model: string }>) {
   const { provider, model, apiKey, baseUrl } = agent;
   const withBase = baseUrl === undefined ? {} : { baseURL: baseUrl };
@@ -596,14 +390,13 @@ async function resolveModel(agent: Extract<Config["agent"], { model: string }>) 
     }
     case "openai-compatible": {
       const { createOpenAICompatible } = await import("@ai-sdk/openai-compatible");
-      // `baseUrl` is required for this provider by config validation, so the
-      // fallback is unreachable; it keeps the call total for the type checker.
+      // Config validation requires `baseUrl` here, so the fallback is unreachable and
+      // only keeps the call total for the type checker.
       return createOpenAICompatible({ name: "qcms-agent", baseURL: baseUrl ?? "", apiKey })(model);
     }
   }
 }
 
-/** Await the vendor package on first use, then run the turn against it. */
 async function* deferred(
   pending: Promise<DraftAssistant>,
   ctx: AssistContext,
@@ -620,13 +413,8 @@ async function* deferred(
 }
 
 /**
- * Build the assistant for this deployment's configuration.
- *
- * The vendor provider package is imported on **first use**, not at boot: a
- * `none` deployment (the default) never loads any of them, a deployment that
- * picked one vendor never loads the other three, and the composition root stays
- * synchronous. Whether the key is present was already settled at boot by config
- * validation, so nothing security-relevant is deferred here.
+ * Vendor packages are imported on first use so a `none` deployment loads none of them
+ * and the composition root stays synchronous; config validation already settled the key.
  */
 export function selectDraftAssistant(config: Config, logger: Logger): DraftAssistant {
   const agent = config.agent;

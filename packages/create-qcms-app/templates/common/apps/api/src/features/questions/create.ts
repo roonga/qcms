@@ -1,20 +1,3 @@
-/**
- * The question-authoring door: kernel validation, the boundary rules the kernel
- * deliberately does not carry, and the create transaction (task 021).
- *
- * This module exists so there is exactly **one** way a question definition
- * becomes a stored draft version. `POST /admin/questions` is one caller; 041's
- * accept-a-proposal path (issue #823) is the other, because a proposed question
- * materialised by accepting an agent proposal has to face the same gauntlet a
- * person faces, including the #453-era boundary refusals that live here rather
- * than in the schema. Splitting it out is what makes "reuse the create path"
- * checkable instead of aspirational: a second validation route cannot be written
- * by accident, because the pieces are not private to a handler any more.
- *
- * Fetch-pure (R4): no `node:*`, no clock. The slice above owns the transaction
- * boundary and passes an `Executor` in (R5).
- */
-
 import {
   compilesUnderV,
   parseQuestionDefinition,
@@ -32,34 +15,18 @@ import type { Executor, QuestionRow, QuestionVersionRow } from "@roonga/qcms-db"
 import { ApiError } from "../../errors.js";
 import type { Databases } from "../../environments.js";
 
-/**
- * What a definition refusal carries: the kernel's own `QuestionDefinitionError`
- * or an {@link AuthoringIssue} this boundary raises. Structural rather than a
- * union of the two, because the editor reads these by shape - a `code`, a
- * sentence, and the domain `path` that decides which field it lands on.
- */
 export interface DefinitionRefusal {
   readonly code: string;
   readonly message: string;
   readonly path?: readonly (string | number)[] | undefined;
 }
 
-/**
- * One boundary refusal, shaped like a kernel definition issue.
- *
- * The shape is the contract rather than the union: the editor lands an issue on
- * the field its `path` names, so a refusal raised here reaches the author on the
- * pattern control exactly as a kernel refinement does. It is deliberately not a
- * `QuestionDefinitionError`, because that enum means "codes the schema's
- * refinements raise" and this rule is not one of them.
- */
 interface AuthoringIssue {
   readonly code: string;
   readonly message: string;
   readonly path: readonly (string | number)[];
 }
 
-/** The code a v-invalid authored pattern is refused with (issue #53). */
 const PATTERN_NOT_BROWSER_SAFE = "PATTERN_NOT_BROWSER_SAFE";
 
 export const questionFail = {
@@ -67,9 +34,6 @@ export const questionFail = {
     new ApiError("INVALID_QUESTION_DEFINITION", 422, "The question definition is invalid", {
       issues,
     }),
-  // Both name the question in `details`. `POST /admin/questions` creates one at a
-  // time, so the id is implied there; 041's accept creates several, and the operator
-  // has to be told which of them the refusal is about (issue #823).
   idReused: (questionId: string): ApiError =>
     new ApiError(
       "QUESTION_ID_REUSED",
@@ -82,30 +46,8 @@ export const questionFail = {
 } as const;
 
 /**
- * The `v`-flag gate on newly authored patterns (issue #53, Code Owner
- * 2026-09-02).
- *
- * Browsers compile the HTML `pattern` attribute with the `v` flag, whose
- * character-class grammar is narrower than the `u` semantics `checkSafePattern`
- * validates against, so a pattern such as `^[A-Za-z][A-Za-z .,'-]{0,99}$` is
- * dropped by the browser with a console error and the field loses its native
- * hint. This refuses such a pattern **at the authoring boundary** rather than in
- * the schema, and that placement is what makes the stance reject-new-only:
- *
- * - a **new or edited** definition arriving through this API is refused here,
- *   and so is one an agent proposed and a human accepted (issue #823): accept is
- *   an authoring act, so it meets the authoring boundary;
- * - **stored** definitions never come back through this path, so already
- *   published content keeps reading and serving unchanged (R1), repaired at
- *   render time by the normalize-or-omit path PR #52 added;
- * - the golden corpus and the seed fixtures parse through
- *   `parseQuestionDefinition` directly, so they are untouched (ADR-18).
- *
- * The message offers the normalized spelling whenever one is provably
- * meaning-preserving. That quotes a rewrite of the caller's own pattern back to
- * the authenticated author who just submitted it, which is why it is built here
- * and not in the kernel: `checkSafePattern` keeps its rule of never echoing a
- * pattern into a parse message.
+ * Refused at the authoring boundary rather than in the schema, so stored definitions,
+ * the golden corpus and the seed fixtures keep parsing and serving unchanged (R1).
  */
 function browserSafePatternIssues(definition: QuestionDefinition): AuthoringIssue[] {
   if (definition.type !== "shortText") return [];
@@ -127,24 +69,11 @@ function browserSafePatternIssues(definition: QuestionDefinition): AuthoringIssu
   ];
 }
 
-/**
- * The verdict on one candidate definition: the kernel's parse plus the
- * authoring-boundary rules the kernel deliberately does not carry.
- *
- * Reported rather than thrown, because one caller wants a 422 and the other
- * wants to keep going long enough to say *which* question was refused. 041's
- * accept validates a whole list before it opens a transaction, and the sentence
- * the operator reads has to name the offending question; a thrown `ApiError`
- * carries the issues but not the identity.
- */
+/** Reported rather than thrown, so a caller validating a list can name which question was refused. */
 export type QuestionDefinitionCheck =
   | { readonly ok: true; readonly definition: QuestionDefinition }
   | { readonly ok: false; readonly issues: readonly DefinitionRefusal[] };
 
-/**
- * Validate an opaque definition body through the kernel, then apply the
- * authoring-boundary rules. The single gauntlet both callers face.
- */
 export function checkQuestionDefinition(value: unknown): QuestionDefinitionCheck {
   const parsed = parseQuestionDefinition(value);
   if (!parsed.ok) return { ok: false, issues: parsed.error };
@@ -153,17 +82,13 @@ export function checkQuestionDefinition(value: unknown): QuestionDefinitionCheck
   return { ok: true, definition: parsed.value };
 }
 
-/** {@link checkQuestionDefinition}, as the 422 a request handler wants. */
 export function requireQuestionDefinition(value: unknown): QuestionDefinition {
   const checked = checkQuestionDefinition(value);
   if (!checked.ok) throw questionFail.invalidDefinition(checked.issues);
   return checked.definition;
 }
 
-/**
- * True for a Postgres unique-violation (SQLSTATE 23505). drizzle wraps the pg
- * error, so the code can sit on the error or on its `cause` - check both.
- */
+/** drizzle wraps the pg error, so SQLSTATE 23505 can sit on the error or on its `cause`. */
 function isUniqueViolation(err: unknown): boolean {
   const codeOf = (e: unknown): string | undefined =>
     typeof e === "object" && e !== null ? (e as { code?: string }).code : undefined;
@@ -171,39 +96,9 @@ function isUniqueViolation(err: unknown): boolean {
 }
 
 /**
- * R6's **answer-ledger** half, across every environment in the live set (ADR-40, Q1).
- *
- * # Why R6 needs a second call at all now
- *
- * R6 says a `questionId` is stable forever and is never reused with a different meaning,
- * and it holds even for an id that survives *only* in an answer ledger - its question
- * deprecated, or erased along with the question itself. So the check has always spanned
- * `questions` and `answers`, and it used to be one `union all` on one connection.
- *
- * ADR-40 makes that impossible, and deliberately. `answers` is a **data-plane** table with
- * one copy per environment; authoring runs on the **control** pool, whose `search_path` is
- * `control` alone and whose role holds no read on any data-plane table, because "an author
- * never reads production personal data" is the property Q40 exists to buy. The old
- * statement therefore failed outright on the new layout - `answers` resolved to nothing -
- * and widening the control role to fix it would have given away exactly what the split was
- * drawn to remove.
- *
- * So the rule is asked of each environment on **that environment's own pool**, where the
- * grant already is, and the set comes from `databases.names`, which is the live set (Q1)
- * rather than a compiled-in pair. An environment created later is covered after a restart
- * with no code change.
- *
- * # Why this runs before the transaction rather than inside it
- *
- * A transaction is one connection, and these reads are on other connections, so they could
- * not be inside it whatever the ordering. That costs nothing that was ever guaranteed: what
- * actually stops two questions sharing an id is `control.questions`' primary key inside the
- * transaction, and this check exists to widen the *refusal* to ids the library no longer
- * holds. An id in that state is not one being concurrently created.
- *
- * Sequential rather than concurrent: the live set is small, the refusal is the same
- * whichever environment raises it, and a pool-per-environment fan-out on an authoring
- * request buys nothing.
+ * R6's answer-ledger half, asked of each environment on that environment's own pool: the
+ * control role holds no read on any data-plane table (ADR-40), so this cannot ride the
+ * authoring transaction.
  */
 export async function requireUnusedQuestionId(
   databases: Databases,
@@ -216,45 +111,19 @@ export async function requireUnusedQuestionId(
   }
 }
 
-/**
- * Create the library identity and its first **draft** version, in whatever
- * transaction the caller owns.
- *
- * R6's **library** half is enforced here rather than by the callers: a `questionId` the
- * library has ever held, including for a deprecated or erased question, is refused. Its
- * answer-ledger half is {@link requireUnusedQuestionId}, which a caller runs before opening
- * its transaction because that read is on another plane, another connection and another
- * role. The first version is a draft, never published: publishing is a separate human act
- * (§4.2), and that is what makes this reusable by 041's accept without accept becoming a
- * publish.
- */
+/** The first version is a draft, never published: publishing is a separate human act (§4.2). */
 export async function createQuestionWithFirstDraft(
   exec: Executor,
   input: {
     readonly definition: QuestionDefinition;
     readonly slug: string;
-    /**
-     * The workspace that will own the question (ADR-41, task 068, criterion 1).
-     *
-     * Required here and resolved by the caller, because the two callers resolve it
-     * differently and neither resolution belongs in this function: `POST
-     * /admin/questions` takes the workspace from the request or from the installation's
-     * only one, and 041's accept uses **the form's own workspace**, since a question the
-     * assistant proposed for that form belongs where the form does.
-     */
     readonly workspaceId: string;
   },
 ): Promise<{ question: QuestionRow; version: QuestionVersionRow }> {
   const questionId = input.definition.questionId;
 
-  // R6, the LIBRARY half: reject any id the library has ever held, including one whose
-  // question is deprecated or erased. The **answer-ledger** half is the caller's, before it
-  // opens this transaction, because after ADR-40 that read is on a different plane, a
-  // different connection and a different role: see `requireUnusedQuestionId`.
   if (await isQuestionIdTaken(exec, questionId)) throw questionFail.idReused(questionId);
 
-  // R6 passed: insert the identity (slug collision -> clean 409) then its first
-  // draft version.
   let question: QuestionRow;
   try {
     question = await createQuestion(exec, {

@@ -1,114 +1,9 @@
 #!/usr/bin/env node
 // @ts-check
 /**
- * Re-read every better-auth source citation against the package that actually ships
- * the file (issue #864, from #849 and #857).
- *
- * ## Why this exists
- *
- * QCMS justifies security properties by citing better-auth's compiled source at a
- * `file:line` - the secure-cookie prefix rule, the `rateLimit.enabled` resolution, the
- * `$ba$<version>$` key envelope. `check:vendor-pin` (issue #483) checks the *digit*
- * beside the package name and says so about itself: it cannot tell you that
- * `dist/<path>.mjs:<line>` still points at the branch the prose claims. Of the
- * twenty-one citations carried from 1.6.26 to 1.7.1, eight had moved.
- *
- * The 1.7.3 bump made the cost of that gap concrete. Twenty-nine citations had to be
- * re-read by hand; the lane wrote an ad hoc checker that resolved every `dist/...` path
- * under `better-auth`, which is wrong for the third of them that live in
- * `@better-auth/core`. The checker printed MISSING for a citation that was perfectly
- * real, the lane fell back to eyeballing a `sed` window, and one citation landed a line
- * out. `check:vendor-pin` passed it, because the digit beside the package name was
- * right.
- *
- * So this is the re-read, as a command. It finds the citations, resolves each one
- * against the package that owns the path, and prints the cited line with two lines of
- * context either side - which is the thing a human needs in front of them to decide
- * whether the sentence around the citation is still true.
- *
- * ## What a citation looks like
- *
- * Three shapes, all of them already in the repository:
- *
- *   - **Full.** `dist/context/create-context.mjs:76`, optionally scoped:
- *     `@better-auth/core/dist/utils/ip.mjs:206`. A bare `dist/` path belongs to
- *     `--package` (default `better-auth`); a scoped one belongs to its own scope, and
- *     that distinction is the whole point of this script.
- *   - **Abbreviated**, for a file the same document already cited in full:
- *     a leading `.../` then the tail of the path. Resolved against the earlier
- *     citations in the same file - see {@link resolveShorthand}.
- *   - **Line only**, for a second line in a file just cited: a backticked `:76`. It
- *     binds to the citation before it, on the same line or the line above.
- *
- * A line reference is one line (`:76`), a span (`:135-138`), or a comma list of either
- * (`:518,529`). Everything cited is checked; a citation with no line at all is checked
- * as a path.
- *
- * The abbreviated and line-only shapes are recognised **only** when they are the whole
- * of a backticked span, because outside backticks they are ordinary prose - `POST
- * .../draft/validate` is a URL and `node .../dist/migrate.js` is a shell command. For
- * the same reason the extension set is `.mjs` and `.mts` (`.d.mts` ends in one), which
- * is what better-auth publishes: a `.js` path in this repository is one of ours.
- *
- * ## `--expect`: turning a re-read into an assertion
- *
- * A citation says where; the sentence around it says what. Nothing connects the two, so
- * a line that moves under a citation whose file still opens is invisible to any gate -
- * that is exactly the #857 defect. An expectation closes that for one citation:
- *
+ * Resolves every vendored source citation against the package that ships the file; `check:vendor-pin`
+ * checks only the version digit. A marker binds to the citation before it and `--expect` fails when the cited lines lack the phrase:
  *     (`dist/api/rate-limiter/index.mjs:293`) <!-- expect: ctx.rateLimit.enabled -->
- *
- * The marker is an HTML comment because that is the one comment syntax that is
- * invisible in rendered Markdown *and* legal inside a JSDoc block, so one convention
- * covers prose and code. It binds to the citation immediately before it (same line, or
- * the line above), and `--expect` fails when the cited lines do not contain the phrase.
- * Whitespace is collapsed on both sides before the comparison, so a phrase still
- * matches across a wrapped line; the comparison is otherwise exact, punctuation and
- * case included.
- *
- * Expectations are **opt in and their coverage is reported**, so a citation without one
- * is not a failure and the run always says how many are carrying an assertion and how
- * many are not. A phrase should be short and distinctive: a symbol, a call, a literal.
- * A whole sentence of vendor source is a phrase that will churn for reasons that do not
- * matter.
- *
- * Three ways an expectation is refused rather than believed, all of them fail-closed
- * because a marker that reads as checked and is not is worse than no marker. One that
- * **binds to no citation** is a failure, not a shrug. One whose **phrase is empty or
- * under {@link MIN_PHRASE} characters** is a failure: the empty string is contained by
- * every line there is, so such a marker passes whatever the vendor did while still
- * counting towards coverage. And one on a **path-only citation** is a failure, because
- * the phrase is checked against the cited lines and there are none; searching the whole
- * file instead would be a far weaker check wearing the same words.
- *
- * ## What it cannot see
- *
- *   - **Whether the sentence is true.** It checks that a path opens, a line exists, and
- *     (with `--expect`) that the line contains a phrase somebody wrote down. A citation
- *     pointing at the right line of the wrong function passes.
- *   - **A citation this repository writes in some other shape** - a path with no
- *     `dist/` prefix, a `.js` or `.d.ts` extension, an abbreviation outside backticks.
- *     Adjacency and the extension set are what keep the false-positive rate at zero on
- *     a tree that also talks about its own `dist/` directories.
- *   - **A dated record.** `docs/features/`, `.changeset/`, `docs/RETRO.md` and `plan/`
- *     are exempt, by the same list and the same reasoning as `check:vendor-pin`: a log
- *     is allowed to cite a version that is no longer installed, and this script would
- *     read those citations against a tree they were never about.
- *
- * ## Where it runs
- *
- * `pnpm check:vendor-pin` runs it after the digit check, quietly, so the two halves of
- * one claim are checked together: `check:vendor-pin` proves the version is current and
- * this proves the citation opens against it. That costs a few file reads and no
- * network, but it does need `node_modules`, so it fails with a clear line rather than
- * skipping when the tree is not installed - a citation gate that passes because it read
- * nothing is worse than no gate.
- *
- * Usage:
- *   pnpm vendor:cite                      # print every citation with context
- *   pnpm vendor:cite --expect             # also enforce the expectation markers
- *   pnpm vendor:cite --quiet              # failures and the summary only
- *   pnpm vendor:cite --package @better-auth/core
  */
 
 import { execFileSync } from "node:child_process";
@@ -123,66 +18,39 @@ import { VENDORED_SOURCE_PATHSPEC } from "./vendored-source.mjs";
 // Node on Windows won't resolve `git` -> `git.exe` via execFile without a shell.
 const GIT = process.platform === "win32" ? "git.exe" : "git";
 
-/** Lines of source printed either side of a cited line. */
 export const CONTEXT = 2;
 
-/** The default owner of a bare `dist/` path, overridable with `--package`. */
 export const DEFAULT_PACKAGE = "better-auth";
 
-/**
- * The same file set `check:vendor-pin` scans, and for the same reasons: the globs
- * cover text this repository writes, the vendored component copy is excluded because
- * its contents are not ours, and `git ls-files` is the enumerator rather than a
- * directory walk (issue #629 - a directory walk reads a previous gate's build output
- * as source).
- */
+/** `git ls-files` is the enumerator: a directory walk reads build output as source. */
 const GLOBS = ["*.md", "*.ts", "*.tsx", "*.js", "*.jsx", "*.mjs", "*.cjs", "*.yml", "*.yaml"];
 
-/** A line reference: one line, a span, or a comma list of either. */
 const LINES = String.raw`\d+(?:-\d+)?(?:,\d+(?:-\d+)?)*`;
 
-/** Characters a vendor path is written with. */
 const PATH_CHARS = String.raw`[A-Za-z0-9_.\-/]`;
 
-/** What better-auth publishes. `.d.mts` ends in `.mts`, so both are covered. */
+/** `.d.mts` ends in `.mts`, so both extensions are covered. */
 const EXT = String.raw`(?:mjs|mts)`;
 
-/**
- * A full citation: an optional `@better-auth/<pkg>/` scope, a `dist/` path, an optional
- * line reference. Recognised anywhere, backticks or not, because a `dist/*.mjs` path is
- * unambiguous on its own.
- */
 const FULL = new RegExp(
   String.raw`(?:(@better-auth\/[a-z0-9-]+)\/)?(dist\/${PATH_CHARS}+\.${EXT})(?::(${LINES}))?`,
   "g",
 );
 
-/** An abbreviated citation, which must be the whole of a backticked span. */
+/** Backticks are required: outside them `.../draft/validate` is ordinary prose. */
 const SHORTHAND = new RegExp(String.raw`\`\.\.\.\/(${PATH_CHARS}+\.${EXT})(?::(${LINES}))?\``, "g");
 
-/** A line-only citation, which must likewise be the whole of a backticked span. */
 const LINE_ONLY = new RegExp(String.raw`\`:(${LINES})\``, "g");
 
 /**
- * An expectation marker, in the one comment syntax Markdown and JSDoc share.
- *
- * The phrase is `.*?` rather than `.+?` on purpose. With `.+?` an empty marker still
- * matched, the lazy group taking the separating space, and a phrase that collapses to
- * the empty string passes `includes` against anything at all: a vacuous expectation
- * that counted towards coverage and would have gone on reading as a checked one. It has
- * to be matched to be reported, so it is matched and then refused.
+ * `.*?` rather than `.+?` so an empty marker is matched and then refused: with `.+?` it
+ * matched anyway and passed `includes` against every line while counting as coverage.
  */
 const EXPECT = /<!--\s*expect:\s*(.*?)\s*-->/g;
 
 /**
- * The shortest phrase worth asserting, in characters, after {@link collapse}.
- *
- * Three, which refuses the empty marker and the one-or-two-character phrase that is
- * vacuous for the same reason an empty one is: `{` occurs in every vendor file here.
- * Nothing above that is judged, and deliberately not. "Is `better-auth` a weak phrase
- * for this citation?" is a real question and a regex cannot answer it honestly; a
- * length floor that pretended to would just move the vacuous case up by a few
- * characters. That judgement belongs to whoever reviews the marker.
+ * Shortest phrase worth asserting, after {@link collapse}. Three refuses the empty and
+ * one-character markers, which `{` alone would satisfy in every vendor file.
  */
 export const MIN_PHRASE = 3;
 
@@ -203,9 +71,7 @@ export const MIN_PHRASE = 3;
  */
 
 /**
- * Parse a line reference into spans. `518,529` is two spans; `135-138` is one.
- *
- * @param {string | undefined} text the `:`-suffix, without the colon
+ * @param {string | undefined} text
  * @returns {Span[]}
  */
 export function parseSpans(text) {
@@ -217,23 +83,12 @@ export function parseSpans(text) {
 }
 
 /**
- * Resolve an abbreviated citation against the citations already read in this file.
+ * Suffix match first, then ancestor directories of the most recent citation, longest
+ * first. The order is what makes the resolution deterministic rather than a guess.
  *
- * Two rules, in order, and the order is what makes it deterministic rather than a
- * guess. **First**, the most recent earlier citation whose path ends with the
- * abbreviation: once a document has written out
- * `dist/plugins/two-factor/backup-codes/index.mjs`, a later
- * `.../backup-codes/index.mjs` is that same file, and no filesystem is consulted to
- * say so. **Second**, and only when nothing matches by suffix, the most recent earlier
- * citation is treated as naming a directory the abbreviation hangs off: each of its
- * ancestor directories is tried, longest first, and the first that yields a file that
- * exists wins. That second rule is what reads `.../backup-codes/index.mjs` correctly in
- * a document that never wrote it out at all, only its sibling
- * `dist/plugins/two-factor/index.mjs`.
- *
- * @param {string} tail the path after `.../`
- * @param {Citation[]} earlier citations already read in this file, in order
- * @param {(pkg: string | null, path: string) => boolean} exists whether a path is in a package
+ * @param {string} tail
+ * @param {Citation[]} earlier
+ * @param {(pkg: string | null, path: string) => boolean} exists
  * @returns {{ pkg: string | null, path: string } | null}
  */
 export function resolveShorthand(tail, earlier, exists) {
@@ -256,12 +111,9 @@ export function resolveShorthand(tail, earlier, exists) {
 }
 
 /**
- * Every citation in one file's text, in the order they are written.
- *
- * @param {string} text file contents
- * @param {(pkg: string | null, path: string) => boolean} [exists] whether a path is in a package
- * @returns {{ citations: Citation[], problems: string[] }} problems are shapes that
- *   look like citations and cannot be read as any
+ * @param {string} text
+ * @param {(pkg: string | null, path: string) => boolean} [exists]
+ * @returns {{ citations: Citation[], problems: string[] }}
  */
 export function citationsIn(text, exists = () => false) {
   const lineOf = lineIndex(text);
@@ -307,10 +159,8 @@ export function citationsIn(text, exists = () => false) {
       ends.push(hit.index + raw.length);
       continue;
     }
-    // A line-only reference. It is a citation when it follows one closely enough to be
-    // read as continuing it, and ordinary prose otherwise - `:80` in a document about
-    // ports is not a citation, and silently ignoring it is the only way to keep this
-    // shape usable at all.
+    // Ignored unless it follows a citation closely: `:80` in a document about ports is
+    // prose, and refusing it outright would make the shape unusable.
     const previous = citations[citations.length - 1];
     if (previous === undefined) continue;
     const previousEnd = /** @type {number} */ (ends[ends.length - 1]);
@@ -358,9 +208,6 @@ export function citationsIn(text, exists = () => false) {
 }
 
 /**
- * A 1-based line number for any offset in `text`, by binary search over the newline
- * offsets rather than by re-splitting the file per citation.
- *
  * @param {string} text
  * @returns {(index: number) => number}
  */
@@ -381,27 +228,18 @@ function lineIndex(text) {
 }
 
 /**
- * Where an installed package at an exact version lives.
- *
  * pnpm's store encodes a scope as `+` and appends a peer-dependency hash, so
- * `@better-auth/core@<version>` is a directory named `@better-auth+core@<version>_<hash>`
- * whose `node_modules` holds the real package. The example is written version-neutral on
- * purpose: it named 1.7.7 on the left and 1.7.6 on the right for a while, which made the
- * one sentence that explains the lookup contradict itself, and a literal version here goes
- * stale on every bump while asserting nothing. **Matching the version exactly is the point**:
- * a tree carrying two copies of a package would otherwise hand back whichever one the
- * directory listing returned first, and the citation would be read against a version
- * nobody asserted. A non-pnpm layout is handled by the direct `node_modules/<name>`
- * fallback, which is checked against the manifest's own version for the same reason.
+ * `@better-auth/core@<version>` lives under `@better-auth+core@<version>_<hash>`.
+ * The version must match exactly: a tree carrying two copies would otherwise hand back
+ * whichever the directory listing returned first.
  *
  * Windows needs the second pass: pnpm truncates a store directory name to 60 characters,
- * so the prefix is not there to match and only the installed manifest can confirm the
- * version.
+ * so only the installed manifest can confirm the version.
  *
- * @param {string} nodeModules path to a `node_modules` directory
- * @param {string} name package name
- * @param {string} version exact version
- * @returns {string | null} absolute path to the package root, or null
+ * @param {string} nodeModules
+ * @param {string} name
+ * @param {string} version
+ * @returns {string | null}
  */
 export function findPackageRoot(nodeModules, name, version) {
   const prefix = `${name.replace("/", "+")}@${version}`;
@@ -429,8 +267,6 @@ export function findPackageRoot(nodeModules, name, version) {
 }
 
 /**
- * The `version` a package root's own manifest declares, or null when there is none.
- *
  * @param {string} root
  * @returns {string | null}
  */
@@ -444,9 +280,7 @@ function manifestVersion(root) {
 }
 
 /**
- * The one version the lockfile resolves for a package.
- *
- * @param {Map<string, Set<string>>} resolved from `check-vendor-pin.mjs`
+ * @param {Map<string, Set<string>>} resolved
  * @param {string} name
  * @returns {{ version: string } | { error: string }}
  */
@@ -466,8 +300,8 @@ export function pinnedVersion(resolved, name) {
 }
 
 /**
- * Collapse whitespace so a phrase still matches across a line the vendor's formatter
- * wrapped. Nothing else is normalised: case and punctuation are part of the phrase.
+ * Whitespace only, so a phrase still matches across a line the vendor's formatter
+ * wrapped. Case and punctuation stay part of the phrase.
  *
  * @param {string} text
  * @returns {string}
@@ -477,10 +311,8 @@ export function collapse(text) {
 }
 
 /**
- * Check one citation against a package's source.
- *
  * @param {Citation} citation
- * @param {string[] | null} source lines of the cited file, or null when it will not open
+ * @param {string[] | null} source
  * @param {boolean} enforceExpect
  * @returns {{ failure: string | null, shown: string[] }}
  */
@@ -507,11 +339,8 @@ export function checkCitation(citation, source, enforceExpect) {
   }
   if (enforceExpect && citation.expect !== null) {
     if (citation.spans.length === 0) {
-      // The phrase is checked against the CITED LINES, which is what makes it an
-      // assertion about a line rather than about a file. Falling back to the whole file
-      // for a path-only citation would be a much weaker check wearing the same words:
-      // a phrase occurring anywhere in a two-hundred-line module says almost nothing
-      // about the sentence the citation supports. Cite the line instead.
+      // Checked against the cited lines, never the whole file: a phrase occurring
+      // anywhere in a module is a far weaker check wearing the same words.
       return {
         failure: "an expectation needs a cited line; this citation names a path only",
         shown,
@@ -527,17 +356,8 @@ export function checkCitation(citation, source, enforceExpect) {
 }
 
 /**
- * How a citation is named in output: its owning package once, then the path that
- * package was asked for, then the lines.
- *
- * It is built from the RESOLVED path rather than echoed from the text. Echoing the text
- * printed a scoped citation's owner twice (`@better-auth/core @better-auth/core/dist/...`)
- * and told a reader nothing at all about an abbreviated one, which is written `.../tail`
- * and resolved elsewhere. Where the two differ, the text is shown after the resolution
- * so the line can still be found in the citing file.
- *
  * @param {Citation} citation
- * @param {string} owner package the citation was read against
+ * @param {string} owner
  * @returns {string}
  */
 export function describeCitation(citation, owner) {
@@ -548,8 +368,8 @@ export function describeCitation(citation, owner) {
     .join(",");
   const at = spans === "" ? " (path only)" : `:${spans}`;
   const canonical = `${citation.pkg === null ? "" : `${citation.pkg}/`}${citation.path}${spans === "" ? "" : `:${spans}`}`;
-  // The abbreviated and line-only shapes are matched with their delimiting backticks;
-  // stripping them keeps exactly one pair around the quoted text.
+  // Those shapes are matched with their delimiting backticks, so stripping them leaves
+  // exactly one pair around the quoted text.
   const raw = citation.raw.replaceAll("`", "");
   const written = raw === canonical ? "" : ` (written \`${raw}\`)`;
   return `${owner} ${citation.path}${at}${written}`;
@@ -591,7 +411,7 @@ export function parseArgs(args) {
 
 /**
  * @param {string} repoRoot
- * @returns {string[]} repo-relative paths, exempt ones already dropped
+ * @returns {string[]}
  */
 function tracked(repoRoot) {
   const out = execFileSync(GIT, ["ls-files", "-z", ...GLOBS, VENDORED_SOURCE_PATHSPEC], {
@@ -603,7 +423,7 @@ function tracked(repoRoot) {
 
 /**
  * @param {string[]} args
- * @returns {number} process exit code
+ * @returns {number}
  */
 export function main(args) {
   /** @type {{ pkg: string, expect: boolean, quiet: boolean }} */
@@ -624,9 +444,7 @@ export function main(args) {
   const roots = new Map();
   /** @type {string[]} */
   const rootFailures = [];
-  /** Packages actually opened, named in the summary so the run says what it read. */
   const read = /** @type {string[]} */ ([]);
-  /** Absolute package root for a citation's owner, resolved and reported once. */
   const rootFor = (/** @type {string | null} */ pkg) => {
     const name = pkg ?? options.pkg;
     if (roots.has(name)) return roots.get(name) ?? null;
@@ -650,7 +468,6 @@ export function main(args) {
 
   /** @type {Map<string, string[] | null>} */
   const sources = new Map();
-  /** Lines of a cited vendor file, read once per path. */
   const sourceOf = (/** @type {string | null} */ pkg, /** @type {string} */ path) => {
     const root = rootFor(pkg);
     if (root === null) return null;
@@ -742,12 +559,8 @@ export function main(args) {
 }
 
 /**
- * Whether a citation that failed would have opened in the other better-auth package -
- * the one mistake this script exists for, so it is named rather than left to be
- * rediscovered.
- *
  * @param {Citation} citation
- * @param {string} owner package it was read against
+ * @param {string} owner
  * @param {(pkg: string | null, path: string) => boolean} exists
  * @returns {string | null}
  */
@@ -760,8 +573,8 @@ function otherOwner(citation, owner, exists) {
   return null;
 }
 
-// Only when run as a command, so the tests can import the helpers above without the
-// scan firing and without `process.exit` killing the run.
+// Guarded so the tests can import the helpers without the scan firing and without
+// `process.exit` killing the run.
 if (argv[1] !== undefined && import.meta.url === pathToFileURL(argv[1]).href) {
   exit(main(argv.slice(2)));
 }

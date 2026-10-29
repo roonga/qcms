@@ -1,32 +1,3 @@
-/**
- * Admin form-authoring handlers (task 022, DOMAIN_SCHEMA §4.1).
- *
- * Draft CRUD is honest transaction script (R5); **publish is the aggregate** -
- * the one slice that loads the pinned question versions, calls `compileDraft`
- * (008) to freeze an immutable snapshot, projects it to A2UI with `compileForm`
- * (011), and persists version + compiled + stamps in **one transaction**
- * alongside the draft's deletion. This is where the kernel, the compiler, and
- * storage meet for the first time. **It enqueues nothing**: publishing a version
- * is a library change, and what makes a version live in an environment is a
- * release (ADR-40, Q60, task 065).
- *
- * Immutability (R1, I1, ADR-18): a published `form_versions` row is frozen - the
- * `form_versions_reject_update` trigger (migration 0001) is the storage
- * backstop, and this slice never issues an UPDATE against it. Publish compiles
- * **once** and stores the result; the serve path (019) reads the stored compiled
- * A2UI and must never recompile (ADR-18) - this slice is the *only* caller of
- * `compileForm`.
- *
- * Fetch-pure (R4): time is `deps.clock`, no `node:*`. Answer values are never
- * handled here, so nothing content-bearing is ever logged (SEC-8).
- *
- * Row types come straight from `@roonga/qcms-db`: the enum-bearing `forms` and
- * `question_versions` rows are now hand-authored and sound across the package
- * boundary (issue #5), so this slice reads them by inference with no local view
- * or cast. The enum-free `form_drafts`/`form_versions` rows are used directly as
- * well.
- */
-
 import type { RouteHandler, z } from "@hono/zod-openapi";
 import { compileForm } from "@roonga/qcms-a2ui-compiler";
 import type { CompiledForm } from "@roonga/qcms-a2ui-compiler";
@@ -121,25 +92,15 @@ import type {
 } from "./route.js";
 import type { ListFormsQuery } from "./schema.js";
 
-/**
- * A publish issue: the kernel's typed `PublishError` (008) *or* the slice-level
- * `DEPRECATED_PIN` - a new-or-moved pin to a deprecated question version, which
- * publish rejects but the kernel does not model (it only knows published/not).
- * The admin UI (034) renders the union verbatim; `DEPRECATED_PIN` carries the
- * same structured-path shape so it renders uniformly.
- */
+/** A slice-level issue: the kernel knows published/not and does not model deprecation. */
 interface DeprecatedPinIssue {
   readonly code: "DEPRECATED_PIN";
   readonly message: string;
   readonly path: { readonly step: StepId; readonly question: QuestionId; readonly version: number };
 }
 /**
- * A new-or-moved pin to a question another workspace owns (ADR-41, Q14, task 068).
- *
- * The same shape as `DEPRECATED_PIN` and reported through the same channel, because the
- * ruling is explicit that an author should meet **one mechanism rather than two**: both
- * are "this version is not one you may newly pin here", both are refused at publish, and
- * both carry the structured path the admin's publish panel already renders.
+ * `DEPRECATED_PIN`'s shape and channel deliberately, so an author meets one mechanism for
+ * "this version is not one you may newly pin here" rather than two.
  */
 interface ForeignWorkspacePinIssue {
   readonly code: "FOREIGN_WORKSPACE_PIN";
@@ -147,14 +108,8 @@ interface ForeignWorkspacePinIssue {
   readonly path: { readonly step: StepId; readonly question: QuestionId; readonly version: number };
 }
 export type PublishIssue = PublishError | DeprecatedPinIssue | ForeignWorkspacePinIssue;
-/**
- * Re-exported so the assist slice (041) takes the advisory contract from the one
- * place that produces it, rather than importing half of it from here and half
- * from `@roonga/qcms-core` and letting the two drift.
- */
+/** Re-exported so the assist slice takes the whole advisory contract from one place. */
 export type { PublishWarning };
-
-// --- typed failures (envelope codes the admin app keys off, 032) ------------
 
 const fail = {
   invalidId: (): ApiError => new ApiError("INVALID_FORM_ID", 400, "Malformed form id"),
@@ -171,11 +126,8 @@ const fail = {
   idTaken: (): ApiError =>
     new ApiError("FORM_ID_TAKEN", 409, "This formId is already in use (ids are never reused)"),
   /**
-   * The slug is taken, installation-wide (ADR-41, task 068, criterion 3).
-   *
-   * Installation-wide and not per workspace, deliberately: `/f/{slug}` carries no
-   * workspace segment, so a slug names at most one form however many workspaces exist,
-   * and a second workspace cannot quietly claim an address another one serves.
+   * Installation-wide, not per workspace: `/f/{slug}` carries no workspace segment, so a
+   * slug names at most one form however many workspaces exist.
    */
   slugTaken: (slug: string): ApiError =>
     new ApiError("FORM_SLUG_TAKEN", 409, `The slug "${slug}" is already in use`),
@@ -184,13 +136,8 @@ const fail = {
   unknownEnvironment: (name: string): ApiError =>
     new ApiError("UNKNOWN_ENVIRONMENT", 400, `This deployment serves no environment named ${name}`),
   /**
-   * Nothing is released in that environment, so there is no intake to close (Q18).
-   *
-   * The closed state is a value of the release state, and a release row carries a
-   * version: `version` is `NOT NULL` and keyed into `control.form_versions`, so "closed
-   * with nothing released" is not expressible. It is also not a state anybody needs - a
-   * start there already refuses with `NO_PUBLISHED_VERSION` - so this is a legible
-   * refusal rather than a gap.
+   * The closed flag is a value of the release state and a release row's `version` is
+   * `NOT NULL`, so "closed with nothing released" is not expressible.
    */
   notReleasedHere: (environment: string): ApiError =>
     new ApiError(
@@ -199,12 +146,8 @@ const fail = {
       `This form has no released version in ${environment}, so there is no intake to close or reopen`,
     ),
   /**
-   * The environment's intake is already in the state asked for.
-   *
-   * A refusal rather than a second identical row, for the reason the release route
-   * refuses `ALREADY_RELEASED`: the history exists to answer "who stopped production
-   * intake, and when", and a row that recorded no change is noise an incident review has
-   * to read past. A double-pressed button is the ordinary way it happens.
+   * A refusal rather than a second identical row, so the history that answers "who
+   * stopped production intake, and when" holds no row that recorded no change.
    */
   alreadyInState: (environment: string, closed: boolean): ApiError =>
     new ApiError(
@@ -213,13 +156,8 @@ const fail = {
       `Intake in ${environment} is already ${closed ? "closed" : "open"}`,
     ),
   /**
-   * No admin principal on a request that writes an actor into the audit.
-   *
-   * A `500` rather than an empty string in the record. Closing production intake is an
-   * operational act the release history answers for, and a row whose actor is `""`
-   * answers nothing - it is worse than no row, because it looks like an answer. The
-   * admin-auth gate makes this unreachable in a mounted process, which is exactly why it
-   * throws rather than being handled.
+   * A 500 rather than an empty actor in the audit, which would look like an answer. The
+   * admin-auth gate makes it unreachable in a mounted process.
    */
   noPrincipal: (): Error =>
     new Error("forms: no admin principal on a request that records an actor"),
@@ -228,11 +166,8 @@ const fail = {
     new ApiError("PUBLISH_REJECTED", 422, "The draft cannot be published", { issues }),
   previewRejected: (issues: readonly PublishIssue[]): ApiError =>
     new ApiError("PREVIEW_REJECTED", 422, "The draft cannot be previewed", { issues }),
-  // A draft that compiled cleanly but whose rules could not be evaluated. Kept
-  // distinct from `previewRejected` because the two ask different things of the
-  // screen: one is a work list, the other has nothing to list. Carrying no
-  // `details.issues` at all - rather than an empty array - is what stops the
-  // admin rendering "the reasons are listed below" above nothing.
+  // Carries no `details.issues` at all, so the admin never renders "the reasons are
+  // listed below" above nothing.
   previewUnavailable: (): ApiError =>
     new ApiError(
       "PREVIEW_UNAVAILABLE",
@@ -241,23 +176,9 @@ const fail = {
     ),
 } as const;
 
-// The rule test bench deliberately adds no failure codes here. Everything it
-// cannot answer (an unparseable draft, an unknown ruleId, an unresolvable target,
-// answers it cannot evaluate) comes back as a 200 `unavailable` verdict carrying
-// a typed `reason`: one error channel, because the bench is a read-only aid over
-// a draft that is legitimately half-built and those states are ordinary, not
-// exceptional.
-
-// --- shared helpers ---------------------------------------------------------
-
-/** Parse a `:id` path param to a FormId, or 400. */
 /**
- * Refuse an environment this deployment does not serve, rather than defaulting one.
- *
- * `databases.names` is the set this process holds a pool for, which boot has reconciled
- * with `control.environments` (task 064, criterion 6a). Checked against that rather than
- * against the table so the answer cannot be "an environment exists but nothing in this
- * process can reach it".
+ * Checked against the pools this process holds rather than against `control.environments`,
+ * so the answer cannot be "it exists but nothing here can reach it".
  */
 function requireEnvironment(deps: Deps, name: string): string {
   if (!deps.databases.names.includes(name)) throw fail.unknownEnvironment(name);
@@ -271,23 +192,17 @@ function requireFormId(id: string): FormId {
 }
 
 /**
- * The largest value a version number can take: `form_versions.version` is an
- * `int4` column, so nothing above this can name a stored row (issue #645).
- * Without the bound the guard passed the segment straight to Postgres, which
- * refused the parameter with "value out of range for type integer" - an
- * unexpected throw, so a caller who typed too many digits got a 500 instead of
- * the 404 the same URL earns one digit shorter.
+ * `form_versions.version` is `int4`. Without the bound Postgres refuses the parameter and
+ * a caller who typed too many digits gets a 500 instead of a 404.
  */
 const MAX_VERSION = 2_147_483_647;
 
-/** Parse a `:v` path param to an in-range positive integer, or 404 (no such version). */
 function requireVersion(v: string): number {
   const n = Number(v);
   if (!Number.isInteger(n) || n < 1 || n > MAX_VERSION) throw fail.versionNotFound();
   return n;
 }
 
-/** Validate an opaque definition body through the kernel (422 on failure). */
 function requireDefinition(value: unknown): FormDefinition {
   const parsed = parseFormDefinition(value);
   if (!parsed.ok) throw fail.invalidDefinition(parsed.error);
@@ -295,16 +210,8 @@ function requireDefinition(value: unknown): FormDefinition {
 }
 
 /**
- * The draft-save leg of `PUT /admin/forms/:id/draft`, minus the response.
- *
- * Exported for 041's accept (issue #823), which stores the accepted draft in the
- * **same transaction** that materialises the proposal's new questions. Taking an
- * `Executor` rather than reaching for `deps.databases.control` is what lets that transaction be
- * the caller's: the slice owns the boundary, never the helper (R5).
- *
- * The parse is the caller's, deliberately. Accept validates every proposed
- * question *and* the draft before it opens a transaction, so a refusal costs no
- * database work and cannot leave a half-written accept behind.
+ * Takes an `Executor` rather than reaching for `deps.databases.control` so the assist
+ * slice's accept can store the draft in the same transaction that creates its questions.
  */
 export async function storeDraftDefinition(
   exec: Executor,
@@ -312,7 +219,6 @@ export async function storeDraftDefinition(
   definition: FormDefinition,
   agentAssisted: boolean,
 ): Promise<FormDraftRow> {
-  // Identity is fixed: a draft save cannot repoint the form's id.
   if (definition.formId !== formId) throw fail.idMismatch();
 
   const form = await getForm(exec, formId);
@@ -321,20 +227,16 @@ export async function storeDraftDefinition(
   return upsertDraft(exec, { formId, definition, agentAssisted });
 }
 
-/** {@link requireDefinition}, exported under a name that says which definition. */
 export const requireFormDefinition = requireDefinition;
 
-/** Key a pin by identity + version. */
 function pinKey(questionId: QuestionId, version: number): string {
   return `${questionId} ${String(version)}`;
 }
 
-/** Locate a pin by step + identity + version (a "carried-over" placement). */
 function placementKey(stepId: StepId, questionId: QuestionId, version: number): string {
   return `${stepId} ${questionId} ${String(version)}`;
 }
 
-/** Every distinct questionId pinned anywhere in a definition. */
 function pinnedQuestionIds(definition: FormDefinition): Set<QuestionId> {
   const ids = new Set<QuestionId>();
   for (const step of definition.steps) {
@@ -343,12 +245,6 @@ function pinnedQuestionIds(definition: FormDefinition): Set<QuestionId> {
   return ids;
 }
 
-/**
- * The publish lookups `compileDraft` needs, built from the caller's question
- * store (R3): a `resolveQuestion` over every pinned version and the map of
- * *published* versions per question. Also returns each pinned version's status,
- * so the deprecated-pin gate can tell a published pin from a deprecated one.
- */
 async function loadQuestionLookups(
   deps: Deps,
   definition: FormDefinition,
@@ -383,18 +279,9 @@ async function loadQuestionLookups(
 }
 
 /**
- * The deprecated-pin gate (DOMAIN_SCHEMA §4.1/§4.2 lifecycle). A deprecated
- * question version may **stay** pinned only if the exact placement
- * `(step, question, version)` was already in the previous published version - a
- * carried-over pin the author did not touch. A *new* pin (no prior published
- * version, or this placement is not in it) or a *moved* pin (same version, but
- * now in a different step) to a deprecated version is rejected `DEPRECATED_PIN`.
- *
- * Every pinned deprecated version is added to `publishedQuestionVersions` so
- * `compileDraft` treats it as resolvable published-once content (a deprecated
- * version is real, immutable content - not an unpublished draft), leaving this
- * gate the sole author of the deprecation verdict: a rejected pin is reported
- * once, as `DEPRECATED_PIN`, never doubled as `UNPUBLISHED_QUESTION_PIN`.
+ * A deprecated version may stay pinned only where the exact placement was already in the
+ * previous published version. Each one is added to `publishedQuestionVersions` so this
+ * gate is the sole author of the verdict and no pin is also reported as unpublished.
  */
 function deprecatedPinGate(
   definition: FormDefinition,
@@ -408,7 +295,7 @@ function deprecatedPinGate(
   for (const step of definition.steps) {
     for (const item of stepQuestionRefs(step)) {
       if (statusByPin.get(pinKey(item.questionId, item.version)) !== "deprecated") continue;
-      // Deprecated content is still valid content for compileDraft to resolve.
+      // Deprecated content is still valid content for `compileDraft` to resolve.
       publishedQuestionVersions.get(item.questionId)?.add(item.version);
       if (!carried.has(placementKey(step.stepId, item.questionId, item.version))) {
         issues.push({
@@ -423,12 +310,8 @@ function deprecatedPinGate(
 }
 
 /**
- * The carried-over placements of a draft's previous published version.
- *
- * `(step, question, version)` keyed, which is what "carried over" means for both gates
- * below: the author did not touch this pin. A pin moved to another step, or repointed to
- * another version, is a **new** pin even though the same question is involved, and both
- * gates treat it as one.
+ * A pin moved to another step, or repointed to another version, is a new pin rather than a
+ * carried one, and both gates below treat it as one.
  */
 function carriedPlacements(previousDefinition: FormDefinition | undefined): Set<string> {
   const carried = new Set<string>();
@@ -442,39 +325,9 @@ function carriedPlacements(previousDefinition: FormDefinition | undefined): Set<
 }
 
 /**
- * The workspace pin gate (ADR-41, Q14, finding 10; task 068's criterion 2).
- *
- * A form may pin a published question version owned by its **own** workspace or by the
- * **shared** workspace, and by nowhere else. A pin to any other workspace's question is
- * refused `FOREIGN_WORKSPACE_PIN` - unless the exact placement was already in the
- * previous published version, in which case it is **grandfathered**.
- *
- * # The grandfathering is two properties, not one
- *
- * Q14 says a form elsewhere that already pins a moved question keeps serving **and**
- * keeps that pin in its next draft. The first half needs no code: a published version is
- * immutable and the serve path replays it (R1, ADR-18), so a question moving workspaces
- * cannot disturb it. **The second half is this `carried` check**, and it is the half an
- * implementation drops, because the draft is where the refusal lives: without it, the
- * first ordinary edit to an unrelated step of that form would be unpublishable.
- *
- * # Why the mechanism is the deprecated-pin gate's
- *
- * The ruling asks for one mechanism rather than two, so this gate is the other one's
- * shape in every respect that is visible to an author: the same issue channel, the same
- * structured path, the same carried-placement rule, and therefore the same consequence
- * for a moved pin. Moving a grandfathered pin to another step is a new pin and is
- * refused; the author's way forward is the same as it is for a deprecated version, which
- * is to pin something they are allowed to pin.
- *
- * # What it does NOT do
- *
- * It does not ask who is publishing. A pin is a fact about the form's workspace and the
- * question's (`features/workspaces/rules.ts`), so this gate needs no membership and holds
- * for every caller, the installation administrator included. The **edit** half of
- * finding 10's asymmetry - that only the owning workspace's members may change a shared
- * question's wording - is the same module's `mayEditQuestion`, whose caller arrives with
- * task 069's resolver.
+ * A form may pin its own or the shared workspace's published versions. `carried`
+ * grandfathers a placement the previous version had. It never asks who is publishing,
+ * so the installation administrator is held to it too.
  */
 function workspacePinGate(
   definition: FormDefinition,
@@ -486,8 +339,7 @@ function workspacePinGate(
   for (const step of definition.steps) {
     for (const item of stepQuestionRefs(step)) {
       const question = ownershipByQuestion.get(item.questionId);
-      // A question with no ownership row is a question that does not exist, which
-      // `compileDraft` reports as an unresolvable pin. Nothing to add here.
+      // No ownership row means no such question, which `compileDraft` already reports.
       if (question === undefined) continue;
       if (mayPinQuestion({ formWorkspaceId, question })) continue;
       if (carried.has(placementKey(step.stepId, item.questionId, item.version))) continue;
@@ -502,26 +354,9 @@ function workspacePinGate(
 }
 
 /**
- * Run the full publish validation in dry-run: the deprecated-pin gate plus
- * `compileDraft` (008). Returns every issue (all errors, never first-only),
- * every non-blocking warning, and - when the draft is clean - the frozen
- * snapshot ready to compile and persist. Shared by the advisory paths (PUT
- * draft, validate) and publish itself.
- *
- * `warnings` is empty whenever the **kernel** reports errors, and that is the
- * real invariant: `compileDraft` advises only on a draft it could compile, so a
- * kernel error suppresses every warning (issue #123).
- *
- * It is **not** true that a warning cannot appear beside an issue. `issues` also
- * carries this layer's `DEPRECATED_PIN` and `FOREIGN_WORKSPACE_PIN` findings, so
- * a draft that moves a pin onto a deprecated version *and* reveals a same-step
- * question from a multiChoice answer has both facts and reports both. That coexistence is
- * deliberate rather than tolerated: suppressing the advisory because an
- * unrelated deprecation is open would drop information the author needs, and
- * would make the warning list depend on which *other* problems happen to exist.
- *
- * A warning never contributes to the refusal decision either way, which is why
- * every caller below tests `issues` rather than a combined count.
+ * `warnings` is empty whenever the kernel reports errors, since `compileDraft` advises
+ * only on a draft it could compile; this layer's own pin findings can still stand beside
+ * a warning. A warning never refuses, so every caller tests `issues` alone.
  */
 export async function validateDraft(
   deps: Deps,
@@ -546,11 +381,8 @@ export async function validateDraft(
     publishedQuestionVersions,
   );
 
-  // The workspace gate (068). The form's own workspace is read here rather than passed
-  // in, because every caller of this function has the `formId` and not the row, and the
-  // rule is about the state at validation time: a form moved between two publishes is
-  // judged against the workspace it is in NOW, which is what makes the answer the same
-  // one the publish a moment later will give.
+  // Read here rather than passed in so the rule judges the workspace the form is in now,
+  // which is the answer the publish a moment later will give.
   const form = await getForm(deps.databases.control, definition.formId);
   const ownership = await listQuestionOwnership(deps.databases.control, [
     ...pinnedQuestionIds(definition),
@@ -579,7 +411,6 @@ export async function validateDraft(
   };
 }
 
-/** True for a Postgres unique-violation (SQLSTATE 23505) on the id/cause. */
 function isUniqueViolation(err: unknown): boolean {
   const codeOf = (e: unknown): string | undefined =>
     typeof e === "object" && e !== null ? (e as { code?: string }).code : undefined;
@@ -587,12 +418,8 @@ function isUniqueViolation(err: unknown): boolean {
 }
 
 /**
- * Whether a unique violation came from `forms_slug_unique` rather than the primary key.
- *
- * Read off the constraint name, which the driver puts on the error (or on its `cause`,
- * since Drizzle wraps it). Naming the constraint is what lets one `catch` answer two
- * different mistakes correctly; matching on the message would couple the refusal to
- * Postgres's prose.
+ * Read off the constraint name, which the driver puts on the error or on its `cause`;
+ * matching the message instead would couple the refusal to Postgres's prose.
  */
 function isSlugViolation(err: unknown): boolean {
   const constraintOf = (e: unknown): string | undefined =>
@@ -601,8 +428,6 @@ function isSlugViolation(err: unknown): boolean {
     constraintOf(err) ?? constraintOf((err as { cause?: unknown }).cause) ?? undefined;
   return constraint === "forms_slug_unique";
 }
-
-// --- POST /admin/forms ------------------------------------------------------
 
 export function makeCreateFormHandler(deps: Deps): RouteHandler<typeof createFormRoute, ApiEnv> {
   return async (c) => {
@@ -613,9 +438,8 @@ export function makeCreateFormHandler(deps: Deps): RouteHandler<typeof createFor
     const locale = parseLocaleCode(body.defaultLocale);
     if (!locale.ok) throw fail.invalidLocale();
 
-    // An empty draft: the minimal working state an author fills in via PUT. It
-    // is deliberately not a *publishable* FormDefinition (no steps yet) - publish
-    // re-parses it (004) and rejects until real content is saved.
+    // Deliberately not publishable: publish re-parses it and rejects until the author
+    // saves real content.
     const emptyDraft: FormDefinition = {
       formId,
       defaultLocale: locale.value,
@@ -624,10 +448,7 @@ export function makeCreateFormHandler(deps: Deps): RouteHandler<typeof createFor
       rules: [],
     };
 
-    // The owning workspace (ADR-41, criterion 1): the one named, or the only one there
-    // is. Resolved before the transaction, so a refusal costs no database work, and
-    // refused rather than defaulted when more than one workspace could be meant
-    // (`features/workspaces/resolve.ts` carries Q19's reasoning for that).
+    // Resolved before the transaction, so a refusal costs no database work.
     const workspaceId = await resolveWorkspaceForNewObject(
       deps.databases.control,
       body.workspaceId,
@@ -637,11 +458,8 @@ export function makeCreateFormHandler(deps: Deps): RouteHandler<typeof createFor
       try {
         await createForm(tx, { formId, slug: body.slug, workspaceId, defaultLocale: locale.value });
       } catch (err: unknown) {
-        // Two unique keys can fire here now. `form_id` is the primary key, so a
-        // collision is a reused id; `forms_slug_unique` is task 068's installation-wide
-        // slug constraint (criterion 3), and a collision there is a different mistake
-        // with a different fix, so it gets its own code rather than being reported as a
-        // reused id.
+        // Two unique keys can fire: the primary key means a reused id, `forms_slug_unique`
+        // a different mistake with a different fix, so each gets its own code.
         if (isUniqueViolation(err)) {
           throw isSlugViolation(err) ? fail.slugTaken(body.slug) : fail.idTaken();
         }
@@ -665,25 +483,16 @@ export function makeCreateFormHandler(deps: Deps): RouteHandler<typeof createFor
   };
 }
 
-// --- GET /admin/forms -------------------------------------------------------
-
 export function makeListFormsHandler(deps: Deps): RouteHandler<typeof listFormsRoute, ApiEnv> {
   return async (c) => {
     const { status, search, sort } = c.req.valid("query");
-    // Narrowed to the workspaces the caller holds `form: read` in (ADR-41, task 069).
-    // The grant middleware resolved that set before this handler ran, so the list cannot
-    // show a form an act on that form would be refused for, and two groups sharing one
-    // installation do not see each other's forms. `undefined` is the installation-wide
-    // claim's answer, which is every workspace.
+    // Narrowed to the workspaces the caller holds `form: read` in, so two groups sharing
+    // one installation do not see each other's forms; `undefined` is every workspace.
     const rows = await listForms(deps.databases.control, {
       ...workspaceFilterFor(c.get("grantContext")),
     });
-    // The status is **per environment** and derived since task 066 (Q18): the Q6
-    // switcher's environment, read as one query for the whole list rather than one per
-    // form, because the list is the one screen that asks the question N times. A form
-    // with nothing released in this environment is absent from the map and reads `open`:
-    // nobody has closed it, and "nothing is released here" is a different answer that
-    // `latestVersion` and the release screens already give.
+    // One query for the whole list rather than one per form. A form with nothing released
+    // in this environment is absent from the map and reads `open`: nobody has closed it.
     const environment = requireEnvironment(
       deps,
       c.get("requestEnvironment") ?? deps.databases.defaultEnvironment,
@@ -692,13 +501,11 @@ export function makeListFormsHandler(deps: Deps): RouteHandler<typeof listFormsR
     const statusOf = (formId: FormId): "open" | "closed" =>
       states.get(formId)?.closed === true ? "closed" : "open";
 
-    // The status filter narrows before the per-row reads below rather than after them: a
-    // closed-only list of a library of fifty forms should not pay for fifty drafts.
+    // Narrows before the per-row reads below, so a closed-only list of fifty forms does
+    // not pay for fifty drafts.
     const byStatus =
       status === undefined ? rows : rows.filter((row) => statusOf(row.formId) === status);
 
-    // One draft/version read per row is fine at launch admin scale (R7); a
-    // denormalized status column is a Phase-4 optimization, not a launch need.
     const assembled = [];
     for (const row of byStatus) {
       const draft = await getDraft(deps.databases.control, row.formId);
@@ -713,19 +520,14 @@ export function makeListFormsHandler(deps: Deps): RouteHandler<typeof listFormsR
           latestVersion: latest === undefined ? null : latest.version,
           publishedAt: latest === undefined ? null : latest.publishedAt.toISOString(),
         },
-        // Beside the row rather than in it: the title is read for the search only, from
-        // the definitions the two reads above already loaded, and the response carries
-        // no title field. The list screen shows the slug, and adding a title column to
-        // it is a change to which columns the table carries rather than a change to how
-        // it is filtered, so the search reaches further than the table does.
+        // Beside the row rather than in it: the title is read for the search only, and
+        // the response carries no title field.
         title: titleOf(draft?.definition ?? latest?.definition),
       });
     }
 
-    // Search matches the slug or any locale of the form title, which is the question
-    // library's rule with `label` swapped for `title`. The author's own draft title
-    // wins over the published one when both exist: a rename that has not been
-    // published yet is still what the author is looking for.
+    // The draft title wins over the published one: an unpublished rename is still what
+    // the author is looking for.
     const needle = search?.trim().toLowerCase();
     const matched =
       needle === undefined || needle === ""
@@ -739,12 +541,10 @@ export function makeListFormsHandler(deps: Deps): RouteHandler<typeof listFormsR
   };
 }
 
-/** The localized title carried by any form definition (used for list search). */
 function titleOf(definition: FormDefinition | undefined): unknown {
   return definition === undefined ? undefined : (definition as { title?: unknown }).title;
 }
 
-/** Substring-match a needle against any locale value of a localized title. */
 function titleMatches(title: unknown, needle: string): boolean {
   if (title === null || typeof title !== "object") return false;
   return Object.values(title as Record<string, unknown>).some(
@@ -752,24 +552,13 @@ function titleMatches(title: unknown, needle: string): boolean {
   );
 }
 
-/** The two fields an order is decided on, whatever else the assembled row carries. */
 interface Orderable {
   readonly row: { readonly slug: string; readonly publishedAt: string | null };
 }
 
 /**
- * Order the library (issue 686).
- *
- * `slug-asc` is the default because the slug is what the list's identifying column
- * shows and what an author names a form by; the previous order was `forms.form_id`,
- * which is an id column nothing on the screen reads.
- *
- * A form that was never published has no publish date, so it cannot take a position
- * on a publish-date axis. Rather than invent one (treating it as the epoch would put
- * every unpublished form at the top of "oldest published", which answers a question
- * nobody asked), unpublished rows go **last in both directions** and are ordered
- * among themselves by slug. Every comparison falls back to the slug, so the order is
- * total and two renders of the same library never disagree.
+ * A form never published has no publish date, so unpublished rows go last in both
+ * directions. Every comparison falls back to the slug, so the order is total.
  */
 function sortForms<T extends Orderable>(rows: readonly T[], sort: SortKey): T[] {
   const bySlug = (a: T, b: T): number => a.row.slug.localeCompare(b.row.slug);
@@ -797,10 +586,7 @@ function sortForms<T extends Orderable>(rows: readonly T[], sort: SortKey): T[] 
   }
 }
 
-/** The orders `GET /admin/forms` guarantees, from the route's own query schema. */
 type SortKey = NonNullable<z.infer<typeof ListFormsQuery>["sort"]>;
-
-// --- GET /admin/forms/:id ---------------------------------------------------
 
 export function makeGetFormHandler(deps: Deps): RouteHandler<typeof getFormRoute, ApiEnv> {
   return async (c) => {
@@ -857,9 +643,7 @@ export function makeGetFormHandler(deps: Deps): RouteHandler<typeof getFormRoute
       currentVersion: environmentState?.version ?? null,
     };
 
-    // The draft the editor opens: the open draft if one exists, otherwise seeded
-    // from the latest published version (§4.1 "new draft opened, seeded from vN")
-    // - a read-time convenience, not persisted until the author saves (PUT).
+    // A read-time convenience: a seeded draft is not persisted until the author saves.
     let draft: FormDefinition | null = null;
     let draftSource: "open" | "seeded" | "none" = "none";
     if (openDraft !== undefined) {
@@ -875,8 +659,6 @@ export function makeGetFormHandler(deps: Deps): RouteHandler<typeof getFormRoute
         formId: form.formId,
         slug: form.slug,
         defaultLocale: form.defaultLocale,
-        // The Q6 switcher's environment's intake state (Q18), derived from the release
-        // state rather than read from a column that no longer exists.
         status: environmentState?.closed === true ? ("closed" as const) : ("open" as const),
         draft,
         draftSource,
@@ -890,27 +672,13 @@ export function makeGetFormHandler(deps: Deps): RouteHandler<typeof getFormRoute
           compilerVersion: v.compilerVersion,
           a2uiSpecVersion: v.a2uiSpecVersion,
           semanticsVersion: v.semanticsVersion,
-          // The author Q51's two-person rule compares a `prod` release against (task 070).
           publishedBy: v.publishedBy,
         })),
-        // The abuse-control settings ride the detail read (033's settings panel)
-        // rather than getting a GET of their own: they live on the identity row
-        // this handler has already loaded, and a panel that needed a second round
-        // trip to render one switch would be a worse screen for no gain.
         settings: {
           challengeRequired: form.challengeRequired,
           minSubmitMs: form.minSubmitMs,
         },
-        // A derived boolean, never the provider name: ADR-24 says clients
-        // receive behavior, not flag values. It rides along on the read so the
-        // panel can warn on load that `challengeRequired` is unenforceable
-        // (033), rather than only discovering it after a write.
         challengeEnforceable: challengeEnforceable(deps.config.flags),
-        // Whether the two-person rule applies to a `prod` release of this form (Q13, Q30;
-        // task 070). On the detail read for the reason `challengeEnforceable` is: the
-        // screen has to be able to say the rule applies *before* the operator presses
-        // anything, and the workspace row it comes from is an owner's to read (Q35) while
-        // the account that needs to be told is the approver's.
         requiresSecondApprover: workspace?.requireSecondApprover ?? false,
         workflow,
       },
@@ -919,18 +687,13 @@ export function makeGetFormHandler(deps: Deps): RouteHandler<typeof getFormRoute
   };
 }
 
-// --- PUT /admin/forms/:id/draft ---------------------------------------------
-
 export function makePutDraftHandler(deps: Deps): RouteHandler<typeof putDraftRoute, ApiEnv> {
   return async (c) => {
     const formId = requireFormId(c.req.valid("param").id);
     const definition = requireDefinition(c.req.valid("json").definition);
 
-    // Save first (drafts may be temporarily inconsistent), then advise. Advisory
-    // issues do not block the save; they block publish.
-    //
-    // 041: an accepted agent proposal marks the draft's provenance. Sticky in
-    // the query, so a plain save after one never clears the mark.
+    // Save first, then advise: a draft may be temporarily inconsistent, and the issues
+    // block publish rather than the save.
     const saved = await storeDraftDefinition(
       deps.databases.control,
       formId,
@@ -952,8 +715,6 @@ export function makePutDraftHandler(deps: Deps): RouteHandler<typeof putDraftRou
   };
 }
 
-// --- POST /admin/forms/:id/draft/validate -----------------------------------
-
 export function makeValidateDraftHandler(
   deps: Deps,
 ): RouteHandler<typeof validateDraftRoute, ApiEnv> {
@@ -965,55 +726,21 @@ export function makeValidateDraftHandler(
     const form = await getForm(deps.databases.control, formId);
     if (form === undefined) throw fail.formNotFound();
 
-    // `valid` keys off errors alone: a warning describes a draft that would
-    // publish, so counting it here would refuse on advice (issue #123).
+    // `valid` keys off errors alone: a warning describes a draft that would publish.
     const { issues, warnings } = await validateDraft(deps, definition);
     return c.json({ valid: issues.length === 0, issues, warnings: [...warnings] }, 200);
   };
 }
 
-// --- hypothetical rosters, shared by both admin preview routes (074) --------
-
-/** The roster an admin preview evaluated with, in both shapes it is needed in. */
 interface Hypothetical {
-  /** What `evaluateRules` takes as its fourth parameter. */
   readonly rosters: RosterMap;
-  /** What the response echoes, so the panel can state what it answered about. */
   readonly projection: { groupId: string; instances: string[] }[];
 }
 
 /**
- * Turn the caller's hypothetical instance ids into a roster the evaluator will take.
- *
- * ## Why a preview has to be handed a roster at all
- *
- * `evaluateRules` takes the live roster as a parameter rather than deriving it from the
- * answer keys, and ADR-42 gives the reason: an instance a respondent has added and not yet
- * answered would not exist in a derived roster, so "Add passenger" would do nothing visible.
- * The roster is state the SERVER owns at serve time, out of `answer_group_instances`. An
- * admin preview has no session and therefore no such state, so the author's screen mints one
- * - from the group's own `min`, or from a count the author types - and sends it (section 6.5).
- *
- * ## What this refuses, and what it quietly drops
- *
- * A group the definition does not declare contributes nothing: that is `DANGLING_GROUP_REF`
- * at publish, a refusal with its own sentence, and inventing a roster for it here would make
- * a rule reading a non-existent group appear to work in the preview and fail at publish.
- *
- * An id that is not a well-formed `InstanceId` is dropped rather than refused, because the
- * one thing it can be is a caller bug and the honest rendering of it is an instance that is
- * not there. Duplicates are dropped too: roster ORDER is meaning (ADR-42 widens I7's
- * determinism statement to include it), and a repeated id would make one instance appear
- * twice in a walk that is supposed to visit each once.
- *
- * The list is **truncated at the group's declared maximum**, which is not belt-and-braces
- * tidiness: a preview showing ten instances of a group whose `max` is nine would be a claim
- * about a page no respondent can reach, and the API is where the bound is known from the
- * pinned definition rather than from anything the caller said. A `fixed` count is its own
- * bound, so it truncates at the count. A group whose author has not filled the required `max`
- * in yet has no declaration to truncate against, and truncates at
- * {@link PREVIEW_INSTANCE_CAP} instead - which bounds one request and no form's maximum. See
- * that constant for why Q14 still holds.
+ * A group the definition does not declare contributes nothing, so a rule reading one cannot
+ * appear to work here and fail at publish. A malformed id is dropped rather than refused,
+ * and a duplicate too, since roster order is meaning and one instance must appear once.
  */
 function hypotheticalRosters(
   definition: FormDefinition,
@@ -1030,41 +757,17 @@ function hypotheticalRosters(
 }
 
 /**
- * The most instances ONE ADMIN PREVIEW REQUEST may hypothesise about a group whose author has
- * not declared a maximum yet (task 074; the Code Owner read a preview-only cap as inside Q14 on
- * 2026-10-03).
- *
- * **It bounds one request's hypothesis and no form's declared maximum**, and that distinction is
- * the whole of why it is consistent with Q14 rather than a reinstatement of the ceiling Q14
- * removed. A group may declare any `max` it likes and this number never touches it: a group with
- * a declared maximum truncates against the author's own figure, above or below this, exactly as
- * before. What this covers is the state `addGroup` deliberately creates - `open` with `min: 1`
- * and NO `max`, because `max` is a required field with no safe default (SEC-16) - in which
- * `countBounds` answers `undefined` and nothing else in either preview route bounded the
- * caller's instance list.
- *
- * **Why the kernel's own budget does not cover it.** `REPEAT_EVALUATION_BUDGET` is checked at
- * publish against DECLARED maxima and never at runtime against live counts
- * (`packages/core/src/step.ts`), and neither preview route runs `analyzeRuleGraph` - so operator
- * nesting is likewise unrefused here, and a bench request may target inside one group while
- * applying a whole-group operator over another at the product of the two roster lengths. This
- * cap is what bounds that product, because the bench form's own groups take their `max` from the
- * truncated roster: fifty by fifty is the worst shape one request can ask for.
- *
- * Fifty rather than a larger number because a preview is a thing an author reads: a hypothesis
- * nobody can scan is not a preview, and both sample use cases in
- * `plan/repeating-groups-and-table-input.md` section 1 fit inside it with room (nine passengers,
- * twenty income sources). An author who needs to see more declares the `max` they actually mean,
- * which is the field the panel marks required.
+ * Bounds one preview request's hypothesis about a group whose author has not declared a
+ * `max` yet, and never a form's declared maximum. Without it nothing bounds the caller's
+ * instance list, and the kernel's evaluation budget is checked only at publish.
  */
 const PREVIEW_INSTANCE_CAP = 50;
 
 function rosterFor(group: RepeatGroup, asked: readonly string[]): readonly InstanceId[] {
   const seen = new Set<string>();
   const instances: InstanceId[] = [];
-  // The author's own declaration where there is one, and the preview-only cap where there is
-  // not. Never the smaller of the two: a declared `max` above the cap is the author's figure and
-  // a preview of it is a preview of what a respondent can reach.
+  // Never the smaller of the two: a declared `max` above the cap is the author's own figure,
+  // and a preview of it is a preview of what a respondent can reach.
   const ceiling = countBounds(group.count).max ?? PREVIEW_INSTANCE_CAP;
   for (const candidate of asked) {
     if (instances.length >= ceiling) break;
@@ -1078,29 +781,8 @@ function rosterFor(group: RepeatGroup, asked: readonly string[]): readonly Insta
 }
 
 /**
- * Read the caller's hypothetical answers into an `AnswerMap`, keyed the way the evaluator
- * keys them.
- *
- * A bare `questionId` for a question outside every repeating group, byte-identically to what
- * both routes always accepted, and `instanceId/questionId` for a question inside one. Three
- * things are checked for a qualified key, and each of them closes a way for the preview to
- * disagree with what a respondent would get:
- *
- * 1. the question is pinned by the definition at all (the same check a bare key gets);
- * 2. it is pinned INSIDE the group the instance belongs to, so an answer cannot be smuggled
- *    into an instance of a group that does not hold that question;
- * 3. the instance is in that group's roster, which is the same "is this instance live"
- *    precondition `SEC-16` puts on every real answer write.
- *
- * `onUnreadable` is how the two routes differ, and they differ for a stated reason. The bench
- * declines the whole request (`unresolvedAnswers`) rather than treating a malformed relevant
- * value as unanswered and reporting a confident `noMatch` the author would have to debug. The
- * preview skips, because its values arrive from the shared renderer and an unreadable one
- * means the author changed the draft under their own answers - whose honest rendering is a
- * question reading as unanswered, not a pane that goes blank while they edit.
- *
- * SEC-13 / ADR-34: these are answer-shaped values. Read here, never logged, never persisted,
- * never echoed into a response or an error message.
+ * A qualified key must name a pinned question inside the instance's group, with that
+ * instance in the roster (SEC-16). SEC-13 / ADR-34: values are never logged or echoed.
  */
 function collectKeyedAnswers(
   supplied: Readonly<Record<string, unknown>> | undefined,
@@ -1125,7 +807,6 @@ function collectKeyedAnswers(
   return answers;
 }
 
-/** One supplied key as an evaluator key, or `undefined` when it names nothing answerable. */
 function resolveAnswerKey(
   key: string,
   pins: ReadonlyMap<QuestionId, number>,
@@ -1135,9 +816,8 @@ function resolveAnswerKey(
   const cut = key.indexOf("/");
   if (cut < 0) {
     const questionId = parseQuestionId(key);
-    // A question INSIDE a group answered by its bare id is dropped rather than accepted: it
-    // has one answer per instance and no single value, so there is no instance the value
-    // could belong to. Accepting it would put a key in the map the evaluator never reads.
+    // A question inside a group has one answer per instance, so its bare id names no single
+    // value and is dropped rather than put in a map the evaluator never reads.
     if (!questionId.ok || !pins.has(questionId.value)) return undefined;
     return groupOf.has(questionId.value) ? undefined : questionId.value;
   }
@@ -1150,24 +830,14 @@ function resolveAnswerKey(
   return answerKey(questionId.value, instanceId.value);
 }
 
-// --- POST /admin/forms/:id/draft/preview-condition --------------------------
-
-/**
- * The two synthetic step ids the bench form carries. The bench form is built,
- * evaluated, and thrown away inside one request: it is never persisted, never
- * pinned, and never published, so these cannot collide with authored ids in
- * storage (R6).
- */
 // Cast justification (both): string literals written to the `stp_[a-z0-9_]+` id
 // grammar, so the brand is a compile-time label over a value that is correct by
 // construction. Parsing them would be a runtime check of a constant.
 const BENCH_READS_STEP_ID = "stp_bench_reads" as StepId;
 const BENCH_TARGET_STEP_ID = "stp_bench_target" as StepId;
 
-/** Why the bench could not answer. The response's single failure channel. */
 type PreviewReason = "unparseableDraft" | "ruleNotFound" | "noTarget" | "unresolvedAnswers";
 
-/** The preview response body, shaped once so every exit agrees on it. */
 interface PreviewVerdict {
   readonly ruleId: string;
   readonly references: string[];
@@ -1177,12 +847,8 @@ interface PreviewVerdict {
 }
 
 /**
- * An "I cannot answer that" verdict. Tri-state `outcome` plus a typed `reason`,
- * never a nullable boolean: the panel must be able to tell "could not evaluate"
- * from a real "no match", and a half-built draft makes the former ordinary.
- *
- * The roster rides on this exit too, and deliberately: a panel showing three hypothetical
- * passengers beside "could not evaluate" has to be able to say what it could not evaluate.
+ * Tri-state `outcome` plus a typed `reason` rather than a nullable boolean, so the panel
+ * can tell "could not evaluate" from a real "no match".
  */
 function unavailable(
   ruleId: string,
@@ -1193,11 +859,7 @@ function unavailable(
   return { ruleId, references: [...references], outcome: "unavailable", reason, rosters };
 }
 
-/**
- * Every questionId the definition pins, mapped to the version it pins it at.
- * A parsed definition pins each question at most once (the kernel rejects
- * `DUPLICATE_QUESTION_IN_FORM`), so this map is total and unambiguous.
- */
+/** A parsed definition pins each question at most once, so the map is unambiguous. */
 function pinsByQuestion(definition: FormDefinition): Map<QuestionId, number> {
   const pins = new Map<QuestionId, number>();
   for (const step of definition.steps) {
@@ -1207,11 +869,8 @@ function pinsByQuestion(definition: FormDefinition): Map<QuestionId, number> {
 }
 
 /**
- * The questions the condition reads: those the draft pins first, in the draft's
- * own document order, then any it does not pin. Document order is the meaningful
- * order because the forward pass is order-sensitive (ADR-16); the unpinned tail
- * still ships so the panel can show a reference that has no resolvable version
- * (it reads as unanswered rather than silently vanishing).
+ * Document order is the meaningful order because the forward pass is order-sensitive; the
+ * unpinned tail still ships so a reference with no resolvable version does not vanish.
  */
 function orderedReferences(
   definition: FormDefinition,
@@ -1228,11 +887,7 @@ function orderedReferences(
   return [...pinned, ...[...referenced].filter((questionId) => !pins.has(questionId))];
 }
 
-/**
- * The rule's bench target: the first `show` entry that resolves to a question the
- * draft pins. A step target stands for its first question, because that is the
- * first thing a respondent would actually see the step reveal.
- */
+/** A step target stands for its first question: the first thing the step would reveal. */
 function benchTarget(
   definition: FormDefinition,
   rule: VisibilityRule,
@@ -1252,48 +907,18 @@ function benchTarget(
 }
 
 /**
- * The bench's own form, assembled so that the one rule under test is the only thing deciding
- * whether its target is visible (074 widens it to repeating groups).
- *
- * ## Why the bench form has to know about groups at all
- *
- * Because scope is implicit BY POSITION (ADR-42 §3.4). A rule whose target sits inside group
- * H is evaluated once per live instance of H, and a condition reading another question in H
- * resolves to that instance's answer. None of that is written in the condition, so a bench
- * form that flattened H into a plain step would evaluate the rule once, against one answer
- * per question, and report a single verdict for a rule that genuinely has one verdict per
- * instance. The author would come to the bench precisely to find that out and be told the
- * opposite.
- *
- * So each group the rule touches is declared in the bench form as a group:
- *
- * - the group the TARGET sits in, which is what makes the evaluation per instance, and which
- *   carries the target as its last member so the reads in it come first;
- * - the group of any question the condition reads bare, which is the inside-out case;
- * - any group a whole-group operator names, which is the outside-in case and needs the group
- *   to exist even when nothing in it is read by name (`instanceCount` reads no question, so
- *   its group is declared holding its own first member as the one pin `items.min(1)` needs).
- *
- * ## The count source is always `open`, and that is deliberate
- *
- * The roster is passed to the evaluator explicitly, so the bench group's count source decides
- * nothing about the walk - it only has to parse. `open` is the one source that needs no other
- * question in the form: copying a `fromAnswer` source would pull the count question into the
- * bench, or leave the bench form naming a question it does not pin. The `max` is the roster
- * the bench was handed, which has already been truncated against the author's own declaration.
+ * Scope is implicit by position, so each group the rule touches must be declared, or one
+ * verdict is reported where the rule has one per instance. The count source is `open`,
+ * the one source needing no other question.
  */
 interface BenchForm {
   readonly definition: FormDefinition;
-  /** The group the target sits in, which is exactly when the rule is per-instance. */
   readonly targetGroupId?: GroupId | undefined;
 }
 
 /**
- * Which groups the bench has to declare: the target's, every one holding a question the
- * condition reads, and every one a whole-group operator names.
- *
- * A group the rule does not touch is left out, because a group the bench declares and nothing
- * reads is a span the evaluator walks for no verdict.
+ * A group the rule does not touch is left out: one the bench declares and nothing reads is
+ * a span the evaluator walks for no verdict.
  */
 function benchWantedGroups(
   rule: VisibilityRule,
@@ -1314,7 +939,6 @@ function benchWantedGroups(
   return wanted;
 }
 
-/** The questions the condition reads, split by the container the bench has to put them in. */
 function benchReads(
   target: QuestionRef,
   references: readonly QuestionId[],
@@ -1327,9 +951,8 @@ function benchReads(
   const bare: QuestionRef[] = [];
   const byGroup = new Map<GroupId, QuestionRef[]>();
   for (const questionId of references) {
-    // The target is excluded from the reads even when the condition reads it: the kernel
-    // refuses a question pinned twice in one form, and a self-reference then correctly reads
-    // as unanswered, which is what a forward pass would do anyway.
+    // The kernel refuses a question pinned twice in one form, and a self-reference then
+    // reads as unanswered, which is what a forward pass would do anyway.
     if (questionId === target.questionId) continue;
     const version = pins.get(questionId);
     if (version === undefined) continue;
@@ -1385,23 +1008,16 @@ function benchForm(
   const readItems = [...bareReads, ...readGroups];
   const targetGroup = targetGroupId === undefined ? undefined : groupItem(targetGroupId);
   const targetItems = targetGroup === undefined ? [target] : [targetGroup];
-  /** Whether the target's own group carries any of the questions the condition reads. */
   const readsInTargetGroup =
     targetGroupId !== undefined && (readsByGroup.get(targetGroupId) ?? []).length > 0;
 
-  // NO READABLE INPUT means no answer the bench could vary: the condition reads only questions
-  // the draft does not pin and names no group it declares, so there is nothing to evaluate. A
-  // group-only read still counts, because the instance COUNT is a thing the author can vary
-  // (`instanceCount` is the whole case), and so does a read that sits in the target's OWN group,
-  // which is the inside-out case and the commonest shape of all.
+  // No readable input means no answer the bench could vary. A group-only read still counts,
+  // since the instance count is itself variable, and so does a read inside the target's own
+  // group.
   if (readItems.length === 0 && !readsInTargetGroup) return undefined;
 
-  // ONE STEP when every read is inside the target's own group, and that is the inside-out case
-  // rather than a special case: "this passenger is an infant, show this passenger's fare basis"
-  // reads and shows inside one span, so a second step would be a step with no items - which the
-  // kernel refuses (`items.min(1)`) and which would make the bench decline to answer the most
-  // ordinary per-instance rule there is. The group's member order puts the reads before the
-  // target, so the forward pass sees them in that order within each instance.
+  // One step when every read is inside the target's own group: a second step would have no
+  // items, which the kernel refuses.
   const steps =
     readItems.length === 0
       ? [{ stepId: BENCH_TARGET_STEP_ID, title: definition.title, items: targetItems }]
@@ -1425,45 +1041,10 @@ function benchForm(
 }
 
 /**
- * The rule test bench (033): does this rule's condition match these answers?
- *
- * ## Why the API answers this and the admin does not
- *
- * The bench needs `@roonga/qcms-core`'s evaluator, and the admin app is a strict BFF
- * that imports no kernel value at all (R2, enforced by the admin's
- * `r2-import-surface.test.ts`). So the evaluator runs where it already lives.
- * The task file's original "client-side evaluation" wording is superseded by
- * the enforced server-side boundary.
- *
- * ## Why a synthetic two-step form, and not the draft itself
- *
- * ADR-16 evaluation is a single forward pass, so a target's visibility is only
- * well-defined when it sits after every question the condition reads. The real
- * draft need not satisfy that, and a backward target is precisely one of the
- * things an author comes to the bench to understand: evaluating the draft
- * directly would answer "what is visible right now", which is a different
- * question, and would conflate this rule's verdict with every other rule that
- * happens to target the same question.
- *
- * So the bench evaluates a purpose-built form that isolates the one question it
- * actually asks:
- *
- *   step 1 `stp_bench_reads`  - the questions this condition reads, at the
- *                               versions the draft pins them at;
- *   step 2 `stp_bench_target` - the rule's target, alone;
- *   rules                     - this one rule, nothing else.
- *
- * The target is excluded from step 1 even when the condition reads it, because
- * the kernel rejects a question pinned twice in one form; a self-reference then
- * correctly reads as unanswered, which is what a forward pass would do anyway.
- * Since the target is hidden unless a targeting rule matches and this form has
- * exactly one rule, "the target is visible" *is* "the condition matched".
- *
- * Whether the rule is *legally placed* is `analyzeRuleGraph`'s answer, already
- * reported by `draft/validate` as `RULE_BACKWARD_TARGET`/`RULE_CYCLE`. This
- * endpoint deliberately does not duplicate that verdict.
- *
- * Nothing is stored and nothing is compiled.
+ * Evaluates a purpose-built form rather than the draft: evaluation is a single forward
+ * pass, so a target's visibility is only well-defined when it sits after every question
+ * the condition reads, and the bench form has exactly one rule, which makes "the target is
+ * visible" mean "the condition matched". Nothing is stored and nothing is compiled.
  */
 export function makePreviewConditionHandler(
   deps: Deps,
@@ -1472,19 +1053,14 @@ export function makePreviewConditionHandler(
     const formId = requireFormId(c.req.valid("param").id);
     const body = c.req.valid("json");
 
-    // The form must exist for the route to mean anything, so an unknown form is a
-    // 404 exactly as it is on validate - never a 200 "unavailable".
     const form = await getForm(deps.databases.control, formId);
     if (form === undefined) throw fail.formNotFound();
 
-    // Unlike validate, an unparseable definition is NOT an error here: the bench
-    // is a read-only aid over a draft that is legitimately half-built while the
-    // author works, so it reports an ordinary `unavailable` verdict instead of
-    // blanking the panel with a 422 at the moment it is most wanted.
+    // Unlike validate, an unparseable definition is not an error here: the bench is a
+    // read-only aid over a draft that is legitimately half-built while the author works.
     const parsed = parseFormDefinition(body.definition);
     if (!parsed.ok) return c.json(unavailable(body.ruleId, [], "unparseableDraft"), 200);
     const definition = parsed.value;
-    // Identity is fixed: a preview cannot be run against another form's draft.
     if (definition.formId !== formId) throw fail.idMismatch();
 
     const rule = definition.rules.find((candidate) => candidate.ruleId === body.ruleId);
@@ -1492,8 +1068,8 @@ export function makePreviewConditionHandler(
 
     const pins = pinsByQuestion(definition);
     const references = orderedReferences(definition, rule, pins);
-    // The roster the AUTHOR's draft bounds, not the bench form's: the maxima that truncate it
-    // are the author's own declarations, and the bench form is built from the result.
+    // Bounded by the author's draft, not the bench form's: the bench form is built from
+    // the result.
     const asked = hypotheticalRosters(definition, body.instances);
 
     const target = benchTarget(definition, rule, pins);
@@ -1509,12 +1085,8 @@ export function makePreviewConditionHandler(
       );
     }
 
-    // Version-exact resolution through the same path publish uses, so the bench
-    // and publish can never disagree about which content a pin names (R1).
-    // `loadQuestionLookups` hands back a `ResolveQuestionVersion` (id + version)
-    // while the evaluator wants a `ResolveQuestion` (id only); the bench form's
-    // own pin map is what bridges the two, and it is what keeps this lookup
-    // version-exact instead of silently resolving to a question's newest version.
+    // The bench form's own pin map bridges `ResolveQuestionVersion` to the evaluator's
+    // `ResolveQuestion`, keeping the lookup version-exact rather than newest-version.
     const { resolveQuestion } = await loadQuestionLookups(deps, bench.definition);
     const benchPins = pinsByQuestion(bench.definition);
     const resolve: ResolveQuestion = (questionId) => {
@@ -1522,9 +1094,8 @@ export function makePreviewConditionHandler(
       return version === undefined ? undefined : resolveQuestion(questionId, version)?.definition;
     };
 
-    // The roster is re-derived against the BENCH form, because that is the definition the
-    // evaluator is handed: a group the bench did not need to declare has no roster entry, and
-    // an entry for a group the definition does not carry is a key the evaluator never reads.
+    // Re-derived against the bench form, since that is the definition the evaluator is
+    // handed: a group it did not declare has no roster entry.
     const benchRosters = hypotheticalRosters(bench.definition, rosterRecord(asked.projection));
     const answers = collectKeyedAnswers(
       body.answers,
@@ -1541,9 +1112,7 @@ export function makePreviewConditionHandler(
     }
 
     const flow = evaluateRules(bench.definition, answers, resolve, benchRosters.rosters);
-    // A typed evaluation failure (an unresolvable pin, a type mismatch) is the
-    // bench declining to answer, not an API error: same read-only-aid reasoning
-    // as the unparseable draft above.
+    // A typed evaluation failure is the bench declining to answer, not an API error.
     if (!flow.ok) {
       return c.json(
         unavailable(rule.ruleId, references, "unresolvedAnswers", asked.projection),
@@ -1553,10 +1122,8 @@ export function makePreviewConditionHandler(
 
     const hits = flow.value.visible.filter((entry) => entry.questionId === target.questionId);
     const targetGroupId = bench.targetGroupId;
-    // ONE VERDICT PER INSTANCE when the target is inside a group, and it is an EMPTY LIST
-    // rather than an absent key when that group has no instance. The empty list is the
-    // zero-instance case seen from the panel's side, and it is the honest answer: the rule
-    // matched for none of nothing, which is not the same as a rule that was not evaluated.
+    // An empty list rather than an absent key when the group has no instance: matched for
+    // none of nothing is not the same as a rule that was not evaluated.
     const instanceOutcomes =
       targetGroupId === undefined
         ? undefined
@@ -1580,7 +1147,6 @@ export function makePreviewConditionHandler(
   };
 }
 
-/** The projection read back as the record shape {@link hypotheticalRosters} takes. */
 function rosterRecord(
   projection: readonly { groupId: string; instances: readonly string[] }[],
 ): Record<string, readonly string[]> {
@@ -1589,42 +1155,10 @@ function rosterRecord(
   return record;
 }
 
-// --- POST /admin/forms/:id/draft/preview ------------------------------------
-
 /**
- * The live draft preview (034): compile the draft the author is looking at, and
- * project it for the answers they have walked in with.
- *
- * ## Why the API compiles, and the admin does not
- *
- * The same reasoning 032's question preview settled and 033's rule bench
- * repeated: compiling in the admin would put `@roonga/qcms-a2ui-compiler` and
- * `@roonga/qcms-core` inside a strict BFF, which is exactly the capability the admin's
- * `r2-import-surface.test.ts` exists to keep out (R2). Running it here also makes
- * preview fidelity **structural** rather than a version coincidence: preview and
- * publish call the same `compileForm` in the same process, so they cannot drift.
- *
- * ## Why the visible set comes back with it
- *
- * The task file and the screen contract both describe the author walking branches with
- * "the core evaluator client-side". That is not implementable and has already
- * been ruled on once: rule evaluation lives in the API, and the portal does no
- * rule evaluation either - it
- * receives an authoritative `visibleQuestions` list and projects the full
- * compiled document onto it (`documentForVisible`, R2). So this route returns the
- * *same pair* the portal's serve-step returns, and the admin projects and renders
- * it through the identical shared code. Preview fidelity is stronger for it: the
- * admin is not a second implementation of visibility, it is the same one.
- *
- * ## Why a draft that will not compile is a 422 and not a blank pane
- *
- * A preview of an unpublishable draft would be a claim about what a respondent
- * would see that publish would then refuse to honour. The issues come back
- * verbatim in the same `details.issues` envelope publish uses, so the pane
- * renders the author's real next action instead of an empty step.
- *
- * Nothing here writes. The draft is not saved, the answers are not stored, and
- * the compiled output is not the ADR-18 audit copy: only publish writes that.
+ * Compiles here rather than in the admin, which imports no kernel value (R2), and returns
+ * the same pair the portal's serve-step returns so the admin is not a second
+ * implementation of visibility. Nothing here writes.
  */
 export function makePreviewDraftHandler(
   deps: Deps,
@@ -1641,36 +1175,28 @@ export function makePreviewDraftHandler(
 
     const { issues, snapshot } = await validateDraft(deps, definition);
     if (issues.length > 0 || snapshot === undefined) {
-      // `PREVIEW_REJECTED` always carries at least one issue, and that is an
-      // invariant rather than a happy accident: the admin's copy for it promises
-      // "the reasons are listed below", so a rejection with nothing to list would
-      // print a promise it cannot keep. A compile that fails without saying why
-      // therefore takes the other door.
+      // `PREVIEW_REJECTED` always carries at least one issue: the admin's copy promises
+      // "the reasons are listed below", so a compile that fails silently takes the other
+      // door.
       if (issues.length === 0) throw fail.previewUnavailable();
       throw fail.previewRejected(issues);
     }
 
     const compiled = compileForm(snapshot, {});
 
-    // The snapshot already carries the version-exact question records the pins
-    // resolved to, so the evaluator's resolver is built from it rather than by
-    // reading the library a second time. Version-exact matters (R1): resolving a
-    // pin to a question's newest version would preview content the draft does
-    // not name.
+    // Built from the snapshot so the resolver stays version-exact: resolving a pin to a
+    // question's newest version would preview content the draft does not name.
     const definitionByQuestion = new Map(
       snapshot.questions.map((record) => [record.questionId, record.definition] as const),
     );
     const resolve: ResolveQuestion = (questionId) => definitionByQuestion.get(questionId);
 
-    // THE PREVIEW'S OWN ROSTER (ADR-42 §6.5). There is no session here, so there is no live
-    // roster: the author's screen mints one from each group's `min` or from a count it lets
-    // them type, and sends it. Truncated against the author's own declared maxima, so the
-    // preview cannot show a page no respondent could reach.
+    // No session here, so the roster is the caller's hypothesis, truncated against the
+    // author's declared maxima so the preview cannot show a page no respondent can reach.
     const asked = hypotheticalRosters(definition, body.instances);
     // `skip` rather than `refuse`, unlike the bench: these values arrive from the shared
     // renderer, so an unreadable one means the author changed the draft under their own
-    // answers, and the honest rendering of that is a question reading as unanswered rather
-    // than a pane that goes blank while they edit.
+    // answers, which honestly renders as a question reading unanswered.
     const answers = collectKeyedAnswers(
       body.answers,
       definition,
@@ -1680,11 +1206,8 @@ export function makePreviewDraftHandler(
     );
     if (answers === undefined) throw fail.previewUnavailable();
     const flow = evaluateRules(snapshot, answers, resolve, asked.rosters);
-    // A clean draft plus renderer-shaped answers cannot fail the forward pass:
-    // every pin resolves and every rule type-checked during validation above. If
-    // it ever does, it fails as what it is - an evaluation that could not run -
-    // rather than as a rejection with an empty issue list, which would show the
-    // author a sentence promising reasons that do not exist.
+    // Unreachable after a clean validation; if it ever happens it fails as an evaluation
+    // that could not run rather than as a rejection with an empty issue list.
     if (!flow.ok) throw fail.previewUnavailable();
 
     return c.json(
@@ -1697,20 +1220,16 @@ export function makePreviewDraftHandler(
         a2uiSpecVersion: compiled.a2uiSpecVersion,
         flow: {
           visibleSteps: [...flow.value.visibleSteps],
-          // THE ANSWER KEY, not the bare question id - the identical projection the portal's
-          // serve-step sends (ADR-42, ADR-43). A member question of a repeating group can be
-          // visible in one instance and hidden in another, so only the qualified key can say
-          // which; `documentForVisible` consequently leaves a repeat template alone and the
-          // renderer's expansion prunes each clone against this same set. A form with no group
-          // produces the byte-identical bare list it always did.
+          // The identical projection the portal's serve-step sends: a member question can be
+          // visible in one instance and hidden in another, so only the qualified key says
+          // which.
           visibleQuestions: flow.value.visible.map((entry) =>
             String(answerKey(entry.questionId, entry.instanceId)),
           ),
           complete: flow.value.complete,
           rosters: asked.projection,
-          // The cursor's page list, forwarded rather than derived (task 076): absent for a
-          // draft with no repeating group, exactly as the kernel leaves it, so the preview
-          // pane walks views when there are views and steps when there are not.
+          // Forwarded rather than derived, and absent for a draft with no repeating group
+          // exactly as the kernel leaves it.
           ...(flow.value.visibleStepViews === undefined
             ? {}
             : { visibleStepViews: flow.value.visibleStepViews.map((view) => ({ ...view })) }),
@@ -1721,33 +1240,11 @@ export function makePreviewDraftHandler(
   };
 }
 
-// --- PATCH /admin/forms/:id/settings ----------------------------------------
-
 /**
- * The per-form abuse-control settings (026, ADR-24 tier 2), as the builder's
- * settings panel edits them (033).
- *
- * These live on the mutable `forms` identity row rather than in the published
- * definition, which is the whole point of the tier: an operator can turn a
- * challenge on for a live form without republishing it, and an already-pinned
- * session's frozen snapshot (R1) is untouched by the change. That also makes this
- * a plain transaction script, not an aggregate (R5) - there is no invariant
- * spanning more than the one row.
- *
- * The body is partial, so a panel can save one control without echoing the other
- * back, and `minSubmitMs: null` means "use the deployment's configured floor"
- * rather than "no floor". Neither `slug` nor `status` is reachable here: they
- * have their own doors.
- *
- * There is no pre-read to distinguish "no such form" from "nothing to update":
- * the body schema rejects an all-absent patch, so `updateFormSettings` returning
- * `undefined` can only mean the form does not exist. That is the same single-read
- * 404 shape `closeForm`/`reopenForm` use, and it keeps the sentinel unambiguous.
- *
- * The response carries the derived `challengeEnforceable` alongside the saved
- * settings so the panel can re-render its "unenforceable" warning from the
- * write's own answer, with no follow-up read. It is a behavior statement and not
- * the provider flag's value (ADR-24).
+ * These settings live on the mutable identity row, so an operator can turn a challenge on
+ * for a live form without republishing and an already-pinned session is untouched. There
+ * is no pre-read: the body schema refuses an all-absent patch, so `undefined` back from
+ * `updateFormSettings` can only mean the form does not exist.
  */
 export function makeUpdateFormSettingsHandler(
   deps: Deps,
@@ -1778,15 +1275,10 @@ export function makeUpdateFormSettingsHandler(
   };
 }
 
-// --- POST /admin/forms/:id/publish ------------------------------------------
-
 /**
- * Everything a publish does before it writes: the reads, the parse and the compile.
- *
- * Separated from the write so the **combined publish-and-release action** (finding 2) can
- * run both writes in one transaction without a second copy of the validation. Nothing
- * here persists anything, so a refusal costs no database work - which is also why every
- * failure it raises is raised before a transaction is open.
+ * Split from the write so the combined publish-and-release action can run both writes in
+ * one transaction. Nothing here persists, so every refusal it raises costs no database
+ * work and lands before a transaction is open.
  */
 async function freezeDraft(
   deps: Deps,
@@ -1798,30 +1290,21 @@ async function freezeDraft(
   const draft = await getDraft(deps.databases.control, formId);
   if (draft === undefined) throw fail.noDraft();
 
-  // Re-parse the stored draft (its JSONB is unknown at the type level, and a
-  // draft may be temporarily inconsistent): a malformed draft is a 422, never
-  // a 500.
+  // A stored draft may be temporarily inconsistent, so a malformed one is a 422, not a 500.
   const definition = requireDefinition(draft.definition);
   if (definition.formId !== formId) throw fail.idMismatch();
 
-  // The aggregate: validate every publish invariant (all errors, not first) -
-  // deprecated-pin gate + compileDraft (008). Nothing is persisted on failure.
   const { issues, snapshot } = await validateDraft(deps, definition);
   if (issues.length > 0 || snapshot === undefined) throw fail.publishRejected(issues);
 
-  // Project the frozen snapshot to A2UI once (ADR-18): the stored copy is
-  // served forever; serve (019) never recompiles.
+  // Projected once: the stored copy is served forever and the serve path never recompiles
+  // (ADR-18).
   return { snapshot, compiled: compileForm(snapshot, {}) };
 }
 
 /**
- * Freeze the version and drop the draft, in the caller's transaction (§11).
- *
- * `publishedBy` is **the author the two-person rule compares against** (Q51, task 070):
- * the account that published this version. It is frozen here, with the snapshot, because
- * `form_versions` is append-only and no later write can fill it in - and because Q51's
- * author is the publisher rather than whoever last edited the draft, so a draft several
- * editors touched has exactly one author and the rule compares two accounts.
+ * `publishedBy` is the account the two-person rule compares against, and is frozen here
+ * because `form_versions` is append-only and no later write can fill it in.
  */
 async function writeVersion(
   tx: Executor,
@@ -1849,29 +1332,13 @@ export function makePublishFormHandler(deps: Deps): RouteHandler<typeof publishF
     const formId = requireFormId(c.req.valid("param").id);
     const now = deps.clock.now();
     const frozen = await freezeDraft(deps, formId);
-    // Thrown rather than recorded as `""`. `published_by` is the author Q51's two-person
-    // rule compares a `prod` release against, and a version whose author is the empty
-    // string would be a version the rule could not judge while looking as though it could.
+    // Thrown rather than recorded as `""`: a version whose author is the empty string is
+    // one the two-person rule could not judge while looking as though it could.
     const principal = c.get("adminPrincipal");
     if (principal === undefined) throw fail.noPrincipal();
 
-    // **Publishing queues nothing** (Code Owner, 2026-09-30, Q60). One transaction still,
-    // so the draft never lingers past its publish (§11), but there is no event in it.
-    //
-    // Under ADR-40 publishing a version stopped being the act that reaches an environment:
-    // a version exists in `control`, one copy, and what makes it live somewhere is a
-    // **release**. So `form.published` had nobody left to tell - it announced a library
-    // change to a queue whose consumers are per environment - and Q49 always had it
-    // retiring in favour of `form.released`. Q60 is that end state reached one task early
-    // rather than a new decision: an event nobody receives is worth less than the grant it
-    // would take to write, and writing it here would mean an authoring transaction reaching
-    // into a data schema for nothing.
-    //
-    // **`form.released` is written by the release**, in `../releases/release.ts`, into the
-    // released environment's `outbox` in the same transaction as the release record. This
-    // route still writes no outbox row at all, in any environment, and
-    // `forms.integration.test.ts` asserts that by count rather than leaving it to the
-    // absence of a line here.
+    // Publishing enqueues nothing in any environment. One transaction still, so the draft
+    // never lingers past its publish; `form.released` is written by the release itself.
     const inserted = await deps.databases.control.transaction((tx) =>
       writeVersion(tx, formId, frozen, now, principal.userId),
     );
@@ -1883,30 +1350,10 @@ export function makePublishFormHandler(deps: Deps): RouteHandler<typeof publishF
   };
 }
 
-// --- POST /admin/forms/:id/publish-and-release ------------------------------
-
 /**
- * One intent, one act: publish the open draft and release the new version (finding 2).
- *
- * The churn finding 2 accepted is real - every iteration an author wants to try in a
- * non-prod environment is an immutable published version and R1 keeps it - and both
- * mitigations are **presentation**. This is the first: a combined action, so an author who
- * means "try this in `dev`" performs one act rather than two. What it must not become is a
- * second model, and it does not: it publishes a real version, keeps it, and then releases
- * it. There is no draft-level release and nothing skips publishing.
- *
- * **Atomically or not at all**, which is the unnumbered exit criterion: one transaction
- * holds the version, the draft deletion, the release record and the `form.released` event,
- * so a failed release leaves no published version behind to explain. That is the whole
- * reason the publish core is split into `freezeDraft` and `writeVersion` above.
- *
- * **Two cells of the permissions matrix, and the gate evaluates both.** This handler makes
- * no policy call, and that is now correct rather than an omission: the route's row in
- * `route-policy.ts` carries `form: publish` **and** `release: create`, the second in
- * `also`, both judged against the environment the body names before this function runs.
- * The first version left the release half to this handler on the strength of a comment,
- * and the review of PR #1061 probed it: a `forms.editor` scoped to `test` got past the
- * gate to a production release.
+ * One transaction holds the version, draft deletion, release record and event. No policy
+ * call here: the route's `form: publish` and `release: create` row is judged against the
+ * body's environment first, which stops an editor scoped to `test` releasing to `prod`.
  */
 export function makePublishAndReleaseFormHandler(
   deps: Deps,
@@ -1915,40 +1362,22 @@ export function makePublishAndReleaseFormHandler(
     const formId = requireFormId(c.req.valid("param").id);
     const environment = requireEnvironment(deps, c.req.valid("json").environment);
     const now = deps.clock.now();
-    // Thrown rather than recorded as `""`. The release record is the audit answer to
-    // "who put that version into `prod`", and a row whose actor is the empty string
-    // answers nothing while looking like an answer. The admin-auth gate makes this
-    // unreachable in a mounted process, which is why it throws rather than degrading.
+    // Thrown rather than recorded as `""`: the release record answers "who put that
+    // version into `prod`", and an empty actor answers nothing while looking like an answer.
     const principal = c.get("adminPrincipal");
     if (principal === undefined) throw fail.noPrincipal();
 
-    // **The two-person rule, and this route is the case where it always refuses** (Q51,
-    // task 070). This handler publishes and releases in one act, so the account that
-    // publishes the version *is* the account releasing it - and a release to `prod` by the
-    // publishing account is exactly what criterion 1 refuses while the workspace's
-    // `requireSecondApprover` switch is on.
-    //
-    // So F2's convenience is unavailable for a gated production release, and that is the
-    // rule rather than a limitation of this route: the two acts have to be two accounts,
-    // which means they have to be two requests. The operator publishes here (or through
-    // `POST /publish`) and a second approver releases through `POST /releases`.
-    //
-    // Raised **before the draft is even compiled**, which is the cheap end of the same
-    // property the combined act's atomicity already has: a refusal costs no database work
-    // and leaves no published version behind to explain.
+    // The combined act makes the publisher the releaser, so a gated `prod` release always
+    // refuses here and has to be two requests by two accounts. Raised before the draft is
+    // compiled, so the refusal costs no database work.
     const form = await getForm(deps.databases.control, formId);
     if (form === undefined) throw fail.formNotFound();
     const approvedBy = await approvalForRelease(deps.databases.control, {
       workspaceId: c.get("grantContext")?.workspaceId ?? form.workspaceId,
       environment,
-      // **The version this act is about to assign**, which is the newest published one
-      // plus one, and `1` for a form that has never been published. It is only ever read
-      // back in a refusal message, and the first version of this line named the *previous*
-      // version - or `0` on a form with none - so the sentence told the operator they had
-      // published a version they may never have touched (PR #1100's review, finding 5).
-      // `insertFormVersion` assigns the same number with a scalar subquery, so the two
-      // agree unless a concurrent publish lands between this read and the refusal, which
-      // can only happen on a request this rule is about to refuse anyway.
+      // The version this act is about to assign, not the previous one: it is read back
+      // only in a refusal message, which would otherwise name a version the operator may
+      // never have touched. `insertFormVersion` assigns the same number.
       version:
         ((await getLatestPublishedVersion(deps.databases.control, formId))?.version ?? 0) + 1,
       author: principal.userId,
@@ -1966,15 +1395,12 @@ export function makePublishAndReleaseFormHandler(
         environment,
         version: version.version,
         releasedBy: principal.userId,
-        // `undefined` in every case this route can reach: the rule above refuses a gated
-        // `prod` release outright, so a release that gets here needed no approval. The
-        // value is threaded rather than hard-coded so the two release paths read the same.
+        // `undefined` in every case this route can reach; threaded rather than hard-coded
+        // so the two release paths read the same.
         approvedBy,
-        // No source: the version is new, so it was released nowhere before this (Q4).
+        // The version is new, so it was released nowhere before this.
         fromEnvironment: undefined,
-        // A new version into a closed environment does not resume intake (Q18). Nothing
-        // is released there yet when this is the form's first release, so the current
-        // state is `undefined` and the row lands open.
+        // A new version into a closed environment does not resume intake.
         closed: (await getFormEnvironmentState(tx, formId, environment))?.closed ?? false,
       });
       return { version, release };
@@ -1992,24 +1418,10 @@ export function makePublishAndReleaseFormHandler(
   };
 }
 
-// --- POST /admin/forms/:id/close and /reopen --------------------------------
-
 /**
- * Stop or resume **one environment's** intake (Q18, task 066, ADR-39's Amendment).
- *
- * One function for both, because they differ in a boolean and in nothing else: the same
- * environment check, the same refusals, the same append to the release state, the same
- * actor. Two copies would be two places for one of the refusals to go missing.
- *
- * **Who may do it is task 067's** (Q33: an editor for `dev` and `test`, an approver
- * holding `prod` in scope for `prod`). This task builds the operation; the role and its
- * environment scope arrive with 068 and 069, and a check before they exist would be
- * inventing one.
- *
- * Closing stops *new* sessions - `start-session` reads this state before anything is
- * spent - and in-flight sessions finish on their pinned version (R1, ADR-07 invariant
- * I4). The read and the append share a transaction so a release landing between them
- * cannot be closed over with the earlier version.
+ * Closing stops new sessions only; in-flight ones finish on their pinned version. The read
+ * and the append share a transaction so a release landing between them cannot be closed
+ * over with the earlier version.
  */
 async function setIntake(
   deps: Deps,
@@ -2032,8 +1444,8 @@ async function setIntake(
       ? await closeFormInEnvironment(tx, { formId, environment, closedBy: principal.userId })
       : await reopenFormInEnvironment(tx, { formId, environment, reopenedBy: principal.userId });
   });
-  // `undefined` is unreachable: the read inside the transaction already refused the only
-  // case that produces it, and no release can land between the two under one transaction.
+  // Unreachable: the read inside the transaction already refused the only case that
+  // produces it.
   if (row === undefined) throw fail.notReleasedHere(environment);
 
   return { formId: row.formId, environment: row.environment, status: closed ? "closed" : "open" };
@@ -2046,8 +1458,6 @@ export function makeCloseFormHandler(deps: Deps): RouteHandler<typeof closeFormR
 export function makeReopenFormHandler(deps: Deps): RouteHandler<typeof reopenFormRoute, ApiEnv> {
   return async (c) => c.json(await setIntake(deps, c, false), 200);
 }
-
-// --- GET /admin/forms/:id/versions/:v ---------------------------------------
 
 export function makeGetFormVersionHandler(
   deps: Deps,
@@ -2062,8 +1472,6 @@ export function makeGetFormVersionHandler(
 
     return c.json(
       {
-        // `formId`/`version` come from the parsed, validated path params; they are
-        // the same values the row carries, so there is no need to read them back.
         formId,
         version,
         publishedAt: row.publishedAt.toISOString(),

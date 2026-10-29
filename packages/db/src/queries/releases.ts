@@ -7,8 +7,8 @@ import type { Executor } from "./executor.js";
 import type { AssignableTo } from "./schema-drift.js";
 
 /**
- * One row of `control.form_releases`. Hand-authored because `$inferSelect` degrades
- * through this package's emitted `.d.ts` for a `$type<>`-branded table (issue #5).
+ * One row of `control.form_releases`. Hand-authored: `$inferSelect` degrades through the emitted `.d.ts` for
+ * a branded table.
  */
 export interface FormReleaseRow {
   formId: FormId;
@@ -38,12 +38,9 @@ export interface FormReleaseHistoryRow extends FormReleaseRow {
 }
 
 /**
- * Record a release of a published version into one environment. A promotion writes a row
- * and copies nothing; `fromEnvironment` is `undefined` for a first release or a hotfix
- * into its target.
- *
- * Call inside the caller's transaction, beside the `form.released` enqueue, so neither is
- * ever observed without the other.
+ * Record a release of a published version into one environment; a promotion writes a row and copies
+ * nothing. `fromEnvironment` is `undefined` for a first release or hotfix. Call inside the caller's
+ * transaction, beside the `form.released` enqueue.
  */
 export async function insertFormRelease(
   exec: Executor,
@@ -163,12 +160,8 @@ async function setClosedInEnvironment(
 }
 
 /**
- * The version released to one environment, which is what a new session resolves rather
- * than the newest published version.
- *
- * Ordered by `sequence` and deliberately not by `released_at`: two releases in one
- * microsecond would be indistinguishable, and which version is serving may not be
- * ambiguous.
+ * The version released to one environment, which a new session resolves instead of the newest published
+ * one. Ordered by `sequence`, not `released_at`: two releases in one microsecond would be indistinguishable.
  */
 export async function getReleasedVersion(
   exec: Executor,

@@ -5,14 +5,6 @@ import { newOperationToken } from "@/lib/server/operation-token";
 import { apiErrorResponse, isSameOriginPost } from "@/lib/server/route-helpers";
 import { readSessionToken } from "@/lib/server/session-cookie";
 
-/**
- * The scripted path's Add or Remove of a repeating-group instance (ADR-42, ADR-43).
- *
- * The operation token is minted server-side rather than taken from the client: nothing
- * replays a `fetch()`, so this path has no replay to refuse, while the API requires the
- * token on every roster write. Minting per request also makes two presses of Add two
- * instances.
- */
 export async function POST(
   request: Request,
   ctx: { params: Promise<{ sessionId: string }> },

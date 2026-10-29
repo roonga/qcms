@@ -16,11 +16,8 @@ import { fileURLToPath } from "node:url";
 import { afterAll, describe, expect, it } from "vitest";
 
 const SUPERVISOR = fileURLToPath(new URL("agent-loop.sh", import.meta.url));
-/** How long `runUntilLogged` waits for its line before giving up and asserting. */
 const WAIT_FOR_LOG_MS = 10_000;
 const workspaces: string[] = [];
-// Anything a session-stub test spawns, so a failing assertion cannot leak a
-// long-lived process onto the machine running the suite.
 const spawnedPids: number[] = [];
 
 afterAll(() => {
@@ -34,30 +31,20 @@ afterAll(() => {
   for (const dir of workspaces) rmSync(dir, { recursive: true, force: true });
 });
 
-// Argument validation runs before the script changes directory or touches the
-// repo, so the invalid cases are safe to drive against the real file.
+// Validation runs before the script changes directory or touches the repo, so the
+// invalid cases are safe to drive against the real file.
 function runArgs(...args: string[]) {
   return spawnSync("bash", [SUPERVISOR, ...args], { encoding: "utf8" });
 }
 
-// The valid-argument case actually enters the supervisor loop, so it gets a
-// throwaway workspace and a stub `claude` on PATH. Without the stub this would
-// launch a real session and claim a ledger task.
+// This case enters the supervisor loop, so it needs a stub `claude`: without one it
+// would launch a real session and claim a ledger task.
 function runWithStubbedClaude(stubOutput: string, ...args: string[]) {
   return runSupervisorWithStub(stubOutput, args);
 }
 
-// Same setup, but for the one case that asserts the supervisor DOES sleep: it
-// waits for a line to appear in the supervisor's own log file, then kills the run
-// instead of waiting the retry window out.
-//
-// Detached, and killed by process GROUP, because neither half is optional here.
-// `spawnSync`'s own `timeout` cannot end this run: bash defers a trapped signal
-// until the current foreground command returns, so SIGTERM arriving during
-// `sleep 1800` is handled 30 minutes later - and killing bash alone would leave
-// the `sleep` holding the stdout pipe open, which is the same hang wearing a
-// different hat. Reading the log FILE rather than the pipe keeps the observation
-// independent of either.
+// Detached and killed by process GROUP: bash defers a trapped signal until the foreground command
+// returns, so a timeout cannot end a run sitting in `sleep`. The log file is read, not the pipe.
 async function runUntilLogged(pattern: RegExp, stubOutput: string, ...args: string[]) {
   const { root, copied, env } = supervisorWorkspace(stubOutput);
   const child = spawn("bash", [copied, ...args], { detached: true, stdio: "ignore", env });
@@ -75,8 +62,7 @@ async function runUntilLogged(pattern: RegExp, stubOutput: string, ...args: stri
     try {
       process.kill(-child.pid, "SIGKILL");
     } catch {
-      // Already exited, which the caller's assertion will report far better than
-      // a teardown throw would.
+      // Already exited; the caller's assertion reports that better than a teardown throw.
     }
   }
   return log;
@@ -100,18 +86,15 @@ function supervisorWorkspace(stubOutput: string) {
   const root = mkdtempSync(join(tmpdir(), "agent-loop-"));
   workspaces.push(root);
 
-  // The script resolves its workspace as `dirname $0/..`, so a copy under
-  // <root>/scripts keeps its log and cwd inside the throwaway directory.
+  // The script resolves its workspace as `dirname $0/..`, so the copy lives under
+  // <root>/scripts to keep its log and cwd inside the throwaway directory.
   mkdirSync(join(root, "scripts"));
   mkdirSync(join(root, "bin"));
   const copied = join(root, "scripts", "agent-loop.sh");
   copyFileSync(SUPERVISOR, copied);
 
-  // The stub records the argv it was launched with, one argument per line, so a
-  // test can assert what the supervisor actually passes to `claude`. It also
-  // records `QCMS_PORT_SEAT` from its own environment, which is the only way to
-  // observe that the supervisor EXPORTED the seat rather than merely computing it
-  // every consumer downstream reads the environment.
+  // The stub records `QCMS_PORT_SEAT` from its own environment, the only way to observe
+  // that the supervisor exported the seat rather than merely computing it.
   const stub = join(root, "bin", "claude");
   const argvLog = join(root, "claude-argv.txt");
   const seatLog = join(root, "claude-seat.txt");
@@ -126,8 +109,8 @@ function supervisorWorkspace(stubOutput: string) {
   return {
     root,
     copied,
-    // `QCMS_PORT_SEAT` is cleared, so a seat leaking in from the developer's own
-    // shell cannot make a derivation test pass for the wrong reason.
+    // Cleared, so a seat leaking in from the developer's own shell cannot make a
+    // derivation test pass for the wrong reason.
     env: {
       ...process.env,
       QCMS_PORT_SEAT: undefined,
@@ -136,21 +119,13 @@ function supervisorWorkspace(stubOutput: string) {
   };
 }
 
-// A regression leaves the supervisor blocked on the session's descendants
-// forever, so every run below is capped rather than allowed to hang the suite.
-// The cap doubles as the interrupt trigger for the signal test, which is why it
-// is a parameter.
+// Every run is capped so a regression cannot hang the suite. It is a parameter because
+// the cap doubles as the interrupt trigger for the signal tests.
 const SUPERVISOR_KILL_MS = 60_000;
 const INTERRUPT_AFTER_MS = 3_000;
 
-// Whatever this returns is pushed to spawnedPids and later handed to
-// process.kill(), so a value that is not a live pid is not a cosmetic problem:
-// Number("") is 0, and signalling pid 0 hits the caller's entire process group,
-// which here is the Vitest runner - a test helper capable of killing its own
-// runner. Number("garbage") is NaN, no better. Everything that is not a positive
-// integer is therefore rejected right where it is parsed, naming what was read,
-// so a malformed stub write surfaces as a clear failure rather than a mystery
-// runner death.
+// Rejected at the parse site because the value reaches `process.kill()`:
+// `Number("")` is 0, and signalling pid 0 would hit the Vitest runner's own group.
 function readBackgroundPid(pidFile: string): number {
   const raw = existsSync(pidFile) ? readFileSync(pidFile, "utf8").trim() : "";
   if (raw === "") throw new Error("the session stub never recorded a background pid");
@@ -160,15 +135,9 @@ function readBackgroundPid(pidFile: string): number {
   return Number(raw);
 }
 
-// Holds the supervisor's launch window open: the stretch between forking the
-// session and knowing the process group id to reap. A signal landing in there is
-// the case fix-2 is about, and it is far too narrow to aim at, so the test
-// widens it. `set +m` is the anchor because it sits INSIDE that window in the
-// shape being guarded against (group id assigned after it) and outside it in the
-// current shape (assigned before it, signals deferred across it) - so the same
-// injected delay puts the signal in the window for the old shape and proves the
-// new one survives it. Asserting the match count keeps a future rename from
-// turning this into a test that passes without exercising anything.
+// Widens the launch window between forking the session and learning its group id.
+// `set +m` is the anchor because it sits inside that window only in the shape being
+// guarded against, so one injected delay exercises the old and new shapes alike.
 const LAUNCH_WINDOW_HOLD_SEC = 5;
 const LAUNCH_WINDOW_INTERRUPT_MS = 1_500;
 
@@ -181,9 +150,6 @@ function holdLaunchWindowOpen(source: string): string {
   return source.replace(anchor, `${anchor}  sleep ${LAUNCH_WINDOW_HOLD_SEC}\n`);
 }
 
-// Same throwaway workspace as above, but the caller writes the whole stub body:
-// these tests need a `claude` that spawns background work of its own, which is
-// the thing the supervisor has to clean up.
 function runWithSessionStub(
   stubBody: string,
   timeoutMs = SUPERVISOR_KILL_MS,
@@ -212,18 +178,9 @@ function runWithSessionStub(
   return { ...res, backgroundPid };
 }
 
-// A single observation, deliberately: the supervisor's reap does not return
-// until the group is gone, so "did it survive?" needs no polling and no
-// deadline. That keeps this assertion out of the flake class issue #165
-// describes, where the same question was asked with a wall-clock budget and went
-// marginal under load. `/proc` rather than `kill(pid, 0)` because a SIGKILLed
-// process lingers as a zombie its parent has not collected yet, and a zombie
-// still answers signal 0 - the exact trap #165 calls out.
-//
-// That makes these tests Linux-only. Absent /proc, isRunning() would report
-// every pid as dead and the assertions would pass without proving anything, so
-// the suite skips explicitly rather than going vacuously green (the canonical
-// environment is the Ubuntu dev container, ADR-29, and CI runs on ubuntu).
+// `/proc` rather than `kill(pid, 0)`: a SIGKILLed process lingers as a zombie that
+// still answers signal 0. Linux-only, so the suite skips explicitly rather than
+// passing vacuously where /proc is absent.
 const HAS_PROCFS = existsSync("/proc/self/stat");
 
 function isRunning(pid: number): boolean {
@@ -233,8 +190,8 @@ function isRunning(pid: number): boolean {
   } catch {
     return false;
   }
-  // The comm field is parenthesised and may itself contain spaces, so state is
-  // the first field after the final ')'.
+  // The comm field is parenthesised and may contain spaces, so state is the first
+  // field after the final ')'.
   const state = stat
     .slice(stat.lastIndexOf(")") + 1)
     .trim()
@@ -251,9 +208,6 @@ describe("session-stub background pid parsing", () => {
     return file;
   }
 
-  // "0" is the dangerous one and the reason this guard exists: process.kill(0)
-  // signals the caller's process group, so a stub that wrote a zero would have
-  // this suite kill the Vitest runner it is running inside.
   it.each(["0", "-1", "12.5", "not-a-pid", ""])(
     "refuses to hand '%s' to process.kill",
     (written) => {
@@ -271,9 +225,6 @@ describe("session-stub background pid parsing", () => {
 });
 
 describe("agent-loop.sh argument validation", () => {
-  // The regression that motivated this: the numeric flags reach arithmetic
-  // contexts, where a non-numeric value does not error, it evaluates to 0. So
-  // `-m abc` ran zero iterations and exited looking like a clean run.
   it.each([
     ["--max-iterations", "-m", "abc"],
     ["--parallel", "-p", "abc"],
@@ -306,14 +257,10 @@ describe("agent-loop.sh argument validation", () => {
 
     expect(res.status).toBe(2);
     expect(res.stderr).toContain(`${flag} requires a value`);
-    // The bare `set -u` failure this replaced named neither flag nor script.
     expect(res.stderr).not.toContain("unbound variable");
   });
 
   it("rejects a non-numeric --stop-after-task before the run starts", () => {
-    // It is only used at sentinel-match time, inside $((10#...)), so an invalid
-    // value used to throw a bash arithmetic error mid-run and the stop check
-    // then silently never fired.
     const res = runArgs("-s", "abc");
 
     expect(res.status).toBe(2);
@@ -345,14 +292,12 @@ describe("agent-loop.sh argument validation", () => {
 
 describe("agent-loop.sh supervisor loop", () => {
   it("accepts valid arguments and runs an iteration", () => {
-    // NOTHING is the ledger-exhausted sentinel, so the loop stops after one
-    // pass rather than spinning for the full --max-iterations.
+    // NOTHING is the ledger-exhausted sentinel, so the loop stops after one pass.
     const res = runWithStubbedClaude("NEXT-WORK: NOTHING", "-p", "2", "-r", "5", "-m", "3");
 
     expect(res.status).toBe(0);
     expect(res.stdout).toContain("iteration 1");
     expect(res.stdout).toContain("ledger exhausted");
-    // Proves validation did not reject the parallel value on the way through.
     expect(res.stdout).toContain("/next-work 2");
   });
 
@@ -360,7 +305,6 @@ describe("agent-loop.sh supervisor loop", () => {
     const res = runWithStubbedClaude("NEXT-WORK: NOTHING", "-m", "1");
 
     expect(res.status).toBe(0);
-    // Adjacency, not mere presence: `--model` has to actually carry the id.
     expect(res.claudeArgv[res.claudeArgv.indexOf("--model") + 1]).toBe("claude-opus-5");
   });
 
@@ -389,15 +333,8 @@ describe("agent-loop.sh supervisor loop", () => {
   });
 
   it("exits on the last iteration instead of paying the retry window first", () => {
-    // The no-sentinel path is the retry path: the session died, so wait out the
-    // limit window and try again. On the LAST iteration there is no again, and
-    // the sleep used to run unconditionally anyway. The whole effect is dead
-    // waiting - nothing fails, so nothing ever surfaced it - but `-m 1` is the
-    // natural way to drive a single iteration and it hung for the full retry
-    // window (30 minutes at the default), which is what hung this suite.
-    //
-    // `-r 30` makes the assertion unambiguous: a run that finishes in seconds
-    // cannot have slept, whatever else it did.
+    // `-r 30` makes the assertion unambiguous: a run that finishes in seconds cannot
+    // have paid the retry window.
     const started = Date.now();
     const res = runWithStubbedClaude("no sentinel here", "-m", "1", "-r", "30");
     const elapsedSec = (Date.now() - started) / 1000;
@@ -409,11 +346,8 @@ describe("agent-loop.sh supervisor loop", () => {
   }, 90_000);
 
   it("still waits out the retry window when another iteration is left to run", async () => {
-    // The other half of the same condition, and the reason it is a condition
-    // rather than a deletion: skipping the sleep whenever a session produced no
-    // sentinel would turn the supervisor into a hot loop through its entire
-    // iteration budget during exactly the usage-limit window it exists to wait
-    // out. Observed by the line printed immediately before the sleep, then killed.
+    // Conditional rather than deleted: skipping the sleep whenever a session produced
+    // no sentinel would turn the supervisor into a hot loop through its whole budget.
     const log = await runUntilLogged(
       /retrying in 30 minutes/,
       "no sentinel",
@@ -428,12 +362,8 @@ describe("agent-loop.sh supervisor loop", () => {
   }, 30_000);
 });
 
-// An iteration's session can spawn background work. Whatever ends the session
-// must also end those descendants so a fresh iteration starts cleanly.
 describe.skipIf(!HAS_PROCFS)("agent-loop.sh session process groups", () => {
   it("terminates background work the session left behind", () => {
-    // Models a background task that writes somewhere other than the session's
-    // stdout, which is what the CLI's own background tasks do.
     const res = runWithSessionStub(
       ["sleep 600 >/dev/null 2>&1 &", 'echo "$!" >"$PID_FILE"', 'echo "NEXT-WORK: NOTHING"'].join(
         "\n",
@@ -441,17 +371,13 @@ describe.skipIf(!HAS_PROCFS)("agent-loop.sh session process groups", () => {
     );
 
     expect(res.status).toBe(0);
-    // Pre-fix this is still running: the supervisor waited on the session
-    // process only and never touched its tree.
     expect(isRunning(res.backgroundPid)).toBe(false);
     expect(res.stdout).toContain("terminating its process group");
   });
 
   it("does not wait on a descendant that inherited the session's output", () => {
-    // Same orphan, different symptom. The output used to be captured with a
-    // command substitution, which does not return until every process holding
-    // the write end of the pipe has exited - so this shape hung the supervisor
-    // indefinitely instead of letting it reap and move on.
+    // A command substitution does not return until every process holding the write end
+    // of the pipe has exited, so this shape hangs the supervisor instead of reaping.
     const res = runWithSessionStub(
       ["sleep 600 &", 'echo "$!" >"$PID_FILE"', 'echo "NEXT-WORK: NOTHING"'].join("\n"),
     );
@@ -464,12 +390,8 @@ describe.skipIf(!HAS_PROCFS)("agent-loop.sh session process groups", () => {
   it(
     "takes a still-running session and its children down when the supervisor is signalled",
     () => {
-      // The session now runs in its own process group, so a terminal Ctrl+C no
-      // longer reaches it on its own. Forwarding the signal is what keeps the
-      // documented "Ctrl+C anytime" true, and this is the shape a container
-      // stopping itself mid-run produces - where one of the observed orphans
-      // came from. spawnSync's timeout sends SIGTERM to the supervisor, which is
-      // that interrupt path exactly.
+      // The session runs in its own process group, so a terminal Ctrl+C does not reach
+      // it. spawnSync's timeout sends SIGTERM to the supervisor, which is that path.
       const res = runWithSessionStub(
         [
           "sleep 600 >/dev/null 2>&1 &",
@@ -481,23 +403,16 @@ describe.skipIf(!HAS_PROCFS)("agent-loop.sh session process groups", () => {
       );
 
       expect(res.signal).toBe("SIGTERM");
-      // Pre-fix both this and the session itself outlived the supervisor.
       expect(isRunning(res.backgroundPid)).toBe(false);
     },
-    // Derived from the interrupt it has to outlive rather than written out, so
-    // the two cannot drift (the convention issue #165 asks for).
     INTERRUPT_AFTER_MS * 4,
   );
 
   it(
     "still reaps when the signal lands before the group id is known",
     () => {
-      // The launch window, held open (see holdLaunchWindowOpen) so the signal
-      // can be aimed into it. With the group id assigned after `set +m` the
-      // handler finds nothing to reap and this orphan outlives the supervisor,
-      // which is the whole "on every path out" claim failing on the one path
-      // that matters most. The interrupt lands ~1.5s into a ~5s window, so
-      // nothing here depends on hitting a narrow moment.
+      // Aimed into the held launch window (see holdLaunchWindowOpen), where the group
+      // id is not yet known.
       const res = runWithSessionStub(
         [
           "sleep 600 >/dev/null 2>&1 &",
@@ -512,25 +427,10 @@ describe.skipIf(!HAS_PROCFS)("agent-loop.sh session process groups", () => {
       expect(res.signal).toBe("SIGTERM");
       expect(isRunning(res.backgroundPid)).toBe(false);
     },
-    // The held window plus the interrupt it has to outlive, with headroom -
-    // derived, not a written-out number, so the two cannot drift.
     (LAUNCH_WINDOW_HOLD_SEC * 1000 + LAUNCH_WINDOW_INTERRUPT_MS) * 3,
   );
 });
 
-/**
- * Issue #258: a second interrupt during the reap grace used to reap nothing.
- *
- * `reap_session_group` clears `session_pgid` before any kill, so a signal landing
- * inside the SIGTERM grace re-entered `on_signal`, found the variable empty,
- * reaped nothing and re-raised. The supervisor died at rc=143 having sent the
- * group only a SIGTERM, so a descendant that ignores SIGTERM survived - under a
- * log line saying the session and everything it spawned had been stopped. The
- * likely trigger is a human pressing Ctrl+C twice, not an exotic race.
- *
- * The Code Owner ruled on 2026-08-01 that a second interrupt escalates: it cuts
- * the grace short, goes straight to SIGKILL, and says so in the log.
- */
 describe.skipIf(!HAS_PROCFS)("agent-loop.sh second interrupt (issue #258)", () => {
   /** A descendant that ignores SIGTERM, which is what makes the grace observable. */
   const SIGTERM_IGNORING_DESCENDANT = [
@@ -580,8 +480,8 @@ describe.skipIf(!HAS_PROCFS)("agent-loop.sh second interrupt (issue #258)", () =
       const logFile = join(root, "agent-loop.log");
       const readLog = () => (existsSync(logFile) ? readFileSync(logFile, "utf8") : "");
 
-      // The session has to be up and its descendant recorded before the first
-      // signal, or this would be the launch-window case a sibling test covers.
+      // The session must be up and its descendant recorded before the first signal, or
+      // this becomes the launch-window case a sibling test covers.
       await waitFor(
         () => existsSync(pidFile) && /^[1-9]\d*$/.test(readFileSync(pidFile, "utf8").trim()),
         "the session stub to record its descendant",
@@ -590,29 +490,23 @@ describe.skipIf(!HAS_PROCFS)("agent-loop.sh second interrupt (issue #258)", () =
       spawnedPids.push(backgroundPid);
 
       process.kill(supervisorPid, "SIGTERM");
-      // Aimed at the grace rather than at a moment: this line is printed
-      // immediately before the SIGTERM to the group, and the grace that follows
-      // it is five seconds long.
+      // Aimed at the grace rather than at a moment: this line is printed immediately
+      // before the SIGTERM to the group, and the grace that follows is five seconds.
       await waitFor(() => /terminating its process group/.test(readLog()), "the reap to start");
       process.kill(supervisorPid, "SIGTERM");
 
       await ended;
 
-      // The whole point: the operator asked twice and the group is gone.
       expect(
         isRunning(backgroundPid),
         `descendant ${backgroundPid} survived a second interrupt`,
       ).toBe(false);
-      // And the escalation is visible, so a rough kill is never a silent one.
       expect(readLog()).toContain("escalating to SIGKILL");
     },
     WAIT_FOR_LOG_MS * 4,
   );
 
   it("forwards SIGQUIT, which Ctrl+backslash sends to the whole foreground group", () => {
-    // Without a QUIT trap the supervisor died and the session's group - which job
-    // control deliberately put outside that foreground group - survived, which is
-    // the orphan the forwarding exists to prevent (rider 2 on issue #258).
     const source = readFileSync(SUPERVISOR, "utf8");
 
     expect(source).toContain("trap 'on_signal QUIT' QUIT");
@@ -634,10 +528,8 @@ describe("agent-loop.sh port seat (R8)", () => {
   });
 
   it("exports the seat rather than only computing it", () => {
-    // The stub reads it from its own environment, which is the property that
-    // matters: the Playwright config, the dev scripts and turbo's
-    // globalPassThroughEnv all read the environment, and a value that never left
-    // the supervisor would be a value nothing downstream can see.
+    // Read from the stub's own environment, which is the property that matters:
+    // every consumer downstream reads the environment.
     const res = runWithStubbedClaude("done", "-m", "1", "-S", "3");
 
     expect(res.seat).not.toBe("<unset>");

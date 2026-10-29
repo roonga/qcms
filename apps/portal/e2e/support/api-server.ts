@@ -1,22 +1,3 @@
-/**
- * Boots the real API on a socket for the portal Playwright suite (task 029).
- *
- * The portal is a strict BFF: its route handlers call an internal API over HTTP
- * (never in-process). To exercise the whole respondent loop end to end the suite
- * therefore needs a *real* API listening on a port, backed by a real database. We
- * reuse the 027 e2e toolkit verbatim: `startTestDb()` (Testcontainers Postgres,
- * migrated to head), `buildEnv()` + `composeApi()` to build the app exactly as
- * `serve.ts` does, and the insurance seed/mint helpers. The composed app is then
- * served with `@hono/node-server`.
- *
- * `@hono/node-server` is a vetted dependency of `qcms-api` (apps/api); the portal
- * does not re-declare it. We resolve it from the api package where it already
- * lives, so this harness adds no new dependency to the portal.
- *
- * The browser harness runs this module inside its traced API child process, so its
- * singleton is process-local and shutdown can flush telemetry after closing it.
- */
-
 import { createRequire } from "node:module";
 import { appendFileSync, mkdirSync, writeFileSync } from "node:fs";
 import { dirname } from "node:path";
@@ -55,12 +36,6 @@ import {
 
 /** The wire-stable SEC-4 internal-token header (matches the portal + API). */
 const INTERNAL_TOKEN_HEADER = "x-qcms-internal-token";
-/**
- * The header carrying the admin's better-auth session token (031). This harness
- * makes exactly one admin call - revoking a link so a spec can assert the revoked
- * outcome - and the middleware now resolves this header against a real `session`
- * row, so the token comes from `adminLogin()` rather than being a marker string.
- */
 const ADMIN_SESSION_HEADER = "x-qcms-admin-session";
 
 /** The minimal shape of `@hono/node-server`'s returned server we depend on. */
@@ -79,43 +54,11 @@ const { serve } = apiRequire("@hono/node-server") as { serve: Serve };
 /** The fixtures the specs read: the form slug and one link token per outcome. */
 export interface PortalFixtures {
   readonly slug: string;
-  /** The kitchen-sink form slug (all seven question types, task 045). */
   readonly kitchenSinkSlug: string;
-  /**
-   * The `author-messages` form slug (task 048): four required questions carrying
-   * ADR-32 validation messages and ADR-36 boolean label overrides.
-   */
   readonly authorMessagesSlug: string;
-  /**
-   * The `repeat-fleet` form slug (task 073): one step with a plain required question
-   * and one repeating group (`open`, `min: 1`, `max: 3`) whose members include a
-   * required shortText, an optional date, a longText and a multiChoice.
-   *
-   * It exists because a repeating group is unreachable in a browser without a fixture
-   * that compiles one, and the four no-JS dead ends of issues #920, #974, #18 and #988
-   * each stayed invisible to every gate for exactly as long as no fixture carried
-   * their shape.
-   */
   readonly repeatFleetSlug: string;
-  /**
-   * The `repeat-tour` form slug (task 076): one step, one `perInstanceStep` group,
-   * `open` with `min: 3, max: 4`, so the step is three views on the first serve.
-   */
   readonly repeatTourSlug: string;
-  /**
-   * The `repeat-table` form slug (task 077): the same group shape presented as a
-   * **table**, with columns of exactly the five allowed cell types (Q12).
-   *
-   * A form of its own rather than a second presentation of `repeat-fleet`, because
-   * that form pins a `longText` and a `multiChoice` and a table-presented group is
-   * refused at publish for carrying either.
-   */
   readonly repeatTableSlug: string;
-  /**
-   * The e2e Postgres connection URI, so a spec can open its OWN client and verify
-   * persisted answers independently of the API's response echo (task 045, exit
-   * criterion 4). A test-only container credential, never a real secret.
-   */
   readonly databaseUrl: string;
   readonly validToken: string;
   readonly expiredToken: string;
@@ -128,26 +71,7 @@ export interface PortalFixtures {
    * closed explanation rather than a link failure.
    */
   readonly closedFormToken: string;
-  /**
-   * A valid link belonging to the **`test`** environment, whose address is therefore
-   * `/test/l/{token}` (ADR-40, Q21, task 066).
-   *
-   * Criterion 2 asks for the prefix asserted on **both** surfaces, and the portal's half
-   * is only assertable through a browser that followed the address: the API's half is
-   * asserted in its own integration suite. The insurance form is released to `test` as
-   * well as to the harness's own environment so this link has something to serve.
-   */
   readonly testEnvironmentToken: string;
-  /**
-   * A form whose draft pins two question versions that were never published, so an
-   * admin dry run reports exactly two issues against its `stp_history` step (issue
-   * #625, given a fixture of its own by issue #275).
-   *
-   * `apps/admin/e2e/validation-idle.pw.ts` is its only reader, and the id travels
-   * through this file rather than being written down there so the two cannot drift.
-   * Nothing else may seed answers, links or versions against it: what the spec
-   * asserts is a COUNT, and a second writer would change it.
-   */
   readonly unpublishedPinFormId: string;
 }
 
@@ -166,20 +90,12 @@ let running: RunningApi | undefined;
 export async function startApiServer(): Promise<void> {
   if (running !== undefined) return;
 
-  // Fresh server-log capture for this run window (exit criterion 5): the composed
-  // API's structured log and the Postgres container's server log stream into
-  // files the log gate scans for error/warn lines. The portal dev-server's log is
-  // captured by the webServer wrapper (playwright.config.ts).
-  // The API + Postgres logs are truncated here; the portal dev-server log is
-  // owned and truncated by its wrapper (portal-server.mjs) to avoid a start-order
-  // race with this globalSetup.
   mkdirSync(SERVER_LOG_DIR, { recursive: true });
   writeFileSync(SERVER_LOG_FILES.api, "", "utf8");
   writeFileSync(SERVER_LOG_FILES.postgres, "", "utf8");
 
   const testDb = await startTestDb();
 
-  // Stream the Postgres container's server log into the capture file.
   const pgLogs = await testDb.container.logs();
   pgLogs.on("data", (chunk: Buffer | string) => {
     appendFileSync(SERVER_LOG_FILES.postgres, chunk.toString());
@@ -194,72 +110,35 @@ export async function startApiServer(): Promise<void> {
 
   const env = buildEnv({
     QCMS_INTERNAL_TOKEN: FIXED_INTERNAL_TOKEN,
-    // Fixed rather than generated: the admin operations spec composes its own Deps to
-    // run a delivery pass, and both sides have to decrypt the same webhook secret
-    // (task 035). See FIXED_APP_KEY.
     QCMS_APP_KEY: FIXED_APP_KEY,
     DATABASE_URL: testDb.connectionUri,
-    // One pool per environment plus a control pool (ADR-40, Q2). One container, one
-    // credential: what differs per pool is the search path it connects with.
     QCMS_ENVIRONMENTS: "test,prod",
     QCMS_DATABASE_URL_TEST: testDb.connectionUri,
     QCMS_DATABASE_URL_PROD: testDb.connectionUri,
     QCMS_MOUNT: "all",
-    // better-auth lives here since task 056, so the composed API carries the admin's
-    // identity provider. Both values are the ADMIN's, not this API's: the browser only
-    // ever sees the admin origin, so that is the origin better-auth scopes cookies to
-    // and trusts. `FIXED_AUTH_SECRET` is shared with the runner-side account helper
-    // (`apps/api/e2e/support/admin-accounts.ts`), which is what makes a cookie minted
-    // there verify here.
     QCMS_ADMIN_AUTH_SECRET: FIXED_AUTH_SECRET,
     QCMS_ADMIN_BASE_URL: ADMIN_BASE_URL,
-    // The composed API runs on a FIXED clock, so rate-limit windows never advance
-    // and every session-create / answer / submit across the whole suite counts
-    // against one frozen window. This behavioral suite is not a rate-limit test
-    // (that lives in the 026 API tests), and the multi-step kitchen-sink flow
-    // alone posts more than the default per-session burst (10), so raise every
-    // respondent limit far above what the suite can reach.
     QCMS_RL_ANSWERS_SESSION_MAX: "1000000",
     QCMS_RL_ANSWERS_IP_MAX: "1000000",
     QCMS_RL_SESSION_CREATE_MAX: "1000000",
     QCMS_RL_SUBMIT_SESSION_MAX: "1000000",
-    // The repeating group's roster operation has its own class (task 073, SEC-16), and it
-    // has to be raised with the rest: the clock is frozen, so a fixed window never
-    // advances and the production ceiling of ten per session would refuse a spec that
-    // presses Add more than ten times across one session's lifetime.
     QCMS_RL_ROSTER_SESSION_MAX: "1000000",
     QCMS_RL_ROSTER_IP_MAX: "1000000",
-    // Task 041: the deterministic fake assistant provider. It calls no network and
-    // needs no key, so the browser suite exercises the real assist slice - route,
-    // tool allowlist, SSE relay - without a provider account. The rate limit is
-    // lifted for the same frozen-clock reason as the respondent classes above.
     QCMS_FLAG_AGENT_AUTHORING: "fake",
     QCMS_RL_AGENT_ASSIST_MAX: "1000000",
   });
-  // **One pool per environment, not one handle behind every pool** (ADR-40, Q2, task 066).
-  // `MOUNT.all` mounts `test`'s respondent surface at `/test`, so this composition serves
-  // two environments and a single handle would write a `test` session into `data_prod` -
-  // where the per-schema `CHECK` refuses it (Q46, the thirteenth guard). The pools are
-  // built in the API's own e2e support, which is where `@roonga/qcms-db` and `pg` are
-  // dependencies: this harness resolves neither directly, deliberately (`db.ts` says why).
   const databases = environmentDatabases(testDb);
   const composed = composeApi(testDb.db, env, MOUNT.all, { logger: apiLogger, databases });
   const app = composed.app;
   const config = composed.deps.config;
 
   const { slug, formId } = await seedInsuranceForm(testDb.db);
-  // The insurance seed already created q_at_fault_accident@2 + q_accident_count,
-  // which the kitchen-sink form also pins; do not re-create them.
   const { slug: kitchenSinkSlug } = await seedKitchenSinkForm(testDb.db, {
     sharedQuestionsSeeded: true,
   });
-  // Task 048: author-supplied validation messages (ADR-32) and boolean label
-  // overrides (ADR-36). Its own four questions, so nothing is shared.
   const { slug: authorMessagesSlug } = await seedAuthorMessagesForm(testDb.db);
-  // Task 073: the repeating group. Five questions of its own, so nothing is shared.
   const { slug: repeatFleetSlug } = await seedRepeatFleetForm(testDb.db);
   const { slug: repeatTourSlug } = await seedRepeatTourForm(testDb.db);
-  // Task 077: the table presentation. Six questions of its own, so nothing is shared.
   const { slug: repeatTableSlug } = await seedRepeatTableForm(testDb.db);
 
   const nowMs = NOW.getTime();
@@ -274,14 +153,11 @@ export async function startApiServer(): Promise<void> {
     expiresAt: new Date(nowMs - 60_000),
   });
 
-  // A one-time link, then consumed by starting a session once against it.
   const consumedToken = await mintInsuranceLink(testDb.db, config, formId, {
     linkId: "lnk_consumed",
     expiresAt: new Date(nowMs + oneHour),
     oneTime: true,
   });
-  // `POST /sessions/link` since task 066: secure-link entry is its own route so the two
-  // entry modes can ride different mount decisions (Q21).
   const consumeRes = await app.request("/sessions/link", {
     method: "POST",
     headers: {
@@ -294,8 +170,6 @@ export async function startApiServer(): Promise<void> {
     throw new Error(`expected 201 consuming one-time link, got ${consumeRes.status}`);
   }
 
-  // A valid link, then revoked over the admin surface
-  // (POST /admin/forms/:id/links/:linkId/revoke).
   const revokedToken = await mintInsuranceLink(testDb.db, config, formId, {
     linkId: "lnk_revoked",
     expiresAt: new Date(nowMs + oneHour),
@@ -313,10 +187,6 @@ export async function startApiServer(): Promise<void> {
     throw new Error(`expected 200 revoking link, got ${revokeRes.status}`);
   }
 
-  // A valid, unspent link into a CLOSED form: the questionnaire stopped
-  // accepting responses after the invitation went out (ADR-39, issue #724). A
-  // second form so the open one every other spec drives stays open; its library
-  // questions are already seeded by the insurance seed above.
   const { formId: closedFormId } = await seedInsuranceForm(testDb.db, {
     formId: "frm_closed_link",
     slug: "closed-link",
@@ -328,10 +198,6 @@ export async function startApiServer(): Promise<void> {
     expiresAt: new Date(nowMs + oneHour),
   });
 
-  // One link in the `test` environment, for the `/test/l/{token}` address (task 066).
-  // The form is released there as well, because a published version is served nowhere
-  // until it is released (ADR-40): without the release this link would answer the closed
-  // screen rather than the flow, and the spec would pass for the wrong reason.
   await releaseSeededVersionTo(testDb.db, formId, 1, "test");
   const testEnvironmentToken = await mintInsuranceLink(testDb.db, config, formId, {
     linkId: "lnk_test_env",
@@ -339,13 +205,6 @@ export async function startApiServer(): Promise<void> {
     environment: "test",
   });
 
-  // The admin builder's "nothing has checked this draft yet" spec needs a draft with
-  // a known non-zero issue count, and it used to borrow one from the insurance form,
-  // which carried two only because the seed forgot to publish its question versions
-  // (issue #275). This is that fixture made deliberate: a form of its own whose draft
-  // pins two unpublished versions, so the count the spec asserts is a property of the
-  // seed rather than of a bug. It brings two library questions of its own, so the shared
-  // library every other spec reads is exactly as it was.
   const { formId: unpublishedPinFormId } = await seedUnpublishedPinForm(testDb.db);
 
   const fixtures: PortalFixtures = {

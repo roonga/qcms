@@ -1,62 +1,9 @@
 #!/usr/bin/env node
 // @ts-check
 /**
- * Is every message key in a catalog referenced by something that renders? (issues #538, #756)
- *
- * ## Why a gate rather than a sweep
- *
- * Issue #538 was filed because two dead keys were found by accident inside one small
- * change, which is an argument that there are more and that nothing would ever find them.
- * PR #755 did the sweep; a sweep does not stay swept. ADR-27 makes the catalog binding
- * rather than incidental, so a key nothing renders is not merely dead weight: it is a
- * sentence a reviewer weighs, a translator would pay for, and a future edit may revive
- * with no idea it was abandoned.
- *
- * ## One direction only, because the other one is already a build error
- *
- * "Key referenced, never defined" - the more serious fault - is caught by the compiler.
- * Both catalogs declare `export const messages = { ... } as const` with
- * `export type MessageKey = keyof typeof messages`, and `t(key: MessageKey, ...)` takes
- * that union, so a key that does not exist is a type error at the call site. #538 asked
- * for that to be checked before building it. It holds, and this gate covers the half the
- * types cannot see.
- *
- * ## AST, because a regex cannot do this one
- *
- * #755 measured the regex version and rejected it: a `t(` + backtick pattern matches
- * `POST(` in a portal test, and reading a key out of source text cannot tell a reference
- * from a mention in a comment or from an absence assertion in a test. This parses with
- * the TypeScript compiler already in the toolchain - no new dependency - and reads only
- * string literals and the static spans of template literals from the syntax tree.
- *
- * ## What counts as a reference
- *
- * Any string literal equal to a key, ANYWHERE in the catalog's own app, outside a test.
- * Deliberately not "an argument to `t()`": keys legitimately travel as values in lookup
- * tables (`apps/admin/lib/forms/errors.ts`), as props typed `MessageKey`, and through
- * `tPlural`, and a gate that modelled each of those routes would be a second, worse copy
- * of the type checker. A literal in scope is the honest lower bound.
- *
- * A literal that is a PREFIX of a key counts too, because a dynamically assembled key is
- * real and common here (`t(`${base}.${variant}`)`). That is a genuine widening: a broad
- * prefix means the gate can no longer see the keys under it. The widening belongs to the
- * code that wrote the broad prefix, not to this check, and narrowing it there is what
- * makes those keys visible again.
- *
- * ## Tests are not references
- *
- * A key rendered by nothing and asserted by a test is dead: the test is measuring the
- * catalog rather than the product. #756 records the case that proves it - a key deleted
- * in #755 that a portal test still named, in an assertion that it is ABSENT.
- *
- * ## The failure direction
- *
- * A shape this gate cannot read fails closed: it reports a key as dead rather than
- * assuming a reference it did not find. A red gate gets looked at; a silent pass does
- * not. If a key really is referenced through a shape not covered here, the fix is to name
- * it in `ALLOWED` below with the reason, never to widen the matcher until nothing fails.
- *
- * Usage: `pnpm check:dead-i18n-keys` (or `node scripts/check-dead-i18n-keys.mjs`)
+ * One direction only: "referenced, never defined" is already a type error. A reference is any string
+ * literal equal to, or a prefix of, a key in the catalog's app outside tests; a key asserted only by
+ * a test is dead. An unreadable shape fails closed: name the key in `ALLOWED` with the reason.
  */
 
 import { readFileSync } from "node:fs";
@@ -71,28 +18,20 @@ import { trackedFilesUnder } from "./tracked-files.mjs";
 const REPO_ROOT = fileURLToPath(new URL("../", import.meta.url));
 
 /**
- * Keys kept despite having no reference this gate can see.
- *
- * Empty, and meant to stay that way. An entry is a claim that a key is rendered through a
- * shape the scan cannot read; it carries the reason so the claim can be checked, and it is
- * pinned to one catalog so it cannot quietly cover a second one.
+ * Empty, and meant to stay that way. An entry claims a key is rendered through a shape the
+ * scan cannot read, carries its reason, and is pinned to one catalog.
  *
  * @type {Readonly<Record<string, Readonly<Record<string, string>>>>}
  */
 export const ALLOWED = {};
 
 /**
- * Source trees the scan may enter, relative to the repo root.
- *
- * `packages/create-qcms-app/templates` is excluded by construction: it is a generated
- * byte-for-byte copy of `apps/**` (`pnpm qcms:sync-templates`), so scanning it would
- * double every catalog and report each key twice.
+ * The generated template tree is excluded by construction: it is a byte-for-byte copy of
+ * `apps/**`, so scanning it would double every catalog.
  */
 const ROOTS = ["apps", "packages"];
 
 /**
- * A file whose string literals are not references: a test, a fixture, a spec.
- *
  * @param {string} path
  * @returns {boolean}
  */
@@ -107,12 +46,8 @@ export function isTestFile(path) {
 }
 
 /**
- * A TypeScript source file, parsed for syntax only.
- *
- * No `ts.Program` and no type checker: this gate reads string literals out of the syntax
- * tree and nothing more, so it costs a parse per file rather than a whole-program
- * typecheck. Nothing else in `scripts/` imports `typescript`; it is already the
- * toolchain's compiler, so this adds no dependency and no licence surface.
+ * Syntax only: no `ts.Program` and no type checker, so this costs a parse per file rather
+ * than a whole-program typecheck.
  *
  * @param {string} path
  * @param {string} text
@@ -124,17 +59,8 @@ function parse(path, text) {
 }
 
 /**
- * The keys a catalog module defines, or `undefined` when the file is not a catalog.
- *
- * A catalog is recognised structurally, by the shape both apps use -
- * `export const messages = { ... } as const` - rather than by its path. A third app's
- * catalog is then in scope on the day it lands, wherever it is put, which is the
- * "scope the check once rather than per-app" half of #538.
- *
- * ADR-11 is the reason the catalogs are flat maps of dotted keys to templates, which is
- * what makes a key a string this scan can look for. It does not prescribe the export
- * name or the `as const`, so the recogniser keys on the convention the two apps share
- * rather than claiming ADR-11 requires it.
+ * Recognised structurally, by the shape both apps share, rather than by path, so a third
+ * app's catalog is in scope on the day it lands wherever it is put.
  *
  * @param {ts.SourceFile} source
  * @returns {{ keys: string[]; node: ts.ObjectLiteralExpression } | undefined}
@@ -165,15 +91,10 @@ export function catalogIn(source) {
 }
 
 /**
- * Every string value a file states literally: plain literals and the static spans of
- * template literals.
+ * The static spans matter as much as the literals: an assembled key has no string literal
+ * in it at all, and its template head is the only evidence the keys under it are reachable.
  *
- * The static spans matter as much as the literals. `` `ops.status.${s}` `` has no string
- * literal in it at all; its head is a TemplateHead, and that head is the only evidence the
- * keys under `ops.status.` are reachable.
- *
- * Nodes inside `skip` (a catalog's own definition object) are not read, so a catalog does
- * not keep its own keys alive by defining them.
+ * Nodes inside `skip` are not read, so a catalog does not keep its own keys alive.
  *
  * @param {ts.SourceFile} source
  * @param {ts.Node | undefined} skip
@@ -196,11 +117,8 @@ export function literalsIn(source, skip) {
 }
 
 /**
- * Does any literal in `literals` reference `key`?
- *
- * Exact first, then prefix. A prefix must contain a `.` and be at least three characters,
- * which is what separates an assembled key from an unrelated short string that happens to
- * open the same way.
+ * A prefix must contain a `.` and be at least three characters, which separates an
+ * assembled key from an unrelated short string that happens to open the same way.
  *
  * @param {string} key
  * @param {ReadonlySet<string>} literals
@@ -216,11 +134,8 @@ export function isReferenced(key, literals) {
 }
 
 /**
- * The app or package a path belongs to (`apps/admin`), or `undefined` for neither.
- *
- * A catalog's references are looked for in its own app only. `apps/*` never import each
- * other and no package imports an app, so a key named in a sibling tree is a coincidence,
- * not a reference.
+ * A catalog's references are looked for in its own app only: the apps never import each
+ * other, so a key named in a sibling tree is a coincidence rather than a reference.
  *
  * @param {string} path
  * @returns {string | undefined}
@@ -231,11 +146,7 @@ export function ownerOf(path) {
   return `${parts[0]}/${parts[1]}`;
 }
 
-/**
- * Every tracked TypeScript source file under the scanned roots, repo-relative.
- *
- * @returns {string[]}
- */
+/** @returns {string[]} */
 export function scanned() {
   const files = [];
   for (const root of ROOTS) {
@@ -249,8 +160,6 @@ export function scanned() {
 }
 
 /**
- * Read the tree once: find the catalogs, and collect each app's non-test literals.
- *
  * @param {readonly string[]} files
  * @returns {{ catalogs: Map<string, { path: string; keys: string[] }>; literals: Map<string, Set<string>> }}
  */
@@ -280,13 +189,6 @@ export function survey(files) {
 }
 
 /**
- * Every catalog key with no reference, as `{ owner, catalog, key }` records.
- *
- * The survey is a parameter with a default rather than something this function always
- * performs, so a caller that already holds one (`main`, which needs the catalog totals
- * for its success line) passes it instead of parsing every file in the repository a
- * second time. The default keeps the no-argument call the tests use.
- *
  * @param {ReturnType<typeof survey>} [surveyed]
  * @returns {{ owner: string; catalog: string; key: string }[]}
  */
@@ -304,15 +206,10 @@ export function deadKeys(surveyed = survey(scanned())) {
   return dead;
 }
 
-/**
- * Run the gate.
- *
- * @returns {number} 0 when every key is referenced, 1 otherwise.
- */
+/** @returns {number} */
 export function main() {
-  // One survey, read twice. It parses every tracked `.ts`/`.tsx` under `apps/` and
-  // `packages/`, so doing it once for the totals and again for the verdict would double
-  // the gate's whole cost for a number printed on the success line.
+  // One survey, read twice: it parses every tracked source file, so surveying again for
+  // the totals printed on the success line would double the gate's whole cost.
   const surveyed = survey(scanned());
   const { catalogs } = surveyed;
   const dead = deadKeys(surveyed);
@@ -352,8 +249,8 @@ export function main() {
   return 1;
 }
 
-// Only when run as a command, so the test file can import the helpers above without the
-// scan firing (and without `process.exit` killing the test run).
+// Only when run as a command, so the test can import the helpers without the scan firing
+// and without `process.exit` killing the run.
 if (argv[1] !== undefined && import.meta.url === pathToFileURL(argv[1]).href) {
   process.exit(main());
 }

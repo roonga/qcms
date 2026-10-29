@@ -7,13 +7,6 @@ import {
   type FlowFailure,
 } from "./flow-outcome";
 
-/**
- * Local UX list P2 and P9. The hydrated flow read an expired or already-submitted
- * session's 409 as a network failure and said "We could not reach the server" for ever,
- * and it never cleared that notice or the count refusal once either was set. The rules
- * that decide both are here so they can be driven without a browser; the browser half is
- * `e2e/flow-states.pw.ts`.
- */
 describe("refusalOutcome (local UX list P2)", () => {
   it("reloads for the session states the page owns a screen for", () => {
     expect(refusalOutcome(409, "SESSION_EXPIRED")).toBe("reload");
@@ -37,8 +30,6 @@ describe("refusalOutcome (local UX list P2)", () => {
     expect(refusalOutcome(500, "SESSION_EXPIRED")).toBe("failed");
     expect(refusalOutcome(502, undefined)).toBe("failed");
     expect(refusalOutcome(403, "forbidden")).toBe("failed");
-    // A code is read with its status: the not-visible code on another status is not
-    // the API's visibility refusal.
     expect(refusalOutcome(404, "QUESTION_NOT_VISIBLE")).toBe("failed");
   });
 });
@@ -70,8 +61,6 @@ describe("failureAfterSuccess (local UX list P9)", () => {
   });
 
   it("keeps a failed answer's notice until that answer, or a navigation, gets through", () => {
-    // Another question saving says the server is reachable, not that this answer
-    // reached it, and clearing here would take away the Try again that re-sends it.
     expect(failureAfterSuccess(answerA, { kind: "answer", questionId: "q_b" })).toBe(answerA);
     expect(failureAfterSuccess(answerA, { kind: "roster" })).toBe(answerA);
     expect(failureAfterSuccess(answerA, { kind: "submitRefused" })).toBe(answerA);

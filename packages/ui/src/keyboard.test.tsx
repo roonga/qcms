@@ -17,10 +17,9 @@ if (!kitchen) throw new Error("kitchen-sink v2 golden not found");
 const stepHealth = kitchen.compiled.documents.find((d) => d.stepId === "stp_history");
 if (!stepHealth) throw new Error("stp_history not found");
 
-// Cost scales with the CPU share the runner gets rather than with any awaited delay,
-// so on a starved runner the slowest test here crosses Vitest's 5s default while a warm
-// machine finishes the file in 1.5s. Which test crosses varies with load, so the budget
-// belongs to the file; do not replace it with a per-test one.
+// Cost scales with the CPU share the runner gets, so on a starved runner the slowest test crosses Vitest's 5s
+// default while a warm machine takes 1.5s for the file. The budget belongs to the file; do not replace it
+// with a per-test one.
 describe("kitchen-sink keyboard walkthrough", { timeout: 30_000 }, () => {
   it("Tab visits every control in document order and never the honeypot", async () => {
     const user = userEvent.setup();

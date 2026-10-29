@@ -1,23 +1,3 @@
-/**
- * Coverage guard: every row of the SEC-3 matrix is actually probed (task 040).
- *
- * `surfaces.ts` originally carried a comment claiming this file existed. It did
- * not. That is the exact defect the security suite exists to catch, one level
- * up: an assertion about a check, with no check behind it. The honest repairs
- * were to delete the claim or to write the file, and writing it is strictly
- * better, because the gap the comment papered over is real.
- *
- * The gap: the suites walk `SURFACES` with `it.each`, so anything **added** to
- * that array is genuinely probed under every credential shape. Nothing tied the
- * array back to `docs/SECURITY_DESIGN.md` §3.2. A row added to the document, or
- * a row silently dropped from the array, would leave the suite passing over a
- * cell nobody tests, and the count of green tests would go on looking reassuring.
- *
- * So this file reads the shipped document, parses the §3.2 table, and closes the
- * loop in both directions. It needs no database and boots nothing; it lives here
- * rather than under `src/` because it is evidence about this suite.
- */
-
 import { readFileSync } from "node:fs";
 import { fileURLToPath } from "node:url";
 
@@ -32,27 +12,16 @@ const SECURITY_DESIGN = fileURLToPath(
 );
 
 /**
- * The shipped respondent OpenAPI document, which enumerates every route this API serves
- * on the respondent channel.
- *
- * Read so the session-authed route set can be DERIVED rather than listed a second time
- * (PR #1034, finding 6). Until this existed, `SURFACES` was a hand-kept list and the loop
- * closed only against the §3.2 table: task 073 added two session-authed writes,
- * `/answers/batch` and `/roster`, and the whole matrix suite stayed green over both. The
- * document is generated from the app's own registrars and guarded for freshness by
- * `src/openapi-document.test.ts`, so deriving from it is deriving from the routes.
+ * Generated from the app's own registrars, so the session-authed route set is derived from
+ * the served routes rather than kept as a second hand-written list.
  */
 const RESPONDENT_OPENAPI = fileURLToPath(
   new URL("../../../../docs/openapi/respondent.json", import.meta.url),
 );
 
 /**
- * The §3.2 Action column, verbatim, mapped to the `MatrixRow` that represents it.
- *
- * Keyed on the document's exact wording on purpose. Reword a row and this map
- * stops matching, which fails the parse assertion below rather than silently
- * dropping the row: a human then decides whether the rename was cosmetic or
- * whether the surface inventory needs to change with it.
+ * Keyed on the document's exact wording, so a reworded row fails the parse assertion below
+ * rather than being silently dropped.
  */
 const DOCUMENTED_ROWS: Readonly<Record<string, MatrixRow>> = {
   "Start anonymous session": "start-session",
@@ -62,26 +31,13 @@ const DOCUMENTED_ROWS: Readonly<Record<string, MatrixRow>> = {
   "Responses read/export": "responses-read",
   Erasure: "erasure",
   "Links mint/revoke, webhook config": "links-webhooks",
-  // Task 069's rows. The credential table gains one Action row covering the membership
-  // surface, because what that table is about is credential shapes and every route on
-  // that surface has the same answer in every one of its columns: an admin session and
-  // nothing less. Who may then call which route is the role table below it.
   "Membership, grants and the access audit": "membership",
   "Health/ready": "health",
 };
 
 /**
- * Pull the Action cell of every data row of one table out of the shipped document.
- *
- * Deliberately not a markdown library: the table is a fixed shape and a hand parser fails
- * loudly when that changes, which is the desired behaviour.
- *
- * `heading` is where to start looking, because section 3.2 carries **two** tables since
- * task 069: the credential-shape matrix this file has always walked, and the two role
- * families beneath it. They are two tables rather than one because the dimensions are
- * different - one is about what a caller presents and the other about what they were
- * granted - and a single table would have carried empty cells meaning "not applicable"
- * in a document where an empty cell means **no**.
+ * `heading` is where to start looking, because section 3.2 carries two tables: the
+ * credential-shape matrix and the two role families beneath it.
  */
 function parseMatrixActions(markdown: string, heading: string): string[] {
   const start = markdown.indexOf(heading);
@@ -91,7 +47,6 @@ function parseMatrixActions(markdown: string, heading: string): string[] {
   let seenHeader = false;
   for (const line of lines) {
     if (!line.startsWith("|")) {
-      // The table ends at the first non-table line after it has begun.
       if (seenHeader && actions.length > 0) break;
       continue;
     }
@@ -113,8 +68,6 @@ const roleActions = parseMatrixActions(securityDesign, "#### The two role famili
 
 describe("the §3.2 matrix and the probe inventory stay in step", () => {
   it("parsed a table that looks like the one in the document (the fixture is real)", () => {
-    // Without this, an empty or failed parse would make every assertion below
-    // pass over nothing at all - the failure mode this whole file exists for.
     expect(actions.length).toBeGreaterThanOrEqual(8);
     expect(actions).toContain("Start anonymous session");
     expect(actions).toContain("Health/ready");
@@ -137,8 +90,6 @@ describe("the §3.2 matrix and the probe inventory stay in step", () => {
   });
 
   it("has no surface row that the document does not describe", () => {
-    // The other direction: an orphan row means the inventory drifted away from
-    // the design, which is a documentation defect rather than a coverage one.
     const documented = new Set<MatrixRow>(Object.values(DOCUMENTED_ROWS));
     const orphans = [...new Set(SURFACES.map((surface) => surface.row))].filter(
       (row) => !documented.has(row),
@@ -147,10 +98,8 @@ describe("the §3.2 matrix and the probe inventory stay in step", () => {
   });
 
   it("probes every session-scoped route the API serves (PR #1034, finding 6)", () => {
-    // Derived from the shipped document, so a new `/sessions/...` route is a red gate
-    // until the matrix says what it does under every credential shape. `POST /sessions`
-    // itself is the anonymous session create, which `surfaces.ts` lists under its own row,
-    // so the derivation covers the ones that take an id in the path.
+    // `POST /sessions` itself is listed in `surfaces.ts` under its own row, so the
+    // derivation below covers only the routes that take an id in the path.
     const document = JSON.parse(readFileSync(RESPONDENT_OPENAPI, "utf8")) as {
       paths: Record<string, Record<string, unknown>>;
     };
@@ -168,7 +117,7 @@ describe("the §3.2 matrix and the probe inventory stay in step", () => {
     ).toBeGreaterThan(3);
 
     // `surfaces.ts` names a path template in `name` and builds the real path in `path`;
-    // the template is what compares, and `{id}` is the document's spelling of it.
+    // the template is what compares.
     const probed = new Set(SURFACES.map((surface) => surface.name));
     const unprobed = served.filter((route) => !probed.has(route));
     expect(
@@ -178,8 +127,6 @@ describe("the §3.2 matrix and the probe inventory stay in step", () => {
   });
 
   it("covers every admin slice, so no mounted group escapes the gate probes", () => {
-    // Cheap structural backstop: each admin route group must contribute at
-    // least one probed path, named by its prefix.
     const adminPaths = SURFACES.filter((surface) => surface.group === "admin").map(
       (surface) => surface.name,
     );
@@ -187,30 +134,14 @@ describe("the §3.2 matrix and the probe inventory stay in step", () => {
       "/admin/questions",
       "/admin/forms",
       "/admin/erasures",
-      // #478 moved revoke under the form, so the links slice is form-scoped
-      // throughout and its prefix carries the form segment.
       "/admin/forms/{id}/links",
       "/admin/forms/{id}/webhooks",
       "/admin/outbox/dead-letters",
-      // The workspace slice (ADR-41, task 068). Its own prefix, because none of the
-      // entries above would cover it: a workspace is addressed under `/admin/workspaces`
-      // and the two ownership moves hang off the form and question collections.
       "/admin/workspaces",
-      // The live environment set (ADR-40, task 065), for the same reason: it hangs off no
-      // form, so `/admin/forms` would not cover it and the slice could lose its probe
-      // without this backstop noticing. Added by task 066, which found the gap.
       "/admin/environments",
-      // The membership slice (ADR-41, task 069). Three prefixes rather than one, because
-      // the slice is three things a gate could be forgotten on independently: the
-      // caller's own grants, the member rows, and the access groups with their holders.
       "/admin/me/access",
       "/admin/workspaces/{id}/members",
       "/admin/workspaces/{id}/access-groups",
-      // The pending `prod` endpoint change (Q30, Q51; task 070). Its own prefix even
-      // though `/admin/forms/{id}/webhooks` above matches it as a substring, because it is
-      // a gate somebody could forget independently of the endpoint routes: these three are
-      // the two-person rule's own surface, and a probe set that lost them would still cover
-      // the endpoint slice and claim the same coverage.
       "/admin/forms/{id}/webhooks/proposals",
     ]) {
       expect(
@@ -222,16 +153,8 @@ describe("the §3.2 matrix and the probe inventory stay in step", () => {
 });
 
 /**
- * The role table's rows, mapped to the (resource, action) the route table says they are.
- *
- * Keyed on the document's exact wording, like `DOCUMENTED_ROWS` above and for the same
- * reason: reword a row and this map stops matching, which fails the parse assertion
- * rather than silently dropping the row.
- *
- * Several rows differ only by environment - "Release to dev or test" and "Release to
- * prod" are one `release: create` cell split by the production rule - so the mapping is
- * many-to-one and the assertion is that every documented row has a route that performs
- * it, not that every row is its own route.
+ * Keyed on the document's exact wording, like `DOCUMENTED_ROWS` above. Several rows differ
+ * only by environment, so the mapping is many-to-one.
  */
 const DOCUMENTED_ROLE_ROWS: Readonly<Record<string, readonly [string, string]>> = {
   "See drafts, published versions and release history": ["form", "read"],
@@ -285,9 +208,6 @@ describe("the two role families and the route table stay in step (task 069)", ()
   });
 
   it("has a route that performs every documented role row", () => {
-    // The other direction from `route-policy.test.ts`, which asserts every route has a
-    // row: this asserts every row of the document has a route. A documented act nothing
-    // serves is a promise with no surface behind it.
     const performed = new Set(ROUTE_POLICIES.map((row) => `${row.resource}:${row.action}`));
     const unserved = roleActions
       .map((action) => DOCUMENTED_ROLE_ROWS[action])
@@ -298,8 +218,6 @@ describe("the two role families and the route table stay in step (task 069)", ()
   });
 
   it("gives every role in the document a declaration, and no role a declaration the document lacks", () => {
-    // The columns, not the rows. A seventh role in the code with no column here would be
-    // a role nobody could look up; a column with no declaration would be a promise.
     const header = securityDesign
       .slice(securityDesign.indexOf("#### The two role families"))
       .split("\n")

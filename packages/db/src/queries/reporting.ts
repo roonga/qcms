@@ -6,12 +6,9 @@ import { erasureTombstones, reportingSchemaName } from "../schema/index.js";
 import type { Executor } from "./executor.js";
 import type { AccessMode } from "./sessions.js";
 
-// Reads of the erasure-safe `responses` view, so in-progress, expired and erased sessions
-// are excluded by construction and no read here can bypass the tombstone anti-join.
-//
-// `reporting_<env>` is on no search path, so it must be named, while `submissions` stays
-// unqualified: the two agree only because the environment passed is the pool's own. Every
-// value must be interpolated, never string-concatenated.
+// Reads of the erasure-safe `responses` view; `reporting_<env>` is named but `submissions` stays unqualified,
+// so they agree only because the environment is the pool's own. Interpolate every value, never
+// string-concatenate.
 
 /**
  * One row of the erasure-safe response projection. A `type` rather than an `interface`

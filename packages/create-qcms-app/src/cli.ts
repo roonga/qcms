@@ -1,10 +1,5 @@
 #!/usr/bin/env node
-/**
- * `pnpm create qcms-app my-forms` (task 037).
- *
- * The bin entry point, and nothing else: everything it does lives in `run.ts`, which
- * is importable without side effects and therefore testable.
- */
+/** The bin entry point; everything else lives in `run.ts`, which is importable without side effects. */
 
 import { main } from "./run.js";
 

@@ -15,40 +15,15 @@ import {
   originBeltRefusal,
   routeOutcome,
 } from "./origin-belt-log";
-// Plain JavaScript with a hand-written declaration file beside it, imported by relative
-// path the way `apps/api/e2e/support/check-fixture-domain.test.ts` imports its gate.
 import { trackedFilesUnder } from "../../../../scripts/tracked-files.mjs";
 import { declaresUseServer } from "../../../../scripts/use-server-directive.mjs";
-
-/**
- * The refusal line's own tests (issue #578). `origin-guard.test.ts` covers the other
- * half: that each belted route writes exactly one of these and an admitted request
- * writes none. This file covers what the line may contain, and that the set of routes
- * it can name is the set that exists.
- *
- * ## The three things asserted here, and why each is not a code reading
- *
- *   1. **The route set is derived from disk.** `apps/portal/app` is scanned for every
- *      `route.ts` exporting a state-changing handler, and each derived template must
- *      appear in the module's table, and vice versa. A claim about "every belted
- *      route" made against a list written by hand is a claim about the list.
- *   2. **Every field is a member of a declared vocabulary**, over a corpus of hostile
- *      requests rather than over the friendly ones. SEC-13 is met structurally here:
- *      no field is copied from the request, so the test that proves it is one where
- *      the request is full of values that must not appear, and none does.
- *   3. **The line survives the export allowlist intact**, driven through the real
- *      `allowlistingLogRecordProcessor` rather than by reading its two sets. An event
- *      name outside its vocabulary is rewritten to `application.event` and unlisted
- *      attributes are deleted, so "the line passes SEC-13" is only true if the
- *      processor says so.
- */
 
 const PORTAL_BASE = "https://forms.qcms.test";
 
 /**
- * Values that must never reach a log line, planted in every request-controlled input
- * the belt can see. Each is distinctive enough that a substring scan over the emitted
- * line is a complete check rather than a suggestive one.
+ * Planted in every request-controlled input the belt can see, and distinctive enough
+ * that a substring scan over the emitted line is a complete check rather than a
+ * suggestive one.
  */
 const CANARIES = {
   origin: "https://BELT_ORIGIN_CANARY.example",
@@ -78,31 +53,26 @@ afterEach(() => {
 const APP_DIR = fileURLToPath(new URL("../../app", import.meta.url));
 
 /**
- * Every outcome a refusal may name. One constant rather than the same literal list at
- * each assertion below: a member added to `BeltOutcome` without a home in the runbook
- * should fail in one obvious place, not in three that happen to agree.
+ * One constant rather than the same literal list at each assertion: a member added to
+ * `BeltOutcome` without a home in the runbook should fail in one obvious place, not in
+ * three that happen to agree.
  */
 const OUTCOME_VOCABULARY = [
   "redirect-to-entry",
   "redirect-to-root",
   "redirect-to-step",
-  // Task 073: a refused Server Action re-renders the step it was pressed on with a
-  // message and nothing applied, which is neither a redirect nor a 403.
   "rendered-unchanged",
   "forbidden",
 ];
 
-/** Verbs whose handlers change state, so the belt applies to them. */
+/** The verbs whose handlers change state, so the belt applies to them. */
 const MUTATING_VERBS = new Set(["POST", "PUT", "PATCH", "DELETE"]);
 
-/** A named top-level exported handler, `async` or not. */
 const EXPORTED_HANDLER = /^export (?:async )?function (\w+)\s*\(/m;
 
 /**
- * Every `route.ts` / `route.tsx` under `dir`, as paths relative to `APP_DIR`.
- *
  * Enumerated through git rather than by walking the directory, so a compiled handler left
- * under `.next-dev` by a dev server is not read as a route (issue #641).
+ * under `.next-dev` by a dev server is not read as a route.
  */
 function routeFiles(dir: string, prefix: string): string[] {
   return trackedFilesUnder(dir, { match: /(?:^|\/)route\.tsx?$/ }).map(
@@ -110,44 +80,32 @@ function routeFiles(dir: string, prefix: string): string[] {
   );
 }
 
-/** The Next path template of a route file: `f/[formSlug]/start/route.ts` -> `/f/{formSlug}/start`. */
 function templateOf(relativePath: string): string {
   const segments = relativePath.split("/").slice(0, -1);
   return `/${segments.map((s) => s.replace(/^\[(.+)]$/, "{$1}")).join("/")}`;
 }
 
-/** A concrete URL of that template's shape, with a canary in every dynamic segment. */
+/** With a canary in every dynamic segment. */
 function concreteUrl(template: string): string {
   return `${PORTAL_BASE}${template.replaceAll(/\{\w+}/g, CANARIES.slug)}`;
 }
 
 /**
- * Every `"use server"` module under `APP_DIR`, as paths relative to it.
- *
- * A **Server Action** is a state-changing entry point that is not a `route.ts`, and
- * since task 073 the portal has one: the no-JS Add and Remove of a repeating group. It
- * runs SEC-9's belt itself (Code Owner, 2026-10-01, R-B2), so it belongs in the
- * enumeration below rather than beside it, or the table's two-directional check would
- * report the action's own `BeltRoute` entry as an orphan.
- *
- * Enumerated through git for the same reason the route walk is.
+ * A Server Action is a state-changing entry point that is not a `route.ts` and runs the
+ * belt itself (R-B2), so it belongs in the enumeration below rather than beside it, or
+ * the table's two-directional check would report its `BeltRoute` entry as an orphan.
  */
 function serverActionFiles(): string[] {
   return trackedFilesUnder(APP_DIR, { match: /\.tsx?$/ }).filter((relative) => {
     const source = readFileSync(`${APP_DIR}/${relative}`, "utf8");
-    // The directive is the first statement of the module, so a mention in a comment or
-    // a string further down is not one. Shared with the two other scans that need it.
     return declaresUseServer(source);
   });
 }
 
 /**
- * The Next path template a Server Action runs against: the PAGE that declares it.
- *
- * `s/[sessionId]/roster-action.ts` gives `/s/{sessionId}`, because an action is posted
- * to the route of the page whose form carries it rather than to a path of its own. That
- * is also why its belt entry cannot be derived by `templateOf`, which reads a
- * `route.ts`'s own directory.
+ * The page that declares it, because an action is posted to the route of the page whose
+ * form carries it rather than to a path of its own. That is also why its belt entry
+ * cannot be derived by `templateOf`, which reads a `route.ts`'s own directory.
  */
 function actionTemplateOf(relativePath: string): string {
   const segments = relativePath.split("/").slice(0, -1);
@@ -155,13 +113,8 @@ function actionTemplateOf(relativePath: string): string {
 }
 
 /**
- * Every portal entry point that changes state, as a path template: the route files
- * exporting a mutating handler, plus every Server Action.
- *
- * This is the enumeration. It reads the tree rather than a list, so a belted route
- * added tomorrow appears here without anyone remembering this file exists - and since
- * task 073 that includes a Server Action added tomorrow, which is the shape Next makes
- * easiest to add and the belt hardest to remember.
+ * The enumeration: it reads the tree rather than a list, so a belted route or Server
+ * Action added tomorrow appears here without anyone remembering this file exists.
  */
 const MUTATING_ROUTE_TEMPLATES: string[] = [
   ...routeFiles(APP_DIR, "")
@@ -179,14 +132,10 @@ const MUTATING_ROUTE_TEMPLATES: string[] = [
 
 describe("the belted route set is the one on disk", () => {
   it("finds state-changing route handlers to enumerate", () => {
-    // Without this, a rename of `app/` turns every assertion below into a vacuous
-    // pass over an empty list, which is the failure mode a disk scan invites.
     expect(MUTATING_ROUTE_TEMPLATES.length).toBeGreaterThan(0);
   });
 
   it("recognises every state-changing route in the tree, and only those", () => {
-    // Both directions in one assertion: a route added without a table entry fails on
-    // the left, a table entry whose route was deleted fails on the right.
     expect(MUTATING_ROUTE_TEMPLATES).toEqual(
       [...BELTED_ROUTE_TEMPLATES].sort((a, b) => a.localeCompare(b)),
     );
@@ -201,19 +150,13 @@ describe("the belted route set is the one on disk", () => {
   });
 
   it("does not stretch a template over a path that is merely similar", () => {
-    // One bounded segment per parameter: a nested path under the same prefix is a
-    // different route and must not be counted as this one.
     expect(classifyRoute(`${PORTAL_BASE}/s/ses_1/step/extra`)).toBe("unrecognized");
     expect(classifyRoute(`${PORTAL_BASE}/l/lnk_1`)).toBe("unrecognized");
-    // `/appearance` is the one belted route with no dynamic segment, so its pattern is
-    // the one most likely to be written as a prefix by accident.
     expect(classifyRoute(`${PORTAL_BASE}/appearance/extra`)).toBe("unrecognized");
     expect(classifyRoute(`${PORTAL_BASE}/appearances`)).toBe("unrecognized");
   });
 
   it("survives a URL it cannot parse rather than throwing inside the belt", () => {
-    // A throw here would turn a quiet refusal into a 500, which is a behaviour change
-    // this work is explicitly not allowed to make.
     expect(classifyRoute("not a url")).toBe("unrecognized");
     expect(routeOutcome("not a url")).toBe("forbidden");
   });
@@ -273,8 +216,6 @@ describe("classifying, never copying", () => {
   });
 
   it("reports an unverifiable Origin rather than throwing when the base URL is unset", () => {
-    // `portalBaseUrl()` throws on a missing variable. A logging helper that propagated
-    // that would turn a misconfiguration into a 500 on the refusal path itself.
     vi.stubEnv("QCMS_PORTAL_BASE_URL", "");
     expect(classifyOrigin(hostileRequest())).toBe("unverifiable");
   });
@@ -298,8 +239,6 @@ describe("SEC-13: nothing the request supplied reaches the line", () => {
       write: (l) => lines.push(l),
     });
     logger.warn(ORIGIN_BELT_REFUSED, { ...originBeltRefusal(hostileRequest()) });
-    // The whole serialized line, not the fields: a value smuggled into a key, a nested
-    // object or the message itself would be missed by a field-by-field check.
     expect(lines).toHaveLength(1);
     expect(lines[0]).not.toMatch(CANARY_PATTERN);
     expect(JSON.parse(lines[0] ?? "{}")).toEqual({
@@ -315,8 +254,6 @@ describe("SEC-13: nothing the request supplied reaches the line", () => {
   });
 
   it("goes through the module's own emitter, not only the fields it builds", () => {
-    // `logOriginBeltRefusal` is what the belt calls. Asserting only `originBeltRefusal`
-    // would leave the production path (level, message, sink) unpinned.
     const write = vi.spyOn(process.stdout, "write").mockReturnValue(true);
     try {
       logOriginBeltRefusal(hostileRequest({ "sec-fetch-site": "cross-site" }));
@@ -343,16 +280,12 @@ describe("SEC-13: nothing the request supplied reaches the line", () => {
 
 describe("SEC-13: the exported record keeps the line rather than collapsing it", () => {
   it("keeps the event name", () => {
-    // Not in the allowlist's vocabulary, this becomes `application.event` and an
-    // adopter's backend cannot count refusals at all.
     expect(safeEventName(ORIGIN_BELT_REFUSED)).toBe(ORIGIN_BELT_REFUSED);
   });
 
   it("keeps the four fields and deletes anything else on the same record", () => {
     const attributes: Record<string, unknown> = {
       ...originBeltRefusal(hostileRequest({ "sec-fetch-site": "cross-site" })),
-      // A field nobody put there, to prove the allowlist is still doing its job on
-      // this event rather than having been widened into a pass-through.
       rawOrigin: CANARIES.origin,
     };
     const record = {

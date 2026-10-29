@@ -17,8 +17,7 @@ import {
 
 const { Pool } = pg;
 
-// A real Drizzle handle over a dead port: a genuine "database is down" - the
-// query rejects. Not a mock of our package; the external DB is simply absent.
+// Port 1 is deliberate: a real Drizzle handle whose queries genuinely reject.
 const deadPool = new Pool({
   host: "127.0.0.1",
   port: 1,
@@ -30,7 +29,6 @@ afterAll(async () => {
   await deadPool.end();
 });
 
-// The slice contract: a happy `/ping` declared with the createRoute convention.
 const pingRoute = createRoute({
   method: "get",
   path: "/ping",
@@ -46,9 +44,7 @@ const registerPing: SliceRegistrar = (group) => {
 };
 
 const ALL = { public: true, internal: true, admin: true } as const;
-// No mounted groups: only health/ready + the always-installed middleware
-// (error envelope, request logger). Used to exercise middleware in isolation
-// without a group's internal-token guard intercepting a root test route.
+// No groups, so no internal-token guard intercepts a root test route.
 const NONE = { public: false, internal: false, admin: false } as const;
 
 describe("health and readiness (exit criterion 1)", () => {
@@ -86,7 +82,6 @@ describe("mount flags (exit criterion 2, ADR-09)", () => {
     const res = await app.request("/admin/ping", {
       headers: { "x-qcms-internal-token": internalTokenFor(deps.config) },
     });
-    // Not 403 - the route does not exist at all in this process.
     expect(res.status).toBe(404);
   });
 
@@ -112,7 +107,6 @@ describe("error envelope (exit criterion 3)", () => {
     const { logger, lines } = recordingLogger();
     const deps = makeDeps({ logger });
     const app = createApp(deps, NONE);
-    // A test-only throwing route to exercise the error middleware.
     app.get("/boom", () => {
       throw new Error("boom: SENSITIVE-INTERNAL-DETAIL");
     });
@@ -126,12 +120,10 @@ describe("error envelope (exit criterion 3)", () => {
     expect(body.error.message).toBe("Internal Server Error");
     expect(body.error.details?.errorId).toBeTruthy();
 
-    // The body leaks nothing internal.
     const raw = JSON.stringify(body);
     expect(raw).not.toContain("SENSITIVE-INTERNAL-DETAIL");
     expect(raw).not.toContain("stack");
 
-    // The stack IS logged, correlated by errorId.
     const errLine = lines.find((l) => l.level === "error" && l.msg === "unhandled error");
     expect(errLine).toBeDefined();
     expect(errLine!.errorId).toBe(body.error.details?.errorId);

@@ -1,30 +1,3 @@
-/**
- * The environment's address, the mount split and the per-environment closed state, against
- * a real Postgres (task 066, ADR-40, Q16, Q18, Q19, Q21, SEC-14).
- *
- * # Why this file exists beside `start-session.integration.test.ts`
- *
- * That file composes **one** respondent surface and asserts what a start does. This one
- * composes the surfaces a deployment actually has - `prod`'s at `/` and `test`'s at
- * `/test` - plus the admin surface that mints into them, because every criterion below is
- * about which address a thing lives at and which pool it reaches. A single-surface
- * composition cannot express any of them.
- *
- * Nothing here substitutes a pool or a default. Each environment has its own connection
- * on its own `search_path`, exactly as an API process holds them (Q2, Q17), so a read that
- * resolved to the wrong schema would fail on a missing row rather than pass quietly.
- *
- * # What it covers
- *
- * Exit criteria 1, 2, 3, 4 (per environment), 5, 6 and 7 of task 066. Criterion 8 is a
- * documentation change and is asserted by reading `docs/adr/core.md`, not here.
- *
- * The one criterion worth reading twice is **3**, which asks for a `404` and not a `403`
- * (ADR-09). A handler that refused anonymous entry on a non-prod environment would pass a
- * casual read of the requirement and fail this file: what is asserted is that the route
- * does not exist, which is only true because anonymous entry is its own mountable group.
- */
-
 import { drizzle } from "drizzle-orm/node-postgres";
 import pg from "pg";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
@@ -67,7 +40,6 @@ const { Pool } = pg;
 
 const LIVE_SET = ["test", "prod"] as const;
 
-/** The shipped solo shape: every surface, with `test`'s respondent surface at `/test`. */
 const MOUNTED = {
   public: true,
   internal: false,
@@ -75,10 +47,7 @@ const MOUNTED = {
   environments: ["test"],
 } as const;
 
-/**
- * The same shape with **no** non-prod respondent surface, which is what an operator gets
- * by leaving `test` out of `QCMS_MOUNT` (SEC-14's "leave it unmounted").
- */
+// No non-prod respondent surface, which is what leaving `test` out of `QCMS_MOUNT` gives.
 const PROD_ONLY = { public: true, internal: false, admin: true, environments: [] } as const;
 
 let testDb: TestDb;
@@ -90,7 +59,6 @@ let internalToken: string;
 let linkKey: CryptoKey;
 let adminSessionToken: string;
 
-/** The verifier a challenged form meets in these cases: only "good-token" passes. */
 const strictVerifier: ChallengeVerifier = {
   verify: (token) => Promise.resolve({ ok: token === "good-token" }),
 };
@@ -133,13 +101,13 @@ beforeAll(async () => {
     );
     executors.set(environment, drizzle(pool, { schema }));
   }
-  // Any of these connections resolves a control-plane table, which is declared
-  // schema-qualified; `test`'s is used so nothing here leans on `prod` being a default.
+  // Control-plane tables are schema-qualified, so any connection resolves them; `test`'s
+  // is used so nothing here leans on `prod` being a default.
   control = executors.get("test")!;
   adminSessionToken = (await seedAdminSession(control)).token;
 
-  // One environment object for both apps: `validEnv()` mints a fresh synthetic secret per
-  // call, so two calls would give the two apps different internal tokens.
+  // One for both apps: `validEnv()` mints a fresh secret per call, so two calls would
+  // give the two apps different internal tokens.
   const env = validEnv({ QCMS_RL_SESSION_CREATE_MAX: "500" });
   const deps: Deps = makeDeps({ databases: databases(), env, challenge: strictVerifier });
   internalToken = internalTokenFor(deps.config);
@@ -152,9 +120,6 @@ afterAll(async () => {
   await testDb?.teardown();
 }, CONTAINER_BOOT_TIMEOUT_MS);
 
-// --- addresses and requests -------------------------------------------------
-
-/** The respondent address prefix of one environment (Q21): `prod` carries none. */
 function prefixOf(environment: string): string {
   return environment === "prod" ? "" : `/${environment}`;
 }
@@ -172,7 +137,6 @@ function adminHeaders(environment?: string): Record<string, string> {
   };
 }
 
-/** Redeem a token at one environment's own address. */
 async function redeem(
   environment: string,
   token: string,
@@ -185,7 +149,6 @@ async function redeem(
   });
 }
 
-/** Anonymous entry at one environment's address, which only `prod` is expected to serve. */
 async function enterAnonymously(environment: string, slug: string): Promise<Response> {
   return app.request(`${prefixOf(environment)}/sessions`, {
     method: "POST",
@@ -217,13 +180,10 @@ function futureIso(): string {
   return new Date(Date.now() + 60 * 60 * 1000).toISOString();
 }
 
-// --- fixtures ---------------------------------------------------------------
-
 const emptyDef = {} as unknown as FormDefinition;
 const emptyCompiled = {} as unknown as CompiledForm;
 let linkSeq = 0;
 
-/** A form with one published version, released to each environment in `releaseTo`. */
 async function seedForm(
   label: string,
   releaseTo: readonly string[],
@@ -234,9 +194,6 @@ async function seedForm(
   await createForm(control, {
     formId,
     slug,
-    // Every form belongs to exactly one workspace (ADR-41, task 068, criterion 1), and
-    // nothing here guesses which: the fixture installation's own is what these cases are
-    // about as little as possible.
     workspaceId: SEED_WORKSPACE_ID,
     defaultLocale: "en",
     ...(opts.challengeRequired === undefined ? {} : { challengeRequired: opts.challengeRequired }),
@@ -260,13 +217,8 @@ async function seedForm(
   return { formId, slug };
 }
 
-/**
- * A link row in one environment plus the matching signed token, written at the query
- * layer.
- *
- * The mint **route** is exercised on its own below; using it for every fixture would make
- * each case depend on the admin surface as well as the one thing it is about.
- */
+// At the query layer rather than through the mint route, so a case does not depend on the
+// admin surface as well as the one thing it is about.
 async function seedLink(
   formId: FormId,
   environment: string,
@@ -284,7 +236,6 @@ async function seedLink(
   return { token, linkId };
 }
 
-/** How many sessions exist for a form in one environment's schema. */
 async function sessionCount(environment: string, formId: FormId): Promise<number> {
   const res = await testDb.client.query<{ n: string }>(
     `select count(*) as n from data_${environment}.sessions where form_id = $1`,
@@ -293,17 +244,14 @@ async function sessionCount(environment: string, formId: FormId): Promise<number
   return Number(res.rows[0]?.n ?? "-1");
 }
 
-// --- criterion 1 ------------------------------------------------------------
-
 describe("a prod link starts a prod session and a test link a test session (criterion 1)", () => {
   it("lands each session in its own environment's schema, with the token format unchanged", async () => {
     const { formId } = await seedForm("bothenvs", ["test", "prod"]);
     const prodLink = await seedLink(formId, "prod");
     const testLink = await seedLink(formId, "test");
 
-    // The token is the same shape it has always been - the compact
-    // `<payload>.<signature>` pair task 010 mints - and nothing in it names an
-    // environment (Q21, Q16): the path names it and the server-side row decides it.
+    // Nothing in the token names an environment: the path names it and the stored row
+    // decides it.
     expect(prodLink.token.split(".")).toHaveLength(2);
     expect(prodLink.token).not.toContain("prod");
     expect(testLink.token).not.toContain("test");
@@ -311,15 +259,10 @@ describe("a prod link starts a prod session and a test link a test session (crit
     expect((await redeem("prod", prodLink.token)).status).toBe(201);
     expect((await redeem("test", testLink.token)).status).toBe(201);
 
-    // One session each, in its own schema. The composite foreign key and the per-schema
-    // CHECK would refuse the other arrangement (Q46), so this is the API check and the
-    // database guard agreeing rather than one of them.
     expect(await sessionCount("prod", formId)).toBe(1);
     expect(await sessionCount("test", formId)).toBe(1);
   });
 });
-
-// --- criterion 2 ------------------------------------------------------------
 
 describe("the address carries the environment, and a wrong prefix is refused (criterion 2)", () => {
   it("prefixes a non-prod minted URL and leaves a prod one unprefixed", async () => {
@@ -333,8 +276,6 @@ describe("the address carries the environment, and a wrong prefix is refused (cr
     const inTest = await mint(formId, { environment: "test" });
     expect(inTest.status).toBe(201);
     const minted = ((await inTest.json()) as MintedBody).links[0]!;
-    // Legible as non-production before anybody clicks it, which is the whole of Q16: the
-    // environment's name is the first path segment and is disclosed nowhere else.
     expect(new URL(minted.url).pathname).toMatch(/^\/test\/l\/[^/]+$/);
     expect(minted.environment).toBe("test");
   });
@@ -344,13 +285,11 @@ describe("the address carries the environment, and a wrong prefix is refused (cr
     const prodLink = await seedLink(formId, "prod", { oneTime: true });
 
     const atTest = await redeem("test", prodLink.token);
-    // Refused: `404`, because the honest answer is that there is no such link *here*.
-    // Not a `3xx` - redirecting would turn a leaked production link into a working one
-    // for anybody who found the test address - and not a `201`.
+    // Not a redirect: that would turn a leaked production link into a working one for
+    // anybody who found the test address.
     expect(atTest.status).toBe(404);
     expect(((await atTest.json()) as ErrBody).error.code).toBe("LINK_WRONG_ENVIRONMENT");
 
-    // Nothing was spent and nothing was created, so the link still works where it belongs.
     expect((await getSecureLink(control, prodLink.linkId))?.consumedAt).toBeNull();
     expect(await sessionCount("test", formId)).toBe(0);
     expect((await redeem("prod", prodLink.token)).status).toBe(201);
@@ -367,26 +306,20 @@ describe("the address carries the environment, and a wrong prefix is refused (cr
   });
 });
 
-// --- criterion 3 ------------------------------------------------------------
-
 describe("there is no anonymous entry to a non-prod environment (criterion 3)", () => {
   it("answers 404 and not 403 for a form slug at a non-prod address", async () => {
     const { slug } = await seedForm("noanon", ["test", "prod"]);
 
     const atTest = await enterAnonymously("test", slug);
-    // The route is not registered on this surface, so there is nothing to refuse: a `403`
-    // here would mean a handler had looked at the request and decided, which is exactly
-    // what ADR-09 says a mount decision must not degrade into.
+    // The route is not registered on this surface, so there is nothing to refuse: a 403
+    // would mean a handler had looked at the request and decided (ADR-09).
     expect(atTest.status).toBe(404);
 
-    // The same slug at the prod address works, which is what makes the assertion above
-    // about the mount rather than about the fixture.
     expect((await enterAnonymously("prod", slug)).status).toBe(201);
   });
 
   it("serves no `/<env>/f/{slug}` shape at all, because the API has no such route", async () => {
-    // The portal owns `/f/{slug}`; the API's anonymous door is `POST /sessions`. Asserted
-    // here as the API half: there is no form-slug address under a prefix, by any method.
+    // The portal owns `/f/{slug}`; the API's anonymous door is `POST /sessions`.
     const { slug } = await seedForm("noslugroute", ["test"]);
     for (const method of ["GET", "POST"]) {
       const res = await app.request(`/test/f/${slug}`, {
@@ -401,8 +334,6 @@ describe("there is no anonymous entry to a non-prod environment (criterion 3)", 
     const { formId, slug } = await seedForm("unmounted", ["test"]);
     const link = await seedLink(formId, "test");
 
-    // SEC-14's "leave a non-prod environment unmounted and get a 404": the surface does
-    // not exist, so neither door does.
     const anon = await prodOnlyApp.request(`/test/sessions`, {
       method: "POST",
       headers: respondentHeaders(),
@@ -419,8 +350,6 @@ describe("there is no anonymous entry to a non-prod environment (criterion 3)", 
   });
 });
 
-// --- criterion 4 ------------------------------------------------------------
-
 describe("the link lifecycle behaves per environment as it does today (criterion 4)", () => {
   it("consumes a one-time link in its own environment only", async () => {
     const { formId } = await seedForm("onetime", ["test", "prod"]);
@@ -430,8 +359,6 @@ describe("the link lifecycle behaves per environment as it does today (criterion
     const replay = await redeem("test", link.token);
     expect(replay.status).toBe(409);
     expect(((await replay.json()) as ErrBody).error.code).toBe("LINK_CONSUMED");
-    // Consumption is a column on the one control-plane row, so it is visible from either
-    // environment's connection - and the link was never usable in `prod` anyway.
     expect((await getSecureLink(control, link.linkId))?.consumedAt).not.toBeNull();
   });
 
@@ -440,8 +367,6 @@ describe("the link lifecycle behaves per environment as it does today (criterion
     const minted = await mint(formId, { environment: "test" }, "test");
     const linkId = ((await minted.json()) as MintedBody).links[0]!.linkId;
 
-    // The wrong environment's screen cannot reach it: the environment joins the update's
-    // `where` clause, so this is the same 404 a cross-form revoke takes (#478).
     const wrong = await app.request(`/admin/forms/${formId}/links/${linkId}/revoke`, {
       method: "POST",
       headers: adminHeaders("prod"),
@@ -480,27 +405,22 @@ describe("the link lifecycle behaves per environment as it does today (criterion
     const inProd = await seedLink(formId, "prod");
     const inTest = await seedLink(formId, "test");
 
-    // Both environments start on the installation-wide verifier, which this file wires
-    // strict, so a challenged form refuses without the solution in either.
+    // Both environments start on the installation-wide verifier, wired strict here.
     expect((await redeem("prod", inProd.token)).status).toBe(403);
     expect((await redeem("test", inTest.token)).status).toBe(403);
 
-    // `test` sets `none`, which is the case the setting exists for: a tester should not
-    // be asked to solve a visible challenge.
     await testDb.client.query(
       `update control.environments set challenge_provider = 'none' where name = 'test'`,
     );
     const second = await seedLink(formId, "test");
     expect((await redeem("test", second.token)).status).toBe(201);
 
-    // And `prod` is untouched by that row, which is the half that makes it per
-    // environment rather than installation-wide.
     expect((await redeem("prod", inProd.token)).status).toBe(403);
     const solved = await redeem("prod", inProd.token, { challengeToken: "good-token" });
     expect(solved.status).toBe(201);
 
     // An unrecognised provider name fails closed rather than letting a challenged start
-    // through: refusing is visible at once and is fixed by correcting one row.
+    // through.
     await testDb.client.query(
       `update control.environments set challenge_provider = 'nonesuch' where name = 'test'`,
     );
@@ -511,8 +431,6 @@ describe("the link lifecycle behaves per environment as it does today (criterion
     );
   });
 });
-
-// --- criterion 5 ------------------------------------------------------------
 
 describe("the closed state is per environment (criterion 5, Q18)", () => {
   it("closes prod and leaves an open test run serving, and the reverse", async () => {
@@ -529,16 +447,13 @@ describe("the closed state is per environment (criterion 5, Q18)", () => {
       status: "closed",
     });
 
-    // Production intake is stopped, on both of prod's doors.
     expect((await enterAnonymously("prod", slug)).status).toBe(409);
     const prodLink = await seedLink(formId, "prod");
     expect((await redeem("prod", prodLink.token)).status).toBe(409);
 
-    // And the test run continues, which is the operation Q18 exists to make ordinary.
     const testLink = await seedLink(formId, "test");
     expect((await redeem("test", testLink.token)).status).toBe(201);
 
-    // The reverse: reopen prod, close test.
     await app.request(`/admin/forms/${formId}/reopen`, {
       method: "POST",
       headers: adminHeaders(),
@@ -565,14 +480,11 @@ describe("the closed state is per environment (criterion 5, Q18)", () => {
 
     const refused = await redeem("test", link.token);
     expect(refused.status).toBe(409);
-    // `FORM_CLOSED` and not `CHALLENGE_REQUIRED`: the closed state is read before the
-    // challenge, so no challenge is charged (issue #724's property, carried across to the
-    // per-environment state rather than rebuilt).
+    // The closed state is read before the challenge, so no challenge is charged.
     expect(((await refused.json()) as ErrBody).error.code).toBe("FORM_CLOSED");
     expect((await getSecureLink(control, link.linkId))?.consumedAt).toBeNull();
     expect(await sessionCount("test", formId)).toBe(0);
 
-    // So the link still works once intake resumes, which is what "not spent" means.
     await reopenFormInEnvironment(control, {
       formId,
       environment: "test",
@@ -603,8 +515,6 @@ describe("the closed state is per environment (criterion 5, Q18)", () => {
       headers: adminHeaders(),
       body: JSON.stringify({ environment: "prod" }),
     });
-    // A double-pressed button records nothing, so the history stays a record of acts that
-    // changed something.
     expect(again.status).toBe(409);
     expect(((await again.json()) as ErrBody).error.code).toBe("ALREADY_CLOSED");
   });
@@ -635,14 +545,10 @@ describe("the closed state is per environment (criterion 5, Q18)", () => {
       headers: adminHeaders(),
       body: JSON.stringify({ environment: "prod", version: 2 }),
     });
-    // The release succeeds; intake stays stopped. Closing `prod` is a deliberate
-    // operational act and releasing a version is not a request to resume it.
     expect(released.status).toBe(200);
     expect((await enterAnonymously("prod", slug)).status).toBe(409);
   });
 });
-
-// --- criterion 6 ------------------------------------------------------------
 
 describe("minting without an environment is refused (criterion 6, Q19)", () => {
   it("refuses a body that omits the field, naming it", async () => {
@@ -652,9 +558,8 @@ describe("minting without an environment is refused (criterion 6, Q19)", () => {
       headers: adminHeaders("prod"),
       body: JSON.stringify({ expiresAt: futureIso() }),
     });
-    // No default, deliberately: a script that omits the field and silently gets a
-    // production link is the failure this rule exists to prevent. The switcher's header
-    // is set on this request and is **not** consulted as a fallback.
+    // No default: the switcher's header is set on this request and is not consulted as a
+    // fallback, so a script that omits the field cannot silently get a production link.
     expect(res.status).toBe(400);
     const body = (await res.json()) as ErrBody & { error: { details?: unknown } };
     expect(JSON.stringify(body.error.details)).toContain("environment");
@@ -668,20 +573,15 @@ describe("minting without an environment is refused (criterion 6, Q19)", () => {
   });
 });
 
-// --- criterion 7 ------------------------------------------------------------
-
 describe("a prod respondent's address and experience are unchanged (criterion 7)", () => {
   it("serves the form slug and the link at exactly the addresses they had", async () => {
     const { formId, slug } = await seedForm("produnchanged", ["prod"]);
     const link = await seedLink(formId, "prod");
 
-    // `/sessions` with a slug and the link redemption, both unprefixed, both 201.
     expect((await enterAnonymously("prod", slug)).status).toBe(201);
     const started = await redeem("prod", link.token);
     expect(started.status).toBe(201);
 
-    // And the session's own address is unprefixed too, so a resume works where it always
-    // did.
     const session = (await started.json()) as { sessionId: string; sessionToken: string };
     const status = await app.request(`/sessions/${session.sessionId}`, {
       headers: {

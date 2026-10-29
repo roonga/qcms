@@ -1,23 +1,3 @@
-/**
- * The pre-paint colour-mode precedence chain, proven by RUNNING the emitted
- * bootstrap source (issue #197).
- *
- * `theme.test.ts` covers the server half of the same chain (config, then the
- * cookie the request carried) and `e2e/appearance.pw.ts` covers the browser half
- * with the first-frame no-flash measurement. Neither can see the thing #197 was:
- * the script let a `?mode=` value win BEFORE checking it was a mode at all, so
- * `?mode=potato` resolved to Light and threw away a respondent's stored
- * High-contrast choice. The behaviour lives in generated source, so the honest
- * test is to execute that source rather than to read it.
- *
- * The script is run in a `node:vm` context with stub globals rather than in jsdom:
- * the whole surface it touches is four objects (`location.search`,
- * `document.cookie`, `document.documentElement.classList`, `window.matchMedia`),
- * a full DOM would add a dependency for no extra signal, and the stubs make the
- * absence of `matchMedia` testable, which is the branch a script running in an old
- * or embedded browser takes.
- */
-
 import { runInNewContext } from "node:vm";
 
 import { describe, expect, it } from "vitest";
@@ -51,7 +31,7 @@ function runBootstrap(script: string, browser: Browser = {}): readonly string[] 
       ? (browser.prefersContrast ?? false)
       : (browser.prefersDark ?? false),
   });
-  // eslint-disable-next-line sonarjs/code-eval -- the executed source is this repo's own generated script, run in a test against stub globals in an isolated vm context; executing it IS the assertion
+  // eslint-disable-next-line sonarjs/code-eval -- the executed source is this repo's own generated script, run against stub globals in an isolated vm context; executing it is the assertion
   runInNewContext(script, {
     URLSearchParams,
     location: { search: browser.search ?? "" },
@@ -93,9 +73,6 @@ describe("the pre-paint mode bootstrap", () => {
     }
   });
 
-  // The issue #197 boundary, in the exact shape it was reported: a respondent who
-  // chose High contrast follows a link carrying a malformed parameter. Before the
-  // fix this rendered `light`, because the parameter won before it was checked.
   it("falls through an invalid ?mode= to the cookie (issue #197)", () => {
     expect(
       resolved(autoNoCookie, {
@@ -107,9 +84,6 @@ describe("the pre-paint mode bootstrap", () => {
   });
 
   it("falls through the same way for the server-read cookie the render stamped", () => {
-    // The `cookieMode` argument is the same choice seen a request earlier: the
-    // server resolved it and stamped `hc`, and a malformed parameter must not
-    // undo that either.
     const stampedHc = modeBootstrapScript("auto", "hc");
     expect(resolved(stampedHc, { search: "?mode=potato", stamped: "hc" })).toBe("hc");
   });
@@ -120,12 +94,6 @@ describe("the pre-paint mode bootstrap", () => {
     }
   });
 
-  // A link can pick up a second `?mode=` from any number of accidents (a template
-  // that appends one, a redirect that re-adds it). The guarantee is that this is
-  // never ambiguous: the leftmost occurrence is the only one that speaks, so a
-  // trailing duplicate can neither rescue an invalid value nor override a valid
-  // one. Both cases below are discriminating - reading the LAST value would give a
-  // different answer than the one asserted.
   it("reads only the first of a repeated ?mode=", () => {
     expect(
       resolved(autoNoCookie, { search: "?mode=potato&mode=hc", cookie: `${MODE_COOKIE}=dark` }),
@@ -136,18 +104,12 @@ describe("the pre-paint mode bootstrap", () => {
   });
 
   it("keeps falling past an invalid parameter to the OS signals, then to config", () => {
-    // No cookie at all: the chain continues into the OS signals, which is the only
-    // place the respondent's intent can still be read.
     expect(resolved(autoNoCookie, { search: "?mode=potato", prefersDark: true })).toBe("dark");
     expect(resolved(autoNoCookie, { search: "?mode=potato", prefersContrast: true })).toBe("hc");
-    // A contrast preference outranks a colour one: the accessibility need wins.
     expect(
       resolved(autoNoCookie, { search: "?mode=potato", prefersDark: true, prefersContrast: true }),
     ).toBe("hc");
-    // Nothing to go on anywhere: the configured `auto` deployment lands on Light.
     expect(resolved(autoNoCookie, { search: "?mode=potato" })).toBe("light");
-    // A deployment that PINS a mode is not second-guessed by the OS, and an invalid
-    // parameter does not knock it off its own default either.
     const pinned = modeBootstrapScript("dark", null);
     expect(resolved(pinned, { search: "?mode=potato", prefersContrast: true })).toBe("dark");
   });
@@ -156,7 +118,6 @@ describe("the pre-paint mode bootstrap", () => {
     expect(resolved(autoNoCookie, { cookie: `${MODE_COOKIE}=potato`, prefersContrast: true })).toBe(
       "hc",
     );
-    // ... and still finds a valid cookie that is not the first one in the header.
     expect(resolved(autoNoCookie, { cookie: `qcms-font=system; ${MODE_COOKIE}=dark` })).toBe(
       "dark",
     );
@@ -170,8 +131,6 @@ describe("the pre-paint mode bootstrap", () => {
   });
 
   it("replaces the stamped class instead of adding to it", () => {
-    // A wrongly-stamped root is the flash case: the script must remove what SSR put
-    // there, not leave two mode classes fighting over the token blocks.
     expect(runBootstrap(autoNoCookie, { search: "?mode=dark", stamped: "light" })).toEqual([
       "dark",
     ]);
@@ -183,20 +142,13 @@ describe("the pre-paint mode bootstrap", () => {
   });
 
   it("carries no accepted-values list of its own", () => {
-    // The regression guard for the shape of the bug rather than its symptom: both
-    // the mode keywords and the cookie name come from `lib/appearance.ts`, so a
-    // fourth mode cannot be added to the app and forgotten here.
     const script = modeBootstrapScript("auto", null);
     for (const mode of APPEARANCE_MODES) expect(script).toContain(`'${mode}'`);
     expect(script).toContain(`${MODE_COOKIE}=([^;]*)`);
-    // No hand-written alternation of mode keywords anywhere in the source.
     expect(script).not.toMatch(/dark\|light\|hc/u);
   });
 
   it("emits only known keywords into the script source", () => {
-    // Nothing respondent-supplied reaches the generated source: the only quoted
-    // literals in it are mode keywords and the two media queries, so there is no
-    // injection surface behind the `dangerouslySetInnerHTML` in `app/layout.tsx`.
     const allowed = [
       ...APPEARANCE_MODES.map((mode) => `'${mode}'`),
       "'(prefers-color-scheme: dark)'",

@@ -1,61 +1,3 @@
-/**
- * Security scenario 3 - SEC-10, least-privilege database roles (task 040, issues #492
- * and #995).
- *
- * ## What this file is, after ADR-40
- *
- * It used to assert two roles against one schema. It now asserts **three kinds of role**
- * against a control plane and one data plane per environment, and the assertion that
- * matters is the same one it always was: **the table list per role, read out of the
- * catalogue**. That is the form that fails when somebody widens a grant, rather than the
- * form that passes because nobody looked.
- *
- * The roles (Q40 as amended by Q48, Q49 and Q52):
- *
- * | Role               | On `control`                                     | On `data_<env>`                        | On `reporting_<env>`        |
- * | ------------------ | ------------------------------------------------ | -------------------------------------- | --------------------------- |
- * | `qcms_app_control` | DML, with two tables carved out (see below)      | `INSERT` on `outbox`, nothing else     | nothing                     |
- * | `qcms_app_<env>`   | `SELECT` on a named list, `UPDATE` on one table  | DML on its **own** schema only         | `USAGE` + `SELECT`, its own |
- * | `qcms_migrate`     | owner, DDL                                       | owner, DDL                             | owner, DDL                  |
- *
- * **The two carve-outs on `control`** are the audit tables, and their privilege sets
- * differ because their writers do. `two_factor_resets` is **migrate-only**: no
- * application role holds any of the four, because a break-glass is an operator act
- * (issue #432). The SEC-15 `access_audit` is written by the application on an ordinary
- * request, so it cannot be: `qcms_app_control` holds `SELECT` and `INSERT`, every
- * `qcms_app_<env>` holds `INSERT` and nothing else, and **no application role holds
- * `UPDATE` or `DELETE`** - which is the part that makes a row worth something (Q40 with
- * Q56).
- *
- * ## Two properties this file exists to catch, both of which are silent
- *
- * **A widened grant.** Every assertion below is an *exact* list rather than a presence
- * check, so a role that gained a privilege fails here naming it. The forbidden lists are
- * imported from `@roonga/qcms-db` rather than re-typed, because a test carrying its own
- * copy of the grant model passes while the model drifts.
- *
- * **A revoke that only covers the shipped names.** Migration 0021 revoked
- * `two_factor_resets` from the literal `qcms_app`. There are now as many application
- * roles as there are environments plus one, and an operator may create more, so the
- * baseline revokes from every `qcms_app%` role - and this file creates one under a
- * **non-shipped** name, before migrating, purely so that claim is executed rather than
- * believed.
- *
- * ## Ordering is the recipe's, not this file's
- *
- * The roles exist and the migration role owns the schema **before** the migration runs,
- * which is exactly the bootstrap ordering `docs/operations.md` specifies and
- * `docker-compose.yml` arranges with its `db-roles` one-shot. The baseline's own grants
- * are guarded on each role existing, so running the recipe first is what makes them
- * land; a database migrated with no application role at all simply has none to grant to,
- * which is the Testcontainers harness's case.
- *
- * **The upgrading-database scenario is gone**, and its absence is a ruling rather than a
- * gap: Q22 and Q41 make this green field. Every existing database is deleted and
- * recreated by hand, there is no upgrade path, and a suite that exercised one would be
- * testing a world the design says does not exist.
- */
-
 import { applyMigrations, CONTAINER_BOOT_TIMEOUT_MS } from "@roonga/qcms-db/testing";
 import {
   ACCESS_AUDIT_TABLE,
@@ -74,69 +16,40 @@ import { startTestDb, type TestDb } from "../support/index.js";
 
 const MIGRATE_ROLE = "qcms_migrate";
 const CONTROL_ROLE = "qcms_app_control";
-/** The workspace every `control.forms` fixture row below belongs to (task 068). */
 const FIXTURE_WORKSPACE = "org_least_privilege";
 const ENVIRONMENTS = ["test", "prod"] as const;
 const ENVIRONMENT_ROLES = { test: "qcms_app_test", prod: "qcms_app_prod" } as const;
 
-/**
- * An application role under a name this project does not ship.
- *
- * It exists for exactly one assertion: `two_factor_resets`' revoke covers **every**
- * `qcms_app%` role rather than the names in the recipe. Created before the migration, so
- * the revoke in the baseline meets it.
- */
+// A name this project does not ship, so the `qcms_app%` revoke is executed, not believed.
 const UNSHIPPED_ROLE = "qcms_app_zebra";
 
-/** The reporting consumer role of `docs/reporting-view.md`, granted one environment. */
 const REPORTING_ROLE = "qcms_reporting";
 
-/**
- * Two workspaces, so criterion 7's "cannot read **another workspace's** views" has
- * another workspace to be refused (ADR-41, Q26; task 067).
- *
- * One would make the criterion unfalsifiable: a role granted the only view set in the
- * installation reads everything there is, and the assertion would be about nothing.
- */
+// Two workspaces, so "cannot read another workspace's views" has one to be refused.
 const HOME_WORKSPACE = { id: "org_home_lp", slug: "home" } as const;
 const VEHICLE_WORKSPACE = { id: "org_vehicle_lp", slug: "vehicle" } as const;
 
-/**
- * The read-only role one workspace's analysts hold in one environment (Q26).
- *
- * `home` in `prod`, which is the pair every assertion below is drawn against: the other
- * workspace's views and the other environment's schema are what it must not reach.
- */
 const HOME_PROD_REPORTING_ROLE = workspaceReportingRoleName("prod", HOME_WORKSPACE.slug);
 
-/** The privileges a table grant can carry, in the order the catalogue reports them. */
 const DML = ["SELECT", "INSERT", "UPDATE", "DELETE"] as const;
 
-/**
- * The credential the per-workspace reporting consumer logs in with, and a counter for the
- * probe clients below.
- *
- * At module scope because the planner probes each need a **session of their own**: `pg_temp`
- * is per session, and a notice listener on the shared client would collect another case's
- * notices.
- */
+// Each planner probe needs a session of its own: `pg_temp` is per session, and a notice
+// listener on a shared client would collect another case's notices.
 let homeReportingPassword = "";
 let probeClients = 0;
 
 let testDb: TestDb;
-/** Superuser/owner connection: the "as a superuser or the database owner" the recipe asks for. */
 let owner: pg.Client;
 let migrator: pg.Client;
 const clients = new Map<string, pg.Client>();
 
-/** A throwaway password for a containerised role. Generated, never committed. */
+// Generated per run, never committed.
 function ephemeralPassword(): string {
   const bytes = new Uint8Array(24);
   crypto.getRandomValues(bytes);
   return Array.from(bytes, (b) => b.toString(16).padStart(2, "0")).join("");
 }
 
-/** Run `sql` and return the error message, or `undefined` when it succeeded. */
 async function refusalFor(client: pg.Client, sql: string): Promise<string | undefined> {
   try {
     await client.query(sql);
@@ -165,13 +78,8 @@ async function connectAs(role: string, password: string, searchPath: string): Pr
   return client;
 }
 
-/**
- * Every table privilege `role` holds in `schema`, read from the catalogue.
- *
- * `information_schema.table_privileges` rather than `has_table_privilege` per name: this
- * reports what the role **has**, so a privilege nobody expected appears in the result
- * instead of being missed by a question nobody asked.
- */
+// The catalogue rather than `has_table_privilege` per name, so a privilege nobody expected
+// appears in the result instead of being missed by a question nobody asked.
 async function tablePrivileges(
   schema: string,
   role: string,
@@ -191,7 +99,6 @@ async function tablePrivileges(
   return byTable;
 }
 
-/** Whether `role` holds `USAGE` on `schema`. */
 async function hasSchemaUsage(schema: string, role: string): Promise<boolean> {
   const res = await owner.query<{ has: boolean }>(
     `select has_schema_privilege($1, $2, 'USAGE') as has`,
@@ -201,9 +108,8 @@ async function hasSchemaUsage(schema: string, role: string): Promise<boolean> {
 }
 
 beforeAll(async () => {
-  // UNMIGRATED on purpose. The recipe runs before the first migration, and the migration
-  // then runs as qcms_migrate: migrating here as the superuser first would leave every
-  // object owned by the wrong role and quietly test nothing.
+  // Unmigrated on purpose: migrating as the superuser first would leave every object owned
+  // by the wrong role.
   testDb = await startTestDb({ migrate: false });
   owner = testDb.register(
     new pg.Client({ connectionString: testDb.connectionUri }),
@@ -224,9 +130,8 @@ beforeAll(async () => {
     await owner.query(`CREATE ROLE ${role} LOGIN PASSWORD '${password}'`);
   }
 
-  // The migration role owns the schemas it is about to create, and may create them.
-  // `CREATE ON DATABASE` rather than ownership of the database: owning it would also
-  // allow DROP DATABASE, which is past what "owns the schema" has to mean.
+  // `CREATE ON DATABASE` rather than ownership of the database, which would also allow
+  // DROP DATABASE.
   await owner.query(`ALTER SCHEMA public OWNER TO ${MIGRATE_ROLE}`);
   await owner.query(
     `DO $$ BEGIN
@@ -234,9 +139,8 @@ beforeAll(async () => {
      END $$`,
   );
 
-  // The migration itself, run as the role the recipe says runs it. Every grant and
-  // revoke the baseline carries lands here, guarded on each role existing - which is why
-  // the roles were created above rather than after.
+  // The baseline's grants are guarded on each role existing, which is why the roles were
+  // created above rather than after.
   migrator = testDb.register(
     new pg.Client({
       connectionString: uriFor(testDb, MIGRATE_ROLE, passwords.get(MIGRATE_ROLE) ?? ""),
@@ -258,21 +162,14 @@ beforeAll(async () => {
     await connectAs(CONTROL_ROLE, passwords.get(CONTROL_ROLE) ?? "", "control"),
   );
 
-  // The reporting consumer role of `docs/reporting-view.md`, granted ONE environment's
-  // view set. Per (workspace, environment) is Q26 and task 067's; per environment is
-  // what exists today.
   const reportingPassword = ephemeralPassword();
   await owner.query(`CREATE ROLE ${REPORTING_ROLE} LOGIN PASSWORD '${reportingPassword}'`);
   await owner.query(`GRANT USAGE ON SCHEMA reporting_prod TO ${REPORTING_ROLE}`);
   await owner.query(`GRANT SELECT ON ALL TABLES IN SCHEMA reporting_prod TO ${REPORTING_ROLE}`);
   clients.set(REPORTING_ROLE, await connectAs(REPORTING_ROLE, reportingPassword, "reporting_prod"));
 
-  // One workspace, as the owner, because `control.forms.workspace_id` and
-  // `control.questions.workspace_id` are `NOT NULL` with no default since task 068: a
-  // form has to belong to one, and every `insert into control.forms` below names it. The
-  // owner writes it rather than `qcms_app_control` for the reason the form rows are the
-  // owner's too - what these tests measure is a role's rights on the row, not its right
-  // to arrange the fixture.
+  // `control.forms.workspace_id` is `NOT NULL` with no default, so a workspace row has to
+  // exist before any form row below.
   await owner.query(
     `insert into control.organization (id, name, slug, "createdAt")
        values ($1, 'Least privilege', 'least-privilege', now())`,
@@ -282,25 +179,9 @@ beforeAll(async () => {
   await seedWorkspaceReporting();
 }, CONTAINER_BOOT_TIMEOUT_MS);
 
-/**
- * Two workspaces, a submitted response in each, their per-workspace reporting view sets in
- * both environments, and one login role for `home` in `prod` (Q26; criterion 7).
- *
- * # The ordering is the production recipe's, not this file's
- *
- * The **role** is created by the `owner` connection and the **views and grants** by
- * `migrator`, in that order, which is exactly what `docs/operations.md` and
- * `docs/reporting-view.md` tell an operator to do: roles are cluster-level and
- * `qcms_migrate` deliberately holds no `CREATEROLE`, and every grant the reconciliation
- * emits is guarded on its role existing. Doing it the other way round would leave the
- * grants silently unlanded, which is a failure mode worth being unable to reproduce by
- * accident.
- *
- * Running the view statements as `migrator` is load bearing for a second reason: a view's
- * underlying-table privileges are checked against the **view owner**, so the owner has to
- * be the role that owns the schemas. It is also what keeps this file's own "the migration
- * role is the only role that owns anything" assertion true of the new views.
- */
+// The role first as `owner` (`qcms_migrate` holds no `CREATEROLE`, and the grants are
+// guarded on it existing), then the views as `migrator`, because a view's underlying-table
+// privileges are checked against the view's owner.
 async function seedWorkspaceReporting(): Promise<void> {
   for (const workspace of [HOME_WORKSPACE, VEHICLE_WORKSPACE]) {
     await owner.query(
@@ -308,8 +189,6 @@ async function seedWorkspaceReporting(): Promise<void> {
          values ($1, $2, $2, now())`,
       [workspace.id, workspace.slug],
     );
-    // One form per workspace, with a version, so `control.forms.workspace_id` has
-    // something to filter on and the two view sets are genuinely different reads.
     const formId = `frm_${workspace.slug}_lp`;
     await owner.query(
       `insert into control.forms (form_id, slug, workspace_id, default_locale)
@@ -323,8 +202,6 @@ async function seedWorkspaceReporting(): Promise<void> {
        values ($1, 1, '{}'::jsonb, '{}'::jsonb, '0', '0', '0')`,
       [formId],
     );
-    // A submitted response in each environment, so a view that returned nothing could not
-    // be mistaken for a grant that worked.
     for (const environment of ENVIRONMENTS) {
       const sessionId = `ses_${workspace.slug}_${environment}`;
       await owner.query(
@@ -338,9 +215,7 @@ async function seedWorkspaceReporting(): Promise<void> {
          values ($1, 'sha256:0', $2::jsonb)`,
         [
           sessionId,
-          // One distinctive answer per workspace, so a leak is detectable **by value**
-          // rather than only by row count: the probes below assert that the other
-          // workspace's secret never reaches a qual the consumer wrote.
+          // One distinctive answer per workspace, so a leak is detectable by value.
           JSON.stringify({
             answers: [{ questionId: "q_secret", value: `${workspace.slug.toUpperCase()}_SECRET` }],
             flowState: { visible: [] },
@@ -350,15 +225,10 @@ async function seedWorkspaceReporting(): Promise<void> {
     }
   }
 
-  // The role, as a superuser, exactly as the recipe has an operator create it.
   const password = ephemeralPassword();
   homeReportingPassword = password;
   await owner.query(`CREATE ROLE ${HOME_PROD_REPORTING_ROLE} LOGIN PASSWORD '${password}'`);
 
-  // The views and the grants, as the migration role, through the same generator the
-  // operator command runs. Every pair, not only the one with a login: a workspace whose
-  // views did not exist would make "cannot read another workspace's views" pass for the
-  // wrong reason.
   for (const environment of ENVIRONMENTS) {
     for (const workspace of [HOME_WORKSPACE, VEHICLE_WORKSPACE]) {
       for (const statement of workspaceReportingStatements({
@@ -378,8 +248,6 @@ async function seedWorkspaceReporting(): Promise<void> {
 }
 
 afterAll(async () => {
-  // Every client above is registered with the harness, so this one call drains them all
-  // and then stops the container (issue #888).
   await testDb?.teardown();
 }, CONTAINER_BOOT_TIMEOUT_MS);
 
@@ -411,8 +279,6 @@ describe("the migration role is the only role that owns anything", () => {
   });
 
   it("holds the INSERT and SELECT `qcms:reset-2fa` needs on the break-glass audit", async () => {
-    // The other side of the migrate-only rule: nobody else may touch the table, and the
-    // one credential that may has to be able to write the row the reset produces.
     for (const privilege of ["SELECT", "INSERT"]) {
       const res = await owner.query<{ has: boolean }>(
         `select has_table_privilege($1, 'control.two_factor_resets', $2) as has`,
@@ -426,26 +292,15 @@ describe("the migration role is the only role that owns anything", () => {
 describe("qcms_app_control: the control plane, and one grant in each data plane", () => {
   it("holds DML on every control-plane table except the two audits", async () => {
     const held = await tablePrivileges("control", CONTROL_ROLE);
-    // `two_factor_resets` is absent entirely rather than present with fewer privileges:
-    // the revoke takes all four, so the catalogue reports no row for it at all.
+    // Absent entirely rather than present with fewer privileges: the revoke takes all four.
     expect(held["two_factor_resets"]).toBeUndefined();
-    // The SEC-15 audit is the other carve-out, and it is **present with two** rather than
-    // absent: this role reads the audit for a workspace's owners and writes the grant and
-    // revoke rows that are control-pool acts (Q56), and holds neither `UPDATE` nor
-    // `DELETE`, so it can add a row and change none.
+    // No `UPDATE` and no `DELETE` on the audit, so this role can add a row and change none.
     expect([...(held["access_audit"] ?? [])].sort()).toEqual(["INSERT", "SELECT"]);
-    // And the pending `prod` endpoint change is **not** a carve-out: this role holds the
-    // ordinary DML, which is what ADR-40's role table gives it on `control`, and the loop
-    // below is what asserts it. Named here so a reader looking for task 070's table finds
-    // the answer rather than inferring it from a loop.
     expect([...(held[ENDPOINT_PROPOSALS_TABLE] ?? [])].sort()).toEqual([...DML].sort());
-    // Every other control-plane table carries all four. An exact per-table comparison,
-    // so a table that lost a privilege fails here as loudly as one that gained it.
     for (const [table, privileges] of Object.entries(held)) {
       if (table === "access_audit") continue;
       expect([...privileges].sort(), `control.${table}`).toEqual([...DML].sort());
     }
-    // And the floor under that loop: it has to have found the tables at all.
     expect(Object.keys(held).length).toBeGreaterThan(10);
   });
 
@@ -454,9 +309,8 @@ describe("qcms_app_control: the control plane, and one grant in each data plane"
     async (environment) => {
       const held = await tablePrivileges(`data_${environment}`, CONTROL_ROLE);
       expect(held).toEqual({ outbox: ["INSERT"] });
-      // `USAGE` on the schema is the unavoidable companion of that one grant: Postgres
-      // has no way to reach a table in a schema without it, and it conveys no access to
-      // any other table - which the exact table listing above is what proves.
+      // Schema `USAGE` is the unavoidable companion of that one grant, and conveys no
+      // access to any other table.
       expect(await hasSchemaUsage(`data_${environment}`, CONTROL_ROLE)).toBe(true);
     },
   );
@@ -467,12 +321,8 @@ describe("qcms_app_control: the control plane, and one grant in each data plane"
   });
 
   it("holds USAGE on `control` and on every data schema, and on nothing else QCMS named", async () => {
-    // **Schema `USAGE` is the grant a table-privilege listing cannot show**, and it is
-    // required: without it a statement fails on the schema before it reaches the table,
-    // whatever the table grants say. So it is asserted per schema rather than inferred
-    // from the reads working, and it is asserted in both directions, because a `USAGE`
-    // nobody meant to grant is how a role ends up able to name a schema it has no
-    // business in.
+    // Schema `USAGE` is the grant a table-privilege listing cannot show, and a statement
+    // fails on the schema before it reaches the table.
     expect(await hasSchemaUsage("control", CONTROL_ROLE)).toBe(true);
     for (const environment of ENVIRONMENTS) {
       expect(await hasSchemaUsage(`data_${environment}`, CONTROL_ROLE)).toBe(true);
@@ -491,10 +341,8 @@ describe("qcms_app_control: the control plane, and one grant in each data plane"
     await client!.query(
       `insert into data_prod.outbox ("event_type", "payload") values ('form.released', '{}'::jsonb)`,
     );
-    // And `INSERT ... RETURNING` is refused, because RETURNING reads the row it wrote and
-    // Postgres requires SELECT for that. This is why `enqueueInEnvironment` has no
-    // `.returning()`: widening the grant would let an authoring credential read the
-    // respondent answers an outbox payload carries.
+    // `RETURNING` reads the row it wrote, so Postgres requires `SELECT` for it: widening
+    // the grant would let an authoring credential read the answers a payload carries.
     const refusal = await refusalFor(
       client!,
       `insert into data_prod.outbox ("event_type", "payload") values ('x', '{}'::jsonb) returning id`,
@@ -502,16 +350,9 @@ describe("qcms_app_control: the control plane, and one grant in each data plane"
     expect(refusal).toMatch(/permission denied/i);
   });
   it("publishes a version, under its own grants, and queues nothing anywhere (Q60, criterion 6)", async () => {
-    // Criterion 6 asks for this count **as `qcms_app_control` with its real grants**,
-    // because a superuser count proves the handler wrote nothing while saying nothing
-    // about what the credential could have written. Here the publish's own two writes
-    // run on a connection holding exactly the grants the API holds.
-    //
-    // Note which half of that this role can do: it holds `INSERT` on every
-    // `data_<env>.outbox` and no `SELECT` anywhere in a data schema, asserted above. So
-    // it can enqueue and cannot count, and the count below is the owner's. That split
-    // is what makes zero meaningful rather than circular: the role **has** the grant an
-    // enqueue needs, so an empty outbox is the transaction's doing and not a refusal.
+    // The counts are the owner's: this role holds `INSERT` on every `data_<env>.outbox`
+    // and no `SELECT` in any data schema, so an empty outbox is the transaction's doing
+    // rather than a refusal.
     const control = clients.get(CONTROL_ROLE)!;
     const formId = "q60-publish-count";
 
@@ -525,9 +366,8 @@ describe("qcms_app_control: the control plane, and one grant in each data plane"
       [formId],
     );
 
-    // A delta rather than an absolute count, because another test in this file inserts
-    // the `form.released` row Q49 permits, and the assertion should not depend on which
-    // ran first.
+    // A delta rather than an absolute count: another test in this file inserts into the
+    // same outbox, and the assertion must not depend on which ran first.
     const outboxCounts = async (): Promise<Record<string, number>> => {
       const counts: Record<string, number> = {};
       for (const environment of ENVIRONMENTS) {
@@ -540,10 +380,6 @@ describe("qcms_app_control: the control plane, and one grant in each data plane"
     };
     const before = await outboxCounts();
 
-    // The publish transaction as the handler issues it (`makePublishFormHandler`):
-    // freeze the immutable version, delete the draft, one transaction, on the control
-    // connection. If a `form.published` enqueue came back, it would be inside this
-    // transaction and the delta below would be 1 somewhere.
     await control.query("begin");
     await control.query(
       `insert into control.form_versions
@@ -555,8 +391,6 @@ describe("qcms_app_control: the control plane, and one grant in each data plane"
     await control.query(`delete from control.form_drafts where form_id = $1`, [formId]);
     await control.query("commit");
 
-    // The version is really there, so the publish was a publish and not a no-op that
-    // would make the count below vacuous.
     const version = await owner.query<{ n: string }>(
       `select count(*) as n from control.form_versions where form_id = $1`,
       [formId],
@@ -565,19 +399,12 @@ describe("qcms_app_control: the control plane, and one grant in each data plane"
 
     expect(await outboxCounts()).toEqual(before);
 
-    // And the credential cannot audit itself: the count had to come from the owner,
-    // which is the Q49 split restated from the direction of this test.
     expect(await refusalFor(control, `select count(*) from data_prod.outbox`)).toMatch(
       /permission denied/i,
     );
   });
 
   it("releases a version, under its own grants, and queues exactly one event (Q49, criterion 8)", async () => {
-    // The other half of criterion 8, and the half that catches the `RETURNING` trap. The
-    // release transaction runs here exactly as `recordRelease` issues it - the record in
-    // `control`, the event in the released environment's `outbox`, one transaction, one
-    // connection - on a connection holding precisely the grants the API holds. A
-    // superuser would have passed whatever the handler did.
     const control = clients.get(CONTROL_ROLE)!;
     const formId = "q49-release-count";
 
@@ -611,9 +438,7 @@ describe("qcms_app_control: the control plane, and one grant in each data plane"
        values ($1, 'prod', 1, 1, 'usr_e2e')`,
       [formId],
     );
-    // No `RETURNING`. The role holds `INSERT` on this table and nothing else in any data
-    // schema, so a `RETURNING` here is a read Postgres refuses - which is the whole
-    // reason `enqueueInEnvironment` exists beside `enqueue`.
+    // No `RETURNING`: the role holds `INSERT` here and no `SELECT` in any data schema.
     await control.query(
       `insert into data_prod.outbox ("event_type", "payload")
        values ('form.released', jsonb_build_object('formId', $1::text, 'version', 1,
@@ -622,7 +447,6 @@ describe("qcms_app_control: the control plane, and one grant in each data plane"
     );
     await control.query("commit");
 
-    // Exactly one event, and exactly one record, neither observed without the other.
     expect(await releasedRows()).toBe(1);
     const record = await owner.query<{ n: string }>(
       `select count(*) as n from control.form_releases where form_id = $1`,
@@ -630,8 +454,7 @@ describe("qcms_app_control: the control plane, and one grant in each data plane"
     );
     expect(Number(record.rows[0]?.n)).toBe(1);
 
-    // And the history is append-only even for the credential that wrote it: the grant is
-    // DML, and the trigger is what refuses the rewrite (criterion 7).
+    // The grant is DML, so a trigger rather than a privilege is what refuses the rewrite.
     expect(
       await refusalFor(
         control,
@@ -655,10 +478,7 @@ describe.each(ENVIRONMENTS)(
       for (const [table, privileges] of Object.entries(held)) {
         expect([...privileges].sort(), `data_${environment}.${table}`).toEqual([...DML].sort());
       }
-      // Derived, not typed: the data plane is whatever the schema module declares, which
-      // is eight tables since task 072's roster joined it. A literal here would have to be
-      // edited by whoever adds the ninth, and the point of this assertion is that it is the
-      // one nobody has to remember.
+      // Derived from the schema module rather than typed, so a new table needs no edit here.
       expect(Object.keys(held).length).toBe(DATA_PLANE_TABLE_NAMES.length);
     });
 
@@ -668,11 +488,7 @@ describe.each(ENVIRONMENTS)(
     });
 
     it("holds schema USAGE on exactly the three schemas it reaches, and no fourth", async () => {
-      // The grant a table listing cannot show, asserted per schema and in both
-      // directions. `control` and its own `data_<env>` are what every respondent
-      // statement needs before any table privilege is consulted; its own
-      // `reporting_<env>` is Q52's; another environment's two are refused, which is the
-      // privilege half of the isolation claim rather than a `search_path` default.
+      // The privilege half of the isolation claim, which a `search_path` default is not.
       expect(await hasSchemaUsage("control", role)).toBe(true);
       expect(await hasSchemaUsage(`data_${environment}`, role)).toBe(true);
       expect(await hasSchemaUsage(`reporting_${environment}`, role)).toBe(true);
@@ -681,10 +497,8 @@ describe.each(ENVIRONMENTS)(
     });
 
     it("is refused a schema-qualified read of another environment's answers (criterion 3)", async () => {
-      // The **privilege** half of criterion 3. `search_path` is a resolution default and
-      // not a grant, so the resolution half alone is unsatisfiable as an isolation claim:
-      // a statement that names the other schema explicitly has to be refused, and this is
-      // what refuses it.
+      // `search_path` is a resolution default, not a grant, so a statement naming the other
+      // schema explicitly has to be refused on privilege.
       const refusal = await refusalFor(
         clients.get(role)!,
         `select * from data_${other}.answers limit 1`,
@@ -693,8 +507,6 @@ describe.each(ENVIRONMENTS)(
     });
 
     it("resolves an unqualified data-plane name inside its OWN schema (criterion 3)", async () => {
-      // The **resolution** half, with a positive control in each environment: the row this
-      // insert makes is visible to this role and the other role's schema is untouched.
       const client = clients.get(role)!;
       const inserted = await client.query<{ nspname: string }>(
         `select n.nspname from pg_class c
@@ -706,17 +518,10 @@ describe.each(ENVIRONMENTS)(
 
     it("holds exactly the named SELECT list on `control`, one UPDATE and one INSERT", async () => {
       const held = await tablePrivileges("control", role);
-      // **Six** reads, `form_releases` included. Task 064 granted five because that table
-      // did not exist yet and its clause was guarded on the table existing; task 065's
-      // migration creates it and grants it, to every environment role in the live set
-      // rather than to the two shipped names. The list is the decision in both tasks and
-      // this is the line that notices either way.
       const expectedReads = CONTROL_READ_TABLES;
       expect(expectedReads).toHaveLength(6);
-      // **Seven tables, not six**, and the seventh carries no read at all: task 069's
-      // SEC-15 audit, on which this role holds `INSERT` and nothing else, so a response
-      // read's audit row commits in the same transaction as the read (Q40) and the role
-      // can neither read, change nor remove a row it wrote.
+      // The seventh table carries no read: the audit, on which this role holds `INSERT`
+      // alone, so it can neither read, change nor remove a row it wrote.
       expect(Object.keys(held).sort()).toEqual([...expectedReads, ACCESS_AUDIT_TABLE].sort());
       for (const table of expectedReads) {
         const expected = table === "secure_links" ? ["SELECT", "UPDATE"] : ["SELECT"];
@@ -726,12 +531,8 @@ describe.each(ENVIRONMENTS)(
     });
 
     it("holds nothing at all on the pending prod endpoint change (task 070)", async () => {
-      // Implied by the exact key list above and asserted by name as well, because the
-      // absence is a decision rather than an omission: `webhook_endpoint_proposals` holds
-      // a **proposed production URL**, and the credential that serves anonymous
-      // respondent traffic can neither read one nor write one. Proposing and confirming
-      // are an administrator's acts on configuration, so they run on the control pool -
-      // exactly as minting a secure link does while redeeming one does not (Q53).
+      // The table holds a proposed production URL, and the credential serving anonymous
+      // respondent traffic can neither read one nor write one.
       const held = await tablePrivileges("control", role);
       expect(held[ENDPOINT_PROPOSALS_TABLE]).toBeUndefined();
       for (const privilege of DML) {
@@ -746,16 +547,13 @@ describe.each(ENVIRONMENTS)(
     it.each(CONTROL_FORBIDDEN_TABLES)(
       "holds no privilege of any kind on control.%s",
       async (table) => {
-        // The property Q40 buys that an API check cannot: a defect on the anonymous
-        // respondent path cannot rewrite a grant row or a staff session, because the
-        // connection it runs on has no grant on those tables at all.
+        // A defect on the anonymous respondent path cannot rewrite a grant row or a staff
+        // session: its connection holds no grant on those tables at all.
         const held = await tablePrivileges("control", role);
         expect(held[table]).toBeUndefined();
         for (const privilege of DML) {
-          // The table name is QUOTED inside the regclass literal: two of the plugin's
-          // tables are camelCase (`twoFactor`, `teamMember`), and an unquoted identifier
-          // is lower-cased by the parser, so the check would look for a relation that does
-          // not exist and fail for the wrong reason.
+          // The table name is quoted: two of these tables are camelCase, and an unquoted
+          // identifier is lower-cased by the parser.
           const res = await owner.query<{ has: boolean }>(
             `select has_table_privilege($1, $2, $3) as has`,
             [role, `control."${table}"`, privilege],
@@ -768,22 +566,9 @@ describe.each(ENVIRONMENTS)(
     );
 
     it("holds USAGE on the two enum types, which live once in `control` (Q54)", async () => {
-      // The types are created once, exactly as the trigger functions are, and both
-      // environments' `sessions` tables use them - so they are not part of the
-      // per-environment set and a change to the closed value set is one migration rather
-      // than one per environment. What a role needs is USAGE, which Postgres requires to
-      // write a value of an enum.
-      //
-      // **This reads a DEFAULT, not a grant, and the distinction is the point.** Postgres
-      // grants type `USAGE` to `PUBLIC`, so every role holds it whether or not anything
-      // granted it, and the baseline deliberately emits no type grant at all - the same
-      // goes for `EXECUTE` on the trigger functions. So what this line asserts is that the
-      // privilege the respondent path needs is **present**, which is the criterion ("whatever
-      // `USAGE` Postgres requires on `control`'s two enum types"), and it must not be read
-      // as evidence that this recipe granted it. The equality above is the load-bearing
-      // half: a third enum arriving on a data-plane column is a new dependency on a default
-      // nobody looked at, and it fails here. The session write below is what proves the
-      // whole path end to end.
+      // This reads a DEFAULT, not a grant: Postgres grants type `USAGE` to `PUBLIC`, and the
+      // baseline emits no type grant. A third enum would be a new dependency on that
+      // default, and fails on the equality below.
       expect([...DATA_PLANE_ENUM_TYPES]).toEqual(["access_mode", "session_status"]);
       for (const type of DATA_PLANE_ENUM_TYPES) {
         const res = await owner.query<{ has: boolean }>(
@@ -795,11 +580,6 @@ describe.each(ENVIRONMENTS)(
     });
 
     it("can actually write a session row, which is the test of every grant above", async () => {
-      // The end-to-end shape of the respondent path's first write: a form and a version
-      // read from `control`, a row inserted into this environment's own `sessions` with
-      // both enum types and the Q46 `environment` column. A grant missing anywhere in the
-      // chain - the schema, the table, the type, the crossing foreign key's target -
-      // surfaces here rather than at a respondent's first request.
       const formId = `frm_grant_${environment}`;
       await owner.query(
         `insert into control.forms (form_id, slug, workspace_id, default_locale)
@@ -825,8 +605,7 @@ describe.each(ENVIRONMENTS)(
     });
 
     it("cannot mint a secure link, only redeem one (Q53)", async () => {
-      // An environment role holds SELECT and UPDATE on `control.secure_links` and no
-      // INSERT: it redeems and consumes a link, it never creates one. Minting runs on the
+      // SELECT and UPDATE but no INSERT: this role redeems a link, minting runs on the
       // control pool.
       const refusal = await refusalFor(
         clients.get(role)!,
@@ -896,11 +675,8 @@ describe("the migrate-only audit table (issue #432, Q40 finding B)", () => {
   it.each([CONTROL_ROLE, ...Object.values(ENVIRONMENT_ROLES), UNSHIPPED_ROLE])(
     "leaves %s none of the four privileges on control.two_factor_resets",
     async (role) => {
-      // The widened revoke, executed rather than believed. `qcms_app_zebra` is a name
-      // this project does not ship and no recipe mentions: it is here because migration
-      // 0021 named one literal role, and the baseline names the PREFIX instead, so an
-      // installation that creates `qcms_app_staging` next week is covered by a migration
-      // written today.
+      // The revoke names the `qcms_app%` prefix, so a role an operator adds later is
+      // covered; `qcms_app_zebra` is a name this project does not ship.
       for (const privilege of DML) {
         const res = await owner.query<{ has: boolean }>(
           `select has_table_privilege($1, 'control.two_factor_resets', $2) as has`,
@@ -924,10 +700,6 @@ describe("the SEC-15 access audit's grants and revokes (task 069, Q40 with Q56)"
   it.each([CONTROL_ROLE, ...Object.values(ENVIRONMENT_ROLES), UNSHIPPED_ROLE])(
     "leaves %s no UPDATE and no DELETE on control.access_audit",
     async (role) => {
-      // Written against the **prefix**, like `two_factor_resets`' revoke, and executed
-      // against a role name this project does not ship for the same reason: an
-      // installation that creates `qcms_app_staging` next week is covered by a migration
-      // written today.
       for (const privilege of ["UPDATE", "DELETE"]) {
         const res = await owner.query<{ has: boolean }>(
           `select has_table_privilege($1, 'control.access_audit', $2) as has`,
@@ -949,11 +721,8 @@ describe("the SEC-15 access audit's grants and revokes (task 069, Q40 with Q56)"
   it.each(ENVIRONMENTS)(
     "lets qcms_app_%s write its own read's audit row in the read's transaction (Q40)",
     async (environment) => {
-      // The property the ruling rests on: the read and its row commit or fail together,
-      // so a read that succeeded while its audit write failed cannot happen. The row's
-      // `actor` and `workspace` are values this role cannot verify - it holds no `SELECT`
-      // on `user` or `member` - and that is the no-foreign-key precedent working as
-      // intended rather than a gap.
+      // The read and its audit row commit or fail together, so a read that succeeded while
+      // its audit write failed cannot happen.
       const client = clients.get(ENVIRONMENT_ROLES[environment]);
       expect(client).toBeDefined();
       await (client as pg.Client).query("begin");
@@ -975,12 +744,8 @@ describe("the SEC-15 access audit's grants and revokes (task 069, Q40 with Q56)"
   it.each(ENVIRONMENTS)(
     "refuses qcms_app_%s a RETURNING on that insert, which is why the helper carries none (criterion 21)",
     async (environment) => {
-      // **The assertion the rule is stated as.** One helper writes the audit rows for
-      // both pools, and this role holds `INSERT` on the table and nothing else, so a
-      // `RETURNING` - which is a read - is refused for it. Asserting this as
-      // `qcms_app_control` would prove nothing, because that role holds `SELECT` here and
-      // the statement would succeed; for the control-pool path the assertion is from the
-      // source, where `writeAccessAuditRow` is the only write and names no `returning`.
+      // Asserted for an environment role: `qcms_app_control` holds `SELECT` here, so the
+      // same statement would succeed for it.
       const refusal = await refusalFor(
         clients.get(ENVIRONMENT_ROLES[environment])!,
         `insert into control.access_audit (actor, workspace_id, kind)
@@ -1010,9 +775,8 @@ describe("the SEC-15 access audit's grants and revokes (task 069, Q40 with Q56)"
   });
 
   it("carries no foreign key, so no row cascades away with what it describes", async () => {
-    // The precedent's second property, asserted out of the catalogue rather than read off
-    // the migration: an audit row that cascades away with the account, the workspace or
-    // the form it names is not an audit row, and this task must not close that with a key.
+    // An audit row that cascades away with the account, workspace or form it names is not
+    // an audit row.
     const keys = await owner.query<{ conname: string }>(
       `select conname from pg_constraint
         where conrelid = 'control.access_audit'::regclass and contype = 'f'`,
@@ -1033,15 +797,8 @@ describe("`public` is empty, unreachable and un-writable (criterion 2)", () => {
   it.each([CONTROL_ROLE, ...Object.values(ENVIRONMENT_ROLES)])(
     "still reports USAGE on it for %s, through PUBLIC, and that is the emptiness above doing the work",
     async (role) => {
-      // **Recorded rather than fixed, because it is the honest reading of the catalogue.**
-      // Postgres grants `USAGE` on `public` to `PUBLIC` by default, so every role holds
-      // it whether or not the baseline says so, and a per-role read reports it as held.
-      // Criterion 2 is "`public` is on no search path and `CREATE` on it is granted to
-      // nobody" - both asserted below - and what makes the residual `USAGE` worth
-      // nothing is the assertion above: a schema holding no object is a schema `USAGE`
-      // conveys no access to. Revoking it from `PUBLIC` would also reach `drizzle`'s own
-      // bookkeeping schema's callers and the reporting consumer, for no privilege
-      // anybody could exercise, so the baseline revokes `CREATE` alone.
+      // Postgres grants `USAGE` on `public` to `PUBLIC`, so every role holds it whatever
+      // the baseline says; what makes it worthless is that the schema holds no object.
       const res = await owner.query<{ has: boolean }>(
         `select has_schema_privilege($1, 'public', 'USAGE') as has`,
         [role],
@@ -1097,35 +854,8 @@ describe("the documented reporting consumer role is read-only on one environment
   });
 });
 
-/**
- * **Criterion 7** (Q26, ADR-40's reporting Note, ADR-41): a reporting role granted one
- * workspace's views in one environment reads those and **cannot read another workspace's
- * views or another environment's schema**.
- *
- * ## Why this criterion is a database test and could not be anything else
- *
- * This is the one place in the whole design where the authorisation model is expressed in
- * **grants** rather than in an API check, and the reason is in the threat: a reporting
- * consumer connects with psql or a BI tool and writes their own SQL, so there is no
- * handler to put a check in. What holds the boundary is a role that has not been granted
- * the thing it must not read - and the only way to know that is to connect as it and be
- * refused.
- *
- * ## The four claims, and why each one is here
- *
- * 1. **It reads its own workspace's views, and gets rows.** Without this the three
- *    refusals below would pass against a role that can read nothing at all.
- * 2. **It cannot read another workspace's views, in its own environment.** The schema is
- *    the same and the `USAGE` is held, so this is the grant on the view doing the work -
- *    which is the half a schema-per-environment layout does not give for free.
- * 3. **It cannot read another environment's schema.** Refused one step earlier, at
- *    `USAGE`, so another environment's views are unreachable before their rows are.
- * 4. **It cannot reach the data plane, the control plane or the application's own
- *    unfiltered views.** The last of those is the easiest to leave open by accident:
- *    `reporting_prod.responses` sits in the same schema as the views this role is granted
- *    and holds every workspace's rows, so a grant written as `ALL TABLES IN SCHEMA` would
- *    satisfy claim 1 and silently defeat claim 2.
- */
+// A reporting consumer writes their own SQL against the database, so there is no handler
+// to check: the grants are the whole boundary.
 describe("a per-workspace reporting role reads one workspace in one environment (criterion 7)", () => {
   function consumer(): pg.Client {
     return clients.get(HOME_PROD_REPORTING_ROLE)!;
@@ -1137,8 +867,6 @@ describe("a per-workspace reporting role reads one workspace in one environment 
     );
     expect(res.rows.map((row) => row.form_id)).toEqual([`frm_${HOME_WORKSPACE.slug}_lp`]);
 
-    // The flat twin as well: both views of a set are granted, and both are filtered, so a
-    // consumer cannot reach round the wide one through the long one.
     const flat = await consumer().query(
       `select session_id from reporting_prod.${HOME_WORKSPACE.slug}_answers_flat`,
     );
@@ -1216,13 +944,8 @@ describe("a per-workspace reporting role reads one workspace in one environment 
   });
 
   /**
-   * The three side channels PR #1093's review read the other workspace's data through.
-   *
-   * Each one makes the consumer's own qual report what it was handed, and none of them
-   * needs a privilege the role does not have: the first is an arithmetic error, the second
-   * and third are a `COST 1` function in `pg_temp`, which `PUBLIC` may create by default.
-   * They are here rather than in a unit test because what they exercise is the **planner**,
-   * and no string assertion can stand in for it.
+   * Side channels that make the consumer's own qual report what it was handed. They need no
+   * privilege the role lacks, and they exercise the planner, which no string assertion can.
    */
   describe("the consumer's own SQL cannot reach past the filter", () => {
     const OTHER_SECRET = `${VEHICLE_WORKSPACE.slug.toUpperCase()}_SECRET`;
@@ -1330,10 +1053,8 @@ describe("a per-workspace reporting role reads one workspace in one environment 
 
 describe("the roles are the operator's to create, not a migration's", () => {
   it("ships no role-creating migration", async () => {
-    // Roles are cluster-level, need a credential no migration may carry, and
-    // `qcms_migrate` deliberately holds no CREATEROLE - so the recipe in
-    // `docs/operations.md` creates them and the baseline only grants, guarded on each
-    // role existing. Every qcms role in this container was created by this file.
+    // Roles are cluster-level and `qcms_migrate` holds no CREATEROLE, so the recipe in
+    // `docs/operations.md` creates them and the baseline only grants.
     const roles = await owner.query<{ rolname: string }>(
       `SELECT rolname FROM pg_roles WHERE rolname LIKE 'qcms%' ORDER BY rolname`,
     );

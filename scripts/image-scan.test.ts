@@ -25,24 +25,6 @@ import {
   summarizeImage,
 } from "./image-scan.mjs";
 
-/**
- * The image vulnerability scan (issue #894).
- *
- * No Docker and no scanner binary. Three properties are worth asserting cheaply:
- *
- * - **The decision.** Which findings a floor selects, and the rule that matters most
- *   here: the published-fix filter narrows what can turn a job red and must never
- *   narrow what a person is shown. An unfixed critical has to appear by id in the
- *   rendered report, because reporting is the only channel the Code Owner's pending
- *   decision has.
- * - **The refusals.** What stops a scan that has gone half-blind from reporting a tidy
- *   clean result.
- * - **The boundary.** Exit codes, argument parsing, and Markdown that ends up in an
- *   issue body built out of package names nobody in this repository controls.
- *
- * The real scan over the real SBOMs is what `.github/workflows/images.yml` runs.
- */
-
 const temporary: string[] = [];
 
 afterAll(() => {
@@ -55,7 +37,6 @@ function scratch(): string {
   return root;
 }
 
-/** An SPDX package entry in the shape syft writes, purl and all. */
 function spdxPackage(purl: string, name: string, version: string) {
   return {
     name,
@@ -71,12 +52,6 @@ function spdxPackage(purl: string, name: string, version: string) {
   };
 }
 
-/**
- * The SBOM fixture, in the shape syft writes through `docker/buildkit-syft-scanner`:
- * one npm package and one deb package, the deb one carrying the `distro=` qualifier
- * that is how the operating-system half of the scan stays possible at all once the
- * image itself is out of reach.
- */
 const SBOM = {
   spdxVersion: "SPDX-2.3",
   name: "sbom",
@@ -93,7 +68,6 @@ const SBOM = {
   ],
 };
 
-/** The in-toto statement buildx attaches, whose predicate is the document above. */
 const STATEMENT = { _type: "https://in-toto.io/Statement/v0.1", predicate: SBOM };
 
 function match(
@@ -111,16 +85,8 @@ function match(
 }
 
 /**
- * The report fixture.
- *
- * `distro` and `descriptor` are copied from a real `grype 0.119.0 --output json` run
- * over the `qcms-api` SBOM and trimmed: the real `descriptor.db.providers` map carries
- * about thirty entries and `descriptor.configuration` the whole resolved config. The
- * `db.status` nesting is the part that matters, because a fixture with `built` at the
- * top of `db` would satisfy a presence check and say nothing about the real report.
- *
- * The matches are the three cases the floors have to tell apart: a critical with no fix
- * anywhere (the base image's real situation), a high with a fix, and a medium with one.
+ * The `db.status` nesting is the part that matters: flattening it so `built` sits at the
+ * top of `db` would satisfy a presence check and say nothing about a real report.
  */
 const REPORT = {
   matches: [
@@ -145,8 +111,7 @@ const REPORT = {
       status: {
         schemaVersion: "v6.1.9",
         built: "2026-09-18T06:30:15Z",
-        // The real report carries an absolute cache path here; a placeholder stands in
-        // it, because a committed fixture never hard-codes one machine's home.
+        // A placeholder, because a committed fixture never hard-codes one machine's path.
         path: "<cache-dir>/grype/db/6/vulnerability.db",
         valid: true,
       },
@@ -269,14 +234,10 @@ describe("the two axes are decoupled", () => {
   });
 
   it("NAMES an unfixed critical by id in the rendered report", () => {
-    // The property this section exists for. An unfixed critical cannot turn a job red,
-    // so if it is not named here it reaches nobody, and an eighth one next week would
-    // move a digit in a counts table and change nothing else.
     const markdown = renderReport([summary], FLOORS);
     expect(markdown).toContain("CVE-2026-5450");
     expect(markdown).toContain("NO FIX AVAILABLE");
     expect(markdown).toMatch(/NO FIX AVAILABLE[\s\S]*?CVE-2026-5450[\s\S]*?wont-fix/);
-    // ...and it is still not in the blocking section.
     expect(markdown).toMatch(/### Blocking:[\s\S]*?None\./);
   });
 
@@ -301,7 +262,6 @@ describe("the two axes are decoupled", () => {
       widened,
     );
     expect(markdown).toMatch(/### Blocking:[\s\S]*?CVE-2026-5450/);
-    // Reporting is unchanged by the flag: the finding is named in both places.
     expect(markdown).toMatch(/NO FIX AVAILABLE[\s\S]*?CVE-2026-5450/);
   });
 });
@@ -348,9 +308,6 @@ describe("the digest that decides whether the weekly issue changes", () => {
   });
 
   it("does not move when the same findings arrive in a different order", () => {
-    // The silence depends on this. If the digest tracked the scanner's ordering, a
-    // week in which nothing changed but the match order did would post a duplicate,
-    // and people would stop reading a thread that cries wolf.
     const reversed = { ...REPORT, matches: [...REPORT.matches].reverse() };
     const after = [
       summarizeImage({ image: "qcms-api", document: STATEMENT, report: reversed }, FLOORS),
@@ -443,7 +400,6 @@ describe("Markdown that ends up in an issue body", () => {
     const piped = escapeCell("|".repeat(5_000));
     expect(piped.match(/`/g)).toHaveLength(2);
     expect(piped.endsWith("|...`")).toBe(true);
-    // No odd run of backslashes immediately before the closing fence.
     expect(piped).not.toMatch(/(^|[^\\])(\\\\)*\\\.\.\.`$/);
   });
 
@@ -467,16 +423,9 @@ describe("Markdown that ends up in an issue body", () => {
     );
     const row = markdown.split("\n").find((line) => line.includes("CVE-2026-0003"));
     expect(row).toBeDefined();
-    // Seven unescaped pipes: six columns with a leading and a trailing delimiter. The
-    // injected pipe is escaped rather than opening a seventh cell.
-    //
-    // Counted by removing every backslash escape first rather than with a lookbehind.
-    // `/(?<!\\)\|/` asks "is the previous character a backslash", which a name
-    // containing a literal `\|` defeats: it escapes to `\\|`, the lookbehind sees the
-    // second backslash and calls the pipe unescaped. Dropping `\\.` pairs leaves only
-    // the delimiters, whatever the cell contained.
+    // Counted by dropping backslash escapes first rather than with a lookbehind, which
+    // a name containing a literal escaped pipe defeats.
     expect(row?.replace(/\\./g, "").split("|")).toHaveLength(8);
-    // No newline escaped out of the cell, so no heading was injected.
     expect(markdown).not.toMatch(/^## pwned/m);
   });
 });
@@ -497,7 +446,6 @@ describe("the argument vector", () => {
 });
 
 describe("end to end, with a stub scanner", () => {
-  /** A stub grype: reads `--file` out of its argv and writes the fixture report there. */
   function stubScanner(root: string, report: unknown): string {
     const path = join(root, "stub-scanner.mjs");
     writeFileSync(
@@ -512,7 +460,6 @@ describe("end to end, with a stub scanner", () => {
     return path;
   }
 
-  /** A stub that fails the way a missing database or a broken binary would. */
   function brokenScanner(root: string): string {
     const path = join(root, "broken-scanner.mjs");
     writeFileSync(
@@ -561,13 +508,11 @@ describe("end to end, with a stub scanner", () => {
     } = JSON.parse(readFileSync(join(reportRoot, "summary.json"), "utf8"));
     expect(summary.images.map((entry) => entry.image)).toEqual(IMAGES.map((image) => image.name));
     expect(summary.blocking).toBe(0);
-    // Merged across the three images, so one row each rather than three.
     expect(summary.reported).toBe(1);
     expect(summary.reportedUnfixed).toBe(1);
     expect(summary.digest).toMatch(/^[0-9a-f]{64}$/);
     const markdown = readFileSync(join(reportRoot, "summary.md"), "utf8");
     expect(markdown).toContain("## Image vulnerability scan");
-    // The unfixed critical reaches the file a person reads, not only the artifact.
     expect(markdown).toContain("CVE-2026-5450");
   });
 
@@ -611,7 +556,6 @@ describe("end to end, with a stub scanner", () => {
     ];
     expect(main(argv, {})).toBe(EXIT_OK);
     expect(main([...argv, "--fail-on-unfixed"], {})).toBe(EXIT_BLOCKED);
-    // ...and through the environment, which is how the workflow would move it.
     expect(main(argv, { QCMS_IMAGE_SCAN_FAIL_ON_UNFIXED: "true" })).toBe(EXIT_BLOCKED);
   });
 

@@ -1,15 +1,7 @@
 /**
- * CSV field serialization shared by every QCMS export. One module because the
- * two exports once carried a copy each and the copies had diverged: the guard
- * reached the server-generated export and not the one carrying respondent text.
- *
- * The formula-injection guard runs first: a spreadsheet evaluates a cell opening
- * with `=`, `+`, `-` or `@`, so such a cell gains an apostrophe and goes inert.
- * {@link NUMERIC_LITERAL} is the one exemption. Then RFC 4180 quoting; the two
- * exports differ on when to quote, which is why both policies live here.
- *
- * Cell contents are export payload and are never logged (SEC-8): nothing here
- * takes a logger, and a caller must not add one.
+ * CSV field serialization shared by every QCMS export. The formula-injection guard runs
+ * first (a leading `=`, `+`, `-` or `@` gains an apostrophe; {@link NUMERIC_LITERAL} is
+ * exempt), then RFC 4180 quoting. Cell contents are never logged (SEC-8).
  */
 
 export * from "./zip.js";
@@ -27,11 +19,8 @@ const FORMULA_LEAD = /^[=+\-@\t\r]/;
 const MUST_QUOTE = /[",\r\n]/;
 
 /**
- * A plain decimal number, exempt from the guard: it carries no operator,
- * function name or reference, and prefixing it would reach the author as text
- * they cannot sum. A leading `+` is not exempt, at least one spreadsheet
- * coercing it into a formula. Anchored at both ends, a formula being able to
- * open numeric-looking. Too wide a pattern here ships a live formula.
+ * A plain decimal number, exempt from the guard. A leading `+` is not exempt, as a
+ * spreadsheet may coerce it into a formula. Too wide a pattern ships a live formula.
  */
 const NUMERIC_LITERAL = /^-?\d+(?:\.\d+)?$/;
 

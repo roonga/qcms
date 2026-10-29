@@ -1,32 +1,16 @@
-/**
- * Rate-limiting store (task 017).
- *
- * The composition root defines the *interface* and ships an in-memory default;
- * Redis (or any shared store) is an adopter swap that implements the same
- * `RateLimitStore` - documented in `apps/api/CONTRIBUTING.md`, not a dependency
- * here. Per-group limits are wired by later tasks (026); 017 provides the store
- * and a middleware factory, and does not apply a global limit.
- *
- * The store is a fixed-window counter: `hit(key, windowMs)` increments the
- * count for the current window and returns the running count plus when the
- * window resets. Fetch-pure - no `node:*`; the clock is injected.
- */
-
 import { clientAddress } from "./client-address.js";
 import type { Clock } from "./clock.js";
 import { errors } from "./errors.js";
 
 export interface RateLimitResult {
-  /** Requests seen for `key` in the current window, including this one. */
+  /** Includes the hit that produced this result. */
   readonly count: number;
-  /** Epoch ms at which the current window resets. */
+  /** Epoch ms. */
   readonly resetAt: number;
 }
 
 export interface RateLimitStore {
-  /** Record a hit for `key` in a `windowMs` fixed window and return the tally. */
   hit(key: string, windowMs: number): Promise<RateLimitResult>;
-  /** Forget a key (test/administrative reset). */
   reset(key: string): Promise<void>;
 }
 
@@ -35,75 +19,26 @@ interface Bucket {
   resetAt: number;
 }
 
-/**
- * Default capacity of {@link InMemoryRateLimitStore}. At the ~165 bytes per
- * entry measured on issue #376 this is roughly 16 MB of retained heap in the
- * worst case, which any container that can run the API at all has room for.
- */
+// ~165 bytes per entry, so roughly 16 MB of retained heap at capacity.
 const DEFAULT_MAX_KEYS = 100_000;
 
-/**
- * Entries inspected from the cold end of the map on each new-window insertion,
- * looking for expired buckets to drop. A small constant, so a hit stays O(1):
- * this is the housekeeping that keeps a quiet deployment near its live key
- * count, while {@link DEFAULT_MAX_KEYS} is what makes the bound unconditional.
- */
+// A small constant so a hit stays O(1); DEFAULT_MAX_KEYS is what makes the bound
+// unconditional.
 const SWEEP_SCAN = 8;
 
 /**
- * In-memory fixed-window store - the single-process default. Multi-instance
- * deployments swap in a shared store (Redis, with real per-key TTLs)
- * implementing this interface.
- *
- * ## What it guarantees about memory (issue #376)
- *
- * **The map never holds more than `maxKeys` entries.** That bound depends on
- * neither the traffic nor the argument: a `maxKeys` that is not a positive
- * integer throws at construction, so there is no way to obtain a store that
- * reports a capacity it does not honor. Beyond that, every insertion drops any
- * expired buckets it finds in the {@link SWEEP_SCAN} coldest entries, and then,
- * if the map is still full, evicts the least recently hit entry. So retained
- * heap is
- * O(`maxKeys`) however many distinct keys the process ever sees, and a single
- * request from a never-seen-again client address can no longer add a permanent
- * entry. The doc comment here used to claim a "bounded key space per window",
- * which was only true while the address-keyed limiters had two possible keys;
- * once issue #341 gave each client address its own bucket the claim was false,
- * and unbounded growth was reachable from one unauthenticated request.
- *
- * ## Why eviction is LRU rather than "oldest window first"
- *
- * Evicting a live bucket forgives its count, so the order has to put the
- * buckets that are actively limiting somebody last. Recency does that: a
- * respondent being throttled right now keeps touching their key, which keeps it
- * at the warm end, while the one-shot keys a distinct-address flood creates go
- * cold immediately and are evicted first. Under such a flood the store still
- * degrades - a key evicted before its window elapses starts again at zero - but
- * it degrades into weaker limiting instead of into an out-of-memory kill, and
- * absorbing traffic at that scale is the operator's layer (ADR-20).
+ * Retained heap is O(`maxKeys`). Eviction is LRU because evicting a live bucket forgives
+ * its count; a distinct-address flood weakens limiting rather than killing the process,
+ * and absorbing it is the operator's layer (ADR-20).
  */
 export class InMemoryRateLimitStore implements RateLimitStore {
-  /**
-   * Insertion order is recency order: `Map` iterates oldest-inserted first and
-   * every hit re-inserts its key, so the first entry is the least recently hit.
-   */
+  /** Insertion order is recency order: every hit re-inserts its key. */
   private readonly buckets = new Map<string, Bucket>();
   private readonly maxKeys: number;
 
   /**
-   * @param maxKeys Capacity, a positive integer. Anything else throws rather
-   * than being coerced: the previous `Math.max(1, Math.trunc(maxKeys))` turned
-   * `NaN` into `NaN` and left `Infinity` alone, and since every comparison
-   * against either is false the eviction loop never ran - the store silently
-   * became the unbounded `Map` this class exists to not be, while still
-   * reporting a `capacity`. Coercing the other bad values (`0`, negatives,
-   * fractions) was harmless but equally silent, so none of them is coerced now
-   * either: the capacity a caller reads back is the one it asked for, or it
-   * never got a store. This is a constructor argument in application code
-   * rather than parsed configuration, so a bad value is a caller bug, and
-   * failing the boot deterministically with the value in the message beats a
-   * process that runs with a bound nobody chose. Nothing can trip it by
-   * accident in production - `main.ts` passes only the clock.
+   * A bad `maxKeys` throws rather than being coerced: coercion let `NaN` and `Infinity`
+   * through, which disabled eviction while the store still reported a capacity.
    */
   constructor(
     private readonly clock: Clock,
@@ -117,12 +52,10 @@ export class InMemoryRateLimitStore implements RateLimitStore {
     this.maxKeys = maxKeys;
   }
 
-  /** Entries currently retained. Never exceeds the configured capacity. */
   get size(): number {
     return this.buckets.size;
   }
 
-  /** The capacity this store was built with (the bound `size` respects). */
   get capacity(): number {
     return this.maxKeys;
   }
@@ -137,9 +70,8 @@ export class InMemoryRateLimitStore implements RateLimitStore {
       this.buckets.set(key, existing);
       return Promise.resolve({ count: existing.count, resetAt: existing.resetAt });
     }
-    // A new key, or one whose window elapsed: both start a fresh window at the
-    // warm end. Delete first so a re-used key is re-inserted, not updated in
-    // place, which would leave it stranded at its old position in the order.
+    // Delete first so a re-used key is re-inserted rather than updated in place, which
+    // would strand it at its old position in the eviction order.
     this.buckets.delete(key);
     this.makeRoom(now);
     const bucket: Bucket = { count: 1, resetAt: now + windowMs };
@@ -153,10 +85,8 @@ export class InMemoryRateLimitStore implements RateLimitStore {
   }
 
   /**
-   * Free a slot for one insertion. Sweeps expired buckets out of the coldest
-   * {@link SWEEP_SCAN} entries first (the cheap, lossless reclaim), then evicts
-   * from the cold end until there is room. Deleting during `Map` iteration is
-   * well defined: an entry removed before the iterator reaches it is skipped.
+   * Expired buckets are swept before anything live is evicted. Deleting during `Map`
+   * iteration is well defined: an entry removed before the iterator reaches it is skipped.
    */
   private makeRoom(now: number): void {
     let scanned = 0;
@@ -179,19 +109,12 @@ export interface RateLimitOptions {
   readonly store: RateLimitStore;
   readonly windowMs: number;
   readonly max: number;
-  /** Derives the bucket key from the request (default: the vouched client address). */
   readonly keyFor?: (c: Parameters<MiddlewareHandler>[0]) => string;
 }
 
-/**
- * Middleware factory enforcing `max` hits per `windowMs` per key. Over the
- * limit throws a 429 `ApiError` (the error envelope renders it). Not applied
- * globally by `createApp`; slices opt in per group (026).
- */
 export function rateLimit(options: RateLimitOptions): MiddlewareHandler {
-  // The default keys on the address the calling BFF vouched for, never on a raw
-  // `x-forwarded-for` (issue #341: that is a client-chosen value, so it is a
-  // client-chosen bucket). See `client-address.ts` for the trust model.
+  // Keys on the address the calling BFF vouched for, never on a raw `x-forwarded-for`:
+  // that is a client-chosen value, so it would be a client-chosen bucket.
   const keyFor = options.keyFor ?? clientAddress;
 
   return async (c, next) => {

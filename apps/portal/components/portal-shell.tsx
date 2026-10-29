@@ -8,36 +8,13 @@ export interface StepProgress {
   readonly current: number;
   readonly total: number;
   /**
-   * The name of the thing this page is, when the page is one instance of a repeating
-   * group rather than a plain step ("Vehicle 2", task 076, ADR-27).
-   *
-   * The indicator counts **views** (ADR-28 as amended 2026-09-29), so a three-vehicle
-   * group is three of them; without the instance's name those three pages read as three
-   * unrelated steps of one form. Absent for every ordinary step, where the wording is
-   * exactly what it was.
+   * The instance this page is, when a repeating group paginates the step. The indicator
+   * counts views (ADR-28), so without the name a three-vehicle group reads as three
+   * unrelated steps.
    */
   readonly label?: string | undefined;
 }
 
-/**
- * The respondent page chrome (screen contract `page` region): the config-driven brand
- * mark, the progress text and the appearance disclosure, then the main content
- * column. Minimal by design - respondents never navigate freely, so there is no
- * nav. Mobile-first: a single centered column that stays comfortable on a phone
- * and caps its width on larger screens (ADR-26). Adopters re-skin via tokens
- * (adopter-theme.css), never this markup.
- *
- * The brand mark and the appearance controls both read the appearance context
- * (task 053) rather than taking props, which keeps this component's six call
- * sites - one of them a client component - unchanged; see
- * `components/appearance-context.tsx` for why that is the shape.
- *
- * The appearance controls are a collapsed `<details>` rather than three visible
- * control rows. At a phone width three chip groups plus a font select would be
- * most of the viewport above the first question, and the header's job is to stay
- * out of the way of the form; a respondent who needs High-contrast or a
- * legibility face opens it once and never again, because the choice persists.
- */
 export function PortalShell({
   progress,
   children,
@@ -48,9 +25,9 @@ export function PortalShell({
   return (
     <div className="flex min-h-dvh flex-col">
       <header className="border-b border-(--color-border) bg-(--color-surface)">
-        {/* `relative` is the anchor for the appearance panel, which is positioned
-            below this row rather than inside it: a panel that expanded the header
-            would push the first question down the page every time it opened. */}
+        {/* `relative` anchors the appearance panel below this row rather than inside
+            it: a panel that expanded the header would push the first question down the
+            page every time it opened. */}
         <div className="relative mx-auto flex w-full max-w-2xl flex-wrap items-center gap-x-4 gap-y-2 px-4 py-3">
           <BrandMark />
           {progress ? (

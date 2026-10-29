@@ -4,17 +4,6 @@ import { describe, expect, it } from "vitest";
 
 import { ALLOWED, exemption, portsIn, sanctionedPorts } from "./check-ports.mjs";
 
-/**
- * Tests for the port gate itself (R8, ADR-37, issue #255).
- *
- * A gate is the one place where a false negative is worse than a false positive: a
- * missed violation is invisible, because the run prints "OK" and nobody looks again.
- * So the exemption matcher gets its own tests, and the substring case below is the
- * one that matters - it was a real defect (`file.includes(rule.file)`) found in
- * review, and it fails against that implementation.
- */
-
-/** An entry that really is exempt, used as the anchor for the near-miss cases. */
 const ANCHOR = ALLOWED[0];
 
 describe("exemption matching", () => {
@@ -24,11 +13,6 @@ describe("exemption matching", () => {
   });
 
   it("does not exempt a file that merely CONTAINS an allowlisted path", () => {
-    // The review finding. With `file.includes(rule.file)` every one of these is
-    // silently waved through and the gate still reports no findings, which is the
-    // failure mode a gate exists to prevent. `docs/PORTS.md` may carry 4318; a
-    // backup, a generated copy, or a vendored tree that happens to sit under a
-    // matching prefix may not.
     for (const impostor of [
       `${ANCHOR!.file}.bak`,
       `${ANCHOR!.file}.orig`,
@@ -40,9 +24,6 @@ describe("exemption matching", () => {
   });
 
   it("does not exempt a suffix match either, only the exact path", () => {
-    // Stated explicitly because suffix was the documented (but unimplemented)
-    // behaviour, and "same basename somewhere else" is exactly the case an
-    // exemption must not silently cover.
     expect(exemption(`packages/legacy/${ANCHOR!.file}`, ANCHOR!.value)).toBeUndefined();
   });
 
@@ -52,8 +33,8 @@ describe("exemption matching", () => {
   });
 
   it("keeps every allowlist entry a plain repo-relative path", () => {
-    // With exact matching, a leading `./` or `/` would silently never match and the
-    // entry would look present while doing nothing.
+    // A leading `./` or `/` never matches, so the entry would look present while doing
+    // nothing.
     for (const rule of ALLOWED) {
       expect(rule.file.startsWith("/")).toBe(false);
       expect(rule.file.startsWith("./")).toBe(false);
@@ -62,13 +43,8 @@ describe("exemption matching", () => {
   });
 
   it("keeps every allowlist entry one the scan can actually reach", () => {
-    // A dead exemption is worse than no exemption: it reads as evidence the gate
-    // inspects that file for that number, when in fact the scan never produces the
-    // finding it would suppress. The list carried 8 such entries after the migration
-    // (numbers in prose the gate deliberately does not scan, and the container side
-    // of a publish mapping, which no pattern captures) and so overstated the gate's
-    // reach. This replays main()'s own decision per entry, so the list cannot drift
-    // back: an entry that stops firing gets deleted, not re-justified.
+    // A dead exemption reads as evidence the gate inspects that file. Replaying main()'s
+    // own decision per entry is what stops the list drifting back.
     const sanctioned = sanctionedPorts();
     const dead = ALLOWED.filter((rule) => {
       if (!existsSync(rule.file)) return true;
@@ -81,15 +57,9 @@ describe("exemption matching", () => {
 });
 
 /**
- * Sample ports for the detector cases, kept as numbers and interpolated in.
- *
- * Deliberately not written as literals inside the sample strings: this file is
- * tracked, the gate scans tracked files, and a fixture spelling one of these out in
- * port syntax would be a real finding in its own source (it was, twice, while this
- * test was being written). Composing the text at runtime exercises
- * exactly the same code path without needing an ALLOWED entry - and NOT adding one
- * matters, because a blanket exemption on the gate's own test is precisely the hole
- * the exact-match fix above exists to close.
+ * Interpolated, never written out in port syntax: the gate scans tracked files, so a
+ * literal here would be a real finding in its own source and would need an exemption
+ * on the gate's own test.
  */
 const IN_URL = 9999;
 const IN_ASSIGNMENT = 8888;
@@ -104,8 +74,6 @@ describe("port detection", () => {
         `run --port ${String(IN_FLAG)}`,
       ].join("\n"),
     );
-    // Deduplicated: one number can match more than one pattern (the flag form is
-    // also the prose form), which is fine - the gate reports a finding either way.
     expect([...new Set(found.map((entry) => entry.port))].sort()).toEqual([
       IN_FLAG,
       IN_ASSIGNMENT,
@@ -114,9 +82,8 @@ describe("port detection", () => {
   });
 
   it("ignores four-digit numbers that are not ports", () => {
-    // The gate deliberately does not scan for bare numbers: years, byte caps,
-    // timeouts and pixel sizes are everywhere, and a gate that fired on those would
-    // be switched off within a week.
+    // Bare numbers are deliberately not scanned: years, byte caps, timeouts and pixel
+    // sizes are everywhere, and a gate firing on those gets switched off.
     expect(
       portsIn(
         ["const YEAR = 2026;", "timeout: 60000,", "width: 1280,", "support: 8080"].join("\n"),

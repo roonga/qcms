@@ -1,29 +1,3 @@
-/**
- * The tracing baseline, proved end to end (task 054, ADR-34; exit criteria 1, 3
- * and 4).
- *
- * This is the spec the whole task rests on, and it asserts against **real exported
- * OTLP payloads**: `globalSetup` boots a 40-line in-test OTLP receiver
- * (`support/otlp-receiver.ts`), starts the API-side `NodeSDK`, and the portal dev
- * server runs with `OTEL_EXPORTER_OTLP_ENDPOINT` pointed at the same receiver. No
- * collector, no viewer, no hand-built spans.
- *
- * What it proves, in the order the criteria are numbered:
- *
- * 1. **One respondent submit is one trace.** The portal's server span and the
- *    API's `SpanKind.SERVER` span share a trace id - which can only happen if the
- *    BFF's fetch carried `traceparent` (`propagateContextUrls` in
- *    `instrumentation.ts`) and `@hono/otel` extracted it - and the `pg` spans hang
- *    under the API span in that same trace.
- * 3. **The `x-request-id` bridge.** The id the portal echoes to the browser is the
- *    id the API recorded on its span (`qcms.request_id`) and the id in the API's
- *    log line, and that log line also carries `trace_id`/`span_id` from
- *    the shared server logger. Three artefacts, one id, no call-site plumbing.
- * 4. **SEC-13 holds.** A known submitted answer value appears nowhere in the
- *    captured payloads or in either server log, and the secure-link token in
- *    `/l/<token>` is exported as `/l/[token]` - redacted, not merely absent.
- */
-
 import { readFileSync } from "node:fs";
 
 import { readFixtures } from "./support/fixtures.js";
@@ -56,39 +30,12 @@ import {
   type CapturedSpan,
 } from "./support/otlp-receiver.js";
 
-/**
- * The answer value this spec submits and then hunts for. Deliberately unlike any
- * fixture label, id or route so that finding it anywhere in the telemetry is
- * unambiguous evidence of a leak rather than a coincidence - and deliberately a
- * VALID `q_full_name` (the kitchen-sink fixture constrains it to
- * `^[A-Za-z][A-Za-z .,'-]{0,99}$`), because the point is to submit a real answer,
- * not to provoke a rejection.
- */
 const ANSWER_CANARY = "Zzcanaryqx Redactowski";
 
-/**
- * The canary a repeated answer carries (task 075, acceptance case 53). A second
- * string, so a failure says which walk leaked: this one rides in as a `longText`
- * inside an instance of `grp_vehicles`, where the field's own name is
- * `ins_.../q_rf_notes`.
- */
 const REPEAT_ANSWER_CANARY = "Zzrepeatqx Redactowski notes";
 
-/**
- * The instance label the fixture renders, which is **authored `LocalizedText`** and
- * is therefore excluded from every exported signal by §8a already. It is hunted for
- * explicitly because an instance's heading is the one piece of repeat UI text that a
- * span name or an error message could plausibly pick up.
- */
 const INSTANCE_LABEL = "Vehicle 2";
 
-/**
- * Batch export plus receiver write: poll rather than sleep a fixed amount, on the
- * budget the exporters' own configuration implies (issue #901). This was a literal
- * 20s, the twin of the one `apps/admin/e2e/otel-logs.pw.ts` failed on twice in a week;
- * `OTLP_DELIVERY_BUDGET_MS` moves with the batch delay and export timeout the harness
- * sets, so the two specs cannot drift apart from the pipeline or from each other.
- */
 const SPAN_WAIT_MS = OTLP_DELIVERY_BUDGET_MS;
 const POLL_MS = OTLP_POLL_MS;
 
@@ -96,12 +43,6 @@ const POLL_MS = OTLP_POLL_MS;
 interface Waited<T> {
   /** Everything captured by the end of the wait, satisfied or not. */
   readonly captured: readonly T[];
-  /**
-   * The sentence an assertion adds when what it wanted is not in `captured`: what was
-   * waited for, how long it took, and the configuration that set the budget. Without
-   * it a slow pipeline and a broken correlation both read as a missing record, which
-   * is the mis-attribution issue #901 was filed about.
-   */
   readonly note: string;
 }
 
@@ -161,20 +102,14 @@ test("a respondent submit produces one connected trace, correlated logs, and no 
 
   await startKitchenSink(page, kitchenSinkSlug);
 
-  // Step 1: the canary rides in as a real answer value, through the real form.
   await fillText(page, KS.fullName, ANSWER_CANARY);
   await enterDate(page, "05171990");
   await continueStep(page);
 
-  // Step 2: "No" leaves the accident-count follow-up hidden, so this is the
-  // shortest complete walk of the kitchen-sink form.
   await chooseRadio(page, "No");
   await checkOption(page, "Breakdown");
   await continueStep(page);
 
-  // Step 3: answer both required single-choice questions - the RadioGroup and the
-  // `Select` a nine-option question compiles to (issue #988) - then submit and keep
-  // the BFF's response headers.
   await chooseSingleChoice(page, "Standard");
   await chooseFromSelect(page, "q_body_type", "Wagon");
   const submitted = page.waitForResponse(
@@ -185,11 +120,9 @@ test("a respondent submit produces one connected trace, correlated logs, and no 
   await page.waitForURL(/\/done/);
   await expect(page.getByTestId("content-hash")).toHaveText(/^[0-9a-f]{64}$/);
 
-  // The id the respondent could quote: minted by the portal proxy, echoed here.
   const requestId = submitResponse.headers()["x-request-id"];
   expect(requestId, "the portal must echo x-request-id").toBeTruthy();
 
-  // --- Exit criterion 1: one connected trace ---------------------------------
   const isSubmitServerSpan = (span: CapturedSpan): boolean =>
     span.serviceName === OTEL_SERVICE_NAMES.api &&
     span.kind === SPAN_KIND_SERVER &&
@@ -214,8 +147,6 @@ test("a respondent submit produces one connected trace, correlated logs, and no 
     /^[0-9a-f]{32}$/,
   );
 
-  // The portal's own spans must be in the SAME trace: that is `traceparent`
-  // crossing the BFF hop and `@hono/otel` extracting it.
   const { captured: trace, note: traceNote } = await waitForSpans(
     "the portal's spans in the API's trace",
     (all) =>
@@ -230,7 +161,6 @@ test("a respondent submit produces one connected trace, correlated logs, and no 
     `portal spans must share the API span's trace id (traceparent over the BFF hop); ${traceNote}`,
   ).toBeGreaterThan(0);
 
-  // The pg spans belong to the API's side of that trace, under an API span.
   const apiSpanIds = new Set(
     inTrace
       .filter((span) => span.serviceName === OTEL_SERVICE_NAMES.api)
@@ -246,7 +176,6 @@ test("a respondent submit produces one connected trace, correlated logs, and no 
     "every pg span should hang under an API span in the same trace",
   ).toBe(true);
 
-  // --- Exit criterion 3: x-request-id + trace-correlated API logs ------------
   const apiLog = readFileSync(SERVER_LOG_FILES.api, "utf8");
   const correlated = apiLog
     .split("\n")
@@ -264,7 +193,6 @@ test("a respondent submit produces one connected trace, correlated logs, and no 
     correlated.length,
     "the API should have logged the request id the portal forwarded",
   ).toBeGreaterThan(0);
-  // The shared logger put these there; no call site mentions trace_id.
   expect(correlated.some((line) => line.trace_id === traceId)).toBe(true);
   expect(correlated.every((line) => typeof line.span_id === "string")).toBe(true);
 
@@ -298,7 +226,6 @@ test("a respondent submit produces one connected trace, correlated logs, and no 
     `the API should export a safe log in the connected trace; ${logNote}`,
   ).toBe(true);
 
-  // --- Exit criterion 4: SEC-13 --------------------------------------------
   const payloads = readCapturedPayloads();
   expect(payloads.length, "the receiver should have captured payloads").toBeGreaterThan(0);
   expect(payloads).not.toContain(ANSWER_CANARY);
@@ -311,10 +238,6 @@ test("a secure-link token is redacted out of the exported span, not just absent"
 }) => {
   const { invalidToken } = readFixtures();
 
-  // The token is a PATH segment here, so Next names its root span from it
-  // (`GET /l/<token>`) - the one place either app has to rewrite a span name.
-  // An invalid token is used deliberately: it exercises the same route without
-  // consuming a fixture link.
   await page.goto(`/l/${invalidToken}`);
   await page.waitForURL(/\/link-error/);
 
@@ -339,22 +262,12 @@ test("a secure-link token is redacted out of the exported span, not just absent"
 test("a repeating group exports its ins_ ids and no answer value or instance label", async ({
   page,
 }) => {
-  // Acceptance case 53 of `plan/repeating-groups-and-table-input.md`. SEC-13 permits
-  // `ins_` as a pseudonymous correlator beside `frm_`, `stp_`, `q_` and `ses_`: it is a
-  // random, opaque, session-scoped branded id carrying no respondent content. **No
-  // value, no count and no label follows it**, and that is what this asserts - the
-  // allowlists are over attribute KEYS and never inspect a value, so the thing that can
-  // go wrong is a repeat value reaching an allowlisted field, not an id being stripped.
   const { repeatFleetSlug } = readFixtures();
 
   await page.goto(`/f/${repeatFleetSlug}`);
   await page.getByRole("button", { name: "Start" }).click();
   await page.waitForURL(/\/s\/ses_/);
-  // The first serve mints the group's `min: 1`, so there is a card to fill.
   await expect(page.getByRole("heading", { name: "Vehicle 1" })).toBeVisible();
-  // Wait for hydration before touching a field: a commit is the hydrated handler's
-  // POST (ADR-31), so filling and blurring before it lands posts nothing at all and
-  // the waiter below would sit until the test's own timeout.
   await waitForHydration(page);
 
   const card = (ordinal: number) => page.locator("fieldset[data-qcms-instance]").nth(ordinal - 1);
@@ -375,15 +288,11 @@ test("a repeating group exports its ins_ ids and no answer value or instance lab
   await card(1).getByLabel("Registration plate").blur();
   await plateOne;
 
-  // The canary goes in the repeated longText, so it travels under a qualified answer
-  // key (`ins_.../q_rf_notes`) rather than a bare questionId.
   const noted = answered("q_rf_notes");
   await card(1).getByLabel("Anything else about this vehicle?").fill(REPEAT_ANSWER_CANARY);
   await card(1).getByLabel("Anything else about this vehicle?").blur();
   await noted;
 
-  // A second instance, so the roster is more than one and the label the test hunts for
-  // is actually rendered.
   const roster = page.waitForResponse(
     (response) =>
       response.request().method() === "POST" && /\/roster$/.test(new URL(response.url()).pathname),
@@ -405,8 +314,6 @@ test("a repeating group exports its ins_ ids and no answer value or instance lab
   await page.waitForURL(/\/done/);
   expect(requestId, "the portal must echo x-request-id").toBeTruthy();
 
-  // Wait for the submit's exported span, so "nothing leaked" is measured against
-  // telemetry that actually arrived rather than against an empty receiver.
   const { note } = await waitForSpans(
     "the API's submit SERVER span for the repeating form",
     (all) =>
@@ -420,11 +327,9 @@ test("a repeating group exports its ins_ ids and no answer value or instance lab
 
   const payloads = readCapturedPayloads();
   expect(payloads.length, `the receiver should have captured payloads; ${note}`).toBeGreaterThan(0);
-  // No answer value, from either the plain question or the repeated one.
   expect(payloads).not.toContain(REPEAT_ANSWER_CANARY);
   expect(payloads).not.toContain("AAA111");
   expect(payloads).not.toContain("BBB222");
-  // No instance LABEL: it is authored LocalizedText, which §8a excludes outright.
   expect(payloads).not.toContain(INSTANCE_LABEL);
   for (const log of [SERVER_LOG_FILES.api, SERVER_LOG_FILES.portal]) {
     const text = readFileSync(log, "utf8");

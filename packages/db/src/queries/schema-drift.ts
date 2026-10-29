@@ -1,7 +1,5 @@
-// `$inferSelect` over a `pgEnum`-bearing or branded table is sound inside this package
-// but degrades to an `error` type through the emitted `.d.ts`, which `typescript-eslint`
-// surfaces as unsafe member access in consuming packages (issue #5). Those rows are
-// therefore hand-authored and policed here, where `$inferSelect` still resolves.
+// `$inferSelect` over a `pgEnum`-bearing or branded table degrades to an `error` type through the emitted
+// `.d.ts`, so these rows are hand-authored and policed here, where `$inferSelect` resolves.
 
 /**
  * One-directional, to avoid the circular-constraint restriction a bidirectional parameter

@@ -554,10 +554,8 @@ export function evaluateRules(
   });
 }
 
-// Per-instance visibility never prunes this list: the cursor is an index into
-// it, so a vanishing view would renumber a later page and slide the respondent
-// onto it (ADR-28). Only the first `perInstanceStep` group in a step paginates
-// it, which is how the serve-step handler reads it too.
+// Per-instance visibility never prunes this list: the cursor indexes it, so a vanishing view
+// would renumber a later page (ADR-28). Only the first `perInstanceStep` group paginates it.
 function stepViews(
   form: FormDefinition,
   visibleSteps: readonly StepId[],

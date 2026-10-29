@@ -95,18 +95,14 @@ export const authTwoFactor = controlSchema.table("twoFactor", {
 });
 
 /**
- * The fields are read off better-auth 1.7.10:
+ * The fields are read off better-auth 1.7.10, which declares `organization`, `member` and `invitation`:
  * `dist/plugins/organization/organization.mjs:704-840` <!-- expect: const schema = { -->
- * declares `organization`, `member` and `invitation`;
+ * and `team`, `teamMember` only when `teams.enabled` is on:
  * `dist/plugins/organization/organization.mjs:585-660` <!-- expect: const teamSchema = teamSupport -->
- * declares `team` and `teamMember`, and only when `teams.enabled` is on:
  * `dist/plugins/organization/organization.mjs:419`. <!-- expect: const teamSupport = opts.teams?.enabled -->
- *
- * The adapter introspects by exported table key and column property name, reading only
- * `notNull` and `hasDefault`
+ * The adapter reads only `notNull` and `hasDefault`
  * (`@better-auth/drizzle-adapter/dist/schema-check-Dqk6A4Es.mjs:121-136`), <!-- expect: if (!is(table, Table)) continue -->
- * and `diffSchema` asks two questions and no others
- * (`@better-auth/core/dist/db/schema-diff.mjs:41-54`). <!-- expect: kind: "unexpected-required-column" -->
+ * and `diffSchema` asks two questions (`@better-auth/core/dist/db/schema-diff.mjs:41-54`). <!-- expect: kind: "unexpected-required-column" -->
  * So the Postgres schema a `pgSchema` table belongs to is invisible to the check.
  */
 

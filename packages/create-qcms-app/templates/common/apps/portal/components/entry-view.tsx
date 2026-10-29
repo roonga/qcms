@@ -4,12 +4,6 @@ import { PortalShell } from "@/components/portal-shell";
 import { t } from "@/lib/i18n/en";
 import { buttonClass } from "@/lib/ui";
 
-/**
- * Anonymous / secure-link entry (screen contract `/f/:formSlug`): a neutral invitation,
- * the optional pre-session challenge slot, and a Start button. The Start control
- * is a real form POST to the BFF start-session route, so it works with or without
- * JS. Nothing here evaluates or fetches the API directly (R2).
- */
 export function EntryView({
   title,
   startAction,
@@ -19,9 +13,6 @@ export function EntryView({
 }) {
   return (
     <PortalShell>
-      {/* The entry page's hydration signal (issue #159). It renders no markup and
-          is the reason a spec can wait for hydration HERE at all: this page has no
-          `primary-action`, so the old testid probe could only time out on it. */}
       <HydrationMarker />
       <div className="flex flex-col gap-5">
         <h1 className="qcms-step-title font-semibold tracking-tight text-(--color-text)">

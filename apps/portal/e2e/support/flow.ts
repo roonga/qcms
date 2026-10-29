@@ -1,11 +1,3 @@
-/**
- * Shared respondent-flow driving helpers for the portal Playwright specs
- * (task 030). Centralized so the accessibility specs and the behavioral specs
- * drive the vehicle-insurance fixture the same way, and so the branch model
- * quirks (react-aria radio hit target, serialized answer posts, NumberField
- * per-keystroke commit) live in exactly one place.
- */
-
 import { expect, type Page } from "@playwright/test";
 
 import { waitForHydration } from "./hydration.js";
@@ -15,13 +7,6 @@ export const ACCIDENT_LABEL = "Any at-fault accident in the last 3 years?";
 export const COUNT_LABEL = "How many?";
 export const FORM_HEADING = "Vehicle insurance quote";
 
-/**
- * Start anonymously at `/f/:slug`, click Start, and land on the flow page with
- * React attached, so the caller's first interaction cannot be discarded (issue
- * #121). The visible-question check below is satisfied by the server-rendered
- * fallback form, which is why it is not on its own enough to interact against;
- * `waitForHydration` is what makes the returned page live.
- */
 export async function startAnonymousFlow(page: Page, slug: string): Promise<void> {
   await page.goto(`/f/${slug}`);
   await page.getByRole("button", { name: "Start" }).click();
@@ -30,13 +15,6 @@ export async function startAnonymousFlow(page: Page, slug: string): Promise<void
   await waitForHydration(page);
 }
 
-/**
- * Choose an at-fault-accident answer and wait for the answer to be recorded
- * server-side. The react-aria radio's real input sits under a decorative
- * indicator that intercepts pointer events, so click the option's visible label.
- * Answer posts are fire-and-forget, so wait for the `/answers` 200 before moving
- * on (else a follow-up answer races ahead and the API rejects it 409).
- */
 export async function chooseAccident(page: Page, answer: "Yes" | "No"): Promise<void> {
   const recorded = page.waitForResponse(
     (r) => r.url().includes("/answers") && r.request().method() === "POST" && r.status() === 200,

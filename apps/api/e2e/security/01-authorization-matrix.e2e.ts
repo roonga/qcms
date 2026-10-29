@@ -1,34 +1,7 @@
 /**
- * Security scenario 1 - the SEC-3 authorization matrix, asserted over HTTP.
- *
- * `docs/SECURITY_DESIGN.md` §3.2 tabulates eight action rows against four
- * credential columns and §3.2's closing line says "Enforcement tests for this
- * matrix are part of 040". Until this file existed, every cell rested on a
- * per-slice unit test: each slice was right about itself, and nothing asserted
- * the composition. That is the exact shape the project keeps finding defects in.
- *
- * The rows live in `surfaces.ts` as data; this file walks them once per
- * credential shape. Two disciplines are load-bearing and worth stating so a
- * later reader does not quietly drop them:
- *
- * 1. **Positive controls first.** A file full of 401s proves nothing if the URLs
- *    are wrong - a typo'd path is a 404 that reads as a pass under a careless
- *    assertion. `describe("positive control")` runs first and requires the fully
- *    credentialed caller to be *served* on every probe used as a negative case.
- * 2. **One predicate removed at a time.** Each negative describe block removes
- *    exactly one credential from a complete set and leaves the rest intact, so a
- *    red attributes to that predicate rather than to "the set matters".
- *
- * A note on §3.2's "Internal service token alone" column, because the code and
- * the table read differently for one cell and the difference is real: with only
- * the SEC-4 channel token, `POST /sessions` by form slug **succeeds** (201). It
- * has to: that is precisely how the portal BFF starts a session for an anonymous
- * respondent, and the matrix's first column already marks that row reachable by
- * anonymous callers. The column means "the service token confers no identity and
- * therefore no *authorized* action", not "every request carrying it alone is
- * refused". The row's actual control is rate limiting (026), not authentication.
- * This is recorded in `docs/security-review-2026-08-14.md` as an observation
- * against the table, not as a defect in the code.
+ * Positive controls run first, because a typo'd path is a 404 that reads as a pass; each
+ * negative block removes exactly one credential from a complete set. `POST /sessions` with
+ * the channel token alone succeeds, so that row's control is rate limiting.
  */
 
 import { Buffer } from "node:buffer";
@@ -87,20 +60,15 @@ let publicOnly: ReturnType<typeof composeApi>;
 let internalToken: string;
 let adminToken: string;
 let ctx: PathContext;
-/** Session A's bearer: the "own session" column. */
 let sessionToken: string;
-/** Session B's bearer: the "other session" column. */
 let otherSessionToken: string;
 let linkToken: string;
-/** A second form, for the cross-form scoping probes (issue #305). */
 let otherFormId: string;
-/** A submitted session belonging to `otherFormId`. */
 let otherFormSessionId: string;
 /** The same database and forms, composed with every key list rotated (SEC-7). */
 let rotated: ReturnType<typeof composeApi>;
 /** The head (signing) entry of each rotated list. */
 let freshInternalToken: string;
-/** An access group in the seeded workspace, and somebody holding it (task 069). */
 let probeTeamId: string;
 let probeHolderId: string;
 
@@ -113,7 +81,6 @@ function adminHeaders(overrides: Record<string, string> = {}): Record<string, st
   };
 }
 
-/** A complete credential set for a respondent surface bound to session A. */
 function respondentHeaders(bearer: string = sessionToken): Record<string, string> {
   return {
     [INTERNAL_TOKEN_HEADER]: internalToken,
@@ -121,18 +88,15 @@ function respondentHeaders(bearer: string = sessionToken): Record<string, string
   };
 }
 
-/**
- * A refusal must not be a data leak. Nothing an unauthorized caller sees may
- * carry respondent content, a form definition, or a credential.
- */
+/** A refusal must not be a data leak. */
 function expectNoPayload(text: string): void {
   expect(text).not.toMatch(/"answers"|"step"|"documents"|"sessionToken"|"secret"/);
 }
 
 beforeAll(async () => {
   testDb = await startTestDb();
-  // ONE env for both compositions so the public-only process shares the admin
-  // process's tokens and keys (04-mount-split's rule: validEnv regenerates).
+  // One env for both compositions, so the public-only process shares the admin process's
+  // tokens and keys.
   const env = buildEnv();
   all = composeApi(testDb.db, env, MOUNT.all);
   publicOnly = composeApi(testDb.db, env, MOUNT.publicOnly);
@@ -153,10 +117,8 @@ beforeAll(async () => {
     expiresAt: LINK_EXPIRY,
   });
 
-  // A third composition over the same database, with a fresh key at the head of
-  // every list and the original key retained behind it. This is SEC-7's rotation
-  // model ("first entry signs, all entries verify") as a running process rather
-  // than as a config-parser property.
+  // A fresh key at the head of every list with the original retained behind it: SEC-7's
+  // "first entry signs, all entries verify" as a running process.
   freshInternalToken = synthSecret();
   rotated = composeApi(
     testDb.db,
@@ -171,9 +133,8 @@ beforeAll(async () => {
 
   const admin = new AdminClient(all.app, internalToken, adminToken);
 
-  // A second form over the *same* library questions: `seedInsuranceForm` would
-  // re-seed them and collide on the questions primary key, so the form is
-  // created through the admin surface and given a published version directly.
+  // Created through the admin surface rather than by `seedInsuranceForm`, which would
+  // re-seed the library questions and collide on their primary key.
   otherFormId = "frm_other_tenant";
   const otherForm = await admin.createForm({
     formId: otherFormId,
@@ -185,9 +146,8 @@ beforeAll(async () => {
   const otherSession = await respondent.start<StartBody>({ formSlug: "other-tenant" });
   expect(otherSession.status).toBe(201);
   otherFormSessionId = otherSession.body.sessionId;
-  // Submitted, so it is a real response row the admin surface can read: the
-  // positive control below has to be genuinely servable for the cross-form
-  // refusals to mean anything.
+  // Submitted, so the positive control below is genuinely servable and the cross-form
+  // refusals mean something.
   const answered = await respondent.answer(
     otherFormSessionId,
     otherSession.body.sessionToken,
@@ -204,11 +164,9 @@ beforeAll(async () => {
   });
   expect(webhook.status).toBe(201);
 
-  // The membership fixtures (task 069). `seedGrants` writes them the way the product's
-  // write path does - a team row, a `teamMember` row and the `member` row finding G
-  // requires - rather than through the endpoints, because these probes are about the
-  // gates in front of those endpoints and a fixture built by the thing under test proves
-  // less.
+  // Written through `seedGrants` rather than the membership endpoints: these probes are
+  // about the gates in front of those endpoints, and a fixture built by the thing under
+  // test proves less.
   const holder = await seedAdminSession(testDb.db, { label: "probe-holder", claim: false });
   probeHolderId = holder.userId;
   const seeded = await seedGrants(testDb.db, {
@@ -226,20 +184,13 @@ beforeAll(async () => {
     otherSessionId: b.body.sessionId,
     linkId: LINK_ID,
     webhookId: webhook.body.webhookId,
-    // No delivery exists yet; every probe against this path runs under a
-    // credential the gate refuses before any handler resolves the id.
+    // No delivery exists yet; every probe against this path runs under a credential the
+    // gate refuses before any handler resolves the id.
     deliveryId: "dlv_matrix_probe",
     questionId: "q_at_fault_accident",
-    // The workspace the seed put the form and its questions in (ADR-41, task 068). A real
-    // id, so `GET /admin/workspaces` is genuinely servable as a positive control and the
-    // archive and shared-switch probes name a row that exists: a probe against an id that
-    // did not would be refused by the handler even where a gate had failed, which is the
-    // one way these probes could pass for the wrong reason.
+    // Real ids, so a probe cannot pass because the handler refused an id that does not
+    // exist where a gate had failed.
     workspaceId: SEED_WORKSPACE_ID,
-    // An access group and a holder in it, so the membership probes name rows that exist:
-    // a probe against an id that did not would be refused by the handler even where a
-    // gate had failed, which is the one way these probes could pass for the wrong reason
-    // (task 069).
     teamId: probeTeamId,
     holderId: probeHolderId,
   };
@@ -248,8 +199,6 @@ beforeAll(async () => {
 afterAll(async () => {
   await testDb?.teardown();
 });
-
-// --- 0. positive controls ---------------------------------------------------
 
 describe("positive control: the fully credentialed caller is served", () => {
   it.each(READ_CONTROL_SURFACES.map((s) => [s.name, s] as const))(
@@ -276,8 +225,6 @@ describe("positive control: the fully credentialed caller is served", () => {
   });
 });
 
-// --- 1. column: no credential ----------------------------------------------
-
 describe("no credential at all", () => {
   it.each(GATED_SURFACES.map((s) => [s.name, s] as const))(
     "%s is refused 401 before any handler runs",
@@ -289,8 +236,6 @@ describe("no credential at all", () => {
     },
   );
 });
-
-// --- 2. column: wrong channel credential ------------------------------------
 
 describe("wrong internal service token", () => {
   it.each(GATED_SURFACES.map((s) => [s.name, s] as const))(
@@ -316,8 +261,6 @@ describe("wrong internal service token", () => {
   });
 });
 
-// --- 3. column: internal service token alone --------------------------------
-
 describe("internal service token alone grants nothing", () => {
   const identityBearing = GATED_SURFACES.filter((s) => !s.anonymousReachable && s.group !== "auth");
 
@@ -337,13 +280,10 @@ describe("internal service token alone grants nothing", () => {
     const res = await probe(all.app, surface as Surface, ctx, {
       [INTERNAL_TOKEN_HEADER]: internalToken,
     });
-    // See the header comment: the channel token opens the channel, and this row
-    // is open to anonymous callers by design. Recorded, not silently asserted.
+    // The channel token opens the channel; this row is open to anonymous callers.
     expect(res.status).toBe(201);
   });
 });
-
-// --- 4. column: wrong / stale / unqualified admin credential ----------------
 
 describe("admin session credentials that must not authenticate", () => {
   const cases: readonly (readonly [string, () => Promise<string>])[] = [
@@ -412,8 +352,6 @@ describe("admin session credentials that must not authenticate", () => {
   });
 });
 
-// --- 5. ADR-09: an unmounted group does not exist ---------------------------
-
 describe("a public-only process has no admin surface at all", () => {
   it.each(ADMIN_SURFACES.map((s) => [s.name, s] as const))(
     "%s is 404 (not 403) even with a complete admin credential set",
@@ -444,13 +382,10 @@ describe("a public-only process has no admin surface at all", () => {
         body: JSON.stringify({ email: "intruder@example.test", password: "correct horse battery" }),
       });
       expect(res.status).toBe(404);
-      // The refusal must not name the endpoint it declined to publish.
       expect((await res.text()).toLowerCase()).not.toContain("sign-up");
     }
   });
 });
-
-// --- 6. column: another respondent's session token ---------------------------
 
 describe("a session token authorizes exactly one session", () => {
   const perSession = SURFACES.filter((s) => s.row === "step-answer-submit" && s.group === "public");
@@ -480,8 +415,6 @@ describe("a session token authorizes exactly one session", () => {
   });
 });
 
-// --- 7. purpose claims are not interchangeable (SEC-2, SEC-7) ---------------
-
 describe("token purposes cannot be cross-used", () => {
   it("refuses a secure-link token presented as a session bearer", async () => {
     const step = SURFACES.find((s) => s.name === "GET /sessions/{id}/step") as Surface;
@@ -491,9 +424,8 @@ describe("token purposes cannot be cross-used", () => {
   });
 
   it("refuses a session token presented as a secure link", async () => {
-    // The secure-link door is `POST /sessions/link` since task 066 (Q21). Posting a
-    // session token to `POST /sessions` would now be refused by the anonymous body's
-    // strict object instead, which proves nothing about cross-purpose tokens.
+    // Posting a session token to `POST /sessions` would be refused by the anonymous
+    // body's strict object instead, which proves nothing about cross-purpose tokens.
     const res = await all.app.request("/sessions/link", {
       method: "POST",
       headers: { "content-type": "application/json", [INTERNAL_TOKEN_HEADER]: internalToken },
@@ -504,7 +436,6 @@ describe("token purposes cannot be cross-used", () => {
   });
 
   it("proves the link token is a real one before proving it is refused", async () => {
-    // Without this, the previous case could pass on any garbage string.
     const res = await all.app.request("/sessions/link", {
       method: "POST",
       headers: { "content-type": "application/json", [INTERNAL_TOKEN_HEADER]: internalToken },
@@ -514,27 +445,13 @@ describe("token purposes cannot be cross-used", () => {
   });
 });
 
-// --- 8. tampered and expired bearers ----------------------------------------
-
 describe("tampered and expired session tokens", () => {
   const step = (): Surface => SURFACES.find((s) => s.name === "GET /sessions/{id}/step") as Surface;
 
   /**
-   * Alter one segment of a compact token so its **decoded bytes** change.
-   *
-   * The first version of these two cases mutated the *last* character of the
-   * segment, and was flaky at a measured 6 to 25 percent depending on segment
-   * length. base64url encodes 6 bits per character, so unless the byte length
-   * is a multiple of 3 the final character carries unused padding bits: several
-   * distinct final characters decode to identical bytes. Flipping the last
-   * character therefore produced, some fraction of runs, a *different string
-   * that was still a valid signature* - the request was served 200 and the
-   * assertion failed, for exactly the reason the test was supposed to disprove.
-   *
-   * The first character always carries six significant bits, so mutating it
-   * cannot be a no-op. The assertion below proves that per run rather than
-   * trusting the argument: if a future edit reintroduces a mutation that does
-   * not move the bytes, this fails here rather than intermittently downstream.
+   * The FIRST character is mutated, never the last: base64url's final character can carry
+   * unused padding bits, so several of them decode to identical bytes and flipping it is
+   * sometimes a no-op that leaves the signature valid.
    */
   function tamperSegment(token: string, index: number): string {
     const parts = token.split(".");
@@ -564,8 +481,6 @@ describe("tampered and expired session tokens", () => {
   });
 
   it("serves the untampered token, so the two refusals above are about the tamper", async () => {
-    // Positive control for this block: without it, a suite-wide breakage of the
-    // respondent path would make both tamper cases pass for the wrong reason.
     const res = await probe(all.app, step(), ctx, respondentHeaders());
     expect(res.status).toBe(200);
   });
@@ -577,8 +492,6 @@ describe("tampered and expired session tokens", () => {
     }
   });
 });
-
-// --- 9. admin authority is scoped to the form in the path (issue #305) -------
 
 describe("an admin route will not act on a session outside the form it names", () => {
   const crossForm = (path: string): string => path;
@@ -609,8 +522,6 @@ describe("an admin route will not act on a session outside the form it names", (
   );
 });
 
-// --- 10. key rotation overlap (SEC-7) ---------------------------------------
-
 describe("rotating a key list keeps the previous key verifying", () => {
   const step = (): Surface => SURFACES.find((s) => s.name === "GET /sessions/{id}/step") as Surface;
 
@@ -628,7 +539,6 @@ describe("rotating a key list keeps the previous key verifying", () => {
   });
 
   it("still accepts a session token signed under the demoted session key", async () => {
-    // `sessionToken` was minted by the pre-rotation composition.
     const res = await probe(rotated.app, step(), ctx, {
       [INTERNAL_TOKEN_HEADER]: freshInternalToken,
       authorization: `Bearer ${sessionToken}`,
@@ -649,8 +559,6 @@ describe("rotating a key list keeps the previous key verifying", () => {
   });
 
   it("signs new tokens with the head key, which the un-rotated process cannot verify", async () => {
-    // The discriminator. Without it, every assertion above would also pass if
-    // rotation were a no-op that ignored the new head entirely.
     const started = await rotated.app.request("/sessions", {
       method: "POST",
       headers: {
@@ -680,25 +588,13 @@ describe("rotating a key list keeps the previous key verifying", () => {
   });
 });
 
-// --- 11. the two role families, over HTTP (task 069, criteria 1 to 6 and 10) --
-
 /**
- * The role half of the §3.2 matrix, as requests rather than as a pure function.
- *
- * `apps/api/src/features/membership/policy.test.ts` walks every role against **every**
- * action exhaustively, which is what a pure function allows and an e2e suite does not.
- * What this block adds is the thing that file cannot assert: that the refusal is a **403
- * over the wire, from a real route, under a real session**, with no payload in it - and
- * that the enforcement is in the API rather than in a BFF or a screen (criterion 10). A
- * caller here talks to the API directly, which is exactly the bypass that criterion is
- * about.
- *
- * Each account below holds one shape and **no installation claim**, because the claim
- * administers memberships across every workspace (Q29): an account that kept it would be
- * asserting the claim rather than the role.
+ * Each account below holds one shape and no installation claim: the claim administers
+ * memberships across every workspace, so an account that kept it would be asserting the
+ * claim rather than the role.
  */
 describe("the two role families refuse across each other (criteria 2 to 5)", () => {
-  /** One account holding exactly these roles, scoped to `all` unless narrowed. */
+  /** Scoped to `all` unless narrowed. */
   async function accountHolding(
     label: string,
     grants: readonly string[],
@@ -730,13 +626,9 @@ describe("the two role families refuse across each other (criteria 2 to 5)", () 
   }
 
   /**
-   * One access group with a narrow scope, written the way the product's write path writes
-   * one: a `team` row carrying the role and the scope, a `teamMember` row that **is** the
-   * grant, and the `member` row finding G requires.
-   *
-   * Written through `@roonga/qcms-db` rather than through the membership endpoints
-   * because what this block probes is the gates in front of those endpoints, and a
-   * fixture built by the thing under test proves less.
+   * Written through `@roonga/qcms-db` rather than the membership endpoints, because this
+   * block probes the gates in front of them and a fixture built by the thing under test
+   * proves less.
    */
   async function createScopedGroup(input: {
     readonly userId: string;
@@ -758,7 +650,6 @@ describe("the two role families refuse across each other (criteria 2 to 5)", () 
     return group.teamId;
   }
 
-  /** A `forms.approver` holding exactly these environments. */
   async function createScopedApproverGroup(
     userId: string,
     environments: readonly string[],
@@ -773,7 +664,6 @@ describe("the two role families refuse across each other (criteria 2 to 5)", () 
     });
   }
 
-  /** A `responses.viewer` limited to one form list (Q28's case officer). */
   async function createFormScopedViewerGroup(
     userId: string,
     forms: readonly string[],
@@ -788,7 +678,6 @@ describe("the two role families refuse across each other (criteria 2 to 5)", () 
     });
   }
 
-  /** An account whose only grant is a `forms.viewer` in a workspace of its own. */
   async function createWorkspaceWithViewer(
     label: string,
   ): Promise<{ readonly token: string; readonly workspaceId: string }> {
@@ -811,8 +700,6 @@ describe("the two role families refuse across each other (criteria 2 to 5)", () 
   }
 
   it("gives a `forms.editor` no response in any environment, whatever its scope (criterion 2)", async () => {
-    // The probe the work order says to write first. If this passes before the families
-    // exist, the resolver is reading a ladder.
     const token = await accountHolding("probe-editor", ["forms.editor"]);
     for (const environment of ["prod", "test"]) {
       const res = await all.app.request(`/admin/forms/${ctx.formId}/responses`, {
@@ -821,18 +708,13 @@ describe("the two role families refuse across each other (criteria 2 to 5)", () 
       expect(res.status, `forms.editor read responses in ${environment}`).toBe(403);
       expectNoPayload(await res.text());
     }
-    // And the same account is genuinely served the authoring read, so the refusal above
-    // is about the family rather than about the account being broken.
     expect((await get(token, `/admin/forms/${ctx.formId}`)).status).toBe(200);
   });
 
   it("gives a `forms.owner` no response and no form at all (criterion 2, Q27)", async () => {
     const token = await accountHolding("probe-owner", [], { owner: true });
     expect((await get(token, `/admin/forms/${ctx.formId}/responses`)).status).toBe(403);
-    // The owner column touches no form row either: an owner administers a workspace and
-    // does nothing inside it.
     expect((await get(token, `/admin/forms/${ctx.formId}`)).status).toBe(403);
-    // What it does reach is the membership list, which is its own column.
     expect((await get(token, `/admin/workspaces/${ctx.workspaceId}/members`)).status).toBe(200);
   });
 
@@ -859,28 +741,24 @@ describe("the two role families refuse across each other (criteria 2 to 5)", () 
   it("gives a `forms.viewer` the two read rows and nothing else (criterion 3, Q38)", async () => {
     const token = await accountHolding("probe-viewer", ["forms.viewer"]);
     expect((await get(token, `/admin/forms/${ctx.formId}`)).status).toBe(200);
-    // It reads each environment's link and endpoint configuration, production included,
-    // because authoring roles are workspace-wide and only the writes are scoped.
+    // Production included, because authoring roles are workspace-wide and only the writes
+    // are scoped.
     expect((await get(token, `/admin/forms/${ctx.formId}/webhooks`)).status).toBe(200);
     expect((await get(token, `/admin/forms/${ctx.formId}/links`)).status).toBe(200);
-    // And it changes none of it, and reads no response.
     expect((await post(token, `/admin/forms/${ctx.formId}/publish`, {})).status).toBe(403);
     expect((await get(token, `/admin/forms/${ctx.formId}/responses`)).status).toBe(403);
   });
 
   it("refuses an environment-scoped act outside the grant's environments (criterion 4)", async () => {
-    // A grant scoped to `test` is refused every environment-scoped action in `prod` on
-    // the same workspace. The release route names its environment in the body, so this
-    // is the one act whose environment does not come from the switcher.
+    // The release route names its environment in the body, so this is the one act whose
+    // environment does not come from the switcher.
     const scoped = await seedAdminSession(testDb.db, {
       label: "probe-test-only",
       claim: false,
       owner: false,
-      // No default grants: the whole point is that this account holds ONE group, scoped
-      // to `test`, so the seeded `all`-scoped set would make the refusal untestable.
+      // No default grants: the seeded `all`-scoped set would make the refusal untestable.
       grants: [],
     });
-    // One group, scoped to `test` alone, written the way the product writes one.
     const narrow = await createScopedApproverGroup(scoped.userId, ["test"]);
     expect(narrow).toBeDefined();
 
@@ -891,8 +769,6 @@ describe("the two role families refuse across each other (criteria 2 to 5)", () 
     expect(toProd.status).toBe(403);
     expectNoPayload(await toProd.text());
 
-    // And the same account releasing to the environment it does hold is not refused by
-    // the gate: whatever the handler then says, it is not a 403.
     const toTest = await post(scoped.token, `/admin/forms/${ctx.formId}/releases`, {
       environment: "test",
       version: 1,
@@ -916,9 +792,6 @@ describe("the two role families refuse across each other (criteria 2 to 5)", () 
   });
 
   it("gives the installation claim administration and no response anywhere (criterion 5, Q29)", async () => {
-    // The matrix's `never` row, as a request. The account holds the claim and **no
-    // grant**, so what it reaches is settings, memberships and environments - and no
-    // response read, no export and no erasure.
     const claimOnly = await seedAdminSession(testDb.db, {
       label: "probe-claim",
       membership: false,
@@ -926,8 +799,6 @@ describe("the two role families refuse across each other (criteria 2 to 5)", () 
     expect(
       (await get(claimOnly.token, `/admin/workspaces/${ctx.workspaceId}/members`)).status,
     ).toBe(200);
-    // The live set, served whole to the claim: administering environments across every
-    // workspace is what the claim is for.
     const environments = await get(claimOnly.token, "/admin/environments");
     expect(environments.status).toBe(200);
     expect(
@@ -943,8 +814,6 @@ describe("the two role families refuse across each other (criteria 2 to 5)", () 
       { reason: "probe" },
     );
     expect(erase.status).toBe(403);
-    // And authoring is not the claim's either: it needs a `forms.` grant in the form's
-    // workspace.
     expect((await post(claimOnly.token, `/admin/forms/${ctx.formId}/publish`, {})).status).toBe(
       403,
     );
@@ -968,12 +837,8 @@ describe("the two role families refuse across each other (criteria 2 to 5)", () 
       expectNoPayload(await res.text());
     }
 
-    // The environment list is the one admin read this account is **served**, and what it
-    // is served is **nothing**: the route answers the environments the caller holds in
-    // some grant (Q25), so an account holding none gets an empty list rather than a
-    // refusal. Same outcome, different shape, and the shape is the route's: a caller has
-    // to be able to learn which environments they can act in without first holding a
-    // grant to ask.
+    // Served rather than refused: a caller has to be able to learn which environments they
+    // can act in without first holding a grant to ask.
     const environments = await get(nobody.token, "/admin/environments");
     expect(environments.status).toBe(200);
     expect((await environments.json()) as { environments: unknown[] }).toEqual({
@@ -982,8 +847,6 @@ describe("the two role families refuse across each other (criteria 2 to 5)", () 
   });
 
   it("narrows the library lists to the caller's own workspaces (ADR-41's premise)", async () => {
-    // Two groups sharing one installation do not see each other's forms, which is the
-    // gap ADR-41 opens with. The account below holds a grant in a workspace of its own.
     const other = await createWorkspaceWithViewer("probe-elsewhere");
     const res = await get(other.token, "/admin/forms");
     expect(res.status).toBe(200);
@@ -992,13 +855,6 @@ describe("the two role families refuse across each other (criteria 2 to 5)", () 
   });
 });
 
-/**
- * The headers a request from an authenticated administrator, in one environment, carries.
- *
- * Shared by the two blocks below, both of which probe the environment a request is
- * authorised for against the environment it acts in. `json` adds the content type, because
- * the routes they probe are a mix of reads and writes.
- */
 function environmentHeaders(
   token: string,
   environment: string,
@@ -1012,50 +868,21 @@ function environmentHeaders(
   };
 }
 
-// --- 12. the environment a request is authorised for is the one it acts in ----
-
 /**
- * The two bypasses PR #1061's first review found by probe, as regression tests.
- *
- * Both let a `forms.editor` scoped to `test` perform a **production** write the matrix
- * gives only to a `forms.approver` holding `prod` in scope, and neither was visible to the
- * criterion 4 probe above: that one uses the release route, whose body **is** the
- * handler's source of the environment, so the one route where body and handler already
- * agreed was the one being tested.
- *
- * **B1.** Four environment-naming routes declare no request body at all, so their handler
- * takes the environment from the Q6 switcher. The middleware read the body first and fell
- * back to the switcher, and `@hono/zod-openapi` validates only what a route declares - so
- * a body of `{"environment":"test"}` with `x-qcms-environment: prod` was authorised
- * against `test` and performed in `prod`.
- *
- * **B2.** `publish-and-release` was gated as the publish half alone, with the release half
- * left to a handler that never asked for it.
- *
- * Each case asserts the refusal **and the effect**: a status alone would pass against a
- * handler that refused for an unrelated reason, and what makes this a bypass test is that
- * the production object is untouched afterwards.
+ * Each case asserts the refusal and the effect: a status alone would pass against a
+ * handler that refused for an unrelated reason, and the bypass is that the production
+ * object was changed.
  */
 describe("the environment a request is authorised for is the environment it acts in", () => {
-  /** The editor this block probes with: one grant, `test` only, no claim, no owner row. */
   let testEditor = "";
   /**
-   * A `responses.eraser` scoped to `test`, for the unflag row.
-   *
-   * Unflag is `response: dispose`, which no `forms.editor` holds in any environment, so
-   * the editor is refused there for the wrong reason and the forged body proves nothing.
-   * The account that makes that row a bypass probe is the one the review named: an eraser
-   * who holds the act in `test` and must not reach it in `prod`.
+   * Unflag is `response: dispose`, which no `forms.editor` holds anywhere, so only an
+   * eraser scoped to `test` makes that row a bypass probe.
    */
   let testEraser = "";
-  /** A production link and a production webhook on the seeded form, minted as the admin. */
   let prodLinkId = "";
   let prodWebhookId = "";
 
-  // The module-level helper, aliased so the two blocks below read the way they did when
-  // each carried its own copy. Shared rather than copied because the copies were
-  // identical, which is a lint error and would have been a drift the first time one of
-  // them gained a header.
   const headersFor = environmentHeaders;
 
   beforeAll(async () => {
@@ -1093,8 +920,8 @@ describe("the environment a request is authorised for is the environment it acts
     await ensureWorkspaceMember(testDb.db, SEED_WORKSPACE_ID, eraser.userId);
     await addAccessGroupHolder(testDb.db, eraserGroup.teamId, eraser.userId);
 
-    // The production objects the editor must not reach. Minted by the fully credentialed
-    // admin, in `prod`, which is the environment the interim switcher resolves to.
+    // The production objects the editor must not reach, minted by the fully credentialed
+    // admin.
     const minted = await all.app.request(`/admin/forms/${ctx.formId}/links`, {
       method: "POST",
       headers: headersFor(adminToken, "prod", true),
@@ -1113,7 +940,6 @@ describe("the environment a request is authorised for is the environment it acts
     prodWebhookId = ((await created.json()) as { webhookId: string }).webhookId;
   });
 
-  /** Whether the production link is still active, read as the fully credentialed admin. */
   async function prodLinkIsActive(): Promise<boolean> {
     const listed = await all.app.request(`/admin/forms/${ctx.formId}/links`, {
       headers: headersFor(adminToken, "prod"),
@@ -1122,7 +948,6 @@ describe("the environment a request is authorised for is the environment it acts
     return body.links.some((link) => link.linkId === prodLinkId && link.state === "active");
   }
 
-  /** Whether the production webhook is still active. */
   async function prodWebhookIsActive(): Promise<boolean> {
     const listed = await all.app.request(`/admin/forms/${ctx.formId}/webhooks`, {
       headers: headersFor(adminToken, "prod"),
@@ -1151,7 +976,6 @@ describe("the environment a request is authorised for is the environment it acts
       (): string => testEditor,
     ],
     [
-      // The eraser, not the editor: see `testEraser`.
       "unflag",
       "POST",
       (): string => `/admin/forms/${ctx.formId}/responses/${ctx.sessionId}/unflag`,
@@ -1160,7 +984,6 @@ describe("the environment a request is authorised for is the environment it acts
   ])(
     "%s refuses a test-scoped holder whether or not the body forges an environment (B1)",
     async (_label, method, path, token) => {
-      // Without a body: the matrix, as criterion 4 states it.
       const plain = await all.app.request(path(), {
         method,
         headers: headersFor(token(), "prod"),
@@ -1168,9 +991,7 @@ describe("the environment a request is authorised for is the environment it acts
       expect(plain.status).toBe(403);
       expectNoPayload(await plain.text());
 
-      // With one: the request names `test` to the gate and `prod` to the handler. Refused,
-      // and the refusal is the route's own - it takes its environment from the switcher,
-      // so a body naming one is a key nobody can have meant.
+      // The body names `test` to the gate and the switcher names `prod` to the handler.
       const forged = await all.app.request(path(), {
         method,
         headers: headersFor(token(), "prod", true),
@@ -1185,9 +1006,6 @@ describe("the environment a request is authorised for is the environment it acts
   );
 
   it("leaves the production link and webhook exactly as they were (B1's effect)", async () => {
-    // The assertion that makes the four cases above a bypass test rather than a status
-    // test: at the first review both of these came back false, because the editor's
-    // forged body had revoked the link and deactivated the webhook.
     expect(await prodLinkIsActive(), "the prod link was revoked by a test-scoped editor").toBe(
       true,
     );
@@ -1198,10 +1016,8 @@ describe("the environment a request is authorised for is the environment it acts
   });
 
   it("refuses a test-scoped editor `publish-and-release` into prod (B2)", async () => {
-    // The combined route is two cells of the matrix, and the release half is the one the
-    // first version left to a handler that never asked. The refusal has to be the gate's
-    // 403 rather than the handler's 409: a 409 means the request reached a handler that
-    // would have released to production had a draft been there.
+    // The refusal has to be the gate's 403 rather than the handler's 409: a 409 means the
+    // request reached a handler that would have released to production.
     const refused = await all.app.request(`/admin/forms/${ctx.formId}/publish-and-release`, {
       method: "POST",
       headers: headersFor(testEditor, "test", true),
@@ -1212,9 +1028,6 @@ describe("the environment a request is authorised for is the environment it acts
   });
 
   it("allows the same route to `test`, where that editor does hold the release half", async () => {
-    // The positive control, and it is the discriminator: without it the refusal above
-    // would also pass against a row that refused everybody. Whatever the handler then
-    // says about the draft, it is not a 403.
     const allowed = await all.app.request(`/admin/forms/${ctx.formId}/publish-and-release`, {
       method: "POST",
       headers: headersFor(testEditor, "test", true),
@@ -1224,9 +1037,8 @@ describe("the environment a request is authorised for is the environment it acts
   });
 
   it("refuses a body that names no environment on a route whose body carries it", async () => {
-    // The other half of the per-row rule: a `body` row authorises against the body, so a
-    // body naming nothing is refused here rather than falling back to the switcher, which
-    // would authorise against an environment the handler is not going to use.
+    // A `body` row authorises against the body, so a body naming nothing is refused rather
+    // than falling back to the switcher the handler is not going to use.
     const empty = await all.app.request(`/admin/forms/${ctx.formId}/publish-and-release`, {
       method: "POST",
       headers: headersFor(testEditor, "test", true),
@@ -1236,56 +1048,20 @@ describe("the environment a request is authorised for is the environment it acts
   });
 });
 
-// --- 13. the production split, and Q58's masked endpoint URL ------------------
-
 /**
- * **Criterion 8** (Q30, Q33, Q58; task 067): a **`prod`** webhook endpoint change and a
- * **`prod`** link mint are refused without the `forms.approver` role holding `prod` in
- * scope, a `dev` or `test` endpoint change stays an editor's, **and** the endpoint read
- * masks the URL's query string for a `forms.viewer` while returning it whole to a
- * `forms.editor`.
- *
- * ## Why these are HTTP probes and not policy unit tests
- *
- * The matrix's production split is already a unit test on `policy.ts`, and it would stay
- * green while the gate in front of it was wrong - which is exactly what PR #1061's review
- * found twice. So each claim below is made the way an attacker would make it: a real
- * session token, the real routes, the real middleware, and for the masking, the actual
- * bytes of the response rather than what a component would render from them.
- *
- * ## The masking is asserted at the API, for each of the two roles
- *
- * Q58 is explicit that **the API masks, in the response**, never the admin's rendering, so
- * that a second client of the same route cannot see round it. A test that drove the admin
- * would therefore assert the wrong layer. Both roles are probed on one URL carrying a
- * query string, which is the only shape where the two answers differ.
- *
- * ## The reason the URL is not a secret, stated where somebody will read it
- *
- * The signing secret is (SEC-6: encrypted at rest, returned once, never on a read) and the
- * URL is not. Masking the query string is a mitigation for an operator who put a
- * credential in a URL, which `docs/webhooks.md` and `docs/operations.md` tell them not to
- * do; it is not a control, and nothing below should be read as making it one.
+ * Asserted on the API's own response bytes: Q58 masks there, never in the admin's rendering.
+ * Masking the query string mitigates a credential put in a URL; SEC-6 protects the secret.
  */
 describe("the production split and the masked endpoint URL (criterion 8)", () => {
-  /** A `forms.editor` holding **every** environment, including `prod` in its scope. */
   let allEditor = "";
-  /** A `forms.approver` holding `prod`. */
   let prodApprover = "";
-  /** A `forms.viewer`, which is the role Q58 masks for. */
   let viewer = "";
-  /** The endpoint whose URL carries a query string, in `prod`. */
   let queryWebhookId = "";
 
   const WHOLE_URL = "https://consumer.example/hook?token=not-a-real-credential&tenant=acme";
 
-  // The module-level helper, aliased so the two blocks below read the way they did when
-  // each carried its own copy. Shared rather than copied because the copies were
-  // identical, which is a lint error and would have been a drift the first time one of
-  // them gained a header.
   const headersFor = environmentHeaders;
 
-  /** One account holding exactly one access group, with that role and that scope. */
   async function accountWith(
     label: string,
     role: string,
@@ -1312,15 +1088,14 @@ describe("the production split and the masked endpoint URL (criterion 8)", () =>
   }
 
   beforeAll(async () => {
-    // `all` in both dimensions, which is the scope that makes the refusals below about
-    // the **role** rather than about the scope: Q30 narrows a production endpoint change
-    // to an approver, and an editor holding `prod` in scope is still refused it.
+    // `all` in both dimensions, so the refusals below are about the role rather than the
+    // scope: an editor holding `prod` in scope is still refused a production change.
     allEditor = await accountWith("prod-split-editor", "forms.editor", ["all"]);
     prodApprover = await accountWith("prod-split-approver", "forms.approver", ["prod"]);
     viewer = await accountWith("prod-split-viewer", "forms.viewer", ["all"]);
 
-    // The endpoint the masking is read off, created by the fully credentialed
-    // administrator so its existence owes nothing to the rules under test.
+    // Created by the fully credentialed administrator, so its existence owes nothing to
+    // the rules under test.
     const created = await all.app.request(`/admin/forms/${ctx.formId}/webhooks`, {
       method: "POST",
       headers: headersFor(adminToken, "prod", true),
@@ -1330,7 +1105,6 @@ describe("the production split and the masked endpoint URL (criterion 8)", () =>
     queryWebhookId = ((await created.json()) as { webhookId: string }).webhookId;
   });
 
-  /** The endpoint list as this token reads it in this environment. */
   async function listEndpoints(
     token: string,
     environment: string,
@@ -1352,30 +1126,22 @@ describe("the production split and the masked endpoint URL (criterion 8)", () =>
     expectNoPayload(await change.text());
 
     // The effect, not only the status: an editor who can point a production webhook at any
-    // URL can route production personal data out of the deployment, which is the whole
-    // reason Q30 moved this row.
+    // URL can route production personal data out of the deployment.
     const after = await listEndpoints(adminToken, "prod");
     expect(after.find((row) => row.webhookId === queryWebhookId)?.url).toBe(WHOLE_URL);
   });
 
   it("leaves a `test` endpoint change an editor's (Q30's narrowing)", async () => {
-    // Narrowed to `prod` deliberately: a `dev` or `test` endpoint routes test data to a
-    // test consumer, and gating it would cost a test cycle and protect nothing. Whatever
-    // the handler then says, it is not a 403.
     const change = await all.app.request(`/admin/forms/${ctx.formId}/webhooks`, {
       method: "POST",
       headers: headersFor(allEditor, "test", true),
       body: JSON.stringify({ url: "https://test-consumer.example/hook" }),
     });
-    // The exact status, not `not.toBe(403)`: a 500 would satisfy the weaker form and this
-    // is the case that has to prove the editor is genuinely **served** here (PR #1093's
-    // review, finding 8).
+    // The exact status rather than `not.toBe(403)`, which a 500 would also satisfy.
     expect(change.status).toBe(201);
   });
 
   it("allows a `forms.approver` holding prod the same prod endpoint change", async () => {
-    // The positive control. Without it the refusal above would pass against a row that
-    // refused everybody, and criterion 8 would be satisfied by a broken route.
     const change = await all.app.request(`/admin/forms/${ctx.formId}/webhooks`, {
       method: "POST",
       headers: headersFor(prodApprover, "prod", true),
@@ -1401,7 +1167,6 @@ describe("the production split and the masked endpoint URL (criterion 8)", () =>
     });
     expect(allowed.status).toBe(201);
 
-    // And the same editor minting into `test` is not refused: the split is about `prod`.
     const inTest = await all.app.request(`/admin/forms/${ctx.formId}/links`, {
       method: "POST",
       headers: headersFor(allEditor, "test", true),
@@ -1432,8 +1197,6 @@ describe("the production split and the masked endpoint URL (criterion 8)", () =>
     const rows = await listEndpoints(viewer, "prod");
     const row = rows.find((entry) => entry.webhookId === queryWebhookId);
     expect(row, "the viewer reads endpoint configuration in every environment").toBeDefined();
-    // Scheme, host and path whole; the query string gone. The role is meant to be able to
-    // tell what this endpoint is.
     expect(row?.url).toBe("https://consumer.example/hook?(hidden)");
     expect(row?.url).not.toContain("token=");
     expect(row?.url).not.toContain("not-a-real-credential");
@@ -1445,9 +1208,7 @@ describe("the production split and the masked endpoint URL (criterion 8)", () =>
   });
 
   it("masks the delivery dashboard's copy of the same URL for a `forms.viewer` (Q58)", async () => {
-    // The same stored URL by a second route, which is what "a second client cannot see
-    // round it" is about one layer along: the delivery list is `webhook: read` like the
-    // endpoint list, so it masks the same way.
+    // The delivery list is `webhook: read` like the endpoint list, so it masks the same way.
     const res = await all.app.request(`/admin/forms/${ctx.formId}/deliveries`, {
       headers: headersFor(viewer, "prod"),
     });
@@ -1457,29 +1218,10 @@ describe("the production split and the masked endpoint URL (criterion 8)", () =>
   });
 });
 
-// --- 14. the two-person rule for production (task 070, criteria 1 to 7) -----
-
 /**
- * One switch, two mechanisms, over HTTP (Q13, Q30, Q34, Q38, Q51; finding 5).
- *
- * The block above asserts **who** may change production: a `forms.approver` holding `prod`
- * in scope, and nobody else (Q30's split). This one asserts that holding that grant is not
- * enough on its own once a workspace turns the two-person rule on - **two accounts** are
- * needed, and the two acts take the two shapes Q51 gives them:
- *
- *   - **a release is one act**, refused for the account that published the version;
- *   - **an endpoint change is two acts**, proposed, held pending, confirmed by somebody
- *     else, and taking effect on nothing in between.
- *
- * Every probe is **over HTTP against a mounted app**, because that is the only level at
- * which the mechanism is the composition of a route, a policy row, a switch read and a
- * handler. The effect is asserted beside the status everywhere it is observable: a 403 that
- * still released a version, or a pending change that was already live, would satisfy a
- * status-only test.
- *
- * Its own form, so nothing here disturbs the release history or the endpoint set the blocks
- * above assert against, and the **switch is turned on in `beforeAll` and off in
- * `afterAll`** so a block added after this one inherits the default (Q13: off).
+ * Its own form, so nothing here disturbs the release history or the endpoint set the
+ * blocks above assert against, and the switch is turned on in `beforeAll` and off in
+ * `afterAll` so a block added after this one inherits the default.
  */
 describe("the two-person rule for production (task 070, criteria 1 to 7)", () => {
   const headersFor = environmentHeaders;
@@ -1489,22 +1231,15 @@ describe("the two-person rule for production (task 070, criteria 1 to 7)", () =>
 
   /** The account that published version 1, and a `forms.approver` holding `prod`. */
   let author = { token: "", userId: "" };
-  /** A second `forms.approver` holding `prod`: the account the rule needs. */
   let second = { token: "", userId: "" };
-  /** A `forms.approver` holding `prod` in **another workspace** (criterion 5). */
   let foreignApprover = "";
-  /** A `forms.approver` in the right workspace holding only `test` (criterion 5). */
   let testApprover = "";
-  /** A `forms.owner` with no `forms.approver` grant (criterion 5, Q34). */
   let owner = "";
-  /** A `forms.viewer`, which releases and approves nothing (criterion 5, Q38). */
   let viewer = "";
-  /** The installation claim with no membership at all (criterion 6). */
   let claimOnly = "";
   /** The endpoint the pending changes are about, created before the switch went on. */
   let webhookId = "";
 
-  /** One account holding exactly one access group, with that role and that scope. */
   async function approverAccount(
     label: string,
     role: string,
@@ -1529,12 +1264,10 @@ describe("the two-person rule for production (task 070, criteria 1 to 7)", () =>
     return { token: account.token, userId: account.userId };
   }
 
-  /** The switch, as an owner's `PUT /settings` would leave it (task 069 built that route). */
   async function setSwitch(on: boolean): Promise<void> {
     await setRequireSecondApprover(testDb.db, SEED_WORKSPACE_ID, on);
   }
 
-  /** Release a version into an environment as one account, and answer the response. */
   async function release(token: string, version: number, environment: string): Promise<Response> {
     return all.app.request(`/admin/forms/${TWO_PERSON_FORM}/releases`, {
       method: "POST",
@@ -1543,19 +1276,16 @@ describe("the two-person rule for production (task 070, criteria 1 to 7)", () =>
     });
   }
 
-  /** The version released in one environment right now, or `undefined`. */
   async function releasedVersion(environment: string): Promise<number | undefined> {
     const row = await getReleasedVersion(testDb.db, FormId.parse(TWO_PERSON_FORM), environment);
     return row?.version;
   }
 
-  /** The endpoint's live URL, read from the environment's own data plane. */
   async function liveUrl(): Promise<string | undefined> {
     const row = await getWebhook(testDb.db, FormId.parse(TWO_PERSON_FORM), webhookId);
     return row?.url;
   }
 
-  /** Propose a change to the endpoint's URL as one account; answers the parsed body. */
   async function proposeUrl(
     token: string,
     url: string,
@@ -1570,7 +1300,6 @@ describe("the two-person rule for production (task 070, criteria 1 to 7)", () =>
     return { status: res.status, proposalId: body.proposal.proposalId };
   }
 
-  /** Confirm a pending change as one account, in one environment. */
   async function confirm(
     token: string,
     proposalId: string,
@@ -1583,19 +1312,13 @@ describe("the two-person rule for production (task 070, criteria 1 to 7)", () =>
   }
 
   beforeAll(async () => {
-    // **`all` in both dimensions for the two approvers**, deliberately. The block above
-    // asserts the scope refusals; what this one has to assert is the refusals that are
-    // about the **account** and about the handler's own environment comparison, and an
-    // approver scoped to `prod` alone would be refused a `test` release by the scope
-    // before either of those could be reached. Criterion 5's "an approver without prod in
-    // scope" is `testApprover` below, which is what that clause is for.
+    // `all` in both dimensions for the two approvers: one scoped to `prod` alone would be
+    // refused a `test` release by the scope before the account comparison was reached.
     author = await approverAccount("two-person-author", "forms.approver", ["all"]);
     second = await approverAccount("two-person-second", "forms.approver", ["all"]);
     testApprover = (await approverAccount("two-person-test", "forms.approver", ["test"])).token;
     viewer = (await approverAccount("two-person-viewer", "forms.viewer", ["all"])).token;
 
-    // A `forms.owner` with no approver grant at all (Q34): an owner administers a
-    // workspace and approves nothing, and nothing is implied from the member row.
     const ownerAccount = await seedAdminSession(testDb.db, {
       label: "two-person-owner",
       claim: false,
@@ -1604,8 +1327,6 @@ describe("the two-person rule for production (task 070, criteria 1 to 7)", () =>
     });
     owner = ownerAccount.token;
 
-    // The installation claim with **no membership**: the claim administers and reaches no
-    // form, release, link, webhook or response anywhere (Q29).
     claimOnly = (
       await seedAdminSession(testDb.db, {
         label: "two-person-claim",
@@ -1614,8 +1335,7 @@ describe("the two-person rule for production (task 070, criteria 1 to 7)", () =>
       })
     ).token;
 
-    // A second workspace, so "an approver from another workspace is refused" is a real
-    // grant in a real workspace rather than an absent one.
+    // A real grant in a real second workspace, rather than an absent one.
     const [foreign] = await testDb.db
       .insert(authOrganization)
       .values({
@@ -1635,9 +1355,7 @@ describe("the two-person rule for production (task 070, criteria 1 to 7)", () =>
       slug: "two-person-rule",
       defaultLocale: "en",
     });
-    // Three versions with three different authors, which is the whole input to criterion 1:
-    // the author is **the account that published the version** (Q51), so the rule needs
-    // versions that differ in exactly that.
+    // Three versions differing only in their publisher, which is what the rule compares.
     for (const publishedBy of [author.userId, second.userId, null]) {
       await insertFormVersion(testDb.db, {
         formId: FormId.parse(TWO_PERSON_FORM),
@@ -1650,9 +1368,8 @@ describe("the two-person rule for production (task 070, criteria 1 to 7)", () =>
       });
     }
 
-    // The endpoint, created **before the switch goes on**, which is also criterion 3's
-    // endpoint half: with the rule off a single account configures production at once,
-    // exactly as task 067 built it.
+    // Created before the switch goes on, which is also the rule-off case: a single account
+    // configures production at once.
     const created = await all.app.request(`/admin/forms/${TWO_PERSON_FORM}/webhooks`, {
       method: "POST",
       headers: headersFor(author.token, "prod", true),
@@ -1665,7 +1382,6 @@ describe("the two-person rule for production (task 070, criteria 1 to 7)", () =>
   });
 
   afterAll(async () => {
-    // Back to Q13's default, so nothing after this block inherits the rule.
     await setSwitch(false);
   });
 
@@ -1677,8 +1393,6 @@ describe("the two-person rule for production (task 070, criteria 1 to 7)", () =>
       "APPROVER_IS_AUTHOR",
     );
     expectNoPayload(await refused.text());
-    // The effect, not only the status: a refusal that still wrote the release row would
-    // have served the new version in production.
     expect(await releasedVersion("prod")).toBe(before);
   });
 
@@ -1687,13 +1401,9 @@ describe("the two-person rule for production (task 070, criteria 1 to 7)", () =>
     const allowed = await release(second.token, 1, "prod");
     expect(allowed.status).toBe(200);
     const body = (await allowed.json()) as { release: { approvedBy: string | null } };
-    // **On the release row**, which is what makes the approval auditable rather than
-    // procedural: a flow that confirmed in the admin and recorded nothing would satisfy
-    // the screen and fail the audit the rule exists for.
     expect(body.release.approvedBy).toBe(second.userId);
     expect(await releasedVersion("prod")).toBe(1);
 
-    // And readable in the history, which is criterion 2's second half.
     const history = await all.app.request(`/admin/forms/${TWO_PERSON_FORM}/releases`, {
       headers: headersFor(second.token, "prod"),
     });
@@ -1707,9 +1417,8 @@ describe("the two-person rule for production (task 070, criteria 1 to 7)", () =>
   });
 
   it("refuses a prod release of a version whose author is unknown", async () => {
-    // Only reachable for a version published before `published_by` existed. The rule
-    // compares two accounts and one of them is unknown, so the conservative answer is no:
-    // "a different account released it" is not something this deployment can claim.
+    // The rule compares two accounts and one of them is unknown, so the conservative
+    // answer is no: "a different account released it" cannot be claimed.
     const refused = await release(second.token, 3, "prod");
     expect(refused.status).toBe(409);
     expect(((await refused.clone().json()) as { error?: { code?: string } }).error?.code).toBe(
@@ -1719,21 +1428,14 @@ describe("the two-person rule for production (task 070, criteria 1 to 7)", () =>
   });
 
   it("never asks for an approver outside prod, whatever the switch says (criterion 4)", async () => {
-    // The switch is on for this workspace throughout this block, so this is the case that
-    // keeps a test cycle usable (finding 5): a release to `test` is self-service, and the
-    // author releasing their own version there is the ordinary shape of it.
+    // The switch is on throughout this block, and a release to `test` stays self-service.
     const released = await release(second.token, 2, "test");
     expect(released.status).toBe(200);
     const body = (await released.json()) as { release: { approvedBy: string | null } };
-    // No approval recorded, because none was required. A column filled in anyway would
-    // make the history claim a second account had agreed to something.
     expect(body.release.approvedBy).toBeNull();
   });
 
   it("matches task 065 exactly with the switch off (criterion 3)", async () => {
-    // The criterion that protects the default. An implementation that asked for an
-    // approver and then accepted the same account would have changed the default's
-    // behaviour while appearing to keep it.
     await setSwitch(false);
     try {
       const released = await release(author.token, 2, "prod");
@@ -1749,15 +1451,9 @@ describe("the two-person rule for production (task 070, criteria 1 to 7)", () =>
   it("walks every refusal the rule leaves to the grant model (criterion 5)", async () => {
     const before = await releasedVersion("prod");
     for (const [label, token] of [
-      // An approver holding `prod` in another workspace: the grant is real and reaches
-      // nothing here, which is ADR-41's whole premise.
       ["an approver from another workspace", foreignApprover],
-      // The right workspace, the wrong environment scope.
       ["an approver without prod in scope", testApprover],
-      // Q34: an owner who should approve is given a `forms.approver` grant, which makes
-      // their authority a row somebody can read rather than a rank.
       ["a forms.owner with no approver grant", owner],
-      // Q38: this role releases nothing and approves nothing.
       ["a forms.viewer", viewer],
     ] as const) {
       const refused = await release(token, 3, "prod");
@@ -1768,10 +1464,8 @@ describe("the two-person rule for production (task 070, criteria 1 to 7)", () =>
   });
 
   it("refuses the installation claim a prod release, with or without an author (criterion 6)", async () => {
-    // ADR-41's Q12 Note: the claim administers and reads no data anywhere, and a release
-    // is not administration. So an administrator holding it but no membership cannot
-    // approve - and cannot approve their own release either, which is the same refusal
-    // reached from the other direction.
+    // The claim administers and reads no data anywhere, and a release is not
+    // administration.
     const before = await releasedVersion("prod");
     for (const version of [1, 3]) {
       const refused = await release(claimOnly, version, "prod");
@@ -1785,11 +1479,10 @@ describe("the two-person rule for production (task 070, criteria 1 to 7)", () =>
     const proposed = await proposeUrl(author.token, PROPOSED_URL);
     expect(proposed.status).toBe(202);
     expect(proposed.proposalId).toBeDefined();
-    // The property the whole mechanism is for: the live endpoint is untouched, so the
-    // deliverer goes on posting to the URL that was already agreed.
+    // The live endpoint is untouched, so the deliverer goes on posting to the URL that was
+    // already agreed.
     expect(await liveUrl()).toBe(ORIGINAL_URL);
 
-    // And it is visible as pending, which is what a second approver reads before agreeing.
     const pending = await all.app.request(`/admin/forms/${TWO_PERSON_FORM}/webhooks/proposals`, {
       headers: headersFor(second.token, "prod"),
     });
@@ -1808,23 +1501,19 @@ describe("the two-person rule for production (task 070, criteria 1 to 7)", () =>
     const proposalId = ((await pending.json()) as { proposals: { proposalId: string }[] })
       .proposals[0]!.proposalId;
 
-    // 1. The proposer. The rule itself.
     const own = await confirm(author.token, proposalId);
     expect(own.status).toBe(403);
     expect(((await own.clone().json()) as { error?: { code?: string } }).error?.code).toBe(
       "PROPOSER_CANNOT_CONFIRM",
     );
 
-    // 2. A second account that does not hold `forms.approver` with `prod` in scope. Each
-    //    is refused by the policy row before the handler runs, so none of them can learn
-    //    that the proposal exists either.
+    // Each is refused by the policy row before the handler runs, so none of them can learn
+    // that the proposal exists either.
     for (const [label, token] of [
       ["an approver from another workspace", foreignApprover],
       ["an approver without prod in scope", testApprover],
       ["a forms.owner with no approver grant", owner],
       ["a forms.viewer", viewer],
-      // The claim holder cannot bypass the rule: it holds no `webhook: configure`
-      // anywhere, which is the matrix's shape rather than a check this route makes.
       ["the installation claim", claimOnly],
     ] as const) {
       const refused = await confirm(token, proposalId);
@@ -1832,15 +1521,11 @@ describe("the two-person rule for production (task 070, criteria 1 to 7)", () =>
       expectNoPayload(await refused.text());
     }
 
-    // 3. A forged switcher. The proposal is for `prod`; a request whose switcher says
-    //    `test` is authorised against `test`, where an editor suffices, so the handler
-    //    compares the proposal's own environment and answers **not found** rather than
-    //    forbidden - a caller scoped to `test` learns nothing about what is pending in
-    //    production.
+    // A forged switcher: the handler compares the proposal's own environment and answers
+    // not found, so a caller scoped to `test` learns nothing about what is pending in prod.
     const forged = await confirm(second.token, proposalId, "test");
     expect(forged.status).toBe(404);
 
-    // Nothing above changed anything.
     expect(await liveUrl()).toBe(ORIGINAL_URL);
   });
 
@@ -1858,11 +1543,8 @@ describe("the two-person rule for production (task 070, criteria 1 to 7)", () =>
     };
     expect(body.proposal.confirmedBy).toBe(second.userId);
     expect(body.proposal.appliedAt).not.toBeNull();
-    // The positive control, and the only assertion that proves the mechanism does
-    // anything at all: the endpoint is now the proposed one.
     expect(await liveUrl()).toBe(PROPOSED_URL);
 
-    // And it is no longer pending, so a screen does not offer it twice.
     const after = await all.app.request(`/admin/forms/${TWO_PERSON_FORM}/webhooks/proposals`, {
       headers: headersFor(second.token, "prod"),
     });
@@ -1878,12 +1560,8 @@ describe("the two-person rule for production (task 070, criteria 1 to 7)", () =>
       { method: "DELETE", headers: headersFor(author.token, "prod") },
     );
     expect(withdrawn.status).toBe(200);
-    // Applied to nothing, which is the point: a withdrawal is the second approver
-    // refusing, or the proposer changing their mind, and either way the endpoint is the
-    // one that was already agreed.
     expect(await liveUrl()).toBe(PROPOSED_URL);
 
-    // A withdrawn proposal cannot then be confirmed by anybody.
     const late = await confirm(author.token, proposed.proposalId!);
     expect(late.status).toBe(404);
   });
@@ -1896,7 +1574,6 @@ describe("the two-person rule for production (task 070, criteria 1 to 7)", () =>
     // second would overwrite a value its own confirmer had read in a different screen.
     expect(secondChange.status).toBe(409);
 
-    // Leave the endpoint with nothing pending for the next case.
     const cleared = await all.app.request(
       `/admin/forms/${TWO_PERSON_FORM}/webhooks/proposals/${first.proposalId}`,
       { method: "DELETE", headers: headersFor(author.token, "prod") },
@@ -1910,10 +1587,8 @@ describe("the two-person rule for production (task 070, criteria 1 to 7)", () =>
 
     await setSwitch(false);
     try {
-      // Turning the rule off does not apply what was waiting, and it does not make the
-      // proposer's own confirmation acceptable: a proposal that exists carries two
-      // accounts, and the switch governs whether a change **becomes** a proposal rather
-      // than who may confirm one that already is.
+      // The switch governs whether a change becomes a proposal, not who may confirm one
+      // that already is.
       expect(await liveUrl()).toBe(PROPOSED_URL);
       const own = await confirm(author.token, proposed.proposalId!);
       expect(own.status).toBe(403);
@@ -1930,10 +1605,6 @@ describe("the two-person rule for production (task 070, criteria 1 to 7)", () =>
   });
 
   it("writes a SEC-15 row for every propose, confirm and withdraw (Q61)", async () => {
-    // The audit half of the mechanism. Counted rather than matched on text: what matters
-    // is that no act changes a production endpoint's pending state without a row, and the
-    // columns Q61 names are filled in because this act names both an environment and a
-    // form.
     const before = await listAccessAudit(testDb.db, SEED_WORKSPACE_ID, { kind: "setting" });
     const proposed = await proposeUrl(author.token, "https://audited-consumer.example/hook");
     expect(proposed.status).toBe(202);
@@ -1949,8 +1620,8 @@ describe("the two-person rule for production (task 070, criteria 1 to 7)", () =>
     for (const row of added) {
       expect(row.environment).toBe("prod");
       expect(row.formId).toBe(TWO_PERSON_FORM);
-      // The URL is deliberately absent: the audit is readable by a `forms.owner`, who is
-      // not in the `forms` family at all and whom Q58 never gave an unmasked endpoint URL.
+      // The URL is deliberately absent: the audit is readable by a `forms.owner`, who was
+      // never given an unmasked endpoint URL.
       expect(row.detail ?? "").not.toContain("audited-consumer.example");
     }
   });

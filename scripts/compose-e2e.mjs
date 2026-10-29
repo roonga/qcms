@@ -1,30 +1,7 @@
 /**
- * The full-stack browser-smoke harness (task 036): bring the solo Compose stack up
- * in an isolated Compose project, bootstrap a first administrator in it, drive
- * `playwright.compose.config.ts` against it, and take it back down again. The flow
- * is called "full-stack" everywhere it is named - the CI job, the report
- * directories, the spec in `apps/e2e/` - and this file keeps its Compose-shaped
- * filename only because it is what `package.json` and the workflow already invoke.
- *
- * ## Ports and the project name
- *
- * This stack is ephemeral and nothing outside the suite points at it, so it takes
- * the seat's HARNESS block (`17S00` portal, `17S40` admin) rather than the stable
- * one the same compose file defaults to for a human-run stack. The numbers are
- * derived from `scripts/ports.mjs`, never written here: R8 is a rule about
- * derivation, and a literal is how three copies of an allocation drift apart.
- *
- * The project name matters as much as the ports. Two Compose stacks sharing a
- * project name ARE one stack, so a second seat would recreate the first seat's
- * containers rather than run beside them. It is derived per seat as well, with a
- * `-full-stack-e2e` suffix so this throwaway stack can never be confused with (or
- * torn down on top of) the dev database `scripts/dev-portal.mjs` runs under the
- * same seat's project name: `down --volumes --remove-orphans` here would otherwise
- * delete it.
- *
- * `playwright.compose.config.ts` and the spec read the two base URLs exported
- * below and nothing else, so the allocation reaches the browser side through one
- * set of names.
+ * The full-stack browser-smoke harness. It uses the seat's HARNESS port block and a `-full-stack-e2e`
+ * project suffix: stacks sharing a project name are one stack, and `down --volumes --remove-orphans`
+ * would otherwise delete the dev database under the same seat.
  */
 
 import { chmodSync, existsSync, readFileSync, unlinkSync, writeFileSync } from "node:fs";
@@ -55,25 +32,9 @@ export const credentialsPath = join(root, ".e2e-full-stack-credentials.json");
 const portalPort = harnessPort("portal");
 const adminPort = harnessPort("admin");
 /**
- * What this harness hands Compose, the Playwright runner and the two application
- * containers - and, as an invariant, the SAME thing in every environment.
- *
- * That invariance is the point, not an accident of the current implementation.
- * `full-stack-e2e` exists to catch regressions at the auth boundary, and while CI is
- * down a local pass is the only evidence there is. Anything here that varied by
- * environment - the bind address, and above all the admin's `Secure` cookie flag -
- * would make the local run exercise a *different configuration than CI* and quietly
- * stop covering the thing it is run for. So the browsed origin is `http://localhost`
- * everywhere, which Chromium treats as a trustworthy origin, so `Secure` cookies
- * work and `QCMS_ADMIN_SECURE_COOKIES` is never set here at all.
- *
- * Making `localhost` true inside the dev container is `startLoopbackForwarding`'s
- * job, below. Notice what is NOT in this object: no `QCMS_BIND_ADDRESS`, so
- * `docker-compose.yml`'s loopback publish stands untouched (that exposure property
- * is not tradeable), and no cookie flag, so the containers' own `NODE_ENV` decides
- * exactly as it does on CI.
- *
- * Pure and exported so the invariant is a test rather than a comment.
+ * Identical in every environment so a local pass covers what CI runs: the browsed origin is always
+ * `http://localhost` (trustworthy to Chromium, so `Secure` cookies work), with no bind-address or
+ * cookie-flag override.
  *
  * @param {object} options
  * @param {number} options.portalPort
@@ -91,24 +52,8 @@ export function composeEnvironmentOverrides({ portalPort, adminPort }) {
 }
 
 /**
- * Ephemeral secret material for the harness stack, generated per run.
- *
- * The `--env-file` above is `.env.compose.example`, and its secret lines are
- * placeholders (`replace-with-a-random-32-character-...`). Until task 040 those
- * placeholders booted, because config validation was a length floor and they are
- * comfortably longer than the floor - which is exactly the finding 040 fixed
- * (`docs/security-review-2026-08-14.md` §3.1). The API now refuses to boot on a
- * placeholder, so this harness has to supply real values, and it should have been
- * doing so anyway: a stack whose signing keys are published in the repository is
- * not the stack `full-stack-e2e` exists to exercise.
- *
- * Shell environment beats `--env-file` in Compose interpolation, so putting them
- * here is all that is needed. Hex rather than base64url so a generated value can
- * never begin with a placeholder prefix by chance.
- *
- * Fresh per run on purpose: nothing in this harness outlives the run
- * (`createFirstAdmin` enrols the admin each time), so there is nothing for a
- * pinned key to keep readable.
+ * The `--env-file` carries placeholders the API refuses to boot on, so real values are generated
+ * here and beat it in Compose interpolation. Hex, so a value cannot begin with a placeholder prefix.
  *
  * @param {() => string} [generate]
  * @returns {Record<string, string>}
@@ -138,7 +83,6 @@ class UsageError extends Error {
   }
 }
 
-/** A child process that exited non-zero, carrying its status to the top level. */
 class CommandFailed extends Error {
   /**
    * @param {string} command
@@ -152,13 +96,8 @@ class CommandFailed extends Error {
 }
 
 /**
- * Run a child process, and THROW on a non-zero exit rather than exiting here.
- *
- * `process.exit()` does not unwind the stack, so calling it from inside `up()` or
- * `test()` skipped `runComplete()`'s `finally { down(); }` entirely: any failing
- * run left the containers, the named volume and the credentials file behind, which
- * is the opposite of what README.md promises. Throwing lets the cleanup run and
- * lets the top level decide the exit code.
+ * Throws rather than exiting: `process.exit()` does not unwind, so it would skip
+ * `runComplete()`'s `finally { down(); }` and strand the containers and volume.
  */
 function run(command, args, environment = process.env) {
   const result = spawnSync(command, args, { cwd: root, env: environment, stdio: "inherit" });
@@ -167,8 +106,6 @@ function run(command, args, environment = process.env) {
 }
 
 /**
- * Run a child process and return its stdout, for the `docker inspect` reads below.
- *
  * @param {string} command
  * @param {string[]} args
  * @returns {string}
@@ -181,13 +118,8 @@ function capture(command, args) {
 }
 
 /**
- * Run a Compose subcommand against THIS harness's stack, streaming its output.
- *
- * Exported for `scripts/drill-restore.mjs`, which wraps its own dump/restore steps
- * around `up()` and `test()` below. The drill must address the same project name and
- * the same env file, and reconstructing either at the call site is how two copies of
- * an allocation drift apart (the project name in particular is what `down()` deletes
- * a stack under, so a drill that guessed it wrong would tear down the wrong stack).
+ * Exported so `drill-restore.mjs` addresses the same project name and env file rather
+ * than reconstructing them: the project name is what `down()` deletes a stack under.
  *
  * @param {string[]} args
  * @returns {void}
@@ -197,8 +129,6 @@ export function composeRun(args) {
 }
 
 /**
- * As {@link composeRun}, but returns trimmed stdout instead of streaming it.
- *
  * @param {string[]} args
  * @returns {string}
  */
@@ -206,32 +136,15 @@ export function composeCapture(args) {
   return capture(docker, [...compose, ...args]);
 }
 
-// ---------------------------------------------------------------------------
-// Loopback forwarding, so `http://localhost:<port>` is a real address inside the
-// dev container (issue #316).
-//
-// The stack publishes on the Docker host. Inside the dev container that host is
-// another machine (ADR-29: `docker compose` drives the mounted host socket, so the
-// services are sibling containers), and the publish is bound to the host's loopback,
-// which no sibling can reach at any address. Rather than browse a different address
-// - which drops `Secure` cookies and would need the local run to differ from CI -
-// this joins the Compose network and forwards this container's own loopback to the
-// service containers. Publishing then plays no part in how the suite connects, which
-// is exactly why `docker-compose.yml`'s bind can be left alone.
-//
-// Measured before it was built: from this container, a sibling's unpublished port
-// TIMEOUTs (Docker's cross-bridge isolation drops it) and CONNECTs after
-// `docker network connect`. That is the whole reason the join step exists.
-// ---------------------------------------------------------------------------
+// In the dev container the stack's publish is bound to the Docker host's loopback, which no sibling
+// container can reach, so this joins the Compose network and forwards its own loopback.
 
-/** The running forwarder, or `undefined` when there is none. */
 let forwarder;
 
-/** The Compose network this container joined, so teardown can leave it again. */
 let joinedNetwork;
 
 /**
- * This container's id, which is its hostname unless someone overrode it.
+ * The hostname, which is the container id unless someone passed `--hostname`.
  *
  * @returns {string | undefined}
  */
@@ -244,16 +157,9 @@ function selfContainerId() {
 }
 
 /**
- * The single network a Compose service is attached to, named from `.Networks`.
- *
- * Deliberately a refusal rather than a pick when there is more than one. The
- * forwarder dials a container address, which is only reachable from the network this
- * container joins, so with two networks in play "which one" is a real decision about
- * the stack's shape, not a default the harness may take on the author's behalf. The
- * previous `Object.keys(...)[0]` looked like a choice and was Docker's Go map
- * serialization, which sorts keys lexicographically: the answer was a string-sort
- * artifact that happened to be right while `docker-compose.yml` declared no
- * `networks:` block at all.
+ * More than one network is a refusal, not a pick: `Object.keys(...)[0]` would be a
+ * lexicographic artifact of Docker's Go map serialization, and which network to join is
+ * a real decision about the stack's shape.
  *
  * @param {Record<string, { IPAddress?: string }>} networks
  * @param {string} service
@@ -272,19 +178,9 @@ export function soleNetworkName(networks, service) {
 }
 
 /**
- * The single TCP port a Compose service listens on, from `.NetworkSettings.Ports`.
- *
- * The listening port is read from the container rather than written here: it is the
- * image's own business, never a QCMS allocation (`docs/PORTS.md`), so hardcoding it
- * would be inventing a number this repo does not own.
- *
- * Two hardenings over the `Object.keys(...)[0]` this replaces. UDP keys are filtered
- * out, because the forwarder speaks TCP and a `/udp` entry is never an answer to this
- * question. And several TCP ports is a refusal, not a pick: nothing in the port list
- * says which one serves the application, so "lowest" or "first" would just be another
- * sort artifact dressed as a rule - a debug port on 2000 beside an app on 3000 would
- * win under either. A second `EXPOSE` therefore costs one line here, named at `up()`,
- * instead of a silently wrong forward that surfaces as a Playwright timeout.
+ * Read from the container because the listening port is the image's business, never a
+ * QCMS allocation. UDP keys are filtered out, and several TCP ports is a refusal rather
+ * than a pick: nothing in the list says which one serves the application.
  *
  * @param {Record<string, unknown>} exposed
  * @param {string} service
@@ -306,8 +202,6 @@ export function soleTcpPort(exposed, service) {
 }
 
 /**
- * A Compose service's address on the Compose network, and the port it listens on.
- *
  * @param {string} service
  * @returns {{ network: string; address: string; port: number }}
  */
@@ -329,15 +223,8 @@ function serviceEndpoint(service) {
 }
 
 /**
- * The networks Docker reports a container attached to, by name.
- *
- * Separate from {@link serviceEndpoint} because the container it is asked about is
- * *this* one, whose id came from `/etc/hostname` and is therefore an assumption:
- * true while the container keeps Docker's default hostname, false the moment anyone
- * passes `--hostname`. Rather than record that as a known soft spot, this makes it
- * loud - an id Docker cannot resolve fails here, naming where the id came from,
- * instead of silently skipping the join and leaving the forwarder pointing into an
- * isolated bridge.
+ * An id Docker cannot resolve throws here, naming where the id came from, rather than
+ * silently skipping the join and leaving the forwarder pointing into an isolated bridge.
  *
  * @param {string} containerId
  * @returns {string[]}
@@ -363,22 +250,10 @@ function attachedNetworkNames(containerId) {
 }
 
 /**
- * Attach this container to the stack's network, and PROVE it before returning.
- *
- * The connect is allowed to fail: attaching an endpoint that is already there is an
- * error to Docker and a no-op to us, and it is the state an interrupted previous run
- * leaves behind. What is not allowed is *assuming* that is why it failed. The same
- * failure covers a missing network, a missing container and a dead daemon, and
- * swallowing those was expensive out of all proportion to the mistake: the forwarder
- * still binds and still prints `ready`, every forwarded connection then hits Docker's
- * cross-bridge isolation and TIMES OUT rather than being refused, and the run dies
- * minutes later inside a Playwright timeout that never mentions the network (#335).
- *
- * So the outcome is read back from Docker instead of inferred from an exit status or
- * a message string. Attached is attached, however it got that way; anything else
- * throws here, naming the network, while the failure is still one line from its cause.
- *
- * Injectable so the decision is a test rather than a comment: no Docker involved.
+ * The connect may fail because the endpoint is already there, but the same failure also
+ * covers a missing network, a missing container and a dead daemon. Swallowing those
+ * leaves the forwarder binding and printing `ready` while every connection times out, so
+ * the outcome is read back from Docker rather than inferred from an exit status.
  *
  * @param {string} network
  * @param {string} containerId
@@ -402,10 +277,7 @@ export function joinComposeNetwork(network, containerId, io = {}) {
 }
 
 /**
- * `docker network connect`, reporting its own reason rather than an exit status.
- *
- * Captured instead of inherited so the reason ends up inside the thrown error, where
- * a reader who is looking at one failure line will actually see it.
+ * Output captured rather than inherited, so the reason lands inside the thrown error.
  *
  * @param {string} network
  * @param {string} containerId
@@ -423,12 +295,8 @@ function connectContainerToNetwork(network, containerId) {
 }
 
 /**
- * Put this seat's harness ports on this container's loopback, pointing at the stack.
- *
- * A no-op outside a container: on a plain host checkout and on CI the published port
- * is already on `localhost` and there is nothing to forward. Same early-return
- * discipline as `publishedPortHost`, and for the same reason - the container-only
- * path must never run where it is not needed.
+ * A no-op outside a container: on a host checkout and on CI the published port is already
+ * on `localhost`, and the container-only path must never run where it is not needed.
  *
  * @returns {Promise<void>}
  */
@@ -439,19 +307,17 @@ async function startLoopbackForwarding() {
 
   const portal = serviceEndpoint("portal");
   const admin = serviceEndpoint("admin");
-  // One join covers both routes only because both services sit on the same network,
-  // which `docker-compose.yml` arranges by declaring no `networks:` block at all.
-  // Stated rather than assumed: if that ever changed, the admin route would forward to
-  // an address on a network this container never joined, and the symptom would be the
-  // one this whole section exists to stop - a timeout, not a refusal.
+  // One join covers both routes only while both services sit on the same network. If
+  // that changed, the admin route would forward into a network never joined, and the
+  // symptom would be a timeout rather than a refusal.
   if (admin.network !== portal.network)
     throw new Error(
       `compose-e2e: portal is on ${portal.network} but admin is on ${admin.network}; ` +
         "the harness joins one network and forwards both, so this stack needs a second join",
     );
 
-  // Recorded before the join is attempted, not after: a connect that half-succeeded
-  // and then failed verification still needs teardown to try leaving the network.
+  // Recorded before the join is attempted: a connect that half-succeeded and then failed
+  // verification still needs teardown to try leaving the network.
   joinedNetwork = portal.network;
   joinComposeNetwork(portal.network, self);
 
@@ -465,8 +331,8 @@ async function startLoopbackForwarding() {
     {
       cwd: root,
       env: e2eEnvironment,
-      // stdin stays open for the run: its close is how the forwarder notices this
-      // process died without getting to run any teardown.
+      // stdin stays open for the run: its close is how the forwarder notices this process
+      // died without getting to run any teardown.
       stdio: ["pipe", "pipe", "inherit"],
     },
   );
@@ -498,13 +364,9 @@ async function startLoopbackForwarding() {
 }
 
 /**
- * Stop forwarding and leave the Compose network.
- *
- * Called from `down()`, which every exit path runs, and deliberately BEFORE
- * `docker compose down`: Compose cannot remove a network this container is still
- * attached to, so leaving it late turns teardown into a failure that strands the
- * network. Both steps tolerate failure, so an already-gone forwarder or an
- * already-removed network never masks the real reason a run failed.
+ * Must run before `docker compose down`, which cannot remove a network this container is
+ * still attached to. Both steps tolerate failure, so an already-gone forwarder never
+ * masks the real reason a run failed.
  */
 function stopLoopbackForwarding() {
   if (forwarder !== undefined) {
@@ -515,14 +377,11 @@ function stopLoopbackForwarding() {
     }
     forwarder = undefined;
   }
-  // Container-only, same early-return discipline as `startLoopbackForwarding` and
-  // `publishedPortHost`: outside a container no run of this harness ever joins a
-  // network, so there is no leftover endpoint to clean and this would only fire a
-  // `docker network disconnect` that always fails and is always discarded - on CI and
-  // on every host checkout, at every teardown.
+  // Container-only: outside one no run ever joins a network, so this would only fire a
+  // `docker network disconnect` that always fails and is always discarded.
   if (!isInDockerContainer()) return;
-  // Inside one it IS attempted even when this run recorded no join, so an interrupted
-  // previous run's leftover endpoint gets cleaned up rather than blocking `compose down`.
+  // Attempted even when this run recorded no join, so an interrupted previous run's
+  // leftover endpoint gets cleaned rather than blocking `compose down`.
   const network = joinedNetwork ?? `${project}_default`;
   const self = selfContainerId();
   if (self !== undefined) {
@@ -532,18 +391,7 @@ function stopLoopbackForwarding() {
 }
 
 /**
- * Create the stack's one administrator and write the credentials file the spec reads.
- *
- * Split out of `up()` only to keep that function readable, and deliberately NOT
- * exported. `createInitialAdmin` is the sole door an account comes through and it
- * closes the moment one exists (SEC-1), so "bootstrap another administrator" is not
- * an operation this harness can offer to anything, including `drill-restore.mjs`.
- *
- * The step it performs is shared with `dev-compose.mjs` through
- * `scripts/compose-admin.mjs` - which service, which entry, how the credentials
- * travel - because two copies of that would be wrong in the same way. What stays
- * here is this harness's own policy: a per-run throwaway identity, the credentials
- * file the spec reads, and the CI-aware echo.
+ * Not exported: `createInitialAdmin` is the sole door and closes once an account exists (SEC-1).
  *
  * @returns {{ email: string, password: string }}
  */
@@ -553,24 +401,20 @@ function bootstrapAdmin() {
     password: generatePassword("e2e-"),
   };
   writeFileSync(credentialsPath, `${JSON.stringify(credentials)}\n`, { mode: 0o600 });
-  // The `mode` above applies only when the call CREATES the file; on one that already
-  // exists it is silently ignored, so an interrupted run that left this behind at a
-  // wider mode would keep it. This file holds a live administrator password, so the
-  // permission is set rather than requested. Measured, not assumed: a 0644 file
-  // rewritten with `{ mode: 0o600 }` is still 0644.
+  // The `mode` above applies only when the call creates the file, so an interrupted run
+  // that left a 0644 file behind would keep it. This file holds a live administrator
+  // password, so the permission is set rather than requested.
   chmodSync(credentialsPath, 0o600);
-  // `up()` takes the stack down with its volume first, so the admin table is always
-  // empty here and "created" is the only correct outcome. A skip would mean this run
-  // is about to drive a browser against an account whose password it does not know.
+  // `up()` removed the volume first, so "created" is the only correct outcome: a skip
+  // would mean driving a browser against an account whose password this run cannot know.
   const outcome = createFirstAdmin({ compose, credentials, environment: e2eEnvironment });
   if (outcome !== "created")
     throw new Error(
       `compose-e2e: the stack already had an administrator after down --volumes (${outcome}); ` +
         "the spec's credentials would not open it",
     );
-  // Printed for a human who wants to sign in to the stack by hand, and suppressed
-  // on CI: the workflow log of a public repository is a public log, and the spec
-  // reads the credentials file rather than this output.
+  // Suppressed on CI: the workflow log of a public repository is a public log, and the
+  // spec reads the credentials file rather than this output.
   if (process.env.CI === undefined || process.env.CI === "")
     process.stdout.write(
       `E2E admin: ${credentials.email}\nE2E password: ${credentials.password}\n`,
@@ -580,8 +424,8 @@ function bootstrapAdmin() {
 }
 
 export async function up() {
-  // This stack is test-only. Removing its named volume makes each browser run
-  // independent, including the first-admin bootstrap state.
+  // Test-only stack: removing its named volume makes each run independent, including the
+  // first-admin bootstrap state.
   down();
   run(docker, [...compose, "up", "--detach", "--build", "--wait"], e2eEnvironment);
   bootstrapAdmin();
@@ -597,10 +441,8 @@ export function down() {
 }
 
 function buildTestDependencies() {
-  // The full-stack spec imports the admin suite's browser helpers, which reach
-  // workspace packages. Unlike the Compose images, the runner process resolves those
-  // from their local dist directories, so build the database package and its workspace
-  // closure before starting the runner.
+  // The runner process resolves workspace packages from their local dist directories,
+  // unlike the Compose images, so they have to be built before it starts.
   const args = ["--filter", "@roonga/qcms-db...", "build"];
   if (pnpmEntrypoint !== undefined)
     run(process.execPath, [pnpmEntrypoint, ...args], e2eEnvironment);
@@ -651,11 +493,7 @@ async function runComplete({ headed = false } = {}) {
 }
 
 /**
- * The `pnpm` script a given subcommand was almost certainly reached through.
- *
- * So the seat refusal offers the fix for the command in front of the reader rather
- * than for a different one. Unknown or missing subcommands get the self-contained
- * entry point, which is also what the usage error is about to recommend.
+ * So the seat refusal offers the fix for the command in front of the reader.
  *
  * @param {string | undefined} command
  * @returns {string}
@@ -674,15 +512,9 @@ function invokedAs(command) {
 
 async function main() {
   const command = process.argv[2];
-  // Before anything is spawned. A silent fallback to seat 0 here is worse than it is
-  // in the browser harness (issue #296): the seat picks this stack's Compose PROJECT
-  // NAME, and `down()` runs `docker compose down --volumes --remove-orphans` under
-  // it, so an adopted seat does not just read another lane's stack, it deletes it.
-  // The primary checkout and CI keep the silent default, exactly as they do today.
-  //
-  // Rethrown as a UsageError because that is exactly what it is: it prints its
-  // message without a stack trace, like the usage error below, and a stack trace on
-  // a "you forgot a variable" message buries the one line that matters.
+  // Before anything spawns: `down()` runs `down --volumes --remove-orphans` under the seat's project
+  // name, so an adopted seat would delete another lane's stack. Rethrown as a UsageError so the
+  // message prints without a stack trace.
   try {
     assertPortSeatChosen(root, invokedAs(command));
   } catch (error) {
@@ -700,17 +532,12 @@ async function main() {
     );
 }
 
-// Only when run as a command, so `compose-e2e.test.ts` can import the pure helpers
-// above without a Compose run firing on import. Same guard as `check-ports.mjs` and
-// `check-changeset.mjs`.
+// Only when run as a command, so the tests can import the pure helpers above without a
+// Compose run firing on import.
 if (process.argv[1] !== undefined && import.meta.url === pathToFileURL(process.argv[1]).href) {
-  // `pnpm docker:up` holds this process open rather than backgrounding the stack: the
-  // forwarder is tethered to this process's stdin, so the stack stays reachable for
-  // exactly as long as this command runs, and a second terminal drives the suite
-  // against it. The interrupt paths below are therefore what clean up when a human
-  // stops that command. `runComplete` has its own `down()` on every exit path, and the
-  // forwarder additionally dies when this process's stdin pipe to it closes, whatever
-  // kills this process.
+  // This command holds the process open rather than backgrounding the stack, because the
+  // forwarder is tethered to this process's stdin. So the interrupt paths below are what
+  // clean up when a human stops it.
   for (const signal of ["SIGINT", "SIGTERM"]) {
     process.on(signal, () => {
       stopLoopbackForwarding();
@@ -718,14 +545,11 @@ if (process.argv[1] !== undefined && import.meta.url === pathToFileURL(process.a
     });
   }
   main().catch((error) => {
-    // Teardown first, because `up` is the one subcommand that leaves the forwarder
-    // running on purpose. On its failure paths (the 30s "did not become ready" reject
-    // above all) that live child keeps this process's event loop alive, so `pnpm
-    // docker:up` printed its error and then HUNG, still attached to the Compose
-    // network. `runComplete` has its own `down()` and this is a no-op after it.
+    // Teardown first, because `up` leaves the forwarder running on purpose and that live
+    // child would keep the event loop alive, hanging the command after it printed its
+    // error. A no-op after `runComplete`'s own `down()`.
     stopLoopbackForwarding();
-    // Set the code rather than calling process.exit: the stack has already
-    // unwound through every `finally`, and this lets stdio flush normally.
+    // Set the code rather than calling process.exit, so stdio flushes normally.
     process.exitCode = error instanceof CommandFailed ? error.status : 1;
     process.stderr.write(`compose-e2e: ${describe(error)}\n`);
   });

@@ -1,10 +1,3 @@
-/**
- * Challenge seam unit tests (task 026). The end-to-end enforcement (a
- * challengeRequired form rejecting/admitting via start-session) is covered in
- * `start-session.integration.test.ts`; here we pin the verifier implementations
- * and the provider selector.
- */
-
 import { describe, expect, it, vi } from "vitest";
 
 import type { Config } from "../../config.js";

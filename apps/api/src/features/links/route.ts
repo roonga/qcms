@@ -1,15 +1,3 @@
-/**
- * Route definitions for the secure-link admin slices (task 024).
- *
- * Every route is declared with `@hono/zod-openapi` `createRoute` (017's
- * convention) and carries its SEC-5 scope intent via `withScopes` - `links:mint`
- * for all of them (inert at launch; annotated so `/api/v1` activation is wiring,
- * not archaeology). The admin group is guarded by the internal service-token
- * gate (SEC-4) and the admin-auth gate (`registerAdminAuth`) before any handler
- * runs; in a public-only process the group is not mounted, so these paths 404,
- * never 403 (ADR-09).
- */
-
 import { createRoute } from "@hono/zod-openapi";
 
 import type { SliceRegistrar } from "../../app.js";
@@ -41,7 +29,6 @@ export const mintLinksRoute = createRoute({
       description: "The minted links, each with its shareable URL and expiry",
       content: { "application/json": { schema: MintLinksResponse } },
     },
-    // 400: malformed form id / non-future expiry. 404: no such form.
     ...errorResponses(400, 401, 404),
   },
   ...withScopes("links:mint"),
@@ -74,19 +61,13 @@ export const revokeLinkRoute = createRoute({
       description: "The revoked link",
       content: { "application/json": { schema: RevokedLinkResponse } },
     },
-    // 400: malformed form id / malformed link id. 404: no such link **in this
-    // form** (or already revoked); a link belonging to another form takes that
-    // same 404 (#478), so the code never distinguishes "not yours" from "no such
-    // link".
     ...errorResponses(400, 401, 404),
   },
   ...withScopes("links:mint"),
 });
 
-/**
- * Register every secure-link route on an admin group. The admin-auth gate
- * (`registerAdminAuth`) must precede this in the admin bucket so it runs first.
- */
+// `registerAdminAuth` must be registered on the admin bucket before this, so the auth
+// gate runs ahead of these handlers.
 export const registerLinks: SliceRegistrar = (group, deps: Deps): void => {
   group.openapi(mintLinksRoute, makeMintLinksHandler(deps));
   group.openapi(listLinksRoute, makeListLinksHandler(deps));

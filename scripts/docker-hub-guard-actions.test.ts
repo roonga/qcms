@@ -1,25 +1,6 @@
 /**
- * The no-Docker-Hub-pulls guard must fail on its own tooling failure (issue #171).
- *
- * The two composite actions under `.github/actions` are the evidence half of issue
- * #150: one baselines the runner's images, the other proves nothing new appeared
- * during the test run. Both ran under `set -uo pipefail`, without `-e`, and that is
- * the difference between a guard and a decoration:
- *
- * - a failed baseline `docker image ls` wrote an EMPTY snapshot and the step still
- *   exported it as the baseline;
- * - a failed `docker image ls` or `comm` in the assertion left `new_images` empty,
- *   which reads identically to "nothing was pulled", and the step printed
- *   "Zero registry calls, so zero Docker Hub calls" as its verdict.
- *
- * Both are the confident-wrong-evidence class the guard exists to prevent, applied
- * to the guard itself. The bite is proven here rather than inspected: each script is
- * extracted from the action and driven with a `docker` stub that fails the way a
- * broken daemon does - writing to stdout, exiting non-zero - which is also the
- * shape that fooled `scripts/devcontainer.sh` (issue #269).
- *
- * The scripts are read out of the YAML rather than copied, so a future edit to
- * either action is what these tests run.
+ * The step scripts are read out of the composite-action YAML rather than copied, so a
+ * future edit to either action is what these tests run.
  */
 import { spawnSync } from "node:child_process";
 import { chmodSync, mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
@@ -37,13 +18,8 @@ afterAll(() => {
 });
 
 /**
- * The `run: |` body of one step of a composite action, keyed by step name.
- *
- * A three-line reader rather than a YAML dependency: these files hold one block
- * scalar per step and the shape is checked below. The `${{` assertion guards the one
- * way this could go wrong: such an expression is filled in by the runner, not by
- * bash, so a script containing one cannot be driven from here and must not be
- * silently executed as if it could.
+ * The `${{` assertion is load-bearing: the runner fills such an expression in, not bash,
+ * so a script containing one cannot be driven from here and must not run as if it could.
  */
 function stepScript(action: string, stepName: string): string {
   const lines = readFileSync(join(ACTIONS, action, "action.yml"), "utf8").split("\n");
@@ -65,7 +41,6 @@ function stepScript(action: string, stepName: string): string {
   return script;
 }
 
-/** A throwaway workspace with a `docker` stub of the caller's choosing on PATH. */
 function workspaceWith(dockerStub: string) {
   const root = mkdtempSync(join(tmpdir(), "docker-hub-guard-"));
   workspaces.push(root);
@@ -89,7 +64,6 @@ function runScript(script: string, env: Record<string, string>, dockerStub: stri
   return { ...res, root, githubEnv: readFileSync(githubEnv, "utf8") };
 }
 
-/** A file holding a baseline snapshot, for the assertion step to read. */
 function baselineFile(contents: string): string {
   const dir = mkdtempSync(join(tmpdir(), "docker-hub-baseline-"));
   workspaces.push(dir);
@@ -99,16 +73,13 @@ function baselineFile(contents: string): string {
 }
 
 /**
- * A `docker` that fails the way a stopped daemon does: a message on **stdout**, a
- * non-zero exit. Output on stdout is what makes this the hard case - a caller that
- * tests for output rather than for success cannot tell it from a result.
+ * Writes its message to stdout, which is the hard case: a caller that tests for output
+ * rather than for success cannot tell the failure from a result.
  */
 const BROKEN_DOCKER = `echo "Cannot connect to the Docker daemon at unix:///var/run/docker.sock."\nexit 1`;
 
-/** A `docker` that answers `image ls` with a fixed, sorted list and nothing else. */
 const WORKING_DOCKER = `if [ "$1" = "image" ]; then printf '%s\\n' 'ghcr.io/owner/qcms/postgres:16-alpine' 'node:24'; exit 0; fi\nexit 0`;
 
-/** The same, but with a Docker Hub reference among the images: no registry host. */
 const HUB_PULL_DOCKER = `if [ "$1" = "image" ]; then printf '%s\\n' 'node:24' 'postgres:16-alpine'; exit 0; fi\nexit 0`;
 
 const ASSERT_STEP = "Assert no Docker Hub image pulls during the test run";
@@ -123,14 +94,11 @@ describe("assert-no-docker-hub-pulls", () => {
     const res = runScript(script, { QCMS_DOCKER_IMAGE_SNAPSHOT: baseline }, BROKEN_DOCKER);
 
     expect(res.status).not.toBe(0);
-    // The verdict it used to print on exactly this failure.
     expect(res.stdout).not.toContain("Zero registry calls");
     expect(res.stdout).not.toContain("Images pulled during the test run: none");
   });
 
   it("still reports a clean run when docker answers", () => {
-    // The positive control: without it the assertion above would also pass against
-    // a script that refuses everything, which would prove nothing about the guard.
     const baseline = baselineFile("ghcr.io/owner/qcms/postgres:16-alpine\nnode:24\n");
 
     const res = runScript(script, { QCMS_DOCKER_IMAGE_SNAPSHOT: baseline }, WORKING_DOCKER);
@@ -140,8 +108,6 @@ describe("assert-no-docker-hub-pulls", () => {
   });
 
   it("still fails a real Docker Hub pull rather than only tooling failures", () => {
-    // The property the guard exists for, driven through the same extraction: an
-    // image that was not in the baseline and carries no registry host is a Hub pull.
     const baseline = baselineFile("node:24\n");
 
     const res = runScript(script, { QCMS_DOCKER_IMAGE_SNAPSHOT: baseline }, HUB_PULL_DOCKER);
@@ -165,8 +131,6 @@ describe("test-postgres-image baseline snapshot", () => {
     const res = runScript(script, {}, BROKEN_DOCKER);
 
     expect(res.status).not.toBe(0);
-    // The damage the missing `-e` did: a baseline of nothing, exported as if it
-    // were one, which the paired assertion then reports against.
     expect(res.githubEnv).not.toContain("QCMS_DOCKER_IMAGE_SNAPSHOT");
   });
 

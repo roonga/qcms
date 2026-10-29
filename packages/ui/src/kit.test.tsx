@@ -4,11 +4,8 @@ import { describe, expect, it } from "vitest";
 import * as kit from "./kit.ts";
 import { axeViolations } from "./test-support/a11y.ts";
 
-// Deliberately shallow: the components are vendored upstream source tested upstream,
-// so re-asserting their behaviour here would duplicate a suite this repo does not own
-// and make an upstream refinement look like a QCMS regression. What is ours is the
-// barrel, hand-written over paths the a2ra CLI owns, so a rename upstream or a typo in
-// a re-export is a QCMS defect.
+// Deliberately shallow: the components are vendored and tested upstream. What is ours is the barrel,
+// hand-written over paths the a2ra CLI owns, so a rename upstream or a typo in a re-export is a QCMS defect.
 
 const PRIMITIVES = [
   ["Alert", <kit.Alert variant="info">Something happened.</kit.Alert>],
@@ -75,10 +72,9 @@ const PRIMITIVES = [
 
 describe("@roonga/qcms-ui/kit surface", () => {
   it("exports exactly the admin kit primitives, all callable", () => {
-    // Pinned rather than counted, so a primitive disappearing from the barrel fails
-    // here rather than as a build error later. Only the plain function exports are
-    // listed: the re-exported react-aria-components primitives mostly arrive as
-    // forwardRef or context objects and never reach this filter.
+    // Pinned rather than counted, so a primitive disappearing from the barrel fails here. Only plain function
+    // exports are listed; the re-exported react-aria-components primitives are mostly forwardRef or context
+    // objects and never reach this filter.
     const exported = Object.entries(kit).filter(([, value]) => typeof value === "function");
     expect(new Set(exported.map(([name]) => name))).toEqual(
       new Set([

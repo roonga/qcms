@@ -2,11 +2,6 @@ import { describe, expect, it } from "vitest";
 
 import { checkWebhookUrl } from "./ssrf.js";
 
-/**
- * SSRF guard (SEC-6). Default-deny: HTTPS required, private/reserved/loopback/
- * link-local hosts rejected. The `allowPrivate` override unlocks HTTP + private
- * ranges for on-prem targets.
- */
 describe("checkWebhookUrl - default policy (allowPrivate = false)", () => {
   it("accepts a public HTTPS URL", () => {
     expect(checkWebhookUrl("https://hooks.example.com/inbox", false)).toEqual({

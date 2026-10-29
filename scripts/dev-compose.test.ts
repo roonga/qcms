@@ -34,7 +34,6 @@ import { composeProjectName, localStackProjectName, stablePort } from "./ports.m
 
 const scratch = mkdtempSync(join(tmpdir(), "qcms-dev-compose-"));
 
-/** A file's permission bits, which is all these assertions are ever about. */
 const mode = (path: string): number => statSync(path).mode & 0o777;
 afterAll(() => {
   rmSync(scratch, { recursive: true, force: true });
@@ -51,8 +50,8 @@ describe("localStackProjectName", () => {
     expect(localStackProjectName(3)).toBe("qcms-local-stack-s3");
   });
 
-  // The collision that would actually hurt: `down --volumes --remove-orphans` under
-  // a shared name deletes the other stack rather than reading it.
+  // `down --volumes --remove-orphans` under a shared project name deletes the other
+  // seat's stack rather than reading it.
   it("collides with neither the dev database nor the full-stack e2e stack, at any seat", () => {
     for (const seat of [0, 1, 2, 3, 4, 5, 6, 7, 8, 9]) {
       const local = localStackProjectName(seat);
@@ -83,8 +82,8 @@ describe("devStackEnvironmentOverrides", () => {
   const ports = seatPorts(2);
   const overrides = devStackEnvironmentOverrides({ ports, adminAuthSecret: "pinned-secret" });
 
-  // better-auth trusts the admin origin and no other, so a base URL that disagreed
-  // with the published port would be a sign-in that redirects forever.
+  // better-auth trusts the admin origin and no other, so a base URL disagreeing with
+  // the published port is a sign-in that redirects forever.
   it("keeps each base URL on the port that service is actually published on", () => {
     expect(overrides.QCMS_ADMIN_BASE_URL).toBe(`http://localhost:${String(ports.admin)}`);
     expect(overrides.QCMS_PORTAL_BASE_URL).toBe(`http://localhost:${String(ports.portal)}`);
@@ -97,9 +96,8 @@ describe("devStackEnvironmentOverrides", () => {
     expect(overrides.QCMS_DB_VIEWER_PORT).toBe(String(ports.dbViewer));
   });
 
-  // This stack prints a plaintext administrator credential and runs a Grafana whose
-  // login is admin/admin. A .env copied from the operator template may legitimately
-  // say 0.0.0.0; here it must not win.
+  // This stack prints a plaintext administrator credential, so a `0.0.0.0` copied from
+  // the operator template must not win here.
   it("pins the bind address to loopback whatever .env says", () => {
     expect(overrides.QCMS_BIND_ADDRESS).toBe("127.0.0.1");
   });
@@ -120,8 +118,8 @@ describe("requiredVariables", () => {
     expect(requiredVariablesIn("${QCMS_BIND_ADDRESS:-127.0.0.1} ${PLAIN}")).toEqual([]);
   });
 
-  // The preflight exists to name the two variables the overlay demands; if the scan
-  // stopped finding them the message would go quiet and Compose's would come back.
+  // If the scan stopped finding them the preflight would go quiet and Compose's own
+  // error would come back.
   it("names the database password and the viewer password from the real files", () => {
     const required = requiredVariables();
     expect(required).toContain("QCMS_DB_PASSWORD");
@@ -131,7 +129,6 @@ describe("requiredVariables", () => {
   it("never demands a value this command supplies itself", () => {
     const required = requiredVariables();
     for (const supplied of SUPPLIED_VARIABLES) expect(required).not.toContain(supplied);
-    // ... and those really are demanded by the files, so the subtraction is doing work.
     const raw = COMPOSE_FILES.flatMap((file) =>
       requiredVariablesIn(readFileSync(join(import.meta.dirname, "..", file), "utf8")),
     );
@@ -174,9 +171,8 @@ describe("preflightMessage", () => {
     expect(message).toContain("QCMS_DB_VIEWER_PASSWORD");
   });
 
-  // The sharp case: the viewer password is deliberately absent from the operator
-  // template, so "copy the example" does not produce it and Compose's own error
-  // gives the reader no way to discover that.
+  // The viewer password is deliberately absent from the operator template, so "copy
+  // the example" does not produce it.
   it("says where the viewer password is documented, since the template does not carry it", () => {
     const message = preflightMessage(["QCMS_DB_VIEWER_PASSWORD"], true);
     expect(message).toContain("docs/DEVELOPER_GUIDE.md");
@@ -188,8 +184,7 @@ describe("preflightMessage", () => {
     expect(preflightMessage(["QCMS_DB_PASSWORD"], true)).not.toContain("cp .env.compose.example");
   });
 
-  // Inventing one would put a read-only database client in everybody's stack, which
-  // is exactly what leaving the variable undefaulted in the overlay prevents.
+  // Inventing one would put a read-only database client in everybody's stack.
   it("suggests generating a value and never supplies one", () => {
     const message = preflightMessage(["QCMS_DB_VIEWER_PASSWORD"], true);
     expect(message).toContain("openssl rand");
@@ -216,8 +211,7 @@ describe("pinAdminAuthSecret", () => {
     expect(second).toEqual({ secret: first.secret, source: "file" });
   });
 
-  // The whole point of pinning: a fresh value per run makes an enrolled
-  // authenticator permanently unverifiable and burns a recovery code each restart.
+  // A fresh value per run leaves an enrolled authenticator permanently unverifiable.
   it("returns the same value across runs, which is what keeps an enrolment alive", () => {
     const path = join(scratch, "stable");
     const runs = new Set(
@@ -233,15 +227,9 @@ describe("pinAdminAuthSecret", () => {
   });
 
   /**
-   * The regression this suite exists for.
-   *
-   * `writeFileSync`'s `mode` option applies ONLY when the call creates the file; on
-   * an existing one it is silently ignored (measured: a 0644 file rewritten with
-   * `{ mode: 0o600 }` stays 0644). So a test that only ever exercises the create path
-   * passes with or without the fix and proves nothing. Each case below starts from a
-   * file that already exists at a wider mode, which is the state a real machine is
-   * in: the repository root of the machine this was written on had `.env.dev-admin`
-   * at 0644 holding a live secret.
+   * `writeFileSync`'s `mode` applies only when the call creates the file and is
+   * silently ignored on an existing one, so every case here starts from a file that
+   * already exists at a wider mode.
    */
   describe("an existing pin file at a wider mode", () => {
     it("is tightened to owner-only when it is read", () => {
@@ -264,8 +252,6 @@ describe("pinAdminAuthSecret", () => {
     });
 
     it("is tightened on the REGENERATE path too, where `mode` is ignored outright", () => {
-      // Empty value, so the secret is regenerated into a file that already exists -
-      // exactly the call where writeFileSync's mode option does nothing at all.
       const path = join(scratch, "loose-write");
       writeFileSync(path, "QCMS_ADMIN_AUTH_SECRET=\n");
       chmodSync(path, 0o646);
@@ -291,8 +277,8 @@ describe("pinAdminAuthSecret", () => {
     });
   });
 
-  // Regenerating on an unreadable file would overwrite a secret this process could
-  // not read, which is the enrolment-destroying outcome the pin exists to prevent.
+  // Regenerating on an unreadable file would overwrite a secret this process cannot
+  // read, destroying an enrolment.
   it("rethrows a failure that is not a missing file rather than regenerating", () => {
     const path = join(scratch, "a-directory");
     mkdirSync(path, { recursive: true });
@@ -334,7 +320,6 @@ describe("devStackBannerLines", () => {
     expect(created).toContain("dev-secret-value");
   });
 
-  // The three things a developer would otherwise report as broken.
   it("warns that first sign-in forces TOTP enrolment with codes shown once", () => {
     expect(created).toContain("authenticator app");
     expect(created).toMatch(/TOTP enrolment/i);
@@ -367,9 +352,8 @@ describe("devStackBannerLines", () => {
 });
 
 describe("teardownPlaceholders", () => {
-  // The failure this exists to prevent: a .env edited after the stack came up would
-  // make `docker compose down` fail on a `:?` variable, leaving a running stack the
-  // documented command cannot stop.
+  // A `.env` edited after the stack came up would make `docker compose down` fail on
+  // a `:?` variable, leaving a stack the documented command cannot stop.
   it("fills only what is genuinely absent", () => {
     expect(teardownPlaceholders(["A", "B"], { A: "real" }, {})).toEqual({
       B: "unused-during-teardown",
@@ -413,15 +397,12 @@ describe("pinNoticeLines", () => {
 
 describe("SUBCOMMANDS (issue #994)", () => {
   it("answers to the three seeding commands as well as up and down", () => {
-    // The set, not a sample: `usageLine` is derived from these keys, and
-    // `package.json` below is asserted against them, so an added subcommand that
-    // nobody wired up anywhere shows here first.
+    // The set, not a sample: `usageLine` and the `package.json` assertion are both
+    // derived from these keys.
     expect(Object.keys(SUBCOMMANDS)).toEqual(["up", "seed", "seed:clear", "seed:reset", "down"]);
   });
 
   it("derives the usage line from the table rather than restating it", () => {
-    // The chain this replaced named its subcommands twice - once to dispatch and
-    // once in the usage string - and a fourth arm would have had to be added in both.
     for (const command of Object.keys(SUBCOMMANDS)) expect(usageLine()).toContain(command);
   });
 
@@ -433,8 +414,6 @@ describe("SUBCOMMANDS (issue #994)", () => {
       .filter(([, command]) => command.startsWith("node scripts/dev-compose.mjs "))
       .map(([name, command]) => [name, command.split(" ").at(-1)] as const);
 
-    // A subcommand with no script is unreachable by the documented command, and a
-    // script naming a subcommand that does not exist dies on the usage error.
     expect(wired.map(([, subcommand]) => subcommand).sort()).toEqual(
       Object.keys(SUBCOMMANDS).sort(),
     );
@@ -446,8 +425,8 @@ describe("seedNoticeLine", () => {
   it("says which of the three things is about to happen, and names the project", () => {
     expect(seedNoticeLine("seed", "qcms-local-stack-s3")).toContain("qcms-local-stack-s3");
     expect(seedNoticeLine("seed", "p")).toMatch(/seeding/u);
-    // "clearing" rather than "seeding": a developer watching output should be able to
-    // tell a destructive run from a loading one without reading the next line.
+    // A developer watching the output has to tell a destructive run from a loading one
+    // without reading the next line.
     expect(seedNoticeLine("clear", "p")).toMatch(/clearing/u);
     expect(seedNoticeLine("reset", "p")).toMatch(/clearing and reseeding/u);
   });

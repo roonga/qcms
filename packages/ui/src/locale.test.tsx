@@ -4,14 +4,9 @@ import { describe, expect, it } from "vitest";
 import { A2UIStepRenderer } from "./A2UIStepRenderer.tsx";
 import { loadGoldenSteps, type GoldenStep } from "./test-support/golden.ts";
 
-// Two claims, the second stopping the first from being vacuous: `en` and `en-US`
-// render the same markup, which is asserted rather than assumed because they are
-// different CLDR lookups; and a locale that genuinely differs changes that markup,
-// without which the first claim would also pass against a renderer that ignored the
-// prop entirely.
-//
-// The markup is normalized first, because React's `useId` values are minted per root
-// and this file renders each document several times in one process.
+// `en` and `en-US` render the same markup, and a genuinely different locale changes it, so the first claim
+// cannot pass against a renderer that ignores the prop. Markup is normalized because React's `useId` values
+// are minted per root.
 
 const GENERATED_ID = /_r_[0-9a-z]+_/g;
 
