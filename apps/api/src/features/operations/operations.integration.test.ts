@@ -55,11 +55,15 @@ const MOUNTED = { public: false, internal: false, admin: true } as const;
 
 /** The second workspace, for the cross-workspace personas. */
 const OTHER_WORKSPACE = "org_ops_other";
+/** A third workspace, so the non-ASCII forms disturb no other case's row list. */
+const UNICODE_WORKSPACE = "org_ops_unicode";
 
 /** Three forms: two in the seeded workspace and one in the second. */
 const FORM_CLAIMS = FormId.parse("frm_ops_claims");
 const FORM_PERMITS = FormId.parse("frm_ops_permits");
 const FORM_OTHER = FormId.parse("frm_ops_other");
+const FORM_UNICODE_A = FormId.parse("frm_ops_unicode_a");
+const FORM_UNICODE_B = FormId.parse("frm_ops_unicode_b");
 
 let testDb: TestDb;
 const executors = new Map<string, Executor>();
@@ -83,6 +87,7 @@ let installationAdmin: Persona;
 let combined: Persona;
 let nobody: Persona;
 let revoked: Persona;
+let unicodeViewer: Persona;
 /** The same ten by name, for the cases that walk all of them. */
 let everyPersona: readonly (readonly [string, Persona])[];
 
@@ -144,11 +149,16 @@ const emptyDef = {} as unknown as FormDefinition;
 const emptyCompiled = {} as unknown as CompiledForm;
 
 /** A form with one published version carrying a title, so the display name is derived. */
-async function seedForm(formId: FormId, slug: string, workspaceId: string): Promise<void> {
+async function seedForm(
+  formId: FormId,
+  slug: string,
+  workspaceId: string,
+  title?: string,
+): Promise<void> {
   await createForm(control, { formId, slug, workspaceId, defaultLocale: "en" });
   await insertFormVersion(control, {
     formId,
-    definition: { title: { en: `${slug} form` } } as unknown as FormDefinition,
+    definition: { title: { en: title ?? `${slug} form` } } as unknown as FormDefinition,
     compiled: emptyCompiled,
     compilerVersion: "1.0.0",
     a2uiSpecVersion: "1.0.0",
@@ -206,10 +216,26 @@ beforeAll(async () => {
     .insert(authOrganization)
     .values({ id: OTHER_WORKSPACE, name: "ops-other", slug: "ops-other" })
     .onConflictDoNothing({ target: authOrganization.id });
+  await control
+    .insert(authOrganization)
+    .values({ id: UNICODE_WORKSPACE, name: "ops-unicode", slug: "ops-unicode" })
+    .onConflictDoNothing({ target: authOrganization.id });
 
   await seedForm(FORM_CLAIMS, "ops-claims", SEED_WORKSPACE_ID);
   await seedForm(FORM_PERMITS, "ops-permits", SEED_WORKSPACE_ID);
   await seedForm(FORM_OTHER, "ops-other-form", OTHER_WORKSPACE);
+  await seedForm(
+    FORM_UNICODE_A,
+    "ops-\u00fcbersicht",
+    UNICODE_WORKSPACE,
+    "\u00dcbersicht \u00fcber Antr\u00e4ge",
+  );
+  await seedForm(
+    FORM_UNICODE_B,
+    "ops-\u7533\u8acb",
+    UNICODE_WORKSPACE,
+    "\u7533\u8acb\u66f8\u30d5\u30a9\u30fc\u30e0",
+  );
 
   // `claims` open in `prod` and `test`, `permits` released and closed in `prod`, `other`
   // never released: the three intake readings.
@@ -277,6 +303,10 @@ beforeAll(async () => {
     { role: "responses.viewer", environments: ["all"], forms: ["all"] },
   ]);
 
+  unicodeViewer = await persona("opsunicode", [
+    { role: "forms.viewer", environments: ["all"], forms: ["all"], workspaceId: UNICODE_WORKSPACE },
+  ]);
+
   everyPersona = [
     ["forms viewer", viewer],
     ["test-only editor", testEditor],
@@ -288,6 +318,7 @@ beforeAll(async () => {
     ["combined grants", combined],
     ["no grants at all", nobody],
     ["revoked", revoked],
+    ["non-ASCII workspace viewer", unicodeViewer],
   ];
 
   const deps: Deps = makeDeps({ databases: databases(), env: validEnv() });
@@ -557,18 +588,25 @@ describe("operations discovery: bounds, filters and pagination", () => {
     // `base64url` is already unpadded, so these are the shapes the route accepts as
     // cursors and rejects as payloads.
     const encode = (text: string): string => Buffer.from(text, "utf8").toString("base64url");
+    const whole = '"sort":"released-asc","slug":"ops-claims","formId":"frm_ops_claims"';
     const cursors = [
-      // Off the base64url alphabet.
       "not a cursor!",
-      // Well-formed base64url that is not JSON.
       encode("plain text"),
-      // JSON of the wrong type, then an object missing the keys, then wrong key types.
       encode("[1,2,3]"),
       encode('"a string"'),
       encode("{}"),
       encode('{"sort":"slug-asc"}'),
       encode('{"sort":"slug-asc","slug":"ops-claims","formId":42}'),
       encode('{"sort":1,"slug":"ops-claims","formId":"frm_ops_claims"}'),
+      // `released` is read back as a Date on a released sort, so a string that is not a
+      // timestamp would throw inside the comparator rather than refuse here.
+      encode(`{${whole},"released":"not-a-date","submitted":null}`),
+      encode(`{${whole},"released":"2026-13-45T99:99:99Z","submitted":null}`),
+      encode(`{${whole},"released":17,"submitted":null}`),
+      encode(`{${whole},"released":null,"submitted":"2"}`),
+      encode(`{${whole},"released":null,"submitted":1.5}`),
+      // An extra key is a cursor this route did not issue.
+      encode(`{${whole},"released":null,"submitted":null,"extra":true}`),
     ];
     for (const cursor of cursors) {
       const res = await app.request(
@@ -580,6 +618,57 @@ describe("operations discovery: bounds, filters and pagination", () => {
         "INVALID_CURSOR",
       );
     }
+  });
+
+  it("pages a released sort in both directions, and the two orders are reverses", async () => {
+    const walk = async (sort: string): Promise<string[]> => {
+      const seen: string[] = [];
+      let cursor: string | null = null;
+      for (let page = 0; page < 5; page += 1) {
+        const query =
+          cursor === null
+            ? `environment=prod&limit=1&sort=${sort}`
+            : `environment=prod&limit=1&sort=${sort}&cursor=${encodeURIComponent(cursor)}`;
+        const result = await operations(viewer.token, query);
+        expect(result.status, sort).toBe(200);
+        expect(result.body.total, sort).toBe(2);
+        seen.push(...result.body.forms.map((row) => row.slug));
+        cursor = result.body.nextCursor;
+        if (cursor === null) break;
+      }
+      expect(cursor, sort).toBeNull();
+      return seen;
+    };
+    const ascending = await walk("released-asc");
+    expect([...ascending].sort()).toEqual(["ops-claims", "ops-permits"]);
+    const descending = await walk("released-desc");
+    expect(descending).toEqual([...ascending].reverse());
+  });
+
+  it("pages non-ASCII slugs and titles without losing a row", async () => {
+    const first = await operations(unicodeViewer.token, "environment=prod&limit=1&sort=slug-asc");
+    expect(first.body.total).toBe(2);
+    expect(first.body.nextCursor).not.toBeNull();
+    const second = await operations(
+      unicodeViewer.token,
+      `environment=prod&limit=1&sort=slug-asc&cursor=${encodeURIComponent(first.body.nextCursor!)}`,
+    );
+    expect(second.body.nextCursor).toBeNull();
+    const slugs = [...first.body.forms, ...second.body.forms].map((row) => row.slug);
+    expect([...slugs].sort()).toEqual(["ops-\u00fcbersicht", "ops-\u7533\u8acb"].sort());
+    const names = [...first.body.forms, ...second.body.forms].map((row) => row.displayName);
+    expect([...names].sort()).toEqual(
+      [
+        "\u00dcbersicht \u00fcber Antr\u00e4ge",
+        "\u7533\u8acb\u66f8\u30d5\u30a9\u30fc\u30e0",
+      ].sort(),
+    );
+    // The search matches a non-ASCII display name as well as a slug.
+    const searched = await operations(
+      unicodeViewer.token,
+      `environment=prod&q=${encodeURIComponent("Antr\u00e4ge")}`,
+    );
+    expect(searched.body.forms.map((row) => row.slug)).toEqual(["ops-\u00fcbersicht"]);
   });
 
   it("caps the page size rather than serving an unbounded one", async () => {

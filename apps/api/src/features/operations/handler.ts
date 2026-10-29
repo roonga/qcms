@@ -389,12 +389,16 @@ function parseCursor(raw: string | undefined, sort: string): Cursor | undefined 
   return position.data;
 }
 
-const CursorPayload = z.object({
-  sort: z.string().max(32),
-  slug: z.string().max(200),
-  formId: z.string().max(64),
-  released: z.string().max(64).nullable().catch(null),
-  submitted: z.number().int().nullable().catch(null),
+// Strict and uncoerced: a wrong type, an extra key or an unparseable timestamp is a
+// cursor this route did not issue, and `released` reaches `new Date(...)` on a released
+// sort. `slug` and `formId` are unbounded here, as form creation leaves them, and the
+// `cursor` parameter's own length cap is what bounds the payload.
+const CursorPayload = z.strictObject({
+  sort: z.string().min(1),
+  slug: z.string().min(1),
+  formId: z.string().min(1),
+  released: z.iso.datetime().nullable(),
+  submitted: z.number().int().nullable(),
 });
 
 // `btoa`/`atob` rather than `Buffer`, which is a `node:*` API this layer stays clear of.
@@ -405,7 +409,6 @@ function toBase64Url(bytes: Uint8Array): string {
   return btoa(binary).replaceAll("+", "-").replaceAll("/", "_").replace(/=+$/, "");
 }
 
-/** `undefined` for anything off-alphabet or not decodable. */
 function fromBase64Url(segment: string): Uint8Array | undefined {
   if (!/^[A-Za-z0-9_-]+$/.test(segment)) return undefined;
   const base64 = segment.replaceAll("-", "+").replaceAll("_", "/");
