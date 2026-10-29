@@ -1,5 +1,5 @@
 ---
-"@roonga/qcms-db": patch
+"@roonga/qcms-db": minor
 "create-qcms-app": patch
 ---
 

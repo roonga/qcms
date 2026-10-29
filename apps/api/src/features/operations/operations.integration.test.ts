@@ -555,6 +555,35 @@ describe("operations discovery: bounds, filters and pagination", () => {
     expect(bad.status).toBe(400);
   });
 
+  it("refuses every shape of malformed cursor as INVALID_CURSOR", async () => {
+    // `base64url` is already unpadded, so these are the shapes the route accepts as
+    // cursors and rejects as payloads.
+    const encode = (text: string): string => Buffer.from(text, "utf8").toString("base64url");
+    const cursors = [
+      // Off the base64url alphabet.
+      "not a cursor!",
+      // Well-formed base64url that is not JSON.
+      encode("plain text"),
+      // JSON of the wrong type, then an object missing the keys, then wrong key types.
+      encode("[1,2,3]"),
+      encode('"a string"'),
+      encode("{}"),
+      encode('{"sort":"slug-asc"}'),
+      encode('{"sort":"slug-asc","slug":"ops-claims","formId":42}'),
+      encode('{"sort":1,"slug":"ops-claims","formId":"frm_ops_claims"}'),
+    ];
+    for (const cursor of cursors) {
+      const res = await app.request(
+        `/admin/operations/forms?environment=prod&cursor=${encodeURIComponent(cursor)}`,
+        { headers: headers(viewer.token) },
+      );
+      expect(res.status, cursor).toBe(400);
+      expect(((await res.json()) as { error: { code: string } }).error.code, cursor).toBe(
+        "INVALID_CURSOR",
+      );
+    }
+  });
+
   it("caps the page size rather than serving an unbounded one", async () => {
     const res = await app.request("/admin/operations/forms?environment=prod&limit=5000", {
       headers: headers(viewer.token),

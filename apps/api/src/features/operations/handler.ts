@@ -6,7 +6,7 @@
  * page. It writes nothing, an audit row included.
  */
 
-import type { RouteHandler } from "@hono/zod-openapi";
+import { z, type RouteHandler } from "@hono/zod-openapi";
 import {
   environmentStatesByForm,
   lastReleaseAtByForm,
@@ -370,35 +370,56 @@ function encodeCursor(candidate: Candidate, sort: string): string {
     released: releasedKey(candidate),
     submitted: submittedKey(candidate),
   };
-  return Buffer.from(JSON.stringify(position), "utf8").toString("base64url");
+  return toBase64Url(new TextEncoder().encode(JSON.stringify(position)));
 }
 
 function parseCursor(raw: string | undefined, sort: string): Cursor | undefined {
   if (raw === undefined || raw === "") return undefined;
+  const bytes = fromBase64Url(raw);
+  if (bytes === undefined) throw fail.badCursor();
   let parsed: unknown;
   try {
-    parsed = JSON.parse(Buffer.from(raw, "base64url").toString("utf8"));
+    parsed = JSON.parse(new TextDecoder().decode(bytes));
   } catch {
     throw fail.badCursor();
   }
-  const position = parsed as Partial<Cursor> | null;
-  if (
-    position === null ||
-    typeof position !== "object" ||
-    typeof position.sort !== "string" ||
-    typeof position.slug !== "string" ||
-    typeof position.formId !== "string"
-  ) {
-    throw fail.badCursor();
+  // Parsed rather than cast: the value is a client-supplied string, so its shape is a
+  // trust boundary however opaque the encoding looks.
+  const position = CursorPayload.safeParse(parsed);
+  if (!position.success) throw fail.badCursor();
+  if (position.data.sort !== sort) throw fail.cursorSort();
+  return position.data;
+}
+
+const CursorPayload = z.object({
+  sort: z.string().max(32),
+  slug: z.string().max(200),
+  formId: z.string().max(64),
+  released: z.string().max(64).nullable().catch(null),
+  submitted: z.number().int().nullable().catch(null),
+});
+
+// `btoa`/`atob` rather than `Buffer`, which is a `node:*` API this layer stays clear of.
+function toBase64Url(bytes: Uint8Array): string {
+  let binary = "";
+  for (const byte of bytes) binary += String.fromCharCode(byte);
+  // eslint-disable-next-line sonarjs/super-linear-regex -- anchored single character-class; linear, no backtracking blowup
+  return btoa(binary).replaceAll("+", "-").replaceAll("/", "_").replace(/=+$/, "");
+}
+
+/** `undefined` for anything off-alphabet or not decodable. */
+function fromBase64Url(segment: string): Uint8Array | undefined {
+  if (!/^[A-Za-z0-9_-]+$/.test(segment)) return undefined;
+  const base64 = segment.replaceAll("-", "+").replaceAll("_", "/");
+  let binary: string;
+  try {
+    binary = atob(base64 + "=".repeat((4 - (base64.length % 4)) % 4));
+  } catch {
+    return undefined;
   }
-  if (position.sort !== sort) throw fail.cursorSort();
-  return {
-    sort: position.sort,
-    slug: position.slug,
-    formId: position.formId,
-    released: typeof position.released === "string" ? position.released : null,
-    submitted: typeof position.submitted === "number" ? position.submitted : null,
-  };
+  const bytes = new Uint8Array(binary.length);
+  for (let index = 0; index < binary.length; index += 1) bytes[index] = binary.charCodeAt(index);
+  return bytes;
 }
 
 function parseLimit(raw: string | undefined): number {
