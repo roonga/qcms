@@ -174,11 +174,11 @@ function polarity(page: Page, name: "Auto" | "Light" | "Dark"): Locator {
 }
 
 /**
- * The painted control, which is what a pointer actually hits: react-aria renders the
- * radio and the switch as visually hidden inputs inside their labels, so a click aimed
- * at the role lands on the label instead and Playwright reports it as intercepted.
+ * The painted control, which is what a pointer actually hits and what the styles are on:
+ * react-aria renders the radio and the switch as visually hidden inputs inside a span
+ * inside their labels, so a click aimed at the role is intercepted by the label.
  */
-const painted = (control: Locator): Locator => control.locator("..");
+const painted = (control: Locator): Locator => control.locator("xpath=ancestor::label[1]");
 
 function contrastSwitch(page: Page): Locator {
   return page.getByRole("switch", { name: /High contrast/u });

@@ -500,9 +500,12 @@ test("both topbar menus have zero violations while OPEN, in every mode", async (
   // inputs inside their labels, and a click aimed at the input is intercepted by one.
   await page
     .getByRole("switch", { name: /High contrast/u })
-    .locator("..")
+    .locator("xpath=ancestor::label[1]")
     .click();
-  await page.getByRole("radio", { name: "Dark", exact: true }).locator("..").click();
+  await page
+    .getByRole("radio", { name: "Dark", exact: true })
+    .locator("xpath=ancestor::label[1]")
+    .click();
   await expectNoViolations(page, "appearance panel open, dark field at high contrast");
   await page.keyboard.press("Escape");
 
