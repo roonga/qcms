@@ -159,3 +159,108 @@ describe("the assistant turn timeline", () => {
     expect(turn).toEqual(EMPTY_TURN);
   });
 });
+
+describe("the segment column", () => {
+  function shape(turn: AssistantTurnView): string[] {
+    return turn.segments.map((segment) =>
+      segment.kind === "text" ? `text:${segment.id ?? "?"}:${segment.text}` : "steps",
+    );
+  }
+
+  it("joins deltas that share a segment id and splits where it changes", () => {
+    const turn = fold([
+      { type: "text", delta: "Look", segment: "t0" },
+      { type: "text", delta: "ing up", segment: "t0" },
+      { type: "status", phase: "tool", tool: "search_question_library", step: 1 },
+      { type: "tool-outcome", step: 1, outcome: "done" },
+      { type: "text", delta: "Found it", segment: "t1" },
+    ]);
+    expect(shape(turn)).toEqual(["text:t0:Looking up", "steps", "text:t1:Found it"]);
+  });
+
+  it("starts a new segment when a provider reuses an id after a step", () => {
+    const turn = fold([
+      { type: "text", delta: "Searching", segment: "t0" },
+      { type: "status", phase: "tool", tool: "search_question_library", step: 1 },
+      { type: "text", delta: "Drafting", segment: "t0" },
+    ]);
+    expect(shape(turn)).toEqual(["text:t0:Searching", "steps", "text:t0:Drafting"]);
+  });
+
+  it("folds deltas with no id into one segment, as a stream without them always did", () => {
+    const turn = fold([
+      { type: "text", delta: "one " },
+      { type: "text", delta: "block" },
+    ]);
+    expect(shape(turn)).toEqual(["text:?:one block"]);
+    expect(turnText(turn)).toBe("one block");
+  });
+
+  it("keeps the thinking disclosure in arrival order, as its own segment", () => {
+    const turn = [
+      { type: "reasoning", delta: "first thought" } as const,
+      { type: "reasoning-end" } as const,
+      { type: "status", phase: "tool", tool: "propose_draft", step: 1 } as const,
+      { type: "reasoning", delta: "second thought" } as const,
+      { type: "text", delta: "Done.", segment: "t1" } as const,
+    ].reduce<AssistantTurnView>((view, event) => applyTurnEvent(view, event, 1_000), EMPTY_TURN);
+
+    expect(turn.segments.map((segment) => segment.kind)).toEqual([
+      "thinking",
+      "steps",
+      "thinking",
+      "text",
+    ]);
+  });
+
+  it("keeps every segment in the history the API is sent", () => {
+    const turn = fold([
+      { type: "text", delta: "First. ", segment: "t0" },
+      { type: "status", phase: "tool", tool: "propose_draft", step: 1 },
+      { type: "text", delta: "Second.", segment: "t1" },
+    ]);
+    expect(turnText(turn)).toBe("First. Second.");
+  });
+});
+
+describe("the thinking segment", () => {
+  function thinkingOf(turn: AssistantTurnView) {
+    return turn.segments.flatMap((segment) => (segment.kind === "thinking" ? [segment] : []));
+  }
+
+  it("joins deltas while the summary is still open and reports no duration", () => {
+    const turn = [
+      { type: "reasoning", delta: "weighing " } as const,
+      { type: "reasoning", delta: "it up" } as const,
+    ].reduce<AssistantTurnView>((view, event) => applyTurnEvent(view, event, 1_000), EMPTY_TURN);
+
+    expect(thinkingOf(turn)).toEqual([
+      { kind: "thinking", text: "weighing it up", startedAt: 1_000, endedAt: undefined },
+    ]);
+  });
+
+  it("settles on reasoning-end, so a duration can be computed", () => {
+    let turn = applyTurnEvent(EMPTY_TURN, { type: "reasoning", delta: "hmm" }, 1_000);
+    turn = applyTurnEvent(turn, { type: "reasoning-end" }, 4_400);
+    expect(thinkingOf(turn)[0]).toMatchObject({ startedAt: 1_000, endedAt: 4_400 });
+  });
+
+  it("settles an unclosed summary when the turn ends, rather than thinking for ever", () => {
+    // An open disclosure still reports a (slightly short) duration instead of running forever.
+    const open = applyTurnEvent(EMPTY_TURN, { type: "reasoning", delta: "hmm" }, 1_000);
+    const finished = finishTurn(open, 2_500);
+    expect(thinkingOf(finished)[0]).toMatchObject({ endedAt: 2_500 });
+  });
+
+  /** SEC-8, from the admin's side: reasoning never joins the replayed history. */
+  it("keeps reasoning out of the text the API is sent back", () => {
+    const turn = [
+      { type: "reasoning", delta: "SENTINEL" } as const,
+      { type: "reasoning-end" } as const,
+      { type: "text", delta: "Here is the draft.", segment: "t0" } as const,
+    ].reduce<AssistantTurnView>((view, event) => applyTurnEvent(view, event, 1_000), EMPTY_TURN);
+
+    expect(turnText(turn)).toBe("Here is the draft.");
+    expect(turnText(turn)).not.toContain("SENTINEL");
+  });
+});

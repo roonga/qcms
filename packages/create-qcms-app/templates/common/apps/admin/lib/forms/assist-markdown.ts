@@ -16,13 +16,18 @@
  *
  * ## What it refuses, and why it is safe by construction
  *
- * The output is a tree of strings and four inline kinds. Nothing here produces markup:
+ * The output is a tree of strings and five inline kinds. Nothing here produces markup:
  * the renderer hands every string to React as a text child, so raw HTML such as
  * `<script>` or `<img onerror>` is shown as the literal characters it is. An image
- * (`![alt](url)`) becomes its alt text and a link (`[text](url)`) becomes its text: no
- * URL survives the parse, so there is nothing for a browser to fetch or follow. That is
- * the control against the classic exfiltration channel, a Markdown image whose URL
- * carries data out without a click; the admin CSP is defence in depth behind it.
+ * (`![alt](url)`) always becomes its alt text and its URL is dropped, which is the
+ * control against the classic exfiltration channel: a URL the browser fetches with no
+ * click. The admin CSP is defence in depth behind it.
+ *
+ * ## Links
+ *
+ * A link survives only for a same-origin path matching a pattern on {@link ADMIN_PAGE_ROUTES},
+ * with no query or fragment; anything else renders as its text. The list is closed rather than
+ * a prefix test because `/forms/frm_x/export` (a download handler) must never become a link.
  *
  * Underscores only mark emphasis at a word boundary, so identifiers such as
  * `q_vehicle_make` are never italicised in the middle.
@@ -32,7 +37,60 @@ export type MarkdownInline =
   | { readonly kind: "text"; readonly text: string }
   | { readonly kind: "code"; readonly text: string }
   | { readonly kind: "strong"; readonly children: readonly MarkdownInline[] }
-  | { readonly kind: "em"; readonly children: readonly MarkdownInline[] };
+  | { readonly kind: "em"; readonly children: readonly MarkdownInline[] }
+  /** A link to an admin page route. `href` has already passed {@link adminPageHref}. */
+  | {
+      readonly kind: "link";
+      readonly href: string;
+      readonly children: readonly MarkdownInline[];
+    };
+
+/**
+ * Every admin **page** route under `apps/admin/app/(shell)/`; `[segment]` matches one segment.
+ * Route handlers are deliberately absent.
+ */
+export const ADMIN_PAGE_ROUTES: readonly string[] = [
+  "/forms",
+  "/forms/new",
+  "/forms/[formId]",
+  "/forms/[formId]/rules",
+  "/forms/[formId]/preview",
+  "/forms/[formId]/versions",
+  "/forms/[formId]/versions/[version]",
+  "/forms/[formId]/releases",
+  "/forms/[formId]/links",
+  "/forms/[formId]/webhooks",
+  "/forms/[formId]/responses",
+  "/forms/[formId]/responses/[sessionId]",
+  "/questions",
+  "/questions/new",
+  "/questions/[questionId]",
+  "/responses",
+  "/responses/erasures",
+  "/webhooks",
+  "/workspaces",
+  "/workspaces/[workspaceId]",
+  "/settings",
+];
+
+/** A path segment safe to put in an `href`: no traversal, no encoding tricks. */
+const SEGMENT = /^[A-Za-z0-9._~-]+$/u;
+
+function matchesPattern(pattern: string, segments: readonly string[]): boolean {
+  const expected = pattern.slice(1).split("/");
+  if (expected.length !== segments.length) return false;
+  return expected.every((part, index) => (part.startsWith("[") ? true : part === segments[index]));
+}
+
+/** The `href` a link target may keep, or `undefined` when it must render as text. */
+export function adminPageHref(target: string): string | undefined {
+  const path = target.trim();
+  if (!path.startsWith("/") || path.startsWith("//")) return undefined;
+  if (path.includes("?") || path.includes("#")) return undefined;
+  const segments = path.slice(1).split("/");
+  if (!segments.every((segment) => SEGMENT.test(segment) && segment !== "..")) return undefined;
+  return ADMIN_PAGE_ROUTES.some((pattern) => matchesPattern(pattern, segments)) ? path : undefined;
+}
 
 export type MarkdownBlock =
   | {
@@ -221,11 +279,15 @@ const readImage: InlineReader = (source, index) => {
   return link === undefined ? undefined : { text: link.label, end: link.end };
 };
 
-/** A link is its text only: never an anchor, and its target is dropped. */
 const readLinkText: InlineReader = (source, index) => {
   if (source[index] !== "[") return undefined;
   const link = readLink(source, index);
-  return link === undefined ? undefined : { nodes: parseInline(link.label), end: link.end };
+  if (link === undefined) return undefined;
+  const children = parseInline(link.label);
+  const href = adminPageHref(link.target);
+  return href === undefined
+    ? { nodes: children, end: link.end }
+    : { nodes: [{ kind: "link", href, children }], end: link.end };
 };
 
 const readEmphasisSpan: InlineReader = (source, index) => {
@@ -310,8 +372,10 @@ function isEmphasisCloser(
   return !(underscore && isWordChar(after));
 }
 
-/** `[label](target)` at `start`: the label and where the construct ends. The target is dropped. */
-function readLink(source: string, start: number): { label: string; end: number } | undefined {
+function readLink(
+  source: string,
+  start: number,
+): { label: string; target: string; end: number } | undefined {
   const closeLabel = source.indexOf("]", start + 1);
   if (closeLabel === -1 || source[closeLabel + 1] !== "(") return undefined;
   // The target may carry its own balanced parentheses, as `javascript:alert(1)` does.
@@ -319,7 +383,13 @@ function readLink(source: string, start: number): { label: string; end: number }
   for (let index = closeLabel + 2; index < source.length; index += 1) {
     if (source[index] === "(") depth += 1;
     else if (source[index] === ")") depth -= 1;
-    if (depth === 0) return { label: source.slice(start + 1, closeLabel), end: index + 1 };
+    if (depth === 0) {
+      return {
+        label: source.slice(start + 1, closeLabel),
+        target: source.slice(closeLabel + 2, index),
+        end: index + 1,
+      };
+    }
   }
   return undefined;
 }

@@ -116,7 +116,7 @@ describe("FormBuilder and the assist panel (task 041)", () => {
   it("renders no assist panel, and no assist affordance, when the assist prop is absent", () => {
     render(<FormBuilder detail={DETAIL} {...CHROME} {...builderActions()} />);
     expect(screen.queryByTestId("qcms-assist-panel")).toBeNull();
-    expect(screen.queryByText(t("forms.assist.title"))).toBeNull();
+    expect(screen.queryByRole("img", { name: t("agent.title") })).toBeNull();
     expect(screen.queryByLabelText(t("forms.assist.inputLabel"))).toBeNull();
   });
 

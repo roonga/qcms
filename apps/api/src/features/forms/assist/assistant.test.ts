@@ -7,10 +7,17 @@ import {
   stepQuestionRefs,
 } from "@roonga/qcms-core";
 
+import type { AgentThinking } from "../../../config.js";
 import { createNullLogger, type Logger } from "../../../logger.js";
 import { recordingLogger } from "../../../test-support.js";
-import { aiSdkDraftAssistant, toolOutcomeEvent } from "./assistant.js";
-import { fakeAssistantModel } from "./fake-model.js";
+import {
+  aiSdkDraftAssistant,
+  appendTextSegment,
+  handlePart,
+  newRunOutcome,
+  toolOutcomeEvent,
+} from "./assistant.js";
+import { FAKE_REASONING_SENTINEL, fakeAssistantModel } from "./fake-model.js";
 import {
   ASSIST_ERROR_CODES,
   type AssistContext,
@@ -90,6 +97,24 @@ async function collect(
     model: fakeAssistantModel(),
     providerId: "fake",
     logger,
+  });
+  const events: AssistEvent[] = [];
+  for await (const event of assistant.assist(ctx, new AbortController().signal)) {
+    events.push(event);
+  }
+  return events;
+}
+
+async function collectWithThinking(
+  ctx: AssistContext,
+  thinking: AgentThinking,
+  logger: Logger = createNullLogger(),
+): Promise<AssistEvent[]> {
+  const assistant = aiSdkDraftAssistant({
+    model: fakeAssistantModel(),
+    providerId: "fake",
+    logger,
+    thinking,
   });
   const events: AssistEvent[] = [];
   for await (const event of assistant.assist(ctx, new AbortController().signal)) {
@@ -389,5 +414,206 @@ describe("assist error codes are all reachable", () => {
     const usage = events.find((e) => e.type === "usage");
     if (usage?.type !== "usage") throw new Error("expected a usage event");
     expect(usage.steps).toBe(3);
+  });
+});
+
+/** A `tool-call` part, spelled past the SDK's generic `ToolSet` input typing. */
+function toolCallPart(toolCallId: string, toolName: string): Parameters<typeof handlePart>[0] {
+  return { type: "tool-call", toolCallId, toolName, input: {} } as unknown as Parameters<
+    typeof handlePart
+  >[0];
+}
+
+describe("handlePart maps the input phase and the segment ids", () => {
+  it("announces an allowlisted step from tool-input-start, before the parsed call", () => {
+    const outcome = newRunOutcome();
+
+    const announced = handlePart(
+      { type: "tool-input-start", id: "call_1", toolName: "propose_draft" },
+      outcome,
+    );
+    expect(announced).toEqual({ type: "status", phase: "tool", tool: "propose_draft", step: 1 });
+
+    expect(handlePart(toolCallPart("call_1", "propose_draft"), outcome)).toBeUndefined();
+    expect(outcome.rejectedTool).toBeUndefined();
+  });
+
+  it("emits nothing for a name outside the allowlist and leaves the refusal to the parsed call", () => {
+    const outcome = newRunOutcome();
+
+    expect(
+      handlePart({ type: "tool-input-start", id: "call_x", toolName: "publish_form" }, outcome),
+    ).toBeUndefined();
+    // A half-streamed name must not end a turn.
+    expect(outcome.rejectedTool).toBeUndefined();
+
+    expect(handlePart(toolCallPart("call_x", "publish_form"), outcome)).toBeUndefined();
+    expect(outcome.rejectedTool).toBe("publish_form");
+  });
+
+  it("still announces a step for a call that arrived with no input phase", () => {
+    const outcome = newRunOutcome();
+    expect(handlePart(toolCallPart("call_2", "validate_draft"), outcome)).toEqual({
+      type: "status",
+      phase: "tool",
+      tool: "validate_draft",
+      step: 1,
+    });
+  });
+
+  it("carries the provider's text segment id on every delta", () => {
+    const outcome = newRunOutcome();
+    expect(handlePart({ type: "text-delta", id: "t0", text: "Loo" }, outcome)).toEqual({
+      type: "text",
+      delta: "Loo",
+      segment: "t0",
+    });
+    expect(handlePart({ type: "text-delta", id: "t0", text: "king" }, outcome)).toEqual({
+      type: "text",
+      delta: "king",
+      segment: "t0",
+    });
+    expect(handlePart({ type: "text-delta", id: "t1", text: "Done" }, outcome)).toEqual({
+      type: "text",
+      delta: "Done",
+      segment: "t1",
+    });
+    expect(outcome.textSegments).toEqual([
+      { id: "t0", text: "Looking" },
+      { id: "t1", text: "Done" },
+    ]);
+  });
+
+  it("starts a new segment when a provider reuses an id after another one", () => {
+    const segments: { id: string; text: string }[] = [];
+    appendTextSegment(segments, "t0", "one");
+    appendTextSegment(segments, "t1", "two");
+    appendTextSegment(segments, "t0", "three");
+    expect(segments).toEqual([
+      { id: "t0", text: "one" },
+      { id: "t1", text: "two" },
+      { id: "t0", text: "three" },
+    ]);
+  });
+});
+
+describe("narrate-then-tools, through the shipped loop", () => {
+  it("interleaves prose segments with the step rows and quotes only the last segment", async () => {
+    const { ctx } = contextFor("#qcms-fake:narrate-then-tools a quote form");
+    const events = await collect(ctx);
+
+    const shape = events.flatMap((event) => {
+      if (event.type === "text") return [`text:${event.segment ?? "?"}`];
+      if (event.type === "status" && event.phase === "tool") return [`step:${String(event.step)}`];
+      return [];
+    });
+    expect(shape).toEqual(["text:t0", "step:1", "text:t1", "step:2", "text:t2"]);
+
+    const proposal = events.find((e) => e.type === "proposal");
+    if (proposal?.type !== "proposal") throw new Error("expected a proposal");
+    expect(proposal.proposal.rationale).toContain("driving-history step");
+    expect(proposal.proposal.rationale).not.toContain("question library");
+  });
+
+  it("settles both announced steps on the API's own outcome events", async () => {
+    const { ctx } = contextFor("#qcms-fake:narrate-then-tools a quote form");
+    const events = await collect(ctx);
+    const outcomes = events.flatMap((event) =>
+      event.type === "tool-outcome" ? [[event.step, event.outcome] as const] : [],
+    );
+    expect(outcomes).toEqual([
+      [1, "done"],
+      [2, "done"],
+    ]);
+  });
+});
+
+describe("reasoning events", () => {
+  function reasoningPart(text: string): Parameters<typeof handlePart>[0] {
+    return { type: "reasoning-delta", id: "r0", text };
+  }
+
+  it("forwards a delta and the end under summary", () => {
+    const outcome = newRunOutcome();
+    expect(handlePart(reasoningPart("weighing it up"), outcome, "summary")).toEqual({
+      type: "reasoning",
+      delta: "weighing it up",
+    });
+    expect(handlePart({ type: "reasoning-end", id: "r0" }, outcome, "summary")).toEqual({
+      type: "reasoning-end",
+    });
+  });
+
+  it("drops both under off, and keeps nothing", () => {
+    const outcome = newRunOutcome();
+    expect(handlePart(reasoningPart("weighing it up"), outcome, "off")).toBeUndefined();
+    expect(handlePart({ type: "reasoning-end", id: "r0" }, outcome, "off")).toBeUndefined();
+    expect(JSON.stringify(outcome)).not.toContain("weighing it up");
+  });
+
+  it("drops both when no setting was given, so the default is the safe one", () => {
+    const outcome = newRunOutcome();
+    expect(handlePart(reasoningPart("secret"), outcome)).toBeUndefined();
+  });
+
+  it("puts no reasoning frame on the wire under the default, though the script emitted parts", async () => {
+    const { ctx } = contextFor("#qcms-fake:reasoning a quote form");
+    const events = await collect(ctx);
+
+    expect(events.filter((e) => e.type === "reasoning")).toHaveLength(0);
+    expect(events.filter((e) => e.type === "reasoning-end")).toHaveLength(0);
+    expect(JSON.stringify(events)).not.toContain(FAKE_REASONING_SENTINEL);
+    expect(events.find((e) => e.type === "proposal")).toBeDefined();
+  });
+
+  it("streams the frames under summary, carrying the sentinel", async () => {
+    const { ctx } = contextFor("#qcms-fake:reasoning a quote form");
+    const events = await collectWithThinking(ctx, "summary");
+
+    const deltas = events.flatMap((e) => (e.type === "reasoning" ? [e.delta] : []));
+    expect(deltas.join("")).toContain(FAKE_REASONING_SENTINEL);
+    expect(events.filter((e) => e.type === "reasoning-end").length).toBeGreaterThan(0);
+    expect(events.find((e) => e.type === "proposal")).toBeDefined();
+  });
+
+  /** SEC-8: the sentinel reaches no log line and no conversation the model sees. */
+  it("logs a reasoning token count and never a word of the text", async () => {
+    const { logger, lines } = recordingLogger();
+    const { ctx } = contextFor("#qcms-fake:reasoning a quote form");
+    await collectWithThinking(ctx, "summary", logger);
+
+    const serialised = JSON.stringify(lines);
+    expect(serialised).not.toContain(FAKE_REASONING_SENTINEL);
+
+    const record = lines.find((line) => line["msg"] === "draft assistant turn");
+    expect(record, JSON.stringify(lines)).toBeDefined();
+    // The logger's redactor blanks any key containing "token", so stdout shows `[REDACTED]`.
+    expect(record).toHaveProperty("reasoningTokens");
+    expect(record?.["reasoningTokens"]).toBe("[REDACTED]");
+    expect(record?.["outputTokens"]).toBe("[REDACTED]");
+  });
+
+  it("carries no reasoning into the history a next turn would replay", async () => {
+    const { ctx } = contextFor("#qcms-fake:reasoning a quote form");
+    const events = await collectWithThinking(ctx, "summary");
+
+    const proposal = events.find((e) => e.type === "proposal");
+    if (proposal?.type !== "proposal") throw new Error("expected a proposal");
+    expect(proposal.proposal.rationale).not.toContain(FAKE_REASONING_SENTINEL);
+  });
+});
+
+describe("a refused verb that streamed its input first", () => {
+  it("puts no row on the timeline and still ends the turn refused", async () => {
+    const { ctx } = contextFor("#qcms-fake:rogue-publish publish this");
+    const events = await collect(ctx);
+
+    expect(events.filter((e) => e.type === "status" && e.phase === "tool")).toHaveLength(0);
+    expect(events.find((e) => e.type === "tool-rejected")).toEqual({
+      type: "tool-rejected",
+      tool: "publish_form",
+    });
+    expect(events.find((e) => e.type === "error")).toMatchObject({ code: "REFUSED" });
+    expect(events.filter((e) => e.type === "proposal")).toHaveLength(0);
   });
 });
