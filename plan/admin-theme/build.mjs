@@ -193,6 +193,53 @@ const hcAccent = {
   "--color-primary-foreground": "#ffffff",
 };
 
+// The dark field, carried verbatim from the registry's `.dark.hc` layer for the
+// same reason the light one is: white text and edges on black surfaces, the same
+// flattened neutrals and fixed AAA semantics inverted.
+const darkHcUniversal = {
+  "--color-secondary": "#cfd5e0",
+  "--color-secondary-hover": "#e2e6ee",
+  "--color-secondary-active": "#f2f4f8",
+  "--color-secondary-foreground": "#000000",
+  "--color-danger": "#ff9ea2",
+  "--color-danger-hover": "#ffb0b3",
+  "--color-danger-active": "#ffc2c4",
+  "--color-danger-foreground": "#000000",
+  "--color-danger-subtle": "#1f0a0a",
+  "--color-danger-fg": "#ffc2c4",
+  "--color-ghost": "transparent",
+  "--color-ghost-hover": "#16181c",
+  "--color-ghost-active": "#22262c",
+  "--color-info": "#8ab4ff",
+  "--color-info-subtle": "#0a1024",
+  "--color-info-fg": "#b9ccff",
+  "--color-success": "#5ee39f",
+  "--color-success-subtle": "#04160c",
+  "--color-success-fg": "#9ceabf",
+  "--color-warning": "#ffcc66",
+  "--color-warning-subtle": "#171003",
+  "--color-warning-fg": "#ffd98a",
+  "--color-text": "#ffffff",
+  "--color-text-muted": "#d6dae2",
+  "--color-border": "#9aa2b1",
+  "--color-border-strong": "#ffffff",
+  "--color-background": "#000000",
+  "--color-background-muted": "#0b0d11",
+  "--color-surface": "#000000",
+  "--color-surface-hover": "#16181c",
+  "--color-focus-ring": "#8ab4ff",
+  "--color-overlay": "rgb(0 0 0 / 0.8)",
+};
+
+// The light-HC cobalt above measures 2.27:1 on the black field, so this app owes a
+// dark accent - the rule any theme follows, enforced by the accent gate below.
+const darkHcAccent = {
+  "--color-primary": "#a9c4ff",
+  "--color-primary-hover": "#b8cfff",
+  "--color-primary-active": "#c6d9ff",
+  "--color-primary-foreground": "#000000",
+};
+
 // The 4px scale is the whole spacing vocabulary: nothing outside it, and nothing
 // derived from `em`. The two odd steps are for chips only.
 const spacing = {
@@ -274,41 +321,109 @@ const modePairs = (t) => [
 ];
 
 const hc = { ...hcUniversal, ...hcAccent };
-const hcPairs = [
-  [`text / background (AAA)`, hc["--color-text"], hc["--color-background"], 7.0],
-  [`text-muted / background (AAA)`, hc["--color-text-muted"], hc["--color-background"], 7.0],
-  [`primary-fg / primary (AAA)`, hc["--color-primary-foreground"], hc["--color-primary"], 7.0],
+const darkHc = { ...darkHcUniversal, ...darkHcAccent };
+
+const hcPairs = (t) => [
+  [`text / background (AAA)`, t["--color-text"], t["--color-background"], 7.0],
+  [`text / surface-hover (AAA)`, t["--color-text"], t["--color-surface-hover"], 7.0],
+  [`text-muted / background (AAA)`, t["--color-text-muted"], t["--color-background"], 7.0],
   [
-    `secondary-fg / secondary (AAA)`,
-    hc["--color-secondary-foreground"],
-    hc["--color-secondary"],
+    `text-muted / background-muted (AAA)`,
+    t["--color-text-muted"],
+    t["--color-background-muted"],
     7.0,
   ],
-  [`danger-fg-btn / danger (AAA)`, hc["--color-danger-foreground"], hc["--color-danger"], 7.0],
-  [`danger-fg / danger-subtle (AAA)`, hc["--color-danger-fg"], hc["--color-danger-subtle"], 7.0],
-  [`info-fg / info-subtle (AAA)`, hc["--color-info-fg"], hc["--color-info-subtle"], 7.0],
+  [`primary-fg / primary (AAA)`, t["--color-primary-foreground"], t["--color-primary"], 7.0],
+  [
+    `primary-fg / primary-hover (AAA)`,
+    t["--color-primary-foreground"],
+    t["--color-primary-hover"],
+    7.0,
+  ],
+  [
+    `primary-fg / primary-active (AAA)`,
+    t["--color-primary-foreground"],
+    t["--color-primary-active"],
+    7.0,
+  ],
+  [
+    `secondary-fg / secondary (AAA)`,
+    t["--color-secondary-foreground"],
+    t["--color-secondary"],
+    7.0,
+  ],
+  [
+    `secondary-fg / secondary-hover (AAA)`,
+    t["--color-secondary-foreground"],
+    t["--color-secondary-hover"],
+    7.0,
+  ],
+  [
+    `secondary-fg / secondary-active (AAA)`,
+    t["--color-secondary-foreground"],
+    t["--color-secondary-active"],
+    7.0,
+  ],
+  [`danger-fg-btn / danger (AAA)`, t["--color-danger-foreground"], t["--color-danger"], 7.0],
+  [`danger-fg / danger-subtle (AAA)`, t["--color-danger-fg"], t["--color-danger-subtle"], 7.0],
+  [`info-fg / info-subtle (AAA)`, t["--color-info-fg"], t["--color-info-subtle"], 7.0],
   [
     `success-fg / success-subtle (AAA)`,
-    hc["--color-success-fg"],
-    hc["--color-success-subtle"],
+    t["--color-success-fg"],
+    t["--color-success-subtle"],
     7.0,
   ],
   [
     `warning-fg / warning-subtle (AAA)`,
-    hc["--color-warning-fg"],
-    hc["--color-warning-subtle"],
+    t["--color-warning-fg"],
+    t["--color-warning-subtle"],
     7.0,
   ],
-  [`border-strong / surface`, hc["--color-border-strong"], hc["--color-surface"], 3.0],
-  [`focus-ring / background`, hc["--color-focus-ring"], hc["--color-background"], 3.0],
-  [`primary / white surface`, hc["--color-primary"], hc["--color-surface"], 3.0],
+  [`border-strong / surface`, t["--color-border-strong"], t["--color-surface"], 3.0],
+  [`border-strong / background`, t["--color-border-strong"], t["--color-background"], 3.0],
+  [`border / surface`, t["--color-border"], t["--color-surface"], 3.0],
+  [`focus-ring / background`, t["--color-focus-ring"], t["--color-background"], 3.0],
+  [`focus-ring / surface`, t["--color-focus-ring"], t["--color-surface"], 3.0],
+  [`primary / surface`, t["--color-primary"], t["--color-surface"], 3.0],
+];
+
+// The rule a theme follows for the dark field: an accent that clears AAA against that
+// background rides the light-HC block for free, and one that misses owes a dark accent.
+// This app's light-HC cobalt misses, so the pair below is the measurement that says so
+// and the one that holds its replacement.
+const accentPairs = [
+  [
+    `light-HC accent / dark-HC background (measured; 7:1 here retires the dark accent)`,
+    hc["--color-primary"],
+    darkHc["--color-background"],
+    0,
+  ],
+  [
+    `dark-HC accent / dark-HC background (AAA)`,
+    darkHc["--color-primary"],
+    darkHc["--color-background"],
+    7.0,
+  ],
 ];
 
 const sections = [
   ["cobalt / light", modePairs(light)],
   ["cobalt / dark", modePairs(dark)],
-  ["cobalt / high-contrast (universal layer + cobalt accent)", hcPairs],
+  ["cobalt / high-contrast, light field (universal layer + cobalt accent)", hcPairs(hc)],
+  ["cobalt / high-contrast, dark field (universal layer + cobalt dark accent)", hcPairs(darkHc)],
+  ["cobalt / the dark-field accent rule", accentPairs],
 ];
+
+// The first accent row is a measurement rather than a floor, and a target of 0 would
+// pass whatever it measured. Stated as its own assertion so the rule cannot quietly
+// invert: if the light accent ever clears AAA on the dark field, this app stops owing a
+// dark accent and the sheet should drop it rather than carry a redundant block.
+if (ratio(hc["--color-primary"], darkHc["--color-background"]) >= 7.0) {
+  console.error(
+    "the light-HC accent now clears AAA on the dark field: drop the dark-HC accent block",
+  );
+  process.exit(1);
+}
 
 let failed = 0;
 const tables = sections.map(([name, pairs]) => {
@@ -344,11 +459,29 @@ const indent = (text) =>
     .map((line) => `  ${line}`)
     .join("\n");
 
-const css = `/* QCMS app theme - Cobalt (rev 8, the SigPilot foundations).
+const colourTokens = (t) =>
+  Object.fromEntries(Object.entries(t).filter(([name]) => name.startsWith("--color-")));
+
+const PREVIEW_STATES = [
+  ["light", { ...light }],
+  ["dark", dark],
+  ["light-hc", hc],
+  ["dark-hc", darkHc],
+];
+
+const previewBlocks = PREVIEW_STATES.map(([state, tokens]) =>
+  block(`.qcms-themepreview[data-state="${state}"]`, colourTokens(tokens)),
+).join("\n\n");
+
+const css = `/* QCMS app theme - Cobalt (rev 9, polarity x contrast).
    Generated by plan/admin-theme/build.mjs. All values WCAG 2.2-verified at
    build time; see ADMIN_THEME.md.
-   Mode convention matches the portal theme registry (051):
-   (none) = Light  .dark = Dark  .hc = High-contrast (universal layer + accent).
+   Appearance is polarity crossed with contrast, and the root classes match the
+   portal theme registry's convention:
+   (none) = Light   .dark = Dark   .hc = light High-contrast
+   .dark.hc = dark High-contrast   .light = Light pinned against the OS.
+   Emission order is fixed and load-bearing: light, dark, the auto dark block,
+   .hc, .dark.hc, then the auto dark-HC block.
    Neutrals and semantic colours are the shipped slate values; the accent is the
    design-system cobalt (#2456C6 / #7AA2FF; primary == focus-ring == info hue,
    as the DS overview's --ring == --primary). The topbar is translucent and
@@ -363,35 +496,79 @@ ${block(":root", {
 
 ${block(":root.dark", dark)}
 
-/* Auto: with no mode class on the root, the sheet follows the operating system.
-   This is what makes "no explicit choice" resolve to the machine's preference
-   with no script and no flash - the server can stamp a class only when the
+/* Auto: with no polarity class on the root, the sheet follows the operating
+   system. This is what makes "Auto" resolve to the machine's preference with no
+   script and no flash - the server can stamp a polarity class only when the
    operator has chosen one, and this block covers the case where it cannot.
-   Dark is the ONLY inferred mode: there is deliberately no prefers-contrast
-   companion, because .hc is only ever an explicit choice.
+   Polarity is the ONLY inferred axis: there is deliberately no prefers-contrast
+   companion, because high contrast is only ever an explicit choice.
    :not(.light) is what makes an explicit Light choice stick on a
    dark-preferring machine. Light is the bare :root block above, so the
-   light class carries no values of its own and exists only to opt out here. */
+   light class carries no values of its own and exists only to opt out here.
+   :not(.hc) keeps this block, at (0,4,0), from outranking the .hc layer below;
+   the dark field under Auto is the second block further down, which is written
+   with .hc instead and so cannot collide with this one. */
 @media (prefers-color-scheme: dark) {
 ${indent(block(":root:not(.light):not(.dark):not(.hc)", dark))}
 }
 
-/* High-contrast: the universal HC mode-layer (carried verbatim from the 051
-   registry so this sheet is self-contained) plus the QCMS app's cobalt accent -
-   the accent is the only part the QCMS app contributes, like any theme. */
+/* High-contrast, the light field: the universal HC mode-layer (carried verbatim
+   from the 051 registry so this sheet is self-contained) plus the QCMS app's
+   cobalt accent - the accent is the only part the QCMS app contributes, like any
+   theme. */
 ${block(":root.hc", { ...hcUniversal, ...hcAccent })}
+
+/* High-contrast, the dark field. .dark.hc is (0,3,0) and beats the .hc block
+   above on specificity, so it overrides only what the field flips. */
+${block(":root.dark.hc", { ...darkHcUniversal, ...darkHcAccent })}
+
+/* High contrast under Auto polarity: the operator chose contrast but left
+   polarity to the machine, so the dark field has to be reachable with no .dark
+   class to select it. (0,4,0), above the .hc layer and disjoint from the auto
+   block at the top, which excludes .hc. */
+@media (prefers-color-scheme: dark) {
+${indent(block(":root.hc:not(.light):not(.dark)", { ...darkHcUniversal, ...darkHcAccent }))}
+}
+
+/* The appearance control's preview tiles, which show the three states the
+   operator is NOT in. Scoped to the tile rather than the root, so each paints
+   from the real token values rather than from a second set of colours kept in
+   step by hand. Colour tokens only: a tile inherits every metric. */
+${previewBlocks}
 `;
 
 writeFileSync("tokens.css", css);
 
 // ---------- Emit ADMIN_THEME.md ----------
 
-const md = `# QCMS app theme - Cobalt (rev 8)
+const md = `# QCMS app theme - Cobalt (rev 9)
 
 Design deliverable for the QCMS app's visual theme (apps/admin, tasks 031-035).
 Generated by \`build.mjs\`; every ratio below is computed from the exact token
 values with the WCAG 2.2 relative-luminance formula, so the numbers cannot
 drift from the tokens.
+
+**Rev 9: appearance is polarity crossed with contrast.** High contrast is no
+longer a light-only mode. There are four states, selected by a root class
+combination: none (Light), \`dark\`, \`hc\`, \`dark hc\`, with \`light\` available to
+pin Light against a dark-preferring machine.
+
+- **The dark field** is white text and edges on black surfaces, with the same
+  flattened neutrals and fixed AAA semantics the light field uses, inverted:
+  page and surface \`#000000\`, inset \`#0b0d11\`, hover \`#16181c\`, hairline
+  \`#9aa2b1\`, edges and text \`#ffffff\`, muted text \`#d6dae2\`.
+- **Fills invert with the field.** Primary, secondary, danger, success and
+  warning are light fills carrying \`#000000\`, because a deep tint on a black page
+  is a button nobody can see. Both HC fields keep the solid secondary.
+- **The accent rule.** A theme's light-HC accent rides the dark field for free
+  when it clears 7:1 against that background, and owes a \`.dark.hc\` accent when
+  it misses. This app's cobalt \`#0a3ea8\` measures 2.27:1 there, so it owns
+  \`#a9c4ff\`; the table below holds both the measurement and its replacement.
+- **Polarity is the only inferred axis.** There is still no
+  \`prefers-contrast\` companion. \`forced-colors\` (Windows High Contrast) is a
+  separate mechanism and is out of scope.
+- **Preview tiles** carry their own scoped colour blocks, so the appearance
+  control shows each state from the real token values.
 
 **Rev 8 (2026-10-24, issue #1121): the SigPilot foundations.** The Code Owner
 reviewed QCMS beside its sister product SigPilot and adopted that product's
@@ -501,10 +678,11 @@ carry the DS tight tracking.
   blur.
 - **The QCMS app is NOT respondent-themed.** Portal themes (slate/harbor/sand/plum)
   are the adopter's choice for respondents; it always wears the brand
-  cobalt. Mode (light/dark/HC) remains a per-operator control.
-- **HC for free.** High-contrast rides the universal 051 HC mode-layer; the
-  QCMS app contributes only an AAA-safe cobalt accent (the same mechanism any new
-  theme uses).
+  cobalt. Appearance (polarity x contrast) remains a per-operator control.
+- **HC for free, per field.** High-contrast rides the universal 051 HC
+  mode-layers; the QCMS app contributes only an AAA-safe cobalt accent per field
+  (the same mechanism any new theme uses), and owes the second one only because
+  its light accent misses 7:1 on the dark field.
 - **Dense by default.** Controls are 40px (vs the portal's 44px comfortable and
   the DS overview's 48px portal scale) - an operator data tool, still
   comfortably above the 24px WCAG 2.5.8 floor.
@@ -517,7 +695,8 @@ carry the DS tight tracking.
 |---|---|---|---|
 | Light | 4.5:1 (AA) | 3:1 | 3:1 |
 | Dark | 4.5:1 (AA) | 3:1 | 3:1 |
-| High-contrast | 7:1 (AAA) | 4.5:1 | 3:1 |
+| High-contrast, light field | 7:1 (AAA) | 4.5:1 | 3:1 |
+| High-contrast, dark field | 7:1 (AAA) | 4.5:1 | 3:1 |
 
 ## Verified contrast pairs
 
@@ -643,6 +822,7 @@ code { background: var(--color-background-muted); padding: 0.05rem 0.35rem; bord
   <button aria-pressed="true" onclick="setMode('', this)">Light</button>
   <button aria-pressed="false" onclick="setMode('dark', this)">Dark</button>
   <button aria-pressed="false" onclick="setMode('hc', this)">High-contrast</button>
+  <button aria-pressed="false" onclick="setMode('dark hc', this)">High-contrast, dark</button>
 </div>
 
 <header class="topbar">
