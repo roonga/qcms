@@ -609,6 +609,7 @@ export function makeReleaseWorkflowWriteHandler(
         const current = await latestReleaseWorkflowRevision(tx);
         if ((current ?? null) !== body.expectedRevision) throw fail.workflowRevisionStale();
         const revision = await insertReleaseWorkflowRevision(tx, {
+          expectedRevision: body.expectedRevision,
           createdBy: principal.userId,
           note: body.note ?? null,
           rules: body.rules.map((rule) => ({ ...rule })),

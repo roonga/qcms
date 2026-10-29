@@ -18,8 +18,12 @@ reject-delete triggers: a rule change writes a new revision, so a release refuse
 earlier revision stays explainable, and rolling a configuration back is writing the earlier
 rules as a new revision, exactly as rolling a release back is releasing an earlier version.
 `effectiveReleaseWorkflow`, `latestReleaseWorkflowRevision` and
-`insertReleaseWorkflowRevision` are the helpers; the revision number is assigned by a
-scalar subquery, so two concurrent writes cannot claim one.
+`insertReleaseWorkflowRevision` are the helpers. The new revision number is derived from
+the caller's `expectedRevision` rather than from `max(revision) + 1`, which is what makes
+the compare-and-set atomic: a subquery re-read after a concurrent writer had committed
+would compute the number after theirs and append a second revision, so two writers who
+each expected to be the only one would both succeed. Deriving it from the expectation makes
+them target the same number and the primary key refuses all but one.
 
 `control.release_batches` stores the result of one successful confirmation, keyed on the
 principal, the form and a client-minted idempotency key, with the hash of the canonical

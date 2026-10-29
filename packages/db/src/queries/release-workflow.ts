@@ -1,4 +1,4 @@
-import { desc, eq, sql } from "drizzle-orm";
+import { desc, eq } from "drizzle-orm";
 
 import { releaseWorkflowRevisions, releaseWorkflowRules } from "../schema/index.js";
 import type { Executor } from "./executor.js";
@@ -63,24 +63,28 @@ export async function effectiveReleaseWorkflow(
 }
 
 /**
- * Append the next revision and its rules. The number is assigned by a scalar subquery, so
- * two concurrent writes cannot claim one; the loser violates the primary key. Call inside
- * the caller's transaction, beside the audit row.
+ * Append the revision after `expectedRevision` and its rules. Call inside the caller's
+ * transaction, beside the audit row.
  */
+// The number is the expectation plus one, never `max(revision) + 1`, which a concurrent
+// writer's committed row would push past theirs: two writers each expecting to be the only
+// one would both succeed. Sharing a target number lets the primary key refuse all but one.
 export async function insertReleaseWorkflowRevision(
   exec: Executor,
   input: {
+    /** `null` when none is configured, which writes revision 1. */
+    readonly expectedRevision: number | null;
     readonly createdBy: string;
     readonly note?: string | null;
     readonly rules: readonly ReleaseWorkflowRule[];
     readonly createdAt?: Date;
   },
 ): Promise<ReleaseWorkflowRevision> {
+  const next = (input.expectedRevision ?? 0) + 1;
   const [head] = await exec
     .insert(releaseWorkflowRevisions)
     .values({
-      revision: sql<number>`(select coalesce(max(${releaseWorkflowRevisions.revision}), 0) + 1
-        from ${releaseWorkflowRevisions})`,
+      revision: next,
       createdBy: input.createdBy,
       note: input.note ?? null,
       ...(input.createdAt === undefined ? {} : { createdAt: input.createdAt }),
