@@ -59,7 +59,11 @@ export const ALLOWED_LINE = [
 const LICENSE = /SPDX-License-Identifier|@license\b|\bCopyright \(c\)/i;
 
 export const HISTORY_MARKERS = [
-  { pattern: /(?<![\w&/]|\bPRs? )#\d{2,}\b|\bissues? #\d+/i, what: "an issue number", todoExempt: true },
+  {
+    pattern: /(?<![\w&/]|\bPRs? )#\d{2,}\b|\bissues? #\d+/i,
+    what: "an issue number",
+    todoExempt: true,
+  },
   { pattern: /\bPRs? #\d+/i, what: "a PR number", todoExempt: false },
   { pattern: /\bCode Owner\b/, what: "a ruling attribution", todoExempt: false },
   {
