@@ -675,6 +675,12 @@ button {
 .qcms-appearance__pop {
   min-inline-size: 240px;
   max-inline-size: calc(100vw - 2 * var(--space-4));
+  /* react-aria measures the room below the trigger and sets `max-height` inline. Without
+     a scroll here the content overflows that box, the browser scrolls the DOCUMENT to
+     reveal the focused panel, and a non-modal popover closes itself on scroll - so a
+     panel one pixel too tall for the viewport shut again the instant it opened. */
+  overflow-y: auto;
+  overscroll-behavior: contain;
   padding: var(--space-3);
   border: 1px solid var(--color-border-strong);
   border-radius: var(--radius-modal);
