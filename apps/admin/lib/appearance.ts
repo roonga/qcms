@@ -92,10 +92,11 @@ export function appearanceValue(appearance: Appearance): string {
  * dark-preferring machine.
  */
 export function parseAppearance(raw: string | undefined): Appearance | undefined {
+  if (raw === undefined) return undefined;
   if (raw === LEGACY_HIGH_CONTRAST) return { polarity: "light", contrast: "high" };
   const suffix = `-${HIGH_CONTRAST_CLASS}`;
-  const high = raw !== undefined && raw.endsWith(suffix);
-  const head = high && raw !== undefined ? raw.slice(0, -suffix.length) : raw;
+  const high = raw.endsWith(suffix);
+  const head = high ? raw.slice(0, -suffix.length) : raw;
   const polarity = POLARITIES.find((candidate) => candidate === head);
   if (polarity === undefined) return undefined;
   return { polarity, contrast: high ? "high" : "normal" };

@@ -11,7 +11,6 @@ import { TEST_PASSWORD, createTestAdmin, uniqueAdminEmail } from "./support/admi
 import {
   accountTrigger,
   activeElementId,
-  appearanceTrigger,
   enrollNewAdmin,
   fillStable,
   openAppearance,

@@ -53,9 +53,11 @@ export {
   Dialog as AriaDialog,
   DialogTrigger,
   Popover as AriaPopover,
-  Radio,
+  RadioButton,
+  RadioField,
   RadioGroup,
-  Switch,
+  SwitchButton,
+  SwitchField,
 } from "react-aria-components";
 
 /**
