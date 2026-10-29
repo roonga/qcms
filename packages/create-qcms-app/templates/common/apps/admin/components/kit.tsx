@@ -35,9 +35,6 @@
 
 export {
   Alert,
-  AriaButton,
-  AriaDialog,
-  AriaPopover,
   Breadcrumb,
   Button,
   Card,
@@ -51,7 +48,6 @@ export {
   ComboBoxPopover,
   DatePicker,
   Dialog,
-  DialogTrigger,
   Form,
   I18nProvider,
   Menu,

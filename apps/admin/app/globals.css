@@ -684,7 +684,9 @@ button {
   /* The trigger sits at the end of the topbar, so the panel grows inward; the viewport
      clamp is what keeps it on a phone instead of widening the document. */
   max-inline-size: min(280px, calc(100vw - 2 * var(--space-4)));
-  max-block-size: calc(100dvh - var(--admin-topbar-measured-h, var(--admin-topbar-h)) - var(--space-6));
+  max-block-size: calc(
+    100dvh - var(--admin-topbar-measured-h, var(--admin-topbar-h)) - var(--space-6)
+  );
   overflow-y: auto;
   overscroll-behavior: contain;
   padding: var(--space-3);
