@@ -23,8 +23,7 @@ export function generateMetadata(): Metadata {
  * evidence - the log can be shown to whoever asks whether a subject request was
  * honoured, without showing them what was erased.
  *
- * The way back is the rail's Header (§7.0 ruling 3), so `@rail/responses/erasures/` carries
- * it. That rail has no Filters part: `GET /admin/erasures` takes no parameters.
+ * The way back is the rail's Header (§7.0 ruling 3) rather than this column.
  *
  * A server component with no client half: this screen has no action on it. That is
  * deliberate rather than unfinished. Erasure is performed on the response it erases,

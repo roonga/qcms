@@ -3,9 +3,7 @@ import { t } from "@/lib/i18n/en";
 import { requireAdminSession } from "@/lib/server/session";
 
 /**
- * The erasure log's rail: a Header and nothing else.
- *
- * No Filters part: §7.0's table gives this screen one only when the log has filters, and
+ * The erasure log's rail: a Header and nothing else. No Filters part, because
  * `GET /admin/erasures` takes no parameters.
  */
 export default async function ErasureLogRail() {

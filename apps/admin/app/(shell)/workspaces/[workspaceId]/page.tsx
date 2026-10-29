@@ -68,11 +68,9 @@ export async function generateMetadata({
  * state: an empty table would say "nothing is granted here" to somebody who was told
  * nothing at all.
  *
- * # The rail
- *
- * Its Sections are the four panels and its Header is the way back (§7.0 ruling 3), so this
- * column carries no "All workspaces" link. `listWorkspaces` is memoized per request, so the
- * rail reading the name costs no second round trip.
+ * The rail's Sections are the four panels and its Header is the way back (§7.0 ruling 3), so
+ * this column carries no "All workspaces" link. `listWorkspaces` is memoized per request, so
+ * the rail reading the name costs no second round trip.
  *
  * # Why the reads are parallel and the writes are not
  *

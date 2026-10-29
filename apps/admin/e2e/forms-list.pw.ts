@@ -29,10 +29,8 @@ import {
  * such a URL cold reproduces the same view with the same controls showing the same
  * values.
  *
- * ## The controls are in the rail
- *
- * Every locator below still resolves: the same `<form class="qcms-filters">` over the same
- * named controls, one column to the left.
+ * The controls are in the rail, and every locator below still resolves: the same
+ * `<form class="qcms-filters">` over the same named controls.
  *
  * ## Why the fixtures are three forms and not one
  *

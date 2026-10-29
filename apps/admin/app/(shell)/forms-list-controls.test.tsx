@@ -83,11 +83,9 @@ async function renderForms(searchParams: Record<string, string | string[]> = {})
 }
 
 /**
- * The rail beside that column, where the three controls live.
- *
- * Rendered here rather than in a file of its own because this file's three claims are one
- * behaviour read at three points: what the page asked the API for, what the controls show,
- * and which empty panel appeared. The slot reads no data, so nothing extra is stubbed.
+ * The rail beside that column, where the three controls live. Rendered here rather than in a
+ * file of its own because this file's three claims are one behaviour read at three points.
+ * The slot reads no data, so nothing extra is stubbed.
  */
 async function renderRail(searchParams: Record<string, string | string[]> = {}): Promise<string> {
   const { default: Rail } = await import("./@rail/forms/page.tsx");

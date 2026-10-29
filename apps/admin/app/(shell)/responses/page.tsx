@@ -22,15 +22,11 @@ export function generateMetadata(): Metadata {
  * would give an operator a count and a page number that describe nothing the server
  * agrees with.
  *
- * ## The one filter
- *
- * A search over the forms in the way-in list, which is `GET /admin/forms`'s own `search`, so
- * the filtering stays where the data is and a narrowed way in can be bookmarked. The control
- * is in the rail (`components/ops/responses-index-rail.tsx`) and both trees read the address
- * through `readResponsesIndexFilters`.
- *
- * A filtered list that matches nothing gets the same sentence an installation with no forms
- * gets: it claims nothing about why, and the rail's clear link is beside it.
+ * The one filter is a search over the forms in the list, which is `GET /admin/forms`'s own
+ * `search`, so the filtering stays where the data is. The control is in the rail
+ * (`components/ops/responses-index-rail.tsx`) and both trees read the address through
+ * `readResponsesIndexFilters`. A list that matches nothing gets the no-forms sentence, which
+ * claims nothing about why.
  */
 export default async function ResponsesPage({
   searchParams,

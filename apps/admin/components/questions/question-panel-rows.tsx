@@ -35,9 +35,8 @@ import type { QuestionPanel, QuestionPanelId } from "@/lib/questions/panels";
  * ts`), which is what a reload and the server read, and the handler writes the fragment beside
  * it so the whole address names the open panel.
  *
- * A row opened in a new tab arrives on the panel the ADDRESS names, not on the row's own: the
- * `href` is a bare fragment, so a modified click carries whatever `?panel=` the URL already
- * has. Same limit the paragraph below records for a cold load.
+ * A row opened in a new tab arrives on the panel the ADDRESS names, not the row's own: the
+ * `href` is a bare fragment, so a modified click carries whatever `?panel=` the URL has.
  *
  * **THE DEFAULT IS PREVENTED, AND FOCUS IS THE REASON.** It was not, on the reasoning that the
  * fragment should land in the bar by itself and the browser's scroll-into-view was harmless.
@@ -144,9 +143,8 @@ export function QuestionPanelRows({
               // two write one entry between them. The panels are one screen's worth of one
               // question, not five places the reader went.
               //
-              // Not prevented for a modified or non-primary click: the browser's default
-              // opens a tab, which is what the Settings rail's plain anchors already do, and
-              // one rail should not have two kinds of row. A keyboard Enter reports button 0.
+              // Not prevented for a modified or non-primary click, so the browser opens a
+              // tab as it does for the Settings rail's plain anchors. Enter reports button 0.
               onClick={(event) => {
                 if (event.metaKey || event.ctrlKey || event.shiftKey || event.button !== 0) return;
                 event.preventDefault();

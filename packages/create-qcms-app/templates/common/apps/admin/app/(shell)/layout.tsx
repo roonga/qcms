@@ -67,9 +67,8 @@ export default async function ShellLayout({
    * the PREVIOUS screen's, and walking from Settings to the question library left the
    * Settings rail standing beside a table it says nothing about.
    *
-   * Every page renders a rail now (§7.0 ruling 1); `@rail/no-section.ts` is kept for an
-   * exception that is not ruled today. `lib/rail-routes.test.ts` reads both trees off the
-   * filesystem and fails the moment one has a route the other does not.
+   * Every page renders a rail (§7.0 ruling 1). `lib/rail-routes.test.ts` reads both trees
+   * off the filesystem and fails the moment one has a route the other does not.
    *
    * WHY IT MATTERS THAT IT IS BESIDE `<main>` AND NOT INSIDE IT. `<main>`'s width is capped
    * per route (issue 558), and §6 asks that width question about the CONTENT column. A rail
@@ -212,9 +211,8 @@ export default async function ShellLayout({
           moving somewhere it would have been absent half the time (Code Owner decision,
           2026-08-23).
 
-          Every screen has a rail (§7.0 ruling 1), so above `--bp-sidebar` the grid branch is
-          the one that renders and the content column's left edge is the same everywhere. The
-          flex fallback is also the branch every width below the boundary takes. */}
+          Every screen has a rail (§7.0 ruling 1), so above `--bp-sidebar` the grid branch
+          always renders; the flex fallback is what every width below it takes. */}
       {/* What every environment-sensitive control below reads to disable itself while the
           environment is unknown, and the watcher that re-reads this tab when it comes back
           into view under a selection another tab changed (local UX list A1, A12). */}

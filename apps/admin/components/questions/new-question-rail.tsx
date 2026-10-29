@@ -11,11 +11,9 @@ import type { QuestionPanel } from "@/lib/questions/panels";
  * (`plan/admin-design-contracts.md` §7.0).
  *
  * A client component because the type is chosen on this screen and decides which panels
- * exist; `panels` is the server's answer for the first paint.
- *
- * The rows are plain fragment anchors with no handler: this screen shows every panel at
- * once, so a row scrolls to a section already on it and nothing is selected. The detail
- * rail's rows prevent the default because there a row switches which panel is shown.
+ * exist; `panels` is the server's answer for the first paint. The rows are plain fragment
+ * anchors: every panel is on screen, so a row scrolls rather than switching, and none is
+ * `aria-current`.
  */
 export function NewQuestionRail({ panels }: { readonly panels: readonly QuestionPanel[] }) {
   const live = useQuestionPanels();
@@ -30,8 +28,8 @@ export function NewQuestionRail({ panels }: { readonly panels: readonly Question
       testId="qcms-new-question-rail"
       count={<QuestionRailIssueCount />}
       sections={
-        // No `--panels` modifier: that indents, and it is for rows nested under a version
-        // row. Here they are the top-level Sections.
+        // No `--panels` modifier: it indents rows nested under a version row, and these are
+        // the top-level Sections.
         <ul
           className="qcms-rail__group"
           aria-label={t("questions.rail.panels")}

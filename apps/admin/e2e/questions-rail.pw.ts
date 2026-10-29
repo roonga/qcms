@@ -694,8 +694,7 @@ test("1117 leaves a modified click to the browser, so a panel row opens in a new
   await page.setViewportSize({ width: 1280, height: 900 });
   await page.goto(detailPath());
 
-  // Only a browser can see this: what the guard restores is the browser's own default, which
-  // jsdom does not perform. The Settings rail's rows carry no handler and already behave so.
+  // Only a browser can see this: what the guard restores is the browser's own default.
   const rail = page.getByTestId("qcms-question-rail");
   const constraints = rail.locator('[data-rail-panel="constraints"]');
   const content = rail.locator('[data-rail-panel="content"]');
@@ -746,13 +745,8 @@ test("1117 states the live document's issue total in the rail's Header, and nowh
     "1 issue",
   );
 
-  // And the count is the live document's rather than anything stored: a reload re-reads the
-  // saved draft, which the API never accepted the bad bound into, so the badge goes.
-  //
-  // Read on a fresh document rather than by saving again. A second submit through an
-  // already-refused form does not reach the action: the kit sets the named field's native
-  // custom validity from the verdict, so `requestSubmit()` is blocked, and asserting through
-  // that would be asserting the save model rather than this island.
+  // A fresh document rather than a second save: the kit sets the named field's native custom
+  // validity from the verdict, so `requestSubmit()` through a refused form is blocked.
   await page.goto(detailPath());
   await waitForHydration(page);
   await expect(count, "and nothing here remembers it").toHaveCount(0);

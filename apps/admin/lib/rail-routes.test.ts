@@ -11,14 +11,9 @@ import { trackedFilesUnder } from "../../../scripts/tracked-files.mjs";
  * Which screens carry a rail, and what each one's section carries, checked against the route
  * tree rather than claimed.
  *
- * ## Every screen has one
- *
- * §7.0 of `plan/admin-design-contracts.md` gives every screen a rail by default, and a screen
- * goes without one only by a per-screen ruling recorded in §7.0's table. None is ruled, so
- * the `NO_SECTION` list below is empty and is the gate: an exception is an edit to it, and
- * therefore a change somebody reviews.
- *
- * Every screen also has a PAGE under `app/(shell)/@rail`.
+ * §7.0 of `plan/admin-design-contracts.md` gives every screen a rail unless its own table
+ * records an exception, so the `NO_SECTION` list below is empty and is the gate. Every screen
+ * also has a PAGE under `app/(shell)/@rail`.
  *
  * **That is a correctness requirement, not tidiness.** On a soft navigation Next keeps the
  * previously active state of any slot the new URL does not match, and consults `default.tsx`

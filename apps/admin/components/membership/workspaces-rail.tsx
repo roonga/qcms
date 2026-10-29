@@ -13,9 +13,8 @@ export interface WorkspaceRailRow {
  * The workspaces screen's rail: a row per workspace, then the reader's own access
  * (`plan/admin-design-contracts.md` §7.0).
  *
- * The one list screen whose rail carries a row per thing: the list is the handful an
- * administrator administers and the body is panels rather than a scannable table, so a row
- * is navigation between siblings rather than a second copy of the page.
+ * The one list screen whose rail carries a row per thing: the list is short and the body is
+ * panels rather than a scannable table, so a row navigates between siblings.
  */
 export function WorkspacesRail({
   workspaces,

@@ -43,9 +43,8 @@ export const messages = {
   // landmark on the same page.
   "rail.sections": "{subject} sections",
 
-  // THE FILTERS PART (§7.0 ruling 2.4). Five strings for every screen that filters: the
-  // controls keep their own labels, while the part's title, its count and its two controls
-  // are the frame's. The `<form role="search">` takes "Filters" as its accessible name too.
+  // The rail's Filters part, shared by every screen that filters; its controls keep their
+  // own labels. "Filters" is also the search region's accessible name.
   "rail.filters": "Filters",
   "rail.filters.activeOne": "1 active",
   "rail.filters.active": "{count} active",
@@ -287,16 +286,12 @@ export const messages = {
   "questions.intro": "The governed library. Every version is published, never overwritten.",
   "questions.new": "New question",
 
-  // The library's three filters, in the rail's Filters part, which carries its own title,
-  // Apply and clear link.
   "questions.filter.search": "Search",
   "questions.filter.searchHint": "Matches the slug and the label text.",
   "questions.filter.status": "Status",
   "questions.filter.statusAll": "Any status",
   "questions.filter.type": "Type",
   "questions.filter.typeAll": "Any type",
-  // The filtered-empty panel's own action (contract §3). The rail carries a clear link too,
-  // and both stand: §3 asks the panel to offer the way out where the reader is looking.
   "questions.filter.clear": "Clear filters",
 
   "questions.table.label": "Question library",
@@ -651,8 +646,7 @@ export const messages = {
   // The library's filters (issue 686). Worded from `plan/admin-shell-poc/library-lists-poc.html`,
   // which draws all three controls on this screen and labels each one; the question
   // library's equivalent keys are the sibling wording, so "Search" and "Status" read the
-  // same on both screens and only the hint differs by what each list holds. They live in
-  // the rail's Filters part, which carries its own title, Apply and clear link.
+  // same on both screens and only the hint differs by what each list holds.
   "forms.filter.search": "Search",
   "forms.filter.searchHint": "Matches the slug and the form title.",
   "forms.filter.status": "Status",
@@ -662,7 +656,6 @@ export const messages = {
   "forms.filter.sort.slug-desc": "Slug (Z to A)",
   "forms.filter.sort.published-desc": "Newest published",
   "forms.filter.sort.published-asc": "Oldest published",
-  // The filtered-empty panel's own action (contract §3), beside the rail's clear link.
   "forms.filter.clear": "Clear filters",
   // The POC's result count, which is the one line that says how many rows the filters
   // just produced. Singular and plural are separate keys rather than one string with a
@@ -1984,8 +1977,7 @@ export const messages = {
   "ops.area.responses.noForms": "No forms exist yet, so nothing has been collected.",
   "ops.area.responses.erasureLog": "Erasure log",
   "ops.area.responses.formsFailed": "The form list could not be loaded. {message}",
-  // The screen's one filter. It narrows the way-in list, which is a list of FORMS, so the
-  // label says so rather than leaving an operator to guess whether it searches answers.
+  // Names forms, because this screen's list is forms rather than answers.
   "ops.area.responses.filter.search": "Search forms",
   "ops.area.responses.filter.searchHint": "Matches the slug and the form title.",
 
@@ -2004,8 +1996,6 @@ export const messages = {
   // `{slug}`, for the same reason as `ops.area.responses.pickForm` above.
   "ops.area.webhooks.pickForm": "Configure webhooks for {slug}",
   "ops.area.webhooks.noForms": "No forms exist yet, so there is nothing to deliver.",
-  // The screen's one filter. The queue stays cross-form by default, because "is anything
-  // stuck" is the operator's question; this answers the next one.
   "ops.area.webhooks.filter.form": "Form",
   "ops.area.webhooks.filter.formAll": "Any form",
 

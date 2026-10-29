@@ -3,12 +3,8 @@ import { listWorkspaces } from "@/lib/server/membership";
 import { requireAdminSession } from "@/lib/server/session";
 
 /**
- * One workspace's rail.
- *
- * The name falls back to the id rather than the rail vanishing: the four panels are four
- * reads with four authorities, so this screen still renders when the workspace list does not
- * name it, and a vanishing rail would take the way back with it. The page's own heading
- * falls back the same way.
+ * One workspace's rail. The name falls back to the id rather than the rail vanishing: the
+ * screen still renders when the workspace list does not name it, as its own heading does.
  */
 export default async function WorkspaceRailSlot({
   params,

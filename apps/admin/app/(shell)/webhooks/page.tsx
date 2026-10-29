@@ -30,16 +30,10 @@ export function generateMetadata(): Metadata {
  * "is anything stuck", not "is anything stuck on this one form". Configuration is
  * per-form and stays on the form, which is where an author works.
  *
- * ## The form filter narrows the rows, not the read
- *
- * The control is in the rail (`components/ops/webhook-ops-rail.tsx`) and what it narrows is
- * the queue this render read, because the route is global and takes no form parameter: one
- * request answers the screen either way.
- *
- * Narrowing in the BFF is what R2 normally forbids, and this is the shape where it is not a
- * decision: an equality test on a field the row carries, over rows the API already selected
- * and ordered. The filter is applied inside the ok branch, so a queue that could not be read
- * does not become an empty one.
+ * The rail's form filter narrows the rows rather than the read, because the route is global
+ * and takes no form parameter. That is an equality test on a field the row carries, over rows
+ * the API already selected and ordered, so it does not decide anything R2 reserves. It is
+ * applied inside the ok branch, so a queue that could not be read does not become empty.
  */
 export default async function WebhooksPage({
   searchParams,

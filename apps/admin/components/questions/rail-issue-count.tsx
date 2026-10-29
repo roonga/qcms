@@ -6,10 +6,8 @@ import { tPlural } from "@/lib/i18n/en";
 
 /**
  * The question rail Header's issue total, as a client island: the number lives in the
- * editor's live document, while the rest of the rail is server-rendered.
- *
- * Renders nothing before an editor has published and nothing at zero, so a rail with no
- * refused save has no all-clear to fabricate.
+ * editor's live document, while the rest of the rail is server-rendered. Renders nothing
+ * before an editor has published and nothing at zero.
  */
 export function QuestionRailIssueCount() {
   const live = useQuestionPanels();

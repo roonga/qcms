@@ -24,9 +24,8 @@ export function WebhookOpsRail({
   filters,
 }: {
   /**
-   * The installation's forms, or empty when there are none or the read failed. The page
-   * reports a failed read; a rail claiming "no forms" under that alert would assert what
-   * the read does not know.
+   * The installation's forms, or empty when there are none or the read failed. The page is
+   * what reports a failed read.
    */
   readonly forms: readonly WebhookRailForm[];
   readonly filters: WebhookOpsFilters;

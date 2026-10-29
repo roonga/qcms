@@ -66,10 +66,8 @@ export async function openPanel(page: Page, panel: QuestionPanelName): Promise<v
  * like `addOption` one helper. The alternative was a boolean threaded through every caller, and
  * the callers that forgot it failed as "the button is not there" five minutes later.
  *
- * It asks whether more than one panel is on screen, read off the EDITOR rather than off the
- * rail. The creation screen's rail also has panel rows, but they are jump anchors and none is
- * `aria-current`, so a row-based test would press one and then wait for a mark that never
- * arrives.
+ * It asks whether more than one panel is on screen, read off the EDITOR rather than the rail:
+ * the creation screen's rail has panel rows too, and none of them is ever `aria-current`.
  */
 async function ensurePanel(page: Page, panel: QuestionPanelName): Promise<void> {
   if ((await page.locator("[data-question-panel]").count()) > 1) return;

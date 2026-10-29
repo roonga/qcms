@@ -20,15 +20,10 @@ import { requireAdminSession } from "@/lib/server/session";
  * library is a place an author can link to and come back to, and the filtering stays
  * where the data is instead of being re-implemented over a page of rows.
  *
- * ## The filters are in the rail
- *
- * The three controls, their Apply and their clear link are
- * `components/questions/questions-list-rail.tsx`, in the `@rail` slot beside this column.
- * This page keeps only the reading of them, through the same `readQuestionListFilters` the
- * slot reads, so the two trees cannot disagree about the address.
- *
- * The filtered-empty panel keeps its own "Clear filters" beside the rail's (Code Owner on
- * issue #1117: contract §3 stands), so the way out is offered where the reader is looking.
+ * The filter controls are `components/questions/questions-list-rail.tsx`, in the `@rail` slot
+ * beside this column; this page keeps only the reading of them, through the same
+ * `readQuestionListFilters` the slot reads. The filtered-empty panel keeps its own
+ * "Clear filters" beside the rail's (contract §3).
  *
  * ## The one column the screen contract asks for that is not here
  *
@@ -93,11 +88,8 @@ export default async function QuestionsPage({
         </Alert>
       )}
 
-      {/* `plan/admin-design-contracts.md` §3's panel, in both of its variants. The filtered
-          one drops the explanatory sentence and offers the way out where the reader is
-          looking; the rail carries a clear link as well, and §3 settles that in the panel's
-          favour rather than against it. The unfiltered one offers the creating action,
-          because an empty screen is where a first-time operator looks. */}
+      {/* §3's panel, in both variants: the filtered one drops the explanatory sentence and
+          offers the clear link, the unfiltered one offers the creating action. */}
       {result.ok &&
         result.data.length === 0 &&
         (isFiltered ? (

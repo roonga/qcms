@@ -9,17 +9,10 @@ import { enrollNewAdmin, signInWithTotp } from "./support/flow.js";
  * A rail on every authenticated screen, and the list filters inside it (§7.0 of
  * `plan/admin-design-contracts.md`).
  *
- * `rail.pw.ts` measures the rail itself, `rail-screens.pw.ts` walks the form-scoped screens
- * and `settings-rail.pw.ts` drives the Settings panels; none of that is repeated here. What
- * this file is for is the property only a complete set has: the content column starts at the
- * same place on every screen.
- *
- * The column's x is measured rather than the rail's presence asserted, because a rail that
- * rendered with no width would pass the weaker claim - which is what a missing
- * `:has(> .qcms-rail)` grid branch would produce.
- *
- * The filter round trip is here rather than in the render tests because it is three
- * documents and a navigation: type, Apply, arrive at a URL carrying the term, reload it.
+ * The column's x is measured rather than the rail's presence asserted, because a rail
+ * rendered with no width would pass the weaker claim. The filter round trip is here because
+ * it is three documents and a navigation. `rail.pw.ts`, `rail-screens.pw.ts` and
+ * `settings-rail.pw.ts` cover the rail itself.
  */
 
 test.describe.configure({ mode: "serial" });
@@ -136,7 +129,6 @@ test("1117 puts the list filters in the rail and nowhere else", async ({ page })
         `${path} leaves no filter form in the content column`,
       )
       .toHaveCount(0);
-    // §7.0 ruling 2.4's two requirements that are markup rather than layout.
     await expect.soft(filters, `${path} is a search region`).toHaveAttribute("role", "search");
     await expect
       .soft(filters.getByTestId("qcms-rail-filters-title"), `${path} names the part`)
@@ -169,9 +161,7 @@ test("1117 applies a filter from the rail into the URL, and reloads the URL back
   await expect(page.getByTestId("qcms-rail-filters").getByLabel("Search")).toHaveValue("smoking");
   await expect(page.getByTestId("qcms-rail-summary-count")).toHaveText("1 active");
 
-  // The rail's own way out, which appears only once a filter is set. The filtered-empty
-  // panel carries §3's CTA as well, so this is scoped to the rail rather than resolved by
-  // name across the screen.
+  // Scoped to the rail: the filtered-empty panel carries §3's CTA under the same name.
   const clear = page.getByTestId("qcms-rail-filters").getByRole("link", { name: "Clear filters" });
   await expect(clear).toHaveCount(1);
   await clear.click();
@@ -185,8 +175,7 @@ test("1117 shuts the rail below --bp-sidebar into a summary naming the subject a
   test.setTimeout(300_000);
   await signInWithTotp(page, EMAIL, totpSecret);
 
-  // One pixel under the boundary: a disclosure collapsing anywhere else would be a third
-  // breakpoint nobody wrote down.
+  // One pixel under the boundary, so a collapse anywhere else is a third breakpoint.
   await page.setViewportSize({ width: SIDEBAR - 1, height: 900 });
   await page.goto("/questions?status=draft&q=smoking");
 
@@ -199,13 +188,11 @@ test("1117 shuts the rail below --bp-sidebar into a summary naming the subject a
     "the rail is shut below the boundary",
   ).toBe(false);
 
-  // The summary is the whole rail in this state: the subject plus at most one count, which on
-  // a list screen is the active filter count.
+  // The summary is the whole rail here: the subject plus at most one count.
   const summary = page.locator("summary.qcms-rail__summary");
   await expect(summary).toContainText("Questions");
   await expect(summary.getByTestId("qcms-rail-summary-count")).toHaveText("2 active");
 
-  // The filters are reachable once it is opened, rather than absent at this width.
   await summary.click();
   await expect(page.getByTestId("qcms-rail-filters").getByLabel("Search")).toHaveValue("smoking");
 

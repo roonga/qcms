@@ -3397,11 +3397,10 @@ div:has(> [role="dialog"] [data-qcms-dialog="wide"]) {
   background-color: var(--color-surface-hover);
 }
 
-/* THE FILTERS PART (§7.0 ruling 2.4). It keeps `.qcms-filters` for its column
-   rhythm and adds what a 240px track needs: the rail's inline padding, so the
-   controls line up with the rows above them. `.qcms-filters__row` is deliberately
-   unused - it is a wrapping flex line with a 10rem floor per field, which this track
-   cannot honour. */
+/* The Filters part. It keeps `.qcms-filters` for its column rhythm and adds the
+   rail's inline padding. `.qcms-filters__row` is deliberately unused: it is a
+   wrapping flex line with a 10rem floor per field, which a 240px track cannot
+   honour. */
 .qcms-rail__filters {
   padding-inline: 0.5rem;
   padding-block-start: 0.75rem;
@@ -3411,8 +3410,7 @@ div:has(> [role="dialog"] [data-qcms-dialog="wide"]) {
 :root.hc .qcms-rail__filters {
   border-color: var(--color-border-strong);
 }
-/* The part's visible title and its active count, on one line. The count never
-   truncates, as the Header's does not. */
+/* The part's visible title and its active count, on one line. */
 .qcms-rail__filters-title {
   display: flex;
   align-items: center;
@@ -3425,8 +3423,8 @@ div:has(> [role="dialog"] [data-qcms-dialog="wide"]) {
 .qcms-rail__filters-title > .qcms-tag {
   flex-shrink: 0;
 }
-/* Apply, and the clear link under it rather than beside it: at 240px the two side by
-   side wrap "Clear filters" mid-phrase onto a second line anyway. */
+/* Apply, and the clear link under it rather than beside it: at 240px the two side
+   by side wrap "Clear filters" mid-phrase. */
 .qcms-rail__filters-apply {
   display: flex;
   flex-direction: column;

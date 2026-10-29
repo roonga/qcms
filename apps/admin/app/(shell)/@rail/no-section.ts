@@ -13,15 +13,9 @@
  * A route that matches nothing cannot be given a fallback. It has to MATCH, and what it
  * matches has to render nothing. That is this function.
  *
- * ## It has no caller today
- *
- * §7.0 of `plan/admin-design-contracts.md` gives every screen a rail by default, and a screen
- * goes without one only by a per-screen ruling recorded in §7.0's table. None is ruled, so
- * this stands ready for an exception that does not exist rather than being reinvented by
- * whoever is granted the first one.
- *
- * `lib/rail-routes.test.ts` is the gate, in both directions: a screen added without a slot
- * page fails there, and so does one that starts exporting this again.
+ * It has no caller: §7.0 of `plan/admin-design-contracts.md` gives every screen a rail unless
+ * its own table records an exception, and none does. `lib/rail-routes.test.ts` gates both
+ * directions - a screen with no slot page, and a slot page that starts exporting this.
  */
 export function NoRailSection(): null {
   return null;

@@ -47,11 +47,10 @@ export function generateMetadata(): Metadata {
  * - **One request either way.** Filters change the query string, never the number of
  *   round trips; `lib/server/request-reads.test.ts` counts them.
  *
- * The three controls are in the rail (`components/forms/forms-list-rail.tsx`), and every
- * property above survives the move: the same GET form over the same controls, one column to
- * the left. This page keeps the reading of the address, through the same
+ * The three controls are `components/forms/forms-list-rail.tsx`, in the `@rail` slot beside
+ * this column; this page keeps only the reading of the address, through the same
  * `readFormListFilters` the slot reads. The filtered-empty panel keeps its own
- * "Clear filters" beside the rail's (Code Owner on issue #1117: contract §3 stands).
+ * "Clear filters" beside the rail's (contract §3).
  *
  * `plan/admin-shell-poc/library-lists-poc.html` draws all three controls on this screen
  * and says in its own words that they are new because the shipped screen has none. It
@@ -125,11 +124,8 @@ export default async function FormsPage({
         <Alert variant="error">{t("forms.error.listFailed", { message: result.message })}</Alert>
       )}
 
-      {/* `plan/admin-design-contracts.md` §3's panel, in both of its variants. The filtered
-          one drops the explanatory sentence and offers the way out where the reader is
-          looking; the rail carries a clear link as well, and §3 settles that in the panel's
-          favour rather than against it. The unfiltered one offers the creating action,
-          because an empty screen is where a first-time operator looks. */}
+      {/* §3's panel, in both variants: the filtered one drops the explanatory sentence and
+          offers the clear link, the unfiltered one offers the creating action. */}
       {isEmpty &&
         (isFiltered ? (
           <EmptyState

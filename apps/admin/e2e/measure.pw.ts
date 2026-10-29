@@ -333,8 +333,7 @@ test("675 spends one section-padding token on the bar and the column alike, at 1
   await page.setViewportSize({ width: 1280, height: 900 });
   await setScreenEnvironment(page, "/webhooks");
   await page.goto("/webhooks");
-  // No no-rail assertion: every screen has a rail (§7.0 ruling 1), and the subject here is
-  // the padding two elements spend rather than what sits between them.
+  // The subject is the padding two elements spend, not what sits between them.
 
   const pads = await page.evaluate(() => {
     const bar = document.querySelector("header > div");
@@ -374,11 +373,8 @@ test("648 puts the wordmark, the nav and the content column on one left edge, at
   // inline padding. It carried `mx-auto max-w-5xl` until issue 648, which put the wordmark
   // ~145px in from the page edge at 1280 while the content column started at 24px.
   //
-  // Every screen has a rail (§7.0 ruling 1), so the column deliberately starts at the rail's
-  // edge rather than at the viewport's. The wordmark's edge is therefore compared with the
-  // bar's own padding and the column's with the rail's track, which is the same measurement
-  // the acceptance was about: the bar is laid out from the page's edges rather than from a
-  // centred box.
+  // The column starts at the rail's edge rather than the viewport's, so each track's edge is
+  // compared with its own origin: the bar's with the page edge, the column's with the rail.
   await setScreenEnvironment(page, "/webhooks");
   await page.goto("/webhooks");
   await expect(page.locator(".qcms-rail")).toHaveCount(1);
@@ -426,8 +422,7 @@ test("648 puts the wordmark, the nav and the content column on one left edge, at
   expect(edges.barWidth, "the bar spans the viewport rather than being capped").toBe(
     edges.viewport,
   );
-  // The shared padding token, spent from each track's own origin: the bar's from the page
-  // edge, the column's from the rail's. Equal offsets, so a centred bar still fails here.
+  // Equal offsets, so a centred bar still fails here.
   expect(edges.main - edges.railRight, "the column's text starts one pad past the rail").toBe(
     edges.wordmark,
   );

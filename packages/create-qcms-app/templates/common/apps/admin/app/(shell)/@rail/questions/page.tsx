@@ -3,11 +3,8 @@ import { readQuestionListFilters } from "@/lib/questions/list-filters";
 import { requireAdminSession } from "@/lib/server/session";
 
 /**
- * The question library's rail.
- *
- * Reads the query and nothing else: the count is how many filters are SET, so the screen
- * stays at one request. Both trees read the address through one function so they cannot
- * disagree about it.
+ * The question library's rail. Reads the query and nothing else, through the same function
+ * the page reads it with, so the two trees cannot disagree about the address.
  */
 export default async function QuestionsListRailSlot({
   searchParams,

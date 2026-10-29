@@ -24,9 +24,8 @@ export function generateMetadata(): Metadata {
  * different question (R6). An author who learns that here never has to discover it from
  * a `QUESTION_ID_REUSED` error later.
  *
- * The way back is the rail's Header (§7.0 ruling 3), so `@rail/questions/new/page.tsx`
- * carries it. That rail's Sections are this screen's panels: the card below shows every panel
- * at once, so each row is a jump to one of them.
+ * The way back is the rail's Header (§7.0 ruling 3). That rail's Sections are this screen's
+ * panels, which the card below shows all at once, so each row is a jump to one of them.
  *
  * `requireAdminSession()` is called even though the `(shell)` layout already did: this
  * page reads nothing from the session, but calling it keeps the guarantee local to the

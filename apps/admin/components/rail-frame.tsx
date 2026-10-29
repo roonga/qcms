@@ -102,10 +102,8 @@ export function RailFrame({
   /** At most one status tag. */
   readonly tag?: ReactNode;
   /**
-   * The one count the collapsed Header carries, drawn as a {@link RailCount}.
-   *
-   * A slot rather than a string, so a caller can pass a client island that decides for
-   * itself whether there is anything to draw.
+   * The one count the collapsed Header carries, drawn as a {@link RailCount}. A slot rather
+   * than a string, so a caller can pass a client island that decides what to draw.
    */
   readonly count?: ReactNode;
   /** The Header's secondary lines: what this rail states about its subject. */
@@ -160,10 +158,8 @@ export function RailFrame({
 }
 
 /**
- * The Header's one count, in the badge every rail draws it in.
- *
- * A caller renders this only when it has a count above zero: "no issues" and "no filter set"
- * are the absence of the badge rather than a reassuring nought.
+ * The Header's one count, in the badge every rail draws it in. Rendered only above zero:
+ * "no issues" and "no filter set" are the absence of the badge.
  */
 export function RailCount({ children }: { readonly children: ReactNode }) {
   return (

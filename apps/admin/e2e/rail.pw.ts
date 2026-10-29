@@ -324,18 +324,12 @@ test("559 lets a short screen's rail reach the bottom of the shell (N2)", async 
   );
 });
 
-test("1117 starts the column after the rail's track, on a screen that used to have none", async ({
-  page,
-}) => {
+test("1117 starts the content column where the rail's track ends", async ({ page }) => {
   test.setTimeout(300_000);
   await signInWithTotp(page, EMAIL, totpSecret);
   await page.setViewportSize({ width: 1280, height: 900 });
   await page.goto("/questions");
 
-  // §7.0 ruling 1 leaves no railless screen to measure, so the old "no phantom 240px track"
-  // claim has no case to describe. What replaces it is the ruling's own: the column begins
-  // where the rail's track ends, with no gap and no second track between them.
-  // `e2e/rail-every-screen.pw.ts` measures the same thing across every screen.
   await expect(page.locator(".qcms-rail")).toHaveCount(1);
   const offset = await page.evaluate(() => {
     const main = document.querySelector("main#main-content");

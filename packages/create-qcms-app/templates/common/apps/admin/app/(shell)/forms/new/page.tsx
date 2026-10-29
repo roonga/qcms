@@ -27,8 +27,7 @@ export function generateMetadata(): Metadata {
  * `/questions/new` is the shipped example, and this file is deliberately its shape (the
  * screen's own `h1`, one card holding the form).
  *
- * The way back is the rail's Header (§7.0 ruling 3), so `@rail/forms/new/page.tsx` carries it
- * rather than this column.
+ * The way back is the rail's Header (§7.0 ruling 3) rather than this column.
  *
  * No POC draws this screen on its own. The drawing that decides it decides the PATTERN and
  * names its model, and `settings-newquestion-poc.html` is where that model is drawn, so
