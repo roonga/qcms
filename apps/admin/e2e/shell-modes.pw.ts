@@ -3,6 +3,7 @@ import { expect, test } from "../../portal/e2e/support/gates.js";
 import { createTestAdmin, uniqueAdminEmail } from "./support/admin-account.js";
 import { ADMIN_BASE_URL } from "./support/harness-config.js";
 import { enrollNewAdmin, signInWithTotp } from "./support/flow.js";
+import { waitForHydration } from "./support/hydration.js";
 
 /**
  * The shell's modes in a browser: what each caller's navigation offers, where they land,
@@ -233,6 +234,9 @@ test("the root restores the workspace a workspace-only caller was last on", asyn
 
   await page.goto(`/workspaces/${WORKSPACE_ID}`);
   await expect(page.getByRole("heading", { level: 2, name: "Members" })).toBeVisible();
+  // The context is remembered by a client effect, so a server-rendered heading is not
+  // evidence it has been written yet.
+  await waitForHydration(page);
 
   // Workspaces IS their landing area, so arriving with no route of their own restores the
   // one they were on. The root is a page and resolves on every arrival; the shell's layout
