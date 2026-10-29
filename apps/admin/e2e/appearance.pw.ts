@@ -223,9 +223,7 @@ test("Inter is the app face, and the file behind it really loaded", async ({ pag
  */
 test("JetBrains Mono is the data face and its file loaded", async ({ page }) => {
   await page.goto("/sign-in");
-  expect(await tokenLength(page.locator(":root"), "--font-mono")).toMatch(
-    /^"JetBrains Mono"/u,
-  );
+  expect(await tokenLength(page.locator(":root"), "--font-mono")).toMatch(/^"JetBrains Mono"/u);
 
   const statuses = await page.evaluate(async () => {
     await document.fonts.ready;

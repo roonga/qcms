@@ -22,19 +22,19 @@ All of it is CSS and token values. No markup or component changes, and no vendor
 
 1. **One weight step down, everywhere in the admin:**
 
-   | Element | Today | Proposed |
-   | --- | --- | --- |
-   | `font-semibold` (headings, labels, card titles) | 600 | 500 |
-   | `font-bold` | 700 | 600 |
-   | Buttons | 600 | 500 |
-   | Rail current row and summary | 700 | 600 |
-   | Table headers, tags, fieldset legends, question id | 600 | 500 |
-   | Wordmark | 800 | 700 |
-   | Current nav item | 600 | 500, plus the underline (it is still never colour alone) |
-   | Body | 400 | 400 |
-
+   | Element                                            | Today | Proposed                                                 |
+   | -------------------------------------------------- | ----- | -------------------------------------------------------- |
+   | `font-semibold` (headings, labels, card titles)    | 600   | 500                                                      |
+   | `font-bold`                                        | 700   | 600                                                      |
+   | Buttons                                            | 600   | 500                                                      |
+   | Rail current row and summary                       | 700   | 600                                                      |
+   | Table headers, tags, fieldset legends, question id | 600   | 500                                                      |
+   | Wordmark                                           | 800   | 700                                                      |
+   | Current nav item                                   | 600   | 500, plus the underline (it is still never colour alone) |
+   | Body                                               | 400   | 400                                                      |
    - Heading tracking goes from -0.02em to -0.01em: Lexend needs less tightening at 500.
    - The page title goes from 20px to 22px, so hierarchy comes from size rather than weight.
+
 2. **One border weight.** Every 2px `color-border-strong` rule becomes 1px in Light and Dark. High contrast keeps its 2px rules, which are what that mode is for.
 3. **Fewer boxes.** A `fieldset` inside a card loses its box and becomes a titled group: its legend is the group heading, and there is no second border. Notices keep their tint but their edge becomes a `color-border` hairline, so the tint carries the tone.
 4. **Tonal secondary buttons.** Secondary becomes `color-background-muted` with `color-text` and a hairline edge, instead of solid slate. Primary stays the one filled button in a row.
@@ -44,6 +44,7 @@ All of it is CSS and token values. No markup or component changes, and no vendor
 6. **Breathing room.** Line height in the content column goes from 1.5 to 1.55. Section gaps in the two editors go up one step.
 
 Unchanged, on purpose:
+
 - Lexend, the cobalt accent, all colour token values (except secondary), and every contrast pair.
 - The 40px control height and the type floors.
 
