@@ -287,6 +287,10 @@ const MODES = [
 ] as const;
 
 async function expectNoViolations(page: Page, state: string): Promise<void> {
+  // Axe reads the HYDRATED tree, so wait for it rather than racing the dev server's
+  // warm-up reload: a second navigation to the same URL destroys the execution context
+  // under `page.evaluate` and reports as a navigation error rather than a violation.
+  await waitForHydration(page);
   const original = await page.evaluate(() => document.documentElement.className);
   const originalScroll = await page.evaluate(() => window.scrollY);
   try {
