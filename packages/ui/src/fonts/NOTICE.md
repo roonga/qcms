@@ -46,7 +46,7 @@ fallback baseline is issue #27 and is not covered here.
 
 | Family     | Key          | Weights | License               | Bytes  |
 | ---------- | ------------ | ------- | --------------------- | ------ |
-| Inter      | `inter`      | 400     | OFL-1.1               | 23,664 |
+| Inter      | `inter`      | 400     | OFL-1.1               | 48,256 |
 | Roboto     | `roboto`     | 400     | OFL-1.1 OR Apache-2.0 | 21,884 |
 | Open Sans  | `opensans`   | 400     | OFL-1.1               | 18,640 |
 | Lato       | `lato`       | 400     | OFL-1.1               | 23,580 |
@@ -146,7 +146,7 @@ fallback baseline is issue #27 and is not covered here.
 
 | Family         | Key             | Weights | License | Bytes  |
 | -------------- | --------------- | ------- | ------- | ------ |
-| JetBrains Mono | `jetbrainsmono` | 400     | OFL-1.1 | 21,168 |
+| JetBrains Mono | `jetbrainsmono` | 400     | OFL-1.1 | 40,404 |
 | Geist Mono     | `geistmono`     | 400     | OFL-1.1 | 9,864  |
 
 **JetBrains Mono** (OFL-1.1)
@@ -157,4 +157,4 @@ fallback baseline is issue #27 and is not covered here.
 
 > Copyright 2024 The Geist Project Authors (https://github.com/vercel/geist-font.git)
 
-Total committed font payload: **710,984 bytes** across 24 files (25 declared faces; a variable font's weights share one file).
+Total committed font payload: **754,812 bytes** across 24 files (25 declared faces; a variable font's weights share one file).
