@@ -650,7 +650,7 @@ button {
 }
 /* The fill holds while the menu is open, so the anchored popover visually connects
    to something rather than floating off a bare glyph. */
-.qcms-modetrigger[data-hovered],
+.qcms-modetrigger:hover,
 .qcms-modetrigger[aria-expanded="true"] {
   background-color: var(--color-ghost-hover);
   /* The same ring the avatar draws. The card asks for "2px strong ring on both"; the
@@ -672,13 +672,19 @@ button {
  * modal corner and floating shadow, flattened in high contrast - because it floats off
  * the same trigger row as the two menus beside it.
  */
+/* The trigger's positioning context, so the panel below is anchored to it in CSS. */
+.qcms-appearance {
+  position: relative;
+}
 .qcms-appearance__pop {
+  position: absolute;
+  inset-block-start: calc(100% + var(--space-2));
+  inset-inline-end: 0;
   min-inline-size: 240px;
-  max-inline-size: calc(100vw - 2 * var(--space-4));
-  /* react-aria measures the room below the trigger and sets `max-height` inline. Without
-     a scroll here the content overflows that box, the browser scrolls the DOCUMENT to
-     reveal the focused panel, and a non-modal popover closes itself on scroll - so a
-     panel one pixel too tall for the viewport shut again the instant it opened. */
+  /* The trigger sits at the end of the topbar, so the panel grows inward; the viewport
+     clamp is what keeps it on a phone instead of widening the document. */
+  max-inline-size: min(280px, calc(100vw - 2 * var(--space-4)));
+  max-block-size: calc(100dvh - var(--admin-topbar-measured-h, var(--admin-topbar-h)) - var(--space-6));
   overflow-y: auto;
   overscroll-behavior: contain;
   padding: var(--space-3);

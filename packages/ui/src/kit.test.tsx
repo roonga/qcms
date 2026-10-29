@@ -73,12 +73,11 @@ const PRIMITIVES = [
 describe("@roonga/qcms-ui/kit surface", () => {
   it("exports exactly the admin kit primitives, all callable", () => {
     // Pinned rather than counted, so a primitive disappearing from the barrel fails here. Only plain function
-    // exports are listed; most re-exported react-aria-components primitives are forwardRef or context objects
-    // and never reach this filter. `DialogTrigger` is the exception: it is a plain component.
+    // exports are listed; the re-exported react-aria-components primitives are mostly forwardRef or context
+    // objects and never reach this filter.
     const exported = Object.entries(kit).filter(([, value]) => typeof value === "function");
     expect(new Set(exported.map(([name]) => name))).toEqual(
       new Set([
-        "DialogTrigger",
         "I18nProvider",
         "Alert",
         "Breadcrumb",

@@ -43,16 +43,10 @@ export { Tab, TabList, TabPanel, Tabs } from "react-aria-components";
 export { I18nProvider } from "react-aria-components";
 
 /**
- * The popup, switch and radio-group primitives an app's own chrome needs. The pinned registry's `Dialog` is a modal
- * carrying its own trigger and title, and it ships no non-modal popover, no switch, and no radio group outside the
- * A2UI schema, so ADR-22's react-aria-components alternative applies. Aliased where a bare name would collide with
- * a vendored component.
+ * The switch and radio-group primitives an app's own chrome needs. The pinned registry ships neither outside the
+ * A2UI schema, so ADR-22's react-aria-components alternative applies rather than a hand-rolled roving tabindex.
  */
 export {
-  Button as AriaButton,
-  Dialog as AriaDialog,
-  DialogTrigger,
-  Popover as AriaPopover,
   RadioButton,
   RadioField,
   RadioGroup,
