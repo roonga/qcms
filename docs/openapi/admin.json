@@ -8565,7 +8565,7 @@
           {
             "schema": {
               "type": "string",
-              "maxLength": 512
+              "maxLength": 2048
             },
             "required": false,
             "name": "cursor",
