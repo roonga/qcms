@@ -114,7 +114,7 @@ export function ThemeToggle({
   );
   const [systemPolarity, setSystemPolarity] = useState<Polarity | undefined>(undefined);
   const [open, setOpen] = useState(false);
-  const groupRef = useRef<HTMLDivElement>(null);
+  const panelRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
     const query = globalThis.matchMedia("(prefers-color-scheme: dark)");
@@ -139,6 +139,23 @@ export function ThemeToggle({
   const highContrast = appearance.contrast === "high";
 
   /**
+   * Put focus back on the control that was just operated.
+   *
+   * A pointer press on one of these labels leaves focus on the body, because react-aria
+   * takes the press on the label and never moves it to the hidden input. The panel is
+   * non-modal, so focus on the body is focus outside it: the overlay then closes itself
+   * on the next press, which is the panel shutting under the operator's second click.
+   */
+  const focusControl = (selector: string): void => {
+    panelRef.current?.querySelector<HTMLElement>(selector)?.focus();
+  };
+
+  const choosePolarity = (polarity: Polarity): void => {
+    apply({ ...appearance, polarity });
+    focusControl(`input[type="radio"][value="${polarity}"]`);
+  };
+
+  /**
    * Home and End, which the radio-group pattern requires and react-aria's arrow-key
    * handling does not cover. The selection moves with the focus, as it does on the
    * arrows, so the two keys behave like a longer press of the same key.
@@ -148,22 +165,16 @@ export function ThemeToggle({
     const polarity = event.key === "Home" ? POLARITIES[0] : POLARITIES[POLARITIES.length - 1];
     if (polarity === undefined) return;
     event.preventDefault();
-    apply({ ...appearance, polarity });
-    const inputs = groupRef.current?.querySelectorAll<HTMLInputElement>('input[type="radio"]');
-    const target = event.key === "Home" ? inputs?.item(0) : inputs?.item((inputs.length ?? 1) - 1);
-    target?.focus();
+    choosePolarity(polarity);
   };
 
   /**
    * Tabbing past the last control closes the popover, which is what a non-modal dialog
    * owes a keyboard operator: focus is not contained, so without this the popover stays
-   * open behind whatever they moved to.
-   *
-   * A null `relatedTarget` is NOT that case and must not close anything: react-aria's
-   * labels take a press without moving focus, so every pointer press inside the panel
-   * reports focus going nowhere. Closing on it shut the panel under the operator.
+   * open behind whatever they moved to. A null `relatedTarget` is a press rather than a
+   * tab out, and the handler above has already put focus back where it belongs.
    */
-  const onDialogBlur = (event: React.FocusEvent<HTMLDivElement>): void => {
+  const onPanelBlur = (event: React.FocusEvent<HTMLDivElement>): void => {
     const next = event.relatedTarget;
     if (next === null || event.currentTarget.contains(next)) return;
     setOpen(false);
@@ -186,22 +197,18 @@ export function ThemeToggle({
             {/* The handlers ride a wrapper rather than the primitives: neither RAC's
                 `Dialog` nor its `RadioGroup` forwards arbitrary DOM props, and focus and
                 key events both bubble, so one element below each is enough. */}
-            <div className="qcms-appearance__panel" onBlur={onDialogBlur}>
+            <div className="qcms-appearance__panel" ref={panelRef} onBlur={onPanelBlur}>
               <RadioGroup
                 className="qcms-appearance__group"
                 aria-label={t("appearance.theme.legend")}
                 value={appearance.polarity}
                 onChange={(value) => {
                   const polarity = POLARITIES.find((candidate) => candidate === value);
-                  if (polarity !== undefined) apply({ ...appearance, polarity });
+                  if (polarity !== undefined) choosePolarity(polarity);
                 }}
               >
                 <span className="qcms-appearance__legend">{t("appearance.theme.legend")}</span>
-                <div
-                  className="qcms-appearance__segments"
-                  ref={groupRef}
-                  onKeyDown={onGroupKeyDown}
-                >
+                <div className="qcms-appearance__segments" onKeyDown={onGroupKeyDown}>
                   {POLARITIES.map((polarity) => (
                     <RadioField
                       key={polarity}
@@ -222,9 +229,10 @@ export function ThemeToggle({
               </p>
               <SwitchField
                 isSelected={highContrast}
-                onChange={(selected) =>
-                  apply({ ...appearance, contrast: selected ? "high" : "normal" })
-                }
+                onChange={(selected) => {
+                  apply({ ...appearance, contrast: selected ? "high" : "normal" });
+                  focusControl('input[role="switch"]');
+                }}
               >
                 <SwitchButton className="qcms-appearance__switchbutton">
                   <span className="qcms-appearance__switchlabel">
@@ -256,10 +264,13 @@ export function ThemeToggle({
                       tabIndex={-1}
                       data-current={current ? "true" : "false"}
                       className="qcms-appearance__tile"
-                      // A press that moved focus into a hidden subtree would also fire the
-                      // blur handler above and close the panel under the pointer.
+                      // Focus never enters this subtree: it is `aria-hidden`, and a press
+                      // that moved focus into it would also leave the panel unfocused.
                       onPointerDown={(event) => event.preventDefault()}
-                      onClick={() => apply(value)}
+                      onClick={() => {
+                        apply(value);
+                        focusControl(`input[type="radio"][value="${value.polarity}"]`);
+                      }}
                     >
                       {/* The scoped carrier: `app/theme.css` gives this attribute the
                         state's real token values, and everything inside paints from
