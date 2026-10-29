@@ -141,6 +141,15 @@ jobs:
             printf 'plan_only=false\nadmin_only=false\n' >> "$GITHUB_OUTPUT"
           fi
 
+      # Last, so a failure here never withholds the outputs above. The body goes through
+      # the environment, never into the script text.
+      - name: PR body (written text rule)
+        if: github.event_name == 'pull_request' && github.event.pull_request.user.login != 'dependabot[bot]'
+        env:
+          PR_BODY: ${{ github.event.pull_request.body }}
+          PR_AUTHOR: ${{ github.event.pull_request.user.login }}
+        run: node scripts/check-pr-body.mjs
+
   verify:
     # The CI enactment of `pnpm verify` (issue #19 / PR #83): same superset,
     # split into named steps for failure granularity. Renamed from `ci` so the
@@ -326,6 +335,10 @@ jobs:
 
       # Em dash (U+2014) is banned in prose/comments/UI strings (AI tell; public repo).
       - run: pnpm check:no-em-dash
+        if: env.PLAN_ONLY != 'true'
+
+      # Comment length and history markers (PROJECT_INSTRUCTIONS.md "Code comments").
+      - run: pnpm check:comments
         if: env.PLAN_ONLY != 'true'
 
       # Ports come from the allocation, never from a literal (R8, ADR-37, issue #255):

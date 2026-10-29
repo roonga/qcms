@@ -66,8 +66,7 @@ export interface PortalFixtures {
   readonly revokedToken: string;
   readonly invalidToken: string;
   /**
-   * A perfectly good link into a form that has since been closed (ADR-39, issue
-   * #724): the whole-form closed state overrides every link, so this is the
+   * A perfectly good link into a form that has since been closed (ADR-39): the whole-form closed state overrides every link, so this is the
    * closed explanation rather than a link failure.
    */
   readonly closedFormToken: string;
