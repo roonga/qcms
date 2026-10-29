@@ -157,12 +157,15 @@ export function ThemeToggle({
   /**
    * Tabbing past the last control closes the popover, which is what a non-modal dialog
    * owes a keyboard operator: focus is not contained, so without this the popover stays
-   * open behind whatever they moved to. A pointer press inside never reaches here,
-   * because the preview tiles refuse focus.
+   * open behind whatever they moved to.
+   *
+   * A null `relatedTarget` is NOT that case and must not close anything: react-aria's
+   * labels take a press without moving focus, so every pointer press inside the panel
+   * reports focus going nowhere. Closing on it shut the panel under the operator.
    */
   const onDialogBlur = (event: React.FocusEvent<HTMLDivElement>): void => {
     const next = event.relatedTarget;
-    if (next instanceof Node && event.currentTarget.contains(next)) return;
+    if (next === null || event.currentTarget.contains(next)) return;
     setOpen(false);
   };
 
