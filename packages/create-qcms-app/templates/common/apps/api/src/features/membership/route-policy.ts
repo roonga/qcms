@@ -44,13 +44,15 @@ export interface RoutePolicy {
  * live data in one environment. The union admits `GET /admin/operations/forms` and is the
  * same list the Operations capability reports, so the two cannot disagree.
  */
-export const OPERATIONAL_CELLS: readonly { readonly resource: Resource; readonly action: string }[] =
-  [
-    { resource: "form", action: "read" },
-    { resource: "response", action: "read" },
-    { resource: "response", action: "erase" },
-    { resource: "response", action: "dispose" },
-  ];
+export const OPERATIONAL_CELLS: readonly {
+  readonly resource: Resource;
+  readonly action: string;
+}[] = [
+  { resource: "form", action: "read" },
+  { resource: "response", action: "read" },
+  { resource: "response", action: "erase" },
+  { resource: "response", action: "dispose" },
+];
 
 // Ordered by path, because a reader arrives with a path and the question "who may call
 // this".

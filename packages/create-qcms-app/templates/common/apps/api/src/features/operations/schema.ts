@@ -39,9 +39,19 @@ export const OperationsFormsQuery = z.object({
     .max(64)
     .optional()
     .openapi({ param: { name: "workspaceId", in: "query" } }),
-  intake: z.enum(OPERATIONS_INTAKE).optional().openapi({ param: { name: "intake", in: "query" } }),
-  sort: z.enum(OPERATIONS_SORTS).optional().openapi({ param: { name: "sort", in: "query" } }),
-  cursor: z.string().max(512).optional().openapi({ param: { name: "cursor", in: "query" } }),
+  intake: z
+    .enum(OPERATIONS_INTAKE)
+    .optional()
+    .openapi({ param: { name: "intake", in: "query" } }),
+  sort: z
+    .enum(OPERATIONS_SORTS)
+    .optional()
+    .openapi({ param: { name: "sort", in: "query" } }),
+  cursor: z
+    .string()
+    .max(512)
+    .optional()
+    .openapi({ param: { name: "cursor", in: "query" } }),
   limit: z
     .string()
     .max(8)

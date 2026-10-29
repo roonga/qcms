@@ -272,7 +272,9 @@ export function makeReleaseReviewHandler(
     const workflowEnabled = usesTestWorkflow(deps.databases.names);
     const workspace = await getWorkspace(exec, workspaceId);
     const rows = await listEnvironments(exec);
-    const served = rows.map((row) => row.name).filter((name) => deps.databases.names.includes(name));
+    const served = rows
+      .map((row) => row.name)
+      .filter((name) => deps.databases.names.includes(name));
 
     const targets = served
       .filter(
