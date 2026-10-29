@@ -177,32 +177,35 @@ export function ThemeToggle({
             The page behind it stays live, which also means the four preview tiles are
             not the only way to see a state applied. */}
         <AriaPopover isNonModal placement="bottom end" className="qcms-appearance__pop">
-          <AriaDialog
-            aria-label={t("appearance.title")}
-            className="qcms-appearance__panel"
-            onBlur={onDialogBlur}
-          >
-            <RadioGroup
-              className="qcms-appearance__group"
-              aria-label={t("appearance.theme.legend")}
-              value={appearance.polarity}
-              onChange={(value) => {
-                const polarity = POLARITIES.find((candidate) => candidate === value);
-                if (polarity !== undefined) apply({ ...appearance, polarity });
-              }}
-              ref={groupRef}
-              onKeyDown={onGroupKeyDown}
-            >
-              <span className="qcms-appearance__legend">{t("appearance.theme.legend")}</span>
-              <div className="qcms-appearance__segments">
-                {POLARITIES.map((polarity) => (
-                  <Radio key={polarity} value={polarity} className="qcms-appearance__segment">
-                    {polarityLabel(polarity)}
-                  </Radio>
-                ))}
-              </div>
-            </RadioGroup>
-            <p className="qcms-appearance__hint">
+          <AriaDialog aria-label={t("appearance.title")} className="qcms-appearance__dialog">
+            {/* The handlers ride a wrapper rather than the primitives: neither RAC's
+                `Dialog` nor its `RadioGroup` forwards arbitrary DOM props, and focus and
+                key events both bubble, so one element below each is enough. */}
+            {/* eslint-disable-next-line jsx-a11y/no-noninteractive-element-interactions -- the focus-out close a non-modal dialog owes a keyboard operator */}
+            <div className="qcms-appearance__panel" onBlur={onDialogBlur}>
+              <RadioGroup
+                className="qcms-appearance__group"
+                aria-label={t("appearance.theme.legend")}
+                value={appearance.polarity}
+                onChange={(value) => {
+                  const polarity = POLARITIES.find((candidate) => candidate === value);
+                  if (polarity !== undefined) apply({ ...appearance, polarity });
+                }}
+              >
+                <span className="qcms-appearance__legend">{t("appearance.theme.legend")}</span>
+                <div
+                  className="qcms-appearance__segments"
+                  ref={groupRef}
+                  onKeyDown={onGroupKeyDown}
+                >
+                  {POLARITIES.map((polarity) => (
+                    <Radio key={polarity} value={polarity} className="qcms-appearance__segment">
+                      {polarityLabel(polarity)}
+                    </Radio>
+                  ))}
+                </div>
+              </RadioGroup>
+              <p className="qcms-appearance__hint">
               {appearance.polarity === "auto" && resolved !== undefined
                 ? t("appearance.hint.following", { resolved: polarityLabel(resolved) })
                 : t("appearance.hint.fixed")}
@@ -263,6 +266,7 @@ export function ThemeToggle({
                   </button>
                 );
               })}
+              </div>
             </div>
           </AriaDialog>
         </AriaPopover>

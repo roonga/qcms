@@ -6,7 +6,12 @@ import { HARNESS_THEME } from "../../portal/e2e/support/harness-config.js";
 import { expect, test } from "../../portal/e2e/support/gates.js";
 
 import { createTestAdmin, uniqueAdminEmail } from "./support/admin-account.js";
-import { appearanceTrigger, enrollNewAdmin, openMenu, signInWithTotp } from "./support/flow.js";
+import {
+  appearanceTrigger,
+  enrollNewAdmin,
+  openAppearance,
+  signInWithTotp,
+} from "./support/flow.js";
 import { chooseOption } from "./support/forms.js";
 import { createDraft, openPanel } from "./support/questions.js";
 
@@ -141,7 +146,8 @@ const THEME_LABEL = "Preview theme";
 const MODE_LABEL = "Preview mode";
 
 /** The admin's own mode menu items, by the name the shell renders. */
-const ADMIN_MODE_LABEL = { light: "Light", dark: "Dark", hc: "High contrast" } as const;
+/** The chrome's own polarity segments. Contrast is the switch beside them. */
+const ADMIN_POLARITY = { light: "Light", dark: "Dark" } as const;
 
 test.beforeAll(async () => {
   await createTestAdmin(EMAIL);
@@ -312,11 +318,12 @@ test("switching the island restyles the island only, in both directions", async 
 
   // Direction two: the OPERATOR's own mode control moves, through the real menu rather
   // than by poking a class, and the island's selection survives it.
-  await openMenu(appearanceTrigger(page));
-  await page.getByRole("menuitemradio", { name: ADMIN_MODE_LABEL.dark, exact: true }).click();
+  await openAppearance(page);
+  await page.getByRole("radio", { name: ADMIN_POLARITY.dark, exact: true }).click();
   await expect(appearanceTrigger(page)).toHaveAccessibleName(
-    `Appearance: ${ADMIN_MODE_LABEL.dark}`,
+    `Appearance: ${ADMIN_POLARITY.dark}`,
   );
+  await page.keyboard.press("Escape");
   await settleTransitions(page);
 
   // The chrome moved (so the instrument was armed)...
@@ -533,9 +540,12 @@ test("axe is green with the island and the chrome in opposite modes", async ({ p
 
   // And the reverse: island in Light, chrome in High contrast, through the real menu.
   await setIsland(page, "Harbor", "Light");
-  await openMenu(appearanceTrigger(page));
-  await page.getByRole("menuitemradio", { name: ADMIN_MODE_LABEL.hc, exact: true }).click();
-  await expect(appearanceTrigger(page)).toHaveAccessibleName(`Appearance: ${ADMIN_MODE_LABEL.hc}`);
+  await openAppearance(page);
+  await page.getByRole("switch", { name: /High contrast/u }).click();
+  await expect(appearanceTrigger(page)).toHaveAccessibleName(
+    `Appearance: ${ADMIN_POLARITY.light}, high contrast`,
+  );
+  await page.keyboard.press("Escape");
   await settleTransitions(page);
   await expectNoViolations(page, "the island in light and the chrome in high contrast");
 });

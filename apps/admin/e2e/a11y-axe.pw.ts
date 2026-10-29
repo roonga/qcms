@@ -14,6 +14,7 @@ import {
   appearanceTrigger,
   enrollNewAdmin,
   fillStable,
+  openAppearance,
   openMenu,
   readSetupKey,
   signInWithTotp,
@@ -215,7 +216,7 @@ const TAGS = ["wcag2a", "wcag2aa", "wcag21a", "wcag21aa", "wcag22aa"];
  * field is DERIVED from the same tag exclusion, so reading it is what makes the rule look
  * like a rule someone turned off.) The gap it exists for is not hypothetical here: the
  * step editor's pin control painted `v3` and was named "Move pin for q_at_fault_accident"
- * until issue #879, and this sweep watched it in all three modes without a word. Verified
+ * until issue #879, and this sweep watched it in all four modes without a word. Verified
  * falsifiable before it was switched on: on that exact pre-#879 markup the rule reports a
  * violation with this hook and reports nothing without it, and the markup #879 shipped
  * passes.
@@ -256,7 +257,7 @@ const EXTRA_RULES = {
  *
  * **The register is empty, and that is its resting state rather than a reason to remove
  * it.** Every gap it was opened for has been fixed, so `heading-order` is now an
- * unqualified gate on every swept state in all three modes. The structure stays because
+ * unqualified gate on every swept state in all four modes. The structure stays because
  * the argument for it has not changed: a gap surfaced by a rule someone else switched on
  * is not always the same person's to fix, and a narrowly keyed, self-expiring entry is
  * the honest way to record that rather than widening the rule set or leaving the gate
@@ -279,11 +280,15 @@ const EXTRA_RULES = {
  */
 const KNOWN_HEADING_ORDER_GAPS: Readonly<Record<string, readonly string[]>> = {};
 
-/** The sheet's three mode layers. Light is the bare root, so it has no class. */
+/**
+ * The four states polarity x contrast can paint. Light is the bare root, so it has no
+ * class, and the dark field at high contrast is the two classes together.
+ */
 const MODES = [
-  { name: "light", rootClass: "" },
-  { name: "dark", rootClass: "dark" },
-  { name: "high-contrast", rootClass: "hc" },
+  { name: "light", rootClasses: [] as readonly string[] },
+  { name: "dark", rootClasses: ["dark"] },
+  { name: "high-contrast", rootClasses: ["hc"] },
+  { name: "high-contrast, dark field", rootClasses: ["dark", "hc"] },
 ] as const;
 
 async function expectNoViolations(page: Page, state: string): Promise<void> {
@@ -291,12 +296,12 @@ async function expectNoViolations(page: Page, state: string): Promise<void> {
   const originalScroll = await page.evaluate(() => window.scrollY);
   try {
     for (const mode of MODES) {
-      await page.evaluate((rootClass) => {
+      await page.evaluate((rootClasses) => {
         for (const candidate of ["light", "dark", "hc"]) {
           document.documentElement.classList.remove(candidate);
         }
-        if (rootClass !== "") document.documentElement.classList.add(rootClass);
-      }, mode.rootClass);
+        for (const candidate of rootClasses) document.documentElement.classList.add(candidate);
+      }, mode.rootClasses as readonly string[]);
       await settleTransitions(page);
       // ANALYSED FROM THE TOP OF THE PAGE, because a scroll offset is not part of the
       // state being swept and axe measures at whichever one it finds.
@@ -419,7 +424,7 @@ test("the forced password-change screen has zero violations", async ({ page }) =
   // Task 061. Its own throwaway account, because the provisional flag is cleared by the
   // first successful change and EMAIL's state is walked by every test below this one.
   //
-  // Swept in the same three modes as every other state here, and in both its plain and
+  // Swept in the same four modes as every other state here, and in both its plain and
   // its refused shapes: the refusal renders an alert the operator has to be able to
   // read, and the screen carries three password fields rather than the one the sign-in
   // screen does, which is where a label or an autocomplete regression would land.
@@ -449,8 +454,8 @@ test("the enrollment and recovery-code states have zero violations", async ({ pa
 });
 
 test("the authenticated shell states have zero violations", async ({ page }) => {
-  // Nine screens, three axe modes each, which outlasts the file's default 60s budget.
-  test.setTimeout(300_000);
+  // Nine screens, four axe modes each, which outlasts the file's default 60s budget.
+  test.setTimeout(400_000);
   await signInWithTotp(page, EMAIL, totpSecret);
   for (const path of [
     "/questions",
@@ -481,15 +486,17 @@ test("both topbar menus have zero violations while OPEN, in every mode", async (
   // is a different row in each pass rather than always the first one.
   await signInWithTotp(page, EMAIL, totpSecret);
 
-  await openMenu(appearanceTrigger(page));
-  await expectNoViolations(page, "appearance menu open");
+  await openAppearance(page);
+  await expectNoViolations(page, "appearance panel open");
 
-  // Move the check to a different row and sweep again: the checked row's own
-  // treatment (glyph, weight, inset edge) is what the "never colour alone"
-  // requirement lands on, so it has to be measured where it actually is.
-  await page.getByRole("menuitemradio", { name: "High contrast", exact: true }).click();
-  await openMenu(appearanceTrigger(page));
-  await expectNoViolations(page, "appearance menu open, High contrast checked");
+  // Move the selection and sweep again: the chosen segment's own treatment (weight,
+  // drawn edge) and the switch's word are what the "never colour alone" requirement
+  // lands on, so they have to be measured where they actually are. The preview strip is
+  // `aria-hidden` and unfocusable, which is the `aria-hidden-focus` rule this sweep
+  // would report if either stopped being true.
+  await page.getByRole("switch", { name: /High contrast/u }).click();
+  await page.getByRole("radio", { name: "Dark", exact: true }).click();
+  await expectNoViolations(page, "appearance panel open, dark field at high contrast");
   await page.keyboard.press("Escape");
 
   await openMenu(accountTrigger(page));
@@ -501,7 +508,7 @@ test("both topbar menus have zero violations while OPEN, in every mode", async (
  * An account whose monogram cannot appear in its address (issue #1010).
  *
  * The sweep above runs `label-content-name-mismatch` over the topbar on every
- * authenticated screen in three modes, and it was green for months while the account
+ * authenticated screen in four modes, and it was green for months while the account
  * trigger painted "AD" and answered to "Account menu for dev@qcms.test". It was green
  * because of this file's own fixture: `E2E Admin` gives the initials "EA", and
  * `e2e.<label>.<ts>@admin.test` contains those two letters once axe looks past the dots
@@ -580,7 +587,7 @@ test("the question library, its editor and a question's detail have zero violati
   // so they are where a label, a group name or a contrast pair is most likely to be missed.
   //
   // `expectNoViolations` runs each state in light, dark and high contrast, so this covers
-  // all three modes by construction.
+  // all four modes by construction.
   test.setTimeout(180_000);
   await signInWithTotp(page, EMAIL, totpSecret);
 
@@ -658,7 +665,7 @@ test("the message and boolean-label fields have zero violations (048)", async ({
   // and is not required, so it has no message field at all - and since 2026-09-27 no message
   // panel either, because a panel is absent rather than empty while it has nothing to hold
   // (`lib/questions/panels.ts`). The panel's own two risks are only reachable here - a
-  // placeholder's contrast against its field in each of the three modes (the thing high
+  // placeholder's contrast against its field in each of the four modes (the thing high
   // contrast is likeliest to get wrong), and nine same-shaped inputs whose accessible names
   // have to distinguish them from one another and from the constraint controls beside them.
   //
@@ -1090,7 +1097,7 @@ test("publish, preview, history and secure links have zero violations", async ({
   await expectNoViolations(page, "revoke confirmation");
 
   // The revoked chip carries a different token pair from the active one, so it is a
-  // different contrast question in all three modes - and until this state was swept,
+  // different contrast question in all four modes - and until this state was swept,
   // Active was the only one of the four chip states the gate had ever measured.
   await page.getByRole("alertdialog").getByRole("button", { name: "Revoke it" }).click();
   await expect(page.getByTestId("qcms-links-table").getByText("Revoked")).toBeVisible({
@@ -1106,7 +1113,7 @@ test("the operations screens have zero violations", async ({ page }) => {
   //
   //  - Six are **tables whose cells hold badges and buttons**, which is where a name
   //    is most easily lost, and whose badge tints are a different contrast question in
-  //    each of the three modes (the same lesson 034's revoked chip taught). Three of
+  //    each of the four modes (the same lesson 034's revoked chip taught). Three of
   //    the six are the delivery dashboard, once per `DeliveryStatusTag` tint, because
   //    a dashboard is only ever measured in the statuses it happens to be holding.
   //  - Four are **dialogs**: an export form, a type-to-confirm erasure with an error
@@ -1128,10 +1135,10 @@ test("the operations screens have zero violations", async ({ page }) => {
   // (#309) had been sitting unseen, since `scrollable-region-focusable` can only fire
   // on a scroll box that is actually on screen.
   //
-  // Sixty axe runs (issue #511 added the cold tombstone route, one state in three modes)
+  // Eighty axe runs (issue #511 added the cold tombstone route, one state in four modes)
   // plus two forms' worth of submissions and a full retry budget, so the budget is
   // generous.
-  test.setTimeout(900_000);
+  test.setTimeout(1_200_000);
   await signInWithTotp(page, EMAIL, totpSecret);
 
   const pub = pubForm;
