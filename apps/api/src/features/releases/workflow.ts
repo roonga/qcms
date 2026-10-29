@@ -43,11 +43,9 @@ export interface EffectiveWorkflow {
 }
 
 /**
- * The derived default, which is the deployment's behaviour with no revision written,
- * stated as data: `prod` needs a prior `test` release where `test` is served and refuses a
- * combined draft publish, every other destination needs nothing, and a batch may name any
- * of them. A prior release in the destination itself is the rollback exception rather than
- * a rule, so it is not listed here.
+ * The deployment's behaviour with no revision written, stated as data: `prod` needs a prior
+ * `test` release where `test` is served and refuses a combined draft publish. A prior
+ * release in the destination itself is the rollback exception rather than a rule.
  */
 export function defaultWorkflowRules(served: readonly string[]): WorkflowRule[] {
   const gated = usesTestWorkflow(served);

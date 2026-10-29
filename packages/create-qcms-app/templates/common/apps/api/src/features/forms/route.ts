@@ -12,6 +12,7 @@ import {
   makePreviewConditionHandler,
   makePreviewDraftHandler,
   makePublishAndReleaseFormHandler,
+  makePublishBatchHandler,
   makePublishFormHandler,
   makePutDraftHandler,
   makeReopenFormHandler,
@@ -42,6 +43,7 @@ import {
   UpdateFormSettingsBody,
   ValidateDraftResponse,
 } from "./schema.js";
+import { PublishBatchBody, ReleaseBatchResponse } from "../releases/schema.js";
 
 const tags = ["forms"];
 
@@ -233,6 +235,35 @@ export const publishAndReleaseFormRoute = createRoute({
   ...withScopes("forms:write"),
 });
 
+export const publishBatchRoute = createRoute({
+  method: "post",
+  path: "/forms/{id}/publish-batch",
+  summary: "Freeze the draft once and release that snapshot into every destination (admin)",
+  description:
+    "One confirmation, one transaction, **one snapshot**: the draft is frozen once and " +
+    "the same immutable version is released into each destination, never once per " +
+    "target. An empty `targets` is \"create a version without releasing it\" and needs " +
+    "`form: publish` alone; with destinations listed, the gate also evaluates " +
+    "`release: create` once per listed environment and refuses on the first failure, " +
+    "naming only that environment. `source.draftRevision` is the revision the review " +
+    "reported: a save that landed in between is refused and nothing is written. The " +
+    "workflow decides whether a destination accepts a version frozen in the same act, " +
+    "and the two-person rule still refuses a gated production destination whose " +
+    "publisher is this account, which is why that case stays two requests by two " +
+    "accounts. `idempotencyKey` replays the stored result on reuse and is refused with " +
+    "422 for a changed intent, so a browser timeout never creates a second version.",
+  tags,
+  request: { params: FormIdParam, body: jsonBody(PublishBatchBody) },
+  responses: {
+    200: {
+      description: "The version frozen and one record per destination",
+      content: { "application/json": { schema: ReleaseBatchResponse } },
+    },
+    ...errorResponses(400, 401, 403, 404, 409, 422),
+  },
+  ...withScopes("forms:write"),
+});
+
 export const closeFormRoute = createRoute({
   method: "post",
   path: "/forms/{id}/close",
@@ -293,6 +324,7 @@ export const registerForms: SliceRegistrar = (group, deps: Deps): void => {
   group.openapi(updateFormSettingsRoute, makeUpdateFormSettingsHandler(deps));
   group.openapi(publishFormRoute, makePublishFormHandler(deps));
   group.openapi(publishAndReleaseFormRoute, makePublishAndReleaseFormHandler(deps));
+  group.openapi(publishBatchRoute, makePublishBatchHandler(deps));
   group.openapi(closeFormRoute, makeCloseFormHandler(deps));
   group.openapi(reopenFormRoute, makeReopenFormHandler(deps));
   group.openapi(getFormVersionRoute, makeGetFormVersionHandler(deps));

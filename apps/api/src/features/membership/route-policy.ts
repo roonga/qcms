@@ -18,12 +18,9 @@ export interface RoutePolicy {
   // Must agree with `isEnvironmentScoped`, since the policy refuses an
   // environment-scoped act that names no environment.
   readonly namesEnvironment?: true;
-  // The policy's environment must be exactly the handler's. Four routes declare no body, so
-  // a body-then-switcher fallback would let a `test` caller act on `prod`.
-  // `query` is an explicit query parameter, which the gate and the handler both read.
-  // `targets` is every environment the body's `targets` names: the cell is evaluated once
-  // per destination and refused on the first failure, so one request environment cannot
-  // authorise the others.
+  // The policy's environment must be exactly the handler's: a body-then-switcher fallback
+  // would let a `test` caller act on `prod`. `query` is an explicit query parameter, and
+  // `targets` evaluates the cell once per destination the body names.
   readonly environmentFrom?: "body" | "switcher" | "query" | "targets";
   // A second cell the route also requires, evaluated against the same workspace and
   // environment before any handler runs, so neither half can be forgotten.

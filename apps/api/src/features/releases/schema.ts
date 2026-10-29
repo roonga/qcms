@@ -138,10 +138,9 @@ export const ReleaseReviewResponse = z
   .openapi("ReleaseReviewResponse");
 
 /**
- * One destination of a confirmation. `expectedSequence` is the newest release-state
- * sequence the review reported, which covers the released version and the intake state
- * together: a close and a reopen each append a row. `fromEnvironment` records the path and
- * authorises nothing (F7); it is never derived from a sibling target.
+ * One destination. `expectedSequence` is the newest release-state sequence the review
+ * reported, so it covers the released version and the intake state together: a close and a
+ * reopen each append a row. `fromEnvironment` records the path and authorises nothing (F7).
  */
 const BatchTarget = z
   .strictObject({

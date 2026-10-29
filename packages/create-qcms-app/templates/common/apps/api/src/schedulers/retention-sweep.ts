@@ -5,7 +5,9 @@
  */
 
 import {
+  RELEASE_BATCH_RETENTION_MS,
   listEnvironmentRetention,
+  purgeExpiredReleaseBatches,
   redactAgedOutboxPayloads,
   redactAgedResponseSnippets,
   sweepExpiredSessions,
@@ -57,6 +59,7 @@ export function createRetentionSweepScheduler(deps: Deps): Scheduler {
  */
 export async function sweepEveryEnvironment(deps: Deps, now: Date): Promise<void> {
   const windows = await windowsForEveryEnvironment(deps);
+  await sweepControlPlane(deps, now);
   for (const environment of deps.databases.names) {
     // Unreachable: boot refuses when the pool set and `control.environments` disagree.
     // A fall back rather than a throw, so that refusal is not duplicated here.
@@ -65,6 +68,21 @@ export async function sweepEveryEnvironment(deps: Deps, now: Date): Promise<void
       outboxPayloadMs: deps.config.ttl.outboxPayloadMs,
     };
     await sweepEnvironment(deps, environment, now, window);
+  }
+}
+
+/**
+ * The one control-pool step, run once per pass rather than per environment: the stored
+ * confirmation results are installation-wide, and the release history is the long-term
+ * answer to what each confirmation did.
+ */
+async function sweepControlPlane(deps: Deps, now: Date): Promise<void> {
+  const purged = await purgeExpiredReleaseBatches(
+    deps.databases.control,
+    new Date(now.getTime() - RELEASE_BATCH_RETENTION_MS),
+  );
+  if (purged.purgedCount > 0) {
+    deps.logger.info("release confirmation results purged", { purgedCount: purged.purgedCount });
   }
 }
 

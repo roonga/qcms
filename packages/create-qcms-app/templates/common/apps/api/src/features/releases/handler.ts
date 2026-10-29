@@ -9,13 +9,18 @@ import {
   getDraft,
   getForm,
   getFormVersion,
+  getReleaseBatch,
   getReleasedVersion,
   getWorkspace,
+  insertReleaseWorkflowRevision,
   isScopeAll,
+  latestReleaseWorkflowRevision,
+  listActiveWorkspaces,
   listEnvironmentNames,
   listEnvironments,
   listFormReleases,
   listGrantsForUser,
+  writeAccessAuditRow,
 } from "@roonga/qcms-db";
 import type { Executor, FormReleaseHistoryRow } from "@roonga/qcms-db";
 
@@ -27,13 +32,26 @@ import type { ApiEnv } from "../../openapi.js";
 import { decideAccess, PRODUCTION_ENVIRONMENT } from "../membership/policy.js";
 import { holdsInstallationClaim, resolveGrants } from "../membership/resolver.js";
 import { approvalForRelease } from "../membership/two-person.js";
+import { commitReleaseBatch, intentHashOf, type BatchResult } from "./batch.js";
 import { recordRelease } from "./release.js";
-import { requireProductionCandidate, usesTestWorkflow } from "./workflow.js";
+import {
+  evidenceFor,
+  isRollback,
+  prerequisiteCode,
+  readWorkflow,
+  requireReleaseCandidate,
+  ruleFor,
+  type EffectiveWorkflow,
+} from "./workflow.js";
 import type {
   environmentSetRoute,
+  releaseBatchLookupRoute,
+  releaseBatchRoute,
   releaseHistoryRoute,
   releaseReviewRoute,
   releaseVersionRoute,
+  releaseWorkflowReadRoute,
+  releaseWorkflowWriteRoute,
 } from "./route.js";
 
 const fail = {
@@ -72,6 +90,30 @@ const fail = {
    */
   noPrincipal: (): Error =>
     new Error("releases: no admin principal on a request that records an actor"),
+  invalidSource: (): ApiError =>
+    new ApiError(
+      "INVALID_SOURCE_ENVIRONMENT",
+      400,
+      "A promotion comes from another environment; omit the source for a first release",
+    ),
+  /** Not "gone": only successes are stored, so the same key may be resent. */
+  batchNotFound: (): ApiError =>
+    new ApiError(
+      "RELEASE_BATCH_NOT_FOUND",
+      404,
+      "No confirmation with that key committed for this form and account; resend the same key",
+    ),
+  workflowRevisionStale: (): ApiError =>
+    new ApiError(
+      "WORKFLOW_REVISION_STALE",
+      409,
+      "Another account wrote a release-workflow revision first; read the configuration again",
+    ),
+  workflowRuleInvalid: (environment: string, reason: string): ApiError =>
+    new ApiError("WORKFLOW_RULE_INVALID", 400, `${environment}: ${reason}`, {
+      environment,
+      reason,
+    }),
 } as const;
 
 function isReleaseKeyViolation(error: unknown): boolean {
@@ -166,7 +208,7 @@ export function makeReleaseVersionHandler(
       releasedBy: principal.userId,
     });
 
-    await requireProductionCandidate(
+    await requireReleaseCandidate(
       deps.databases.control,
       deps.databases.names,
       environment,
@@ -255,9 +297,8 @@ export function makeReleaseReviewHandler(
     const candidate =
       source.kind === "version" ? await getFormVersion(exec, formId, source.version) : undefined;
     if (source.kind === "version" && candidate === undefined) throw fail.versionNotFound();
-    if (source.kind === "draft" && (await getDraft(exec, formId)) === undefined) {
-      throw fail.draftNotFound();
-    }
+    const draft = source.kind === "draft" ? await getDraft(exec, formId) : undefined;
+    if (source.kind === "draft" && draft === undefined) throw fail.draftNotFound();
 
     const principal = c.get("adminPrincipal");
     if (principal === undefined) throw fail.noPrincipal();
@@ -269,12 +310,12 @@ export function makeReleaseReviewHandler(
     });
 
     const releases = await listFormReleases(exec, formId);
-    const workflowEnabled = usesTestWorkflow(deps.databases.names);
     const workspace = await getWorkspace(exec, workspaceId);
     const rows = await listEnvironments(exec);
     const served = rows
       .map((row) => row.name)
       .filter((name) => deps.databases.names.includes(name));
+    const workflow = await readWorkflow(exec, served);
 
     const targets = served
       .filter(
@@ -289,7 +330,7 @@ export function makeReleaseReviewHandler(
         reviewTarget({
           environment,
           releases,
-          workflowEnabled,
+          workflow,
           requiresSecond: workspace?.requireSecondApprover ?? false,
           isDraft: source.kind === "draft",
           version: candidate?.version,
@@ -302,14 +343,14 @@ export function makeReleaseReviewHandler(
       {
         source:
           source.kind === "draft"
-            ? ({ kind: "draft" } as const)
+            ? ({ kind: "draft" as const, draftRevision: draft!.revision } as const)
             : ({
                 kind: "version" as const,
                 version: source.version,
                 publishedBy: candidate?.publishedBy ?? null,
               } as const),
-        workflowRevision: null,
-        workflowSource: "default" as const,
+        workflowRevision: workflow.revision,
+        workflowSource: workflow.source,
         targets,
       },
       200,
@@ -329,7 +370,7 @@ interface Blocker {
 function reviewTarget(input: {
   readonly environment: string;
   readonly releases: readonly FormReleaseHistoryRow[];
-  readonly workflowEnabled: boolean;
+  readonly workflow: EffectiveWorkflow;
   readonly requiresSecond: boolean;
   readonly isDraft: boolean;
   readonly version: number | undefined;
@@ -346,20 +387,20 @@ function reviewTarget(input: {
   protected: boolean;
 } {
   const { environment, releases, version } = input;
-  const here = releases.filter((release) => release.environment === environment);
-  const current = here[0];
+  const current = releases.find((release) => release.environment === environment);
+  const rule = ruleFor(input.workflow, environment);
   // A version already released in the target itself is a rollback, eligible regardless of
   // prerequisites.
-  const rollback = version !== undefined && here.some((release) => release.version === version);
-  const prerequisite =
-    input.workflowEnabled && environment === PRODUCTION_ENVIRONMENT ? ["test", "prod"] : [];
+  const rollback = version !== undefined && isRollback(releases, environment, version);
   const evidence =
-    version === undefined ? [] : evidenceFor(releases, version, environment, prerequisite);
+    version === undefined ? [] : evidenceFor(releases, { version, environment, rule });
 
   const applies = environment === PRODUCTION_ENVIRONMENT && input.requiresSecond;
   const refusedAsAuthor = applies && input.author !== null && input.author === input.caller;
   const blockers = blockersFor({
-    prerequisite,
+    prerequisite: rule.requiresPriorReleaseIn,
+    prerequisiteCode: prerequisiteCode(input.workflow),
+    allowsDraftPublish: rule.allowsDraftPublish,
     rollback,
     isDraft: input.isDraft,
     hasEvidence: evidence.length > 0,
@@ -389,6 +430,8 @@ function reviewTarget(input: {
 /** Every reason one target refuses one candidate, from conditions already decided. */
 function blockersFor(input: {
   readonly prerequisite: readonly string[];
+  readonly prerequisiteCode: string;
+  readonly allowsDraftPublish: boolean;
   readonly rollback: boolean;
   readonly isDraft: boolean;
   readonly hasEvidence: boolean;
@@ -399,11 +442,14 @@ function blockersFor(input: {
 }): Blocker[] {
   const blockers: Blocker[] = [];
   const requiresAnyOf = [...input.prerequisite];
-  if (input.prerequisite.length > 0 && !input.rollback) {
-    // A combined publish into a target with a prerequisite is refused: the version would
-    // have no prior release anywhere.
-    if (input.isDraft) blockers.push({ code: "DRAFT_PUBLISH_NOT_ALLOWED", requiresAnyOf });
-    else if (!input.hasEvidence) blockers.push({ code: "TEST_RELEASE_REQUIRED", requiresAnyOf });
+  if (input.isDraft && !input.allowsDraftPublish) {
+    blockers.push({ code: "DRAFT_PUBLISH_NOT_ALLOWED", requiresAnyOf });
+  } else if (input.prerequisite.length > 0 && !input.rollback) {
+    // A version frozen in this act has reached no environment, so a destination with a
+    // prerequisite cannot be satisfied by anything.
+    if (input.isDraft || !input.hasEvidence) {
+      blockers.push({ code: input.prerequisiteCode, requiresAnyOf });
+    }
   }
   if (input.alreadyReleased) blockers.push({ code: "ALREADY_RELEASED", requiresAnyOf: [] });
   if (input.twoPersonApplies && !input.isDraft) {
@@ -413,24 +459,6 @@ function blockersFor(input: {
     }
   }
   return blockers;
-}
-
-/**
- * The committed rows that satisfy a target's rule: rows in a required environment, or,
- * with no prerequisite, rows in the target itself, which is what marks a rollback.
- */
-function evidenceFor(
-  releases: readonly FormReleaseHistoryRow[],
-  version: number,
-  environment: string,
-  prerequisite: readonly string[],
-): FormReleaseHistoryRow[] {
-  return releases.filter((release) => {
-    if (release.version !== version) return false;
-    return prerequisite.length === 0
-      ? release.environment === environment
-      : prerequisite.includes(release.environment);
-  });
 }
 
 export function makeEnvironmentSetHandler(
@@ -482,4 +510,278 @@ async function heldEnvironments(
     else for (const name of grant.environments) held.add(name);
   }
   return held;
+}
+
+/** The rule set as the configuration reads and writes it. */
+type RuleInput = {
+  readonly environment: string;
+  readonly requiresPriorReleaseIn: readonly string[];
+  readonly allowsDraftPublish: boolean;
+  readonly allowsInBatch: boolean;
+};
+
+/**
+ * The configuration as both routes answer it: every served environment with the rule in
+ * force, the derived default included, so a publisher reads the rule rather than inferring
+ * it from whether a table has rows.
+ */
+function workflowBody(
+  workflow: EffectiveWorkflow,
+  rows: readonly { readonly name: string; readonly position: number }[],
+): {
+  revision: number | null;
+  source: "default" | "configured";
+  environments: {
+    name: string;
+    position: number;
+    protected: boolean;
+    requiresPriorReleaseIn: string[];
+    allowsDraftPublish: boolean;
+    allowsInBatch: boolean;
+  }[];
+} {
+  return {
+    revision: workflow.revision,
+    source: workflow.source,
+    environments: rows.map((row) => {
+      const rule = ruleFor(workflow, row.name);
+      return {
+        name: row.name,
+        position: row.position,
+        // Read-only: it reports the role split and the workspace second-approver switch,
+        // which no rule here can alter.
+        protected: row.name === PRODUCTION_ENVIRONMENT,
+        requiresPriorReleaseIn: [...rule.requiresPriorReleaseIn],
+        allowsDraftPublish: rule.allowsDraftPublish,
+        allowsInBatch: rule.allowsInBatch,
+      };
+    }),
+  };
+}
+
+async function servedEnvironments(
+  deps: Deps,
+): Promise<{ readonly name: string; readonly position: number }[]> {
+  const rows = await listEnvironments(deps.databases.control);
+  return rows
+    .filter((row) => deps.databases.names.includes(row.name))
+    .map((row) => ({ name: row.name, position: row.position }));
+}
+
+export function makeReleaseWorkflowReadHandler(
+  deps: Deps,
+): RouteHandler<typeof releaseWorkflowReadRoute, ApiEnv> {
+  return async (c) => {
+    const rows = await servedEnvironments(deps);
+    const workflow = await readWorkflow(
+      deps.databases.control,
+      rows.map((row) => row.name),
+    );
+    return c.json(workflowBody(workflow, rows), 200);
+  };
+}
+
+/**
+ * Write the next revision. Nothing here renames an environment, creates one or moves
+ * `prod` out of its protected role: every name is checked against the served set and the
+ * rules are validated as an acyclic graph before anything is written.
+ */
+export function makeReleaseWorkflowWriteHandler(
+  deps: Deps,
+): RouteHandler<typeof releaseWorkflowWriteRoute, ApiEnv> {
+  return async (c) => {
+    const body = c.req.valid("json");
+    const principal = c.get("adminPrincipal");
+    if (principal === undefined) throw fail.noPrincipal();
+
+    const exec = deps.databases.control;
+    const rows = await servedEnvironments(deps);
+    validateWorkflowRules(
+      body.rules,
+      rows.map((row) => row.name),
+    );
+
+    await exec.transaction(async (tx) => {
+      const current = await latestReleaseWorkflowRevision(tx);
+      if ((current ?? null) !== body.expectedRevision) throw fail.workflowRevisionStale();
+      const revision = await insertReleaseWorkflowRevision(tx, {
+        createdBy: principal.userId,
+        note: body.note ?? null,
+        rules: body.rules.map((rule) => ({ ...rule })),
+        createdAt: deps.clock.now(),
+      });
+      // Installation-wide, so the row lands in every workspace's audit: the rule governs
+      // what each of them may release, and an owner reading a refused release needs the
+      // reason to be readable from the workspace the refusal happened in.
+      for (const workspace of await listActiveWorkspaces(tx)) {
+        await writeAccessAuditRow(tx, {
+          actor: principal.userId,
+          workspaceId: workspace.id,
+          kind: "setting",
+          detail:
+            `setting=releaseWorkflow value=revision ${String(revision.revision)}; ` +
+            ruleSummary(body.rules),
+          occurredAt: deps.clock.now(),
+        });
+      }
+    });
+
+    const workflow = await readWorkflow(
+      exec,
+      rows.map((row) => row.name),
+    );
+    return c.json(workflowBody(workflow, rows), 200);
+  };
+}
+
+/** A compact summary for the audit detail. It carries no URL, no secret and no content. */
+function ruleSummary(rules: readonly RuleInput[]): string {
+  if (rules.length === 0) return "rules=none";
+  return rules
+    .map(
+      (rule) =>
+        `${rule.environment}:after=${
+          rule.requiresPriorReleaseIn.length === 0 ? "-" : rule.requiresPriorReleaseIn.join("+")
+        },draft=${String(rule.allowsDraftPublish)},batch=${String(rule.allowsInBatch)}`,
+    )
+    .join(" ");
+}
+
+/**
+ * Every name served, no destination requiring itself, no duplicate row and no cycle.
+ * Rollback is the ruled exception rather than a rule, so a self-reference is a defect in
+ * the configuration and not a way to express one.
+ */
+function validateWorkflowRules(rules: readonly RuleInput[], served: readonly string[]): void {
+  const seen = new Set<string>();
+  for (const rule of rules) {
+    if (!served.includes(rule.environment)) {
+      throw fail.workflowRuleInvalid(
+        rule.environment,
+        "this deployment serves no environment of that name",
+      );
+    }
+    if (seen.has(rule.environment)) throw fail.workflowRuleInvalid(rule.environment, "named twice");
+    seen.add(rule.environment);
+    for (const required of rule.requiresPriorReleaseIn) {
+      if (required === rule.environment) {
+        throw fail.workflowRuleInvalid(
+          rule.environment,
+          "cannot require a prior release in itself; releasing a version it already served " +
+            "is a rollback and is eligible anyway",
+        );
+      }
+      if (!served.includes(required)) {
+        throw fail.workflowRuleInvalid(
+          rule.environment,
+          `requires a prior release in ${required}, which this deployment does not serve`,
+        );
+      }
+    }
+  }
+  const cycle = findCycle(rules);
+  if (cycle !== undefined) {
+    throw fail.workflowRuleInvalid(cycle, "is on a cycle, so no version could ever reach it");
+  }
+}
+
+/** The first environment found on a cycle of prerequisite edges. */
+function findCycle(rules: readonly RuleInput[]): string | undefined {
+  const edges = new Map(rules.map((rule) => [rule.environment, rule.requiresPriorReleaseIn]));
+  const state = new Map<string, "open" | "done">();
+  const walk = (node: string): string | undefined => {
+    const seen = state.get(node);
+    if (seen === "done") return undefined;
+    if (seen === "open") return node;
+    state.set(node, "open");
+    for (const next of edges.get(node) ?? []) {
+      const found = walk(next);
+      if (found !== undefined) return found;
+    }
+    state.set(node, "done");
+    return undefined;
+  };
+  for (const rule of rules) {
+    const found = walk(rule.environment);
+    if (found !== undefined) return found;
+  }
+  return undefined;
+}
+
+/**
+ * Release one existing version into every named destination in one transaction.
+ * Authorisation is the route's: the middleware evaluates `release: create` once per listed
+ * environment, so one request environment cannot authorise the others.
+ */
+export function makeReleaseBatchHandler(
+  deps: Deps,
+): RouteHandler<typeof releaseBatchRoute, ApiEnv> {
+  return async (c) => {
+    const formId = requireFormId(c.req.valid("param").id);
+    const body = c.req.valid("json");
+    for (const target of body.targets) {
+      requireEnvironment(deps, target.environment);
+      if (target.fromEnvironment !== undefined) {
+        requireEnvironment(deps, target.fromEnvironment);
+        if (target.fromEnvironment === target.environment) throw fail.invalidSource();
+      }
+    }
+
+    const principal = c.get("adminPrincipal");
+    if (principal === undefined) throw fail.noPrincipal();
+    const form = await getForm(deps.databases.control, formId);
+    if (form === undefined) throw fail.formNotFound();
+    const version = await getFormVersion(deps.databases.control, formId, body.source.version);
+    if (version === undefined) throw fail.versionNotFound();
+
+    const result = await commitReleaseBatch(deps, {
+      formId,
+      workspaceId: c.get("grantContext")?.workspaceId ?? form.workspaceId,
+      principalId: principal.userId,
+      idempotencyKey: body.idempotencyKey,
+      intentHash: intentHashOf(body),
+      expectedWorkflowRevision: body.expectedWorkflowRevision,
+      source: { kind: "version", version: body.source.version, publishedBy: version.publishedBy },
+      targets: body.targets.map((target) => ({
+        environment: target.environment,
+        expectedSequence: target.expectedSequence,
+        ...(target.fromEnvironment === undefined
+          ? {}
+          : { fromEnvironment: target.fromEnvironment }),
+      })),
+    });
+    return c.json(result, 200);
+  };
+}
+
+const UUID_KEY = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+
+/**
+ * The stored result of one confirmation, for a client that lost its answer. A 404 means
+ * "not committed, resend the same key" rather than "gone": only successes are stored, and
+ * the release history is the long-term answer.
+ */
+export function makeReleaseBatchLookupHandler(
+  deps: Deps,
+): RouteHandler<typeof releaseBatchLookupRoute, ApiEnv> {
+  return async (c) => {
+    const { id, key } = c.req.valid("param");
+    const formId = requireFormId(id);
+    const principal = c.get("adminPrincipal");
+    if (principal === undefined) throw fail.noPrincipal();
+    if (!UUID_KEY.test(key)) throw fail.batchNotFound();
+
+    const form = await getForm(deps.databases.control, formId);
+    if (form === undefined) throw fail.formNotFound();
+
+    // Keyed on the principal as well as the form, so another account cannot read a result
+    // it did not create.
+    const stored = await getReleaseBatch(deps.databases.control, {
+      principalId: principal.userId,
+      formId,
+      idempotencyKey: key,
+    });
+    if (stored === undefined) throw fail.batchNotFound();
+    return c.json(stored.result as BatchResult, 200);
+  };
 }

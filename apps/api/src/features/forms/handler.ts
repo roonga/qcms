@@ -1444,13 +1444,9 @@ export function makePublishAndReleaseFormHandler(
 
 /**
  * Freeze the shared draft once and release that one snapshot into every named destination,
- * or into none, in one transaction. Authorisation is the route's: `form: publish` for the
- * snapshot, and `release: create` evaluated once per listed environment, so a request
- * naming two destinations cannot reach the second on a grant for the first.
- *
- * The draft is compiled before the transaction opens, so a malformed one costs no database
- * work; the revision it was compiled from is rechecked under the form's lock, and a save
- * that landed in between is refused rather than published unseen.
+ * or into none, in one transaction. The draft is compiled before the transaction opens, so
+ * a malformed one costs no database work; the revision it was compiled from is rechecked
+ * under the form's lock.
  */
 export function makePublishBatchHandler(
   deps: Deps,

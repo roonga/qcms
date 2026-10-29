@@ -322,10 +322,8 @@ async function decideRequest(
 
 /**
  * One cell per destination, refusing on the first failure and naming that environment
- * alone. The environment-agnostic half of the row, where there is one, is evaluated once:
- * `publish-batch` with no destination is "create a version without releasing it" and needs
- * `form: publish` by itself, and a request naming two destinations cannot reach the second
- * on a grant that only covers the first.
+ * alone, so a request naming two destinations cannot reach the second on a grant covering
+ * only the first. The row's environment-agnostic half, where it has one, is evaluated once.
  */
 async function decideOverTargets(
   deps: Deps,
