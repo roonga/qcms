@@ -1,9 +1,7 @@
 /**
- * Five grants reach this route and each sees a different projection of an overlapping
- * subset of forms, which no single SQL predicate expresses: so authorisation is
- * `decideAccess`, asked per form, cell and environment against the grants the middleware
- * already resolved. Authorise, then filter, then aggregate, then total, then sort, then
- * page. It writes nothing, an audit row included.
+ * No single SQL predicate expresses which grant sees which form and field, so
+ * authorisation is `decideAccess` per form, cell and environment. Authorise, then filter,
+ * aggregate, total, sort and page. It writes nothing, an audit row included.
  */
 
 import { z, type RouteHandler } from "@hono/zod-openapi";

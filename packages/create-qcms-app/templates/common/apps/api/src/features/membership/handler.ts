@@ -297,11 +297,9 @@ export function makeMyAccessHandler(deps: Deps): RouteHandler<typeof myAccessRou
 }
 
 /**
- * Which areas of the admin a caller has, each asking whether any workspace they hold a
- * grant in allows the cell that area's routes require.
- *
- * Both scopes are ignored: this answers whether an area exists at all, and what is inside
- * it is each area's own routes' answer.
+ * Which areas a caller has, each asking whether any workspace they hold a grant in allows
+ * the cell that area's routes require. Both scopes are ignored: what is inside an area is
+ * that area's own routes' answer.
  */
 async function areasFor(
   exec: Executor,

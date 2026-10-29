@@ -276,12 +276,9 @@ async function decideRequest(
 }
 
 /**
- * Admit a caller holding any one of an `anyOf` row's cells as a statement, and carry the
- * resolved memberships so the handler can narrow per form without resolving again.
- *
- * Neither scope is judged here: a form-scoped cell needs a form, and the route names
- * none. So a caller holding a cell but nothing in the requested environment is admitted
- * and served an empty page, which a refusal could not be told apart from.
+ * Admit a caller holding any one of an `anyOf` row's cells as a statement, carrying the
+ * resolved memberships so the handler can narrow per form. Neither scope is judged here,
+ * so a caller holding nothing in the requested environment gets an empty page.
  */
 function anyOfContext(
   policy: RoutePolicy,

@@ -1,9 +1,7 @@
 /**
- * The authorised read model, persona by persona, against a real Postgres. Requires Docker.
- *
- * What each grant is served, and what it is not, is a property of ten accounts rather
- * than of one route, so every case is a persona. A pool per environment, because
- * "submitted in `prod` and not in `test`" is a claim one shared handle cannot fail.
+ * The read model persona by persona, against a real Postgres. Requires Docker. A pool per
+ * environment, because "submitted in `prod` and not in `test`" is a claim one shared
+ * handle cannot fail.
  */
 
 import { drizzle } from "drizzle-orm/node-postgres";
