@@ -214,7 +214,6 @@ export const messages = {
   "access.none":
     "You hold no form, question, response or workspace grant yet. Ask an owner of the " +
     "workspace you need to add you to one of its access groups.",
-  "access.loadFailed": "Your access could not be loaded: {message}",
 
   "signIn.title": "Sign in to QCMS",
   "signIn.email": "Email",
