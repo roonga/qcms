@@ -127,7 +127,14 @@ describe("history markers", () => {
   });
 
   it("leaves near misses alone", () => {
-    for (const sample of ["ADR-24 and SEC-8", "version 1.2.3", "a 2026-13-40 shape", "task 42", "colour #fff", "&#123;"]) {
+    for (const sample of [
+      "ADR-24 and SEC-8",
+      "version 1.2.3",
+      "a 2026-13-40 shape",
+      "task 42",
+      "colour #fff",
+      "&#123;",
+    ]) {
       expect(scan(`// ${sample}`), sample).toEqual([]);
     }
   });
