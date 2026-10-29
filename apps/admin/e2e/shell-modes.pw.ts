@@ -1,6 +1,7 @@
 import { expect, test } from "../../portal/e2e/support/gates.js";
 
 import { createTestAdmin, uniqueAdminEmail } from "./support/admin-account.js";
+import { ADMIN_BASE_URL } from "./support/harness-config.js";
 import { enrollNewAdmin, signInWithTotp } from "./support/flow.js";
 
 /**
@@ -213,14 +214,29 @@ test("a denied bookmark is not remembered as the mode a personal route sits in",
   await expect(page.getByTestId("qcms-mode-header")).not.toHaveAttribute("data-mode", "operations");
 });
 
-test("the root restores the workspace the Workspaces mode was last on", async ({ page }) => {
+test("the root lands an authoring caller in authoring, whatever a mode remembered", async ({
+  page,
+}) => {
   await signInWithTotp(page, EVERYTHING, everythingSecret);
 
   await page.goto(`/workspaces/${WORKSPACE_ID}`);
   await expect(page.getByRole("heading", { level: 2, name: "Members" })).toBeVisible();
 
-  // The root is where a remembered context is restored, because it is a page and resolves
-  // on every arrival; the shell's layout does not re-render on a soft navigation.
+  // The root restores the context of the area this caller LANDS in, and theirs is
+  // authoring: a remembered workspace does not move the landing area itself.
+  await page.goto("/");
+  await expect(page).toHaveURL(/\/questions$/);
+});
+
+test("the root restores the workspace a workspace-only caller was last on", async ({ page }) => {
+  await signInWithTotp(page, WORKSPACES_ONLY, workspacesSecret, /\/workspaces$/);
+
+  await page.goto(`/workspaces/${WORKSPACE_ID}`);
+  await expect(page.getByRole("heading", { level: 2, name: "Members" })).toBeVisible();
+
+  // Workspaces IS their landing area, so arriving with no route of their own restores the
+  // one they were on. The root is a page and resolves on every arrival; the shell's layout
+  // does not re-render on a soft navigation.
   await page.goto("/");
   await expect(page).toHaveURL(new RegExp(`/workspaces/${WORKSPACE_ID}$`));
 });
@@ -230,11 +246,14 @@ test("the root falls back to All workspaces when the remembered one is not permi
 }) => {
   await signInWithTotp(page, WORKSPACES_ONLY, workspacesSecret, /\/workspaces$/);
 
+  // A cookie left from a grant since revoked. It names a workspace this caller does not
+  // administer, so it restores nothing rather than deciding where they land.
+  await page
+    .context()
+    .addCookies([{ name: "qcms-shell-workspace", value: "ws_revoked", url: ADMIN_BASE_URL }]);
   await page.goto("/");
 
-  // This caller administers the seeded workspace through the claim, so the fallback under
-  // test is the one a cookie from a revoked grant takes: nothing was remembered for them.
-  await expect(page).toHaveURL(/\/workspaces(\/[\w.-]+)?$/);
+  await expect(page).toHaveURL(/\/workspaces$/);
 });
 
 test("the Operations landing is reached again by re-entering the mode", async ({ page }) => {
