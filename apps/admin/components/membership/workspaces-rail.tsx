@@ -2,6 +2,7 @@ import Link from "next/link";
 
 import { RailFrame } from "@/components/rail-frame";
 import { t } from "@/lib/i18n/en";
+import { MY_ACCESS_PATH } from "@/lib/shell/modes";
 
 /** One workspace, as the rail lists it. */
 export interface WorkspaceRailRow {
@@ -40,13 +41,13 @@ export function WorkspacesRail({
             </li>
           ))}
           <li>
-            <a
-              href="#qcms-my-access-heading"
+            <Link
+              href={MY_ACCESS_PATH}
               className="qcms-rail__link"
               data-rail-item="section:my-access"
             >
-              {t("membership.mine.heading")}
-            </a>
+              {t("access.title")}
+            </Link>
           </li>
         </ul>
       }

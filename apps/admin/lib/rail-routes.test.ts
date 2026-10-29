@@ -135,6 +135,8 @@ describe("every screen has a page in the slot, whether or not it has a rail", ()
       "/questions/new",
       "/forms",
       "/forms/new",
+      "/me/access",
+      "/operations",
       "/responses",
       "/responses/erasures",
       "/webhooks",
@@ -188,6 +190,8 @@ describe("which screens carry the form-subtree section", () => {
     );
     expect(sorted([...roots])).toEqual([
       "forms",
+      "me",
+      "operations",
       "questions",
       "responses",
       "settings",

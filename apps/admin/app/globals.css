@@ -568,6 +568,46 @@ button {
   border-radius: var(--radius-sm);
 }
 
+/* Operations is separated from the authoring menus, because entering it REPLACES them
+   rather than joining them as a further peer. The rule is a border rather than a gap, so
+   the separation survives the bar wrapping at narrow widths, where a margin would put the
+   entry at the start of a new line with nothing beside it to be separated from. */
+.qcms-nav__separated {
+  margin-inline-start: var(--space-3);
+  padding-inline-start: var(--space-3);
+  border-inline-start: 1px solid var(--color-border);
+}
+
+/* A FOCUSED MODE'S HEADER, where the application navigation would be. The normal menus
+   are absent rather than restyled, so this row holds only the mode's name and the way
+   out. The environment selector joins it with the forms table. */
+.qcms-modeheader {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--space-3);
+  min-inline-size: 0;
+}
+.qcms-modeheader__name {
+  font-size: 14px;
+  font-weight: 600;
+  color: var(--color-text);
+}
+.qcms-modeheader__exit {
+  display: inline-flex;
+  align-items: center;
+  min-block-size: var(--admin-control-h);
+  padding-inline: var(--space-3);
+  border: 1px solid var(--color-border-strong);
+  border-radius: var(--radius-control);
+  color: var(--color-text);
+  font-size: 14px;
+  text-decoration: none;
+}
+.qcms-modeheader__exit:hover {
+  background-color: var(--color-ghost-hover);
+}
+
 /* The vendored `Card` takes no className, so the corner rides on a wrapper rather
    than on a fork of the component (ADR-22: no wrapper layer of variants, but a
    layout element carrying the app's own chrome is not that). A card carries no

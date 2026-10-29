@@ -2,11 +2,13 @@ import Link from "next/link";
 import type { Metadata } from "next";
 
 import { Alert } from "@/components/kit";
-import { MyAccessPanel } from "@/components/membership/my-access-panel";
+import { DeniedRecovery } from "@/components/shell/denied-recovery";
 import { t } from "@/lib/i18n/en";
 import { pageMetadata } from "@/lib/page-title";
-import { listWorkspaces, readMyAccess } from "@/lib/server/membership";
+import { listWorkspaces } from "@/lib/server/membership";
+import { navigableCapabilities, shellAccess } from "@/lib/server/shell";
 import { requireAdminSession } from "@/lib/server/session";
+import { permitsPath, WORKSPACES_PATH } from "@/lib/shell/modes";
 
 /** The browser-tab title for this route (issue #536). */
 export function generateMetadata(): Metadata {
@@ -16,18 +18,16 @@ export function generateMetadata(): Metadata {
 /**
  * The workspaces an administrator administers, and their own access (ADR-41, task 069).
  *
- * # Two panels, and the second is the one everybody gets
+ * # What the list is narrowed to
  *
  * The **list** is narrowed by the API to the workspaces the caller holds `workspace: read`
  * in - which is the ones they own (Q35) - and to every workspace for the installation
  * administrator. An authoring grant holder administers none, so their list is empty, and
  * the empty state says so rather than implying the installation has no workspace.
  *
- * The **access panel** is the answer they do get: everybody reads their own grants,
- * because the membership list of a workspace is its owners' to see. "An administrator does
- * not need to see who else can read a form in order to do their own job, and in a
- * deployment where departments share an installation the membership list is itself
- * information about another department."
+ * What they do get is My access, which is a route under the avatar rather than a panel
+ * here: everybody reads their own grants, because the membership list of a workspace is
+ * its owners' to see.
  *
  * # What this screen does not do
  *
@@ -38,7 +38,11 @@ export function generateMetadata(): Metadata {
  */
 export default async function WorkspacesPage() {
   const session = await requireAdminSession();
-  const [workspaces, mine] = await Promise.all([listWorkspaces(session), readMyAccess(session)]);
+  const capabilities = navigableCapabilities(await shellAccess(session));
+  if (!permitsPath(capabilities, WORKSPACES_PATH)) {
+    return <DeniedRecovery capabilities={capabilities} />;
+  }
+  const workspaces = await listWorkspaces(session);
 
   return (
     <div className="flex min-w-0 flex-col gap-8">
@@ -86,11 +90,6 @@ export default async function WorkspacesPage() {
             ))}
           </ul>
         ))}
-
-      <MyAccessPanel
-        access={mine.ok ? mine.data : undefined}
-        message={mine.ok ? undefined : mine.message}
-      />
     </div>
   );
 }

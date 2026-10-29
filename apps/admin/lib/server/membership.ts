@@ -10,6 +10,7 @@ import type {
   WorkspaceMember,
   WorkspaceSettings,
 } from "../membership/types.ts";
+import type { ShellCapabilities } from "../shell/modes.ts";
 
 import { adminApiFetch } from "./api.ts";
 import type { ApiResult } from "./api-result.ts";
@@ -320,38 +321,56 @@ export async function readAudit(
 }
 
 /**
+ * The area projection, read defensively: a field the API has not sent is absent rather
+ * than true, so a stale deployment narrows the navigation instead of widening it.
+ */
+function parseCapabilities(value: unknown): ShellCapabilities {
+  const row = typeof value === "object" && value !== null ? (value as Record<string, unknown>) : {};
+  return {
+    operations: bool(row["operations"]),
+    workspaces: bool(row["workspaces"]),
+    siteConfiguration: bool(row["siteConfiguration"]),
+    authoring: bool(row["authoring"]),
+  };
+}
+
+/**
  * `GET /admin/me/access` - what the signed-in administrator holds.
  *
  * The one read on this surface that needs no grant, because it **is** the answer to what
  * the caller holds: everybody who is not an owner or the installation administrator
  * learns their own grants here, since the membership list itself is theirs alone to see.
  */
-export async function readMyAccess(session: AdminSession): Promise<ApiResult<MyAccess>> {
-  const result = await readResult<{
-    userId?: unknown;
-    installationAdmin?: unknown;
-    workspaces?: unknown;
-  }>(await adminApiFetch(session, "/me/access"));
-  if (!result.ok) return result;
-  return {
-    ok: true,
-    data: {
-      userId: str(result.data.userId),
-      installationAdmin: bool(result.data.installationAdmin),
-      workspaces: rows(result.data.workspaces).map((row) => ({
-        workspaceId: str(row["workspaceId"]),
-        slug: str(row["slug"]),
-        name: str(row["name"]),
-        archived: bool(row["archived"]),
-        memberRole: strOrNull(row["memberRole"]),
-        grants: rows(row["grants"]).map((grant) => ({
-          name: str(grant["name"]),
-          role: str(grant["role"]),
-          environments: strings(grant["environments"]),
-          forms: strings(grant["forms"]),
+export const readMyAccess: (session: AdminSession) => Promise<ApiResult<MyAccess>> = cache(
+  async (session: AdminSession): Promise<ApiResult<MyAccess>> => {
+    const result = await readResult<{
+      userId?: unknown;
+      installationAdmin?: unknown;
+      capabilities?: unknown;
+      workspaces?: unknown;
+    }>(await adminApiFetch(session, "/me/access"));
+    if (!result.ok) return result;
+    return {
+      ok: true,
+      data: {
+        userId: str(result.data.userId),
+        installationAdmin: bool(result.data.installationAdmin),
+        capabilities: parseCapabilities(result.data.capabilities),
+        workspaces: rows(result.data.workspaces).map((row) => ({
+          workspaceId: str(row["workspaceId"]),
+          slug: str(row["slug"]),
+          name: str(row["name"]),
+          archived: bool(row["archived"]),
+          memberRole: strOrNull(row["memberRole"]),
+          grants: rows(row["grants"]).map((grant) => ({
+            name: str(grant["name"]),
+            role: str(grant["role"]),
+            environments: strings(grant["environments"]),
+            forms: strings(grant["forms"]),
+          })),
+          environments: strings(row["environments"]),
         })),
-        environments: strings(row["environments"]),
-      })),
-    },
-  };
-}
+      },
+    };
+  },
+);

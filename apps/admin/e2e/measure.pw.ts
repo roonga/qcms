@@ -125,6 +125,12 @@ function screens(sessionId: string): readonly Screen[] {
     { path: "/questions", cap: "list" },
     { path: `/questions/${QUESTION_ID}`, cap: "wide" },
     { path: "/questions/new", cap: "prose" },
+    // Neither is drawn by a POC, so each takes the cap of the screen it is shaped like:
+    // one panel of the reader's own grants at the account screen's prose width, and the
+    // forms table a caller operates at `/responses`'s. `lib/measure.ts` carries the same
+    // reading.
+    { path: "/me/access", cap: "prose" },
+    { path: "/operations", cap: "ops" },
     { path: "/responses", cap: "ops" },
     { path: "/responses/erasures", cap: "log" },
     { path: "/settings", cap: "prose" },

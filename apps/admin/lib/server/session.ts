@@ -125,8 +125,12 @@ export const SIGN_IN_PATH = "/sign-in";
 export const CHANGE_PASSWORD_PATH = "/change-password";
 /** Where a signed-in-but-unenrolled admin is sent (SEC-1 2FA policy). */
 export const ENROLL_PATH = "/two-factor/enroll";
-/** The default landing area of the authenticated shell. */
-export const SHELL_HOME_PATH = "/questions";
+/**
+ * Where a caller is sent when they have no route of their own. The root resolves it
+ * against their areas, because there is no one area every caller holds: an
+ * Operations-only caller has no authoring screen and a caller with no grant has neither.
+ */
+export const SHELL_HOME_PATH = "/";
 
 /**
  * Resolve the current session, or `undefined` when there is none the shell would
