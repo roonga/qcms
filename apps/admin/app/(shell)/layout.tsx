@@ -92,7 +92,7 @@ export default async function ShellLayout({
   // Which areas this caller has, so the navigation offers no area that would refuse. A
   // read that failed is not a refusal: `navigableCapabilities` narrows nothing then, and
   // every route behind an entry decides for itself.
-  const capabilities = navigableCapabilities(await shellAccess(session));
+  const accessPromise = shellAccess(session);
   // The environment set is the API's answer, not a literal here (ADR-40: the set is a
   // table and an operator may add to it), and the selection is validated against it so a
   // cookie naming an environment this deployment no longer serves falls through to
@@ -106,7 +106,11 @@ export default async function ShellLayout({
   // read of the set that failed is `unknown`, never `prod`: the banner says so, the
   // switcher has nothing to offer, and environment-sensitive actions are disabled here and
   // refused by their server actions.
-  const resolved = await resolvedEnvironment(session);
+  // Issued together with the capability read above, not after it: both are API round trips
+  // on every page in the app, and awaiting them in sequence puts one of them on the
+  // critical path of every render for nothing.
+  const [access, resolved] = await Promise.all([accessPromise, resolvedEnvironment(session)]);
+  const capabilities = navigableCapabilities(access);
 
   return (
     <div className="flex min-h-dvh flex-col">
