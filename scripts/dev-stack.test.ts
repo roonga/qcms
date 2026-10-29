@@ -15,18 +15,7 @@ import {
 } from "./dev-stack.mjs";
 import { stablePort } from "./ports.mjs";
 
-/**
- * The launcher's wiring, asserted where it is cheap (issue #281).
- *
- * `scripts/**` has no ESLint and no typecheck, and nothing in `verify` or
- * `verify:browser` executes this script at all - the gap `docs/RETRO.md` records under
- * `## 034`, where a green gate set shipped a `pnpm dev:portal` that could not boot. So
- * the two properties that would fail silently are pulled out into pure functions and
- * checked here. What is deliberately NOT asserted is anything needing a process: the
- * database, the API and `next dev` are what the evidence in the PR is for.
- */
-
-/** A fixed, synthetic input set. None of these is a credential; they are shapes. */
+/** Shapes, not credentials: none of these authenticates anything that exists. */
 const inputs = {
   databaseUrl: "postgres://qcms:qcms@10.0.0.1:7620/qcms",
   apiPort: "7610",
@@ -48,9 +37,6 @@ const frontendInputs = {
 
 describe("the SEC-4 internal token is one value across the stack", () => {
   it("hands the API and the admin the same token", () => {
-    // The whole reason `pnpm dev:admin` starts its own API instead of joining one:
-    // the token is generated in memory per run and written nowhere, so the only way
-    // two processes can agree on it is for one process to hand it to both.
     const api = apiChildEnv(inputs);
     const admin = frontendChildEnv("admin", frontendInputs);
     expect(admin.QCMS_INTERNAL_TOKEN).toBe(api.QCMS_INTERNAL_TOKEN);
@@ -66,21 +52,13 @@ describe("the SEC-4 internal token is one value across the stack", () => {
 
 describe("the admin child gets no database handle", () => {
   it("passes no DATABASE_URL and no auth secret to the admin", () => {
-    // Task 056 took the database out of the admin (ADR-35), and
-    // `apps/admin/lib/server/r2-import-surface.test.ts` guards the import side of it.
-    // Handing one back through the ENVIRONMENT would re-entrench it somewhere no
-    // import test can see, so it is asserted from this side too.
+    // ADR-35 keeps the database out of the admin, and the environment is the one route
+    // an import test cannot see.
     const admin = frontendChildEnv("admin", frontendInputs);
     expect(admin.DATABASE_URL).toBeUndefined();
     expect(admin.QCMS_ADMIN_AUTH_SECRET).toBeUndefined();
-    // The whole list, not just the two absences above, because the claim is that this
-    // service's configuration is small enough to read: an API address, the SEC-4 token,
-    // its own origin, and the portal's. A fifth key arriving is a question to answer
-    // rather than a line to update.
-    //
-    // `QCMS_PORTAL_BASE_URL` joined on 2026-08-26 so the builder can show a published
-    // form's public address. It is read-only in the strongest sense: the admin makes no
-    // request to the portal with it, it writes the URL down for an operator to hand out.
+    // The exhaustive list, so a fifth key is a question to answer rather than a line to
+    // update here.
     expect(Object.keys(admin).toSorted()).toEqual([
       "NODE_ENV",
       "QCMS_ADMIN_BASE_URL",
@@ -97,33 +75,16 @@ describe("the admin child gets no database handle", () => {
 
 describe("the two sides agree on the admin's own origin", () => {
   it("gives the API and the admin the same QCMS_ADMIN_BASE_URL", () => {
-    // The admin reads it for the SEC-9 origin check; the API reads it as better-auth's
-    // `baseURL` and sole trusted origin. A disagreement is a sign-in that appears to
-    // succeed and bounces.
     expect(frontendChildEnv("admin", frontendInputs).QCMS_ADMIN_BASE_URL).toBe(
       apiChildEnv(inputs).QCMS_ADMIN_BASE_URL,
     );
   });
 });
 
-/**
- * The seed's read sites, derived rather than restated (issue #817).
- *
- * `pnpm dev:admin` and `pnpm dev:portal` were both dead on `main` for as long as it
- * took someone to run one: PR #779 (#129) renamed the kitchen-sink fixtures to
- * `vehicle-kitchen-sink-*`, the rename swept `apps/api/e2e` but not `scripts/`, and
- * the seeder threw ENOENT before the API started. Nothing caught it because nothing
- * in `verify` executes this launcher and `scripts/**` has no typecheck.
- *
- * A path this module reads is now in `FIXTURE_READ_PATHS`, so this test fails the
- * moment a fixture moves - which is the cheapest place in the repository to learn it.
- */
 describe("every fixture the seed reads still exists", () => {
   const repoRoot = new URL("../", import.meta.url);
 
   it("lists both halves of the kitchen-sink form and one path per pinned question", () => {
-    // A guard on the derivation itself: an empty or truncated list would pass the
-    // loop below while asserting nothing at all.
     expect(FIXTURE_READ_PATHS.length).toBeGreaterThanOrEqual(9);
     expect(FIXTURE_READ_PATHS).toContain(
       "apps/api/e2e/support/fixtures/vehicle-kitchen-sink-form.json",
@@ -140,31 +101,10 @@ describe("every fixture the seed reads still exists", () => {
   });
 });
 
-/**
- * The seed's question set agrees with the form it publishes, in `verify`.
- *
- * The failure this closes, which is the #817 class a second time. The launcher used to
- * hold its own list of the kitchen sink's questions beside the form definition it
- * inserts a version of, and the two were only equal by hand. Issue #18's optional
- * number (`q_annual_km`) was added to
- * `apps/api/e2e/support/fixtures/vehicle-kitchen-sink-form.json` and not to the list, so
- * `pnpm dev:portal` and `pnpm dev:admin` seeded a published form version pinning a
- * question whose library row did not exist;
- * `apps/api/src/features/responses/serve-step/handler.ts` resolves every pinned item
- * and throws `pinned question ... is missing (snapshot not self-contained)`, so every
- * kitchen-sink step 500'd on a fresh database. Nothing in `verify` or `verify:browser`
- * executes this launcher, so it reached a PR with every gate green.
- *
- * The list is now DERIVED from the json's pinned items (CONTRIBUTING's derived-set
- * rule), and what remains hand-written is only where each definition file lives. These
- * cases are the gate on that residue: they fail if the two sets stop agreeing in either
- * direction, and they prove the guard is live rather than vacuous.
- */
 describe("the dev seed's questions come from the form it publishes (issue #817 class)", () => {
   const repoRoot = new URL("../", import.meta.url);
   const DEFINITION = "apps/api/e2e/support/fixtures/vehicle-kitchen-sink-form.json";
 
-  /** Every `{questionId, version}` the committed form definition pins, as read here. */
   function pinnedByTheForm(): Map<string, number> {
     const definition = JSON.parse(readFileSync(new URL(DEFINITION, repoRoot), "utf8")) as {
       steps: { items: { questionId: string; version: number }[] }[];
@@ -179,13 +119,12 @@ describe("the dev seed's questions come from the form it publishes (issue #817 c
   }
 
   it("seeds exactly the questions the form pins, at the versions it pins them", () => {
-    // Read from the file here rather than through the module, so this is a comparison
-    // of two independent reads and not the derivation agreeing with itself.
+    // Read from the file here, not through the module, so this compares two independent
+    // reads rather than the derivation with itself.
     const expected = pinnedByTheForm();
     const seeded = new Map(kitchenSinkQuestions().map((q) => [q.id, q.versions]));
     expect(seeded).toEqual(expected);
-    // Non-vacuity: the fixture really does carry the two shapes that make this
-    // interesting - more than one question, and one pinned above version 1.
+    // Non-vacuity: the fixture carries more than one question, and one pinned above 1.
     expect(expected.size).toBeGreaterThan(1);
     expect([...expected.values()]).toContain(2);
   });
@@ -200,16 +139,12 @@ describe("the dev seed's questions come from the form it publishes (issue #817 c
   });
 
   it("refuses a form that pins a question the launcher has no definition path for", () => {
-    // The exact mutation that broke the dev stack, as a unit: a new pinned item with no
-    // entry beside it. It must fail at load rather than mid-seed, and the message must
-    // name the question.
     expect(() =>
       kitchenSinkQuestions({ steps: [{ items: [{ questionId: "q_brand_new", version: 1 }] }] }),
     ).toThrow(/q_brand_new/);
   });
 
   it("refuses a definition path for a question the form no longer pins", () => {
-    // The same class pointing the other way: a stale row seeded into every dev database.
     expect(() =>
       kitchenSinkQuestions(
         { steps: [{ items: [{ questionId: "q_kept", version: 1 }] }] },
@@ -229,20 +164,8 @@ describe("the admin's port is derived, never written down (R8)", () => {
   });
 });
 
-/**
- * SEC-8 at the output.
- *
- * The banner offers a ready-to-paste `pnpm qcms:create-admin` command, and a connection
- * string carries a password. That is safe for exactly one string: the one this module
- * builds itself from known-synthetic parts. Every route where the environment supplied
- * the credential instead has to fall back to the placeholder.
- *
- * Asserted against the whole rendered banner rather than the helper, because what
- * matters is that the developer never SEES the value. The module reads its environment
- * once at import, so each case resets the module registry and imports it afresh.
- */
 describe("the admin banner never echoes a database credential (SEC-8)", () => {
-  /** Recognisably fake. Neither is a credential for anything that exists. */
+  /** Deliberately fake: neither authenticates anything that exists. */
   const FAKE_URL_PASSWORD = "hunter2-NOT-A-REAL-PASSWORD";
   const FAKE_DB_PASSWORD = "swordfish-NOT-A-REAL-PASSWORD";
   const PLACEHOLDER = "DATABASE_URL=<your dev database URL>";
@@ -252,7 +175,7 @@ describe("the admin banner never echoes a database credential (SEC-8)", () => {
     vi.resetModules();
   });
 
-  /** The rendered banner, from a fresh import under the currently stubbed environment. */
+  /** Fresh import per case: the module reads its environment once, at import. */
   async function banner(): Promise<string> {
     vi.resetModules();
     const module = await import("./dev-stack.mjs");
@@ -260,9 +183,6 @@ describe("the admin banner never echoes a database credential (SEC-8)", () => {
   }
 
   it("suppresses the line when DATABASE_URL is supplied by the environment", async () => {
-    // The route the first version of this guard missed. `DATABASE_URL` is a supported
-    // override, so a developer can point the launcher at a database whose password this
-    // process did not invent - and the old guard only inspected `QCMS_DB_PASSWORD`.
     vi.stubEnv("DATABASE_URL", `postgres://qcms:${FAKE_URL_PASSWORD}@db.internal:5432/qcms`);
     const text = await banner();
     expect(text).not.toContain(FAKE_URL_PASSWORD);
@@ -278,8 +198,7 @@ describe("the admin banner never echoes a database credential (SEC-8)", () => {
   });
 
   it("still prints the ready-to-paste line for the synthetic compose default", async () => {
-    // The guard must not be always-off: suppressing unconditionally would pass both
-    // assertions above while quietly removing the thing the banner exists to offer.
+    // Non-vacuity: suppressing unconditionally would pass both cases above.
     vi.stubEnv("DATABASE_URL", undefined);
     vi.stubEnv("QCMS_DB_PASSWORD", undefined);
     const text = await banner();
@@ -288,21 +207,6 @@ describe("the admin banner never echoes a database credential (SEC-8)", () => {
   });
 });
 
-/**
- * The call site, which is what the assertions above cannot reach.
- *
- * `apiChildEnv` and `frontendChildEnv` are pure, so calling them with hand-written
- * inputs proves only that they copy their arguments through. Both of the mutations
- * that would break issue #281's premise live one level up, at the site that decides
- * what to pass, and every test above stays green under either of them:
- *
- *   1. handing the front end a fresh `randomSecret()` instead of the API's token -
- *      which is the entire reason `pnpm dev:admin` starts its own API;
- *   2. passing `PORTAL_BASE_URL` where `ADMIN_BASE_URL` belongs.
- *
- * `stackChildEnvs` is that site. It takes the token once and reads the addresses from
- * the module's own seat-derived constants, so these assertions fail under either.
- */
 describe("the launcher's call site, not just its pure helpers (issue #281)", () => {
   const TOKEN = "shared-token-for-this-run";
 
@@ -320,11 +224,10 @@ describe("the launcher's call site, not just its pure helpers (issue #281)", () 
 
   it("puts the admin on its own origin, which is not the portal's", () => {
     const envs = stackChildEnvs({ frontend: "admin", internalToken: TOKEN });
-    // Asserted against the derived port rather than against an input this test chose,
-    // so swapping the two constants at the call site cannot pass.
+    // Asserted against the derived port, not an input this test chose, so swapping the
+    // two constants at the call site cannot pass.
     expect(envs.frontend.QCMS_ADMIN_BASE_URL).toBe(`http://localhost:${stablePort("admin")}`);
     expect(envs.frontend.QCMS_ADMIN_BASE_URL).not.toBe(`http://localhost:${stablePort("portal")}`);
-    // And the API, which reads it as better-auth's baseURL, agrees with the admin.
     expect(envs.api.QCMS_ADMIN_BASE_URL).toBe(envs.frontend.QCMS_ADMIN_BASE_URL);
   });
 
@@ -334,21 +237,11 @@ describe("the launcher's call site, not just its pure helpers (issue #281)", () 
   });
 });
 
-/**
- * The reaping path (issue #318), against a real process tree.
- *
- * This is the one part of the launcher with a genuine process in it, and it is the fix
- * #318 is about, so it is tested rather than left to the PR's manual evidence. A full
- * stack boot is not needed: what `reapChildTree` has to get right is generic - find the
- * grandchildren of a child that does not forward signals, signal them before their
- * parent, and refuse to signal anything for a child that has already exited. A shell
- * holding two `sleep`s is that shape, and costs milliseconds.
- */
 describe("Ctrl+C reaps the whole front-end tree (issue #318)", () => {
   const SHELL = ["/bin/sh", "/usr/bin/sh"].find((candidate) => existsSync(candidate));
   const itOnPosix = process.platform !== "win32" && SHELL !== undefined ? it : it.skip;
 
-  /** True once the pid is gone. A signalled process may be a zombie for a moment first. */
+  /** Polled: a signalled process may be a zombie for a moment before the pid goes. */
   async function waitUntilGone(pid: number): Promise<boolean> {
     for (let attempt = 0; attempt < 100; attempt++) {
       try {
@@ -364,12 +257,10 @@ describe("Ctrl+C reaps the whole front-end tree (issue #318)", () => {
   itOnPosix(
     "signals the grandchildren a plain child.kill() would orphan",
     async () => {
-      // `sh` here stands in for `pnpm --filter <app> dev`: it does not forward SIGTERM to
-      // what it spawned, so the two sleeps are exactly the `next-server` that used to be
-      // left holding this seat's 7S00/7S40.
+      // `sh` stands in for `pnpm --filter <app> dev`: it does not forward SIGTERM to what
+      // it spawned.
       const child = spawn(SHELL as string, ["-c", "sleep 30 & sleep 30 & wait"]);
       await once(child, "spawn");
-      // Give the shell a moment to fork both sleeps before the snapshot is taken.
       let descendants: number[] = [];
       for (let attempt = 0; attempt < 100 && descendants.length < 2; attempt++) {
         await new Promise((resolve) => setTimeout(resolve, 50));
@@ -394,18 +285,8 @@ describe("Ctrl+C reaps the whole front-end tree (issue #318)", () => {
   itOnPosix(
     "reaps the tree on an abnormal exit too, not only on a signal (issue #350)",
     async () => {
-      // The half #281 left open. `shutdown()` reaped, so Ctrl+C was clean; `fail()`
-      // called `process.exit(1)` and reaped nothing, so an API crash or a readiness
-      // timeout left a `next-server` holding this seat's port - reparented to pid 1,
-      // still listening, and adopted by the next `verify:browser` run.
-      //
-      // It has to be asserted in a SEPARATE process, because the property is about what
-      // survives this launcher's death: the reap runs in a `process.on("exit")` handler,
-      // and the pids only become orphans once that process is gone. So a child node
-      // process builds the real wiring (`installShutdownHandlers` + `startChild`, both
-      // from the module under test), reports the tree it created, and exits 1 the way
-      // `fail()` does. Nothing here calls `reapChildTree`; if the handler is not wired,
-      // the sleeps outlive their launcher and this fails.
+      // Asserted in a separate process: the pids only become orphans once the launcher
+      // that started them is gone, and the reap runs in its `exit` handler.
       const script = `
         const stack = await import(${JSON.stringify(new URL("./dev-stack.mjs", import.meta.url).href)});
         stack.installShutdownHandlers();
@@ -441,9 +322,8 @@ describe("Ctrl+C reaps the whole front-end tree (issue #318)", () => {
   itOnPosix(
     "signals nothing for a child that has already exited",
     async () => {
-      // The recycled-pid hazard. `child.kill()` is a no-op after exit because Node knows
-      // the pid is spent; `process.kill()` does not, and would signal whatever holds that
-      // number now. Without the guard this returns the dead pid instead of nothing.
+      // `process.kill()` does not know a pid is spent, so it would signal whatever holds
+      // that number now.
       const child = spawn(SHELL as string, ["-c", "exit 0"]);
       await once(child, "exit");
       expect(child.exitCode ?? child.signalCode).not.toBeNull();

@@ -1,9 +1,6 @@
 /**
- * If `@better-auth/drizzle-adapter` mapped a `string[]` field to `jsonb` or a serialised
- * `text`, every scope check written against an array operator would be wrong and a round
- * trip alone would not notice.
- *
- * Requires Docker, like every `*.integration.test.ts`.
+ * If `@better-auth/drizzle-adapter` mapped a `string[]` field to `jsonb` or serialised `text`, every scope
+ * check written against an array operator would be wrong and a round trip alone would not notice.
  */
 
 import { eq } from "drizzle-orm";

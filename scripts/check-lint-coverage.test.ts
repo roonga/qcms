@@ -17,18 +17,8 @@ import {
   uncovered,
 } from "./check-lint-coverage.mjs";
 
-/**
- * Tests for the lint-coverage gate itself (issue #413).
- *
- * This gate exists because three separate instances of "green over a file the linter
- * never opened" survived in this repo until somebody happened to read a command echo.
- * A gate against that failure mode must itself be proven able to go red, so the cases
- * below are mostly near-misses: the shapes that would make it quietly report OK.
- */
-
 const temporaryRoots: string[] = [];
 
-/** A throwaway tree, so scope resolution can be tested against real stat() calls. */
 function fixtureRoot(files: Record<string, string>): string {
   const root = mkdtempSync(path.join(tmpdir(), "qcms-lint-coverage-"));
   temporaryRoots.push(root);
@@ -59,9 +49,6 @@ describe("reading lint scope out of a lint script", () => {
   });
 
   it("finds no coverage in a lint script that does not run eslint", () => {
-    // The root package's own script. Reporting its targets as anything other than
-    // empty would credit the root with coverage it does not have, which is exactly
-    // the misreading issue #257 records.
     expect(lintTargets("turbo run lint && prettier --check . && node scripts/check.mjs")).toEqual(
       [],
     );
@@ -76,16 +63,11 @@ describe("reading lint scope out of a lint script", () => {
   });
 
   it("does not mistake a flag's VALUE for a file", () => {
-    // The near-miss that matters: reading `custom.config.js` as a lint target would
-    // silently widen apparent coverage by one path, and nothing would ever say so.
     expect(lintTargets("eslint --config custom.config.js src")).toEqual(["src"]);
     expect(lintTargets("eslint -f json src")).toEqual(["src"]);
   });
 
   it("reads through the workspace runner, whatever its relative spelling", () => {
-    // Issue #899: every lint script now reaches ESLint through
-    // `scripts/eslint-workspace.mjs`. Failing to recognise it would report zero
-    // targets for every package, i.e. claim the whole tree is unlinted.
     expect(lintTargets("node ../../scripts/eslint-workspace.mjs src e2e")).toEqual(["src", "e2e"]);
     expect(lintTargets("node scripts/eslint-workspace.mjs .")).toEqual(["."]);
     expect(lintTargets("node ../../scripts/eslint-workspace.mjs -f json src")).toEqual(["src"]);
@@ -117,8 +99,6 @@ describe("requiring a pinned working directory", () => {
   });
 
   it("holds for every lint script in this repository", () => {
-    // The wiring half of the #899 fix, asserted against the real manifests: the
-    // runner is worthless if a package quietly goes back to a bare `eslint`.
     const repoRoot = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
     const scope = lintScope(trackedManifests(), repoRoot);
     expect(scope.unpinned).toEqual([]);
@@ -136,8 +116,8 @@ describe("resolving scope against the tree", () => {
 
     expect(scope.dirs).toEqual(["src/"]);
     expect(scope.missing).toEqual([]);
-    // A prefix test must not let `sr/` be covered by a `src/` entry: the trailing
-    // slash is what makes "starts with" safe here.
+    // The trailing slash is what keeps "starts with" from letting `sr/` be covered by a
+    // `src/` entry.
     expect(scope.dirs.some((dir) => "sr/other.ts".startsWith(dir))).toBe(false);
   });
 
@@ -163,8 +143,6 @@ describe("resolving scope against the tree", () => {
   });
 
   it("reports a lint target that does not exist rather than ignoring it", () => {
-    // A stale target is the #387 item 21 shape: a lint script nobody re-read. Left
-    // unreported it reads as coverage.
     const root = fixtureRoot({
       "package.json": JSON.stringify({ scripts: { lint: "eslint src gone" } }),
       "src/index.ts": "",
@@ -218,17 +196,14 @@ describe("recognizing the copied source boundary", () => {
     expect(isGeneratedCopy("packages/create-qcms-app/templates/common/apps/api/src/app.ts")).toBe(
       true,
     );
-    // The generator, its tests and the hand-written static templates are ordinary
-    // source: only the derived `templates/` tree is a copy of something else.
     expect(isGeneratedCopy("packages/create-qcms-app/src/scaffold.ts")).toBe(false);
     expect(isGeneratedCopy("packages/create-qcms-app/scripts/sync-templates.mjs")).toBe(false);
     expect(isGeneratedCopy("packages/create-qcms-app/templates-static/common/x.ts")).toBe(false);
   });
 
   it("keeps the two exclusions apart, so neither widens the other", () => {
-    // `isVendoredSource` comes from `scripts/vendored-source.mjs`, the one definition
-    // five gates read (issue #775). The template tree is an ESLint-only exemption and
-    // must never reach that module: four other gates would stop scanning it.
+    // The template tree is an ESLint-only exemption and must never reach
+    // `scripts/vendored-source.mjs`: four other gates would stop scanning it.
     expect(isVendoredSource("packages/create-qcms-app/templates/common/apps/api/src/app.ts")).toBe(
       false,
     );
@@ -238,18 +213,15 @@ describe("recognizing the copied source boundary", () => {
 
 describe("against this repository", () => {
   it("sees a non-trivial tree, so a passing run is not a run over nothing", () => {
-    // A gate that silently scanned zero files would report OK forever. The count is
-    // in the hundreds; the bound only has to rule out "empty".
+    // Vacuity floor: a gate that scanned zero files would report OK forever.
     expect(trackedSourceFiles().length).toBeGreaterThan(100);
     expect(trackedMarkdownFiles().length).toBeGreaterThan(50);
     expect(trackedManifests()).toContain("package.json");
   });
 
   it("lints both Next.js apps by directory rather than by a hand-written file list", () => {
-    // The #413 fix itself, asserted where it cannot silently regress: with `eslint .`
-    // a new root-level file is covered; with an enumerated list it is not.
-    // Derived from this file's own location rather than from cwd, so the assertion
-    // is about the repository and not about where the runner happened to start.
+    // Derived from this file's own location rather than from cwd, so the assertion is
+    // about the repository and not about where the runner started.
     const repoRoot = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
     const scope = lintScope(["apps/portal/package.json", "apps/admin/package.json"], repoRoot);
 

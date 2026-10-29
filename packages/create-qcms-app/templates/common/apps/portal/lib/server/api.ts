@@ -1,3 +1,4 @@
+// R2: proxy only; imports nothing from @roonga/qcms-core (the import-surface test enforces it).
 import type { A2UIAnswerValue } from "@roonga/qcms-ui";
 
 import { CLIENT_ADDRESS_HEADER, currentClientAddress } from "./client-address";
@@ -8,36 +9,13 @@ import { serverLogger } from "./logger";
 
 import { splitFieldKey } from "../repeat";
 
-/**
- * The strict BFF's internal API client (task 029, R2).
- *
- * This module is proxy + credential duty ONLY: it attaches the SEC-4 internal
- * token and (when present) the respondent's session bearer, forwards the call to
- * the server-only internal API, and returns the parsed JSON. It performs NO rule
- * evaluation and NO validation authority - the API owns all of that (R2). It
- * imports nothing from @roonga/qcms-core (enforced by the import-surface test); the
- * types below are structural mirrors of the API's response shapes, not kernel
- * imports.
- *
- * **Every call goes to the request's own environment's API surface, since task 066**
- * (ADR-40, Q21). The API mounts one respondent group per environment - `prod`'s at the
- * unprefixed paths and every other at `/<env>` - so the prefix the browser arrived under
- * is the prefix this module calls, and the API serves the request from that
- * environment's pool. It is {@link apiPath} and nothing else, so a new call cannot
- * forget it: there is no unprefixed path composed anywhere below.
- *
- * The environment is **not** sent as a header. A respondent request's environment is the
- * group that served it, which is what makes "there is no anonymous entry to a non-prod
- * environment" a routing fact rather than a handler's good manners (SEC-14).
- */
-
-/** One compiled A2UI step document (served verbatim; ADR-18). `null` when the flow is complete. */
+/** Served verbatim (ADR-18); `null` when the flow is complete. */
 export interface ApiStepDocument {
   readonly stepId: string;
   readonly root: unknown;
 }
 
-/** The forward-pass flow projection the API computes (never re-derived here). */
+/** The API's forward-pass projection, never re-derived here. */
 export interface ApiFlowState {
   readonly currentStep: string | null;
   readonly visibleQuestions: readonly string[];
@@ -51,27 +29,18 @@ export interface ApiProgress {
 }
 
 /**
- * The answers the API already holds for the rendered step's visible questions,
- * keyed by questionId (issue #146). A question with no current answer - including
- * one whose newest ledger row is an ADR-33 retraction - is simply absent.
- *
- * This is how stored answers reach the browser WITHOUT the compiled document
- * carrying them (ADR-18): they ride beside `step`, which stays the immutable,
- * content-only bytes the API serves verbatim. They are display data only; the BFF
- * neither reads nor derives anything from them (R2) - it forwards them, and the
- * renderer shows them.
+ * How stored answers reach the browser without the compiled document carrying them
+ * (ADR-18): they ride beside `step`, which stays the content-only bytes the API serves
+ * verbatim. A question with no current answer, including one whose newest ledger row is
+ * a retraction, is absent.
  */
 export type ApiHeldValues = Readonly<Record<string, A2UIAnswerValue>>;
 
 /**
- * One repeating group's live instance roster (task 073, ADR-42, ADR-43): already
- * derived and already truncated by the API, in roster order.
- *
- * This is how the roster reaches the renderer. A compiled `RepeatGroup` is a
- * **template** carrying its member controls once - the compiler is answer-blind and
- * an instance count is answer-dependent - so the renderer clones it per live
- * instance, and the roster travels beside the document exactly as `values` do. The
- * portal reads it and derives nothing from it (R2).
+ * One repeating group's live instances, already derived and truncated by the API, in
+ * roster order (ADR-42). A compiled `RepeatGroup` is a template carrying its member
+ * controls once, because the compiler is answer-blind and an instance count is
+ * answer-dependent, so the roster travels beside the document as the values do.
  */
 export interface ApiGroupRoster {
   readonly groupId: string;
@@ -79,16 +48,9 @@ export interface ApiGroupRoster {
 }
 
 /**
- * Which **view** the response draws (task 076, ADR-28 as amended 2026-09-29, Q22).
- *
  * A `perInstanceStep` group paginates one step into one page per live instance, so the
- * cursor indexes views rather than steps and the response has to say which view it is.
- * Both keys are `null` for every other page, which is every page of every form with no
- * such group, so the no-group render is unchanged.
- *
- * The portal narrows the roster it was handed to this one instance and derives nothing
- * else from it (R2): which views exist, which one to serve when no cursor is given, and
- * whether another instance may be added are all answers the API has already given.
+ * cursor indexes views rather than steps and the response has to say which view it is
+ * (ADR-28 as amended, Q22). Both keys are `null` for every other page.
  */
 export interface ApiStepView {
   readonly groupId: string | null;
@@ -106,7 +68,6 @@ export interface StepResponse {
   readonly progress: ApiProgress;
 }
 
-/** One entry of a batch, and one entry the batch refused. */
 export interface BatchAnswerEntry {
   readonly questionId: string;
   readonly instanceId?: string;
@@ -120,19 +81,16 @@ export interface BatchRejection {
   readonly details?: unknown;
 }
 
-/** POST /sessions/:id/answers/batch: the projection, plus what it refused. */
 export interface BatchAnswerResponse extends StepResponse {
   readonly rejected: readonly BatchRejection[];
 }
 
-/** POST /sessions/:id/roster: the projection, plus what the operation did. */
 export interface RosterOpResponse extends StepResponse {
-  /** True when the one-time token had already been spent: nothing was written. */
+  /** True when the one-time token had already been spent, so nothing was written. */
   readonly replayed: boolean;
   readonly minted: readonly string[];
 }
 
-/** POST /sessions success (201). */
 export interface StartSessionResponse {
   readonly sessionId: string;
   readonly sessionToken: string;
@@ -140,13 +98,12 @@ export interface StartSessionResponse {
   readonly expiresAt: string;
 }
 
-/** POST /sessions/:id/submit success (200) - the receipt. */
 export interface SubmitResponse {
   readonly submittedAt: string;
   readonly contentHash: string;
 }
 
-/** The API's uniform error envelope: `{ error: { code, message, details? } }`. */
+/** The API's uniform error envelope. */
 export class ApiError extends Error {
   constructor(
     readonly code: string,
@@ -166,23 +123,7 @@ interface ErrorEnvelope {
   };
 }
 
-/**
- * Credential + correlation headers for one internal API call.
- *
- * Async since task 054: it also forwards this browser request's `x-request-id`
- * (minted by `proxy.ts`, read back through `headers()`), so the API logs the id
- * the respondent can quote instead of generating an unrelated one. `traceparent`
- * rides the same fetch without appearing here - `@vercel/otel` injects it into
- * outgoing fetches whose URL matches `propagateContextUrls` (see
- * `instrumentation.ts`), which is why this stays proxy + credential duty only.
- *
- * Since issue #341 it also asserts the client address the ingress vouched for, so
- * the API's respondent rate limiters can tell respondents apart at all. The raw
- * `x-forwarded-for` is deliberately NOT forwarded: `client-address.ts` resolves
- * it here, where the number of trusted proxies is known, and vouches for the
- * result on a header the SEC-4 channel protects. Absent a trustworthy address the
- * header is simply omitted and the API falls back to its shared bucket.
- */
+// The raw `x-forwarded-for` is not forwarded: `client-address.ts` resolves it here, where the number of trusted proxies is known, and vouches for the result on a header the SEC-4 channel protects.
 async function baseHeaders(token?: string): Promise<Record<string, string>> {
   const headers: Record<string, string> = {
     "content-type": "application/json",
@@ -197,12 +138,8 @@ async function baseHeaders(token?: string): Promise<Record<string, string>> {
 }
 
 /**
- * One API URL, under the environment serving this request.
- *
- * `path` is the API's own path with no prefix (`/sessions/{id}/step`), exactly as the
- * OpenAPI document declares it; the environment's prefix is prepended here. `prod` adds
- * nothing, so a production deployment's calls are byte-for-byte the ones it always made
- * (criterion 7).
+ * `path` is the API's own unprefixed path, exactly as the OpenAPI document declares it,
+ * and the environment's prefix is prepended here. `prod` adds nothing.
  */
 async function apiPath(path: string): Promise<string> {
   return `${apiBaseUrl()}${environmentPrefix(await currentEnvironment())}${path}`;
@@ -246,13 +183,10 @@ async function loggedFetch(
 }
 
 /**
- * Start an **anonymous** session from a public form slug.
- *
- * `POST /sessions`, which the API mounts on `prod`'s respondent surface **only** (SEC-14,
- * task 066). The portal does not serve `/f/{slug}` under an environment prefix or on a
- * host reserved for one, so this is never called for a non-prod environment; if it were,
- * the answer would be the API's `404` rather than a refusal, which is the point of the
- * split.
+ * The API mounts this endpoint on `prod`'s respondent surface only (SEC-14), and the
+ * portal serves `/f/{slug}` under no prefix and on no reserved host, so it is never
+ * called for a non-prod environment. If it were, the answer would be a 404 rather than a
+ * refusal, which is the point of the split.
  */
 export async function startAnonymousSession(body: {
   readonly formSlug: string;
@@ -274,12 +208,10 @@ export async function startAnonymousSession(body: {
 }
 
 /**
- * Start a session from a **secure link**.
- *
- * `POST /sessions/link`, on every environment's respondent surface, because a secure link
- * is how a non-prod environment is reached at all (ADR-40 ruling 3). The environment is
- * not in the token and is not sent: the address this call is made at names it, and the
- * API refuses a token whose `secure_links` row names another one (Q21).
+ * On every environment's respondent surface, because a secure link is how a non-prod
+ * environment is reached at all (ADR-40). The environment is not in the token and is not
+ * sent: the address this call is made at names it, and the API refuses a token whose row
+ * names another one (Q21).
  */
 export async function startLinkSession(body: {
   readonly token: string;
@@ -300,20 +232,12 @@ export async function startLinkSession(body: {
   return readJson<StartSessionResponse>(res);
 }
 
-/**
- * The `?step=<index>` suffix for the explicit navigation cursor (ADR-28), or ""
- * when no cursor is requested (resume / no-JS / the first-incomplete default).
- */
+/** ADR-28's explicit navigation cursor, absent for the first-incomplete default. */
 function stepQuery(stepIndex?: number): string {
   return stepIndex === undefined ? "" : `?step=${encodeURIComponent(String(stepIndex))}`;
 }
 
-/**
- * Fetch a step + flow projection for a session (bearer required). `stepIndex` is
- * the explicit navigation cursor: the 0-based visible-step index to render. Omit
- * it to serve the first incomplete step (resume). The portal reads `flowState`,
- * never re-derives it (R2).
- */
+/** Omit `stepIndex` to serve the first incomplete step. */
 export async function getStep(
   sessionId: string,
   token: string,
@@ -333,9 +257,8 @@ export async function getStep(
 }
 
 /**
- * Submit one answer; the API returns the re-evaluated step + projection.
- * `stepIndex` carries the caller's committed cursor so the response renders that
- * step (never advancing away from it as a side effect of answering, ADR-28).
+ * `stepIndex` carries the caller's committed cursor, so the response renders that step
+ * rather than advancing as a side effect of answering (ADR-28).
  */
 export async function submitAnswer(
   sessionId: string,
@@ -351,10 +274,9 @@ export async function submitAnswer(
     {
       method: "POST",
       headers,
-      // The qualified name is taken apart HERE, at the one boundary that cares: above
-      // this call a field is `instanceId/questionId` throughout (task 073, Q15), and the
-      // API takes the two parts separately. Posting the whole name as the question is a
-      // 404 `UNKNOWN_QUESTION`, which is how this was found.
+      // The qualified name is taken apart here, at the one boundary that cares: above
+      // this call a field is `instanceId/questionId` throughout (Q15), and the API takes
+      // the two parts separately.
       body: JSON.stringify({ ...splitFieldKey(questionId), value }),
       cache: "no-store",
     },
@@ -363,7 +285,6 @@ export async function submitAnswer(
   return readJson<StepResponse>(res);
 }
 
-/** Submit the session; the API returns the receipt (submittedAt + contentHash). */
 export async function submitSession(
   sessionId: string,
   token: string,
@@ -384,23 +305,6 @@ export async function submitSession(
   return readJson<SubmitResponse>(res);
 }
 
-/**
- * Submit a whole step's answers in one request (task 073, Q20, ADR-43).
- *
- * One request, one session lock, one flow evaluation, instead of one call per answer:
- * nine passengers times six questions is fifty-four sequential round trips and
- * fifty-four advisory locks for one Continue. The API refuses entries individually and
- * lists them in `rejected`, so a mistyped cell does not lose the other fifty-three,
- * and it spends the per-session answer allowance **per entry** rather than per request
- * (SEC-16), so a 429 here means the batch did not fit the window and nothing was
- * applied.
- *
- * The answer key rides as `{questionId, instanceId?}` rather than as the joined
- * `ins_7k2/q_plate` string: the join is the RENDERER's encoding of one field's
- * identity, and the API's own vocabulary is the pair. Splitting it here is the one
- * place the BFF touches the encoding, and it is a transport mapping rather than a
- * judgement (R2).
- */
 export async function batchAnswers(
   sessionId: string,
   token: string,
@@ -425,14 +329,9 @@ export async function batchAnswers(
 }
 
 /**
- * Add or remove one instance of a repeating group (task 073, ADR-43).
- *
- * **It commits no answers.** The typed values ride the step POST and reach the ledger
- * only on Continue, under the ordinary validation an ordinary Continue does.
- *
- * `opToken` is the one-time operation token the rendered page minted. The API records
- * it with the roster row, so a replayed post applies nothing and comes back
- * `replayed: true` with the roster as it stands.
+ * Commits no answers: the typed values ride the step POST and reach the ledger only on
+ * Continue (ADR-43). The API records `opToken` with the roster row, so a replayed post
+ * applies nothing and comes back `replayed: true`.
  */
 export async function rosterOp(
   sessionId: string,

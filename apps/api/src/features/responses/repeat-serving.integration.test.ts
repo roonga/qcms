@@ -1,29 +1,3 @@
-/**
- * The repeating group on the serving path (task 073, ADR-42, ADR-43, SEC-16), driven
- * through `app.request()` against the real kernel, the real compiler and the 013
- * Testcontainers harness DB. Never a mock of our own packages (CONTRIBUTING). Requires
- * Docker.
- *
- * `roster.test.ts` proves the derivation as a function, and `roster.integration.test.ts`
- * proves the derivation against the real ledger. This file proves the **endpoints**: the
- * projection a respondent is served, the batch answer write, the roster operation, and
- * the bounds SEC-16 states. It owns acceptance cases 36 and 54 to 57 of
- * `plan/repeating-groups-and-table-input.md` section 11, plus the two properties task
- * 072 handed to this task: one mint per group per transaction, and an answer naming a
- * dead instance being refused.
- *
- * **Task 075 added the outbox payload walk at the end** (acceptance case 51), because this
- * is the API suite's only real repeating form: a walk of a payload built from a fixture
- * with no group would assert the property on data that cannot break it.
- *
- * The fixture is built here rather than read from `packages/core/fixtures`, and that is
- * deliberate: the kernel's fixture forms are asserted to pin only questions from its own
- * canonical set, and two `open` groups in one form is a shape only this file needs (case
- * 54 turns on there being no per-session ceiling above two per-group ones). It is
- * compiled by the REAL compiler, so the stored document carries a real `RepeatGroup`
- * template and the projection is asserted against bytes the compiler produced.
- */
-
 import { readFileSync } from "node:fs";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
@@ -68,7 +42,6 @@ const NOW = new Date("2026-10-01T00:00:00.000Z");
 const PUBLIC_ONLY = { public: true, internal: false, admin: false } as const;
 const REPO_ROOT = fileURLToPath(new URL("../../../../../", import.meta.url));
 
-/** A question from the compiler's corpus fixtures, which carry the repeat members. */
 function corpusQuestion(file: string): QuestionDefinition {
   const raw: unknown = JSON.parse(
     readFileSync(
@@ -86,13 +59,6 @@ const ODOMETER = corpusQuestion("q-rep-odometer.json");
 const FLEET = corpusQuestion("q-rep-fleet-name.json");
 const NOTES = corpusQuestion("q-rep-notes.json");
 
-/**
- * One step, one plain question and TWO `open` groups of `max: 2`.
- *
- * Two groups is what makes case 54 a real assertion: filling both to their own `max` is
- * four live instances in one session, which no per-session ceiling refuses because the
- * Code Owner ruled that there is none (Q14). `max: 2` keeps the refusal one press away.
- */
 const DEFINITION: FormDefinition = (() => {
   const parsed = parseFormDefinition({
     formId: "frm_repeat_serving",
@@ -133,17 +99,7 @@ const DEFINITION: FormDefinition = (() => {
   return parsed.value;
 })();
 
-/**
- * A second form whose ONE step can legitimately carry more answers than the shipped
- * per-session allowance (task 073, ruling Q29, 2026-10-02).
- *
- * Its bound is 1 + 3 members x `max: 4` = **13**, against a production default of 10 answers
- * per 5 seconds. The first fixture above cannot show this: its bound is 7, so every valid
- * batch of it fits the default and the defect Copilot found on PR #1034 is invisible. That
- * defect was that a no-JS Continue spends one unit per entry against an unchanged `max`, so a
- * populated repeating step was refused with a 429 and, because every retry re-posts the same
- * set into the same fixed window, refused forever.
- */
+// Its step bound is 1 + 3 members x `max: 4` = 13, above the shipped allowance of 10.
 const WIDE_DEFINITION: FormDefinition = (() => {
   const parsed = parseFormDefinition({
     formId: "frm_repeat_wide",
@@ -176,20 +132,6 @@ const WIDE_DEFINITION: FormDefinition = (() => {
   return parsed.value;
 })();
 
-/**
- * A third form whose one step is paginated by a `perInstanceStep` group (task 076,
- * ADR-28 as amended 2026-09-29, Q22).
- *
- * `min: 3` so the first serve mints three instances and the step is three views without
- * any respondent action, which is the exit criterion stated as a fixture; `max: 4` so the
- * group is still growable and the Add control has somewhere to be.
- *
- * It carries a plain question beside the group deliberately. A view narrows the step to
- * **one instance of the paginating group** and to nothing else, so the step's own
- * question is on every page of the walk; the alternative - putting it on the first page
- * only - would be a second rule beside the ruled one, and nothing has ruled it. An
- * author who does not want a question repeated across the pages puts it on its own step.
- */
 const PER_INSTANCE_DEFINITION: FormDefinition = (() => {
   const parsed = parseFormDefinition({
     formId: "frm_per_instance",
@@ -253,8 +195,6 @@ beforeAll(async () => {
       definition: question,
     });
   }
-  // The REAL publish path, so the stored compiled document is what the compiler emits
-  // for a repeating group rather than something this test shaped.
   const draft = compileDraft({
     definition: DEFINITION,
     resolveQuestion: (questionId, version) =>
@@ -356,8 +296,6 @@ afterAll(async () => {
 }, CONTAINER_BOOT_TIMEOUT_MS);
 
 beforeEach(async () => {
-  // Each case gets its own session: a roster is session state and the whole subject
-  // here is what one session's roster does.
   await deps.rateLimitStore.reset(`rl:answers-session:${current.sessionId}`).catch(() => undefined);
 });
 
@@ -388,7 +326,6 @@ async function newSession(): Promise<Session> {
   return current;
 }
 
-/** A session on the wide form, whose step bound (13) exceeds the shipped max (10). */
 async function newWideSession(): Promise<Session> {
   seeded += 1;
   const sessionId = SessionId.parse(`ses_wide_${String(seeded)}`);
@@ -428,7 +365,6 @@ interface StepBody {
     readonly readyToSubmit: boolean;
   };
   readonly rosters: readonly { readonly groupId: string; readonly instances: readonly string[] }[];
-  /** Which VIEW this response draws (task 076, ADR-28 as amended 2026-09-29). */
   readonly view: { readonly groupId: string | null; readonly instanceId: string | null };
   readonly progress: { readonly stepIndex: number; readonly totalVisibleSteps: number };
 }
@@ -451,7 +387,6 @@ async function getStep(session: Session, cursor?: number): Promise<StepBody> {
   return (await res.json()) as StepBody;
 }
 
-/** A session on the per-instance form, whose one step is three views (task 076). */
 async function newPerInstanceSession(): Promise<Session> {
   seeded += 1;
   const sessionId = SessionId.parse(`ses_pi_${String(seeded)}`);
@@ -511,24 +446,18 @@ describe("the step projection carries the live roster (ADR-42, ADR-43)", () => {
   it("mints the open group's min on the first serve and nothing on the second", async () => {
     const session = await newSession();
     const first = await getStep(session);
-    // `min: 1` on `grp_vehicles`, so the respondent meets a card to fill rather than an
-    // empty group with a button; `min: 0` on `grp_incidents` still mints ONE, because
-    // an empty group with only a button is the same dead end (ADR-42's minting rule).
+    // `grp_incidents` has `min: 0` and still mints one: ADR-42's minting rule.
     expect(instancesOf(first, "grp_vehicles")).toHaveLength(1);
     expect(instancesOf(first, "grp_incidents")).toHaveLength(1);
 
     const second = await getStep(session);
     expect(second.rosters).toEqual(first.rosters);
-    // Idempotent against the rows already written, so a reload mints nothing.
     expect(await rosterLedger(testDb.db, SessionId.parse(session.sessionId))).toHaveLength(2);
   });
 
   it("mints at most once per group per transaction (task 072's exit criterion)", async () => {
-    // `occurred_at` defaults to `now()`, which in Postgres is the TRANSACTION's
-    // timestamp, so two mint statements in one transaction write rows sharing a
-    // timestamp to the microsecond and only the read's `instance_id` tiebreaker orders
-    // them. One statement per group per transaction is what keeps the order a mint
-    // intended and the order a later read returns the same thing.
+    // `occurred_at` defaults to `now()`, the TRANSACTION's timestamp, so two mint
+    // statements in one transaction tie and only `instance_id` orders them.
     const session = await newSession();
     await getStep(session);
     const ledger = await rosterLedger(testDb.db, SessionId.parse(session.sessionId));
@@ -538,9 +467,6 @@ describe("the step projection carries the live roster (ADR-42, ADR-43)", () => {
       stamps.add(row.occurredAt.getTime());
       perGroup.set(row.groupId, stamps);
     }
-    // One distinct timestamp per group: a second statement would land at the same
-    // transaction time, so this asserts the shape rather than the clock - what it
-    // refuses is a group whose rows came from two different transactions on one serve.
     for (const [groupId, stamps] of perGroup) {
       expect(stamps.size, groupId).toBe(1);
     }
@@ -560,8 +486,6 @@ describe("the step projection carries the live roster (ADR-42, ADR-43)", () => {
         `${incident}/q_rep_notes`,
       ].sort((a, b) => a.localeCompare(b)),
     );
-    // And the missing-required set is per CELL, not per question: the qualified key is
-    // the only thing that can say which instance is short of an answer.
     expect(body.flowState.missingRequired).toContain(`${vehicle}/q_rep_plate`);
     expect(body.flowState.missingRequired).toContain(`${vehicle}/q_rep_odometer`);
   });
@@ -569,8 +493,6 @@ describe("the step projection carries the live roster (ADR-42, ADR-43)", () => {
   it("serves the stored RepeatGroup template verbatim (ADR-18)", async () => {
     const session = await newSession();
     const body = await getStep(session);
-    // The bytes the compiler produced, not an expansion: expansion is the renderer's
-    // render-time clone and the stored document is never touched.
     expect(body.step?.root).toEqual(compiled.documents[0]?.root);
   });
 });
@@ -591,24 +513,16 @@ describe("the batch answer endpoint (Q20, acceptance case 36)", () => {
 
     expect(status).toBe(200);
     expect(body.rejected).toEqual([]);
-    // One request, four ledger rows, each keyed by its own cell.
     const ledger = await answerLedger(testDb.db, SessionId.parse(session.sessionId));
     expect(ledger).toHaveLength(4);
     expect(
       ledger.filter((row) => row.questionId === QuestionId.parse("q_rep_plate"))[0]?.instanceId,
     ).toBe(vehicle);
-    // And the projection that comes back is the post-batch one. Every required cell is
-    // answered, so the flow is complete and `step` is null - which is the projection
-    // saying "nothing left to draw" rather than a repeat-specific behaviour.
     expect(body.flowState.missingRequired).toEqual([]);
     expect(body.flowState.readyToSubmit).toBe(true);
   });
 
   it("carries an accepted answer back under its QUALIFIED key", async () => {
-    // The other half of the case above, on a step the batch leaves incomplete so there
-    // is still a step to draw: the answer key is the field's whole identity below the
-    // API, so `values` is keyed by `instanceId/questionId` and the renderer's expansion
-    // finds each cell's value under the name it rendered it with.
     const session = await newSession();
     const served = await getStep(session);
     const vehicle = instancesOf(served, "grp_vehicles")[0]!;
@@ -619,7 +533,6 @@ describe("the batch answer endpoint (Q20, acceptance case 36)", () => {
 
     expect(body.values[`${vehicle}/q_rep_plate`]).toBe("ABC123");
     expect(body.flowState.missingRequired).not.toContain(`${vehicle}/q_rep_plate`);
-    // The cell beside it is still short of an answer, named per cell.
     expect(body.flowState.missingRequired).toContain(`${vehicle}/q_rep_odometer`);
   });
 
@@ -637,8 +550,6 @@ describe("the batch answer endpoint (Q20, acceptance case 36)", () => {
     expect(body.rejected).toHaveLength(1);
     expect(body.rejected[0]?.questionId).toBe("q_rep_plate");
     expect(body.rejected[0]?.code).toBe("INVALID_ANSWER");
-    // The entry beside it landed: a respondent who mistyped one cell of nine passengers
-    // must not lose the other fifty-three.
     const ledger = await answerLedger(testDb.db, SessionId.parse(session.sessionId));
     expect(ledger).toHaveLength(1);
     expect(ledger[0]?.questionId).toBe(QuestionId.parse("q_rep_odometer"));
@@ -648,10 +559,8 @@ describe("the batch answer endpoint (Q20, acceptance case 36)", () => {
     const session = await newSession();
     const served = await getStep(session);
     const vehicle = instancesOf(served, "grp_vehicles")[0]!;
-    // Remove it, then try to answer it. 072's storage helpers cannot make this check -
-    // liveness is a function of the count source, derived above them - so it is owed
-    // here, and it is owed by the VISIBILITY gate: a dead instance contributes no
-    // visible cell, so no answer for it can be accepted.
+    // A dead instance contributes no visible cell, so the visibility gate is what
+    // refuses the answer.
     await roster(session, {
       op: "remove",
       groupId: "grp_vehicles",
@@ -667,11 +576,6 @@ describe("the batch answer endpoint (Q20, acceptance case 36)", () => {
   });
 
   it("spends the per-session answer allowance per ENTRY (case 57, SEC-16)", async () => {
-    // The configured allowance is 10 per 5 seconds per session. A batch of eleven
-    // therefore cannot be paid for and is refused WHOLE - nothing is applied - while two
-    // batches of five are both accepted, because together they are exactly the
-    // allowance. That is the property SEC-16 states: the allowance does not move, the
-    // unit it is spent in does.
     const session = await newSession();
     const served = await getStep(session);
     const vehicle = instancesOf(served, "grp_vehicles")[0]!;
@@ -692,19 +596,12 @@ describe("the batch answer endpoint (Q20, acceptance case 36)", () => {
 });
 
 describe("a whole step fits the allowance, at the SHIPPED defaults (Q29)", () => {
-  // `validEnv()` sets no rate-limit overrides, so every case here runs against the
-  // production default of ten answers per five seconds per session
-  // (`DEFAULTS.rlAnswersPerSession`). That is the whole point: PR #1034 found that a no-JS
-  // Continue spends one unit per entry against that unchanged `max`, so a populated
-  // repeating step was refused with a 429 and, because every retry re-posts the same set
-  // into the same fixed window, refused for good. The Code Owner's ruling of 2026-10-02
-  // sizes one batch's ceiling to the step's own bound instead.
+  // `validEnv()` sets no rate-limit overrides, so these cases run against the shipped
+  // default of ten answers per five seconds per session.
 
-  /** Every answer a fully populated wide step carries: 1 plain + 3 members x 4 instances. */
   async function wholeWideStep(
     session: Session,
   ): Promise<{ questionId: string; instanceId?: string; value: unknown }[]> {
-    // Grow the group to its `max` first, which is what a respondent does before Continue.
     for (let press = 0; press < 3; press += 1) {
       const res = await roster(session, { op: "add", groupId: "grp_wide", opToken: token() });
       expect(res.status, "growing the group to max").toBe(200);
@@ -732,16 +629,12 @@ describe("a whole step fits the allowance, at the SHIPPED defaults (Q29)", () =>
 
     const { status, body } = await batch(session, entries);
 
-    // 200 under the ruling; 429 before it, which is the regression this holds shut.
     expect(status).toBe(200);
     expect(body.rejected).toEqual([]);
     expect(await answerLedger(testDb.db, SessionId.parse(session.sessionId))).toHaveLength(13);
   });
 
   it("refuses a batch ABOVE the step's bound, whatever the configured max", async () => {
-    // The other half of the ruling: the ceiling is the step's bound, not a blank cheque. The
-    // entries are legitimate cells repeated, so what refuses this is the COUNT and nothing
-    // about the content.
     const session = await newWideSession();
     await getStep(session);
     const entries = await wholeWideStep(session);
@@ -751,15 +644,12 @@ describe("a whole step fits the allowance, at the SHIPPED defaults (Q29)", () =>
     const { status } = await batch(session, over);
 
     expect(status).toBe(429);
-    // And nothing was written: the spend happens before any entry is applied.
     expect(await answerLedger(testDb.db, SessionId.parse(session.sessionId))).toHaveLength(0);
   });
 
   it("sizes the bound per FORM, so a narrow step gets no wider allowance", async () => {
-    // The first fixture's step bound is 7 (1 plain + 2 members x max 2 + 1 member x max 2),
-    // which is BELOW the configured max of 10. The ceiling is the larger of the two, so this
-    // form keeps its configured allowance and a batch above its own bound is still refused:
-    // the ruling raises the floor for a wide step without lowering anything for a narrow one.
+    // This form's step bound is 7, below the configured max of 10, and the ceiling is the
+    // larger of the two.
     const session = await newSession();
     const served = await getStep(session);
     const vehicle = instancesOf(served, "grp_vehicles")[0]!;
@@ -787,7 +677,6 @@ describe("the roster operation (ADR-43, acceptance cases 54 and 56)", () => {
     expect(added.body.minted).toHaveLength(1);
     expect(instancesOf(added.body, "grp_vehicles")).toHaveLength(2);
 
-    // `max: 2` reached. The per-form bound is the only bound there is (Q14, SEC-16).
     const refused = await roster(session, {
       op: "add",
       groupId: "grp_vehicles",
@@ -800,9 +689,6 @@ describe("the roster operation (ADR-43, acceptance cases 54 and 56)", () => {
   });
 
   it("fills BOTH groups to their own max in one session (case 54's second half)", async () => {
-    // No per-session total ceiling exists to refuse it, and that is a positive
-    // assertion rather than the absence of a test: the Code Owner removed every
-    // installation-wide ceiling on 2026-09-29 (Q14).
     const session = await newSession();
     await getStep(session);
     expect(
@@ -817,8 +703,6 @@ describe("the roster operation (ADR-43, acceptance cases 54 and 56)", () => {
   });
 
   it("applies a replayed operation token exactly once", async () => {
-    // What the 200 re-render costs and what the token pays for: the response to the
-    // Add is a page, so a reload can resubmit it. The same token twice is one instance.
     const session = await newSession();
     await getStep(session);
     const replayed = token();
@@ -842,8 +726,6 @@ describe("the roster operation (ADR-43, acceptance cases 54 and 56)", () => {
     expect(
       (await roster(session, { op: "add", groupId: "grp_vehicles", opToken: refusedToken })).status,
     ).toBe(409);
-    // Replaying the refused token is refused again rather than being read as "already
-    // applied", which would be the shape that turns a refusal into an acceptance.
     expect(
       (await roster(session, { op: "add", groupId: "grp_vehicles", opToken: refusedToken })).status,
     ).toBe(409);
@@ -854,9 +736,7 @@ describe("the roster operation (ADR-43, acceptance cases 54 and 56)", () => {
     const session = await newSession();
     await getStep(session);
     await roster(session, { op: "add", groupId: "grp_vehicles", opToken: token() });
-    // Not one ledger row, and no retraction either. This is the property the whole no-JS
-    // shape rests on: `formnovalidate` on the Add button is safe because the post
-    // commits nothing, so an emptied required field on it is neither stored nor cleared.
+    // `formnovalidate` on the Add button is safe only because the post commits nothing.
     expect(await answerLedger(testDb.db, SessionId.parse(session.sessionId))).toHaveLength(0);
   });
 
@@ -880,11 +760,6 @@ describe("the roster operation (ADR-43, acceptance cases 54 and 56)", () => {
   });
 
   it("refuses a removal naming an instance this session never minted", async () => {
-    // Finding 5 of PR #1034's review. A well-formed `ins_` id this roster never minted
-    // appended a `removed` row under a key no roster lists: nothing was disclosed and no
-    // derived list moved, because every read starts from `minted`, but the table is
-    // append-only and only an erasure clears it. The caller obligation on
-    // `removeRosterInstance` is discharged in `applyRosterOp` now rather than documented.
     const session = await newSession();
     const served = await getStep(session);
     const mine = instancesOf(served, "grp_vehicles")[0]!;
@@ -901,16 +776,12 @@ describe("the roster operation (ADR-43, acceptance cases 54 and 56)", () => {
     expect((res.body as unknown as { error: { code: string } }).error.code).toBe(
       "UNKNOWN_INSTANCE",
     );
-    // Nothing appended, and the token NOT spent: a refusal records nothing, so the
-    // respondent's own next press with a fresh token is unaffected.
     const ledger = await rosterLedger(testDb.db, SessionId.parse(session.sessionId));
     expect(ledger.filter((row) => row.instanceId === forged)).toEqual([]);
     expect(instancesOf(await getStep(session), "grp_vehicles")).toEqual([mine]);
   });
 
   it("refuses a removal of an instance another session minted", async () => {
-    // The same check from the direction that matters: two live sessions on the same form,
-    // and one may not remove the other's instance even though the id is real.
     const mine = await newSession();
     const theirs = await newSession();
     const theirVehicle = instancesOf(await getStep(theirs), "grp_vehicles")[0]!;
@@ -936,9 +807,6 @@ describe("the roster operation (ADR-43, acceptance cases 54 and 56)", () => {
   });
 
   it("is rate limited per session, separately from the answer write (case 56)", async () => {
-    // Its own class rather than riding the answer write's, because adding an instance is
-    // a distinct action that is cheap to repeat (SEC-16). "Separately" is the assertion
-    // that matters: spending the roster allowance must not spend the answer one.
     const session = await newSession();
     await getStep(session);
     let refused = 0;
@@ -952,7 +820,6 @@ describe("the roster operation (ADR-43, acceptance cases 54 and 56)", () => {
     }
     expect(refused).toBeGreaterThan(0);
 
-    // The answer allowance is untouched by all of that.
     const body = await getStep(session);
     const vehicle = instancesOf(body, "grp_vehicles")[0]!;
     const answered = await batch(session, [
@@ -962,10 +829,7 @@ describe("the roster operation (ADR-43, acceptance cases 54 and 56)", () => {
   });
 });
 
-// --- task 075: the outbox payload (acceptance case 51, ADR-17, SEC-16) -------
-
 describe("the response.submitted payload carries instances inside answers and nowhere else", () => {
-  /** The payload the submit transaction enqueued, read from the outbox row itself. */
   async function enqueuedPayload(sessionId: string): Promise<Record<string, unknown>> {
     const res = await testDb.client.query<{
       event_type: string;
@@ -976,12 +840,10 @@ describe("the response.submitted payload carries instances inside answers and no
     return res.rows[0]!.payload;
   }
 
-  /** Answer the whole step on a fresh session and submit it. */
   async function submitFilledSession(): Promise<{ session: Session; plates: string[] }> {
     const session = await newSession();
-    // Serve first: the first serve is what mints each group's `min`, and an Add before
-    // it would race that mint. Then add a second vehicle, so the payload has to tell
-    // two instances of the same question apart.
+    // Serve before the Add: the first serve mints each group's `min`, and an Add ahead
+    // of it would race that mint.
     await getStep(session);
     await roster(session, { op: "add", groupId: "grp_vehicles", opToken: token() });
     const served = await getStep(session);
@@ -989,7 +851,7 @@ describe("the response.submitted payload carries instances inside answers and no
     const incident = instancesOf(served, "grp_incidents")[0]!;
     expect(vehicles).toHaveLength(2);
 
-    // `maxLength: 8` on `q_rep_plate`, so the fixture plates are plate-shaped.
+    // `maxLength: 8` on `q_rep_plate`.
     const plates = ["AAA111", "BBB222"];
     const { status } = await batch(session, [
       { questionId: "q_rep_fleet_name", value: "North depot" },
@@ -1019,7 +881,6 @@ describe("the response.submitted payload carries instances inside answers and no
       instanceId?: string;
       value: unknown;
     }>;
-    // Both vehicles are present, told apart by instance and not collapsed to one.
     const platesInPayload = answers
       .filter((entry) => entry.questionId === "q_rep_plate")
       .map((entry) => entry.value);
@@ -1027,25 +888,17 @@ describe("the response.submitted payload carries instances inside answers and no
     const instanceIds = new Set(
       answers.filter((entry) => entry.instanceId !== undefined).map((entry) => entry.instanceId),
     );
-    expect(instanceIds.size).toBe(3); // two vehicles and one incident
-    // The question outside every group carries NO instanceId key at all, which is what
-    // keeps a non-repeating form's payload and content hash byte-identical.
+    expect(instanceIds.size).toBe(3);
     const fleet = answers.find((entry) => entry.questionId === "q_rep_fleet_name")!;
     expect("instanceId" in fleet).toBe(false);
   });
 
   it("carries no respondent content outside the answers member (the walk)", async () => {
-    // This is the assertion the redaction depends on and nothing else states. Erasure
-    // and the retention sweep both redact by dropping exactly ONE jsonb key,
-    // `payload - 'answers'`, and migration 0016's CHECK enforces that a redacted payload
-    // holds no `answers` key. Content in a sibling member - `groups`, `rows`,
-    // `instances` - would escape both, silently, and the first anyone would know is a
-    // subject-access request answered with data that was supposed to be erased.
+    // Erasure and the retention sweep redact by dropping the `answers` key alone, so
+    // respondent content in any sibling member would escape both.
     const { session, plates } = await submitFilledSession();
     const payload = await enqueuedPayload(session.sessionId);
 
-    // The member set is exactly this. A new sibling fails here rather than in
-    // production, which is the point of asserting the keys rather than their contents.
     expect(Object.keys(payload).sort()).toEqual([
       "answers",
       "contentHash",
@@ -1055,8 +908,6 @@ describe("the response.submitted payload carries instances inside answers and no
       "submittedAt",
     ]);
 
-    // Everything but the key the redaction drops, serialized, so the assertions below
-    // are about the whole remainder rather than about members somebody remembered.
     const rest = Object.fromEntries(
       Object.entries(payload).filter(([member]) => member !== "answers"),
     );
@@ -1064,26 +915,17 @@ describe("the response.submitted payload carries instances inside answers and no
     for (const plate of plates) expect(outside).not.toContain(plate);
     expect(outside).not.toContain("North depot");
     expect(outside).not.toContain("kerbed");
-    // No instance id and no roster outside `answers` either: an `ins_` id is a
-    // permitted correlator in telemetry (SEC-13) and is still respondent-derived
-    // state, so the one place it may sit in this payload is the key redaction drops.
     expect(outside).not.toContain("ins_");
-    // And no count. "How many vehicles" is disclosive on its own (Q19).
+    // An instance count is disclosive on its own (Q19).
     const counts = Object.values(rest).filter((value) => typeof value === "number");
     expect(counts).toEqual([1]); // formVersion, and nothing else numeric
   });
 });
 
-// --------------------------------------------------------------------------
-// The per-instance step presentation: the cursor indexes VIEWS (task 076)
-// --------------------------------------------------------------------------
-
 describe("the ADR-28 cursor indexes step views (task 076, Q22)", () => {
   it("presents a three-instance group as three views and says three", async () => {
     const session = await newPerInstanceSession();
     const first = await getStep(session);
-    // `min: 3`, so the first serve mints three instances and the one step is three
-    // pages without the respondent having done anything.
     const live = instancesOf(first, "grp_pi");
     expect(live).toHaveLength(3);
     expect(first.progress.totalVisibleSteps).toBe(3);
@@ -1098,12 +940,9 @@ describe("the ADR-28 cursor indexes step views (task 076, Q22)", () => {
       const body = await getStep(session, index);
       expect(body.progress.stepIndex).toBe(index);
       expect(body.view).toEqual({ groupId: "grp_pi", instanceId });
-      // Exactly this instance's members, plus the step's own plain question. A view
-      // narrows the step to one instance of the PAGINATING group and to nothing else.
       expect([...body.flowState.visibleQuestions].sort()).toEqual(
         [`${instanceId}/q_rep_plate`, `${instanceId}/q_rep_notes`, "q_rep_fleet_name"].sort(),
       );
-      // And no other instance's field reaches the page, which is the whole narrowing.
       for (const other of live.filter((candidate) => candidate !== instanceId)) {
         expect(body.flowState.visibleQuestions).not.toContain(`${other}/q_rep_plate`);
       }
@@ -1111,8 +950,6 @@ describe("the ADR-28 cursor indexes step views (task 076, Q22)", () => {
   });
 
   it("clamps a cursor past the last view rather than refusing it", async () => {
-    // The property the cursor was chosen FOR: out of range is answered by arithmetic
-    // against a list the server computed, with no instance id to validate (Q22).
     const session = await newPerInstanceSession();
     const live = instancesOf(await getStep(session), "grp_pi");
     const body = await getStep(session, 99);
@@ -1121,8 +958,6 @@ describe("the ADR-28 cursor indexes step views (task 076, Q22)", () => {
   });
 
   it("serves the first view whose instance is incomplete when no cursor is given", async () => {
-    // The no-JS walk (ADR-28's 2026-08-31 amendment, confirmed 2026-09-29): one button,
-    // no Back, and the server picks the page.
     const session = await newPerInstanceSession();
     const live = instancesOf(await getStep(session), "grp_pi");
     await batch(session, [{ questionId: "q_rep_fleet_name", value: "Northern depot" }]);
@@ -1136,16 +971,13 @@ describe("the ADR-28 cursor indexes step views (task 076, Q22)", () => {
     expect(third.progress.stepIndex).toBe(2);
     expect(third.flowState.readyToSubmit).toBe(false);
 
-    // The last required answer completes the flow, and the walk is over.
     await batch(session, [{ questionId: "q_rep_plate", instanceId: live[2], value: "CCC333" }]);
     expect((await getStep(session)).flowState.readyToSubmit).toBe(true);
   });
 
   it("serves the LAST view when the step is current for a reason outside the group", async () => {
-    // Every instance complete, the step's own plain question not. The ruled sentence
-    // names the first INCOMPLETE instance and is silent here, and the reading is the
-    // last view: the walk is forward-only on that path and its end is the one page
-    // carrying the Add control, so an open group a respondent has filled can still grow.
+    // The last view is the one page carrying the Add control, so a filled open group
+    // can still grow.
     const session = await newPerInstanceSession();
     const live = instancesOf(await getStep(session), "grp_pi");
     await batch(
@@ -1165,8 +997,6 @@ describe("the ADR-28 cursor indexes step views (task 076, Q22)", () => {
     expect(before.progress.totalVisibleSteps).toBe(3);
     const added = await roster(session, { op: "add", groupId: "grp_pi", opToken: token() });
     expect(added.status).toBe(200);
-    // Four instances, four views: growing the roster APPENDS to the list, so no index
-    // the respondent already walked past now names a different page.
     expect(added.body.progress.totalVisibleSteps).toBe(4);
     expect(instancesOf(added.body, "grp_pi")).toHaveLength(4);
     const live = instancesOf(added.body, "grp_pi");
@@ -1175,24 +1005,11 @@ describe("the ADR-28 cursor indexes step views (task 076, Q22)", () => {
   });
 
   it("counts one view per visible step for a form whose groups do not paginate", async () => {
-    // Renamed from "leaves a form with no repeating group counting steps exactly as
-    // before", which this fixture could not show: `two-fleets` HAS two groups, both
-    // stacked. What it does show is the other half of the same property - a group that
-    // does not paginate contributes no extra view - and that is worth its own case.
-    //
-    // **The evidence for exit criterion 4 is elsewhere and is stronger**: the whole of
-    // `serve-step/serve-step.integration.test.ts` drives group-less forms through this
-    // projection, and making `stepViewsOf`'s fallback return `[]` fails 10 of its 27
-    // tests. That is what pins "a form with no repeating group produces the same view
-    // list, the same progress numbers and the same navigation it produced today".
     const session = await newSession();
     const body = await getStep(session);
     expect(body.progress.totalVisibleSteps).toBe(1);
     expect(body.progress.stepIndex).toBe(0);
-    // Both keys null: this page is not a per-instance one, so a client that ignores
-    // `view` is as correct as it was before the cursor learned about views.
     expect(body.view).toEqual({ groupId: null, instanceId: null });
-    // And every live instance of both stacked groups is still on the one page.
     const vehicles = instancesOf(body, "grp_vehicles");
     const incidents = instancesOf(body, "grp_incidents");
     expect(body.flowState.visibleQuestions).toContain(`${vehicles[0]!}/q_rep_plate`);
@@ -1200,9 +1017,6 @@ describe("the ADR-28 cursor indexes step views (task 076, Q22)", () => {
   });
 
   it("sizes the batch allowance over the form's widest step, which a view still fits", async () => {
-    // Ruling Q29 read onto this presentation: a per-instance view posts ONE instance's
-    // fields plus the step's own, which is well under the bound computed from `max: 4`
-    // times two members plus one, and a request above that bound is still refused.
     const session = await newPerInstanceSession();
     const live = instancesOf(await getStep(session), "grp_pi");
     const fits = await batch(session, [
@@ -1213,8 +1027,7 @@ describe("the ADR-28 cursor indexes step views (task 076, Q22)", () => {
     expect(fits.status).toBe(200);
     expect(fits.body.rejected).toEqual([]);
 
-    // The bound is 1 + 2 x 4 = 9. Ten entries is above it and is refused, which is the
-    // half of Q29 that is a ceiling rather than a floor.
+    // The bound is 1 + 2 x 4 = 9, so ten entries is above it.
     const over = await batch(
       session,
       Array.from({ length: 10 }, () => ({

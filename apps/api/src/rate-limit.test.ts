@@ -21,7 +21,7 @@ describe("InMemoryRateLimitStore", () => {
     const store = new InMemoryRateLimitStore(clock);
     expect((await store.hit("k", 1000)).count).toBe(1);
     expect((await store.hit("k", 1000)).count).toBe(2);
-    advance(1000); // window elapsed
+    advance(1000);
     expect((await store.hit("k", 1000)).count).toBe(1);
   });
 
@@ -33,25 +33,13 @@ describe("InMemoryRateLimitStore", () => {
   });
 });
 
-/**
- * The key space is bounded (issue #376).
- *
- * Before the fix the store was a bare `Map` with no eviction: one request from a
- * never-seen-again client address allocated a bucket for the process lifetime,
- * and an attacker sourcing addresses from an IPv6 /64 could grow it without
- * limit (~157-165 bytes per key, ~300 MB per million addresses across the two
- * address-keyed limiters). Both tests below fail against that shape - the first
- * observes 5,000 retained entries against a capacity of 64, the second 200
- * against 100 - because nothing ever removed an entry.
- */
 describe("InMemoryRateLimitStore key-space bound", () => {
   it("never exceeds its capacity, however many distinct keys it sees", async () => {
     const { clock } = mutableClock();
     const store = new InMemoryRateLimitStore(clock, 64);
     let peak = 0;
-    // The described attack: every key is fresh and never revisited, so eviction
-    // driven by re-hitting a key would not help. Windows stay open throughout
-    // (1 hour, clock never advanced), so no entry is reclaimable as expired.
+    // Every key is fresh and its window stays open, so nothing here is reclaimable
+    // as expired and only the capacity bound can hold.
     for (let i = 0; i < 5000; i++) {
       await store.hit(`rl:session-create:2001:db8::${i.toString(16)}`, 3_600_000);
       peak = Math.max(peak, store.size);
@@ -63,33 +51,17 @@ describe("InMemoryRateLimitStore key-space bound", () => {
 
   it("reclaims expired buckets instead of retaining them forever", async () => {
     const { clock, advance } = mutableClock();
-    // Capacity far above the traffic, so this measures the sweep alone: any
-    // bound observed here comes from dropping expired entries, not from evicting.
+    // Capacity far above the traffic, so this measures the sweep alone.
     const store = new InMemoryRateLimitStore(clock, 1_000_000);
     for (let i = 0; i < 100; i++) await store.hit(`first:${i}`, 1000);
     expect(store.size).toBe(100);
 
-    advance(1001); // every bucket above is now expired
+    advance(1001);
     for (let i = 0; i < 100; i++) await store.hit(`second:${i}`, 1000);
 
-    // The 100 expired buckets are gone; only the live generation is retained.
     expect(store.size).toBe(100);
   });
 
-  /**
-   * The bound has to survive its own constructor.
-   *
-   * The first cut normalized with `Math.max(1, Math.trunc(maxKeys))`, which
-   * leaves `NaN` as `NaN` and `Infinity` as `Infinity`. Every comparison against
-   * either is false, so `while (size >= maxKeys)` never ran and the store went
-   * back to being the unbounded `Map` this class exists to not be, while still
-   * answering `capacity`. Measured on that shape: `NaN` retained all 5,000
-   * distinct keys and reported `capacity` `NaN`; `Infinity` retained all 300 and
-   * reported `Infinity`. The other bad values were harmless but equally silent
-   * (`-Infinity`, `0` and `-5` all became 1; `64.7` became 64), so none of them
-   * is coerced now either. Each case below throws instead, and every one of them
-   * constructs successfully on the pre-fix shape.
-   */
   it.each([
     ["NaN", Number.NaN],
     ["Infinity", Number.POSITIVE_INFINITY],
@@ -105,10 +77,8 @@ describe("InMemoryRateLimitStore key-space bound", () => {
 
   it("accepts the capacities that are actually usable, unchanged", async () => {
     const { clock } = mutableClock();
-    // The smallest legal capacity, and one reported back exactly as passed.
     expect(new InMemoryRateLimitStore(clock, 1).capacity).toBe(1);
     expect(new InMemoryRateLimitStore(clock, 250_000).capacity).toBe(250_000);
-    // The default is what a caller that passes only a clock gets.
     const store = new InMemoryRateLimitStore(clock);
     expect(store.capacity).toBe(100_000);
     await store.hit("k", 1000);
@@ -118,9 +88,6 @@ describe("InMemoryRateLimitStore key-space bound", () => {
   it("evicts cold keys before the bucket that is actively limiting someone", async () => {
     const { clock } = mutableClock();
     const store = new InMemoryRateLimitStore(clock, 4);
-    // A respondent hitting their limit, interleaved with flood keys that are
-    // never revisited. Eviction is LRU, so the flood evicts itself and the warm
-    // bucket keeps its count: the limit it is enforcing is not forgiven.
     for (let i = 0; i < 50; i++) {
       await store.hit("rl:answers-session:ses_warm", 3_600_000);
       await store.hit(`rl:session-create:flood-${i}`, 3_600_000);
@@ -135,7 +102,7 @@ describe("rateLimit middleware", () => {
     const { clock } = mutableClock();
     const store = new InMemoryRateLimitStore(clock);
     const app = new Hono();
-    // Minimal envelope so the thrown 429 surfaces as 429 (createApp does this).
+    // Stands in for the envelope `createApp` installs, so the thrown 429 surfaces as one.
     app.onError((err, c) => {
       if (err instanceof ApiError) return c.json(err.toEnvelope(), err.status);
       throw err;

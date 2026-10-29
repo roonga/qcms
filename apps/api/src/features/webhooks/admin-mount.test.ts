@@ -1,13 +1,3 @@
-/**
- * Admin-group mount + auth-seam tests for the webhook-config slices (task 024).
- *
- * These assert the surface guarantees without a database - the admin-auth gate
- * (021, reused) rejects an unauthenticated request before any handler runs, and
- * a public-only process has no admin group at all (a 404, not a 403; ADR-09).
- * The CRUD/secret/SSRF lifecycle runs against the real DB in
- * `webhooks.integration.test.ts`.
- */
-
 import { describe, expect, it } from "vitest";
 
 import { createApp } from "../../app.js";
@@ -28,7 +18,7 @@ interface ErrBody {
 
 describe("webhooks admin auth seam", () => {
   it("rejects a webhook create with no admin session → 401 (before any handler)", async () => {
-    const deps = makeDeps(); // unusedDb: the gate must reject before touching it
+    const deps = makeDeps();
     const app = createApp(deps, ADMIN_ONLY, adminGroups);
     const res = await app.request("/admin/forms/frm_x/webhooks", {
       method: "POST",
@@ -61,7 +51,7 @@ describe("webhooks admin group is absent in a public-only process (ADR-09)", () 
       headers: {
         "content-type": "application/json",
         "x-qcms-internal-token": internalTokenFor(deps.config),
-        // Unmounted group: nothing runs, so this value is never verified (031).
+        // Unmounted group: nothing runs, so this value is never verified.
         [ADMIN_SESSION_HEADER]: "any-value-unverified-here",
       },
       body: JSON.stringify({ url: "https://consumer.example.com/hook" }),

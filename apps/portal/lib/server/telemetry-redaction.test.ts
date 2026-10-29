@@ -9,13 +9,6 @@ import {
   sanitizeSpan,
 } from "./telemetry-redaction";
 
-/**
- * SEC-13 on the portal's spans (task 054). The case that matters most here and
- * nowhere else: the secure-link token is a path segment (`/l/<token>`), so it
- * reaches the span NAME as well as the URL attributes, and a `lnk_` token is a
- * credential that may not leave the process in any signal.
- */
-
 /** A ReadableSpan stand-in carrying only the fields the redactor reads. */
 function spanWith(
   name: string,
@@ -45,10 +38,6 @@ describe("redactPath", () => {
   });
 
   it("leaves an ins_ instance id alone too (task 075, SEC-13)", () => {
-    // `ins_` joins the permitted correlators: random, opaque, session-scoped, and
-    // carrying no respondent content. Nothing is added to this module for it, which is
-    // the assertion - only `lnk_`, a credential in a path, is rewritten, so a new
-    // branded id needs no change here and this pins that it did not accidentally get one.
     expect(redactPath("POST /s/ses_abc123/op/ins_7k2")).toBe("POST /s/ses_abc123/op/ins_7k2");
   });
 });
@@ -85,10 +74,6 @@ describe("sanitizeAttributes", () => {
   });
 
   it("drops an instance label and a repeated answer value (task 075)", () => {
-    // The repeat-shaped leaks, none of them named in the allowlist and therefore all
-    // deleted without being inspected: an instance's rendered heading (authored
-    // `LocalizedText`, which SEC-13 excludes outright), the roster's size, and an answer
-    // value under a qualified field name.
     const attributes: Attributes = {
       "http.method": "POST",
       "qcms.instance_label": "Vehicle 2",

@@ -1,7 +1,6 @@
 /**
- * The plaintext password must never reach statement text, which drizzle's error, the
- * command's stderr and the server's own log all record (SEC-8). So this module sends the
- * SCRAM-SHA-256 verifier, which PostgreSQL stores as-is, and every statement runs inside
+ * The plaintext password must never reach statement text, which drizzle's error, stderr and the server log
+ * all record (SEC-8): this module sends the SCRAM-SHA-256 verifier and runs every statement inside
  * {@link refuseWithoutStatement}.
  */
 
@@ -110,13 +109,10 @@ export async function refuseWithoutStatement<T>(
 }
 
 /**
- * Idempotent, and an existing role's password is deliberately not reset: silently
- * rotating a credential other systems connect with would be a side effect nobody asked
- * for.
- *
- * The role name and the verifier are quoted by Postgres, through `format('%I'/'%L', ...)`
- * over bind parameters, so nothing here has to be correct about escaping. Both are cast
- * to `text`, because `format` is variadic over `any` and cannot infer a parameter's type.
+ * Idempotent; an existing role's password is deliberately not reset, since rotating a credential other
+ * systems use would be an unrequested side effect.
+ * Name and verifier are quoted by Postgres through `format('%I'/'%L', ...)` over bind parameters, cast to
+ * `text` because `format` is variadic over `any`.
  */
 export async function createLoginRole(
   exec: Executor,

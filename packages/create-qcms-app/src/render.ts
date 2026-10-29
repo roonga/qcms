@@ -1,49 +1,14 @@
 /**
- * Placeholder rendering, and the values that feed it (037).
- *
- * The template language is deliberately one construct, `{{name}}`, with no
- * conditionals and no loops. A scaffolder that grows a template language grows a
- * second product; anything a condition would express is instead a whole file in the
- * `solo/` or `enterprise/` overlay, where it is readable as the file it becomes.
- *
- * An unknown placeholder throws rather than rendering empty. A silently blank value
- * is the failure mode that ships a broken `.env` or a manifest with no name in it,
- * and it looks exactly like success.
+ * One construct, `{{name}}`; anything conditional is a whole file in a shape overlay.
+ * An unknown placeholder throws, since a silent blank ships a broken `.env`.
  */
 
 import { PACKAGE_MANAGER_RATIONALE, type ScaffoldOptions } from "./options.js";
 
-/**
- * The pnpm release the scaffolded project pins.
- *
- * Held here rather than read from the QCMS root manifest, because the published CLI
- * has no repository around it. The `PNPM_SPEC` suite in `render.test.ts` asserts it
- * equals the value in the repository root's `packageManager` field, so the two cannot
- * drift.
- */
+/** Pinned here because the published CLI has no repository around it; `render.test.ts` checks it against the root `packageManager`. */
 export const PNPM_SPEC = "pnpm@11.18.0";
 
-/**
- * How the scaffolded project spells the commands its README prints.
- *
- * Flat constants rather than a record keyed by package manager. The record existed to
- * hold three entries, two of which produced a project whose images could not build,
- * and the Code Owner dropped them (issue #449). Keeping the shape "in case #449 comes
- * back" would keep a branch nothing takes and a `workspacesField` nothing sets, which
- * is how a dead path survives a review: restoring the choice means restoring the
- * Dockerfile work first, and the shape is the smallest part of that.
- *
- * `installCommand` and `runPrefix` went the same way. With one manager they rendered
- * the literal word `pnpm`, and interpolating a constant into a README only cost that
- * README its column alignment. What survives is what actually varies with the manager:
- * the two recursive scripts and the `packageManager` pin.
- *
- * `packageManagerField` is never empty, and that is load-bearing rather than
- * incidental: the Dockerfiles run `corepack enable` and then `pnpm install`, so
- * without a pinned `packageManager` corepack has nothing to resolve and an arbitrary
- * pnpm major runs against a `pnpm-workspace.yaml` that uses pnpm-11-only `allowBuilds`
- * syntax.
- */
+/** `packageManagerField` is never empty: corepack needs it to pick a pnpm that accepts `allowBuilds`. */
 const COMMANDS = {
   recursiveBuild: "pnpm -r build",
   recursiveTypecheck: "pnpm -r typecheck",

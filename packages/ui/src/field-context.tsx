@@ -3,11 +3,10 @@ import { createContext, useCallback, useContext } from "react";
 import type { NativeFormAction } from "./native-submit.ts";
 
 /**
- * The canonical answer encodings (DOMAIN_SCHEMA §2.4), expressed structurally so this
- * package stays decoupled from the kernel at runtime: an NFC string for text, a finite
- * double for a number, an ISO `YYYY-MM-DD` for a date, a JSON boolean, an OptionId for
- * a single choice, and a deduplicated OptionId array for a multi choice. The
- * round-trip suite asserts the equivalence that no type dependency enforces.
+ * The canonical answer encodings (DOMAIN_SCHEMA §2.4), expressed structurally so this package stays decoupled
+ * from the kernel at runtime: an NFC string, a finite double, an ISO `YYYY-MM-DD` date, a JSON boolean, an
+ * OptionId, and a deduplicated OptionId array. The round-trip suite asserts the equivalence that no type
+ * dependency enforces.
  */
 export type A2UIAnswerValue = string | number | boolean | readonly string[];
 

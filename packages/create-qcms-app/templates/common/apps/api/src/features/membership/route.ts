@@ -1,31 +1,6 @@
-/**
- * Route definitions for the membership surface (ADR-41, Q35, Q45, Q56, Q57; task 069).
- *
- * Eleven routes on the **admin** surface: the capability answer, the membership list, the
- * member row's role, the access groups and their holders, the two per-workspace switches,
- * and the SEC-15 audit read.
- *
- * # These are the only grant write path (Q45)
- *
- * The organisation plugin's own team and member write endpoints are unreachable: the auth
- * mount's allowlist names none of them, so they answer 404 for everyone, a `forms.owner`
- * included. The reasons are in `handler.ts`, and the short form is that this is where the
- * validation and the audit rows live, and that the plugin's removal cascades run below
- * any endpoint this layer could gate.
- *
- * # Who may call them
- *
- * `features/membership/route-policy.ts` says, per route, and the grant middleware
- * enforces it before any handler here runs. Every route but the capability answer needs a
- * `forms.owner` grant in the workspace or the installation claim (Q35); the capability
- * answer needs nothing, because it **is** the answer to "what do I hold".
- *
- * # Scopes
- *
- * The forms pair, as task 068's workspace routes use, rather than a new `membership:*`
- * member of the SEC-5 taxonomy, which is fixed (`openapi.ts`). Scopes are inert at launch
- * either way, and the authority that actually gates these routes is ADR-41's.
- */
+// These are the only grant write path: the auth plugin's own team and member write
+// endpoints are kept off the auth mount's allowlist. Who may call each route is
+// `route-policy.ts`'s, enforced by the grant middleware before any handler here runs.
 
 import { createRoute } from "@hono/zod-openapi";
 
@@ -126,7 +101,6 @@ export const setMemberRoleRoute = createRoute({
       description: "The member row as it now stands",
       content: { "application/json": { schema: WorkspaceMemberResponse } },
     },
-    // 409: the last owner, or an archived workspace.
     ...errorResponses(400, 401, 403, 404, 409),
   },
   ...withScopes("forms:write"),
@@ -170,7 +144,6 @@ export const createAccessGroupRoute = createRoute({
       description: "The access group just created",
       content: { "application/json": { schema: AccessGroupResponse } },
     },
-    // 409: the name is taken in this workspace, or the workspace is archived.
     ...errorResponses(400, 401, 403, 404, 409),
   },
   ...withScopes("forms:write"),
@@ -233,7 +206,6 @@ export const addHolderRoute = createRoute({
       description: "The access group, with its holders",
       content: { "application/json": { schema: AccessGroupResponse } },
     },
-    // 409: already a holder, the self-grant refusal, or an archived workspace.
     ...errorResponses(400, 401, 403, 404, 409),
   },
   ...withScopes("forms:write"),

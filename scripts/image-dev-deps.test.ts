@@ -12,27 +12,12 @@ import {
   workspaceManifestPaths,
 } from "./image-dev-deps.mjs";
 
-/**
- * The image dev-dependency boundary (issue #877).
- *
- * Two halves are worth asserting cheaply, and neither needs Docker. The **derivation**
- * is the half that decides what the gate guards, and its one subtle rule is that a
- * `peerDependencies` entry does not exempt a name - which is exactly how
- * `testcontainers` reached the API image. The **extraction** is the half that decides
- * whether the gate can see anything at all, and its failure mode is silence: a syft
- * field that moves would leave a check that reports no offenders and passes forever.
- *
- * The real SBOM of a real build is asserted by `pnpm qcms:build-images`, which calls
- * the same functions through `assertNoDevPackages`.
- */
-
 const workspaces: string[] = [];
 
 afterAll(() => {
   for (const directory of workspaces) rmSync(directory, { recursive: true, force: true });
 });
 
-/** A throwaway workspace root: pnpm-workspace.yaml plus the manifests given. */
 function workspace(manifests: Record<string, unknown>): string {
   const root = mkdtempSync(join(tmpdir(), "qcms-dev-deps-"));
   workspaces.push(root);
@@ -44,7 +29,6 @@ function workspace(manifests: Record<string, unknown>): string {
   return root;
 }
 
-/** An SPDX package entry in the shape syft writes, purl and all. */
 function spdxPackage(name: string, version: string, ecosystem = "npm") {
   const encoded = name.startsWith("@") ? `%40${name.slice(1)}` : name;
   return {
@@ -65,7 +49,6 @@ function spdxPackage(name: string, version: string, ecosystem = "npm") {
   };
 }
 
-/** The in-toto statement buildx attaches, wrapping an SPDX document. */
 function statement(packages: ReturnType<typeof spdxPackage>[]) {
   return {
     _type: "https://in-toto.io/Statement/v0.1",
@@ -90,8 +73,8 @@ describe("the dev-only set", () => {
   });
 
   it("exempts a name any package declares as a production dependency", () => {
-    // `zod` is a devDependency of one package and a dependency of another. It is a
-    // production dependency of this workspace, so an image carrying it is not a defect.
+    // `zod` is a devDependency of one package and a dependency of another, so it is a
+    // production dependency of the workspace.
     const root = workspace({
       "package.json": { name: "root", devDependencies: { zod: "^4", vitest: "^4" } },
       "packages/core/package.json": { name: "core", dependencies: { zod: "^4" } },
@@ -100,11 +83,8 @@ describe("the dev-only set", () => {
   });
 
   it("exempts @types/*, which production packages upstream declare as real dependencies", () => {
-    // Not a workaround: `@opentelemetry/instrumentation-pg` declares `@types/pg` under
-    // `dependencies`, and `@types/pg` declares `@types/node`, so no install flag can
-    // remove either from the API image. They cost nothing to keep - a DefinitelyTyped
-    // package ships declarations, a README and a LICENSE and no executable code - and a
-    // gate nobody can make green is a gate that gets deleted.
+    // `@opentelemetry/instrumentation-pg` declares `@types/pg` under `dependencies`, and
+    // that declares `@types/node`, so no install flag can remove either.
     const root = workspace({
       "package.json": {
         name: "root",
@@ -115,10 +95,8 @@ describe("the dev-only set", () => {
   });
 
   it("does NOT let a peerDependencies entry exempt a dev-only name", () => {
-    // This is issue #877's own shape. @roonga/qcms-db declares `testcontainers` as an
-    // optional peer so a consumer can supply it for the `./testing` subpath, and that
-    // is the pair the API image was found carrying. Treating a peer as production
-    // would exempt the defect this gate exists to catch.
+    // Treating an optional peer as production would exempt the very pair this gate
+    // exists to catch.
     const root = workspace({
       "package.json": { name: "root", devDependencies: { testcontainers: "^12" } },
       "packages/db/package.json": {
@@ -142,8 +120,8 @@ describe("SBOM extraction", () => {
   });
 
   it("round-trips a scoped name out of its percent-encoded purl", () => {
-    // syft writes `pkg:npm/%40vitest/runner@4.1.11`. Splitting on the FIRST `@` would
-    // produce an empty name and never match the dev set, so the gate would pass.
+    // syft percent-encodes the scope, so splitting a purl on the first `@` yields an
+    // empty name that matches no dev package and passes.
     expect(sbomNpmPackages(statement([spdxPackage("@vitest/runner", "4.1.11")]))).toEqual([
       { name: "@vitest/runner", version: "4.1.11" },
     ]);
@@ -183,8 +161,6 @@ describe("the assertion", () => {
   });
 
   it("FAILS on an SBOM with no npm packages rather than passing vacuously", () => {
-    // The failure mode a check like this dies of: a field moves, the extraction returns
-    // nothing, and "no offenders found" is indistinguishable from a clean image.
     expect(() => assertNoDevDependencies(statement([]), "qcms-api", root)).toThrow(
       /lists no npm packages/,
     );

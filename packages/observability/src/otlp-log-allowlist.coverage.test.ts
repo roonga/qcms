@@ -1,18 +1,7 @@
 /**
- * Every log message literal in the workspace is classified, or this goes red: an
- * unlisted message exports blanked, which is silent for observability, so a new
- * literal must be admitted to the vocabulary or written down below as
- * deliberately opaque.
- *
- * Known limits: a non-literal message is invisible to the scan, comment
- * stripping is textual, and a template literal is deliberately unmatched, an
- * interpolated message not being an allowlist member.
- *
- * This reads the whole workspace while the task cache keys on one package, which
- * once replayed a stale green. `turbo.json` widens the key to match this walk and
- * `scripts/turbo-scan-inputs.test.ts` derives {@link SOURCE_ROOTS} and
- * {@link SOURCE_DIRS} from here, so widening the walk is complete only once that
- * entry follows.
+ * Every log message literal is classified or this goes red: an unlisted message exports
+ * blanked, silently. `turbo.json` and `scripts/turbo-scan-inputs.test.ts` follow this walk
+ * ({@link SOURCE_ROOTS}, {@link SOURCE_DIRS}), so widening it means widening them.
  */
 import { readdirSync, readFileSync } from "node:fs";
 import { join } from "node:path";

@@ -1,47 +1,9 @@
 #!/usr/bin/env node
 // @ts-check
 /**
- * Proves that no application module can hold a Tailwind class string Tailwind never
- * looks at (issue #591).
- *
- * ## The failure this exists for
- *
- * Each app's `globals.css` lists the directories Tailwind scans for class names, one
- * `@source` at a time. A class that appears only in a module outside that list compiles to
- * **nothing**: no error, no warning, no missing-file diagnostic. The build succeeds, the
- * typecheck passes, the lint passes, and the element renders unstyled.
- *
- * That is the property worth naming. Every other way of getting a class wrong is loud - a
- * typo shows in the frame, a bad token fails `check:admin-theme`, a bad import fails
- * `tsc` - and this one is silent, so the only thing standing between it and production is
- * somebody happening to look at the right element. It was found in #558 because that change
- * happened to assert a COMPUTED width; the same change applying a class and taking a
- * screenshot would have shipped, and the screenshot would have looked plausible.
- *
- * ## The rule
- *
- * Every tracked JavaScript or TypeScript file in a SUBDIRECTORY of an app is either inside
- * a directory that app's `globals.css` scans, or inside a subdirectory named in
- * {@link OUTSIDE_THE_BUNDLE} with the reason. Files at the app root are out of scope, and
- * that is a deliberate line rather than an oversight: `next.config.ts`, `postcss.config.mjs`,
- * `instrumentation.ts` and `proxy.ts` are build and server-boot entry points that render no
- * markup, and a `@source` entry naming one of them would be noise.
- *
- * ## Why a directory rule rather than a class-shaped-string scan
- *
- * #591 offered a stricter guard: fail when a string that LOOKS like a Tailwind utility
- * appears in an unscanned file. That reads every identifier, comment and message catalogue
- * in the tree through a heuristic, and its false-positive rate is its whole cost - #557
- * already found that Tailwind's own extractor compiles prose ("shrink" in a TSX comment
- * emitted `.shrink`), so a second heuristic over the same text would inherit that noise and
- * add its own. The rule above needs no heuristic at all: it is decidable, it is total over
- * the app's source, and it catches the shape the issue actually took, which is a whole new
- * directory (`lib/`) arriving unlisted.
- *
- * It does NOT decide whether widening a scan is right - #591 leaves that trade open. It
- * decides that the choice is made, by somebody, in the diff that adds the directory.
- *
- * Usage: node scripts/check-tailwind-sources.mjs
+ * A Tailwind class in a module outside every `@source` root of the app's `globals.css`
+ * compiles to nothing, with no error from the build, the typecheck or the lint: the
+ * element simply renders unstyled. Nothing else makes that visible.
  */
 
 import { existsSync, readFileSync, statSync } from "node:fs";
@@ -53,33 +15,21 @@ import { trackedFilesUnder } from "./tracked-files.mjs";
 
 const REPO_ROOT = fileURLToPath(new URL("../", import.meta.url));
 
-/** The stylesheet that carries an app's `@source` list, relative to the app. */
 const STYLESHEET = "app/globals.css";
 
-/** What Tailwind is asked to scan for class strings: source, not data, not markup. */
 const SOURCE_FILE = /\.(?:[cm]?[jt]sx?)$/;
 
-/**
- * App subdirectories that legitimately sit outside every `@source` root, with the reason.
- *
- * One entry, and it should stay small: each one is a directory in which a class string
- * silently does nothing, so the reason has to be that no class string can be there.
- */
+/** An entry is only admissible when no class string can occur in that directory. */
 const OUTSIDE_THE_BUNDLE = {
   e2e: "Playwright specs and their support. They drive the app from the outside and are never bundled into it, so no class string here reaches a rendered page.",
 };
 
 /**
- * The `@source` roots one stylesheet declares, as paths relative to the repository root.
- *
- * Tailwind v4 also accepts `@source not "..."` and `@source inline(...)`, which mean
- * different things and which this gate does not model. Rather than skip a directive it does
- * not understand - which would let a narrowing `@source not` pass unseen - it refuses,
- * naming the line. A gate that quietly ignores what it cannot read is the failure mode this
- * whole file exists to remove.
+ * Refuses rather than skips an unmodelled directive: silently ignoring `@source not`
+ * would let a narrowing pass unseen.
  *
  * @param {string} css
- * @param {string} cssPath Repo-relative path of the stylesheet, for the resolution base.
+ * @param {string} cssPath
  * @returns {string[]}
  */
 export function sourceRootsIn(css, cssPath) {
@@ -103,10 +53,6 @@ export function sourceRootsIn(css, cssPath) {
 }
 
 /**
- * Whether `file` lies inside `root`, both repo-relative and slash-separated.
- *
- * A prefix comparison on directory boundaries, so `lib` never matches `library`.
- *
  * @param {string} file
  * @param {string} root
  * @returns {boolean}
@@ -115,13 +61,7 @@ function isInside(file, root) {
   return file === root || file.startsWith(`${root}/`);
 }
 
-/**
- * Every app that carries its own Tailwind entry stylesheet.
- *
- * Discovered rather than listed, so a third app is covered on the day it is created.
- *
- * @returns {string[]} repo-relative app directories, e.g. `apps/admin`.
- */
+/** @returns {string[]} */
 export function appsWithStylesheets() {
   const appsRoot = path.join(REPO_ROOT, "apps");
   const found = new Set();
@@ -135,9 +75,7 @@ export function appsWithStylesheets() {
 }
 
 /**
- * The unscanned source files of one app.
- *
- * @param {string} app Repo-relative app directory.
+ * @param {string} app
  * @returns {{ roots: string[]; missingRoots: string[]; unscanned: string[] }}
  */
 export function auditApp(app) {
@@ -145,9 +83,7 @@ export function auditApp(app) {
   const css = readFileSync(path.join(REPO_ROOT, cssPath), "utf8");
   const roots = sourceRootsIn(css, cssPath);
 
-  // A root that names nothing is a rule nobody has re-read since the directory moved, and
-  // it makes the list below look broader than it is. Same check `check-lint-coverage`
-  // makes over its lint targets, for the same reason.
+  // A root that names nothing makes the scan look broader than it is.
   const missingRoots = roots.filter((root) => {
     const absolute = path.join(REPO_ROOT, root);
     return !existsSync(absolute) || !statSync(absolute).isDirectory();
@@ -156,7 +92,7 @@ export function auditApp(app) {
   const unscanned = [];
   for (const relative of trackedFilesUnder(path.join(REPO_ROOT, app), { match: SOURCE_FILE })) {
     const parts = relative.split("/");
-    // Files at the app root are build and boot entry points, never markup. See the header.
+    // Files at the app root are build and boot entry points, never markup.
     if (parts.length < 2) continue;
     if (Object.hasOwn(OUTSIDE_THE_BUNDLE, parts[0] ?? "")) continue;
     const file = `${app}/${relative}`;
@@ -166,7 +102,7 @@ export function auditApp(app) {
   return { roots, missingRoots, unscanned };
 }
 
-/** @returns {number} process exit code */
+/** @returns {number} */
 function main() {
   const apps = appsWithStylesheets();
   if (apps.length === 0) {
@@ -221,8 +157,7 @@ function main() {
   return 0;
 }
 
-// Only when run as a command, so the test can import the helpers above without the
-// scan firing (and without `process.exit` killing the test run).
+// Guarded so an importing test triggers neither the scan nor the `process.exit`.
 if (argv[1] !== undefined && import.meta.url === pathToFileURL(argv[1]).href) {
   process.exit(main());
 }

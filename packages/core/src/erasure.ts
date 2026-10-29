@@ -2,11 +2,9 @@ import { z } from "zod";
 
 import { FormId, SessionId } from "./ids.js";
 
-// Erasure is the one exception to the append-only ledger (I5): a whole-session
-// delete plus a tombstone, in one transaction, with still no UPDATE path. An
-// adopter who adds respondent-linkable columns to `sessions` must extend the
-// scrub. It does not propagate to webhook consumers, which are independent data
-// controllers, and does not reach backups or replicas (ADR-17, `docs/erasure.md`).
+// Erasure is the one exception to the append-only ledger (I5): session delete plus tombstone
+// in one transaction. Adopters adding respondent-linkable `sessions` columns must extend the
+// scrub. Not propagated to webhook consumers or backups (ADR-17, `docs/erasure.md`).
 
 /** `reason` is an operator-supplied note. */
 export const EraseRequest = z.object({

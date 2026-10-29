@@ -5,10 +5,9 @@ import type { FormId } from "@roonga/qcms-core";
 import { authOrganization, formReleases, forms, questions } from "../schema/index.js";
 import type { Executor } from "./executor.js";
 
-// A workspace is better-auth's `organization` row, so creating one goes through
-// `auth.api.createOrganization`, which also writes the `member` row carrying
-// `forms.owner`. Only `isShared`, `requireSecondApprover` and `archivedAt` are QCMS's to
-// write; {@link ensureSeedWorkspace} is the one exception, and says why.
+// A workspace is better-auth's `organization` row, created through `auth.api.createOrganization`, which also
+// writes the `member` row carrying `forms.owner`. Only `isShared`, `requireSecondApprover` and
+// `archivedAt` are QCMS's to write, except in {@link ensureSeedWorkspace}.
 
 /** A workspace, as QCMS reads better-auth's `organization` row. */
 export interface WorkspaceRow {
@@ -108,12 +107,9 @@ export async function setWorkspaceShared(
 }
 
 /**
- * Archive a workspace: stamp `archivedAt` and change nothing else, so archiving cannot
- * become a third whole-session delete path beside ADR-17's two. The refusal that must
- * come first is the caller's, through {@link findArchiveBlockers}.
- *
- * There is no unarchive, and the `archivedAt IS NULL` predicate keeps a second attempt
- * from overwriting the stamp of the act that archived it.
+ * Archive a workspace: stamp `archivedAt` and change nothing else, so archiving is not a third whole-session
+ * delete path beside ADR-17's two. The caller refuses first, through {@link findArchiveBlockers}. There is no
+ * unarchive, and `archivedAt IS NULL` keeps a second attempt from overwriting the stamp.
  */
 export async function archiveWorkspace(
   exec: Executor,
@@ -140,15 +136,9 @@ export interface ArchiveBlockers {
 }
 
 /**
- * What makes an archive premature.
- *
- * Every form blocks, not only the open and released ones: reopening checks no workspace
- * state, so a closed never-released form left behind could be reopened under an archived
- * workspace. The shared flag blocks rather than being cleared here, since clearing it
- * would change what every other workspace may pin as a side effect of one operator act.
- *
- * Questions do not block: an archived workspace is neither a form's own nor the shared
- * one, so it can take no new pin.
+ * What makes an archive premature. Every form blocks, since reopening checks no workspace state. The shared
+ * flag blocks rather than being cleared, which would change what every other workspace may pin. Questions do
+ * not block: an archived workspace can take no new pin.
  */
 export async function findArchiveBlockers(
   exec: Executor,
@@ -223,13 +213,9 @@ export const SEED_WORKSPACE_NAME = "Default workspace";
 export const SEED_WORKSPACE_SLUG = "default";
 
 /**
- * The installation's first workspace as a fixture: the one it already has, or a new one if
- * it has none. Idempotent, and safe on every seed run.
- *
- * Not the product's bootstrap path, which goes through `createOrganization` so the
- * `member` row carrying `forms.owner` is written too; a database fixture has no auth
- * instance or user. It adopts an existing workspace rather than adding one beside it,
- * because with two a create that omits `workspaceId` is refused as ambiguous.
+ * The installation's first workspace as a fixture: the existing one, or a new one if none. Idempotent. Not
+ * the product's bootstrap path (`createOrganization` also writes the `member` row); it adopts an existing
+ * workspace because with two, a create omitting `workspaceId` is refused as ambiguous.
  */
 export async function ensureSeedWorkspace(exec: Executor): Promise<string> {
   const existing = await listWorkspaces(exec);

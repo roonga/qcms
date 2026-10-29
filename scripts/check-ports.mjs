@@ -1,75 +1,9 @@
 #!/usr/bin/env node
 // @ts-check
 /**
- * Port-allocation gate (R8, ADR-37, issue #255).
- *
- * QCMS allocates two blocks and nothing else, per machine seat `S`
- * (`QCMS_PORT_SEAT`, default 0):
- *
- *   - `7Sxx`  stable, long-running, human-facing services
- *   - `17Sxx` ephemeral test harness, per seat
- *
- * The full table, the reasoning and the runbook are in `docs/PORTS.md`. This gate
- * exists because the rule was violated the moment it was only folklore: the harness
- * ports drifted to 3100/3200/4010/4319 and two agent lanes silently shared servers.
- * A rule with no gate is the state we were already in.
- *
- * ## What it looks for, and what it deliberately does not
- *
- * It does NOT scan for bare numbers. Four-digit integers are everywhere in this repo
- * (years, byte caps, timeouts, pixel sizes) and a gate that fired on those would be
- * disabled within a week. Instead it matches a number only where the surrounding
- * syntax says "this is a port":
- *
- *   1. a URL authority: `localhost:NNNN`, `127.0.0.1:NNNN`, `0.0.0.0:NNNN`,
- *      `[::1]:NNNN`, `host.docker.internal:NNNN`
- *   2. a `--port NNNN` / `--port=NNNN` flag
- *   3. a `docker run -p NNNN:` publish (the HOST side only; the container side is
- *      the image's own business and is never a QCMS allocation)
- *   4. an assignment or property whose name is `port`, `*_PORT`, or `*Port`
- *   5. a devcontainer `appPort` / `forwardPorts` array
- *   6. a Compose-style `${VAR:-NNNN}` default
- *   7. the prose form `port NNNN`, so a stale number in a doc is caught too
- *
- * Coverage is tracked text: `.ts .tsx .js .jsx .mjs .cjs .md .yml .yaml .sh`, container
- * image definitions (`*.Dockerfile`, `Dockerfile`), plus the named JSON/env files where
- * ports genuinely get declared
- * (`.devcontainer/devcontainer.json`, every `.env.example`). Vendored components and
- * `plan/**` (a scratch/history area, like the other gates) are excluded. Broad
- * `.json` is excluded on purpose: the append-only golden corpus (ADR-18) must never
- * be edited, so a gate must not be able to demand it.
- *
- * Anything genuinely exempt is in ALLOWED below, each with its reason inline, and
- * each pinned to a specific file so an exemption cannot leak elsewhere.
- *
- * ## What it cannot see
- *
- * Written down because an unwritten limit is how a gate gets trusted beyond its
- * reach: that is precisely how the #74 GHCR mirror stayed bypassed inside `verify`
- * for weeks. Measured evasions, all of which pass a clean run today:
- *
- *   - `const PORT = 9998;` - a bare all-caps `PORT` is not in the identifier
- *     alternation, which covers `port`, `Port`, `_PORT` and `xPort` but not a
- *     standalone `PORT`.
- *   - a `--port NNNN` flag inside `package.json` - a shape the scanner DOES
- *     recognise, in a file it does not read. Broad `.json` is excluded on purpose
- *     (the append-only golden corpus must never be editable by a gate's demand) and
- *     the named-file list does not include `package.json`. So this one is a coverage
- *     gap, not a pattern gap, which is the cheaper of the two to close if it ever
- *     bites.
- *   - `- "9988:5432"` in a Compose file - only the `${VAR:-NNNN}` default form is
- *     scanned, not a bare publish mapping, which is the very form
- *     `docker-compose.dev.yml` uses for its own port.
- *
- * Inherently out of reach, and not worth chasing: a port built by arithmetic or
- * assembled in a template literal. Deriving it from `scripts/ports.mjs` is the only
- * thing that makes those safe, which is why R8 is a rule about derivation rather
- * than a rule about literals.
- *
- * Treat a clean run as "no port written in one of the recognised shapes", never as
- * "no port outside the allocation exists".
- *
- * Usage:  node scripts/check-ports.mjs
+ * Port-allocation gate (R8, ADR-37, `docs/PORTS.md`). A clean run means no port in a recognised shape,
+ * never that none exists: blind spots are a bare `PORT` identifier, anything in `package.json`, a bare
+ * Compose publish mapping, and a port built by arithmetic or a template literal.
  */
 
 import { execFileSync } from "node:child_process";
@@ -89,7 +23,6 @@ import { VENDORED_SOURCE_PATHSPEC } from "./vendored-source.mjs";
 
 const GIT = "git";
 
-/** Tracked text where a port could plausibly be written down. */
 const GLOBS = [
   "*.ts",
   "*.tsx",
@@ -101,50 +34,24 @@ const GLOBS = [
   "*.yml",
   "*.yaml",
   "*.sh",
-  // Container image definitions (issue #730). A HEALTHCHECK dials a URL authority and
-  // a CMD can carry a `--port` flag, both shapes the scanner already recognises, in
-  // files it did not read: the api image's healthcheck port was unscanned rather than
-  // exempted. Both spellings, so a bare `Dockerfile` added later is covered too.
+  // Both spellings, and the generator's `.tmpl`, so an image definition cannot leave
+  // the gate's view by being named differently or by gaining a placeholder.
   "*.Dockerfile",
   "Dockerfile",
-  // A Dockerfile the scaffolding generator stamps a project name into (task 037) is
-  // still a Dockerfile: it reaches an adopter as one. Without this glob the three
-  // generated copies leave the gate's view entirely the moment they gain a placeholder.
   "*.Dockerfile.tmpl",
   ".devcontainer/devcontainer.json",
   "*.env.example",
   ".env.example",
 ];
 
-/**
- * Areas the other gates also skip: vendored upstream code and the scratch area.
- *
- * The vendored half is `scripts/vendored-source.mjs`'s single definition, not a path
- * typed here. It used to exclude the whole of `packages/ui/src/components/`, which is
- * four QCMS-owned subtrees wider than the upstream copy (issue #775).
- */
+/** The vendored half comes from the single definition, never a path typed here. */
 const EXCLUDES = [VENDORED_SOURCE_PATHSPEC, ":!plan/**"];
 
 /**
- * Ports that are legitimately not ours, pinned to the file that may say so.
- *
- * `file` is the **exact repo-relative path**, compared with `===`. Not a substring,
- * and not a suffix. Two reasons, and they matter more here than in ordinary code
- * because this is the gate itself: a substring test silently exempts any path that
- * merely contains an entry (`docs/PORTS.md.bak`, `vendor/docs/PORTS.md`), so a real
- * violation is waved through and the run still prints "OK" - the one failure mode a
- * gate exists to prevent, and invisible when it happens. And every entry below is
- * already a full repo-relative path, so exactness costs nothing and makes an
- * exemption unambiguously about one file.
- *
- * **Every entry here fires**, and `check-ports.test.ts` fails if one stops. Written
- * defensively during the migration, this list grew 8 entries the scan could never
- * reach: numbers sitting in prose the gate deliberately does not scan, and the
- * container side of a publish mapping, which no pattern captures. A dead exemption
- * is not harmless - it reads as evidence the gate inspects that file, which is the
- * misreading `docs/PORTS.md` had to warn about in prose. Pinning the list to what
- * actually fires makes the warning unnecessary: if an entry goes dead because the
- * file was reworded, delete it rather than restoring the number.
+ * `file` is matched with `===`, never as a substring: a suffix test would exempt any
+ * path merely containing an entry and wave a real violation through. Every entry must
+ * fire, and `check-ports.test.ts` fails if one stops, so a dead exemption cannot
+ * linger and read as evidence the gate inspects that file.
  *
  * @type {{ file: string; value: number; why: string }[]}
  */
@@ -274,13 +181,8 @@ export const ALLOWED = [
     value: 8443,
     why: "an arbitrary destination in an SSRF fixture URL: the point is that it is somewhere else, and nothing binds it.",
   },
-  // The seven below are the generated scaffolding templates (task 037), each a copy of
-  // an app file whose original is already exempted above for a stated reason. They are
-  // listed one by one rather than exempting the template directory wholesale, so that
-  // a port introduced by a template TRANSFORM (rather than inherited from a file the
-  // gate already scans) is still caught. `pnpm check:templates` guarantees each of
-  // these is byte-identical to its source modulo the declared transforms, so an
-  // entry here can never outlive the entry it mirrors.
+  // The template copies are listed one by one rather than exempting the directory, so
+  // a port introduced by a template transform is still caught.
   {
     file: "packages/create-qcms-app/templates/common/apps/api/src/main.ts",
     value: 3000,
@@ -324,17 +226,8 @@ export const ALLOWED = [
 ];
 
 /**
- * Every port the allocation sanctions, across all seats.
- *
- * Computed from `scripts/ports.mjs` rather than listed, so the gate can never drift
- * from the arithmetic it is enforcing.
- *
- * The stable services are read from `STABLE_SERVICES` itself rather than named here.
- * They used to be a literal list, which made the allocation a TWO-place edit while
- * ADR-37 says adding a service to that table is all it takes: a slot added there and
- * not here produced a gate that rejected the very port the ADR had just allocated,
- * with an error telling the author to move it back inside the allocation it was
- * already inside. The harness half was already derived this way.
+ * Computed from `scripts/ports.mjs`, never listed, so the gate cannot drift from the
+ * arithmetic it enforces and adding a service stays a one-place edit (ADR-37).
  */
 export function sanctionedPorts() {
   const allowed = new Set();
@@ -348,17 +241,8 @@ export function sanctionedPorts() {
 }
 
 /**
- * One block's slots, rendered from the record that defines them.
- *
- * The failure message used to name four stable slots and four harness slots as a
- * hand-written line, which is a third copy of a table ADR-37 says lives in
- * `docs/PORTS.md` alone. It drifted: the admin, the observability receiver and the
- * database viewer were allocated and the hint kept advertising the older, shorter
- * allocation to whoever was reading it precisely because they had got a port wrong
- * (issue #730). Rendering it removes the copy rather than refreshing it.
- *
- * @param {string} prefix the block's seat-shaped prefix, e.g. `7S`.
- * @param {Record<string, number>} services offsets by service name.
+ * @param {string} prefix
+ * @param {Record<string, number>} services
  * @returns {string}
  */
 export function slotList(prefix, services) {
@@ -368,8 +252,8 @@ export function slotList(prefix, services) {
 }
 
 /**
- * Where a number counts as a port. Each entry captures the port in group 1, except
- * `list`, which captures a comma-separated array body.
+ * Each entry must capture the port in group 1, except `list`, which captures a
+ * comma-separated array body.
  *
  * @type {{ name: string; re: RegExp; list?: boolean }[]}
  */
@@ -381,10 +265,8 @@ const PATTERNS = [
   { name: "--port flag", re: /--port[ =]([\d_]{2,7})\b/g },
   { name: "docker publish", re: /\s-p\s+([\d_]{2,7}):/g },
   {
-    // Only an identifier that IS `port`, ends `_PORT`/`_port`, or is camelCase
-    // `xPort`. Written this way so `support`, `transport`, `export` and `SUPPORT`
-    // cannot match: in those the letters before "port" are word characters with no
-    // separator and no case change.
+    // Requires a separator or a case change before "port" so that `support`, `transport`,
+    // `export` and `SUPPORT` cannot match.
     name: "port assignment",
     re: /(?:\bport|\bPort|_PORT|_port|[a-z]Port)\b"?\s*(?:=|\?\?|:)\s*"?([\d_]{2,7})\b/g,
   },
@@ -397,19 +279,17 @@ const PATTERNS = [
   { name: "prose", re: /\bport\s+([\d_]{4,5})\b/gi },
 ];
 
-/** @returns {string[]} tracked files this gate covers. */
+/** @returns {string[]} */
 function tracked() {
   const out = execFileSync(GIT, ["ls-files", "-z", ...GLOBS, ...EXCLUDES], { encoding: "utf8" });
   return out.split("\0").filter((path) => path !== "");
 }
 
 /**
- * The exemption reason for `file` and `value`, when one applies.
+ * Exact repo-relative path, never a substring or suffix - see ALLOWED above.
  *
- * Exact repo-relative path, never a substring or suffix - see ALLOWED above for why.
- *
- * @param {string} file repo-relative path, as `git ls-files` reports it.
- * @param {number} value the port found in that file.
+ * @param {string} file
+ * @param {number} value
  * @returns {string | undefined}
  */
 export function exemption(file, value) {
@@ -417,8 +297,6 @@ export function exemption(file, value) {
 }
 
 /**
- * Every port-shaped number in `text`, with the line it sits on.
- *
  * @param {string} text
  * @returns {{ port: number; line: number; source: string }[]}
  */
@@ -443,7 +321,6 @@ export function portsIn(text) {
   return found;
 }
 
-/** Run the gate over the tracked tree. Returns the process exit code. */
 export function main() {
   const sanctioned = sanctionedPorts();
   const violations = [];
@@ -486,8 +363,7 @@ export function main() {
   return 1;
 }
 
-// Only when run as a command, so `check-ports.test.ts` can import the pure helpers
-// above without the scan firing (and without `process.exit` killing the test run).
+// Guarded so the test can import the pure helpers without the scan firing.
 if (argv[1] !== undefined && import.meta.url === pathToFileURL(argv[1]).href) {
   process.exit(main());
 }

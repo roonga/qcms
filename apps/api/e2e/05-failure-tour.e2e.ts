@@ -1,15 +1,3 @@
-/**
- * Scenario 5 - the failure tour (task 027, exit criterion 1).
- *
- * Every guard surfaces a *typed* code through the shared error envelope, end to
- * end over HTTP: a publish with a backward rule (422 PUBLISH_REJECTED), an
- * out-of-range answer (422 INVALID_ANSWER), an expired link (403 LINK_EXPIRED), a
- * valid link into a closed form (409 FORM_CLOSED), a consumed one-time link (409
- * LINK_CONSUMED), and an answer to an already-submitted session (409
- * SESSION_SUBMITTED). The suite proves the API fails in the contracted,
- * machine-readable way - not just that it fails.
- */
-
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 
 import {
@@ -55,8 +43,7 @@ function shortText(id: string, label: string): Record<string, unknown> {
 
 describe("scenario 5: failure tour (typed codes through the envelope)", () => {
   it("publish with a backward rule target → 422 PUBLISH_REJECTED", async () => {
-    // Two published questions; a rule that reads a later question and shows an
-    // earlier one is a backward target (ADR-16) - valid to draft, rejected to publish.
+    // A rule that reads a later question and shows an earlier one is a backward target (ADR-16).
     for (const [id, label] of [
       ["q_bw_a", "A"],
       ["q_bw_b", "B"],
@@ -97,7 +84,6 @@ describe("scenario 5: failure tour (typed codes through the envelope)", () => {
   it("an out-of-range answer → 422 INVALID_ANSWER", async () => {
     const start = await respondent.start<StartBody>({ formSlug: "auto" });
     const { sessionId, sessionToken } = start.body;
-    // Reveal q_accident_count, then answer below its min (0).
     expect(
       (await respondent.answer<StepBody>(sessionId, sessionToken, "q_at_fault_accident", true))
         .status,
@@ -119,9 +105,7 @@ describe("scenario 5: failure tour (typed codes through the envelope)", () => {
   });
 
   it("a valid link into a closed form → 409 FORM_CLOSED", async () => {
-    // The whole-form closed state overrides every link, secure ones included
-    // (ADR-39, issue #724). A second form so the tour's own form stays open;
-    // its questions are already seeded.
+    // A second form, so the tour's own form stays open.
     const closed = await seedInsuranceForm(testDb.db, {
       formId: "frm_closed_e2e",
       slug: "closed-e2e",
@@ -145,9 +129,7 @@ describe("scenario 5: failure tour (typed codes through the envelope)", () => {
     });
     const token = tokenFromLinkUrl(minted.body.links[0]!.url);
 
-    // First start consumes the one-time link.
     expect((await respondent.start<StartBody>({ token })).status).toBe(201);
-    // Second start on the same link is rejected.
     const second = await respondent.start<ErrBody>({ token });
     expect(second.status).toBe(409);
     expect(second.body.error.code).toBe("LINK_CONSUMED");

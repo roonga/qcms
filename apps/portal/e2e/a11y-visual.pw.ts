@@ -1,29 +1,3 @@
-/**
- * Reduced-motion and 200%-zoom checks on the flow page (task 030). These are the
- * flow-level visual-accessibility criteria a component library cannot own:
- * respecting `prefers-reduced-motion`, and staying usable (no horizontal scroll,
- * controls reachable) when a low-vision user runs the page at 200% zoom, which on
- * a mobile viewport manifests as a much narrower effective width.
- *
- * WHICH RENDER IS BEING MEASURED, AND WHY IT IS NOW TWO TESTS (issue #160)
- * The portal's first paint is a real native no-JS form which React then replaces
- * WHOLESALE on hydration (029, #121). The reflow measurement below used to compute
- * `scrollWidth - clientWidth` before anything in the test implied hydration, so it
- * measured whichever render happened to be on screen - and if the two ever differed
- * in layout, the WCAG 1.4.10 assertion would be made against markup no JS user
- * encounters.
- *
- * The fix is not a bare hydration wait. The fallback is legitimate coverage in its
- * own right: a respondent with JavaScript off sees exactly that markup, and WCAG
- * applies to them too, so measuring only the hydrated render would trade one blind
- * spot for another. Both renders are therefore measured on purpose, each in a test
- * that names the render it audits, and each records the numbers it observed as a
- * test annotation rather than only asserting that they pass. Numbers in the report
- * are what let the next reader see the two renders agree instead of taking it on
- * faith - and if they ever stop agreeing, that is a defect to file, not a threshold
- * to loosen.
- */
-
 import { expect, test } from "./support/gates.js";
 import type { Page } from "@playwright/test";
 
@@ -44,15 +18,6 @@ interface Reflow {
   readonly widestMainElementPx: number;
 }
 
-/**
- * Emulate 200% zoom on top of the mobile viewport (reflow, not zoom-scroll) and
- * report the page's horizontal geometry.
- *
- * The widest main-column element is measured alongside the overflow because the
- * overflow number alone cannot distinguish "this render reflows correctly" from
- * "this is not the render with the wide element in it". It is the measurement the
- * #137 review used to establish that the two renders agree.
- */
 async function measureReflowAt200Percent(page: Page): Promise<Reflow> {
   await page.evaluate(() => {
     document.documentElement.style.setProperty("zoom", "2");
@@ -86,17 +51,11 @@ test("reduced-motion: transitions collapse to near-instant on the flow page", as
   const { slug } = readFixtures();
   await page.goto(`/f/${slug}`);
 
-  // The skip link's slide transition is neutralized under reduced motion: the
-  // reset collapses it to ~0 (reported as "0s" or "1e-05s"), never 0.15s. This one
-  // is a stylesheet question rather than a render question - the rule applies to the
-  // same element in both renders, and the skip link is layout chrome that hydration
-  // does not replace - so it deliberately does not wait for the marker.
   const skipTransition = await page
     .getByRole("link", { name: "Skip to content" })
     .evaluate((el) => getComputedStyle(el).transitionDuration);
   expect(Number.parseFloat(skipTransition)).toBeLessThanOrEqual(0.02);
 
-  // Start the flow to confirm it remains fully functional under reduced motion.
   await page.getByRole("button", { name: "Start" }).click();
   await page.waitForURL(/\/s\/ses_/);
   await expect(page.getByText(ACCIDENT_LABEL)).toBeVisible();
@@ -111,20 +70,13 @@ test("200% zoom: the HYDRATED flow render reflows without horizontal scrolling a
   await page.waitForURL(/\/s\/ses_/);
   await expect(page.getByText(ACCIDENT_LABEL)).toBeVisible();
 
-  // The render a JS respondent actually uses. Before #159 there was no honest way to
-  // ask for it here: the wait keyed on a renderer testid, and this file's whole point
-  // is to measure geometry rather than to interact, so nothing else in the test
-  // implied hydration had happened.
   await waitForHydration(page);
 
   const reflow = await measureReflowAt200Percent(page);
   recordReflow("hydrated React render", reflow);
 
-  // No horizontal overflow of the page body (WCAG 1.4.10 reflow), 1px rounding slack.
   expect(reflow.overflow).toBeLessThanOrEqual(OVERFLOW_SLACK_PX);
 
-  // The primary control is still visible and operable at this magnification. Only
-  // the hydrated render has one; the fallback's equivalent is asserted below.
   await expect(page.getByTestId("primary-action")).toBeVisible();
   await expect(page.getByText(ACCIDENT_LABEL)).toBeVisible();
 });
@@ -134,10 +86,6 @@ test("200% zoom: the no-JS FALLBACK flow render reflows without horizontal scrol
 }) => {
   const { slug } = readFixtures();
 
-  // Scripts starved rather than `javaScriptEnabled: false`: with scripting off there
-  // is no `page.evaluate`, so the zoom could not be applied and the geometry could
-  // not be read. Starving only the bundle leaves the page measurable while React
-  // never runs. See `support/script-starve.ts`.
   const starvation = await starveScripts(page);
   await page.goto(`/f/${slug}`);
   await page.getByRole("button", { name: "Start" }).click();
@@ -153,11 +101,6 @@ test("200% zoom: the no-JS FALLBACK flow render reflows without horizontal scrol
 
   expect(reflow.overflow).toBeLessThanOrEqual(OVERFLOW_SLACK_PX);
 
-  // The fallback's own controls: a native submit button rather than the React
-  // primary action, and the question itself. Scoped to the step card since issue #195,
-  // because the header's appearance form contributes a second `button[type=submit]` to
-  // the document (hidden here, since this render has scripting on and only the bundle
-  // starved, but still matched by an unscoped locator).
   await expect(page.getByTestId("step-card").locator("button[type='submit']")).toBeVisible();
   await expect(page.getByText(ACCIDENT_LABEL)).toBeVisible();
 });

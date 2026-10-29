@@ -1,21 +1,6 @@
 /**
- * Turning the generated `.env.example` into this deployment's `.env` (task 037).
- *
- * `.env.example` is generated from the API configuration schema, so it is the only
- * list of variables that cannot be out of date. This module fills it in rather than
- * carrying a second list: a variable added to the schema appears here automatically,
- * with its prose, and a variable removed stops appearing. There is no place to forget.
- *
- * Two rules, and they are the security-relevant part:
- *
- *   - **Key material is generated, never suggested.** Every mandatory variable the
- *     schema marks `secret` gets 32 random bytes from the platform CSPRNG. Nothing in
- *     this repository, this package or its templates contains a usable secret value,
- *     and a placeholder like `replace-with-a-strong-password` is exactly the thing
- *     operators leave in place.
- *   - **Nothing is invented for a non-secret blank.** A mandatory variable with no
- *     answer stays blank and is REPORTED, so the operator is told what is missing
- *     rather than handed a plausible wrong value.
+ * Fills the generated `.env.example` rather than keeping a second variable list.
+ * Secrets are generated from the CSPRNG, never suggested; a blank non-secret is reported, not invented.
  */
 
 /** The marker line the generator writes above each assignment. */

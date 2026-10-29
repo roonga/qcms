@@ -1,27 +1,6 @@
 /**
- * Route definitions for the response listing / export / erasure admin slices
- * (task 023) - the launch-scope **data-out** surface for authors: browse,
- * export, erase.
- *
- * Every route is declared with `@hono/zod-openapi` `createRoute` (017's
- * convention) and carries its SEC-5 scope intent via `withScopes`, kept
- * deliberately narrow and **never bundled**:
- *   - `responses:read`   - list + detail (answer data, admin-only reads)
- *   - `responses:export` - CSV/JSON export (bulk answer egress)
- *   - `responses:erase`  - erasure (destructive) *and* the flag-release (unflag),
- *     the two per-response disposition mutations; grouping unflag here keeps
- *     response-mutating authority out of the read/export scopes. (A dedicated
- *     `responses:moderate` scope is a Phase-4 refinement - see the README.)
- * Scopes are inert at launch (the `/api/v1` surface is reserved, R7); annotating
- * them now makes Phase-4 activation wiring, not archaeology.
- *
- * The admin group is guarded by the internal service-token gate (SEC-4) and the
- * admin-auth gate (`registerAdminAuth`) before any handler runs; in a public-only
- * process the group is not mounted, so these paths 404, never 403 (ADR-09).
- *
- * The **export** route intentionally declares no `200` body schema: it returns a
- * streamed `text/csv` / `application/json` `Response` (memory-bounded, R4 web
- * `ReadableStream`), which a content-typed OpenAPI response would not permit.
+ * Unflag carries `responses:erase` rather than a read scope, so response-mutating
+ * authority stays out of `responses:read` and `responses:export` (SEC-5).
  */
 
 import { createRoute } from "@hono/zod-openapi";
@@ -83,7 +62,6 @@ export const getResponseRoute = createRoute({
       description: "The response detail with its append-only answer ledger",
       content: { "application/json": { schema: ResponseDetailResponse } },
     },
-    // 404: no such non-erased submitted response for this form.
     ...errorResponses(400, 401, 404),
   },
   ...withScopes("responses:read"),
@@ -96,12 +74,10 @@ export const exportRoute = createRoute({
   tags,
   request: { params: FormIdParam, query: ExportQuery },
   responses: {
-    // No body schema: the handler streams a raw text/csv or application/json
-    // Response (web ReadableStream, memory-bounded). Errors use the envelope.
+    // No body schema: a content-typed response would not permit the raw stream.
     200: {
       description: "The export stream (text/csv or application/json; erased sessions excluded)",
     },
-    // 400: CSV without a version, or a malformed filter.
     ...errorResponses(400, 401, 404),
   },
   ...withScopes("responses:export"),
@@ -121,8 +97,6 @@ export const eraseRoute = createRoute({
       description: "The erasure tombstone (existence without content)",
       content: { "application/json": { schema: EraseResponse } },
     },
-    // 404: no such session in this form (and no existing tombstone in it). A
-    // session of another form takes this same 404 - see the handler (#305).
     ...errorResponses(400, 401, 404),
   },
   ...withScopes("responses:erase"),
@@ -146,8 +120,6 @@ export const erasureScopeRoute = createRoute({
       description: "The selected environment and the other environments to offer",
       content: { "application/json": { schema: ErasureScopeResponse } },
     },
-    // 404: no such session in this form, in the selected environment. Same answer as a
-    // session of another form, for the reason the erase route gives (#305).
     ...errorResponses(400, 401, 404),
   },
   ...withScopes("responses:erase"),
@@ -180,17 +152,12 @@ export const unflagRoute = createRoute({
       description: "Whether this call released the withheld response.submitted event",
       content: { "application/json": { schema: UnflagResponse } },
     },
-    // 404: no such session in this form, or no submission for it. A session of
-    // another form takes this same 404 - see the handler (#305).
     ...errorResponses(400, 401, 404),
   },
   ...withScopes("responses:erase"),
 });
 
-/**
- * Register every response data-out route on an admin group. The admin-auth gate
- * (`registerAdminAuth`) must precede this in the admin bucket so it runs first.
- */
+/** `registerAdminAuth` must precede this in the admin bucket so its gate runs first. */
 export const registerAdminResponses: SliceRegistrar = (group, deps: Deps): void => {
   group.openapi(listResponsesRoute, makeListResponsesHandler(deps));
   group.openapi(getResponseRoute, makeGetResponseHandler(deps));

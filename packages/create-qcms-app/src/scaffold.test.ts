@@ -8,16 +8,7 @@ import { withDefaults, type DeploymentShape, type ScaffoldOptions } from "./opti
 import { nextCommands } from "./next-steps.js";
 import { scaffold, TargetNotEmpty } from "./scaffold.js";
 
-/**
- * Every workspace `target()` has created, kept so the sweep below can prove that none
- * of them outlived the run (issue #918).
- *
- * A stamp writes about 495 files and nearly every test here stamps one, so a run that
- * leaves its workspaces behind spends several thousand inodes per `pnpm verify`. The
- * development host's `/tmp` is a tmpfs with a fixed inode table, and it reached 100
- * percent twice on 2026-09-12, at which point every write on the host fails for
- * reasons that never mention `/tmp`. This file was the dominant filler.
- */
+/** Workspaces `target()` created, so the sweep below can prove none outlived the run. */
 const workspaces: string[] = [];
 
 afterAll(() => {
@@ -144,12 +135,7 @@ describe("scaffold", () => {
       const dockerfile = read(`docker/${app}.Dockerfile`);
       expect(dockerfile).not.toContain("COPY packages ./packages");
       expect(dockerfile).not.toContain("COPY scripts ./scripts");
-      // The `...` suffix means "and every workspace dependency", which the scaffold
-      // has none of. Asserted on the FILTER rather than on a whole `RUN pnpm ...` line,
-      // because the portal's build command now carries an environment prefix for the
-      // Server Action salt (issue #1035) and so no longer begins with `RUN pnpm`. The
-      // filter is specific enough by itself: the only build command any of these files
-      // quote in prose names `@roonga/qcms-db`, never an app.
+      // Asserted on the filter: the only build command quoted in prose names `@roonga/qcms-db`.
       expect(dockerfile).not.toContain(`--filter qcms-${app}... build`);
       expect(dockerfile).toContain(`--filter qcms-${app} build`);
     }
@@ -165,8 +151,7 @@ describe("scaffold", () => {
   });
 
   it("stamps the adopter's project name into every image title, and QCMS's into none", () => {
-    // Issue #457, tier 1. An image labelled as sourced from this repository points
-    // anyone reading OCI labels at a repository that does not hold the code inside it.
+    // An image labelled as sourced from this repository would mislead anyone reading OCI labels.
     const { read } = stamp({ projectName: "insurance-forms" });
     for (const app of ["api", "portal", "admin"]) {
       const dockerfile = read(`docker/${app}.Dockerfile`);
@@ -177,11 +162,7 @@ describe("scaffold", () => {
   });
 
   it("names no QCMS repository script in anything the scaffolded apps print", () => {
-    // Issue #457, tier 2: an admin screen told the operator to run `pnpm dev:seed` and
-    // the bootstrap tool's own usage named `pnpm qcms:create-admin`, neither of which a
-    // scaffolded project defines.
-    // The message VALUES, not the comments: the comments around them are tier 3, and
-    // `docs/ownership-seam.md` records the decision to leave those alone.
+    // The message values, not the comments around them: `docs/ownership-seam.md` leaves those alone.
     const { read } = stamp();
     const catalog = read("apps/admin/lib/i18n/en.ts");
     const values = catalog.match(/^ {2}"[\w.]+":[\s\S]*?",$/gm) ?? [];

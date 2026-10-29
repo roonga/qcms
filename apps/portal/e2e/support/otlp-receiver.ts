@@ -1,25 +1,3 @@
-/**
- * A minimal OTLP/HTTP receiver for the Playwright suite (task 054).
- *
- * Test support only - it exists so the tracing baseline can be proved against
- * **real exported payloads** with no external collector, no viewer, and no new
- * production surface. It accepts `POST /v1/traces` and `POST /v1/logs`
- * (OTLP/HTTP + JSON, the encoding
- * `@opentelemetry/exporter-trace-otlp-http` and `@vercel/otel` with
- * `OTEL_EXPORTER_OTLP_PROTOCOL=http/json` both send), appends each request body
- * verbatim to a JSONL capture file, and answers `{}`.
- *
- * Verbatim matters twice over. The connected-trace assertions read parsed spans
- * out of it, and the SEC-13 assertion greps the raw bytes: "a known submitted
- * answer string appears nowhere in the captured OTLP payloads" is only a real
- * check if what was captured is exactly what left the process.
- *
- * It runs in the Playwright runner process (globalSetup starts it, globalTeardown
- * stops it) while both traced processes - the composed API in that same process
- * and the portal dev server in another - export to it over HTTP. The capture file
- * is how a spec in a worker process reads what the runner received.
- */
-
 import { appendFileSync, mkdirSync, readFileSync, writeFileSync } from "node:fs";
 import { createServer, type Server } from "node:http";
 import { dirname } from "node:path";
@@ -66,14 +44,11 @@ export async function startOtlpReceiver(): Promise<void> {
         (request.url === "/v1/traces" || request.url === "/v1/logs") &&
         request.method === "POST"
       ) {
-        // One line per export request; newlines inside a JSON body are impossible
-        // (the exporter emits compact JSON), so JSONL is safe here.
         appendFileSync(OTLP_CAPTURE_PATH, `${Buffer.concat(chunks).toString("utf8")}\n`);
       }
       response.writeHead(200, { "content-type": "application/json" });
       response.end("{}");
     });
-    // A dropped export must never take the receiver (or the suite) down.
     request.on("error", () => response.destroy());
   });
 

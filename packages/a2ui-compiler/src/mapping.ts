@@ -51,10 +51,8 @@ function compact(props: Record<string, unknown>): Readonly<Record<string, unknow
 }
 
 /**
- * The author-supplied validation messages for one question, resolved for the
- * active locale (ADR-32). `undefined` drops the prop, so a question without
- * them compiles as before. Keys follow the kernel's canonical order, so the
- * document is a function of content alone (ADR-18).
+ * Author validation messages for one question in the active locale (ADR-32), in the
+ * kernel's canonical key order so the document is a function of content (ADR-18).
  */
 function authorMessages(
   question: QuestionDefinition,

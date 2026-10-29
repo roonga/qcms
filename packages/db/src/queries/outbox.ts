@@ -47,12 +47,10 @@ export async function enqueue(
 }
 
 /**
- * Enqueue a domain event into another environment's outbox, from the control pool, for a
- * release that must commit its record and its event in one transaction.
- *
- * The only helper naming a data schema explicitly; `src/environment/sql.test.ts` allows
- * the exception by file name. No `RETURNING`: `qcms_app_control` holds `INSERT` and no
- * `SELECT` there, and widening that would let an authoring credential read answers.
+ * Enqueue a domain event into another environment's outbox, from the control pool, so a release commits its
+ * record and event in one transaction. The only helper naming a data schema (`src/environment/sql.test.ts`
+ * allows it by file name). No `RETURNING`: `qcms_app_control` has no `SELECT` there, and widening that would
+ * let an authoring credential read answers.
  */
 export async function enqueueInEnvironment(
   exec: Executor,
@@ -160,10 +158,8 @@ function settledAt(...columns: PgColumn[]) {
 }
 
 /**
- * How many candidate rows the sweep names explicitly before it falls back to one
- * statement. Postgres cannot use the partial expression index's statistics for the
- * `greatest(...) < $1` predicate, so it overestimates the candidate count and
- * hash-anti-joins the whole `webhook_deliveries` table (issue #781).
+ * How many candidate rows the sweep names explicitly before falling back to one statement: Postgres
+ * overestimates the `greatest(...) < $1` candidates and hash-anti-joins the whole `webhook_deliveries` table.
  */
 export const ANTI_JOIN_CANDIDATE_BUDGET = 10_000;
 
@@ -173,12 +169,10 @@ export interface OutboxPayloadRedactionResult {
 }
 
 /**
- * Remove the `answers` member from every outbox payload whose event, and whose whole
- * fan-out, settled strictly before `olderThan`. Idempotent; the API owns the scheduling.
- *
- * Both halves of "settled" are load bearing: redacting an unconsumed event would silently
- * drop a submission that never went anywhere, and redacting under a delivery still moving
- * would leave it reading "pending" forever while nothing ever sends it.
+ * Remove the `answers` member from every outbox payload whose event and whole fan-out settled before
+ * `olderThan`. Idempotent; the API owns scheduling. Both halves of "settled" matter: redacting an unconsumed
+ * event drops a submission that went nowhere, and redacting under a moving delivery leaves it "pending"
+ * forever.
  */
 export async function redactAgedOutboxPayloads(
   exec: Executor,

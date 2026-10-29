@@ -1,10 +1,7 @@
 /**
- * Access-group names: `<environments>.<plane>.<role>[.<label>]`, dotted, unique within a
- * workspace, with the role token always exactly two of those segments (ADR-41).
- *
- * A name is a label kept in step with the team's fields, never an input to a permission:
- * nothing here may be called on an authorisation path, so if every name in the
- * installation were wrong, no access would change.
+ * Access-group names: `<environments>.<plane>.<role>[.<label>]`, dotted, unique within a workspace (ADR-41).
+ * A label kept in step with the team's fields, never an input to a permission: do not call it on an
+ * authorisation path.
  */
 
 /** The role names. Each is exactly two dot-separated segments. */

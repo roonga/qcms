@@ -1,17 +1,7 @@
-/**
- * Request/response schemas for the assist slice (041).
- *
- * The turn's response is an SSE stream rather than a JSON body, so only its
- * request is schema'd here; the event shapes are `AssistEvent` in `types.ts` and
- * are documented in this slice's README. Accepting a proposal is an ordinary
- * JSON round trip, so it has both halves.
- */
-
 import { z } from "@hono/zod-openapi";
 
 import { SavedDraftResponse } from "../schema.js";
 
-/** One turn the client replays. The whole conversation is the whole memory. */
 export const AssistTurnBody = z.strictObject({
   role: z.enum(["user", "assistant"]),
   content: z.string().min(1).max(8_000),
@@ -19,50 +9,25 @@ export const AssistTurnBody = z.strictObject({
 
 export const AssistBody = z
   .strictObject({
-    /**
-     * The conversation so far, oldest first, ending with the new user turn.
-     * Capped: this is not a chat product, it is one authoring task, and an
-     * unbounded history is an unbounded upstream bill.
-     */
+    // Capped because an unbounded history is an unbounded upstream bill.
     conversation: z.array(AssistTurnBody).min(1).max(40),
-    /**
-     * The client's view of the draft it is proposing against (the draft's
-     * `updatedAt`, as returned by the draft endpoints). When it does not match
-     * the stored draft the request is refused rather than served against a draft
-     * the author is no longer looking at.
-     */
+    // The draft `updatedAt` the client proposed against; a mismatch is refused.
     clientState: z.string().max(64).optional(),
   })
   .openapi("AssistRequest");
 
-/**
- * A proposed question definition, opaque at the route boundary.
- *
- * Opaque for the reason `POST /admin/questions` gives: the kernel validates the
- * contents in the handler, so a structurally-present-but-invalid definition
- * reaches it and earns the kernel's 422 rather than a bare 400. Unnamed, because
- * this route is flag-gated and must not register a component into a document a
- * default build publishes.
- */
+// Opaque so an invalid definition reaches the kernel and earns its 422 rather than a bare 400.
+// Unnamed because this flag-gated route must not register a component into a default build's document.
 const OpaqueQuestionDefinition = z.record(z.string(), z.unknown());
 
 /**
- * `POST /admin/forms/:id/draft/assist/accept` - the human's Accept (issue #823).
- *
- * The proposal's new question definitions travel with the draft that pins them
- * because they have to be stored in the same transaction: a draft that pins a
- * question no create ever produced is the defect this route exists to close.
- * `slug` is optional and derived from the questionId when absent, so the panel
- * can accept a proposal without inventing library naming on the author's behalf.
+ * New question definitions travel with the draft that pins them because both must be
+ * stored in one transaction; otherwise a draft can pin a question no create produced.
  */
 export const AcceptProposalBody = z
   .strictObject({
     definition: OpaqueQuestionDefinition,
-    /**
-     * The proposal's NEW question definitions, in the order the agent proposed
-     * them. Capped at `propose_questions`' own ceiling: a turn cannot propose
-     * more than fifty, so an accept cannot carry more either.
-     */
+    // Capped at `propose_questions`' own ceiling.
     newQuestions: z
       .array(
         z.strictObject({
@@ -75,7 +40,6 @@ export const AcceptProposalBody = z
   })
   .openapi("AcceptProposalBody");
 
-/** One question draft the accept created (never published - §4.2). */
 const CreatedQuestionDraft = z.object({
   questionId: z.string().openapi({ example: "q_first_name" }),
   slug: z.string().openapi({ example: "first-name" }),
@@ -83,11 +47,7 @@ const CreatedQuestionDraft = z.object({
   status: z.literal("draft"),
 });
 
-/**
- * The accept's answer: exactly what a draft save returns, plus the drafts it
- * created. The save half is the same schema so the builder's existing save
- * handling reads this response unchanged.
- */
+/** Extends the save response so the builder's existing save handling reads this unchanged. */
 export const AcceptProposalResponse = SavedDraftResponse.extend({
   createdQuestions: z.array(CreatedQuestionDraft),
 }).openapi("AcceptProposalResponse");

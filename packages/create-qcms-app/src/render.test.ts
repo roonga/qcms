@@ -46,11 +46,7 @@ describe("templateValues", () => {
   });
 
   it("defines no per-manager placeholder any more", () => {
-    // `workspacesField` existed for npm and yarn, and `packageManager` named a choice
-    // the adopter no longer makes. A placeholder nothing sets is how a deleted path
-    // comes back: a template that referenced one would render it and nobody would
-    // notice. `renderTemplate` throws on an undefined placeholder, so their absence
-    // here is what keeps them out of the templates (issue #449).
+    // A placeholder nothing sets would render unnoticed if a template referenced it.
     const values = templateValues(withDefaults({}, "/tmp"));
     expect(values).not.toHaveProperty("workspacesField");
     expect(values).not.toHaveProperty("packageManager");
@@ -59,20 +55,14 @@ describe("templateValues", () => {
   });
 
   it("always pins a packageManager, which corepack needs to resolve pnpm in the image", () => {
-    // Never empty. An empty field was the third npm/yarn breakage (issue #449): the
-    // Dockerfiles run `corepack enable` then `pnpm install`, so with nothing pinned an
-    // arbitrary pnpm major runs against a `pnpm-workspace.yaml` that uses pnpm-11-only
-    // `allowBuilds` syntax.
+    // Never empty: without a pin, corepack runs an arbitrary pnpm major against pnpm-11-only syntax.
     const values = templateValues(withDefaults({}, "/tmp"));
     expect(values["packageManagerField"]).toContain(PNPM_SPEC);
     expect(values["packageManagerField"]).not.toBe("");
   });
 
   it("renders every command through pnpm and nothing else", () => {
-    // The Code Owner's ruling on issue #449, checked at the values the templates
-    // actually receive rather than at a list of offered names: if a second manager
-    // ever comes back, the Dockerfiles have to come with it, because they COPY
-    // pnpm-lock.yaml and prune with `pnpm deploy --legacy --prod`.
+    // A second manager would need Dockerfile work: they COPY pnpm-lock.yaml and use `pnpm deploy`.
     const values = templateValues(withDefaults({}, "/tmp"));
     for (const key of ["recursiveBuild", "recursiveTypecheck"]) {
       expect(values[key]).toContain(PACKAGE_MANAGER);

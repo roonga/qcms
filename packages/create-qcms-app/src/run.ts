@@ -1,14 +1,4 @@
-/**
- * The scaffolder's whole control flow (task 037).
- *
- * Separate from `cli.ts` so it can be called from a test without a subprocess: a bin
- * entry point runs on import by definition, and a module that runs on import cannot
- * be unit tested.
- *
- * Sequence, and every step is skippable by flag because CI needs to stop before the
- * ones that reach the network or the filesystem outside the target: stamp, install,
- * git init and first commit, print the next commands.
- */
+/** Separate from `cli.ts` because a bin entry point runs on import and cannot be unit tested. */
 
 import { readFileSync } from "node:fs";
 
@@ -51,14 +41,7 @@ function install(options: ScaffoldOptions): string | undefined {
   return `${PACKAGE_MANAGER} install exited ${String(result.status)}. Run it yourself once the problem is fixed.`;
 }
 
-/**
- * Initialise a repository and make the first commit.
- *
- * A failing commit is reported, never fatal: the usual cause is a machine with no
- * git identity configured, and losing a correctly stamped tree over that would be
- * absurd. The files are staged either way, so the operator's own `git commit`
- * finishes the job.
- */
+/** A failing commit is reported, not fatal: files are staged and a missing git identity is the usual cause. */
 function initialiseRepository(options: ScaffoldOptions): string | undefined {
   const git = resolveGit();
   const cwd = options.targetDirectory;
@@ -94,9 +77,7 @@ function finishSetUp(options: ScaffoldOptions): readonly string[] {
       if (problem !== undefined) warnings.push(problem);
     }
   } catch (error) {
-    // A program we could not find, and a refused override (issue #458), are the same
-    // kind of event to the operator: the tree is written and correct, and one of the
-    // two side effects did not run. Reported, never fatal.
+    // The tree is written; a missing program or refused override only skips a side effect.
     if (!(error instanceof ProgramNotFound) && !(error instanceof InvalidBinOverride)) throw error;
     warnings.push(error.message);
   }

@@ -1,24 +1,6 @@
 /**
- * Boot configuration (task 017, SEC-7 inventory, SEC-8 secrets, ADR-24 flags).
- *
- * One place reads the environment, validates it, and fails fast. Two rules
- * dominate:
- *
- * 1. **Validate presence *and* shape.** A secret that is present but too short
- *    is a misconfiguration, caught at boot - not at first use.
- * 2. **Never echo values (SEC-8).** Every error names the offending env var and
- *    what was wrong; it never prints the value. This is a testable property
- *    (the redaction test), so `ConfigError.message` is built only from env-var
- *    names and generic reasons.
- *
- * Key-list envs (`QCMS_LINK_KEYS`, `QCMS_SESSION_KEYS`, `QCMS_INTERNAL_TOKEN`)
- * accept a comma/whitespace-separated list - the **first entry signs, all
- * entries verify** (010's rotation model). Webhook signing does *not* use a
- * global env key: per-webhook secrets are stored encrypted under
- * `QCMS_APP_KEY` (SEC-6), handled in later tasks.
- *
- * Nothing here imports `node:*`; `loadConfig` takes an env record so it is pure
- * and testable. `serve.ts` calls `loadConfig(process.env)`.
+ * No error here may echo a value (SEC-8): every issue names the offending env var and a
+ * generic reason only.
  */
 
 import { HONEYPOT_FIELD_NAME } from "@roonga/qcms-a2ui-compiler";
@@ -31,44 +13,17 @@ import {
 } from "@roonga/qcms-db";
 import { z } from "zod";
 
-/**
- * Minimum **characters** of signing/secret material (SEC-4/SEC-7 ask for >= 32
- * random bytes). The unit matters and used to be recorded wrongly here: the
- * check below compares `raw.length`, which counts UTF-16 code units, not bytes.
- * For the generated ASCII values the recipes produce the two coincide; a
- * non-ASCII secret of 32 characters exceeds 32 bytes, which errs safe. Stated in
- * the unit the code enforces so a reader is not misled (task 040).
- */
+// Characters, not bytes: the check below compares `raw.length`, which counts UTF-16 code
+// units. SEC-4/SEC-7 ask for >= 32 random bytes, and a non-ASCII secret of 32 characters
+// exceeds that, so the unit errs safe.
 export const MIN_SECRET_LENGTH = 32;
-/**
- * AES-256-GCM key material for `QCMS_APP_KEY` (SEC-6/SEC-8): 32 **characters**,
- * for the same reason and with the same caveat as `MIN_SECRET_LENGTH`.
- */
 export const APP_KEY_MIN_LENGTH = 32;
 
 /**
- * Placeholder prefixes that must never reach a running deployment (SEC-8: "a
- * deployment with placeholder secrets must refuse to boot").
- *
- * This existed only as a sentence until task 040. Every shipped example file
- * (`.env.compose.example`, `apps/portal/.env.example`, `apps/admin/.env.example`)
- * fills its secrets with `replace-with-a-random-32-character-...`, and those
- * strings are longer than 32 characters, so the only validation that ran, a
- * length floor, accepted them. An operator who copied the example, set the
- * database password and the base URLs, and missed the key lines would boot a
- * deployment whose session-signing, link-signing, internal-channel and at-rest
- * encryption keys are all published in a public repository. Matching on the
- * prefix rather than on the exact strings keeps the guard working when the
- * example wording changes.
+ * A deployment with placeholder secrets must refuse to boot (SEC-8). Matched on the
+ * prefix rather than the exact example strings so the guard survives a reword.
  */
 export const PLACEHOLDER_PREFIXES: readonly string[] = [
-  // `replace-` rather than the three `replace-with` / `replace-me` /
-  // `replace-this` spellings it replaced. The narrow list left a real gap: the
-  // committed-secret gate accepts `/^replace[-_]/i` as a valid placeholder, so
-  // `replace-before-you-deploy-a-real-key` in an example file passed the
-  // repository scan **and** booted. Exported so
-  // `config-placeholders.test.ts` can assert the safety property across both
-  // lists rather than across hand-picked strings.
   "replace-",
   "change-me",
   "changeme",
@@ -79,37 +34,18 @@ export const PLACEHOLDER_PREFIXES: readonly string[] = [
 ];
 
 /**
- * True when `raw` is one of the shipped placeholders rather than real material.
- *
- * Separators are normalised before matching, so `replace_with_...` is refused
- * exactly as `replace-with-...` is. That is not cosmetic: the committed-secret
- * half of this control lives in `scripts/check-security-hygiene.mjs`, and until
- * task 040's review the two lists disagreed on underscores. A hyphen-only guard
- * here plus an underscore-tolerant gate there meant an example file spelled
- * `replace_with_a_real_key` would pass the repository scan **and** boot, which
- * is precisely the finding this guard exists to close. The agreement is pinned
- * from both sides by `config-placeholders.test.ts`.
+ * Separators are normalised before matching, so this stays in agreement with
+ * `scripts/check-security-hygiene.mjs`, which accepts underscore spellings too.
  */
 function looksLikePlaceholder(raw: string): boolean {
   const value = raw.trim().toLowerCase().replaceAll("_", "-");
   return PLACEHOLDER_PREFIXES.some((prefix) => value.startsWith(prefix));
 }
 
-/**
- * What kind of knob a value is, which decides only the *remedy* sentence.
- *
- * The refusal itself applies to both: a placeholder `DATABASE_URL` should stop a
- * boot exactly as a placeholder signing key should. What differs is the advice,
- * and telling an operator to "generate real secrets" because their connection
- * string still says `replace-with-...` sends them to the wrong runbook.
- */
+/** Decides only the remedy sentence; the refusal itself applies to both kinds. */
 type ConfigValueKind = "secret" | "setting";
 
-/**
- * Record a boot refusal for any placeholder among `values`. Reports the count
- * and the variable name only: SEC-8 forbids echoing the value even when the
- * value is known to be worthless, because the same code path handles real ones.
- */
+// Reports the count and the variable name only: the same path handles real values.
 function rejectPlaceholders(
   name: string,
   values: readonly string[],
@@ -127,36 +63,22 @@ function rejectPlaceholders(
   );
 }
 
-/** One rate-limit class: at most `max` requests per fixed `windowMs` per key. */
 export interface RateLimitClass {
   readonly windowMs: number;
   readonly max: number;
 }
 
 /**
- * Which route groups a process mounts (ADR-09: admin does not exist in public).
- *
- * **Since task 066 the respondent surface is one group per environment** (Q21, SEC-14).
- * `public` is `prod`'s, at the unprefixed addresses it has always had, and
- * {@link MountFlags.environments} names the non-prod environments whose own `/<env>/`
- * surface this process also mounts. An environment left out of the list has no routes
- * here at all, so a request to one of its addresses is a plain `404` - which is what
- * makes "no anonymous entry to a non-prod environment" a routing fact rather than a
- * handler's refusal.
+ * An unmounted group has no routes at all, so a request to one of its addresses is a
+ * plain 404 rather than a handler's refusal (ADR-09, SEC-14).
  */
 export interface MountFlags {
   readonly public: boolean;
   readonly internal: boolean;
   readonly admin: boolean;
   /**
-   * The **non-prod** environments whose respondent surface this process mounts, each at
-   * `/<env>` (Q21). `prod` is never a member: it is {@link MountFlags.public}, and a
-   * prefixed `prod` would be a second spelling of one address.
-   *
-   * Optional, and **absent means none**, which is the fail-closed direction: a
-   * composition that says nothing about non-prod surfaces gets none, so every `/<env>/`
-   * address is a `404`. `parseMount` always states it; a test composing `createApp`
-   * directly may leave it out when the shape it is about has no non-prod surface.
+   * Non-prod environments only; `prod` is {@link MountFlags.public}. Absent means none,
+   * which is the fail-closed direction.
    */
   readonly environments?: readonly string[];
 }
@@ -165,19 +87,8 @@ const MOUNT_SURFACES = ["public", "internal", "admin"] as const;
 type MountSurface = (typeof MOUNT_SURFACES)[number];
 
 /**
- * Draft-assistant providers (041, ADR-25). The flag names the provider id, so
- * switching vendor or model is an env change plus a restart - never a code
- * change (ADR-24 semantics).
- *
- * - `none` is the default and means the assist routes are not mounted at all.
- * - `fake` is the deterministic scripted provider the test suites drive. It
- *   makes no network call and needs no key, which is what lets CI exercise the
- *   real tool loop without a provider account.
- * - `anthropic` is the documented reference. `openai` and `google` are the same
- *   code path with a different provider package.
- * - `openai-compatible` covers every OpenAI-protocol endpoint, including local
- *   runtimes (Ollama, vLLM, LM Studio, llama.cpp-server): base URL plus model
- *   name, and the key requirement relaxes for a local base URL.
+ * `none` leaves the assist routes unmounted; `fake` makes no network call and needs no
+ * key, so CI can drive the real tool loop without a provider account.
  */
 export const AGENT_PROVIDERS = [
   "none",
@@ -188,158 +99,70 @@ export const AGENT_PROVIDERS = [
   "openai-compatible",
 ] as const;
 
-/** A configured draft-assistant provider id (041). */
 export type AgentProvider = (typeof AGENT_PROVIDERS)[number];
 
-/** The typed feature flags (ADR-24) that reach handlers via `deps`. */
 export interface Flags {
-  /** Challenge provider for abuse controls (026); Turnstile secrets required iff `turnstile`. */
   readonly challengeProvider: "none" | "turnstile";
-  /** Admin 2FA policy (SEC-1); `optional` is the documented dev escape hatch. */
+  /** `optional` is the documented dev escape hatch (SEC-1). */
   readonly adminTwoFactor: "required" | "optional";
-  /**
-   * Agent-assisted authoring provider (041, ADR-25). `none` (the default) leaves
-   * the assist routes unmounted; anything else requires `QCMS_AGENT_MODEL` and,
-   * unless the base URL is local, `QCMS_AGENT_API_KEY`.
-   */
   readonly agentAuthoring: AgentProvider;
 }
 
-/** The validated, in-memory configuration the whole process shares. */
 export interface Config {
-  /**
-   * The **control-plane** connection string (`DATABASE_URL`).
-   *
-   * Under ADR-40 this names the pool that serves better-auth, authoring, grants,
-   * releases and closes, and it connects as `qcms_app_control`. It is not the
-   * respondent path's credential any more: each environment has its own, below.
-   */
+  /** The control plane's credential (`qcms_app_control`), not the respondent path's. */
   readonly databaseUrl: string;
   /**
-   * One connection string per environment (Q2, Q17, scenario finding 1).
-   *
-   * **The credential is configuration, never a database read.** Each entry arrives
-   * through the process environment as `QCMS_DATABASE_URL_<ENV>` - upper-cased
-   * environment name - is validated at boot and is never echoed (SEC-8), because a
-   * credential the database hands out is a credential the database can be made to hand
-   * out. The **list** of environments is read from `control.environments` at boot and
-   * the two are checked against each other (criterion 6a), so a configuration naming an
-   * environment the database does not hold, or a database holding one the configuration
-   * has no credential for, refuses to boot rather than serving half a set.
-   *
-   * **A new environment needs a restart.** That is this task's recommendation rather
-   * than a decision it takes: ADR-24 parses deployment configuration at boot and fails
-   * fast, so a reload path would be a new capability in that decision - the process
-   * would have to accept a credential it had not validated at startup. An operator who
-   * has just run the environment command holds the migration credential and is already
-   * in a change window.
+   * The credential for each environment is configuration, never a database read: a
+   * credential the database hands out is one it can be made to hand out. A new
+   * environment needs a restart, since nothing accepts a credential unvalidated at boot.
    */
   readonly environments: readonly EnvironmentConfig[];
   readonly mount: MountFlags;
-  /**
-   * Public base URL of the respondent portal (`QCMS_PORTAL_BASE_URL`), used to
-   * build secure-link URLs authors copy/share (024). An absolute http(s) URL;
-   * links are minted as `${portalBaseUrl}/l/<token>`.
-   */
   readonly portalBaseUrl: string;
   readonly webhooks: {
     /**
-     * SSRF override (`QCMS_WEBHOOK_ALLOW_PRIVATE`, default false). When false
-     * (the safe default) webhook target URLs must be HTTPS and must not resolve
-     * to private/reserved/loopback/link-local hosts. Set true **only** for
-     * on-prem topologies that legitimately post to internal systems (SEC-6);
-     * it also permits plain HTTP. Full DNS-rebinding protection is a
-     * delivery-time concern (025); this is the config-time host/scheme guard.
+     * SSRF guard (SEC-6). When false, targets must be HTTPS and must not resolve to
+     * private/reserved/loopback/link-local hosts. True also permits plain HTTP.
      */
     readonly allowPrivateTargets: boolean;
-    /**
-     * Per-request delivery timeout in ms (`QCMS_WEBHOOK_TIMEOUT_MS`, default
-     * 10_000). A webhook POST that does not respond `2xx` within this window is a
-     * failed attempt (backoff + eventual dead-letter, task 025).
-     */
     readonly deliveryTimeoutMs: number;
-    /**
-     * Max deliveries a single pass processes (`QCMS_WEBHOOK_BATCH_SIZE`, default
-     * 20). Bounds the work - and the outbox/delivery row locks held - per tick;
-     * the scheduler interval drains the rest.
-     */
     readonly deliveryBatchSize: number;
   };
   readonly keys: {
-    /** Secure-link signing keys (`QCMS_LINK_KEYS`); first signs, all verify. */
+    /** First signs, all verify. */
     readonly link: readonly string[];
-    /** Session-token signing keys (`QCMS_SESSION_KEYS`); first signs, all verify. */
+    /** First signs, all verify. */
     readonly session: readonly string[];
-    /** Accepted internal service tokens (`QCMS_INTERNAL_TOKEN`); any matches (rotation). */
+    /** Any entry matches, so a token can be rotated without a flag day. */
     readonly internal: readonly string[];
-    /** App encryption key (`QCMS_APP_KEY`) for at-rest secrets (SEC-6/SEC-8). */
     readonly app: string;
   };
   readonly ttl: {
-    /** Anonymous session TTL in ms (`QCMS_SESSION_TTL_MS`). */
     readonly anonymousSessionMs: number;
-    /**
-     * How long a webhook delivery's stored response snippet is kept, measured from
-     * the attempt that produced it (`QCMS_DELIVERY_SNIPPET_TTL_MS`, default 7 days -
-     * issue #304). The retention sweep removes older ones.
-     *
-     * `0` is a legitimate setting and means "at the next sweep": an operator running
-     * strict data minimisation, who would rather lose the diagnostic than hold a
-     * consumer's response body at all, sets it there. The rest of the attempt record
-     * is value-free and is kept whatever this is set to.
-     */
+    /** `0` is legitimate and means "at the next sweep": strict data minimisation. */
     readonly deliveryResponseSnippetMs: number;
     /**
-     * How long a settled outbox event keeps the `answers` member of its payload,
-     * measured from the moment the event and its whole fan-out stopped moving
-     * (`QCMS_OUTBOX_PAYLOAD_TTL_MS`, default 30 days - issue #329). The retention
-     * sweep drops the answers and keeps the envelope.
-     *
-     * The window is the redelivery window: the payload exists to let an operator
-     * re-send a delivery, so `0` is a legitimate setting and means "as soon as the
-     * fan-out settles" - strict data minimisation at the cost of ever redelivering.
-     * The event, its envelope and the whole delivery record are kept whatever this
-     * is set to.
+     * The window is the redelivery window, so `0` is legitimate and trades redelivery
+     * for holding no second copy of a respondent's answers.
      */
     readonly outboxPayloadMs: number;
   };
   /**
-   * Per-endpoint-class rate limits (task 026), each a fixed window enforced by
-   * 017's pluggable store. Respondent traffic is bucketed by the natural abuse
-   * unit: session creation by client IP (no session exists yet), the serving
-   * loop by session (the sustained-rate + burst ceiling) *and* by IP (a wide
-   * backstop against many-session floods from one source), and submit by
-   * session. All are configurable; the defaults are documented on {@link
-   * DEFAULTS}. Multi-instance deployments swap the store for a shared one (017).
+   * Each class is bucketed by its natural abuse unit: by session where one exists, and
+   * by IP as a backstop against many-session floods from one source.
    */
   readonly rateLimit: {
-    /** `POST /sessions` - per client IP (e.g. 20/hour). */
     readonly sessionCreate: RateLimitClass;
-    /** `POST /sessions/{id}/answers` - per session (≈2/s sustained, burst 10). */
     readonly answersPerSession: RateLimitClass;
-    /** `POST /sessions/{id}/answers` - per client IP (a wider flood backstop). */
     readonly answersPerIp: RateLimitClass;
-    /** `POST /sessions/{id}/submit` - per session (e.g. 5/min). */
     readonly submitPerSession: RateLimitClass;
     /**
-     * `POST /sessions/{id}/roster` - per session (task 073, SEC-16).
-     *
-     * The roster operation gets its **own** limit rather than riding the answer
-     * write's, because adding an instance is a distinct action that is cheap to
-     * repeat. It limits how fast a bounded operation may be repeated, never how large
-     * it may become: the size bound is the group's author-set `max` and there is no
-     * installation-wide ceiling above it (Q14). Under ADR-40 rate limits stay
-     * installation-wide (finding F6), so this is one more typed setting and not a
-     * per-environment one.
+     * Limits how fast a bounded operation may be repeated, never how large it may
+     * become: the size bound is the group's author-set `max` (Q14).
      */
     readonly rosterPerSession: RateLimitClass;
-    /** `POST /sessions/{id}/roster` - per client IP (the same wide backstop). */
     readonly rosterPerIp: RateLimitClass;
-    /**
-     * `POST /forms/{id}/draft/assist` - per admin principal (041). A per-deployment
-     * ceiling on agent turns: the upstream call is the expensive, billable one, and
-     * an authenticated author is still a rate-limit subject.
-     */
+    /** The upstream agent call is the expensive, billable one. */
     readonly agentAssist: RateLimitClass;
   };
   readonly scheduler: {
@@ -348,143 +171,69 @@ export interface Config {
     readonly retentionSweepIntervalMs: number;
   };
   /**
-   * Admin-session policy the admin-auth middleware enforces (SEC-1, task 031).
-   * Idle expiry is better-auth's own bookkeeping (it maintains
-   * `session.expiresAt`); what the verifier adds is the **absolute** cap, because
-   * an idle window alone can be renewed indefinitely by a warm session.
+   * Idle expiry is better-auth's own bookkeeping; the verifier adds the absolute cap,
+   * because an idle window alone can be renewed indefinitely by a warm session (SEC-1).
    */
   readonly adminSession: {
-    /**
-     * Absolute session lifetime in ms measured from issue
-     * (`QCMS_ADMIN_SESSION_MAX_AGE_MS`, default 12h per SEC-1). Past it every
-     * admin API call 401s regardless of activity; the admin must sign in again.
-     */
     readonly maxAgeMs: number;
   };
   /**
-   * better-auth's own configuration (task 056, ADR-35 as amended 2026-07-31).
-   *
-   * The instance lives in this process now, so these are API env vars. They are
-   * required **iff** the admin surface is mounted (`QCMS_MOUNT` includes `admin`
-   * or `all`): a public-only respondent process has no identity provider and must
-   * not be made to carry its secret.
+   * Required iff the admin surface is mounted: a respondent-only process has no identity
+   * provider and must not be made to carry its secret.
    */
   readonly adminAuth: {
     /**
-     * better-auth signing secret (`QCMS_ADMIN_AUTH_SECRET`, >= 32 chars, SEC-7).
-     *
-     * Passed to better-auth as `secret`, which in the pinned better-auth 1.7.10 means
-     * **the legacy fallback**: the key used to read ciphertext written before the
-     * versioned envelope existed. It is also the value {@link secrets} defaults to, so a
-     * deployment that never rotates sees exactly the behaviour it always had.
+     * In the pinned better-auth 1.7.10 this is the legacy fallback: the key used to read
+     * ciphertext written before the versioned envelope existed.
      */
     readonly secret: string;
     /**
-     * The versioned key set better-auth encrypts stored second-factor material
-     * with (`QCMS_ADMIN_AUTH_SECRETS`; issue #319).
-     *
-     * First entry is current and is what new ciphertext is written under; the
-     * rest are decrypt-only, kept so ciphertext written under a retired key can
-     * still be read. Defaults to a single version-1 entry holding
-     * {@link secret}, so the knob only has to appear in an environment that is
-     * actually rotating.
+     * First entry is current and is what new ciphertext is written under; the rest are
+     * decrypt-only, so ciphertext under a retired key can still be read.
      */
     readonly secrets: readonly { readonly version: number; readonly value: string }[];
     /**
-     * The **admin app's public origin** (`QCMS_ADMIN_BASE_URL`), not this API's.
-     * better-auth is reached through the admin's BFF, so the origin its cookies
-     * belong to and the origin it must trust are both the browser-facing admin
-     * one. Configured explicitly rather than inferred from a request header,
-     * which is what the vendor's options reference recommends for a proxied
-     * deployment.
+     * The admin app's public origin, not this API's: better-auth is reached through the
+     * admin's BFF, so its cookies belong to the browser-facing origin.
      */
     readonly baseUrl: string;
-    /** Idle session window in ms (`QCMS_ADMIN_SESSION_IDLE_MS`, default 1h, SEC-1). */
     readonly idleMs: number;
     /**
-     * Whether cookies carry `Secure` (`QCMS_ADMIN_SECURE_COOKIES`). Defaults to
-     * `NODE_ENV === "production"`, which is the rule the admin applied while it
-     * owned the instance. It is a knob rather than only an inference because the
-     * flag has to describe the **browser-facing** origin's scheme, and this
-     * process cannot see it: a container marked production behind a plain-HTTP
-     * ingress needs `false`, and nothing about `NODE_ENV` says so.
+     * A knob rather than only an inference from `NODE_ENV`, because it has to describe
+     * the browser-facing origin's scheme, which this process cannot see.
      */
     readonly secureCookies: boolean;
     /**
-     * Whether every admin password is checked against the public breach corpus
-     * (`QCMS_ADMIN_PASSWORD_BREACH_CHECK`, default **true**, SEC-1).
-     *
-     * A deployment-posture knob, not a feature flag, which is why it lives here
-     * beside `secureCookies` rather than in the ADR-24 flag registry: it describes
-     * whether this deployment has egress to `api.pwnedpasswords.com`, and it has to
-     * be readable by `loadAdminAuthConfig` so the `qcms:create-admin` CLI and the
-     * server agree without the CLI parsing the whole configuration.
-     *
-     * Setting it false is a documented downgrade against NIST SP 800-63B Rev 4
-     * section 3.1.1.2 and OWASP ASVS 5.0 6.2.12. It exists for a structurally
-     * offline deployment (and as the break-glass for rotating a leaked password
-     * while the corpus is unreachable mid-incident), and it is deliberately a
-     * config-plane decision an operator makes in a file a reviewer reads, never a
-     * runtime bypass an attacker can reach.
+     * Setting it false is a documented downgrade against NIST SP 800-63B Rev 4 section
+     * 3.1.1.2 and OWASP ASVS 5.0 6.2.12, for a structurally offline deployment. A
+     * config-plane decision a reviewer reads, never a runtime bypass (SEC-1).
      */
     readonly breachedPasswordCheck: boolean;
     /**
-     * Whether the admin sign-in surface is brute-force throttled
-     * (`QCMS_ADMIN_SIGNIN_THROTTLE`, default **true**, SEC-1, issue #390).
-     *
-     * The limiter is better-auth's, and until this knob existed nothing here stated
-     * whether it ran: better-auth 1.7.10 resolves `enabled` as
-     * `options.rateLimit?.enabled ?? isProduction`
-     * (`dist/context/create-context.mjs:172`) over an `isProduction` captured once at
-     * module load from `NODE_ENV` (`@better-auth/core/dist/env/env-impl.mjs:30-32`).
-     * So a general-purpose variable, set for a dozen unrelated reasons and easy to
-     * leave unset outside the shipped images, decided a security control. This field
-     * is what removes that: `createAdminAuth` passes it through, and `NODE_ENV` no
-     * longer participates in either direction.
-     *
-     * **Default true, in every environment including development**, so an operator
-     * who configures nothing gets the control. Setting it false is the development
-     * escape hatch and the only way to turn the throttle off: it exists so a local
-     * loop that signs in repeatedly costs nothing, because a control people route
-     * around is worse than one that is off, since it looks present. A deployment that
-     * sets it false serves an unlimited admin sign-in, change-password and two-factor
-     * surface, and `logSignInThrottleState` says so in a warn line at every boot.
-     *
-     * Beside `breachedPasswordCheck` for the same reason it is: a deployment-posture
-     * knob rather than an ADR-24 feature flag.
+     * Passed through to better-auth explicitly because its own default resolves from
+     * `NODE_ENV`, which must not decide a security control. False serves an unlimited
+     * admin sign-in, change-password and two-factor surface (SEC-1).
      */
     readonly signInThrottle: boolean;
   };
   readonly readiness: {
-    /** `/ready` DB-probe timeout in ms (`QCMS_READY_DB_TIMEOUT_MS`). */
     readonly dbTimeoutMs: number;
   };
-  /** Max request body size in bytes (SEC-9), enforced by middleware. */
   readonly bodyLimitBytes: number;
   /**
-   * Anti-abuse hooks wired at submit (task 020), tuned in 026. Both are silent:
-   * a triggered signal flags the submission and withholds its webhook event
-   * while returning the same success-shaped response, so the tells never leak.
+   * Both signals are silent: a trigger flags the submission and withholds its webhook
+   * event while returning the same success-shaped response, so the tells never leak.
    */
   readonly antiAbuse: {
-    /**
-     * Global default minimum ms between session creation and submit. A submit
-     * faster than the effective floor is silently flagged `MIN_TIME`. `0`
-     * disables the global check; a form may set its own floor
-     * (`forms.min_submit_ms`) that overrides this default (task 026).
-     */
+    /** `0` disables the global check; a form's own `min_submit_ms` overrides it. */
     readonly minSubmitMs: number;
     /**
-     * Honeypot field name on the submit body - the compiler↔API contract
-     * (`HONEYPOT_FIELD_NAME`, `@roonga/qcms-a2ui-compiler`). A non-empty value flags the
-     * submission `HONEYPOT`. A legitimate client never fills it, so the check is
-     * always on. Overridable only for operators who also change the compiler
-     * constant; the default keeps both sides in lockstep.
+     * The compiler/API contract. Overridable only for operators who also change the
+     * compiler constant; the default keeps both sides in lockstep.
      */
     readonly honeypotField: string;
   };
   readonly flags: Flags;
-  /** Challenge-provider secrets - present iff `flags.challengeProvider !== "none"`. */
   readonly challenge:
     | { readonly provider: "none" }
     | {
@@ -492,26 +241,20 @@ export interface Config {
         readonly turnstile: { readonly siteKey: string; readonly secretKey: string };
       };
   /**
-   * Draft-assistant configuration (041, ADR-25) - present iff
-   * `flags.agentAuthoring !== "none"`. A discriminated union so the provider key
-   * only exists in the enabled arm: a `none` deployment has no field that could
-   * hold a secret, and boot requires no provider account.
-   *
-   * `apiKey` is a SEC-7 inventory secret. It is never logged, never echoed in a
-   * config error, and never leaves this process except as an upstream
-   * `Authorization` header built inside the provider package (SEC-8).
+   * A discriminated union so the provider key exists only in the enabled arm: a `none`
+   * deployment has no field that could hold a secret. `apiKey` is never logged, never
+   * echoed in a config error, and leaves this process only as an upstream
+   * `Authorization` header built inside the provider package (SEC-7, SEC-8).
    */
   readonly agent:
     | { readonly provider: "none" }
     | {
         readonly provider: Exclude<AgentProvider, "none">;
-        /** Model id (`QCMS_AGENT_MODEL`); meaning is the provider's, not ours. */
         readonly model: string;
-        /** Provider key (`QCMS_AGENT_API_KEY`); empty only for a keyless local endpoint. */
+        /** Empty only for a keyless local endpoint. */
         readonly apiKey: string;
-        /** Optional endpoint override (`QCMS_AGENT_BASE_URL`); required for `openai-compatible`. */
+        /** Required for `openai-compatible`. */
         readonly baseUrl: string | undefined;
-        /** Hard ceiling on tool-loop steps per turn (`QCMS_AGENT_MAX_STEPS`). */
         readonly maxSteps: number;
         /**
          * Whether the provider's own reasoning summary reaches the panel
@@ -545,10 +288,8 @@ export class ConfigError extends Error {
 type Env = Record<string, string | undefined>;
 
 /**
- * Feature-flag registry (ADR-24). Every flag is declared here - name, env var,
- * value schema, default, description - and nothing else is a flag. `env` names
- * carrying the `QCMS_FLAG_` prefix participate in unknown-flag detection;
- * `QCMS_ADMIN_2FA` is folded in without the prefix (it predates the registry).
+ * Every flag is declared here and nothing else is a flag (ADR-24). Only `env` names
+ * carrying the `QCMS_FLAG_` prefix participate in unknown-flag detection.
  */
 interface FlagDef {
   readonly key: keyof Flags;
@@ -588,23 +329,14 @@ export const FLAG_REGISTRY: readonly FlagDef[] = [
 ] as const;
 
 /**
- * Whether a challenge a form asks for can actually be verified (ADR-24).
- *
- * This is the derived **behavior** an admin surface is allowed to see; the
- * provider name is a flag value and never leaves the process. `none` ships the
- * null verifier, which passes every solution including a missing one, so a
- * form's `challengeRequired` protects nothing while it is selected - which is
- * the single fact the settings panel needs in order to warn. Deriving it here,
- * beside the flag, means adding or renaming a provider changes one line rather
- * than every comparison against a provider string on the far side of the wire.
+ * The derived behaviour an admin surface may see; the provider name is a flag value and
+ * never leaves the process.
  */
 export function challengeEnforceable(flags: Flags): boolean {
   return flags.challengeProvider !== "none";
 }
 
 const FLAG_PREFIX = "QCMS_FLAG_";
-
-// --- small parsing helpers (each records issues; none echoes a value) -------
 
 function parseKeyList(env: Env, name: string, minLength: number, issues: string[]): string[] {
   const raw = env[name];
@@ -629,23 +361,9 @@ function parseKeyList(env: Env, name: string, minLength: number, issues: string[
 }
 
 /**
- * The versioned admin-auth key set (`QCMS_ADMIN_AUTH_SECRETS`, issue #319).
- *
- * Format is better-auth's own: comma-separated `<version>:<value>` entries, first
- * entry current. Unset (the normal case) yields a single version-1 entry holding
- * `current`, which is what makes the envelope format the default rather than
- * something a deployment has to opt into.
- *
- * "Newest first" is enforced, not merely documented: better-auth encrypts under
- * whichever entry comes first, so a list written oldest-first (`1:<old>,2:<new>`)
- * boots cleanly and then keeps writing under the *old* key, silently doing the
- * opposite of the rotation it was edited for. There is no signal anywhere else in
- * the system, so the refusal belongs at boot.
- *
- * Every issue this records names the env var and a **version number**, never a
- * value or a fragment of one (SEC-8). That is also why the parser is written here
- * rather than handing the raw string to better-auth's `parseSecretsEnv`, whose
- * refusals quote the offending entry verbatim.
+ * "Newest first" because better-auth encrypts under the first entry, so an oldest-first
+ * list would keep writing under the retired key. Parsed here, not by `parseSecretsEnv`,
+ * whose refusals quote the offending entry (SEC-8).
  */
 function parseSecretVersions(
   env: Env,
@@ -706,15 +424,7 @@ function parseSecretVersions(
   return parsed;
 }
 
-/**
- * Enforces the "newest first" half of {@link parseSecretVersions}'s contract.
- *
- * Its own function so the parser above stays inside the cognitive-complexity
- * budget, and because the rule is worth reading on its own: better-auth encrypts
- * under whichever entry is first, so ordering is not presentation.
- *
- * Named by version, never by value (SEC-8), like every other refusal here.
- */
+/** Its own function so the parser above stays inside the cognitive-complexity budget. */
 function pushOrderIssues(
   name: string,
   parsed: readonly { readonly version: number }[],
@@ -750,7 +460,6 @@ function parseRequiredString(
   return raw;
 }
 
-/** A non-secret optional string knob: trimmed value, or `fallback` when unset. */
 function parseOptionalString(env: Env, name: string, fallback: string): string {
   const raw = env[name];
   if (raw === undefined || raw.trim() === "") return fallback;
@@ -758,19 +467,9 @@ function parseOptionalString(env: Env, name: string, fallback: string): string {
 }
 
 /**
- * A required absolute http(s) URL knob (e.g. the portal base URL). Records an
- * issue - by env-var name only, never echoing the value - when absent or not a
- * parseable absolute http/https URL. `what` names the thing the URL points at, so
- * the message tells an operator which origin is missing.
- *
- * **Trailing slashes are stripped**, which matters more than tidiness. The admin app
- * normalizes the same values in `apps/admin/lib/server/config.ts` (`adminBaseUrl`,
- * `apiBaseUrl`), so without this a `QCMS_ADMIN_BASE_URL=https://admin.example/` would
- * give the admin `https://admin.example` and better-auth `https://admin.example/` for
- * both `baseURL` and its sole trusted origin - and an origin comparison is string
- * equality, so the CSRF check would reject every legitimate POST while cookie scoping
- * silently changed. The portal URL is normalized by the same stroke, which also fixes
- * the `//l/<token>` a trailing slash used to put in a minted secure link.
+ * Trailing slashes are stripped to match `apps/admin/lib/server/config.ts`: an origin
+ * comparison is string equality, so a mismatched slash would make better-auth's CSRF
+ * check reject every legitimate POST.
  */
 function parseRequiredHttpUrl(
   env: Env,
@@ -798,7 +497,6 @@ function parseRequiredHttpUrl(
   return value;
 }
 
-/** An optional boolean knob: accepts true/false/1/0/yes/no (case-insensitive). */
 function parseBool(env: Env, name: string, fallback: boolean, issues: string[]): boolean {
   const raw = env[name];
   if (raw === undefined || raw.trim() === "") return fallback;
@@ -827,24 +525,9 @@ function parseInt_(
 }
 
 /**
- * Parse `QCMS_MOUNT` into the surfaces this process serves (ADR-09, Q21).
- *
- * Four tokens plus one family. `public`, `internal` and `admin` are the three surfaces
- * ADR-09 started with, `all` is the solo shortcut, and **an environment's own name is a
- * surface too, since task 066**: `QCMS_MOUNT=public,admin,test` serves `prod`'s
- * respondent routes at `/`, the authoring surface at `/admin`, and `test`'s respondent
- * routes at `/test`. `all` expands to every surface **and** every non-prod environment
- * the configuration names, which is why `environmentNames` is an argument: the shortcut
- * has to mean "this whole deployment" rather than "the two environments somebody shipped".
- *
- * `prod` is refused as a token rather than accepted as a synonym for `public`. Prod is
- * the unprefixed address shape (Q21), so a `/prod/` surface would be a second spelling of
- * one thing, and an operator who wrote it is asking for something this design does not
- * have - which they should be told rather than quietly given `public`.
- *
- * An environment the configuration does not name is an unknown surface, not an empty
- * mount: there would be no pool to serve it from, and a mount that silently served
- * nothing is the shape SEC-14 cannot afford.
+ * `prod` is refused as a token rather than treated as a synonym for `public`, and an
+ * environment the configuration does not name is an unknown surface rather than an empty
+ * mount: a mount that silently served nothing is the shape SEC-14 cannot afford.
  */
 function parseMount(env: Env, environmentNames: readonly string[], issues: string[]): MountFlags {
   const mountable = environmentNames.filter((name) => name !== PROD_ENVIRONMENT);
@@ -881,8 +564,7 @@ function parseMount(env: Env, environmentNames: readonly string[], issues: strin
     issues.push(`QCMS_MOUNT selected no surfaces`);
   }
   // In the order the configuration names them, not the order the operator typed, so a
-  // mount list and an address listing read the same way everywhere (Q42's canonical
-  // order, as far as this process can see it before it has a connection).
+  // mount list and an address listing read the same way everywhere.
   return {
     ...flags,
     environments: mountable.filter((name) => environments.includes(name)),
@@ -890,7 +572,6 @@ function parseMount(env: Env, environmentNames: readonly string[], issues: strin
 }
 
 function parseFlags(env: Env, issues: string[]): Flags {
-  // Unknown QCMS_FLAG_* rejection (ADR-24: unknown flags fail boot).
   const known = new Set(FLAG_REGISTRY.map((f) => f.env));
   for (const name of Object.keys(env)) {
     if (name.startsWith(FLAG_PREFIX) && !known.has(name)) {
@@ -917,54 +598,25 @@ function parseFlags(env: Env, issues: string[]): Flags {
   return result as unknown as Flags;
 }
 
-/** The canonical Turnstile site-key variable, and the spelling the portal has always read. */
 export const TURNSTILE_SITE_KEY_VAR = "QCMS_TURNSTILE_SITE_KEY";
 
 /** The pre-#331 spelling this process still accepts, with a boot warning. */
 export const DEPRECATED_TURNSTILE_SITE_KEY_VAR = "TURNSTILE_SITE_KEY";
 
 /**
- * The one-line boot warning for a deployment still on the deprecated site-key spelling,
- * or `undefined` when there is nothing to say.
- *
- * ## Why the prefixed spelling won (issue #331)
- *
- * The same key was read under two names: the portal's `QCMS_TURNSTILE_SITE_KEY`
- * (`apps/portal/lib/server/challenge.ts`) and this process's bare `TURNSTILE_SITE_KEY`.
- * An operator had to set both, nothing in the repository said so, and setting only one
- * produced a deployment that boots, looks configured, and silently runs with the
- * challenge half-disabled - the half that is set works and the other behaves as if the
- * feature were off.
- *
- * `QCMS_TURNSTILE_SITE_KEY` is the canonical name because the house convention prefixes
- * operator-facing variables with `QCMS_`, and because it is the spelling the browser-facing
- * app already used, so the name that survives is the one an operator has most likely met.
- *
- * ## Why a fallback rather than a cutover
- *
- * A working deployment today has BOTH set (it had to), so accepting the old name costs
- * nothing and a hard cutover would silently disable the challenge on any deployment that
- * had only the old one. The warning is the migration prompt: it names the variable, the
- * replacement, and the fact that the old name is going away.
- *
- * Returned rather than logged, for the same reason the rest of this module collects issues
- * rather than printing them: `loadConfig` is pure and testable, and `main.ts` owns the
- * logger. Same shape as `warnIfBreachCheckDisabled`.
+ * The deprecated name is still accepted because a hard cutover would silently disable the
+ * challenge on a deployment that set only it. Returned rather than logged, so `loadConfig`
+ * stays pure.
  */
 export function turnstileSiteKeyDeprecationWarning(env: Env): string | undefined {
   const canonical = env[TURNSTILE_SITE_KEY_VAR]?.trim();
   const deprecated = env[DEPRECATED_TURNSTILE_SITE_KEY_VAR]?.trim();
   if (deprecated === undefined || deprecated === "") return undefined;
 
-  // Three cases, and the operator needs to be told which one they are in, because the
-  // remedy differs: with only the old name set their configuration still works and they
-  // should rename it, while with both set the new one is already in force and the old
-  // line is dead - silently so, and misleadingly if the two values disagree.
   const tail = describeTurnstileOverlap(canonical, deprecated);
   return `${DEPRECATED_TURNSTILE_SITE_KEY_VAR} is deprecated (issue #331): ${tail}`;
 }
 
-/** The half of the warning that says which value is in force. Never echoes a value. */
 function describeTurnstileOverlap(canonical: string | undefined, deprecated: string): string {
   if (canonical === undefined || canonical === "") {
     return `its value is being used; set ${TURNSTILE_SITE_KEY_VAR} instead and remove it.`;
@@ -975,48 +627,30 @@ function describeTurnstileOverlap(canonical: string | undefined, deprecated: str
   return `${TURNSTILE_SITE_KEY_VAR} is set to a DIFFERENT value and wins; remove the deprecated one.`;
 }
 
-/**
- * One environment's connection string, named after the environment (Q2).
- */
 export interface EnvironmentConfig {
-  /** The environment's name, matching a row in `control.environments`. */
+  /** Matches a row in `control.environments`. */
   readonly name: string;
   /** Its own pool's connection string, connecting as `qcms_app_<env>`. */
   readonly databaseUrl: string;
 }
 
 /**
- * The environment-name rule (Q42), as a regular expression.
- *
- * Lowercase letters and digits, starting with a letter, with **no hyphen and no
- * underscore**. Neither exclusion is taste: an access-group name joins a set of
- * environments with hyphens (Q37), so `dev-test` has to read as two names; and
- * `data_<env>` and `reporting_<env>` join on underscores, so `data_my_env` would be
- * ambiguous about where the prefix ends. A name carrying either makes a derived string
- * impossible to parse back.
+ * No hyphen and no underscore: an access-group name joins environments with hyphens and
+ * `data_<env>` joins on underscores, so either would make a derived string impossible to
+ * parse back.
  */
 export const ENVIRONMENT_NAME_PATTERN = /^[a-z][a-z0-9]*$/;
 
 /**
- * `QCMS_DATABASE_URL_TEST` from `test`.
- *
- * Re-exported from `@roonga/qcms-db/environment` rather than spelled again: the
- * environment command tells an operator to set exactly this variable, and two copies of
- * the spelling is one copy too many - the command would keep naming the old one long
- * after a rename and an operator following it would configure nothing.
+ * Re-exported rather than spelled again, so the environment command and this parser
+ * cannot drift apart over a rename.
  */
 export const environmentDatabaseUrlVariable = environmentDatabaseUrlVariableName;
 
 /**
- * Parse the per-environment connection strings from `QCMS_ENVIRONMENTS` and one
- * `QCMS_DATABASE_URL_<ENV>` each.
- *
- * The **names** are configuration too, and deliberately so: a process cannot read
- * `control.environments` before it has a connection, and the connection it would read
- * it on is the control pool, whose own credential is `DATABASE_URL`. So the list is
- * declared, the credentials are declared beside it, and the boot check compares the
- * declaration against the database (criterion 6a). Neither value is ever echoed in an
- * error (SEC-8): a missing credential is reported by **variable name**.
+ * The names are configuration because a process cannot read `control.environments`
+ * before it has a connection. The boot check compares the declaration against the
+ * database.
  */
 function parseEnvironments(env: Env, issues: string[]): EnvironmentConfig[] {
   const raw = (env.QCMS_ENVIRONMENTS ?? "test,prod")
@@ -1049,10 +683,6 @@ function parseEnvironments(env: Env, issues: string[]): EnvironmentConfig[] {
 
 function parseChallenge(env: Env, flags: Flags, issues: string[]): Config["challenge"] {
   if (flags.challengeProvider === "turnstile") {
-    // Canonical first, deprecated second. Both are read rather than one, so an existing
-    // deployment that set only the old name keeps working; see
-    // `turnstileSiteKeyDeprecationWarning` for why this name won and why the old one is
-    // accepted at all.
     const canonicalSiteKey = env[TURNSTILE_SITE_KEY_VAR];
     const siteKey =
       canonicalSiteKey !== undefined && canonicalSiteKey.trim() !== ""
@@ -1060,8 +690,8 @@ function parseChallenge(env: Env, flags: Flags, issues: string[]): Config["chall
         : env[DEPRECATED_TURNSTILE_SITE_KEY_VAR];
     const secretKey = env.TURNSTILE_SECRET_KEY;
     if (!siteKey || siteKey.trim() === "") {
-      // Names the canonical variable only. A message that offered both spellings would
-      // re-teach the ambiguity this issue removed.
+      // Names the canonical variable only: offering both spellings would re-teach the
+      // ambiguity this removed.
       issues.push(
         `${TURNSTILE_SITE_KEY_VAR} is required when QCMS_FLAG_CHALLENGE_PROVIDER=turnstile`,
       );
@@ -1077,7 +707,6 @@ function parseChallenge(env: Env, flags: Flags, issues: string[]): Config["chall
   return { provider: "none" };
 }
 
-/** Hostnames that are unambiguously this machine, whatever the DNS says. */
 const LOCAL_HOSTNAMES: ReadonlySet<string> = new Set([
   "localhost",
   "127.0.0.1",
@@ -1087,10 +716,9 @@ const LOCAL_HOSTNAMES: ReadonlySet<string> = new Set([
   "host.docker.internal",
 ]);
 
-/** Suffixes that only ever name a host inside the operator's own network. */
 const LOCAL_HOST_SUFFIXES = [".local", ".localhost", ".internal"] as const;
 
-/** True for a dotted-quad in a loopback or RFC 1918 private range. */
+/** Loopback or RFC 1918 private ranges. */
 function isPrivateIpv4(hostname: string): boolean {
   const parts = hostname.split(".");
   if (parts.length !== 4) return false;
@@ -1111,14 +739,9 @@ function isPrivateIpv4(hostname: string): boolean {
 }
 
 /**
- * Whether an agent base URL points at a locally hosted model runtime.
- *
- * This is the one place the "key optional for local endpoints" relaxation is
- * decided (041). It is deliberately about *where the payload goes*, not about
- * whether a key happens to be set: an operator running Ollama, vLLM or LM Studio
- * beside the deployment has no key to give, and demanding a fake one would teach
- * people to put junk in a secret slot. Anything that leaves the machine or the
- * private network still requires `QCMS_AGENT_API_KEY`.
+ * The one place the "key optional" relaxation is decided, and it turns on where the
+ * payload goes: anything leaving the machine or the private network still requires
+ * `QCMS_AGENT_API_KEY`.
  */
 export function isLocalAgentEndpoint(baseUrl: string): boolean {
   let parsed: URL;
@@ -1166,9 +789,8 @@ function parseAgent(env: Env, flags: Flags, issues: string[]): Config["agent"] {
   const maxSteps = parseInt_(env, "QCMS_AGENT_MAX_STEPS", DEFAULTS.agentMaxSteps, 1, issues);
   const thinking = parseAgentThinking(env, issues);
 
-  // The deterministic test provider talks to nothing, so it needs neither a key
-  // nor a real model id. Requiring either would make the CI composition carry a
-  // credential-shaped value for no reason.
+  // The test provider talks to nothing, so requiring a key would make the CI
+  // composition carry a credential-shaped value for no reason.
   if (provider === "fake") {
     return {
       provider,
@@ -1215,46 +837,34 @@ function parseAgent(env: Env, flags: Flags, issues: string[]): Config["agent"] {
   };
 }
 
-/** Sensible defaults for the tunable, non-secret knobs. */
 const DEFAULTS = {
-  anonymousSessionMs: 24 * 60 * 60 * 1000, // 24h (matches @roonga/qcms-db retention default)
-  // 7d, from @roonga/qcms-db - the one place the window's rationale is written down (#304).
+  anonymousSessionMs: 24 * 60 * 60 * 1000,
+  // From @roonga/qcms-db, where the window's rationale lives with the sweep.
   deliveryResponseSnippetMs: DEFAULT_RESPONSE_SNIPPET_RETENTION_MS,
-  // 30d, from @roonga/qcms-db - same split, the rationale lives with the sweep (#329).
   outboxPayloadMs: DEFAULT_OUTBOX_PAYLOAD_RETENTION_MS,
-  // Per-class rate limits (task 026). Each pair is [windowMs, max].
-  rlSessionCreate: { windowMs: 60 * 60 * 1000, max: 20 }, // 20 new sessions / hour / IP
-  rlAnswersPerSession: { windowMs: 5_000, max: 10 }, // ≈2/s sustained, burst 10 / session
-  rlAnswersPerIp: { windowMs: 60_000, max: 300 }, // wide per-IP flood backstop
-  rlSubmitPerSession: { windowMs: 60_000, max: 5 }, // 5 submit attempts / min / session
-  // The roster operation (073, SEC-16). Deliberately the ANSWER write's shape rather
-  // than the submit's: an Add or a Remove is a per-keystroke-scale gesture a
-  // respondent filling a nine-passenger booking makes many times, not a once-per-flow
-  // one, so the sustained-plus-burst pair is the right model and the numbers match the
-  // answer write's. It is a limit on the RATE of a bounded operation, never a second
-  // ceiling on its size.
-  rlRosterPerSession: { windowMs: 5_000, max: 10 }, // burst 10 roster ops / session
-  rlRosterPerIp: { windowMs: 60_000, max: 300 }, // wide per-IP flood backstop
-  rlAgentAssist: { windowMs: 60_000, max: 10 }, // 10 agent turns / min / admin principal (041)
-  agentMaxSteps: 8, // tool-loop steps per agent turn before the loop stops (041)
+  rlSessionCreate: { windowMs: 60 * 60 * 1000, max: 20 },
+  rlAnswersPerSession: { windowMs: 5_000, max: 10 },
+  rlAnswersPerIp: { windowMs: 60_000, max: 300 },
+  rlSubmitPerSession: { windowMs: 60_000, max: 5 },
+  // The answer write's shape rather than the submit's: a roster Add or Remove is a
+  // gesture a respondent repeats many times, so sustained-plus-burst is the right model.
+  rlRosterPerSession: { windowMs: 5_000, max: 10 },
+  rlRosterPerIp: { windowMs: 60_000, max: 300 },
+  rlAgentAssist: { windowMs: 60_000, max: 10 },
+  agentMaxSteps: 8,
   outboxIntervalMs: 5_000,
   outboxJitterMs: 1_000,
-  retentionSweepIntervalMs: 60 * 60 * 1000, // 1h
+  retentionSweepIntervalMs: 60 * 60 * 1000,
   readyDbTimeoutMs: 2_000,
-  adminSessionMaxAgeMs: 12 * 60 * 60 * 1000, // 12h absolute admin session (SEC-1)
-  adminSessionIdleMs: 60 * 60 * 1000, // 1h idle admin session (SEC-1)
-  webhookTimeoutMs: 10_000, // 10s per delivery attempt (025)
-  webhookBatchSize: 20, // deliveries processed per pass (025)
-  bodyLimitBytes: 1_000_000, // 1MB (SEC-9)
-  antiAbuseMinSubmitMs: 0, // global floor off by default; forms may override (min_submit_ms)
-  // The decoy field name is the compiler↔API contract (single source of truth).
+  adminSessionMaxAgeMs: 12 * 60 * 60 * 1000, // SEC-1
+  adminSessionIdleMs: 60 * 60 * 1000, // SEC-1
+  webhookTimeoutMs: 10_000,
+  webhookBatchSize: 20,
+  bodyLimitBytes: 1_000_000, // SEC-9
+  antiAbuseMinSubmitMs: 0,
   antiAbuseHoneypotField: HONEYPOT_FIELD_NAME,
 } as const;
 
-/**
- * Parse one rate-limit class from its `<PREFIX>_WINDOW_MS` / `<PREFIX>_MAX` env
- * knobs, falling back to `fallback`. Both must be positive integers.
- */
 function parseRateClass(
   env: Env,
   prefix: string,
@@ -1268,13 +878,8 @@ function parseRateClass(
 }
 
 /**
- * better-auth's configuration (task 056), appended to `issues` rather than thrown
- * for, so one boot reports every problem at once.
- *
- * Exported because the first-run bootstrap CLI needs exactly this slice and nothing
- * else: making an operator supply link keys, session keys and an app encryption key
- * in order to create the very first account would be a config wall around a single
- * insert, and none of those values is read on that path.
+ * Appended to `issues` rather than thrown for, so one boot reports every problem at
+ * once. Exported because the bootstrap CLI needs this slice alone.
  */
 export function parseAdminAuth(env: Env, issues: string[]): Config["adminAuth"] {
   const secret = parseRequiredString(env, "QCMS_ADMIN_AUTH_SECRET", MIN_SECRET_LENGTH, issues);
@@ -1289,69 +894,28 @@ export function parseAdminAuth(env: Env, issues: string[]): Config["adminAuth"] 
       1_000,
       issues,
     ),
-    // **This is the third reader of a two-app rule, and the exemption is deliberate
-    // (issue #402).** The invariant "cookie security may not be downgraded at a
-    // non-loopback origin" is enforced as a boot refusal in
-    // `apps/portal/lib/server/config.ts` and `apps/admin/lib/server/config.ts`
-    // (`assertSecureCookiesConfigured`, issue #292). It is NOT enforced here, and this
-    // process starts on a downgraded off-loopback value that either BFF would refuse.
-    //
-    // Why that is safe today, stated as a dependency rather than left as a silence: a
-    // browser reaches better-auth only through the admin BFF (R2, ADR-09, ADR-20 - the
-    // API container publishes no host port, the `/api/auth` group is mounted only where
-    // `QCMS_MOUNT` includes `admin`, and every endpoint on it is behind the SEC-4
-    // internal token a browser cannot hold). In the configuration this read would
-    // matter for, that BFF refuses to start, so these cookies are never issued to a
-    // browser: the door in front of this one is shut.
-    //
-    // **What would have to change for the reliance to become unsafe**, which is the
-    // part a future reader needs:
-    //
-    //   1. A route into the `/api/auth` group that does not pass through the admin
-    //      BFF - the API container gaining a published port, an ingress upstream
-    //      pointing at it, or a second consumer of better-auth.
-    //   2. An admin app that keeps the cookies but drops the boot refusal, or a
-    //      deployment running the API's admin mount with some other authoring front end.
-    //   3. Anything that makes this value decide a cookie a browser can see directly.
-    //
-    // Any of those means extending `assertSecureCookiesConfigured`'s rule into this
-    // parser (the option not taken here, because the effective-value check reddens every
-    // fixture in `test-support.ts` and that fixture surface is its own change).
-    //
-    // Pinned rather than only written down: `features/auth/auth-mount.test.ts` asserts
-    // the API-side legs - no auth endpoint is reachable without the channel token, and
-    // no auth group exists without the admin mount - and
-    // `scripts/check-bff-config-guards.test.ts` asserts the two legs that live outside
-    // this app, that the admin still carries the boot refusal and that Compose still
-    // publishes no port for the API. If the topology changes, those go red.
+    // `assertSecureCookiesConfigured`'s downgrade refusal is deliberately NOT enforced here:
+    // safe only because browsers reach better-auth solely through the admin BFF, which refuses.
+    // (issue #402) check-comments: allow read by scripts/check-bff-config-guards.test.ts
     secureCookies: parseBool(
       env,
       "QCMS_ADMIN_SECURE_COOKIES",
       env.NODE_ENV === "production",
       issues,
     ),
-    // Defaults to true in every environment, including development: a control the
-    // standards write as SHALL is not something a developer opts into.
+    // True in every environment, including development: a control the standards write as
+    // SHALL is not something a developer opts into.
     breachedPasswordCheck: parseBool(env, "QCMS_ADMIN_PASSWORD_BREACH_CHECK", true, issues),
-    // Defaults to true in every environment, including development, and deliberately
-    // does NOT read `NODE_ENV`: that variable deciding a security control is the whole
-    // of issue #390. An operator who configures nothing is throttled (SEC-1).
+    // Deliberately does not read `NODE_ENV`: that variable must not decide a security
+    // control, so an operator who configures nothing is throttled (SEC-1).
     signInThrottle: parseBool(env, "QCMS_ADMIN_SIGNIN_THROTTLE", true, issues),
   };
 }
 
 /**
- * The database URL alone, validated and thrown for. The `qcms:reset-2fa` CLI's
- * whole configuration surface (issue #432).
- *
- * Narrower than {@link loadAdminAuthConfig} on purpose, and the narrowing is the
- * point rather than tidiness. The break-glass exists for a deployment that has
- * **lost** `QCMS_ADMIN_AUTH_SECRET`, or changed it, so requiring that variable to
- * be supplied before an operator may clear a factor would gate the recovery on
- * the thing that broke. It reads no better-auth configuration because it builds
- * no better-auth instance: the stored TOTP secret and the recovery codes are
- * ciphertext under that key, so the only operation still meaningful without it is
- * deleting the row, which is plain SQL.
+ * Narrower than {@link loadAdminAuthConfig} on purpose: the break-glass exists for a
+ * deployment that has lost `QCMS_ADMIN_AUTH_SECRET`, so requiring it would gate the
+ * recovery on the thing that broke.
  */
 export function loadResetTwoFactorConfig(env: Env): { readonly databaseUrl: string } {
   const issues: string[] = [];
@@ -1360,10 +924,6 @@ export function loadResetTwoFactorConfig(env: Env): { readonly databaseUrl: stri
   return { databaseUrl };
 }
 
-/**
- * The admin-auth configuration and the database URL, validated on their own and
- * thrown for. The bootstrap CLI's whole configuration surface.
- */
 export function loadAdminAuthConfig(env: Env): {
   readonly databaseUrl: string;
   readonly adminAuth: Config["adminAuth"];
@@ -1376,9 +936,8 @@ export function loadAdminAuthConfig(env: Env): {
 }
 
 /**
- * Inert admin-auth values for a process that does not mount the admin surface. No
- * better-auth instance is built there (`createApp` skips the group entirely), so
- * nothing ever reads these; they exist so `Config` stays a total record.
+ * Nothing reads these: no better-auth instance is built where the admin surface is
+ * unmounted. They exist so `Config` stays a total record.
  */
 const UNMOUNTED_ADMIN_AUTH: Config["adminAuth"] = {
   secret: "",
@@ -1387,26 +946,18 @@ const UNMOUNTED_ADMIN_AUTH: Config["adminAuth"] = {
   idleMs: 0,
   secureCookies: false,
   // True rather than false even though nothing reads it: an inert record that says
-  // "breach checking off" is the wrong thing to find in a debug dump. Same for the
-  // sign-in throttle below.
+  // "breach checking off" is the wrong thing to find in a debug dump.
   breachedPasswordCheck: true,
   signInThrottle: true,
 };
 
-/**
- * Validate an environment record into a {@link Config}, failing fast with a
- * {@link ConfigError} that lists every problem by env-var name. Collects all
- * issues before throwing so one boot surfaces every misconfiguration at once.
- */
+/** Collects all issues before throwing, so one boot surfaces every misconfiguration. */
 export function loadConfig(env: Env): Config {
   const issues: string[] = [];
 
   const databaseUrl = parseRequiredString(env, "DATABASE_URL", 1, issues, "setting");
   const environments = parseEnvironments(env, issues);
-  // `prod` is the unprefixed address shape (Q21) and the environment an admin request
-  // that names none resolves to, so a configuration without it has no surface to serve
-  // `/f/{slug}` or `/l/{token}` from at all. The constant lives in `environments.ts`
-  // beside the pool selection it governs; this is the boot check that the set satisfies it.
+  // Without `prod` a configuration has no surface to serve the unprefixed addresses from.
   if (
     environments.length > 0 &&
     !environments.some((environment) => environment.name === PROD_ENVIRONMENT)
@@ -1467,9 +1018,8 @@ export function loadConfig(env: Env): Config {
         env,
         "QCMS_DELIVERY_SNIPPET_TTL_MS",
         DEFAULTS.deliveryResponseSnippetMs,
-        // Floor of 0, not 1_000: "remove it at the next sweep" is a policy an
-        // operator may legitimately want, and there is no lower bound below which
-        // keeping less of a consumer's response body becomes wrong.
+        // Floor of 0, not 1_000: there is no lower bound below which keeping less of a
+        // consumer's response body becomes wrong.
         0,
         issues,
       ),
@@ -1477,10 +1027,7 @@ export function loadConfig(env: Env): Config {
         env,
         "QCMS_OUTBOX_PAYLOAD_TTL_MS",
         DEFAULTS.outboxPayloadMs,
-        // Floor of 0 for the same reason as the snippet above: "drop the answers as
-        // soon as the fan-out settles" is a policy an operator may legitimately
-        // want, and there is no lower bound below which holding a second copy of a
-        // respondent's answers for less time becomes wrong.
+        // Floor of 0 for the same reason as the snippet above.
         0,
         issues,
       ),
@@ -1540,7 +1087,6 @@ export function loadConfig(env: Env): Config {
         issues,
       ),
     },
-    // Required only where the identity provider is mounted (task 056).
     adminAuth: mount.admin ? parseAdminAuth(env, issues) : UNMOUNTED_ADMIN_AUTH,
     readiness: {
       dbTimeoutMs: parseInt_(env, "QCMS_READY_DB_TIMEOUT_MS", DEFAULTS.readyDbTimeoutMs, 1, issues),

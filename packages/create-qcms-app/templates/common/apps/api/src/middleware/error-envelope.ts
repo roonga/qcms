@@ -1,27 +1,6 @@
 /**
- * The error envelope (task 017).
- *
- * One `onError` handler turns every value thrown out of a route or middleware
- * into the uniform shape `{ error: { code, message, details? } }`:
- *
- * - An {@link ApiError} is deliberate and client-safe → its code/message/details
- *   at its status.
- * - Anything else is unexpected (a bug, a driver throw) → an opaque **500 with a
- *   correlation id**. The full error (with stack) is logged; the body carries
- *   only the id, never internals (SEC-8 hygiene - internals never leak).
- *
- * Hono's own `HTTPException` (e.g. a body-limit rejection) is honoured with its
- * status but rendered through the same envelope.
- *
- * **"Thrown" is the operative word, and it is not the same as "every refusal"**
- * (issue #182). A failure that is *returned* as a `Response` rather than thrown
- * goes around this handler entirely, keeping whatever body produced it. That is
- * exactly what `@hono/zod-openapi`'s request validator does by default, which is
- * why `app.ts` gives every `OpenAPIHono` a `defaultHook`
- * (`middleware/validation-hook.ts`) that throws an `ApiError` instead: the hook
- * is what puts route-schema refusals on this path. Anything else added below the
- * composition root that answers a request itself needs the same treatment - a
- * `Response` this handler never sees is a `Response` nothing here guarantees.
+ * Only *thrown* failures reach here: anything that returns a `Response` itself keeps
+ * its own body, which is why every `OpenAPIHono` gets a throwing `defaultHook`.
  */
 
 import type { Context } from "hono";
@@ -40,7 +19,6 @@ export function errorEnvelope(deps: Deps) {
     const requestId = c.get("requestId");
 
     if (err instanceof ApiError) {
-      // Deliberate, client-safe. Log at warn for the auth/limit signal.
       deps.logger.warn("handled error", {
         requestId,
         code: err.code,
@@ -57,7 +35,7 @@ export function errorEnvelope(deps: Deps) {
       return c.json(body, err.status);
     }
 
-    // Unexpected: log with stack + id; return an opaque 500 (no internals).
+    // The body carries only the correlation id, never internals (SEC-8).
     const errorId = newErrorId();
     deps.logger.error("unhandled error", { requestId, errorId, err });
     const body: ErrorEnvelope = {

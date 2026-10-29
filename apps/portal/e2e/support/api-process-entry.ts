@@ -1,11 +1,3 @@
-/**
- * Child-process entry for the browser suite's composed API.
- *
- * Keeping application instrumentation out of Playwright's coordinator process is
- * production-faithful and prevents module-loader hooks from observing Playwright's
- * temporary Babel cache swaps on Windows.
- */
-
 import { startTelemetry } from "../../../api/src/telemetry.js";
 
 import {
@@ -23,13 +15,6 @@ async function run(): Promise<void> {
       ...process.env,
       OTEL_EXPORTER_OTLP_ENDPOINT: OTLP_ENDPOINT,
       OTEL_SERVICE_NAME: OTEL_SERVICE_NAMES.api,
-      // All four batch knobs, in the record `startTelemetry` actually reads (issue
-      // #901). They used to be one assignment to `process.env` alongside this call,
-      // which was the right variable in the wrong place twice over: the API's
-      // processors read no environment at all in OpenTelemetry JS 2.x, and this
-      // composed API is handed an explicit env record precisely so it need not mutate
-      // the ambient one. The API's span batch is the slowest leg of
-      // `otel-logs.pw.ts`, so this is the assignment that budget depends on.
       OTEL_BSP_SCHEDULE_DELAY: OTLP_SCHEDULE_DELAY_MS,
       OTEL_BSP_EXPORT_TIMEOUT: OTLP_EXPORT_TIMEOUT_MS,
       OTEL_BLRP_SCHEDULE_DELAY: OTLP_SCHEDULE_DELAY_MS,

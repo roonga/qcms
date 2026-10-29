@@ -1,35 +1,8 @@
 #!/usr/bin/env node
 // @ts-check
 /**
- * Append-only guard for the golden corpora (task 012, ADR-18 and ADR-16).
- *
- * Two corpora are frozen records rather than fixtures, for two different reasons,
- * and both are guarded here:
- *
- *   - **A2UI compiled documents** (`packages/a2ui-compiler/golden/v*`). The stored
- *     compiled A2UI is immutable and served forever (R1, ADR-18), so a committed
- *     golden is never edited or deleted: a breaking A2UI change adds documents
- *     under a new spec version instead (`packages/a2ui-compiler/golden/README.md`).
- *   - **Evaluator semantics** (`packages/core/golden/evaluator/`). The forward-pass
- *     rule semantics are frozen under `SEMANTICS_VERSION` (ADR-16, invariant I7), so
- *     a scenario whose `expected` block changes is a semantics change: revert it, or
- *     carry it on a version bump. Until issue #727 that rule existed only as prose in
- *     that corpus's own `CORPUS.md`, which is exactly the state R8's ports rule was in
- *     when it drifted.
- *
- * This script fails the build if the diff against the default branch **modifies,
- * deletes, or renames** any file under a guarded prefix. Adding new golden files is
- * always allowed. It is a git-history guard, not a content test: `pnpm test` and
- * `pnpm test:golden-drift` already assert both corpora match live output.
- *
- * **It guards changes, never committed history.** The diff basis is the merge base
- * with the default branch, so anything already on that branch is history the guard
- * does not re-examine. That is what lets the corpus carry the one recorded Code Owner
- * exception (issue #128, `answered-falsy-values`, amended in place on 2026-08-31)
- * without this gate turning it into a permanent red.
- *
- * Usage:  node scripts/check-golden-append-only.mjs
- * Env:    DEFAULT_BRANCH (default "main") - the branch additions are diffed against.
+ * A git-history guard, not a content test: the corpora are frozen (ADR-18, ADR-16 invariant I7) and
+ * only additions are allowed. The diff basis is the merge base, so a recorded exception cannot become a permanent red.
  */
 
 import { execFileSync } from "node:child_process";
@@ -38,46 +11,20 @@ import { argv } from "node:process";
 import { pathToFileURL } from "node:url";
 
 /**
- * Path prefixes under which every committed file is append-only.
- *
- * `packages/a2ui-compiler/golden/v` deliberately names the versioned corpus
- * directories (`golden/v1/`, `golden/v2/`, …) - the immutable data - and so is
- * already shaped to leave `golden/README.md` editable, whose prose must record each
- * new spec version (workshop retro, Stage 6: the guard froze the README it tells you
- * to update).
- *
- * The evaluator corpus keeps its prose beside its data instead, so the same property
- * needs the explicit exemption below rather than a prefix that happens to miss it.
+ * The `golden/v` prefix stops at the versioned data directories on purpose, so the
+ * README a new spec version has to be recorded in stays editable.
  */
 const GUARDED_PREFIXES = ["packages/a2ui-compiler/golden/v", "packages/core/golden/evaluator/"];
 
 /**
- * Files inside a guarded prefix that are prose about the corpus, not corpus data.
- *
- * Exact repo-relative paths, so an exemption cannot leak to a neighbour. `CORPUS.md`
- * states the append-only rule, the `SEMANTICS_VERSION` bump procedure, and the record
- * of exceptions granted - a guard that froze it would freeze the document a future
- * amendment has to be written into, which is the Stage 6 mistake one directory over.
+ * Exact repo-relative paths, so an exemption cannot leak to a neighbour. Freezing
+ * `CORPUS.md` would freeze the document a future amendment has to be written into.
  */
 const PROSE_EXEMPTIONS = new Set(["packages/core/golden/evaluator/CORPUS.md"]);
 
 /**
- * The recorded exceptions: one corpus path whose content the Code Owner has allowed to
- * change, **pinned to the exact SHA-256 the change must produce**.
- *
- * This is the machine half of the exception record in
- * `packages/core/golden/evaluator/CORPUS.md`, and the two name the same file and the same
- * hash on purpose: a reader of the prose and a reader of the gate cannot be told different
- * things. Adding an entry is a Code Owner decision, as both entries in that document were.
- *
- * **A pin permits exactly one content, so it is not a hole.** A modification of a listed
- * path passes only if the new bytes hash to the pinned value; a different edit to the same
- * path, a deletion, a rename, or any change to an unlisted file is refused exactly as
- * before. That is the difference between this and an allowlist: the file is not unguarded
- * afterwards, because the only content it may hold is the one recorded here.
- *
- * The hash is over the bytes **at HEAD**, which is what the diff below is about, rather
- * than over the working tree, which can hold something that was never committed.
+ * A pin permits exactly one content: a listed path passes only if the new bytes hash to the pinned
+ * value, and a deletion or rename is still refused. Each entry is mirrored in that corpus's `CORPUS.md`.
  */
 export const PINNED_EXCEPTIONS = [
   {
@@ -99,36 +46,24 @@ export const PINNED_EXCEPTIONS = [
   },
 ];
 
-/** SHA-256 of a byte string, lower-case hex. */
 export function sha256(contents) {
   return createHash("sha256").update(contents).digest("hex");
 }
 
-/**
- * The pinned exception for a path, or `undefined`.
- *
- * Exact path match, like {@link PROSE_EXEMPTIONS}, so a pin cannot leak to a neighbour.
- */
 export function pinnedException(filePath, pins = PINNED_EXCEPTIONS) {
   return pins.find((pin) => pin.path === filePath);
 }
 
 /**
- * The forbidden changes in a diff, as `status\tpath` lines.
- *
- * Pure, so the test can drive it without a repository: `changes` is the parsed
- * `--name-status` output and `contentsAt` returns the bytes a path holds at HEAD, or
- * `undefined` when they cannot be read.
- *
- * Only a MODIFICATION can be excused by a pin. A deletion or a rename removes the path a
- * pin names, so no hash could describe the result and neither is ever permitted.
+ * Only a modification can be excused by a pin: a deletion or a rename removes the path
+ * a pin names, so no hash could describe the result.
  */
 export function violationsIn(changes, contentsAt, pins = PINNED_EXCEPTIONS) {
   const violations = [];
   for (const change of changes) {
     const code = change.status[0] ?? "";
     if (code === "A") {
-      continue; // additions are always allowed
+      continue;
     }
     for (const filePath of change.paths) {
       if (!isGuarded(filePath)) {
@@ -147,7 +82,6 @@ export function violationsIn(changes, contentsAt, pins = PINNED_EXCEPTIONS) {
   return violations;
 }
 
-/** One `--name-status -M` line, split into its status code and paths. */
 export function parseNameStatus(raw) {
   const changes = [];
   for (const line of raw.split("\n")) {
@@ -175,13 +109,8 @@ function tryGit(args) {
 }
 
 /**
- * A file's exact bytes at a revision, **untrimmed**, or `undefined` when it has none
- * there.
- *
- * Its own reader rather than {@link tryGit}, and the reason is a hash: `git` above trims
- * its output, which is right for a ref name or a diff and wrong for file content, because
- * a stripped trailing newline hashes to something the file never had. The first version
- * of the pin check used `tryGit` and refused the very commit it was written for.
+ * Untrimmed, and so its own reader rather than {@link tryGit}: trimming file content
+ * strips a trailing newline, and the result hashes to something the file never had.
  */
 function fileAt(revision, filePath) {
   try {
@@ -191,7 +120,6 @@ function fileAt(revision, filePath) {
   }
 }
 
-/** Resolve a ref that points at the default branch tip, or undefined. */
 function resolveBaseRef() {
   for (const ref of [`origin/${DEFAULT_BRANCH}`, DEFAULT_BRANCH]) {
     if (tryGit(["rev-parse", "--verify", "--quiet", `${ref}^{commit}`]) !== undefined) {
@@ -211,8 +139,8 @@ function isGuarded(filePath) {
 function main() {
   const baseRef = resolveBaseRef();
   if (baseRef === undefined) {
-    // No default branch to compare against (e.g. a fresh clone with no remote).
-    // Nothing to guard rather than a hard failure - CI always has origin/main.
+    // No default branch to compare against: nothing to guard rather than a hard failure,
+    // since CI always has one.
     console.warn(
       `check-golden-append-only: no "${DEFAULT_BRANCH}" ref found; skipping (nothing to diff against).`,
     );
@@ -221,17 +149,11 @@ function main() {
 
   const mergeBase = tryGit(["merge-base", baseRef, "HEAD"]) ?? baseRef;
 
-  // --name-status over the merge base: one line per change, e.g.
-  //   A\tpath        (added - allowed)
-  //   M\tpath        (modified - forbidden under golden/, unless a pin names it)
-  //   D\tpath        (deleted - forbidden)
-  //   R100\told\tnew (renamed - forbidden: the old golden path is gone)
-  //
-  // For renames/copies (R/C) git lists <old>\t<new>; both paths matter, because a
-  // rename deletes the old golden. For M/D there is a single path.
+  // For a rename or copy git lists both paths, and both matter: a rename deletes the old
+  // golden.
   const changes = parseNameStatus(git(["diff", "--name-status", "-M", mergeBase, "HEAD"]));
-  // The bytes at HEAD, which is what the diff is about. `git show` rather than a file
-  // read, so a working tree holding something uncommitted cannot satisfy a pin.
+  // `git show` rather than a file read, so a working tree holding something uncommitted
+  // cannot satisfy a pin.
   const violations = violationsIn(changes, (filePath) => fileAt("HEAD", filePath));
 
   if (violations.length > 0) {
@@ -279,8 +201,8 @@ function main() {
   return 0;
 }
 
-// Only when run as a command, so the test can import the helpers above without the
-// scan firing (and without `process.exit` killing the test run).
+// Only when run as a command, so the test can import the helpers without the scan firing
+// and without `process.exit` killing the run.
 if (argv[1] !== undefined && import.meta.url === pathToFileURL(argv[1]).href) {
   process.exit(main());
 }

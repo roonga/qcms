@@ -1,16 +1,7 @@
 /**
- * A streaming ZIP container for multi-file exports. Hand-written because it has
- * to be fetch-pure (R4) and to stream: a library taking a buffer would undo the
- * export's memory bound for exactly the forms that need a zip most.
- *
- * Every entry is stored, never deflated, and sets flag bit 3 with a trailing
- * data descriptor (APPNOTE 4.3.9), since a CRC and the two sizes are unknown
- * until the entry's last byte. The DOS timestamp is fixed rather than read from
- * the clock, so two zips of the same data are byte-identical.
- *
- * Non-ZIP64: no entry or archive may reach 4 GiB and an archive holds at most
- * 65,535 entries. Exceeding either errors rather than emitting an archive a
- * reader would silently misparse.
+ * A streaming, fetch-pure (R4) ZIP container. Entries are stored with flag bit 3 and a
+ * trailing data descriptor (APPNOTE 4.3.9), with a fixed timestamp so output is
+ * reproducible. Non-ZIP64: exceeding 4 GiB or 65,535 entries errors.
  */
 
 const encoder = new TextEncoder();
@@ -25,7 +16,7 @@ const VERSION_NEEDED = 20;
 /** Bit 3: sizes follow in a data descriptor. Bit 11: the name is UTF-8. */
 const FLAGS = 0x0008 | 0x0800;
 const METHOD_STORED = 0;
-/** 1980-01-01 00:00, so an archive is a function of its data alone. */
+/** DOS epoch, so an archive is a function of its data alone. */
 const DOS_TIME = 0;
 const DOS_DATE = 0x0021;
 
@@ -188,13 +179,9 @@ interface OpenEntry {
 }
 
 /**
- * A ZIP archive of `entries`, as a web `ReadableStream` of bytes.
- *
- * One unit of work per `pull`, which is the whole of the memory bound: `enqueue`
- * never blocks, so a `pull` that walked a whole entry would queue every page of
- * it on the first read. Entries are consumed lazily and in order, the next asked
- * for only once the previous is closed, so a caller can make each entry its own
- * pass over a paged query without holding two.
+ * A ZIP archive of `entries`, as a web `ReadableStream`. One unit of work per `pull` is the
+ * memory bound, and entries are consumed lazily and in order, the next asked for only once
+ * the previous is closed.
  */
 export function zipStream(
   entries: AsyncIterable<ZipEntry> | Iterable<ZipEntry>,

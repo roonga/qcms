@@ -1,31 +1,3 @@
-/**
- * Generated OpenAPI documents for the two public-facing surfaces (task 027).
- *
- * The routes in this codebase are all declared with `@hono/zod-openapi`
- * `createRoute` (017's convention), so the OpenAPI description of the API is a
- * *derived artifact* of the same Zod schemas the handlers validate against - it
- * cannot drift from the implementation. This module composes the app exactly as
- * `serve.ts` does (via the shared {@link appGroups}) and emits one document per
- * surface:
- *
- * - **respondent** - the public loop a form filler's client talks to, plus the
- *   always-on `/health` and `/ready` ops probes.
- * - **admin** - the authoring / response-ops / webhook-config surface, mounted
- *   under `/admin`. The ops probes are omitted here (they belong to the
- *   respondent document) so **every mounted route appears in exactly one
- *   document** (027 exit criterion 4).
- *
- * Both are labelled `x-stability: internal`: they *describe the current build*,
- * they are not a compatibility promise. The no-stability-contract stance of
- * `ARCHITECTURE.md` §5.1 holds until the reserved `/api/v1` surface activates.
- *
- * The documents are deps-independent: `createRoute` metadata is static, so the
- * placeholder deps built here (no database, no secrets) yield the exact same
- * document the running server would. `buildApiDocuments()` is therefore the
- * single generator behind both the committed files (`docs/openapi/*.json`) and
- * the drift check that guards them.
- */
-
 import type { OpenAPIHono } from "@hono/zod-openapi";
 import type { Executor } from "@roonga/qcms-db";
 
@@ -40,28 +12,19 @@ import { InMemoryRateLimitStore } from "./rate-limit.js";
 import { appGroups } from "./registrars.js";
 import { PROD_ENVIRONMENT } from "./environments.js";
 
-/** A JSON OpenAPI document (structurally; we treat it as opaque JSON). */
 export type OpenApiDocument = ReturnType<OpenAPIHono["getOpenAPIDocument"]>;
 
-/** The two committed documents, keyed by their surface. */
 export interface ApiDocuments {
   readonly respondent: OpenApiDocument;
   readonly admin: OpenApiDocument;
 }
 
-/** The always-on ops probes; they live in the respondent document only. */
 const OPS_PATHS = ["/health", "/ready"] as const;
 
-/**
- * Placeholder environment for code generation. These are **not secrets** - they
- * are fixed, obviously-synthetic strings that only exist to satisfy the config
- * validator's shape checks (min length, url scheme). No handler runs during
- * generation, so nothing here reaches the wire.
- */
+// Not secrets: synthetic strings that only satisfy the config validator's shape checks.
+// No handler runs and no connection opens during generation.
 const CODEGEN_ENV: Record<string, string> = {
   DATABASE_URL: "postgres://codegen:codegen@localhost:5432/codegen",
-  // One credential per environment (ADR-40, Q2). Placeholders like the keys below:
-  // generation never opens a connection and never builds a pool.
   QCMS_ENVIRONMENTS: "test,prod",
   QCMS_DATABASE_URL_TEST: "postgres://codegen:codegen@localhost:5432/codegen",
   QCMS_DATABASE_URL_PROD: "postgres://codegen:codegen@localhost:5432/codegen",
@@ -71,15 +34,10 @@ const CODEGEN_ENV: Record<string, string> = {
   QCMS_INTERNAL_TOKEN: "codegen-openapi-placeholder-value-000000000",
   QCMS_APP_KEY: "codegen-openapi-placeholder-value-000000000",
   QCMS_PORTAL_BASE_URL: "https://forms.example.test",
-  // The admin composition below mounts the identity provider (task 056), so the
-  // config validator asks for its two values. No auth request is made during
-  // generation and no instance is built (the mount is lazy), so these are shape
-  // placeholders exactly like the keys above.
   QCMS_ADMIN_AUTH_SECRET: "codegen-openapi-placeholder-value-000000000",
   QCMS_ADMIN_BASE_URL: "https://admin.example.test",
 };
 
-/** A database handle that rejects any use - generation never queries. */
 function inertDb(): Executor {
   return new Proxy(
     {},
@@ -91,7 +49,6 @@ function inertDb(): Executor {
   ) as unknown as Executor;
 }
 
-/** Self-contained deps for document generation (no DB, no real secrets). */
 function codegenDeps(): Deps {
   const config = loadConfig(CODEGEN_ENV);
   const clock = systemClock;
@@ -109,15 +66,13 @@ function codegenDeps(): Deps {
     logger: createNullLogger(),
     rateLimitStore: new InMemoryRateLimitStore(clock),
     challenge: nullChallengeVerifier,
-    // Codegen runs with the agent flag off, so the flag-gated assist route is
-    // absent from the published documents - which is the truth for a default
-    // deployment and keeps 027's frozen core contract unchanged.
+    // Agent flag off, so the flag-gated assist route stays out of the published documents,
+    // matching a default deployment.
     draftAssistant: unavailableDraftAssistant,
     flags: config.flags,
   };
 }
 
-/** The OpenAPI document config shared by both surfaces. */
 function docConfig(
   title: string,
   description: string,
@@ -129,28 +84,22 @@ function docConfig(
       version: "0.0.0",
       description,
     },
-    // Descriptive, not a promise: these documents track the current build. The
-    // compatibility contract begins with the reserved /api/v1 surface (R7).
+    // Descriptive, not a promise: the compatibility contract begins at /api/v1 (R7).
     "x-stability": "internal",
   };
 }
 
-/** Remove the ops-probe paths from a document (they belong to respondent only). */
 function stripOpsPaths(doc: OpenApiDocument): OpenApiDocument {
   const paths = { ...(doc.paths ?? {}) };
   for (const p of OPS_PATHS) delete paths[p];
   return { ...doc, paths };
 }
 
-/**
- * Build both surface documents from the shared composition. Deterministic and
- * deps-independent: the same route metadata `serve.ts` mounts.
- */
 export function buildApiDocuments(): ApiDocuments {
   const deps = codegenDeps();
 
-  // Pass the full registrar set to both; `createApp` mounts only the surfaces
-  // whose flag is set (ADR-09), so each app carries exactly its own routes.
+  // Safe to pass the full registrar set to both: `createApp` mounts only the surfaces
+  // whose flag is set (ADR-09).
   const respondentApp = createApp(
     deps,
     { public: true, internal: false, admin: false },
@@ -168,8 +117,8 @@ export function buildApiDocuments(): ApiDocuments {
       "The public respondent loop: start a session, walk the branching flow, submit. Plus the always-on liveness/readiness probes.",
     ),
   );
-  // The ops probes are mounted in every process shape; keep them in the
-  // respondent document only so each route appears in exactly one document.
+  // The probes mount in every process shape; keeping them only here makes each route
+  // appear in exactly one document.
   const admin = stripOpsPaths(
     adminApp.getOpenAPIDocument(
       docConfig(

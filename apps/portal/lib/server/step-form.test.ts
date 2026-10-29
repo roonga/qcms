@@ -2,13 +2,6 @@ import { describe, expect, it } from "vitest";
 
 import { decodeStepForm } from "./step-form";
 
-/**
- * Whole-step form decoding (task 044). The native-submit renderer tags each answer
- * field with a `__qk__<questionId>` kind hint; this decoder turns the wire strings
- * back into canonical JSON shapes for the API (pure transport, no validation - R2).
- * A field with no kind tag is the honeypot decoy, forwarded verbatim in `extras`.
- */
-
 /** Build a FormData from `[name, value]` pairs (a value may repeat for multi). */
 function form(...pairs: [string, string][]): FormData {
   const fd = new FormData();
@@ -48,7 +41,6 @@ describe("decodeStepForm (task 044 transport decoding)", () => {
   });
 
   it("skips an unanswered field (absent or blank), never posting it", () => {
-    // A blank number and an empty string both mean 'no answer given'.
     const { answers } = decodeStepForm(
       form(["__qk__q_n", "number"], ["q_n", ""], ["__qk__q_t", "string"], ["q_t", ""]),
     );
@@ -56,9 +48,6 @@ describe("decodeStepForm (task 044 transport decoding)", () => {
   });
 
   it("forwards the honeypot decoy (no kind tag) into extras, not answers", () => {
-    // The honeypot travels on the no-JS POST: it has no kind tag, so it is routed
-    // to `extras` (the caller forwards it to the submit body, where the API's
-    // anti-abuse check reads it - 026).
     const { answers, extras } = decodeStepForm(
       form(["__qk__q_bool", "radio"], ["q_bool", "true"], ["website", "spam-bot"]),
     );
@@ -78,23 +67,11 @@ describe("decodeStepForm (task 044 transport decoding)", () => {
   });
 });
 
-/**
- * Clearing without JavaScript (issue #127, Code Owner ruling 2026-09-02).
- *
- * The wire cannot distinguish an emptied field from a never-touched one, so the
- * renderer marks the questions that CURRENTLY HOLD AN ANSWER with a `__qa__<id>`
- * hidden companion. These cases pin the whole of the rule that marker buys, and the
- * pair that matters is the first two: the same empty post decodes to a retraction
- * with the marker and to nothing without it. Either one alone passes on the old
- * behaviour.
- */
 describe("decodeStepForm: a marked field submitted empty is a retraction (issue #127)", () => {
   it("decodes an emptied MARKED text field to a null retraction", () => {
     const { answers } = decodeStepForm(
       form(["__qk__q_t", "string"], ["__qa__q_t", "1"], ["q_t", ""]),
     );
-    // `null` is the same body the scripted path posts for the same gesture, so the
-    // two transports reach one ledger call (ADR-33).
     expect(answers).toEqual([{ questionId: "q_t", value: null }]);
   });
 
@@ -104,9 +81,6 @@ describe("decodeStepForm: a marked field submitted empty is a retraction (issue 
   });
 
   it("decodes an emptied MARKED multiChoice to a retraction, though it posts nothing at all", () => {
-    // An all-unchecked checkbox group contributes NO entry for its name, so this is
-    // the case a decoder that walked the posted values could never see. The kind tag
-    // and the marker are the only trace of the question in the whole post.
     const { answers } = decodeStepForm(form(["__qk__q_m", "multi"], ["__qa__q_m", "1"]));
     expect(answers).toEqual([{ questionId: "q_m", value: null }]);
   });
@@ -117,8 +91,6 @@ describe("decodeStepForm: a marked field submitted empty is a retraction (issue 
   });
 
   it("posts the VALUE, not a retraction, when a marked field still carries one", () => {
-    // The marker says "there is an answer to clear", never "clear it": a marked
-    // field that arrives with content is an ordinary answer revision.
     const { answers } = decodeStepForm(
       form(["__qk__q_t", "string"], ["__qa__q_t", "1"], ["q_t", "Ada"]),
     );
@@ -126,10 +98,6 @@ describe("decodeStepForm: a marked field submitted empty is a retraction (issue 
   });
 
   it("retracts a marked radio and a marked number that arrive empty, on the same rule", () => {
-    // Neither control can actually reach this state without JavaScript (a selected
-    // radio has no clear gesture, and a NumberField's value rides a JS-synced hidden
-    // input that keeps serializing the seeded answer). The rule is uniform anyway, so
-    // the transport carries no per-kind exception for a reader to keep in their head.
     const { answers } = decodeStepForm(
       form(
         ["__qk__q_r", "radio"],
@@ -146,9 +114,6 @@ describe("decodeStepForm: a marked field submitted empty is a retraction (issue 
   });
 
   it("never treats a marker as an answer field or as a honeypot extra", () => {
-    // A marker naming a question with no kind tag is not an answer (nothing says how
-    // to decode it) and must not fall through to `extras`, where it would reach the
-    // API's honeypot check as a filled decoy and get the submission refused.
     const { answers, extras } = decodeStepForm(
       form(["__qa__q_ghost", "1"], ["website", ""], ["__qk__q_t", "string"], ["q_t", "Ada"]),
     );
@@ -173,12 +138,6 @@ describe("decodeStepForm: a marked field submitted empty is a retraction (issue 
   });
 });
 
-/**
- * The fields the posted form ASKED, whether or not they carried a value (issue
- * #920). `answers` cannot answer that question: a blank required field contributes
- * no answer at all, and the caller has to narrow the API's flow-wide
- * missing-required set to the step the respondent was actually looking at.
- */
 describe("decodeStepForm reports the questions the form asked (issue #920)", () => {
   it("lists every kind-tagged field in document order, valued or not", () => {
     const { fields, answers } = decodeStepForm(
@@ -191,13 +150,11 @@ describe("decodeStepForm reports the questions the form asked (issue #920)", () 
         ["website", ""],
       ),
     );
-    // The blank date and the all-unchecked group are both asked and both unanswered.
     expect(fields).toEqual(["q_full_name", "q_dob", "q_conditions"]);
     expect(answers).toEqual([{ questionId: "q_full_name", value: "Ada Lovelace" }]);
   });
 
   it("excludes the honeypot and any other untagged field", () => {
-    // Only the renderer's kind tags name questions; an untagged field is an extra.
     const { fields, extras } = decodeStepForm(form(["website", "spam"], ["__qk__q_a", "string"]));
     expect(fields).toEqual(["q_a"]);
     expect(extras).toEqual({ website: "spam" });
@@ -214,9 +171,6 @@ describe("the roster operation, the fourth reserved name (task 073, ADR-43)", ()
       form(["__qk__q_t", "string"], ["q_t", "Ada"], ["__qop", "add:grp_vehicles:op_7f3"]),
     );
     expect(rosterOp).toEqual({ op: "add", groupId: "grp_vehicles", token: "op_7f3" });
-    // The answers are still decoded, because the typed values have to be carried
-    // back into the re-render. What does NOT happen is the caller forwarding them to
-    // the ledger: an Add or Remove post commits no answer (Code Owner, 2026-09-30).
     expect(answers).toEqual([{ questionId: "q_t", value: "Ada" }]);
   });
 
@@ -250,9 +204,6 @@ describe("the roster operation, the fourth reserved name (task 073, ADR-43)", ()
   });
 
   it("takes the first of two, which a browser cannot produce", () => {
-    // Only the pressed button contributes its name and value, so two entries is a
-    // forged post. Either operation is one the API would accept from the same
-    // respondent in their own session, so the first is taken and the API judges it.
     const { rosterOp } = decodeStepForm(
       form(["__qop", "add:grp_a:op_1"], ["__qop", "add:grp_b:op_2"]),
     );
@@ -260,8 +211,6 @@ describe("the roster operation, the fourth reserved name (task 073, ADR-43)", ()
   });
 
   it("carries instance-qualified field names through unchanged", () => {
-    // The qualified name is the field's whole identity below the API (ADR-43): this
-    // decoder keys on one opaque string and learns nothing about instances.
     const { answers, fields } = decodeStepForm(
       form(
         ["__qk__ins_7k2/q_plate", "string"],
@@ -274,7 +223,6 @@ describe("the roster operation, the fourth reserved name (task 073, ADR-43)", ()
     expect(fields).toEqual(["ins_7k2/q_plate", "ins_9m4/q_plate"]);
     expect(answers).toEqual([
       { questionId: "ins_7k2/q_plate", value: "ABC123" },
-      // Marked as answered and arrived empty: the respondent cleared THAT CELL.
       { questionId: "ins_9m4/q_plate", value: null },
     ]);
   });

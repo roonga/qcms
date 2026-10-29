@@ -1,14 +1,3 @@
-/**
- * `POST /admin/forms/{id}/draft/assist` - one agent turn, relayed as SSE (041).
- *
- * The slice's job is narrow and deliberate: build the tightly bounded
- * {@link AssistContext} an assistant is allowed to see, relay its events to the
- * browser, and guarantee that whatever comes back has been through 022's
- * validation on this side of the wire. It does not decide anything about the
- * proposal; that is the human's job, in the builder, through the normal draft
- * save (ADR-25).
- */
-
 import type { RouteHandler } from "@hono/zod-openapi";
 
 import {
@@ -44,15 +33,7 @@ const fail = {
       409,
       "The draft changed since this conversation started; reload the builder and try again",
     ),
-  /**
-   * A proposed definition the authoring boundary refused, named.
-   *
-   * The whole accept fails on this, and the sentence has to carry **which**
-   * question and **why**: the operator is looking at a proposal card listing
-   * several questions, and "the question definition is invalid" would leave them
-   * to guess which one. The envelope code is the questions slice's own, so an
-   * admin that already renders a refused create renders this unchanged.
-   */
+  /** Names which question, since a proposal card can list several. */
   proposedQuestionRefused: (questionId: string, issues: readonly DefinitionRefusal[]): ApiError =>
     new ApiError(
       "INVALID_QUESTION_DEFINITION",
@@ -62,13 +43,7 @@ const fail = {
     ),
 };
 
-/**
- * The published question library, as a search port.
- *
- * "Published" is load-bearing. A question the author is still drafting is not
- * pinnable, so proposing it would only produce a validation issue; the agent is
- * shown the same library the builder's pin picker shows.
- */
+/** Published only: a question still in draft is not pinnable. */
 function questionLibrary(deps: Deps) {
   return {
     async search(query: string | undefined, limit: number): Promise<readonly LibraryEntry[]> {
@@ -93,23 +68,7 @@ function questionLibrary(deps: Deps) {
   };
 }
 
-/**
- * The newest **published** version of one question, or `undefined` if it has none.
- *
- * A single max scan, for two reasons worth stating because the obvious shapes are
- * both worse:
- *
- * - **It does not lean on the query's `ORDER BY`.** `listQuestionVersions` happens
- *   to return ascending today, but "newest published" is this function's own
- *   invariant, not the query helper's, and a helper is free to change its order
- *   without breaking its own contract. Re-sorting the returned rows would have
- *   been redundant *and* would have mutated an array the caller owns; picking the
- *   maximum is order-independent, so there is nothing to be redundant with.
- * - **It does not re-fetch the row.** `QuestionVersionRow` already carries the
- *   `definition`, so the earlier `getQuestionVersion` call was a second round trip
- *   for data already in hand - once per candidate, on a path that scans up to the
- *   search limit.
- */
+/** Picks the maximum rather than trusting the query helper's ordering, which is not its contract. */
 async function latestPublished(
   deps: Deps,
   questionId: QuestionId,
@@ -125,12 +84,10 @@ async function latestPublished(
   return { questionId, slug, version: newest.version, definition: newest.definition };
 }
 
-/** The client-state token: the draft's own `updatedAt`, stringified. */
 function draftToken(updatedAt: Date): string {
   return updatedAt.toISOString();
 }
 
-/** Build the one context object a turn is allowed to touch. */
 function buildContext(
   deps: Deps,
   draft: FormDefinition,
@@ -140,9 +97,7 @@ function buildContext(
     draft,
     questionLibrary: questionLibrary(deps),
     conversation,
-    // Both advisory channels, unedited. `validateDraft` is 022's own, so the
-    // assistant's verdict is the builder's verdict over the same draft rather
-    // than a second opinion that could disagree with it.
+    // The builder's own validation, so the two verdicts cannot disagree.
     validate: async (definition) => {
       const { issues, warnings } = await validateDraft(deps, definition);
       return { issues, warnings };
@@ -153,7 +108,6 @@ function buildContext(
 
 const encoder = new TextEncoder();
 
-/** One SSE frame. `event:` carries the discriminant so a client can switch on it. */
 function frame(event: AssistEvent): Uint8Array {
   return encoder.encode(`event: ${event.type}\ndata: ${JSON.stringify(event)}\n\n`);
 }
@@ -256,11 +210,8 @@ export function makeAssistHandler(deps: Deps): RouteHandler<typeof assistRoute, 
 
     const body = c.req.valid("json");
 
-    // The draft the agent works against is the one the builder shows: the open
-    // draft if there is one, otherwise seeded from the latest published version
-    // (the same read-time rule `GET /admin/forms/:id` applies). Without the
-    // fallback, asking the assistant anything on a freshly published form would
-    // 404 while the builder in front of the author is showing a draft.
+    // Falls back to the latest published version, as the builder's own read does;
+    // without it a freshly published form would 404 while the builder shows a draft.
     const draftRow = await getDraft(deps.databases.control, formId);
     let definition: FormDefinition;
     if (draftRow === undefined) {
@@ -294,61 +245,26 @@ export function makeAssistHandler(deps: Deps): RouteHandler<typeof assistRoute, 
   };
 }
 
-// --- POST /admin/forms/:id/draft/assist/accept ------------------------------
-
-/**
- * The library slug a proposed question gets when the proposal does not name one.
- *
- * A `questionId` is `q_[a-z0-9_]+` (002), so dropping the prefix and spelling
- * the separators as hyphens always yields a usable slug: `q_first_name` becomes
- * `first-name`. Derived rather than invented so the operator can predict it, and
- * a collision with an existing slug is a clean `SLUG_TAKEN` 409 that fails the
- * whole accept rather than a silently mangled name.
- */
+/** Derived so the operator can predict it; a collision is a clean 409, not a mangled name. */
 function slugFor(questionId: string): string {
   return questionId.replace(/^q_/, "").replace(/_/g, "-");
 }
 
-/**
- * The identity a refused definition is reported under, read positionally.
- *
- * The value failed to parse, so there is no kernel-blessed id to quote; the
- * `questionId` field is read off the raw object when it is a string precisely so
- * the operator hears the name the agent used. `"(unnamed)"` is the honest answer
- * when even that is missing.
- */
+/** Read positionally: the value failed to parse, so there is no kernel-blessed id to quote. */
 function proposedIdOf(value: unknown): string {
   const id = (value as { questionId?: unknown } | null)?.questionId;
   return typeof id === "string" && id !== "" ? id : "(unnamed)";
 }
 
-/** What one created question is, so the accumulator below is not an evolving array. */
 type CreatedQuestion = { question: QuestionRow; version: QuestionVersionRow };
 
-/** The envelope code an `ApiError` carries, for the refusal record's `reason`. */
 function codeOf(error: unknown): string {
   return error instanceof ApiError ? error.code : "UNKNOWN";
 }
 
 /**
- * One refused accept, recorded (issue #823).
- *
- * **Every** refusal takes this path, not only the authoring-boundary one: a
- * proposed id the library has used before (R6) and a slug collision are refusals
- * with the same consequence - the whole accept fails and nothing is written - and
- * a rising rate of any of them is the same operational signal, that a configured
- * model is producing definitions this deployment cannot take. One event name and
- * one attribute shape, so the three are counted together and told apart by
- * `reason`.
- *
- * Ids and codes, never the definition (SEC-8's habit applied to authoring content
- * too). A refused accept is the one outcome an operator cannot reconstruct from
- * the screen, because the proposal that caused it is gone the moment they ask the
- * assistant again. What actually leaves the process is narrower still: every
- * attribute here is absent from the OTLP allowlist's `SAFE_ATTRIBUTES` and is
- * dropped on export, so a collector sees the event name and its count. That is
- * load-bearing for `questionId`, which on a boundary refusal is an id a *model*
- * invented, read positionally off a definition that failed to parse.
+ * Every refusal takes this path, so one event name counts them together and tells them
+ * apart by `reason`. Ids and codes only, never the definition itself (SEC-8).
  */
 function logRefusal(
   deps: Deps,
@@ -366,36 +282,9 @@ function logRefusal(
 }
 
 /**
- * Accept an agent proposal: store the draft **and** materialise the proposal's
- * new question definitions as unpublished drafts in the library (issue #823).
- *
- * ADR-25's third clause is the whole point. Before this route, accepting a
- * proposal that carried new questions saved a draft pinning ids nothing had ever
- * created: the builder honestly rendered "Version not found", the assistant
- * promised a `DANGLING_QUESTION_REF` that "will resolve once the question is
- * published", and there was no draft to publish. The human-publishes step has to
- * exist for the agent-proposes step to mean anything.
- *
- * **One transaction, not ordered-with-rollback.** Both writes are single-row
- * inserts through `@roonga/qcms-db` helpers that take an `Executor`, and this
- * slice owns the boundary (R5, `apps/api/CONTRIBUTING.md`), so the cheap correct
- * shape is the one the publish handler already uses: open a transaction, write
- * the questions, write the draft, and let a refusal roll the lot back. A draft
- * therefore never pins a question whose creation failed, and no compensating
- * delete has to be written or tested.
- *
- * **Kernel validation happens before the transaction opens.** Every proposed
- * definition goes through `checkQuestionDefinition`, the questions slice's own
- * door - the kernel parse plus the authoring-boundary refusals the kernel does
- * not carry, the #453-era `v`-flag pattern check among them. A proposal is an
- * authoring act by the human who pressed Accept, so it meets the boundary a
- * hand-authored question meets. Validating first means a refusal costs no
- * database work at all, and the operator is told which question and why.
- *
- * The advisories then describe reality: the created drafts resolve, so the pins
- * stop being `DANGLING_QUESTION_REF` and become `UNPUBLISHED_QUESTION_PIN` until
- * the operator publishes them - which is exactly the resolution step the
- * assistant's narration promises.
+ * One transaction over the questions and the draft, so a draft never pins a question
+ * whose creation failed and no compensating delete is needed. Kernel and
+ * authoring-boundary validation run first, so a refusal costs no database work.
  */
 export function makeAcceptProposalHandler(
   deps: Deps,
@@ -408,8 +297,6 @@ export function makeAcceptProposalHandler(
     const body = c.req.valid("json");
     const definition = requireFormDefinition(body.definition);
 
-    // Validate every proposed question first: no transaction is opened for a
-    // proposal the boundary is going to refuse, and the refusal names it.
     const proposed = body.newQuestions.map((entry) => {
       const checked = checkQuestionDefinition(entry.definition);
       if (!checked.ok) {
@@ -423,33 +310,26 @@ export function makeAcceptProposalHandler(
       };
     });
 
-    // R6's answer-ledger half, once per proposed question per environment in the live set,
-    // and before the transaction opens for the same reason validation is: those reads are on
-    // the environment pools, a transaction is one connection, and no transaction should be
-    // opened for a proposal that is going to be refused (ADR-40, Q1).
+    // Outside the transaction because these reads are on the environment pools and a
+    // transaction is one connection (ADR-40).
     for (const question of proposed) {
       try {
         await requireUnusedQuestionId(deps.databases, question.definition.questionId);
       } catch (error) {
-        // The same record the in-transaction refusals get below, for the same reason: an
-        // R6 refusal is an outcome of the accept and has to be attributable to a question.
         logRefusal(deps, formId, question.definition.questionId, codeOf(error), []);
         throw error;
       }
     }
 
-    // Every proposed question is created in **the form's own workspace** (ADR-41, task
-    // 068): the assistant proposed them for this form, so that is where they belong, and
-    // it is also the only workspace whose questions this form may newly pin without the
-    // publish rule refusing them. Read before the transaction, with the refusals.
+    // The form's own workspace is the only one whose questions this form may newly pin
+    // without the publish rule refusing them (ADR-41).
     const form = await getForm(deps.databases.control, formId);
     if (form === undefined) throw fail.formNotFound();
 
     const stored = await deps.databases.control.transaction(async (tx) => {
       const created: CreatedQuestion[] = [];
       for (const question of proposed) {
-        // Sequential rather than concurrent: these share one connection handle,
-        // and an id or slug collision has to be attributable to a question.
+        // Sequential: these share one connection handle, and a collision must name its question.
         try {
           created.push(
             await createQuestionWithFirstDraft(tx, {
@@ -458,11 +338,7 @@ export function makeAcceptProposalHandler(
             }),
           );
         } catch (error) {
-          // The 409s (R6 id reuse, slug collision) are refusals too, and they get the
-          // same record for the same reason the 422 does. Logging here rather than in
-          // `create.ts` keeps that module loggerless: it is the questions slice's
-          // authoring door, shared with `POST /admin/questions`, and a create that is
-          // one request rather than one of several has nothing to disambiguate.
+          // Logged here rather than in `create.ts`, which stays loggerless for its other caller.
           logRefusal(deps, formId, question.definition.questionId, codeOf(error), []);
           throw error;
         }
@@ -476,9 +352,7 @@ export function makeAcceptProposalHandler(
       createdQuestions: stored.created.length,
     });
 
-    // Advisory validation runs after the commit, so it sees the drafts this
-    // accept just created - the count the panel shows is the truth about the
-    // library, not about the library one transaction ago.
+    // After the commit, so it sees the drafts this accept just created.
     const { issues, warnings } = await validateDraft(deps, definition);
 
     return c.json(

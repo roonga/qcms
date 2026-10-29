@@ -1,14 +1,3 @@
-/**
- * Live-DB integration (task 017, exit criterion 5 second half + criterion 1
- * happy path). Boots the 013 Testcontainers harness and proves:
- *
- * - the retention-sweep scheduler, on a short interval, actually expires an
- *   abandoned session in the real database; and
- * - `/ready` returns 200 against a reachable database.
- *
- * Requires Docker (like every `*.integration.test.ts`).
- */
-
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 
 import { FormId, SessionId, type FormDefinition } from "@roonga/qcms-core";
@@ -49,7 +38,6 @@ afterAll(async () => {
   await testDb?.teardown();
 }, CONTAINER_BOOT_TIMEOUT_MS);
 
-/** Seed a form + one published version so a session has valid FKs. */
 async function seedForm(id: string): Promise<{ formId: FormId; version: number }> {
   const formId = FormId.parse(id);
   await createForm(testDb.db, {
@@ -60,8 +48,8 @@ async function seedForm(id: string): Promise<{ formId: FormId; version: number }
   });
   const v = await insertFormVersion(testDb.db, {
     formId,
-    // Empty def/compiled: the sweep only reads session status/expiry, never form
-    // content. Cast the whole input so the test needn't import @roonga/qcms-a2ui-compiler.
+    // Cast whole, so this file need not import @roonga/qcms-a2ui-compiler for content
+    // nothing under test reads.
     definition: {} as unknown as FormDefinition,
     compiled: {},
     compilerVersion: "1.0.0",
@@ -71,7 +59,6 @@ async function seedForm(id: string): Promise<{ formId: FormId; version: number }
   return { formId, version: v.version };
 }
 
-/** Build a config whose retention sweep runs on a short test interval. */
 function shortIntervalConfig(intervalMs: number, ttl: Partial<Config["ttl"]> = {}): Config {
   const base = loadConfig(validEnv());
   return {
@@ -91,12 +78,11 @@ describe("retention-sweep scheduler (live DB)", () => {
       formId,
       formVersion: version,
       accessMode: "anonymous",
-      expiresAt: new Date(Date.now() - 60_000), // already past → sweepable
+      expiresAt: new Date(Date.now() - 60_000),
     });
     expect((await getSession(testDb.db, abandoned))?.status).toBe("created");
 
-    // System clock: the session's expiry is set relative to real `Date.now()`,
-    // so the sweep must compare against real time, not a frozen test clock.
+    // Real clock: the expiry above is relative to `Date.now()`, not a frozen instant.
     const deps = makeDeps({ db: testDb.db, config: shortIntervalConfig(25), clock: systemClock });
     const scheduler = createRetentionSweepScheduler(deps);
     scheduler.start();
@@ -112,17 +98,9 @@ describe("retention-sweep scheduler (live DB)", () => {
     } finally {
       await scheduler.stop();
     }
-    // Graceful stop leaves the scheduler idle.
     expect(scheduler.running).toBe(false);
   }, 15_000);
 
-  /**
-   * Issue #304: the same pass also ages out webhook delivery response snippets.
-   * `last_response_snippet` is a consumer's response body verbatim, and a consumer
-   * that echoes the request in a validation error puts a respondent's answers there.
-   * The db package owns which rows; what this proves is that the API's existing
-   * retention scheduler is actually wired to run it, against a real database.
-   */
   it("ages out a stored delivery response snippet on the same pass", async () => {
     const { formId } = await seedForm("frm_api_snippet");
     const webhookId = "whk_api_snippet";
@@ -151,8 +129,7 @@ describe("retention-sweep scheduler (live DB)", () => {
       (await listRecentDeliveries(testDb.db, formId, 1))[0]?.lastResponseSnippet ?? null;
     expect(await snippetOf()).toContain("Ada Lovelace");
 
-    // A 1s window against an attempt a minute old, so the very next pass is due to
-    // remove it. Real clock, for the same reason the sweep above uses one.
+    // A 1s window against an attempt a minute old, so the next pass is due to remove it.
     const deps = makeDeps({
       db: testDb.db,
       config: shortIntervalConfig(25, { deliveryResponseSnippetMs: 1_000 }),
@@ -171,21 +148,11 @@ describe("retention-sweep scheduler (live DB)", () => {
 
     const [after] = await listRecentDeliveries(testDb.db, formId, 1);
     expect(after?.lastResponseSnippet).toBeNull();
-    // Marked, so the dashboard says "removed" rather than "the body was empty".
     expect(after?.lastResponseSnippetRedactedAt).not.toBeNull();
-    // The value-free half of the record is untouched.
     expect(after?.lastStatus).toBe(400);
     expect(after?.lastError).toBe("http_400");
   }, 15_000);
 
-  /**
-   * Issue #329: the same pass also drops the answers a settled outbox event carries.
-   * `outbox.payload` is a second full copy of the respondent's locked answer set,
-   * kept only so a delivery can be re-sent; once the event and its whole fan-out
-   * have settled past the redelivery window there is nothing left for it to answer.
-   * The db package owns which rows; what this proves is that the API's existing
-   * retention scheduler is actually wired to run it, against a real database.
-   */
   it("drops a settled event's answers on the same pass", async () => {
     const { formId } = await seedForm("frm_api_payload");
     const webhookId = "whk_api_payload";
@@ -220,8 +187,7 @@ describe("retention-sweep scheduler (live DB)", () => {
       ).rows[0]!.payload;
     expect(await payloadOf()).toHaveProperty("answers");
 
-    // A 1s window against a fan-out that settled a minute ago, so the very next pass
-    // is due to redact it. Real clock, for the same reason the sweeps above use one.
+    // A 1s window against a fan-out settled a minute ago, so the next pass redacts it.
     const deps = makeDeps({
       db: testDb.db,
       config: shortIntervalConfig(25, { outboxPayloadMs: 1_000 }),
@@ -238,15 +204,11 @@ describe("retention-sweep scheduler (live DB)", () => {
       await scheduler.stop();
     }
 
-    // The answers are gone and the envelope is not: the event still records that a
-    // response was submitted for this form and where it went.
     expect(await payloadOf()).toEqual({
       sessionId: "ses_api_payload",
       formId,
       contentHash: "0".repeat(64),
     });
-    // And the delivery record survives untouched, so "was this sent anywhere" is
-    // still answerable.
     const [after] = await listRecentDeliveries(testDb.db, formId, 1);
     expect(after?.deliveredAt).not.toBeNull();
   }, 15_000);

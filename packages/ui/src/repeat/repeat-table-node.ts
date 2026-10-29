@@ -1,12 +1,8 @@
 /**
- * React-free and dependency-free on purpose, like `repeat-node.ts`: a `"use server"`
- * module may import the vocabulary, and a Server Component must not pull a client
- * component into its graph through a transitive import.
- *
- * A node type per cell, because a native `<table>` has a fixed element nesting and the
- * a2ra renderer adds no wrapper of its own. That is also what makes the cell count
- * structural: a hidden member leaves its cell behind rather than shearing the column
- * off its header. None of them ever reaches a stored document.
+ * React-free and dependency-free like `repeat-node.ts`: a `"use server"` module may import the vocabulary and a
+ * Server Component must not pull a client component into its graph. A node type per cell, because a native
+ * `<table>` has fixed nesting and the a2ra renderer adds no wrapper, so a hidden member leaves its cell behind.
+ * None ever reaches a stored document.
  */
 
 /** The scroll box, caption, column headers and total footer: one per group. */
@@ -22,12 +18,9 @@ export const REPEAT_CELL_NODE_TYPE = "RepeatCell";
 export const NUMBER_CONTROL_NODE_TYPE = "NumberField";
 
 /**
- * The row first, then the column, because APG's naming practice puts the
- * distinguishing words first: every cell in a column shares the column's label.
- *
- * A real per-cell label is the only naming that survives both layouts: `scope` and
- * `headers` serve 1.3.1 but are not claimed to name the input, and the card reflow
- * stops the header cells being headers at all.
+ * The row first, then the column, because APG naming puts the distinguishing words first. A real per-cell label
+ * is the only naming that survives both layouts: `scope`/`headers` serve 1.3.1 but do not name the input, and
+ * the card reflow stops header cells being headers.
  */
 export function cellLabelFor(rowLabel: string, columnLabel: string): string {
   if (rowLabel === "") return columnLabel;

@@ -17,13 +17,10 @@ import { forms } from "./forms.js";
 import { controlSchema } from "../schemas.js";
 
 /**
- * A proposed change to a `prod` webhook endpoint, held until a second account confirms it
- * (ADR-41). The apply runs on the environment's own pool, so
- * {@link webhookEndpointProposals.appliedAt} is what says the endpoint is live: a row with
- * `confirmed_at` and a null `applied_at` is not.
- *
- * Rows are updated in place; the audit answer lives in the append-only SEC-15 rows every
- * propose, confirm and withdraw writes.
+ * A proposed change to a `prod` webhook endpoint, held until a second account confirms it (ADR-41). The apply
+ * runs on the environment's own pool, so {@link webhookEndpointProposals.appliedAt} says the endpoint is live:
+ * a row with `confirmed_at` and a null `applied_at` is not. Rows update in place; the audit answer lives in
+ * the append-only SEC-15 rows.
  */
 export const webhookEndpointProposals = controlSchema.table(
   "webhook_endpoint_proposals",

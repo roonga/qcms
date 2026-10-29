@@ -1,22 +1,3 @@
-/**
- * The minting moments and the live roster, against the real ledger (task 072,
- * ADR-42). Requires Docker.
- *
- * `roster.test.ts` proves the derivation as a function over stated inputs. This
- * file proves the two behaviours that are only true of the pair - the derivation
- * and the append-only table underneath it - and that ADR-42 states as the
- * asymmetry the whole design turns on:
- *
- * - **Lowering a `fromAnswer` count and raising it again restores the SAME
- *   instance id with its answers intact**, because nothing was removed.
- * - **A removed `open` instance is gone for good**, and a later serve mints no
- *   replacement into its place.
- *
- * Neither can be shown against a fake: the first depends on the mint being
- * idempotent against rows already written, and the second on the roster read
- * returning an instance to `minted` and not to `present`.
- */
-
 import {
   GroupId,
   QuestionId,
@@ -109,7 +90,6 @@ function group(count: RepeatCount): RepeatGroup {
 const noAnswers: AnswerMap = new Map();
 const counted = (n: number): AnswerMap => new Map([[howMany, n]]);
 
-/** Serve the group's step once: read the roster, mint the shortfall, return live. */
 async function serve(
   exec: Executor,
   sessionId: SessionId,
@@ -132,9 +112,6 @@ describe("minting on serve", () => {
     const first = await serve(testDb.db, sessionId, g);
     expect(first).toHaveLength(3);
 
-    // Idempotent under replay: the rows are already there, and there is no "have we
-    // served this before" flag anywhere - which is what makes the property hold
-    // across a reload, a resumed session and a retried request alike.
     const second = await serve(testDb.db, sessionId, g);
     expect(second).toEqual(first);
     expect(await rosterLedger(testDb.db, sessionId)).toHaveLength(3);
@@ -144,7 +121,6 @@ describe("minting on serve", () => {
     const sessionId = await seedSession("mint_open");
     const g = group({ source: "open", min: 0, max: 4 });
 
-    // One card to fill rather than an empty group with a button.
     const served = await serve(testDb.db, sessionId, g);
     expect(served).toHaveLength(1);
 
@@ -172,15 +148,12 @@ describe("minting on serve", () => {
     const sessionId = await seedSession("mint_from_answer");
     const g = group({ source: "fromAnswer", questionId: howMany, min: 1, max: 5 });
 
-    // Nothing at session start: the count is not known then.
     expect(await serve(testDb.db, sessionId, g)).toEqual([]);
     expect(await rosterLedger(testDb.db, sessionId)).toHaveLength(0);
 
     const atTwo = await serve(testDb.db, sessionId, g, counted(2));
     expect(atTwo).toHaveLength(2);
 
-    // A raise mints the DIFFERENCE, not a fresh set: the first two ids are the same
-    // two, so their answers are still theirs.
     const atFour = await serve(testDb.db, sessionId, g, counted(4));
     expect(atFour).toHaveLength(4);
     expect(atFour.slice(0, 2)).toEqual(atTwo);
@@ -203,16 +176,12 @@ describe("the two asymmetric behaviours ADR-42 turns on", () => {
       value: "P-THIRD",
     });
 
-    // Lower the count. The trailing instance stops being live and NO `removed` row is
-    // written, which is the whole mechanism: the derivation shortened the list, not
-    // the table.
     const lowered = await serve(testDb.db, sessionId, g, counted(2));
     expect(lowered).toEqual(three.slice(0, 2));
     const ledger = await rosterLedger(testDb.db, sessionId);
     expect(ledger).toHaveLength(3);
     expect(ledger.every((row) => row.event === "added")).toBe(true);
 
-    // Raise it again: the SAME id comes back, and its answer never left the ledger.
     const restored = await serve(testDb.db, sessionId, g, counted(3));
     expect(restored).toEqual(three);
     expect(restored[2]).toBe(trailing);
@@ -235,14 +204,9 @@ describe("the two asymmetric behaviours ADR-42 turns on", () => {
     });
 
     await removeRosterInstance(testDb.db, { sessionId, groupId: pax, instanceId: only });
-    // The group is empty and STAYS empty on the next serve. The minting target is
-    // measured against rows ever minted, so serving does not quietly undo the
-    // respondent's removal by minting a replacement.
     expect(await serve(testDb.db, sessionId, g)).toEqual([]);
     expect(await rosterLedger(testDb.db, sessionId)).toHaveLength(2);
 
-    // An Add after the removal is a NEW instance with no answers, not the old one
-    // back (Q5, ruled 2026-09-29).
     const added = await addRosterInstance(testDb.db, {
       sessionId,
       group: g,
@@ -254,8 +218,6 @@ describe("the two asymmetric behaviours ADR-42 turns on", () => {
     expect(live).toHaveLength(1);
     expect(live[0]).not.toBe(only);
 
-    // And the removed instance's answer is still in the ledger, excluded rather than
-    // deleted: I6's semantic, which is the one ADR-42 reuses.
     const answers = await latestAnswers(testDb.db, sessionId);
     expect(answers.get(answerKey(passport, only))).toBe("P-GONE");
     expect(answers.get(answerKey(passport, live[0]))).toBeUndefined();
@@ -275,11 +237,9 @@ describe("the roster write refusals (SEC-16)", () => {
       answers: noAnswers,
     });
     expect(refused).toEqual({ ok: false, code: "REPEAT_MAX_REACHED" });
-    // Refused means nothing was written, not written and then hidden.
     expect(await rosterLedger(testDb.db, sessionId)).toHaveLength(2);
 
-    // A removal frees the place: the bound is against the live count, so a group
-    // that had been filled and emptied is not permanently unable to grow.
+    // The bound is against the live count, so a removal frees a place.
     const live = await readRoster(testDb.db, sessionId, pax);
     await removeRosterInstance(testDb.db, {
       sessionId,

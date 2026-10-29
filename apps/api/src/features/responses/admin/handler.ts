@@ -1,25 +1,7 @@
 /**
- * Response listing / export / erasure admin handlers (task 023; ARCHITECTURE
- * §4.3). The launch-scope **data-out** surface: transaction scripts (R5) over the
- * reporting view and `@roonga/qcms-db` helpers.
- *
- * Erasure safety (SEC / ADR-17). Every read path - list, detail, and export -
- * goes through `reporting.responses`, whose tombstone anti-join excludes erased
- * (and non-submitted) sessions **by construction**. `getResponse` returns
- * `undefined` for an erased session, so detail 404s; the export stream pages the
- * same view, so an erased response can never leak. No handler here reads the raw
- * `submissions`/`answers` tables for content bypassing the view (unflag touches
- * `submissions` only to release a flag, never to render answers outward).
- *
- * Fetch-pure (R4): time is `deps.clock`, streams are the web `ReadableStream` and
- * `TextEncoder` (no `node:*`), so the export never buffers the whole table - it
- * pulls bounded keyset pages. Answer **values are never logged** (SEC-8).
- *
- * Row types come straight from `@roonga/qcms-db`: the enum-bearing `sessions` row is
- * now hand-authored and sound across the package boundary (issue #5), and the
- * enum-free `answers` ledger row was always sound (branded ids on `text`
- * columns do not degrade). Both are consumed directly with no local view or
- * cast, alongside the reporting helpers' explicit row types.
+ * Every read path goes through `reporting.responses`, whose tombstone anti-join
+ * excludes erased and non-submitted sessions by construction, so no handler here
+ * reads `submissions`/`answers` for content. Answer values are never logged (SEC-8).
  */
 
 import type { RouteHandler } from "@hono/zod-openapi";
@@ -82,17 +64,12 @@ import type {
   unflagRoute,
 } from "./route.js";
 
-/** The outbox event released when a withheld (flagged) response is unflagged (020). */
 const RESPONSE_SUBMITTED = "response.submitted" as const;
 
-/** Keyset page size for export streaming - bounds the export's working set. */
 const EXPORT_PAGE_SIZE = 500;
 
-/** Default and maximum list page sizes. */
 const DEFAULT_PAGE_SIZE = 50;
 const MAX_PAGE_SIZE = 200;
-
-// --- typed failures ---------------------------------------------------------
 
 const fail = {
   invalidFormId: (): ApiError => new ApiError("INVALID_FORM_ID", 400, "Malformed form id"),
@@ -106,8 +83,6 @@ const fail = {
     new ApiError("SUBMISSION_NOT_FOUND", 404, "No submission for this session"),
 } as const;
 
-// --- shared parse helpers ---------------------------------------------------
-
 function requireFormId(id: string): FormId {
   const parsed = parseFormId(id);
   if (!parsed.ok) throw fail.invalidFormId();
@@ -120,17 +95,9 @@ function requireSessionId(id: string): SessionId {
   return parsed.value;
 }
 
-/**
- * The largest value a version filter can take: `form_versions.version` is an
- * `int4` column, so nothing above this can name a stored row (issue #645, the
- * query-filter sibling of the path-segment guards in the forms and questions
- * slices). Without the bound the value went to Postgres, which refused the
- * parameter with "value out of range for type integer" - an unexpected throw,
- * so the request 500ed where every other unusable `version` value 400s.
- */
+/** `form_versions.version` is `int4`: without this bound Postgres throws and the request 500s. */
 const MAX_VERSION = 2_147_483_647;
 
-/** Parse a `version` query value to an in-range positive integer, or 400. */
 function parseVersion(v: string): number {
   const n = Number(v);
   if (!Number.isInteger(n) || n < 1 || n > MAX_VERSION) {
@@ -139,14 +106,12 @@ function parseVersion(v: string): number {
   return n;
 }
 
-/** Parse an ISO date-time query value to a Date, or 400. */
 function parseDate(value: string, field: string): Date {
   const d = new Date(value);
   if (Number.isNaN(d.getTime())) throw fail.invalidQuery(`${field} must be an ISO date-time`);
   return d;
 }
 
-/** Resolve `page`/`pageSize` query values to a clamped limit/offset window. */
 function pageWindow(
   page: string | undefined,
   pageSize: string | undefined,
@@ -161,7 +126,6 @@ function pageWindow(
   return { page: p, pageSize: clamped, limit: clamped, offset: (p - 1) * clamped };
 }
 
-/** The optional version/date filter shared by list and export, parsed from query. */
 function parseFilter(q: {
   version?: string | undefined;
   from?: string | undefined;
@@ -175,32 +139,9 @@ function parseFilter(q: {
 }
 
 /**
- * The SEC-15 row a response read, export or erasure writes (Q31, Q40; task 069).
- *
- * # Why it rides the read's own transaction
- *
- * The read runs under the **environment** pool (ADR-40), and an audit row written on the
- * control pool would be a second connection and a second transaction - so a read that
- * succeeded while its audit write failed would leave no record of itself, which is the
- * one failure an audit may not have. Commit or fail together is the only version of this
- * control worth having, so every caller below opens one transaction on the environment
- * pool and does both inside it.
- *
- * # Two values the writing role cannot verify, and no key closes that
- *
- * `actor` and `workspaceId` are established **here**, before the write, from the admin
- * session and from the grant middleware's own resolution. `qcms_app_<env>` holds no
- * `SELECT` on `user` or `member`, so it cannot check either, and that is the
- * `two_factor_resets` precedent working as intended: an audit row carrying a foreign key
- * into what it describes is an audit row that cascades away with it. **This task must not
- * add such a key.**
- *
- * # What the row does not carry
- *
- * No answer value, no respondent identifier and no question text. On these three kinds
- * `detail` is empty and the other six fields are populated (Q61), because the row records
- * the **act** and not its subject matter - existence without content, the reasoning
- * ADR-17's tombstone uses one table over.
+ * The SEC-15 row rides the read's own transaction on the environment pool, so an act
+ * and the record of it commit or fail together. It carries no foreign key into what it
+ * describes (that would cascade away with it), and no answer value or question text.
  */
 async function recordResponseAccess(
   exec: Executor,
@@ -213,10 +154,7 @@ async function recordResponseAccess(
     readonly at: Date;
   },
 ): Promise<void> {
-  // The grant middleware authorised this act in a workspace and left it on the context,
-  // so the row names the workspace the act was judged against rather than one this
-  // handler resolved a second time. Both are absent only on a composition with no admin
-  // group, where no response route is mounted at all.
+  // The workspace the grant middleware judged the act against, not one resolved again here.
   const workspaceId = input.grant?.workspaceId;
   if (workspaceId === undefined || input.actorId === undefined) {
     throw new ApiError(
@@ -237,8 +175,6 @@ async function recordResponseAccess(
   });
 }
 
-// --- GET /admin/forms/:id/responses -----------------------------------------
-
 export function makeListResponsesHandler(
   deps: Deps,
 ): RouteHandler<typeof listResponsesRoute, ApiEnv> {
@@ -249,8 +185,7 @@ export function makeListResponsesHandler(
     const { page, pageSize, limit, offset } = pageWindow(q.page, q.pageSize);
 
     const request = deps.databases.forRequest(c.get("requestEnvironment"));
-    // The audit row and the read, in one transaction on the environment pool (SEC-15,
-    // Q40). The row is written first so a read can never be served without one.
+    // The audit row is written first, so a read can never be served without one (SEC-15).
     const { rows, total } = await request.exec.transaction(async (tx) => {
       await recordResponseAccess(tx, {
         grant: c.get("grantContext"),
@@ -288,19 +223,14 @@ export function makeListResponsesHandler(
   };
 }
 
-// --- GET /admin/forms/:id/responses/:sessionId ------------------------------
-
 export function makeGetResponseHandler(deps: Deps): RouteHandler<typeof getResponseRoute, ApiEnv> {
   return async (c) => {
     const { id, sessionId: rawSession } = c.req.valid("param");
     const formId = requireFormId(id);
     const sessionId = requireSessionId(rawSession);
 
-    // Reads the reporting view: an erased session is absent (tombstone anti-join)
-    // → undefined → 404. Detail cannot bypass the exclusion.
+    // The reporting view: an erased session is absent, so detail cannot bypass the exclusion.
     const request = deps.databases.forRequest(c.get("requestEnvironment"));
-    // One transaction for the audit row, the detail and the ledger: the row records the
-    // act of reading this response, and the two reads are that one act.
     const read = await request.exec.transaction(async (tx) => {
       await recordResponseAccess(tx, {
         grant: c.get("grantContext"),
@@ -310,14 +240,9 @@ export function makeGetResponseHandler(deps: Deps): RouteHandler<typeof getRespo
         kind: "read",
         at: deps.clock.now(),
       });
-      // A read that found nothing is still a read, and its row stays: the transaction
-      // commits either way, so "who looked for this person's answers" is answerable
-      // even when the answer was that there were none. The same honesty
-      // `two_factor_resets` has when a reset cleared no factor.
+      // A read that found nothing is still a read: the transaction commits, so the row stays.
       const found = await getResponse(tx, request.environment, formId, sessionId);
       if (found === undefined) return undefined;
-      // The append-only answer ledger - the audit history (every revision, oldest
-      // first). Present because the session is non-erased (erasure deletes it).
       return { detail: found, ledger: await answerLedger(tx, sessionId) };
     });
     if (read === undefined) throw fail.responseNotFound();
@@ -333,8 +258,6 @@ export function makeGetResponseHandler(deps: Deps): RouteHandler<typeof getRespo
         flaggedReason: detail.flaggedReason,
         contentHash: detail.contentHash,
         answers: detail.answers,
-        // A retraction revision is carried explicitly (`retracted: true`, no
-        // value), never flattened into a value-less answer (ADR-33).
         ledger: ledger.map((entry) => ({
           questionId: entry.questionId,
           value: entry.value,
@@ -347,8 +270,6 @@ export function makeGetResponseHandler(deps: Deps): RouteHandler<typeof getRespo
   };
 }
 
-// --- GET /admin/forms/:id/export --------------------------------------------
-
 export function makeExportHandler(deps: Deps): RouteHandler<typeof exportRoute, ApiEnv> {
   return async (c) => {
     const formId = requireFormId(c.req.valid("param").id);
@@ -356,15 +277,8 @@ export function makeExportHandler(deps: Deps): RouteHandler<typeof exportRoute, 
     const format = q.format ?? "csv";
     const filter = parseFilter(q);
 
-    // The export's audit row, written **before** a byte leaves (SEC-15, criterion 8).
-    //
-    // An export is a stream, and a stream outlives any transaction: it pulls bounded
-    // keyset pages, each its own statement, so there is no single transaction for the row
-    // to ride. So the row is written first, in its own transaction on the environment
-    // pool, and a failure to write it **refuses the export**. That is the property
-    // criterion 8 asks for - no path exports without a row - achieved the only way a
-    // streamed response allows, and it is stated here rather than left as a difference
-    // somebody discovers between this handler and the two reads above.
+    // A stream outlives any transaction, so the audit row is written first in its own,
+    // and failing to write it refuses the export: no path exports without a row (SEC-15).
     const auditExec = deps.databases.forRequest(c.get("requestEnvironment"));
     await auditExec.exec.transaction(async (tx) => {
       await recordResponseAccess(tx, {
@@ -378,7 +292,6 @@ export function makeExportHandler(deps: Deps): RouteHandler<typeof exportRoute, 
     });
 
     if (format === "json") {
-      // JSON may span versions (no version filter required).
       const stream = jsonExportStream(deps.databases.forRequest(c.get("requestEnvironment")), {
         formId,
         ...filter,
@@ -387,9 +300,6 @@ export function makeExportHandler(deps: Deps): RouteHandler<typeof exportRoute, 
         status: 200,
         headers: {
           "content-type": "application/json; charset=utf-8",
-          // The environment is in the name and in no column (Q8): a file can never mix
-          // two, so a column would change a file adopters parse for no information the
-          // name does not already carry.
           "content-disposition": `attachment; filename="${responseExportFileName({
             formId,
             environment: auditExec.environment,
@@ -399,8 +309,7 @@ export function makeExportHandler(deps: Deps): RouteHandler<typeof exportRoute, 
       });
     }
 
-    // CSV columns depend on the version's shape, so a version is required and
-    // must resolve to a published version.
+    // CSV columns depend on the version's shape, so a version is required.
     if (filter.version === undefined) {
       throw fail.invalidQuery("version is required for CSV export");
     }
@@ -424,11 +333,8 @@ export function makeExportHandler(deps: Deps): RouteHandler<typeof exportRoute, 
         extension,
       });
 
-    // The long shape of a version with at least one repeating group is more than
-    // one file, so it downloads as a zip. A version with none downloads exactly
-    // the single file it always did - same bytes, same content type - so no existing
-    // adopter's pipeline moves (Q17). **The name moves**, once, because Q8 puts the
-    // environment in it; the columns do not (criterion 3).
+    // More than one file, so it downloads as a zip; a version with no group stays a
+    // single CSV with the same bytes, so no adopter's pipeline moves.
     if (groups.length > 0) {
       return new Response(
         zipExportStream(
@@ -461,18 +367,11 @@ export function makeExportHandler(deps: Deps): RouteHandler<typeof exportRoute, 
 }
 
 /**
- * The pool one request is served from, resolved once by the handler and carried into the
- * export streams.
- *
- * The streams outlive the handler frame that built them - a `ReadableStream`'s `pull` runs
- * long after the response has been returned - so the environment the Q6 switcher named has
- * to be captured when the handler still has its context, not read again per page. Passing
- * the resolved pair rather than `Deps` is what makes that structural: there is no
- * `databases` in scope inside a stream to resolve it from a second time.
+ * A stream's `pull` runs after the handler has returned, so the request's environment is
+ * captured here rather than resolved again per page.
  */
 type RequestDatabase = ReturnType<Databases["forRequest"]>;
 
-/** Filter shape the export streams page over. */
 interface ExportFilter {
   formId: FormId;
   version?: number | undefined;
@@ -480,11 +379,7 @@ interface ExportFilter {
   to?: Date | undefined;
 }
 
-/**
- * A memory-bounded CSV stream: emit the BOM + header once, then keyset-page the
- * reporting view, encoding one CRLF record per row. Only `EXPORT_PAGE_SIZE` rows
- * are ever held in memory, so the export is O(page), not O(table).
- */
+/** One keyset page per pull, so the export holds O(page) rather than O(table). */
 function csvExportStream(
   request: RequestDatabase,
   filter: ExportFilter,
@@ -522,25 +417,8 @@ function csvExportStream(
 }
 
 /**
- * The long shape of a version with repeating groups: a zip of `responses.csv` and
- * one file per group, each file its own pass over the reporting view (task 075).
- *
- * **One pass per file rather than one pass filling several buffers**, because a zip
- * entry has to be written whole before the next one starts and the alternative is
- * holding every group's rows in memory until the flat file is finished. The cost is
- * `1 + groups` keyset scans of the same filtered rows.
- *
- * **What the memory bound is, stated exactly.** `zipStream` runs one unit of work
- * per `pull` and a `pull` takes one chunk, so a chunk here is one keyset page and
- * the queued bytes are one page plus two small records, exactly as the single-file
- * path at {@link csvExportStream} is. That is a property of `zipStream` rather than
- * of this function, and `@roonga/qcms-csv`'s demand test is what holds it: an
- * earlier revision walked a whole entry inside one `pull` and queued the whole file,
- * because `controller.enqueue` never blocks and a `ReadableStream` applies
- * backpressure only by withholding the next `pull`.
- *
- * `zipStream` also asks for each entry only once the previous one is closed, so the
- * passes are sequential by construction and never two cursors at once.
+ * One pass per file: a zip entry is written whole before the next starts, and
+ * `zipStream` asks for an entry only once the previous closed, so cursors never overlap.
  */
 function zipExportStream(
   request: RequestDatabase,
@@ -550,7 +428,6 @@ function zipExportStream(
 ): ReadableStream<Uint8Array> {
   const encoder = new TextEncoder();
 
-  /** One file's bytes: its header, then one chunk per keyset page. */
   async function* file(
     header: string,
     body: (row: ReportingResponseRow) => string,
@@ -568,8 +445,6 @@ function zipExportStream(
     }
   }
 
-  // A plain generator: deciding WHICH file comes next needs no await, and each
-  // entry's own content is the async iterable that does the paging.
   function* entries(): Iterable<ZipEntry> {
     yield {
       name: RESPONSES_FILE_NAME,
@@ -586,10 +461,6 @@ function zipExportStream(
   return zipStream(entries());
 }
 
-/**
- * A memory-bounded JSON array stream: emit `[`, then reporting rows keyset-paged
- * and comma-separated, then `]`. Same bounded working set as CSV.
- */
 function jsonExportStream(
   request: RequestDatabase,
   filter: ExportFilter,
@@ -631,7 +502,6 @@ function jsonExportStream(
   });
 }
 
-/** One keyset page of reporting rows for an export. */
 function nextPage(
   request: RequestDatabase,
   filter: ExportFilter,
@@ -647,12 +517,10 @@ function nextPage(
   });
 }
 
-/** The last (highest) session id in a keyset page - the next page's cursor. */
 function lastSessionId(rows: ReportingResponseRow[]): SessionId {
   return rows[rows.length - 1]!.sessionId;
 }
 
-/** The reporting row shape for JSON export (canonical encodings as-is). */
 function jsonRow(row: ReportingResponseRow): Record<string, unknown> {
   return {
     sessionId: row.sessionId,
@@ -664,8 +532,6 @@ function jsonRow(row: ReportingResponseRow): Record<string, unknown> {
   };
 }
 
-// --- POST /admin/forms/:id/responses/:sessionId/erase -----------------------
-
 export function makeEraseHandler(deps: Deps): RouteHandler<typeof eraseRoute, ApiEnv> {
   return async (c) => {
     const { id, sessionId: rawSession } = c.req.valid("param");
@@ -675,19 +541,9 @@ export function makeEraseHandler(deps: Deps): RouteHandler<typeof eraseRoute, Ap
 
     const request = deps.databases.forRequest(c.get("requestEnvironment"));
     try {
-      // eraseSession is idempotent (returns the existing tombstone with
-      // alreadyErased:true) and owns its own transaction (016).
-      //
-      // Form-scoped (#305): the form is passed *into* the erasure, where it filters
-      // both the tombstone lookup and the session lookup, rather than being compared
-      // against the outcome here. That ordering is the point - a comparison after
-      // the fact would run once the deletes had already happened.
-      //
-      // The SEC-15 row rides the **same** transaction (Q40): the erasure's own
-      // transaction becomes a savepoint inside this one, so the deletes and the record
-      // of who performed them commit or fail together. An erasure that happened with no
-      // record of itself is the one failure this control may not have, and an erasure is
-      // the act of the three that cannot be repeated to produce the record afterwards.
+      // The form is passed into the erasure so it filters the lookups, rather than being
+      // compared against the outcome once the deletes have happened. The SEC-15 row rides
+      // the same transaction: an erasure cannot be repeated to produce its record later.
       const outcome = await request.exec.transaction(async (tx) => {
         await recordResponseAccess(tx, {
           grant: c.get("grantContext"),
@@ -717,44 +573,10 @@ export function makeEraseHandler(deps: Deps): RouteHandler<typeof eraseRoute, Ap
   };
 }
 
-// --- GET /admin/forms/:id/responses/:sessionId/erasure-scope ----------------
-
 /**
- * Where else the same subject identifier has something, and nothing else (Q7, ADR-17's
- * Note; task 067, criterion 4).
- *
- * # It offers and never performs
- *
- * This is the half of Q7 that costs an implementer the most care, because the helpful
- * version of it is the wrong one: an endpoint that erased everywhere on one confirmation
- * would satisfy a reading of "offers to repeat" and would not be undoable. So this is a
- * **`GET`**, it opens no transaction, it writes no audit row, and the only thing it can
- * change is what a screen says. Each repetition is a separate `POST .../erase` against
- * that environment, with its own type-to-confirm and its own confirmation restating which
- * environment it is about.
- *
- * # Why it writes no SEC-15 row
- *
- * SEC-15's kinds are closed (read, export, erasure, grant, revoke, setting) and `read`
- * means a **response** read. This reads no response: it answers whether a session id
- * exists in a form in an environment, which is the same existence-without-content the
- * tombstone list at `GET /admin/erasures` carries and which writes no row either. Adding
- * one here would make the audit of who looked at whose answers noisier without recording
- * a single additional look.
- *
- * # Why the subject identifier is the session id
- *
- * It is the identifier this screen has, and the design gives it no other. A link id names
- * a link rather than a person and belongs to exactly one environment since task 066
- * (`control.secure_links` carries `environment` `NOT NULL` with a global primary key), and
- * nothing in the data model carries a respondent identity across environments by design -
- * `docs/erasure.md` tells adopters in as many words not to encode PII in a link identity.
- * A session id, on the other hand, is per environment: `data_<env>.sessions` is one table
- * per schema with its own primary key, so the **same** id can exist in two environments,
- * which is what happens when one environment was seeded or copied from another. That is
- * exactly the case Q7 is about, and it is why this is the identifier the offer is keyed
- * on. Recorded as a Code Owner question in this task's pull request, because Q7 says
- * "subject identifier" and leaves the choice of which one to the build.
+ * It offers and never performs: a `GET` that writes nothing, so each repetition stays a
+ * separate erase with its own confirmation. It writes no SEC-15 row because it reads no
+ * response, only whether a session id exists in a form in an environment.
  */
 export function makeErasureScopeHandler(
   deps: Deps,
@@ -765,18 +587,14 @@ export function makeErasureScopeHandler(
     const sessionId = requireSessionId(rawSession);
     const request = deps.databases.forRequest(c.get("requestEnvironment"));
 
-    // 404 unless the selected environment holds this session or its tombstone, which is
-    // the same answer the erase route gives and for the same reason (#305): a screen that
-    // is not showing a response has nothing to offer a repetition of.
+    // A screen that is not showing a response has nothing to offer a repetition of.
     const here = await findSubjectPresence(request.exec, formId, sessionId);
     if (!here.hasSession && !here.alreadyErased) throw fail.sessionNotFound();
 
     const grant = c.get("grantContext");
     const principal = c.get("adminPrincipal");
-    // The caller's grants, resolved once on the control pool. The middleware has already
-    // authorised the erasure in the **selected** environment; what is needed here is the
-    // same question asked of each other environment, so an offer the caller would be
-    // refused is never made and existence is never disclosed where they hold nothing.
+    // Each other environment is asked the same authorisation question, so existence is
+    // never disclosed where the caller holds nothing.
     const resolved =
       grant?.workspaceId === undefined || principal === undefined
         ? undefined
@@ -802,9 +620,8 @@ export function makeErasureScopeHandler(
         formId,
         sessionId,
       );
-      // Nothing there is nothing to offer. An already-erased environment **is** offered,
-      // with the flag, because "already done there" is what an operator working through a
-      // data subject's request needs to read.
+      // An already-erased environment is still offered, with the flag: an operator
+      // working a subject request needs to read "already done there".
       if (!presence.hasSession && !presence.alreadyErased) continue;
       others.push({ environment, alreadyErased: presence.alreadyErased });
     }
@@ -820,8 +637,6 @@ export function makeErasureScopeHandler(
     );
   };
 }
-
-// --- GET /admin/erasures ----------------------------------------------------
 
 export function makeListErasuresHandler(
   deps: Deps,
@@ -852,19 +667,14 @@ export function makeListErasuresHandler(
   };
 }
 
-// --- POST /admin/forms/:id/responses/:sessionId/unflag ----------------------
-
 export function makeUnflagHandler(deps: Deps): RouteHandler<typeof unflagRoute, ApiEnv> {
   return async (c) => {
     const { id, sessionId: rawSession } = c.req.valid("param");
     const formId = requireFormId(id);
     const sessionId = requireSessionId(rawSession);
 
-    // Form scope first, and by query rather than by comparison (#305): a session of
-    // another form is not returned at all, so it takes the same 404 as an id that
-    // does not exist. This read also supplies the formId/formVersion the released
-    // event carries, so scoping costs no extra round trip - the handler already
-    // needed the session row.
+    // Scoped by query rather than by comparison: another form's session is not returned
+    // at all, so it takes the same 404 as an id that does not exist.
     const session = await getSessionInForm(
       deps.databases.forRequest(c.get("requestEnvironment")).exec,
       formId,
@@ -872,20 +682,15 @@ export function makeUnflagHandler(deps: Deps): RouteHandler<typeof unflagRoute, 
     );
     if (session === undefined) throw fail.sessionNotFound();
 
-    // The submission carries the audit payload (contentHash, locked answers) the
-    // withheld event needs; a session without one has nothing to release → 404.
-    // Safe unscoped: the session it belongs to is proven in-form immediately above,
-    // and a submission is keyed by that session.
+    // Safe unscoped: the session was proven in-form above, and a submission is keyed by it.
     const submission = await getSubmission(
       deps.databases.forRequest(c.get("requestEnvironment")).exec,
       sessionId,
     );
     if (submission === undefined) throw fail.submissionNotFound();
 
-    // One transaction: the conditional flag-clear and the released event commit
-    // together (transactional outbox, §11). `clearSubmissionFlag` is race-safe -
-    // only the caller that actually flips the flag gets `true`, so the event is
-    // enqueued exactly once even under concurrent unflags (idempotent).
+    // Only the caller that actually flips the flag gets `true`, so concurrent unflags
+    // enqueue the released event exactly once, and it commits with the flag clear.
     const released = await deps.databases
       .forRequest(c.get("requestEnvironment"))
       .exec.transaction(async (tx) => {
@@ -899,7 +704,7 @@ export function makeUnflagHandler(deps: Deps): RouteHandler<typeof unflagRoute, 
               formVersion: session.formVersion,
               submittedAt: submission.submittedAt.toISOString(),
               contentHash: submission.contentHash,
-              // Locked (hidden-excluded, I6) answers - never the raw ledger.
+              // The locked answers exclude hidden questions (I6); never the raw ledger.
               answers: submission.lockedAnswers.answers,
             },
           });

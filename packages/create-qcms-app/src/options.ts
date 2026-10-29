@@ -1,12 +1,3 @@
-/**
- * What the scaffolder needs to know, and how it learns it (task 037).
- *
- * Two entry paths, one shape: {@link parseArguments} reads flags (the CI path,
- * `--yes`), {@link promptMissing} asks for whatever the flags left open (the human
- * path). Both produce the same {@link ScaffoldOptions}, so the scaffolder itself has
- * no idea which one ran and nothing can be reachable interactively but not by flag.
- */
-
 import { basename, isAbsolute, resolve } from "node:path";
 
 /** Deployment shapes the scaffold knows how to stamp. */
@@ -14,29 +5,12 @@ export const DEPLOYMENT_SHAPES = ["solo", "enterprise"] as const;
 export type DeploymentShape = (typeof DEPLOYMENT_SHAPES)[number];
 
 /**
- * The one package manager the scaffold installs with.
- *
- * **There is no choice, decided by the Code Owner (task 037 review, issue #449, and
- * again on 2026-09-03).** The three shipped Dockerfiles prune their runtime tree with
- * `pnpm deploy --legacy --prod`, which has no npm or yarn equivalent, and they install
- * from a `pnpm-lock.yaml` that an npm or yarn scaffold never produces. Offering the
- * other two produced a project whose `docker compose up --build` failed at a `COPY`
- * with an error that named a missing lockfile rather than the choice that caused it.
- *
- * An answer that builds nothing is a promise the tool does not keep, so the prompt,
- * the flag's alternatives and the per-manager rendering are gone rather than narrowed:
- * there is no shape left for a broken path to hide in. #449 stays open as the
- * follow-up that restores the choice once the images can build without a
- * `pnpm-lock.yaml`.
+ * The one package manager: the Dockerfiles need `pnpm deploy --legacy --prod` and a
+ * `pnpm-lock.yaml`. Restoring the choice (#449) needs images that build without them.
  */
 export const PACKAGE_MANAGER = "pnpm";
 
-/**
- * Why there is no choice, in one sentence, wherever an adopter meets it.
- *
- * Held here so the CLI's output and the scaffolded READMEs cannot say different
- * things; `render.test.ts` asserts the READMEs carry it.
- */
+/** One sentence shared by the CLI output and the scaffolded READMEs. */
 export const PACKAGE_MANAGER_RATIONALE =
   "QCMS scaffolds a pnpm workspace: the shipped Dockerfiles prune their runtime tree with `pnpm deploy --legacy --prod`, which has no npm or yarn equivalent.";
 
@@ -49,8 +23,6 @@ export const DEFAULTS = {
   projectName: "my-forms",
   shape: "solo",
   adminTwoFactor: "required",
-  // Seat 0's portal and admin ports from the QCMS allocation (R8, docs/PORTS.md),
-  // which is also what `docker-compose.yml` publishes by default.
   portalBaseUrl: "http://localhost:7000",
   adminBaseUrl: "http://localhost:7040",
 } as const;
@@ -82,11 +54,7 @@ export type ParseResult =
   | { readonly kind: "version" }
   | { readonly kind: "error"; readonly message: string };
 
-/**
- * npm's own package-name rule, narrowed: the value becomes a directory name, the
- * root manifest's `name`, and the Compose project name, so anything a shell or a
- * path would have to quote is refused rather than escaped three different ways.
- */
+/** Becomes a directory, a manifest name and a Compose project, so nothing needing quoting. */
 const PROJECT_NAME = /^[a-z0-9][a-z0-9._-]*$/;
 
 /** Reject a project name that cannot be a directory, a package name and a Compose project. */
@@ -125,11 +93,7 @@ function isMember<T extends string>(values: readonly T[], candidate: string): ca
 /** One `--flag value` pair, validated into the options it sets. */
 function applyFlag(flag: string, value: string, into: Record<string, unknown>): string | undefined {
   switch (flag) {
-    // The flag survives the dropping of the choice (issue #449) for one reason: an
-    // adopter who types `--package-manager npm` meets the constraint and the reason
-    // for it, rather than "Unknown option". `pnpm` is accepted as a no-op, so an
-    // invocation written before the choice was dropped still runs; it sets nothing,
-    // because there is nothing left for it to set.
+    // Kept so `--package-manager npm` meets the reason, and `pnpm` stays a no-op.
     case "--package-manager":
       if (value !== PACKAGE_MANAGER) {
         return `--package-manager only accepts ${PACKAGE_MANAGER}. ${PACKAGE_MANAGER_RATIONALE}`;
@@ -208,12 +172,7 @@ function readFlag(
   return { kind: "ok", consumed: inline === undefined ? 1 : 0 };
 }
 
-/**
- * Read the command line.
- *
- * The first non-flag argument is the project name, which is what makes
- * `pnpm create qcms-app my-forms` work: npm-init passes the trailing words through.
- */
+/** The first non-flag argument is the project name (`pnpm create qcms-app my-forms`). */
 export function parseArguments(argv: readonly string[], cwd: string): ParseResult {
   const into: Record<string, unknown> = {};
   const state: ParseState = { assumeYes: false };
@@ -234,10 +193,7 @@ export function parseArguments(argv: readonly string[], cwd: string): ParseResul
   }
 
   if (projectName !== undefined) {
-    // The argument is a DIRECTORY, and the project name is its last segment. That
-    // split matters for `create-qcms-app /tmp/scratch/my-forms`, which every
-    // scaffolder accepts and which would otherwise be validated as a package name
-    // and refused for containing slashes.
+    // The argument is a directory; the name is its last segment.
     const directory = resolveTarget(projectName, cwd);
     const name = basename(directory);
     const problem = validateProjectName(name);
@@ -276,14 +232,7 @@ export function withDefaults(partial: PartialOptions, cwd: string): ScaffoldOpti
   };
 }
 
-/**
- * Greedy wrap at 76 columns, so the one shared sentence reads in a terminal.
- *
- * `PACKAGE_MANAGER_RATIONALE` is one string used in three places: this text, the
- * `--package-manager` refusal, and both scaffolded READMEs. Markdown reflows it and a
- * terminal does not, so the wrapping belongs here rather than in the constant, which
- * would put hard line breaks into the READMEs.
- */
+/** Terminals do not reflow like the READMEs, so wrapping lives here, not in the constant. */
 function wrap(text: string, width = 76): string {
   const lines: string[] = [];
   let current = "";

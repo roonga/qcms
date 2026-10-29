@@ -1,17 +1,4 @@
-/**
- * Regenerate the committed OpenAPI documents (task 027).
- *
- *   pnpm openapi:generate
- *
- * Writes `docs/openapi/respondent.json` and `docs/openapi/admin.json` from the
- * composed app's `@hono/zod-openapi` route registry (the single generator in
- * `apps/api/src/openapi-document.ts`). The drift check (`src/openapi-document.test.ts`,
- * part of `pnpm test`) fails CI if these committed files fall out of sync, so
- * run this whenever a route's schema changes and commit the result.
- *
- * Plain ESM over the built `dist/` so it needs no TS runtime; `pnpm openapi:generate`
- * builds first. Writes 2-space JSON with a trailing newline (Prettier-clean).
- */
+// Reads the built `dist/`, so run it through `pnpm openapi:generate`, which builds first.
 
 import { writeFileSync } from "node:fs";
 import { fileURLToPath } from "node:url";

@@ -6,11 +6,9 @@ import type { A2UIValues } from "./field-context.tsx";
 import { loadGoldenForms } from "./test-support/golden.ts";
 import { SELECT_STEP } from "./test-support/select-step.ts";
 
-// The first render is the whole point, and the clear-path and round-trip suites do not
-// imply it: those start from `{}` and watch a value the respondent just typed flow
-// back. react-stately decides controlled against uncontrolled from the first value it
-// sees, and several adapters translate the canonical shape into a control-level one, so
-// a value arriving before any interaction is its own path.
+// The first render is the point: the clear-path and round-trip suites start from `{}`. react-stately decides
+// controlled against uncontrolled from the first value it sees and adapters translate the canonical shape, so a
+// value arriving before any interaction is its own path.
 
 const kitchen = loadGoldenForms().find((f) => f.version === "v2" && f.form === "kitchen-sink");
 if (!kitchen) throw new Error("kitchen-sink v2 golden not found");

@@ -4,12 +4,9 @@ import { fileURLToPath } from "node:url";
 import { describe, expect, it } from "vitest";
 
 /**
- * `drizzle-kit generate` diffs against the newest committed snapshot, and nothing reads a
- * snapshot at migration time, so a missing or unlinked one breaks nothing until the next
- * `generate` re-emits statements the database already has.
- *
- * `readdirSync` rather than `git ls-files`, because this package's lint forbids resolving
- * a command off `PATH`.
+ * `drizzle-kit generate` diffs against the newest snapshot and nothing reads one at migration time, so a
+ * missing one breaks nothing until the next `generate`. `readdirSync` because lint forbids resolving a
+ * command off `PATH`.
  */
 
 const MIGRATIONS_DIR = fileURLToPath(new URL("../migrations/", import.meta.url));

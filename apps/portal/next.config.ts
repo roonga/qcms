@@ -24,10 +24,6 @@ export default function portalNextConfig(phase: string): NextConfig {
       root: WORKTREE_ROOT,
     },
     output: "standalone",
-    // Required in a monorepo: Next traces from the project directory by default, so
-    // React, Next itself and every `@roonga/qcms-*` dist, which pnpm keeps in the
-    // workspace root, would be left out of the standalone copy and the container would
-    // die on its first require.
     outputFileTracingRoot: WORKTREE_ROOT,
     // No `sharp`: its native libvips binary is LGPL-3.0, which the no-copyleft
     // redistribution policy and `check:licenses` forbid.

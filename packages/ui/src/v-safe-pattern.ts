@@ -1,23 +1,7 @@
 /**
- * v-safe HTML `pattern` normalization.
- *
- * A question's validation regex is authored against JavaScript's `u` semantics and the
- * compiler copies it verbatim into the document, but browsers compile the HTML `pattern`
- * attribute with the `v` flag, whose character-class grammar is strictly narrower: a
- * bare `-` at the edge of a class is a `SyntaxError` under `v` though it is a plain
- * literal under `u`. The browser then logs an error and drops native validation.
- *
- * The invariant here is that every emitted pattern compiles under `new RegExp(p, "v")`.
- * It is applied at render time rather than by the compiler, because stored A2UI is
- * immutable and served forever (R1, ADR-18), so published documents keep their original
- * pattern whatever the compiler does later.
- *
- * Normalize when the rewrite is provably semantics-preserving, otherwise omit: the API
- * is the validation authority (R2), so a missing native hint is correct degradation
- * while a rejected `pattern` loses the hint and logs an error too.
- *
- * A pattern that already compiles under `v` is returned byte-identical, so the `&&` and
- * `--` class-set operators `v` gives meaning to are never perturbed.
+ * v-safe HTML `pattern` normalization. A validation regex is authored under `u` semantics, but browsers compile
+ * the HTML `pattern` with `v`, where a bare `-` at a class edge is a `SyntaxError`. Applied at render time because
+ * stored A2UI is immutable (R1, ADR-18): normalize when provably semantics-preserving, otherwise omit (R2).
  */
 
 /**
@@ -28,10 +12,8 @@
 const CLASS_SYNTAX_LITERALS: ReadonlySet<string> = new Set(["(", ")", "[", "{", "}", "/", "|"]);
 
 /**
- * `ClassSetReservedDoublePunctuator`s (v mode): reserved only when doubled, e.g.
- * `[a!!b]`. Each is a literal in a `u`-mode class and each is escapable under `v`.
- * `&` is in this set but only ever reached for a pattern that already fails under
- * `v`, so the valid `&&` intersection operator is never rewritten.
+ * `ClassSetReservedDoublePunctuator`s (v mode): reserved only when doubled, e.g. `[a!!b]`; literal under `u`,
+ * escapable under `v`. `&` is reached only for a pattern already failing under `v`, so a valid `&&` is never rewritten.
  */
 const DOUBLE_PUNCTUATORS: ReadonlySet<string> = new Set([..."&!#$%*+,.:;<=>?@^`~"]);
 
@@ -52,13 +34,9 @@ interface Rewrite {
 }
 
 /**
- * Re-spells one element of a character class, read with `u`-mode semantics, so that `v`
- * accepts it unchanged in meaning. Every branch is a literal-to-escaped-literal
- * substitution, so the matched set is identical.
- *
- * A `-` is escaped only where `u` makes it unambiguously a literal rather than a range
- * operator. Any other `-` is left alone, so an exotic mid-class dash falls through to
- * omission rather than risking a silent change of meaning.
+ * Re-spells one element of a character class, read with `u` semantics, so `v` accepts it unchanged in meaning;
+ * every branch is a literal-to-escaped-literal substitution. A `-` is escaped only where `u` makes it
+ * unambiguously a literal; any other falls through to omission rather than risk a change of meaning.
  */
 function rewriteClassElement(pattern: string, i: number, atClassStart: boolean): Rewrite {
   const ch = pattern[i];

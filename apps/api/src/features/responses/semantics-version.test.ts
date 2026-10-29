@@ -1,8 +1,3 @@
-/**
- * The stored semantics stamp parser (issue #723). Pure, no database: the
- * integration suites cover what each call site does with the result.
- */
-
 import { SEMANTICS_VERSION } from "@roonga/qcms-core";
 import { describe, expect, it } from "vitest";
 
@@ -15,7 +10,6 @@ describe("parseSemanticsVersion", () => {
   });
 
   it("reads a stamp this evaluator does not implement, leaving the gate to decide", () => {
-    // Not this parser's call: an old snapshot has a perfectly readable stamp.
     expect(parseSemanticsVersion("999")).toBe(999);
   });
 

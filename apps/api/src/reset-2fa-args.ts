@@ -1,13 +1,5 @@
-/**
- * Argument handling for `pnpm qcms:reset-2fa` (issue #432).
- *
- * A module of its own rather than part of `reset-2fa.ts`, for one mechanical
- * reason: that file is a process entry and ends in `process.exit(await main())`,
- * so importing it from a test would run the command. The contract worth pinning
- * without a database is exactly the one that lives here - that a bare invocation
- * is a dry run, and that a flag the operator mistyped is a refusal rather than a
- * silent default.
- */
+// Separate from `reset-2fa.ts` because that file is a process entry: importing it from a
+// test would run the command.
 
 export const USAGE = [
   "Usage: pnpm qcms:reset-2fa --email <address> [--yes]",
@@ -21,33 +13,21 @@ export const USAGE = [
   "",
 ].join("\n");
 
-/** What the argument vector asked for, or the reason it could not be read. */
 export type Invocation =
   | { readonly ok: true; readonly email: string; readonly confirm: boolean }
   | { readonly ok: false; readonly problem: string };
 
 /**
- * Parse `--email <address>` and `--yes`.
- *
- * Hand-rolled rather than reached for a parser: two flags, and a dependency that
- * saves under a hundred lines is a liability (CONTRIBUTING). Unknown arguments are a
- * refusal rather than an ignore, because the one way this command can be worse than
- * useless is doing something other than what the operator wrote - a mistyped `--yes`
- * silently ignored is a report the operator reads as an action, and a mistyped
- * `--email` silently ignored is a missing address.
- *
- * The parsing is pinned by `reset-2fa-args.test.ts`, which needs no database.
+ * Unknown arguments are refused rather than ignored: a silently dropped `--yes` is a
+ * report the operator reads as an action.
  */
 export function parseArgs(argv: readonly string[]): Invocation {
   let email: string | undefined;
   let confirm = false;
   for (let index = 0; index < argv.length; index += 1) {
     const arg = argv[index];
-    // The end-of-options separator, skipped rather than refused. The root script is
-    // `pnpm --filter qcms-api reset-2fa --`, and that `--` is what makes pnpm forward
-    // the operator's flags verbatim instead of trying to read `--email` as its own -
-    // so it always arrives here, and a run through `pnpm qcms:reset-2fa` printed the
-    // usage for an unrecognised argument until this line existed.
+    // The root script ends in `--` so pnpm forwards the operator's flags verbatim, so the
+    // separator always arrives here and has to be skipped rather than refused.
     if (arg === "--") continue;
     if (arg === "--yes") {
       confirm = true;

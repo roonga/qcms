@@ -1,5 +1,5 @@
 import { readFileSync, readdirSync } from "node:fs";
-import { join, relative } from "node:path";
+import { join, relative, sep } from "node:path";
 import { fileURLToPath } from "node:url";
 
 import { describe, expect, it } from "vitest";
@@ -377,11 +377,16 @@ function source(relative: string): string {
   return readFileSync(join(APP_ROOT, relative), "utf8");
 }
 
-/** Every file under one of `apps/admin`'s directories, as paths relative to `apps/admin`. */
+/**
+ * Every file under one of `apps/admin`'s directories, as paths relative to `apps/admin`.
+ *
+ * Separators are forced to `/` because every path this suite compares against is written
+ * POSIX-style and `relative()` answers with backslashes on Windows.
+ */
 function filesUnder(top: string, keep: (name: string) => boolean): readonly string[] {
   return readdirSync(join(APP_ROOT, top), { recursive: true, withFileTypes: true })
     .filter((entry) => entry.isFile() && keep(entry.name))
-    .map((entry) => relative(APP_ROOT, join(entry.parentPath, entry.name)))
+    .map((entry) => relative(APP_ROOT, join(entry.parentPath, entry.name)).split(sep).join("/"))
     .sort((left, right) => left.localeCompare(right));
 }
 

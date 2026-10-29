@@ -1,35 +1,17 @@
-/**
- * Thin HTTP clients for the e2e suite (task 027).
- *
- * Scenarios drive the product only through these - `app.request(...)` under the
- * hood, one method per product action, so a scenario reads as a story ("admin
- * publishes the form; respondent walks the branch; admin exports") rather than a
- * pile of fetch plumbing. They are the *consumer's* view: HTTP verbs, headers,
- * and JSON bodies, no imports from any slice's handler.
- *
- * Every request carries the internal service token (SEC-4). Admin calls add the
- * admin's better-auth session token, obtained from `adminLogin()` (031);
- * respondent session-scoped calls add the `Bearer` session token minted by
- * `POST /sessions`.
- */
-
 import { DEFAULT_TEST_ENVIRONMENT } from "@roonga/qcms-db/testing";
 
 import { ADMIN_SESSION_HEADER } from "../../src/middleware/admin-auth.js";
 import type { createApp } from "../../src/app.js";
 
-/** The internal-token header (SEC-4); the wire name is stable (031 keeps it). */
 const INTERNAL_TOKEN_HEADER = "x-qcms-internal-token";
 
 type App = ReturnType<typeof createApp>;
 
-/** The parsed outcome of a JSON request. */
 export interface JsonResult<T = unknown> {
   readonly status: number;
   readonly body: T;
 }
 
-/** The outcome of a raw (non-JSON) request - used for exports. */
 export interface RawResult {
   readonly status: number;
   readonly contentType: string | null;
@@ -43,11 +25,8 @@ async function parse<T>(res: Response): Promise<JsonResult<T>> {
 }
 
 /**
- * The admin authoring surface (`/admin/*`). One instance per composition. The
- * session token is a REAL better-auth session token (031): the middleware
- * resolves it against the database, so there is deliberately no default - a
- * scenario must call `adminLogin()` first, exactly as the admin app signs in
- * before it proxies anything.
+ * The session token is a real better-auth session token the middleware resolves against
+ * the database, so there is deliberately no default: call `adminLogin()` first.
  */
 export class AdminClient {
   constructor(
@@ -73,8 +52,6 @@ export class AdminClient {
     });
   }
 
-  // --- questions ------------------------------------------------------------
-
   async createQuestion<T = unknown>(input: {
     slug: string;
     definition: unknown;
@@ -93,8 +70,6 @@ export class AdminClient {
     return parse<T>(await this.req("POST", `/questions/${questionId}/versions/${version}/publish`));
   }
 
-  // --- forms ----------------------------------------------------------------
-
   async createForm<T = unknown>(input: {
     formId: string;
     slug: string;
@@ -112,11 +87,8 @@ export class AdminClient {
   }
 
   /**
-   * Release a published version to an environment, or promote it there (ADR-40, task 065).
-   *
-   * Beside `publishForm` rather than folded into it, because the two are different acts:
-   * publishing puts a version in the library and serves it nowhere, and this is what puts
-   * it in front of a respondent. A scenario that walks the respondent loop needs both.
+   * Beside `publishForm` rather than folded into it: publishing puts a version in the
+   * library and serves it nowhere, and this is what puts it in front of a respondent.
    */
   async releaseVersion<T = unknown>(
     formId: string,
@@ -125,14 +97,9 @@ export class AdminClient {
     return parse<T>(await this.req("POST", `/forms/${formId}/releases`, input));
   }
 
-  // --- secure links ---------------------------------------------------------
-
   /**
-   * Mint secure links.
-   *
-   * `environment` defaults to the one this harness serves, because that is what every
-   * scenario wants and the API requires the field with no default of its own (Q19, task
-   * 066). A scenario that wants another names it.
+   * `environment` defaults to the one this harness serves, because the API requires the
+   * field with no default of its own.
    */
   async mintLinks<T = unknown>(
     formId: string,
@@ -146,16 +113,12 @@ export class AdminClient {
     );
   }
 
-  // --- webhooks -------------------------------------------------------------
-
   async createWebhook<T = unknown>(
     formId: string,
     input: { url: string; secret?: string; active?: boolean },
   ): Promise<JsonResult<T>> {
     return parse<T>(await this.req("POST", `/forms/${formId}/webhooks`, input));
   }
-
-  // --- responses: read / export / erase ------------------------------------
 
   async listResponses<T = unknown>(
     formId: string,
@@ -195,10 +158,6 @@ export class AdminClient {
   }
 }
 
-/**
- * The public respondent surface (session lifecycle). No admin marker; the
- * session-scoped calls carry the `Bearer` session token.
- */
 export class RespondentClient {
   constructor(
     private readonly app: App,
@@ -214,13 +173,9 @@ export class RespondentClient {
   }
 
   /**
-   * Start a session, anonymously (`{ formSlug }`) or via a link (`{ token }`).
-   *
-   * Two routes since task 066, because the two entry modes ride different mount decisions
-   * (Q21): `POST /sessions` is `prod`'s form-slug door and `POST /sessions/link` is on
-   * every environment's surface. The dispatch is here so a scenario reads as it did while
-   * reaching the address a deployment serves; the split itself is asserted in
-   * `04-mount-split.e2e.ts` and in the API's own integration suite.
+   * Two routes, because the entry modes ride different mount decisions: `POST /sessions`
+   * is `prod`'s form-slug door and `POST /sessions/link` is on every environment's
+   * surface.
    */
   async start<T = unknown>(body: { formSlug: string } | { token: string }): Promise<JsonResult<T>> {
     return parse<T>(
@@ -270,7 +225,6 @@ export class RespondentClient {
   }
 }
 
-/** Extract the opaque link token from a minted link URL (`…/l/<token>`). */
 export function tokenFromLinkUrl(url: string): string {
   const marker = "/l/";
   const idx = url.lastIndexOf(marker);

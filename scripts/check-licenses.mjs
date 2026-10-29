@@ -1,20 +1,9 @@
 #!/usr/bin/env node
 // @ts-check
 /**
- * Dependency license gate (CONTRIBUTING dependency policy).
- *
- * QCMS ships under MIT and is redistributed as scaffolded source + published
- * packages, so every **runtime** dependency must carry a permissive,
- * MIT-compatible license. Copyleft (GPL/AGPL/LGPL/SSPL/EUPL), source-available
- * (BUSL/Elastic), and unlicensed/proprietary deps are forbidden in the runtime
- * tree - they'd impose obligations MIT redistribution can't honor.
- *
- * Deny-by-default: any license NOT on the allow-list fails the build, so a new
- * or unusual license gets a human decision instead of silently shipping. Dev
- * dependencies are not checked (not redistributed).
- *
- * Uses `pnpm licenses list --prod --json` - no extra dependency.
- * Usage:  node scripts/check-licenses.mjs
+ * QCMS is redistributed under MIT, so a copyleft or source-available runtime dependency
+ * would impose obligations that redistribution cannot honour. Deny by default, so an
+ * unusual license gets a human decision. Dev dependencies are not redistributed.
  */
 
 import { execSync } from "node:child_process";
@@ -38,8 +27,7 @@ const ALLOWED = new Set([
 ]);
 
 function normalize(license) {
-  // pnpm may report SPDX expressions like "(MIT OR Apache-2.0)" - allow if ANY
-  // disjunct is allowed; for "AND" every part must be allowed.
+  // An SPDX `OR` passes when any disjunct is allowed; an `AND` needs every part allowed.
   const expr = license.replace(/[()]/g, "").trim();
   if (/\bOR\b/i.test(expr)) return expr.split(/\bOR\b/i).map((s) => s.trim());
   if (/\bAND\b/i.test(expr)) return { and: expr.split(/\bAND\b/i).map((s) => s.trim()) };
@@ -52,8 +40,7 @@ function isAllowed(license) {
   return n.and.every((l) => ALLOWED.has(l));
 }
 
-// execSync (shell) rather than execFile: Node on Windows won't spawn pnpm.cmd
-// via execFile without a shell (EINVAL); a plain string command works on both.
+// A shell is required because Node on Windows cannot spawn `pnpm.cmd` without one.
 const raw = execSync("pnpm licenses list --prod --json", {
   encoding: "utf8",
   maxBuffer: 32 * 1024 * 1024,

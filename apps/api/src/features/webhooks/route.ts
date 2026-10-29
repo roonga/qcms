@@ -1,15 +1,3 @@
-/**
- * Route definitions for the webhook-config admin slices (task 024).
- *
- * Every route is declared with `@hono/zod-openapi` `createRoute` (017's
- * convention) and carries its SEC-5 scope intent via `withScopes` -
- * `webhooks:manage` for all of them (inert at launch; annotated so `/api/v1`
- * activation is wiring, not archaeology). The admin group is guarded by the
- * internal service-token gate (SEC-4) and the admin-auth gate
- * (`registerAdminAuth`) before any handler runs; in a public-only process the
- * group is not mounted, so these paths 404, never 403 (ADR-09).
- */
-
 import { createRoute } from "@hono/zod-openapi";
 
 import type { SliceRegistrar } from "../../app.js";
@@ -39,14 +27,6 @@ import {
   WebhookParams,
 } from "./schema.js";
 
-/**
- * The `202` every configure route carries since task 070 (Q30, Q51).
- *
- * One description, declared once, because the three routes answer the same thing for the
- * same reason: the two-person rule holds for this workspace and this environment, so the
- * change is **stored pending** and has taken effect on nothing until a different
- * `forms.approver` holding `prod` in scope confirms it.
- */
 const pendingResponse = {
   202: {
     description:
@@ -73,8 +53,6 @@ export const createWebhookRoute = createRoute({
       content: { "application/json": { schema: CreatedWebhookResponse } },
     },
     ...pendingResponse,
-    // 400: malformed form id. 404: no such form. 422: URL rejected (scheme/SSRF).
-    // 409: this endpoint already has a change waiting for a second approver (task 070).
     ...errorResponses(400, 401, 404, 409, 422),
   },
   ...withScopes("webhooks:manage"),
@@ -133,8 +111,6 @@ export const deactivateWebhookRoute = createRoute({
   ...withScopes("webhooks:manage"),
 });
 
-// --- the pending `prod` endpoint change (Q30, Q51; task 070) ----------------
-
 export const listEndpointProposalsRoute = createRoute({
   method: "get",
   path: "/forms/{id}/webhooks/proposals",
@@ -165,9 +141,6 @@ export const confirmEndpointProposalRoute = createRoute({
       description: "The confirmed change, now applied to the endpoint",
       content: { "application/json": { schema: EndpointProposalResponse } },
     },
-    // 403: the confirming account is the proposing one, or the caller does not hold
-    // forms.approver with this environment in scope. 404: no such pending change for this
-    // form in this environment. 409: somebody else confirmed or withdrew it first.
     ...errorResponses(400, 401, 403, 404, 409),
   },
   ...withScopes("webhooks:manage"),
@@ -189,10 +162,7 @@ export const withdrawEndpointProposalRoute = createRoute({
   ...withScopes("webhooks:manage"),
 });
 
-/**
- * Register every webhook-config route on an admin group. The admin-auth gate
- * (`registerAdminAuth`) must precede this in the admin bucket so it runs first.
- */
+// `registerAdminAuth` must precede this in the admin bucket so its gate runs first.
 export const registerWebhooks: SliceRegistrar = (group, deps: Deps): void => {
   group.openapi(createWebhookRoute, makeCreateWebhookHandler(deps));
   group.openapi(listWebhooksRoute, makeListWebhooksHandler(deps));

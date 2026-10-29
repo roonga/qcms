@@ -1,12 +1,3 @@
-/**
- * Scenario 2 - the anonymous respondent path (task 027, exit criterion 1).
- *
- * The same respondent loop as scenario 1 but with no secure link: an anonymous
- * session started by form slug walks the branch (this time keeping the follow-up
- * answered), submits, and the response surfaces in the admin export tagged
- * `anonymous`. The form is stood up with the shared seed toolkit.
- */
-
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 
 import {
@@ -47,7 +38,6 @@ describe("scenario 2: anonymous respondent", () => {
     expect(start.status).toBe(201);
     const { sessionId, sessionToken } = start.body;
 
-    // Reveal the follow-up and answer it (kept in the locked set this time).
     const revealed = await respondent.answer<StepBody>(
       sessionId,
       sessionToken,
@@ -71,7 +61,6 @@ describe("scenario 2: anonymous respondent", () => {
     expect(receipt.status).toBe(200);
     expect(receipt.body.contentHash).toMatch(/^[0-9a-f]{64}$/);
 
-    // The response is in the export, tagged anonymous, with both answers.
     const json = await admin.export(formId, { format: "json" });
     expect(json.status).toBe(200);
     const rows = JSON.parse(json.text) as {
@@ -82,7 +71,6 @@ describe("scenario 2: anonymous respondent", () => {
     const row = rows.find((r) => r.sessionId === sessionId);
     expect(row).toBeDefined();
     expect(row?.accessMode).toBe("anonymous");
-    // The JSON export keys answers by questionId (canonical encodings).
     expect(Object.keys(row?.answers ?? {}).sort()).toEqual([
       "q_accident_count",
       "q_at_fault_accident",

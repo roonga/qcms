@@ -1,12 +1,4 @@
-/**
- * Stamping the tree (task 037).
- *
- * Deliberately I/O and nothing else: what to write is decided by `templates.ts` and
- * `render.ts`, what goes in `.env` by `env-file.ts`. This module's only judgement is
- * the refusal at the top, and that one matters: a scaffolder that writes into a
- * directory someone already has work in is a data-loss bug, so an existing non-empty
- * target stops the run unless `--force` says otherwise.
- */
+/** I/O only. Refuses a non-empty target unless `--force`, since stamping over work loses data. */
 
 import { mkdirSync, readdirSync, statSync, writeFileSync } from "node:fs";
 import { dirname, join } from "node:path";

@@ -1,47 +1,9 @@
 #!/usr/bin/env node
 // @ts-check
 /**
- * ESLint, always run with the workspace root as the working directory.
- *
- * Every `lint` script in this repository goes through here, so that one file linted
- * twice gets one verdict. That is not free by default: ESLint hands each rule a
- * `context.cwd`, and a plugin is entitled to resolve things against it, so the same
- * file under the same config can be judged differently from the root than from the
- * package that owns it. `pnpm check:lint-coverage` measures coverage from the root
- * while `turbo run lint` runs each package's script in the package directory, which
- * is exactly the pair that must not disagree.
- *
- * **Measured, not hypothetical** (issue #899). `eslint-plugin-sonarjs` activates 14 of
- * its 279 rules only when a dependency is declared in a `package.json` at or above the
- * linted file, and that upward walk stops at `context.cwd`
- * (`helpers/dependency-manifests/dependencies.js` bounds it with `topDir`). QCMS
- * declares `vitest` and `@playwright/test` once, in the root manifest, and only
- * `apps/e2e` and `tooling/e2e-support` re-declare either. So from `apps/portal` the
- * walk ended at `apps/portal/package.json`, found no test framework, and every one of
- * those rules returned an empty visitor: `no-forced-browser-interaction`,
- * `no-skipped-tests`, `explicit-test-skip`, `stable-tests`, `no-duplicate-test-title`,
- * `no-empty-test-title`, `async-test-assertions`, `synchronous-suite-callback`,
- * `no-mixed-completion-style`, `no-interpolation-in-inline-snapshots`,
- * `parameterized-tests`, `prefer-specific-assertions`, `no-default-utility-imports`
- * and `no-implicit-dependencies`. The root sweep saw two real errors in
- * `apps/portal/e2e/clear-paths.pw.ts` that the merge gate could not.
- *
- * What is deliberately NOT the fix: declaring `@playwright/test` in the two apps that
- * only borrow it from the root. That would settle one rule for one directory and leave
- * the next root-only dependency, and the reverse direction, to be found the same way.
- * Pinning the working directory settles the class.
- *
- * Config resolution and path-scoped `files` globs were checked and are NOT part of the
- * problem: ESLint resolves the flat config by walking up, and its `files` patterns are
- * relative to the config file's own directory, so `apps/api/src/**` fences apply
- * identically from either cwd (verified on a probe file that imports `node:fs`).
- * `context.cwd` is the one thing a config cannot pin: it comes from the process, not
- * the config (`eslint/lib/linter/linter.js` takes it from `process.cwd()`).
- *
- * Usage, from any directory: `node <repo>/scripts/eslint-workspace.mjs [args...]`.
- * Positional targets are rewritten from the invoking directory to the workspace root;
- * flags and their values are passed through untouched, so a path-valued flag such as
- * `--ignore-pattern` must be written relative to the workspace root.
+ * Every `lint` script goes through here so one file gets one verdict: `context.cwd` comes from the
+ * process and plugins such as `eslint-plugin-sonarjs` bound their search there, so rules go inert in a
+ * package directory. Positional targets are rewritten to the root; a path-valued flag must already be root-relative.
  */
 
 import { spawnSync } from "node:child_process";
@@ -51,16 +13,14 @@ import path from "node:path";
 import process from "node:process";
 import { pathToFileURL } from "node:url";
 
-/** The workspace root: this file lives in `<root>/scripts/`. */
 export const WORKSPACE_ROOT = path.resolve(import.meta.dirname, "..");
 
 /** Basename of this module, so other gates can recognise a lint script that uses it. */
 export const WORKSPACE_RUNNER = "eslint-workspace.mjs";
 
 /**
- * ESLint flags that consume the token after them. Only the separated form needs
- * listing: `--flag=value` is self-contained. Shared with
- * `scripts/check-lint-coverage.mjs` so the two agree on what a positional target is.
+ * Shared with `scripts/check-lint-coverage.mjs` so the two agree on what a positional
+ * target is. Only the separated form needs listing; `--flag=value` is self-contained.
  */
 export const VALUE_FLAGS = new Set([
   "-c",
@@ -80,11 +40,9 @@ export const VALUE_FLAGS = new Set([
 ]);
 
 /**
- * One positional target, moved from the invoking directory to the workspace root.
- *
- * @param {string} target a path or glob as written on the command line.
- * @param {string} fromDir absolute path of the invoking directory.
- * @returns {string} the same target, relative to the workspace root.
+ * @param {string} target
+ * @param {string} fromDir
+ * @returns {string}
  */
 function toWorkspaceRelative(target, fromDir) {
   if (path.isAbsolute(target)) return target;
@@ -93,10 +51,8 @@ function toWorkspaceRelative(target, fromDir) {
 }
 
 /**
- * Rewrite an ESLint argument list for execution at the workspace root.
- *
- * @param {string[]} args the arguments as given to this script.
- * @param {string} fromDir absolute path of the invoking directory.
+ * @param {string[]} args
+ * @param {string} fromDir
  * @returns {string[]}
  */
 export function rewriteArgs(args, fromDir) {
@@ -119,10 +75,9 @@ export function rewriteArgs(args, fromDir) {
 }
 
 /**
- * The ESLint CLI entry point, resolved from THIS file rather than from the caller, so
- * every package lints with the workspace's one ESLint.
+ * Resolved from this file, not the caller, so every package lints with one ESLint.
  *
- * @returns {string} absolute path to `eslint`'s bin script.
+ * @returns {string}
  */
 export function eslintBin() {
   const manifestPath = createRequire(import.meta.url).resolve("eslint/package.json");
@@ -135,11 +90,9 @@ export function eslintBin() {
 }
 
 /**
- * Run ESLint at the workspace root.
- *
- * @param {string[]} args arguments as given to this script.
- * @param {string} [fromDir] the invoking directory; defaults to the process cwd.
- * @returns {number} ESLint's exit code (1 when it was killed by a signal).
+ * @param {string[]} args
+ * @param {string} [fromDir]
+ * @returns {number}
  */
 export function run(args, fromDir = process.cwd()) {
   const result = spawnSync(process.execPath, [eslintBin(), ...rewriteArgs(args, fromDir)], {
@@ -153,8 +106,7 @@ export function run(args, fromDir = process.cwd()) {
   return result.status ?? 1;
 }
 
-// Only when run as a command, so other modules and the test can import the helpers
-// above without spawning ESLint.
+// Guarded so an importing module or test does not spawn ESLint.
 if (process.argv[1] !== undefined && import.meta.url === pathToFileURL(process.argv[1]).href) {
   process.exit(run(process.argv.slice(2)));
 }

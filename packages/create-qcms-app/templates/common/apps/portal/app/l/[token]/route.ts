@@ -5,11 +5,6 @@ import { portalBaseUrl } from "@/lib/server/config";
 import { currentBasePath } from "@/lib/server/environment";
 import { writeSessionToken } from "@/lib/server/session-cookie";
 
-// The redirects below carry the environment prefix (Q21), because an unprefixed
-// `/s/{id}` is `prod`'s address and a non-prod session read there is not found.
-//
-// `LINK_WRONG_ENVIRONMENT` maps to the same `invalid` screen as every other unusable
-// link: the screen must not tell a holder that their token is real somewhere else (Q16).
 const ERROR_KIND: Record<string, string> = {
   LINK_EXPIRED: "expired",
   LINK_CONSUMED: "consumed",

@@ -15,16 +15,6 @@ import {
   scratchPath,
 } from "./agent-scratch.mjs";
 
-/**
- * The lane-private scratch convention (issues #396, #602).
- *
- * The defect is that two lanes independently choose the same obvious log name in a
- * scratchpad that is shared rather than session-private, so one lane's evidence is
- * another lane's file. These tests pin the two properties that make that impossible:
- * two lanes never resolve to the same directory, and a path handed out for a named file
- * never carries a previous run's contents.
- */
-
 const SCRIPT = fileURLToPath(new URL("agent-scratch.mjs", import.meta.url));
 
 const temporaryDirectories: string[] = [];
@@ -39,7 +29,6 @@ function temporaryDirectory(prefix: string): string {
   return directory;
 }
 
-/** A real git working tree on `branch`, so lane resolution is exercised against git. */
 function gitWorktree(branch: string): string {
   const directory = temporaryDirectory("qcms-agent-scratch-repo-");
   const git = (...args: string[]) =>
@@ -60,8 +49,8 @@ describe("laneSlug", () => {
   });
 
   it("refuses a name with nothing usable in it, rather than returning an empty segment", () => {
-    // An empty segment would resolve to the shared root, which is the exact failure the
-    // lane directory exists to remove: a silent fallback to the place everyone writes.
+    // An empty segment would resolve to the shared root, a silent fallback to the place
+    // everyone writes.
     expect(() => laneSlug("///")).toThrow(/no usable characters/);
   });
 });
@@ -81,9 +70,8 @@ describe("resolveLane", () => {
   });
 
   it("lets a second agent on the same branch take its own lane through QCMS_AGENT_LANE", () => {
-    // A reviewer runs the gates independently on the branch its executor is working on.
-    // Without an override the two would share a directory and reproduce #602 inside one
-    // branch, so the override is part of the convention rather than an escape hatch.
+    // A reviewer and its executor share a branch, so without the override the two would
+    // share a lane directory.
     const directory = gitWorktree("fix/396-scratchpad");
     expect(resolveLane(directory, { QCMS_AGENT_LANE: "fix/396-scratchpad review" })).toBe(
       "fix-396-scratchpad-review",
@@ -91,9 +79,9 @@ describe("resolveLane", () => {
   });
 
   it("refuses a directory that is not a working tree instead of guessing a lane", () => {
-    expect(() => resolveLane(temporaryDirectory("qcms-agent-scratch-plain-"), {})).toThrow(
-      /not a git working tree/,
-    );
+    const directory = temporaryDirectory("qcms-agent-scratch-plain-");
+    expect(() => resolveLane(directory, {})).toThrow(/git could not name the branch/);
+    expect(() => resolveLane(directory, {})).toThrow(/not a git repository/i);
   });
 });
 
@@ -136,8 +124,6 @@ describe("scratchPath", () => {
   });
 
   it("removes a leftover file at the path, so a stale log cannot be read as this run's", () => {
-    // #602's second acceptance criterion. The lane found `verify.log` from a previous
-    // run and briefly read a result from a previous day as its own.
     const root = temporaryDirectory("qcms-agent-scratch-root-");
     const environment = { QCMS_AGENT_SCRATCH_ROOT: root };
     const lane = "fix/602-stale";
@@ -226,9 +212,6 @@ describe("as a command", () => {
 });
 
 describe("the convention is written where an agent meets it", () => {
-  // #602's third acceptance criterion: the rule has to live in the instructions an
-  // executor is actually briefed with, not only in a retro line. A test rather than a
-  // habit, because the agent files are edited far more often than this script is.
   const REPO_ROOT = fileURLToPath(new URL("..", import.meta.url));
   const briefings = [
     "CLAUDE.md",
@@ -245,13 +228,8 @@ describe("the convention is written where an agent meets it", () => {
   });
 
   it.each(briefings)("%s does not print the lane override as an unexported prefix", (file) => {
-    // A simple command that is only assignments sets its variables in the current shell
-    // WITHOUT exporting them, in bash and zsh alike, so
-    // `QCMS_AGENT_LANE=x log=$(node scripts/agent-scratch.mjs verify.log)` runs the
-    // script without the variable: the reviewer silently resolves to the executor's
-    // lane, and asking for a named file then deletes the executor's in-progress log.
-    // `--lane` is the spelling that cannot be got wrong, so no briefing may show the
-    // other one.
+    // An assignments-only command prefix sets the variable without exporting it, so the
+    // script never sees it and falls back to the branch. `--lane` cannot be got wrong.
     expect(readFileSync(join(REPO_ROOT, file), "utf8")).not.toMatch(
       /QCMS_AGENT_LANE=\S+\s+\w+=\$\(/,
     );
@@ -271,11 +249,6 @@ describe("the lane override works the way the briefings spell it", () => {
   });
 
   it("honours QCMS_AGENT_LANE only when it is genuinely exported", () => {
-    // Both halves matter. Exported, the variable works, so the environment form is not
-    // wrong in itself. Unexported - which is what an assignments-only prefix produces -
-    // the script sees nothing and falls back to the branch, which is the executor's
-    // lane. The shell, not the script, is where that goes wrong, so the fix is the
-    // spelling in the instructions.
     const root = temporaryDirectory("qcms-agent-scratch-root-");
     const worktree = gitWorktree("fix/396-reviewer");
     const exported = execFileSync("node", [SCRIPT, "verify.log"], {

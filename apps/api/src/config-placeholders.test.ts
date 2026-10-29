@@ -1,39 +1,15 @@
-/**
- * SEC-8: "a deployment with placeholder secrets must refuse to boot" (task 040).
- *
- * The sentence is in `docs/SECURITY_DESIGN.md` §6 and, until this test existed,
- * nothing enforced it: validation was a length floor, and every placeholder the
- * repo ships is comfortably longer than the floor. The fixtures below are the
- * **literal values** from the committed example files rather than invented
- * strings, so the test fails the moment the guard stops covering what an
- * operator would actually copy.
- *
- * **This file owns the API/gate pair, and nothing wider (issue #491).** The guard is no
- * longer the API's alone: `apps/portal/lib/server/config.ts` and
- * `apps/admin/lib/server/config.ts` now refuse to boot on a placeholder
- * `QCMS_INTERNAL_TOKEN`, and all four readers have to accept the same spellings or a
- * value one side waves through boots on another. That agreement is **not** asserted
- * here, and the reason is turbo rather than taste: a cross-app assertion inside this
- * package's Vitest project is cached against this package's own inputs, so an edit to
- * either app would not invalidate it and it would report green having never read the
- * file that broke it (`scripts/check-origin-guards.test.ts` records that lesson at
- * length). It is asserted from the repo root, in
- * `scripts/check-bff-config-guards.test.ts`, which pins each BFF against the same
- * `PLACEHOLDER_SHAPES` this file pins the API against. The gate is the shared vertex,
- * so the two halves together are agreement across all four readers - and the corpus
- * construction below stays the definition of record that the root-level half reuses.
- */
+// The BFF half of this agreement is asserted from the repo root, in
+// `scripts/check-bff-config-guards.test.ts`: a cross-app assertion here would be
+// turbo-cached against this package's inputs and report green without reading it.
 
 import { describe, expect, it } from "vitest";
 
-// The committed-secret half of the same control. Imported so the agreement
-// between the two lists is asserted rather than eyeballed (task 040 review).
 // @ts-expect-error - plain ESM tooling, deliberately untypechecked.
 import { PLACEHOLDER_SHAPES } from "../../../scripts/check-security-hygiene.mjs";
 import { loadConfig, PLACEHOLDER_PREFIXES } from "./config.js";
 import { validEnv } from "./test-support.js";
 
-/** Verbatim from `.env.compose.example` (lines 7-9, 29, 52) and the app examples. */
+/** Must stay verbatim from the shipped example env files, not invented strings. */
 const SHIPPED_PLACEHOLDERS = {
   QCMS_LINK_KEYS: "replace-with-a-random-32-character-link-signing-key",
   QCMS_SESSION_KEYS: "replace-with-a-random-32-character-session-signing-key",
@@ -53,7 +29,6 @@ function loadWith(overrides: Record<string, string>): { ok: boolean; message: st
 
 describe("placeholder secrets refuse to boot (SEC-8)", () => {
   it("accepts the generated secrets the test harness produces (the fixture is real)", () => {
-    // Without this, every assertion below could be passing for an unrelated reason.
     expect(loadWith({}).ok).toBe(true);
   });
 
@@ -107,13 +82,6 @@ describe("placeholder secrets refuse to boot (SEC-8)", () => {
 });
 
 describe("the boot guard and the repository gate agree on what a placeholder is", () => {
-  /**
-   * Spellings a human might plausibly write in an example file, plus values that
-   * are unmistakably real. The property is agreement, in both directions: a
-   * value the gate waves through as "obviously a placeholder, safe to commit"
-   * must be a value the API refuses to boot on, or a published key reaches a
-   * running deployment through the gap between them.
-   */
   const CANDIDATES = [
     "replace-with-a-random-32-character-app-encryption-key",
     "replace_with_a_random_32_character_app_encryption_key",
@@ -128,7 +96,6 @@ describe("the boot guard and the repository gate agree on what a placeholder is"
     "example_value_not_for_production_use_x",
     "placeholder-value-not-for-production-x",
     "<generate a 32 character secret here>",
-    // Real-looking material: neither side may treat these as placeholders.
     "8f2c1a9e4b7d6053a1c8e2f4b6d809173a5c7e1b9d0f2468ace13579bdf02468",
     "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
     "correct-horse-battery-staple-and-then-some-more",
@@ -160,9 +127,6 @@ describe("the remedy is correct for the kind of knob, not just for secrets", () 
   });
 
   it("does not tell an operator to generate a secret for a connection string", () => {
-    // The defect this pins: `parseRequiredString` serves two secrets and
-    // DATABASE_URL, so a single remedy sentence sent operators of a
-    // placeholder-shaped URL to the secret-generation runbook.
     const result = loadWith({ DATABASE_URL: "replace-with-your-postgres-connection-string" });
     expect(result.message).not.toContain("generate real secrets");
     expect(result.message).toContain("set the value for this deployment");
@@ -176,23 +140,8 @@ describe("the remedy is correct for the kind of knob, not just for secrets", () 
 });
 
 describe("safety property: anything the repository gate calls a placeholder must not boot", () => {
-  /**
-   * The invariant, stated directionally because that is the direction that
-   * protects a deployment: **if `check-security-hygiene.mjs` waves a value
-   * through as an obvious placeholder, `loadConfig` must refuse to boot on it.**
-   * The converse is deliberately not asserted - the boot guard is allowed to be
-   * stricter than the committed-file gate, and an empty value is refused by a
-   * different rule ("is required") rather than as a placeholder.
-   *
-   * Derived from **both** constants rather than from hand-picked strings, which
-   * is what makes it survive a change to either. The previous test was 16
-   * literal candidates and structurally could not see the gap the PO review
-   * found: the gate accepted `/^replace[-_]/i` while the boot guard listed only
-   * `replace-with`, `replace-me` and `replace-this`, so
-   * `replace-before-you-deploy-a-real-key` passed the scan and booted.
-   */
+  // One direction only: the boot guard is allowed to be stricter than the gate.
 
-  /** The leading literal word of a gate shape, e.g. `/^replace[-_]/i` -> "replace". */
   function stemOf(shape: RegExp): string | undefined {
     const literal = /^\^([A-Za-z]+)/.exec(shape.source);
     return literal?.[1];
@@ -206,10 +155,6 @@ describe("safety property: anything the repository gate calls a placeholder must
     "this-now-please-padding-padding-padding",
   ];
 
-  /**
-   * Every candidate either side's vocabulary can produce: each gate stem and
-   * each boot-guard prefix, crossed with separator and suffix variants.
-   */
   const CANDIDATES: string[] = [
     ...new Set(
       [
@@ -228,8 +173,6 @@ describe("safety property: anything the repository gate calls a placeholder must
   it("built a corpus from both lists, so the property is not vacuous", () => {
     expect(CANDIDATES.length).toBeGreaterThan(20);
     expect(CANDIDATES.some((value) => gateTreatsAsPlaceholder(value))).toBe(true);
-    // The exact string the PO review found, reached by construction rather than
-    // by being written down: gate stem "replace" + a tail.
     expect(CANDIDATES).toContain("replace-before-you-deploy-a-real-key");
   });
 

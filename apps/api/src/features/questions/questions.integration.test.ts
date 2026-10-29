@@ -1,20 +1,3 @@
-/**
- * Admin question-authoring slice tests (task 021), driven through `app.request()`
- * against the **real** kernel and the 013 Testcontainers harness DB - never a
- * mock of our own packages (CONTRIBUTING). Requires Docker.
- *
- * Covers every exit criterion:
- *  1. the version lifecycle walk (create → edit draft → publish → edit rejected
- *     → new version → deprecate) and every invalid transition;
- *  2. R6 - recreate-after-deprecate with the same id is rejected, a new id is fine;
- *  3. malformed definitions return 422 with the kernel's coded issues and paths;
- *  4. (the auth-seam 401 and public-only 404 are the no-DB `admin-mount.test.ts`).
- *
- * Task 032 adds the preview route's coverage at the bottom: one version compiled
- * to a single-question A2UI document, wrapper shape, no abuse decoy, and the
- * ADR-18 version stamps.
- */
-
 import {
   A2UI_SPEC_VERSION,
   COMPILER_VERSION,
@@ -38,9 +21,6 @@ let testDb: TestDb;
 let deps: Deps;
 let app: ReturnType<typeof createApp>;
 let internalToken: string;
-// A real better-auth session row seeded per suite (031): the admin-auth
-// middleware verifies it against the database, so a made-up marker no longer
-// authenticates anything.
 let adminSessionToken: string;
 
 beforeAll(async () => {
@@ -56,8 +36,6 @@ beforeAll(async () => {
 afterAll(async () => {
   await testDb?.teardown();
 }, CONTAINER_BOOT_TIMEOUT_MS);
-
-// --- request helpers (channel token + a real admin session on every call) ----
 
 function authHeaders(extra: Record<string, string> = {}): Record<string, string> {
   return {
@@ -88,8 +66,6 @@ async function get(path: string): Promise<Response> {
   return app.request(`/admin${path}`, { headers: authHeaders() });
 }
 
-// --- fixtures ---------------------------------------------------------------
-
 function shortText(id: string, labelText = "Favourite colour"): Record<string, unknown> {
   return { questionId: id, type: "shortText", label: { en: labelText } };
 }
@@ -105,11 +81,8 @@ interface ErrBody {
   error: { code: string; message: string; details?: { issues?: unknown[]; target?: string } };
 }
 
-// --- exit criterion 1: the lifecycle walk -----------------------------------
-
 describe("version lifecycle walk (exit criterion 1)", () => {
   it("create → edit draft → publish → edit rejected → new version → deprecate", async () => {
-    // create
     const createRes = await post("/questions", {
       slug: "walk-colour",
       definition: shortText("q_walk_colour"),
@@ -121,7 +94,6 @@ describe("version lifecycle walk (exit criterion 1)", () => {
     expect(created.version.status).toBe("draft");
     expect(created.version.publishedAt).toBeNull();
 
-    // edit draft (in place)
     const editRes = await put("/questions/q_walk_colour/versions/1", {
       definition: shortText("q_walk_colour", "Best colour"),
     });
@@ -130,21 +102,18 @@ describe("version lifecycle walk (exit criterion 1)", () => {
     expect(edited.status).toBe("draft");
     expect(edited.definition.label?.en).toBe("Best colour");
 
-    // publish
     const pubRes = await post("/questions/q_walk_colour/versions/1/publish");
     expect(pubRes.status).toBe(200);
     const published = (await pubRes.json()) as VersionBody;
     expect(published.status).toBe("published");
     expect(published.publishedAt).not.toBeNull();
 
-    // edit rejected - published is immutable (before the DB trigger)
     const rejectRes = await put("/questions/q_walk_colour/versions/1", {
       definition: shortText("q_walk_colour", "Sneaky edit"),
     });
     expect(rejectRes.status).toBe(409);
     expect(((await rejectRes.json()) as ErrBody).error.code).toBe("VERSION_IMMUTABLE");
 
-    // new version - seeded from the latest (carries "Best colour")
     const newVerRes = await post("/questions/q_walk_colour/versions");
     expect(newVerRes.status).toBe(201);
     const v2 = (await newVerRes.json()) as VersionBody;
@@ -152,12 +121,10 @@ describe("version lifecycle walk (exit criterion 1)", () => {
     expect(v2.status).toBe("draft");
     expect(v2.definition.label?.en).toBe("Best colour");
 
-    // deprecate the published v1 (existing pins/history untouched)
     const depRes = await post("/questions/q_walk_colour/versions/1/deprecate");
     expect(depRes.status).toBe(200);
     expect(((await depRes.json()) as VersionBody).status).toBe("deprecated");
 
-    // the detail view now shows both versions, oldest first
     const detail = (await (await get("/questions/q_walk_colour")).json()) as {
       slug: string;
       versions: VersionBody[];
@@ -169,8 +136,6 @@ describe("version lifecycle walk (exit criterion 1)", () => {
     ]);
   });
 });
-
-// --- exit criterion 1: invalid transitions ----------------------------------
 
 describe("invalid transitions (exit criterion 1)", () => {
   async function seed(id: string, slug: string): Promise<void> {
@@ -235,23 +200,18 @@ describe("invalid transitions (exit criterion 1)", () => {
   });
 });
 
-// --- exit criterion 2: R6 (ids never reused) --------------------------------
-
 describe("R6 - questionId is never reused (exit criterion 2)", () => {
   it("recreating a deprecated question's id is rejected; a fresh id is fine", async () => {
-    // create → publish → deprecate the whole lifecycle for q_reuse
     expect(
       (await post("/questions", { slug: "reuse-a", definition: shortText("q_reuse") })).status,
     ).toBe(201);
     await post("/questions/q_reuse/versions/1/publish");
     await post("/questions/q_reuse/versions/1/deprecate");
 
-    // same id, different slug → QUESTION_ID_REUSED even though it's deprecated
     const reused = await post("/questions", { slug: "reuse-b", definition: shortText("q_reuse") });
     expect(reused.status).toBe(409);
     expect(((await reused.json()) as ErrBody).error.code).toBe("QUESTION_ID_REUSED");
 
-    // a brand-new id is fine
     const fresh = await post("/questions", {
       slug: "reuse-c",
       definition: shortText("q_reuse_new"),
@@ -268,8 +228,6 @@ describe("R6 - questionId is never reused (exit criterion 2)", () => {
     expect(((await clash.json()) as ErrBody).error.code).toBe("SLUG_TAKEN");
   });
 });
-
-// --- exit criterion 3: malformed definitions (kernel paths intact) ----------
 
 describe("malformed definitions → 422 with kernel issues (exit criterion 3)", () => {
   it("a structurally invalid definition returns INVALID_QUESTION_DEFINITION with issues", async () => {
@@ -332,14 +290,12 @@ describe("malformed definitions → 422 with kernel issues (exit criterion 3)", 
       (await post("/questions", { slug: "edit-bad", definition: shortText("q_edit_bad") })).status,
     ).toBe(201);
     const res = await put("/questions/q_edit_bad/versions/1", {
-      definition: { questionId: "q_edit_bad", type: "shortText" }, // missing label
+      definition: { questionId: "q_edit_bad", type: "shortText" },
     });
     expect(res.status).toBe(422);
     expect(((await res.json()) as ErrBody).error.code).toBe("INVALID_QUESTION_DEFINITION");
   });
 });
-
-// --- list: status filter + slug/label search --------------------------------
 
 describe("GET /admin/questions - summary, status filter, search", () => {
   beforeAll(async () => {
@@ -366,9 +322,6 @@ describe("GET /admin/questions - summary, status filter, search", () => {
     const apple = body.questions.find((q) => q.questionId === "q_list_apple");
     expect(apple?.latestStatus).toBe("published");
     expect(apple?.label?.en).toBe("Apple");
-    // The type rides along on the read the label already needed (issue #218): the
-    // library list draws a type column, and without this it could only get one by
-    // issuing a detail read per row.
     expect(apple?.type).toBe("shortText");
   });
 
@@ -387,8 +340,6 @@ describe("GET /admin/questions - summary, status filter, search", () => {
     };
     expect(numbers.questions.map((q) => q.questionId)).toContain("q_list_cherry_count");
     expect(numbers.questions.every((q) => q.type === "number")).toBe(true);
-    // The shortText rows are the ones this has to exclude, and they are still there
-    // under their own type - so the filter narrowed rather than emptied.
     expect(numbers.questions.some((q) => q.questionId === "q_list_apple")).toBe(false);
 
     const shortTexts = (await (await get("/questions?type=shortText")).json()) as {
@@ -427,11 +378,6 @@ describe("GET /admin/questions - summary, status filter, search", () => {
     expect(byLabel.questions.map((q) => q.questionId)).toContain("q_list_apple");
   });
 
-  /**
-   * The search bound (issue #862), the pair of the one the form library list already
-   * carried. A term is matched per row, so an unbounded term is unbounded work; the
-   * schema refuses it before the handler runs, which is what makes the refusal cheap.
-   */
   it("accepts a search term at the 200-character bound", async () => {
     const res = await get(`/questions?search=${"a".repeat(200)}`);
     expect(res.status).toBe(200);
@@ -453,15 +399,6 @@ describe("GET /admin/questions - summary, status filter, search", () => {
     expect(await res.text()).not.toContain("SENTINEL");
   });
 
-  /**
-   * `?versions=all` (issue #684): the one read that replaced a detail request per
-   * question in the form builder.
-   *
-   * The case that matters is the one the summary structurally cannot report - a draft
-   * sitting on top of a published version. `latestStatus` says `draft`, and nothing in
-   * the summary says the published v1 underneath is still there and still pinnable, which
-   * is exactly why the builder was issuing `1 + N` requests to find out.
-   */
   describe("?versions=all", () => {
     beforeAll(async () => {
       await post("/questions", {
@@ -482,16 +419,12 @@ describe("GET /admin/questions - summary, status filter, search", () => {
       };
       const damson = body.questions.find((q) => q.questionId === "q_list_damson");
 
-      // The summary alone would leave the builder thinking this question is unpinnable.
       expect(damson?.latestStatus).toBe("draft");
       expect(damson?.versions?.map((v) => [v.version, v.status])).toEqual([
         [1, "published"],
         [2, "draft"],
       ]);
-      // The definition rides along, because the picker's rule editor reads a version's
-      // options and type off it.
       expect(damson?.versions?.[0]?.definition).toMatchObject({ type: "shortText" });
-      // Every row carries them, not only the one this case is about.
       expect(body.questions.every((q) => Array.isArray(q.versions))).toBe(true);
     });
 
@@ -500,8 +433,6 @@ describe("GET /admin/questions - summary, status filter, search", () => {
         questions: Array<{ questionId: string; latestStatus: string; label?: { en?: string } }>;
       };
       const apple = body.questions.find((q) => q.questionId === "q_list_apple");
-      // The latest is taken out of the version list rather than re-read, so this is the
-      // assertion that the substitution kept the label and status honest.
       expect(apple?.latestStatus).toBe("published");
       expect(apple?.label?.en).toBe("Apple");
     });
@@ -510,8 +441,6 @@ describe("GET /admin/questions - summary, status filter, search", () => {
       const body = (await (await get("/questions")).json()) as {
         questions: Array<Record<string, unknown>>;
       };
-      // Absent, not empty: the library screen renders latest-version rows and has no use
-      // for a definition per version of every question in the library.
       expect(body.questions.every((q) => !("versions" in q))).toBe(true);
     });
 
@@ -529,8 +458,6 @@ describe("GET /admin/questions - summary, status filter, search", () => {
   });
 });
 
-// --- preview: one version → a single-question A2UI document (032) -----------
-
 interface PreviewNode {
   type: string;
   props?: Record<string, unknown>;
@@ -543,12 +470,11 @@ interface PreviewBody {
   compilerVersion: string;
 }
 
-/** Child nodes of a node (a `Text` node's `children` is a string, not a list). */
+// A `Text` node's `children` is a string, not a list.
 function childrenOf(node: PreviewNode): PreviewNode[] {
   return Array.isArray(node.children) ? node.children : [];
 }
 
-/** Every node of a tree, depth-first - so absence can be asserted over all of it. */
 function flatten(node: PreviewNode): PreviewNode[] {
   return [node, ...childrenOf(node).flatMap(flatten)];
 }
@@ -573,22 +499,16 @@ describe("GET /admin/questions/:id/versions/:v/preview (032)", () => {
 
     expect(body.stepId).toBe("stp_preview");
 
-    // The wrapper is the compiled-step shape minus headings, so the shared
-    // renderer needs no preview-specific branch.
     expect(body.root.type).toBe("Form");
     const flex = childrenOf(body.root)[0];
     expect(flex?.type).toBe("Flex");
     expect(flex?.props?.direction).toBe("column");
 
-    // The one control the compiler maps a shortText to, label resolved to a
-    // plain string (not the locale map) for the requested locale.
     const control = childrenOf(flex ?? body.root)[0];
     expect(control?.type).toBe("TextField");
     expect(control?.props?.label).toBe("Draft colour");
     expect(control?.props?.name).toBe("q_preview_draft");
 
-    // An abuse decoy belongs to respondent-facing steps only (026): a preview
-    // is authenticated, never submitted, and must not carry one anywhere.
     expect(flatten(body.root).map((n) => n.type)).not.toContain(HONEYPOT_NODE_TYPE);
   });
 
@@ -626,14 +546,12 @@ describe("GET /admin/questions/:id/versions/:v/preview (032)", () => {
     expect(noVersion.status).toBe(404);
     expect(((await noVersion.json()) as ErrBody).error.code).toBe("VERSION_NOT_FOUND");
 
-    // A non-integer version is the same "no such version", not a parse error.
     const notANumber = await get("/questions/q_preview_draft/versions/abc/preview");
     expect(notANumber.status).toBe(404);
     expect(((await notANumber.json()) as ErrBody).error.code).toBe("VERSION_NOT_FOUND");
 
-    // And so is a whole number past the `question_versions.version` int4 ceiling
-    // (issue #645). It used to reach Postgres, which refused the parameter as out
-    // of range, so the same URL 500ed with one more digit than it 404s with.
+    // Past the `question_versions.version` int4 ceiling, which Postgres itself would
+    // refuse as out of range if the value reached it.
     const overRange = await get("/questions/q_preview_draft/versions/2147483648/preview");
     expect(overRange.status).toBe(404);
     expect(((await overRange.json()) as ErrBody).error.code).toBe("VERSION_NOT_FOUND");
@@ -646,24 +564,10 @@ describe("GET /admin/questions/:id/versions/:v/preview (032)", () => {
   });
 });
 
-// --- issue #53: the v-flag gate on newly authored patterns -------------------
-
-/**
- * Reject-new-only, at the authoring boundary (Code Owner, 2026-09-02).
- *
- * Browsers compile the HTML `pattern` attribute with the `v` flag, whose
- * character-class grammar is narrower than the `u` semantics the kernel
- * validates against. The refusal lives in `requireDefinition` rather than in
- * `QuestionDefinition`'s refinements, and that placement is the whole ruling:
- * a definition **arriving** here is refused, while a definition already
- * **stored** never comes back through this path and keeps reading and serving
- * (R1). The golden corpus and the seed fixtures parse through
- * `parseQuestionDefinition` directly, so ADR-18 is untouched.
- */
+// Browsers compile the HTML `pattern` attribute with the `v` flag, whose character-class
+// grammar is narrower than the `u` semantics the kernel validates against.
 describe("v-invalid patterns are refused at the authoring boundary (#53)", () => {
-  /** The corpus shape from issue #29: fine under `u`, a SyntaxError under `v`. */
   const V_INVALID = "^[A-Za-z][A-Za-z .,'-]{0,99}$";
-  /** Its provably equivalent spelling, which the refusal offers. */
   const V_SAFE = "^[A-Za-z][A-Za-z .,'\\-]{0,99}$";
 
   function withPattern(id: string, pattern: string): Record<string, unknown> {
@@ -689,7 +593,6 @@ describe("v-invalid patterns are refused at the authoring boundary (#53)", () =>
     expect(body.error.code).toBe("INVALID_QUESTION_DEFINITION");
     const issue = issuesOf(body).find((i) => i.code === "PATTERN_NOT_BROWSER_SAFE");
     expect(issue).toBeDefined();
-    // The path is what lands it on the pattern control rather than in a summary.
     expect(issue?.path).toEqual(["constraints", "pattern"]);
     expect(issue?.message).toContain("'v'");
     expect(issue?.message).toContain(V_SAFE);
@@ -720,8 +623,8 @@ describe("v-invalid patterns are refused at the authoring boundary (#53)", () =>
   });
 
   it("refuses without a suggestion when no rewrite is provably safe", async () => {
-    // A mid-class dash is a range operator under `u`, so escaping it could change
-    // the matched set; the normalization declines rather than guess.
+    // A mid-class dash is a range operator under `u`, so escaping it could change the
+    // matched set; the normalization declines rather than guess.
     const res = await post("/questions", {
       slug: "v-no-fix",
       definition: withPattern("q_v_no_fix", "^[a-z-A]+$"),
@@ -743,8 +646,7 @@ describe("v-invalid patterns are refused at the authoring boundary (#53)", () =>
   });
 
   it("STORED v-invalid content still reads and still serves (R1, reject-new-only)", async () => {
-    // Seeded past the boundary, exactly as content published before this rule
-    // was written sits in the database today.
+    // Seeded past the authoring boundary, as content stored before the rule existed is.
     const questionId = QuestionId.parse("q_v_legacy");
     const parsed = parseQuestionDefinition(withPattern("q_v_legacy", V_INVALID));
     if (!parsed.ok) throw new Error("legacy fixture did not parse");
@@ -755,7 +657,6 @@ describe("v-invalid patterns are refused at the authoring boundary (#53)", () =>
     });
     await createQuestionVersion(testDb.db, { questionId, definition: parsed.value });
 
-    // Reads: the stored pattern comes back verbatim, unrepaired and unrefused.
     const read = await get("/questions/q_v_legacy");
     expect(read.status).toBe(200);
     const detail = (await read.json()) as {
@@ -764,9 +665,6 @@ describe("v-invalid patterns are refused at the authoring boundary (#53)", () =>
     const stored = detail.versions.find((v) => v.version === 1);
     expect(stored?.definition.constraints?.pattern).toBe(V_INVALID);
 
-    // Serves: the version still compiles to A2UI. The renderer is what repairs
-    // the pattern on its way to the DOM (issue #52), and it is still the only
-    // layer that does.
     const preview = await get("/questions/q_v_legacy/versions/1/preview");
     expect(preview.status).toBe(200);
   });
@@ -776,9 +674,6 @@ describe("v-invalid patterns are refused at the authoring boundary (#53)", () =>
     ["a2ui-compiler fixtures/corpus/questions/q-msg-plate.json", "^[A-Z0-9][A-Z0-9-]{2,7}$"],
     ["api e2e/support/fixtures/q-am-plate.json", "^[A-Z0-9][A-Z0-9-]{2,7}$"],
   ])("the pattern in %s would be refused if authored fresh", async (where, pattern) => {
-    // This is what proves reject-new-only actually bites rather than being a
-    // rule with no reachable subject: every one of these ships in the corpus
-    // today, keeps compiling, and could not be authored again through this API.
     const slug = `v-fixture-${where.replace(/[^a-z0-9]+/gi, "-").toLowerCase()}`.slice(0, 60);
     const id = `q_v_fx_${Math.abs(hashOf(where)).toString(36)}`;
     const res = await post("/questions", { slug, definition: withPattern(id, pattern) });
@@ -790,7 +685,6 @@ describe("v-invalid patterns are refused at the authoring boundary (#53)", () =>
   });
 });
 
-/** A tiny stable hash, so each fixture row gets its own question id. */
 function hashOf(value: string): number {
   let hash = 0;
   for (const ch of value) hash = (hash * 31 + ch.charCodeAt(0)) | 0;
