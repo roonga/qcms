@@ -1,25 +1,6 @@
 import { QUESTION_TYPES, SEMANTICS_VERSION } from "@roonga/qcms-core";
 
-/**
- * Bump on every text change. Logged with each turn; never inferred.
- *
- * **2** since task 074: the three whole-group operators joined
- * {@link CONDITION_OPERATORS} and the repeating group's own paragraph joined the
- * draft-shape section. Task 071 had left them undocumented on purpose, because a
- * proposal cannot invent a `groupId` for a group no author could create; 074 is
- * the task where an author can create one, so the exclusion went away with it.
- *
- * **3**: the model says what it is about to do before its first tool call, so
- * text streams early rather than after the last tool, and it is told which
- * Markdown subset the panel renders.
- *
- * **4**: the working order completes section 9's wording of streaming
- * improvement 2 - one sentence on what you are about to do, tools with a short
- * note when the plan changes, then the explanation - so the middle of a long
- * tool-calling turn is narrated rather than silent. The Markdown paragraph is
- * unchanged: links stay out of the model's instructions, and the panel's
- * page-route link rule is a defence against one arriving anyway.
- */
+/** Bump on every change to the prompt text; it is logged with each turn, never inferred. */
 export const SYSTEM_PROMPT_VERSION = 4;
 
 /** Written out because the `Condition` union exports no name list; the test keeps it in step. */

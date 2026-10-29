@@ -821,13 +821,7 @@ function proposalFrame(): string {
   });
 }
 
-/**
- * A `fetch` stub for a turn that is still running: it writes the given frames
- * and then leaves the body open until the request's signal aborts, which is what
- * a real streaming response does. Without the abort half, Stop would be asserted
- * against a stub that ignores it and the panel could never leave its working
- * state in the test.
- */
+/** A `fetch` stub that leaves the body open until the request signal aborts, as a real stream does. */
 function openTurn(
   capture: (signal: AbortSignal | undefined) => void,
   frames: readonly string[] = [frame("text", { delta: "Working" })],
@@ -861,7 +855,6 @@ function stubFetch(frames: readonly string[]): void {
   );
 }
 
-/** The composer (080 exit criterion 5, `plan/agent-everywhere.md` section 4.3). */
 describe("AssistPanel composer", () => {
   it("is a multi-line area where Enter sends", () => {
     stubFetch([frame("text", { delta: "On it." })]);
@@ -902,14 +895,6 @@ describe("AssistPanel composer", () => {
     expect(vi.mocked(fetch)).not.toHaveBeenCalled();
   });
 
-  /**
-   * Stop (section 4.3).
-   *
-   * Aborting the `fetch` is the whole mechanism, so the assertion is that the
-   * signal the request was made with is aborted - and that the turn does not
-   * then report itself as a provider failure, which is what an abort looks like
-   * from inside the read loop.
-   */
   it("shows Stop only while a turn runs, and aborts the request", async () => {
     let signal: AbortSignal | undefined;
     vi.stubGlobal("fetch", vi.fn().mockImplementation(openTurn((s) => (signal = s))));
@@ -929,12 +914,10 @@ describe("AssistPanel composer", () => {
     await waitFor(() => {
       expect(screen.queryByTestId("qcms-assist-stop")).toBeNull();
     });
-    // A turn the author ended is not a failure to report.
     expect(screen.queryByTestId("qcms-assist-error")).toBeNull();
   });
 });
 
-/** Focus (080 exit criterion 6, section 4.4). */
 describe("AssistPanel focus", () => {
   it("leaves focus where it was when a card arrives from outside the panel", async () => {
     stubFetch([proposalFrame()]);
@@ -944,7 +927,6 @@ describe("AssistPanel focus", () => {
 
     fireEvent.change(composer(), { target: { value: "Add a step" } });
     fireEvent.keyDown(composer(), { key: "Enter" });
-    // The author goes back to the page while the turn runs.
     outside.focus();
 
     await waitFor(() => {
@@ -987,7 +969,6 @@ describe("AssistPanel focus", () => {
     await waitFor(() => {
       expect(document.activeElement).toBe(line);
     });
-    // The card is gone and the record of it is not.
     expect(screen.queryByTestId("qcms-assist-proposal")).toBeNull();
   });
 
@@ -1025,14 +1006,6 @@ describe("AssistPanel focus", () => {
   });
 });
 
-/**
- * The thinking disclosure (081 exit criteria 1, 2 and 5).
- *
- * The panel knows nothing about `QCMS_AGENT_THINKING` (ADR-24), so every case
- * here is stated in terms of the events: the disclosure exists when reasoning
- * frames arrive and does not when they do not, which is exactly what the
- * operator setting decides on the API's side.
- */
 describe("AssistPanel thinking disclosure", () => {
   it("renders nothing when no reasoning frame arrives", async () => {
     stubFetch([frame("text", { delta: "Here is the draft." })]);
@@ -1059,17 +1032,14 @@ describe("AssistPanel thinking disclosure", () => {
     fireEvent.keyDown(composer(), { key: "Enter" });
 
     const disclosure = await screen.findByTestId("qcms-assist-thinking");
-    // Collapsed: the summary is working-out, not the reply.
     expect((disclosure as HTMLDetailsElement).open).toBe(false);
     expect(disclosure.textContent).toContain(t("forms.assist.thinking"));
 
-    // Plain text, never Markdown: the asterisks are characters, and nothing
-    // became an element.
+    // Plain text, never Markdown.
     expect(disclosure.textContent).toContain("**one**");
     expect(disclosure.querySelector("strong")).toBeNull();
     expect(disclosure.querySelector(".qcms-assist-md")).toBeNull();
 
-    // And the duration replaces the running indicator once it has ended.
     await waitFor(() => {
       expect(disclosure.textContent).toMatch(/Thought for \d+ s/u);
     });
@@ -1120,7 +1090,6 @@ describe("AssistPanel thinking disclosure", () => {
   });
 });
 
-/** The assistant's identity (080 exit criterion 9, issue #1129). */
 describe("AssistPanel identity", () => {
   it("names the panel from the header mark, with no visible title word", () => {
     renderPanel();
@@ -1147,7 +1116,6 @@ describe("AssistPanel identity", () => {
     await waitFor(() => {
       expect(screen.getByText("Looking now.")).toBeTruthy();
     });
-    // Two: the header's and the turn's.
     expect(screen.getAllByRole("img", { name: t("agent.title") })).toHaveLength(2);
   });
 
@@ -1169,7 +1137,6 @@ describe("AssistPanel identity", () => {
     await waitFor(() => {
       expect(header()?.getAttribute("data-working")).toBe("true");
     });
-    // The same state the polite region is reporting, in words.
     expect(screen.getByTestId("qcms-assist-status").textContent).toBe(t("forms.assist.working"));
 
     fireEvent.click(screen.getByRole("button", { name: t("forms.assist.stop") }));

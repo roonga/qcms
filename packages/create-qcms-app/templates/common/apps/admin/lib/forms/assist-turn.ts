@@ -34,19 +34,10 @@ export interface TurnStep {
 }
 
 export type TurnSegment =
-  /**
-   * One prose segment. `id` is the API's text-segment id: a delta joins this
-   * segment only when it carries the same id, so two sentences either side of a
-   * tool step are two bubbles in arrival order rather than one block of text.
-   */
+  /** One prose segment; a delta joins it only when it carries the same `id`. */
   | { readonly kind: "text"; readonly id: string | undefined; readonly text: string }
   | { readonly kind: "steps"; readonly steps: readonly TurnStep[] }
-  /**
-   * The thinking disclosure (081): the provider's reasoning summary, one
-   * segment of the turn in arrival order. `endedAt` is set by `reasoning-end`
-   * or by the turn ending, and the two timestamps are what "Thought for n s"
-   * is computed from.
-   */
+  /** The provider's reasoning summary; `endedAt` is set by `reasoning-end` or the turn ending. */
   | {
       readonly kind: "thinking";
       readonly text: string;
@@ -117,13 +108,7 @@ function appendStep(turn: AssistantTurnView, step: TurnStep): AssistantTurnView 
   return { segments: [...turn.segments, { kind: "steps", steps: [step] }] };
 }
 
-/**
- * Append a reasoning delta to the open thinking segment, or open one.
- *
- * A segment is "open" while it is the last one and has no `endedAt`. A second
- * burst of reasoning after a tool step is therefore its own disclosure, in its
- * own place in the column, rather than text appended to one further up.
- */
+/** Append to the open thinking segment (the last, with no `endedAt`), or open one. */
 function appendThinking(turn: AssistantTurnView, delta: string, now: number): AssistantTurnView {
   if (delta === "") return turn;
   const last = turn.segments.at(-1);
@@ -155,9 +140,7 @@ function endThinking(turn: AssistantTurnView, now: number): AssistantTurnView {
  * Apply one stream event to the turn. Events that carry nothing visible return
  * it unchanged.
  *
- * `now` is an argument rather than a `Date.now()` call inside, so the thinking
- * segment's duration is testable without a clock mock and this stays a pure
- * fold over the events.
+ * `now` is an argument so the fold stays pure and durations are testable.
  */
 export function applyTurnEvent(
   turn: AssistantTurnView,
@@ -187,10 +170,8 @@ export function applyTurnEvent(
 }
 
 /**
- * The turn once its stream has ended, for whatever reason. Settled steps keep their
- * outcome; a step with no outcome is `interrupted`, never `done`. A disclosure
- * the stream never closed is closed here, so it reports a duration rather than
- * claiming to still be thinking.
+ * The turn once its stream has ended, for whatever reason. A step with no outcome is
+ * `interrupted`, never `done`; an unclosed thinking segment is closed.
  */
 export function finishTurn(turn: AssistantTurnView, now: number = Date.now()): AssistantTurnView {
   return endThinking(

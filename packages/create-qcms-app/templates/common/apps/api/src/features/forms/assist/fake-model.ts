@@ -34,15 +34,7 @@ export const FAKE_SCRIPTS = [
   "reasoning",
 ] as const;
 
-/**
- * The sentinel the `reasoning` script puts in its scripted reasoning text.
- *
- * One string, asserted in both directions by one script: present on the wire
- * and in the panel under `QCMS_AGENT_THINKING=summary`, and absent from the
- * wire, the logs, the exported telemetry, the next turn's request body and the
- * replayed conversation under `off` - where the script emits the parts anyway,
- * which is the whole point (081 exit criteria 1, 2 and 5).
- */
+/** Asserted present under `summary` and absent everywhere under `off`. */
 export const FAKE_REASONING_SENTINEL = "qcms-reasoning-sentinel-7f3a";
 
 export type FakeScript = (typeof FAKE_SCRIPTS)[number];
@@ -188,14 +180,7 @@ function buildProposal(
 
 type StreamPart = Record<string, unknown>;
 
-/**
- * One prose segment.
- *
- * The id varies per call because the loop now carries the provider's text
- * segment ids to the panel (streaming improvement 3): a script that said two
- * things on two steps under one id would be one segment on the wire, and the
- * proposal card's rationale would quote both.
- */
+/** The id varies so the proposal rationale can quote only the last segment. */
 function textParts(text: string, id = "t0"): StreamPart[] {
   return [
     { type: "text-start", id },
@@ -204,15 +189,9 @@ function textParts(text: string, id = "t0"): StreamPart[] {
   ];
 }
 
-/**
- * The parts that precede a parsed call: the model has begun streaming the
- * call's JSON. `handlePart` announces the timeline row off the first of these,
- * which is the whole of streaming improvement 1.
- */
+/** The input phase that precedes a parsed call; the timeline row appears on its first part. */
 function toolInputParts(toolName: string, input: unknown, nonce = ""): StreamPart[] {
-  // The provider protocol keys the input phase on `id`, which is the call id
-  // the matching `tool-call` part spells `toolCallId`
-  // (`@ai-sdk/provider` 4.0.31, `LanguageModelV3StreamPart`).
+  // The input phase keys on `id`, which the matching `tool-call` spells `toolCallId`.
   const id = `call_${toolName}${nonce}`;
   return [
     { type: "tool-input-start", id, toolName },
@@ -354,18 +333,8 @@ function planToolThenErrorStep(prompt: readonly PromptMessage[]): StreamPart[] {
 }
 
 /**
- * The `narrate-then-tools` script: the shape streaming improvements 1, 2 and 3
- * exist to produce.
- *
- * Each round says one sentence under its own text segment id, then begins
- * streaming a tool call's JSON through `tool-input-start` before the parsed
- * call arrives. That is what lets a browser see prose and a *running* timeline
- * row before the first tool result exists, which no other script can show: the
- * rest emit a parsed `tool-call` with no input phase at all, so their rows
- * appear and settle in the same instant.
- *
- * Three prose segments separated by two tool steps, so the panel's interleaving
- * and the proposal card quoting only the LAST segment are both observable.
+ * The `narrate-then-tools` script: three prose segments split by two tool steps, each
+ * call's input streaming before the parsed call so a row is observably running.
  */
 function planNarrateStep(
   prompt: readonly PromptMessage[],
@@ -400,20 +369,7 @@ function planNarrateStep(
   ];
 }
 
-/**
- * The `reasoning` script: a model that thinks out loud, whatever it was asked.
- *
- * It emits reasoning parts **unconditionally**, because the property under test
- * is that `off` drops them rather than that `off` declines to ask for them. A
- * script that only emitted them under `summary` would leave the interesting
- * half - a provider volunteering reasoning nobody requested - untested, and
- * that is exactly what `openai-compatible` endpoints and the newer Anthropic
- * models do.
- *
- * The text carries a Markdown construct as well as the sentinel, so the panel's
- * "plain text, never Markdown" rule has something to fail on: under `summary`
- * the asterisks must be visible as characters.
- */
+/** Emits reasoning parts unconditionally, so `off` is proven to drop them, not to skip asking. */
 function planReasoningStep(
   prompt: readonly PromptMessage[],
   results: Map<string, unknown>,
@@ -455,23 +411,12 @@ function planReasoningStep(
   ];
 }
 
-/**
- * How slowly a script's chunks arrive.
- *
- * Zero for every script but one: a deterministic test wants its events now.
- * `narrate-then-tools` is the exception because what it demonstrates is a
- * *duration* - a row that is running while the call's input streams - and at
- * zero delay the running state exists for less time than a browser can observe.
- */
+/** Zero except `narrate-then-tools`, whose running row needs a duration to be observable. */
 const CHUNK_DELAY_MS: Readonly<Partial<Record<FakeScript, number>>> = {
   "narrate-then-tools": 150,
 };
 
-/**
- * The scripts whose next step depends on what has already run, each keyed by
- * name so {@link planStep} dispatches rather than growing another branch per
- * script. The ones left in `planStep` answer the same way on every round.
- */
+/** Scripts whose next step depends on what has already run, keyed by name. */
 const STATEFUL_PLANNERS: Readonly<
   Partial<
     Record<
@@ -486,14 +431,10 @@ const STATEFUL_PLANNERS: Readonly<
   reasoning: planReasoningStep,
 };
 
-/** Plan the parts this step emits, given everything that has happened so far. */
 function planStep(prompt: readonly PromptMessage[], script: FakeScript): StreamPart[] {
   const rogueTool = ROGUE_TOOLS[script];
   if (rogueTool !== undefined) {
-    // The input phase is scripted too, so the refusal is proven against the
-    // whole arrival order a real provider produces: a `tool-input-start` for a
-    // name outside the allowlist must put nothing on the timeline, and the
-    // refusal must still come off the parsed call (080 exit criterion 2).
+    // The input phase is scripted too: a `tool-input-start` outside the allowlist must show nothing.
     return [
       ...textParts("Publishing this for you.", "t0"),
       ...toolInputParts(rogueTool, { formId: "frm_any" }),

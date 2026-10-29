@@ -1858,10 +1858,7 @@ export const messages = {
   // draft; never publishes" (there is no publish/erase/link/webhook affordance here
   // at all, by construction), and every diff line is worded so `+`/`~` is never the
   // only signal - the marker travels in the sentence itself.
-  // The `agent.*` namespace (ADR-27), which 082 fills for every screen. `agent.title`
-  // is the assistant's name, and since issue #1129 it is carried by the mark rather
-  // than printed: the panel's `aria-labelledby` points at the mark, whose `aria-label`
-  // is this string, so the landmark is still called "Assistant" with no heading text.
+  // `agent.title` is the mark's `aria-label`, which names the panel landmark (ADR-27).
   "agent.title": "Assistant",
   "forms.assist.collapse": "Collapse the assistant panel",
   "forms.assist.expand": "Expand the assistant panel",
@@ -1869,21 +1866,13 @@ export const messages = {
   "forms.assist.conversationLabel": "Conversation with the assistant",
   "forms.assist.turnYou": "You",
   "forms.assist.inputLabel": "Describe the next change",
-  // The composer is multi-line, so Enter cannot mean "a new line" and still send.
-  // The hint says which key does what, because neither is discoverable.
   "forms.assist.composerHint": "Enter sends. Shift and Enter start a new line.",
   "forms.assist.send": "Send",
   "forms.assist.stop": "Stop",
   "forms.assist.newConversation": "Start a new conversation",
   "forms.assist.working": "The assistant is working.",
-  // A card's outcome stays in the conversation as a record, and is where focus
-  // lands after Accept or Discard (`plan/agent-everywhere.md` section 4.4).
   "forms.assist.resultAccepted": "Accepted into the draft.",
   "forms.assist.resultDiscarded": "Discarded.",
-  // The thinking disclosure (081). "Thinking" while the summary streams, then how
-  // long it took. The contents are the provider's own reasoning summary, shown as
-  // plain text: it is working-out, not an answer, so it is neither formatted nor
-  // open by default.
   "forms.assist.thinking": "Thinking",
   "forms.assist.thoughtFor": "Thought for {seconds} s",
   // The step timeline. Each tool is named by what it does for the author, never by its

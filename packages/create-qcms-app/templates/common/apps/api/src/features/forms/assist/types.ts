@@ -73,25 +73,12 @@ export type AssistEvent =
     }
   /** No error text travels: it would be assembled from model-supplied input (SEC-8). */
   | { readonly type: "tool-outcome"; readonly step: number; readonly outcome: "done" | "failed" }
-  /**
-   * A chunk of the assistant's prose.
-   *
-   * `segment` is the provider's own text-segment id, carried so prose segments
-   * interleave with timeline rows in arrival order instead of folding into one
-   * block (streaming improvement 3). The draft card's `rationale` is the last
-   * segment rather than every delta joined.
-   */
+  /** `segment` is the provider's text-segment id, so prose interleaves with timeline rows. */
   | { readonly type: "text"; readonly delta: string; readonly segment?: string }
-  /**
-   * A chunk of the provider's own reasoning summary, forwarded **only** under
-   * `QCMS_AGENT_THINKING=summary` (081, SEC-8). It is never logged, never
-   * stored, and never replayed into the next turn's request: the request schema
-   * carries text turns only. The admin renders it as plain text, never Markdown.
-   */
+  /** Provider reasoning summary, forwarded only under `summary`; never logged, stored or replayed (SEC-8). */
   | { readonly type: "reasoning"; readonly delta: string }
-  /** The reasoning summary has ended. Carries nothing. */
   | { readonly type: "reasoning-end" }
-  /** A tool call outside the allowlist was refused server-side (041 security control). */
+  /** A tool call outside the allowlist was refused server-side. */
   | { readonly type: "tool-rejected"; readonly tool: string }
   | { readonly type: "proposal"; readonly proposal: AssistProposal }
   | { readonly type: "error"; readonly code: AssistErrorCode; readonly message: string }

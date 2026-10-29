@@ -23,19 +23,13 @@ import {
 } from "./tools.js";
 import type { AssistContext, AssistEvent, DraftAssistant } from "./types.js";
 
-/** One prose segment of a turn: the provider's segment id and what it said. */
 export interface TextSegment {
   readonly id: string;
   text: string;
 }
 
-/** What the loop learned by the time the stream ended. */
 export interface RunOutcome {
-  /**
-   * The turn's prose, split at the provider's own text-segment boundaries
-   * (streaming improvement 3). A new entry starts whenever the id changes, so a
-   * provider that reuses an id across steps still produces two segments.
-   */
+  /** Split where the provider's text-segment id changes. */
   readonly textSegments: TextSegment[];
   steps: number;
   inputTokens: number;
@@ -50,14 +44,11 @@ export interface RunOutcome {
   toolErrors: number;
   /** The SDK's call id stays here; only the ordinal reaches the client. */
   readonly toolSteps: Map<string, number>;
-  /** The provider's reasoning token count for the turn. Counted, never quoted (SEC-8). */
+  /** Counted, never quoted (SEC-8). */
   reasoningTokens: number;
 }
 
-/**
- * Append a text delta to the turn's segment column and return the segment it
- * landed in. Exported for its unit test.
- */
+/** Append a delta, starting a new segment when the id changes. */
 export function appendTextSegment(segments: TextSegment[], id: string, delta: string): string {
   const last = segments.at(-1);
   if (last !== undefined && last.id === id) last.text += delta;
@@ -65,7 +56,7 @@ export function appendTextSegment(segments: TextSegment[], id: string, delta: st
   return id;
 }
 
-/** The turn's last prose segment, which is what the proposal card quotes. */
+/** The proposal's rationale quotes only this segment. */
 function lastSegmentText(segments: readonly TextSegment[]): string {
   return segments.at(-1)?.text ?? "";
 }
@@ -121,7 +112,7 @@ export function aiSdkDraftAssistant(options: {
   readonly providerId: string;
   readonly logger: Logger;
   readonly providerOptions?: ProviderOptions;
-  /** Whether reasoning parts reach the client at all (081). Defaults to `off`. */
+  /** Defaults to `off`. */
   readonly thinking?: AgentThinking;
 }): DraftAssistant {
   const { model, providerId, logger, providerOptions, thinking = "off" } = options;
@@ -170,18 +161,8 @@ export function toolOutcomeEvent(
 }
 
 /**
- * Announce one allowlisted tool step, once.
- *
- * Called from both `tool-input-start` and `tool-call` for the same call id. The
- * first of them to arrive wins, which is what moves the timeline row to the
- * moment the model starts streaming the call's JSON rather than the moment the
- * SDK has parsed all of it (streaming improvement 1). `propose_draft` carries a
- * whole `FormDefinition`, so that gap is the longest silent stretch of a turn.
- *
- * A name outside the allowlist produces nothing here and is **not** recorded as
- * the refusal: the refusal stays on the parsed `tool-call`, which is the only
- * part that carries a settled name, so a `tool-input-start` can neither end a
- * turn nor put an unknown verb on screen (issue #814's path is unchanged).
+ * Announce an allowlisted tool step once per call id. A name outside the allowlist
+ * yields nothing and is refused only on the parsed `tool-call`.
  */
 function announceToolStep(
   outcome: RunOutcome,
@@ -194,7 +175,6 @@ function announceToolStep(
   return { type: "status", phase: "tool", tool: toolName, step };
 }
 
-/** A fresh outcome, which is also what a `handlePart` unit test starts from. */
 export function newRunOutcome(): RunOutcome {
   return {
     textSegments: [],
@@ -212,23 +192,14 @@ export function newRunOutcome(): RunOutcome {
   };
 }
 
-/**
- * Map one SDK stream part onto the slice's own event vocabulary, recording what
- * the turn's terminal events will need. Returns `undefined` for parts that only
- * update the outcome. Exported for its unit tests.
- */
+/** Map one SDK stream part to an event, recording what the terminal events need. */
 export function handlePart(
   part: TextStreamPart<ToolSet>,
   outcome: RunOutcome,
   thinking: AgentThinking = "off",
 ): AssistEvent | undefined {
   switch (part.type) {
-    // Reasoning is forwarded only under `summary`, and dropped under `off` **even
-    // when a provider emits it unasked** (081, SEC-8). Dropping it here rather
-    // than declining to request it is what makes the default a guarantee: a model
-    // that volunteers thinking, or an `openai-compatible` endpoint that always
-    // does, cannot get a word of it onto a screen. Nothing is accumulated either,
-    // so there is no buffer for a logger or the next turn's request to read.
+    // Dropped under `off` even when a provider emits it unasked (SEC-8); never buffered.
     case "reasoning-delta":
       return thinking === "summary" ? { type: "reasoning", delta: part.text } : undefined;
     case "reasoning-end":
@@ -266,8 +237,6 @@ export function handlePart(
       outcome.finishReason = part.finishReason;
       outcome.inputTokens = part.totalUsage.inputTokens ?? 0;
       outcome.outputTokens = part.totalUsage.outputTokens ?? 0;
-      // Under `outputTokenDetails`, because reasoning tokens are billed output
-      // (`ai` 7.0.147, `LanguageModelUsage`).
       outcome.reasoningTokens = part.totalUsage.outputTokenDetails.reasoningTokens ?? 0;
       return undefined;
     default:
@@ -373,12 +342,7 @@ async function* finishTurn(args: {
     toolRejected: outcome.rejectedTool !== undefined,
     // A count, never the text: a tool error's message is assembled from model input (SEC-8).
     toolErrors: outcome.toolErrors,
-    // The provider's reasoning token count, and nothing else about reasoning
-    // (SEC-8). The text never reaches a logger, a span or an audit row, and
-    // there is nowhere it could: `handlePart` forwards each delta and keeps
-    // none, so no buffer of it exists by the time this line runs. The count is
-    // here because reasoning is billed output and an operator turning `summary`
-    // on has no other way to see what it costs.
+    // Reasoning text is never logged (SEC-8); only the count.
     reasoningTokens: outcome.reasoningTokens,
   });
 
@@ -438,9 +402,6 @@ async function* finishTurn(args: {
     proposal: {
       proposedDraft: state.proposedDraft,
       newQuestions: state.newQuestions,
-      // The last prose segment, not every delta joined: the segments before it
-      // are the narration that already streamed beside the timeline rows
-      // (streaming improvement 3).
       rationale: lastSegmentText(outcome.textSegments).trim(),
       issues,
       warnings,
@@ -508,10 +469,6 @@ async function* deferred(
   yield* assistant.assist(ctx, signal);
 }
 
-/**
- * Vendor packages are imported on first use so a `none` deployment loads none of them
- * and the composition root stays synchronous; config validation already settled the key.
- */
 /** Spread-shaped, because `exactOptionalPropertyTypes` refuses an explicit `undefined`. */
 function optionalProviderOptions(options: ProviderOptions | undefined): {
   providerOptions?: ProviderOptions;
@@ -519,6 +476,10 @@ function optionalProviderOptions(options: ProviderOptions | undefined): {
   return options === undefined ? {} : { providerOptions: options };
 }
 
+/**
+ * Vendor packages are imported on first use so a `none` deployment loads none of them
+ * and the composition root stays synchronous; config validation already settled the key.
+ */
 export function selectDraftAssistant(config: Config, logger: Logger): DraftAssistant {
   const agent = config.agent;
   if (agent.provider === "none") return unavailableDraftAssistant;
@@ -532,9 +493,6 @@ export function selectDraftAssistant(config: Config, logger: Logger): DraftAssis
           providerId: agent.provider,
           logger,
           thinking: agent.thinking,
-          // The one place the setting becomes a vendor request (081, section 8).
-          // `undefined` under `off`, and for the two providers with nothing to
-          // ask for, so the call is byte-identical to what it was before.
           ...optionalProviderOptions(thinkingProviderOptions(agent.provider, agent.thinking)),
         }),
       );

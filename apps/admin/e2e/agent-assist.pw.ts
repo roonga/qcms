@@ -82,7 +82,7 @@ async function publishQuestion(page: Page, slug: string, typeLabel: string): Pro
   await confirmLifecycle(page, /^Publish version 1$/, "Publish");
 }
 
-/** The composer: a multi-line text area since task 080, not a single-line input. */
+/** The composer is a multi-line text area. */
 function composer(page: Page) {
   return page.getByTestId("qcms-assist-input").locator("textarea");
 }
@@ -290,17 +290,6 @@ test("header tooltips stay open across the gap and close on Escape from anywhere
   await expect(toggle).toBeFocused();
 });
 
-/**
- * A turn is visibly alive from its first second (080 exit criterion 1).
- *
- * The claim is an ORDER IN TIME, and only a browser can see it: prose and a
- * step row in the running state have to be on screen **before** the first tool
- * result exists. `narrate-then-tools` is the one script that produces that
- * window, because it streams a call's input phase before the parsed call, and
- * `handlePart` announces the row off the first of those parts. Every other
- * script's row appears and settles in the same instant, so no other script can
- * fail this test.
- */
 test("streams prose and a running step before the first tool result (exit criterion 1)", async ({
   page,
 }) => {
@@ -318,8 +307,6 @@ test("streams prose and a running step before the first tool result (exit criter
   await expect(
     page.getByTestId("qcms-assist-steps").locator("li[data-state='running']"),
   ).toHaveCount(1, { timeout: 30_000 });
-  // Nothing has finished yet, which is what makes the two assertions above a
-  // statement about the first second of a turn rather than about its end.
   await expect(page.getByTestId("qcms-assist-steps").locator("li[data-state='done']")).toHaveCount(
     0,
   );
@@ -328,16 +315,14 @@ test("streams prose and a running step before the first tool result (exit criter
   const mark = page.getByTestId("qcms-assist-mark").first();
   await expect(mark).toHaveAttribute("data-working", "true");
 
-  // Then the turn completes: two steps done, and three prose segments, the last
-  // of which is the rationale the card refers to.
+  // Then the turn completes: two steps done.
   await expect(page.getByTestId("qcms-assist-proposal")).toBeVisible({ timeout: 60_000 });
   await expect(page.getByTestId("qcms-assist-steps").locator("li[data-state='done']")).toHaveCount(
     2,
   );
   await expect(mark).not.toHaveAttribute("data-working", "true");
 
-  // The panel's accessible name is the mark's, with no visible title word
-  // (exit criterion 9, issue #1129).
+  // The panel is named by the mark, with no visible title word.
   await expect(page.getByTestId("qcms-assist-panel")).toHaveAccessibleName("Assistant");
 
   // axe over the finished turn: the mark, the bubbles, the timeline and the card.
@@ -353,7 +338,6 @@ test("streams prose and a running step before the first tool result (exit criter
   ).toEqual([]);
 });
 
-/** Stop ends a turn, and the author's own stop is not an error (exit criterion 5). */
 test("Stop ends a running turn with no error shown (exit criterion 5)", async ({ page }) => {
   test.setTimeout(180_000);
   await signInWithTotp(page, EMAIL, totpSecret);
@@ -375,12 +359,6 @@ test("Stop ends a running turn with no error shown (exit criterion 5)", async ({
   await expect(composer(page)).toBeEnabled();
 });
 
-/**
- * Enter sends and Shift+Enter does not (exit criterion 5), in a real browser.
- *
- * jsdom reports the keydown but cannot show that the textarea then grew a line,
- * which is the half of Shift+Enter that matters to an author.
- */
 test("Enter sends and Shift+Enter adds a line (exit criterion 5)", async ({ page }) => {
   test.setTimeout(120_000);
   await signInWithTotp(page, EMAIL, totpSecret);
@@ -402,19 +380,7 @@ test("Enter sends and Shift+Enter adds a line (exit criterion 5)", async ({ page
   });
 });
 
-/**
- * The thinking disclosure (081 exit criteria 2 and 7).
- *
- * The harness API runs with `QCMS_AGENT_THINKING=summary`
- * (`apps/portal/e2e/support/api-server.ts`), because the disclosure only exists
- * on screen when reasoning events arrive and the two claims that need a real
- * browser are about the disclosure: axe over it open and closed, and its
- * indicator under reduced motion. The `off` half is a wire-level claim, pinned
- * against the same `reasoning` script in `assistant.test.ts`.
- *
- * Nothing on this page knows the setting. The panel renders the disclosure
- * because the frames came (ADR-24).
- */
+/** The harness API runs with `QCMS_AGENT_THINKING=summary`; the page renders the disclosure only because reasoning frames arrive. */
 test("shows the thinking disclosure, collapsed and in plain text (081 exit criterion 2)", async ({
   page,
 }) => {
@@ -457,13 +423,6 @@ test("shows the thinking disclosure, collapsed and in plain text (081 exit crite
   ).toEqual([]);
 });
 
-/**
- * Reduced motion (exit criterion 8, section 4.6).
- *
- * Read off the computed style rather than off a screenshot: what the criterion
- * asks is that no animation RUNS, and a paused frame of a blinking caret looks
- * identical to a static bar.
- */
 test("runs no animation under reduced motion (exit criterion 8)", async ({ page }) => {
   test.setTimeout(180_000);
   await page.emulateMedia({ reducedMotion: "reduce" });
@@ -482,8 +441,6 @@ test("runs no animation under reduced motion (exit criterion 8)", async ({ page 
         names.push(`${label}: ${style.animationName}`);
       }
     };
-
-    // The three the running turn actually has on screen.
     for (const selector of [
       ".qcms-assist-caret",
       ".qcms-assist-steps__pulse",
@@ -492,11 +449,7 @@ test("runs no animation under reduced motion (exit criterion 8)", async ({ page 
       for (const element of document.querySelectorAll(selector)) check(selector, element);
     }
 
-    // The thinking indicator, probed on an element of its own: this turn emits
-    // no reasoning, and the one that does settles its disclosure faster than a
-    // browser can be pointed at the indicator. What the criterion asks is a
-    // question about the stylesheet under this media query, and that is what
-    // this measures.
+    // Probed on its own element: the disclosure settles faster than a browser can be pointed at it.
     const probe = document.createElement("span");
     probe.className = "qcms-assist-think__pulse";
     document.body.append(probe);
@@ -507,9 +460,7 @@ test("runs no animation under reduced motion (exit criterion 8)", async ({ page 
   });
   expect(animated, "animations still running under prefers-reduced-motion: reduce").toEqual([]);
 
-  // The working state is still visible, because the visor's glow is a static
-  // filter rather than an animation: reduced motion removes the movement, never
-  // the signal.
+  // The visor glow is a static filter, so the working state stays visible.
   const mark = page.getByTestId("qcms-assist-mark").first();
   await expect(mark).toHaveAttribute("data-working", "true");
 

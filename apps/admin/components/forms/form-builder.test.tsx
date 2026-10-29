@@ -116,8 +116,6 @@ describe("FormBuilder and the assist panel (task 041)", () => {
   it("renders no assist panel, and no assist affordance, when the assist prop is absent", () => {
     render(<FormBuilder detail={DETAIL} {...CHROME} {...builderActions()} />);
     expect(screen.queryByTestId("qcms-assist-panel")).toBeNull();
-    // The mark names the assistant since issue #1129, so there is no visible word
-    // to look for: the name is on the mark's `aria-label`, absent with the panel.
     expect(screen.queryByRole("img", { name: t("agent.title") })).toBeNull();
     expect(screen.queryByLabelText(t("forms.assist.inputLabel"))).toBeNull();
   });

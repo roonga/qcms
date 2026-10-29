@@ -72,18 +72,6 @@ describe("AssistMarkdown, the safe subset", () => {
     expect(root.innerHTML).not.toContain("evil.example");
   });
 
-  /**
-   * Reference-style links, which CommonMark resolves against a definition
-   * elsewhere in the document.
-   *
-   * The subset has no link definitions at all, so `[text][label]` is two sets
-   * of literal brackets and `[label]: url` is a paragraph of text. That is the
-   * right answer rather than a gap: a renderer that resolved definitions would
-   * have a second, separate place a URL can come from, and this one has exactly
-   * one. The definition line shows its URL **as characters**, which is what the
-   * author would see in the model's own prose and is not a channel: nothing
-   * fetches it and nothing follows it.
-   */
   it("leaves a reference-style link and its definition as literal text", () => {
     const root = renderMd("Read [the guide][g] now.\n\n[g]: https://evil.example/leak?d=secret");
     expect(root.querySelector("a")).toBeNull();
@@ -92,15 +80,6 @@ describe("AssistMarkdown, the safe subset", () => {
     expect(root.querySelectorAll("[href], [src]")).toHaveLength(0);
   });
 
-  /**
-   * A nested emphasis bomb: many unmatched markers, which a backtracking parser
-   * can be made to spend exponential time on.
-   *
-   * The assertion is a wall-clock bound rather than an output shape, because
-   * what matters is that a model (or an injected question title relayed through
-   * one) cannot hang the author's tab. The parse is linear in the source with a
-   * bounded scan per marker, so the margin here is enormous.
-   */
   it("finishes promptly on a nested emphasis bomb, emitting no element", () => {
     const bomb = `${"*".repeat(400)}a${"_".repeat(400)}b${"*_".repeat(400)}`;
     const started = Date.now();
@@ -110,14 +89,6 @@ describe("AssistMarkdown, the safe subset", () => {
     expect(root.querySelector("img")).toBeNull();
   });
 
-  /**
-   * The link rule (080 exit criterion 7).
-   *
-   * The two cases that matter sit beside each other: `/forms/frm_x` is a page
-   * and `/forms/frm_x/export` is the streaming download route handler, which
-   * only an export card may start. Both start with the same three characters,
-   * which is why the list is a closed set of route patterns and not a prefix.
-   */
   const TEXT_ONLY: readonly (readonly [string, string])[] = [
     ["an export route with filters", "/forms/frm_x/export?format=csv&shape=wide"],
     ["the export route itself", "/forms/frm_x/export"],
@@ -164,17 +135,10 @@ describe("AssistMarkdown, the safe subset", () => {
       `${"*".repeat(200)}x${"**".repeat(200)}`,
     ].join("\n\n");
     const root = renderMd(hostile);
-    // No element the browser would act on, and no attribute it would fetch or
-    // follow: that is the whole of what "safe" means here. A URL may remain as
-    // characters where the source wrote one outside a construct, which is the
-    // reference-definition line above.
+    // Asserted over the DOM: the literal `<img src="x">` renders as text without creating an attribute.
     expect(root.querySelector("script, img, b, iframe, object, embed")).toBeNull();
     expect(root.querySelectorAll("a")).toHaveLength(0);
-    // Asserted over the DOM rather than over `innerHTML`, because the literal
-    // `<img src="x">` the first case renders AS TEXT puts those characters in
-    // the serialisation while creating no attribute at all.
     expect(root.querySelectorAll("[href], [src]")).toHaveLength(0);
-    // And nothing that was inside an image or a link construct survives at all.
     expect(root.textContent).not.toContain("p.png");
     expect(root.textContent).not.toContain("javascript");
   });

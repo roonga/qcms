@@ -70,19 +70,9 @@ export type AssistEvent =
       readonly step?: number;
     }
   | { readonly type: "tool-outcome"; readonly step: number; readonly outcome: "done" | "failed" }
-  /**
-   * A chunk of prose. `segment` is the provider's own text-segment id, which is
-   * what lets two things said either side of a tool step render as two bubbles
-   * instead of one (streaming improvement 3). Absent on a stream from an older
-   * API, where every delta folds into one segment as it used to.
-   */
+  /** A chunk of prose. `segment` is the provider's text-segment id; absent, every delta folds into one segment. */
   | { readonly type: "text"; readonly delta: string; readonly segment?: string }
-  /**
-   * A chunk of the provider's reasoning summary (081). It arrives only when the
-   * API's operator setting allows it, and **nothing here depends on that
-   * setting's value**: the disclosure renders because the events came, which is
-   * what keeps ADR-24's "clients receive behaviour, not flag values" intact.
-   */
+  /** A chunk of the provider's reasoning summary; the client renders it because events came, never from a flag (ADR-24). */
   | { readonly type: "reasoning"; readonly delta: string }
   | { readonly type: "reasoning-end" }
   | { readonly type: "tool-rejected"; readonly tool: string }

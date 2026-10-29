@@ -23,19 +23,11 @@
  * control against the classic exfiltration channel: a URL the browser fetches with no
  * click. The admin CSP is defence in depth behind it.
  *
- * ## Links, and the closed page-route list
+ * ## Links
  *
- * A link survives as a link in exactly one case: its target is a same-origin path that matches an admin **page** route on
- * {@link ADMIN_PAGE_ROUTES}, with no query string and no fragment. Everything else -
- * an external URL, a `javascript:` target, a protocol-relative path, a path carrying a
- * query or a fragment, and any path not on the list - renders as the link's text, as it
- * did before the rule existed.
- *
- * The list is **a closed list of route patterns, not a prefix test**, because the one
- * target that must never become a link looks exactly like one that may: `/forms/frm_x`
- * is a page and `/forms/frm_x/export` is the streaming download route handler, which
- * only an export card may start (083, D4). A prefix test would let a link begin that
- * download. Task 082 replaces this constant with its screen table and deletes it.
+ * A link survives only for a same-origin path matching a pattern on {@link ADMIN_PAGE_ROUTES},
+ * with no query or fragment; anything else renders as its text. The list is closed rather than
+ * a prefix test because `/forms/frm_x/export` (a download handler) must never become a link.
  *
  * Underscores only mark emphasis at a word boundary, so identifiers such as
  * `q_vehicle_make` are never italicised in the middle.
@@ -54,13 +46,8 @@ export type MarkdownInline =
     };
 
 /**
- * Every admin **page** route under `apps/admin/app/(shell)/`, as it stood when
- * this landed. A `[segment]` matches one path segment.
- *
- * Route handlers are deliberately absent, which is the point of the list:
- * `forms/[formId]/export`, `forms/[formId]/assist`, `settings/password` and
- * `settings/recovery-codes` are not pages, so no link can reach them. Task 082
- * replaces this with `lib/agent/screens.ts` and deletes it.
+ * Every admin **page** route under `apps/admin/app/(shell)/`; `[segment]` matches one segment.
+ * Route handlers are deliberately absent.
  */
 export const ADMIN_PAGE_ROUTES: readonly string[] = [
   "/forms",
@@ -95,13 +82,7 @@ function matchesPattern(pattern: string, segments: readonly string[]): boolean {
   return expected.every((part, index) => (part.startsWith("[") ? true : part === segments[index]));
 }
 
-/**
- * The `href` a link target may keep, or `undefined` when it must render as text.
- *
- * A fragment is refused alongside a query string: the rule is that the target is
- * one whole admin page and nothing more, and a fragment is a second thing the
- * model chose about where the reader lands.
- */
+/** The `href` a link target may keep, or `undefined` when it must render as text. */
 export function adminPageHref(target: string): string | undefined {
   const path = target.trim();
   if (!path.startsWith("/") || path.startsWith("//")) return undefined;
@@ -298,10 +279,6 @@ const readImage: InlineReader = (source, index) => {
   return link === undefined ? undefined : { text: link.label, end: link.end };
 };
 
-/**
- * A link, as an anchor only when its target is an admin page route; otherwise
- * its text alone, with the target dropped.
- */
 const readLinkText: InlineReader = (source, index) => {
   if (source[index] !== "[") return undefined;
   const link = readLink(source, index);
@@ -395,7 +372,6 @@ function isEmphasisCloser(
   return !(underscore && isWordChar(after));
 }
 
-/** `[label](target)` at `start`: the label, the raw target, and where it ends. */
 function readLink(
   source: string,
   start: number,

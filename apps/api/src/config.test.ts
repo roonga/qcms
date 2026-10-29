@@ -539,7 +539,6 @@ describe("draft assistant configuration (041)", () => {
     });
   });
 
-  /** `QCMS_AGENT_THINKING` (task 081, Q16; exit criterion 3). */
   describe("QCMS_AGENT_THINKING", () => {
     function agentEnv(extra: Record<string, string> = {}) {
       return validEnv({
@@ -577,13 +576,10 @@ describe("draft assistant configuration (041)", () => {
       expect(message).toContain("QCMS_AGENT_THINKING");
       expect(message).toContain("off");
       expect(message).toContain("summary");
-      // The operator's own value never reaches a log or a crash report (SEC-8).
       expect(message).not.toContain("verbose-please");
     });
 
     it("is not required, and not read, when no provider is configured", () => {
-      // The `none` default leaves the assist routes unmounted, so a value left
-      // behind from an experiment cannot stop a deployment that is not using it.
       const config = loadConfig(validEnv({ QCMS_AGENT_THINKING: "nonsense" }));
       expect(config.agent).toEqual({ provider: "none" });
     });

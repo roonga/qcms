@@ -1,27 +1,8 @@
 import { t } from "@/lib/i18n/en";
 
 /**
- * The assistant's mark: the Q of QCMS drawn as a speech bubble wearing a robot
- * visor with two points of light.
- *
- * **Inline SVG rather than an image file**, which is the whole reason it is a
- * component. The bubble and the lights are `color-primary` and the visor is
- * `color-primary-foreground`, so the mark follows the admin's three appearance
- * modes (`lib/appearance.ts`) and whatever a fourth one sets those tokens to. A
- * `.svg` behind an `<img>` cannot read a CSS custom property, so it would need
- * one file per mode and would be wrong in the mode nobody regenerated.
- *
- * **It replaces the word "Assistant"** in the panel header at 24px and beside
- * each assistant turn at 20px, so by default it carries the name itself:
- * `role="img"` with `aria-label` from `agent.title`. Beside visible text that
- * already names the assistant it is `decorative`, and then it is `aria-hidden`
- * so the name is not read twice.
- *
- * **`working` is the turn state**, the same state that drives the panel's polite
- * live region. Motion is therefore never the only signal (WCAG 1.4.1, 4.1.3):
- * the region says so in words at the same moment the visor glows. The animation
- * itself lives in `globals.css` under `[data-working="true"]`, where the
- * reduced-motion query can take it away and leave a static glow.
+ * The assistant's mark. Inline SVG so the fills follow the theme tokens in every appearance mode.
+ * Named by `agent.title` unless `decorative`; `working` mirrors the live region's turn state.
  */
 export function AssistMark({
   size,
@@ -29,11 +10,9 @@ export function AssistMark({
   decorative = false,
   id,
 }: {
-  /** 16 or larger: below that the design system says use the word. */
   readonly size: 20 | 24;
   readonly working?: boolean;
   readonly decorative?: boolean;
-  /** For the element the panel's `aria-labelledby` points at. */
   readonly id?: string;
 }) {
   const naming = decorative

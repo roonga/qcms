@@ -4044,8 +4044,6 @@ div:has(> [role="dialog"] [data-qcms-dialog="wide"]) {
   gap: 0.5rem;
   min-block-size: 2rem;
 }
-/* The assistant's mark (issue #1129): the Q bubble, the visor, and two lights, all on
-   the theme's primary pair so the mark follows every appearance mode. */
 .qcms-assist-mark {
   flex-shrink: 0;
   display: block;
@@ -4057,8 +4055,7 @@ div:has(> [role="dialog"] [data-qcms-dialog="wide"]) {
 .qcms-assist-mark__visor {
   fill: var(--color-primary-foreground);
 }
-/* The working state. A static glow first, so it is present under reduced motion and
-   in any mode that stops animations; the pulse is added on top of it below. */
+/* Static glow first, so the working state shows under reduced motion. */
 .qcms-assist-mark[data-working="true"] .qcms-assist-mark__visor {
   filter: drop-shadow(0 0 1.2px var(--color-primary-foreground));
 }
@@ -4165,8 +4162,6 @@ div:has(> [role="dialog"] [data-qcms-dialog="wide"]) {
   border-radius: var(--radius-md);
   background-color: var(--color-background-muted);
 }
-/* The assistant turn is the mark in a leading column and the segment column beside it,
-   which is why the segments live in their own wrapper rather than as siblings. */
 .qcms-assist-bubble--assistant {
   align-self: stretch;
   flex-direction: row;
@@ -4180,14 +4175,12 @@ div:has(> [role="dialog"] [data-qcms-dialog="wide"]) {
   min-inline-size: 0;
   flex: 1;
 }
-/* A card's outcome, kept in the conversation as the record focus lands on. */
 .qcms-assist-result {
   align-self: stretch;
   font-weight: 600;
   color: var(--color-text);
 }
 
-/* The composer: a multi-line area, its hint, and Send with Stop beside it. */
 .qcms-assist-composer {
   display: flex;
   flex-direction: column;
@@ -4325,8 +4318,7 @@ div:has(> [role="dialog"] [data-qcms-dialog="wide"]) {
   }
 }
 
-/* The thinking disclosure (081). Collapsed by default, plain text inside, and a
-   shimmer on the summary only while the summary is still arriving. */
+/* Shimmer only while the summary is still arriving. */
 .qcms-assist-think {
   font-size: 0.8125rem;
   color: var(--color-text-muted);

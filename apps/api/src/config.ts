@@ -256,21 +256,11 @@ export interface Config {
         /** Required for `openai-compatible`. */
         readonly baseUrl: string | undefined;
         readonly maxSteps: number;
-        /**
-         * Whether the provider's own reasoning summary reaches the panel
-         * (`QCMS_AGENT_THINKING`, Q16 of `plan/agent-everywhere.md`).
-         *
-         * Configuration read by this process alone, never a flag value a client
-         * learns (ADR-24): the panel renders its Thinking disclosure because the
-         * events arrived, not because it was told a setting. `off` drops every
-         * reasoning part **even when a provider emits one unasked**, which is
-         * what makes the default a guarantee rather than a request (SEC-8).
-         */
+        /** Drops every reasoning part under `off`, even one a provider emits unasked (SEC-8). */
         readonly thinking: AgentThinking;
       };
 }
 
-/** The values `QCMS_AGENT_THINKING` takes . */
 export const AGENT_THINKING = ["off", "summary"] as const;
 
 export type AgentThinking = (typeof AGENT_THINKING)[number];
@@ -756,15 +746,7 @@ export function isLocalAgentEndpoint(baseUrl: string): boolean {
   return isPrivateIpv4(hostname);
 }
 
-/**
- * `QCMS_AGENT_THINKING`, typed and fail-fast like `QCMS_AGENT_MAX_STEPS`.
- *
- * The issue names the variable and its allowed values and **echoes no value**
- * (SEC-8), which matters more here than it looks: an operator who pasted the
- * wrong thing into the wrong slot would otherwise see it in a crash report.
- * Read only when a provider is configured, so a `none` deployment boots with it
- * set to anything at all.
- */
+/** Fail-fast; the issue names the variable and its values, never the supplied value (SEC-8). */
 function parseAgentThinking(env: Env, issues: string[]): AgentThinking {
   const raw = env.QCMS_AGENT_THINKING;
   if (raw === undefined || raw.trim() === "") return "off";
@@ -777,11 +759,7 @@ function parseAgentThinking(env: Env, issues: string[]): AgentThinking {
   return known;
 }
 
-/**
- * Parse the draft-assistant configuration (041). Mirrors {@link parseChallenge}:
- * the secrets exist only in the enabled arm, and every issue names an env var
- * and never a value (SEC-8).
- */
+/** Secrets exist only in the enabled arm; every issue names an env var, never a value (SEC-8). */
 function parseAgent(env: Env, flags: Flags, issues: string[]): Config["agent"] {
   const provider = flags.agentAuthoring;
   if (provider === "none") return { provider: "none" };

@@ -157,15 +157,6 @@ describe("readAssistEvents", () => {
     ]);
   });
 
-  /**
-   * The keep-alive (080 exit criterion 4).
-   *
-   * The API writes `: keep-alive` through a silent stretch so an ingress idle
-   * timeout does not cut the turn. It has no `data:` line, so this parser
-   * already yields nothing for it - and this test is what keeps that true, since
-   * a future parser that learned to read bare `event:` lines would start
-   * emitting an event per heartbeat.
-   */
   it("reads the reasoning variants, and drops one with no delta", async () => {
     const body = streamOf([
       frame("reasoning", { delta: "weighing it up" }),

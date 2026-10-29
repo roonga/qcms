@@ -160,7 +160,6 @@ describe("the assistant turn timeline", () => {
   });
 });
 
-/** Text segments (080 exit criterion 3, streaming improvement 3). */
 describe("the segment column", () => {
   function shape(turn: AssistantTurnView): string[] {
     return turn.segments.map((segment) =>
@@ -180,8 +179,6 @@ describe("the segment column", () => {
   });
 
   it("starts a new segment when a provider reuses an id after a step", () => {
-    // A provider is not obliged to mint a fresh id per step, and two things said
-    // either side of a tool call are two things whatever the id says.
     const turn = fold([
       { type: "text", delta: "Searching", segment: "t0" },
       { type: "status", phase: "tool", tool: "search_question_library", step: 1 },
@@ -200,8 +197,6 @@ describe("the segment column", () => {
   });
 
   it("keeps the thinking disclosure in arrival order, as its own segment", () => {
-    // 081: one segment of the column, not a header and not a footer. A second
-    // burst after a tool step is its own disclosure in its own place.
     const turn = [
       { type: "reasoning", delta: "first thought" } as const,
       { type: "reasoning-end" } as const,
@@ -228,7 +223,6 @@ describe("the segment column", () => {
   });
 });
 
-/** The thinking disclosure's own folding rules (081). */
 describe("the thinking segment", () => {
   function thinkingOf(turn: AssistantTurnView) {
     return turn.segments.flatMap((segment) => (segment.kind === "thinking" ? [segment] : []));
@@ -252,9 +246,7 @@ describe("the thinking segment", () => {
   });
 
   it("settles an unclosed summary when the turn ends, rather than thinking for ever", () => {
-    // A dropped connection or a terminal error reaches `finishTurn` with the
-    // disclosure still open, and a running indicator that never stops is worse
-    // than a duration that is slightly short.
+    // An open disclosure still reports a (slightly short) duration instead of running forever.
     const open = applyTurnEvent(EMPTY_TURN, { type: "reasoning", delta: "hmm" }, 1_000);
     const finished = finishTurn(open, 2_500);
     expect(thinkingOf(finished)[0]).toMatchObject({ endedAt: 2_500 });

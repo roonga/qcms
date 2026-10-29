@@ -110,7 +110,6 @@ export function AssistPanel({
   const [live, setLive] = useState<AssistantTurnView | undefined>(undefined);
   const [proposal, setProposal] = useState<ProposalState | undefined>(undefined);
   const [panelError, setPanelError] = useState<AssistPanelError | undefined>(undefined);
-  /** Bumped whenever a card's outcome line should take focus; see the effect below. */
   const [resultToken, setResultToken] = useState(0);
 
   const panelRef = useRef<HTMLElement>(null);
@@ -118,7 +117,7 @@ export function AssistPanel({
   const composerRef = useRef<HTMLTextAreaElement>(null);
   const resultRef = useRef<HTMLLIElement>(null);
   const abortRef = useRef<AbortController | null>(null);
-  /** Set by Stop, so the abort it causes is not reported as a provider failure. */
+  /** Set by Stop so its abort is not reported as a provider failure. */
   const stoppedRef = useRef(false);
   const working = live !== undefined;
 
@@ -136,23 +135,13 @@ export function AssistPanel({
     };
   }, []);
 
-  /**
-   * A card arriving moves focus to its heading **only when focus was already
-   * inside the panel** (section 4.4).
-   *
-   * It used to move unconditionally, which is the behaviour the plan names as
-   * the one that would yank a docked user out of the page the moment phase C
-   * mounts this panel beside every screen: an author typing a step title would
-   * lose their caret because a turn they started a minute ago finished. Someone
-   * who is in the panel, on the other hand, is waiting for exactly this.
-   */
+  /** A card moves focus to its heading only when focus was already inside the panel. */
   useEffect(() => {
     if (proposal === undefined) return;
     const panel = panelRef.current;
     if (panel !== null && panel.contains(document.activeElement)) headingRef.current?.focus();
   }, [proposal]);
 
-  /** After Accept or Discard, focus lands on the outcome line that stays in the record. */
   useEffect(() => {
     if (resultToken > 0) resultRef.current?.focus();
   }, [resultToken]);
@@ -165,8 +154,6 @@ export function AssistPanel({
       } catch {
         // Persisting is a nicety; the toggle still works for this visit.
       }
-      // Opening the panel moves focus to the composer (section 4.4). Closing it
-      // moves nothing: the top-bar button it would return to is 082's.
       if (!next) requestAnimationFrame(() => composerRef.current?.focus());
       return next;
     });
@@ -181,14 +168,7 @@ export function AssistPanel({
     composerRef.current?.focus();
   }
 
-  /**
-   * Stop (section 4.3).
-   *
-   * Aborting the browser request is the whole mechanism: it cancels the SSE
-   * body, the API's relay runs its cancel hook, and the hook aborts the signal
-   * the provider call is running under. There is no second "stop" request, so
-   * nothing can be stopped on screen while still billing upstream.
-   */
+  /** Aborting the request cancels the SSE body, which aborts the provider call; there is no second stop request. */
   function stop() {
     if (!working) return;
     stoppedRef.current = true;
@@ -223,7 +203,6 @@ export function AssistPanel({
       });
     } catch {
       setLive(undefined);
-      // Stop aborts this same fetch, and a turn the author ended is not a failure.
       if (!stoppedRef.current) setPanelError({ kind: "PROVIDER_ERROR" });
       return;
     }
@@ -265,14 +244,7 @@ export function AssistPanel({
     }
   }
 
-  /**
-   * Record a card's outcome in the conversation and move focus to it.
-   *
-   * The line stays in the record rather than vanishing with the card, which is
-   * what makes it a focus target at all: a reader who presses Accept needs to
-   * land somewhere that says what happened, and "somewhere" cannot be a node
-   * that is about to unmount.
-   */
+  /** Record a card's outcome in the conversation and move focus to it. */
   function recordOutcome(outcome: ResultOutcome) {
     setTurns((current) => [...current, { role: "result", outcome }]);
     setProposal(undefined);
@@ -301,10 +273,6 @@ export function AssistPanel({
       className="qcms-assist"
     >
       <div className="qcms-assist__header">
-        {/* The mark in place of the title word (issue #1129). It carries the name
-            itself, and the panel's `aria-labelledby` points at it, so the landmark
-            is still called "Assistant" with no visible heading text. Its working
-            state is the same `working` the live region below reports. */}
         <AssistMark id="qcms-assist-heading" size={24} working={working} />
         <div className="qcms-assist__actions">
           {!collapsed && (
@@ -488,12 +456,7 @@ export function AssistPanel({
             </section>
           )}
 
-          {/* The composer (section 4.3). A multi-line text area rather than the
-              kit's single-line `TextField`: a form description is several
-              sentences, and Enter has to send while Shift+Enter adds a line, which
-              a single-line input cannot express. It is never disabled while a turn
-              runs - the author can type the next request, and disabling it would
-              take focus away mid-sentence - only Send is. */}
+          {/* Never disabled while a turn runs, so typing is not interrupted; only Send is. */}
           <div className="qcms-assist-composer">
             <label className="qcms-assist-composer__label" htmlFor={COMPOSER_ID}>
               {t("forms.assist.inputLabel")}
@@ -510,7 +473,7 @@ export function AssistPanel({
                 }}
                 onKeyDown={(event) => {
                   if (event.key !== "Enter" || event.shiftKey) return;
-                  // A composition in progress (an IME candidate list) owns Enter.
+                  // An IME composition owns Enter.
                   if (event.nativeEvent.isComposing) return;
                   event.preventDefault();
                   void send();
@@ -550,7 +513,6 @@ const COLLAPSE_STORAGE_KEY = "qcms-assist-collapsed";
 const BODY_ID = "qcms-assist-body";
 const COMPOSER_ID = "qcms-assist-composer";
 
-/** What a card's outcome line says. 083 adds the kinds a run can end in. */
 type ResultOutcome = "accepted" | "discarded";
 
 const RESULT_LABELS: Readonly<Record<ResultOutcome, MessageKey>> = {
@@ -593,7 +555,6 @@ function TurnBubble({
 }: {
   readonly turn: DisplayTurn;
   readonly live?: boolean;
-  /** Set on the last turn, so a freshly recorded outcome line can take focus. */
   readonly resultRef?: RefObject<HTMLLIElement | null> | undefined;
 }) {
   if (turn.role === "user") {
@@ -627,8 +588,6 @@ function TurnBubble({
       aria-busy={live ? true : undefined}
       data-testid={live ? "qcms-assist-live" : undefined}
     >
-      {/* The mark as the avatar, in place of the word (issue #1129). It carries the
-          name itself, which is why there is no visually hidden "Assistant:" here. */}
       <AssistMark size={20} />
       <div className="qcms-assist-bubble__body">
         {segments.map((segment, index) => (
@@ -661,19 +620,7 @@ function Segment({
   return <StepTimeline steps={segment.steps} />;
 }
 
-/**
- * The thinking disclosure (081, `plan/agent-everywhere.md` section 4.9).
- *
- * **Collapsed, and plain text.** Reasoning is the model's working-out, not its
- * answer, so it is behind a disclosure rather than in the reply; and it is
- * rendered as characters rather than through the Markdown subset, because a
- * summary is not written for a reader and formatting it would dress up prose
- * the model never meant to publish. `white-space: pre-wrap` keeps its own line
- * breaks.
- *
- * Nothing here knows the operator setting. The disclosure exists because the
- * events arrived (ADR-24), which is also why there is no empty state for it.
- */
+/** Collapsed plain text: reasoning is working-out, not an answer, so it skips the Markdown subset. */
 function ThinkingDisclosure({
   segment,
 }: {

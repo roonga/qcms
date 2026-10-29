@@ -112,29 +112,12 @@ function frame(event: AssistEvent): Uint8Array {
   return encoder.encode(`event: ${event.type}\ndata: ${JSON.stringify(event)}\n\n`);
 }
 
-/**
- * How long a turn may be silent before a keep-alive comment goes out
- * (streaming improvement 4).
- *
- * A tool-calling turn can spend a long time between frames - a model streaming
- * a whole `FormDefinition`, or a slow first token - and an ingress idle timeout
- * reads that as a dead connection and cuts the response. An SSE comment is the
- * protocol's own answer: it keeps bytes moving without adding an event, because
- * a frame with no `data:` line carries nothing a client could parse.
- */
+/** Silence before a keep-alive comment, so an ingress idle timeout does not cut a long turn. */
 export const ASSIST_HEARTBEAT_MS = 15_000;
 
-/** An SSE comment line. No `data:`, so no parser yields anything for it. */
 const HEARTBEAT = ": keep-alive\n\n";
 
-/**
- * Relay an assist event stream as an SSE body, with a keep-alive comment after
- * every silent stretch.
- *
- * A web `ReadableStream` (R4: no Node streams). Exported with its timing as an
- * argument so the heartbeat can be driven in a test without waiting out the
- * production interval; the route always passes {@link ASSIST_HEARTBEAT_MS}.
- */
+/** Relay events as an SSE body with a keep-alive comment per silent stretch; timing is injectable for tests. */
 export function assistSseStream(args: {
   readonly events: AsyncIterable<AssistEvent>;
   readonly heartbeatMs: number;
@@ -182,7 +165,6 @@ export function assistSseStream(args: {
   });
 }
 
-/** The route's own relay: the configured assistant, aborted when the client goes away. */
 function assistStream(
   deps: Deps,
   ctx: AssistContext,
