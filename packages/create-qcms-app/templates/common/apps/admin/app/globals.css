@@ -330,10 +330,12 @@
 }
 
 /*
- * Mode. Bare root = Light, `.dark` and `.hc` are the two override layers, and
- * `.light` is a values-free opt-out of the sheet's `prefers-color-scheme` block (see
- * theme.css). `color-scheme` follows so the browser's own chrome - scrollbars, form
- * control internals, the caret - matches the palette rather than fighting it.
+ * Appearance, as polarity crossed with contrast. Bare root = Light, `.dark` is the
+ * dark field, `.hc` is high contrast on either field, and `.light` is a values-free
+ * opt-out of the sheet's `prefers-color-scheme` blocks (see theme.css).
+ * `color-scheme` follows the FIELD rather than the contrast level, so the browser's
+ * own chrome - scrollbars, form control internals, the caret - matches the palette
+ * rather than fighting it.
  */
 html {
   color-scheme: light dark;
@@ -391,6 +393,17 @@ html {
 :root.light,
 :root.hc {
   color-scheme: light;
+}
+/* (0,3,0), above the two blocks either side of it: `.hc` alone is the light field. */
+:root.dark.hc {
+  color-scheme: dark;
+}
+/* High contrast with polarity left to the machine, which is the one state no class can
+   name. Mirrors the sheet's own auto dark-HC block. */
+@media (prefers-color-scheme: dark) {
+  :root.hc:not(.light):not(.dark) {
+    color-scheme: dark;
+  }
 }
 
 body {
@@ -644,11 +657,211 @@ button {
      fill alone left the two triggers lighting up in different languages. */
   box-shadow: 0 0 0 2px var(--color-border-strong);
 }
-/* High-contrast keeps a permanent border. A documented exception, not an oversight:
+/* High contrast keeps a permanent border. A documented exception, not an oversight:
    a borderless icon is exactly what an operator in this mode struggles to locate,
-   and boundaries are what the mode is for. */
+   and boundaries are what the mode is for. 2px, the weight every other edge takes in
+   this mode; the box stays 32px because the border is drawn inside it. */
 :root.hc .qcms-modetrigger {
+  border: 2px solid var(--color-border-strong);
+}
+
+/*
+ * THE APPEARANCE PANEL: a non-modal dialog holding two controls and a preview strip.
+ *
+ * It wears `.qcms-menu`'s surface recipe rather than a second one - the same hairline,
+ * modal corner and floating shadow, flattened in high contrast - because it floats off
+ * the same trigger row as the two menus beside it.
+ */
+.qcms-appearance__pop {
+  min-inline-size: 240px;
+  max-inline-size: calc(100vw - 2 * var(--space-4));
+  padding: var(--space-3);
   border: 1px solid var(--color-border-strong);
+  border-radius: var(--radius-modal);
+  background-color: var(--color-surface);
+  box-shadow:
+    0 2px 4px hsl(var(--shadow-color) / 0.1),
+    0 30px 70px -30px hsl(var(--shadow-color) / 0.4);
+}
+:root.hc .qcms-appearance__pop {
+  border-width: 2px;
+  box-shadow: none;
+}
+/* react-aria focuses the dialog element itself when the panel opens, so it takes a
+   tabindex and would otherwise draw the browser's default ring around the whole panel. */
+.qcms-appearance__dialog {
+  outline: none;
+}
+.qcms-appearance__panel {
+  display: grid;
+  gap: var(--space-2);
+}
+.qcms-appearance__group {
+  display: grid;
+  gap: var(--space-1);
+}
+.qcms-appearance__legend,
+.qcms-appearance__switchlabel {
+  font-size: 11px;
+  font-weight: 600;
+  line-height: 16px;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--color-text-muted);
+}
+.qcms-appearance__segments {
+  display: flex;
+  gap: var(--space-1);
+  padding: var(--space-0-5);
+  border-radius: var(--radius-control);
+  background-color: var(--color-background-muted);
+}
+.qcms-appearance__segment {
+  flex: 1;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  block-size: 28px;
+  padding-inline: var(--space-2);
+  border: 1px solid transparent;
+  border-radius: var(--radius-sm);
+  color: var(--color-text-muted);
+  font-size: 13px;
+  cursor: pointer;
+}
+.qcms-appearance__segment[data-hovered] {
+  background-color: var(--color-ghost-hover);
+  color: var(--color-text);
+}
+/* Never colour alone (WCAG 1.4.1): the chosen segment is raised onto the surface, takes
+   the heavier weight and keeps a drawn edge, each of which survives a two-colour
+   palette - and the radio's own checked state is what a screen reader hears. The edge is
+   a transparent border at rest, so selecting a segment moves no text. */
+.qcms-appearance__segment[data-selected] {
+  background-color: var(--color-surface);
+  border-color: var(--color-border-strong);
+  color: var(--color-text);
+  font-weight: 600;
+}
+.qcms-appearance__segment[data-focus-visible] {
+  outline: 2px solid var(--color-focus-ring);
+  outline-offset: 1px;
+}
+.qcms-appearance__hint,
+.qcms-appearance__note {
+  margin: 0;
+  font-size: 11px;
+  line-height: 16px;
+  color: var(--color-text-muted);
+}
+.qcms-appearance__switch {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  block-size: 28px;
+  cursor: pointer;
+}
+.qcms-appearance__switchlabel {
+  flex: 1;
+}
+.qcms-appearance__switchstate {
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--color-text);
+}
+.qcms-appearance__track {
+  inline-size: 32px;
+  block-size: 18px;
+  flex-shrink: 0;
+  position: relative;
+  border: 1px solid var(--color-border-strong);
+  border-radius: 999px;
+  background-color: var(--color-background-muted);
+}
+.qcms-appearance__track::after {
+  content: "";
+  position: absolute;
+  inset-block-start: 2px;
+  inset-inline-start: 2px;
+  inline-size: 12px;
+  block-size: 12px;
+  border-radius: 50%;
+  background-color: var(--color-border-strong);
+}
+.qcms-appearance__switch[data-selected] .qcms-appearance__track {
+  background-color: var(--color-primary);
+}
+.qcms-appearance__switch[data-selected] .qcms-appearance__track::after {
+  inset-inline-start: 16px;
+  background-color: var(--color-primary-foreground);
+}
+.qcms-appearance__switch[data-focus-visible] .qcms-appearance__track {
+  outline: 2px solid var(--color-focus-ring);
+  outline-offset: 2px;
+}
+
+/* The preview strip. The SWATCH carries `data-state`, and `app/theme.css` gives that
+   attribute the real token values for the state, so a tile paints from the palette
+   rather than from a second set of colours kept in step by hand. The caption sits
+   outside the swatch and so keeps the panel's own colours: a dark state's text colour
+   on the panel's light surface is unreadable. */
+.qcms-appearance__preview {
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  gap: var(--space-1);
+}
+.qcms-appearance__tile {
+  display: grid;
+  gap: var(--space-0-5);
+  padding: 0;
+  border: none;
+  background: none;
+  min-block-size: 0;
+  cursor: pointer;
+  text-align: center;
+}
+.qcms-themepreview {
+  display: grid;
+  gap: 2px;
+  padding: var(--space-1);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-sm);
+  background-color: var(--color-background);
+}
+.qcms-themepreview__bar {
+  block-size: 4px;
+  border-radius: 1px;
+  background-color: var(--color-primary);
+}
+.qcms-themepreview__text {
+  block-size: 8px;
+  border-radius: 1px;
+  background-color: var(--color-text);
+}
+/* The current tile is outlined, check-marked and bold - three signals, so the strip
+   still says which state is on in a monochrome rendering. */
+.qcms-appearance__tile[data-current="true"] .qcms-themepreview {
+  border-width: 2px;
+  border-color: var(--color-border-strong);
+}
+.qcms-appearance__tilecaption {
+  display: block;
+  font-size: 11px;
+  line-height: 16px;
+  color: var(--color-text-muted);
+  /* The label is the state's name and the strip is four columns wide, so it is clipped
+     rather than wrapped; the two real controls above carry the words in full. */
+  overflow: hidden;
+  white-space: nowrap;
+  text-overflow: ellipsis;
+}
+.qcms-appearance__tile[data-current="true"] .qcms-appearance__tilecaption {
+  color: var(--color-text);
+  font-weight: 600;
+}
+.qcms-appearance__tilecheck {
+  margin-inline-end: 2px;
+  font-weight: 600;
 }
 
 /* The account trigger: a full circle, the one deliberate exception to this app's
