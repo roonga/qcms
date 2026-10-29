@@ -42,7 +42,7 @@ export function ResponsesIndexRail({ filters }: { readonly filters: ResponsesInd
             label={t("ops.area.responses.filter.search")}
             description={t("ops.area.responses.filter.searchHint")}
             defaultValue={search}
-            // The API answers 400 past this length (issue #862).
+            // The API answers 400 past this length.
             maxLength={LIBRARY_SEARCH_MAX_LENGTH}
           />
         </RailFilters>

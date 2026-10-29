@@ -33,7 +33,7 @@ export function FormsListRail({ filters }: { readonly filters: FormListFilters }
             label={t("forms.filter.search")}
             description={t("forms.filter.searchHint")}
             defaultValue={search}
-            // The API answers 400 past this length (issue #862).
+            // The API answers 400 past this length.
             maxLength={LIBRARY_SEARCH_MAX_LENGTH}
           />
           <Select

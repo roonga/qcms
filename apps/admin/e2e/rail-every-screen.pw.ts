@@ -22,13 +22,13 @@ const EMAIL = uniqueAdminEmail("raileveryscreen1117");
 /** `--bp-sidebar` is 64rem, which the browser's default root size makes 1024px. */
 const SIDEBAR = 1024;
 
-/** The width the issue's first acceptance criterion names. */
+/** The width the column's left edge is compared at. */
 const WIDE = 1440;
 
 /** The seeded insurance fixture, as every form-scoped spec in this suite uses it. */
 const FORM_ID = "frm_auto_quote";
 
-/** The workspace a bootstrapped installation is seeded with (ADR-41, task 068). */
+/** The workspace a bootstrapped installation is seeded with. */
 const WORKSPACE_ID = "org_default_workspace";
 
 /** Set by the first test; the rest sign in again with it. */

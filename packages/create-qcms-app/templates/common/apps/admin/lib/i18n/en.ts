@@ -643,7 +643,7 @@ export const messages = {
   "forms.version.value": "v{version}",
   "forms.version.valueAt": "v{version} on {date}",
 
-  // The library's filters (issue 686). Worded from `plan/admin-shell-poc/library-lists-poc.html`,
+  // The library's filters. Worded from `plan/admin-shell-poc/library-lists-poc.html`,
   // which draws all three controls on this screen and labels each one; the question
   // library's equivalent keys are the sibling wording, so "Search" and "Status" read the
   // same on both screens and only the hint differs by what each list holds.

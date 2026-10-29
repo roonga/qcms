@@ -60,7 +60,7 @@ export default async function ShellLayout({
    * renders beside `<main>` instead of inside it.
    *
    * EVERY ROUTE HAS A PAGE IN THE SLOT, AND THAT IS A CORRECTNESS REQUIREMENT RATHER THAN
-   * TIDINESS (issue 701, and issue 633 before it). Every route has a page here, because on
+   * TIDINESS. Every route has a page here, because on
    * a soft navigation Next keeps the previously active state of a slot the new URL does not
    * match and consults `default.tsx` only after a full-page load - the file convention's own
    * reference says so. A screen with no match therefore did not get an empty rail: it got
@@ -208,8 +208,7 @@ export default async function ShellLayout({
           bottom of the screen: the rail ended where this element ended and the footer sat
           under it. The email is shell chrome rather than a credential and it was never only
           here - the account menu carries it on every screen - so the line went rather than
-          moving somewhere it would have been absent half the time (Code Owner decision,
-          2026-08-23).
+          moving somewhere it would have been absent half the time (Code Owner decision).
 
           Every screen has a rail (§7.0 ruling 1), so above `--bp-sidebar` the grid branch
           always renders; the flex fallback is what every width below it takes. */}
