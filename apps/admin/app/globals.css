@@ -701,11 +701,6 @@ button {
   border-width: 2px;
   box-shadow: none;
 }
-/* react-aria focuses the dialog element itself when the panel opens, so it takes a
-   tabindex and would otherwise draw the browser's default ring around the whole panel. */
-.qcms-appearance__dialog {
-  outline: none;
-}
 .qcms-appearance__panel {
   display: grid;
   gap: var(--space-2);

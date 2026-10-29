@@ -145,7 +145,6 @@ const TYPE_FLOORS = {
 const THEME_LABEL = "Preview theme";
 const MODE_LABEL = "Preview mode";
 
-/** The admin's own mode menu items, by the name the shell renders. */
 /** The chrome's own polarity segments. Contrast is the switch beside them. */
 const ADMIN_POLARITY = { dark: "Dark" } as const;
 

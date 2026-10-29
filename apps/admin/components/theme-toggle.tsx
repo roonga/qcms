@@ -14,53 +14,10 @@ import {
 } from "@/lib/appearance";
 import { t } from "@/lib/i18n/en";
 
-/**
- * The operator's one appearance control: polarity (Auto, Light, Dark) crossed with high
- * contrast.
- *
- * The mechanism is the one the three-row menu used and deliberately so: swap the root
- * classes, write one long-lived cookie, in that order and with no round trip. The class
- * swap is what the operator sees immediately; the cookie is what makes the NEXT server
- * render already correct, so a navigation, a reload or a fresh sign-in never flashes
- * back. Nothing here knows a single colour - the token contract does the rest.
- *
- * WHY TWO CONTROLS RATHER THAN A LIST
- * "Light / Dark / High contrast" presents two different questions as one list, and a dark
- * field at high contrast has no row at all. Polarity and contrast are independent on the
- * platform too (`prefers-color-scheme` and `prefers-contrast` are separate media
- * features), so the control asks them separately and the sheet composes the answer.
- *
- * HIGH CONTRAST IS ONLY EVER EXPLICIT
- * Nothing infers it. The token sheet's auto blocks cover `prefers-color-scheme` only and
- * have no `prefers-contrast` companion, and this control never turns contrast on by
- * itself. High contrast changes far more than a palette, and inferring it from a signal
- * the operating system sends for other reasons would take the choice away.
- *
- * AUTO IS A REAL SELECTION, AND SO IS LIGHT
- * Auto writes a cookie whose polarity carries no root class, which is the same page the
- * sheet paints with no cookie at all - but it records that the operator asked for it, so
- * a later change of mind is a change rather than a reset. Light is the opt-out: it
- * carries no values either, and exists only so an operator who wants Light on a
- * dark-preferring machine can stay there when the machine flips at sunset.
- *
- * THE RESOLVED POLARITY IS READ AFTER MOUNT
- * `matchMedia` does not exist during SSR, and a first render that disagreed with the
- * server's HTML is a hydration mismatch. The effect below corrects the CONTROL's wording
- * only: the page itself was already painted right by the sheet.
- *
- * THE PANEL IS ANCHORED BY CSS, NOT BY AN OVERLAY ENGINE
- * The controls inside it are react-aria's (ADR-22), but the popup is this app's own
- * absolutely positioned box under the trigger. react-aria's `Popover` closes itself on
- * any scroll event reaching the trigger, including the zero-delta one the browser fires
- * when it scrolls a freshly focused panel into view past `scroll-padding-block-start` -
- * so the panel shut again in the same frame it opened, in every high-contrast state. The
- * trigger has one fixed home in the topbar's trailing group, so there is no collision
- * geometry worth an engine, and open, dismiss and focus return are the four lines below.
- *
- * WITHOUT JAVASCRIPT there is no page for this control to be on: the admin requires
- * scripting and stops at one message without it (`app/layout.tsx`). The appearance still
- * paints correctly from the token sheet's own `prefers-color-scheme` blocks with no
- * client code involved.
+/*
+ * The panel is this app's own absolutely positioned box rather than react-aria's
+ * `Popover`, which closes on any scroll reaching the trigger - including the zero-delta
+ * one the browser fires when a focused panel clears the sticky topbar's scroll padding.
  */
 
 /** The check mark on the current preview tile. U+2713. */
@@ -135,19 +92,15 @@ export function ThemeToggle({
     [secureCookies],
   );
 
-  /**
-   * `preventScroll`, which is the whole reason this panel is not an overlay component:
-   * the topbar is sticky and `html` carries its height as `scroll-padding-block-start`,
-   * so a plain `focus()` here makes the browser scroll a panel that is already on screen.
-   */
+  // `preventScroll`: `html` carries the sticky topbar's height as
+  // `scroll-padding-block-start`, so a plain `focus()` scrolls a panel already on screen.
   useEffect(() => {
     if (!open) return;
     const selected = panelRef.current?.querySelector<HTMLElement>('input[type="radio"]:checked');
     selected?.focus({ preventScroll: true });
   }, [open]);
 
-  // A press anywhere else dismisses it, which is what makes the panel non-modal: the page
-  // behind it stays live and the first press out there is not swallowed by a scrim.
+  // Non-modal: there is no scrim, so the first press outside reaches the page it lands on.
   useEffect(() => {
     if (!open) return;
     const onPointerDown = (event: PointerEvent): void => {
@@ -192,14 +145,9 @@ export function ThemeToggle({
   };
 
   /**
-   * Tabbing past the last control closes the panel, which is what a non-modal dialog owes
-   * a keyboard operator: focus is not contained, so without this the panel stays open
-   * behind whatever they moved to.
-   *
-   * Read on the next tick from `activeElement` rather than from `relatedTarget`, because
-   * a press inside reports focus moving to nothing on its way back to the control, and
-   * closing on that shut the panel under the operator. Where focus SETTLES is the only
-   * honest answer, and the body is not an answer: it means focus was dropped, not moved.
+   * Focus is not contained, so tabbing past the last control has to close the panel.
+   * Measured on the next tick from `activeElement`, because a press inside reports focus
+   * passing through nothing, and the body means focus was dropped rather than moved out.
    */
   const onPanelBlur = (event: React.FocusEvent<HTMLDivElement>): void => {
     const panel = event.currentTarget;
@@ -279,8 +227,7 @@ export function ThemeToggle({
                 <span className="qcms-appearance__switchlabel">
                   {t("appearance.contrast.legend")}
                 </span>
-                {/* The word, not the knob's position: a switch whose state is carried
-                    only by where a dot sits is colour-and-shape alone (WCAG 1.4.1). */}
+                {/* A state carried only by where a dot sits is shape alone (WCAG 1.4.1). */}
                 <span className="qcms-appearance__switchstate">
                   {highContrast ? t("appearance.contrast.on") : t("appearance.contrast.off")}
                 </span>
@@ -288,12 +235,8 @@ export function ThemeToggle({
               </SwitchButton>
             </SwitchField>
             <p className="qcms-appearance__note">{t("appearance.contrast.note")}</p>
-            {/* A POINTER SHORTCUT AND NOTHING ELSE, so it is hidden from assistive
-                technology: every state it offers is already reachable from the two
-                controls above, and announcing four more buttons that duplicate them
-                would make the panel longer to hear for no new function. The tiles refuse
-                focus for the same reason, which is also what keeps them out of axe's
-                `aria-hidden-focus` rule. */}
+            {/* Hidden from assistive technology because it duplicates the two controls
+                above; the tiles refuse focus, which is what keeps `aria-hidden` valid. */}
             <div className="qcms-appearance__preview" aria-hidden="true">
               {PREVIEW_STATES.map(({ state, value }) => {
                 const current =
@@ -305,8 +248,7 @@ export function ThemeToggle({
                     tabIndex={-1}
                     data-current={current ? "true" : "false"}
                     className="qcms-appearance__tile"
-                    // Focus never enters this subtree: it is `aria-hidden`, and a press
-                    // that moved focus into it would also leave the panel unfocused.
+                    // A press must not take focus into an `aria-hidden` subtree.
                     onPointerDown={(event) => event.preventDefault()}
                     onClick={() => {
                       apply(value);
@@ -314,8 +256,7 @@ export function ThemeToggle({
                     }}
                   >
                     {/* The scoped carrier: `app/theme.css` gives this attribute the
-                        state's real token values, and everything inside paints from
-                        them. */}
+                        state's real token values. */}
                     <span className="qcms-themepreview" data-state={state}>
                       <span className="qcms-themepreview__bar" />
                       <span className="qcms-themepreview__text" />

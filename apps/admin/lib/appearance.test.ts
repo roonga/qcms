@@ -65,8 +65,7 @@ describe("parsing the stored choice", () => {
     }
   });
 
-  // The one piece of this change with a correctness risk rather than a taste risk: a
-  // cookie written when high contrast was light-only must keep meaning what it meant.
+  // A cookie written when high contrast was light-only must keep its meaning.
   it("reads a legacy hc cookie as Light plus high contrast", () => {
     expect(parseAppearance("hc")).toEqual({ polarity: "light", contrast: "high" });
     expect(appearanceClasses(parseAppearance("hc")!)).toEqual(["light", "hc"]);
