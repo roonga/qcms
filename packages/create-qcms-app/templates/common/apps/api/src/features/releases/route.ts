@@ -179,7 +179,7 @@ export const releaseWorkflowReadRoute = createRoute({
   summary: "The release-workflow rules in force, per destination (admin)",
   description:
     "Read by every authoring role, because a publisher needs the rule the confirmation " +
-    "will apply. With no revision written it reports `source: \"default\"` and the " +
+    'will apply. With no revision written it reports `source: "default"` and the ' +
     "deployment's derived behaviour, which is what runs until an installation " +
     "administrator writes one. `protected` is true for the production environment alone " +
     "and is read-only: it reports the role split and the workspace second-approver " +

@@ -242,7 +242,7 @@ export const publishBatchRoute = createRoute({
   description:
     "One confirmation, one transaction, **one snapshot**: the draft is frozen once and " +
     "the same immutable version is released into each destination, never once per " +
-    "target. An empty `targets` is \"create a version without releasing it\" and needs " +
+    'target. An empty `targets` is "create a version without releasing it" and needs ' +
     "`form: publish` alone; with destinations listed, the gate also evaluates " +
     "`release: create` once per listed environment and refuses on the first failure, " +
     "naming only that environment. `source.draftRevision` is the revision the review " +

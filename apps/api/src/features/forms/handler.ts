@@ -1466,7 +1466,7 @@ export function makePublishBatchHandler(
 
     // Before the draft is read: the first attempt consumed it, so a replay has nothing to
     // freeze and would answer "no draft to publish" instead of the result it produced.
-    const intentHash = intentHashOf(body);
+    const intentHash = await intentHashOf(body);
     const replayed = await storedResult(deps, {
       principalId: principal.userId,
       formId,

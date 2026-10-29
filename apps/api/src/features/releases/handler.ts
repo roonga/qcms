@@ -739,7 +739,7 @@ export function makeReleaseBatchHandler(
       workspaceId: c.get("grantContext")?.workspaceId ?? form.workspaceId,
       principalId: principal.userId,
       idempotencyKey: body.idempotencyKey,
-      intentHash: intentHashOf(body),
+      intentHash: await intentHashOf(body),
       expectedWorkflowRevision: body.expectedWorkflowRevision,
       source: { kind: "version", version: body.source.version, publishedBy: version.publishedBy },
       targets: body.targets.map((target) => ({

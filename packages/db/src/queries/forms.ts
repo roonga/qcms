@@ -54,7 +54,12 @@ export async function getForm(exec: Executor, formId: FormId): Promise<FormRow |
  * lock taken outside one is released immediately and guards nothing.
  */
 export async function lockForm(exec: Executor, formId: FormId): Promise<FormRow | undefined> {
-  const [row] = await exec.select().from(forms).where(eq(forms.formId, formId)).limit(1).for("update");
+  const [row] = await exec
+    .select()
+    .from(forms)
+    .where(eq(forms.formId, formId))
+    .limit(1)
+    .for("update");
   return row;
 }
 

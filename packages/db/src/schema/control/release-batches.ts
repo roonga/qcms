@@ -26,9 +26,7 @@ export const releaseBatches = controlSchema.table(
     intentHash: text("intent_hash").notNull(),
     /** The exact 200 body, replayed verbatim when the same key arrives again. */
     result: jsonb("result").notNull(),
-    createdAt: timestamp("created_at", { withTimezone: true, mode: "date" })
-      .notNull()
-      .defaultNow(),
+    createdAt: timestamp("created_at", { withTimezone: true, mode: "date" }).notNull().defaultNow(),
   },
   (t) => [
     primaryKey({ columns: [t.principalId, t.formId, t.idempotencyKey] }),

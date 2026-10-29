@@ -1,5 +1,13 @@
 import { sql } from "drizzle-orm";
-import { boolean, check, foreignKey, integer, primaryKey, text, timestamp } from "drizzle-orm/pg-core";
+import {
+  boolean,
+  check,
+  foreignKey,
+  integer,
+  primaryKey,
+  text,
+  timestamp,
+} from "drizzle-orm/pg-core";
 
 import { environments } from "./environments.js";
 
@@ -20,9 +28,7 @@ export const releaseWorkflowRevisions = controlSchema.table(
   RELEASE_WORKFLOW_REVISIONS_TABLE,
   {
     revision: integer("revision").primaryKey(),
-    createdAt: timestamp("created_at", { withTimezone: true, mode: "date" })
-      .notNull()
-      .defaultNow(),
+    createdAt: timestamp("created_at", { withTimezone: true, mode: "date" }).notNull().defaultNow(),
     /** No foreign key, so a later account deletion cannot cascade or block the record. */
     createdBy: text("created_by").notNull(),
     /** Display text alone; no decision ever reads it. */

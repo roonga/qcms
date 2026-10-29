@@ -304,7 +304,6 @@ async function decideRequest(
       userId: input.userId,
       claim,
       workspaceId: where.id,
-      request,
       targets: await targetsFor(c, policy),
     });
   }
@@ -333,11 +332,10 @@ async function decideOverTargets(
     readonly userId: string;
     readonly claim: boolean;
     readonly workspaceId: string;
-    readonly request: AccessRequest;
     readonly targets: readonly string[];
   },
 ): Promise<GrantContext> {
-  const { policy, workspaceId, request, targets } = input;
+  const { policy, workspaceId, targets } = input;
   const resolved: ResolvedMembership = await resolveGrants(deps.databases.control, {
     userId: input.userId,
     workspaceId,

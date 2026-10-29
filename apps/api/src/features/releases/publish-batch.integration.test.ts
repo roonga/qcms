@@ -152,7 +152,9 @@ function draftDefinition(formId: string): Record<string, unknown> {
     formId,
     defaultLocale: "en",
     title: { en: "A form" },
-    steps: [{ stepId: "stp_one", title: { en: "One" }, items: [{ questionId: QUESTION_ID, version: 1 }] }],
+    steps: [
+      { stepId: "stp_one", title: { en: "One" }, items: [{ questionId: QUESTION_ID, version: 1 }] },
+    ],
     rules: [],
   };
 }
@@ -206,7 +208,10 @@ async function call(
     ...(body === undefined ? {} : { body: JSON.stringify(body) }),
   });
   const text = await res.text();
-  return { status: res.status, body: text === "" ? {} : (JSON.parse(text) as Record<string, unknown>) };
+  return {
+    status: res.status,
+    body: text === "" ? {} : (JSON.parse(text) as Record<string, unknown>),
+  };
 }
 
 function codeOf(body: Record<string, unknown>): string {
@@ -430,8 +435,9 @@ describe("the release-workflow configuration", () => {
         rules: one.rules,
       });
       expect(codeOf(refused.body)).toBe("WORKFLOW_RULE_INVALID");
-      expect((refused.body as { error: { details: { environment: string } } }).error.details
-        .environment).toBe(one.environment);
+      expect(
+        (refused.body as { error: { details: { environment: string } } }).error.details.environment,
+      ).toBe(one.environment);
     }
     const read = await call(editorTest.token, "GET", "/release-workflow");
     expect(read.body.revision).toBeNull();
@@ -482,10 +488,14 @@ describe("the release-workflow configuration", () => {
 
   it("is append-only at the database, so a rule change cannot rewrite history", async () => {
     await clearWorkflow();
-    expect((await call(claim.token, "PUT", "/release-workflow", {
-      expectedRevision: null,
-      rules: [],
-    })).status).toBe(200);
+    expect(
+      (
+        await call(claim.token, "PUT", "/release-workflow", {
+          expectedRevision: null,
+          rules: [],
+        })
+      ).status,
+    ).toBe(200);
     await expect(
       testDb.client.query(`update control.release_workflow_revisions set note = 'edited'`),
     ).rejects.toThrow(/append-only/);
@@ -598,12 +608,17 @@ describe("every destination is authorised on its own", () => {
 
   it("refuses a grant held in another workspace, whatever its environment scope", async () => {
     const formId = await seedForm(1);
-    const refused = await call(otherWorkspaceEditor.token, "POST", `/forms/${formId}/release-batch`, {
-      idempotencyKey: KEYS(),
-      expectedWorkflowRevision: null,
-      source: { kind: "version", version: 1 },
-      targets: [{ environment: "test", expectedSequence: null }],
-    });
+    const refused = await call(
+      otherWorkspaceEditor.token,
+      "POST",
+      `/forms/${formId}/release-batch`,
+      {
+        idempotencyKey: KEYS(),
+        expectedWorkflowRevision: null,
+        source: { kind: "version", version: 1 },
+        targets: [{ environment: "test", expectedSequence: null }],
+      },
+    );
     expect(refused.status).toBe(403);
     expect(await listFormReleases(control, formId)).toEqual([]);
   });
@@ -809,9 +824,9 @@ describe("one confirmation is one transaction", () => {
       const refused = await refusedAfter();
       expect(refused.status).toBe(409);
       expect(codeOf(refused.body)).toBe("STALE_REVIEW");
-      expect(
-        (refused.body as { error: { details: { field: string } } }).error.details.field,
-      ).toBe("workflowRevision");
+      expect((refused.body as { error: { details: { field: string } } }).error.details.field).toBe(
+        "workflowRevision",
+      );
       expect(await listFormReleases(control, formId)).toEqual([]);
     } finally {
       await clearWorkflow();
@@ -850,9 +865,13 @@ describe("one confirmation is one transaction", () => {
     );
     expect(target?.currentSequence).toBe(1);
     // A close appends a row, so the sequence the review reported is no longer the newest.
-    expect((await call(editorTest.token, "POST", `/forms/${formId}/close`, {
-      environment: "test",
-    })).status).toBe(200);
+    expect(
+      (
+        await call(editorTest.token, "POST", `/forms/${formId}/close`, {
+          environment: "test",
+        })
+      ).status,
+    ).toBe(200);
     const refused = await call(editorTest.token, "POST", `/forms/${formId}/release-batch`, {
       idempotencyKey: KEYS(),
       expectedWorkflowRevision: null,
@@ -1012,11 +1031,7 @@ describe("idempotency and result lookup", () => {
     expect(await releasedEvents("test", formId)).toBe(1);
     expect((await listFormReleases(control, formId, "test")).length).toBe(1);
 
-    const looked = await call(
-      editorTest.token,
-      "GET",
-      `/forms/${formId}/release-batches/${key}`,
-    );
+    const looked = await call(editorTest.token, "GET", `/forms/${formId}/release-batches/${key}`);
     expect(looked.status).toBe(200);
     expect(looked.body.version).toBe(first.body.version);
   });

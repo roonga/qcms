@@ -148,7 +148,10 @@ export function testReleaseRequired(): ApiError {
 }
 
 /** The configured-revision refusal, naming the destination and what would satisfy it. */
-export function priorReleaseRequired(environment: string, requiresAnyOf: readonly string[]): ApiError {
+export function priorReleaseRequired(
+  environment: string,
+  requiresAnyOf: readonly string[],
+): ApiError {
   return new ApiError(
     "PRIOR_RELEASE_REQUIRED",
     409,

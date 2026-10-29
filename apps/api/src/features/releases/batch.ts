@@ -1,5 +1,3 @@
-import { createHash } from "node:crypto";
-
 import {
   getDraft,
   getFormEnvironmentState,
@@ -24,6 +22,8 @@ import {
   requirePrerequisite,
   ruleFor,
   testReleaseRequired,
+  type EffectiveWorkflow,
+  type WorkflowRule,
 } from "./workflow.js";
 
 /** One destination of a confirmation, carrying what the review showed. */
@@ -151,13 +151,15 @@ function canonical(value: unknown): unknown {
   if (value === null || typeof value !== "object") return value;
   const entries = Object.entries(value as Record<string, unknown>)
     .filter(([key]) => key !== "idempotencyKey")
-    .sort(([left], [right]) => (left < right ? -1 : left > right ? 1 : 0));
+    .sort(([left], [right]) => left.localeCompare(right));
   return Object.fromEntries(entries.map(([key, member]) => [key, canonical(member)]));
 }
 
 /** sha256 of the canonical body with the key removed: the same act, or a different one. */
-export function intentHashOf(body: unknown): string {
-  return createHash("sha256").update(JSON.stringify(canonical(body))).digest("hex");
+export async function intentHashOf(body: unknown): Promise<string> {
+  const bytes = new TextEncoder().encode(JSON.stringify(canonical(body)));
+  const digest = await crypto.subtle.digest("SHA-256", bytes);
+  return [...new Uint8Array(digest)].map((byte) => byte.toString(16).padStart(2, "0")).join("");
 }
 
 function newestIn(
@@ -211,84 +213,21 @@ export async function commitReleaseBatch(deps: Deps, input: CommitInput): Promis
 
       const releases = await listFormReleases(tx, input.formId);
       const version = input.source.kind === "version" ? input.source.version : undefined;
-      const author =
-        input.source.kind === "version" ? input.source.publishedBy : input.principalId;
 
       // Every recheck runs before the first write, so nothing is written for a
       // confirmation one of whose destinations is refused.
-      const approvals = new Map<string, string | undefined>();
-      const candidate = version ?? (await nextVersion(tx, input.formId));
-      for (const target of input.targets) {
-        const rule = ruleFor(workflow, target.environment);
-        if (input.targets.length > 1 && !rule.allowsInBatch) {
-          throw batchNotAllowed(target.environment);
-        }
-        const current = newestIn(releases, target.environment);
-        if ((current?.sequence ?? null) !== target.expectedSequence) {
-          throw fail.staleReview("sequence", target.environment);
-        }
-        if (version === undefined) {
-          if (!rule.allowsDraftPublish) {
-            throw workflow.source === "default"
-              ? testReleaseRequired()
-              : draftPublishNotAllowed(target.environment);
-          }
-          // A version frozen in this act has reached no environment, so a destination
-          // with a prerequisite cannot be satisfied by anything.
-          if (rule.requiresPriorReleaseIn.length > 0) {
-            throw workflow.source === "default"
-              ? testReleaseRequired()
-              : priorReleaseRequired(target.environment, rule.requiresPriorReleaseIn);
-          }
-        } else {
-          if (current?.version === version) {
-            throw fail.alreadyReleased(version, target.environment);
-          }
-          requirePrerequisite({ workflow, releases, environment: target.environment, version });
-        }
-        approvals.set(
-          target.environment,
-          await approvalForRelease(tx, {
-            workspaceId: input.workspaceId,
-            environment: target.environment,
-            version: candidate,
-            author,
-            releasedBy: input.principalId,
-          }),
-        );
-      }
+      const approvals = await recheckTargets(tx, { ...input, workflow, releases, version });
 
       const frozen = input.source.kind === "draft" ? await input.source.freeze(tx) : undefined;
       const released = version ?? frozen!.version;
-
-      const written: ReleaseBody[] = [];
-      for (const target of input.targets) {
-        const current = newestIn(releases, target.environment);
-        const row = await recordRelease(tx, {
-          formId: input.formId,
-          environment: target.environment,
-          version: released,
-          releasedBy: input.principalId,
-          approvedBy: approvals.get(target.environment),
-          fromEnvironment: target.fromEnvironment,
-          // Releasing into a closed environment does not resume intake.
-          closed:
-            (await getFormEnvironmentState(tx, input.formId, target.environment))?.closed ?? false,
-        });
-        written.push({
-          formId: row.formId,
-          environment: row.environment,
-          version: row.version,
-          sequence: row.sequence,
-          fromEnvironment: row.fromEnvironment,
-          releasedBy: row.releasedBy,
-          releasedAt: row.releasedAt.toISOString(),
-          approvedBy: row.approvedBy,
-          replacedVersion: current?.version ?? null,
-          rollback: current !== undefined && current.version > row.version,
-          closed: row.closed,
-        });
-      }
+      const written = await writeReleases(tx, {
+        formId: input.formId,
+        principalId: input.principalId,
+        targets: input.targets,
+        releases,
+        approvals,
+        version: released,
+      });
 
       const result: BatchResult = { version: released, releases: written, replayed: false };
       await insertReleaseBatch(tx, {
@@ -308,9 +247,114 @@ export async function commitReleaseBatch(deps: Deps, input: CommitInput): Promis
 }
 
 /**
- * The version number `freeze` is about to assign, read only for a refusal message. Naming
- * the previous one would point an operator at a version they never touched.
+ * Every expectation the review showed, per destination, and the approval each one needs.
+ * It writes nothing: a refusal here leaves the confirmation with no effect at all.
  */
+async function recheckTargets(
+  tx: Executor,
+  input: {
+    readonly formId: FormId;
+    readonly workspaceId: string;
+    readonly principalId: string;
+    readonly source: BatchSource;
+    readonly targets: readonly BatchTarget[];
+    readonly workflow: EffectiveWorkflow;
+    readonly releases: readonly FormReleaseHistoryRow[];
+    readonly version: number | undefined;
+  },
+): Promise<Map<string, string | undefined>> {
+  const { workflow, releases, version, targets } = input;
+  const author = input.source.kind === "version" ? input.source.publishedBy : input.principalId;
+  // The number `freeze` is about to assign, read only for a refusal message: naming the
+  // previous one would point an operator at a version they never touched.
+  const candidate = version ?? (await nextVersion(tx, input.formId));
+  const approvals = new Map<string, string | undefined>();
+
+  for (const target of targets) {
+    const rule = ruleFor(workflow, target.environment);
+    if (targets.length > 1 && !rule.allowsInBatch) throw batchNotAllowed(target.environment);
+    const current = newestIn(releases, target.environment);
+    if ((current?.sequence ?? null) !== target.expectedSequence) {
+      throw fail.staleReview("sequence", target.environment);
+    }
+    if (version === undefined) requireDraftEligible(workflow, rule, target.environment);
+    else {
+      if (current?.version === version) throw fail.alreadyReleased(version, target.environment);
+      requirePrerequisite({ workflow, releases, environment: target.environment, version });
+    }
+    approvals.set(
+      target.environment,
+      await approvalForRelease(tx, {
+        workspaceId: input.workspaceId,
+        environment: target.environment,
+        version: candidate,
+        author,
+        releasedBy: input.principalId,
+      }),
+    );
+  }
+  return approvals;
+}
+
+/**
+ * A version frozen in this act has reached no environment, so a destination with a
+ * prerequisite cannot be satisfied by anything and is refused with the same code.
+ */
+function requireDraftEligible(
+  workflow: EffectiveWorkflow,
+  rule: WorkflowRule,
+  environment: string,
+): void {
+  if (rule.allowsDraftPublish && rule.requiresPriorReleaseIn.length === 0) return;
+  if (workflow.source === "default") throw testReleaseRequired();
+  if (!rule.allowsDraftPublish) throw draftPublishNotAllowed(environment);
+  throw priorReleaseRequired(environment, rule.requiresPriorReleaseIn);
+}
+
+/** One release row and one `form.released` event per destination, in the order listed. */
+async function writeReleases(
+  tx: Executor,
+  input: {
+    readonly formId: FormId;
+    readonly principalId: string;
+    readonly targets: readonly BatchTarget[];
+    readonly releases: readonly FormReleaseHistoryRow[];
+    readonly approvals: ReadonlyMap<string, string | undefined>;
+    readonly version: number;
+  },
+): Promise<ReleaseBody[]> {
+  const written: ReleaseBody[] = [];
+  for (const target of input.targets) {
+    const current = newestIn(input.releases, target.environment);
+    const row = await recordRelease(tx, {
+      formId: input.formId,
+      environment: target.environment,
+      version: input.version,
+      releasedBy: input.principalId,
+      approvedBy: input.approvals.get(target.environment),
+      fromEnvironment: target.fromEnvironment,
+      // Releasing into a closed environment does not resume intake.
+      closed:
+        (await getFormEnvironmentState(tx, input.formId, target.environment))?.closed ?? false,
+    });
+    written.push({
+      formId: row.formId,
+      environment: row.environment,
+      version: row.version,
+      sequence: row.sequence,
+      fromEnvironment: row.fromEnvironment,
+      releasedBy: row.releasedBy,
+      releasedAt: row.releasedAt.toISOString(),
+      approvedBy: row.approvedBy,
+      replacedVersion: current?.version ?? null,
+      rollback: current !== undefined && current.version > row.version,
+      closed: row.closed,
+    });
+  }
+  return written;
+}
+
+/** The number the next freeze assigns. */
 async function nextVersion(tx: Executor, formId: FormId): Promise<number> {
   return ((await getLatestPublishedVersion(tx, formId))?.version ?? 0) + 1;
 }
