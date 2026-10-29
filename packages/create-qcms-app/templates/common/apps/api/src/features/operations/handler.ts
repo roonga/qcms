@@ -391,8 +391,7 @@ function parseCursor(raw: string | undefined, sort: string): Cursor | undefined 
 
 // Strict and uncoerced: a wrong type, an extra key or an unparseable timestamp is a
 // cursor this route did not issue, and `released` reaches `new Date(...)` on a released
-// sort. `slug` and `formId` are unbounded here, as form creation leaves them, and the
-// `cursor` parameter's own length cap is what bounds the payload.
+// sort. The slug and form id are unbounded, as form creation leaves them.
 const CursorPayload = z.strictObject({
   sort: z.string().min(1),
   slug: z.string().min(1),
