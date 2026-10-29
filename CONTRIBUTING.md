@@ -287,6 +287,8 @@ QCMS_PORT_SEAT=0 pnpm verify:browser   # the Playwright suite (portal e2e + a11y
 | `pnpm check:docker-job-guards`                                         | `pnpm check:all`                                                                                     |
 | `pnpm check:ci-parity`                                                 | `pnpm check:all`                                                                                     |
 | `pnpm check:templates`                                                 | `pnpm check:all`                                                                                     |
+| `pnpm check:comments` (comment length and history markers)             | `pnpm check:all`                                                                                     |
+| `changes (ci)` PR body step (`scripts/check-pr-body.mjs`)              | Not a local gate (reads the PR body)                                                                 |
 | `pnpm check:plan` (fast-lane pull requests only)                       | `pnpm check:plan` - a superset of `check:all`, see "The instruction and plan fast lane" below        |
 | `api-e2e` job (`--project qcms-api-e2e`)                               | `pnpm test` (apps/api's `test` script runs that project)                                             |
 | `browser-e2e` job (`playwright test`: portal **and admin**)            | **`pnpm verify:browser`** - deliberately not in `verify`                                             |
