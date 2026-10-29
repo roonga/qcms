@@ -15,9 +15,8 @@ import {
 import { t } from "@/lib/i18n/en";
 
 /*
- * The panel is this app's own absolutely positioned box rather than react-aria's
- * `Popover`, which closes on any scroll reaching the trigger - including the zero-delta
- * one the browser fires when a focused panel clears the sticky topbar's scroll padding.
+ * Not react-aria's `Popover`: it closes on any scroll reaching the trigger, including the
+ * zero-delta one a focused panel provokes under the sticky topbar's scroll padding.
  */
 
 /** The check mark on the current preview tile. U+2713. */
