@@ -144,9 +144,9 @@ export const FONT_REGISTRY: readonly FontEntry[] = [
     group: "Popular",
     tail: SANS_TAIL,
     weights: [400],
-    // The variable file, because the QCMS app sets its titles, labels and buttons
-    // in Inter 600 (issue #1121) and a static 400 would have the browser
-    // synthesize them. One file still serves the portal's 400.
+    // The variable file, because the QCMS app sets its titles, labels and buttons in
+    // Inter 600 and a static 400 would have the browser synthesize them. One file
+    // still serves the portal's 400.
     file: "inter-variable.woff2",
     license: "OFL-1.1",
     copyright: "Copyright 2020 The Inter Project Authors (https://github.com/rsms/inter)",
@@ -335,8 +335,8 @@ export const FONT_REGISTRY: readonly FontEntry[] = [
     group: "Monospace",
     tail: MONO_TAIL,
     weights: [400],
-    // The variable file: the QCMS app's data face (issue #1121) sets an id
-    // heading at 500 as well as the 400 of inline ids.
+    // The variable file: the QCMS app's data face sets an id heading above 400 as
+    // well as the 400 of its inline ids.
     file: "jetbrainsmono-variable.woff2",
     license: "OFL-1.1",
     copyright:
