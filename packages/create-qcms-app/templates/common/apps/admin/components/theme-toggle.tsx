@@ -8,9 +8,11 @@ import {
   AriaDialog,
   AriaPopover,
   DialogTrigger,
-  Radio,
+  RadioButton,
+  RadioField,
   RadioGroup,
-  Switch,
+  SwitchButton,
+  SwitchField,
 } from "@/components/kit";
 import {
   APPEARANCE_CLASSES,
@@ -181,7 +183,6 @@ export function ThemeToggle({
             {/* The handlers ride a wrapper rather than the primitives: neither RAC's
                 `Dialog` nor its `RadioGroup` forwards arbitrary DOM props, and focus and
                 key events both bubble, so one element below each is enough. */}
-            {/* eslint-disable-next-line jsx-a11y/no-noninteractive-element-interactions -- the focus-out close a non-modal dialog owes a keyboard operator */}
             <div className="qcms-appearance__panel" onBlur={onDialogBlur}>
               <RadioGroup
                 className="qcms-appearance__group"
@@ -199,9 +200,15 @@ export function ThemeToggle({
                   onKeyDown={onGroupKeyDown}
                 >
                   {POLARITIES.map((polarity) => (
-                    <Radio key={polarity} value={polarity} className="qcms-appearance__segment">
-                      {polarityLabel(polarity)}
-                    </Radio>
+                    <RadioField
+                      key={polarity}
+                      value={polarity}
+                      className="qcms-appearance__segmentfield"
+                    >
+                      <RadioButton className="qcms-appearance__segment">
+                        {polarityLabel(polarity)}
+                      </RadioButton>
+                    </RadioField>
                   ))}
                 </div>
               </RadioGroup>
@@ -210,23 +217,24 @@ export function ThemeToggle({
                   ? t("appearance.hint.following", { resolved: polarityLabel(resolved) })
                   : t("appearance.hint.fixed")}
               </p>
-              <Switch
-                className="qcms-appearance__switch"
+              <SwitchField
                 isSelected={highContrast}
                 onChange={(selected) =>
                   apply({ ...appearance, contrast: selected ? "high" : "normal" })
                 }
               >
-                <span className="qcms-appearance__switchlabel">
-                  {t("appearance.contrast.legend")}
-                </span>
-                {/* The word, not the knob's position: a switch whose state is carried only
-                  by where a dot sits is colour-and-shape alone (WCAG 1.4.1). */}
-                <span className="qcms-appearance__switchstate">
-                  {highContrast ? t("appearance.contrast.on") : t("appearance.contrast.off")}
-                </span>
-                <span className="qcms-appearance__track" aria-hidden="true" />
-              </Switch>
+                <SwitchButton className="qcms-appearance__switchbutton">
+                  <span className="qcms-appearance__switchlabel">
+                    {t("appearance.contrast.legend")}
+                  </span>
+                  {/* The word, not the knob's position: a switch whose state is carried
+                    only by where a dot sits is colour-and-shape alone (WCAG 1.4.1). */}
+                  <span className="qcms-appearance__switchstate">
+                    {highContrast ? t("appearance.contrast.on") : t("appearance.contrast.off")}
+                  </span>
+                  <span className="qcms-appearance__track" aria-hidden="true" />
+                </SwitchButton>
+              </SwitchField>
               <p className="qcms-appearance__note">{t("appearance.contrast.note")}</p>
               {/* A POINTER SHORTCUT AND NOTHING ELSE, so it is hidden from assistive
                 technology: every state it offers is already reachable from the two

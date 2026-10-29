@@ -716,6 +716,10 @@ button {
   border-radius: var(--radius-control);
   background-color: var(--color-background-muted);
 }
+.qcms-appearance__segmentfield {
+  flex: 1;
+  display: flex;
+}
 .qcms-appearance__segment {
   flex: 1;
   display: flex;
@@ -754,7 +758,7 @@ button {
   line-height: 16px;
   color: var(--color-text-muted);
 }
-.qcms-appearance__switch {
+.qcms-appearance__switchbutton {
   display: flex;
   align-items: center;
   gap: var(--space-2);
@@ -788,14 +792,14 @@ button {
   border-radius: 50%;
   background-color: var(--color-border-strong);
 }
-.qcms-appearance__switch[data-selected] .qcms-appearance__track {
+.qcms-appearance__switchbutton[data-selected] .qcms-appearance__track {
   background-color: var(--color-primary);
 }
-.qcms-appearance__switch[data-selected] .qcms-appearance__track::after {
+.qcms-appearance__switchbutton[data-selected] .qcms-appearance__track::after {
   inset-inline-start: 16px;
   background-color: var(--color-primary-foreground);
 }
-.qcms-appearance__switch[data-focus-visible] .qcms-appearance__track {
+.qcms-appearance__switchbutton[data-focus-visible] .qcms-appearance__track {
   outline: 2px solid var(--color-focus-ring);
   outline-offset: 2px;
 }
