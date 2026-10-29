@@ -112,13 +112,18 @@
 /* The High-contrast treatment that is CSS rather than a token value; the `.hc`
    values live in theme.css. */
 
-/* HC is a light-on-dark-text mode, not Dark: tell the UA so form controls and
-   scrollbars do not render dark. */
+/* The only polarity-dependent rule here: the treatments below are edges, flatness and
+   the focus ring, which read the same on either field. Naming the wrong field leaves
+   the UA painting form controls and scrollbars against the palette. */
 [data-qcms-theme-scope].hc {
   color-scheme: light;
 }
 
-/* `--color-border-strong` is black in HC. */
+[data-qcms-theme-scope].dark.hc {
+  color-scheme: dark;
+}
+
+/* `--color-border-strong` is at full contrast with the field in both HC polarities. */
 [data-qcms-theme-scope].hc
   [data-qcms-field]
   :is(

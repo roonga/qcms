@@ -443,9 +443,9 @@
 }
 
 /*
- * One universal mode-layer; a theme contributes only its accent. Source order is load-bearing: these blocks come
- * after every light and dark block, so the shared `.hc` block, at the same (0,2,0) as a theme's light block, wins
- * on order alone, while accent overrides (0,3,0) win on specificity.
+ * Polarity x contrast in six groups whose SOURCE ORDER is load-bearing: light, dark, shared `.hc` (0,2,0, so it
+ * wins on order over a theme's light block), shared `.dark.hc` (0,3,0, tied with a per-theme `.hc` accent, which
+ * therefore carries into the dark field), per-theme `.hc`, per-theme `.dark.hc` (0,4,0). The test asserts it.
  */
 
 :is(:root, [data-qcms-theme-scope]).hc {
@@ -487,7 +487,49 @@
   --color-overlay: rgb(0 0 0 / 0.7);
 }
 
-/* The per-theme AAA accent, the only thing HC varies; slate is the block above. */
+/* The dark field: pure white text and edges on pure black surfaces, the same flattened neutrals and fixed AAA
+   semantics the light field uses, inverted. It exists so contrast and a dark field stop being a choice. */
+
+:is(:root, [data-qcms-theme-scope]).dark.hc {
+  --color-primary: #7fe0d0;
+  --color-primary-hover: #92e6d8;
+  --color-primary-active: #a5ebdf;
+  --color-primary-foreground: #000000;
+  --color-secondary: #cfd5e0;
+  --color-secondary-hover: #e2e6ee;
+  --color-secondary-active: #f2f4f8;
+  --color-secondary-foreground: #000000;
+  --color-danger: #ff9ea2;
+  --color-danger-hover: #ffb0b3;
+  --color-danger-active: #ffc2c4;
+  --color-danger-foreground: #000000;
+  --color-danger-subtle: #1f0a0a;
+  --color-danger-fg: #ffc2c4;
+  --color-ghost: transparent;
+  --color-ghost-hover: #16181c;
+  --color-ghost-active: #22262c;
+  --color-info: #8ab4ff;
+  --color-info-subtle: #0a1024;
+  --color-info-fg: #b9ccff;
+  --color-success: #5ee39f;
+  --color-success-subtle: #04160c;
+  --color-success-fg: #9ceabf;
+  --color-warning: #ffcc66;
+  --color-warning-subtle: #171003;
+  --color-warning-fg: #ffd98a;
+  --color-text: #ffffff;
+  --color-text-muted: #d6dae2;
+  --color-border: #9aa2b1;
+  --color-border-strong: #ffffff;
+  --color-background: #000000;
+  --color-background-muted: #0b0d11;
+  --color-surface: #000000;
+  --color-surface-hover: #16181c;
+  --color-focus-ring: #8ab4ff;
+  --color-overlay: rgb(0 0 0 / 0.8);
+}
+
+/* The per-theme AAA accent, the only thing HC varies; slate is in the two blocks above. */
 
 :is(:root, [data-qcms-theme-scope])[data-theme="harbor"].hc {
   --color-primary: #0a3a8a;
@@ -508,4 +550,28 @@
   --color-primary-hover: #450f77;
   --color-primary-active: #360a5f;
   --color-primary-foreground: #ffffff;
+}
+
+/* Every light-HC accent is a deep tint for a white field and measures under 2.5:1 on the dark one, so all three
+   alternates owe a dark accent here. */
+
+:is(:root, [data-qcms-theme-scope])[data-theme="harbor"].dark.hc {
+  --color-primary: #8ab4ff;
+  --color-primary-hover: #9dc0ff;
+  --color-primary-active: #aecbff;
+  --color-primary-foreground: #000000;
+}
+
+:is(:root, [data-qcms-theme-scope])[data-theme="sand"].dark.hc {
+  --color-primary: #f0a675;
+  --color-primary-hover: #f3b389;
+  --color-primary-active: #f5bf9c;
+  --color-primary-foreground: #000000;
+}
+
+:is(:root, [data-qcms-theme-scope])[data-theme="plum"].dark.hc {
+  --color-primary: #cfa3f5;
+  --color-primary-hover: #d6b0f7;
+  --color-primary-active: #ddbcf8;
+  --color-primary-foreground: #000000;
 }

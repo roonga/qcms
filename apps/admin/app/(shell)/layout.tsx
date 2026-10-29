@@ -3,14 +3,14 @@ import type { ReactNode } from "react";
 
 import { AccountMenu } from "@/components/account-menu";
 import { Announcer } from "@/components/announcer";
-import { AppearanceMenu } from "@/components/appearance-menu";
 import { EnvironmentBanner } from "@/components/environment-banner";
 import { EnvironmentScope } from "@/components/environment-scope";
 import { EnvironmentSwitcher } from "@/components/environment-switcher";
 import { MeasuredMain } from "@/components/measured-main";
 import { ShellChrome } from "@/components/shell/shell-chrome";
+import { ThemeToggle } from "@/components/theme-toggle";
 import { TopbarHeight } from "@/components/topbar-height";
-import { MODE_COOKIE, parseMode } from "@/lib/appearance";
+import { MODE_COOKIE, parseAppearance } from "@/lib/appearance";
 import { shownEnvironment } from "@/lib/environment";
 import { secureCookies } from "@/lib/server/config";
 import { resolvedEnvironment } from "@/lib/server/environments";
@@ -88,7 +88,7 @@ export default async function ShellLayout({
   // the enrollment cookies and the API's better-auth instance decide from, so all three
   // cookie families on this origin carry the same `Secure` attribute (see its doc).
   const cookieStore = await cookies();
-  const mode = parseMode(cookieStore.get(MODE_COOKIE)?.value);
+  const appearance = parseAppearance(cookieStore.get(MODE_COOKIE)?.value);
   // Which areas this caller has, so the navigation offers no area that would refuse. A
   // read that failed is not a refusal: `navigableCapabilities` narrows nothing then, and
   // every route behind an entry decides for itself.
@@ -196,7 +196,7 @@ export default async function ShellLayout({
                     </span>
                   </div>
                 )}
-                <AppearanceMenu mode={mode} secureCookies={secureCookies()} />
+                <ThemeToggle appearance={appearance} secureCookies={secureCookies()} />
                 <AccountMenu email={session.email} name={session.name} />
               </>
             }

@@ -227,6 +227,19 @@ export async function openMenu(trigger: Locator): Promise<void> {
 }
 
 /**
+ * The appearance panel, which is a non-modal dialog rather than a menu and so needs the
+ * same hydration wait against a different role. Everything {@link openMenu} argues about
+ * pressing before React attaches applies unchanged.
+ */
+export async function openAppearance(page: Page): Promise<void> {
+  const trigger = appearanceTrigger(page);
+  await waitForHydration(page);
+  await trigger.click();
+  await expect(trigger).toHaveAttribute("aria-expanded", "true");
+  await expect(page.getByRole("dialog", { name: "Appearance" })).toBeVisible();
+}
+
+/**
  * Sign out through the account menu.
  *
  * There are two sign-out controls in the DOM on every authenticated page and only

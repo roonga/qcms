@@ -43,6 +43,18 @@ export { Tab, TabList, TabPanel, Tabs } from "react-aria-components";
 export { I18nProvider } from "react-aria-components";
 
 /**
+ * The switch and radio-group primitives an app's own chrome needs. The pinned registry ships neither outside the
+ * A2UI schema, so ADR-22's react-aria-components alternative applies rather than a hand-rolled roving tabindex.
+ */
+export {
+  RadioButton,
+  RadioField,
+  RadioGroup,
+  SwitchButton,
+  SwitchField,
+} from "react-aria-components";
+
+/**
  * Aliased because the bare names collide with the vendored components. The pinned registry ships no combobox,
  * and a hand-rolled filter over a `Select` would get the APG combobox pattern's `aria-activedescendant` and
  * input-to-listbox relationship wrong.

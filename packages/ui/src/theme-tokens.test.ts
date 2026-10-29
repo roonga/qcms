@@ -1,5 +1,6 @@
 // Reads `theme.css` and computes the WCAG 2.2 contrast ratio of every critical pair, so a palette edit that drops
-// a pair below target fails here. Targets: AA in Light and Dark (4.5:1 text, 3:1 UI); AAA in High-contrast (7:1 text).
+// a pair below target fails here. Targets: AA in Light and Dark (4.5:1 text, 3:1 UI); AAA in both High-contrast
+// polarities (7:1 text, 3:1 UI).
 
 import { readFileSync } from "node:fs";
 import { join } from "node:path";
@@ -10,7 +11,8 @@ const THEME_CSS = readFileSync(join(import.meta.dirname, "theme.css"), "utf8");
 
 const THEMES = ["slate", "harbor", "sand", "plum"] as const;
 type Theme = (typeof THEMES)[number];
-type Mode = "light" | "dark" | "hc";
+/** Polarity x contrast, flattened: the four states a root class combination can select. */
+type Mode = "light" | "dark" | "hc" | "dark-hc";
 
 // Both arguments are (0,1,0) and `:is()` takes its most specific one, so the ADR-38
 // anchor weighs exactly what a bare `:root` would. The model below asserts that.
@@ -162,9 +164,25 @@ function parseDeclarations(body: string): Record<string, string> {
 }
 
 function modeOf(selector: string): Mode | null {
-  if (selector.includes(".hc")) return "hc";
-  if (selector.includes(".dark")) return "dark";
+  const dark = selector.includes(".dark");
+  const high = selector.includes(".hc");
+  if (dark && high) return "dark-hc";
+  if (high) return "hc";
+  if (dark) return "dark";
   return null;
+}
+
+/**
+ * A `.dark` block matches `dark hc` too, and so does a `.hc` one, which equality on the
+ * block's own mode would miss: the whole point of the two-axis model is that the dark
+ * field inherits both layers and overrides only what has to flip.
+ */
+function appliesInMode(blockMode: Mode | null, mode: Mode): boolean {
+  if (blockMode === null) return true;
+  if (blockMode === "light") return mode === "light";
+  if (blockMode === "dark") return mode === "dark" || mode === "dark-hc";
+  if (blockMode === "hc") return mode === "hc" || mode === "dark-hc";
+  return mode === "dark-hc";
 }
 
 /**
@@ -232,7 +250,7 @@ function resolveFrom(
         block.density === null &&
         block.media === null &&
         (block.theme === null || block.theme === theme) &&
-        (block.mode === null || block.mode === mode),
+        appliesInMode(block.mode, mode),
     )
     .sort((a, b) => compareSpecificity(a.specificity, b.specificity) || a.index - b.index);
   return Object.assign({}, ...applicable.map((block) => block.tokens)) as Record<string, string>;
@@ -280,8 +298,14 @@ const UI_PAIRS = [
   ["--color-primary", "--color-surface", "primary / surface (link + primary UI)"],
 ] as const;
 
-const MODES: readonly Mode[] = ["light", "dark", "hc"];
-const TEXT_TARGET: Readonly<Record<Mode, number>> = { light: 4.5, dark: 4.5, hc: 7 };
+const MODES: readonly Mode[] = ["light", "dark", "hc", "dark-hc"];
+const HIGH_CONTRAST_MODES: readonly Mode[] = ["hc", "dark-hc"];
+const TEXT_TARGET: Readonly<Record<Mode, number>> = {
+  light: 4.5,
+  dark: 4.5,
+  hc: 7,
+  "dark-hc": 7,
+};
 const UI_TARGET = 3;
 
 describe("the scope carrier and the specificity model it is measured with", () => {
@@ -325,6 +349,42 @@ describe("the scope carrier and the specificity model it is measured with", () =
     expect(compareSpecificity(specificityOf(SCOPE_ANCHOR), shared)).toBeLessThan(0);
   });
 
+  // The tie the two-axis model rests on: a theme's light-HC accent reaches the dark field
+  // only because it is emitted after the shared `.dark.hc` block at the same weight.
+  // Decided by specificity instead, the dark field would flatten to slate's accent.
+  it("leaves shared .dark.hc exactly as specific as a per-theme .hc accent", () => {
+    const shared = specificityOf(`${SCOPE_ANCHOR}.dark.hc`);
+    const accent = specificityOf(`${SCOPE_ANCHOR}[data-theme="harbor"].hc`);
+    expect(compareSpecificity(shared, accent)).toBe(0);
+    expect(
+      compareSpecificity(specificityOf(`${SCOPE_ANCHOR}[data-theme="harbor"].dark.hc`), shared),
+    ).toBeGreaterThan(0);
+  });
+
+  /**
+   * The order itself, as six groups rather than as a comment. Ties inside the colour
+   * layer are resolved by source order, so an edit that appends a block in the wrong
+   * place is valid CSS that certifies the wrong pairs.
+   */
+  it("emits the colour layer in the six fixed groups, in order", () => {
+    const group = (block: Block): number => {
+      if (block.mode === null) return block.theme === null ? 0 : 1;
+      if (block.mode === "dark") return 1;
+      if (block.mode === "hc") return block.theme === null ? 2 : 4;
+      return block.theme === null ? 3 : 5;
+    };
+    const colour = BLOCKS.filter(
+      (block) =>
+        block.media === null &&
+        block.corners === null &&
+        block.density === null &&
+        Object.keys(block.tokens).some((token) => token.startsWith("--color-")),
+    );
+    const groups = colour.map(group);
+    expect(groups).toStrictEqual([...groups].sort((a, b) => a - b));
+    expect(new Set(groups)).toStrictEqual(new Set([0, 1, 2, 3, 4, 5]));
+  });
+
   /**
    * A sheet that is valid CSS, declares identical values, and is wrong. From the
    * top-level rules only, because the claim is about the colour layer's source order
@@ -332,8 +392,10 @@ describe("the scope carrier and the specificity model it is measured with", () =
    */
   function misordered(): readonly Block[] {
     const sheet = BLOCKS.filter((block) => block.media === null);
-    const hc = sheet.filter((block) => block.mode === "hc" && block.theme === null);
-    const rest = sheet.filter((block) => !(block.mode === "hc" && block.theme === null));
+    const isShared = (block: Block): boolean =>
+      block.theme === null && block.mode !== null && HIGH_CONTRAST_MODES.includes(block.mode);
+    const hc = sheet.filter((block) => isShared(block));
+    const rest = sheet.filter((block) => !isShared(block));
     return parseBlocks(
       [...hc, ...rest]
         .map(
@@ -394,37 +456,77 @@ describe("High-contrast is one mode layer, not a palette per theme", () => {
     "--color-primary-foreground",
   ]);
 
-  it("every theme resolves to the identical HC palette apart from its accent", () => {
-    const slate = resolve("slate", "hc");
-    for (const theme of THEMES.filter((candidate) => candidate !== "slate")) {
-      const other = resolve(theme, "hc");
-      for (const token of Object.keys(slate).filter((name) => name.startsWith("--color-"))) {
-        if (ACCENT.has(token)) continue;
-        expect(other[token], `${theme}/hc diverges from the shared HC layer at ${token}`).toBe(
-          slate[token],
-        );
+  it.each(HIGH_CONTRAST_MODES)(
+    "every theme resolves to the identical %s palette apart from its accent",
+    (mode) => {
+      const slate = resolve("slate", mode);
+      for (const theme of THEMES.filter((candidate) => candidate !== "slate")) {
+        const other = resolve(theme, mode);
+        for (const token of Object.keys(slate).filter((name) => name.startsWith("--color-"))) {
+          if (ACCENT.has(token)) continue;
+          expect(
+            other[token],
+            `${theme}/${mode} diverges from the shared HC layer at ${token}`,
+          ).toBe(slate[token]);
+        }
       }
-    }
-  });
+    },
+  );
 
-  it("an alternate theme's HC block contributes ONLY accent tokens", () => {
-    for (const block of BLOCKS.filter((candidate) => candidate.mode === "hc")) {
+  it("an alternate theme's HC block contributes ONLY accent tokens, on either field", () => {
+    for (const block of BLOCKS.filter(
+      (candidate) => candidate.mode !== null && HIGH_CONTRAST_MODES.includes(candidate.mode),
+    )) {
       if (block.theme === null) continue;
       for (const token of Object.keys(block.tokens)) {
         expect(
           ACCENT.has(token),
-          `${block.theme}/hc overrides ${token}, which is not an accent`,
+          `${block.theme}/${block.mode ?? ""} overrides ${token}, which is not an accent`,
         ).toBe(true);
       }
     }
   });
 
-  it("the HC layer is theme-agnostic black on white with heavy separators", () => {
+  it("the HC layers are theme-agnostic: black on white, then white on black", () => {
     const hc = resolve("slate", "hc");
     expect(hc["--color-text"]).toBe("#000000");
     expect(hc["--color-surface"]).toBe("#ffffff");
     expect(hc["--color-background"]).toBe("#ffffff");
     expect(hc["--color-border-strong"]).toBe("#000000");
+
+    const dark = resolve("slate", "dark-hc");
+    expect(dark["--color-text"]).toBe("#ffffff");
+    expect(dark["--color-surface"]).toBe("#000000");
+    expect(dark["--color-background"]).toBe("#000000");
+    expect(dark["--color-border-strong"]).toBe("#ffffff");
+  });
+
+  /**
+   * The rule a new theme follows: measure the light-HC accent against the dark-HC
+   * background and own a `.dark.hc` accent only when it misses. The measurement rather
+   * than a list of themes, so a fifth theme is told what it owes by the gate.
+   */
+  it("gives a theme a dark-HC accent exactly when its light-HC accent misses on that field", () => {
+    const target = TEXT_TARGET["dark-hc"];
+    const field = resolve("slate", "dark-hc")["--color-background"];
+    for (const theme of THEMES) {
+      const lightAccent = resolve(theme, "hc")["--color-primary"];
+      const darkAccent = resolve(theme, "dark-hc")["--color-primary"];
+      const owns = BLOCKS.some(
+        (block) => block.theme === theme && block.mode === "dark-hc" && block.media === null,
+      );
+      if (contrast(lightAccent, field) < target) {
+        expect(darkAccent, `${theme}'s light-HC accent misses on the dark field`).not.toBe(
+          lightAccent,
+        );
+      } else {
+        expect(owns, `${theme} gets the dark field for free and owes no accent`).toBe(false);
+      }
+      expect(
+        contrast(darkAccent, field),
+        `${theme}'s dark-HC accent ${darkAccent} on ${field}`,
+      ).toBeGreaterThanOrEqual(target);
+    }
   });
 });
 

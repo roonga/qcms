@@ -121,17 +121,33 @@ export const messages = {
   "ids.copied.question": "Copied question id {id}",
   "ids.copied.group": "Copied group id {id}",
 
-  // The colour-mode control (task 055; a menu since 032). Every label an operator
-  // reads goes through here, mode names included (ADR-27) - a control that exists to
-  // make the app usable is the last one that should be hard-coded to English.
-  "appearance.mode.legend": "Appearance",
-  "appearance.mode.light": "Light",
-  "appearance.mode.dark": "Dark",
-  "appearance.mode.hc": "High contrast",
+  // The appearance control: polarity crossed with contrast. Every label an operator
+  // reads goes through here, the axis values included (ADR-27) - a control that exists
+  // to make the app usable is the last one that should be hard-coded to English.
+  "appearance.title": "Appearance",
+  "appearance.theme.legend": "Theme",
+  "appearance.polarity.auto": "Auto",
+  "appearance.polarity.light": "Light",
+  "appearance.polarity.dark": "Dark",
   // The trigger shows a glyph and no words, so this string is the entire control as
-  // far as a screen reader is concerned. It names the control AND its current value,
-  // which is what the visible chip used to do between its border and its check mark.
-  "appearance.trigger": "Appearance: {mode}",
+  // far as a screen reader is concerned. It names the control AND its whole current
+  // state, both axes, because nothing else on screen spells either one out.
+  "appearance.trigger": "Appearance: {state}",
+  "appearance.state.auto": "Auto, {resolved} now",
+  "appearance.state.withContrast": "{polarity}, high contrast",
+  // Under the Theme group: what Auto currently resolves to, or that the choice is
+  // pinned. Auto is the only state where the page can change without the operator.
+  "appearance.hint.following": "Following your system: {resolved} now.",
+  "appearance.hint.fixed": "Fixed.",
+  "appearance.contrast.legend": "High contrast",
+  "appearance.contrast.on": "On",
+  "appearance.contrast.off": "Off",
+  // The one thing about this control an operator cannot discover by using it.
+  "appearance.contrast.note": "High contrast never follows your system.",
+  "appearance.preview.light": "Light",
+  "appearance.preview.dark": "Dark",
+  "appearance.preview.lightHc": "Light, high contrast",
+  "appearance.preview.darkHc": "Dark, high contrast",
 
   // The global environment switcher and its banner (ADR-40 Q6, task 065). The environment
   // NAMES are data, not copy: they come from `control.environments` and an operator may

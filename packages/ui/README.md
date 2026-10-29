@@ -65,6 +65,17 @@ The a2ra components are **vendored source**, not imported from `@a2ra/core`:
 > consistent with the pinned core. (Reported upstream: the CLI's default registry
 > pin lags the published core package.)
 
+> **`Popover` closes on any scroll reaching its trigger.** `useOverlayPosition` wires
+> `useCloseOnScroll` unconditionally, `isNonModal` included, and the handler never
+> compares scroll offsets. A root carrying `scroll-padding-block-start` for a sticky
+> header makes the browser fire a zero-delta scroll when it brings the freshly focused
+> panel past that padding, so the popover closes in the frame it opened, and
+> `PopoverProps` exposes no opt-out. The admin's appearance panel
+> (`apps/admin/components/theme-toggle.tsx`) is therefore an app-owned absolutely
+> positioned `role="dialog"` box, with the stack's own controls inside it. This is the
+> stack falling short rather than a competing library (ADR-22), and it is to be reported
+> upstream.
+
 ## Theming (ADR-30): the four-group token contract
 
 This package owns the token contract the portal rests on. Two stylesheets, and
