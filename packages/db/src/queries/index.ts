@@ -52,6 +52,7 @@ export {
   getFormVersion,
   getLatestPublishedVersion,
   listFormVersions,
+  lockForm,
   moveFormToWorkspace,
   publishedTitlesByForm,
   updateFormSettings,
@@ -242,6 +243,23 @@ export {
   listReleasedVersions,
   reopenFormInEnvironment,
 } from "./releases.js";
+
+export {
+  type ReleaseWorkflowRevision,
+  type ReleaseWorkflowRule,
+  effectiveReleaseWorkflow,
+  insertReleaseWorkflowRevision,
+  latestReleaseWorkflowRevision,
+} from "./release-workflow.js";
+
+export {
+  type ReleaseBatchPurgeResult,
+  type ReleaseBatchRow,
+  RELEASE_BATCH_RETENTION_MS,
+  getReleaseBatch,
+  insertReleaseBatch,
+  purgeExpiredReleaseBatches,
+} from "./release-batches.js";
 
 export {
   type OutboxRow,

@@ -13,7 +13,7 @@ import { ApiError } from "../../errors.js";
 import type { ApiEnv } from "../../openapi.js";
 import { resolveWorkspaceForNewObject } from "../workspaces/resolve.js";
 import type { AccessRequest } from "./policy.js";
-import { decideAccess, holdsStatement } from "./policy.js";
+import { decideAccess, holdsStatement, isEnvironmentScoped } from "./policy.js";
 import {
   type ResolvedMembership,
   holdsInstallationClaim,
@@ -64,6 +64,13 @@ const fail = {
   // Refused rather than ignored: such a route declares no `environment`, so a body
   // carrying one is a caller seeking authorisation against an environment other than the
   // one the handler will act in.
+  noTargets: (): ApiError =>
+    new ApiError(
+      "INVALID_REQUEST",
+      400,
+      "This route acts in the environments its `targets` names, so the request has to " +
+        "name at least one. Every destination is authorised on its own.",
+    ),
   environmentNotInBody: (): ApiError =>
     new ApiError(
       "INVALID_REQUEST",
@@ -125,6 +132,9 @@ async function environmentFor(
     return inQuery;
   }
 
+  // Handled by `targetsFor`, which evaluates the cell once per destination.
+  if (policy.environmentFrom === "targets") return undefined;
+
   if (policy.environmentFrom === "body") {
     // Falling back to the switcher here would authorise against an environment the
     // handler will not use.
@@ -134,6 +144,28 @@ async function environmentFor(
 
   if (inBody !== undefined) throw fail.environmentNotInBody();
   return switcher;
+}
+
+/**
+ * The destinations a batch names, in the order the body lists them. An absent or
+ * malformed `targets` yields an empty list, which the handler's own validator reports;
+ * what matters here is that no environment is invented for it.
+ */
+async function targetsFor(
+  c: Parameters<MiddlewareHandler<ApiEnv>>[0],
+  policy: RoutePolicy,
+): Promise<string[]> {
+  if (policy.environmentFrom !== "targets") return [];
+  const body = (await readBody(c)) as { targets?: unknown } | undefined;
+  // A body naming an environment of its own would be a caller seeking authorisation
+  // against one the handler will not act in.
+  if (typeof (body as { environment?: unknown } | undefined)?.environment === "string") {
+    throw fail.environmentNotInBody();
+  }
+  if (!Array.isArray(body?.targets)) return [];
+  return body.targets
+    .map((target) => (target as { environment?: unknown } | undefined)?.environment)
+    .filter((environment): environment is string => typeof environment === "string");
 }
 
 // `defer` means the path segment is not a well-formed id, so there is nothing to
@@ -264,6 +296,19 @@ async function decideRequest(
   const where = await workspaceFor(deps, c, policy, path);
   if (where.kind === "defer") return undefined;
   if (where.kind === "none") throw fail.noWorkspace();
+
+  if (policy.environmentFrom === "targets") {
+    return decideOverTargets(deps, {
+      policy,
+      path,
+      userId: input.userId,
+      claim,
+      workspaceId: where.id,
+      request,
+      targets: await targetsFor(c, policy),
+    });
+  }
+
   return decideInOneWorkspace(deps, {
     policy,
     path,
@@ -273,6 +318,59 @@ async function decideRequest(
     request,
     ...(environment === undefined ? {} : { environment }),
   });
+}
+
+/**
+ * One cell per destination, refusing on the first failure and naming that environment
+ * alone. The environment-agnostic half of the row, where there is one, is evaluated once:
+ * `publish-batch` with no destination is "create a version without releasing it" and needs
+ * `form: publish` by itself, and a request naming two destinations cannot reach the second
+ * on a grant that only covers the first.
+ */
+async function decideOverTargets(
+  deps: Deps,
+  input: {
+    readonly policy: RoutePolicy;
+    readonly path: string;
+    readonly userId: string;
+    readonly claim: boolean;
+    readonly workspaceId: string;
+    readonly request: AccessRequest;
+    readonly targets: readonly string[];
+  },
+): Promise<GrantContext> {
+  const { policy, workspaceId, request, targets } = input;
+  const resolved: ResolvedMembership = await resolveGrants(deps.databases.control, {
+    userId: input.userId,
+    workspaceId,
+    claim: input.claim,
+  });
+  const decide = (scoped: AccessRequest): void => {
+    const decision = decideAccess({
+      memberRole: resolved.memberRole,
+      grants: resolved.grants,
+      request: scoped,
+    });
+    if (!decision.allowed) throw fail.refused(decision.reason ?? "Refused");
+  };
+
+  const primaryScoped = isEnvironmentScoped(policy.resource, policy.action);
+  // A row whose only cell is environment-scoped authorises nothing with no destination
+  // named, so an empty list is a refusal rather than a pass to the validator.
+  if (primaryScoped && targets.length === 0) throw fail.noTargets();
+  if (!primaryScoped) decide({ resource: policy.resource, action: policy.action });
+
+  const cells = [
+    ...(primaryScoped ? [{ resource: policy.resource, action: policy.action }] : []),
+    ...(policy.also === undefined ? [] : [policy.also]),
+  ];
+  for (const environment of targets) {
+    for (const cell of cells) {
+      decide({ resource: cell.resource, action: cell.action, environment });
+    }
+  }
+
+  return { policy, workspaceId, environments: [...targets] };
 }
 
 /**

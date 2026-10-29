@@ -20,6 +20,8 @@ export * from "./auth.js";
 export * from "./two-factor-resets.js";
 export * from "./access-audit.js";
 export * from "./endpoint-proposals.js";
+export * from "./release-workflow.js";
+export * from "./release-batches.js";
 
 import * as environmentsModule from "./environments.js";
 import * as authModule from "./auth.js";
@@ -30,6 +32,8 @@ import * as secureLinksModule from "./secure-links.js";
 import * as twoFactorResetsModule from "./two-factor-resets.js";
 import * as accessAuditModule from "./access-audit.js";
 import * as endpointProposalsModule from "./endpoint-proposals.js";
+import * as releaseWorkflowModule from "./release-workflow.js";
+import * as releaseBatchesModule from "./release-batches.js";
 
 const CONTROL_TABLE_OBJECTS: readonly PgTable[] = [
   questionsModule.questions,
@@ -53,6 +57,9 @@ const CONTROL_TABLE_OBJECTS: readonly PgTable[] = [
   twoFactorResetsModule.twoFactorResets,
   accessAuditModule.accessAudit,
   endpointProposalsModule.webhookEndpointProposals,
+  releaseWorkflowModule.releaseWorkflowRevisions,
+  releaseWorkflowModule.releaseWorkflowRules,
+  releaseBatchesModule.releaseBatches,
 ];
 
 /** Every table name in `control`. */

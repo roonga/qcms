@@ -21,7 +21,10 @@ export interface RoutePolicy {
   // The policy's environment must be exactly the handler's. Four routes declare no body, so
   // a body-then-switcher fallback would let a `test` caller act on `prod`.
   // `query` is an explicit query parameter, which the gate and the handler both read.
-  readonly environmentFrom?: "body" | "switcher" | "query";
+  // `targets` is every environment the body's `targets` names: the cell is evaluated once
+  // per destination and refused on the first failure, so one request environment cannot
+  // authorise the others.
+  readonly environmentFrom?: "body" | "switcher" | "query" | "targets";
   // A second cell the route also requires, evaluated against the same workspace and
   // environment before any handler runs, so neither half can be forgotten.
   readonly also?: { readonly resource: Resource; readonly action: string };
@@ -74,6 +77,28 @@ export const ROUTE_POLICIES: readonly RoutePolicy[] = [
     action: "update",
     workspace: "installation",
     installationOnly: true,
+  },
+  {
+    // The release workflow is installation-wide, so no workspace's grants reach it. It
+    // reuses `workspace: update` rather than adding a tenth resource, and each write
+    // lands as a SEC-15 `setting` row.
+    method: "PUT",
+    path: "/admin/release-workflow",
+    resource: "workspace",
+    action: "update",
+    workspace: "installation",
+    installationOnly: true,
+    audit: "setting",
+  },
+
+  {
+    // The read is the `release: read` the three authoring roles already carry: a publisher
+    // evaluates the rule through the candidate review, not through administration access.
+    method: "GET",
+    path: "/admin/release-workflow",
+    resource: "release",
+    action: "read",
+    workspace: "caller",
   },
 
   {
@@ -328,6 +353,19 @@ export const ROUTE_POLICIES: readonly RoutePolicy[] = [
     environmentFrom: "body",
   },
   {
+    // One snapshot and several destinations: `form: publish` for the version, and
+    // `release: create` evaluated once per listed target. An empty list is the
+    // "create a version without releasing" case and needs the publish cell alone.
+    method: "POST",
+    path: "/admin/forms/{id}/publish-batch",
+    resource: "form",
+    action: "publish",
+    workspace: "form",
+    also: { resource: "release", action: "create" },
+    namesEnvironment: true,
+    environmentFrom: "targets",
+  },
+  {
     method: "GET",
     path: "/admin/forms/{id}/releases",
     resource: "release",
@@ -351,6 +389,26 @@ export const ROUTE_POLICIES: readonly RoutePolicy[] = [
     workspace: "form",
     namesEnvironment: true,
     environmentFrom: "body",
+  },
+  {
+    // Every destination authorised on its own: an editor scoped to `test` cannot reach
+    // `prod` by naming both in one crafted batch.
+    method: "POST",
+    path: "/admin/forms/{id}/release-batch",
+    resource: "release",
+    action: "create",
+    workspace: "form",
+    namesEnvironment: true,
+    environmentFrom: "targets",
+  },
+  {
+    // The result lookup is the same read the history is, narrowed to the calling account
+    // by the handler's key scope.
+    method: "GET",
+    path: "/admin/forms/{id}/release-batches/{key}",
+    resource: "release",
+    action: "read",
+    workspace: "form",
   },
   {
     method: "POST",

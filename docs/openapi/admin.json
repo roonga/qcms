@@ -507,6 +507,12 @@
             "type": "boolean",
             "example": false
           },
+          "draftRevision": {
+            "type": "integer",
+            "nullable": true,
+            "minimum": 0,
+            "exclusiveMinimum": true
+          },
           "draftUpdatedAt": {
             "type": "string",
             "nullable": true
@@ -587,6 +593,7 @@
           "status",
           "draftSource",
           "draftAgentAssisted",
+          "draftRevision",
           "draftUpdatedAt",
           "versions",
           "settings",
@@ -1109,6 +1116,183 @@
         ],
         "additionalProperties": false
       },
+      "ReleaseBatchResponse": {
+        "type": "object",
+        "properties": {
+          "version": {
+            "type": "integer",
+            "minimum": 0,
+            "exclusiveMinimum": true
+          },
+          "releases": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/ReleaseRecord"
+            }
+          },
+          "replayed": {
+            "type": "boolean"
+          }
+        },
+        "required": [
+          "version",
+          "releases",
+          "replayed"
+        ]
+      },
+      "ReleaseRecord": {
+        "type": "object",
+        "properties": {
+          "formId": {
+            "type": "string",
+            "example": "frm_signup"
+          },
+          "environment": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 53,
+            "pattern": "^[a-z][a-z0-9]*$",
+            "example": "test"
+          },
+          "version": {
+            "type": "integer",
+            "minimum": 0,
+            "exclusiveMinimum": true,
+            "example": 3
+          },
+          "sequence": {
+            "type": "integer",
+            "minimum": 0,
+            "exclusiveMinimum": true,
+            "example": 2
+          },
+          "fromEnvironment": {
+            "type": "string",
+            "nullable": true,
+            "minLength": 1,
+            "maxLength": 53,
+            "pattern": "^[a-z][a-z0-9]*$",
+            "example": "test"
+          },
+          "releasedBy": {
+            "type": "string",
+            "example": "usr_01H..."
+          },
+          "releasedAt": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "approvedBy": {
+            "type": "string",
+            "nullable": true
+          },
+          "replacedVersion": {
+            "type": "integer",
+            "nullable": true,
+            "minimum": 0,
+            "exclusiveMinimum": true
+          },
+          "rollback": {
+            "type": "boolean"
+          },
+          "closed": {
+            "type": "boolean"
+          }
+        },
+        "required": [
+          "formId",
+          "environment",
+          "version",
+          "sequence",
+          "fromEnvironment",
+          "releasedBy",
+          "releasedAt",
+          "approvedBy",
+          "replacedVersion",
+          "rollback",
+          "closed"
+        ]
+      },
+      "PublishBatchBody": {
+        "type": "object",
+        "properties": {
+          "idempotencyKey": {
+            "type": "string",
+            "format": "uuid",
+            "example": "6f9619ff-8b86-d011-b42d-00c04fc964ff"
+          },
+          "expectedWorkflowRevision": {
+            "type": "integer",
+            "nullable": true,
+            "minimum": 0,
+            "exclusiveMinimum": true
+          },
+          "source": {
+            "type": "object",
+            "properties": {
+              "kind": {
+                "type": "string",
+                "enum": [
+                  "draft"
+                ]
+              },
+              "draftRevision": {
+                "type": "integer",
+                "minimum": 0,
+                "exclusiveMinimum": true
+              }
+            },
+            "required": [
+              "kind",
+              "draftRevision"
+            ],
+            "additionalProperties": false
+          },
+          "targets": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/ReleaseBatchTarget"
+            }
+          }
+        },
+        "required": [
+          "idempotencyKey",
+          "expectedWorkflowRevision",
+          "source",
+          "targets"
+        ],
+        "additionalProperties": false
+      },
+      "ReleaseBatchTarget": {
+        "type": "object",
+        "properties": {
+          "environment": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 53,
+            "pattern": "^[a-z][a-z0-9]*$",
+            "example": "test"
+          },
+          "expectedSequence": {
+            "type": "integer",
+            "nullable": true,
+            "minimum": 0,
+            "exclusiveMinimum": true
+          },
+          "fromEnvironment": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 53,
+            "pattern": "^[a-z][a-z0-9]*$",
+            "example": "test"
+          }
+        },
+        "required": [
+          "environment",
+          "expectedSequence"
+        ],
+        "additionalProperties": false
+      },
       "FormStatusResponse": {
         "type": "object",
         "properties": {
@@ -1562,6 +1746,137 @@
           "environments"
         ]
       },
+      "ReleaseWorkflowResponse": {
+        "type": "object",
+        "properties": {
+          "revision": {
+            "type": "integer",
+            "nullable": true,
+            "minimum": 0,
+            "exclusiveMinimum": true
+          },
+          "source": {
+            "type": "string",
+            "enum": [
+              "default",
+              "configured"
+            ]
+          },
+          "environments": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "properties": {
+                "name": {
+                  "type": "string",
+                  "minLength": 1,
+                  "maxLength": 53,
+                  "pattern": "^[a-z][a-z0-9]*$",
+                  "example": "test"
+                },
+                "position": {
+                  "type": "integer",
+                  "minimum": 0,
+                  "exclusiveMinimum": true
+                },
+                "protected": {
+                  "type": "boolean"
+                },
+                "requiresPriorReleaseIn": {
+                  "type": "array",
+                  "items": {
+                    "type": "string",
+                    "minLength": 1,
+                    "maxLength": 53,
+                    "pattern": "^[a-z][a-z0-9]*$",
+                    "example": "test"
+                  }
+                },
+                "allowsDraftPublish": {
+                  "type": "boolean"
+                },
+                "allowsInBatch": {
+                  "type": "boolean"
+                }
+              },
+              "required": [
+                "name",
+                "position",
+                "protected",
+                "requiresPriorReleaseIn",
+                "allowsDraftPublish",
+                "allowsInBatch"
+              ]
+            }
+          }
+        },
+        "required": [
+          "revision",
+          "source",
+          "environments"
+        ]
+      },
+      "ReleaseWorkflowBody": {
+        "type": "object",
+        "properties": {
+          "expectedRevision": {
+            "type": "integer",
+            "nullable": true,
+            "minimum": 0,
+            "exclusiveMinimum": true
+          },
+          "rules": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/ReleaseWorkflowRule"
+            }
+          },
+          "note": {
+            "type": "string",
+            "maxLength": 500
+          }
+        },
+        "required": [
+          "expectedRevision",
+          "rules"
+        ],
+        "additionalProperties": false
+      },
+      "ReleaseWorkflowRule": {
+        "type": "object",
+        "properties": {
+          "environment": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 53,
+            "pattern": "^[a-z][a-z0-9]*$",
+            "example": "test"
+          },
+          "requiresPriorReleaseIn": {
+            "type": "array",
+            "items": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 53,
+              "pattern": "^[a-z][a-z0-9]*$",
+              "example": "test"
+            }
+          },
+          "allowsDraftPublish": {
+            "type": "boolean"
+          },
+          "allowsInBatch": {
+            "type": "boolean"
+          }
+        },
+        "required": [
+          "environment",
+          "requiresPriorReleaseIn",
+          "allowsDraftPublish",
+          "allowsInBatch"
+        ],
+        "additionalProperties": false
+      },
       "ReleaseHistoryResponse": {
         "type": "object",
         "properties": {
@@ -1574,79 +1889,6 @@
         },
         "required": [
           "releases"
-        ]
-      },
-      "ReleaseRecord": {
-        "type": "object",
-        "properties": {
-          "formId": {
-            "type": "string",
-            "example": "frm_signup"
-          },
-          "environment": {
-            "type": "string",
-            "minLength": 1,
-            "maxLength": 53,
-            "pattern": "^[a-z][a-z0-9]*$",
-            "example": "test"
-          },
-          "version": {
-            "type": "integer",
-            "minimum": 0,
-            "exclusiveMinimum": true,
-            "example": 3
-          },
-          "sequence": {
-            "type": "integer",
-            "minimum": 0,
-            "exclusiveMinimum": true,
-            "example": 2
-          },
-          "fromEnvironment": {
-            "type": "string",
-            "nullable": true,
-            "minLength": 1,
-            "maxLength": 53,
-            "pattern": "^[a-z][a-z0-9]*$",
-            "example": "test"
-          },
-          "releasedBy": {
-            "type": "string",
-            "example": "usr_01H..."
-          },
-          "releasedAt": {
-            "type": "string",
-            "format": "date-time"
-          },
-          "approvedBy": {
-            "type": "string",
-            "nullable": true
-          },
-          "replacedVersion": {
-            "type": "integer",
-            "nullable": true,
-            "minimum": 0,
-            "exclusiveMinimum": true
-          },
-          "rollback": {
-            "type": "boolean"
-          },
-          "closed": {
-            "type": "boolean"
-          }
-        },
-        "required": [
-          "formId",
-          "environment",
-          "version",
-          "sequence",
-          "fromEnvironment",
-          "releasedBy",
-          "releasedAt",
-          "approvedBy",
-          "replacedVersion",
-          "rollback",
-          "closed"
         ]
       },
       "ReleasedResponse": {
@@ -1710,10 +1952,16 @@
                     "enum": [
                       "draft"
                     ]
+                  },
+                  "draftRevision": {
+                    "type": "integer",
+                    "minimum": 0,
+                    "exclusiveMinimum": true
                   }
                 },
                 "required": [
-                  "kind"
+                  "kind",
+                  "draftRevision"
                 ]
               },
               {
@@ -1921,6 +2169,57 @@
         },
         "required": [
           "source"
+        ],
+        "additionalProperties": false
+      },
+      "ReleaseBatchBody": {
+        "type": "object",
+        "properties": {
+          "idempotencyKey": {
+            "type": "string",
+            "format": "uuid",
+            "example": "6f9619ff-8b86-d011-b42d-00c04fc964ff"
+          },
+          "expectedWorkflowRevision": {
+            "type": "integer",
+            "nullable": true,
+            "minimum": 0,
+            "exclusiveMinimum": true
+          },
+          "source": {
+            "type": "object",
+            "properties": {
+              "kind": {
+                "type": "string",
+                "enum": [
+                  "version"
+                ]
+              },
+              "version": {
+                "type": "integer",
+                "minimum": 0,
+                "exclusiveMinimum": true
+              }
+            },
+            "required": [
+              "kind",
+              "version"
+            ],
+            "additionalProperties": false
+          },
+          "targets": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/ReleaseBatchTarget"
+            },
+            "minItems": 1
+          }
+        },
+        "required": [
+          "idempotencyKey",
+          "expectedWorkflowRevision",
+          "source",
+          "targets"
         ],
         "additionalProperties": false
       },
@@ -5064,6 +5363,115 @@
         }
       }
     },
+    "/admin/forms/{id}/publish-batch": {
+      "post": {
+        "summary": "Freeze the draft once and release that snapshot into every destination (admin)",
+        "description": "One confirmation, one transaction, **one snapshot**: the draft is frozen once and the same immutable version is released into each destination, never once per target. An empty `targets` is \"create a version without releasing it\" and needs `form: publish` alone; with destinations listed, the gate also evaluates `release: create` once per listed environment and refuses on the first failure, naming only that environment. `source.draftRevision` is the revision the review reported: a save that landed in between is refused and nothing is written. The workflow decides whether a destination accepts a version frozen in the same act, and the two-person rule still refuses a gated production destination whose publisher is this account, which is why that case stays two requests by two accounts. `idempotencyKey` replays the stored result on reuse and is refused with 422 for a changed intent, so a browser timeout never creates a second version.",
+        "tags": [
+          "forms"
+        ],
+        "security": [
+          {
+            "MachineToken": [
+              "forms:write"
+            ]
+          }
+        ],
+        "parameters": [
+          {
+            "schema": {
+              "type": "string",
+              "example": "frm_signup"
+            },
+            "required": true,
+            "name": "id",
+            "in": "path"
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/PublishBatchBody"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "The version frozen and one record per destination",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ReleaseBatchResponse"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Bad request",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Missing or invalid credentials",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Forbidden",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Not found",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "Conflict",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Unprocessable entity",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/admin/forms/{id}/close": {
       "post": {
         "summary": "Close one environment's intake; in-flight sessions finish (admin)",
@@ -5978,6 +6386,130 @@
         }
       }
     },
+    "/admin/release-workflow": {
+      "get": {
+        "summary": "The release-workflow rules in force, per destination (admin)",
+        "description": "Read by every authoring role, because a publisher needs the rule the confirmation will apply. With no revision written it reports `source: \"default\"` and the deployment's derived behaviour, which is what runs until an installation administrator writes one. `protected` is true for the production environment alone and is read-only: it reports the role split and the workspace second-approver switch, which this configuration cannot alter whatever its rules say.",
+        "tags": [
+          "releases"
+        ],
+        "security": [
+          {
+            "MachineToken": [
+              "forms:read"
+            ]
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "The revision, its source and one entry per served environment",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ReleaseWorkflowResponse"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Missing or invalid credentials",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Forbidden",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            }
+          }
+        }
+      },
+      "put": {
+        "summary": "Write the next release-workflow revision (installation administrator)",
+        "description": "Installation-wide and the installation administrator's alone: a workspace's own grants do not reach it. The write appends a revision rather than editing one, so a release refused under an earlier revision stays explainable. Every environment named must be served, no destination may require a prior release in itself (releasing a version it already served is a rollback and is eligible anyway), and the prerequisite graph must be acyclic. It creates, renames and deletes no environment: that stays the operator command's. `expectedRevision` is `null` while none is configured. Each write lands as an access-audit `setting` row.",
+        "tags": [
+          "releases"
+        ],
+        "security": [
+          {
+            "MachineToken": [
+              "forms:write"
+            ]
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ReleaseWorkflowBody"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "The configuration as the read route reports it, at the new revision",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ReleaseWorkflowResponse"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Bad request",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Missing or invalid credentials",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Forbidden",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "Conflict",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/admin/forms/{id}/releases": {
       "get": {
         "summary": "The release history of a form: who released what, when, and from where (admin)",
@@ -6187,6 +6719,202 @@
               "application/json": {
                 "schema": {
                   "$ref": "#/components/schemas/ReleaseReviewResponse"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Bad request",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Missing or invalid credentials",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Forbidden",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Not found",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/admin/forms/{id}/release-batch": {
+      "post": {
+        "summary": "Release one published version into every named destination, atomically (admin)",
+        "description": "One confirmation, one transaction. **Every destination is authorised on its own**: the gate evaluates `release: create` once per listed environment and refuses on the first failure, naming only that environment, so a request naming `test` and `prod` cannot reach `prod` on a `test` grant. At commit the workflow revision, each destination's newest release-state sequence, the prerequisite evidence and the two-person rule are all rechecked, and any refusal rolls back the whole act: a denied second destination leaves no release row and no queued event for the first. `idempotencyKey` is scoped to the calling account and this form; the same key with the same intent replays the stored result with `replayed: true`, and the same key with a different intent is refused with 422. Only successes are stored, so a refusal leaves the key free to retry. `expectedSequence` is `null` for a destination with no release history, and covers intake as well as the version because a close and a reopen each append a row.",
+        "tags": [
+          "releases"
+        ],
+        "security": [
+          {
+            "MachineToken": [
+              "forms:write"
+            ]
+          }
+        ],
+        "parameters": [
+          {
+            "schema": {
+              "type": "string",
+              "example": "frm_signup"
+            },
+            "required": true,
+            "name": "id",
+            "in": "path"
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ReleaseBatchBody"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "The released version and one record per destination",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ReleaseBatchResponse"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Bad request",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Missing or invalid credentials",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Forbidden",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Not found",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "Conflict",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Unprocessable entity",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/admin/forms/{id}/release-batches/{key}": {
+      "get": {
+        "summary": "The recorded result of one confirmation, by its idempotency key (admin)",
+        "description": "For a client that lost its answer. A 404 means the confirmation did not commit, so the same key may be resent; it does not mean the result has gone. The key is scoped to the calling account, so another account cannot read a result it did not create, and the release history remains the long-term answer.",
+        "tags": [
+          "releases"
+        ],
+        "security": [
+          {
+            "MachineToken": [
+              "forms:read"
+            ]
+          }
+        ],
+        "parameters": [
+          {
+            "schema": {
+              "type": "string",
+              "example": "frm_signup"
+            },
+            "required": true,
+            "name": "id",
+            "in": "path"
+          },
+          {
+            "schema": {
+              "type": "string"
+            },
+            "required": true,
+            "name": "key",
+            "in": "path"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "The stored result of that confirmation",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ReleaseBatchResponse"
                 }
               }
             }
