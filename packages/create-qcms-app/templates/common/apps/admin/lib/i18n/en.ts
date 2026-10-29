@@ -221,10 +221,10 @@ export const messages = {
   "shell.denied.recover": "Go to an area you can use",
   "shell.denied.myAccess": "See what you can access",
 
-  // My access, which everybody holds, and which is where a caller with no feature grant
-  // lands rather than being given a fabricated authoring screen.
   "operations.intro": "The forms you can operate, and the installation's delivery queues.",
 
+  // Everybody holds this, so it is where a caller with no feature grant lands rather than
+  // being given a fabricated authoring screen.
   "access.title": "My access",
   "access.intro": "What this account holds, and who to ask for more.",
   "access.none":

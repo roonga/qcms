@@ -90,8 +90,6 @@ describe("a personal route stays inside the focused mode it was opened from", ()
   });
 
   it("is normal when normal is what was remembered, so a focused mode cannot linger", () => {
-    // Remembering only the focused modes left `operations` standing after the caller had
-    // gone back to Questions, and Settings then wore the Operations header.
     expect(modeForPath("/settings", "normal")).toBe("normal");
     expect(modeForPath("/me/access", "normal")).toBe("normal");
   });

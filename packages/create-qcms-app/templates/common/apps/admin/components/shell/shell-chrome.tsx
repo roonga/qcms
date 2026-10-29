@@ -40,12 +40,9 @@ export function ShellChrome({
   const pathname = usePathname();
   const focused = focusedMode(modeForPath(pathname, rememberedMode));
 
-  // Every declared mode is remembered, normal included: remembering only the focused ones
-  // left `operations` standing after the caller had gone back to Questions, so Settings
-  // opened from normal mode wore the Operations header. A personal route declares no mode
-  // and so writes nothing, which is what lets it stay inside the one it was opened from.
-  // A mode the caller may not enter is never remembered either, or a denied bookmark would
-  // decide where their next personal route thinks it is.
+  // A personal route declares no mode and so writes nothing, which is what lets it stay
+  // inside the one it was opened from. A mode the caller may not enter is never
+  // remembered, or a denied bookmark would decide where their next personal route sits.
   const declared = declaredMode(pathname);
   const remember =
     declared !== undefined && permitsMode(capabilities, declared) ? declared : undefined;
