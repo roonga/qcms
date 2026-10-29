@@ -29,12 +29,15 @@ export function ShellChrome({
   capabilities,
   rememberedMode,
   secureCookies,
+  environment,
   trailing,
 }: {
   readonly capabilities: ShellCapabilities;
   /** Which mode the shell was last in, so a personal route can stay inside it. */
   readonly rememberedMode: ShellMode | undefined;
   readonly secureCookies: boolean;
+  /** The environment chip. Only the Operations header renders it. */
+  readonly environment: ReactNode;
   readonly trailing: ReactNode;
 }) {
   const pathname = usePathname();
@@ -57,7 +60,7 @@ export function ShellChrome({
         {focused === undefined ? (
           <AdminNav capabilities={capabilities} />
         ) : (
-          <ModeHeader mode={focused} capabilities={capabilities} />
+          <ModeHeader mode={focused} capabilities={capabilities} environment={environment} />
         )}
       </div>
       <div className="flex flex-shrink-0 items-center gap-x-2">{trailing}</div>

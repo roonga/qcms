@@ -193,7 +193,7 @@ describe("the question rail's markup", () => {
     // The column is complementary content about the subject; the version list inside it is
     // the navigation. It was a `<nav>` all the way out, which made the panel switches, the
     // facts and the actions part of a navigation landmark too (§7.0 ruling 2).
-    expect(html).toMatch(/^<aside class="qcms-rail" aria-label="q_smoking_status"/u);
+    expect(html).toContain('<aside id="qcms-rail-region" class="qcms-rail" aria-label="q_smoking_status"');
     expect(html).toContain('<nav aria-label="q_smoking_status sections">');
   });
 
@@ -253,7 +253,7 @@ describe("the question rail's markup", () => {
     // a refused save moves focus to, so the row's `href` and the editor's own anchor are
     // one value rather than two that have to be kept equal.
     const html = await render();
-    expect(html).not.toContain("<button");
+    expect(html.slice(html.indexOf("<details"))).not.toContain("<button");
     for (const panel of PANELS) {
       expect(html).toContain(`href="#${panel.anchorId}"`);
     }
@@ -287,7 +287,8 @@ describe("the question rail's markup", () => {
     // that is not there, which `aria-valid-attr-value` reports in all three modes
     // (`e2e/a11y-axe.pw.ts` caught exactly that). `aria-current="page"` is the whole of the
     // accessible statement about which panel is open.
-    expect(await render()).not.toContain("aria-controls");
+    const html = await render();
+    expect(html.slice(html.indexOf("<details"))).not.toContain("aria-controls");
   });
 
   it("wears the form builder's row and group classes, on the 2026-09-27 ruling", async () => {

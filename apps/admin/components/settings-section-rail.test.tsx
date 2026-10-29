@@ -56,7 +56,7 @@ describe("the Settings rail's markup", () => {
     // The `<aside>` is named for the SUBJECT and the navigation inside it for that
     // subject's sections (§7.0 ruling 2). Both, because the pair is what stops a screen
     // reader meeting two unnamed landmarks on a screen that has a topbar nav as well.
-    expect(html).toMatch(/^<aside class="qcms-rail" aria-label="Settings"/u);
+    expect(html).toContain('<aside id="qcms-rail-region" class="qcms-rail" aria-label="Settings"');
     expect(html).toContain('<nav aria-label="Settings sections">');
     expect(html).toContain('data-testid="qcms-settings-rail"');
     // One geometry class, with no per-rail modifier beside it: the grid column, the 240px
@@ -74,9 +74,10 @@ describe("the Settings rail's markup", () => {
         `href="#${section.id}"`,
       );
     }
-    // And no button anywhere in the rail, which is the other half of the tell: this screen
-    // has no actions either, so a `<button>` here could only be a row that had regressed.
-    expect(html).not.toContain("<button");
+    // And no button inside the disclosure, which is the other half of the tell: this screen
+    // has no actions either, so a `<button>` there could only be a row that had regressed.
+    // The Header's Hide sidebar toggle sits outside it and is the frame's, not a row.
+    expect(html.slice(html.indexOf("<details"))).not.toContain("<button");
   });
 
   it("marks exactly one row current, and it is the section the screen opened with", async () => {

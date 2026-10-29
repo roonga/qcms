@@ -3,20 +3,21 @@ import type { ReactNode } from "react";
 
 import { AccountMenu } from "@/components/account-menu";
 import { Announcer } from "@/components/announcer";
-import { EnvironmentBanner } from "@/components/environment-banner";
 import { EnvironmentScope } from "@/components/environment-scope";
 import { EnvironmentSwitcher } from "@/components/environment-switcher";
 import { MeasuredMain } from "@/components/measured-main";
 import { ShellChrome } from "@/components/shell/shell-chrome";
+import { SidebarProvider } from "@/components/sidebar-toggle";
 import { ThemeToggle } from "@/components/theme-toggle";
 import { TopbarHeight } from "@/components/topbar-height";
 import { MODE_COOKIE, parseAppearance } from "@/lib/appearance";
-import { shownEnvironment } from "@/lib/environment";
+import { environmentKind } from "@/lib/environment";
 import { secureCookies } from "@/lib/server/config";
 import { resolvedEnvironment } from "@/lib/server/environments";
 import { t } from "@/lib/i18n/en";
 import { navigableCapabilities, rememberedMode, shellAccess } from "@/lib/server/shell";
 import { requireAdminSession } from "@/lib/server/session";
+import { SIDEBAR_COOKIE, parseSidebarSetting } from "@/lib/sidebar";
 
 /**
  * The authenticated shell (task 031; screen contract "ASCII sketch - authenticated shell").
@@ -103,14 +104,15 @@ export default async function ShellLayout({
   // the first.
   // It is the request's ONE resolution (local UX list A12), the same answer the API header
   // carries, so the chrome cannot say `prod` while the screen reads another environment. A
-  // read of the set that failed is `unknown`, never `prod`: the banner says so, the
-  // switcher has nothing to offer, and environment-sensitive actions are disabled here and
-  // refused by their server actions.
+  // read of the set that failed is `unknown`, never `prod`: the chip says so, it has
+  // nothing to offer, and environment-sensitive actions are disabled here and refused by
+  // their server actions.
   // Issued together with the capability read above, not after it: both are API round trips
   // on every page in the app, and awaiting them in sequence puts one of them on the
   // critical path of every render for nothing.
   const [access, resolved] = await Promise.all([accessPromise, resolvedEnvironment(session)]);
   const capabilities = navigableCapabilities(access);
+  const sidebar = parseSidebarSetting(cookieStore.get(SIDEBAR_COOKIE)?.value);
 
   return (
     <div className="flex min-h-dvh flex-col">
@@ -169,46 +171,37 @@ export default async function ShellLayout({
             capabilities={capabilities}
             rememberedMode={rememberedMode(cookieStore)}
             secureCookies={secureCookies()}
+            environment={
+              resolved.status === "known" ? (
+                <EnvironmentSwitcher
+                  environments={resolved.environments}
+                  selected={resolved.environment}
+                  secureCookies={secureCookies()}
+                />
+              ) : (
+                // Nothing to offer: the set is what the menu lists, and it could not be read.
+                // Not a button, because pressing it could do nothing.
+                <div
+                  className="qcms-envswitch"
+                  data-testid="qcms-environment-switcher"
+                  data-environment=""
+                  data-kind={environmentKind(undefined)}
+                  data-pending="false"
+                >
+                  <span className="qcms-envtrigger qcms-envtrigger--static">
+                    {t("environment.unknown")}
+                  </span>
+                </div>
+              )
+            }
             trailing={
               <>
-                {/* The one global environment control (Q6). First in the trailing group,
-                because it is the widest-reaching of the three: appearance changes how a
-                screen looks and the account menu is about who is signed in, while this one
-                changes which rows every screen is showing. */}
-                {resolved.status === "known" ? (
-                  <EnvironmentSwitcher
-                    environments={resolved.environments}
-                    selected={resolved.environment}
-                    secureCookies={secureCookies()}
-                  />
-                ) : (
-                  // Nothing to offer: the set is what the menu lists, and it could not be read.
-                  // Not a button, because pressing it could do nothing.
-                  <div
-                    className="qcms-envswitch"
-                    data-testid="qcms-environment-switcher"
-                    data-environment=""
-                    data-nonprod="true"
-                    data-pending="false"
-                  >
-                    <span className="qcms-envtrigger qcms-envtrigger--static">
-                      {t("environment.unknown")}
-                    </span>
-                  </div>
-                )}
                 <ThemeToggle appearance={appearance} secureCookies={secureCookies()} />
                 <AccountMenu email={session.email} name={session.name} />
               </>
             }
           />
         </div>
-        {/* The persistent banner (Q6), INSIDE the sticky bar rather than under it, which
-            is two properties for one decision: it stays on screen while the operator
-            scrolls, and `TopbarHeight` measures the bar it is part of, so the page's scroll
-            padding already accounts for it and SC 2.4.11 holds with no second measurement.
-            Absent under `prod`, which is what makes its presence information rather than
-            furniture. */}
-        <EnvironmentBanner environment={shownEnvironment(resolved)} />
       </header>
       {/* The shell body: the rail's track and the content column, and the thing that grows
           to fill whatever height the topbar leaves (issue 559, and N2 of
@@ -230,15 +223,20 @@ export default async function ShellLayout({
           environment is unknown, and the watcher that re-reads this tab when it comes back
           into view under a selection another tab changed (local UX list A1, A12). */}
       <EnvironmentScope selection={resolved.selection} unknown={resolved.status === "unknown"}>
-        <div className="qcms-shell-body">
-          {rail}
-          {/* The content column's cap is set by the ROUTE, not by one number here (issue
-              558, `plan/admin-ux-audit.md` §6): five screens earn width, two render
-              respondent-facing content and take less than the default, nine keep the
-              measure they have. The sixteen answers are one table in `lib/measure.ts`;
-              `MeasuredMain` only applies the row that matches the pathname. */}
-          <MeasuredMain>{children}</MeasuredMain>
-        </div>
+        {/* Wrapping both tracks, because the Hide and Show buttons sit in different ones and
+            neither can hand the other a prop. The attribute on `<html>` is what hides the
+            rail; this is the state the labels and `aria-expanded` read. */}
+        <SidebarProvider setting={sidebar} secureCookies={secureCookies()}>
+          <div className="qcms-shell-body">
+            {rail}
+            {/* The content column's cap is set by the ROUTE, not by one number here (issue
+                558, `plan/admin-ux-audit.md` §6): five screens earn width, two render
+                respondent-facing content and take less than the default, nine keep the
+                measure they have. The sixteen answers are one table in `lib/measure.ts`;
+                `MeasuredMain` only applies the row that matches the pathname. */}
+            <MeasuredMain>{children}</MeasuredMain>
+          </div>
+        </SidebarProvider>
       </EnvironmentScope>
     </div>
   );

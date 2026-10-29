@@ -16,9 +16,9 @@
  * It is deliberately **not** a URL segment either, though `/<env>/` is exactly what the
  * respondent surface gets (Q21, task 066). The two cases differ in who reads the address: a
  * respondent's link has to say which environment it is for, because nobody reads a database
- * row before clicking a link, while an administrator is looking at a banner on every page
- * and a switcher that names it. Putting it in the admin's path would double every admin
- * route for a value the operator can already see.
+ * row before clicking a link, while an administrator is looking at a labelled chip that
+ * names it. Putting it in the admin's path would double every admin route for a value the
+ * operator can already see.
  *
  * # It is a selection, never an authority
  *
@@ -37,9 +37,8 @@ import { t } from "./i18n/en.ts";
 /**
  * The unprefixed, unrestricted environment every deployment has (ADR-40).
  *
- * The default when there is no cookie, and the one environment the banner stays **off**
- * for: a banner on every screen all the time is a banner nobody reads, and `prod` is the
- * state an operator has to be told about least.
+ * The default when there is no cookie, and the one environment the chip draws as a solid
+ * fill: production is the state every unprefixed respondent address already means.
  */
 export const PROD_ENVIRONMENT = "prod";
 
@@ -95,7 +94,7 @@ export function environmentCookie(environment: string, secure: boolean): string 
 }
 
 /**
- * Whether this environment is one the operator has to be reminded about on every screen.
+ * Whether this environment is one the operator has to be reminded about.
  *
  * Everything except `prod`, derived rather than listed: an environment an operator created
  * last week is non-prod without anybody adding it here, which is the whole reason the
@@ -103,6 +102,20 @@ export function environmentCookie(environment: string, secure: boolean): string 
  */
 export function isNonProd(environment: string): boolean {
   return environment !== PROD_ENVIRONMENT;
+}
+
+/** How the chip and the bar's environment edge are drawn: solid, outlined or dashed. */
+export type EnvironmentKind = "prod" | "nonprod" | "unknown";
+
+/**
+ * The drawing kind for an environment name, or `unknown` when there is none to draw.
+ *
+ * One function rather than a condition per call site, because the chip, the bar's edge and
+ * the specs that read them all have to agree on three states and not two.
+ */
+export function environmentKind(environment: string | undefined): EnvironmentKind {
+  if (environment === undefined || environment === "") return "unknown";
+  return isNonProd(environment) ? "nonprod" : "prod";
 }
 
 /**
