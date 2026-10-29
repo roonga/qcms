@@ -22,6 +22,7 @@ jobs:
       - uses: github/codeql-action/init@v4.39.1
         with:
           languages: javascript-typescript
+          config-file: ./.github/codeql/codeql-config.yml
           # security-and-quality adds maintainability/quality queries on top of
           # the default security set: the closest CodeQL gets to SonarQube's
           # code-smell coverage.

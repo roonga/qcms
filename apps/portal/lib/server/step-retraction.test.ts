@@ -1,27 +1,5 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
-/**
- * Clearing an answer on the no-JS whole-step route (issue #127), at the route.
- *
- * `step-form.test.ts` pins the decoding rule over hand-built form entries. This file
- * pins what the ROUTE does with it, which is the part the respondent feels: the same
- * empty submission either reaches the internal API as an ADR-33 retraction or reaches
- * it not at all, and which of the two it is turns on the renderer's `__qa__` marker
- * and on nothing else.
- *
- * Every case therefore asserts on the **API client**, not on the response status. A
- * 303 back to the step is what the buggy behaviour already returned - it is what the
- * success path returns too - so a status assertion cannot tell "cleared" from
- * "silently ignored", which is the entire subject of the issue. What state changed is
- * decided by whether `submitAnswer` was called and with what body.
- *
- * The API itself is a double here on purpose: this is the BFF's own decision, and the
- * real ledger consequence of the `null` body is pinned where a real Postgres is in
- * play (`packages/db` for the tombstone row, `apps/api` for the endpoint semantics,
- * and `apps/portal/e2e/no-js-retraction.pw.ts` for the whole chain in a browser with
- * scripting off).
- */
-
 const PORTAL_BASE = "https://forms.qcms.test";
 
 function stubPortalEnv(): void {
@@ -94,14 +72,7 @@ vi.mock("./logger", async () => {
   };
 });
 
-// Alias plumbing, not doubles: `@/` is a tsconfig path Next resolves and Vitest does
-// not, so each of these hands back the real module by a relative path. The decoder and
-// the route helpers in particular must be real - they are what is under test.
 vi.mock("@/lib/server/config", async () => await import("./config"));
-// Task 066's environment reader, mapped like every other `@/` module here. The real
-// module, not a double: it reads one request header and `prod` is what it answers when
-// nothing set one, so these cases exercise the production address shape - which is what
-// they were written about.
 vi.mock("@/lib/server/environment", async () => await import("./environment"));
 vi.mock("@/lib/server/route-helpers", async () => await import("./route-helpers"));
 vi.mock("@/lib/server/step-form", async () => await import("./step-form"));
@@ -141,14 +112,6 @@ async function postStep(
   return await stepRoute.POST(request, { params: Promise.resolve({ sessionId: SESSION_ID }) });
 }
 
-/**
- * The batch's entries as `[answerKey, value]`, in the order the form asked them.
- *
- * One call, not one per answer, since task 073 moved Continue onto the batch endpoint
- * (Q20): a nine-passenger step used to make fifty-four sequential calls and fifty-four
- * advisory locks for one Continue. The assertion is still "what did the server hear",
- * which is what this file is about; only the shape of the call changed.
- */
 function posted(): [string, unknown][] {
   const calls = api.batchAnswers.mock.calls;
   if (calls.length === 0) return [];
@@ -179,9 +142,6 @@ describe("the no-JS route retracts a marked field submitted empty (issue #127)",
       ["q_full_name", ""],
     ]);
 
-    // The same body, on the same endpoint, that the scripted path posts when the
-    // respondent empties this control and blurs it (issue #98). One gesture, one
-    // ledger call, whichever transport carried it.
     expect(posted()).toEqual([["q_full_name", null]]);
     expect(api.batchAnswers).toHaveBeenCalledWith(SESSION_ID, "respondent-bearer", [
       { questionId: "q_full_name", value: null },
@@ -189,10 +149,6 @@ describe("the no-JS route retracts a marked field submitted empty (issue #127)",
   });
 
   it("posts NOTHING for the same empty field when the form did not mark it", async () => {
-    // The control half of the pair above, and the behaviour that must not change: an
-    // empty box on a question nobody has answered is silence, not a tombstone. Without
-    // this the marker would have bought a ledger row on every unanswered field of
-    // every no-JS submit.
     await postStep([
       ["__qk__q_full_name", "string"],
       ["q_full_name", ""],
@@ -202,9 +158,6 @@ describe("the no-JS route retracts a marked field submitted empty (issue #127)",
   });
 
   it("retracts an emptied multiChoice, which posts no field of its own at all", async () => {
-    // An all-unchecked checkbox group serializes nothing: the question's only trace in
-    // the whole post is its kind tag and its marker. This is the case the old decoder
-    // could not see even in principle, because it walked the posted values.
     await postStep([
       ["__qk__q_optional_cover", "multi"],
       ["__qa__q_optional_cover", "1"],
@@ -239,11 +192,6 @@ describe("the no-JS route retracts a marked field submitted empty (issue #127)",
   });
 
   it("does not re-seed the cleared field from the re-render cookie", async () => {
-    // The cookie exists to re-show what the API does not hold. After a retraction the
-    // API holds nothing for the question precisely because the call succeeded, so the
-    // key must be ABSENT and the stored (now empty) answer must show through. A key
-    // recorded here would blank or re-fill the field on the reload by accident rather
-    // than by the API's account of it - see `mergeStepValues`.
     await postStep([
       ["__qk__q_full_name", "string"],
       ["__qa__q_full_name", "1"],
@@ -260,10 +208,6 @@ describe("the no-JS route retracts a marked field submitted empty (issue #127)",
   });
 
   it("still refuses a cross-origin post carrying a marker (the origin belt, SEC-9)", async () => {
-    // The marker is respondent-editable, so the belt is what keeps a forged
-    // cross-origin form from clearing a victim's in-progress answers. It is asserted
-    // on the API client rather than on the status, because the refusal and the success
-    // are the same 303 back to the step.
     const response = await postStep(
       [
         ["__qk__q_full_name", "string"],

@@ -20,13 +20,10 @@ export const SUBMIT_NODE_TYPE = "SubmitButton";
 export const NATIVE_FIELD_KIND_PREFIX = "__qk__";
 
 /**
- * A native form posts a blank text box and a never-touched one identically, and an
- * all-unchecked checkbox group as nothing at all, so the BFF, which holds no answer
- * state (R2), decoded both to absence and a clear was a silent no-op. An empty field
- * beside this marker is an ADR-33 retraction instead. For `q_x` it is `__qa__q_x`.
- *
- * Forging one buys only retracting your own answer in your own session, which the
- * answer endpoint already permits, so it confers no authority the API does not grant.
+ * A native form posts a blank text box and a never-touched one identically, and an unchecked checkbox group as
+ * nothing, so the BFF (which holds no answer state, R2) decoded both to absence. An empty field beside this
+ * marker is an ADR-33 retraction instead; for `q_x` it is `__qa__q_x`. Forging one only retracts your own
+ * answer in your own session, which the answer endpoint already permits.
  */
 export const NATIVE_FIELD_ANSWERED_PREFIX = "__qa__";
 
@@ -53,11 +50,9 @@ export const NATIVE_DATE_PART_PREFIX: Readonly<Record<DatePart, string>> = {
 };
 
 /**
- * The operator's tag with the Gregorian calendar and Latin digits forced (ADR-27's
- * calendar policy). A date answer is an ISO-8601 day, so a locale whose default
- * calendar is not Gregorian would draw the same stored value as a different date, and
- * the no-JS boxes post exactly the numbers typed. An unreadable tag is returned as
- * given, so the caller's own validation reports it.
+ * The operator's tag with the Gregorian calendar and Latin digits forced (ADR-27): a date answer is an ISO-8601
+ * day, so a locale with another default calendar would draw the same value as a different date. An unreadable
+ * tag is returned as given, so the caller's validation reports it.
  */
 export function isoDateLocale(locale: string): string {
   try {
@@ -128,13 +123,9 @@ export interface NativeSubmitOptions {
   /** Host-app theming (ADR-26). */
   readonly submitClassName?: string;
   /**
-   * A Server Action that applies Add or Remove and re-renders the step in the same 200
-   * (ADR-43 as amended). One form reaches two destinations without scripting, and the
-   * action sits on the form with a plain URL `formaction` on Continue rather than on
-   * each `__qop` button, so React stays away from those buttons: a plain
-   * `<button name value>` contributes its pair only when it is the submitter.
-   *
-   * It cannot ride the node's props, which carry stored serialisable data only.
+   * A Server Action that applies Add or Remove and re-renders the step in the same 200 (ADR-43). It sits on the
+   * form, with a plain URL `formaction` on Continue, so React stays off the `__qop` buttons. It cannot ride the
+   * node's props, which carry stored serialisable data only.
    */
   readonly formAction?: NativeFormAction;
   /**

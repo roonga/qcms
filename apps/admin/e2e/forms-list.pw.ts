@@ -226,8 +226,9 @@ test("says something useful when the filters match nothing, and offers the way b
   await expect(page.getByText("No form matches this search.")).toBeVisible();
   await expect(page.getByTestId("qcms-forms-count")).toHaveCount(0);
 
-  // One control with that name, not two: the clear link lives with the filters, in the rail.
-  await page.getByRole("link", { name: "Clear filters" }).click();
+  // The panel's own CTA (contract §3). The rail offers one too, so this is scoped to the
+  // column rather than resolved by name across the screen.
+  await page.getByRole("main").getByRole("link", { name: "Clear filters" }).click();
   await expect(page).toHaveURL(/\/forms$/);
   await expect(page.getByRole("table", { name: "Form library" })).toBeVisible();
 });

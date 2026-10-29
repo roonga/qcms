@@ -27,7 +27,7 @@ describe("createIntervalScheduler (exit criterion 5, first half)", () => {
       },
     });
     s.start();
-    await vi.advanceTimersByTimeAsync(350); // ticks at 100, 200, 300
+    await vi.advanceTimersByTimeAsync(350);
     expect(runs).toBe(3);
     await s.stop();
   });
@@ -46,11 +46,10 @@ describe("createIntervalScheduler (exit criterion 5, first half)", () => {
       },
     });
     s.start();
-    s.start(); // no-op
-    s.start(); // no-op
+    s.start();
+    s.start();
     expect(s.running).toBe(true);
     await vi.advanceTimersByTimeAsync(350);
-    // A single chain: exactly 3 runs, not 9.
     expect(runs).toBe(3);
     await s.stop();
   });
@@ -69,13 +68,13 @@ describe("createIntervalScheduler (exit criterion 5, first half)", () => {
       },
     });
     s.start();
-    await vi.advanceTimersByTimeAsync(250); // 2 runs
+    await vi.advanceTimersByTimeAsync(250);
     await s.stop();
     expect(s.running).toBe(false);
     const after = runs;
     await vi.advanceTimersByTimeAsync(1000);
-    expect(runs).toBe(after); // nothing more scheduled
-    await s.stop(); // second stop resolves immediately
+    expect(runs).toBe(after);
+    await s.stop();
   });
 
   it("stop() waits for an in-flight run (graceful)", async () => {
@@ -96,14 +95,14 @@ describe("createIntervalScheduler (exit criterion 5, first half)", () => {
       },
     });
     s.start();
-    await vi.advanceTimersByTimeAsync(100); // enters the task; it awaits the gate
+    await vi.advanceTimersByTimeAsync(100);
 
     let stopped = false;
     const stopping = s.stop().then(() => {
       stopped = true;
     });
     await Promise.resolve();
-    expect(stopped).toBe(false); // still waiting on the in-flight run
+    expect(stopped).toBe(false);
     expect(finished).toBe(false);
 
     release?.();
@@ -127,7 +126,7 @@ describe("createIntervalScheduler (exit criterion 5, first half)", () => {
     });
     s.start();
     await vi.advanceTimersByTimeAsync(250);
-    expect(runs).toBeGreaterThanOrEqual(2); // kept going despite rejections
+    expect(runs).toBeGreaterThanOrEqual(2);
     await s.stop();
   });
 
@@ -137,7 +136,7 @@ describe("createIntervalScheduler (exit criterion 5, first half)", () => {
       name: "t",
       intervalMs: 100,
       jitterMs: 50,
-      random: () => 0.5, // → +25ms → 125ms per tick
+      random: () => 0.5,
       logger,
       task: () => {
         runs += 1;
@@ -146,7 +145,7 @@ describe("createIntervalScheduler (exit criterion 5, first half)", () => {
     });
     s.start();
     await vi.advanceTimersByTimeAsync(124);
-    expect(runs).toBe(0); // not yet - first tick is at 125ms
+    expect(runs).toBe(0);
     await vi.advanceTimersByTimeAsync(2);
     expect(runs).toBe(1);
     await s.stop();

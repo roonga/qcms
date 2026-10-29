@@ -1,5 +1,15 @@
 # Admin design contracts (Wave 3 gate)
 
+**Scoped exception: environment-navigation exploration (2026-10-28).** The Code
+Owner explicitly requires `admin-shell-poc/environment-navigation-poc.html` to guide
+flow, navigation and interaction only. It is **not a source of truth for look and
+feel**, and the general “POCs win” wording below does not give this particular POC
+visual authority. Use existing application components, approved screen contracts
+and design tokens. Its persona permissions and simulated backend behavior are not
+policy. See the [implementation handover](environment-navigation-implementation.md)
+for the agreed flows, audited access rules and implementation gaps. This exception
+does not change the authority of the other screen POCs.
+
 **A ninth contract was added 2026-08-21** (§9, author-authored text of unbounded
 length). It is **not** covered by the confirmation below, which was given over
 eight: it was found by shipping Wave 3 rather than by the POC audit, and it is
@@ -981,6 +991,7 @@ The eight rulings:
 - **The question rail's details group** (Slug, Created, Type with its locked status) stays and sits in the Header under the subject as secondary lines. It describes the subject, so it belongs with it. **Per-row digests and issue badges** (per step, per panel) stay as row content in Sections and Children.
 - **The collapsed summary** (below `--bp-sidebar`) shows the subject plus at most one count: the issue total on the form and question rails, or the active filter count on a list screen. It truncates with an ellipsis, and the count never truncates. The back link stays visible through the collapse, as the question rail's already does.
 - **The form's sections are eight, not seven:** Releases joined the sibling list after it was written (§7.1 below lists seven). The routes `/export` and `/assist` are endpoints, not screens, and get no row.
+- **The Filters part's "Filters" heading is a styled paragraph, not a heading element** (Code Owner, issue #1117). The rail renders before `<main>`, so a heading element in it sits above the screen's own `<h1>` and `heading-order` reports it on every railed screen at once. The `<form role="search">` takes the same word as its accessible name, so nothing is lost to a screen reader. The filtered-empty panel keeps §3's own "Clear filters" beside the rail's.
 
 **What still holds from the passages below:**
 

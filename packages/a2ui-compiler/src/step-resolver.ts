@@ -37,12 +37,8 @@ export interface StepResolver {
 }
 
 /**
- * The typography each heading level carries into the compiled document, stated
- * there rather than left to a renderer default: the document is served forever
- * (ADR-18), and a renderer that is not ours has nothing else to read the intent
- * from. Size and weight both step per level, so the hierarchy survives every
- * font face the portal offers. The values are the `Text` schema's own enums,
- * tokens meaning edits to a vendored component (ADR-22).
+ * Heading typography is stated in the compiled document, served forever (ADR-18), so a
+ * foreign renderer has the intent. Values are the `Text` schema's own enums (ADR-22).
  */
 const HEADING_STYLE = {
   h1: { size: "2xl", weight: "bold" },

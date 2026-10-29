@@ -8,10 +8,8 @@ import {
 } from "../schema/control/endpoint-proposals.js";
 import type { Executor } from "./executor.js";
 
-// State transitions carry their precondition in the `WHERE` clause and answer
-// `undefined` when it did not hold, so the database picks the winner of a race. A
-// read-then-write would let two confirmations both apply, the second overwriting a
-// production endpoint with a value its confirmer never saw.
+// Transitions carry their precondition in the `WHERE` clause and answer `undefined` when it did not hold,
+// so the database picks the race winner; a read-then-write could apply two confirmations.
 
 /** One proposal row as the API reads it. */
 export interface EndpointProposalRow {
@@ -160,12 +158,9 @@ export async function hasPendingEndpointProposal(
 }
 
 /**
- * Claim a pending proposal for one confirming account, or `undefined` when it was not
- * pending. The confirming account may never be the proposing one.
- *
- * Claim before the apply, in the same transaction as the confirmation's SEC-15 row: the
- * other order would leave production data flowing to a new URL with nothing recording who
- * agreed to it.
+ * Claim a pending proposal for one confirming account, or `undefined` when it was not pending; never the
+ * proposing account. Claim before the apply, in the same transaction as the SEC-15 row, or production data
+ * could flow to a new URL with no record of who agreed.
  */
 export async function confirmEndpointProposal(
   exec: Executor,
@@ -215,13 +210,9 @@ export async function markEndpointProposalApplied(
 }
 
 /**
- * Withdraw an open proposal, or answer `undefined` when there was nothing open to
- * withdraw. Either account may withdraw.
- *
- * A confirmed proposal is withdrawable because `applied_at is null` means nothing went
- * live, and the `one_open` index would otherwise let a persistently failing apply block
- * every new proposal for that endpoint. An applied one is not: reversing a live change
- * needs its own second approver.
+ * Withdraw an open proposal, or `undefined` when none was open; either account may.
+ * A confirmed proposal is withdrawable while `applied_at is null`, or a failing apply would block the
+ * `one_open` index for that endpoint. An applied one needs its own second approver.
  */
 export async function withdrawEndpointProposal(
   exec: Executor,

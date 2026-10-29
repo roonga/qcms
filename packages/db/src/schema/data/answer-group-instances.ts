@@ -12,17 +12,10 @@ export const ROSTER_EVENTS = ["added", "removed"] as const;
 export type RosterEvent = (typeof ROSTER_EVENTS)[number];
 
 /**
- * The append-only roster of repeating-group instances (ADR-42).
- *
- * The event record, not the live roster: liveness is derived from the group's count source
- * in `apps/api/src/features/responses/roster.ts`, and only an `open` group's live set is
- * this record itself.
- *
- * Append-only. `answer_group_instances_reject_delete` honours the same
- * `qcms.allow_answer_delete` door as the answer ledger, so this adds no third delete door.
- *
- * `groupId` carries no foreign key: it names a group pinned in the session's form version,
- * not a row in a mutable library.
+ * The append-only roster of repeating-group instances (ADR-42): the event record, not the live roster, which
+ * the API derives from the group's count source. `answer_group_instances_reject_delete` honours the answer
+ * ledger's `qcms.allow_answer_delete` door, adding no third. `groupId` has no foreign key: it names a group
+ * pinned in the session's form version.
  */
 export const answerGroupInstances = pgTable(
   "answer_group_instances",
@@ -36,10 +29,9 @@ export const answerGroupInstances = pgTable(
     instanceId: text("instance_id").$type<InstanceId>().notNull(),
     event: text("event").$type<RosterEvent>().notNull(),
     /**
-     * A roster POST answers with a re-render rather than a redirect, so a reload or Back
-     * would replay it and add a second instance. The token the page minted is recorded
-     * here, and a token already present makes the operation a no-op. One row per token is
-     * checked in the API inside the session's advisory lock, not in SQL.
+     * A roster POST re-renders instead of redirecting, so a reload would replay it. The minted token is recorded
+     * here and a token already present makes the operation a no-op; uniqueness is checked in the API inside the
+     * session's advisory lock, not in SQL.
      */
     opToken: text("op_token"),
     occurredAt: timestamp("occurred_at", { withTimezone: true, mode: "date" })

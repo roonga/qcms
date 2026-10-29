@@ -4,19 +4,6 @@ import { createApp } from "../../app.js";
 import { internalTokenFor, makeDeps, validEnv } from "../../test-support.js";
 import { ALLOWED_AUTH_ENDPOINTS, authSubPath, registerAdminAuthProxy } from "./route.js";
 
-/**
- * The auth mount's surface guarantees (task 056; SEC-1, SEC-4, ADR-09).
- *
- * No database and no better-auth work happens in this file: every assertion is about
- * what the *route tree* allows, which is where SEC-1's "no self-registration path
- * exists in any composition" is won or lost. The flows themselves run against a real
- * Postgres and the real library in `auth.integration.test.ts`.
- *
- * The `unusedDb()` handle is load-bearing here: an allowlist miss must be refused
- * before `auth.handler` is reached, so any test below that accidentally let a request
- * through would fail loudly on a rejected database call rather than passing quietly.
- */
-
 const ALL = { public: true, internal: true, admin: true } as const;
 const PUBLIC_ONLY = { public: true, internal: false, admin: false } as const;
 const groups = { groups: { auth: [registerAdminAuthProxy] } };
@@ -25,14 +12,7 @@ interface ErrBody {
   error: { code: string; message: string };
 }
 
-/**
- * A syntactically valid password for the refused requests below, generated per run.
- *
- * Generated rather than written down for the reason the lint gate exists: a literal in
- * this position is how a real credential eventually gets committed next to it. Nothing
- * here ever reaches better-auth in any case - every request in this file is expected to
- * be refused before the handler.
- */
+/** Generated rather than literal so no credential-shaped string is ever committed here. */
 const SYNTHETIC_PASSWORD = `probe-${Buffer.from(crypto.getRandomValues(new Uint8Array(12))).toString("base64url")}`;
 
 function compose(flags: typeof ALL | typeof PUBLIC_ONLY) {
@@ -49,10 +29,6 @@ describe("SEC-1: no self-registration path exists in any composition", () => {
   });
 
   it("the allowlist names no organisation or team endpoint (Q45, task 068)", () => {
-    // Grants and membership are written through QCMS endpoints and the plugin's own
-    // write endpoints are not an owner path. The list is the control, so the list is
-    // what this asserts: a later entry here would be a second write path to the
-    // membership tables, which is the shape Q45 refused.
     const grantShaped = ALLOWED_AUTH_ENDPOINTS.filter((entry) =>
       /(organization|team|member)/i.test(entry),
     );
@@ -76,14 +52,6 @@ describe("SEC-1: no self-registration path exists in any composition", () => {
   it("refuses every better-auth endpoint that is not on the allowlist", async () => {
     const { deps, app } = compose(ALL);
     const token = internalTokenFor(deps.config);
-    // A representative spread: account creation, factor removal, the OTP endpoints
-    // reserved for Phase 4, and the URI reveal the enrollment screen does not use.
-    //
-    // `two-factor/generate-backup-codes` used to be on this list and is deliberately
-    // not any more (issue #319): it is the reachable replacement for the route that
-    // read the stored codes back. Its own gate is better-auth's password requirement,
-    // which `auth.integration.test.ts` drives; being *reachable* is what this file
-    // stops asserting about it.
     const denied = [
       "/api/auth/sign-up/email",
       "/api/auth/two-factor/disable",
@@ -92,12 +60,6 @@ describe("SEC-1: no self-registration path exists in any composition", () => {
       "/api/auth/two-factor/get-totp-uri",
       "/api/auth/list-sessions",
       "/api/auth/update-user",
-      // The organisation plugin's own write endpoints (task 068, Q45). The plugin is
-      // configured from that task on, which makes these real endpoints inside the
-      // library rather than paths that were never going to resolve - and they are
-      // refused for **everyone**, a `forms.owner` included, because grants and
-      // membership are written through QCMS endpoints and nowhere else. The workspace
-      // routes call `createOrganization` in process, which the network cannot reach.
       "/api/auth/organization/create",
       "/api/auth/organization/update",
       "/api/auth/organization/delete",
@@ -169,26 +131,7 @@ describe("ADR-09: no identity provider in a respondent-only process", () => {
   });
 });
 
-/**
- * The API's read of `QCMS_ADMIN_SECURE_COOKIES` carries no loopback guard, and relies on
- * the admin BFF refusing to boot instead (issue #402, and the long comment beside that
- * read in `apps/api/src/config.ts`).
- *
- * The reliance has one premise: **a browser can reach better-auth only through the admin
- * BFF.** Two of the four legs of that premise are properties of this app's route tree and
- * are asserted here. The other two live outside it - Compose publishes no host port for
- * the API (`scripts/compose-config.test.ts`), and the admin still calls
- * `assertSecureCookiesConfigured` at boot (`scripts/check-bff-config-guards.test.ts`) -
- * and are asserted from the repo root, where a change to another app cannot be served
- * from this package's turbo cache.
- *
- * Written as a loop over the whole allowlist rather than over one representative endpoint
- * on purpose: the failure this guards against is a new endpoint added to
- * `ALLOWED_AUTH_ENDPOINTS` that reaches better-auth by some path the channel token does
- * not cover, and a spot check cannot see that.
- */
 describe("issue #402: the admin BFF is the only path to better-auth", () => {
-  /** `"POST /sign-in/email"` as a request this app will route. */
   function requestFor(entry: string, headers: Record<string, string>): [string, RequestInit] {
     const [method = "GET", path = "/"] = entry.split(" ");
     const body =
@@ -245,8 +188,8 @@ describe("path derivation", () => {
       "/two-factor/verify-totp",
     );
     expect(authSubPath("http://api.test/api/auth")).toBe("/");
-    // A query string is not part of the endpoint identity, so it cannot be used to
-    // smuggle a denied path past the allowlist.
+    // A query string is not part of the endpoint identity, so it cannot smuggle a denied
+    // path past the allowlist.
     expect(authSubPath("http://api.test/api/auth/get-session?disableCookieCache=true")).toBe(
       "/get-session",
     );

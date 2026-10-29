@@ -295,6 +295,9 @@ export const messages = {
   "questions.filter.statusAll": "Any status",
   "questions.filter.type": "Type",
   "questions.filter.typeAll": "Any type",
+  // The filtered-empty panel's own action (contract §3). The rail carries a clear link too,
+  // and both stand: §3 asks the panel to offer the way out where the reader is looking.
+  "questions.filter.clear": "Clear filters",
 
   "questions.table.label": "Question library",
   "questions.table.hint": "Open a question from the link in its ID column.",
@@ -659,6 +662,8 @@ export const messages = {
   "forms.filter.sort.slug-desc": "Slug (Z to A)",
   "forms.filter.sort.published-desc": "Newest published",
   "forms.filter.sort.published-asc": "Oldest published",
+  // The filtered-empty panel's own action (contract §3), beside the rail's clear link.
+  "forms.filter.clear": "Clear filters",
   // The POC's result count, which is the one line that says how many rows the filters
   // just produced. Singular and plural are separate keys rather than one string with a
   // conditional "s", because a second locale is a catalog swap and not a code change.

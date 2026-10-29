@@ -7,12 +7,9 @@ import { formVersions } from "../control/forms.js";
 import { secureLinks } from "../control/secure-links.js";
 
 /**
- * A respondent session. The `(formId, formVersion)` pair is pinned at creation and never
- * migrates (I4); `linkId` is set only for `secure_link` access.
- *
- * A public session has a NULL `link_id` and so skips the composite link key entirely under
- * `MATCH SIMPLE`, leaving the generator's per-schema `CHECK (environment = '<env>')` to
- * hold on its own. That is why `environment` is `NOT NULL` though `link_id` is not.
+ * A respondent session; the `(formId, formVersion)` pair is pinned at creation (I4). A public session has a
+ * NULL `link_id` and skips the composite link key under `MATCH SIMPLE`, so `environment` is `NOT NULL` to
+ * leave the per-schema `CHECK` holding alone.
  */
 export const sessions = pgTable(
   "sessions",

@@ -9,15 +9,9 @@ import { authOrganization } from "./auth.js";
 import { controlSchema } from "../schemas.js";
 
 /**
- * Form identity.
- *
- * There is deliberately no `status` column: the closed state is per (form, environment)
- * and lives on `control.form_releases`, so a form's status is derived from the newest
- * release row for the pair.
- *
- * `slug` is unique installation-wide rather than per workspace, so `/f/{slug}` needs no
- * workspace segment. The `workspaceId` reference is also the backstop against deleting a
- * workspace that still owns a form.
+ * Form identity. There is deliberately no `status` column: the closed state is per (form, environment) and
+ * lives on `control.form_releases`. `slug` is unique installation-wide so `/f/{slug}` needs no workspace
+ * segment; the `workspaceId` reference backstops deleting a workspace that still owns a form.
  */
 export const forms = controlSchema.table("forms", {
   formId: text("form_id").$type<FormId>().primaryKey(),
@@ -68,10 +62,9 @@ export const formVersions = controlSchema.table(
       .notNull()
       .defaultNow(),
     /**
-     * The author the two-person rule compares a `prod` release against. No foreign key, so
-     * a later account deletion cannot cascade or block the audit answer. Null means the
-     * author is unknown, and the release path refuses such a `prod` release while the
-     * workspace switch is on.
+     * The author the two-person rule compares a `prod` release against. No foreign key, so an account deletion
+     * cannot cascade or block the audit answer. Null means unknown, and the release path refuses such a `prod`
+     * release while the workspace switch is on.
      */
     publishedBy: text("published_by"),
   },

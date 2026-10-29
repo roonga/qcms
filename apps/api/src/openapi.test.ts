@@ -1,20 +1,3 @@
-/**
- * The request-body unknown-key policy, at the seam that enforces it (issue #893).
- *
- * `jsonBody` is the only spelling of a JSON request body in this codebase, and it
- * is what makes "request bodies reject unknown keys" a property rather than a
- * convention: it reads the schema's own setting and throws when a route module is
- * imported, long before a request arrives. These tests drive that decision
- * directly, including the two mistakes it exists to catch - a body left as a plain
- * `z.object`, and an `openBecause` reason left behind on a body that has since
- * been closed.
- *
- * The last block pins the three Zod internals the check reads. They are not part
- * of Zod's public surface, so a major upgrade that renamed or dropped `catchall`
- * would otherwise turn `jsonBody` into a function that quietly approves
- * everything; here it fails instead, and says which value moved.
- */
-
 import { z } from "@hono/zod-openapi";
 import { describe, expect, it } from "vitest";
 
@@ -33,9 +16,6 @@ describe("jsonBody accepts a closed request body", () => {
   });
 
   it("accepts a closed object that also carries a refinement and a component name", () => {
-    // `UpdateFormSettingsBody`'s shape: strict, then `.refine()` for the
-    // at-least-one-field rule, then `.openapi()`. Neither call may hide the
-    // unknown-key setting from the check.
     const schema = z
       .strictObject({ a: z.boolean().optional(), b: z.number().optional() })
       .refine((v) => v.a !== undefined || v.b !== undefined, "at least one")
@@ -47,8 +27,6 @@ describe("jsonBody accepts a closed request body", () => {
 
 describe("jsonBody refuses a body that would strip or keep unknown keys", () => {
   it("refuses a plain z.object, naming strictObject as the fix", () => {
-    // The pre-#893 shape of every body in this API: Zod strips the unknown key,
-    // the generated document says nothing, and the two disagree.
     expect(() => jsonBody(z.object({ a: z.string() }))).toThrow(/z\.strictObject/);
   });
 
@@ -69,17 +47,15 @@ describe("jsonBody keeps an openBecause reason honest", () => {
   });
 
   it("refuses a reason left on a body that has since been closed", () => {
-    // The failure mode a bare comment would not catch: someone closes the body
-    // and the sentence explaining why it is open survives, now describing
-    // nothing. The reason and the schema have to move together.
     expect(() =>
       jsonBody(z.strictObject({ a: z.string() }), { openBecause: HONEYPOT_REASON }),
     ).toThrow(/no longer describes it/);
   });
 });
 
+// `catchall` is not Zod's public surface: an upgrade that renamed or dropped it would
+// make `jsonBody` approve everything silently.
 describe("the Zod internals the policy check reads (upgrade guard)", () => {
-  /** The `catchall` type Zod records for each of the three object constructors. */
   function catchallType(schema: z.ZodType): string {
     const def = (schema as { _zod?: { def?: { catchall?: unknown } } })._zod?.def;
     const catchall = def?.catchall as { _zod?: { def?: { type?: string } } } | undefined;

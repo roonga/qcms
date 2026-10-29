@@ -1,10 +1,3 @@
-/**
- * Secure-link entry (task 029, exit criterion 1). The `/l/:token` BFF silently
- * verifies the link and either redirects into the flow (valid) or redirects to the
- * friendly typed-error page (expired / consumed / revoked / invalid / closed
- * form). Tokens are minted in globalSetup relative to the API's fixed clock.
- */
-
 import { expect, test } from "./support/gates.js";
 
 import { readFixtures } from "./support/fixtures.js";
@@ -38,9 +31,6 @@ test("a revoked link shows the no-longer-active page", async ({ page }) => {
 });
 
 test("a valid link into a closed form shows the closed explanation", async ({ page }) => {
-  // The whole-form closed state overrides every link (ADR-39, issue #724): the
-  // API answers FORM_CLOSED on this path, which the BFF maps to the closed
-  // screen - not a link failure, because the link itself is fine.
   const { closedFormToken } = readFixtures();
   await page.goto(`/l/${closedFormToken}`);
   await page.waitForURL(/\/link-error/);

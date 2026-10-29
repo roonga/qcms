@@ -1,13 +1,8 @@
 #!/usr/bin/env node
 /**
- * Apply the package-owned migration history. A separate, explicit process: migrating on
- * boot would race schema changes with rollout in a multi-instance deployment.
- *
- * The two supported invocations, since a deep path into `dist/` bypasses the `exports`
- * map and pins a layout this package is free to change:
- *
- *     qcms-db-migrate
- *     node --import @roonga/qcms-db/migrate --eval ""
+ * Apply the package-owned migration history as a separate process: migrating on boot would race schema
+ * changes with rollout. Invoke `qcms-db-migrate` or `node --import @roonga/qcms-db/migrate --eval ""`,
+ * never a deep `dist/` path, which bypasses the `exports` map.
  */
 import { fileURLToPath } from "node:url";
 

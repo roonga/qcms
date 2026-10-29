@@ -8,22 +8,8 @@ import { afterAll, describe, expect, it } from "vitest";
 
 import { MIN_ADVANCE_MS, SLEEP_MS, main, timeBothClocks, verdict } from "./check-clock.mjs";
 
-/**
- * The clock check (issue #590).
- *
- * Three different faults look identical from a shell - a frozen wall clock, timers that
- * do not wait, and a `sleep` binary that returns at once - and the check exists to tell
- * them apart. So the tests drive each fault with injected clocks and waits rather than
- * by sleeping, and assert on WHICH fault is named, not merely that something failed. A
- * check that failed for the wrong reason would send the next person to the wrong fix.
- *
- * One test does run the real script, because everything above it is only as good as the
- * default wiring underneath.
- */
-
 const SCRIPT = fileURLToPath(new URL("check-clock.mjs", import.meta.url));
 
-/** A pair of clocks whose readings are handed out in order, so time is scripted. */
 function scriptedClocks(wall: number[], monotonic: number[]) {
   const next = (queue: number[]) => () => {
     const value = queue.shift();
@@ -33,7 +19,6 @@ function scriptedClocks(wall: number[], monotonic: number[]) {
   return { wall: next([...wall]), monotonic: next([...monotonic]) };
 }
 
-/** Elapsed pairs for the two waits, as `timeBothClocks` reads them: before, after. */
 function readings(timer: [number, number], binary: [number, number]) {
   return [timer[0], timer[1], binary[0], binary[1]];
 }
@@ -53,10 +38,8 @@ afterAll(() => {
 });
 
 /**
- * A directory holding a stub `sleep` on PATH, so the script's own classification of a
- * real child process is exercised rather than a hand-written stand-in for it. This is
- * where the defect the review found actually lived: a `sleep` that runs and fails is not
- * a `sleep` that is missing.
+ * A real stub on PATH rather than a stand-in, because a `sleep` that runs and fails is
+ * not a `sleep` that is missing and the script must tell them apart.
  */
 function stubSleep(body: string): string {
   const directory = mkdtempSync(join(tmpdir(), "qcms-check-clock-stub-"));
@@ -121,8 +104,6 @@ describe("verdict", () => {
     expect(result.ok).toBe(false);
     const output = result.lines.join("\n");
     expect(output).toContain("WALL CLOCK is frozen or stepped");
-    // The wall clock being wrong is not evidence about the sleep binary, whose own
-    // monotonic reading here is fine. Accusing both would bury the real fault.
     expect(output).not.toContain("SLEEP BINARY");
   });
 
@@ -135,7 +116,6 @@ describe("verdict", () => {
     expect(result.ok).toBe(false);
     const output = result.lines.join("\n");
     expect(output).toContain("IN-PROCESS TIMERS do not wait");
-    // Same reason as above: with timers broken, the binary's reading proves nothing.
     expect(output).not.toContain("SLEEP BINARY");
   });
 
@@ -152,9 +132,6 @@ describe("verdict", () => {
   });
 
   it("FAILS a sleep that ran and exited non-zero, naming the status", () => {
-    // The review's finding: this used to report "not measured" and exit 0. A harness
-    // that refuses a foreground sleep is as free to fail it as to short-circuit it, so
-    // it is the #590 condition, not a missing tool.
     const result = verdict({
       timer: { wall: 2002, monotonic: 2002 },
       binary: { wall: 4, monotonic: 4 },
@@ -180,8 +157,6 @@ describe("verdict", () => {
   });
 
   it("reports a failed sleep once, not also as a sleep that returned early", () => {
-    // A sleep that failed almost always also came back instantly. Naming both would
-    // describe one event as two faults and obscure which one to act on.
     const result = verdict({
       timer: { wall: 2002, monotonic: 2002 },
       binary: { wall: 2, monotonic: 2 },
@@ -226,7 +201,6 @@ describe("main", () => {
 
   it("exits 1 and names the frozen wall clock", async () => {
     const { code, output } = await run({
-      // The wall clock stands still while the monotonic clock records both waits.
       clocks: scriptedClocks([0, 0, 0, 0], readings([0, 2002], [2002, 4006])),
       wait: () => undefined,
       sleepBinary: () => ran,
@@ -288,8 +262,8 @@ describe("main", () => {
     const result = spawnSync(process.execPath, [SCRIPT], { encoding: "utf8" });
     expect(result.stdout).toContain("in-process timer:");
     expect(result.stdout).toContain("sleep binary:");
-    // Asserted rather than skipped: if waiting is broken on the machine running this
-    // suite, that is exactly the finding issue #590 is about and it should be loud.
+    // Asserted rather than skipped: broken waiting on this machine is the finding, so it
+    // must be loud.
     expect(result.status, result.stdout + result.stderr).toBe(0);
   });
 

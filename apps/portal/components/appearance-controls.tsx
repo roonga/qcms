@@ -1,57 +1,5 @@
 "use client";
 
-/**
- * The respondent's appearance controls: colour mode, font and density (task 053,
- * ADR-30 exit criteria 3 and 5).
- *
- * WHAT EACH CONTROL DOES
- * Each writes a long-lived cookie and swaps one root class, in that order but with
- * no round trip: the class swap is what the respondent sees immediately, and the
- * cookie is what makes the NEXT server render already correct, so a reload, a step
- * navigation or a resumed session never flashes back to the deployment default.
- * The token contract does the rest - mode selects a palette, the font class
- * repoints `--font-portal`, and density swaps the five `--space-*` values - so
- * nothing here knows a single colour, family or pixel.
- *
- * SELECTED STATE IS NEVER COLOUR-ONLY (an exit criterion, not a nicety)
- * A chip that only changed colour would be unreadable in High-contrast, where the
- * palette collapses to black on white, and ambiguous for a colour-blind
- * respondent - and this control is precisely the one such a respondent has to
- * operate to fix their own experience. So the selected chip carries FOUR
- * differences: a check glyph that is absent otherwise, a heavier border, a bolder
- * label, and (only then) a filled background. Three of the four survive a palette
- * with two colours in it. The glyph slot is always rendered, so selecting a chip
- * moves no text.
- *
- * KEYBOARD BEHAVIOUR IS THE PLATFORM'S
- * Mode and density are native radio groups in a `fieldset`/`legend`, drawn as
- * chips through a visually-hidden input. That is deliberate rather than a
- * `role="radiogroup"` of buttons: it gets roving tab order, arrow-key traversal,
- * the group name announced with each option, and the "N of 3" position count from
- * the browser, none of which then has to be reimplemented or tested for. Font is a
- * native `<select>` with `<optgroup>`, which is also how the registry's groups
- * reach a screen reader for free.
- *
- * WITHOUT JAVASCRIPT the same markup is a real `<form method="post">` posting to
- * `app/appearance/route.ts`, which writes the same three cookies and redirects back
- * (issue #195). Task 053 hid the whole disclosure instead, because a radio a
- * respondent can move but that changes nothing is worse than no control - the fix is
- * to make it change something, not to keep hiding it, since High contrast and the
- * legibility faces are the controls a respondent with scripting off may most need.
- *
- * The progressive-enhancement seam is the one task 044 used for step submission, and
- * it is exactly one element wide: the Apply button. It is in the markup always and
- * hidden by CSS always, and the `<noscript>` rule in `app/layout.tsx` reveals it. So
- * there is no second render, no hydration boundary and no layout shift when scripting
- * is on - the scripted respondent gets the same DOM they got before, minus a button
- * they cannot see and plus a form element that never submits, because
- * {@link AppearanceControls} calls `preventDefault` on it once hydrated. That handler
- * exists for implicit submission (Enter inside the `<select>`), which would otherwise
- * reload a page whose appearance the click handlers had already changed.
- *
- * See docs/theming.md.
- */
-
 import { fontClass } from "@roonga/qcms-ui/fonts";
 import { usePathname, useSearchParams } from "next/navigation";
 import { useEffect, useState, type ReactNode } from "react";
@@ -73,15 +21,10 @@ import {
 } from "@/lib/appearance";
 import { t } from "@/lib/i18n/en";
 
-/** The check glyph on the selected chip. U+2713, never an em dash or a control char. */
 const SELECTED_MARK = "✓";
 
-/**
- * Three horizontal rules whose gaps widen with the level: the density "icon" of
- * ADR-30's icon toggle. Purely decorative, so `aria-hidden` - the visible text
- * label beside it is what names the option, and an icon-only toggle would put the
- * whole meaning of this control behind a glyph a respondent has to guess.
- */
+// Decorative: the visible text label names the option, because an icon-only toggle
+// would put the whole meaning of this control behind a glyph.
 function DensityIcon({ gap }: { readonly gap: number }) {
   const middle = 8;
   return (
@@ -103,7 +46,6 @@ function DensityIcon({ gap }: { readonly gap: number }) {
   );
 }
 
-/** The icon gap per level, tightest to loosest. */
 const DENSITY_ICON_GAP: Readonly<Record<Density, number>> = {
   compact: 3,
   comfortable: 4.5,
@@ -117,10 +59,8 @@ interface SegmentedOption<T extends string> {
 }
 
 /**
- * One radio group drawn as a row of chips. `name` groups the inputs for the
- * browser's arrow-key traversal; `data-selected` is the styling and testing hook,
- * set from React state rather than read back from `:checked` so the server-rendered
- * markup already carries it.
+ * `data-selected` is set from React state rather than read back from `:checked`, so the
+ * server-rendered markup already carries it.
  */
 function Segmented<T extends string>({
   name,
@@ -156,9 +96,8 @@ function Segmented<T extends string>({
                 checked={selected}
                 onChange={() => onChange(option.value)}
               />
-              {/* Always rendered so the glyph appearing shifts no text. The radio's
-                  own checked state is what conveys selection to a screen reader, so
-                  the mark is decorative there and announced text is not duplicated. */}
+              {/* Always rendered so the glyph appearing shifts no text, and decorative
+                  because the radio's own checked state conveys selection. */}
               <span className="qcms-seg__mark" aria-hidden="true">
                 {selected ? SELECTED_MARK : ""}
               </span>
@@ -172,7 +111,7 @@ function Segmented<T extends string>({
   );
 }
 
-/** The offered fonts as `<optgroup>`s, keeping the registry's own group order. */
+// Keeps the registry's own group order.
 function fontGroups(fonts: readonly FontChoice[]): readonly [string, readonly FontChoice[]][] {
   const groups: [string, FontChoice[]][] = [];
   for (const font of fonts) {
@@ -185,27 +124,9 @@ function fontGroups(fonts: readonly FontChoice[]): readonly [string, readonly Fo
 
 export function AppearanceControls() {
   const state = useAppearance();
-  // The page to come back to after the no-JS POST, PATH AND QUERY. Both hooks render on
-  // the server too, so the hidden field is correct in the served HTML, which is the only
-  // render a no-JS respondent ever gets.
-  //
-  // The query is carried rather than dropped (PR #859 review). An earlier version kept
-  // the path alone on the claim that `?state=error` on the entry page was the only
-  // parameter the portal read, and that was simply false: `app/link-error/page.tsx`
-  // selects its whole copy from `?kind=`, so applying an appearance choice from
-  // `/link-error?kind=expired` returned the respondent to `/link-error` reading "this
-  // link is not valid" instead of "this link has expired". Carrying the query costs
-  // nothing in safety: `lib/server/appearance-form.ts` validates the whole reference,
-  // query included, against this origin before it can become a `Location`.
   const pathname = usePathname();
   const searchParams = useSearchParams();
   const search = searchParams.toString();
-  // **Normalised onto the environment's prefix** (Q21, task 066). `proxy.ts` rewrites
-  // `/test/s/x` to `/s/x`, so `usePathname()` is the rewritten path on the server and the
-  // browser's own prefixed path after hydration. Prepending the prefix only when it is
-  // absent makes the two renders produce the same string - no hydration mismatch - and
-  // makes the no-JS return address, which is the server render's and the only one a
-  // scriptless respondent gets, point back inside their own environment.
   const basePath = state?.basePath ?? "";
   const prefixed =
     basePath === "" || pathname === basePath || pathname.startsWith(`${basePath}/`)
@@ -216,17 +137,6 @@ export function AppearanceControls() {
   const [font, setFont] = useState<string>(state?.font ?? "");
   const [density, setDensity] = useState<Density>(state?.density ?? "comfortable");
 
-  // The root class is the truth about the mode; the server's stamp is only its best
-  // guess at render time. The pre-paint script can land on something else from a
-  // `?mode=` parameter or from `prefers-color-scheme` / `prefers-contrast`, all of
-  // which are inputs that did not exist when the HTML was generated - so without
-  // this the chips could claim Light while the respondent is looking at Dark.
-  //
-  // Read UNCONDITIONALLY rather than only in the cases known to diverge. Enumerating
-  // those cases means keeping two precedence chains in agreement (this one and the
-  // script's), and the read costs one `classList` lookup; when they agree, the
-  // `setState` is a no-op. It runs after hydration, so it corrects the CONTROL only:
-  // the page itself was painted correctly by the script, before anything was drawn.
   useEffect(() => {
     const live = APPEARANCE_MODES.find((candidate) =>
       document.documentElement.classList.contains(candidate),
@@ -264,12 +174,9 @@ export function AppearanceControls() {
     document.cookie = appearanceCookie(DENSITY_COOKIE, next, secure);
   };
 
-  /**
-   * Hydrated, the form never submits: the click handlers above have already applied
-   * the choice and written the cookie, so a navigation would only cost a reload. This
-   * binds after hydration, which is what makes the no-JS path work - with no
-   * JavaScript there is no handler and the browser posts the form natively.
-   */
+  // Hydrated, the form never submits: the click handlers have already applied the choice,
+  // so a navigation would only cost a reload. With no JavaScript there is no handler and
+  // the browser posts natively.
   const keepOnPage = (event: { preventDefault: () => void }): void => {
     event.preventDefault();
   };
@@ -277,9 +184,7 @@ export function AppearanceControls() {
   return (
     <details className="qcms-appearance" data-testid="appearance">
       <summary className="qcms-appearance__summary">
-        {/* The conventional contrast glyph: a circle with one half filled. It says
-            "how this looks" far more directly than a gear, and it is decorative
-            either way - the visible label is what names the control. */}
+        {/* Decorative: the visible label names the control. */}
         <svg
           aria-hidden="true"
           className="qcms-seg__icon"
@@ -321,8 +226,7 @@ export function AppearanceControls() {
             id="qcms-font-select"
             className="qcms-appearance__select"
             data-testid="appearance-font"
-            // The field name the no-JS POST serializes under, matching the `mode` and
-            // `density` radio group names above and the schema in
+            // The field name the no-JS POST serializes under; it matches the schema in
             // `lib/server/appearance-form.ts`.
             name="font"
             value={font}

@@ -55,7 +55,6 @@ describe("createJsonLogger", () => {
       expect(line[field]).toBe("[REDACTED]");
     }
     expect(line.safe).toBe("visible");
-    // No secret value survives anywhere in the serialized line.
     const raw = JSON.stringify(line);
     for (const secret of ["super-secret-value", "another-secret", "Bearer xyz", "session=abc"]) {
       expect(raw).not.toContain(secret);

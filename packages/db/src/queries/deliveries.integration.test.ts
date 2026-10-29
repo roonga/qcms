@@ -1,12 +1,4 @@
-/**
- * Per-(event, webhook) delivery helpers (task 025), driven against the 013
- * Testcontainers harness DB. Requires Docker.
- *
- * Proves the fan-out unit's independent state machine: idempotent materialization,
- * the joined due-claim, backoff/dead-letter/reset, and - via genuine concurrent
- * pooled transactions - that `FOR UPDATE OF webhook_deliveries SKIP LOCKED` never
- * hands the same delivery to two claimers (the multi-instance-safety guarantee).
- */
+/** Driven against the Testcontainers harness DB. Requires Docker. */
 
 import { drizzle, type NodePgDatabase } from "drizzle-orm/node-postgres";
 import { and, eq, notInArray } from "drizzle-orm";
@@ -56,7 +48,6 @@ afterAll(async () => {
 
 let seq = 0;
 
-/** Seed a form, one active webhook, and one outbox event; return their ids. */
 async function seedEventWithWebhook(): Promise<{
   outboxId: string;
   webhookId: string;
@@ -107,7 +98,7 @@ describe("webhook-delivery helpers", () => {
   it("materializes idempotently: a repeated insert is a no-op (one row per event/webhook)", async () => {
     const { outboxId, webhookId } = await seedEventWithWebhook();
     await insertDelivery(testDb.db, { outboxId, webhookId });
-    await insertDelivery(testDb.db, { outboxId, webhookId }); // repeat → ON CONFLICT DO NOTHING
+    await insertDelivery(testDb.db, { outboxId, webhookId });
     const rows = await testDb.db
       .select()
       .from(webhookDeliveries)
@@ -152,11 +143,9 @@ describe("webhook-delivery helpers", () => {
 
     row = await recordDeliveryFailure(testDb.db, deliveryId, "http_500", from);
     expect(row?.attempts).toBe(2);
-    // Backoff advances: the second retry is scheduled later than the first.
     expect(row!.nextAttemptAt.getTime()).toBeGreaterThan(firstNext);
     expect(row?.deadLetteredAt).toBeNull();
 
-    // Exhaust the remaining attempts → dead-lettered.
     for (let i = 3; i <= OUTBOX_MAX_ATTEMPTS; i++) {
       row = await recordDeliveryFailure(testDb.db, deliveryId, `http_500 attempt ${i}`, from);
     }
@@ -171,7 +160,6 @@ describe("webhook-delivery helpers", () => {
     expect(dead[0]!.attempts).toBe(OUTBOX_MAX_ATTEMPTS);
     expect(dead[0]!.eventType).toBe("response.submitted");
 
-    // A dead-lettered row is not claimable until reset.
     const beforeReset = (
       await claimDueDeliveries(testDb.db, 50, new Date(Date.now() + 1000))
     ).filter((d) => d.deliveryId === deliveryId);
@@ -195,23 +183,7 @@ describe("webhook-delivery helpers", () => {
   });
 });
 
-/**
- * What the dead-letter queue does with a row that can never be sent again (issue
- * #433, Code Owner decision 2026-09-02: exclude).
- *
- * The queue is a **worklist**: every row on it is being offered back for redelivery.
- * Task 059 removed cancelled rows for that reason, and an event whose payload has been
- * redacted is exactly as unsendable - `redeliveryRefusalFor` refuses both, one line
- * apart - so it goes for the same reason rather than acquiring a second convention.
- * Before this, an operator met an aged-out row by pressing Redeliver and reading the
- * 409 that came back.
- *
- * The two exclusions are asserted **together**, in one case each, because the property
- * worth pinning is that the queue holds only rows a Redeliver would accept. A test for
- * one filter alone passes while the other is quietly dropped.
- */
 describe("the dead-letter queue lists only rows that can still be sent", () => {
-  /** Dead-letter one delivery by exhausting its attempts, as the delivery pass would. */
   async function deadLetter(deliveryId: string): Promise<void> {
     const from = new Date("2026-07-20T00:00:00.000Z");
     for (let i = 1; i <= OUTBOX_MAX_ATTEMPTS; i += 1) {
@@ -224,8 +196,6 @@ describe("the dead-letter queue lists only rows that can still be sent", () => {
   }
 
   it("excludes a row whose event payload has been redacted, and keeps a live one", async () => {
-    // A control alongside the subject, seeded and dead-lettered identically. Without
-    // it, a filter that excluded everything would pass this case.
     const live = await seedEventWithWebhook();
     const redacted = await seedEventWithWebhook();
     await insertDelivery(testDb.db, { outboxId: live.outboxId, webhookId: live.webhookId });
@@ -238,15 +208,12 @@ describe("the dead-letter queue lists only rows that can still be sent", () => {
     await deadLetter(liveId);
     await deadLetter(redactedId);
 
-    // Both on the queue while both are sendable: this is the before-state, so a red
-    // below is the filter and not the seed.
     const before = await deadLetteredIds();
     expect(before).toContain(liveId);
     expect(before).toContain(redactedId);
 
-    // Redact the event the way the retention sweep and erasure both do. These seeds
-    // carry no `answers` key, so the `outbox_redacted_payload_has_no_answers` check
-    // is satisfied by the marker alone.
+    // These seeds carry no `answers` key, so the redaction CHECK is satisfied by the
+    // marker alone.
     await testDb.client.query(`update outbox set payload_redacted_at = now() where id = $1`, [
       redacted.outboxId,
     ]);
@@ -269,10 +236,6 @@ describe("the dead-letter queue lists only rows that can still be sent", () => {
       .where(eq(webhookDeliveries.id, deliveryId));
 
     expect(await deadLetteredIds()).not.toContain(deliveryId);
-    // Excluded from the worklist, not hidden from the operator: the delivery dashboard
-    // is where "what happened to that delivery" is answered, and it still shows the row
-    // with its state. That is what makes the exclusion a display decision rather than a
-    // loss of the audit trail, and it has to hold for the redacted row too.
     const recent = await listRecentDeliveries(testDb.db, formId, 50);
     expect(recent.map((row) => row.deliveryId)).toContain(deliveryId);
   });
@@ -292,11 +255,6 @@ describe("the dead-letter queue lists only rows that can still be sent", () => {
   });
 });
 
-/**
- * The form a delivery belongs to, resolved through its webhook - the ownership
- * chain the redelivery helpers are scoped by (issue #305). Tests that only hold a
- * delivery id use this rather than threading the form through every seed helper.
- */
 async function formOfDelivery(deliveryId: string): Promise<FormId> {
   const { rows } = await testDb.client.query<{ form_id: string }>(
     `select w.form_id
@@ -308,16 +266,6 @@ async function formOfDelivery(deliveryId: string): Promise<FormId> {
   return FormId.parse(rows[0]!.form_id);
 }
 
-// --- the last-attempt record and the form-scoped list (task 035) -------------
-
-/**
- * A stand-in for what the deliverer writes after one attempt.
- *
- * The header map arrives here already masked, because masking happens at the
- * deliverer, before this layer ever sees it - so a record built by hand carries a
- * mask too, and no test in this file can accidentally assert that the query layer
- * is what keeps an HMAC out of the column.
- */
 function attemptRecord(overrides: Partial<DeliveryAttemptRecord> = {}): DeliveryAttemptRecord {
   return {
     lastAttemptAt: new Date("2026-07-20T00:00:05.000Z"),
@@ -333,13 +281,8 @@ function attemptRecord(overrides: Partial<DeliveryAttemptRecord> = {}): Delivery
 }
 
 /**
- * Seed one form with `count` webhooks fanned out from a single event, and stamp
- * each delivery's `created_at` a second apart.
- *
- * The stamp is not cosmetic: `listRecentDeliveries` orders by `created_at`, and
- * rows inserted back to back can land close enough together that "newest first"
- * would be asserting on insert timing rather than on the query. Returned ids are
- * oldest-first, so the expected list order is the reverse.
+ * Stamps each `created_at` a second apart, because `listRecentDeliveries` orders by
+ * it and back-to-back inserts can tie.
  */
 async function seedFormWithDeliveries(
   count: number,
@@ -392,8 +335,6 @@ describe("last-attempt record + listRecentDeliveries (task 035)", () => {
     expect(row?.lastLatencyMs).toBe(42);
     expect(row?.lastRequestHeaders).toEqual(attempt.lastRequestHeaders);
     expect(row?.lastResponseSnippet).toBe("ok");
-    // `attempts` counts FAILED attempts - it is the retry schedule's input - so a
-    // first-time success deliberately stays at 0 even though an attempt was made.
     expect(row?.attempts).toBe(0);
   });
 
@@ -430,8 +371,6 @@ describe("last-attempt record + listRecentDeliveries (task 035)", () => {
     const deliveryId = await deliveryIdFor(outboxId, webhookId);
 
     await recordDeliveryFailure(testDb.db, deliveryId, "http_500", new Date(), attemptRecord());
-    // A caller that has no attempt to describe (an SSRF rejection, say) must not
-    // wipe the record of the attempt that did happen.
     await recordDeliveryFailure(testDb.db, deliveryId, "url_rejected", new Date());
 
     const row = await readDelivery(deliveryId);
@@ -459,8 +398,6 @@ describe("last-attempt record + listRecentDeliveries (task 035)", () => {
       deliveryId,
     );
 
-    // No contradictory statements on one screen: a reset row has made no attempt
-    // since, so every field describing "the last attempt" reads empty, not stale.
     expect(reset?.lastError).toBeNull();
     expect(reset?.lastAttemptAt).toBeNull();
     expect(reset?.lastStatus).toBeNull();
@@ -476,8 +413,6 @@ describe("last-attempt record + listRecentDeliveries (task 035)", () => {
 
     const all = await listRecentDeliveries(testDb.db, a.formId, 10);
     expect(all.map((r) => r.deliveryId)).toEqual(newestFirst);
-    // Form B's delivery is invisible from form A, and vice versa: the list is
-    // scoped through the webhook's form, not filtered by the caller.
     expect(all.some((r) => b.deliveryIds.includes(r.deliveryId))).toBe(false);
     expect((await listRecentDeliveries(testDb.db, b.formId, 10)).map((r) => r.deliveryId)).toEqual(
       b.deliveryIds,
@@ -486,7 +421,6 @@ describe("last-attempt record + listRecentDeliveries (task 035)", () => {
     const limited = await listRecentDeliveries(testDb.db, a.formId, 2);
     expect(limited.map((r) => r.deliveryId)).toEqual(newestFirst.slice(0, 2));
 
-    // The joined columns an operator reads the row by are present.
     expect(all[0]?.eventType).toBe("response.submitted");
     expect(all[0]?.url).toContain("https://consumer.example.com/list-");
   });
@@ -508,7 +442,6 @@ describe("last-attempt record + listRecentDeliveries (task 035)", () => {
     expect(failed?.lastError).toBe("http_502");
     expect(failed?.deliveredAt).toBeNull();
 
-    // An untouched delivery reads as "nothing attempted yet" on every field.
     const pending = rows.find((r) => r.deliveryId === pendingId);
     expect(pending?.deliveredAt).toBeNull();
     expect(pending?.deadLetteredAt).toBeNull();
@@ -516,7 +449,6 @@ describe("last-attempt record + listRecentDeliveries (task 035)", () => {
     expect(pending?.lastStatus).toBeNull();
     expect(pending?.lastRequestHeaders).toBeNull();
 
-    // A delivered row carries its success timestamp into the same view.
     await markDeliveryDelivered(testDb.db, pendingId, new Date(), attemptRecord());
     const after = await listRecentDeliveries(testDb.db, formId, 10);
     expect(after.find((r) => r.deliveryId === pendingId)?.deliveredAt).toBeInstanceOf(Date);
@@ -530,14 +462,13 @@ describe("delivery claim concurrency (live, pooled connections)", () => {
   let db: NodePgDatabase<typeof schema>;
 
   beforeAll(() => {
-    // Registered with the harness rather than ended in a local `afterAll` (issue #888).
+    // Registered with the harness so teardown drains it before the container stops.
     pool = testDb.register(
       new Pool({
         connectionString: testDb.connectionUri,
         max: 8,
-        // The same search path the harness gives its own connections (ADR-40): every
-        // data-plane table is declared unqualified, so a pool that sets none resolves
-        // `answers` to nothing at all.
+        // Data-plane tables are declared unqualified, so a pool that sets no search
+        // path resolves them to nothing.
         options: searchPathOptions(DEFAULT_TEST_ENVIRONMENT),
       }),
       "delivery concurrency pool",
@@ -546,7 +477,6 @@ describe("delivery claim concurrency (live, pooled connections)", () => {
   });
 
   it("two concurrent claimers never claim the same delivery (FOR UPDATE OF ... SKIP LOCKED)", async () => {
-    // One form + event, six webhooks → six independent delivery rows.
     seq += 1;
     const formId = FormId.parse(`frm_deliv_race_${seq}`);
     await createForm(testDb.db, {
@@ -575,18 +505,15 @@ describe("delivery claim concurrency (live, pooled connections)", () => {
     const idSet = new Set(ids);
     const due = new Date(Date.now() + 1000);
 
-    // Park every other still-due delivery this file left behind. The claim limit
-    // below is per claimer and deliberately smaller than the two claimers' combined
-    // budget, so any unrelated due row eats into it and the pair stops seeing all
-    // six - which reads as a SKIP LOCKED failure but is only fixture bleed. Pinning
-    // the due set to exactly these six makes the assertion about the lock again.
+    // Park every other still-due delivery: the per-claimer limit is smaller than the
+    // two claimers' combined budget, so unrelated rows would look like a lock failure.
     await testDb.db
       .update(webhookDeliveries)
       .set({ nextAttemptAt: new Date(Date.UTC(2099, 0, 1)) })
       .where(notInArray(webhookDeliveries.id, ids));
 
-    // Barrier: both transactions hold their claimed locks until both have claimed,
-    // so SKIP LOCKED must hand them disjoint delivery rows.
+    // Both transactions hold their locks until both have claimed, so SKIP LOCKED
+    // must hand them disjoint rows.
     let resolveA!: () => void;
     let resolveB!: () => void;
     const aClaimed = new Promise<void>((r) => (resolveA = r));
@@ -611,22 +538,12 @@ describe("delivery claim concurrency (live, pooled connections)", () => {
     await Promise.all([txA, txB]);
 
     const overlap = claimedA.filter((id) => claimedB.includes(id));
-    expect(overlap).toEqual([]); // no delivery claimed by both
-    expect(new Set([...claimedA, ...claimedB])).toEqual(idSet); // all six claimed once
+    expect(overlap).toEqual([]);
+    expect(new Set([...claimedA, ...claimedB])).toEqual(idSet);
   });
 });
 
-/**
- * Response-snippet retention (issue #304).
- *
- * `last_response_snippet` is the one column on this table that can hold a
- * respondent's own words: it is a consumer's response body kept verbatim, and a
- * consumer that echoes the request in a validation error puts answers there without
- * QCMS ever choosing to write them. These tests assert the observable effect - the
- * bytes are gone, the value-free record is not - rather than that a sweep exists.
- */
 describe("redactAgedResponseSnippets (issue #304)", () => {
-  /** Seed one delivery carrying an attempt whose snippet echoes the request. */
   async function seedAttempt(
     attemptAt: Date,
     snippet: string | null = '{"error":"invalid","received":{"q_name":"Ada Lovelace"}}',
@@ -659,11 +576,8 @@ describe("redactAgedResponseSnippets (issue #304)", () => {
 
     expect(result.redactedCount).toBeGreaterThanOrEqual(1);
     const after = await readDelivery(deliveryId);
-    // The bytes are gone...
     expect(after?.lastResponseSnippet).toBeNull();
-    // ...and the row says so, rather than reading as "the body was empty".
     expect(after?.lastResponseSnippetRedactedAt).not.toBeNull();
-    // Everything an operator's audit question needs is value-free and survives.
     expect(after?.lastStatus).toBe(400);
     expect(after?.lastError).toBe("http_400");
     expect(after?.lastLatencyMs).toBe(42);
@@ -682,11 +596,6 @@ describe("redactAgedResponseSnippets (issue #304)", () => {
   });
 
   it("covers rows that predate the control - no backfill migration needed", async () => {
-    // The row a deployment already holds when it upgrades: an attempt from long
-    // before this sweep existed. The predicate is over `last_attempt_at`, which
-    // every such row already has, so the first sweep after the upgrade reaches the
-    // whole back catalogue. That is the data the issue is about; a control that only
-    // governed rows written after it shipped would have left exactly it behind.
     const ancient = await seedAttempt(new Date("2020-01-01T00:00:00.000Z"));
     const recent = await seedAttempt(new Date("2026-07-07T23:00:00.000Z"));
 
@@ -698,9 +607,6 @@ describe("redactAgedResponseSnippets (issue #304)", () => {
   });
 
   it("does not mark a row that never held a snippet", async () => {
-    // A timeout records an attempt with no body at all. Marking it would claim a
-    // removal that never happened, and put "the body was removed" on a screen where
-    // "no response arrived" is the truth.
     const deliveryId = await seedAttempt(new Date("2026-07-01T00:00:00.000Z"), null);
 
     await redactAgedResponseSnippets(testDb.db, new Date("2026-07-08T00:00:00.000Z"));
@@ -731,8 +637,6 @@ describe("redactAgedResponseSnippets (issue #304)", () => {
 
     await resetDeliveryForRedelivery(testDb.db, await formOfDelivery(deliveryId), deliveryId);
 
-    // The row has made no attempt since the reset, so "the last attempt's body was
-    // removed" would be a statement about an attempt this row no longer records.
     const row = await readDelivery(deliveryId);
     expect(row?.lastResponseSnippet).toBeNull();
     expect(row?.lastResponseSnippetRedactedAt).toBeNull();
@@ -740,19 +644,6 @@ describe("redactAgedResponseSnippets (issue #304)", () => {
   });
 });
 
-/**
- * The precondition the retention sweep ages from, enforced by the database
- * (issue #304, migration `0015`).
- *
- * `redactAgedResponseSnippets` finds rows with `last_attempt_at < horizon`, and under
- * three-valued logic that is never true for a NULL. So a row carrying a snippet with
- * no attempt time would be skipped by every sweep forever - the leak the retention
- * story exists to close, reappearing through the control itself. `attemptColumns`
- * pairs the two columns today and its input types both as required, but that is a
- * call-site convention: a future writer can break it silently, and a comment saying
- * "these are written together" cannot fail when one does. Hence a CHECK constraint,
- * and hence this test, which watches it refuse.
- */
 describe("webhook_deliveries_snippet_requires_attempt (issue #304)", () => {
   it("refuses a snippet stored without the attempt time it belongs to", async () => {
     const { outboxId, webhookId } = await seedEventWithWebhook();
@@ -768,28 +659,22 @@ describe("webhook_deliveries_snippet_requires_attempt (issue #304)", () => {
       ),
     ).rejects.toThrow(/webhook_deliveries_snippet_requires_attempt/);
 
-    // Refused, not partially applied: the row is exactly as it was.
     const row = await readDelivery(deliveryId);
     expect(row?.lastResponseSnippet).toBeNull();
     expect(row?.lastAttemptAt).toBeNull();
   });
 
   it("allows the three shapes the delivery path actually writes", async () => {
-    // The constraint has to refuse precisely one combination and no more, or it
-    // would break the timeout path (an attempt with no body) and the initial state.
     const { outboxId, webhookId } = await seedEventWithWebhook();
     await insertDelivery(testDb.db, { outboxId, webhookId });
     const deliveryId = await deliveryIdFor(outboxId, webhookId);
     const at = new Date("2026-07-20T00:00:05.000Z");
 
-    // 1. Neither: a materialized row that has not been attempted.
     expect((await readDelivery(deliveryId))?.lastAttemptAt).toBeNull();
 
-    // 2. An attempt with a body.
     await markDeliveryDelivered(testDb.db, deliveryId, at, attemptRecord({ lastAttemptAt: at }));
     expect((await readDelivery(deliveryId))?.lastResponseSnippet).toBe("ok");
 
-    // 3. An attempt with no body - the timeout/network-error shape.
     await recordDeliveryFailure(
       testDb.db,
       deliveryId,
@@ -801,7 +686,6 @@ describe("webhook_deliveries_snippet_requires_attempt (issue #304)", () => {
     expect(row?.lastResponseSnippet).toBeNull();
     expect(row?.lastAttemptAt).not.toBeNull();
 
-    // 4. And the sweep's own write - snippet cleared, attempt time kept - is legal.
     await markDeliveryDelivered(testDb.db, deliveryId, at, attemptRecord({ lastAttemptAt: at }));
     await redactAgedResponseSnippets(testDb.db, new Date("2026-07-21T00:00:00.000Z"));
     const swept = await readDelivery(deliveryId);

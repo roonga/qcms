@@ -71,12 +71,6 @@ describe("documentForVisible", () => {
   });
 });
 
-/**
- * The label map behind the error summary's per-question wording (issue #21). It
- * uses the same convention as the projection above: a node is a question iff it
- * carries a string `name`, so an option (a Radio, labelled but unnamed) is never
- * mistaken for a question.
- */
 describe("questionLabels", () => {
   it("maps every named question in the tree to its label", () => {
     expect([...questionLabels(stepDoc)]).toEqual([
@@ -102,12 +96,6 @@ describe("questionLabels", () => {
   });
 });
 
-/**
- * The ordinal a label-less question is named by in the error summary (issue
- * #326). It counts the step's VISIBLE questions, in document order, because that
- * is what the respondent sees: `documentForVisible` above prunes on exactly the
- * same predicate, so position N here is the Nth field the renderer draws.
- */
 describe("questionPositions", () => {
   const doc = {
     stepId: "stp_about",
@@ -131,8 +119,6 @@ describe("questionPositions", () => {
   });
 
   it("skips a question the flow hides, so positions match what is drawn", () => {
-    // q_blank is the SECOND field on the page once q_hidden is pruned, and a
-    // whole-document numbering would have called it the third.
     expect([...questionPositions(doc, ["q_full_name", "q_blank"])]).toEqual([
       ["q_full_name", 1],
       ["q_blank", 2],
@@ -148,8 +134,6 @@ describe("questionPositions", () => {
   });
 
   it("falls back to the visible set's own order when there is no document", () => {
-    // The API lists `visibleQuestions` in document order too (ADR-16's forward
-    // pass), so a completed flow with no step document still numbers correctly.
     expect([...questionPositions(null, ["q_full_name", "q_blank"])]).toEqual([
       ["q_full_name", 1],
       ["q_blank", 2],
@@ -161,14 +145,6 @@ describe("questionPositions", () => {
   });
 });
 
-/**
- * WHEN each answer commits, per ADR-31 (issue #31). A single-choice OptionId, a
- * date and a long-text answer are all strings on the wire, so the flow cannot
- * tell them apart from the value: the control kind in the compiled document is
- * what carries the commit moment. This is the pure half of the fix - that the
- * portal actually posts at each moment and not before is asserted in the browser
- * (`apps/portal/e2e/commit-moments.pw.ts`, ADR-23).
- */
 describe("commitMoments", () => {
   it("reports the radio group as change and the number field as blur", () => {
     expect([...commitMoments(stepDoc)]).toEqual([
@@ -200,17 +176,12 @@ describe("commitMoments", () => {
     } as unknown as A2UIStepDocument;
 
     expect([...commitMoments(doc)]).toEqual([
-      // boolean / singleChoice up to 7 options
       ["q_coverage_level", "change"],
-      // singleChoice above 7 options
       ["q_long_list", "change"],
-      // multiChoice: NOT on change, unlike every other selection control
       ["q_optional_cover", "groupExit"],
-      // shortText: not listed in ADR-31's table, read as unchanged
       ["q_full_name", "blur"],
       ["q_extra_detail", "blur"],
       ["q_accident_count", "blur"],
-      // the only control with a completion signal distinct from blur
       ["q_dob", "completion"],
     ]);
   });
@@ -249,16 +220,6 @@ describe("commitMoments", () => {
   });
 });
 
-/**
- * `instanceLabels` reads an instance's resolved label off the EXPANDED tree, and the
- * two presentations carry it on two different node types: the stacked presentation's
- * `RepeatInstance` card and the table presentation's `RepeatRow` (tasks 073 and 077).
- *
- * The consequence of the map missing one is silent and specific: a table-presented
- * group's error summary would read "Registration plate needs an answer" three times
- * over on a three-row step, which is the WCAG 3.3.1 distinctness problem this map
- * exists to solve. So both node types are asserted here, in one shape each.
- */
 function expandedDoc(nodeType: string, children: unknown[]): A2UIStepDocument {
   return {
     stepId: "stp_fleet",
@@ -288,7 +249,6 @@ describe("instanceLabels over both presentations (tasks 073 and 077)", () => {
   });
 
   it("names a field inside a table ROW, through the cell between them", () => {
-    // The cell is a node of its own, so the walk has to carry the row's label past it.
     const labels = instanceLabels(
       expandedDoc("RepeatRow", [
         {

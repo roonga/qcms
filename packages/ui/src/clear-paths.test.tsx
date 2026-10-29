@@ -166,10 +166,8 @@ describe("the discrete controls have no clear gesture", { timeout: 30_000 }, () 
   });
 });
 
-// The native path has no `onChange`, so what has to agree with the scripted cases is
-// the bytes it posts. A text question and a multiChoice one fail differently, which is
-// why both are here: the text box posts itself empty and the group posts nothing at
-// all. Neither this file nor the BFF decoder's own suite carries the claim alone.
+// The native path has no `onChange`, so the posted bytes must agree with the scripted cases: a text box posts
+// itself empty and a multiChoice group posts nothing, so both are covered.
 
 describe("the native transport posts the same clear (issue #127)", { timeout: 30_000 }, () => {
   function renderNative(document: A2UIStepDocument, values: Record<string, unknown>) {

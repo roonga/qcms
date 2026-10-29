@@ -14,8 +14,9 @@ Give every authenticated admin screen a rail, and move the list filters into it
 - `components/rail-filters.tsx` is the Filters part: one `<form role="search">`, a visible
   "Filters" title, an active count, Apply and a clear link that shows only when a filter is
   set. The URL still carries the state.
-- The filters leave the content column, and the filtered-empty panels give up their
-  "Clear filters" so each screen has one control with that name.
+- The filters leave the content column. The filtered-empty panels keep their own
+  "Clear filters" beside the rail's, because contract §3 asks the panel to offer the way out
+  where the reader is looking.
 - Two filters are new and both are the ruled table's: a search over the responses index's
   way-in list, and a form filter over the dead-letter queue, applied to the rows the render
   read because the route is global.

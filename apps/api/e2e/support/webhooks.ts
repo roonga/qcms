@@ -1,16 +1,3 @@
-/**
- * Webhook receiver + delivery helpers for the e2e suite (task 027).
- *
- * A scenario proves the *whole* webhook path: a real loopback HTTP receiver
- * stands in for a consumer, the delivery pass (the same one `serve.ts`'s
- * scheduler runs) signs and POSTs to it, and the scenario verifies the signature
- * with the documented recipe. This is composition-level wiring (the scheduler is
- * not a slice), kept here so scenarios stay pure HTTP + support utilities.
- *
- * Test code, so `node:*` is fair game (the R4 fetch-purity rule governs product
- * handlers, not the harness).
- */
-
 import { createHmac } from "node:crypto";
 import { createServer, type IncomingMessage, type Server, type ServerResponse } from "node:http";
 import type { AddressInfo } from "node:net";
@@ -18,7 +5,6 @@ import type { AddressInfo } from "node:net";
 import type { Deps } from "../../src/deps.js";
 import { runDeliveryPass } from "../../src/schedulers/outbox-delivery.js";
 
-/** One captured inbound delivery. */
 export interface CapturedRequest {
   readonly path: string;
   readonly method: string;
@@ -27,13 +13,11 @@ export interface CapturedRequest {
   header(name: string): string | undefined;
 }
 
-/** An in-test HTTP server that captures the webhook POSTs delivered to it. */
 export class WebhookReceiver {
   private server: Server | undefined;
   private port = 0;
   readonly received: CapturedRequest[] = [];
 
-  /** Start listening on an ephemeral loopback port. */
   async start(): Promise<void> {
     this.server = createServer((req: IncomingMessage, res: ServerResponse) => {
       const chunks: Buffer[] = [];
@@ -63,7 +47,6 @@ export class WebhookReceiver {
     });
   }
 
-  /** The absolute loopback URL for a path (a valid private/http webhook target). */
   url(path = "/hook"): string {
     return `http://127.0.0.1:${this.port}${path}`;
   }
@@ -82,19 +65,14 @@ export class WebhookReceiver {
 }
 
 /**
- * Run one delivery pass - materialize due outbox events into per-webhook delivery
- * rows and POST them. `now` defaults a minute ahead of the host clock so freshly
- * enqueued rows are reliably "due" despite Testcontainers clock skew.
+ * `now` defaults a minute ahead of the host clock so freshly enqueued rows are reliably
+ * due despite Testcontainers clock skew.
  */
 export function drainWebhooks(deps: Deps, now: Date = new Date(Date.now() + 60_000)) {
   return runDeliveryPass(deps, { now });
 }
 
-/**
- * Verify a delivered signature with the documented recipe (docs/webhooks.md):
- * `v1=<hex HMAC-SHA256(secret, `${timestamp}.${body}`)>`, over the exact received
- * timestamp header and raw body bytes.
- */
+/** The recipe `docs/webhooks.md` publishes, over the raw timestamp header and body bytes. */
 export function verifyWebhookSignature(
   secret: string,
   timestamp: string,

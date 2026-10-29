@@ -1,31 +1,3 @@
-/**
- * Portal OpenTelemetry registration (task 054, ADR-34).
- *
- * Next's own documented OTel route: a root `instrumentation.ts` exporting
- * `register()`, which Next calls once per server process before anything else
- * runs, and `registerOTel` from `@vercel/otel`. No `NodeSDK` here - the Next guide
- * is explicit that the Node SDK is not edge-compatible, and `@vercel/otel` is the
- * wrapper that works on both runtimes. The portal is server-side by construction
- * anyway (R2's strict BFF), so this file only ever runs on the Node runtime.
- *
- * What is deliberately NOT here:
- *
- * - **No `instrumentation-undici` / fetch instrumentation of our own.** Next
- *   already emits a `fetch <method> <url>` span for every server-side fetch and
- *   `@vercel/otel` already handles context propagation on it. Adding undici
- *   instrumentation would double-instrument the one hop that matters (the BFF
- *   call), producing two client spans per API request.
- * - **No exporter choice.** `"auto"` reads the standard `OTEL_EXPORTER_OTLP_*`
- *   variables, which is the adopter's decision to make (QCMS ships
- *   instrumentation and conventions, never a backend).
- *
- * The gate: with `OTEL_EXPORTER_OTLP_ENDPOINT` unset, `register()` returns without
- * calling `registerOTel` at all. That is ours to enforce, because the OTLP
- * exporter's own default is `http://localhost:4318` - so "not configured" would
- * otherwise mean "export to a port nobody is listening on", on every request, in
- * every default dev run and CI job.
- */
-
 import { registerOTel } from "@vercel/otel";
 import { allowlistingLogRecordProcessor } from "@roonga/qcms-observability/logs";
 import { batchLogExportTimings } from "@roonga/qcms-observability/otel";
@@ -39,16 +11,12 @@ import {
 } from "./lib/server/config";
 import { redactingSpanProcessor } from "./lib/server/telemetry-redaction";
 
-/** The service name reported when `OTEL_SERVICE_NAME` is not set. */
 export const DEFAULT_SERVICE_NAME = "qcms-portal";
 
 /**
- * The internal API origin, for `propagateContextUrls`.
- *
- * Read directly rather than through `lib/server/config.ts`'s `apiBaseUrl()`,
- * which throws when the variable is missing: `register()` runs at process start,
- * where a missing value must not crash the server before the app can report it
- * (and where tracing being off is a perfectly good outcome).
+ * Read directly rather than through `apiBaseUrl()`, which throws when the variable
+ * is missing: `register()` runs at process start, where tracing being off is a
+ * better outcome than a crash before the app can report anything.
  */
 function apiOrigin(): string | undefined {
   const base = process.env.QCMS_API_BASE_URL?.trim();
@@ -60,50 +28,10 @@ function apiOrigin(): string | undefined {
   }
 }
 
-/**
- * Refuse to start on a configuration this process must not serve.
- *
- * Two refusals, both boot-time and both fatal: a cookie policy a browser will not
- * protect (issue #292) and a secret still holding an example-file placeholder
- * (issue #491). Their reasoning lives beside each assertion in `lib/server/config.ts`.
- *
- * `register()` is the only hook either app has that runs once at boot rather than on
- * a request, so this is where "refuse to boot" lives. **Exiting rather than only
- * throwing is load-bearing**: Next catches an error from this hook, reports
- * `Failed to prepare server`, and then leaves a process listening that answers every
- * request with a 500. Nothing is served and no cookie is ever set, so the security
- * property holds either way, but neither app has a Compose healthcheck, so that
- * process reads as "running" to an operator and to `docker compose ps`. A non-zero
- * exit is the same refusal made visible: the container dies, `restart: unless-stopped`
- * restarts it, and the message is the last thing in `docker logs`.
- *
- * The guard on `process.exit` is for Next's edge runtime, which loads this hook too
- * and has no such function. Neither app runs anything on the edge runtime today; if
- * one ever does, it re-throws and gets the 500-on-everything behaviour instead of a
- * `TypeError` that hides the real message. `process.stderr` is absent in that sandbox
- * for the same reason, and the write stays optional-called because a missing stream
- * must not become the exception that swallows a refusal an operator needs to read.
- *
- * The `NEXT_RUNTIME` gate around that write is about **compilation**, not the call
- * (issue #829). Turbopack compiles this file for the edge target as well as the Node
- * one, and a bare `process.stderr` there is a Node API the edge runtime does not have,
- * so every dev boot and every build reported `Ecmascript file had an error` against
- * this line. Next substitutes a literal for `process.env.NEXT_RUNTIME` at build time,
- * so the edge bundle compiles to `if ("edge" === "nodejs")` and drops the branch,
- * reference and all, while the Node bundle keeps the write unchanged.
- *
- * The twin is `apps/admin/instrumentation.ts`. **Change one, change the other.**
- */
 function refuseUnsafeConfiguration(): void {
   try {
     assertSecureCookiesConfigured();
-    // Second because the cookie refusal is the older one and its message is the one an
-    // operator following `.env.compose.example` is most likely to need. Both are boot
-    // refusals with the same exit shape, so a deployment carrying both defects sees the
-    // first, fixes it, and is told about the second on the next start.
     assertNoPlaceholderSecrets();
-    // Third: an unusable QCMS_LOCALE (Code Owner ruling 2026-10-19). Not a security
-    // refusal, but the same "fail at boot, name the variable" posture as other config.
     assertLocaleConfigured();
   } catch (error) {
     if (process.env.NEXT_RUNTIME === "nodejs") {
@@ -118,33 +46,29 @@ export function register(): void {
   refuseUnsafeConfiguration();
 
   const endpoint = process.env.OTEL_EXPORTER_OTLP_ENDPOINT?.trim();
+  // Unconfigured must mean off: the OTLP exporter's own default endpoint is
+  // `http://localhost:4318`, so registering would export to nobody on every request.
   if (endpoint === undefined || endpoint === "") return;
 
   const origin = apiOrigin();
 
   registerOTel({
     serviceName: process.env.OTEL_SERVICE_NAME ?? DEFAULT_SERVICE_NAME,
-    // SEC-13 first, the environment's exporter second.
+    // SEC-13 redaction runs before the environment's exporter.
     spanProcessors: [redactingSpanProcessor(), "auto"],
     logRecordProcessors: [
       allowlistingLogRecordProcessor(),
       new BatchLogRecordProcessor({
         exporter: new OTLPLogExporter({ url: `${endpoint}/v1/logs` }),
-        // `OTEL_BLRP_SCHEDULE_DELAY` and `OTEL_BLRP_EXPORT_TIMEOUT`, which this
-        // constructor does not read for itself (issue #901). Unset, these resolve to
-        // the SDK's own defaults, so nothing changes for a deployment that sets
-        // neither.
+        // This constructor does not read `OTEL_BLRP_*` for itself.
         ...batchLogExportTimings(process.env),
       }),
     ],
     instrumentations: ["auto"],
     instrumentationConfig: {
       fetch: {
-        // `@vercel/otel` injects `traceparent` ONLY into fetches whose URL matches
-        // this list (its default is Vercel deployment URLs), so without the API
-        // origin here the BFF hop carries no context and the respondent's action
-        // becomes two unrelated traces instead of one. This is the single most
-        // load-bearing line in the file.
+        // `@vercel/otel` injects `traceparent` only into fetches whose URL matches this
+        // list, so without the API origin the BFF hop becomes a second, unlinked trace.
         ...(origin === undefined ? {} : { propagateContextUrls: [origin] }),
       },
     },

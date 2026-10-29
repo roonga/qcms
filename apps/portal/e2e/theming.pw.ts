@@ -1,29 +1,3 @@
-/**
- * The token contract, measured in a real browser (task 051, exit criteria 1+2).
- *
- * `packages/ui/src/theme-tokens.test.ts` proves the VALUES (every theme x mode
- * pair's WCAG ratio, every 1.4.12 floor) by computing them from `theme.css`. What
- * that cannot prove is that the shipped CSS actually reaches the rendered
- * controls: the vendored a2-react-aria components carry literal Tailwind spacing
- * and radius utilities (ADR-22 keeps those files byte-for-byte upstream), and
- * `theme-components.css` is what re-points them at the tokens. So everything here
- * reads `getComputedStyle` off real elements:
- *
- *  - per-deployment selection: the harness runs the portal on a NON-default theme
- *    and corner preset via `QCMS_PORTAL_THEME` / `QCMS_PORTAL_CORNERS`, and the
- *    served page carries them;
- *  - the four corner presets change controls, the step card and a banner;
- *  - the spacing tokens drive control height, control padding, the label stack and
- *    the question-to-question gap;
- *  - the WCAG 1.4.12 floors hold on rendered text, not just in the token file;
- *  - every theme renders axe-clean in Light, Dark and High-contrast;
- *  - the HC mode layer really is heavier borders, flat surfaces, heavy focus.
- *
- * Mode and theme are switched here by setting the root class / attribute directly.
- * That is the whole selection surface in this slice by design: selection is
- * config-only, and the respondent-facing switcher is task 053.
- */
-
 import AxeBuilder from "@axe-core/playwright";
 import type { Locator, Page } from "@playwright/test";
 import { settleTransitions } from "@roonga/qcms-e2e-support/animations";
@@ -99,18 +73,13 @@ test("per-deployment selection: the configured theme and corner preset reach the
   await page.goto(`/f/${slug}`);
   const root = page.locator("html");
 
-  // Config -> DOM. The harness deliberately configures a non-default pair, so a
-  // regression that ignored the config could not pass by accident.
   await expect(root).toHaveAttribute("data-theme", HARNESS_THEME);
   await expect(root).toHaveClass(new RegExp(`\\bradius-${HARNESS_CORNERS}\\b`));
 
-  // DOM -> computed style: the configured preset is what the card actually uses.
   const preset = CORNER_PRESETS.find((candidate) => candidate.name === HARNESS_CORNERS);
   expect(preset, `unknown harness corner preset ${HARNESS_CORNERS}`).toBeDefined();
   await expect(page.getByTestId("step-card")).toHaveCSS("border-radius", preset!.card);
 
-  // The theme attribute really selects a palette: harbor's primary is its blue,
-  // not the slate default's teal.
   const primary = await root.evaluate((element) =>
     getComputedStyle(element).getPropertyValue("--color-primary").trim(),
   );
@@ -126,29 +95,15 @@ test("the pre-paint bootstrap accepts every mode and rejects anything else", asy
   const { slug } = readFixtures();
   const root = page.locator("html");
 
-  // The documented manual door until task 053 ships the switcher. It is resolved
-  // before first paint by the nonced inline script, so the class is already right
-  // on the first assertion - there is no flash to wait out.
   for (const mode of MODES) {
     await page.goto(`/f/${slug}?mode=${mode}`);
     await expect(root).toHaveClass(new RegExp(`\\b${mode}\\b`));
   }
 
-  // An unknown value can never become a class. With nothing below it to fall
-  // through to (no cookie, no OS signal in this browser), the chain runs out at
-  // the configured deployment default, which for `auto` is Light.
   await page.goto(`/f/${slug}?mode=sepia`);
   await expect(root).toHaveClass(/\blight\b/u);
   await expect(root).not.toHaveClass(/\bsepia\b/u);
 
-  // Issue #197, in a real browser and in the shape it was reported: a respondent
-  // who chose High contrast follows a link carrying a malformed parameter. The
-  // parameter has to FALL THROUGH to their cookie rather than force Light over
-  // it, which is the regression that silently discarded the one choice least able
-  // to be shrugged off. Before the fix the pre-paint script took the parameter
-  // before checking it, so it overwrote the server-stamped `hc` with `light`.
-  // The unit half of this lives in `lib/server/mode-bootstrap.test.ts`; only a
-  // browser proves the emitted script and the served HTML agree.
   await page.context().addCookies([{ name: MODE_COOKIE, value: "hc", url: ORIGIN }]);
   await page.goto(`/f/${slug}?mode=sepia`);
   await expect(root).toHaveClass(/\bhc\b/u);
@@ -160,8 +115,6 @@ test("radius presets apply across controls, the step card and a banner", async (
   const { kitchenSinkSlug } = readFixtures();
   await startKitchenSink(page, kitchenSinkSlug);
 
-  // Provoke the error-summary banner so all three surfaces are on screen at once
-  // (both of this step's questions are required, ADR-28).
   await page.getByTestId("primary-action").click();
   const banner = page.getByTestId("error-summary");
   await expect(banner).toBeVisible();
@@ -197,37 +150,22 @@ test("vendored controls consume the spacing tokens", async ({ page }) => {
     .first();
   const card = page.getByTestId("step-card");
 
-  // The shipped Comfortable values: --space-control-h 44px,
-  // --space-control-pad-x 0.9rem, --space-stack 0.5rem, --space-field-gap 2em.
   expect(await px(input, "min-height")).toBeCloseTo(44, 0);
   expect(await px(input, "padding-left")).toBeCloseTo(14.4, 0);
   expect(await px(input, "padding-right")).toBeCloseTo(14.4, 0);
   expect(await px(field, "row-gap")).toBeCloseTo(8, 0);
   expect(await px(form, "row-gap")).toBeCloseTo(32, 0);
 
-  // --space-section-pad is the one spacing token with a viewport dimension (issue
-  // #188, Code Owner decision 2026-09-02): 1.25rem below Tailwind's `sm`
-  // breakpoint and 2.25rem at or above it, both declared in `theme.css` under the
-  // scope carrier. This spec runs on the phone project, so 20px is what the
-  // respondent this portal is designed for actually gets.
   const phone = page.viewportSize();
   if (phone === null) throw new Error("the spacing spec needs a fixed viewport to resize from");
   expect(phone.width).toBeLessThan(640);
   expect(await px(card, "padding-top")).toBeCloseTo(20, 0);
 
-  // The breakpoint measured in the browser rather than read off the sheet, and the
-  // reason no Tailwind variant went back onto the component: the card still carries
-  // a single p-(--space-section-pad), so crossing 640px changes the token and
-  // nothing else changes the card.
   await page.setViewportSize({ width: 800, height: phone.height });
   expect(await px(card, "padding-top")).toBeCloseTo(36, 0);
   await page.setViewportSize(phone);
   expect(await px(card, "padding-top")).toBeCloseTo(20, 0);
 
-  // Now prove the TOKEN is what drives each of them, not a coincidence: move every
-  // spacing token at the root and every measurement must follow. This is the
-  // assertion that fails if theme-components.css stops reaching the vendored DOM
-  // (task 053 swaps exactly these tokens for its density control).
   await page.evaluate(() => {
     const root = document.documentElement;
     root.style.setProperty("--space-control-h", "60px");
@@ -242,7 +180,6 @@ test("vendored controls consume the spacing tokens", async ({ page }) => {
   expect(await px(form, "row-gap")).toBeCloseTo(48, 0);
   expect(await px(card, "padding-top")).toBeCloseTo(16, 0);
 
-  // Even at the smallest shipped control height the target clears WCAG 2.5.8.
   await page.evaluate(() =>
     document.documentElement.style.setProperty("--space-control-h", "36px"),
   );
@@ -261,9 +198,6 @@ test("the WCAG 1.4.12 floors hold on rendered text", async ({ page }) => {
   expect(await px(body, "letter-spacing")).toBeGreaterThanOrEqual(0.12 * bodySize);
   expect(await px(body, "word-spacing")).toBeGreaterThanOrEqual(0.16 * bodySize);
 
-  // The vendored label and hint slots: `text-sm` / `text-xs` would be 14px / 12px
-  // without the token-driven scale, so these two assertions are the ones that fail
-  // if the `@theme` bridge in theme-components.css ever stops being applied.
   const label = page.locator('label[for]:has-text("Full name")').first();
   expect(await px(label, "font-size")).toBeGreaterThanOrEqual(16);
   const hint = page.locator('[slot="description"]').first();
@@ -271,7 +205,6 @@ test("the WCAG 1.4.12 floors hold on rendered text", async ({ page }) => {
   expect(hintSize).toBeGreaterThanOrEqual(14);
   expect(hintSize).toBeLessThan(bodySize);
 
-  // Input text is never smaller than body text.
   expect(
     await px(page.getByRole("textbox", { name: KS.fullName }), "font-size"),
   ).toBeGreaterThanOrEqual(16);
@@ -310,24 +243,18 @@ test("the High-contrast mode layer is heavier borders, flat surfaces and heavy f
   const input = page.getByRole("textbox", { name: KS.fullName });
   const card = page.getByTestId("step-card");
 
-  // Light: the control's own 1px border and the card's shadow.
   await applyAppearance(page, { mode: "light" });
   expect(await px(input, "border-top-width")).toBeCloseTo(1, 0);
   expect(await computed(card, "box-shadow")).not.toBe("none");
 
   await applyAppearance(page, { mode: "hc" });
-  // Heavy black borders: 2px, at --color-border-strong, which HC pins to #000.
   expect(await px(input, "border-top-width")).toBeCloseTo(2, 0);
   expect(await computed(input, "border-top-color")).toBe("rgb(0, 0, 0)");
-  // Flat surfaces.
   expect(await computed(card, "box-shadow")).toBe("none");
-  // Heavy focus indicator. Tab (a real keyboard interaction, so `:focus-visible`
-  // definitely matches) lands on the skip link, the page's first focusable.
   await page.keyboard.press("Tab");
   const skip = page.getByRole("link", { name: "Skip to content" });
   await expect(skip).toBeFocused();
   expect(await px(skip, "outline-width")).toBeCloseTo(3, 0);
-  // HC is not Dark: the UA is told to keep light form controls.
   expect(await computed(page.locator("html"), "color-scheme")).toBe("light");
 });
 
@@ -336,16 +263,6 @@ test("the no-JS date fallback's box consumes the same spacing tokens (issue #920
 }) => {
   const { kitchenSinkSlug } = readFixtures();
 
-  // COMPONENT_GUIDELINES item 9's other half for the native day input. It draws a box
-  // of its own, so it has to be the box the tokens describe rather than one styled by
-  // hand: a respondent with scripting off must not get a date control that sits at a
-  // different height or inset from the text field above it. No new rule in
-  // `theme-components.css` was needed - the text-entry-control rule already reaches
-  // any input that is not a radio, a checkbox or hidden - and that is exactly the
-  // claim worth measuring, because it is a rule this control was never written for.
-  //
-  // Scripts starved rather than `javaScriptEnabled: false`, because computed style is
-  // read through `page.evaluate` (see `support/script-starve.ts`).
   const starvation = await starveScripts(page);
   await page.goto(`/f/${kitchenSinkSlug}`);
   await page.getByRole("button", { name: "Start" }).click();
@@ -358,20 +275,13 @@ test("the no-JS date fallback's box consumes the same spacing tokens (issue #920
     "the bundle must have been requested and starved, or this measures the hydrated render",
   ).toBeGreaterThan(0);
 
-  // The shipped Comfortable values, the same three the vendored text input is held to
-  // above: --space-control-h 44px and --space-control-pad-x 0.9rem.
   expect(await px(day, "min-height")).toBeCloseTo(44, 0);
   expect(await px(day, "padding-left")).toBeCloseTo(14.4, 0);
   expect(await px(day, "padding-right")).toBeCloseTo(14.4, 0);
 
-  // And the rendered box clears WCAG 2.5.8's 24px target floor (AA), which is the
-  // reason this control may not fall back to a browser default height on the one path
-  // where it is the only way to answer the question. The token's own 44px is the
-  // 2.5.5 (AAA) size, measured above; the floor that binds is what is asserted here.
   const box = await day.boundingBox();
   expect(box?.height ?? 0).toBeGreaterThanOrEqual(24);
 
-  // And the TOKENS drive them: move the two and the computed values follow.
   await page.evaluate(() => {
     document.documentElement.style.setProperty("--space-control-h", "60px");
     document.documentElement.style.setProperty("--space-control-pad-x", "2rem");
@@ -385,15 +295,6 @@ test("the no-JS number fallback's box consumes the same spacing tokens (issue #1
 }) => {
   const { kitchenSinkSlug } = readFixtures();
 
-  // COMPONENT_GUIDELINES item 9's other half for the native number input, and the
-  // same claim the date case above makes: it draws a box of its own, so it has to be
-  // the box the tokens describe rather than one styled by hand. No new rule in
-  // `theme-components.css` was needed - the text-entry-control rule reaches any input
-  // that is not a radio, a checkbox or hidden - and that is exactly what is worth
-  // measuring, because it is a rule this control was never written for. The vendored
-  // NumberField is reached by a DIFFERENT rule (the composite `role="group"` box with
-  // its inner input), so the two renderings agreeing is not something either rule
-  // guarantees on its own.
   const starvation = await starveScripts(page);
   await walkToCoverStep(page, kitchenSinkSlug);
 
@@ -404,15 +305,10 @@ test("the no-JS number fallback's box consumes the same spacing tokens (issue #1
     "the bundle must have been requested and starved, or this measures the hydrated render",
   ).toBeGreaterThan(0);
 
-  // The shipped Comfortable values: --space-control-h 44px, --space-control-pad-x 0.9rem.
   expect(await px(km, "min-height")).toBeCloseTo(44, 0);
   expect(await px(km, "padding-left")).toBeCloseTo(14.4, 0);
   expect(await px(km, "padding-right")).toBeCloseTo(14.4, 0);
 
-  // And the rendered box clears WCAG 2.5.8's 24px target floor (AA) - the reason this
-  // control may not fall back to a browser default height on the one path where it is
-  // the only way to answer the question. The token's own 44px is the 2.5.5 (AAA) size,
-  // measured above; what is asserted here is the floor that binds.
   const box = await km.boundingBox();
   expect(box?.height ?? 0).toBeGreaterThanOrEqual(24);
 
@@ -429,17 +325,6 @@ test("the no-JS single-choice select's box consumes the same spacing tokens (iss
 }) => {
   const { kitchenSinkSlug } = readFixtures();
 
-  // COMPONENT_GUIDELINES item 9 for the native `<select>` a singleChoice question
-  // above the compiler's option threshold falls back to. Unlike the date and number
-  // cases above, this one DID need the rule widened: `theme-components.css`'s
-  // text-entry rule matched inputs and textareas, and a `<select>` is neither, so
-  // before issue #988 this control would have taken the browser's own box on the one
-  // path where it is the only way to answer the question. Measuring it is what says
-  // the widening reached it.
-  //
-  // The vendored Select's box is drawn by a different rule (its trigger BUTTON, via
-  // `button[data-rac][aria-haspopup]`), so the two renderings of one question
-  // agreeing is not something either rule guarantees on its own.
   const starvation = await starveScripts(page);
   await walkToCoverStep(page, kitchenSinkSlug);
 
@@ -450,12 +335,10 @@ test("the no-JS single-choice select's box consumes the same spacing tokens (iss
     "the bundle must have been requested and starved, or this measures the hydrated render",
   ).toBeGreaterThan(0);
 
-  // The shipped Comfortable values: --space-control-h 44px, --space-control-pad-x 0.9rem.
   expect(await px(bodyType, "min-height")).toBeCloseTo(44, 0);
   expect(await px(bodyType, "padding-left")).toBeCloseTo(14.4, 0);
   expect(await px(bodyType, "padding-right")).toBeCloseTo(14.4, 0);
 
-  // And the rendered box clears WCAG 2.5.8's 24px target floor (AA).
   const box = await bodyType.boundingBox();
   expect(box?.height ?? 0).toBeGreaterThanOrEqual(24);
 

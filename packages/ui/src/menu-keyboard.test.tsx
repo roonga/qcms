@@ -5,14 +5,9 @@ import { useState } from "react";
 
 import { Menu } from "./kit.ts";
 
-// The contract (docs/COMPONENT_GUIDELINES.md step 6) is none of it written by QCMS, so
-// asserting it here rather than per host is what keeps four admin surfaces from growing
-// key handlers of their own.
-//
-// Worth knowing before reading the queries below, because it looks like a bug the first
-// time: a menu's accessible name is its trigger's name, not its `aria-label`, because
-// `MenuTrigger` puts `aria-labelledby` on the menu and that outranks it. The
-// `aria-label` stays anyway, as what would take over if the trigger's name went missing.
+// A menu's accessible name is its trigger's name, not its `aria-label`, because `MenuTrigger` puts
+// `aria-labelledby` on the menu and that outranks it. The `aria-label` stays as the fallback if the trigger's
+// name goes missing.
 
 function AppearanceHarness() {
   const [mode, setMode] = useState("Dark");

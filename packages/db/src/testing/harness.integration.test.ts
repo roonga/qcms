@@ -1,34 +1,6 @@
 /**
- * Regression coverage for the harness's Drizzle handle (issue #30).
- *
- * The portal e2e serves a real API from `startTestDb().db`, and Postgres logged
- * `there is already a transaction in progress` / `there is no transaction in
- * progress` WARNINGs during the run. The mechanism was the harness, not the API:
- * a Drizzle handle built over a single `pg.Client` has exactly one connection, so
- * `db.transaction()` issues its `BEGIN` / `COMMIT` on the connection every other
- * caller is also using. Two overlapping transactions therefore emit
- * `BEGIN, BEGIN, ..., COMMIT, COMMIT` on one backend: the second `BEGIN` is
- * redundant (already in a transaction) and the second `COMMIT` has no transaction
- * left to commit. Postgres warns and continues, and - worse than the noise - the
- * two logical transactions silently share one physical transaction, so the first
- * `COMMIT` ends both and any `pg_advisory_xact_lock` taken inside them is released
- * early. Building the handle over a `pg.Pool` (what `serve.ts` does in production)
- * gives every transaction its own connection.
- *
- * The two assertions below are the guard: concurrent transactions must land on
- * distinct backends, and the container's server log must carry neither warning.
- * The log assertion is the honest one for this symptom (the WARNING never reaches
- * the client as an error), and it fails if the redundant statements come back.
- *
- * One describe block covers the teardown ordering of issue #888 against a real container:
- * a pooled client checked out when `teardown()` is called must be handed back, and the
- * container stop must be issued only once every connection is closed.
- *
- * The last two describe blocks cover the harness's failure-reporting contract. A
- * container image that cannot be pulled must be reported as a registry failure
- * naming the image, not as Docker's opaque HTTP error (issue #74) - and a failure
- * of Testcontainers' own Ryuk reaper must be reported as that, never as a failure
- * of the configured Postgres image (issue #150).
+ * Requires Docker. Postgres reports a shared physical transaction as a WARNING that
+ * never reaches the client, so the container's server log is the only instrument.
  */
 
 import { sql } from "drizzle-orm";
@@ -43,20 +15,17 @@ import {
 } from "./harness.js";
 import { HOST_SNAPSHOT_PREFIX } from "./host-snapshot.js";
 
-/** How many transactions to run at once. Below the node-postgres default pool size. */
+/** Below the node-postgres default pool size. */
 const CONCURRENCY = 4;
 
-/** The two transaction-bookkeeping WARNINGs issue #30 tracked. */
 const TX_WARNINGS: readonly RegExp[] = [
   /WARNING:\s+there is already a transaction in progress/,
   /WARNING:\s+there is no transaction in progress/,
 ];
 
-/** A marker WARNING used to prove the container log stream has caught up. */
 const LOG_MARKER = "qcms-issue-30-log-marker";
 
 let testDb: TestDb;
-/** Everything the Postgres container has written since boot. */
 let serverLog = "";
 
 beforeAll(async () => {
@@ -72,12 +41,7 @@ afterAll(async () => {
   await testDb?.teardown();
 }, CONTAINER_BOOT_TIMEOUT_MS);
 
-/**
- * Emit a WARNING through the raw client and wait until it shows up in the
- * captured stream, so every earlier server-log line has certainly arrived. The
- * container log stream is asynchronous; without this flush the absence of a
- * warning would prove nothing.
- */
+/** The container log stream is asynchronous, so an absence proves nothing unflushed. */
 async function flushServerLog(): Promise<void> {
   await testDb.client.query(`do $$ begin raise warning '${LOG_MARKER}'; end $$;`);
   const deadline = Date.now() + 10_000;
@@ -92,8 +56,6 @@ describe("startTestDb transaction handling (issue #30)", () => {
     const pids = await Promise.all(
       Array.from({ length: CONCURRENCY }, () =>
         testDb.db.transaction(async (tx) => {
-          // Hold the transaction open long enough to overlap with its siblings, so
-          // a shared connection would interleave their BEGIN/COMMIT statements.
           await tx.execute(sql`select pg_sleep(0.05)`);
           const result = await tx.execute<{ pid: number }>(sql`select pg_backend_pid() as pid`);
           return result.rows[0]!.pid;
@@ -111,9 +73,7 @@ describe("startTestDb transaction handling (issue #30)", () => {
   }, 60_000);
 
   it("serializes concurrent transactions that take the same advisory transaction lock", async () => {
-    // Invariant I5's serialization only works when each transaction is on its own
-    // connection: on a shared one the lock is re-entrant (same physical
-    // transaction) and both critical sections run at once.
+    // On a shared connection the lock is re-entrant, so both sections would run at once.
     const lockKey = 30_000_030;
     const order: string[] = [];
 
@@ -128,52 +88,22 @@ describe("startTestDb transaction handling (issue #30)", () => {
 
     await Promise.all([critical("a"), critical("b")]);
 
-    // Whoever wins, the loser cannot enter before the winner has left.
     expect(order).toHaveLength(4);
     expect(order[1]).toBe(`${order[0]!.split(":")[0]!}:out`);
   }, 60_000);
 });
 
 /**
- * The registry host both unpullable-image cases dial, and the reason it is a
- * LITERAL v4 address rather than `localhost` (issue #1026).
- *
- * The point of the reference is a connect that is refused in microseconds, so the
- * assertion depends on neither a real registry's wording, nor network access, nor
- * a timeout. `localhost:1` was assumed to do that and does not: **`localhost` is
- * not guaranteed to resolve to a v4 address, and port 1 is not guaranteed to
- * refuse.** On a WSL2 host whose hosts file has no `127.0.0.1 localhost` line,
- * `localhost` resolves to `::1` only, `[::1]:1` black-holes rather than refusing,
- * and Docker spends its own dial timeout - measured at 30.2s on a lane host on
- * 2026-10-02, against a 60s case budget that was meant to be pure slack. CI never
- * saw it because a GitHub runner's hosts file does have the v4 line, so this was a
- * property of the host rather than of the suite.
- *
- * `127.0.0.1` cannot go through name resolution and cannot reach a v6 socket, so
- * the connect is refused on every supported host. Measured on the same WSL2 host:
- * `docker pull 127.0.0.1:1/qcms-no-such-image:16-alpine` fails in 0.12s with
- * `dial tcp 127.0.0.1:1: connect: connection refused`, which `PULL_FAILURE_MARKERS`
- * still classifies as a pull failure (`/connection refused/i`) and which is not a
- * `DAEMON_FAILURE_MARKERS` match, because a bare errno is deliberately not one of
- * those - see the note beside them in `harness.ts`.
- *
- * The failure the harness must dress up is the same class Docker Hub produced in
- * CI (HTTP 500 from the registry).
+ * A literal v4 address, because `localhost:1` can resolve to `[::1]`, which
+ * black-holes instead of refusing and costs Docker its whole dial timeout.
  */
 const UNPULLABLE_REGISTRY = "127.0.0.1:1";
 
-/** A reference that registry can never serve. */
 const UNPULLABLE_IMAGE = `${UNPULLABLE_REGISTRY}/qcms-no-such-image:16-alpine`;
 
 /**
- * Every regex metacharacter in `literal` escaped, so a constant can be dropped into a
- * pattern and match itself and nothing else.
- *
- * Written out because the alternative is the trap it replaces: `String.prototype.replace`
- * with a STRING pattern rewrites the first match only, so `"127.0.0.1:1".replace(".", "\\.")`
- * yields `127\.0.0.1:1`, whose remaining dots are still wildcards. That matched anyway,
- * because an unescaped `.` matches a literal dot, so nothing failed and the claim that the
- * matcher is safe against a host change was quietly false (PR #1051's review).
+ * `String.prototype.replace` with a string pattern rewrites the first match only,
+ * which would leave the remaining metacharacters as wildcards.
  *
  * @param literal text to match literally
  */
@@ -181,30 +111,13 @@ function escapeForRegExp(literal: string): string {
   return literal.replaceAll(/[.*+?^${}()|[\]\\]/gu, String.raw`\$&`);
 }
 
-/**
- * A SECOND unpullable reference, so the fail-fast case can prime the cache itself
- * (issue #1026).
- *
- * The replay cache in `harness.ts` is keyed by image reference and written in the
- * `catch` of a pull attempt, so the second case used to depend on the first case
- * having completed in the same worker process. A first case killed on its budget
- * left nothing cached, and the second then made its own fresh dial and failed on a
- * message with no `not retried` in it: two reds, the second one reading like a
- * broken fail-fast cache rather than like the budget it actually was. A reference
- * of its own makes the case self-contained and ordering-independent.
- */
+/** The replay cache is keyed by image reference, so sharing one couples two cases. */
 const UNPULLABLE_IMAGE_FOR_REPLAY = `${UNPULLABLE_REGISTRY}/qcms-no-such-image-replay:16-alpine`;
 
-/**
- * Docker's wording for the registry timeout that failed PR #149's portal-e2e leg:
- * an HTTP 500 that names Docker Hub's v2 endpoint and **no image at all**. That
- * missing reference is why the phase a failure came from, not its text, has to
- * decide which image gets blamed (issue #150).
- */
+/** Docker's own wording for a registry timeout, which names no image at all. */
 const HUB_TIMEOUT_MESSAGE =
   '(HTTP code 500) server error - Get "https://registry-1.docker.io/v2/": context deadline exceeded';
 
-/** Resolve to the error `startTestDb` threw, or undefined if it did not throw. */
 async function captureStartFailure(
   options: Parameters<typeof startTestDb>[0],
 ): Promise<Error | undefined> {
@@ -222,32 +135,21 @@ describe("startTestDb teardown ordering (issue #888)", () => {
     "hands back a checked-out pooled client and stops the container only after the drain",
     async () => {
       const pinned = await startTestDb({ migrate: false });
-      // A pool this file owns, handed to the harness rather than closed in an `afterAll` of
-      // its own. Three integration suites had exactly this shape and their own local
-      // `afterAll`, whose ordering against the harness's was a Vitest convention rather
-      // than anything the harness could hold them to.
       const pool = pinned.register(
         new pg.Pool({ connectionString: pinned.connectionUri, max: 4 }),
         "pin pool",
       );
       const held = await pool.connect();
-      // A live backend, checked out and never released: `pool.end()` cannot settle while
-      // this client is out, so without the release the drain hangs to the hook timeout and
-      // the container stop lands next to a connection Postgres will answer with 57P01.
+      // `pool.end()` cannot settle while this client is checked out.
       await held.query("select 1");
       expect(pool.totalCount).toBeGreaterThan(0);
 
-      // Observe the machine state at the exact moment the stop is issued. Patching the
-      // container's own method is the only vantage point that proves ordering rather than
-      // merely the end state.
       const container: { stop: () => Promise<unknown> } = pinned.container;
       const realStop = container.stop.bind(container);
       let atStop: { pooled: number; clientOpen: boolean } | undefined;
       container.stop = async () => {
         atStop = {
           pooled: pool.totalCount,
-          // A client that is still open answers this; a closed one rejects with
-          // `Client was closed and is not queryable`, which never reaches the server.
           clientOpen: await pinned.client.query("select 1").then(
             () => true,
             () => false,
@@ -271,23 +173,18 @@ describe("startTestDb teardown ordering (issue #888)", () => {
       const pinned = await startTestDb({ migrate: false });
       await pinned.client.query("select 1");
 
-      // The event issue #888 was filed for, forced rather than waited for: the server is
-      // shut down under a live connection, so every open backend is answered with 57P01.
-      // An `error` event on a `pg.Client` with no listener is an uncaught exception, which
-      // is how one harmless shutdown notice used to take a whole Vitest worker down.
+      // An `error` event on a `pg.Client` with no listener is an uncaught exception,
+      // which would take the whole Vitest worker down.
       await pinned.container.stop();
       await new Promise((resolve) => setTimeout(resolve, 500));
 
-      // Reaching this line is the assertion: the guard observed the shutdown notice. The
-      // error still reaches a caller that asks, untouched and unretried.
       const refusal = await pinned.client.query("select 1").then(
         () => "no error",
         (error: unknown) => (error instanceof Error ? error.message : String(error)),
       );
       expect(refusal).not.toBe("no error");
 
-      // The container is already gone, so this call's own stop fails; it is here to drain
-      // the pool and the client so no socket or idle timer outlives the file.
+      // Drains the pool and the client so no socket or idle timer outlives the file.
       await pinned.teardown().catch(() => undefined);
     },
     CONTAINER_BOOT_TIMEOUT_MS,
@@ -295,37 +192,21 @@ describe("startTestDb teardown ordering (issue #888)", () => {
 });
 
 describe("startTestDb image-pull failure reporting (issue #74)", () => {
-  // Both cases take the file's own boot budget rather than a local 60s (issue #1026).
-  // The dial itself now costs about a tenth of a second, so the budget is not covering
-  // it: what it covers is everything `startTestDb` does BEFORE the pull, which is the
-  // Testcontainers infrastructure step, and that step can pull the Ryuk reaper on a cold
-  // host. `CONTAINER_BOOT_TIMEOUT_MS` is the number the rest of this file uses for
-  // exactly that, and a case whose own work is milliseconds has no business carrying a
-  // tighter budget than the work it has to get through first.
+  // Both cases take the file's boot budget, because the Testcontainers
+  // infrastructure step before the dial can pull the Ryuk reaper on a cold host.
   it(
     "reports the registry failure and the image instead of Docker's opaque error",
     async () => {
       const failure = await captureStartFailure({ image: UNPULLABLE_IMAGE });
 
       expect(failure).toBeInstanceOf(Error);
-      // Everything a reader needs to diagnose a CI-side registry outage: what
-      // failed, which image, and the knob that redirects it at a mirror.
       expect(failure?.message).toContain("Could not PULL the test Postgres image");
       expect(failure?.message).toContain(UNPULLABLE_IMAGE);
       expect(failure?.message).toContain("QCMS_TEST_POSTGRES_IMAGE");
-      // The underlying Docker error is preserved rather than swallowed. Built from the
-      // constant rather than written out, so moving the registry host cannot leave this
-      // asserting the old one - which is only true if EVERY metacharacter is escaped, so
-      // the escape is a real one rather than one dot (PR #1051's review). It read
-      // `.replace(".", "\\.")`, which escapes the first dot only and left
-      // `127\.0.0.1:1`, matching today because an unescaped `.` matches a literal dot and
-      // silently not matching the day the host gains a `+` or a `(`.
       expect(failure?.message).toMatch(
         new RegExp(`cause:.+${escapeForRegExp(UNPULLABLE_REGISTRY)}`, "s"),
       );
       expect(failure?.cause).toBeDefined();
-      // The other direction of issue #150: a genuine image failure must not be
-      // dressed up as a reaper problem either.
       expect(failure?.message).not.toContain("Ryuk");
     },
     CONTAINER_BOOT_TIMEOUT_MS,
@@ -334,10 +215,7 @@ describe("startTestDb image-pull failure reporting (issue #74)", () => {
   it(
     "fails the next attempt immediately rather than waiting on the registry again",
     async () => {
-      // Primed HERE rather than by the case above, through the same code path that
-      // writes the cache in a real run (issue #1026). This case used to read the entry
-      // the previous case happened to leave behind, so it reported that case's failure
-      // as a broken fail-fast cache whenever the previous one was cut off.
+      // Primed here, so this case does not depend on the one above having completed.
       const first = await captureStartFailure({ image: UNPULLABLE_IMAGE_FOR_REPLAY });
       expect(first?.message).toContain("Could not PULL the test Postgres image");
       expect(first?.message).not.toContain("not retried");
@@ -352,17 +230,8 @@ describe("startTestDb image-pull failure reporting (issue #74)", () => {
 });
 
 /**
- * Issue #150. PR #149's portal-e2e leg died on a Docker Hub timeout while the
- * GHCR Postgres mirror was pre-pulled and working; the harness reported it as
- * `Could not PULL the test Postgres image / image: <the GHCR mirror> / source:
- * TEST_POSTGRES_IMAGE`, and only the preserved `cause` showed the truth (the pull
- * was the Ryuk reaper's, from Docker Hub, which no Postgres override covers). The
- * misattribution cost a wrong diagnosis, so it gets a regression test.
- *
- * The infrastructure boot is injected rather than forced for real: Testcontainers
- * **reuses** any reaper already running on the machine, so an unreachable
- * `RYUK_CONTAINER_IMAGE` produces a failure only when no other test file happens
- * to have one up. Injecting is the deterministic form of the same failure.
+ * The boot is injected rather than forced: Testcontainers reuses any reaper already
+ * running, so an unreachable `RYUK_CONTAINER_IMAGE` fails only sometimes.
  */
 describe("startTestDb infrastructure failure reporting (issue #150)", () => {
   it("blames the Ryuk reaper, not the configured Postgres image", async () => {
@@ -371,16 +240,12 @@ describe("startTestDb infrastructure failure reporting (issue #150)", () => {
     });
 
     expect(failure).toBeInstanceOf(Error);
-    // Names the component that actually failed, and the knobs that govern it.
     expect(failure?.message).toContain("Ryuk reaper");
     expect(failure?.message).toContain("TESTCONTAINERS_RYUK_DISABLED");
     expect(failure?.message).toContain("RYUK_CONTAINER_IMAGE");
-    // And does NOT send the reader to a Postgres mirror that is working: no
-    // Postgres-pull headline, no `source:` line, no QCMS_TEST_POSTGRES_IMAGE fix.
     expect(failure?.message).not.toContain("Could not PULL the test Postgres image");
     expect(failure?.message).not.toContain("source: TEST_POSTGRES_IMAGE");
     expect(failure?.message).not.toMatch(/fix:.*QCMS_TEST_POSTGRES_IMAGE/);
-    // The Docker error is still preserved, as it was for image failures.
     expect(failure?.message).toContain("registry-1.docker.io");
     expect(failure?.cause).toBeDefined();
   }, 60_000);
@@ -400,23 +265,8 @@ describe("startTestDb infrastructure failure reporting (issue #150)", () => {
 });
 
 /**
- * Issue #171, and the same misattribution shape as #150 one layer down.
- *
- * `PULL_FAILURE_MARKERS` carries `connection refused` and `context deadline
- * exceeded` because Docker really does report registry trouble that way. A dead
- * daemon socket produces the same words, so before this every failure to REACH
- * Docker was announced as a failure to PULL an image - complete with an image
- * reference, a registry and the mirror knob that redirects it, none of which are
- * involved when nothing ever reached a registry. The reader is then sent to check
- * a mirror that is working while the socket under their feet is dead.
- *
- * Both phases are covered, because both classify: the infrastructure boot (which
- * is where a dead daemon is actually met first, since `getContainerRuntimeClient`
- * is the first thing to touch the socket) and the container start.
- *
- * Injected rather than forced, for the reason the #150 block gives: stopping the
- * daemon under a running suite is not something a test may do, and the wordings
- * below are the ones dockerode and testcontainers-node emit for it.
+ * A dead daemon socket produces the same words as registry trouble. Injected rather
+ * than forced: a test may not stop the daemon under a running suite.
  */
 describe("startTestDb daemon-connectivity failure reporting (issue #171)", () => {
   const DAEMON_DOWN_MESSAGES = [
@@ -434,12 +284,9 @@ describe("startTestDb daemon-connectivity failure reporting (issue #171)", () =>
       });
 
       expect(failure?.message).toContain("Could not REACH the Docker daemon");
-      // The three things the old message said and should not have: a pull, an
-      // image to blame for it, and a mirror to go and check.
       expect(failure?.message).not.toContain("Could not PULL");
       expect(failure?.message).not.toContain(TEST_POSTGRES_IMAGE);
       expect(failure?.message).not.toMatch(/fix:.*(QCMS_TEST_POSTGRES_IMAGE|RYUK_CONTAINER_IMAGE)/);
-      // Still actionable, and still carrying the original wording.
       expect(failure?.message).toContain(message);
       expect(failure?.cause).toBeDefined();
     },
@@ -449,9 +296,6 @@ describe("startTestDb daemon-connectivity failure reporting (issue #171)", () =>
   it(
     "keeps a genuine registry failure classified as a pull",
     async () => {
-      // The other direction, and the reason the daemon markers name the socket or
-      // the daemon rather than matching a bare errno: an unreachable REGISTRY also
-      // produces a refused connection, and it must still be reported as one.
       const failure = await captureStartFailure({
         bootInfrastructure: () => Promise.reject(new Error(HUB_TIMEOUT_MESSAGE)),
       });
@@ -465,15 +309,8 @@ describe("startTestDb daemon-connectivity failure reporting (issue #171)", () =>
   it(
     "does not poison the image cache when the daemon was the problem",
     async () => {
-      // A pull failure is remembered per image so later files fail fast (issue #74).
-      // A daemon that went away is not a property of the image, and remembering it
-      // as one would fail every later file in the worker with a registry message
-      // for a machine that has since recovered.
-      // `localhost:1` here and NOT `UNPULLABLE_REGISTRY`, which is deliberate rather than
-      // the fourth instance of issue #1026: `bootInfrastructure` rejects before any pull
-      // is attempted, so this reference is never dialled at all. It is a cache key, and
-      // the whole point of the case is that nothing gets written under it. A reader
-      // auditing this file for the v4 rule can stop here (PR #1051's review checked it).
+      // `bootInfrastructure` rejects before any pull, so this reference is only ever a
+      // cache key and is never dialled.
       const image = "localhost:1/qcms-daemon-probe:16-alpine";
       const daemonFailure = await captureStartFailure({
         image,
@@ -494,44 +331,12 @@ describe("startTestDb daemon-connectivity failure reporting (issue #171)", () =>
 });
 
 /**
- * Issue #812. A boot that fails under host contention fails on a message about a port:
- * `not bound after 210000ms`, naming the ephemeral port Docker had just mapped and
- * nothing about the eleven other `postgres:16-alpine` boots that were queued on the same
- * daemon. During waves 11 to 13 a forced Docker-backed run went red roughly one time in
- * three that way, always in a file the branch did not touch and always green in
- * isolation, and the only way to tell contention from a defect was to re-run the suite.
- *
- * So every container-start failure now carries one line saying what the machine looked
- * like. This is the Docker-backed half of the proof: the unit tests pin the formatter
- * against a fake `docker ps`, and this asserts that the real probe reaches the real error
- * path and reads the real daemon. The failure is simulated with an unservable registry
- * rather than by loading the machine, because a test that produced contention would be a
- * test that caused it.
+ * The failure is simulated with an unservable registry, because a test that produced
+ * real host contention would be a test that caused it.
  */
 describe("startTestDb host snapshot on a failed boot (issue #812)", () => {
-  /**
-   * Its own image reference, so this test exercises the fresh path, not the cache.
-   *
-   * On `UNPULLABLE_REGISTRY` rather than `localhost:1`, for the reason the header of this
-   * file now states at length (issue #1026, carried here by PR #1051's review): `localhost`
-   * is not guaranteed to resolve to a v4 address and port 1 is not guaranteed to refuse.
-   * This dial was the third in the file and the one left behind, measured at 30.14s through
-   * `[::1]:1` on a review host whose `/etc/hosts` does carry the v4 line, against 0.11s for
-   * the literal address. It was under its budget and green, which is exactly why it was
-   * easy to miss: a file that states the rule in its header and then relies on the thing
-   * the rule warns about, 330 lines down.
-   */
   const SNAPSHOT_PROBE_IMAGE = `${UNPULLABLE_REGISTRY}/qcms-host-snapshot-probe:16-alpine`;
 
-  /**
-   * And a second reference for the replay case below, so it primes its own cache.
-   *
-   * Same reasoning as `UNPULLABLE_IMAGE_FOR_REPLAY`: keyed by reference, the cache is
-   * written in the `catch` of a pull attempt, so a replay case reading the entry the
-   * previous case happened to leave behind fails for the previous case's reason whenever
-   * that one is cut off. That is the ordering coupling issue #1026 removed from the two
-   * cases above, and this describe block still had it.
-   */
   const SNAPSHOT_REPLAY_IMAGE = `${UNPULLABLE_REGISTRY}/qcms-host-snapshot-replay:16-alpine`;
 
   it(
@@ -540,20 +345,12 @@ describe("startTestDb host snapshot on a failed boot (issue #812)", () => {
       const failure = await captureStartFailure({ image: SNAPSHOT_PROBE_IMAGE });
 
       expect(failure?.message).toContain(HOST_SNAPSHOT_PREFIX);
-      // The daemon was really asked, and the answer is one of the two the real probe can
-      // give: a census, or a stated overrun. Insisting on the census alone made this pin
-      // red 3/3 under exactly the load the snapshot exists to describe, because a daemon
-      // carrying 54 Testcontainers Postgres took 2.56 to 5.82 s to answer `docker ps`
-      // (issue #942) - the pin failed for the reason it was written for. Both branches
-      // come from the real host; neither is a placeholder, and the degrade rendering
-      // itself is pinned deterministically in `host-snapshot.test.ts`.
+      // A busy daemon can take seconds to answer `docker ps`, so the census alone
+      // would be flaky under exactly the load this line exists to report.
       expect(failure?.message).toMatch(
         /docker (?:\d+ running, \d+ Testcontainers across \d+ session|unknown \(the daemon did not answer the census within \d+ms\))/,
       );
-      // And the kernel was really read, or said so plainly when it could not be.
       expect(failure?.message).toMatch(/load (?:\d+\.\d\d\/|unknown)/);
-      // The snapshot is additive: the diagnosis it hangs off is untouched, and the
-      // snapshot is one line rather than a block that pushes it off the screen.
       expect(failure?.message).toContain("Could not PULL the test Postgres image");
       expect(failure?.message).toContain(SNAPSHOT_PROBE_IMAGE);
       const snapshot = failure?.message.split("\n").filter((line) => line.startsWith("  host:"));
@@ -565,15 +362,7 @@ describe("startTestDb host snapshot on a failed boot (issue #812)", () => {
   it(
     "takes a fresh reading on the fail-fast replay rather than repeating a stale one",
     async () => {
-      // The cached message is the diagnosis (issue #74's fail-fast), and the machine has
-      // moved on since it was written. A snapshot frozen into that cache would report the
-      // host as it stood at some earlier file's failure, which is the exact failure mode
-      // CONTRIBUTING warns about for gate logs: a stale reading is indistinguishable from
-      // a current one.
-      //
-      // Primed HERE, on this case's own reference, through the same code path that writes
-      // the cache in a real run. It used to read the entry the case above happened to
-      // leave behind, which made a failure there report as a broken fail-fast cache here.
+      // Primed here, so this case does not depend on the one above having completed.
       const first = await captureStartFailure({ image: SNAPSHOT_REPLAY_IMAGE });
       expect(first?.message).toContain("Could not PULL the test Postgres image");
       expect(first?.message).not.toContain("not retried");

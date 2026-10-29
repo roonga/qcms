@@ -23,18 +23,12 @@ import {
 import "./globals.css";
 
 export const viewport: Viewport = {
-  // Mobile-first: respondents open registration links on phones (ADR-26).
   width: "device-width",
   initialScale: 1,
 };
 
-/**
- * The document title is the operator's brand name, so it is generated per request
- * rather than declared as a static `metadata` object (task 053, folding issue #25):
- * a `<title>` reading "QCMS" told a respondent the name of the engine instead of
- * the name of whoever sent them the link, and it was a source literal an adopter
- * could only change by editing this file.
- */
+// Generated per request rather than a static `metadata` object because the title is
+// the deployment's own brand name.
 export function generateMetadata(): Metadata {
   return { title: portalBrand().name, description: t("app.description") };
 }
@@ -43,11 +37,8 @@ export default async function RootLayout({ children }: { readonly children: Reac
   const [headerList, cookieJar] = await Promise.all([headers(), cookies()]);
   const nonce = headerList.get("x-nonce") ?? undefined;
 
-  // Per-deployment theming (ADR-30): the palette rides `data-theme`, the colour
-  // mode, corner preset, font and density ride root classes. Corners and the
-  // palette are config only; mode, font and density are the respondent's choices
-  // over the deployment's defaults (task 053), resolved from the request's cookies
-  // so the FIRST PAINT is already correct rather than corrected afterwards.
+  // Resolved from the request's cookies (ADR-30) so the first paint is already correct
+  // rather than corrected after hydration.
   const appearance = resolveAppearance({
     mode: cookieJar.get(MODE_COOKIE)?.value,
     font: cookieJar.get(FONT_COOKIE)?.value,
@@ -58,12 +49,6 @@ export default async function RootLayout({ children }: { readonly children: Reac
   const corners = portalCorners();
   const brand = portalBrand();
 
-  // What the header's controls need. Everything in it is already visible in the
-  // served HTML (the root classes) or is public config; nothing server-only crosses
-  // this boundary. `mode` here is the class this render STAMPED, which the controls
-  // hydrate against and then reconcile with the live root class - the pre-paint
-  // bootstrap can have landed elsewhere from a valid `?mode=` parameter or the OS
-  // signals (`lib/server/mode-bootstrap.ts`).
   const state: AppearanceState = {
     mode: modeClass(appearance.mode),
     font: appearance.font,
@@ -76,8 +61,6 @@ export default async function RootLayout({ children }: { readonly children: Reac
     brandName: brand.name,
     brandLogoSrc: brand.logoSrc,
     secureCookies: secureCookies(),
-    // The environment serving this request (Q21, task 066), resolved once in the one
-    // layout every page passes through.
     basePath: await currentBasePath(),
   };
 
@@ -85,38 +68,14 @@ export default async function RootLayout({ children }: { readonly children: Reac
     <html
       lang="en"
       data-theme={theme}
-      // The token contract's scope carrier (ADR-38). `theme.css` and `fonts.css`
-      // match `:is(:root, [data-qcms-theme-scope])` and `theme-components.css`
-      // matches the bare attribute, so stamping it here keeps the whole document
-      // on the same rules it had when they were anchored on `:root` alone. It is
-      // presence-only: nothing reads the value, and the empty string is what an
-      // attribute selector needs.
+      // The token contract's scope carrier (ADR-38), presence-only: the stylesheets
+      // match the bare attribute, and nothing reads the value.
       data-qcms-theme-scope=""
       className={rootClassName(appearance, corners)}
       suppressHydrationWarning
     >
       <head>
-        {/* The per-request CSP nonce (SEC-9) reaches SSR on the `x-nonce` request
-            header `proxy.ts` sets, and it IS propagated: the served HTML
-            stamps the real value and the RSC payload carries the same value, so
-            React's server and client trees agree. Next does not nonce app-authored
-            scripts for us (dropping this prop gets the script CSP-blocked), so the
-            prop is required.
-
-            `suppressHydrationWarning` is still needed, for a reason that has
-            nothing to do with propagation (issue #20). On insertion the browser
-            performs the HTML specification's *nonce hiding*: it moves the value
-            into the element's internal `[[CSPNonce]]` slot (readable as the
-            `.nonce` property) and blanks the `nonce` content attribute, so a CSS
-            attribute selector cannot exfiltrate it. React's hydration check reads
-            the attribute back with `getAttribute("nonce")`, sees `""` against its
-            own real value, and reports an attribute difference it explicitly does
-            not patch up. The DOM, the executed script, and the enforcing nonce are
-            all unaffected: only the warning is spurious, and this element's only
-            other prop is the bootstrap source built by `modeBootstrapScript`
-            from validated mode keywords, so nothing real can hide behind the
-            suppression. Weakening the CSP to silence it is never an option.
-            `e2e/csp-nonce.pw.ts` proves the whole chain instead. */}
+        {/* The `nonce` prop is required (SEC-9): Next does not nonce app-authored scripts, so dropping it gets this script CSP-blocked. */}
         <script
           nonce={nonce}
           suppressHydrationWarning
@@ -124,17 +83,8 @@ export default async function RootLayout({ children }: { readonly children: Reac
             __html: modeBootstrapScript(configuredMode, appearance.modeChosen ? state.mode : null),
           }}
         />
-        {/* The no-JS half of the appearance controls (issue #195). Until then this
-            rule hid the whole disclosure, because a radio a respondent can move that
-            changes nothing reads as a broken page; the controls now post a real form
-            to `app/appearance/route.ts`, so what the rule reveals is the one element
-            that path needs - its Apply button, hidden by default in `globals.css`.
-
-            Reveal rather than hide, and CSS rather than conditional rendering, for the
-            same reason the previous rule gave: the served HTML is one document either
-            way, so a scripted respondent gets no hydration boundary and no layout
-            shift. `style-src` already allows inline styles, so no nonce is
-            involved. */}
+        {/* Revealed by CSS rather than conditional rendering so the served HTML is one
+            document either way: no hydration boundary and no layout shift. */}
         <noscript>
           <style>{".qcms-appearance__apply{display:inline-flex}"}</style>
         </noscript>
@@ -143,9 +93,8 @@ export default async function RootLayout({ children }: { readonly children: Reac
         <a href="#portal-main" className="skip-link">
           {t("action.skipToContent")}
         </a>
-        {/* The deployment's formatting locale (QCMS_LOCALE, Code Owner 2026-10-19), read
-            here on the server and handed to every client component, so the server render
-            and the hydrated render format dates and order date fields identically. */}
+        {/* Read on the server and handed down so the server render and the hydrated
+            render format dates identically. */}
         <LocaleProvider locale={appLocale()}>
           <AppearanceProvider value={state}>{children}</AppearanceProvider>
         </LocaleProvider>

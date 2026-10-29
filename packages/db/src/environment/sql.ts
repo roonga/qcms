@@ -100,14 +100,8 @@ function indexColumn(column: Partial<IndexedColumn | SQL>): string {
 }
 
 /**
- * Every enum type a data-plane table's column is declared with.
- *
- * The types are created once, in `control`, not per environment: every environment's
- * `sessions` uses `control.access_mode`, so the closed set of values is one declaration.
- *
- * No type `USAGE` grant is emitted, and no `EXECUTE` grant on the trigger functions
- * either: Postgres grants both to `PUBLIC` by default, so a statement here would grant
- * what is already held. A catalogue read reporting either is reporting a default.
+ * Every enum type a data-plane column uses, created once in `control` rather than per environment.
+ * No type `USAGE` or trigger `EXECUTE` grant is emitted: Postgres grants both to `PUBLIC` by default.
  */
 function dataPlaneEnumTypes(): string[] {
   const names = new Set<string>();
@@ -297,13 +291,10 @@ export function createEnvironmentStatements(environment: string): string[] {
 }
 
 /**
- * The grants for one environment. `qcms_app_<env>` gets DML on its own `data_<env>`, its
- * own `reporting_<env>`, and on `control` only {@link CONTROL_READ_TABLES} plus one
- * `UPDATE`, so a defect on the anonymous respondent path cannot rewrite a grant row or a
- * staff session. `qcms_app_control` gets `INSERT` on `outbox` and nothing else.
- *
- * Every statement is guarded on the role existing: most databases this runs against have
- * no `qcms_app%` role at all, and an unguarded `GRANT` would fail the whole migration.
+ * The grants for one environment. `qcms_app_<env>` gets DML on its own schemas and on `control` only
+ * {@link CONTROL_READ_TABLES} plus one `UPDATE`; `qcms_app_control` gets `INSERT` on `outbox` only.
+ * Every statement is guarded on the role existing, since an unguarded `GRANT` would fail the migration on a
+ * database without `qcms_app%` roles.
  */
 export function grantEnvironmentStatements(environment: string): string[] {
   const schema = dataSchemaName(environment);
@@ -314,11 +305,9 @@ export function grantEnvironmentStatements(environment: string): string[] {
     `GRANT USAGE ON SCHEMA ${quote(schema)} TO ${quote(role)}`,
     `GRANT SELECT, INSERT, UPDATE, DELETE ON ALL TABLES IN SCHEMA ${quote(schema)} TO ${quote(role)}`,
     `GRANT USAGE ON ALL SEQUENCES IN SCHEMA ${quote(schema)} TO ${quote(role)}`,
-    // `ALL TABLES` reaches the environment-wide pair only because of WHEN this runs: it
-    // is point-in-time, and on every live path the per-workspace views do not exist yet.
-    // Move the reconciliation above this pass and the application role silently gains
-    // every workspace's views. A restore inverts the order, which is what
-    // `revokeWorkspaceViewsFromEnvironmentRole` in `./reporting.ts` corrects.
+    // `ALL TABLES` reaches the environment-wide pair only because of when this runs: moving the reconciliation
+    // above this pass would grant the application role every workspace's views.
+    // `revokeWorkspaceViewsFromEnvironmentRole` in `./reporting.ts` corrects the restore order.
     `GRANT USAGE ON SCHEMA ${quote(reporting)} TO ${quote(role)}`,
     `GRANT SELECT ON ALL TABLES IN SCHEMA ${quote(reporting)} TO ${quote(role)}`,
     `GRANT USAGE ON SCHEMA ${quote(CONTROL_SCHEMA)} TO ${quote(role)}`,
@@ -394,12 +383,9 @@ export function workspaceReportingGrantStatements(input: {
 }
 
 /**
- * The grants for a control-plane table created after the baseline, which its own
- * migration must carry: the baseline's `ALL TABLES IN SCHEMA control` pass covers only
- * the tables existing then, and there is no `ALTER DEFAULT PRIVILEGES` here, because a
- * default has no per-table filter and so cannot carve out the break-glass audit.
- *
- * `qcms_app_control` gets DML; an environment role gets `SELECT` only when the table is on
+ * The grants for a control-plane table created after the baseline, which its own migration must carry: the
+ * baseline's `ALL TABLES` pass covers only tables existing then, and no default privilege can carve out the
+ * break-glass audit. `qcms_app_control` gets DML; an environment role gets `SELECT` only if the table is on
  * {@link CONTROL_READ_TABLES}.
  */
 export function grantControlTableStatements(table: string): string[] {
@@ -554,12 +540,9 @@ $$;`;
 }
 
 /**
- * Takes every privilege on `control.two_factor_resets` back from every `qcms_app%` role:
- * that table records out-of-band clearing of an administrator's second factor, and an
- * audit row a traffic-serving credential could rewrite proves nothing (SEC-10).
- *
- * A revoke rather than a narrower grant, because no Postgres grant form can carve one
- * table out of a schema, so the grant lands and is taken back.
+ * Takes every privilege on `control.two_factor_resets` back from every `qcms_app%` role, since an audit row a
+ * traffic-serving credential could rewrite proves nothing (SEC-10). A revoke, because no grant form carves
+ * one table out of a schema.
  */
 export function revokeMigrateOnlyStatement(): string {
   return `DO $$

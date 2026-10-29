@@ -17,11 +17,9 @@ import type { A2UIDocument, CompiledForm } from "./types.js";
 import { A2UI_SPEC_VERSION, COMPILER_VERSION } from "./version.js";
 
 /**
- * The pure projection from meaning to view (ARCHITECTURE §3): one A2UI document
- * per step, version-stamped because the stored copy is served forever (ADR-18).
- * Depends on kernel types alone: never the database, never React, never a
- * runtime `@a2ra/core` import. It presumes a published snapshot, so an
- * unresolved pin or a missing default locale (I2, I3) throws (CONTRIBUTING).
+ * The pure projection from meaning to view (ARCHITECTURE §3): one version-stamped document
+ * per step, as the stored copy is served forever (ADR-18). Depends on kernel types alone,
+ * and presumes a published snapshot, so an unresolved pin or missing locale throws (I2, I3).
  */
 
 /** A question may be pinned at several versions, so identity alone is no key. */

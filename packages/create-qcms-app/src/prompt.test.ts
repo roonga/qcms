@@ -49,10 +49,7 @@ describe("promptMissing", () => {
   });
 
   it("never asks about the package manager, because there is no choice", async () => {
-    // The Code Owner dropped npm and yarn (issue #449). A prompt whose only answer is
-    // the default is not a question, and asking it would imply a decision the adopter
-    // does not have. The length assertion above would survive a renamed prompt; this
-    // one would not.
+    // A prompt whose only answer is the default implies a decision the adopter lacks.
     const asker = scriptedAsker(ALL_EMPTY);
     await promptMissing({}, asker, CWD);
     expect(asker.asked.join("\n")).not.toMatch(/package manager|pnpm|npm|yarn/i);

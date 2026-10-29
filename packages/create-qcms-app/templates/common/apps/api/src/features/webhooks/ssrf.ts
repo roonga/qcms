@@ -1,17 +1,6 @@
-/**
- * Webhook target URL guard (task 024, SEC-6 SSRF).
- *
- * Config-time, R4-pure validation of an author-supplied webhook URL: it runs on
- * the literal URL string (no DNS resolution - that is a Node/composition concern
- * and full DNS-rebinding protection is delivery-time, 025). By default it
- * demands HTTPS and rejects hosts that are loopback / private / reserved /
- * link-local IP literals or obvious internal names (`localhost`). The
- * `allowPrivateTargets` override (config `QCMS_WEBHOOK_ALLOW_PRIVATE`) unlocks
- * plain HTTP and private ranges for on-prem topologies that legitimately post to
- * internal systems.
- */
+// Literal-string SSRF checks only (SEC-6): no DNS resolution here, so DNS-rebinding
+// protection has to happen at delivery time.
 
-/** Why a webhook URL was rejected (envelope `details` for the 422). */
 export type WebhookUrlRejection =
   "not-a-url" | "unsupported-scheme" | "https-required" | "private-host";
 
@@ -19,18 +8,15 @@ export type WebhookUrlCheck =
   | { readonly ok: true; readonly url: string }
   | { readonly ok: false; readonly reason: WebhookUrlRejection };
 
-/** Strip brackets from an IPv6 literal host (`[::1]` → `::1`). */
 function unbracket(host: string): string {
   return host.startsWith("[") && host.endsWith("]") ? host.slice(1, -1) : host;
 }
 
-/** True when `host` is `localhost` or a subdomain of `.localhost`. */
 function isLocalhostName(host: string): boolean {
   const h = host.toLowerCase();
   return h === "localhost" || h.endsWith(".localhost");
 }
 
-/** True for an IPv4 literal whose range is private / loopback / reserved / link-local. */
 function isPrivateIpv4(host: string): boolean {
   const parts = host.split(".");
   if (parts.length !== 4) return false;
@@ -48,7 +34,6 @@ function isPrivateIpv4(host: string): boolean {
   return false;
 }
 
-/** True for an IPv6 literal that is loopback / unspecified / ULA / link-local (or v4-mapped private). */
 function isPrivateIpv6(host: string): boolean {
   const h = host.toLowerCase();
   if (h === "::1") return true; // loopback
@@ -57,17 +42,12 @@ function isPrivateIpv6(host: string): boolean {
   if (h.startsWith("fe8") || h.startsWith("fe9") || h.startsWith("fea") || h.startsWith("feb")) {
     return true; // fe80::/10 link-local
   }
-  // IPv4-mapped (::ffff:a.b.c.d) - reuse the v4 test on the trailing literal.
+  // IPv4-mapped (::ffff:a.b.c.d) reaches the same networks as the bare v4 literal.
   const mapped = /^::ffff:(\d{1,3}\.\d{1,3}\.\d{1,3}\.\d{1,3})$/.exec(h);
   if (mapped) return isPrivateIpv4(mapped[1]!);
   return false;
 }
 
-/**
- * Validate an author-supplied webhook URL against the SSRF policy. Returns the
- * normalized URL string on success, or a typed rejection reason. `allowPrivate`
- * comes from `config.webhooks.allowPrivateTargets`.
- */
 export function checkWebhookUrl(raw: string, allowPrivate: boolean): WebhookUrlCheck {
   let url: URL;
   try {

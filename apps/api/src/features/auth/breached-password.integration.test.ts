@@ -15,35 +15,8 @@ import {
   warnIfBreachCheckDisabled,
 } from "./instance.js";
 
-/**
- * SEC-1's breach-corpus check (issue #178), asserted as behaviour an operator can
- * observe: a compromised password is refused at both entry points, an unreachable
- * corpus refuses too (fail-closed), and the documented knob turns the whole thing
- * off. Nothing here asserts that a plugin appears in a config object, because that
- * would pass just as happily if better-auth never called it.
- *
- * ## Why the corpus is stubbed rather than real
- *
- * The control is a live HTTPS call to `api.pwnedpasswords.com`. A suite that depends
- * on a third party's uptime goes red for reasons that have nothing to do with this
- * repository, so `globalThis.fetch` is replaced for the duration of each case. The
- * stub is not a mock of the plugin: better-auth's real plugin runs, really hashes the
- * password with SHA-1, really builds the range URL, and really parses the response.
- * Only the wire is synthetic.
- *
- * The "compromised" fixture is the range response for the test's **own** randomly
- * generated password, computed from its real SHA-1. So no assertion depends on a
- * literal breached password (a hard-coded credential the lint gate flags) or on what
- * the real corpus happens to hold today.
- *
- * The real endpoint was exercised by hand while this landed and behaved exactly as
- * the stub does: an in-process `signUpEmail` with a corpus password came back
- * `400 PASSWORD_COMPROMISED` after a single request to `/range/{prefix}`, and with
- * the host blackholed at the resolver it came back `500` rather than succeeding.
- *
- * Requires Docker: the assertion that matters most is "and no admin row was created",
- * which only a real database can answer.
- */
+// `globalThis.fetch` is stubbed per case so the suite does not depend on
+// api.pwnedpasswords.com's uptime; better-auth's real plugin still runs.
 
 const EMAIL = "breach.check@example.test";
 const ADMIN_ORIGIN = "http://localhost:7040";
@@ -53,7 +26,6 @@ function newPassword(): string {
   return `fixture-${Buffer.from(crypto.getRandomValues(new Uint8Array(18))).toString("base64url")}`;
 }
 
-/** The uppercase hex SHA-1 the plugin computes, so the stub can answer about it. */
 async function sha1Hex(value: string): Promise<string> {
   const digest = await crypto.subtle.digest("SHA-1", new TextEncoder().encode(value));
   return [...new Uint8Array(digest)]
@@ -65,15 +37,10 @@ async function sha1Hex(value: string): Promise<string> {
 const HIBP_PREFIX = "https://api.pwnedpasswords.com/range/";
 
 interface Wire {
-  /** Every URL the process fetched while the stub was installed. */
   readonly urls: string[];
   restore(): void;
 }
 
-/**
- * Install a fetch that answers the HIBP range endpoint from `answer` and passes
- * everything else through, recording what was asked for.
- */
 function stubWire(answer: (prefix: string) => Response): Wire {
   const urls: string[] = [];
   const original = globalThis.fetch;
@@ -91,7 +58,7 @@ function stubWire(answer: (prefix: string) => Response): Wire {
   };
 }
 
-/** A range body shaped like the endpoint's: `SUFFIX:count` lines, plus padding. */
+/** The endpoint's wire format: `SUFFIX:count` lines. */
 function rangeBody(suffixes: readonly string[]): Response {
   const lines = [...suffixes.map((suffix) => `${suffix}:42`), `${"0".repeat(35)}:0`];
   return new Response(lines.join("\r\n"), { status: 200 });
@@ -101,14 +68,8 @@ let testDb: TestDb;
 let baseEnv: Record<string, string | undefined>;
 let wire: Wire | undefined;
 
-/**
- * An instance over the shared environment, with only the knob varied.
- *
- * The environment is built **once** rather than per call: `validEnv()` regenerates
- * every synthetic secret on each invocation, so two instances built from two calls
- * would sign their cookies with different keys and the change-password case below
- * would fail for an unrelated reason.
- */
+// `baseEnv` is built once: `validEnv()` regenerates every secret per call, so instances
+// from two calls would sign cookies with different keys.
 function authWith(breachedPasswordCheck: boolean, warn?: (message: string) => void) {
   const config = loadAdminAuthConfig({
     ...baseEnv,
@@ -149,7 +110,6 @@ describe("a compromised password is refused (NIST SP 800-63B 3.1.1.2, ASVS 5.0 6
 
     expect(result.ok).toBe(false);
     expect(result.ok === false && result.refusal.kind).toBe("compromised-password");
-    // The refusal is the whole point: no account exists afterwards.
     expect(await countAdminUsers(testDb.db)).toBe(0);
   });
 
@@ -160,9 +120,6 @@ describe("a compromised password is refused (NIST SP 800-63B 3.1.1.2, ASVS 5.0 6
 
     await createInitialAdmin(authWith(true), testDb.db, { email: EMAIL, password });
 
-    // k-anonymity, and SEC-8: what left this process was five hex characters, a range
-    // shared by about two thousand corpus entries (measured 2026-08-09) and by vastly
-    // more possible passwords than that.
     expect(wire.urls).toEqual([`${HIBP_PREFIX}${hash.slice(0, 5)}`]);
     const sent = wire.urls.join(" ");
     expect(sent).not.toContain(password);
@@ -182,19 +139,8 @@ describe("a compromised password is refused (NIST SP 800-63B 3.1.1.2, ASVS 5.0 6
   });
 });
 
-/**
- * Issue #436: the same fail-closed refusal, now legible.
- *
- * `full-stack-e2e` runs the shipped default, so an outage at api.pwnedpasswords.com
- * turns a required context red on a pull request about something else. The dependency
- * stays and the refusal stays; what these cases pin is that the person who meets it
- * can tell a network failure from an authentication failure **without reading the
- * source**, which is the issue's acceptance criterion. Both directions are asserted,
- * because only one of them proves nothing: a message that names the network on every
- * refusal is as useless as one that never does.
- */
 describe("an unreachable corpus fails closed, and says so", () => {
-  /** What undici throws when the host does not resolve or refuses the connection. */
+  /** The exact error undici throws when the host does not resolve. */
   function unreachable(): Response {
     throw new TypeError("fetch failed");
   }
@@ -208,14 +154,10 @@ describe("an unreachable corpus fails closed, and says so", () => {
     expect(result.ok).toBe(false);
     expect(result.ok === false && result.refusal.kind).toBe("breach-corpus-unreachable");
     expect(await countAdminUsers(testDb.db)).toBe(0);
-    // The check was attempted; this is not a silent skip.
     expect(wire.urls).toHaveLength(1);
   });
 
   it("names the network, denies the wrong hypothesis, and points at the knob", () => {
-    // The CLI line, which is an operator channel: it gets both halves, variable
-    // included, beside the `QCMS_ADMIN_EMAIL` and `QCMS_ADMIN_PASSWORD` names the other
-    // refusals already print (issue #910).
     const message = describeRefusal({ kind: "breach-corpus-unreachable" });
 
     expect(message).toContain("network failure");
@@ -228,11 +170,8 @@ describe("an unreachable corpus fails closed, and says so", () => {
     const network = describeRefusal({ kind: "breach-corpus-unreachable" });
     const compromised = describeRefusal({ kind: "compromised-password" });
 
-    // The other direction: a real corpus hit still says the password is in the
-    // corpus, and does not claim a network problem.
     expect(compromised).toContain("appears in the public breach corpus");
     expect(compromised).not.toContain("network failure");
-    // And the network case does not accuse the credential.
     expect(network).not.toContain("appears in the public breach corpus");
     expect(network).toContain("without ever being compared");
   });
@@ -249,13 +188,10 @@ describe("an unreachable corpus fails closed, and says so", () => {
       }),
     );
 
-    // 503 because an upstream this process depends on was unavailable, which is what
-    // the status means and what 500 does not.
     expect(response.status).toBe(503);
     const body = (await response.json()) as { code?: string; message?: string };
     expect(body.code).toBe(BREACH_LOOKUP_FAILED_CODE);
     expect(body.message).toContain("api.pwnedpasswords.com");
-    // SEC-8: what the wire carries names the host and the control, never the value.
     expect(JSON.stringify(body)).not.toContain(password);
     expect(await countAdminUsers(testDb.db)).toBe(0);
   });
@@ -273,14 +209,9 @@ describe("an unreachable corpus fails closed, and says so", () => {
       }),
     );
 
-    // The whole serialized body, not just `message`: a variable name is no better in a
-    // `details` field than in a sentence. `QCMS_` is this repository's environment
-    // prefix, so the absence of that token is the absence of the class.
     const raw = await response.text();
     expect(response.status).toBe(503);
     expect(raw).not.toMatch(/QCMS_[A-Z0-9_]+/);
-    // And the report did not simply get shorter: the client still learns the cause, and
-    // the operator still learns the knob - on the channel the operator reads.
     expect(raw).toContain(BREACH_LOOKUP_FAILED_CODE);
     expect(raw).toContain("api.pwnedpasswords.com");
     expect(logged).toHaveLength(1);
@@ -289,8 +220,6 @@ describe("an unreachable corpus fails closed, and says so", () => {
   });
 
   it("logs nothing on the two branches it passes through untouched", () => {
-    // The warn sink is not a general error hook. A fault that is not the corpus lookup
-    // must not leave an operator a line blaming the network for it.
     const logged: string[] = [];
     const warn = (message: string): void => {
       logged.push(message);
@@ -303,23 +232,19 @@ describe("an unreachable corpus fails closed, and says so", () => {
   });
 
   it("relabels only the vendor's lookup failure, so nothing unrelated is blamed on it", () => {
-    // A hash that fails for its own reasons is not an APIError, and must survive the
-    // translation unchanged - otherwise this fix would create the misdiagnosis it
-    // exists to remove, pointing at the network for a fault that is not there.
     const unrelated = new Error("scrypt failed");
     expect(explainBreachLookupFailure(unrelated)).toBe(unrelated);
     expect(explainBreachLookupFailure("not an error at all")).toBe("not an error at all");
   });
 });
 
-/** Set by the knob-off case below, then reused by the change-password case. */
 let adminPassword = "";
 
 describe("QCMS_ADMIN_PASSWORD_BREACH_CHECK=false is honoured", () => {
   it("makes no outbound request at all, and accepts a corpus password", async () => {
     adminPassword = newPassword();
     const hash = await sha1Hex(adminPassword);
-    // The stub would report this password as breached if it were ever consulted.
+    // The stub reports this password as breached if it is ever consulted.
     wire = stubWire(() => rangeBody([hash.slice(5)]));
 
     const result = await createInitialAdmin(authWith(false), testDb.db, {
@@ -329,17 +254,10 @@ describe("QCMS_ADMIN_PASSWORD_BREACH_CHECK=false is honoured", () => {
 
     expect(result.ok).toBe(true);
     expect(await countAdminUsers(testDb.db)).toBe(1);
-    // Not merely "did not block": an offline deployment must not reach the network.
     expect(wire.urls).toEqual([]);
   });
 });
 
-/**
- * The second reachable entry point (`route.ts`'s allowlist has exactly two paths that
- * set a password, and `sign-up/email` is the CLI-only one covered above). Driven
- * through `auth.handler` with a real `Request`, so this is the HTTP shape the admin
- * BFF forwards, not an in-process convenience call.
- */
 describe("change-password over the mounted surface", () => {
   async function signInCookie(): Promise<string> {
     const response = await authWith(false).handler(
@@ -373,7 +291,6 @@ describe("change-password over the mounted surface", () => {
     expect(response.status).toBe(400);
     expect(await response.text()).toContain("PASSWORD_COMPROMISED");
     expect(wire.urls).toEqual([`${HIBP_PREFIX}${hash.slice(0, 5)}`]);
-    // Rejected, not half-applied: the account still has the password it started with.
     await expect(signInCookie()).resolves.toContain("qcms_admin.session_token=");
   });
 
@@ -391,8 +308,6 @@ describe("change-password over the mounted surface", () => {
     );
 
     expect(response.status).toBe(200);
-    // The check ran (one lookup) and let it through, which is the other half of
-    // "the guard is a guard" - a control that refuses everything is not one.
     expect(wire.urls).toHaveLength(1);
     adminPassword = newOne;
     await expect(signInCookie()).resolves.toContain("qcms_admin.session_token=");

@@ -22,7 +22,7 @@ What is deliberately **not** proposed is relaxing "write to `main`" so that exec
 
 ## Development environment
 
-**The dev container is the recommended path (ADR-29).** It is the canonical, tested environment: one preinstalled Ubuntu 24.04 box with Node 24, pnpm (from the `packageManager` pin), Docker access, the GitHub CLI, Playwright's Chromium, and a configured zsh. Running the host toolchain directly still works and is fully supported; the container just removes the "works on my machine" class of problem. **On Windows, the container is the supported path** (Docker Desktop or Codespaces) rather than a native-PowerShell checkout.
+**The dev container is the recommended path (ADR-29).** It is the canonical, tested environment: one preinstalled Ubuntu 24.04 box with Node 24, pnpm (from the `packageManager` pin), Docker access, the GitHub CLI, Playwright's Chromium, and a configured zsh. Running the host toolchain directly still works and is fully supported; the container just removes the "works on my machine" class of problem. **On Windows, the container or WSL2 is the supported path** (Docker Desktop or Codespaces) rather than a native-PowerShell checkout. A native Windows checkout runs `pnpm verify` and nothing heavier: `verify:browser`, `verify:browser:detached`/`:wait` and `up:e2e` need POSIX sessions, process groups and `/proc`, and the detached runner refuses to start on `win32` rather than failing on a missing `setsid`. Read [`docs/DEVELOPER_GUIDE.md`](docs/DEVELOPER_GUIDE.md#windows-and-wsl) ("Windows and WSL") before running a gate from Windows, including the shared-seat rule and the stray-quote `Path` trap.
 
 **Prerequisites:** Docker (Docker Desktop, or Docker Engine under WSL2/Linux) and either the VS Code **Dev Containers** extension or the `@devcontainers/cli`.
 
@@ -292,7 +292,7 @@ QCMS_PORT_SEAT=0 pnpm verify:browser   # the Playwright suite (portal e2e + a11y
 | `browser-e2e` job (`playwright test`: portal **and admin**)            | **`pnpm verify:browser`** - deliberately not in `verify`                                             |
 | `full-stack-e2e` job in `e2e.yml` (`pnpm docker:up` + `pnpm test:e2e`) | **`QCMS_PORT_SEAT=<0-9> pnpm up:e2e`** - deliberately not in `verify` or `verify:browser`, see below |
 | `create-app-e2e` job in `create-app-e2e.yml`                           | **`QCMS_PORT_SEAT=<0-9> pnpm qcms:scaffold-e2e`** - deliberately not in `verify`, see below          |
-| `codeql.yml`, `mirror-test-images.yml`                                 | Not local gates (GitHub-hosted analysis / image mirroring)                                           |
+| `codeql.yml`, `mirror-test-images.yml`                                 | Not local gates (GitHub-hosted analysis, `plan/` excluded / image mirroring)                         |
 | `scan` job in `images.yml` (grype over the three image SBOMs)          | **`pnpm qcms:scan-images`** - deliberately not in `verify`, see `docs/operations.md`                 |
 
 `check:changeset` is new with this gate: it enforces the "Changeset for any change to a publishable package" merge requirement (issue #55, folded into #19), locally and in CI.

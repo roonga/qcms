@@ -1,30 +1,7 @@
 /**
- * Serving-loop handlers (task 019) - the respondent's read/answer loop.
- *
- * `GET /sessions/{id}/step` serves the current step's **stored** compiled A2UI
- * document, the answers already held for that step, and a narrow flow projection;
- * `POST /sessions/{id}/answers` validates one answer through the kernel, appends
- * it to the ledger, and returns the re-evaluated projection.
- *
- * These are **transaction scripts** (R5): load state (`@roonga/qcms-db`) → call the
- * kernel (`evaluateRules` 006, `validateAnswer` 009) → persist. The GET **never
- * recompiles** - it serves the audit copy stored at publish (ADR-18); the only
- * flow authority is the kernel. Handlers are fetch-pure (R4): time via
- * `deps.clock`, no `node:*`.
- *
- * Two security properties hold by construction:
- *
- * - **No leak of the hidden flow.** The client projection carries only the
- *   *visible* questions of the current step, the *visible* missing-required set,
- *   and the answers held for those same visible questions - never the full rule
- *   graph, never the inventory of hidden questions, and never a hidden question's
- *   stored answer (SEC).
- * - **Answer values are never logged** (SEC-8): errors and the append path name
- *   `questionId`s and counts, never content.
- *
- * Answer writes for one session are **serialized** by a Postgres transaction
- * advisory lock keyed on the session id (`pg_advisory_xact_lock`), so the
- * append-only ledger's order is deterministic even under concurrent submits (I5).
+ * The GET serves the audit copy stored at publish (ADR-18), never recompiling. Only
+ * visible questions and their answers cross the projection (SEC); values are never logged
+ * (SEC-8). Answer writes take a per-session advisory lock (I5).
  */
 
 import type { RouteHandler } from "@hono/zod-openapi";
@@ -89,8 +66,6 @@ import { authenticateSession } from "../session-token.js";
 import type { batchAnswersRoute, getStepRoute, rosterOpRoute, submitAnswerRoute } from "./route.js";
 import type { BatchAnswerResponse, RosterOpResponse, StepResponse } from "./schema.js";
 
-// --- typed failures (envelope codes the portal keys off, 029) ---------------
-
 const fail = {
   sessionNotFound: (): ApiError => new ApiError("SESSION_NOT_FOUND", 404, "No such session"),
   sessionSubmitted: (): ApiError =>
@@ -114,14 +89,8 @@ const fail = {
     new ApiError("unauthorized", 401, "Session token does not match this session"),
 } as const;
 
-// The enum-bearing `sessions` and `question_versions` rows are hand-authored and
-// sound across @roonga/qcms-db's package boundary (issue #5), so this slice consumes
-// `SessionRow` and the inferred `question_versions` row directly - no local view
-// or cast for the row types.
-
-// The stored compiled A2UI, viewed structurally so apps/api keeps 018's boundary
-// (it does not depend on @roonga/qcms-a2ui-compiler): one document per step, `root` the
-// opaque A2UI node tree the API serves verbatim and never interprets (ADR-18).
+// Viewed structurally so apps/api does not depend on @roonga/qcms-a2ui-compiler; `root`
+// is served verbatim and never interpreted (ADR-18).
 interface CompiledDocumentView {
   readonly stepId: StepId;
   readonly root: unknown;
@@ -131,23 +100,9 @@ interface CompiledFormView {
 }
 
 /**
- * The pinned snapshot for a session: the kernel's `FrozenSnapshot` (definition,
- * pinned question versions, and the semantics stamp the row records), the
- * stored compiled A2UI, the served spec version, and a pure `resolveQuestion`
- * lookup over the pinned question versions (the `required` flags the kernel
- * needs).
- *
- * `frozen` carries the stamp on purpose (ADR-16, issue #723): handing
- * `evaluateRules` the whole snapshot rather than a bare `FormDefinition` is what
- * puts the serving loop behind the same `UNSUPPORTED_SEMANTICS_VERSION` gate the
- * submit path has, so a snapshot recorded under superseded semantics is refused
- * at the first read instead of being branched by the current evaluator and
- * failing only at submit.
- *
- * Loaded once per request from the `form_versions` row the session is pinned to
- * (I4) plus each pinned `question_versions` row. A missing row here is an
- * internal inconsistency in a *published* snapshot (I2), not a client error, so
- * it throws (opaque 500) rather than returning a typed envelope.
+ * `frozen` carries the semantics stamp (ADR-16), putting serving behind the same
+ * `UNSUPPORTED_SEMANTICS_VERSION` gate as submit. A missing row is an internal
+ * inconsistency, so it throws.
  */
 interface LoadedSnapshot {
   readonly frozen: FrozenSnapshot;
@@ -163,8 +118,6 @@ async function loadSnapshot(
 ): Promise<LoadedSnapshot> {
   const version = await getFormVersion(request.exec, session.formId, session.formVersion);
   if (version === undefined) {
-    // A session is pinned at creation to a published version that is immutable
-    // (I1/I4); its absence is an internal invariant break, never client input.
     throw new Error(
       `serve-step: session "${session.sessionId}" is pinned to form ${session.formId}@${String(session.formVersion)} which does not exist`,
     );
@@ -195,8 +148,8 @@ async function loadSnapshot(
     frozen: {
       definition,
       questions,
-      // The stored stamp is text; a stamp that is not a decimal integer is
-      // refused here rather than reaching the evaluator as `NaN` (issue #723).
+      // The stored stamp is text; a non-integer one is refused here rather than
+      // reaching the evaluator as `NaN`.
       semanticsVersion: parseSemanticsVersion(version.semanticsVersion),
       // Unused by the flow evaluation; stamped for shape completeness.
       schemaVersion: SNAPSHOT_SCHEMA_VERSION,
@@ -209,15 +162,8 @@ async function loadSnapshot(
 }
 
 /**
- * Evaluate the flow for the given answers, throwing on the totality-error
- * codes: a *published* snapshot with resolved question versions never errs
- * (I2/I7), so an error here is an internal inconsistency, not client input.
- *
- * `UNSUPPORTED_SEMANTICS_VERSION` is the one exception, and it is a *reachable*
- * state rather than a bug (ADR-16): a snapshot published under semantics this
- * build no longer implements is exactly what the stamp exists to catch. It gets
- * the typed envelope so the refusal names its cause, while every other code
- * stays an opaque 500.
+ * An error here is an internal inconsistency. `UNSUPPORTED_SEMANTICS_VERSION` (ADR-16) gets
+ * the typed envelope; every other code stays an opaque 500.
  */
 function evaluateOrThrow(
   snapshot: LoadedSnapshot,
@@ -234,42 +180,24 @@ function evaluateOrThrow(
   return result.value;
 }
 
-/**
- * One rendered step's client-safe contents: which questions, and what is held.
- *
- * `values` borrows `StepResponse`'s own type rather than restating it, so the
- * canonical-`AnswerValue` contract the schema publishes (issue #153) is the type
- * the compiler holds this builder to.
- */
 interface RenderedQuestions {
   readonly visibleQuestions: string[];
   readonly values: StepResponse["values"];
 }
 
 /**
- * The visible questions of the rendered step, paired with the answers the server
- * already holds for exactly those questions (issue #146).
- *
- * Walking the visible set (never the ledger) is what keeps the two aligned: a
- * question the flow hides contributes neither an id nor an answer, so a stored
- * answer can never disclose a hidden question (SEC). An answer is absent when
- * `latestAnswers` reports none, which includes a question whose newest ledger row
- * is an ADR-33 retraction - so a cleared answer resumes as unanswered rather than
- * resurfacing as a stale value.
+ * Walking the visible set, never the ledger, is what keeps a stored answer from ever
+ * disclosing a hidden question (SEC). An answer is absent when `latestAnswers` reports
+ * none, so a retracted answer resumes as unanswered rather than as a stale value.
  */
 function renderedQuestions(
   flow: FlowState,
   answers: AnswerMap,
   view: StepView,
   /**
-   * The live instances of the group that **paginates** this step, or an empty set when
-   * none does (task 076).
-   *
-   * It is the narrowing this view is, and it is deliberately per GROUP rather than per
-   * instance: a step may hold a `perInstanceStep` group beside a `stacked` one, and the
-   * stacked group's every instance belongs on every page of the paginated one. So an
-   * entry is dropped only when its instance is one of the paginating group's and is not
-   * the instance this page draws.
+   * The paginating group's live instances, per GROUP rather than per instance: a step may
+   * hold a `perInstanceStep` group beside a `stacked` one, and the stacked group's every
+   * instance belongs on every page of the paginated one.
    */
   paginated: ReadonlySet<InstanceId>,
 ): RenderedQuestions {
@@ -284,14 +212,9 @@ function renderedQuestions(
     ) {
       continue;
     }
-    // The ANSWER KEY, not the bare question id: a bare `questionId` outside every
-    // repeating group, byte-identical to what this always sent, and
-    // `instanceId/questionId` inside one (ADR-42, ADR-43). A rule targeting inside a
-    // group is evaluated once per live instance, so a member question can be visible
-    // in one instance and hidden in another, and only the qualified key can say
-    // which. Below this boundary that key is the field's WHOLE identity - the
-    // renderer's expansion, the `FieldBlur` wrapper's id, the `__qk__` markers, the
-    // BFF decoder and the error summary's anchors all key on one opaque string.
+    // A rule targeting inside a group is evaluated once per live instance, so a member
+    // question can be visible in one instance and hidden in another and only the
+    // qualified answer key can say which (ADR-42, ADR-43).
     const key = answerKey(entry.questionId, entry.instanceId);
     visibleQuestions.push(key);
     const held = answers.get(key);
@@ -301,14 +224,9 @@ function renderedQuestions(
 }
 
 /**
- * The missing-required set as answer keys.
- *
- * `FlowState.missingRequired` lists a **repeated** question once, because its shape is
- * frozen under `SEMANTICS_VERSION` and widening it would fail every committed golden
- * scenario (ADR-16's amendment, Q8). The per-instance detail is in the parallel
- * `missingRequiredInstances`, which is present exactly when the form has a group, so
- * this reads that when it is there and the original when it is not. A form with no
- * group therefore produces the identical array it always did.
+ * `FlowState.missingRequired` lists a repeated question once, because its shape is frozen
+ * under `SEMANTICS_VERSION`; the per-instance detail is in the parallel
+ * `missingRequiredInstances`, present exactly when the form has a group.
  */
 function missingRequiredKeys(flow: FlowState): string[] {
   const perInstance = flow.missingRequiredInstances;
@@ -316,7 +234,6 @@ function missingRequiredKeys(flow: FlowState): string[] {
   return perInstance.map((entry) => answerKey(entry.questionId, entry.instanceId ?? undefined));
 }
 
-/** The roster projection: the live instances per group, document order of the groups. */
 function rosterProjection(
   snapshot: LoadedSnapshot,
   rosters: RosterMap,
@@ -327,23 +244,11 @@ function rosterProjection(
   }));
 }
 
-/** One page of the flow: a step, and the instance it draws when it draws one. */
 interface StepView {
   readonly stepId: StepId;
   readonly instanceId: InstanceId | null;
 }
 
-/**
- * The ADR-28 cursor's page list (task 076, Q22).
- *
- * `visibleStepViews` is the kernel's own list and it is present exactly when the form
- * holds a repeating group (ADR-16's amendment keeps every repetition field optional, so
- * a form with no group produces a `FlowState` with no new key at all). For such a form
- * the view list is `visibleSteps` with a null instance on every entry, which is **the
- * same sequence the cursor indexed before this task**: one view per visible step, in
- * document order. That equality is what makes "a form with no repeating group is
- * unaffected" a property of this function rather than a claim about it.
- */
 function stepViewsOf(flow: FlowState): readonly StepView[] {
   const views = flow.visibleStepViews;
   if (views !== undefined) return views;
@@ -351,17 +256,9 @@ function stepViewsOf(flow: FlowState): readonly StepView[] {
 }
 
 /**
- * Which **view** this response draws, and its 0-based index among the views: the
- * explicit ADR-28 cursor when one is given (clamped to the view range), otherwise the
- * walk's own next page. `null` means nothing is drawn.
- *
- * The cursor indexes views and not steps (ADR-28 as amended 2026-09-29, Q22), so a
- * `perInstanceStep` group's three live instances are three cursor positions: Continue
- * advances one view, Back returns one, and the last view is where Submit appears. It
- * stays a 0-based index into a list **the server computed for this session on this
- * request**, which is what makes an out-of-range value refusable by arithmetic and an
- * in-range value a view the server had already decided was visible. A compound cursor
- * (`?step=3&instance=ins_7k2`) was weighed and refused for that reason.
+ * The cursor indexes views rather than steps (ADR-28), and it indexes a list the server
+ * computed for this session on this request: that is what makes an out-of-range value
+ * refusable by arithmetic and an in-range one a view the server had already made visible.
  */
 function renderTarget(
   flow: FlowState,
@@ -370,29 +267,16 @@ function renderTarget(
 ): { readonly view: StepView | null; readonly stepIndex: number } {
   const views = stepViewsOf(flow);
   if (requestedIndex === undefined) return servedView(flow, views, unopened);
-  // A degenerate flow with no visible steps: nothing to render.
   if (views.length === 0) return { view: null, stepIndex: 0 };
   const clamped = Math.min(requestedIndex, views.length - 1);
   return { view: views[clamped] ?? null, stepIndex: clamped };
 }
 
-/**
- * The groups a session still owes a mint, by id, and the steps that hold them.
- *
- * Assembled by the caller, which is the only place that can read the roster rows.
- */
 interface UnopenedGroups {
   readonly groupIds: ReadonlySet<GroupId>;
   readonly stepOf: ReadonlyMap<GroupId, StepId>;
 }
 
-/**
- * The first view, in document order, whose step holds a group this session has never
- * opened, or `null` when there is none (Q30's serve consequence).
- *
- * "In document order" is the view list's own order, which is the order a respondent walks
- * them in, so the earliest unopened step wins over a later one.
- */
 function firstUnopenedView(
   views: readonly StepView[],
   unopened?: UnopenedGroups,
@@ -409,71 +293,23 @@ function firstUnopenedView(
 }
 
 /**
- * The view served when no cursor was given: a resume, the **no-JS walk**, and the
- * 019/029 callers.
- *
- * `flow.currentStep` is unchanged and is still the authority on **which step** - the
- * first step with a missing required answer, else the first with an unanswered
- * question, else none. What this adds is which of that step's views, and the rule is the
- * ruled one (ADR-28's 2026-08-31 amendment, confirmed by the Code Owner 2026-09-29):
- * without scripting there is one readiness-labelled button and no Back, so the server
- * picks the page, and it picks **the first view whose instance is still incomplete**.
- * The respondent walks forward one button press at a time and never lands again on a
- * page they have finished.
- *
- * **When no instance is incomplete the last view of the step is served**, and that is a
- * reading rather than a ruling, so it is written down as one. The ruled sentence names
- * the first incomplete instance and is silent when there is none, which happens when the
- * step is still current for a reason outside the group: a plain question on it that is
- * still unanswered. The walk is forward-only on that path, so the honest place to stand
- * is its end; and the end is the one view carrying the group's Add control (task 076),
- * so an open group whose instances are all filled can still grow. Serving the first view
- * instead would show a finished page with no way to add.
+ * The view when no cursor was given: the first view whose instance is incomplete, so the
+ * no-JS walk never revisits a finished page. If all are complete, the LAST view, which
+ * carries the Add control.
  */
 function servedView(
   flow: FlowState,
   views: readonly StepView[],
   unopened?: UnopenedGroups,
 ): { readonly view: StepView | null; readonly stepIndex: number } {
-  // **A step the session has never opened is a candidate, and the EARLIER candidate wins**
-  // (Q30's serve consequence, Code Owner 2026-10-10).
-  //
-  // `currentStep` cannot nominate an unopened group's step: an unminted group contributes
-  // no visible question, so it is never in semantic 5's first tier, and a LATER step with
-  // a missing required answer wins. A fresh session would then open on "Step 2 of 2" with
-  // a Back button to a step it had never seen, with the group unminted and Submit on the
-  // page - which `checkRepeatCounts` refuses with `REPEAT_COUNT_OUT_OF_RANGE`.
-  //
-  // **The two candidates are compared in document order rather than ranked in tiers**, and
-  // that is a narrowing of the ruling's wording taken deliberately. Read as an
-  // unconditional first tier it reintroduces the same harm mirrored: a form whose plain
-  // required question comes FIRST and whose group comes second would open on step 2 of 2,
-  // skipping an unanswered question the respondent must still reach, and the no-JS walk
-  // would then send them backwards. Taking the earlier of the two candidates serves the
-  // ruling's purpose - a group-bearing first step is opened rather than skipped - in both
-  // shapes, and can never move a respondent further forward than the flow already did.
-  //
-  // The fix is here rather than in the kernel on purpose: semantic 5's tier order is
-  // frozen, so `currentStep` keeps `firstMissingRequiredStep ?? firstIncompleteStep` and
-  // the corpus and `SEMANTICS_VERSION` are untouched. What a cursor-less serve chooses is
-  // this surface's own decision, and this is the only place that makes it.
-  //
-  // It applies to a cursor-less serve alone: the first serve of a session and the no-JS
-  // path. An explicit cursor is never moved by it (see `renderTarget`), so Back and
-  // Continue are unaffected.
+  // An unopened group's step is a candidate too: `currentStep` cannot nominate it (no visible
+  // question until minted). Kept out of the kernel because `SEMANTICS_VERSION` is frozen.
   const owed = firstUnopenedView(views, unopened);
   const byFlow = currentStepView(flow, views);
   if (owed !== null && (byFlow.view === null || owed.stepIndex < byFlow.stepIndex)) return owed;
   return byFlow;
 }
 
-/**
- * The view the flow's own `currentStep` names: the step, and the first of its views whose
- * instance is still incomplete, else its last.
- *
- * This is what a cursor-less serve chose before Q30's serve consequence, and it is still
- * the answer whenever no unopened group's step comes earlier.
- */
 function currentStepView(
   flow: FlowState,
   views: readonly StepView[],
@@ -486,10 +322,8 @@ function currentStepView(
   });
   const last = onStep[onStep.length - 1];
   if (last === undefined) return { view: null, stepIndex: views.length };
-  // The per-instance detail behind `missingRequired`, present exactly when the form has
-  // a group (ADR-16's amendment, Q8). A view whose instance is named here still has work
-  // in it; `missingRequired` alone could not say which instance, which is why the
-  // parallel array exists.
+  // A view whose instance is named here still has work in it; `missingRequired` alone
+  // cannot say which instance, which is why the parallel array exists.
   const incomplete = new Set(
     (flow.missingRequiredInstances ?? [])
       .map((entry) => entry.instanceId)
@@ -504,30 +338,8 @@ function currentStepView(
 }
 
 /**
- * Project the kernel's `FlowState` to the client-safe response (SEC): the
- * RENDERED step's stored compiled document, the visible questions of that step,
- * the visible missing-required set, and progress. Nothing about hidden questions
- * or the rule graph crosses this boundary.
- *
- * `requestedIndex` is the explicit navigation cursor (ADR-28): the 0-based index
- * of the visible step the portal wants drawn. When present, the handler renders
- * exactly that visible step (clamped to the visible range) even when the flow as
- * a whole is complete, so a step never collapses or advances as a side effect of
- * answering (findings M/N). When absent (resume, no-JS, the 019/029 callers), the
- * first incomplete step is served - the original behaviour, unchanged.
- *
- * The cursor changes ONLY which document is drawn and the `visibleQuestions` /
- * `progress.stepIndex` that go with it. `flowState.currentStep`,
- * `missingRequired`, and `readyToSubmit` are always the authoritative,
- * cursor-independent flow projection - the portal reads them to gate
- * Continue/Submit and never re-derives them (R2).
- *
- * `values` carries the answers already held for the rendered step's visible
- * questions (issue #146), so a resumed session can DISPLAY what the server holds
- * instead of painting empty controls over it. They travel beside the compiled
- * document, never inside it (ADR-18), and they are display data only - no
- * decision moves client-side with them (R2). Answers to questions the flow hides
- * are excluded, so the hidden-flow property is unchanged (SEC).
+ * Nothing about hidden questions or the rule graph crosses this boundary (SEC). The cursor
+ * changes only the drawn document; `values` are display data beside it (ADR-18).
  */
 function project(
   snapshot: LoadedSnapshot,
@@ -541,9 +353,8 @@ function project(
 
   let step: StepResponse["step"] = null;
   let rendered: RenderedQuestions = { visibleQuestions: [], values: {} };
-  // Which group paginates the drawn step, and therefore which instance ids this view
-  // narrows away. Both halves travel to the client in `view` below, so the renderer
-  // draws one instance without deriving anything (R2).
+  // Both halves travel to the client in `view` below, so the renderer draws one instance
+  // without deriving anything (R2).
   const group = view === null ? undefined : paginatingGroup(snapshot, view.stepId);
   const paginated = new Set<InstanceId>(
     group === undefined ? [] : (rosters.get(group.groupId) ?? []),
@@ -552,7 +363,7 @@ function project(
   if (view !== null) {
     const document = snapshot.compiled.documents.find((doc) => doc.stepId === view.stepId);
     if (document === undefined) {
-      // Every step has one compiled document (011); a gap is an internal break.
+      // Every step has one compiled document; a gap is an internal break.
       throw new Error(`serve-step: no compiled document for visible step "${view.stepId}"`);
     }
     step = document;
@@ -570,29 +381,20 @@ function project(
       readyToSubmit: flow.complete,
     },
     rosters: rosterProjection(snapshot, rosters),
-    // The view this response draws (task 076, ADR-28 as amended 2026-09-29). Both keys
-    // are null for every page that is not a per-instance one, which is every page of
-    // every form with no `perInstanceStep` group.
+    // Both keys are null for every page that is not a per-instance one.
     view: {
       groupId: drawnInstance === null ? null : (group?.groupId ?? null),
       instanceId: drawnInstance,
     },
     // Views, not steps: a three-instance group is three pages and the indicator says
-    // three (ADR-28's amendment). For a form with no group this is `visibleSteps.length`
-    // exactly as before, because `stepViewsOf` returns one view per visible step.
+    // three (ADR-28).
     progress: { stepIndex, totalVisibleSteps: stepViewsOf(flow).length },
   };
 }
 
 /**
- * The group that paginates a step, when one does: the **first** `perInstanceStep` group
- * among the step's items.
- *
- * "First" is the kernel's own choice and this restates it rather than deciding it again
- * (`stepViews` in `packages/core/src/evaluate-rules.ts`). A step holding two of them is
- * not a shape any presentation has defined, and the kernel picks the first rather than
- * inventing a reading; the cursor has to agree with the list it indexes, so this reads
- * the same way. The two are pinned together by a test rather than by this comment.
+ * Taking the FIRST such group follows the kernel's own choice in `stepViews`: the cursor
+ * has to agree with the list it indexes.
  */
 function paginatingGroup(snapshot: LoadedSnapshot, stepId: StepId): RepeatGroup | undefined {
   const step = snapshot.frozen.definition.steps.find((candidate) => candidate.stepId === stepId);
@@ -603,21 +405,8 @@ function paginatingGroup(snapshot: LoadedSnapshot, stepId: StepId): RepeatGroup 
 }
 
 /**
- * Evaluate the flow with the live roster, minting whatever this request has made due,
- * and project it. The one call every serving path below makes.
- *
- * **Two evaluations, and the second is not waste.** Which step is rendered depends on
- * the flow, which depends on the roster; which groups are due to mint depends on which
- * step is rendered. So the flow is evaluated once against the roster as it stands, the
- * render target is read off it, the groups on that step (plus every `fromAnswer` group,
- * whose target follows a count answer written earlier) are minted, and the flow is
- * evaluated again against the roster that results. The second pass is skipped by
- * nothing and costs nothing measurable: the mint is idempotent, so a form with no
- * group mints nothing and the second evaluation is over the identical inputs.
- *
- * The caller owns the transaction and holds the session's advisory lock, because this
- * writes: two concurrent serves of one step would otherwise each see an empty roster
- * and each mint a full set.
+ * Two evaluations: the rendered step depends on the roster and the groups to mint depend on
+ * the step. The mint is idempotent. The caller holds the transaction and advisory lock.
  */
 async function projectWithRosters(
   exec: Parameters<typeof mintDueAndLoadRosters>[0],
@@ -627,47 +416,30 @@ async function projectWithRosters(
   requestedIndex?: number,
 ): Promise<StepResponse> {
   const steps = snapshot.frozen.definition.steps;
-  // Pass one is a READ, and it has to be. `occurred_at` defaults to `now()`, which in
-  // Postgres is the TRANSACTION's timestamp, so two mint statements in one transaction
-  // write rows that share a timestamp to the microsecond and the read's `instance_id`
-  // tiebreaker is what orders them. Minting exactly once per transaction is what keeps
-  // the order a mint intended and the order a later read returns the same thing (task
-  // 072's exit criterion, carried here because this is the caller that could break it).
+  // Pass one must be a READ: `now()` is the transaction timestamp, so two mints in one
+  // transaction share `occurred_at` and fall to the `instance_id` tiebreaker.
   const first = evaluateOrThrow(
     snapshot,
     answers,
     await liveRosters(exec, sessionId, snapshot, answers),
   );
-  // Which groups this session has never opened, and which step each one sits on. Read
-  // before the mint, because the mint is what makes the answer change (Q30's serve
-  // consequence, Code Owner 2026-10-10): a cursor-less serve prefers the first view whose
-  // step holds one, so that a group-bearing step is opened rather than skipped by a later
-  // step's missing required answer.
+  // Read before the mint, because the mint is what makes the answer change.
   const unopened = {
     groupIds: await groupsOwedAMint(exec, { sessionId, steps, answers }),
     stepOf: groupStepIndex(steps),
   };
   const renderStep = renderTarget(first, requestedIndex, unopened).view?.stepId ?? null;
-  // Pass two is the one write: whatever this request has made due, one statement per
-  // group, at most once per group.
   const rosters = await mintDueAndLoadRosters(exec, { sessionId, steps, renderStep, answers });
   const flow = evaluateOrThrow(snapshot, answers, rosters);
-  // Pass two's projection takes the SAME preference, so the view it draws is the view the
-  // mint was chosen for. Recomputing `groupsOwedAMint` after the write would say "nothing
-  // is owed" and send the response back to the step `currentStep` names, which is the
-  // step this preference exists to pass over.
+  // The projection reuses `unopened` rather than recomputing it, which after the write
+  // would say nothing is owed and send the response back to the step this passed over.
   return project(snapshot, flow, answers, rosters, requestedIndex, unopened);
 }
 
 /**
- * The live roster with **nothing minted**: what a visibility decision and a render
- * target are computed against before any write in this transaction.
- *
- * It is 072's read-only `loadRosters` under a local name so the call sites read as what
- * they are. Keeping it read-only is what makes "one mint pass per transaction" a
- * property of the code rather than of the order somebody happened to write two calls
- * in: a visibility check that minted would make the check's own inputs depend on the
- * check, and it would put a second mint statement under the same transaction timestamp.
+ * The live roster with nothing minted. Keeping it read-only is what makes "one mint pass
+ * per transaction" a property of the code: a visibility check that minted would make its
+ * own inputs depend on itself, under the same transaction timestamp.
  */
 async function liveRosters(
   exec: Parameters<typeof mintDueAndLoadRosters>[0],
@@ -678,7 +450,6 @@ async function liveRosters(
   return loadRosters(exec, sessionId, snapshot.frozen.definition.steps, answers);
 }
 
-/** Which step each repeating group sits on, by group id. */
 function groupStepIndex(steps: readonly FormDefinition["steps"][number][]): Map<GroupId, StepId> {
   const stepOf = new Map<GroupId, StepId>();
   for (const step of steps) {
@@ -689,25 +460,23 @@ function groupStepIndex(steps: readonly FormDefinition["steps"][number][]): Map<
   return stepOf;
 }
 
-/** The repeating group this id names in the pinned snapshot, or `undefined`. */
 function groupById(snapshot: LoadedSnapshot, groupId: string): RepeatGroup | undefined {
   return repeatGroups(snapshot.frozen.definition.steps).find(
     (group) => group.groupId === (groupId as GroupId),
   );
 }
 
-/** Authenticate and confirm the token binds the `id` in the path (SEC-2 §3). */
+/** The token must bind the `id` in the path: a session id alone grants nothing (SEC-2). */
 async function authorizedSessionId(c: Context<ApiEnv>, deps: Deps, id: string): Promise<SessionId> {
   const authedSessionId = await authenticateSession(c, deps);
   if (authedSessionId !== id) throw fail.crossSession();
-  // The token already bound this exact id, so parsing it cannot fail in
-  // practice; treat a failure as the same cross-session rejection, not a 500.
+  // The token already bound this id, so a parse failure is the same cross-session
+  // rejection rather than a 500.
   const parsed = parseSessionId(id);
   if (!parsed.ok) throw fail.crossSession();
   return parsed.value;
 }
 
-/** Load a session for a request, rejecting a missing / submitted / expired one. */
 async function loadActiveSession(
   request: RequestDatabase,
   id: SessionId,
@@ -722,11 +491,6 @@ async function loadActiveSession(
   return session;
 }
 
-/**
- * `GET /sessions/{id}/step`. Session-token authed. Serves the stored compiled
- * document for the current step and the flow projection - never a recompilation
- * (ADR-18).
- */
 export function makeGetStepHandler(deps: Deps): RouteHandler<typeof getStepRoute, ApiEnv> {
   return async (c) => {
     const { id } = c.req.valid("param");
@@ -737,14 +501,9 @@ export function makeGetStepHandler(deps: Deps): RouteHandler<typeof getStepRoute
     const session = await loadActiveSession(request, sessionId, deps.clock.now());
     const snapshot = await loadSnapshot(request, session);
 
-    // This read WRITES, and that is a consequence of the repeating group rather than
-    // a change of character: a `fixed` group mints its `count` and an `open` group
-    // mints `min` (or one) the first time its step is served, so the respondent sees a
-    // card to fill rather than an empty group with a button (ADR-42). The mint is
-    // idempotent against the rows it already wrote, so serving the same step twice
-    // mints nothing the second time; the transaction and the advisory lock are what
-    // stop two concurrent serves each minting a full set. A form with no repeating
-    // group writes nothing at all and this transaction is one lock and two reads.
+    // This read WRITES: a repeating group mints its instances the first time its step is
+    // served (ADR-42). The mint is idempotent, and the lock is what stops two concurrent
+    // serves each minting a full set.
     const projection = await request.exec.transaction(async (tx) => {
       await tx.execute(sql`select pg_advisory_xact_lock(hashtext(${sessionId}))`);
       const answers = await latestAnswers(tx, sessionId);
@@ -756,30 +515,9 @@ export function makeGetStepHandler(deps: Deps): RouteHandler<typeof getStepRoute
 }
 
 /**
- * `POST /sessions/{id}/answers`. Session-token authed. Validates one answer
- * against its pinned question version, appends it to the ledger, and returns the
- * re-evaluated projection. Ordering (task 019): session active → question
- * exists (`UNKNOWN_QUESTION`) → currently visible (`QUESTION_NOT_VISIBLE`) →
- * value valid (422) → append.
- *
- * A body `value` of literal `null` is a **retraction** (ADR-33, issue #95): the
- * same route, the same gates, but the ledger gets a tombstone append instead of
- * an answer and the question resolves to unanswered. It is a separate branch
- * taken before validation, never a validation outcome, so no real answer can
- * reach the ledger through it.
- *
- * `null` is the only clear. An **empty** value (`""` or `[]`) is not a second
- * spelling of it: the kernel refuses it (`EMPTY_ANSWER_NOT_ALLOWED`) and this
- * handler returns the same 422 it returns for any other invalid value, before
- * the append - so an empty post stores nothing and is never silently converted
- * into a tombstone (ADR-33 closed in issue #128's batch). A whitespace-only text
- * value is a legal answer and IS appended; it just confers no presence, so the
- * re-evaluated projection still reports the question in `missingRequired`.
- *
- * The visibility check, append, mark, and re-evaluation run inside one
- * transaction holding a per-session advisory lock, so concurrent submits are
- * serialized and the ledger's order is deterministic (I6: only legitimately
- * givable answers are recorded).
+ * A body `value` of literal `null` is a retraction (ADR-33), a separate branch from
+ * validation. An empty value is refused with the usual 422 and never becomes a tombstone.
+ * Visibility check, append and re-evaluation share one transaction under the lock (I6).
  */
 export function makeSubmitAnswerHandler(
   deps: Deps,
@@ -800,23 +538,14 @@ export function makeSubmitAnswerHandler(
       // Serialize answer writes for this session (deterministic ledger order).
       await tx.execute(sql`select pg_advisory_xact_lock(hashtext(${sessionId}))`);
 
-      // Currently visible? Evaluate against the latest answers AND the live roster
-      // under the lock, so the visibility decision matches what will be appended
-      // (I6). A repeated question is visible per instance, so the check is per cell.
+      // Evaluated against the latest answers AND the live roster under the lock, so the
+      // visibility decision matches what will be appended (I6). A repeated question is
+      // visible per instance, so the check is per cell.
       const before = await latestAnswers(tx, sessionId);
       const rosters = await liveRosters(tx, sessionId, snapshot, before);
       const beforeFlow = evaluateOrThrow(snapshot, before, rosters);
       if (!isCellVisible(beforeFlow, target)) throw fail.questionNotVisible();
 
-      // A literal `null` body value is a RETRACTION, not an answer (ADR-33): the
-      // respondent cleared a question they had answered. It appends a tombstone
-      // that `latestAnswers` resolves to unanswered, so the flow re-evaluates
-      // with the question missing (and a required one blocks Continue again).
-      // The kernel is never consulted, because a retraction is not an
-      // `AnswerValue` and has nothing to validate; equally, this branch can never
-      // record a value, so it is not a way to bypass validation for a real
-      // answer. It runs behind the same authorization, session, visibility and
-      // rate-limit gates as an answer write.
       const applied = await applyOneAnswer(tx, sessionId, before, target);
       if (applied !== undefined) throw applied;
 
@@ -829,13 +558,9 @@ export function makeSubmitAnswerHandler(
 }
 
 /**
- * One answer's target: the question, its pinned definition, the instance it belongs to
- * and the answer key those two make.
- *
- * Resolved OUTSIDE the transaction and before the lock, because it reads nothing but
- * the pinned snapshot: a body naming a question the form does not pin, or an instance
- * id that is not one, is refused before any state is touched. Whether the instance is
- * LIVE is a roster question and is answered under the lock, with visibility.
+ * Resolved outside the transaction and before the lock, because it reads nothing but the
+ * pinned snapshot. Whether the instance is LIVE is a roster question, answered under the
+ * lock with visibility.
  */
 interface AnswerTarget {
   readonly questionId: QuestionId;
@@ -850,7 +575,7 @@ function answerTarget(
   body: { questionId: string; instanceId?: string | undefined; value: unknown },
 ): AnswerTarget {
   // A malformed id can never name a pinned question, so it lands on the same
-  // UNKNOWN_QUESTION as one that simply is not in the form.
+  // UNKNOWN_QUESTION as one simply not in the form.
   const parsed = parseQuestionId(body.questionId);
   if (!parsed.ok) throw fail.unknownQuestion();
   const questionId = parsed.value;
@@ -874,12 +599,9 @@ function answerTarget(
 }
 
 /**
- * Whether this exact cell is visible: the question AND the instance.
- *
- * Instance-blind would be wrong in both directions. A rule targeting inside a group is
- * evaluated once per live instance, so a question visible in passenger 1 can be hidden
- * in passenger 2; and an answer naming an instance the roster no longer lists must be
- * refused rather than appended, or a removed instance could be answered.
+ * Instance-blind would be wrong both ways: a question visible in one instance can be
+ * hidden in another, and an answer naming an instance the roster no longer lists must be
+ * refused rather than appended.
  */
 function isCellVisible(flow: FlowState, target: AnswerTarget): boolean {
   return flow.visible.some(
@@ -888,13 +610,9 @@ function isCellVisible(flow: FlowState, target: AnswerTarget): boolean {
 }
 
 /**
- * Apply one answer to the ledger, or return the `ApiError` that refuses it.
- *
- * Returns rather than throws, because the batch endpoint below applies several and has
- * to record a refusal per entry without abandoning the rest. The single-answer handler
- * throws what it is handed, so its envelope is unchanged.
- *
- * The caller holds the lock and has already checked visibility.
+ * Returns the refusal rather than throwing it, because the batch endpoint has to record a
+ * refusal per entry without abandoning the rest. The caller holds the lock and has
+ * already checked visibility.
  */
 async function applyOneAnswer(
   tx: Parameters<typeof latestAnswers>[0],
@@ -902,15 +620,12 @@ async function applyOneAnswer(
   before: AnswerMap,
   target: AnswerTarget,
 ): Promise<ApiError | undefined> {
-  // A literal `null` body value is a RETRACTION, not an answer (ADR-33), and it
-  // names an instance too: it clears THAT CELL alone (ADR-33's Note, ADR-42). The
-  // kernel is never consulted, because a retraction is not an `AnswerValue` and has
-  // nothing to validate; equally this branch can never record a value, so it is not a
-  // way to bypass validation for a real answer.
+  // A literal `null` is a RETRACTION clearing that one cell (ADR-33, ADR-42). The kernel
+  // is never consulted, and this branch can never record a value, so it is not a way to
+  // bypass validation for a real answer.
   if (target.value === null) {
-    // Retracting a cell that currently has no answer is a no-op: the portal posts a
-    // clear on any commit of an empty control, and a tombstone over nothing records
-    // no event while adding ledger noise on every blur.
+    // Retracting a cell with no answer is a no-op: the portal posts a clear on any
+    // commit of an empty control, so a tombstone over nothing is ledger noise.
     if (before.has(target.key)) {
       await retractAnswer(tx, {
         sessionId,
@@ -922,10 +637,8 @@ async function applyOneAnswer(
     return undefined;
   }
 
-  // Validate the value against the pinned question version (009). On failure the
-  // kernel's full error list travels; the message names constraints and the value is
-  // never echoed (SEC-8). `""` and `[]` are refused here, never converted into a
-  // retraction, so an empty post stores nothing (ADR-33, issue #128).
+  // The error names constraints and never echoes the value (SEC-8). `""` and `[]` are
+  // refused here rather than converted into a retraction (ADR-33).
   const validated = validateAnswer(target.definition, target.value);
   if (!validated.ok) {
     return new ApiError("INVALID_ANSWER", 422, "The answer failed validation", {
@@ -946,49 +659,8 @@ async function applyOneAnswer(
 }
 
 /**
- * `POST /sessions/{id}/answers/batch`. Session-token authed. One Continue's answers,
- * in one request, under one session lock, with one flow evaluation (Q20, ADR-43).
- *
- * **Why it exists.** The no-JS path posts a whole step, and the portal made one
- * `POST /sessions/{id}/answers` per decoded answer, sequentially, each taking the
- * session's advisory lock and re-evaluating the whole flow. Nine passengers times six
- * questions is fifty-four round trips and fifty-four advisory locks for one Continue.
- *
- * **It carries a Continue's answers only.** The roster operation is its own post and
- * commits no answers, so the earlier claim that the batch makes the two one
- * transaction does not hold and is withdrawn (ADR-43).
- *
- * **Refusals are per entry, and that mirrors what the portal already did one call at a
- * time.** A 422 on one cell fills that cell's error slot and the remaining answers are
- * still applied, because a respondent who mistyped one field of nine passengers must
- * not lose the other fifty-three. `QUESTION_NOT_VISIBLE` is recorded the same way and
- * is not an error the respondent sees: a whole-step post carries fields rendered before
- * this round's answers changed a branch. What IS all-or-nothing is the **rate limit**:
- * a batch that cannot be paid for in full is refused before any entry is applied.
- *
- * **The rate limit is spent per ENTRY** from the same per-session answer bucket the
- * single-answer route spends from (SEC-16). It is spent before the transaction opens,
- * so a refused batch never takes the lock.
- */
-/**
- * The largest number of answers one step of this form can legitimately carry.
- *
- * For each repeating group on the step, the `max` its author declared times the questions
- * in it, plus every question on the step outside a group. That is the bound the Code Owner
- * sized the batch allowance to on 2026-10-02 (ruling Q29), and it is read from the PINNED
- * snapshot, so it is the author's own declaration rather than anything a caller can state.
- *
- * It is the whole FORM's largest step rather than the step the request names, and that is
- * deliberate: it is one number per form, it cannot be made larger by naming another step,
- * and a batch is refused by the step's own content anyway (every entry is resolved against
- * the snapshot and checked for visibility). Computing it per step would make the ceiling
- * depend on a `step` query parameter the caller supplies, which is a knob this does not
- * need to grow.
- *
- * A group whose `max` is absent cannot happen on a published form: `max` is required
- * (Q4/Q14), and `countBounds` is the one place that is read. An absent one would make the
- * bound the member count alone, which is the smallest honest answer rather than an
- * unbounded one.
+ * The most answers one step of this form can carry, from the PINNED snapshot. It is the
+ * whole form's largest step, so naming another step cannot raise the ceiling.
  */
 function stepAnswerBound(snapshot: LoadedSnapshot): number {
   const steps = snapshot.frozen.definition.steps;
@@ -1020,24 +692,21 @@ export function makeBatchAnswersHandler(
     const session = await loadActiveSession(request, sessionId, deps.clock.now());
     const snapshot = await loadSnapshot(request, session);
 
-    // Resolve every entry against the pinned snapshot before anything is spent or
-    // locked: an entry naming a question the form does not pin, or an id that is not
-    // an instance id, is drift rather than a respondent's mistake and refuses the
-    // whole request as the single-answer route does.
+    // Resolved before anything is spent or locked: an entry naming a question the form
+    // does not pin is drift rather than a respondent's mistake, and refuses the whole
+    // request as the single-answer route does.
     const targets = body.answers.map((entry) => answerTarget(snapshot, entry));
 
-    // Per ENTRY, not per request, and before the lock (SEC-16). The ceiling for one batch
-    // is the STEP's own bound (ruling Q29), so a valid step always fits whatever the
-    // installation's per-answer default is, and a request above the bound is refused.
+    // Per ENTRY, not per request, and before the lock, so a refused batch never takes it
+    // and is never partially applied (SEC-16).
     await spendAnswerAllowance(deps, sessionId, targets.length, stepAnswerBound(snapshot));
 
     const result = await request.exec.transaction(async (tx) => {
       await tx.execute(sql`select pg_advisory_xact_lock(hashtext(${sessionId}))`);
       const rejected: BatchAnswerResponse["rejected"] = [];
-      // One flow evaluation for the visibility decisions, against the state as the
-      // batch found it. That is the same reading the portal's fifty-four sequential
-      // calls could not agree on: each of those re-evaluated between writes, so a
-      // field's visibility could change under the batch it was posted with.
+      // One flow evaluation for every visibility decision, against the state as the
+      // batch found it, so a field's visibility cannot change under the batch it was
+      // posted with.
       let answers = await latestAnswers(tx, sessionId);
       const rosters = await liveRosters(tx, sessionId, snapshot, answers);
       const flow = evaluateOrThrow(snapshot, answers, rosters);
@@ -1061,8 +730,8 @@ export function makeBatchAnswersHandler(
           continue;
         }
         // Re-read so a later entry's retraction sees this one's write: two entries can
-        // name the same cell (a respondent who cleared and refilled it), and "does the
-        // ledger hold this cell" is what decides whether a clear appends at all.
+        // name the same cell, and whether the ledger holds it is what decides whether a
+        // clear appends at all.
         answers = await latestAnswers(tx, sessionId);
       }
       const projection = await projectWithRosters(
@@ -1080,34 +749,8 @@ export function makeBatchAnswersHandler(
 }
 
 /**
- * `POST /sessions/{id}/roster`. Session-token authed. The respondent's Add or Remove
- * (ADR-43).
- *
- * **It applies the roster operation and commits NO answers**, and that is the ruling
- * of 2026-09-30 rather than an implementation choice. The typed values ride the step
- * POST, are carried back for the re-render, and reach the ledger only on Continue under
- * the ordinary validation an ordinary Continue does. That is what makes
- * `formnovalidate` on the Add and Remove buttons safe rather than merely convenient,
- * and it is why `docs/portal-constraints.md`'s "a required question cannot be CLEARED
- * without scripting" bullet is unchanged: an emptied required field on an Add post is
- * not a retraction, because no answer write happens at all.
- *
- * **The one-time operation token makes a replay a no-op.** The rendered page minted it
- * into the button's value; `applyRosterOp` records it with the row it writes and
- * returns `replayed: true` for a token already spent, so a reload of the 200 re-render
- * or a Back that resubmits re-renders the same instances. A **refused** Add records
- * nothing, so a refusal cannot be replayed into an acceptance either.
- *
- * It has its own rate limit beside the answer write (SEC-16), and it rides the same
- * origin belt, because the roster operation IS a step POST (SEC-9).
- */
-/**
- * One roster refusal onto this surface's error envelope.
- *
- * A function rather than a ternary because there are three outcomes now and a ternary
- * silently folds an unmapped code onto whichever branch is last: the removal check added
- * in review of PR #1034 would have been reported as `REPEAT_NOT_ADDABLE`, which says the
- * group's size is not the respondent's to change, about a group where it is.
+ * A function rather than a ternary, because a ternary silently folds an unmapped code
+ * onto whichever branch is last and would report it as `REPEAT_NOT_ADDABLE`.
  */
 function rosterRefusal(code: RosterRefusalCode): ApiError {
   if (code === "REPEAT_MAX_REACHED") return fail.maxReached();

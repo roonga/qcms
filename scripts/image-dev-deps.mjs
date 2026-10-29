@@ -1,67 +1,8 @@
 // @ts-check
 /**
- * The dev-dependency boundary of a production image, asserted from its SBOM (issue #877).
- *
- * ## The defect this exists to catch
- *
- * The `qcms-api` image's SBOM listed 680 npm packages, among them `vitest`,
- * `@vitest/runner`, `@playwright/test`, `playwright`, `testcontainers`, `esbuild`,
- * `next` and `react`. Nothing in that tooling runs in the container. It inflated the
- * image and, worse, widened the surface every scheduled `pnpm audit` and SBOM scan
- * reports on, which contradicts the "the runtime stage is what is scanned" property
- * the front-end images have (SEC-11, `docs/SECURITY_DESIGN.md` §9).
- *
- * The cause was not a manifest mistake. `pnpm deploy --prod` does exactly what it
- * documents - "packages in `devDependencies` won't be installed" - and the deployed
- * tree's top-level `node_modules` held prod dependencies only. The test tooling
- * arrived through **resolved optional peer dependencies**: `better-auth@1.7.10`
- * declares optional peers on `vitest`, `next`, `react`, `react-dom` and `drizzle-kit`,
- * `next` declares one on `@playwright/test`, and `@roonga/qcms-db` declares them on
- * `testcontainers` and `@testcontainers/postgresql`. pnpm records each satisfied
- * optional peer under that snapshot's `optionalDependencies` in `pnpm-lock.yaml`, and
- * `--prod` prunes `devDependencies`, not `optionalDependencies`. So every
- * lockfile-honouring install put the whole tree back. `--no-optional` is the flag that
- * removes them (`docker/api.Dockerfile`).
- *
- * ## Why the gate is derived rather than a list of forbidden names
- *
- * A list of names is a list of the packages that were wrong once. The property worth
- * holding is "nothing that exists in this workspace only to develop it reaches a
- * published image", and that set is already written down: it is every name under a
- * `devDependencies` block of every workspace manifest, less every name any manifest
- * declares as a production dependency. Derived that way, adding a dev tool extends the
- * gate for free and moving one into `dependencies` narrows it deliberately, in a diff
- * a reviewer sees.
- *
- * **What that boundary deliberately does not cover.** A package some other workspace
- * package declares as a production dependency is not in the dev set, so `next` and
- * `react` - production dependencies of the two front ends - are outside this gate's
- * reach even in the API image, where they have no business. Fixing that needs the
- * lockfile's resolved closure per image rather than the manifests, and a second
- * implementation of pnpm's resolution is a worse bargain than this gate plus the
- * `--no-optional` boundary that removes them at the source. What the gate does cover
- * is where the test tooling lives: `vitest`, `@playwright/test`, `testcontainers`,
- * `@testcontainers/postgresql`, `drizzle-kit`, `typescript`, `eslint` and the rest are
- * dev-only everywhere in this workspace.
- *
- * **The one exemption, and why it is not a workaround.** `@types/*` packages are
- * excluded. They are dev-only in every workspace manifest and they are also genuine
- * `dependencies` of production packages upstream: `@opentelemetry/instrumentation-pg`
- * declares `@types/pg`, and `@types/pg` and `protobufjs` declare `@types/node`. No
- * install flag removes a declared runtime dependency, so a gate that failed on them
- * would be a gate nobody could make green. It costs nothing to exempt them: a
- * DefinitelyTyped package ships `.d.ts` files, a README and a LICENSE and no
- * executable code at all (verified on the pruned tree: 2.7 MB across the three, not
- * one non-declaration file), so there is no code path to reach and no advisory to
- * carry. Any OTHER name that turns up in this position is a finding, not an exemption
- * to widen.
- *
- * ## Why the SBOM is the input
- *
- * The build already generates one and already fails without it (task 036), so reading
- * the SBOM asks the question of the artifact an adopter receives rather than of a
- * directory listing on the builder. It also needs no container to run: an OCI
- * directory on disk answers it.
+ * `pnpm deploy --prod` prunes `devDependencies` but not `optionalDependencies`; `--no-optional` removes
+ * them (`docker/api.Dockerfile`). The dev set is derived from the manifests, not listed. It does not
+ * reach a package another workspace package declares as a production dependency.
  */
 
 import { existsSync, readFileSync } from "node:fs";
@@ -71,13 +12,8 @@ import { expandGlobs, parseWorkspaceGlobs } from "./check-changeset.mjs";
 import { REPOSITORY_ROOT } from "./docker.mjs";
 
 /**
- * Every workspace manifest, the root's included.
- *
- * The globs come from `pnpm-workspace.yaml` through the reader the changeset gate
- * already owns, so a new workspace directory is covered here the moment pnpm sees it.
- *
  * @param {string} [root]
- * @returns {string[]} repo-relative, posix-separated manifest paths.
+ * @returns {string[]}
  */
 export function workspaceManifestPaths(root = REPOSITORY_ROOT) {
   const globs = parseWorkspaceGlobs(readFileSync(join(root, "pnpm-workspace.yaml"), "utf8"));
@@ -89,22 +25,16 @@ export function workspaceManifestPaths(root = REPOSITORY_ROOT) {
   return paths;
 }
 
-/** Declaration-only packages: the one exemption, explained in the header. */
+/**
+ * The one exemption: production packages upstream declare these as real dependencies,
+ * so no install flag removes them, and they ship no executable code to reach.
+ */
 const TYPES_SCOPE = "@types/";
 
 /**
- * The names that exist in this workspace only to develop it.
- *
- * A name is dev-only when some manifest lists it under `devDependencies` and no
- * manifest lists it under `dependencies` or `optionalDependencies`. `peerDependencies`
- * is deliberately NOT an exemption: `@roonga/qcms-db` declares `testcontainers` and
- * `@testcontainers/postgresql` as optional peers so that a consumer can supply them
- * for `@roonga/qcms-db/testing`, which is precisely the pair the API image was found
- * carrying. Treating a peer as production would exempt the defect.
- *
- * `@types/*` is the single exemption, for the reason the header records: those are
- * declaration-only packages that production packages upstream declare as real
- * dependencies, so they are neither removable nor a surface.
+ * `peerDependencies` is deliberately not an exemption: the pair the API image was found
+ * carrying is declared exactly that way, so treating a peer as production would exempt
+ * the defect.
  *
  * @param {string} [root]
  * @returns {Set<string>}
@@ -127,22 +57,14 @@ export function devOnlyDependencies(root = REPOSITORY_ROOT) {
   return dev;
 }
 
-/** The purl scheme for an npm package, which is the only ecosystem this gate reads. */
 const NPM_PURL = "pkg:npm/";
 
 /**
- * The npm packages an SBOM lists, as `{ name, version }`.
+ * Accepts the in-toto statement buildx attaches or the SPDX document inside it. The
+ * name comes from the purl, not SPDX's `name` field: the purl is unambiguous about the
+ * ecosystem and round-trips a percent-encoded scoped name.
  *
- * The input is either the in-toto statement buildx attaches or the SPDX document
- * inside it, because the two callers hold different halves: a saved attestation file
- * is the statement, and a test fixture is easier to write as the document.
- *
- * The name comes from the purl rather than from SPDX's own `name` field. A purl is
- * unambiguous about the ecosystem - the base image's Debian packages carry
- * `pkg:deb/...` and share the field otherwise - and it round-trips a scoped name,
- * which syft percent-encodes as `pkg:npm/%40vitest/runner@4.1.11`.
- *
- * @param {any} document an in-toto SPDX statement, or the SPDX document itself.
+ * @param {any} document
  * @returns {{ name: string, version: string }[]}
  */
 export function sbomNpmPackages(document) {
@@ -154,8 +76,7 @@ export function sbomNpmPackages(document) {
       const locator = reference.referenceLocator;
       if (typeof locator !== "string" || !locator.startsWith(NPM_PURL)) continue;
       const purl = decodeURIComponent(locator.slice(NPM_PURL.length)).split("?")[0];
-      // A scoped name carries one `/` and a version is introduced by the LAST `@`,
-      // so splitting on the last `@` is the only split that works for both shapes.
+      // A scoped name carries its own `@`, so only a split on the last one works.
       const at = purl.lastIndexOf("@");
       const name = at > 0 ? purl.slice(0, at) : purl;
       packages.push({ name, version: at > 0 ? purl.slice(at + 1) : "" });
@@ -166,11 +87,9 @@ export function sbomNpmPackages(document) {
 }
 
 /**
- * The dev-only packages an SBOM lists, deduplicated and sorted.
- *
- * @param {any} document an in-toto SPDX statement, or the SPDX document itself.
+ * @param {any} document
  * @param {Set<string>} devOnly
- * @returns {string[]} `name@version` for each offender.
+ * @returns {string[]}
  */
 export function devPackagesInSbom(document, devOnly) {
   const found = new Set();
@@ -181,14 +100,11 @@ export function devPackagesInSbom(document, devOnly) {
 }
 
 /**
- * Fail when an image's SBOM lists a package this workspace only develops with.
+ * An SBOM listing no npm package at all fails rather than passing vacuously: that is
+ * how this gate would otherwise go quietly green after a syft field change.
  *
- * An SBOM with no npm packages at all FAILS rather than passing vacuously. That is the
- * failure mode a check like this dies of: syft changes a field, the extraction returns
- * nothing, and a gate that reads "no offenders found" goes quietly green forever.
- *
- * @param {any} document an in-toto SPDX statement, or the SPDX document itself.
- * @param {string} name the image, for the message.
+ * @param {any} document
+ * @param {string} name
  * @param {string} [root]
  */
 export function assertNoDevDependencies(document, name, root = REPOSITORY_ROOT) {

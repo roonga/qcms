@@ -1,29 +1,3 @@
-/**
- * The membership surface against a real Postgres (task 069, ADR-41, SEC-15). Requires
- * Docker.
- *
- * Driven through `app.request()` with real admin sessions, because what these tests are
- * about is what several tables say together: a grant is a `team` row, a `teamMember` row
- * and a `member` row, and every write of one is also a SEC-15 row. A fake database would
- * be asserting the fake.
- *
- * Which criteria live here: **7** (the membership list's readership and the capability
- * endpoint), **9** (the configuration guards against the running instance), **12** and
- * **13** (the name rules, including the one proved by editing a name **through the
- * database**), **14** (the plugin's before-hook rules, one at a time), **15** (both Q39
- * fields), **16** (the plugin's own write endpoints refused for everyone), **17** (every
- * grant holder's `member` row), **19** to **21** (Q56's audit rows and the self-grant
- * rule) and **22** (Q57's setting and its `setting` row).
- *
- * Criteria **1** to **6** are the pure matrix walk in `policy.test.ts` and the HTTP walk
- * in `apps/api/e2e/security/01-authorization-matrix.e2e.ts`; **8** is the response slice's
- * (`../responses/admin/responses.integration.test.ts`); **10** and **11** are the e2e
- * suite's and `route-policy.test.ts`'; **18** is the environment command's
- * (`packages/db/src/environment/command.integration.test.ts`); and 21's no-`RETURNING`
- * half is asserted as `qcms_app_<env>` in `03-db-least-privilege.e2e.ts`, which is the
- * only place the roles exist.
- */
-
 import { eq, sql } from "drizzle-orm";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 
@@ -59,32 +33,18 @@ const ADMIN_ONLY = { public: false, internal: false, admin: true } as const;
 
 let testDb: TestDb;
 let deps: Deps;
-/** A second composition, for the undecided-route probe. */
 let undecidedApp: ReturnType<typeof createApp>;
 let app: ReturnType<typeof createApp>;
 let internalToken: string;
 
-/** The owner this suite acts as: `forms.owner` on the seeded workspace, and the claim. */
 let ownerToken: string;
 let ownerId: string;
-/** A second owner, for Q56's "a second `forms.owner` confirms". */
 let secondOwnerToken: string;
 let secondOwnerId: string;
-/** An account holding one authoring grant and no ownership: everybody else. */
 let editorToken: string;
 let editorId: string;
-/** An account with a member row carrying the empty role and nothing else (criterion 17). */
 let nobodyToken: string;
 
-/**
- * An admin route the matrix has never heard of, mounted on its own app.
- *
- * It exists to answer one question at runtime rather than by inspection: what does a
- * deployment do with an admin route nobody declared who may call? The route table's unit
- * test keeps the shipped set complete, but a build somebody patched, or a route added in a
- * branch where that test was not run, is exactly the case the refusal is for - and the
- * first version served it (PR #1061's review, S2).
- */
 const registerUndecidedRoute: SliceRegistrar = (group): void => {
   // Group-relative: the admin group is mounted at `/admin`, so this serves
   // `/admin/not-in-the-matrix`.
@@ -125,9 +85,8 @@ beforeAll(async () => {
   secondOwnerToken = second.token;
   secondOwnerId = second.userId;
 
-  // **No installation claim**, which is what makes this account's refusals about its
-  // grants: the claim administers memberships across every workspace (Q29), so a fixture
-  // that left it on would be asserting the claim rather than the role.
+  // No installation claim: the claim administers memberships across every workspace, so
+  // leaving it on would make this account's refusals about the claim and not its grants.
   const editor = await seedAdminSession(testDb.db, {
     label: "editor",
     owner: false,
@@ -137,9 +96,6 @@ beforeAll(async () => {
   editorToken = editor.token;
   editorId = editor.userId;
 
-  // No team at all, and a member row carrying the empty role. The caller criterion 17 is
-  // about: the row grants nothing, so this account reaches exactly what an administrator
-  // with no grant reaches.
   const nobody = await seedAdminSession(testDb.db, {
     label: "nobody",
     owner: false,
@@ -148,8 +104,8 @@ beforeAll(async () => {
   });
   nobodyToken = nobody.token;
 
-  // A third environment, so Q42's combined-set ordering has a set to be out of order:
-  // the shipped set is `test` then `prod`, and `dev` lands third.
+  // A third environment, so the combined-set ordering cases have a set to be out of
+  // order: the shipped set is `test` then `prod`, and `dev` lands third.
   await createEnvironment(testDb.db, { name: "dev" });
 }, CONTAINER_BOOT_TIMEOUT_MS);
 
@@ -173,7 +129,6 @@ async function as(token: string, method: string, path: string, body?: unknown): 
   });
 }
 
-/** The owner's own requests, which is most of them. */
 async function send(method: string, path: string, body?: unknown): Promise<Response> {
   return as(ownerToken, method, path, body);
 }
@@ -196,7 +151,6 @@ interface GroupBody {
   };
 }
 
-/** Create one access group in the seeded workspace and answer its id. */
 async function createGroup(body: {
   name: string;
   role: string;
@@ -209,12 +163,9 @@ async function createGroup(body: {
   return ((await res.json()) as GroupBody).group.teamId;
 }
 
-/** The audit rows this workspace holds, by kind. The count criteria 19 and 8 assert. */
 async function auditCounts(): Promise<Readonly<Record<string, number>>> {
   return countAccessAuditByKind(testDb.db, SEED_WORKSPACE_ID);
 }
-
-// --- criterion 7: who sees the list, and the capability endpoint -------------
 
 describe("the membership list and the capability endpoint (criterion 7, Q35)", () => {
   it("serves the membership list to an owner, with the groups each member holds", async () => {
@@ -225,8 +176,6 @@ describe("the membership list and the capability endpoint (criterion 7, Q35)", (
     };
     const owner = body.members.find((member) => member.userId === ownerId);
     expect(owner?.role).toBe("forms.owner");
-    // Finding 17's point: the access is visible rather than inferred, so the list carries
-    // the grants and not only the member rows.
     expect(owner?.groups).toContain("all.responses.viewer");
     const editor = body.members.find((member) => member.userId === editorId);
     expect(editor?.role).toBe("member");
@@ -234,9 +183,6 @@ describe("the membership list and the capability endpoint (criterion 7, Q35)", (
   });
 
   it("refuses the membership list to a grant holder who is not an owner", async () => {
-    // "An administrator does not need to see who else can read a form in order to do
-    // their own job, and in a deployment where departments share an installation the
-    // membership list is itself information about another department."
     const res = await as(editorToken, "GET", `/workspaces/${SEED_WORKSPACE_ID}/members`);
     expect(res.status).toBe(403);
     expect((await res.json()) as ErrorBody).toMatchObject({ error: { code: "FORBIDDEN" } });
@@ -259,10 +205,7 @@ describe("the membership list and the capability endpoint (criterion 7, Q35)", (
     const workspace = body.workspaces.find((w) => w.workspaceId === SEED_WORKSPACE_ID);
     expect(workspace?.grants.map((grant) => grant.role)).toEqual(["forms.editor"]);
     expect(workspace?.memberRole).toBe("member");
-    // The Q6 switcher offers only the environments the caller holds in some grant, with
-    // `all` expanded against the live set rather than returned as a token.
     expect(workspace?.environments).toEqual(["test", "prod", "dev"]);
-    // Nothing in the answer names another account.
     expect(JSON.stringify(body)).not.toContain(ownerId);
   });
 
@@ -276,8 +219,6 @@ describe("the membership list and the capability endpoint (criterion 7, Q35)", (
     expect(body.workspaces[0]?.memberRole).toBe("member");
   });
 });
-
-// --- criterion 17: the member row every grant holder carries -----------------
 
 describe("every grant holder carries a `member` row with the empty role (criterion 17)", () => {
   it("writes one when a grant is created for somebody with none", async () => {
@@ -313,8 +254,6 @@ describe("every grant holder carries a `member` row with the empty role (criteri
   });
 
   it("grants nothing on its own: that account reaches what no grant reaches", async () => {
-    // The same refusal an administrator with no membership at all gets, which is the
-    // comparison criterion 17 asks for.
     const withRow = await as(nobodyToken, "GET", `/workspaces/${SEED_WORKSPACE_ID}/members`);
     const withoutRow = await (async () => {
       const stranger = await seedAdminSession(testDb.db, {
@@ -328,8 +267,6 @@ describe("every grant holder carries a `member` row with the empty role (criteri
     expect(withoutRow.status).toBe(403);
   });
 });
-
-// --- criteria 12 and 13: the names ------------------------------------------
 
 describe("access-group names (criteria 12 and 13, Q37 and Q42)", () => {
   it("refuses a duplicate stored name in one workspace and accepts it in another", async () => {
@@ -350,7 +287,6 @@ describe("access-group names (criteria 12 and 13, Q37 and Q42)", () => {
       error: { code: "ACCESS_GROUP_NAME_TAKEN" },
     });
 
-    // Uniqueness is **per workspace**, which is the other half criterion 12 asks for.
     const other = await send("POST", "/workspaces", { name: "Other", slug: "other-names" });
     expect(other.status).toBe(201);
     const otherId = ((await other.json()) as { workspace: { workspaceId: string } }).workspace
@@ -365,8 +301,7 @@ describe("access-group names (criteria 12 and 13, Q37 and Q42)", () => {
   });
 
   it("refuses a combined set out of the environments table's order, naming the one spelling", async () => {
-    // Q42, moved here from task 064 because 064's command writes no set. The live order
-    // is `test`, `prod`, `dev`, so `dev-test` is NOT the spelling - `test-dev` is.
+    // The live order is `test`, `prod`, `dev`, so `test-dev` is the one spelling.
     const refused = await send("POST", `/workspaces/${SEED_WORKSPACE_ID}/access-groups`, {
       name: "dev-test.responses.viewer",
       role: "responses.viewer",
@@ -385,7 +320,6 @@ describe("access-group names (criteria 12 and 13, Q37 and Q42)", () => {
       forms: ["all"],
     });
     expect(accepted.status, await accepted.clone().text()).toBe(201);
-    // Normalised on write, so there is one stored spelling of one grant.
     expect(((await accepted.json()) as GroupBody).group.environments).toEqual(["test", "dev"]);
   });
 
@@ -412,7 +346,6 @@ describe("access-group names (criteria 12 and 13, Q37 and Q42)", () => {
     expect(res.status).toBe(400);
     const body = (await res.json()) as ErrorBody;
     expect(body.error.code).toBe("ACCESS_GROUP_NAME_INVALID");
-    // The refusal names the name the fields imply, because the fields are authoritative.
     expect(body.error.message).toContain("prod.responses.viewer");
   });
 
@@ -426,21 +359,15 @@ describe("access-group names (criteria 12 and 13, Q37 and Q42)", () => {
     const group = body.groups.find((g) => g.name === "test.responses.viewer");
     expect(group?.fullName).toBe("default.test.responses.viewer");
     expect(group?.directoryName).toBe("qcms.default.test.responses.viewer");
-    // The stored row carries neither derived form.
     const stored = await testDb.db
       .select({ name: authTeam.name })
       .from(authTeam)
       .where(eq(authTeam.name, "test.responses.viewer"));
     expect(stored[0]?.name).toBe("test.responses.viewer");
-    // And the sentence that goes beside the scope chooser comes from the API, so the
-    // statement about the matrix lives where the matrix is enforced.
     expect(body.scopeNote).toContain("dev and test in effect");
   });
 
   it("leaves the permission unchanged when a name is made wrong through the database (criterion 13)", async () => {
-    // The assertion the work order singles out: **the fields decide**. An implementation
-    // that parsed a name anywhere on an authorisation path fails here even though every
-    // name in the installation is correct until this test breaks one.
     const teamId = await createGroup({
       name: "prod.forms.approver",
       role: "forms.approver",
@@ -463,7 +390,6 @@ describe("access-group names (criteria 12 and 13, Q37 and Q42)", () => {
     const held = beforeBody.workspaces[0]?.grants.find((g) => g.role === "forms.approver");
     expect(held?.environments).toEqual(["prod"]);
 
-    // A name nothing agrees with, written straight to the row.
     await testDb.db
       .update(authTeam)
       .set({ name: "all.responses.eraser.wrong" })
@@ -474,13 +400,11 @@ describe("access-group names (criteria 12 and 13, Q37 and Q42)", () => {
       workspaces: { grants: { name: string; role: string; environments: string[] }[] }[];
     };
     const stillHeld = afterBody.workspaces[0]?.grants.find((g) => g.role === "forms.approver");
-    // The role and the scope are exactly what they were: the name moved and the grant
-    // did not.
     expect(stillHeld?.role).toBe("forms.approver");
     expect(stillHeld?.environments).toEqual(["prod"]);
     expect(stillHeld?.name).toBe("all.responses.eraser.wrong");
 
-    // Put it back, so the suite's other cases read a workspace whose names are in step.
+    // Put back, so the suite's other cases read a workspace whose names are in step.
     await testDb.db
       .update(authTeam)
       .set({ name: "prod.forms.approver" })
@@ -488,12 +412,8 @@ describe("access-group names (criteria 12 and 13, Q37 and Q42)", () => {
   });
 });
 
-// --- criterion 15: both Q39 fields ------------------------------------------
-
 describe("the two Q39 fields behave as declared (criterion 15)", () => {
   it("accepts no `externalGroupId` on any request body", async () => {
-    // `z.strictObject` refuses the key rather than stripping it (#893), so a caller who
-    // thought they had set the directory mapping's join key is told they did not.
     const res = await send("POST", `/workspaces/${SEED_WORKSPACE_ID}/access-groups`, {
       name: "prod.forms.viewer",
       role: "forms.viewer",
@@ -533,8 +453,6 @@ describe("the two Q39 fields behave as declared (criterion 15)", () => {
       .where(eq(authTeam.id, (first as { teamId: string }).teamId));
   });
 });
-
-// --- criterion 22 and the seed grant: Q57 -----------------------------------
 
 describe("the seed setting, its audit row and what it grants (criterion 22, Q57)", () => {
   it("defaults off, so onboarding an editor creates nothing beside the editor grant", async () => {
@@ -585,8 +503,6 @@ describe("the seed setting, its audit row and what it grants (criterion 22, Q57)
     ).rows;
     expect(rows).toHaveLength(1);
     const row = rows[0] as { environment: null; formId: null; detail: string };
-    // Q61: `environment` and `form` are empty unless the act names one, and the setting's
-    // name and its new value go in the detail.
     expect(row.environment).toBeNull();
     expect(row.formId).toBeNull();
     expect(row.detail).toContain("setting=seedNewEditorsWithTestData");
@@ -621,8 +537,6 @@ describe("the seed setting, its audit row and what it grants (criterion 22, Q57)
       ).status,
     ).toBe(201);
 
-    // Visible in the list like any other group (finding 17), scoped to `dev` and `test`
-    // in the live set's order, and with its own audit row.
     const groups = await listAccessGroups(testDb.db, workspaceId);
     const seeded = groups.find((group) => group.role === "responses.viewer");
     expect(seeded?.name).toBe("test-dev.responses.viewer");
@@ -634,8 +548,6 @@ describe("the seed setting, its audit row and what it grants (criterion 22, Q57)
   });
 });
 
-// --- criteria 19 to 21: Q56 -------------------------------------------------
-
 describe("every grant and every revoke writes a SEC-15 row (criterion 19, Q56)", () => {
   it("counts one row per grant and one per revoke, and none without", async () => {
     const before = await auditCounts();
@@ -646,7 +558,7 @@ describe("every grant and every revoke writes a SEC-15 row (criterion 19, Q56)",
       forms: ["frm_claims"],
       label: "claims",
     });
-    // Creating a group grants nobody anything, so there is nothing to record yet.
+    // A group with no holders grants nobody anything, so there is nothing to record yet.
     expect((await auditCounts()).grant ?? 0).toBe(before.grant ?? 0);
 
     const subject = await seedAdminSession(testDb.db, { label: "claims", membership: false });
@@ -697,8 +609,6 @@ describe("every grant and every revoke writes a SEC-15 row (criterion 19, Q56)",
     expect(narrow?.environment).toBe("prod");
     expect(narrow?.detail).toContain("environments=prod");
     const all = rows.find((row) => row.detail.includes("all.forms.viewer.q61"));
-    // A grant scoped to `all` names no environment, so the column is empty and the scope
-    // is in the detail.
     expect(all?.environment).toBeNull();
     expect(all?.detail).toContain("environments=all");
   });
@@ -725,8 +635,6 @@ describe("every grant and every revoke writes a SEC-15 row (criterion 19, Q56)",
       `/workspaces/${SEED_WORKSPACE_ID}/access-groups/${teamId}`,
     );
     expect(removed.status).toBe(204);
-    // The plugin's own delete would have run this cascade below any hook, leaving both
-    // removals invisible. Here it originates at a QCMS endpoint, so each is a row.
     expect((await auditCounts()).revoke ?? 0).toBe(before + 2);
   });
 
@@ -764,9 +672,6 @@ describe("every grant and every revoke writes a SEC-15 row (criterion 19, Q56)",
 
 describe("the self-grant rule (criteria 20 and 21, Q56)", () => {
   it("allows and audits a self-grant with the switch off", async () => {
-    // The case that keeps a one-account installation able to read its own responses: an
-    // unconditional refusal would leave it unable to, and the first thing its operator
-    // would learn about this control is how to get round it.
     const teamId = await createGroup({
       name: "test.responses.viewer.self",
       role: "responses.viewer",
@@ -811,7 +716,6 @@ describe("the self-grant rule (criteria 20 and 21, Q56)", () => {
       error: { code: "SELF_GRANT_REFUSED" },
     });
 
-    // A second `forms.owner` makes the grant, which is the confirmation in one act.
     await seedGrants(testDb.db, { userId: secondOwnerId, workspaceId, grants: [] });
     const confirmed = await as(
       secondOwnerToken,
@@ -823,9 +727,6 @@ describe("the self-grant rule (criteria 20 and 21, Q56)", () => {
   });
 
   it("refuses an authoring self-grant never, because the rule is about response data", async () => {
-    // Q56 names `responses.*`. A `forms.editor` self-grant is not a grant on personal
-    // data and is allowed whatever the switch says, which is what keeps the rule about
-    // the thing it is about.
     const workspace = await send("POST", "/workspaces", {
       name: "Authoring",
       slug: "authoring-self",
@@ -847,17 +748,13 @@ describe("the self-grant rule (criteria 20 and 21, Q56)", () => {
   });
 
   it("applies the same rule to the installation administrator", async () => {
-    // "The installation administrator follows the same rule", so the claim is not a way
-    // around it. This suite's owner holds the claim (`user.role` is `admin`), and the
-    // refusal above is that account's.
+    // The refusal above was this account's, and this is what says it holds the claim.
     const claimHolder = await as(ownerToken, "GET", "/me/access");
     expect(((await claimHolder.json()) as { installationAdmin: boolean }).installationAdmin).toBe(
       true,
     );
   });
 });
-
-// --- criterion 16: the plugin's own endpoints -------------------------------
 
 describe("the plugin's own team and member write endpoints are refused for everyone (criterion 16)", () => {
   it.each([
@@ -870,9 +767,8 @@ describe("the plugin's own team and member write endpoints are refused for every
     ["POST", "/api/auth/organization/update-member-role"],
     ["POST", "/api/auth/organization/remove-member"],
   ])("%s %s answers 404, not 403, for a `forms.owner`", async (method, path) => {
-    // 404 rather than 403, because the auth mount's allowlist names none of these paths:
-    // the endpoint is not published at all, which is a stronger statement than a refusal
-    // and is what Q45's HTTP half asks for. A `forms.owner` is no exception.
+    // 404 rather than 403: the auth mount's allowlist names none of these paths, so the
+    // endpoint is not published at all.
     const res = await app.request(path, {
       method,
       headers: headersFor(ownerToken),
@@ -882,26 +778,14 @@ describe("the plugin's own team and member write endpoints are refused for every
   });
 });
 
-// --- criterion 14: the before-hooks as a backstop ---------------------------
-
 describe("the plugin's before-hooks refuse one rule at a time (criterion 14)", () => {
-  /**
-   * The hooks are unreachable over HTTP, so they are exercised the only way a call can
-   * reach them: **in process**, through the library's own server API, which is exactly
-   * the shape a configuration slip or a library change would produce.
-   *
-   * **Every body here is cast**, and the cast is itself part of the control rather than a
-   * convenience. The plugin's `createTeam` body schema carries `name` and
-   * `organizationId` and nothing else, and `externalGroupId` is `input: false`, so a call
-   * naming a role, a scope or that field does not typecheck as a `createTeam` body at
-   * all. A case that cannot be written is not a case that is asserted, so each one is
-   * written the way the slip would be - past the type - and the hook is what refuses it.
-   */
   const auth = (): ReturnType<typeof createAdminAuth> =>
     createAdminAuth({ db: testDb.db, adminAuth: deps.config.adminAuth });
 
   async function createTeamThroughPlugin(body: Record<string, unknown>): Promise<unknown> {
     type TeamBody = Parameters<ReturnType<typeof auth>["api"]["createTeam"]>[0];
+    // Cast past the plugin's body type on purpose: a call naming a role or a scope does
+    // not typecheck as a `createTeam` body, and the hook is what has to refuse it.
     return auth().api.createTeam({ body } as unknown as TeamBody);
   }
 
@@ -954,11 +838,8 @@ describe("the plugin's before-hooks refuse one rule at a time (criterion 14)", (
   });
 
   it("refuses an `externalGroupId` at the hook, for a value that reaches one (Q39)", async () => {
-    // The hook's own refuse branch, which the endpoint test below cannot reach: `input:
-    // false` drops the field before any hook sees it, so the only way to exercise the
-    // backstop is to call it with the payload a future library version, or a second
-    // write path, could hand it (PR #1061's review, L1). Criterion 14 says "refused",
-    // and this is the assertion that says it rather than a comment saying it.
+    // `input: false` drops the field before any hook sees it, so the backstop branch can
+    // only be reached by calling the hook directly.
     const hooks = pluginWriteBackstop(testDb.db);
     await expect(
       hooks.beforeCreateTeam({
@@ -973,8 +854,6 @@ describe("the plugin's before-hooks refuse one rule at a time (criterion 14)", (
       }),
     ).rejects.toThrow(/externalGroupId|GRANT_WRITE_REFUSED/i);
 
-    // And on an update, where the merged row is what is judged: a patch that adds the
-    // key to a legal team is the same write by a different door.
     await expect(
       hooks.beforeUpdateTeam({
         team: {
@@ -990,12 +869,6 @@ describe("the plugin's before-hooks refuse one rule at a time (criterion 14)", (
   });
 
   it("drops an `externalGroupId` sent to a plugin endpoint before any hook sees it (Q39)", async () => {
-    // **Two controls, and the library's is the first.** `input: false` keeps the field
-    // off the endpoint's body schema, so a value sent there is dropped before any hook
-    // sees it: the call succeeds and the **column stays null**, which is the property
-    // criterion 15 is about - no code path but the task C3 sync seam writes it. The hook
-    // is the backstop for a value that arrives some other way, and the test above calls
-    // that branch directly.
     await createTeamThroughPlugin({
       name: "test.forms.viewer.hooked",
       organizationId: SEED_WORKSPACE_ID,
@@ -1013,9 +886,6 @@ describe("the plugin's before-hooks refuse one rule at a time (criterion 14)", (
   });
 
   it("refuses a scope that is missing altogether, which is a team that is not a grant", async () => {
-    // The plugin's own body type carries no scope, so this is the call the library would
-    // make if `teams.enabled` were on and nothing else were declared: a team with no role
-    // and no scope is not a grant, and the columns are `NOT NULL` with no default.
     await expect(
       createTeamThroughPlugin({ name: "all.forms.viewer", organizationId: SEED_WORKSPACE_ID }),
     ).rejects.toThrow(/role|GRANT_WRITE_REFUSED/i);
@@ -1037,8 +907,6 @@ describe("the plugin's before-hooks refuse one rule at a time (criterion 14)", (
     ).rejects.toThrow(/archived|GRANT_WRITE_REFUSED/i);
   });
 });
-
-// --- criterion 9: the configuration guards ----------------------------------
 
 describe("the configuration guards hold against the running instance (criterion 9)", () => {
   it("reports them off the resolved context rather than off the options passed in", async () => {
@@ -1069,8 +937,8 @@ describe("the configuration guards hold against the running instance (criterion 
   });
 
   it("never sets `activeOrganizationId` on a session", async () => {
-    // QCMS resolves membership per request from the member and team rows; an "active
-    // organisation" on the session would be a second, stale answer to the same question.
+    // Membership is resolved per request, so an "active organisation" on the session
+    // would be a second, stale answer to the same question.
     const rows = await testDb.db.execute<{ count: number }>(
       sql`select count(*)::int as count from control."session"
             where "activeOrganizationId" is not null or "activeTeamId" is not null`,
@@ -1080,15 +948,6 @@ describe("the configuration guards hold against the running instance (criterion 
 });
 
 describe("an admin route with no row in the matrix is refused at runtime", () => {
-  /**
-   * The runtime half of "an admin route with no row is refused", which `middleware.ts`,
-   * `route-policy.ts`, `docs/SECURITY_DESIGN.md` 3.1, ADR-41's Note and the ledger row all
-   * state. At the first review the code did not do it: it asked the route table whether
-   * the path was routed, which is circular - a route with no row on any method looked like
-   * a path the API does not serve, and was served to any admin session.
-   *
-   * It is asked of Hono now, so this probe is the one that can tell the two readings apart.
-   */
   it("refuses a mounted admin route the table has never heard of", async () => {
     const res = await undecidedApp.request("/admin/not-in-the-matrix", {
       headers: { "x-qcms-internal-token": internalToken, [ADMIN_SESSION_HEADER]: ownerToken },
@@ -1099,10 +958,6 @@ describe("an admin route with no row in the matrix is refused at runtime", () =>
   });
 
   it("still lets the router answer 404 for a path nothing serves", async () => {
-    // The other direction, and the reason the refusal is not simply "every /admin/ path
-    // with no row": a 403 on a path that does not exist answers a question about
-    // authorisation that nobody asked, and it would make every typo look like a
-    // permission problem.
     const res = await undecidedApp.request("/admin/no-such-thing-at-all", {
       headers: { "x-qcms-internal-token": internalToken, [ADMIN_SESSION_HEADER]: ownerToken },
     });

@@ -1,64 +1,8 @@
 #!/usr/bin/env node
 // @ts-check
 /**
- * ADR-22 vendoring fidelity: the vendored `a2-react-aria` tree still matches the pinned
- * upstream commit, provable offline (issue #189, second recurrence).
- *
- * ADR-22's central requirement is that the sources under `packages/ui/src/components/a2ui/`
- * are byte-identical to upstream at the commit `packages/ui/a2ra.json` pins. Nothing in
- * the repository proved it. `git diff main...HEAD` proves only that THIS branch changed
- * nothing; a hand-edit that predates the branch, or a drift introduced by an earlier
- * task, was invisible to every gate. Four UI tasks in a row reached that dead end and
- * each reviewer re-derived that the property could not be checked, which is what made it
- * an issue rather than a note.
- *
- * ## The shape, and why this one
- *
- * `#189` listed three options. A committed transcript (`packages/ui/a2ra-diff.md`, which
- * stays: it is the human-readable account of what a pin move changed) is a point-in-time
- * snapshot that depends on the author running it. A CI step calling the upstream registry
- * needs network from CI and turns an outage into a red build or, worse, into a skip that
- * reads as a pass. This is the third: a **content-hash manifest**, generated from
- * upstream at vendor time and compared against the working tree on every run.
- *
- * The manifest holds hashes of the UPSTREAM bytes, taken from the registry at the pin,
- * not hashes of whatever happens to be on disk. That distinction is the whole point. A
- * self-generated manifest would be a mirror: edit a vendored file, regenerate, and the
- * gate goes green having checked nothing. Here regeneration requires the network and the
- * pin, so the manifest is a claim about upstream that the working tree is measured
- * against, and the only way to make a local edit pass is to move the pin to a commit
- * that actually contains it.
- *
- * ## What it proves, and what it does not
- *
- * Written down because an unwritten limit is how a gate gets trusted past its reach.
- *
- *   - **It proves** every tracked file under the vendored tree hashes to the upstream
- *     content at the pinned commit, that no file is missing, and that no extra file has
- *     been added beside them. Any single changed byte is red.
- *   - **It cannot prove** the manifest itself was generated honestly. A contributor with
- *     commit access can edit a vendored file and `--refresh` against a pin they also
- *     moved. That is not a hole this class of gate can close; it is what review is for.
- *     What it does close is the accident and the quiet drift, which is what #189 is about.
- *   - **It says nothing about `theme.css`** or any other upstream asset outside the
- *     component tree. `docs/RETRO.md`'s original friction named token values too; those
- *     are a separate corpus and are not covered here.
- *   - **It is not `a2ra diff`.** The CLI compares against the registry live and reports
- *     per-component; this compares against a frozen record of it and reports per-file.
- *     A pin move still runs the CLI and refreshes `a2ra-diff.md`; this gate is what keeps
- *     the tree honest on every one of the days in between.
- *
- * ## Refreshing
- *
- *   node scripts/check-a2ra-fidelity.mjs --refresh
- *
- * Run it whenever `a2ra.json`'s pin moves or a component is added or removed, in the same
- * change. It fetches the registry at the new pin, recomputes every hash from upstream
- * content, and rewrites the manifest. It is the only mode that needs the network; the
- * default verify mode never opens a socket, which is why it can live inside `pnpm verify`
- * and run on an aeroplane.
- *
- * Usage:  node scripts/check-a2ra-fidelity.mjs [--refresh]
+ * The manifest holds hashes of the UPSTREAM bytes at the pin, never of what is on disk: a
+ * self-generated manifest would be a mirror (ADR-22). `--refresh` is the only mode that opens a socket.
  */
 
 import { createHash } from "node:crypto";
@@ -71,55 +15,36 @@ import { trackedFilesUnder } from "./tracked-files.mjs";
 
 const REPO_ROOT = fileURLToPath(new URL("../", import.meta.url));
 
-/** The vendoring configuration the a2ra CLI reads: `componentsDir` and the pinned registry. */
 const A2RA_CONFIG = "packages/ui/a2ra.json";
 
-/** The generated record this gate compares against. */
 const MANIFEST = "packages/ui/a2ra-manifest.json";
 
-/** The package `componentsDir` is resolved relative to. */
 const UI_PACKAGE = "packages/ui";
 
 /**
- * Vendored files upstream does NOT publish through the registry, and where its repository
- * keeps them instead.
- *
- * **Empty, and that is the intended state.** It held one entry until the pin moved past
- * roonga/a2-react-aria#78: `group-schema-fields.ts` sits at the root of the vendored tree,
- * `checkbox/checkbox.schema.ts` and `radio/radio.schema.ts` import it, and it was in no
- * component's registry entry at all, so a consumer running `a2ra add checkbox` received
- * source with a dangling import (issue #793). Upstream's generator now follows a
- * component's imports out of its own directory, and both items ship the file, so it
- * arrives through the registry like every other vendored byte and needs no mapping.
- *
- * An entry is a repo path in the upstream repository, fetched at the pin. Adding one is a
- * statement that upstream owns the file by another route rather than through the registry,
- * so each needs its reason here - and the reason to prefer is usually the one taken above:
- * fix the registry upstream so no mapping is needed.
+ * Empty is the intended state. An entry claims upstream owns a vendored file by some
+ * route other than the registry, and needs its reason here; prefer fixing the registry
+ * upstream so no mapping is needed.
  *
  * @type {Record<string, string>}
  */
 const UPSTREAM_REPO_SOURCES = {};
 
-/** @param {string} text @returns {string} lowercase hex sha256 of the UTF-8 bytes */
+/**
+ * @param {string} text
+ * @returns {string}
+ */
 export function sha256(text) {
   return createHash("sha256").update(text, "utf8").digest("hex");
 }
 
 /**
- * The upstream coordinates `a2ra.json` pins.
+ * `a2ra.json` is the authority; the manifest's own `pin` is only a record of the last
+ * refresh, so a mismatch between them is how a pin move that forgot the refresh goes red
+ * instead of measuring the tree against the wrong upstream. An unparseable URL is an
+ * error rather than a skip.
  *
- * `a2ra.json` is the authority on which commit the tree is vendored from, and the
- * registry URL is the only place that commit is written, so it is parsed out of there.
- * The manifest carries a `pin` too, but as a record of what the last refresh read rather
- * than as a second source of truth: the gate compares the two, and a mismatch is how a
- * pin move that forgot the refresh becomes red instead of quietly measuring the tree
- * against the wrong upstream.
- *
- * A URL shape this gate does not understand is an error, not a skip: a fidelity gate that
- * quietly stops knowing which commit it is checking is worse than no gate.
- *
- * @param {string} configText contents of `packages/ui/a2ra.json`
+ * @param {string} configText
  * @returns {{ owner: string; repo: string; pin: string; registry: string; componentsDir: string }}
  */
 export function upstreamPin(configText) {
@@ -151,28 +76,22 @@ export function upstreamPin(configText) {
 }
 
 /**
- * Every tracked file in the vendored tree, as paths relative to it.
+ * Derived from git rather than walked: a walk would read a stray editor backup as a
+ * vendored file and report drift about the machine rather than the repository.
  *
- * Derived from git rather than walked, per the CONTRIBUTING rule: a walk would read a
- * stray editor backup or build output as a vendored file and report drift about the
- * machine rather than about the repository.
- *
- * @param {string} vendoredRoot absolute path to the vendored tree
- * @returns {string[]} sorted, slash-separated, relative to `vendoredRoot`
+ * @param {string} vendoredRoot
+ * @returns {string[]}
  */
 export function vendoredFiles(vendoredRoot) {
   return trackedFilesUnder(vendoredRoot);
 }
 
 /**
- * The component directories installed in the vendored tree.
- *
  * Read from the tree rather than from a list, so adding or removing a component cannot
- * leave the refresh fetching a stale set. A file at the root of the tree belongs to no
- * component and is handled by {@link UPSTREAM_REPO_SOURCES}.
+ * leave the refresh fetching a stale set.
  *
- * @param {string[]} files paths relative to the vendored tree
- * @returns {string[]} sorted component names
+ * @param {string[]} files
+ * @returns {string[]}
  */
 export function installedComponents(files) {
   const names = new Set();
@@ -184,14 +103,8 @@ export function installedComponents(files) {
 }
 
 /**
- * Compare the working tree against the manifest.
- *
- * Three failure kinds, reported separately because they mean different things: a changed
- * file is drift, a missing file is a broken vendoring, and an extra file is local source
- * smuggled into a tree that ADR-22 says is upstream's.
- *
  * @param {{ files: { path: string; sha256: string; origin: string }[] }} manifest
- * @param {Map<string, string>} actual path -> sha256 of the file on disk
+ * @param {Map<string, string>} actual
  * @returns {{ changed: string[]; missing: string[]; extra: string[] }}
  */
 export function compare(manifest, actual) {
@@ -216,8 +129,6 @@ export function compare(manifest, actual) {
 }
 
 /**
- * Fetch one upstream text file at the pin, failing loudly rather than returning empty.
- *
  * @param {string} url
  * @returns {Promise<string>}
  */
@@ -230,10 +141,8 @@ async function fetchText(url) {
 }
 
 /**
- * Rebuild the manifest from upstream at the pin.
- *
  * @param {ReturnType<typeof upstreamPin>} pin
- * @param {string[]} files paths relative to the vendored tree
+ * @param {string[]} files
  * @returns {Promise<object>}
  */
 async function refreshManifest(pin, files) {
@@ -296,10 +205,8 @@ async function refreshManifest(pin, files) {
 }
 
 /**
- * Run the gate (or the refresh).
- *
  * @param {string[]} args
- * @returns {Promise<number>} process exit code
+ * @returns {Promise<number>}
  */
 export async function main(args = []) {
   const pin = upstreamPin(readFileSync(join(REPO_ROOT, A2RA_CONFIG), "utf8"));
@@ -320,9 +227,9 @@ export async function main(args = []) {
   /** @type {{ pin?: unknown; componentsDir?: unknown; files?: unknown }} */
   const manifest = JSON.parse(readFileSync(join(REPO_ROOT, MANIFEST), "utf8"));
 
-  // The pin check comes first: a manifest generated at a different commit says nothing
-  // about this one, and comparing anyway would report either drift that is really a
-  // stale record, or a clean tree against the wrong upstream.
+  // First, because a manifest generated at a different commit says nothing about this
+  // one: comparing anyway reports stale-record drift or a clean tree against the wrong
+  // upstream.
   if (manifest.pin !== pin.pin || manifest.componentsDir !== vendoredDir) {
     console.error(
       [
@@ -390,8 +297,8 @@ export async function main(args = []) {
   return 1;
 }
 
-// Only when run as a command, so the test can import the helpers above without the scan
-// firing (and without `process.exit` killing the test run).
+// Only when run as a command, so the test can import the helpers without the scan firing
+// and without `process.exit` killing the run.
 if (argv[1] !== undefined && import.meta.url === pathToFileURL(argv[1]).href) {
   process.exit(await main(argv.slice(2)));
 }

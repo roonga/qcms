@@ -17,11 +17,6 @@ const TONE_GLYPH: Record<MessageTone, string> = {
   success: "✓",
 };
 
-/**
- * A single-message screen (screen contract companion screens: link errors, form-closed,
- * resume-recovery, expired). Error-tone screens carry `role="alert"` per the
- * screen contract's typed-error pages. Structure is kept sound for 030's a11y pass.
- */
 export function MessageScreen({
   tone,
   title,
@@ -35,7 +30,6 @@ export function MessageScreen({
 }) {
   return (
     <PortalShell>
-      {/* This root's hydration signal (issue #159). */}
       <HydrationMarker />
       <div
         className="flex flex-col items-start gap-4"

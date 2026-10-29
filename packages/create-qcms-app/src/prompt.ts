@@ -1,17 +1,3 @@
-/**
- * The interactive half (task 037).
- *
- * `node:readline/promises` and nothing else. A prompt library would be a runtime
- * dependency in the one package an adopter runs before they have decided to trust us,
- * and the minimal-dependency policy is explicit that a dependency saving under a
- * hundred lines is a liability. This is under a hundred lines.
- *
- * Every prompt takes its default from `DEFAULTS`, so pressing Enter through the whole
- * sequence lands on exactly the tree `--yes` produces. That equivalence is asserted in
- * `prompt.test.ts`: a default that only exists on one of the two paths is a default
- * nobody tests.
- */
-
 import { createInterface, type Interface } from "node:readline/promises";
 
 import {
@@ -96,10 +82,7 @@ export async function promptMissing(
     filled["projectName"] = projectName;
     filled["targetDirectory"] = resolveTarget(projectName, cwd);
   }
-  // There is no package-manager question. It was a choice with one answer once the
-  // Code Owner dropped npm and yarn (issue #449), and a prompt whose only effect is to
-  // make the operator press Enter is worse than no prompt: it implies a decision they
-  // do not have. The reason lives in `--help` and in both scaffolded READMEs instead.
+  // No package-manager question: with one answer it would imply a decision the operator lacks.
   if (given.shape === undefined) {
     filled["shape"] = await askChoice(asker, "Deployment shape", DEPLOYMENT_SHAPES, DEFAULTS.shape);
   }

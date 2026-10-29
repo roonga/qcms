@@ -213,10 +213,8 @@ function walk(node: A2UINode, into: A2UINode[] = []): A2UINode[] {
   return into;
 }
 
-// Validates against the vendored strict parser (ADR-22), which throws on any
-// non-conforming node or prop. That package's declaration files carry `.ts`
-// extensions in their internal imports, so its symbols resolve to `error` under
-// type-aware lint while `tsc` hides it behind `skipLibCheck`.
+// Validates against the vendored strict parser (ADR-22). Its declarations use `.ts`
+// import extensions, so symbols resolve to `error` under type-aware lint.
 function assertValidA2uiNode(node: A2UINode): void {
   // eslint-disable-next-line @typescript-eslint/no-unsafe-call -- upstream d.ts type-resolution defect (see above)
   parseNode(node);

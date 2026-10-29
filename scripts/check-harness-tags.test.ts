@@ -3,17 +3,8 @@ import { describe, expect, it } from "vitest";
 import { HARNESS_TAG_PATTERNS, harnessTagsIn } from "./check-harness-tags.mjs";
 
 /**
- * Tests for the harness-tag gate (issue #767).
- *
- * The gate exists for a leak that four deploy documents took and every other gate
- * passed, so the case that matters is the false negative. Each banned shape is driven
- * through the scanner rather than inspected, and the negative controls are the shapes
- * closest to a real tag: ordinary markup, and prose that merely contains the words.
- *
- * Every tag here is assembled from fragments, exactly as the gate assembles them, so
- * this file scans cleanly over itself. Writing one out would put the literal into a
- * committed file and turn the gate red - which is the gate working, and is why it is
- * built this way on both sides.
+ * Every tag here is assembled from fragments, as the gate assembles them, so this file
+ * scans cleanly over itself. Writing one out turns the gate red.
  */
 
 const LT = "<";
@@ -21,8 +12,8 @@ const CLOSE = `${LT}/`;
 
 describe("harnessTagsIn", () => {
   it("catches every banned shape, one per pattern", () => {
-    // Built from the patterns' own source so a shape added to the gate without a case
-    // here cannot pass silently: each pattern is fed a line it must match.
+    // Built from the patterns' own source, so a shape added to the gate with no case here
+    // cannot pass silently.
     const samples = [
       `${LT}function_calls>`,
       `${CLOSE}function_calls>`,
@@ -57,8 +48,6 @@ describe("harnessTagsIn", () => {
   });
 
   it("does not let an attribute list hide an opening tag", () => {
-    // The leak arrives with attributes far more often than bare, so the opening
-    // patterns stop before the closing bracket.
     expect(harnessTagsIn(`${LT}parameter name="content">x`)).toHaveLength(1);
   });
 
@@ -68,8 +57,8 @@ describe("harnessTagsIn", () => {
       `${CLOSE}p>`,
       "The function invokes a parameter of the content model.",
       "invoke, parameter, content: all fine as words.",
-      // The near-miss that matters: a longer element name that starts with a banned
-      // one. Without the delimiter lookahead this line fails the gate.
+      // A longer element name that starts with a banned one: without the delimiter
+      // lookahead this line would fail the gate.
       `${LT}parameterised>`,
       `${LT}invoker>`,
     ].join("\n");
@@ -79,8 +68,7 @@ describe("harnessTagsIn", () => {
 
   it("keeps its patterns stateless", () => {
     // A global or sticky flag would make `exec` advance `lastIndex` between calls and
-    // silently skip roughly every second file - the fail-open shrink that
-    // scripts/tracked-files.mjs refuses for the same reason.
+    // silently skip files, which is the fail-open direction for a gate.
     for (const pattern of HARNESS_TAG_PATTERNS) {
       expect(pattern.global, String(pattern)).toBe(false);
       expect(pattern.sticky, String(pattern)).toBe(false);

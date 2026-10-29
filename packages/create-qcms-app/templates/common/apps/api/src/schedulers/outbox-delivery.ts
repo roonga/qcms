@@ -1,44 +1,7 @@
 /**
- * The outbox webhook-delivery pass (task 025; ARCHITECTURE §5.3, §11).
- *
- * This is the real work the 017 scheduler shell invokes each tick. It drains the
- * transactional outbox the submission wrote (020) and delivers `response.submitted`
- * events to every active webhook a form configured (024), with HMAC signing,
- * capped exponential backoff, and dead-lettering. **At-least-once, never
- * best-effort.** Fetch-pure (R4): time via `deps.clock`, HTTP via the web `fetch`,
- * HMAC via WebCrypto (`./signing`), secret decryption via WebCrypto (`../features/
- * webhooks/crypto`) - no `node:*`.
- *
- * ## Two phases, each `FOR UPDATE SKIP LOCKED` (multi-instance safe)
- *
- * 1. **Materialize.** Claim due outbox events and fan each `response.submitted`
- *    out to one `webhook_deliveries` row per *active* webhook (idempotent via the
- *    `(outbox_id, webhook_id)` unique key), then mark the outbox row consumed. The
- *    outbox is the fan-out source; the delivery rows are the per-endpoint queue,
- *    each with its own independent retry state (so one webhook failing never
- *    stalls another - exit criterion 5). Event types with no launch subscriber
- *    (e.g. `form.released`) are consumed without fan-out.
- * 2. **Deliver.** Claim a due delivery row in its own transaction - which holds
- *    the row lock across the POST - sign and send, then record the outcome and
- *    commit. Holding the lock across the POST is what makes it *exclusive* across
- *    concurrent deliverers (`SKIP LOCKED`: a second instance skips the locked row)
- *    and *crash-safe* (a crash between send and commit rolls back to a
- *    redeliverable state - the consumer may see a duplicate; `eventId` +
- *    `contentHash` are the idempotency keys).
- *
- * ## SSRF defense-in-depth
- *
- * The target URL was checked at config time (024); it is re-checked here on the
- * literal URL before every POST. This still cannot fully close DNS rebinding -
- * the hostname could resolve to a private address at fetch time - which is an
- * inherent limitation of URL-based SSRF guards; closing it fully needs
- * resolve-then-pin-the-IP at the socket layer, out of scope for launch (documented
- * in docs/webhooks.md).
- *
- * ## Logging (SEC-8)
- *
- * Only ids and per-pass counts are logged - never the payload, answer values, the
- * secret, or the signature. The event/webhook/delivery ids are safe correlators.
+ * At-least-once: the row lock is held across the POST (`SKIP LOCKED`), so a crash rolls back
+ * to redeliverable and `eventId` plus `contentHash` are the idempotency keys. Only ids and
+ * counts are logged (SEC-8). The URL re-check cannot close DNS rebinding (docs/webhooks.md).
  */
 
 import { type FormId, parseFormId } from "@roonga/qcms-core";
@@ -61,10 +24,8 @@ import { decryptWebhookSecret } from "../features/webhooks/crypto.js";
 import { signWebhookBody } from "../features/webhooks/signing.js";
 import { checkWebhookUrl } from "../features/webhooks/ssrf.js";
 
-/** The one event type fanned out to webhooks at launch. */
 const RESPONSE_SUBMITTED = "response.submitted";
 
-/** The subset of `fetch` the deliverer uses; injectable so tests can stub it. */
 export type FetchLike = (
   input: string,
   init: {
@@ -76,62 +37,36 @@ export type FetchLike = (
 ) => Promise<{ status: number; text(): Promise<string> }>;
 
 /**
- * What the signature header is replaced by before the header map is stored.
- *
- * Masked here, at the point of writing, rather than at the point of rendering: the
- * HMAC is then absent from the database entirely, so no later reader - a screen, an
- * export, a support dump of the row - can leak it by forgetting to redact (SEC-6,
- * SEC-13). The header NAME is kept, because "this request was signed" is exactly
- * what an operator debugging a rejecting consumer needs to see.
+ * Masked at the point of writing, so the HMAC is absent from the database entirely and
+ * no later reader can leak it by forgetting to redact (SEC-6, SEC-13). The header name
+ * is kept: an operator debugging a rejecting consumer needs to see that it was signed.
  */
 export const SIGNATURE_MASK = "v1=<masked>";
 
-/**
- * How much of a consumer's response body is kept for the delivery detail view.
- *
- * Enough to carry an error message and its shape, short enough that a consumer
- * returning a whole HTML error page cannot bloat the row.
- */
+/** Short enough that a consumer returning a whole HTML error page cannot bloat the row. */
 export const RESPONSE_SNIPPET_MAX = 500;
 
 export interface DeliveryPassOptions {
-  /** HTTP transport; defaults to the global `fetch`. */
   readonly fetchImpl?: FetchLike;
-  /** Override the clock for deterministic tests (else `deps.clock.now()`). */
   readonly now?: Date;
   /**
-   * TEST-ONLY seam: invoked after a successful send but before the delivery is
-   * marked delivered, inside the delivery transaction. A throw here rolls the
-   * transaction back - exactly the crash-between-send-and-commit the at-least-once
-   * contract must survive. Never set in production.
+   * TEST-ONLY seam, never set in production: a throw here rolls the delivery
+   * transaction back after the send, which is the crash the at-least-once contract
+   * must survive.
    */
   readonly afterSend?: (deliveryId: string) => void | Promise<void>;
-  /**
-   * Which environment's outbox this pass drains (ADR-40, Q3).
-   *
-   * Defaults to the one a request would be served from, which is what a test composing
-   * one database against `makeDeps` gets. The **scheduler** does not default: it calls
-   * {@link runDeliveryPassForEveryEnvironment}, which names each environment in turn.
-   */
+  /** The scheduler never defaults this; it names each environment in turn. */
   readonly environment?: string;
 }
 
-/** Per-pass counts logged as structured fields (no secrets, no answer values). */
 export interface DeliveryPassMetrics {
-  /** Delivery rows created during materialization this pass. */
   readonly materialized: number;
-  /** Delivery rows claimed for a delivery attempt. */
   readonly claimed: number;
   readonly delivered: number;
   readonly failed: number;
   readonly deadLettered: number;
 }
 
-/**
- * Run one full delivery pass: materialize newly-due outbox events into delivery
- * rows, then deliver due delivery rows. Logs the per-pass counts. Safe to invoke
- * concurrently across instances (both phases use `SKIP LOCKED`).
- */
 export async function runDeliveryPass(
   deps: Deps,
   options: DeliveryPassOptions = {},
@@ -146,17 +81,10 @@ export async function runDeliveryPass(
 }
 
 /**
- * Run one delivery pass **per environment in the live set** (Q1, Q2, criterion 9).
- *
- * The deliverer still starts **once** per process, under `config.mount.internal`, and
- * iterates rather than multiplying, so `docs/deploy-enterprise.md`'s scheduler-singleton
- * rule holds unchanged. Each environment's outbox and webhooks are its own schema's, so
- * a test submission can never fire a production endpoint - that is structural under
- * Q3 rather than a filter this loop has to remember.
- *
- * Sequential, and each environment's failure is logged and stepped over rather than
- * ending the pass: one environment whose database is briefly unreachable must not stop
- * another's queue from draining.
+ * One scheduler per process iterates rather than multiplying, so the
+ * scheduler-singleton rule in `docs/deploy-enterprise.md` holds. A failing environment
+ * is logged and stepped over: one unreachable database must not stop another's queue
+ * from draining.
  */
 export async function runDeliveryPassForEveryEnvironment(
   deps: Deps,
@@ -171,11 +99,7 @@ export async function runDeliveryPassForEveryEnvironment(
   }
 }
 
-/**
- * Phase 1: claim due outbox events and fan `response.submitted` out to active
- * webhooks as delivery rows, consuming each event. One transaction - a crash
- * rolls back to un-fanned events, never to half-created deliveries.
- */
+/** One transaction, so a crash rolls back to un-fanned events, never half-created rows. */
 async function materialize(
   deps: Deps,
   exec: Executor,
@@ -187,19 +111,13 @@ async function materialize(
     let created = 0;
     for (const event of events) {
       created += await fanOutEvent(deps, tx, event, now);
-      // Consume the event regardless of type: the outbox is drained exactly once;
-      // delivery rows now own the per-endpoint retry state.
+      // Consumed regardless of type: delivery rows own the per-endpoint retry state.
       await markDelivered(tx, event.id, now);
     }
     return created;
   });
 }
 
-/**
- * Fan one claimed outbox event out to a `webhook_deliveries` row per *active*
- * webhook. Returns the number of delivery rows created (0 for event types with
- * no launch subscriber, or a `response.submitted` with no resolvable formId).
- */
 async function fanOutEvent(deps: Deps, tx: Executor, event: OutboxRow, now: Date): Promise<number> {
   if (event.eventType !== RESPONSE_SUBMITTED) return 0;
   const formId = resolveFormId(event.payload);
@@ -219,7 +137,6 @@ async function fanOutEvent(deps: Deps, tx: Executor, event: OutboxRow, now: Date
   return created;
 }
 
-/** Extract and validate the branded `formId` from a `response.submitted` payload. */
 function resolveFormId(payload: unknown): FormId | undefined {
   if (typeof payload !== "object" || payload === null) return undefined;
   const raw = (payload as { formId?: unknown }).formId;
@@ -228,10 +145,6 @@ function resolveFormId(payload: unknown): FormId | undefined {
   return parsed.ok ? parsed.value : undefined;
 }
 
-/**
- * Phase 2: deliver due delivery rows, up to the configured batch size, each in its
- * own transaction that holds the row lock across the POST.
- */
 async function deliverDue(
   deps: Deps,
   exec: Executor,
@@ -250,8 +163,6 @@ async function deliverDue(
 
       const result = await deliverOne(deps, due, options);
 
-      // Crash seam (tests only): throwing here aborts the transaction after the
-      // send, proving the row redelivers on a later pass (at-least-once).
       if (options.afterSend) await options.afterSend(due.deliveryId);
 
       if (result.ok) {
@@ -278,15 +189,7 @@ async function deliverDue(
   return { claimed, delivered, failed, deadLettered };
 }
 
-/**
- * The outcome of a single POST attempt: a 2xx, or a value-free failure reason.
- *
- * Both carry the attempt record (what was sent, what came back, how long it took)
- * for the operator dashboard, because a failure is exactly the case where an
- * operator needs it. It is absent only when the attempt never reached the transport
- * at all - an SSRF rejection or a secret that would not decrypt - since there is
- * then no request to describe.
- */
+/** `attempt` is absent only when the send never reached the transport at all. */
 type DeliveryResult =
   | { readonly ok: true; readonly attempt: DeliveryAttemptRecord }
   | {
@@ -295,19 +198,13 @@ type DeliveryResult =
       readonly attempt?: DeliveryAttemptRecord;
     };
 
-/**
- * Sign and POST one delivery. Re-checks SSRF, decrypts the secret, builds the
- * enveloped body, signs it, and sends with a timeout. Never throws for a delivery
- * failure - a non-2xx, timeout, network error, decrypt failure, or SSRF rejection
- * all return `{ ok: false, error }` for {@link recordDeliveryFailure} to schedule.
- */
+/** Never throws for a delivery failure: the caller needs it recorded, not raised. */
 async function deliverOne(
   deps: Deps,
   due: DueDelivery,
   options: DeliveryPassOptions,
 ): Promise<DeliveryResult> {
-  // SSRF re-check (defense-in-depth): reject private/reserved targets at delivery
-  // time too, honoring the same on-prem override as config time.
+  // Re-checked at delivery time as well as at config time (defense in depth).
   const checked = checkWebhookUrl(due.url, deps.config.webhooks.allowPrivateTargets);
   if (!checked.ok) return { ok: false, error: `ssrf_rejected:${checked.reason}` };
 
@@ -315,8 +212,8 @@ async function deliverOne(
   try {
     secret = await decryptWebhookSecret(due.secretEncrypted, deps.config.keys.app);
   } catch {
-    // The secret envelope is corrupt or the app key rotated away - retryable only
-    // by fixing config, but recorded as a failure so it dead-letters visibly.
+    // Corrupt envelope or a rotated app key: recorded as a failure so it dead-letters
+    // visibly rather than silently stalling.
     return { ok: false, error: "secret_decrypt_failed" };
   }
 
@@ -333,19 +230,16 @@ async function deliverOne(
   const headers = {
     "content-type": "application/json",
     "x-qcms-event": due.eventType,
-    "x-qcms-delivery": crypto.randomUUID(), // unique per attempt
+    "x-qcms-delivery": crypto.randomUUID(),
     "x-qcms-timestamp": timestamp,
     "x-qcms-signature": signature,
   };
-  // What gets stored: the same map, with the HMAC replaced. The signed value exists
-  // only in the `headers` object above and in the request it goes out on.
   const storedHeaders: Record<string, string> = { ...headers, "x-qcms-signature": SIGNATURE_MASK };
 
   const fetchImpl: FetchLike = options.fetchImpl ?? globalThis.fetch;
   const controller = new AbortController();
   const timer = setTimeout(() => controller.abort(), deps.config.webhooks.deliveryTimeoutMs);
-  // Measured with the monotonic clock, not `deps.clock`: this is a duration, and
-  // `deps.clock` is frozen in tests, which would make every latency zero.
+  // Monotonic clock, not `deps.clock`: that is frozen in tests, zeroing every latency.
   const startedAt = performance.now();
   const elapsed = (): number => Math.round(performance.now() - startedAt);
   try {
@@ -355,8 +249,7 @@ async function deliverOne(
       body,
       signal: controller.signal,
     });
-    // Read the body so the connection can be reused, and keep a bounded prefix of it
-    // for the delivery detail view - a rejecting consumer's reason is usually here.
+    // Read even when unused, so the connection can be reused.
     const responseBody = await res.text().catch(() => "");
     const attempt: DeliveryAttemptRecord = {
       lastAttemptAt: now,
@@ -374,7 +267,6 @@ async function deliverOne(
       error: aborted ? "timeout" : "network_error",
       attempt: {
         lastAttemptAt: now,
-        // No response ever arrived, so there is no status and no body to keep.
         lastStatus: null,
         lastLatencyMs: elapsed(),
         lastRequestHeaders: storedHeaders,

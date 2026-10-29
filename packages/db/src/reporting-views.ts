@@ -1,18 +1,7 @@
 /**
- * The `reporting` view set, generated per environment and per workspace rather than
- * written into one migration, where a second schema name would need a copy that drifts
- * (ADR-42, `docs/reporting-view.md`).
- *
- * An answer outside a group keeps its `questionId -> value` entry; an answer inside one is
- * carried under one key per group id, holding an ordered array of `{"instance_id":
- * "ins_...", "<questionId>": value, ...}`. A bare `jsonb_object_agg` over `questionId`
- * would silently drop all but one answer per repeating group.
- *
- * The group id comes from `answer_group_instances`, which is total over every instance id
- * a locked answer can name and is data-plane only; that totality is what makes the inner
- * join below safe. The instance list comes from `flowState.visible`, since an instance a
- * respondent added and left blank is still live, so it is "live and shown" rather than
- * "live".
+ * The `reporting` view set, generated per environment and per workspace rather than in one migration, where
+ * a second schema name would need a drifting copy (ADR-42, `docs/reporting-view.md`). A group's answers are
+ * carried under one key per group id: a bare `jsonb_object_agg` over `questionId` drops all but one.
  */
 
 import { sqlLiteral } from "./sql-literal.js";
@@ -143,13 +132,9 @@ WHERE "s"."status" = 'submitted'
 }
 
 /**
- * Derived from `responses`, so it inherits that view's row inclusion and there is no
- * second exclusion rule to keep in step.
- *
- * A group array and a multiChoice array are told apart structurally, since both are JSONB
- * arrays under a key: a group's value is an array of objects, a multiChoice value an
- * array of option id strings. `IS DISTINCT FROM` because `-> 0` on a non-array is SQL
- * NULL, and a plain `<>` would make the whole predicate NULL and drop every scalar answer.
+ * Derived from `responses`, so it inherits that view's row inclusion. Group and multiChoice arrays are told
+ * apart structurally; `IS DISTINCT FROM` because `-> 0` on a non-array is NULL and `<>` would drop every
+ * scalar answer.
  */
 function answersFlatView(schemas: ReportingViewSchemas): string {
   return `CREATE VIEW ${qualified(schemas.reporting, "answers_flat")} AS
@@ -235,18 +220,10 @@ export interface WorkspaceReportingViews {
 }
 
 /**
- * One workspace's pair, replaced in place so an adopter's BI tool keeps its connection and
- * the reconciliation stays idempotent.
- *
- * `WITH (security_barrier = true)` is the privilege boundary and a plain view is not one:
- * the planner may push a consumer's qual below the view's own filter and evaluate it
- * against the rows the view exists to hide, which a data-dependent error (a non-leakproof
- * `int4div`), a `COST 1` function in `pg_temp`, or a forced plan shape via the `USERSET`
- * `join_collapse_limit` can each report without any privilege. Revoking `TEMP` would not
- * be enough: the division probe needs no function at all.
- *
- * The option is deliberately not on the unfiltered pair, which only `qcms_app_<env>` may
- * read and which is a projection for that role rather than a boundary.
+ * One workspace's pair, replaced in place so a BI tool keeps its connection. `security_barrier = true` is the
+ * privilege boundary: otherwise the planner may push a consumer's qual below the view's filter and leak hidden
+ * rows through errors or functions, and revoking `TEMP` would not suffice. Not on the unfiltered pair, a
+ * projection for `qcms_app_<env>` rather than a boundary.
  */
 export function workspaceReportingViewStatements(views: WorkspaceReportingViews): string[] {
   const predicate =

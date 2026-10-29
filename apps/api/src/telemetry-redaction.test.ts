@@ -9,17 +9,6 @@ import {
   sanitizeSpan,
 } from "./telemetry-redaction.js";
 
-/**
- * SEC-13 (task 054, exit criterion 4). The allowlist is the control; these cases
- * pin the three ways it is meant to bite: an unknown attribute is dropped, a URL
- * loses its query, and an exception keeps its type but never its message.
- *
- * The e2e counterpart (`apps/portal/e2e/otel-trace.pw.ts`) proves the same
- * property end to end against real exported OTLP payloads; this proves it on the
- * unit that decides it.
- */
-
-/** A ReadableSpan stand-in carrying only the fields the redactor reads. */
 function spanWith(attributes: Attributes, events: ReadableSpan["events"] = []): ReadableSpan {
   return { attributes, events } as unknown as ReadableSpan;
 }
@@ -60,13 +49,8 @@ describe("sanitizeAttributes", () => {
   });
 
   it("keeps an ins_ instance id as a pseudonymous correlator (task 075, SEC-13)", () => {
-    // `ins_` joins `frm_`, `stp_`, `q_` and `ses_` as a permitted correlator: an
-    // instance id is random, opaque, session-scoped and carries no respondent content.
-    // Nothing is added to the allowlist for it, and that is the point - the allowlist is
-    // over attribute KEYS and never inspects a value, so an id inside a route or a
-    // statement survives exactly as a `ses_` id does. **No value, no count and no label
-    // follows it**: an instance label is authored `LocalizedText`, which §8a excludes,
-    // and a count is respondent-derived.
+    // The allowlist is over attribute keys and never inspects a value, so an id inside
+    // a route or a statement needs no entry of its own.
     const attributes: Attributes = {
       "http.route": "/sessions/:sessionId/answers/batch",
       "url.path": "/sessions/ses_abc/answers/batch",
@@ -81,9 +65,6 @@ describe("sanitizeAttributes", () => {
   it("drops an instance label and a repeated answer value, however they are keyed", () => {
     const attributes: Attributes = {
       "http.request.method": "POST",
-      // The repeat-shaped leaks: an instance's rendered heading, the roster's size, and
-      // an answer value under a qualified key. None is named in the allowlist, so all
-      // three are deleted rather than inspected.
       "qcms.instance_label": "Passenger 2",
       "qcms.instance_count": 9,
       "answer.ins_7k2/q_passport": "P1234567",
@@ -93,12 +74,6 @@ describe("sanitizeAttributes", () => {
   });
 
   it("keeps the environment, so a trace can be attributed to one (task 067, criterion 6)", () => {
-    // One process serves every environment (Q2), so a `test` trace and a production one
-    // are otherwise indistinguishable in a backend: same route, same status, same
-    // timings. The attribute names no respondent - it is an operator's own name for a
-    // schema, out of `control.environments`, the same handful of strings for every
-    // request in a deployment - which is what makes it an allowlist member rather than
-    // something the allowlist exists to drop.
     const attributes: Attributes = {
       "qcms.environment": "test",
       "http.route": "/sessions/:id/step",
@@ -113,9 +88,6 @@ describe("sanitizeAttributes", () => {
   it("drops every attribute the allowlist does not name", () => {
     const attributes: Attributes = {
       "http.request.method": "GET",
-      // The shapes SEC-13 exists for: a bound answer value, a secure-link token,
-      // the SEC-4 internal token, and an authorization header, however an
-      // instrumentation or a future config option chose to spell them.
       "db.statement.parameters": "['My private answer']",
       "http.request.header.authorization": "Bearer secret",
       "http.request.header.x-qcms-internal-token": "internal-secret",
@@ -163,7 +135,6 @@ describe("redactingSpanProcessor", () => {
     const processor = redactingSpanProcessor();
     const span = spanWith({ "http.route": "/health", "code.filepath": "/src/routes/health.ts" });
 
-    // onStart must not redact: attributes arrive throughout the span's life.
     processor.onStart(span as never, undefined as never);
     expect(span.attributes["code.filepath"]).toBe("/src/routes/health.ts");
 

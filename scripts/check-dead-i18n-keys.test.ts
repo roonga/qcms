@@ -1,7 +1,5 @@
 import { describe, expect, it } from "vitest";
 
-// Plain JavaScript with `// @ts-check`, imported by relative path the way
-// `check-ci-parity.test.ts` imports its gate.
 import {
   ALLOWED,
   catalogIn,
@@ -15,27 +13,6 @@ import {
 
 import ts from "typescript";
 
-/**
- * Tests for the dead-i18n-key gate (issues #538, #756).
- *
- * A gate asserted only by "it passes on the current tree" is indistinguishable from a gate
- * that always passes, so every helper is driven with hand-built source and both directions
- * are covered: the shape that must be caught, and the near-miss that must not be.
- *
- * The near-misses are not invented. Each one is a shape #755 measured while deciding that
- * a regex could not do this job, or a shape this repository actually contains:
- *
- *  - `formPost(`...`)` in a portal test, which an unanchored `t(` + backtick pattern reads
- *    as a dynamic key (`apps/portal/lib/server/origin-guard.test.ts`).
- *  - `expect(source).not.toContain("forms.section.heading")`, an assertion that a key is
- *    ABSENT, which a text scan reads as a reference to it.
- *  - a key that never appears at a `t()` call at all because it travels through a
- *    `Record<string, MessageKey>` table (`apps/admin/lib/forms/errors.ts`).
- *  - `forms.history.compareRow${...}`, a dynamic prefix with NO dot before the hole.
- *  - a multi-line `tPlural(` call, which a line-based scan splits in half.
- */
-
-/** Parse a fragment the way the gate does. */
 function source(text: string, path = "fixture.ts"): ts.SourceFile {
   return ts.createSourceFile(path, text, ts.ScriptTarget.Latest, true, ts.ScriptKind.TSX);
 }
@@ -123,7 +100,6 @@ describe("deciding whether a key is referenced", () => {
   });
 
   it("takes a prefix with no dot before the hole", () => {
-    // `forms.history.compareRow${kindKey(row)}` is a real site in this repository.
     expect(
       isReferenced("forms.history.compareRowAdded", new Set(["forms.history.compareRow"])),
     ).toBe(true);
@@ -139,7 +115,7 @@ describe("deciding whether a key is referenced", () => {
   });
 
   it("does not let a longer literal stand in for a shorter key", () => {
-    // A prefix must be SHORTER than the key. `a.one.deep` is a different key, not a
+    // A prefix must be shorter than the key: `a.one.deep` is a different key, not a
     // reference to `a.one`.
     expect(isReferenced("a.one", new Set(["a.one.deep"]))).toBe(false);
   });
@@ -157,26 +133,16 @@ describe("what is not a reference", () => {
   });
 
   it("reads an absence assertion as what it is, which is not a reference", () => {
-    // The exact line in `app/(shell)/section-headings.test.tsx` that a text scan misreads.
     const line = `expect(source).not.toContain("forms.section.heading");`;
 
-    // The literal IS collected: nothing about the syntax tree says this mention is a
-    // denial rather than a use, and pretending otherwise would mean reading the
-    // assertion's meaning. So the exclusion is what carries the claim, and asserting
-    // only `isTestFile` would leave the first half of that sentence untested.
     expect(literalsIn(source(line), undefined).has("forms.section.heading")).toBe(true);
     expect(isTestFile("apps/admin/app/(shell)/section-headings.test.tsx")).toBe(true);
 
-    // Together: the file is a test, so its literals never enter the reference set, so a
-    // key named only by an absence assertion still reports as dead.
     const seen = new Set<string>();
     expect(isReferenced("forms.section.heading", seen)).toBe(false);
   });
 
   it("does not mistake a POST helper for a dynamic key", () => {
-    // `appearanceRoute.POST(formPost(`${PORTAL_BASE}/appearance`, headers, form))` - the
-    // site #755 measured. Its template head is a URL fragment with no dot, so it can never
-    // be read as a key prefix even if the file were in scope.
     const found = literalsIn(
       source("appearanceRoute.POST(formPost(`${PORTAL_BASE}/appearance`, headers, form));"),
       undefined,
@@ -205,15 +171,13 @@ describe("scoping", () => {
 });
 
 describe("the repository", () => {
-  // A repo-wide scan of every source file against both catalogs, which outgrew the default
-  // 5s budget. `pnpm check:dead-i18n-keys` runs the same scan as a gate.
   it("has no dead catalog key", () => {
     expect(deadKeys()).toEqual([]);
-  }, 60_000);
+  });
 
   it("carries no standing exemption", () => {
-    // An entry here is a claim that a key is rendered through a shape the scan cannot
-    // read. There is no such key today, and this line is what makes adding one deliberate.
+    // An entry is a claim that a key is rendered through a shape the scan cannot read,
+    // so the empty set is what makes adding one deliberate.
     expect(ALLOWED).toEqual({});
   });
 

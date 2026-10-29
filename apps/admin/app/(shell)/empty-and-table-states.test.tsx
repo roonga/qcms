@@ -367,9 +367,9 @@ describe("the library screens' empty state (issue 514)", () => {
     expect(html).toContain("questions.empty.filtered");
     // §3: the filtered variant keeps the panel and drops the explanatory sentence.
     expect(html).not.toContain("questions.empty.body");
-    // No clear-filters CTA: the filters are in the rail and so is the control that undoes
-    // them, which is what keeps one control with that name on the screen.
-    expect(html).not.toContain("rail.filters.clear");
+    // §3's CTA, which this panel keeps even though the rail offers one too: the way out is
+    // offered where the reader is looking.
+    expect(html.match(/questions\.filter\.clear/gu)).toHaveLength(1);
     // A filtered library is not an empty one, so the header's creating action stays.
     expect(html).toContain('href="/questions/new"');
   });

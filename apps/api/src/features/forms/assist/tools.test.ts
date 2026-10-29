@@ -1,11 +1,3 @@
-/**
- * The tool allowlist as a security control (041, exit criterion 4).
- *
- * Two things are asserted here, and neither depends on the model behaving:
- * the surface refuses every forbidden verb structurally, and the context a tool
- * runs against has no capability that could reach respondent data.
- */
-
 import { describe, expect, it } from "vitest";
 
 import { parseFormDefinition, type FormDefinition } from "@roonga/qcms-core";
@@ -27,7 +19,6 @@ import {
 } from "./tools.js";
 import type { AssistContext, AssistEvent } from "./types.js";
 
-/** Exactly the verbs 041 says the agent must never have. */
 const FORBIDDEN = [
   "publish_form",
   "erase_session",
@@ -83,8 +74,6 @@ describe("the assist tool allowlist", () => {
     const ctx = contextFixture("hi");
     const state = createProposalState();
     for (const forbidden of FORBIDDEN) {
-      // The fixture is real: these are the names an attacker would reach for,
-      // and none of them is allowlisted.
       expect(isAllowedToolName(forbidden)).toBe(false);
       await expect(runAssistTool(forbidden, {}, ctx, state)).rejects.toBeInstanceOf(
         ToolNotAllowedError,
@@ -100,15 +89,6 @@ describe("the assist tool allowlist", () => {
     });
   });
 
-  /**
-   * `valid` is about publishability and warnings do not decide it (issue #123),
-   * but the model is still shown them.
-   *
-   * Both halves matter and they pull in opposite directions, which is why they are
-   * asserted together: a `valid: false` here would make the assistant treat a
-   * publishable draft as broken, and a missing `warnings` key would leave it
-   * unable to act on something the author is about to be shown.
-   */
   it("hands the model the warnings without letting them decide publishability", async () => {
     const warning = {
       code: "PATTERN_CLASS_SET_AMBIGUOUS" as const,
@@ -156,7 +136,6 @@ describe("a scripted rogue model", () => {
   ])("is refused when it attempts %s", async (script, tool) => {
     const { events, lines } = await runRogue(script);
 
-    // Refused, named, and logged.
     expect(events.find((e) => e.type === "tool-rejected")).toEqual({
       type: "tool-rejected",
       tool,
@@ -166,8 +145,6 @@ describe("a scripted rogue model", () => {
     expect(logged).toContain("draft assistant tool call rejected");
     expect(logged).toContain(tool);
 
-    // And it gets nothing: a turn that reached for a forbidden verb produces no
-    // proposal at all, so no part of its work reaches the author.
     expect(events.filter((e) => e.type === "proposal")).toHaveLength(0);
   });
 });
@@ -175,9 +152,6 @@ describe("a scripted rogue model", () => {
 describe("the assist context", () => {
   it("carries no capability that could reach respondent data", () => {
     const ctx = contextFixture("hi");
-    // The PII boundary is this shape. A database handle, a session reader or an
-    // answer reader appearing here would be the boundary breaking, and this
-    // assertion is what would notice.
     expect(Object.keys(ctx).sort()).toEqual([
       "conversation",
       "draft",
@@ -189,9 +163,6 @@ describe("the assist context", () => {
   });
 
   it("never lets a tool result carry an answer value", async () => {
-    // The library port is the only read the tool surface has, and it returns
-    // definitions. Even a library that tried to smuggle a field cannot: the
-    // entries the tool emits are projected field by field.
     const ctx: AssistContext = {
       ...contextFixture("hi"),
       questionLibrary: {
@@ -202,7 +173,7 @@ describe("the assist context", () => {
               slug: "a",
               version: 1,
               definition: { questionId: "q_a", type: "boolean", label: { en: "A" } } as never,
-              // A hostile library row. It must not survive the projection.
+              // A hostile field the projection must drop.
               answerValue: "SECRET-ANSWER-VALUE",
             } as never,
           ]),
@@ -252,17 +223,8 @@ describe("the configured selector", () => {
 });
 
 /**
- * The schema the provider actually receives (issue #820).
- *
- * This is the blind spot the 041 gates had, described precisely so it is not
- * reopened: **the fake provider never reads a tool schema.** `MockLanguageModelV3`
- * is handed the tool set and ignores it, so no test in the suite ever converted
- * one, and `propose_draft` shipped a document that every strict engine rejects
- * while every gate stayed green. The first real provider call died in 1.0s with
- * HTTP 400, before inference.
- *
- * Three properties, and the order matters because the middle one is the one the
- * issue's own suggested pin would have missed.
+ * The schema the provider receives. The fake provider never reads a tool schema, so only
+ * converting it here catches a document strict engines reject.
  */
 describe("every emitted tool schema is one a provider can convert", () => {
   it("names every tool in the allowlist and nothing else", async () => {
@@ -283,12 +245,8 @@ describe("every emitted tool schema is one a provider can convert", () => {
   });
 
   it("uses the $defs spelling, never draft-07 definitions", async () => {
-    // This is what actually broke. LM Studio's schema-to-grammar conversion
-    // reads `$defs`; the Zod conversion writes `definitions`; the block was
-    // dropped as an unknown keyword and the $ref then resolved to nothing -
-    // "Error resolving ref #/definitions/__schema0: definitions not in {...}".
-    // A resolve check alone passes on that document, because within the JSON
-    // the block IS there. Only the spelling assertion catches it.
+    // LM Studio reads `$defs` while Zod writes `definitions`, so the $ref resolves to nothing.
+    // A resolve check alone passes on that document; the spelling assertion catches it.
     const schemas = await assistToolJsonSchemas();
     for (const [name, schema] of Object.entries(schemas)) {
       expect(JSON.stringify(schema), `${name} emits a draft-07 definitions block`).not.toContain(
@@ -298,10 +256,8 @@ describe("every emitted tool schema is one a provider can convert", () => {
   });
 
   it("ships no reference cycle", async () => {
-    // The second half, and the reason a rename would not have been enough: a
-    // recursive $ref is unconvertible for providers that resolve by inlining.
-    // The AI SDK's Google provider refuses one outright and falls back to
-    // handing the vendor the raw document instead of its native parameters.
+    // A recursive $ref is unconvertible for providers that resolve by inlining; the AI SDK's
+    // Google provider refuses it outright.
     const schemas = await assistToolJsonSchemas();
     for (const [name, schema] of Object.entries(schemas)) {
       const defs = (schema.$defs ?? {}) as Record<string, unknown>;
@@ -330,10 +286,8 @@ describe("every emitted tool schema is one a provider can convert", () => {
   });
 
   it("still validates against the kernel's own schema, not the bounded one", () => {
-    // The property that makes a bounded advertisement safe: the tool set's
-    // `validate` is the untouched Zod schema, so a draft the bounded document
-    // does not describe is still accepted, and one the kernel rejects is still
-    // rejected. Asserted through the real tool set rather than in prose.
+    // The tool set's `validate` is the untouched Zod schema, so a draft the bounded document
+    // does not describe is still accepted and one the kernel rejects is still rejected.
     const set = assistToolSet(contextFixture("x"), createProposalState());
     const schema = (set.propose_draft as { inputSchema: { validate?: unknown } }).inputSchema;
     expect(typeof schema.validate).toBe("function");

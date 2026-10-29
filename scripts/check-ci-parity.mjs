@@ -1,24 +1,9 @@
 #!/usr/bin/env node
 // @ts-check
 /**
- * Proves that the local gate list and the CI gate list are the same list
- * (issue #463).
- *
- * `package.json`'s `check:all` and the `verify` job in `.github/workflows/ci.yml`
- * are two hand-maintained enumerations of the same set. CONTRIBUTING states the
- * property that binds them - `pnpm verify` is a SUPERSET of CI - and the workflow
- * spells every check out as its own step for failure granularity, so adding a gate
- * means editing both files. Three changes in one day shipped a gate that ran
- * locally and never in CI (PR #451, the fix for issue #413, and task 040), which is
- * the silent direction: the gate reports green in `verify`, nobody looks again, and
- * CI never had it. The other direction is equally wrong and louder only by luck - a
- * step in CI that `check:all` omits makes `verify` stop being a superset, so a
- * contributor's green is not the merge verdict.
- *
- * The lists were in sync when this was written (10 entries each). This gate is what
- * keeps them that way without anyone remembering to look.
- *
- * Usage: node scripts/check-ci-parity.mjs
+ * `check:all` and the workflow's `verify` job are two hand-maintained enumerations of
+ * one set, and `pnpm verify` has to stay a superset of CI. A gate present in only one
+ * of them is silent: it reports green locally and CI never ran it.
  */
 
 import { readFileSync } from "node:fs";
@@ -30,26 +15,15 @@ const PACKAGE_JSON = "package.json";
 const WORKFLOW = ".github/workflows/ci.yml";
 
 /**
- * Checks that legitimately appear in the workflow without being part of
- * `check:all`.
- *
- * `check:plan` is the fast lane's replacement for the build-and-test steps, not a
- * member of `check:all`: a pull request whose every path is in the fast-lane set runs
- * it instead (see CONTRIBUTING, "The instruction and plan fast lane"). Since issue
- * #873 it WRAPS `check:all` - `pnpm check:plan` runs the whole gate set and then some
- * - which changes nothing here: this gate reads the `check:all` script body and the
- * workflow's steps, and `check:plan` is a step in neither list's sense. It is the only
- * such case, and it is named here rather than pattern-matched so a second one cannot
- * appear by accident.
+ * `check:plan` is the fast lane's replacement for the build-and-test steps, so it is
+ * not a member of `check:all`. Named rather than pattern-matched, so a second case
+ * cannot appear by accident.
  */
 const NOT_IN_CHECK_ALL = new Set(["check:plan"]);
 
 /**
- * Every `check:*` script named by a shell command, in source order and de-duplicated.
- *
- * `pnpm check:x` and `pnpm run check:x` are both matched; anything else that merely
- * mentions a check name (prose, a path, a comment) is not, because the match is
- * anchored on the `pnpm` invocation that would actually run it.
+ * Anchored on the `pnpm` invocation, so a check name merely mentioned in prose, a path
+ * or a comment is not counted.
  *
  * @param {string} text
  * @returns {string[]}
@@ -65,8 +39,7 @@ export function checkScriptsIn(text) {
 }
 
 /**
- * The checks `check:all` runs, read from the script body itself rather than from a
- * second list, so this gate cannot drift from the thing it is checking.
+ * Read from the script body, not a second list, so this gate cannot drift from it.
  *
  * @param {string} packageJsonText
  * @returns {string[]}
@@ -82,15 +55,8 @@ export function checkAllEntries(packageJsonText) {
 }
 
 /**
- * The checks the workflow runs as steps.
- *
- * Comment lines are dropped first, and that is the whole reason this is not a naive
- * scan: `ci.yml` documents this very trap in a comment that names `check:all` and
- * `check:security-hygiene` in prose, and a gate that counted those would report
- * parity the workflow does not have. YAML comments only start at the beginning of a
- * (possibly indented) line here, so no YAML parser is needed; a run command with a
- * trailing `#` comment would be read whole, which can only ever add a name, never
- * hide one.
+ * Comment lines are dropped first: the workflow names check scripts in its own prose,
+ * and counting those would report parity it does not have.
  *
  * @param {string} workflowText
  * @returns {string[]}
@@ -117,7 +83,7 @@ export function compareLists(inCheckAll, inWorkflow) {
   };
 }
 
-/** @returns {number} process exit code */
+/** @returns {number} */
 function main() {
   const packageJsonText = readFileSync(fileURLToPath(new URL(PACKAGE_JSON, REPO_ROOT)), "utf8");
   const workflowText = readFileSync(fileURLToPath(new URL(WORKFLOW, REPO_ROOT)), "utf8");
@@ -168,8 +134,7 @@ function main() {
   return 1;
 }
 
-// Only when run as a command, so the test can import the helpers above without the
-// scan firing (and without `process.exit` killing the test run).
+// Guarded so an importing test triggers neither the scan nor the `process.exit`.
 if (argv[1] !== undefined && import.meta.url === pathToFileURL(argv[1]).href) {
   process.exit(main());
 }

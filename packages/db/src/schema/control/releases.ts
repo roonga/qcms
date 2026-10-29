@@ -18,15 +18,10 @@ import { formVersions } from "./forms.js";
 import { controlSchema } from "../schemas.js";
 
 /**
- * The per-environment release record.
- *
- * The version released to an environment is the newest row for the (form, environment)
- * pair, and nothing else decides it. A release is a record and never a copy, so version
- * numbers stay continuous across environments (R1, R6, ADR-18).
- *
- * Append-only, enforced by `form_releases_reject_update` and
- * `form_releases_reject_delete`: an audit row the serving credential can rewrite answers
- * nothing. Rollback is a release of an earlier version and there is no second mechanism.
+ * The per-environment release record. The version released is the newest row for the (form, environment)
+ * pair and nothing else decides it; a release is a record, never a copy (R1, R6, ADR-18).
+ * Append-only, enforced by `form_releases_reject_update` and `form_releases_reject_delete`. Rollback is a
+ * release of an earlier version.
  */
 export const formReleases = controlSchema.table(
   "form_releases",
@@ -49,10 +44,8 @@ export const formReleases = controlSchema.table(
     releasedBy: text("released_by").notNull(),
     approvedBy: text("approved_by"),
     /**
-     * A close and a reopen append a row carrying the released version forward, so intake
-     * stopping and starting never disturbs the version a respondent is pinned to, and a
-     * release does not reopen a closed environment. In-flight sessions are untouched
-     * either way (ADR-07 invariant I4).
+     * A close and a reopen append a row carrying the released version forward, so intake stopping and starting
+     * never disturbs a respondent's pinned version, and a release does not reopen a closed environment (ADR-07 I4).
      */
     closed: boolean("closed").notNull().default(false),
     releasedAt: timestamp("released_at", { withTimezone: true, mode: "date" })

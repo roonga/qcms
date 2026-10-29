@@ -7,17 +7,6 @@ import { readSessionToken } from "@/lib/server/session-cookie";
 import { currentBasePath } from "@/lib/server/environment";
 import { newOperationToken } from "@/lib/server/operation-token";
 
-/**
- * The flow page (`/s/:sessionId`). SSR-first (ADR-26): the BFF reads the session
- * bearer from the httpOnly cookie and fetches the current step + flow projection
- * server-side, so the first paint is real step content (no spinner, present
- * before hydration). Progressive enhancement (task 044): the SSR paints a
- * natively-submittable `<form>` that works with JavaScript disabled, and
- * `ProgressiveStep` swaps in the controlled `StepFlow` after hydration for
- * per-answer posting and branch re-rendering. Resume: a valid cookie resumes at
- * the current step; a missing/invalid one shows the friendly recovery page. The
- * portal never recompiles and never evaluates rules (R2).
- */
 export default async function FlowPage({
   params,
 }: {
@@ -33,21 +22,17 @@ export default async function FlowPage({
   try {
     const step = await getStep(sessionId, token);
     const context = await readStepContext();
-    // One roster-operation token per page render (task 073, ADR-43). Minted here, on
-    // the server, so the SSR and the first client render agree, and recorded by the API
-    // with the roster row it writes, so a post that arrives twice applies once. It is
-    // not a credential: it is meaningless outside the session it was minted in, and
-    // refusing a replay is its only job.
+    // One roster-operation token per render (ADR-43), minted on the server so SSR and
+    // the first client render agree. Its only job is to make a doubled post apply once;
+    // it is not a credential and is meaningless outside its session.
     return (
       <ProgressiveStep
         sessionId={sessionId}
         initial={step}
         context={context}
         opToken={newOperationToken()}
-        // The environment's address prefix (Q21, task 066), resolved once here and
-        // passed down: every address the step emits - the native form's action, the
-        // scripted `fetch`es, the completion redirect - has to stay inside the
-        // environment the respondent entered.
+        // Every address the step emits has to stay inside the environment the
+        // respondent entered (Q21).
         basePath={await currentBasePath()}
       />
     );
@@ -56,14 +41,6 @@ export default async function FlowPage({
   }
 }
 
-/**
- * The screen for a step read that did not return a step: one per outcome the
- * respondent can act on differently, and the generic failure for the rest.
- *
- * Its own component rather than a chain inside `FlowPage` so that adding an
- * outcome is adding a case, not adding to one function's branching (which is
- * what `sonarjs/cognitive-complexity` is measuring).
- */
 function ReadFailure({ error }: { readonly error: unknown }) {
   if (!(error instanceof ApiError)) {
     return (
@@ -78,14 +55,6 @@ function ReadFailure({ error }: { readonly error: unknown }) {
         <MessageScreen tone="success" title={t("completion.title")} body={t("completion.body")} />
       );
     case "UNSUPPORTED_SEMANTICS_VERSION":
-      // ADR-16's semantics gate (issue #723 gave the serve/answer routes this
-      // typed 409; issue #743 gives it a screen). The snapshot this session is
-      // pinned to records evaluation semantics this release does not implement,
-      // so nothing the respondent does can move the flow forward: not a retry,
-      // not a reload, not starting again. That makes it its own terminal screen
-      // rather than the generic "we could not reach the server" - which invites
-      // exactly the retry that cannot work - and rather than the recovery page,
-      // which invites a restart that lands on the same refusal.
       return (
         <MessageScreen
           tone="error"

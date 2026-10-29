@@ -1,23 +1,7 @@
 /**
- * The agent's tool surface (041) - and the allowlist that is a security control,
- * not a prompt instruction.
- *
- * Four tools exist and no fifth can be reached: search the published question
- * library, propose new question definitions, propose the draft `FormDefinition`,
- * run advisory validation. Publishing, erasure, link minting, webhook
- * configuration and *every* read of response data are absent from this module,
- * so an agent cannot call them however it is prompted, jailbroken or swapped.
- *
- * Two structural properties hold here, and both are tested:
- *
- * 1. **One door.** {@link runAssistTool} is the only way a tool executes, and it
- *    rejects any name outside {@link ASSIST_TOOL_NAMES} before dispatch. The
- *    tool set handed to the provider is built from the same registry, so the
- *    upstream model is never even told the other verbs exist.
- * 2. **No respondent data.** Every tool's inputs and outputs are drawn from
- *    {@link AssistContext}, which carries no database handle and no session or
- *    answer reader (see `types.ts`). There is no code path from a tool to an
- *    `answers` row, which is the PII boundary ADR-25 requires.
+ * The allowlist here is a security control, not a prompt instruction: publishing,
+ * erasure, link minting, webhook config and every read of response data are absent
+ * from this module, so no prompt can reach them (ADR-25).
  */
 
 import { asSchema, jsonSchema, tool, type JSONSchema7, type Schema, type ToolSet } from "ai";
@@ -34,10 +18,7 @@ import {
 import { selfContainedToolSchema } from "./tool-schema.js";
 import type { AssistContext } from "./types.js";
 
-/**
- * The allowlist. Adding a name here is a security decision and reviewed as one;
- * it is the only list the registry, the provider tool set and the guard read.
- */
+/** Adding a name here is a security decision: the registry, tool set and guard all read it. */
 export const ASSIST_TOOL_NAMES = [
   "search_question_library",
   "propose_questions",
@@ -49,30 +30,21 @@ export type AssistToolName = (typeof ASSIST_TOOL_NAMES)[number];
 
 const ALLOWED: ReadonlySet<string> = new Set<string>(ASSIST_TOOL_NAMES);
 
-/** Whether `name` is an allowlisted tool. The only membership test in the slice. */
 export function isAllowedToolName(name: string): name is AssistToolName {
   return ALLOWED.has(name);
 }
 
-/**
- * Raised when a model asks for a verb it was never given. Carries the attempted
- * name so the slice can log the refusal (041: "rejected and logged").
- */
 export class ToolNotAllowedError extends Error {
   readonly tool: string;
   constructor(tool: string) {
-    // The attempted name is model-supplied text. It is recorded, never executed,
-    // and never interpolated anywhere it could be re-dispatched.
+    // Model-supplied text: recorded, never executed or re-dispatched.
     super(`Tool "${tool}" is not in the draft-assistant allowlist`);
     this.name = "ToolNotAllowedError";
     this.tool = tool;
   }
 }
 
-/**
- * What a turn has proposed so far. Mutable by design: the tool loop accumulates
- * across steps, and the slice reads it once the loop ends.
- */
+/** Mutable by design: the tool loop accumulates across steps and is read once it ends. */
 export interface ProposalState {
   proposedDraft: FormDefinition | undefined;
   readonly newQuestions: QuestionDefinition[];
@@ -81,8 +53,6 @@ export interface ProposalState {
 export function createProposalState(): ProposalState {
   return { proposedDraft: undefined, newQuestions: [] };
 }
-
-// --- the four tools ---------------------------------------------------------
 
 const SearchInput = z.object({
   query: z
@@ -109,11 +79,7 @@ const ProposeDraftInput = z.object({
 
 const ValidateInput = z.object({});
 
-/**
- * A tool as this slice models it: a description, a Zod input schema (the same
- * schema language the OpenAPI documents use - one language end to end), and an
- * executor that may only touch the {@link AssistContext} it is handed.
- */
+/** An executor may only touch the {@link AssistContext} it is handed. */
 interface AssistToolDef {
   readonly description: string;
   readonly inputSchema: z.ZodType;
@@ -158,8 +124,7 @@ async function proposeDraft(
   state: ProposalState,
 ): Promise<Record<string, unknown>> {
   const { definition } = ProposeDraftInput.parse(input);
-  // The turn is scoped to one form. A proposal that renames the form is a
-  // rejected proposal, not a cross-form write.
+  // The turn is scoped to one form: a renamed formId is refused, never a cross-form write.
   if (definition.formId !== ctx.draft.formId) {
     return {
       accepted: false,
@@ -168,9 +133,7 @@ async function proposeDraft(
   }
   state.proposedDraft = definition;
   const { issues, warnings } = await ctx.validate(definition);
-  // `valid` is about publishability, so it turns on issues alone: a warning
-  // describes a draft that WOULD publish (issue #123). The warnings ride back
-  // anyway, because a model that cannot see them cannot act on them.
+  // `valid` turns on issues alone, since a warning describes a draft that would publish.
   return { accepted: true, valid: issues.length === 0, issues, warnings };
 }
 
@@ -183,10 +146,7 @@ async function validateProposal(
   return { valid: issues.length === 0, issues, warnings };
 }
 
-/**
- * The registry. Frozen so nothing can graft a verb on at runtime, and the sole
- * source for both {@link runAssistTool} and {@link assistToolSet}.
- */
+/** Frozen so nothing can graft a verb on at runtime. */
 const REGISTRY: Readonly<Record<AssistToolName, AssistToolDef>> = Object.freeze({
   search_question_library: {
     description:
@@ -214,29 +174,13 @@ const REGISTRY: Readonly<Record<AssistToolName, AssistToolDef>> = Object.freeze(
   },
 });
 
-// --- what the provider is actually shown ------------------------------------
-
 /**
- * The provider-facing schema for one tool: our JSON Schema, our Zod validator.
- *
- * Zod stays the authority. What changes is only the *document handed upstream*:
- * `FormDefinition.rules[].when` is recursive, a conversion has to hoist it
- * behind a `$ref`, and the hoisted form is not portable - LM Studio rejected
- * the entire tool set with HTTP 400 before reaching the model, because it reads
- * `$defs` and the conversion writes draft-07 `definitions` (issue #820). So the
- * emitted document is rewritten into a self-contained, acyclic one by
- * {@link selfContainedToolSchema}, while `validate` still runs the untouched Zod
- * schema over whatever the model sends.
- *
- * That split is the point. The advertisement is bounded; the acceptance is not.
- * Every executor re-parses its input with the same Zod schema anyway, so a
- * bounded document can neither admit a form the kernel would reject nor reject
- * one the kernel would take.
+ * The advertised document is bounded (see `tool-schema.ts`) while Zod stays the
+ * authority: `validate` runs the untouched schema over whatever the model sends.
  */
 function providerSchema(zodType: z.ZodType): Schema<unknown> {
   return jsonSchema<unknown>(
-    // A thunk, so a deployment that never runs a turn never converts a schema,
-    // and `streamText` resolves it once per tool set rather than per step.
+    // A thunk, so a deployment that never runs a turn never converts a schema.
     async (): Promise<JSONSchema7> => selfContainedToolSchema(await asSchema(zodType).jsonSchema),
     {
       validate: (value: unknown) => {
@@ -249,11 +193,7 @@ function providerSchema(zodType: z.ZodType): Schema<unknown> {
   );
 }
 
-/**
- * **The only door.** Every tool execution in this slice goes through here, and a
- * name outside the allowlist is refused before anything is dispatched - so the
- * refusal is a property of the surface rather than of the model's cooperation.
- */
+/** The only door: a name outside the allowlist is refused before anything is dispatched. */
 export async function runAssistTool(
   name: string,
   input: unknown,
@@ -264,11 +204,7 @@ export async function runAssistTool(
   return REGISTRY[name].execute(input, ctx, state);
 }
 
-/**
- * The tool set handed to the provider. Built from the registry, so the model is
- * only ever *told about* the allowlisted verbs, and each `execute` still routes
- * back through {@link runAssistTool}: belt and braces, deliberately.
- */
+/** Each `execute` still routes back through the guard, deliberately. */
 export function assistToolSet(ctx: AssistContext, state: ProposalState): ToolSet {
   const set: Record<string, unknown> = {};
   for (const name of ASSIST_TOOL_NAMES) {
@@ -282,14 +218,7 @@ export function assistToolSet(ctx: AssistContext, state: ProposalState): ToolSet
   return set as ToolSet;
 }
 
-/**
- * The exact JSON Schema documents this slice hands a provider, by tool name.
- *
- * Exported for the regression pin in `tools.test.ts` and for nothing else. The
- * fake provider never reads a tool schema, so before issue #820 no test in the
- * suite ever converted one: the tool set could ship a document no engine would
- * accept and every gate stayed green. This is the seam that closes that.
- */
+/** Exported for the tests only: the fake provider never reads a tool schema. */
 export async function assistToolJsonSchemas(): Promise<Record<AssistToolName, JSONSchema7>> {
   const out: Partial<Record<AssistToolName, JSONSchema7>> = {};
   for (const name of ASSIST_TOOL_NAMES) {

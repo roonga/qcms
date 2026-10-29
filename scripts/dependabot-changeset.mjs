@@ -1,74 +1,9 @@
 #!/usr/bin/env node
 // @ts-check
 /**
- * Makes a dependency-only bump satisfy this repository's conventions in one command, so
- * a red `verify` on a bot pull request carries information again (issues #421, #834).
- *
- * It does two things, because a bump breaks two gates and fixing one hides the other:
- * it writes the changeset `check:changeset` wants, and it regenerates the scaffolding
- * templates `check:templates` wants.
- *
- * ## The problem this closes
- *
- * Dependabot never writes changesets. `check:changeset` requires one whenever a diff
- * touches a publishable package, and a grouped npm bump touches `packages/*` manifests
- * routinely, so every such pull request fails the last gate of `verify` on both matrix
- * legs, deterministically, and is hand-fixed. PR #301 and PR #410 are the two recorded
- * instances. The cost is not the file: it is that a red `verify` on a dependency pull
- * request stops meaning "this bump broke something" and starts meaning "this bump
- * exists", and the two are indistinguishable from the check summary. PR #410 had a real
- * failure (#419) sitting behind a red that was pure ceremony.
- *
- * The changeset is genuinely wanted - a dependency move inside a published package is a
- * consumer-visible change - so this generates it rather than exempting it.
- *
- * ## The second gate, and why it was invisible (issue #834)
- *
- * `packages/create-qcms-app/templates/common/apps/*\/package.json` are GENERATED from
- * `apps/*\/package.json` by the scaffolding generator, and Dependabot's npm updater only
- * edits workspace members, so every bump that reaches an app manifest leaves those
- * templates stale and `check:templates` red. Nobody saw it until `check:changeset` was
- * fixed, because `check:all` short-circuits at the earlier gate: closing the changeset
- * half of #421 is what made the template half visible, one gate at a time, on PR #821.
- *
- * Re-syncing then touches `create-qcms-app`, a publishable package, whose changed files
- * are NOT its own manifest - so the refusal below fired correctly and a second changeset
- * had to be hand-written. Both halves are handled here instead: the generated app
- * manifests are recognised as a describable dependency shape, they are named in the same
- * changeset, and `--write` regenerates the tree so the gate is green.
- *
- * ## Why this is run by hand
- *
- * The obvious next step is a workflow that runs this on the bot's own pull request and
- * pushes the result. It is deliberately not taken (Code Owner ruling, 2026-09-05). Such
- * a workflow needs `contents: write` on a bot-triggered run, and then `actions: write`
- * on top: a push made with `GITHUB_TOKEN` raises no `pull_request` event, so the new
- * head would carry no runs at all and every required context would sit at "Expected",
- * which is worse than the red it replaces. Dependabot pull requests are infrequent and
- * are triaged anyway, so one command is the right surface for the cost, and no
- * write-capable workflow runs on a bot trigger.
- *
- * ## What it will and will not generate
- *
- * It writes a changeset ONLY for the shape it can describe honestly: every non-exempt
- * file that changed inside a publishable package is that package's own `package.json`
- * or a generated template app manifest, and the only fields that moved in either are
- * dependency ranges. Anything else - a source file, a `files` entry, an `exports` change
- * riding along, a template file the regeneration rewrote for some other reason - is
- * refused, loudly, naming what it saw. That refusal is the acceptance criterion of #421
- * working: the pull request then fails for a reason specific to it rather than for being
- * a bot's. The template half is held to the same standard, and refuses the same way.
- *
- * The bump level is derived, on the precedent this repository already set. A move in
- * `peerDependencies` is `minor`, because that range IS part of the published contract
- * (`@roonga/qcms-db/testing` asks a consumer to install the peers it names, issue #156,
- * and `.changeset/deps-410-grouped-minor-and-patch.md` chose minor for exactly that).
- * Everything else is `patch`: the package's own API is unchanged and a consumer only
- * resolves newer in-range versions.
- *
- * Usage:  node scripts/dependabot-changeset.mjs [--write]
- *         pnpm changeset:dependabot -- --write
- * Env:    DEFAULT_BRANCH (default "main") - the branch the diff is taken against.
+ * Writes the changeset `check:changeset` wants for a dependency-only bump and regenerates the
+ * templates `check:templates` wants. Anything other than dependency ranges in a package or template
+ * manifest is refused loudly. Run by hand, never from a workflow: a `GITHUB_TOKEN` push raises no `pull_request` event.
  */
 
 import { execFileSync } from "node:child_process";
@@ -90,27 +25,16 @@ import {
 } from "./check-changeset.mjs";
 
 /**
- * One dependency range that moved between two revisions of a manifest.
- *
- * `scope` names the generated app manifest a move came from (`apps/portal`), and is
- * absent for a move in a package's own manifest. It exists because one bump lands the
- * same range in all three generated manifests, and three identical lines that differ
- * only by which app they were read from describe the bump worse than one line does.
+ * `scope` names the generated app manifest a move came from, and is absent for a move
+ * in a package's own manifest.
  *
  * @typedef {{ field: string, name: string, from: string, to: string, scope?: string }} DependencyMove
  */
 
 /**
- * One package's line in the changeset: what to name, what bump it earns, and the moves
- * the body describes. Named rather than written inline at each of the four places it
- * appears, because the shape has to be the SAME shape at all of them: `plan()` builds
- * it and `renderChangeset()` consumes it, and the two agreeing is the whole contract
- * between the halves of this file.
- *
- * `templateMoves` is kept apart from `moves` rather than concatenated, because the two
- * reach a consumer by different routes and the changeset says so: a move in `moves` is a
- * range the package itself resolves, a move in `templateMoves` is a range stamped into
- * a project the scaffolding CLI creates.
+ * `templateMoves` stays apart from `moves` because the two reach a consumer by
+ * different routes: one the package resolves, the other is stamped into a project the
+ * scaffolding CLI creates.
  *
  * @typedef {{
  *   name: string,
@@ -121,8 +45,7 @@ import {
  */
 
 /**
- * The seams a test replaces. Production passes none of them: the diff is the real
- * repository's, and the template tree is the real generator's.
+ * Seams a test replaces; production passes none of them.
  *
  * @typedef {{
  *   cwd?: string,
@@ -134,13 +57,10 @@ import {
 
 const DEFAULT_BRANCH = process.env.DEFAULT_BRANCH ?? "main";
 
-/** The publishable package the generated templates live in, derived from their location. */
 const TEMPLATE_PACKAGE_DIR = TEMPLATE_DIR.slice(0, TEMPLATE_DIR.lastIndexOf("/"));
 
-/** The generated manifests a dependency bump is expected to move (issue #834). */
 const TEMPLATE_APP_MANIFEST = new RegExp(`^${TEMPLATE_DIR}/common/apps/([^/]+)/package\\.json$`);
 
-/** The manifest fields a dependency bump is allowed to touch. */
 const DEPENDENCY_FIELDS = [
   "dependencies",
   "devDependencies",
@@ -163,11 +83,7 @@ function tryGit(args, cwd) {
   }
 }
 
-/**
- * Resolve a ref that points at the default branch tip, or undefined.
- *
- * @param {string | undefined} cwd
- */
+/** @param {string | undefined} cwd */
 function resolveBaseRef(cwd) {
   for (const ref of [`origin/${DEFAULT_BRANCH}`, DEFAULT_BRANCH]) {
     if (tryGit(["rev-parse", "--verify", "--quiet", `${ref}^{commit}`], cwd) !== undefined) {
@@ -178,13 +94,8 @@ function resolveBaseRef(cwd) {
 }
 
 /**
- * Every dependency range that moved between two manifests, and whether anything
- * outside the dependency fields moved with it.
- *
- * The "anything else" answer is what makes the refusal reliable: comparing the two
- * manifests with their dependency blocks removed catches a `files`, `exports` or
- * `version` edit riding inside the same diff, which is a change this file has no
- * business describing as dependency maintenance.
+ * Comparing the manifests with their dependency blocks removed is what makes the
+ * refusal reliable: it catches a `files`, `exports` or `version` edit riding along.
  *
  * @param {string} beforeText
  * @param {string} afterText
@@ -218,8 +129,6 @@ export function manifestDependencyMoves(beforeText, afterText) {
 }
 
 /**
- * The bump a package's moves earn.
- *
  * @param {{ field: string }[]} moves
  * @returns {"minor" | "patch"}
  */
@@ -228,14 +137,10 @@ export function bumpFor(moves) {
 }
 
 /**
- * The app a generated template manifest belongs to, or undefined for any other path.
+ * The narrowness is the point: only a generated manifest is describable dependency
+ * maintenance, never a generated source file or a hand-written static template.
  *
- * The narrowness is the point. `templates/common/apps/portal/package.json` is a file
- * the generator writes from `apps/portal/package.json`, so a range that moved in it is
- * describable dependency maintenance; `templates/common/apps/portal/src/page.tsx` is
- * not, and neither is a hand-written file under `templates-static/`.
- *
- * @param {string} filePath repo-relative
+ * @param {string} filePath
  * @returns {string | undefined}
  */
 export function templateManifestApp(filePath) {
@@ -243,8 +148,6 @@ export function templateManifestApp(filePath) {
 }
 
 /**
- * One line per range that moved, however many generated manifests carry it.
- *
  * @param {DependencyMove[]} moves
  * @returns {DependencyMove[]}
  */
@@ -269,14 +172,9 @@ function mergeScopes(moves) {
 }
 
 /**
- * What the scaffolding templates contribute to the changeset, and what makes them
- * undescribable (issue #834).
- *
- * `manifests` is every generated app manifest with its base revision and the revision
- * the generator produces now; `others` is every other template path where those two
- * disagree. A non-empty `others` is a refusal rather than a silent omission: something
- * regenerated for a reason that is not a dependency range, and a changeset saying
- * "only the ranges below moved" would then be false.
+ * A non-empty `others` is a refusal rather than a silent omission: something
+ * regenerated for a reason that is not a dependency range would make a changeset
+ * saying "only the ranges below moved" false.
  *
  * @param {{ path: string, before: string | undefined, after: string }[]} manifests
  * @param {string[]} others
@@ -313,8 +211,8 @@ export function templateManifestMoves(manifests, others) {
 }
 
 /**
- * A changeset file name derived from the branch, so a second run on the same branch
- * rewrites its own file rather than adding a second one.
+ * Derived from the branch, so a second run rewrites its own file rather than adding a
+ * second one.
  *
  * @param {string} branch
  * @returns {string}
@@ -331,9 +229,6 @@ export function changesetFileName(branch) {
 }
 
 /**
- * The changeset body: frontmatter naming each package, then the moves, grouped by
- * package and split into what a consumer resolves and what it does not.
- *
  * @param {PackageEntry[]} entries
  * @returns {string}
  */
@@ -364,9 +259,8 @@ export function renderChangeset(entries) {
       );
     }
     if (templateMoves.length > 0) {
-      // Not split into consumer-facing and development the way a package's own manifest
-      // is: every range here, dev ranges included, is stamped into the project the CLI
-      // creates, so an adopter installs all of them.
+      // Not split into consumer-facing and development the way a package's own manifest is:
+      // every range here, dev ranges included, is stamped into the project the CLI creates.
       parts.push(
         "",
         "Ranges in the app manifests this CLI stamps, regenerated from the canonical",
@@ -392,20 +286,15 @@ export function renderChangeset(entries) {
 }
 
 /**
- * The generated template manifests, their base revisions, and every other template path
- * the regeneration would rewrite.
- *
- * The "every other path" answer is assembled from two places because drift arrives from
- * two directions: a template file already re-synced and committed on the branch shows up
- * in the diff against the base, and one not yet re-synced shows up as a disagreement
- * between the generated tree and the working tree. A path that changed between the base
- * and what the generator produces now must appear in at least one of them.
+ * Drift is assembled from two directions: a template already re-synced and committed
+ * shows up in the diff against the base, one not yet re-synced shows up as a
+ * disagreement between the generated tree and the working tree.
  *
  * @param {string} mergeBase
  * @param {string | undefined} cwd
- * @param {Map<string, string>} templates generated
- * @param {Map<string, string>} current on disk
- * @param {string[]} committed repo-relative paths under the template package
+ * @param {Map<string, string>} templates
+ * @param {Map<string, string>} current
+ * @param {string[]} committed
  * @returns {{ moves: DependencyMove[], refusal?: string, drift: string[] }}
  */
 function planTemplates(mergeBase, cwd, templates, current, committed) {
@@ -438,8 +327,6 @@ function planTemplates(mergeBase, cwd, templates, current, committed) {
 }
 
 /**
- * Everything the generator needs to decide, from a diff.
- *
  * @param {string} mergeBase
  * @param {Options} options
  * @returns {{
@@ -496,8 +383,8 @@ export function plan(mergeBase, options = {}) {
     const pkg = packages.find((candidate) => candidate.name === name);
     if (pkg === undefined) continue;
     const manifestPath = `${pkg.dir}/package.json`;
-    // A generated template manifest is a describable dependency shape (issue #834),
-    // so it does not count against the package that ships it. Everything else does.
+    // A generated template manifest is a describable dependency shape, so it does not
+    // count against the package that ships it. Everything else does.
     const unexpected = files.filter(
       (file) => file !== manifestPath && templateManifestApp(file) === undefined,
     );
@@ -545,9 +432,8 @@ export function plan(mergeBase, options = {}) {
     templates = options.templates ?? buildTemplates();
     current = options.current ?? currentTemplates();
   } catch (error) {
-    // The generator asserts a great deal about the apps it reads, and a failing
-    // assertion is a real problem with the branch rather than something to describe in
-    // a changelog entry. Say so with the message it gave rather than crashing.
+    // A failing generator assertion is a problem with the branch rather than something
+    // to describe in a changelog entry, so report its message instead of crashing.
     return {
       entries: [],
       alreadyCovered,
@@ -583,9 +469,8 @@ export function plan(mergeBase, options = {}) {
 }
 
 /**
- * Async because the regeneration it delegates to is: `sync-templates.mjs`'s `--write`
- * hands the finished `docs/ownership-seam.md` to Prettier before writing it, so that a
- * regeneration needs no separate `pnpm format` (issue #866).
+ * Async because the regeneration it delegates to hands its output to Prettier, so no
+ * separate `pnpm format` is needed.
  *
  * @param {string[]} args
  * @param {Options} options
@@ -612,9 +497,8 @@ export async function main(args = process.argv.slice(2), options = {}) {
     return 1;
   }
 
-  // The templates are regenerated on every `--write`, drift or none: the generator is
-  // idempotent, and asking it unconditionally is what makes this one command rather than
-  // one command plus a judgement about whether the other one is needed (issue #834).
+  // Regenerated on every `--write`, drift or none: the generator is idempotent, and
+  // asking unconditionally is what makes this one command rather than two.
   if (write) await (options.syncTemplates ?? (() => syncTemplates(["--write"])))();
   else if (templateDrift.length > 0) {
     console.log(
@@ -631,8 +515,7 @@ export async function main(args = process.argv.slice(2), options = {}) {
   }
 
   // `GITHUB_HEAD_REF` first because a workflow checkout is often detached, where
-  // `rev-parse --abbrev-ref HEAD` answers the literal "HEAD" and every bot pull request
-  // would then claim the same file name.
+  // `rev-parse --abbrev-ref HEAD` answers the literal "HEAD" for every pull request.
   const named =
     process.env.GITHUB_HEAD_REF ?? tryGit(["rev-parse", "--abbrev-ref", "HEAD"], cwd) ?? "";
   const branch = named.trim() === "" || named.trim() === "HEAD" ? "deps" : named.trim();
@@ -650,7 +533,6 @@ export async function main(args = process.argv.slice(2), options = {}) {
   return 0;
 }
 
-// Run as a script; stay silent when imported by the self-test.
 if (process.argv[1] && import.meta.url === pathToFileURL(process.argv[1]).href) {
   process.exit(await main());
 }

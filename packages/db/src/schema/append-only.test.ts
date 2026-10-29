@@ -18,14 +18,9 @@ afterAll(async () => {
   await testDb?.teardown();
 }, CONTAINER_BOOT_TIMEOUT_MS);
 
-/** Seed a form + published form_version so sessions/answers have valid FKs. */
 async function seedForm(formId: string): Promise<void> {
-  // `forms` and `form_versions` are control-plane tables and `sessions` is a data-plane
-  // one; both resolve unqualified here because the harness connects on
-  // `data_<env>, control` (ADR-40), which is exactly what an API pool does.
+  // Both planes resolve unqualified: the harness connects on `data_<env>, control`.
   await testDb.client.query(
-    // `workspace_id` is `NOT NULL` with no default since task 068, so a fixture form
-    // belongs to the workspace the harness seeds after migrating.
     `insert into forms (form_id, slug, workspace_id, default_locale) values ($1, $2, $3, 'en')`,
     [formId, `${formId}-slug`, SEED_WORKSPACE_ID],
   );
@@ -72,11 +67,9 @@ describe("answers ledger is append-only (I5, R3)", () => {
       [sessionId],
     );
 
-    // No transaction-local guard set → the trigger rejects the DELETE.
     await expect(
       testDb.client.query(`delete from answers where session_id = $1`, [sessionId]),
     ).rejects.toThrow(/sanctioned/i);
-    // The row survives.
     const survived = await testDb.client.query(`select 1 from answers where session_id = $1`, [
       sessionId,
     ]);
@@ -97,7 +90,6 @@ describe("answers ledger is append-only (I5, R3)", () => {
       [sessionId],
     );
 
-    // The sanctioned path: open the door for the transaction, then delete.
     await testDb.client.query("begin");
     await testDb.client.query("select set_config('qcms.allow_answer_delete', 'on', true)");
     const del = await testDb.client.query(`delete from answers where session_id = $1`, [sessionId]);
@@ -106,21 +98,12 @@ describe("answers ledger is append-only (I5, R3)", () => {
   });
 });
 
-/**
- * Acceptance case 23 of `plan/repeating-groups-and-table-input.md` section 11, the
- * roster half: an UPDATE and a DELETE on `answer_group_instances` are both
- * rejected by trigger outside the erasure door (the `answers` half is the two
- * cases above). Asserted against a real Postgres, because a trigger is the one
- * kind of guard that reading the query helpers cannot prove.
- */
 describe("answer_group_instances is append-only (I5, ADR-42)", () => {
   async function seedRoster(suffix: string): Promise<string> {
     const formId = `frm_roster_${suffix}`;
     const sessionId = `ses_roster_${suffix}`;
     await seedForm(formId);
     await testDb.client.query(
-      // Q46's `environment` is NOT NULL and a CHECK pins it to the schema the row sits
-      // in, so a raw insert names the environment this connection resolves in (ADR-40).
       `insert into sessions (session_id, form_id, form_version, access_mode, environment, expires_at)
        values ($1, $2, 1, 'anonymous', $3, now() + interval '1 day')`,
       [sessionId, formId, DEFAULT_TEST_ENVIRONMENT],
@@ -135,9 +118,6 @@ describe("answer_group_instances is append-only (I5, ADR-42)", () => {
 
   it("rejects UPDATE at the database level", async () => {
     const sessionId = await seedRoster("update");
-    // Rewriting an `added` row into a `removed` one is exactly the shape the
-    // append-only rule exists to refuse: it would leave no record that the instance
-    // had ever been minted, and that record is what the table is for.
     await expect(
       testDb.client.query(
         `update answer_group_instances set event = 'removed' where session_id = $1`,
@@ -160,10 +140,8 @@ describe("answer_group_instances is append-only (I5, ADR-42)", () => {
 
   it("permits DELETE through the SAME door the answer ledger uses", async () => {
     const sessionId = await seedRoster("delete_ok");
-    // The same GUC, not a second one: ADR-17 says there are two whole-session delete
-    // paths and migration 0022 adds none. Had the roster been given a door of its own,
-    // this test would still pass and nothing would say that erasure now has to open
-    // two of them.
+    // The same GUC, not a second one: a door of its own would mean erasure had to open
+    // two.
     await testDb.client.query("begin");
     await testDb.client.query("select set_config('qcms.allow_answer_delete', 'on', true)");
     const del = await testDb.client.query(

@@ -169,8 +169,10 @@ test("1117 applies a filter from the rail into the URL, and reloads the URL back
   await expect(page.getByTestId("qcms-rail-filters").getByLabel("Search")).toHaveValue("smoking");
   await expect(page.getByTestId("qcms-rail-summary-count")).toHaveText("1 active");
 
-  // The way out is in the rail, and is the one control with that name on the screen.
-  const clear = page.getByRole("link", { name: "Clear filters" });
+  // The rail's own way out, which appears only once a filter is set. The filtered-empty
+  // panel carries §3's CTA as well, so this is scoped to the rail rather than resolved by
+  // name across the screen.
+  const clear = page.getByTestId("qcms-rail-filters").getByRole("link", { name: "Clear filters" });
   await expect(clear).toHaveCount(1);
   await clear.click();
   await expect(page).not.toHaveURL(/[?&]q=/u);

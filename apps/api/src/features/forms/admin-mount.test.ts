@@ -1,13 +1,3 @@
-/**
- * Admin-group mount + auth-seam tests for the forms slices (task 022).
- *
- * These assert the surface guarantees without a database - the admin-auth gate
- * (021, reused) rejects an unauthenticated request before any handler runs, and
- * a public-only process has no admin group at all (a 404, not a 403; ADR-09).
- * The full authoring/publish lifecycle is exercised against the real DB in
- * `forms.integration.test.ts`.
- */
-
 import { describe, expect, it } from "vitest";
 
 import { createApp } from "../../app.js";
@@ -62,7 +52,7 @@ describe("forms admin group is absent in a public-only process (ADR-09)", () => 
       headers: {
         "content-type": "application/json",
         "x-qcms-internal-token": internalTokenFor(deps.config),
-        // Unmounted group: nothing runs, so this value is never verified (031).
+        // Unmounted group: nothing runs, so this value is never verified.
         [ADMIN_SESSION_HEADER]: "any-value-unverified-here",
       },
       body: JSON.stringify({ formId: "frm_x", slug: "x", defaultLocale: "en" }),

@@ -8,13 +8,6 @@ import {
   stripComments,
 } from "./check-admin-theme.mjs";
 
-/**
- * The gate has to fail on the shapes it exists to catch, and the only way to know
- * that is to feed it those shapes. A gate asserted only by "it passes on the current
- * tree" is indistinguishable from a gate that always passes, which is the failure
- * mode this file exists to rule out (task 055, exit criteria 1 and 3).
- */
-
 describe("literal colour detection", () => {
   it("rejects the shapes that break light/dark/HC", () => {
     expect(findLiteralColours("a { color: #2456c6; }").map((h) => h.hit)).toEqual(["#2456c6"]);
@@ -43,11 +36,7 @@ describe("literal colour detection", () => {
     expect(findLiteralColours("a {\n  color: #fff;\n}")).toEqual([{ line: 2, hit: "#fff" }]);
   });
 
-  /**
-   * Issue #545. Naming a test after the issue it covers is a convention this repository
-   * uses, and a three-digit issue number is a three-hex-digit lookalike, so the check
-   * has to tell the two apart rather than the author rewording the test.
-   */
+  /** A three-digit issue number is a three-hex-digit lookalike, so the check must tell them apart. */
   it("does not read an issue reference in a string literal as a colour (#545)", () => {
     for (const line of [
       'it("covers #513", () => {});',

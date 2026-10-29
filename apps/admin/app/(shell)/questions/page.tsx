@@ -27,8 +27,8 @@ import { requireAdminSession } from "@/lib/server/session";
  * This page keeps only the reading of them, through the same `readQuestionListFilters` the
  * slot reads, so the two trees cannot disagree about the address.
  *
- * The filtered-empty panel therefore carries no "Clear filters": two controls with one
- * accessible name on a screen are ambiguous to anyone navigating by name.
+ * The filtered-empty panel keeps its own "Clear filters" beside the rail's (Code Owner on
+ * issue #1117: contract §3 stands), so the way out is offered where the reader is looking.
  *
  * ## The one column the screen contract asks for that is not here
  *
@@ -79,7 +79,7 @@ export default async function QuestionsPage({
             anyone navigating by name, and `plan/admin-design-contracts.md` §3 asks the
             empty state to OFFER the creating action rather than to sit beside a copy of
             it. A filtered-empty library is not that state: the library is not empty, the
-            way out is the rail's clear link, and this link stays. */}
+            way out is the clear link, and this link stays. */}
         {!(result.ok && result.data.length === 0 && !isFiltered) && (
           <Link href="/questions/new" className="qcms-button-link">
             {t("questions.new")}
@@ -94,13 +94,22 @@ export default async function QuestionsPage({
       )}
 
       {/* `plan/admin-design-contracts.md` §3's panel, in both of its variants. The filtered
-          one drops the explanatory sentence, and carries no action: the way out of a filter
-          is the rail's clear link. The unfiltered one offers the creating action, because an
-          empty screen is where a first-time operator looks. */}
+          one drops the explanatory sentence and offers the way out where the reader is
+          looking; the rail carries a clear link as well, and §3 settles that in the panel's
+          favour rather than against it. The unfiltered one offers the creating action,
+          because an empty screen is where a first-time operator looks. */}
       {result.ok &&
         result.data.length === 0 &&
         (isFiltered ? (
-          <EmptyState heading={t("questions.empty.filtered")} testId="qcms-questions-empty" />
+          <EmptyState
+            heading={t("questions.empty.filtered")}
+            testId="qcms-questions-empty"
+            action={
+              <Link href="/questions" className="qcms-button-link">
+                {t("questions.filter.clear")}
+              </Link>
+            }
+          />
         ) : (
           <EmptyState
             heading={t("questions.empty.title")}

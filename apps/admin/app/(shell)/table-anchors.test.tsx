@@ -1,12 +1,13 @@
 import { execFileSync } from "node:child_process";
 import { existsSync, mkdirSync, readFileSync, rmSync, writeFileSync } from "node:fs";
-import { join } from "node:path";
+import { join, sep } from "node:path";
 import { fileURLToPath } from "node:url";
 
 import type { ReactNode } from "react";
 import { renderToStaticMarkup } from "react-dom/server";
 import { describe, expect, it, vi } from "vitest";
 
+import { gitBinary } from "../../components/test-support/git-binary.ts";
 import type { FormListItem, FormVersionSummary, PinnableQuestion } from "../../lib/forms/types.ts";
 import type { QuestionDefinitionView, QuestionListItem } from "../../lib/questions/types.ts";
 
@@ -309,20 +310,6 @@ describe("the library picker", () => {
 });
 
 /**
- * Absolute git path: a bare `git` would trip `sonarjs/no-os-command-from-path`, which is
- * workspace-wide. Probing known locations and failing by name keeps the miss readable.
- */
-const GIT_CANDIDATES = ["/usr/bin/git", "/usr/local/bin/git", "/bin/git"];
-
-function gitBinary(): string {
-  const found = GIT_CANDIDATES.find((candidate) => existsSync(candidate));
-  if (found === undefined) {
-    throw new Error(`no git binary at any of: ${GIT_CANDIDATES.join(", ")}`);
-  }
-  return found;
-}
-
-/**
  * The admin app's source files, as absolute paths: ask git, never walk the directory.
  *
  * Issue 629. The first version of this walked `readdirSync` from the app root and skipped
@@ -371,7 +358,13 @@ describe("the marker class and the retired handler", () => {
    * files the scan must reach: the stylesheet the marker lived in, and one component.
    */
   it("reaches the admin sources it is meant to scan", () => {
-    const relative = files.map((path) => path.slice(adminRoot.length + 1));
+    // Separators forced to `/`, the spelling the two expected names are written in.
+    const relative = files.map((path) =>
+      path
+        .slice(adminRoot.length + 1)
+        .split(sep)
+        .join("/"),
+    );
     expect(relative).toContain("app/globals.css");
     expect(relative).toContain("components/kit.tsx");
     expect(relative.length).toBeGreaterThan(100);

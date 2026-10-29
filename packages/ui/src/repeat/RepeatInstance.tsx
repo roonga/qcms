@@ -6,19 +6,10 @@ import { ROSTER_OP_FIELD, rosterOpValue } from "./repeat-node.ts";
 import type { RepeatInstanceNode } from "./repeat.schema.ts";
 
 /**
- * One live instance, as a `<fieldset>` whose `<legend>` holds the instance heading.
- *
- * The heading sits inside the legend so one element both names the fieldset and is
- * reachable by heading navigation, with the label spoken once: repeating the text has
- * it read with every control in the group on some screen readers.
- *
- * Its `tabindex="-1"` and `id` are the two focus mechanisms a roster operation needs,
- * the no-JS one being `autofocus` rather than a fragment, since a 200 answering a POST
- * leaves the browser on the POST's own URL.
- *
- * Remove carries `formnovalidate`, so the browser does not refuse the press because
- * another instance has a blank required field. That is safe only because the post
- * writes no answer (ADR-43): validation is deferred to Continue, not skipped.
+ * One live instance, as a `<fieldset>` whose `<legend>` holds the instance heading, so one element names the
+ * fieldset and is reachable by heading navigation. `tabindex="-1"` and `id` are the focus mechanisms a roster
+ * operation needs (no-JS uses `autofocus`, as a 200 answering a POST leaves the URL unchanged). Remove carries
+ * `formnovalidate`, safe only because the post writes no answer (ADR-43): validation is deferred, not skipped.
  */
 export function RepeatInstance({
   groupId,

@@ -1,17 +1,6 @@
 /**
- * Reading the generated template tree (task 037).
- *
- * The tree has two levels: `common/` is always stamped and `<shape>/` is layered on
- * top of it, so a deployment shape adds files and may replace one, and the difference
- * between the shapes is readable as a directory listing rather than as branches in
- * code.
- *
- * Two path conventions, both applied here so nothing downstream has to know them:
- *
- *   - a leading `_` on a basename becomes a leading `.` (npm strips `.gitignore` and
- *     `.npmrc` from a published tarball whatever `files` says, which would silently
- *     delete the files a scaffolder exists to write)
- *   - a trailing `.tmpl` marks a file that carries placeholders, and is removed
+ * `common/` is always stamped with `<shape>/` layered on top. A leading `_` becomes `.` (npm
+ * strips `.gitignore` and `.npmrc` from tarballs); a trailing `.tmpl` marks placeholders.
  */
 
 import { readdirSync, readFileSync } from "node:fs";
@@ -20,12 +9,7 @@ import { fileURLToPath } from "node:url";
 
 import type { DeploymentShape } from "./options.js";
 
-/**
- * The template root, resolved from this module.
- *
- * `dist/templates.js` and `src/templates.ts` are both exactly one directory below the
- * package root, so one expression serves the built CLI and the tests.
- */
+/** Both `dist/` and `src/` sit one directory below the package root. */
 export const TEMPLATE_ROOT = fileURLToPath(new URL("../templates/", import.meta.url));
 
 /** One file to stamp. */

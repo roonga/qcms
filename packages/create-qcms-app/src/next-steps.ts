@@ -1,12 +1,4 @@
-/**
- * The last thing the operator reads (task 037, deliverable "post-scaffold smoke").
- *
- * The commands here are the exact commands the scaffolded README carries, in the same
- * order, because a final message that paraphrases the README is how the two drift.
- * The "closing message and the README" suite in `scaffold.test.ts` asserts every
- * command below appears verbatim in the rendered README of BOTH deployment shapes, so
- * a change to either has to be a change to both.
- */
+/** `scaffold.test.ts` asserts every command here appears verbatim in both shapes' READMEs. */
 
 import type { ScaffoldOptions } from "./options.js";
 

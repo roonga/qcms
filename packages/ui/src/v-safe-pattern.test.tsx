@@ -9,10 +9,8 @@ import { type A2UIStepDocument, A2UIStepRenderer } from "./A2UIStepRenderer.tsx"
 import { loadGoldenSteps } from "./test-support/golden.ts";
 import { toVSafePattern } from "./v-safe-pattern.ts";
 
-// Asserted by compiling the rendered attribute rather than snapshotting a string, so
-// it tracks the real browser rule rather than a frozen expectation. A rejected pattern
-// logs an error and drops native validation entirely, which trips the portal's
-// browser-console gate.
+// Asserted by compiling the rendered attribute, tracking the real browser rule. A rejected pattern logs an error
+// and drops native validation, which trips the portal's browser-console gate.
 
 /** Valid under `u`, a SyntaxError under `v`. */
 const CORPUS_PATTERN = "^[A-Za-z][A-Za-z .,'-]{0,99}$";
@@ -193,10 +191,8 @@ describe("rendered pattern attribute (issue #29)", () => {
     expect(renderedPattern("^[a-z-0-9]+$")).toBeNull();
   });
 
-  // The budget is scaled per step rather than flat, because this renders every golden
-  // step through the real renderer, so its cost grows every time one is appended. A
-  // flat number sat close enough to Vitest's 5s default to fail under parallel lanes.
-  // Do not shave it back to one.
+  // The budget is scaled per step, because this renders every golden step through the real renderer and its cost
+  // grows with each one; a flat number sat close enough to Vitest's 5s default to fail under parallel lanes.
   it(
     "emits only v-compilable patterns across the entire golden corpus",
     () => {
@@ -221,10 +217,8 @@ describe("rendered pattern attribute (issue #29)", () => {
   );
 });
 
-// The renderer restates the kernel's rule rather than importing it, because this
-// package must not pull the kernel into the client bundle, and a restatement is only
-// safe while something proves the two still say the same thing. A test file may import
-// the kernel; the shipped module may not.
+// The renderer restates the kernel's rule because this package must not pull the kernel into the client bundle;
+// a test file may import the kernel, and proves the two still agree.
 
 describe("the kernel and the renderer normalize identically", () => {
   const CORPUS: readonly string[] = [

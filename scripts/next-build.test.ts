@@ -15,24 +15,10 @@ import {
   parseLockHolderPids,
   positiveNumber,
   resolveCommand,
+  resolveSpawn,
   stripAnsi,
 } from "./next-build.mjs";
 import { trackedFilesUnder } from "./tracked-files.mjs";
-
-/**
- * Tests for the Next build-lock wait (issue #925).
- *
- * The property that matters is a two-sided one, so both sides are pinned: the lock
- * signature is waited out, and every other failure is returned on the first attempt.
- * A wrapper that retried a genuinely broken build would turn a red into a ten-minute
- * red, which is worse than the failure it was added for.
- *
- * The lock itself is not simulated here. Holding a real one needs Next's native
- * bindings, and what this suite can assert instead is the reading of `/proc/locks`
- * (against captured text) and the shape of the wait (against an injected clock). The
- * live collision was reproduced by hand at the pinned Next, and the reproduction is
- * on the pull request rather than in a suite that would cost two real builds.
- */
 
 const SCRIPT = fileURLToPath(new URL("next-build.mjs", import.meta.url));
 const REPO_ROOT = fileURLToPath(new URL("..", import.meta.url));
@@ -50,7 +36,6 @@ const CONTENTION_OUTPUT = [
   "  Suggestion: Wait for the build to complete.",
 ].join("\n");
 
-/** One app that runs on Next, as derived below. */
 interface NextApp {
   /** Repository-relative directory, e.g. `apps/portal`. */
   directory: string;
@@ -58,14 +43,8 @@ interface NextApp {
 }
 
 /**
- * Every app in this repository that runs on Next, asked of git.
- *
- * Derived rather than listed, and derived on the property that matters: an app takes
- * the build lock exactly when it declares `next`, so that is the predicate, not a name
- * and not the presence of a `next.config.ts` (which a non-Next package could carry as
- * a fixture). `trackedFilesUnder` reads `git ls-files` rather than walking, because a
- * walk of `apps/` also finds `.next` and `.next-dev` build output and would assert a
- * property of this machine instead of of the repository.
+ * Asked of `git ls-files` rather than a walk of `apps/`, which also finds `.next` and
+ * `.next-dev` output and would assert a property of this machine.
  */
 function nextApps(): NextApp[] {
   const manifests = trackedFilesUnder(REPO_ROOT, {
@@ -91,7 +70,6 @@ afterAll(() => {
   for (const dir of tempDirs) rmSync(dir, { recursive: true, force: true });
 });
 
-/** A fake attempt sequence, so the wait can be driven without a build. */
 function fakeRun(codes: readonly number[], output: string) {
   let calls = 0;
   return {
@@ -106,7 +84,6 @@ function fakeRun(codes: readonly number[], output: string) {
   };
 }
 
-/** Runs the wait with an injected clock, so a ten-minute bound costs no time. */
 async function runWait(
   run: () => Promise<{ code: number; output: string }>,
   options: { waitMs?: number; pollMs?: number; holders?: string[] } = {},
@@ -133,10 +110,6 @@ describe("telling the lock apart from a broken build", () => {
   });
 
   it("recognises it through the colouring turbo's FORCE_COLOR adds", () => {
-    // turbo gives its tasks a TTY-coloured pipe, so the sentence arrives with escape
-    // sequences INSIDE it, around the `next build` that picocolors dyes cyan. A
-    // matcher written against the plain text alone reads a coloured run as a real
-    // failure, which is the one case this whole script exists for.
     const esc = String.fromCharCode(0x1b);
     const coloured = `Another ${esc}[36mnext build${esc}[39m process is already running.`;
     expect(stripAnsi(coloured)).toBe("Another next build process is already running.");
@@ -164,9 +137,6 @@ describe("waiting", () => {
   });
 
   it("says nothing at all when the first attempt succeeds", async () => {
-    // The wrapper is on the build path of both Next apps, so silence in the ordinary
-    // case is a requirement rather than a nicety: a line per build would be read as a
-    // wait that did not happen.
     const attempts = fakeRun([0], CONTENTION_OUTPUT);
     const result = await runWait(attempts.run);
 
@@ -209,9 +179,8 @@ describe("waiting", () => {
 });
 
 describe("reading who holds the lock", () => {
-  // Captured from this host while a process held a Next lock, with the unrelated rows
-  // kept: the parse has to pick one inode out of a file that lists every lock open on
-  // the machine.
+  // Real `/proc/locks` text: the unrelated rows are kept because the parse has to pick
+  // one inode out of every lock open on the machine.
   const PROC_LOCKS = [
     "1: FLOCK  ADVISORY  WRITE 1014430 08:50:739629 0 EOF",
     "2: POSIX  ADVISORY  WRITE 169340 00:85:425434 1073741824 1073742335",
@@ -226,8 +195,8 @@ describe("reading who holds the lock", () => {
   });
 
   it("ignores a process that is blocked WAITING for the same lock", () => {
-    // The `->` row is the other next build queueing behind the holder. Naming it as a
-    // holder would point a reader at the victim rather than at the cause.
+    // A `->` row is a process queueing behind the holder, so naming it would point at
+    // the victim rather than the cause.
     expect(parseLockHolderPids(PROC_LOCKS, 3_053_324)).not.toContain(1_015_999);
   });
 
@@ -256,8 +225,7 @@ describe("reading who holds the lock", () => {
 
   it("stays silent when the pid holds no descriptor on the lock file", () => {
     // An inode number can repeat across devices, so the `/proc/locks` match is only a
-    // candidate. This text is read as an accusation; an unconfirmed pid is worse than
-    // no pid.
+    // candidate and an unconfirmed pid is worse than no pid.
     const lines = lockHolders("/checkout/apps/portal/.next/lock", {
       inodeOf: () => 3_053_324,
       readText: () => PROC_LOCKS,
@@ -319,33 +287,68 @@ describe("arguments and resolution", () => {
     expect(resolveCommand("./tool", dir)).toBe("./tool");
   });
 
+  it("spawns the POSIX script directly and the Windows shim through a shell", () => {
+    const dir = tempDir();
+    mkdirSync(join(dir, "node_modules", ".bin"), { recursive: true });
+    const script = join(dir, "node_modules", ".bin", "next");
+    const shim = join(dir, "node_modules", ".bin", "next.CMD");
+    writeFileSync(script, "", "utf8");
+    writeFileSync(shim, "", "utf8");
+
+    expect(resolveSpawn("next", ["build"], dir, "linux")).toEqual({
+      command: script,
+      args: ["build"],
+      shell: false,
+    });
+    expect(resolveSpawn("next", ["build"], dir, "win32")).toEqual({
+      command: `"${shim}" "build"`,
+      args: [],
+      shell: true,
+    });
+  });
+
+  it("falls back to a PATH lookup on Windows when no shim is installed", () => {
+    expect(resolveSpawn("next", ["build"], tempDir(), "win32")).toEqual({
+      command: `"next" "build"`,
+      args: [],
+      shell: true,
+    });
+  });
+
+  it("spawns a Windows command that already names an executable path directly", () => {
+    // No shell where none is needed: a shell would report a missing command as its own
+    // exit 1 and take the wrapper's 127 with it.
+    const dir = tempDir();
+    expect(resolveSpawn(join(dir, "tool.exe"), ["build"], dir, "win32")).toEqual({
+      command: join(dir, "tool.exe"),
+      args: ["build"],
+      shell: false,
+    });
+    expect(resolveSpawn(join(dir, "tool.CMD"), ["build"], dir, "win32")).toEqual({
+      command: `"${join(dir, "tool.CMD")}" "build"`,
+      args: [],
+      shell: true,
+    });
+  });
+
   it("keeps a usable bound, and falls back to the default for an unusable one", () => {
     expect(positiveNumber(undefined, 600_000)).toBe(600_000);
     expect(positiveNumber("nonsense", 600_000)).toBe(600_000);
     expect(positiveNumber("-1", 600_000)).toBe(600_000);
     expect(positiveNumber("1500", 600_000)).toBe(1500);
-    // `0` is usable and means something: give up on the first collision rather than
-    // wait at all, which is the switch that turns the wrapper back into a bare
-    // `next build`. It has to survive the guard, not fall back to ten minutes.
+    // `0` is usable and means do not wait at all, so it must survive the guard.
     expect(positiveNumber("0", 600_000)).toBe(0);
   });
 });
 
 describe("the wiring the wait depends on", () => {
   it("is on the build script of every Next app", () => {
-    // A third Next app that did not go through the wrapper would reintroduce the
-    // failure silently, and the scaffolding generator's APP_SCRIPT_FRAGMENTS entry
-    // would then describe a transform that never fires. So the set is derived from
-    // git rather than listed here (CONTRIBUTING, issues #635/#641).
     for (const app of nextApps()) {
       expect(app.manifest.scripts?.build).toBe("node ../../scripts/next-build.mjs next build");
     }
   });
 
   it("looks for the lock where the apps actually put their production build", () => {
-    // The holder diagnostic reads `<lockDir>/lock`. If an app moved its production
-    // distDir, the wait would still work (an attempt is the poll) but it would stop
-    // being able to say who is holding the lock, silently.
     for (const app of nextApps()) {
       const config = readFileSync(join(REPO_ROOT, app.directory, "next.config.ts"), "utf8");
       expect(config).toContain(`const PRODUCTION_DIST_DIR = "${DEFAULT_LOCK_DIR}";`);
@@ -353,9 +356,7 @@ describe("the wiring the wait depends on", () => {
   });
 
   it("derives that set from git, and the derivation reaches something", () => {
-    // The fail-open half of the rule. A filter that matched nothing would leave both
-    // assertions above vacuously true, which is the failure mode a derived set is
-    // supposed to remove rather than introduce.
+    // A filter that matched nothing would leave the two assertions above vacuously true.
     const apps = nextApps();
     expect(apps.length).toBeGreaterThan(0);
     for (const app of apps) expect(app.directory.startsWith("apps/")).toBe(true);
@@ -364,9 +365,6 @@ describe("the wiring the wait depends on", () => {
 
 describe("end to end", () => {
   it("waits out a command that reports the lock, then succeeds", () => {
-    // The whole script, over a stand-in build that fails with Next's message until a
-    // marker file appears. It proves the parts the unit tests inject: argv handling,
-    // the tee, the exit code, and the env bounds.
     const dir = tempDir();
     const marker = join(dir, "other-build-finished");
     const stub = join(dir, "stub-build.mjs");
@@ -417,9 +415,6 @@ describe("end to end", () => {
   });
 
   it("says so cleanly when the build command cannot be started", () => {
-    // A spawn failure used to reach the top-level await as a rejected promise and print
-    // an unhandled-rejection stack, which reads like a crash in the wrapper rather than
-    // a missing command.
     const dir = tempDir();
     let status: number | undefined;
     let stderrText = "";
@@ -441,12 +436,7 @@ describe("end to end", () => {
   });
 
   it("forwards a stop signal to the build instead of orphaning it", async () => {
-    // The wrapper must not become the second cause its own header names: killed at a
-    // harness cap while `next build` keeps running, reparented and still holding
-    // `.next/lock`. The stub records the signal it received and the wrapper's exit code
-    // reports it the way a shell does.
-    //
-    // Only processes this test started are signalled: `spawn` gives back the pid, and
+    // Only a process this test started is signalled: `spawn` gives back the pid, and
     // that pid is the only one touched.
     const dir = tempDir();
     const received = join(dir, "received-signal");
@@ -463,7 +453,6 @@ describe("end to end", () => {
         "    process.exit(0);",
         "  });",
         "}",
-        // Keep the event loop alive until the signal arrives, or give up on its own.
         "setTimeout(() => process.exit(0), 20_000);",
       ].join("\n"),
       "utf8",
@@ -477,8 +466,6 @@ describe("end to end", () => {
       wrapper.on("close", (code, signal) => done({ code, signal }));
     });
 
-    // Wait for the CHILD to exist before signalling the wrapper, so the test measures
-    // forwarding rather than a race against spawn.
     const deadline = Date.now() + 10_000;
     while (!existsSync(started) && Date.now() < deadline) {
       await new Promise((tick) => setTimeout(tick, 20));
@@ -489,8 +476,7 @@ describe("end to end", () => {
     const result = await exited;
 
     expect(readFileSync(received, "utf8")).toBe("SIGTERM");
-    // 128 + SIGTERM, the conventional shell code, rather than the wrapper dying first
-    // and reporting nothing about the build.
+    // 143 is 128 + SIGTERM, the conventional shell code.
     expect(result.code).toBe(143);
   }, 30_000);
 });

@@ -28,11 +28,8 @@ const LOG_DEFAULTS: BatchExportTimings = {
 };
 
 /**
- * One variable, or the default when it is absent or not a positive whole number
- * of milliseconds. Strict, `parseInt` reading `"500ms"` as 500 and turning a
- * typo into a plausible timing. Silent, telemetry configuration never stopping a
- * process from serving. Zero is refused, diverging from the upstream shim: a
- * zero delay stops batching rather than exporting sooner.
+ * One variable, or the default when absent or not a positive whole number of milliseconds.
+ * Strict (`parseInt` reads `"500ms"` as 500) and silent. Zero is refused: it stops batching.
  */
 function millis(env: BatchTimingEnv, name: string, fallback: number): number {
   const raw = env[name]?.trim();

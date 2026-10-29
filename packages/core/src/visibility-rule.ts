@@ -13,14 +13,9 @@ import { addCodedIssue as addSharedCodedIssue, toCodedErrors } from "./internal/
 export const CONDITION_MAX_DEPTH = 8;
 
 /**
- * The condition tree, declared by hand because `z.lazy` needs the annotation.
- *
- * Three operators read a whole group and carry a `groupId` rather than a
- * `questionId`; the inside-out direction needs no syntax, a rule targeting
- * inside a group being evaluated once per live instance (ADR-42).
- *
- * `everyInstance` over an empty group is FALSE by decision rather than vacuously
- * true, so nothing may treat it as `not(anyInstance(not c))`.
+ * The condition tree, declared by hand because `z.lazy` needs the annotation. Three operators
+ * read a whole group and carry a `groupId` (ADR-42). `everyInstance` over an empty group is
+ * FALSE by decision, so it is not `not(anyInstance(not c))`.
  */
 export type Condition =
   | { op: "equals"; questionId: QuestionId; value: AnswerValue }

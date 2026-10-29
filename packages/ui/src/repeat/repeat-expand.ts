@@ -19,17 +19,10 @@ import {
 } from "./repeat-walk.ts";
 
 /**
- * The compiler is answer-blind (ADR-14) and an instance count is answer-dependent, so
- * it emits a template and this clones it per live instance, rewriting each clone's
- * `name` to its qualified form. The stored bytes are never touched (ADR-18), and the
- * roster comes from the API because the API is the only rule evaluator (R2).
- *
- * Per-instance visibility is pruned here, which is why `documentForVisible` leaves a
- * template alone: the API's visible set holds qualified names, so a bare template name
- * can never be in it.
- *
- * The honeypot is never cloned: the compiler appends the ADR-12 decoy after the group
- * node, so a decoy inside the template would post one `website` field per instance.
+ * The compiler is answer-blind (ADR-14) and an instance count is answer-dependent, so it emits a template and
+ * this clones it per live instance with qualified names; the roster comes from the API (R2). Visibility is
+ * pruned per instance here, since the API's visible set holds qualified names. The honeypot is never cloned:
+ * a decoy in the template would post one `website` field per instance.
  */
 
 /** What the renderer knows at render time that the stored document cannot. */
@@ -174,11 +167,9 @@ function isExpanded(node: A2Node): boolean {
 }
 
 /**
- * A host may expand before pruning, and the hydrated portal does, because the
- * commit-moment walk and the error summary both need the whole document. It compares
- * the name as it stands, unlike {@link keepControl}, because an expanded instance's
- * controls already carry the qualified names the visible set holds. Unchanged
- * referentially when nothing is pruned, so `useMemo` downstream sees the same tree.
+ * A host may expand before pruning, and the hydrated portal does, since the commit-moment walk and the error
+ * summary need the whole document. It compares the name as it stands, unlike {@link keepControl}, because
+ * expanded controls carry qualified names. Unchanged referentially when nothing is pruned.
  */
 function pruneExpanded(node: A2Node, visible: ReadonlySet<string>): A2Node {
   let pruned = false;

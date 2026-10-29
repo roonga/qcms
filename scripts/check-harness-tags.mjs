@@ -1,29 +1,8 @@
 #!/usr/bin/env node
 // @ts-check
 /**
- * Reject AI tool-call tag literals in committed text (issue #767).
- *
- * An agent writing a file emits its content inside tool-call tags. When the closing
- * tags leak into what was written, they land in the repository as literal markup: PRs
- * #758 and #762 committed a pair of them at the end of four deploy documents, where
- * they rendered as junk on GitHub and read as an unmistakable generation artifact in a
- * public repo. Every existing gate passed them - they are valid UTF-8, carry no control
- * character, contain no em dash, and Prettier reformats Markdown around them happily -
- * so the only thing standing between that class and `main` was whether a reviewer
- * scrolled to the end of a long generated file. Two of the four PRs in that batch
- * carried it.
- *
- * The needles are assembled from fragments rather than written out, so this file and
- * its test scan cleanly over themselves and need no self-exclusion. A gate that has to
- * exempt itself is a gate with a hole exactly the shape of its own source.
- *
- * Scope is every tracked text file, `plan/` included: the scratch area is where
- * generated prose lands first, so excluding it would exclude the likeliest source.
- * `check:plan` runs this gate for the same reason. Vendored upstream component sources
- * are excluded, as in the other gates: they are kept byte-for-byte and a demand to edit
- * them would be a demand the repository cannot meet.
- *
- * Usage:  node scripts/check-harness-tags.mjs
+ * The needles are assembled from fragments so this file and its test scan cleanly over themselves;
+ * do not write one out. `plan/` is in scope because generated prose lands there first.
  */
 
 import { readFileSync } from "node:fs";
@@ -36,44 +15,21 @@ import { VENDORED_SOURCE_PATTERN } from "./vendored-source.mjs";
 
 const REPO_ROOT = fileURLToPath(new URL("../", import.meta.url));
 
-/**
- * Tracked text this gate reads. Extensions rather than a scan of everything, because
- * `git ls-files` also lists images, fonts and the Playwright fixtures, and reading a
- * binary as UTF-8 produces replacement characters that no needle can match anyway.
- */
+/** Extensions, because reading a binary as UTF-8 matches no needle anyway. */
 const TEXT_FILES =
   /\.(md|markdown|ts|tsx|mts|cts|js|jsx|mjs|cjs|json|ya?ml|sh|css|html|txt|sql|toml|Dockerfile)$|(^|\/)(Dockerfile|\.env[^/]*)$/i;
 
-/**
- * Areas the other gates also skip: vendored upstream code kept byte-for-byte.
- *
- * The single definition in `scripts/vendored-source.mjs`, not a path typed here. This
- * used to exclude the whole of `packages/ui/src/components/`, four QCMS-owned subtrees
- * wider than the upstream copy (issue #775).
- */
+/** Vendored upstream code is kept byte for byte, so it cannot be asked to change. */
 const EXCLUDED = VENDORED_SOURCE_PATTERN;
 
 const LT = "<";
 const CLOSE = `${LT}/`;
 
-/** The tag names a tool call is wrapped in. */
 const TAG_NAMES = ["function_calls", "invoke", "parameter"];
 
 /**
- * The banned shapes, assembled from `LT`/`CLOSE` so no literal appears in this source;
- * see the module comment for why that matters.
- *
- * An opening tag is matched without its closing bracket, since the leaks arrive with
- * an attribute list far more often than bare, but with a lookahead for the delimiter
- * that must follow the name: `<parameterised>` is ordinary markup and a gate that
- * failed on it would be switched off. A closing tag is matched whole.
- *
- * `content` is banned in its closing form only. It is the one name of the four that is
- * also a plausible element in real markup, and the closing tag is what leaked.
- *
- * The `antml:` namespace prefix is listed on its own because it is unambiguous without
- * a tag name: nothing else in this repository uses it, so a tag outside the three names
- * above is still caught.
+ * Assembled from `LT`/`CLOSE` so no literal appears here. An opening tag needs a delimiter lookahead
+ * so markup such as `<parameterised>` passes; `content` is banned in its closing form only.
  */
 export const HARNESS_TAG_PATTERNS = [
   ...TAG_NAMES.flatMap((name) => [
@@ -86,8 +42,6 @@ export const HARNESS_TAG_PATTERNS = [
 ];
 
 /**
- * Every harness tag occurrence in `text`, with the line it sits on.
- *
  * @param {string} text
  * @returns {{ tag: string; line: number; excerpt: string }[]}
  */
@@ -104,7 +58,6 @@ export function harnessTagsIn(text) {
   return found;
 }
 
-/** Run the gate over the tracked tree. Returns the process exit code. */
 export function main() {
   const files = trackedFilesUnder(REPO_ROOT, { match: TEXT_FILES }).filter(
     (file) => !EXCLUDED.test(file),
@@ -146,8 +99,7 @@ export function main() {
   return 1;
 }
 
-// Only when run as a command, so the test can import the helpers above without the
-// scan firing (and without `process.exit` killing the test run).
+// Guarded so an importing test triggers neither the scan nor the `process.exit`.
 if (argv[1] !== undefined && import.meta.url === pathToFileURL(argv[1]).href) {
   process.exit(main());
 }

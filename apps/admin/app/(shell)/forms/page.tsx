@@ -50,8 +50,8 @@ export function generateMetadata(): Metadata {
  * The three controls are in the rail (`components/forms/forms-list-rail.tsx`), and every
  * property above survives the move: the same GET form over the same controls, one column to
  * the left. This page keeps the reading of the address, through the same
- * `readFormListFilters` the slot reads. The filtered-empty panel's "Clear filters" went with
- * them, so the screen has one control with that name.
+ * `readFormListFilters` the slot reads. The filtered-empty panel keeps its own
+ * "Clear filters" beside the rail's (Code Owner on issue #1117: contract §3 stands).
  *
  * `plan/admin-shell-poc/library-lists-poc.html` draws all three controls on this screen
  * and says in its own words that they are new because the shipped screen has none. It
@@ -113,7 +113,7 @@ export default async function FormsPage({
             `plan/admin-design-contracts.md` §3 asks the empty state to OFFER the
             creating action rather than to sit beside a copy of it. A filtered-empty
             library is not that state: the library is not empty, the way out is the
-            rail's clear link, and this link stays. */}
+            clear link, and this link stays. */}
         {!(isEmpty && !isFiltered) && (
           <Link href="/forms/new" className="qcms-button-link">
             {t("forms.new")}
@@ -126,12 +126,21 @@ export default async function FormsPage({
       )}
 
       {/* `plan/admin-design-contracts.md` §3's panel, in both of its variants. The filtered
-          one drops the explanatory sentence, and carries no action: the way out of a filter
-          is the rail's clear link. The unfiltered one offers the creating action, because an
-          empty screen is where a first-time operator looks. */}
+          one drops the explanatory sentence and offers the way out where the reader is
+          looking; the rail carries a clear link as well, and §3 settles that in the panel's
+          favour rather than against it. The unfiltered one offers the creating action,
+          because an empty screen is where a first-time operator looks. */}
       {isEmpty &&
         (isFiltered ? (
-          <EmptyState heading={t("forms.empty.filtered")} testId="qcms-forms-empty" />
+          <EmptyState
+            heading={t("forms.empty.filtered")}
+            testId="qcms-forms-empty"
+            action={
+              <Link href="/forms" className="qcms-button-link">
+                {t("forms.filter.clear")}
+              </Link>
+            }
+          />
         ) : (
           <EmptyState
             heading={t("forms.empty.title")}

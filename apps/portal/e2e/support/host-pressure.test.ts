@@ -12,17 +12,6 @@ import {
   type ContainerCensus,
 } from "./host-pressure.js";
 
-/**
- * What the machine probe is allowed to claim (issues #395 and #812).
- *
- * The two parsers were pinned here before the pressure rule existed and their cases move
- * with them: `/proc` and `docker ps` are three lines each around a parse, and the parse is
- * where the mistakes are. What is new is the rule built on top - the one that decides
- * whether a run gets told the machine was busy. It has to be wrong in the safe direction
- * in both directions at once: a threshold that fires on a healthy suite teaches readers to
- * skip the block, and one that never fires leaves #395's second occurrence unreported.
- */
-
 /** Waves 11 to 13: eleven Testcontainers across four lanes, and no seat port taken. */
 const CROWDED: ContainerCensus = { running: 14, testcontainers: 11, sessions: 4, qcmsStacks: 1 };
 
@@ -40,8 +29,6 @@ describe("parseLoadAverage", () => {
   });
 
   it("reports unknown rather than zero when the file is not what it expects", () => {
-    // Zero is a real load figure. A parse failure rendered as one would read as "the
-    // machine was idle" in the very report someone is using to decide whether it was.
     expect(parseLoadAverage("", 8)).toBeUndefined();
     expect(parseLoadAverage("not a load average at all", 8)).toBeUndefined();
     expect(parseLoadAverage("1.0 2.0", 8)).toBeUndefined();
@@ -62,8 +49,6 @@ describe("parseContainerCensus", () => {
   });
 
   it("counts the SESSIONS those containers belong to, not just the containers", () => {
-    // The number that sees a lane holding no seat port. Three containers can be one suite
-    // using three, or three lanes using one each, and only the second is a neighbour.
     const census = parseContainerCensus(
       [
         "relaxed_bell\tsession-a",
@@ -77,8 +62,6 @@ describe("parseContainerCensus", () => {
   });
 
   it("treats Docker's empty-label placeholder as no label", () => {
-    // `docker ps` prints `<no value>` for a label a container does not carry, and a
-    // census that counted that string would report every container as Testcontainers.
     expect(parseContainerCensus("some_container\t<no value>\n")).toEqual({
       running: 1,
       testcontainers: 0,
@@ -126,9 +109,6 @@ describe("hostPressure", () => {
   });
 
   it("says nothing about a machine that is merely working", () => {
-    // A passing browser suite runs two dev servers, an API and a Postgres container and
-    // sits around one per cpu. A rule that fired here would fire on every healthy run,
-    // and a block that appears on healthy runs is a block readers learn to skip.
     expect(
       hostPressure({ oneMinute: 8, fiveMinute: 6, fifteenMinute: 4, cpus: 8 }, OURS_ALONE).reasons,
     ).toHaveLength(0);
@@ -144,8 +124,6 @@ describe("hostPressure", () => {
   });
 
   it("claims nothing at all when neither reading could be taken", () => {
-    // "Could not measure" and "measured, and it was quiet" must not collapse: the second
-    // is an argument about a red and the first is not.
     expect(hostPressure(undefined, undefined).reasons).toHaveLength(0);
   });
 });

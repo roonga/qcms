@@ -12,19 +12,8 @@ import {
 } from "./ci-job-durations.mjs";
 
 /**
- * The refresh command behind the CONTRIBUTING figures (issue #858).
- *
- * What is worth pinning here is the arithmetic, not the API plumbing: the whole point of
- * the script is that a number in a document can be re-derived, so a p50 that is quietly
- * off by one rank would reintroduce exactly the wrong-number problem it exists to fix.
- * The fixed array below is therefore the unit under test, and the network path is left to
- * the command itself.
- */
-
-/**
- * Fourteen durations in seconds, deliberately unsorted and of even length, so the
- * nearest-rank choice (an observed sample) is distinguishable from an interpolated
- * median (the mean of the two middle values, 1768.5 here).
+ * Unsorted and of even length, so a nearest-rank p50 is distinguishable from an
+ * interpolated median (1768.5 here).
  */
 const SECONDS = [
   1841, 1598, 1887, 1884, 1859, 1835, 1478, 1498, 1745, 1713, 1762, 1765, 1872, 1772,
@@ -105,9 +94,6 @@ describe("summarize", () => {
   });
 
   it("names the jobs it did see, deduplicated and sorted, when it found none", () => {
-    // The likeliest reason for an empty result is a name that is nearly right: a matrix
-    // job's real name carries its suffix, so 'verify' matches nothing while
-    // 'verify (node-24)' matches every run. A list answers that; a bare refusal does not.
     const summary = summarize("verify", [], 3, [
       "verify (node-26)",
       "browser-e2e",
@@ -189,8 +175,7 @@ describe("parseArgs", () => {
 
   it("refuses a missing job, a second job, an unknown flag and a non-positive count", () => {
     expect(() => parseArgs([])).toThrow(/usage: pnpm ci:durations/);
-    // The usage line has to name every option the header documents, or it sends the
-    // next person looking for a flag that is right there.
+    // The usage line and the header's option list have to agree.
     expect(() => parseArgs([])).toThrow(/--workflow W/);
     expect(() => parseArgs(["a", "b"])).toThrow(/only one job name/);
     expect(() => parseArgs(["a", "--nope"])).toThrow(/unknown option/);

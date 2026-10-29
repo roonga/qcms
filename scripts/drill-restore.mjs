@@ -1,83 +1,7 @@
 /**
- * The restore drill (task 036, exit criterion 1): prove that a `pg_dump` of a QCMS
- * database can actually be restored and that the product still works on top of it.
- *
- * ## Why this is a script and not a page in the runbook
- *
- * A backup nobody has restored is not a backup, it is a file. The failure modes that
- * matter (a dump missing an extension, an ownership mismatch, a restore that lands
- * the schema but not the auth tables) are all invisible until someone tries, and the
- * moment someone tries is the worst possible moment to find out. So the drill runs on
- * a schedule against the real images, and its verdict is a green or red CI job.
- *
- * ## What makes it a real drill
- *
- * The weak version of this test dumps a database and restores it somewhere else, then
- * checks the row counts match. That proves `pg_dump` can round-trip bytes, which was
- * never in doubt. Two things here are deliberately stronger:
- *
- * 1. **The data is destroyed for real.** The database is dropped, and the drill
- *    asserts not one QCMS table is left before restoring. A drill that restores over
- *    live data silently passes forever.
- * 2. **The grants and the ownership are judged too** (issue #1094). `pg_dump
- *    --no-privileges` carries no grant at all and `--no-owner` lands ownership on
- *    whoever runs the restore, so the drill restores as `qcms_migrate`, runs the
- *    re-grant subcommand, and compares the whole grant map against the pre-dump one
- *    for **equality** - twice, so the step is idempotent. Before this, a restored
- *    database answered 500 on the first respondent write.
- * 3. **The application is a judge, not just a row count.** After the restore, the
- *    pre-dump administrator is checked by identity (account row, sign-in credential
- *    and two-factor enrolment, each separately because each fails separately), and a
- *    form published BEFORE the dump is requested from the running portal. Row counts
- *    match whether or not the auth tables came back usable; those two checks do not.
- *
- * ## Why the browser suite does not simply run a second time
- *
- * It cannot, and both reasons are controls working correctly rather than obstacles:
- *
- *  - `full-stack-conditional-form.pw.ts` is a `describe.serial` journey whose first
- *    step enrols the administrator in MFA. Enrolment is one-shot, so a second run
- *    against the same account fails there and says nothing about the restore.
- *  - Bootstrapping a second administrator to run it instead is refused by design:
- *    `createInitialAdmin` is the only door an account comes through and it closes as
- *    soon as one exists (SEC-1).
- *
- * So the post-restore product check drives the **respondent** surface, which needs no
- * credential: the portal renders a restored form, the API reads it, and what is served
- * is the compiled document that came back in the dump (ADR-18).
- *
- * ## It covers `control` and every environment in the live set (task 067, criterion 2)
- *
- * ADR-40 made the data plane a schema per environment, and green field removed the
- * migration without removing this drill: `docs/backup-restore.md` opens with the claim
- * that a backup nobody has restored is not a backup, and that is as true of a database
- * created in this shape as of one migrated into it. So the fingerprint is taken over
- * `control`, every `data_<env>` and every `reporting_<env>`, with the environment list
- * **read out of `control.environments`** rather than written here - which is what makes an
- * environment created after this feature shipped covered without a code change.
- *
- * Two assertions ride with it, and each catches a restore that every row count would call
- * perfect. The environment **set** is re-derived afterwards and compared, so a restore
- * that brought back a different set fails on that rather than on a mismatched count. And
- * `public` is asserted **empty**, because a restore that landed the tables there would
- * resolve on every search path right up to the first time something else created a
- * `sessions` table.
- *
- * ## What is deliberately NOT recreated
- *
- * The `postgres` container keeps running; only the database inside it is dropped and
- * rebuilt. That is not a shortcut, it is a constraint of the harness: inside the dev
- * container the suite reaches the stack through a loopback forwarder that resolved
- * the **portal and admin container IP addresses** when `up()` ran (issue #316). The
- * `api` and `postgres` containers can be restarted freely because nothing forwards to
- * them and Compose resolves them by service name, but recreating portal or admin
- * would strand the forwarder on stale addresses and the failure would look like a
- * restore bug rather than a networking one.
- *
- * Dropping the database exercises exactly the path an operator's restore takes
- * (`psql` into an empty database). It does not exercise "the Postgres host was lost",
- * which is a topology drill rather than a data drill and belongs to the operator's
- * own infrastructure. `docs/backup-restore.md` is explicit about that boundary.
+ * The restore drill: destroy the database, restore it, and let the product judge the result. The
+ * pre-dump administrator is checked by identity and a form is requested from the running portal,
+ * because row counts alone pass unusable auth tables. The `postgres` container keeps running, since recreating portal or admin would strand the loopback forwarder.
  */
 
 import { mkdtempSync, readFileSync, rmSync } from "node:fs";
@@ -89,43 +13,18 @@ import { composeCapture, composeRun, credentialsPath, down, test, up } from "./c
 import { REPOSITORY_ROOT } from "./docker.mjs";
 import { assertPortSeatChosen, harnessPort } from "./ports.mjs";
 
-/** Where the dump lands inside the `postgres` container, and on the host. */
 const CONTAINER_DUMP = "/tmp/qcms-drill.dump.sql";
 
 /**
- * The migration role, which is the credential the restore runs as (issue #1094).
- *
- * `pg_dump --no-owner` lands ownership on **whoever runs the restore**, so restoring as
- * `$POSTGRES_USER` left `control`, every `data_<env>` and every `reporting_<env>` owned by
- * the bootstrap superuser - after which `ownsControlSchema` refuses the environment
- * command and a later migration run as `qcms_migrate` fails on objects it does not own.
- * Restoring as this role lands ownership where SEC-10 expects it.
- *
- * No password is passed and none is needed: `psql` inside the container connects over the
- * Unix socket, and the official image's `pg_hba.conf` carries initdb's own default of
- * `local all all trust`. The image passes no `--auth` flag of its own, so an operator who
- * hardens that default with `POSTGRES_INITDB_ARGS` has to supply the credential - see
- * `docs/backup-restore.md`, which says how (PR #1099's review, finding 5).
+ * The restore runs as this role because `pg_dump --no-owner` lands ownership on whoever
+ * runs it, and SEC-10 expects it here. No password: `psql` in the container connects over
+ * the Unix socket, which the official image leaves on initdb's `local all all trust`.
  */
 const MIGRATE_ROLE = "qcms_migrate";
 
 /**
- * The schemas this installation's data lives in, read out of `control.environments`
- * (ADR-40; task 067, criterion 2).
- *
- * # Why the list is derived and not written down
- *
- * Under ADR-40 there is no single schema to fingerprint: the control plane is `control`,
- * each environment has a `data_<env>` and a `reporting_<env>`, and `public` is left
- * **empty** on purpose. The set is a **table**, so an environment an operator created last
- * week has to be covered by this drill without anybody editing this file - which is the
- * whole of criterion 2's "including one created after the feature shipped".
- *
- * That is also why this is a query rather than `data_%`. `control.environments` is the
- * source of the set and a schema name matching a pattern is a consistency check (Q1,
- * scenario finding 1): an environment whose row exists and whose schema does not is
- * exactly the kind of half-restored database this drill exists to catch, and a pattern
- * would simply not look for it.
+ * Read from `control.environments` so a later environment is covered. A query rather than a `data_%`
+ * pattern: a row without its schema is the half-restored state this drill looks for (ADR-40).
  *
  * @returns {string[]}
  */
@@ -141,13 +40,6 @@ function dataSchemas() {
 }
 
 /**
- * The schema list for one `control.environments` reading, as a pure function of it.
- *
- * Split out from the query so the derivation is testable without a container
- * (`drill-restore.test.ts`), which is what makes criterion 2's "including one created
- * after the feature shipped" an assertion rather than a claim: a third environment is one
- * more line in the input and two more schemas in the output, and the test says so.
- *
  * @param {string} psqlOutput one environment name per line, in `position` order
  * @returns {string[]}
  */
@@ -162,25 +54,12 @@ export function schemasForEnvironments(psqlOutput) {
         "the stack never migrated or never seeded its environment set",
     );
   }
-  // `control` first, then each environment's pair in the table's own order, so the printed
-  // coverage line reads the way the environment list does everywhere else (Q42).
   return ["control", ...names.flatMap((name) => [`data_${name}`, `reporting_${name}`])];
 }
 
 /**
- * Row counts for every table and view in every QCMS schema, as a stable printable string.
- *
- * Deliberately not a hand-written table list: a drill that only counts the tables somebody
- * remembered in 2026 stops covering the ones added afterwards, and silently. The **schema**
- * list is derived too, for the same reason one step up (see {@link dataSchemas}).
- * `query_to_xml` is the standard idiom for a count over a dynamic relation name from inside
- * a single query.
- *
- * **Views are counted beside tables**, which they were not when every object sat in
- * `public`. The reporting views are the surface an adopter's BI tool is connected to, and a
- * restore that brought back every row and none of the views would be a restore that looked
- * perfect and served nothing (Q10, Q26). A view's count also fails loudly if its body came
- * back broken, where its mere presence in the catalogue would not.
+ * Derived rather than a hand-written table list. Views count too: a restore with every row and no
+ * reporting view serves nothing.
  *
  * @param {string[]} schemas
  * @returns {string}
@@ -202,11 +81,8 @@ function fingerprint(schemas) {
 }
 
 /**
- * Run `psql` inside the `postgres` container as the database owner.
- *
- * The credentials come from the container's own `POSTGRES_*` environment rather than
- * from the host's env file. Same allocation, one source: the drill never has to agree
- * with `docker-compose.yml` about what the database is called.
+ * Credentials come from the container's own `POSTGRES_*` environment, so the drill never
+ * has to agree with `docker-compose.yml` about what the database is called.
  *
  * @param {string[]} args
  * @returns {string}
@@ -223,12 +99,8 @@ function psql(args) {
 }
 
 /**
- * Collapse a SQL text to one line, **stripping `--` comments first**.
- *
- * The comments are the whole reason this is a function. Collapsing newlines in a query
- * that carries a `--` comment turns the rest of the query into part of that comment, and
- * `psql` then runs a truncated statement - which is how the first run of the shared
- * privilege map failed, with nothing in the log but `docker exited with status 1`.
+ * `--` comments must go first: collapsing newlines around one would swallow the rest of
+ * the query into that comment and `psql` would run a truncated statement.
  *
  * @param {string} sql
  * @returns {string}
@@ -240,12 +112,7 @@ function oneLine(sql) {
     .trim();
 }
 
-/**
- * The effective-privilege map query, read from the one file the two test suites read
- * through `@roonga/qcms-db/testing`.
- *
- * @returns {string}
- */
+/** @returns {string} */
 export function privilegeMapSql() {
   return readFileSync(
     join(REPOSITORY_ROOT, "packages", "db", "privileges", "privilege-map.sql"),
@@ -259,14 +126,8 @@ function shellQuote(value) {
 }
 
 /**
- * Number of tables in every QCMS schema, as a number.
- *
- * Not narrowed to a schema list, deliberately: this is called **after the drop**, when
- * `control.environments` is gone and there is no set to derive one from, and what it has to
- * answer there is "is anything of ours left at all". So it counts every table outside the
- * catalogue schemas, which is the question in both of its call sites - before the dump it
- * says the stack migrated, and after the drop it says the restore below will prove
- * something.
+ * Not narrowed to a schema list, because this also runs after the drop, when
+ * `control.environments` is gone and the question is whether anything of ours is left.
  *
  * @returns {number}
  */
@@ -282,14 +143,9 @@ function tableCount() {
 }
 
 /**
- * Assert `public` holds no QCMS object, which is ADR-40's layout and not an aesthetic
- * preference.
- *
- * `public` is left empty, off every search path, with `CREATE` on it granted to nobody, so
- * that an unqualified name can never resolve to something a tool or an extension created
- * there. A restore that landed QCMS's tables in `public` would work - every search path
- * ends up resolving them - right up to the first time something else wrote a `sessions`
- * table, and nothing else in this drill would notice.
+ * ADR-40 leaves `public` empty so an unqualified name can never resolve to something a
+ * tool created there. A restore that landed QCMS's tables in `public` would work right up
+ * to the first time something else wrote a `sessions` table.
  */
 function assertPublicEmpty() {
   const left = psql([
@@ -307,10 +163,8 @@ function assertPublicEmpty() {
 }
 
 /**
- * Dump the database to a host file, through a file in the container rather than
- * through this process's stdio: a dump is the one artifact in the flow that must
- * survive byte for byte, and piping it through a captured stdout invites exactly the
- * trailing-whitespace and encoding trims that make a restore fail at 3am.
+ * Through a file in the container rather than this process's stdio: a captured stdout
+ * invites the whitespace and encoding trims that make a restore fail later.
  *
  * @param {string} hostPath
  */
@@ -327,12 +181,9 @@ function dumpTo(hostPath) {
 }
 
 /**
- * Drop and recreate the database, so the restore has nothing to hide behind.
- *
- * Connections are terminated first: Postgres refuses to drop a database that anything
- * is still connected to, and the API holds a pool open. The API is restarted
- * afterwards rather than before, because a pool whose database vanished underneath it
- * is exactly the state the restart exists to clear.
+ * Connections are terminated first, because Postgres refuses to drop a database anything
+ * is still connected to and the API holds a pool open. The API is restarted afterwards,
+ * since a pool whose database vanished underneath it is what the restart clears.
  */
 function destroyDatabase() {
   composeRun([
@@ -346,12 +197,9 @@ function destroyDatabase() {
       `"select pg_terminate_backend(pid) from pg_stat_activity where datname = '$POSTGRES_DB' and pid <> pg_backend_pid();"`,
       `&& dropdb --username "$POSTGRES_USER" "$POSTGRES_DB"`,
       `&& createdb --username "$POSTGRES_USER" --owner "$POSTGRES_USER" "$POSTGRES_DB"`,
-      // `CREATE ON DATABASE` is a privilege ON the database, so dropping the database
-      // destroys it along with everything else - and the one-shot that granted it
-      // (`db-roles`) runs at `up`, not here. Without this line the restore below cannot
-      // create a schema, and the failure reads as a broken dump rather than a missing
-      // grant (issue #1094). The operator recipe in `docs/backup-restore.md` carries the
-      // same line.
+      // `CREATE` is a privilege ON the database, so the drop destroyed it and the
+      // one-shot that granted it runs at `up`, not here. Without this the restore cannot
+      // create a schema. `docs/backup-restore.md` carries the same line.
       `&& psql --username "$POSTGRES_USER" --dbname "$POSTGRES_DB" --command`,
       `"GRANT CREATE ON DATABASE \\"$POSTGRES_DB\\" TO ${MIGRATE_ROLE};"`,
     ].join(" "),
@@ -368,20 +216,11 @@ function restoreFrom(hostPath) {
     "sh",
     "-c",
     // ON_ERROR_STOP is the difference between a restore that failed and a restore
-    // that reported success while skipping every statement after the first error.
-    //
-    // As `qcms_migrate`, not as `$POSTGRES_USER`: see {@link MIGRATE_ROLE}.
     `psql --username ${MIGRATE_ROLE} --dbname "$POSTGRES_DB" --set ON_ERROR_STOP=on --file ${CONTAINER_DUMP}`,
   ]);
 }
 
 /**
- * The lines one grant snapshot has and the other does not, both ways round.
- *
- * A 460-line snapshot printed twice is not a diagnosis: the first failure of this
- * comparison was read by diffing two blocks of log by hand. What a reader needs is the
- * rows that moved, so that is what a refusal carries.
- *
  * @param {string} expected
  * @param {string} actual
  * @returns {string}
@@ -401,35 +240,18 @@ function grantDifference(expected, actual) {
 }
 
 /**
- * Re-apply the grant model, which is the step the restore procedure gained for issue
- * #1094, and assert the result.
- *
- * `pg_dump --no-privileges` carries no grant, and the drizzle journal rides inside the
- * dump, so a post-restore `migrate` re-applies nothing: before this step the restored
- * database held no application grant at all and the first respondent write answered 500.
- *
- * `--no-deps` is load-bearing. Without it Compose would start `db-roles` again, and that
- * one-shot re-assigns every schema's ownership to `qcms_migrate` - which would repair the
- * ownership half of the defect behind the drill's back and make the assertion below
- * vacuous.
+ * `pg_dump --no-privileges` carries no grant. `--no-deps` is load-bearing: otherwise Compose starts
+ * `db-roles`, which re-assigns ownership and makes the assertions below vacuous.
  */
 function regrant() {
-  // `--no-TTY` for the reason every other compose call here passes it: this runs from a
-  // script with no terminal attached, and Compose's default is to allocate one.
+  // `--no-TTY` because this runs from a script with no terminal and Compose allocates one
+  // by default.
   composeRun(["run", "--rm", "--no-TTY", "--no-deps", "migrate", "qcms-db-environment", "regrant"]);
 }
 
 /**
- * The facts the re-grant exists to establish, read out of the restored catalogue.
- *
- * Asserted per environment from `control.environments` rather than against `test` and
- * `prod`, so an environment an operator created is covered - the same derivation
- * {@link dataSchemas} makes one step up.
- *
- * Ownership is read for **all three** of an environment's schemas plus `control`:
- * `reporting_<env>` is where task 067's per-workspace views live, and a restore that left
- * them on the superuser would refuse the next `qcms-db-environment reporting` run
- * (PR #1099's review, finding 7).
+ * Asserted per environment from `control.environments`. Ownership is read for `reporting_<env>` too:
+ * left on the superuser it would refuse the next `qcms-db-environment reporting` run.
  */
 function assertRestoredGrants() {
   const rows = psql([
@@ -464,9 +286,8 @@ function assertRestoredGrants() {
     }
     if (!row.includes(` control_owner=${MIGRATE_ROLE}`)) problems.push(`${row} (control misowned)`);
   }
-  // The one statement the re-grant cannot re-apply, so the property it establishes is
-  // asserted rather than assumed: a REVOKE on a schema needs its owner, and a database
-  // recreated by the restore owns `public` as `pg_database_owner`.
+  // The re-grant cannot re-apply this: a REVOKE on a schema needs its owner, and a
+  // database recreated by the restore owns `public` as `pg_database_owner`.
   const publicCreate = psql([
     "--tuples-only",
     "--no-align",
@@ -477,8 +298,6 @@ function assertRestoredGrants() {
   ]).trim();
   if (publicCreate !== "f") problems.push("PUBLIC still holds CREATE on schema public");
   // The same property per role, because `public` is out of the snapshot above (Q76) and
-  // this is what keeps that exclusion from losing anything: no application role may create
-  // an object there, whoever owns the schema after the restore.
   const appCreate = psql([
     "--tuples-only",
     "--no-align",
@@ -496,30 +315,9 @@ function assertRestoredGrants() {
 }
 
 /**
- * Every privilege every `qcms%` role **holds**, on every object kind that can carry one, as
- * a printable snapshot.
- *
- * Taken before the dump and again after the re-grant, and compared for **equality**: the
- * re-grant must restore exactly what a migrated database holds and must not widen a single
- * privilege. `apps/api/e2e/security/04-db-restore-regrant.e2e.ts` makes the same comparison
- * against a Testcontainers database; this is the one that makes it against the real images
- * and the documented procedure.
- *
- * **Effective, not stored**, and that distinction is this drill's finding. The first version
- * read `relacl` and friends through `aclexplode`, which reports what is written down: a
- * `REVOKE` on a relation whose ACL is NULL materialises it to the owner's own entry and it
- * stays there, so the map reported a difference in a privilege nobody holds. `psql` reads
- * the same query the two suites use, kept in `packages/db/src/testing/privilege-map.ts`.
- *
- * It reads the **same file** the suites read, `packages/db/privileges/privilege-map.sql`,
- * rather than importing the built package: this script runs before, between and after
- * builds of `packages/db/dist`, so a recovery drill must not depend on one.
- * `drill-restore.test.ts` asserts the path still exists and still carries the query.
- *
- * `public` is excluded here and nowhere else (Q76): the documented procedure recreates the
- * database, so `public` comes back owned by `pg_database_owner` where it was owned by
- * `qcms_migrate`, and the migration role's `CREATE` on it genuinely changes. The property
- * that matters is asserted directly in {@link assertRestoredGrants}.
+ * Privileges every `qcms%` role effectively HOLDS, not the stored ACL, where a `REVOKE` on a NULL ACL
+ * leaves a phantom owner entry. Reads the `.sql` file so the drill needs no `packages/db/dist`. `public`
+ * is excluded: the documented procedure recreates the database.
  *
  * @returns {string}
  */
@@ -533,16 +331,8 @@ function grantSnapshot() {
 }
 
 /**
- * Assert the administrator created before the dump came back, enrolment and all.
- *
- * Three separate facts, because they fail separately: the account row (`user`), the
- * credential better-auth signs in against (`account`), and the two-factor enrolment
- * the first suite run performed (`twoFactor`). A dump that captured the first but not
- * the third produces an account nobody can sign in as, which is a restore that looks
- * successful right up to the moment it matters.
- *
- * Table names are better-auth's, quoted because `user` is reserved and `twoFactor`
- * is camel-cased (`packages/db/src/schema/auth.ts`).
+ * Three facts because they fail separately: an account row without its two-factor enrolment cannot
+ * sign in. Names are better-auth's, quoted for reserved `user` and camel-cased `twoFactor`.
  *
  * @param {string} email
  */
@@ -577,12 +367,8 @@ function quoteSql(value) {
 }
 
 /**
- * The slug of a form the seeding run published, and the labels of its compiled
- * document, both read back out of the RESTORED database.
- *
- * Reading them from the restore rather than remembering them from before the dump is
- * the stronger direction: it proves the rows came back, and gives the next step
- * something to hold the running product against.
+ * Read back out of the restored database rather than remembered from before the dump,
+ * which is the stronger direction: it proves the rows came back.
  *
  * @returns {{ slug: string, labels: string[] }}
  */
@@ -591,9 +377,8 @@ function readRestoredPublishedForm() {
     "--tuples-only",
     "--no-align",
     "--command",
-    // `published_at` is NOT NULL on this table: a row in `form_versions` IS a
-    // published version, and the draft lives in `form_drafts`. So the join is the
-    // whole filter, and the most recent version is the one the seeding run published.
+    // `published_at` is NOT NULL here, so a row in `form_versions` IS a published version
+    // and the join is the whole filter.
     `select f.slug from control.forms f
        join control.form_versions v on v.form_id = f.form_id
       order by v.published_at desc
@@ -608,9 +393,8 @@ function readRestoredPublishedForm() {
     "--tuples-only",
     "--no-align",
     "--command",
-    // Every A2UI control carries `props.label` (packages/a2ui-compiler mapping), so
-    // this pulls the visible text out of the stored compilation without the drill
-    // having to know the document's shape. `$.**` walks any depth.
+    // Every A2UI control carries `props.label`, and `$.**` walks any depth, so this gets
+    // the visible text without the drill knowing the document's shape.
     `select jsonb_path_query_array(v.compiled, '$.**.label')
        from control.forms f
        join control.form_versions v on v.form_id = f.form_id
@@ -620,9 +404,8 @@ function readRestoredPublishedForm() {
   ]).trim();
   /** @type {unknown} */
   const parsed = JSON.parse(labelJson === "" ? "[]" : labelJson);
-  // Short strings are dropped because the same `label` prop names radio and checkbox
-  // children, and a page that matched only on "Yes" would be matching on a word any
-  // shell might contain. What survives is authored question text.
+  // Short strings go because the same `label` prop names radio and checkbox children, and
+  // matching on "Yes" would match a word any page might contain.
   const labels = (Array.isArray(parsed) ? parsed : []).filter(
     (value) => typeof value === "string" && value.length >= 4,
   );
@@ -635,8 +418,6 @@ function readRestoredPublishedForm() {
 }
 
 /**
- * Undo the entity escaping Next applies to text it renders into HTML.
- *
  * @param {string} html
  * @returns {string}
  */
@@ -651,44 +432,17 @@ function decodeEntities(html) {
 }
 
 /**
- * Start a real respondent session on `slug` and assert the step it serves came out of
- * the restored compiled document.
- *
- * This is the drill's product-level claim, and every hop of it is load-bearing:
- *
- *  - `POST /f/:slug/start` is the BFF route the entry form posts to. It calls the API,
- *    which must find the form, find its published version and insert a session row -
- *    all in the restored database. Success is a 303 to `/s/:sessionId`; a lost form
- *    redirects back to `/f/:slug?state=notfound` and a lost version to `state=closed`,
- *    so the failure modes are distinguishable rather than merely "not a session".
- *    A third refusal, `state=error`, is the SEC-9 origin belt and says nothing about
- *    the restore: see the headers below for why this call sends what a browser sends.
- *  - `GET /s/:sessionId` with the cookie the portal just issued renders the first step
- *    server-side from what the API returns, which is the STORED compilation (ADR-18,
- *    never a recompilation). Asserting a label from `form_versions.compiled` appears
- *    there is what proves the restored jsonb is the thing being served.
- *
- * `GET /f/:slug` is deliberately not used: that page is static, takes no database and
- * no API call, and echoes its own slug by construction, so it answers 200 for a slug
- * that does not exist and against a completely empty database.
- *
- * Exported so a probe can point it at a slug that is not there and watch it fail. A
- * check nobody has seen go red is not yet evidence.
+ * Asserting a label from `form_versions.compiled` proves the restored jsonb is what is served (ADR-18).
+ * `GET /f/:slug` is not used: it is static and answers 200 against an empty database.
  *
  * @param {string} slug
  * @param {string[]} labels
  */
 export async function assertPortalServesRestoredForm(slug, labels) {
   const base = `http://localhost:${String(harnessPort("portal"))}`;
-  // The Fetch Metadata a browser attaches when it submits the entry form. The portal's
-  // SEC-9 belt (issue #487) refuses a state-changing POST that declares no origin at
-  // all, and node's `fetch` declares none, so without this the drill reports
-  // `state=error` and reads as "your restored data is missing" when the restore is
-  // fine. That is the worst possible false alarm to raise during a recovery.
-  // The `Origin` is the harness portal's own, which is what a real form POST sends here
-  // since 2026-10-01: the portal serves `Referrer-Policy: same-origin`, so a navigation
-  // POST from a portal page carries the real origin. It sent the literal `null` under the
-  // old `no-referrer` policy. `Sec-Fetch-Site` is still the header the belt reads first.
+  // The portal's SEC-9 belt refuses a state-changing POST that declares no origin, and
+  // node's `fetch` declares none, so without these headers the drill reports
+  // `state=error` and reads as a failed restore. `Sec-Fetch-Site` is read first.
   const start = await fetch(`${base}/f/${slug}/start`, {
     method: "POST",
     redirect: "manual",
@@ -702,14 +456,9 @@ export async function assertPortalServesRestoredForm(slug, labels) {
   const target = new URL(start.headers.get("location") ?? "", base);
   const refused = target.searchParams.get("state");
   if (refused !== null) {
-    // **The refusal names its own cause**, because the three it used to guess between are
-    // not the only three and the interesting ones are not in the list. `state=error` in
-    // particular is every refusal the entry route does not have a word for: an origin-belt
-    // refusal, an API error code the route does not map, a rate limit, a 500, or a fetch
-    // that never completed. Reading it as "your restored data is missing" is the worst
-    // possible false alarm to raise during a recovery, so the portal's own log goes in the
-    // message - it carries `origin.belt.refused` for the first and the API's code for the
-    // rest (SEC-8: the portal logs no value, so this is ids and classifications only).
+    // `state=error` is every refusal the entry route has no word for, and reading it as
+    // missing data is the worst false alarm to raise during a recovery, so the portal's
+    // own log goes in the message (SEC-8: ids and classifications only, no values).
     const portalLog = composeCapture(["logs", "--tail", "30", "portal"]);
     throw new Error(
       `drill-restore: the portal refused to start a session on the restored form ${slug} ` +
@@ -724,8 +473,8 @@ export async function assertPortalServesRestoredForm(slug, labels) {
       `drill-restore: the portal redirected to ${target.pathname} rather than into a session`,
     );
   }
-  // The session bearer lives in an httpOnly cookie the BFF sets on the 303. Replaying
-  // it is what makes the next request the same respondent rather than a new visitor.
+  // Replaying the httpOnly cookie the BFF set on the 303 is what makes the next request
+  // the same respondent rather than a new visitor.
   const cookie = start.headers
     .getSetCookie()
     .map((value) => value.split(";")[0])
@@ -765,19 +514,16 @@ async function drill() {
   try {
     step("bringing up a fresh stack and bootstrapping an administrator");
     await up();
-    // Read back rather than returned by `up()`: the credentials file is the contract
-    // the spec itself reads, so taking the identity from there means the drill checks
-    // the same account the suite actually signed in as.
+    // Read back from the credentials file the spec itself reads, so the drill checks the
+    // same account the suite signed in as.
     const seededAdmin = JSON.parse(readFileSync(credentialsPath, "utf8"));
 
     step("seeding real domain data by running the full-stack suite");
     test();
 
     step("fingerprinting the seeded database, one schema per environment in the live set");
-    // The schema set is read out of `control.environments` rather than written here, so an
-    // environment created after this feature shipped is covered without a code change
-    // (ADR-40, Q1; criterion 2). It is read BEFORE the drop, which is the only moment it
-    // can be read at all: the table goes with the database.
+    // Read BEFORE the drop, which is the only moment it can be read at all: the table
+    // goes with the database.
     const schemas = dataSchemas();
     process.stdout.write(`drill-restore: covering ${schemas.join(", ")}\n`);
     const before = fingerprint(schemas);
@@ -785,9 +531,8 @@ async function drill() {
     if (seededTables === 0) {
       throw new Error("drill-restore: the seeded database has no tables; the stack never migrated");
     }
-    // Taken before the dump, compared after the re-grant. The whole grant map rather than
-    // the privileges this script expected: the re-grant must restore exactly what a
-    // migrated database holds and widen nothing (issue #1094).
+    // The whole grant map rather than the privileges this script expected: the re-grant
+    // must restore exactly what a migrated database holds and widen nothing.
     const grantsBefore = grantSnapshot();
     process.stdout.write(`${before}\n`);
 
@@ -807,9 +552,8 @@ async function drill() {
     restoreFrom(hostDump);
 
     step("re-applying the grant model, which the dump deliberately does not carry");
-    // The step the procedure gained for issue #1094. The assertion before it is what makes
-    // this step evidence rather than ritual: the restored database must NOT hold the
-    // application grants yet, so a re-grant that did nothing could not pass.
+    // The assertion before it is what makes this evidence rather than ritual: the restored
+    // database must NOT hold the application grants yet, so a no-op re-grant cannot pass.
     const grantsAfterRestore = grantSnapshot();
     if (grantsAfterRestore === grantsBefore) {
       throw new Error(
@@ -828,8 +572,7 @@ async function drill() {
           grantDifference(grantsBefore, grantsAfterRegrant),
       );
     }
-    // Idempotence, on the real images: running the step twice must change nothing, so an
-    // operator re-running a recovery script cannot widen anything by doing so.
+    // Run twice, so an operator re-running a recovery script cannot widen anything.
     regrant();
     const grantsAfterSecond = grantSnapshot();
     if (grantsAfterSecond !== grantsBefore) {
@@ -844,9 +587,8 @@ async function drill() {
     composeRun(["up", "--detach", "--wait", "api"]);
 
     step("comparing the restored fingerprint against the pre-dump one");
-    // The same schema list, and derived again rather than reused: if the restore brought
-    // back a different environment set, the two lists differ and that is the failure to
-    // report, not a fingerprint quietly taken over whichever set came back.
+    // Derived again rather than reused: a restore that brought back a different
+    // environment set must fail on that, not on a count taken over whichever set came back.
     const restoredSchemas = dataSchemas();
     if (restoredSchemas.join(", ") !== schemas.join(", ")) {
       throw new Error(
@@ -861,39 +603,18 @@ async function drill() {
       );
     }
     process.stdout.write(`${after}\n`);
-    // ADR-40 leaves `public` empty and off every search path; a restore that landed the
-    // tables there would pass every count above and be wrong in the one way nothing else
-    // here looks for.
+    // A restore that landed the tables in `public` would pass every count above.
     assertPublicEmpty();
 
     step("checking the pre-dump administrator survived the restore");
-    // Row counts alone would match whether or not the auth tables came back usable,
-    // so the account created BEFORE the dump is checked by identity: it must still be
-    // there, and it must still carry the two-factor enrolment the first suite run
-    // performed. That is the half of the restore a fresh-account smoke cannot prove.
+    // Row counts match whether or not the auth tables came back usable, so the pre-dump
+    // account is checked by identity.
     assertAdminSurvived(seededAdmin.email);
 
     step("answering a pre-dump form from the restored database, through the portal");
-    // The product-level claim, and it deliberately drives the RESPONDENT surface.
-    //
-    // Two controls rule out the obvious alternatives. Both are correct, so the drill
-    // works with them rather than around them:
-    //
-    //  - Re-running the browser suite as the pre-dump administrator fails on its very
-    //    first step, which enrols that account in MFA. Enrolment is one-shot.
-    //  - Bootstrapping a second administrator to run it instead is refused by design:
-    //    `createInitialAdmin` is the only door an account comes through, and it closes
-    //    the moment one exists (SEC-1). A drill that defeated that control in order to
-    //    test a restore would be testing a system nobody runs.
-    //
-    // The respondent surface needs no credential, so it can carry the claim: starting
-    // a session on a form published BEFORE the dump drives portal -> API -> restored
-    // rows, and reading the step back proves what the API served came out of the
-    // restored compilation rather than being regenerated (ADR-18).
-    //
-    // The API was restarted two steps ago, which also resets the in-memory rate-limit
-    // store the seeding run drew down. Without that restart the session start could be
-    // 429'd by the seeding run's own traffic and read as a failed restore.
+    // The API restart two steps ago also reset the in-memory rate-limit store the seeding
+    // run drew down; without it this session start could be 429'd and read as a failed
+    // restore.
     const restored = readRestoredPublishedForm();
     await assertPortalServesRestoredForm(restored.slug, restored.labels);
 

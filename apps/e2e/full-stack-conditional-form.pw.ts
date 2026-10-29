@@ -38,14 +38,8 @@ const credentials = JSON.parse(readFileSync(credentialsPath, "utf8")) as {
 const EMAIL = credentials.email;
 const PASSWORD = credentials.password;
 /**
- * The password this run chooses, replacing the provisional one `qcms:create-admin` set
- * (task 061, SEC-1). Generated rather than written down, like the admin suite's: a
- * literal is a hard-coded credential the lint gate flags, and a value that changes per
- * run means a leaked log line from one run authorizes nothing in the next.
- *
- * Nothing after the first checkpoint signs in again - the enrolled session is saved to
- * `authStatePath` and reused - so this is used exactly once and never has to be written
- * back to the credentials file the compose bootstrap produced.
+ * Generated per run rather than written down, so a leaked log line from one run
+ * authorizes nothing in the next (SEC-1).
  */
 const CHOSEN_PASSWORD = `e2e-chosen-${Buffer.from(crypto.getRandomValues(new Uint8Array(18))).toString("base64url")}`;
 
@@ -80,27 +74,12 @@ async function continueOrSubmit(page: Page): Promise<void> {
 }
 
 /**
- * The Fetch Metadata a browser attaches when it submits the portal's own entry form.
- *
- * `page.request` is an API client, not a page, so it sends none of this on its own,
- * and the portal's SEC-9 belt (issue #487) refuses a state-changing POST that declares
- * no origin at all. Supplying it is not a workaround for the guard: it is what the
- * browser this helper stands in for actually sends, and a helper that drove the route
- * with headers no browser produces would be testing a client that does not exist.
- *
- * **The `Origin` is the portal's own, and it used to be the literal `null`.** Per
- * Fetch, a navigation POST under `Referrer-Policy: no-referrer` serializes its origin
- * as `null`, and the portal served that policy until task 073; it now serves
- * `same-origin` (Code Owner, 2026-10-01, SEC-9 as amended), because Next's Server
- * Action check compares `Origin` to the `Host` and refuses `null`, and the no-JS roster
- * operation of a repeating group is a Server Action. So the real shape of a legitimate
- * no-JS Start now carries this portal's real origin, and that is what this helper
- * sends. The belt still reads `Sec-Fetch-Site` first and its acceptance rule is
- * unchanged, so the pair is what matters rather than either header alone.
+ * `page.request` sends no Fetch Metadata of its own, and the SEC-9 belt reads
+ * `Sec-Fetch-Site` and `Origin` as a pair. These are the headers a real browser sends
+ * for a same-origin navigation POST, not a way around the guard.
  */
 const BROWSER_FORM_POST = { "sec-fetch-site": "same-origin", origin: PORTAL_URL } as const;
 
-/** Start a portal session through the form's BFF endpoint and follow its redirect. */
 async function startPortalSession(page: Page, formSlug: string): Promise<void> {
   const response = await page.request.post(`${PORTAL_URL}/f/${formSlug}/start`, {
     maxRedirects: 0,
@@ -108,10 +87,8 @@ async function startPortalSession(page: Page, formSlug: string): Promise<void> {
   });
   expect(response.status(), "the portal Start BFF route should redirect to a session").toBe(303);
   const location = response.headers()["location"];
-  // The redirect must carry the PUBLIC portal origin. The container-internal
-  // listen address is exactly what this route used to emit, and a browser outside
-  // the Compose network cannot follow it, so accepting that shape here would
-  // accept the bug the portal's QCMS_PORTAL_BASE_URL read exists to fix.
+  // The public portal origin, not the container-internal listen address: a browser
+  // outside the Compose network cannot follow that one.
   expect(
     location?.startsWith(`${PORTAL_URL}/s/ses_`),
     `the Start redirect should target ${PORTAL_URL}/s/ses_..., got ${location ?? "no location header"}`,
@@ -152,28 +129,14 @@ test.beforeAll(async () => {
 
 test.describe.serial("conditional form journey", () => {
   test("walks the bootstrap admin through the forced password change and MFA", async ({ page }) => {
-    // docker:up bootstraps a first admin in the fresh test database with the REAL
-    // `qcms:create-admin`, so this is the only place the whole SEC-1 first-run sequence
-    // runs against the shipped images: a provisional credential set by the command, the
-    // forced change, then the required MFA enrollment. Task 061's exit criterion 5 is
-    // the order these two appear in, and the reason it is asserted here as well as in
-    // the admin suite is that this stack is the one that never stubs the bootstrap.
     await page.goto("/sign-in");
     await page.getByLabel("Email").fill(EMAIL);
     await page.getByLabel("Password").fill(PASSWORD);
     await page.getByRole("button", { name: "Sign in" }).click();
 
     await expect(page).toHaveURL(/\/change-password$/);
-    // By accessible name and exactly, not by label, and the reason is specific to this
-    // screen: Playwright matches a label by case-insensitive substring, so
-    // `getByLabel("New password")` resolves to the confirmation field as well and the
-    // fill is a strict-mode violation rather than a locator. `exact: true` on the label
-    // does not rescue it either - a react-aria `TextField` puts the required marker
-    // inside the label element as an `aria-hidden` span, so the label TEXT is "New
-    // password*" while the accessible NAME is "New password".
-    // `apps/admin/e2e/forced-password-change.pw.ts` carries the same note beside its own
-    // helper; the sign-in fields above stay on `getByLabel` because that screen has no
-    // second field whose label contains either word.
+    // By exact accessible name, not by label: a react-aria required marker makes the label
+    // text "New password*", and a label substring also matches the confirmation field.
     const field = (name: string) => page.getByRole("textbox", { name, exact: true });
     await field("Temporary password").fill(PASSWORD);
     await field("New password").fill(CHOSEN_PASSWORD);
@@ -190,8 +153,6 @@ test.describe.serial("conditional form journey", () => {
     await page.getByRole("button", { name: "I have saved these codes" }).click();
     await expect(page).toHaveURL(/\/questions$/);
     await expect(page.getByRole("heading", { name: "Questions" })).toBeVisible();
-    // Keep the real post-enrolment session while each later checkpoint runs
-    // in its own fresh browser context.
     await page.context().addCookies([{ name: "qcms-environment", value: "test", url: ADMIN_URL }]);
     await page.context().storageState({ path: authStatePath });
   });
@@ -216,12 +177,8 @@ test.describe.serial("conditional form journey", () => {
       for (const slug of ["number", "multi-choice", "single-choice"] as const) {
         await pinQuestion(page, QUESTION_IDS[slug], 1);
       }
-      // THE LAST PIN IS ANCHORED, and it stands for all seven (issue 748). A save stores
-      // the WHOLE draft, so waiting for the one the last pin arms is waiting for every pin
-      // above it. `waitForSaved` could not say that: "Last saved" is already on screen from
-      // an earlier pin, so it returned while the rest were still on the debounce, and this
-      // test ends by closing its page - an autosave still armed at that moment is an edit
-      // the form never receives.
+      // Anchoring the last pin covers all of them: one save stores the whole draft, and an
+      // autosave still armed when the page closes is an edit the form never receives.
       const beforeLastPin = await savedStamp(page);
       await pinQuestion(page, QUESTION_IDS["long-text"], 1);
       await waitForSaveAfter(page, beforeLastPin);
@@ -230,12 +187,6 @@ test.describe.serial("conditional form journey", () => {
     test("adds the affirmative conditional route", async ({ page }) => {
       await openFormBuilder(page);
       for (const target of [QUESTION_IDS.number, QUESTION_IDS["long-text"]]) {
-        // ONE RULE, ONE SAVE, WAITED ON (issue 748). The stamp is read while the strip is
-        // settled, so nothing already in flight can move it, and the wizard buffers, so the
-        // only thing that moves it next is this rule's own Save. What this loop used to
-        // assert was that the EDITOR reached a state, which says nothing about the draft
-        // reaching the server: the second rule was still on the debounce when the page
-        // closed, and the publish two tests later froze a form without it.
         const beforeRule = await savedStamp(page);
         const ruleId = await addRule(page);
         const scope = rule(page, ruleId);
@@ -243,10 +194,8 @@ test.describe.serial("conditional form journey", () => {
         await chooseOption(scope, "Operator", "equals (the whole answer)");
         await chooseOption(scope, "Value", "Yes");
         await toggleTarget(page, ruleId, target, true);
-        // SAVE EACH RULE BEFORE STARTING THE NEXT. The editor is a buffering modal since
-        // 2026-08-30: nothing typed in it reaches the draft until Save, so a loop that
-        // moved straight on to `addRule` both left the rail behind an open dialog and
-        // built rules the form never received.
+        // Save each rule before starting the next: the editor is a buffering modal, so
+        // nothing typed in it reaches the draft until Save, and it covers the rail.
         await closeRuleEditor(page);
         await waitForSaveAfter(page, beforeRule);
       }
@@ -255,7 +204,6 @@ test.describe.serial("conditional form journey", () => {
     test("adds the negative conditional route", async ({ page }) => {
       await openFormBuilder(page);
       for (const target of [QUESTION_IDS["multi-choice"], QUESTION_IDS["single-choice"]]) {
-        // Same anchor as the affirmative route above, and for the same reason.
         const beforeRule = await savedStamp(page);
         const ruleId = await addRule(page);
         const scope = rule(page, ruleId);
@@ -273,11 +221,6 @@ test.describe.serial("conditional form journey", () => {
       await page.getByRole("button", { name: "Publish to test", exact: true }).click();
       const publish = page.getByRole("alertdialog");
       await expect(publish).toBeVisible();
-      // A SERVER READ-BACK BEFORE THE FREEZE (issue 748). This page loaded the draft the
-      // API holds and the summary counts what publish is about to freeze out of it, so an
-      // authored rule that never reached the server fails HERE, naming the count it found,
-      // rather than two tests later as a respondent question that should have been hidden
-      // and was not. Three CI reds read as portal bugs before that distinction was drawn.
       await expect(page.getByTestId("qcms-freeze-summary")).toHaveText(
         "Freezes 2 steps, 7 pinned questions, 4 rules.",
       );
@@ -328,77 +271,25 @@ test.describe.serial("conditional form journey", () => {
     test("releases the published version, which is what puts it in front of a respondent", async ({
       page,
     }) => {
-      // ADR-40, task 065. Publishing froze the version into `control`, shared by every
-      // environment, and served it nowhere: what a new session resolves is the version
-      // **released** to its environment. Without this the respondent route below answers
-      // 409 and the portal shows its unavailable state - which is exactly what it should
-      // do, and is why this is a step of the journey rather than a detail of the harness.
-      //
-      // `prod` is the environment the deployed stack serves: the portal has no `/<env>/`
-      // prefix until task 066, so a respondent request names none and resolves there.
+      // Publishing freezes into `control`; a session resolves what is released to its
+      // environment, so without this release the respondent route answers 409 (ADR-40).
       await releaseNewestVersion(page, formId);
     });
 
     test("refuses a cross-site Start and creates no session (SEC-9, issue #487)", async ({
       page,
     }) => {
-      // The belt asserted through the deployed stack rather than only in a unit test:
-      // real proxy, real Next server, real container, real published form. Everything
-      // about this request is legitimate except where the browser says it came from,
-      // so a pass here cannot be explained by the form being unreachable.
       const response = await page.request.post(`${PORTAL_URL}/f/${FORM_SLUG}/start`, {
         maxRedirects: 0,
         headers: { "sec-fetch-site": "cross-site", origin: "https://forged.example" },
       });
       expect(response.headers()["location"]).toBe(`${PORTAL_URL}/f/${FORM_SLUG}?state=error`);
-      // The assertion that matters. The redirect only says what the respondent sees;
-      // this says no session was minted, which is the state change being refused.
       expect(response.headers()["set-cookie"] ?? "").not.toContain("qcms_session=");
     });
 
-    // Both action-id cases are asserted HERE and nowhere else, because this is the only
-    // suite that runs the portal as a production build, and the behaviour differs from
-    // development: `next dev` replaces the error component with its overlay driver, so a
-    // dev probe says nothing about what a respondent receives.
-    //
-    // A page held across a deploy can post an id this build does not know. The action
-    // handler validates every id BEFORE dispatch, so no page of this app renders for either
-    // case: not the flow segment's error boundary, which catches only what its own subtree
-    // throws while rendering, and not an App Router `app/500/page.tsx` or a Pages Router
-    // `pages/_error.tsx`, both of which were tried against a production build and neither
-    // of which is consulted. ADR-43's amendment carries the measurements; these two tests
-    // are what hold them true.
-    //
-    // **What makes an id stale is a per-build salt, and these two tests deliberately do not
-    // depend on it** (Code Owner, 2026-10-10, issue #1035). `next build` hashes every action
-    // id with a key it generates per build, caches under `<distDir>/cache/.rscinfo` for
-    // fourteen days and reuses for later builds in the same tree, so an image build rotates
-    // every id and an in-place local rebuild does not. Pinning
-    // `NEXT_SERVER_ACTIONS_ENCRYPTION_KEY` at image build keeps the ids and is what stops a
-    // held step breaking on a deploy; `scripts/probe-action-id-stability.mjs` measures that,
-    // because it needs clean production builds and two servers, which no Playwright project
-    // here has. What THESE tests pin is the other half, which the pin does not change: the
-    // response a genuinely unknown id gets. The ids below are literals no build ever minted,
-    // so they are unknown whatever the salt did, and that is why they belong here.
-    //
-    // **Since next 16.4.0 the two cases answer differently, and telling them apart is the
-    // point of splitting this in two** (vercel/next.js#98123, ADR-43's amendment of
-    // 2026-10-10). Next gates the id on its LENGTH first: an id of the wrong length is
-    // malformed and gets a 400, and only a well-formed id reaches the module map and gets a
-    // 409. Before 16.4.0 both were a bare `500 text/plain`, which is why one test covered
-    // both and why its id was never checked against the real shape.
-    //
-    // That is also a defect this split repairs. The single test posted a 44-character id
-    // where a real action id in this build is 42, so it exercised the MALFORMED path while
-    // its name claimed deployment skew, and at 16.3.x nothing could reveal the mistake
-    // because both paths answered 500.
-    //
-    // The request in both is what the browser sends: a MULTIPART post carrying an action
-    // descriptor. Multipart matters, because Next treats a url-encoded POST that is not a
-    // fetch action as not an action request at all and simply renders the page. No session,
-    // form or repeating group is needed to reach either, since the id check happens before
-    // anything of the app runs. The real action id's 200 is covered by the respondent-route
-    // tests below rather than restated here.
+    // This suite alone runs the portal as a production build, where Next gates an action id on its
+    // length before the module map; `next dev` answers differently. The request must be multipart,
+    // or Next renders the page instead of refusing.
 
     /** A well-formed action id, 42 lowercase hex characters, that no build ever minted. */
     const UNKNOWN_ACTION_ID = "00112233445566778899aabbccddeeff0011223344";
@@ -417,11 +308,8 @@ test.describe.serial("conditional form journey", () => {
       });
 
     /**
-     * What the respondent must never receive, whichever way the id is refused: the
-     * framework's own wording, which names the deployment (SEC-13's spirit: a public
-     * surface discloses nothing about the build), a session identifier, or a page. The
-     * page assertion is positive so "nothing is rendered" cannot quietly become
-     * "something broken is rendered".
+     * A public surface discloses nothing about the build (SEC-13), so neither refusal
+     * may carry the framework's wording, a session identifier or a page.
      */
     const expectLeaksNothing = (body: string) => {
       expect(body, "the framework's deployment wording stays in the log").not.toContain(
@@ -434,22 +322,14 @@ test.describe.serial("conditional form journey", () => {
     test("a stale Server Action id is refused as a 409, and leaks nothing (task 073)", async ({
       page,
     }) => {
-      // The deployment-skew case: a real stale id is a real id, so it is well formed and
-      // only the module map rejects it.
       expect(UNKNOWN_ACTION_ID, "a real action id in this build is 42 hex").toHaveLength(42);
 
       const response = await postActionId(page, UNKNOWN_ACTION_ID);
 
       expect(response.status()).toBe(409);
       expect(response.headers()["content-type"]).toContain("text/plain");
-      // The header is load-bearing beyond this test: Next sends it on an action-id refusal
-      // and on nothing this app answers itself. It rides the 400 below too, so the STATUS is
-      // what makes this skew and the header is what makes it the framework talking; the
-      // malformed test asserts the other half of that pair. That pair is the trigger the
-      // deferred half of #1035 would use, at the ingress rather than in the proxy: the proxy
-      // runs BEFORE the route and can see no response status, and the build-stamp pre-check
-      // #1035 was written around is refused for answering ahead of SEC-9's belt (ADR-43's
-      // amendment of 2026-10-10).
+      // Next sends this header on an action-id refusal and on nothing this app answers, so
+      // the status separates skew from a malformed request and the header names the source.
       expect(
         response.headers()["x-nextjs-action-not-found"],
         "the signal a proxy can tell deploy skew by",
@@ -462,9 +342,6 @@ test.describe.serial("conditional form journey", () => {
     test("a malformed Server Action id is refused as a 400, and leaks nothing (task 073)", async ({
       page,
     }) => {
-      // Not deployment skew. A wrong-length id cannot have come from a browser holding one
-      // of our pages, so this is the shaped-request case, and it is asserted separately so
-      // that a future framework change cannot merge the two statuses unnoticed.
       expect(MALFORMED_ACTION_ID.length, "deliberately not 42").not.toBe(42);
 
       const response = await postActionId(page, MALFORMED_ACTION_ID);
@@ -477,8 +354,6 @@ test.describe.serial("conditional form journey", () => {
     });
 
     test("completes the affirmative respondent route", async ({ page }) => {
-      // The affirmative branch: number and long text appear, while both false
-      // branch controls are absent. Values are posted before advancing each step.
       await page.goto(`${PORTAL_URL}/f/${FORM_SLUG}`);
       await startPortalSession(page, FORM_SLUG);
       await expect(page.getByText(questionLabel("Short text"))).toBeVisible();
@@ -502,9 +377,8 @@ test.describe.serial("conditional form journey", () => {
       await expect(page.getByRole("radio", { name: "Yes, always" })).toBeVisible();
       await expect(page.getByRole("textbox", { name: questionLabel("Number") })).toHaveCount(0);
       await expect(page.getByRole("textbox", { name: questionLabel("Long text") })).toHaveCount(0);
-      // React Aria keeps the native checkbox input visually hidden under its
-      // painted control. Click its label text (the respondent's hit target),
-      // rather than the hidden input exposed by the role locator.
+      // React Aria hides the native input under its painted control, so the label text is
+      // the respondent's hit target rather than the input the role locator returns.
       const yesAlways = page.getByText("Yes, always", { exact: true });
       await yesAlways.first().click();
       await yesAlways.last().click();

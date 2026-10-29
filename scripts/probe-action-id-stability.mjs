@@ -1,61 +1,9 @@
 #!/usr/bin/env node
 // @ts-check
 /**
- * Does a no-JS respondent's held repeating step survive a portal deploy?
- *
- * ## What this measures, and why it is a script and not a gate
- *
- * The no-JS Add and Remove of a repeating group is a Next Server Action (ADR-43), and
- * Next hashes every Server Action id with an encryption key it generates **per build**.
- * So a build can rename the id the previous build's pages are holding, and a respondent
- * who posts the old one gets Next's `409 Server Action unavailable.` with no page of the
- * portal rendering (issue #1035, the #504 entry in `docs/operations.md`).
- *
- * Whether that happens is a deployment choice. `NEXT_SERVER_ACTIONS_ENCRYPTION_KEY` pins
- * the key, which pins the ids, which keeps the held page working. This script is the
- * measurement behind that claim: three clean production builds and two replayed posts.
- *
- * It is not part of `pnpm verify`, and the reason is the word **clean**. The key is
- * cached under `<distDir>/cache/.rscinfo` for fourteen days and reused by later builds in
- * the same tree, so an incremental rebuild keeps its ids and reports a false green. Only
- * a from-scratch build shows the real behaviour, which is also why a container, which is
- * never the same tree, is where this bites and a developer's machine never is. Three
- * from-scratch production builds are minutes, not seconds, and they would also fight
- * Turborepo's cache for `apps/portal/.next`.
- *
- * **Run it after a Next upgrade.** This behaviour has already moved once: at 16.4.0 the
- * refusal changed from a bare `500` to the `409` plus header that the records now carry
- * (ADR-43's amendments of 2026-10-10). A bump that changes how ids are salted, or that
- * stops honouring the env key, would otherwise be invisible until a respondent found it.
- *
- * ## What it asserts
- *
- * Six checks. The count is quoted in issue #1035's PR evidence as well, so a seventh
- * belongs in both places:
- *
- *   1. two clean builds with the same pinned key give `rosterOperation` the SAME id;
- *   2. the key those builds used IS the pinned one, read back from the manifest;
- *   3. every OTHER Server Action in the app keeps its id across those two builds too;
- *   4. a clean build with no pinned key gives `rosterOperation` a DIFFERENT id;
- *   5. replaying build 1's id against build 2 is NOT refused as an unknown action;
- *   6. replaying build 1's id against build 3 IS, with `409`, `text/plain`,
- *      `Server Action unavailable.` and `x-nextjs-action-not-found: 1`.
- *
- * Together those are "pinning the key is what makes a held page survive a deploy", with
- * (6) as the control that the unpinned case really does break.
- *
- * ## Usage
- *
- *   QCMS_PORT_SEAT=<0-9> node scripts/probe-action-id-stability.mjs
- *
- * It needs the seat for the same reason every other port-binding entry point does
- * (`docs/PORTS.md`): it serves each build on the seat's stable portal port, so it cannot
- * run beside `pnpm dev:portal` or a local stack at the same seat.
- *
- * **It deletes and rewrites `apps/portal/.next`**, three times, and leaves the last
- * build (the unpinned one) behind. Nothing else in the tree is touched. The two standalone
- * trees it serves are copies under the system temp directory and are removed on every
- * exit path.
+ * Measures whether pinning `NEXT_SERVER_ACTIONS_ENCRYPTION_KEY` keeps a no-JS respondent's held
+ * repeating step working across a portal deploy (ADR-43). Not part of `pnpm verify`: only a
+ * from-scratch build shows the real behaviour. It rewrites `apps/portal/.next` and needs a port seat.
  */
 
 import { cpSync, mkdtempSync, readFileSync, rmSync } from "node:fs";
@@ -68,43 +16,26 @@ import { pathToFileURL } from "node:url";
 import { REPOSITORY_ROOT, runProcess } from "./docker.mjs";
 import { assertPortSeatChosen, PORT_SEAT, stablePort } from "./ports.mjs";
 
-/** The action whose id decides whether a held repeating step survives. */
 const ACTION = {
   filename: "apps/portal/app/s/[sessionId]/roster-action.ts",
   exportedName: "rosterOperation",
 };
 
-/** Where `next build` writes the production build, and what gets deleted each round. */
 const DIST = join(REPOSITORY_ROOT, "apps/portal/.next");
-/** The manifest carrying every action id and the key they were hashed with. */
 const MANIFEST = join(DIST, "server/server-reference-manifest.json");
-/** Next's own deployment output, which is what `docker/portal.Dockerfile` ships. */
 const STANDALONE = join(DIST, "standalone");
 /** Tracing leaves these behind deliberately; the image copies them in, so this does too. */
 const STATIC_SOURCE = join(DIST, "static");
 const STATIC_TARGET = "apps/portal/.next/static";
 
 /**
- * Where to post, and it has to be the page that DECLARES the action.
- *
- * An action id is resolved against the posted page's own action manifest rather than
- * against a global one: each entry's `workers` map is keyed by page, and this action's
- * only worker is `app/s/[sessionId]/page`. So posting a perfectly valid id to any other
- * path is "action not found" too, which is a false positive this script hit on its first
- * run and which `apps/e2e/full-stack-conditional-form.pw.ts` never could, because the ids
- * it posts were minted by no build and are unknown everywhere.
- *
- * `/s/[sessionId]` is dynamic, so any session-shaped segment matches. No real session is
- * needed: the unpinned round is refused before any of the app runs, and in the pinned
- * round the action returns with nothing to apply (the post carries no `__qop`), after
- * which the page's own read fails and it renders its recovery screen. Only the refusal
- * header and the status are read, so neither outcome matters.
+ * Must be the page that DECLARES the action: an id is resolved against the posted
+ * page's own action manifest, so a valid id posted anywhere else is "not found" too.
+ * No real session is needed, since only the status and refusal header are read.
  */
 const PROBE_PATH = "/s/ses_probe_action_id_stability";
 
-/** How long to wait for a standalone server to answer before giving up. */
 const READY_TIMEOUT_MS = 30_000;
-/** How often to ask. */
 const READY_POLL_MS = 250;
 
 /** @param {string} line */
@@ -113,24 +44,20 @@ function say(line) {
 }
 
 /**
- * One clean production build of the portal, and what it produced.
- *
- * The build runs `next build` DIRECTLY rather than through `pnpm build`, and that is the
- * load-bearing detail: `turbo.json` declares `.next/**` as the portal build's output, so
- * a cache hit would restore a previous build's `.next` - including its `.rscinfo` - and
- * this script would compare a build against a copy of itself.
+ * Runs `next build` directly rather than through `pnpm build`: turbo declares
+ * `.next/**` as the portal build's output, so a cache hit would restore a previous
+ * build's `.rscinfo` and this script would compare a build against a copy of itself.
  *
  * @param {string} label
- * @param {string | undefined} key the pinned salt, or undefined to let Next generate one.
+ * @param {string | undefined} key
  * @returns {{ ids: Record<string, string>, actionId: string, encryptionKey: string, tree: string }}
  */
 function cleanBuild(label, key) {
   say(`[${label}] removing apps/portal/.next and building`);
   rmSync(DIST, { recursive: true, force: true });
   const buildEnv = { ...env };
-  // Deleted rather than merely left alone, so a value in the caller's own environment
-  // cannot silently pin the round that is meant to be unpinned and turn this whole
-  // script into two measurements of the same thing.
+  // Deleted rather than left alone, so a value in the caller's environment cannot
+  // silently pin the round that is meant to be unpinned.
   delete buildEnv.NEXT_SERVER_ACTIONS_ENCRYPTION_KEY;
   if (key !== undefined) buildEnv.NEXT_SERVER_ACTIONS_ENCRYPTION_KEY = key;
   runProcess("pnpm", ["--filter", "qcms-portal", "exec", "next", "build"], buildEnv);
@@ -163,8 +90,6 @@ function cleanBuild(label, key) {
 }
 
 /**
- * Serve one standalone tree on the seat's portal port, run `probe`, then stop it.
- *
  * @template T
  * @param {string} label
  * @param {string} tree
@@ -182,22 +107,18 @@ async function serving(label, tree, probe) {
       NODE_ENV: "production",
       HOSTNAME: "127.0.0.1",
       PORT: String(port),
-      // The portal refuses to boot without these. Nothing this probe touches calls the
-      // API, so the base URL only has to be a loopback origin the cookie-security
-      // refusal accepts (issue #292).
+      // Required for boot only: nothing here calls the API, so the base URL just has
+      // to be a loopback origin the cookie-security refusal accepts.
       QCMS_API_BASE_URL: `http://127.0.0.1:${String(stablePort("api"))}`,
       QCMS_PORTAL_BASE_URL: origin,
-      // Generated, never written down, and used for nothing: this probe makes no API
-      // call, the variable only has to be present and not one of the shipped
-      // placeholder shapes the boot refusal rejects (issue #491, SEC-8). A literal
-      // here would be a credential-shaped string in the tree for no benefit.
+      // Generated per run and never written down: a literal would put a
+      // credential-shaped string in the tree for no benefit (SEC-8).
       QCMS_INTERNAL_TOKEN: Buffer.from(crypto.getRandomValues(new Uint8Array(24))).toString(
         "base64url",
       ),
     },
     stdio: ["ignore", "pipe", "pipe"],
   });
-  /** Everything the server said, quoted only if the probe cannot reach it. */
   let log = "";
   child.stdout.on("data", (chunk) => (log += String(chunk)));
   child.stderr.on("data", (chunk) => (log += String(chunk)));
@@ -225,12 +146,8 @@ async function serving(label, tree, probe) {
 }
 
 /**
- * Replay a no-JS Server Action post carrying `actionId`, as a browser sends it.
- *
- * MULTIPART and nothing else: Next treats a url-encoded POST that is not a fetch action
- * as not an action request at all and simply renders the page, so a url-encoded probe
- * would pass both rounds and measure nothing. The `Origin` and `Sec-Fetch-Site` are what
- * a real navigation POST carries, which is also what SEC-9's belt reads.
+ * Multipart and nothing else: Next renders the page for a url-encoded POST that is not
+ * a fetch action, so a url-encoded probe would pass both rounds and measure nothing.
  *
  * @param {string} origin
  * @param {string} actionId
@@ -274,14 +191,11 @@ async function main() {
   say("This deletes and rewrites apps/portal/.next three times and leaves the last build.");
   say("");
 
-  // The workspace packages the portal build imports from their dist. Through pnpm rather
-  // than turbo, because the portal's own build below must not be cached and mixing the
-  // two in one invocation is how it would be.
+  // Through pnpm rather than turbo: mixing this with the portal's own build in one
+  // invocation is how that build would get cached.
   runProcess("pnpm", ["--filter", "qcms-portal^...", "build"]);
 
-  // 32 bytes base64, the shape `.env.compose.example` tells an operator to generate. It
-  // is minted per run and never written anywhere: a literal here would be a committed
-  // key, and the measurement only needs the two pinned rounds to agree with each other.
+  // Minted per run and never written anywhere: a literal here would be a committed key.
   const pinned = Buffer.from(crypto.getRandomValues(new Uint8Array(32))).toString("base64");
 
   /** @type {string[]} */
@@ -347,10 +261,8 @@ async function main() {
   say("and leaving it unset does not. docs/deploy-ingress.md is the operator's version.");
 }
 
-// `pathToFileURL` rather than a `file://` template, and the same form every other script
-// here uses (`scripts/build-images.mjs`). `import.meta.url` is percent-encoded, so a
-// checkout path holding a space, or any other character a URL escapes, makes the template
-// comparison false and this script exits silently having measured nothing.
+// `pathToFileURL` rather than a `file://` template: `import.meta.url` is
+// percent-encoded, so a path holding a space would make the comparison silently false.
 if (argv[1] !== undefined && import.meta.url === pathToFileURL(argv[1]).href) {
   await main();
 }

@@ -155,7 +155,9 @@ describe("the rail's Filters part is a native GET form whose values come back fr
   it("is the search region the contract names, with the part's own title", async () => {
     const markup = await renderRail({});
 
-    // §7.0 ruling 2.4: the filters sit in `<form role="search">` with a "Filters" heading.
+    // §7.0 ruling 2.4: the filters sit in `<form role="search">` under a "Filters" title,
+    // which is a styled paragraph rather than a heading element - the rail renders before
+    // `<main>`, so a heading there breaks `heading-order` (§7.0's clarifications).
     expect(markup).toMatch(/<form[^>]*role="search"/u);
     expect(markup).toContain("rail.filters");
     expect(markup).toContain('data-testid="qcms-rail-filters"');
@@ -244,9 +246,8 @@ describe("the three list states, and the panel each one shows", () => {
 
     expect(markup).toContain("forms.empty.filtered");
     expect(markup).not.toContain("forms.empty.title");
-    // No clear link in this column: it goes with the filters, so the screen has one control
-    // with that name rather than two.
-    expect(markup).not.toContain("rail.filters.clear");
+    // §3's CTA, which this panel keeps even though the rail offers one too.
+    expect(markup.match(/forms\.filter\.clear/gu)).toHaveLength(1);
     // And the header keeps offering creation, because the library is not empty.
     expect(markup).toContain("forms.new");
   });

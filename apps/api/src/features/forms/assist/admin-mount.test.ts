@@ -1,11 +1,3 @@
-/**
- * Flag `none` means the assist routes do not exist (041, exit criterion 1).
- *
- * Not "exist and refuse" - *absent*, the mount-flag shape ADR-09 uses, so a
- * request 404s. That is the difference between a feature that is off and a
- * feature that is merely disabled, and it is the one an operator can verify.
- */
-
 import { describe, expect, it } from "vitest";
 
 import { createApp } from "../../../app.js";
@@ -43,7 +35,6 @@ async function post(
   });
 }
 
-/** Every path this app actually registered a handler for. */
 function registeredPaths(app: ReturnType<typeof createApp>): string[] {
   return app.routes.map((r) => r.path);
 }
@@ -57,8 +48,6 @@ describe("assist route mounting (ADR-24 flag, ADR-09 shape)", () => {
 
   it("registers the assist route when a provider is configured", () => {
     const { app } = appFor(validEnv({ QCMS_FLAG_AGENT_AUTHORING: "fake" }));
-    // Both the handler and its rate limiter; the negative above is therefore
-    // about this route specifically, not about the matcher never seeing it.
     expect(registeredPaths(app).filter((p) => p.includes("assist")).length).toBeGreaterThan(0);
   });
 

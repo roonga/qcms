@@ -1,26 +1,3 @@
-/**
- * Start-session slice tests (task 018), driven through `app.request()` against
- * the **real** kernel and the 013 Testcontainers harness DB - never a mock of
- * our own packages (CONTRIBUTING). Requires Docker.
- *
- * Covers every exit criterion: the anonymous happy path, each typed failure,
- * the one-time link race (exactly one of two concurrent starts wins, and the
- * winner leaves the link spent rather than replayable - issue #70), version
- * pinning across a later publish (I4), newest-version selection, and the
- * session-token gate (missing / tampered / cross-purpose → 401).
- *
- * Also pins the **environment's** closed state over secure links (ADR-39 as amended by
- * Q18, issue #724): a valid link into a closed environment is refused, nothing is
- * consumed or created, and the link's own state still answers first when both are bad.
- *
- * **Two entry routes since task 066** (Q21, criterion 3). `POST /sessions` is anonymous
- * entry and exists on `prod`'s surface alone; `POST /sessions/link` is secure-link entry
- * and exists on every environment's. {@link post} sends each body to the route that owns
- * it, so the cases below read as they did while reaching the routes a deployment serves;
- * the mount split itself, the `/<env>/` prefix and the wrong-prefix refusal are asserted
- * in `environment-addresses.integration.test.ts`, which composes more than one surface.
- */
-
 import {
   FormId,
   type LinkClaims,
@@ -61,13 +38,10 @@ const PUBLIC_ONLY = {
   public: true,
   internal: false,
   admin: false,
-  // No non-prod respondent surface: this file is about `prod`'s behaviour, and the
-  // per-environment addresses have a file of their own.
   environments: [],
 } as const;
 
-// Opaque domain JSONB - Postgres does not interpret it; tests store empties.
-// Types derived from the helper so apps/api needn't depend on @roonga/qcms-a2ui-compiler.
+// Types derived from the helper so apps/api needs no dependency on the compiler package.
 type VersionInput = Parameters<typeof insertFormVersion>[1];
 const emptyDef = {} as unknown as VersionInput["definition"];
 const emptyCompiled = {} as unknown as VersionInput["compiled"];
@@ -83,12 +57,8 @@ beforeAll(async () => {
   deps = makeDeps({
     db: testDb.db,
     clock: fixedClock(NOW),
-    // The per-IP session-create cap is lifted for this suite, and only here. The default
-    // is 20 an hour and the clock is fixed, so the cap is a hard budget for the whole
-    // file - which this file had quietly spent, so adding a case made an unrelated test
-    // read 429 as its own failure. The limiter has its own coverage in
-    // `../rate-limits.test.ts`, where the cap is set low on purpose; nothing in this file
-    // asserts a 429.
+    // The clock is fixed, so the default per-IP cap of 20 an hour is a hard budget for
+    // the whole file and an extra case would make an unrelated test read 429.
     env: validEnv({ QCMS_RL_SESSION_CREATE_MAX: "200" }),
   });
   app = createApp(deps, PUBLIC_ONLY, {
@@ -105,16 +75,8 @@ afterAll(async () => {
   await testDb?.teardown();
 }, CONTAINER_BOOT_TIMEOUT_MS);
 
-// --- request helpers --------------------------------------------------------
-
-/**
- * POST an entry body to the route that owns it (task 066).
- *
- * A body carrying `token` goes to `POST /sessions/link` and one carrying `formSlug` to
- * `POST /sessions`. The dispatch is here rather than at every case because what changed
- * is which address each mode lives at, not what any of these cases assert; the split
- * itself is asserted where it belongs, against more than one mounted surface.
- */
+// A body carrying `token` belongs to the secure-link route, one carrying `formSlug` to
+// anonymous entry.
 function entryPath(body: unknown): string {
   return typeof body === "object" && body !== null && "token" in body
     ? "/sessions/link"
@@ -149,17 +111,8 @@ interface ErrBody {
   error: { code: string; message: string };
 }
 
-// --- seed helpers -----------------------------------------------------------
-
-/**
- * Seed a form with `versions` published versions (v1..vN), the last of them **released**
- * to the environment this harness serves.
- *
- * The release is part of the fixture because publishing stopped being the act that
- * reaches a respondent (ADR-40, task 065): a published version is served nowhere until it
- * is released, so a seed that published alone would describe a form no session can start
- * on. `release: false` is for the tests that want exactly that state.
- */
+// The release is part of the fixture because a published version is served nowhere until
+// it is released, so publishing alone would describe a form no session can start on.
 async function seedForm(
   id: string,
   slug: string,
@@ -192,9 +145,8 @@ async function seedForm(
   if (versions > 0 && opts.release !== false) {
     await release(formId, versions);
   }
-  // Per (form, environment) since task 066 (Q18). This harness serves one environment,
-  // so closing "the form" means closing that environment's intake - and closing is only
-  // expressible once something is released there, which is why it follows the release.
+  // Closing is only expressible once something is released there, so it follows the
+  // release.
   if (opts.closed) {
     await closeFormInEnvironment(testDb.db, {
       formId,
@@ -205,7 +157,6 @@ async function seedForm(
   return formId;
 }
 
-/** Release one version of a form into the environment this harness serves (ADR-40). */
 async function release(formId: FormId, version: number): Promise<void> {
   await insertFormRelease(testDb.db, {
     formId,
@@ -215,7 +166,6 @@ async function release(formId: FormId, version: number): Promise<void> {
   });
 }
 
-/** How many sessions exist for a form - 0 proves a refusal created nothing. */
 async function sessionCount(formId: FormId): Promise<number> {
   const res = await testDb.client.query<{ n: string }>(
     `select count(*) as n from sessions where form_id = $1`,
@@ -224,14 +174,13 @@ async function sessionCount(formId: FormId): Promise<number> {
   return Number(res.rows[0]?.n ?? "0");
 }
 
-/** Insert a secure_links row and mint the matching signed token. */
 async function seedLink(
   formId: FormId,
   linkIdStr: string,
   opts: { oneTime?: boolean; expiresAt?: Date } = {},
 ): Promise<string> {
   const linkId = LinkId.parse(linkIdStr);
-  const expiresAt = opts.expiresAt ?? new Date(NOW.getTime() + 60 * 60 * 1000); // +1h
+  const expiresAt = opts.expiresAt ?? new Date(NOW.getTime() + 60 * 60 * 1000);
   await insertSecureLink(testDb.db, {
     environment: DEFAULT_TEST_ENVIRONMENT,
     linkId,
@@ -247,8 +196,6 @@ async function seedLink(
   };
   return mintSecureLink(claims, linkKey);
 }
-
-// --- exit criterion 1: anonymous happy path ---------------------------------
 
 describe("anonymous start (exit criterion 1)", () => {
   it("creates a session pinned to the newest published version with a session token", async () => {
@@ -268,8 +215,6 @@ describe("anonymous start (exit criterion 1)", () => {
     expect(row?.formVersion).toBe(1);
   });
 });
-
-// --- exit criterion 1: typed failures ---------------------------------------
 
 describe("typed failures (exit criterion 1)", () => {
   it("FORM_NOT_FOUND for an unknown slug (404)", async () => {
@@ -333,18 +278,16 @@ describe("typed failures (exit criterion 1)", () => {
   });
 });
 
-// --- secure-link happy paths + min-expiry -----------------------------------
-
 describe("secure-link start", () => {
   it("pins the link form's newest version, accessMode secure_link, expiry = link expiry (< TTL)", async () => {
     const formId = await seedForm("frm_link_ok", "link-ok", { versions: 2 });
-    const linkExpiry = new Date(NOW.getTime() + 60 * 60 * 1000); // +1h < 24h TTL
+    const linkExpiry = new Date(NOW.getTime() + 60 * 60 * 1000);
     const token = await seedLink(formId, "lnk_ok", { expiresAt: linkExpiry });
     const res = await post({ token });
     expect(res.status).toBe(201);
     const body = (await res.json()) as StartBody;
     expect(body.formVersion).toBe(2);
-    expect(body.expiresAt).toBe(linkExpiry.toISOString()); // min(link, TTL) = link
+    expect(body.expiresAt).toBe(linkExpiry.toISOString());
 
     const row = await getSession(testDb.db, SessionId.parse(body.sessionId));
     expect(row?.accessMode).toBe("secure_link");
@@ -354,16 +297,14 @@ describe("secure-link start", () => {
   it("clamps session expiry to the anonymous TTL when the link outlives it", async () => {
     const formId = await seedForm("frm_link_long", "link-long", { versions: 1 });
     const token = await seedLink(formId, "lnk_long", {
-      expiresAt: new Date(NOW.getTime() + 48 * 60 * 60 * 1000), // +48h > 24h TTL
+      expiresAt: new Date(NOW.getTime() + 48 * 60 * 60 * 1000),
     });
     const res = await post({ token });
     expect(res.status).toBe(201);
     const body = (await res.json()) as StartBody;
-    expect(body.expiresAt).toBe(new Date(NOW.getTime() + TTL_MS).toISOString()); // TTL ceiling
+    expect(body.expiresAt).toBe(new Date(NOW.getTime() + TTL_MS).toISOString());
   });
 });
-
-// --- whole-form closed overrides secure links (ADR-39, issue #724) ----------
 
 describe("whole-form closed state binds secure links (ADR-39)", () => {
   it("FORM_CLOSED for a valid link into a closed form (409), and no session is created", async () => {
@@ -389,8 +330,6 @@ describe("whole-form closed state binds secure links (ADR-39)", () => {
     const res = await post({ token });
     expect(res.status).toBe(409);
     expect(((await res.json()) as ErrBody).error.code).toBe("FORM_CLOSED");
-    // Nothing is spent on a closed form: the invitation survives the refusal and
-    // works again if the form reopens.
     const link = await getSecureLink(testDb.db, LinkId.parse("lnk_closed_once"));
     expect(link?.consumedAt).toBeNull();
     expect(await sessionCount(formId)).toBe(0);
@@ -416,8 +355,6 @@ describe("whole-form closed state binds secure links (ADR-39)", () => {
   });
 });
 
-// --- exit criterion 1: one-time link race -----------------------------------
-
 describe("one-time link race (exit criterion 1)", () => {
   it("two concurrent starts on one one-time link: exactly one wins", async () => {
     const formId = await seedForm("frm_race", "race-form", { versions: 1 });
@@ -432,12 +369,8 @@ describe("one-time link race (exit criterion 1)", () => {
     expect(((await loser.json()) as ErrBody).error.code).toBe("LINK_CONSUMED");
     const winnerBody = (await winner.json()) as StartBody;
     const row = await getSession(testDb.db, SessionId.parse(winnerBody.sessionId));
-    // Asserted in two steps on purpose (issue #38): a *missing* row and a row
-    // whose `linkId` is null are different defects, and a bare
-    // `expect(row?.linkId)` reported both as "expected undefined to be
-    // 'lnk_race'". Row absent means the winner's transaction never committed;
-    // `linkId` null means it committed without binding the link. Keep them
-    // distinguishable so a future failure names its own cause.
+    // Two steps so the two defects stay distinguishable: a missing row means the
+    // winner's transaction never committed, a null `linkId` that it committed unbound.
     expect(
       row,
       `winner session ${winnerBody.sessionId} has no row: winner tx did not commit`,
@@ -446,17 +379,12 @@ describe("one-time link race (exit criterion 1)", () => {
       "lnk_race",
     );
 
-    // The state the 201/409 split does not observe (issue #70). The pre-#59
-    // reproduction had a winner return 201 with `consumed_at` still NULL: a
-    // one-time link that had been spent and was replayable anyway. Every
-    // assertion above passes in that state, because the loser's 409 came from
-    // the same connection the winner was on rather than from the row.
+    // Every assertion above passes with `consumed_at` still null, because the loser's
+    // 409 can come from the winner's own connection rather than from the row.
     const link = await getSecureLink(testDb.db, LinkId.parse("lnk_race"));
     expect(link?.consumedAt, "the winning start left the one-time link replayable").toEqual(NOW);
   });
 });
-
-// --- exit criterion 2: pinning + exit criterion 4: newest-version -----------
 
 describe("version pinning (exit criterion 2) and release resolution (exit criterion 4)", () => {
   it("a session keeps its pinned version after a later publish and its release (I4)", async () => {
@@ -465,9 +393,7 @@ describe("version pinning (exit criterion 2) and release resolution (exit criter
     const body = (await start.json()) as StartBody;
     expect(body.formVersion).toBe(1);
 
-    // Publish v2 AFTER the session was created. Publishing alone reaches no environment
-    // (ADR-40), so this changes nothing a respondent sees - including a session that has
-    // not started yet.
+    // Publishing alone reaches no environment, so v2 changes nothing a respondent sees.
     await insertFormVersion(testDb.db, {
       formId,
       definition: emptyDef,
@@ -479,26 +405,20 @@ describe("version pinning (exit criterion 2) and release resolution (exit criter
     const unreleased = (await (await post({ formSlug: "pin-form" })).json()) as StartBody;
     expect(unreleased.formVersion).toBe(1);
 
-    // Releasing it is the act that moves the environment, and it still does not move the
-    // open session: ADR-07's invariant I4 has no re-pin path (task 065, criterion 3).
     await release(formId, 2);
 
     const status = await get(body.sessionId, { authorization: `Bearer ${body.sessionToken}` });
     expect(status.status).toBe(200);
     const view = (await status.json()) as { formVersion: number; status: string; position: null };
-    expect(view.formVersion).toBe(1); // still v1 - never migrates
+    expect(view.formVersion).toBe(1);
     expect(view.status).toBe("created");
     expect(view.position).toBeNull();
 
-    // A new session binds to what is now released.
     const later = (await (await post({ formSlug: "pin-form" })).json()) as StartBody;
     expect(later.formVersion).toBe(2);
   });
 
   it("serves the version released to this environment, not the newest published one", async () => {
-    // Three published versions and the middle one released: the newest published version
-    // is no longer what a session resolves (ADR-40, task 065). This is the assertion that
-    // would have passed either way before releases existed.
     const formId = await seedForm("frm_three", "three-form", { versions: 3, release: false });
     await release(formId, 2);
     const body = (await (await post({ formSlug: "three-form" })).json()) as StartBody;
@@ -512,8 +432,6 @@ describe("version pinning (exit criterion 2) and release resolution (exit criter
     expect(((await res.json()) as ErrBody).error.code).toBe("NO_PUBLISHED_VERSION");
   });
 });
-
-// --- exit criterion 3: session-token gate -----------------------------------
 
 describe("session-token gate (exit criterion 3, SEC-2)", () => {
   let sessionId: string;
@@ -555,16 +473,11 @@ describe("session-token gate (exit criterion 3, SEC-2)", () => {
   });
 });
 
-// --- challenge adapter seam (task 026, exit criterion 4) --------------------
-
 describe("challenge seam for challengeRequired forms", () => {
-  // A test verifier standing in for a real provider (Turnstile is 029): only the
-  // exact solution "good-token" passes; a missing/other token fails.
   const testVerifier: ChallengeVerifier = {
     verify: (token) => Promise.resolve({ ok: token === "good-token" }),
   };
 
-  /** A second app whose deps carry the test verifier (same DB, same signing keys). */
   function appWithVerifier(verifier: ChallengeVerifier): ReturnType<typeof createApp> {
     const d = makeDeps({
       db: testDb.db,
@@ -609,7 +522,7 @@ describe("challenge seam for challengeRequired forms", () => {
   });
 
   it("the null verifier (provider none) no-ops: challengeRequired form admits with no token (201)", async () => {
-    // `deps`/`app` from the outer suite use the default null verifier.
+    // The outer suite's `app` carries the default null verifier.
     const res = await post({ formSlug: "challenge-form" });
     expect(res.status).toBe(201);
   });
@@ -621,9 +534,6 @@ describe("challenge seam for challengeRequired forms", () => {
     expect(res.status).toBe(201);
   });
 
-  // --- issue #13: challengeRequired is enforced on the secure-link (token)
-  // entry too, not only the anonymous (formSlug) path. handler.ts reads the
-  // link's form identity row and runs the same enforceChallenge gate.
   it("rejects secure-link start without a challenge token for a challengeRequired form (403)", async () => {
     const formId = await seedForm("frm_challenge_link", "challenge-link-form", {
       versions: 1,

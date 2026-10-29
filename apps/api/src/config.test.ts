@@ -19,8 +19,6 @@ describe("loadConfig - presence and shape (SEC-7, SEC-8)", () => {
       public: true,
       internal: true,
       admin: false,
-      // No non-prod respondent surface was named, so none is mounted (Q21): every
-      // `/<env>/` address in this shape is a 404.
       environments: [],
     });
     expect(config.keys.link).toHaveLength(1);
@@ -31,10 +29,6 @@ describe("loadConfig - presence and shape (SEC-7, SEC-8)", () => {
   });
 
   it("QCMS_MOUNT=all mounts every surface, non-prod respondent surfaces included", () => {
-    // `all` is the solo shortcut and has to mean "this whole deployment" (Q21): every
-    // surface, plus the respondent surface of every non-prod environment the
-    // configuration names. `prod`'s is `public`, so it is never in the list - a prefixed
-    // `prod` would be a second spelling of the unprefixed address shape.
     expect(loadConfig(validEnv({ QCMS_MOUNT: "all" })).mount).toEqual({
       public: true,
       internal: true,
@@ -44,9 +38,7 @@ describe("loadConfig - presence and shape (SEC-7, SEC-8)", () => {
   });
 
   it("mounts one named non-prod environment's respondent surface and no other", () => {
-    // The third environment's credential is the harness's own synthetic one rather than a
-    // second URL written here: a literal would carry a port, and the port allocation is
-    // derived and never typed out (R8, `scripts/check-ports.mjs`).
+    // Reuses the harness URL: a literal would carry a port, and ports are derived (R8).
     const mount = loadConfig(
       validEnv({
         QCMS_MOUNT: "public,admin,dev",
@@ -69,9 +61,6 @@ describe("loadConfig - presence and shape (SEC-7, SEC-8)", () => {
     } catch (err) {
       thrown = err as ConfigError;
     }
-    // Not silently treated as a synonym for `public`: prod is the unprefixed address
-    // shape, so a `/prod/` surface is something this design does not have, and an
-    // operator who asked for it should be told rather than quietly given another thing.
     expect(thrown?.message).toContain("prod");
     expect(thrown?.message).toContain("public");
   });
@@ -83,12 +72,9 @@ describe("loadConfig - presence and shape (SEC-7, SEC-8)", () => {
     } catch (err) {
       thrown = err as ConfigError;
     }
-    // There would be no pool to serve it from, and a mount that silently served nothing
-    // is the shape SEC-14 cannot afford.
     expect(thrown?.message).toContain("staging");
   });
 
-  // Exit criterion 4: missing DATABASE_URL exits with a readable message.
   it("throws a readable ConfigError naming DATABASE_URL when it is missing", () => {
     let thrown: unknown;
     try {
@@ -135,7 +121,6 @@ describe("loadConfig - presence and shape (SEC-7, SEC-8)", () => {
   });
 });
 
-// Task 024: portal base URL + webhook SSRF override.
 describe("loadConfig - portal base URL and webhook targets (task 024)", () => {
   it("parses the portal base URL and defaults the SSRF override to false", () => {
     const config = loadConfig(validEnv());
@@ -154,22 +139,8 @@ describe("loadConfig - portal base URL and webhook targets (task 024)", () => {
     );
   });
 
-  /**
-   * Trailing-slash normalization, which nothing tested until issue #328.
-   *
-   * This is not a config nit. `adminAuth.baseUrl` reaches better-auth as its `baseURL`
-   * and its `trustedOrigins`, and better-auth compares a trusted origin by exact string
-   * equality against `new URL(url).origin` - which never carries a trailing slash. So
-   * `QCMS_ADMIN_BASE_URL=https://admin.example/` would make `trustedOrigins` match
-   * nothing and the origin check would reject every state-changing better-auth POST:
-   * sign-in, TOTP verification, recovery-code use, sign-out. Admin authentication would
-   * be dead on arrival for an operator who typed one extra character, with a CSRF
-   * rejection as the only clue.
-   *
-   * Asserted as **the property the consumer depends on** (`value === new URL(value).origin`)
-   * rather than as "one slash gets stripped", because equality with the origin is what
-   * better-auth actually computes.
-   */
+  // better-auth compares a trusted origin by string equality against
+  // `new URL(url).origin`, which never carries a trailing slash.
   it.each([
     ["https://forms.example.test/", "https://forms.example.test"],
     ["https://forms.example.test///", "https://forms.example.test"],
@@ -194,9 +165,7 @@ describe("loadConfig - portal base URL and webhook targets (task 024)", () => {
   );
 
   it("leaves a base URL that carries a path alone, slash or no slash", () => {
-    // Only the trailing slash is normalized: a deployment mounted under a path prefix is
-    // a different shape, and silently rewriting it would be a worse defect than the one
-    // being guarded. `origin` is deliberately NOT asserted here.
+    // `origin` is deliberately not asserted: a path-prefixed deployment keeps its path.
     expect(
       loadConfig(validEnv({ QCMS_PORTAL_BASE_URL: "https://x.example/forms" })).portalBaseUrl,
     ).toBe("https://x.example/forms");
@@ -214,7 +183,6 @@ describe("loadConfig - portal base URL and webhook targets (task 024)", () => {
     );
   });
 
-  // Task 025: delivery timeout + batch size knobs.
   it("defaults the delivery timeout (10s) and batch size (20), and reads overrides", () => {
     const defaults = loadConfig(validEnv()).webhooks;
     expect(defaults.deliveryTimeoutMs).toBe(10_000);
@@ -232,7 +200,6 @@ describe("loadConfig - portal base URL and webhook targets (task 024)", () => {
   });
 });
 
-// Exit criterion 6 (second half): config-failure output contains no secret values.
 describe("SEC-8 redaction - errors never echo secret values", () => {
   it("names the offending var but never prints any secret value", () => {
     const secrets = {
@@ -241,7 +208,6 @@ describe("SEC-8 redaction - errors never echo secret values", () => {
       QCMS_INTERNAL_TOKEN: synthSecret(),
       QCMS_APP_KEY: synthSecret(),
     };
-    // Valid secrets, but DATABASE_URL missing → a boot failure that renders a message.
     let message = "";
     try {
       loadConfig(validEnv({ ...secrets, DATABASE_URL: undefined }));
@@ -267,10 +233,8 @@ describe("SEC-8 redaction - errors never echo secret values", () => {
   });
 
   it("a malformed QCMS_ADMIN_AUTH_SECRETS entry is reported by position, never by value", () => {
-    // Every refusal path in one value: a missing separator, a non-numeric version, a
-    // repeated version and a too-short secret. This is the SEC-8 trap the parser exists
-    // to avoid - better-auth's own `parseSecretsEnv` quotes the offending entry back
-    // (`dist/context/secret-utils.mjs`), and that entry is a secret.
+    // better-auth's own `parseSecretsEnv` quotes the offending entry back, and that
+    // entry is a secret, which is why this parser exists.
     const good = synthSecret();
     const noSeparator = synthSecret();
     const badVersion = synthSecret();
@@ -304,9 +268,6 @@ describe("QCMS_ADMIN_AUTH_SECRETS - versioned auth-secret rotation (issue #319)"
   it("defaults to one version-1 entry holding QCMS_ADMIN_AUTH_SECRET", () => {
     const secret = synthSecret();
     const config = loadConfig(validEnv({ QCMS_ADMIN_AUTH_SECRET: secret }));
-    // The default is what makes the versioned envelope the normal case rather than
-    // something a deployment opts into, while signing with exactly the value it always
-    // signed with.
     expect(config.adminAuth.secret).toBe(secret);
     expect(config.adminAuth.secrets).toEqual([{ version: 1, value: secret }]);
   });
@@ -324,8 +285,7 @@ describe("QCMS_ADMIN_AUTH_SECRETS - versioned auth-secret rotation (issue #319)"
       { version: 2, value: next },
       { version: 1, value: previous },
     ]);
-    // `secret` is untouched by the list: better-auth keeps it as the legacy fallback
-    // for ciphertext written before the envelope existed.
+    // better-auth keeps `secret` as the fallback for pre-envelope ciphertext.
     expect(config.adminAuth.secret).toBe(previous);
   });
 
@@ -336,10 +296,8 @@ describe("QCMS_ADMIN_AUTH_SECRETS - versioned auth-secret rotation (issue #319)"
   });
 
   it("refuses a list that is not newest-first, by version and never by value", () => {
-    // The failure this closes is silent: better-auth encrypts under the FIRST entry, so
-    // `1:<old>,2:<new>` boots, looks rotated, and keeps writing under the old key. The
-    // only place that can be caught is boot, because nothing downstream reports which
-    // version wrote a blob. Reported by version number like every other refusal (SEC-8).
+    // better-auth encrypts under the FIRST entry, so a misordered list silently keeps
+    // writing under the old key and nothing downstream reports which version wrote it.
     const older = synthSecret();
     const newer = synthSecret();
     let message = "";
@@ -355,9 +313,6 @@ describe("QCMS_ADMIN_AUTH_SECRETS - versioned auth-secret rotation (issue #319)"
   });
 
   it("accepts a descending list with a gap, so a skipped version number is not an error", () => {
-    // Versions identify ciphertext, they are not positions: an operator who jumps from 1
-    // to 5 has done nothing wrong, and the ordering check must not turn that into a
-    // boot failure.
     const newest = synthSecret();
     const oldest = synthSecret();
     const config = loadConfig(validEnv({ QCMS_ADMIN_AUTH_SECRETS: `5:${newest},1:${oldest}` }));
@@ -380,7 +335,6 @@ describe("QCMS_ADMIN_AUTH_SECRETS - versioned auth-secret rotation (issue #319)"
   });
 });
 
-// Exit criterion 7: feature-flag registry (ADR-24).
 describe("feature-flag registry (ADR-24)", () => {
   it("default challenge provider is none and requires no Turnstile secrets", () => {
     const config = loadConfig(validEnv());
@@ -412,8 +366,6 @@ describe("feature-flag registry (ADR-24)", () => {
     } catch (err) {
       message = (err as ConfigError).message;
     }
-    // Names the canonical spelling only (issue #331): offering both would re-teach the
-    // ambiguity that made an operator set two variables for one key.
     expect(message).toContain("QCMS_TURNSTILE_SITE_KEY");
     expect(message).toContain("TURNSTILE_SECRET_KEY");
   });
@@ -433,13 +385,6 @@ describe("feature-flag registry (ADR-24)", () => {
     });
   });
 
-  /**
-   * The site key's two spellings (issue #331). The portal read
-   * `QCMS_TURNSTILE_SITE_KEY` and this process read `TURNSTILE_SITE_KEY`, so an operator
-   * had to set both for one key and setting only one produced a deployment that boots and
-   * silently runs with half the challenge off. The prefixed name is now canonical and the
-   * bare one is a fallback with a boot warning.
-   */
   describe("the deprecated TURNSTILE_SITE_KEY spelling", () => {
     const turnstile = (overrides: Record<string, string>) =>
       validEnv({
@@ -457,8 +402,6 @@ describe("feature-flag registry (ADR-24)", () => {
     });
 
     it("loses to the canonical name when both are set", () => {
-      // Every working deployment today has both, because it had to. The canonical one has
-      // to win, or the migration would be "set the new name and nothing changes".
       const config = loadConfig(
         turnstile({ TURNSTILE_SITE_KEY: "old-key", QCMS_TURNSTILE_SITE_KEY: "new-key" }),
       );
@@ -508,10 +451,6 @@ describe("feature-flag registry (ADR-24)", () => {
     });
   });
 
-  // ADR-24 as amended (issue #725): the admin surface is told whether a
-  // challenge can be verified, never which provider is configured. The
-  // derivation lives beside the flag so exactly one place knows that `none`
-  // means "the null verifier passes everything".
   it("derives challengeEnforceable from the provider, without exposing it", () => {
     expect(challengeEnforceable(loadConfig(validEnv()).flags)).toBe(false);
     expect(
@@ -535,11 +474,6 @@ describe("feature-flag registry (ADR-24)", () => {
   });
 });
 
-/**
- * Agent-assisted authoring configuration (041, ADR-25). Exit criteria 1 and 2:
- * the default costs nothing and demands nothing, and turning it on without the
- * key fails fast with a message that names the variable and never its value.
- */
 describe("draft assistant configuration (041)", () => {
   const KEY = "sk-not-a-real-provider-key-0000";
 
@@ -575,8 +509,6 @@ describe("draft assistant configuration (041)", () => {
   it("never echoes the provider key in a boot failure (SEC-8)", () => {
     let message = "";
     try {
-      // A key that is present but everything else missing: the error names the
-      // vars it wants, and the secret it already has must not appear anywhere.
       loadConfig(
         validEnv({ QCMS_FLAG_AGENT_AUTHORING: "openai-compatible", QCMS_AGENT_API_KEY: KEY }),
       );
@@ -616,9 +548,6 @@ describe("draft assistant configuration (041)", () => {
     );
     expect(local.agent).toMatchObject({ provider: "openai-compatible", apiKey: "" });
 
-    // The same configuration pointed at a remote endpoint still demands a key,
-    // so the relaxation above is about where the payload goes, not about the
-    // provider id.
     expect(() =>
       loadConfig(
         validEnv({
@@ -663,14 +592,7 @@ describe("draft assistant configuration (041)", () => {
   });
 });
 
-/**
- * The response-snippet retention window (issue #304). Worth pinning rather than
- * leaving to the shared `parseInt_` because this knob's floor is deliberately
- * different from every other duration's: `0` is a **supported policy** here, not a
- * degenerate value, so the usual "must be at least 1000ms" floor would have been
- * wrong. A future tidy-up that made all the duration floors uniform would silently
- * remove an operator's strictest setting; this is what fails if it does.
- */
+// `0` is a supported policy for this knob, so it has no shared duration floor.
 describe("QCMS_DELIVERY_SNIPPET_TTL_MS (issue #304)", () => {
   it("defaults to the 7 days @roonga/qcms-db documents", () => {
     expect(loadConfig(validEnv()).ttl.deliveryResponseSnippetMs).toBe(
@@ -691,8 +613,6 @@ describe("QCMS_DELIVERY_SNIPPET_TTL_MS (issue #304)", () => {
   });
 
   it("refuses a negative window, which would push the horizon into the future", () => {
-    // A negative value makes `now - ttl` later than now, so the sweep would redact
-    // snippets from attempts that have not happened yet - i.e. all of them, at once.
     expect(() => loadConfig(validEnv({ QCMS_DELIVERY_SNIPPET_TTL_MS: "-1" }))).toThrow(ConfigError);
   });
 
@@ -702,12 +622,8 @@ describe("QCMS_DELIVERY_SNIPPET_TTL_MS (issue #304)", () => {
 });
 
 describe("QCMS_ADMIN_PASSWORD_BREACH_CHECK (SEC-1, issue #178)", () => {
-  /**
-   * The default is asserted from an environment with the variable *deleted*, not from
-   * `validEnv()`: that helper deliberately sets it false so the rest of the suite does
-   * not depend on api.pwnedpasswords.com, and asserting the default through it would
-   * read the helper's opinion back to itself.
-   */
+  // Deleted rather than taken from `validEnv()`, which sets it false so the suite does
+  // not depend on api.pwnedpasswords.com.
   it("defaults to ON when the variable is absent", () => {
     const env = validEnv();
     delete env.QCMS_ADMIN_PASSWORD_BREACH_CHECK;
@@ -725,10 +641,6 @@ describe("QCMS_ADMIN_PASSWORD_BREACH_CHECK (SEC-1, issue #178)", () => {
   });
 
   it("refuses an uninterpretable value rather than guessing at it", () => {
-    // Boot fails naming the variable. A control the standards write as SHALL must not
-    // be turned off by a value the parser could not read. (`off`, `no` and `0` are
-    // spellings of false that `parseBool` accepts everywhere, so they are deliberate,
-    // not typos.)
     expect(() => loadConfig(validEnv({ QCMS_ADMIN_PASSWORD_BREACH_CHECK: "maybe" }))).toThrow(
       ConfigError,
     );
@@ -736,29 +648,14 @@ describe("QCMS_ADMIN_PASSWORD_BREACH_CHECK (SEC-1, issue #178)", () => {
 });
 
 describe("QCMS_ADMIN_SIGNIN_THROTTLE (SEC-1, issue #390)", () => {
-  /**
-   * The default is the whole ruling on #390: an operator who configures nothing gets
-   * the control. Everything else in this block exists to stop that default from being
-   * reachable by any route other than the variable itself.
-   *
-   * Asserted from an environment with the variable *deleted*, never from `validEnv()`:
-   * that helper sets it false so an unrelated suite driving four sign-ins does not read
-   * a 429 as its own failure, and asserting the default through it would read the
-   * helper's opinion back to itself.
-   */
+  // Deleted rather than taken from `validEnv()`, which sets it false so a suite driving
+  // repeated sign-ins does not read a 429 as its own failure.
   it("defaults to ON when the variable is absent", () => {
     const env = validEnv();
     delete env.QCMS_ADMIN_SIGNIN_THROTTLE;
     expect(loadConfig(env).adminAuth.signInThrottle).toBe(true);
   });
 
-  /**
-   * The finding itself, at the configuration layer: before #390 the state of this
-   * control was `NODE_ENV === "production"`, resolved inside better-auth. Neither value
-   * may move it now, in either direction, or the defect is still here wearing a new
-   * name. The behavioural half of this - a real 429 from a real limiter under
-   * `NODE_ENV=development` - is `features/auth/sign-in-throttle-state.test.ts`.
-   */
   it("is not moved by NODE_ENV, which is the defect this variable exists to remove", () => {
     for (const nodeEnv of ["development", "production", "test", ""]) {
       const env = validEnv({ NODE_ENV: nodeEnv });
@@ -778,9 +675,6 @@ describe("QCMS_ADMIN_SIGNIN_THROTTLE (SEC-1, issue #390)", () => {
   });
 
   it("refuses an uninterpretable value rather than guessing at it", () => {
-    // Boot fails naming the variable. A typo must not be a silent way to serve an
-    // unlimited sign-in surface. (`off`, `no` and `0` are spellings of false that
-    // `parseBool` accepts everywhere, so they are deliberate, not typos.)
     expect(() => loadConfig(validEnv({ QCMS_ADMIN_SIGNIN_THROTTLE: "maybe" }))).toThrow(
       ConfigError,
     );
