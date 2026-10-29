@@ -28,9 +28,9 @@ import {
  *  - **A choice persists and repaints with no flash.** The proof that the server
  *    stamped the class rather than a script correcting it after load is a
  *    measurement of the first painted frames, which needs a compositor.
- *  - **Lexend actually loads.** A computed `font-family` proves the token; the
- *    `FontFace` status proves the file behind it was fetched and parsed rather than
- *    silently falling back to the system stack.
+ *  - **Inter and JetBrains Mono actually load.** A computed `font-family` proves the
+ *    token; the `FontFace` status proves the file behind it was fetched and parsed
+ *    rather than silently falling back to the system stack.
  *
  * NOTHING here hard-codes a colour. Every assertion reads the token the sheet
  * resolved and compares its luminance, so a future palette revision changes the
@@ -127,8 +127,8 @@ async function computed(locator: Locator, property: string): Promise<string> {
  * A LENGTH token as it resolves on one element, trimmed.
  *
  * Custom properties compute to their authored text, so `--radius-card` comes back as
- * `"8px"` (often with the leading space the declaration was written with) while
- * `border-radius` computes to `"8px"`. Trimming is the whole conversion; the colour
+ * `"6px"` (often with the leading space the declaration was written with) while
+ * `border-radius` computes to `"6px"`. Trimming is the whole conversion; the colour
  * equivalent needs the probe element in `token` above, because a colour's authored text
  * (`#0b0f1a`) never matches its computed form.
  */
@@ -198,20 +198,42 @@ test("high-contrast is never inferred, whatever the machine asks for", async ({ 
   await expectPalette(page, "dark", "OS prefers contrast, dark");
 });
 
-test("Lexend is the app face, and the file behind it really loaded", async ({ page }) => {
+test("Inter is the app face, and the file behind it really loaded", async ({ page }) => {
   await page.goto("/sign-in");
   await expect
     .poll(async () => computed(page.locator("body"), "font-family"))
-    .toMatch(/^"?Lexend"?/u);
+    .toMatch(/^"?Inter"?/u);
 
   // The token reaches the vendored controls too, which inherit rather than declare.
-  await expect(page.getByLabel("Email")).toHaveCSS("font-family", /Lexend/u);
+  await expect(page.getByLabel("Email")).toHaveCSS("font-family", /Inter/u);
 
   const statuses = await page.evaluate(async () => {
     await document.fonts.ready;
-    return [...document.fonts].filter((face) => face.family === "Lexend").map((f) => f.status);
+    return [...document.fonts].filter((face) => face.family === "Inter").map((f) => f.status);
   });
-  expect(statuses, "the Lexend face should be declared once and loaded").toEqual(["loaded"]);
+  expect(statuses, "the Inter face should be declared once and loaded").toEqual(["loaded"]);
+});
+
+/**
+ * The data face is the other half of the rev 8 pair, and it is NOT provable from the
+ * body: `--font-mono` reaches ids, hashes and versions, so the proof has to be an
+ * element that actually carries it. The sign-in screen has none, so this reads the
+ * token off the root and then checks the file loaded - the same two-step the test
+ * above makes, minus the inheritance leg.
+ */
+test("JetBrains Mono is the data face and its file loaded", async ({ page }) => {
+  await page.goto("/sign-in");
+  expect(await tokenLength(page.locator(":root"), "--font-mono")).toMatch(
+    /^"JetBrains Mono"/u,
+  );
+
+  const statuses = await page.evaluate(async () => {
+    await document.fonts.ready;
+    return [...document.fonts]
+      .filter((face) => face.family === "JetBrains Mono")
+      .map((f) => f.status);
+  });
+  expect(statuses, "the mono face should be declared once").toEqual(["loaded"]);
 });
 
 test("the mode control moves through all three modes and persists across a reload", async ({
@@ -422,7 +444,7 @@ test("both topbar triggers are 32px squares, not stretched by the control floor"
  * Every number below is read from a TOKEN rather than written down, exactly as the rest
  * of this file works. Step 9's contract is "styles consume the four token groups only",
  * so an assertion that hardcoded `8px` would keep passing after the radius stopped coming
- * from `--radius-card`, which is the failure it exists to catch.
+ * from `--radius-modal`, which is the failure it exists to catch.
  *
  * A note on where these rules live, because it is not where step 9 says to look. The
  * menu box that actually paints in this app is `.qcms-menu` in `app/globals.css`. This
@@ -441,20 +463,21 @@ test("the menu popover and its rows take their metrics from the tokens", async (
   const popover = page.locator(".qcms-menu");
   const item = page.getByRole("menuitemradio", { name: LABEL.light, exact: true });
 
-  // The popover is a panel, so it takes the card radius; a row is a small inset shape,
-  // so it takes the small one. Reading both tokens off the popover itself means the
-  // comparison survives a corner-preset change that moves every number at once.
+  // The popover FLOATS, so since rev 8 it takes the modal corner rather than the card
+  // one; a row is a small inset shape, so it takes the small one. Reading both tokens
+  // off the popover itself means the comparison survives a corner-preset change that
+  // moves every number at once.
   expect(await computed(popover, "border-radius")).toBe(
-    await tokenLength(popover, "--radius-card"),
+    await tokenLength(popover, "--radius-modal"),
   );
   expect(await computed(item, "border-radius")).toBe(await tokenLength(popover, "--radius-sm"));
 
-  // Row metrics: a 38px row with 10px of inline padding, per the card. These are the
-  // numbers that make the check glyph and the label sit where they were drawn, and a
-  // silent change to either needs an exact computed-style assertion.
+  // Row metrics: a 38px row with 12px of inline padding, which is `--space-3` since
+  // rev 8. These are the numbers that make the check glyph and the label sit where
+  // they were drawn, and a silent change to either needs an exact assertion.
   expect(await computed(item, "block-size")).toBe("38px");
-  expect(await computed(item, "padding-inline-start")).toBe("10px");
-  expect(await computed(item, "padding-inline-end")).toBe("10px");
+  expect(await computed(item, "padding-inline-start")).toBe("12px");
+  expect(await computed(item, "padding-inline-end")).toBe("12px");
 
   // The checked row is never colour alone (WCAG 1.4.1): the inset accent edge is drawn
   // with a box-shadow, so its presence is the assertion.

@@ -2908,7 +2908,7 @@ div:has(> [role="dialog"] [data-qcms-dialog="wide"]) {
  * portal and not like the page around it.
  *
  * `--font-portal` is the sixth: the portal's default is the brand-neutral system
- * stack, this app's face is Lexend, and text inherits, so without this the preview
+ * stack, this app's face is Inter, and text inherits, so without this the preview
  * would be the right size in the wrong typeface. It is named with no inline fallback
  * (issue #27): this app imports the token sheet, so the token always resolves, and the
  * inline list that used to sit here was a third copy of the portal's fallback tail

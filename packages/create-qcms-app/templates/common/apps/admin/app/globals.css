@@ -70,12 +70,39 @@
  * why the condition is permitted and why the block must not be deleted as
  * redundant. Read them before touching it.
  */
+/*
+ * THE ADMIN TYPE LADDER (Code Owner, 2026-10-24, issue #1121). This app's base is
+ * 15px, small 13px and extra-small 11px, each with a FIXED line height rather than a
+ * ratio, so a step's leading does not change with the step's size: 15/22, 13/18 and
+ * 11/16. The three steps above are the only ones the app compiles, and there is no
+ * 18px or 22px level, so `text-lg` is not a heading here.
+ *
+ * The portal is untouched and keeps its 16px WCAG 1.4.12 floor; the block below is
+ * what stops `theme-components.css` raising this app's steps to it.
+ */
 @theme {
-  --text-sm: 0.875rem;
-  --text-sm--line-height: calc(1.25 / 0.875);
-  --text-xs: 0.75rem;
-  --text-xs--line-height: calc(1 / 0.75);
-  --text-base--line-height: calc(1.5 / 1);
+  --text-xl: 20px;
+  --text-xl--line-height: 28px;
+  --text-lg: 16px;
+  --text-lg--line-height: 24px;
+  --text-base: 15px;
+  --text-base--line-height: 22px;
+  --text-sm: 13px;
+  --text-sm--line-height: 18px;
+  --text-xs: 11px;
+  --text-xs--line-height: 16px;
+}
+
+/* TWO WEIGHTS, 400 AND 600 (rev 8). `font-medium` and `font-bold` in markup cannot
+   be allowed to reach a step the ruling does not have, and the 500 remap rev 1
+   proposed is NOT this: Inter at 600 already reads lighter than Lexend did at 500.
+   Written as plain rules rather than as `--font-weight-*` in the `@theme` block
+   above, because `scripts/check-font-tokens.mjs` reads every `--font-*` declaration
+   as a family stack and would ask these two to end in a fallback tail. Unlayered, so
+   they win over Tailwind's own utilities. */
+.font-medium,
+.font-bold {
+  font-weight: 600;
 }
 
 /*
@@ -258,28 +285,37 @@
 }
 
 /*
- * Lexend, the QCMS app face (ADMIN_THEME.md rev 5, Code Owner pick).
+ * The app's two faces (ADMIN_THEME.md rev 8, Code Owner 2026-10-24, issue #1121):
+ * Inter for every UI string and JetBrains Mono for ids, hashes, versions and data
+ * values. Lexend (rev 5) is withdrawn.
  *
- * The file is the registry's ALREADY-VENDORED asset, referenced across the
- * workspace rather than copied: `packages/ui/src/fonts/lexend-variable.woff2`,
- * OFL-1.1, recorded in that package's NOTICE.md. No new dependency, no second copy,
- * and nothing fetched from a third-party origin, so the CSP needs no font allowance
- * (`default-src 'self'` covers it). The registry's own `fonts.css` is deliberately
- * NOT imported: it declares two dozen faces and a set of `.font-*` classes that
- * repoint `--font-portal` for the respondent's font switcher, and operators get no
- * font switcher here (one face, ADMIN_THEME.md rev 5).
+ * Both files are registry assets, referenced across the workspace rather than
+ * copied: `packages/ui/src/fonts/inter-variable.woff2` and
+ * `jetbrainsmono-variable.woff2`, OFL-1.1, recorded in that package's NOTICE.md.
+ * No new dependency, no second copy, and nothing fetched from a third-party
+ * origin, so the CSP needs no font allowance (`default-src 'self'` covers it).
+ * The registry's own `fonts.css` is deliberately NOT imported: it declares two
+ * dozen faces and a set of `.font-*` classes that repoint `--font-portal` for the
+ * respondent's font switcher, and operators get no font switcher here.
  *
- * `font-weight: 100 900` because the file is the variable font: the registry pins
- * two static instances off it for the portal's switcher, but the app's chrome uses
- * 600 and 700 (headings, active nav, buttons) and a pinned axis would synthesize
- * those instead of using the real ones.
+ * `font-weight: 100 900` because both files are the variable fonts: the registry
+ * pins a static instance off each for the portal's switcher, but this app's chrome
+ * sets its titles, labels and buttons at 600 and a pinned axis would synthesize
+ * that instead of using the real instance.
  */
 @font-face {
-  font-family: "Lexend";
+  font-family: "Inter";
   font-style: normal;
   font-weight: 100 900;
   font-display: swap;
-  src: url("../node_modules/@roonga/qcms-ui/src/fonts/lexend-variable.woff2") format("woff2");
+  src: url("../node_modules/@roonga/qcms-ui/src/fonts/inter-variable.woff2") format("woff2");
+}
+@font-face {
+  font-family: "JetBrains Mono";
+  font-style: normal;
+  font-weight: 100 900;
+  font-display: swap;
+  src: url("../node_modules/@roonga/qcms-ui/src/fonts/jetbrainsmono-variable.woff2") format("woff2");
 }
 
 /*
@@ -287,18 +323,22 @@
  *
  * The vendored kit styles its own corners with `rounded` / `rounded-md` utilities
  * rather than the `--radius-*` contract, so without this the app would wear
- * Tailwind's defaults (4/6/8px) instead of its sharp 4/8/2 industrial scale
- * (ADMIN_THEME.md rev 4). Repointing the scale is one edit and covers every current
- * and future `rounded-*` in the app; overriding each component's utility one by one
- * would not. Only `--radius-sm` needs no line here: the app theme already owns that
- * name (2px), and Tailwind's `rounded-sm` reads the same variable.
+ * Tailwind's defaults (4/6/8px) instead of its 4/6/2 scale (ADMIN_THEME.md rev 8).
+ * Repointing the scale is one edit and covers every current and future `rounded-*`
+ * in the app; overriding each component's utility one by one would not. Only
+ * `--radius-sm` needs no line here: the app theme already owns that name (2px), and
+ * Tailwind's `rounded-sm` reads the same variable.
+ *
+ * `rounded-lg` is the kit's menu and `rounded-xl` its dialog, which are the two
+ * shapes rev 8 gives the 8px `--radius-modal`; everything else stays on the card
+ * and control corners.
  */
 :root {
   --radius: var(--radius-control);
   --radius-xs: var(--radius-sm);
   --radius-md: var(--radius-card);
-  --radius-lg: var(--radius-card);
-  --radius-xl: var(--radius-card);
+  --radius-lg: var(--radius-modal);
+  --radius-xl: var(--radius-modal);
 }
 
 /*
@@ -371,14 +411,17 @@ body {
   background-color: var(--color-background);
   color: var(--color-text);
   font-family: var(--font-admin);
+  font-size: 15px;
+  line-height: 22px;
   -webkit-font-smoothing: antialiased;
 }
 
-/* DS heading language: tight tracking, 700. */
+/* Heading language (rev 8): 600, and the tracking relaxed from -0.02em now that
+   hierarchy comes from size rather than weight. */
 h1,
 h2,
 h3 {
-  letter-spacing: -0.02em;
+  letter-spacing: -0.01em;
 }
 
 /*
@@ -503,7 +546,7 @@ button {
 /* The wordmark is "QCMS" and nothing else: no sub-label, and in particular no word
    naming this app to an operator (Code Owner naming call, 2026-07-30). */
 .qcms-wordmark {
-  font-weight: 800;
+  font-weight: 600;
   letter-spacing: -0.02em;
   color: var(--color-text);
 }
@@ -513,10 +556,10 @@ button {
   display: inline-flex;
   align-items: center;
   min-block-size: var(--admin-control-h);
-  padding-inline: 0.7rem;
+  padding-inline: var(--space-3);
   border-radius: var(--radius-control);
   color: var(--color-text-muted);
-  font-size: 0.9rem;
+  font-size: 14px;
   text-decoration: none;
 }
 .qcms-nav__link:hover {
@@ -532,7 +575,7 @@ button {
 .qcms-nav__link[aria-current="page"]::after {
   content: "";
   position: absolute;
-  inset-inline: 0.7rem;
+  inset-inline: var(--space-3);
   inset-block-end: 0;
   block-size: 2px;
   background-color: var(--color-primary);
@@ -540,21 +583,16 @@ button {
 }
 
 /*
- * Cards. The vendored `Card` takes no className, so the app's shadow language rides
+ * Cards. NO SHADOW IN ANY THEME (rev 8, Code Owner 2026-10-24): a card is
+ * `color-surface` inside a 1px `color-border`, and the only thing this wrapper owns
+ * is the corner. The vendored `Card` takes no className, so the app's chrome rides
  * on a wrapper rather than on a fork of the component (ADR-22: no wrapper layer of
- * variants, but a layout element carrying the app's own chrome is not that). The
- * shadow is the DS's layered soft pair, built from the `--shadow-color` token; in
- * high-contrast it is removed, because a soft shadow is invisible there anyway and
- * the border is what defines the edge.
+ * variants, but a layout element carrying the app's own chrome is not that).
+ * Elevation is now reserved for what actually floats - menus, popovers, dialogs and
+ * a dragged row - which keep the `--shadow-color` pair.
  */
 .qcms-card {
   border-radius: var(--radius-card);
-  box-shadow:
-    0 1px 2px hsl(var(--shadow-color) / 0.06),
-    0 12px 40px -12px hsl(var(--shadow-color) / 0.18);
-}
-:root.hc .qcms-card {
-  box-shadow: none;
 }
 
 /*
@@ -648,7 +686,7 @@ button {
   border-radius: 50%;
   background-color: var(--color-primary);
   color: var(--color-primary-foreground);
-  font-size: 0.72rem;
+  font-size: 11px;
   font-weight: 600;
   letter-spacing: 0.02em;
   cursor: pointer;
@@ -671,7 +709,7 @@ button {
   min-inline-size: 180px;
   padding: 6px;
   border: 1px solid var(--color-border-strong);
-  border-radius: var(--radius-card);
+  border-radius: var(--radius-modal);
   background-color: var(--color-surface);
   box-shadow:
     0 2px 4px hsl(var(--shadow-color) / 0.1),
@@ -689,10 +727,10 @@ button {
   gap: 8px;
   inline-size: 100%;
   block-size: 38px;
-  padding-inline: 10px;
+  padding-inline: var(--space-3);
   border-radius: var(--radius-sm);
   color: var(--color-text);
-  font-size: 0.9rem;
+  font-size: 14px;
   text-align: start;
   text-decoration: none;
   cursor: pointer;
@@ -718,11 +756,11 @@ button {
 .qcms-menu__check {
   inline-size: 1em;
   flex-shrink: 0;
-  font-weight: 700;
+  font-weight: 600;
 }
 .qcms-menu__sep {
   block-size: 1px;
-  margin: 6px 4px;
+  margin: var(--space-1) var(--space-1);
   border: 0;
   background-color: var(--color-border);
 }
@@ -730,7 +768,7 @@ button {
    trigger be two letters. */
 .qcms-menu__info {
   display: block;
-  padding: 6px 10px 8px;
+  padding: var(--space-2) var(--space-3);
 }
 .qcms-menu__who {
   display: block;
@@ -740,7 +778,7 @@ button {
 .qcms-menu__email {
   display: block;
   overflow: hidden;
-  font-size: 0.85rem;
+  font-size: 13px;
   font-weight: 600;
   color: var(--color-text);
   text-overflow: ellipsis;
@@ -796,7 +834,7 @@ button {
 .qcms-requires-js__title {
   margin: 0;
   color: var(--color-text);
-  font-size: 1.25rem;
+  font-size: 20px;
 }
 .qcms-requires-js__body {
   margin-block: 0.75rem 0;
@@ -816,6 +854,19 @@ button {
  * and share the density and radius tokens above.
  */
 
+/* NOTICES ARE HAIRLINE-EDGED (rev 8, Code Owner 2026-10-24). The vendored `Alert`
+   draws its edge in the saturated semantic colour, which on a screen with three of
+   them reads as three competing boxes. `role="alert"` is the hook the component
+   gives us, so the tint stays and the edge drops to the page hairline. High contrast
+   keeps a border that carries the edge on its own, because the tint vanishes there.
+   ADR-22 keeps `alert.styles.ts` byte-for-byte, so this is where it belongs. */
+[role="alert"] {
+  border-color: var(--color-border);
+}
+:root.hc [role="alert"] {
+  border-color: var(--color-border-strong);
+}
+
 /* A small inline status badge. Text is always spelled out (WCAG 1.4.1), so the
    colour only reinforces what the label already says. Draft reads as neutral
    information, published as success, deprecated as a warning - the three
@@ -826,12 +877,12 @@ button {
   align-items: center;
   border: 1px solid transparent;
   border-radius: var(--radius-sm);
-  padding-inline: 0.4em;
-  padding-block: 0.1em;
-  font-size: 0.75rem;
+  padding-inline: var(--space-1-5);
+  padding-block: var(--space-0-5);
+  font-size: 12px;
   font-weight: 600;
-  letter-spacing: 0.02em;
-  line-height: 1.4;
+  letter-spacing: 0.01em;
+  line-height: 16px;
 }
 .qcms-tag--draft {
   background-color: var(--color-info-subtle);
@@ -869,7 +920,7 @@ button {
    wide. */
 .qcms-question-id {
   font-family: var(--font-mono);
-  font-size: 1.25rem;
+  font-size: 20px;
   font-weight: 600;
   letter-spacing: -0.01em;
   color: var(--color-text);
@@ -962,25 +1013,29 @@ button {
   font-size: 0.875rem;
 }
 
-/* 44px rows and 0.4rem/0.6rem cell padding (§2). The height goes on the cells:
+/* 44px rows and 12px / 16px cell padding (§2, rev 8). The height goes on the cells:
    a `<tr>` ignores `block-size`, while a cell's acts as the row's minimum. */
 .qcms-table th,
 .qcms-table td {
   block-size: var(--admin-table-row-h);
-  padding: 0.4rem 0.6rem;
+  padding: var(--space-3) var(--space-4);
   text-align: start;
   vertical-align: middle;
   border-block-end: 1px solid var(--color-border);
 }
 
-/* Header: 0.72rem over a strong-border underline (§2). `block-size: auto`
-   because the 44px minimum is the DATA row's rhythm, not the header's. */
+/* Header: the 11px eyebrow over a strong-border hairline (§2, rev 8 - one border
+   weight outside high contrast). `block-size: auto` because the 44px minimum is the
+   DATA row's rhythm, not the header's. */
 .qcms-table thead th {
   block-size: auto;
-  font-size: 0.72rem;
+  font-size: 11px;
+  line-height: 16px;
   font-weight: 600;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
   color: var(--color-text-muted);
-  border-block-end: 2px solid var(--color-border-strong);
+  border-block-end: 1px solid var(--color-border-strong);
 }
 
 /* A row header identifies its row; it is not a heading, so it does not shout. */
@@ -1076,8 +1131,8 @@ button {
 }
 .qcms-empty__heading {
   margin: 0;
-  font-size: 0.95rem;
-  font-weight: 700;
+  font-size: 16px;
+  font-weight: 600;
   color: var(--color-text);
 }
 .qcms-empty__body {
@@ -1112,21 +1167,26 @@ button {
   min-inline-size: 10rem;
 }
 
-/* A bordered grouping box (constraints panel, option list) and its flat
-   variant, which keeps the accessible fieldset/legend semantics for the
-   filter form without drawing a visible box around it. */
+/* A TITLED GROUP, NOT A SECOND BOX (rev 8, Code Owner 2026-10-24). This is the
+   constraints panel and the option list, and both sit inside a card: a border here
+   drew a box inside a box, which is what the ruling calls too much on a busy screen.
+   The fieldset/legend semantics are what the element is for and they are untouched;
+   only the paint goes. `--flat` therefore now says what the base already does, and
+   it stays because markup names it. */
 .qcms-fieldset {
   display: flex;
   flex-direction: column;
   gap: var(--admin-stack);
-  border: 1px solid var(--color-border);
-  border-radius: var(--radius-card);
-  padding: var(--admin-section-pad);
+  border: 0;
+  padding: 0;
 }
 .qcms-fieldset__legend {
   padding: 0;
-  font-size: 0.8rem;
+  font-size: 11px;
+  line-height: 16px;
   font-weight: 600;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
   color: var(--color-text-muted);
 }
 .qcms-fieldset--flat {
@@ -1231,12 +1291,12 @@ button {
 .qcms-opt-grid__head {
   display: grid;
   grid-template-columns: 36px minmax(0, 1fr) var(--admin-opt-id-col);
-  padding-block: 0.5rem;
-  border-block-end: 2px solid var(--color-border-strong);
+  padding-block: var(--space-2);
+  border-block-end: 1px solid var(--color-border-strong);
 }
 .qcms-opt-grid__head > div {
   padding-inline: 0.75rem;
-  font-size: 0.78rem;
+  font-size: 11px;
   font-weight: 600;
   letter-spacing: 0.06em;
   text-transform: uppercase;
@@ -1305,9 +1365,9 @@ button {
    is what lets the value wrap inside the column at all. */
 .qcms-opt-cell--id {
   display: block;
-  padding-block-start: 10px;
+  padding-block-start: var(--space-2);
   font-family: var(--font-mono);
-  font-size: 0.82rem;
+  font-size: 13px;
   color: var(--color-text-muted);
   overflow-wrap: anywhere;
 }
@@ -1524,7 +1584,7 @@ button {
   background-color: var(--color-primary);
   color: var(--color-primary-foreground);
   font-size: 12px;
-  font-weight: 700;
+  font-weight: 600;
   line-height: 1;
   transform: translateY(-50%);
 }
@@ -1577,7 +1637,7 @@ button {
   gap: 6px;
   align-items: center;
   margin-block-start: 8px;
-  font-size: 0.85rem;
+  font-size: 13px;
   font-weight: 600;
   color: var(--color-danger-fg);
 }
@@ -1607,7 +1667,7 @@ button {
   max-inline-size: 260px;
   padding: 6px;
   border: 1px solid var(--color-border);
-  border-radius: var(--radius-card);
+  border-radius: var(--radius-modal);
   background-color: var(--color-surface);
   box-shadow:
     0 2px 4px hsl(var(--shadow-color) / 0.1),
@@ -1627,13 +1687,13 @@ button {
   white-space: normal;
   /* And a `q_` id is one unbreakable token, so ordinary word wrapping is not enough. */
   overflow-wrap: anywhere;
-  padding: 8px 10px;
+  padding: var(--space-2) var(--space-3);
   border: none;
   border-radius: var(--radius-sm);
   background: none;
   color: var(--color-text);
   font: inherit;
-  font-size: 0.9rem;
+  font-size: 14px;
   text-align: start;
   cursor: pointer;
 }
@@ -1707,7 +1767,7 @@ button {
   /* Prose, not a cell's worth of text: a rule wraps to two or three lines on a narrow
      table and needs the leading to stay readable when it does. */
   line-height: 1.5;
-  padding-block: 0.15rem;
+  padding-block: var(--space-0-5);
   /* Wraps, and every cell in this table must: `reflow.pw.ts` sweeps every route at
      390 and at 320, and a rule's sentence is the longest string this app renders
      outside a question's own label. */
@@ -1732,18 +1792,18 @@ button {
    holds for a reader who cannot separate two hues. */
 .qcms-rule-sentence__question,
 .qcms-rule-sentence__step {
-  font-weight: 500;
+  font-weight: 400;
   color: var(--color-text);
 }
 .qcms-rule-sentence__value {
-  padding-inline: 0.3em;
-  padding-block: 0.05em;
+  padding-inline: var(--space-1-5);
+  padding-block: var(--space-0-5);
   border: 1px solid var(--color-border);
   border-radius: var(--radius-sm);
   background-color: var(--color-background-muted);
   color: var(--color-text);
   font-family: var(--font-mono);
-  font-size: 0.9em;
+  font-size: 13px;
 }
 
 /* A row's own control: the row's scale rather than the app's control height, which is
@@ -1753,13 +1813,13 @@ button {
 .qcms-rule-action {
   min-block-size: 28px;
   padding-inline: 0.5rem;
-  padding-block: 0.15rem;
+  padding-block: var(--space-0-5);
   border: 1px solid var(--color-border);
   border-radius: var(--radius-control);
   background-color: transparent;
   color: var(--color-text);
   font-family: inherit;
-  font-size: 0.8125rem;
+  font-size: 13px;
   cursor: pointer;
 }
 .qcms-rule-action:hover {
@@ -1785,7 +1845,7 @@ button {
    sentence as to their own. `vertical-align: top` for the same reason - a two-line rule
    beside a one-line rule should start level with it, not float in the middle of it. */
 .qcms-table--rules td {
-  padding-block: 0.9rem;
+  padding-block: var(--space-3);
   vertical-align: top;
 }
 
@@ -1795,8 +1855,8 @@ button {
 .qcms-rule-actions {
   display: flex;
   flex-wrap: wrap;
-  gap: 0.5rem;
-  margin-block-start: 0.5rem;
+  gap: var(--space-2);
+  margin-block-start: var(--space-4);
 }
 
 /* ===========================================================================
@@ -1939,7 +1999,7 @@ div:has(> [role="dialog"] [data-qcms-dialog="wide"]) {
   align-items: baseline;
   gap: 0.5rem;
   padding-inline: 0.25rem;
-  font-size: 0.8rem;
+  font-size: 13px;
   font-weight: 600;
   color: var(--color-text);
 }
@@ -1963,7 +2023,7 @@ div:has(> [role="dialog"] [data-qcms-dialog="wide"]) {
 .qcms-pincell--grip {
   position: relative;
   inline-size: 1%;
-  padding-inline: 0.35rem 0.15rem;
+  padding-inline: var(--space-1) var(--space-0-5);
   white-space: nowrap;
 }
 
@@ -1991,7 +2051,7 @@ div:has(> [role="dialog"] [data-qcms-dialog="wide"]) {
   margin-block-start: 1px;
 }
 .qcms-pinrow__id .qcms-entityid__value {
-  font-size: 0.76rem;
+  font-size: 12px;
   color: var(--color-text-muted);
 }
 
@@ -2063,7 +2123,7 @@ div:has(> [role="dialog"] [data-qcms-dialog="wide"]) {
   background-color: var(--color-surface);
   color: var(--color-text);
   font: inherit;
-  font-size: 0.85rem;
+  font-size: 13px;
   font-variant-numeric: tabular-nums;
   cursor: pointer;
 }
@@ -2108,11 +2168,11 @@ div:has(> [role="dialog"] [data-qcms-dialog="wide"]) {
   color: var(--color-text);
 }
 .qcms-grouprow__id .qcms-entityid__value {
-  font-size: 0.76rem;
+  font-size: 12px;
   color: var(--color-text-muted);
 }
 .qcms-grouprow__summary {
-  font-size: 0.8rem;
+  font-size: 13px;
   color: var(--color-text-muted);
 }
 /* The member rows, indented from the step's own pins by the one cell that can carry it
@@ -2164,7 +2224,7 @@ div:has(> [role="dialog"] [data-qcms-dialog="wide"]) {
 .qcms-choice__legend {
   padding: 0;
   margin-block-end: 0.25rem;
-  font-size: 0.85rem;
+  font-size: 13px;
   font-weight: 600;
   color: var(--color-text);
 }
@@ -2172,7 +2232,7 @@ div:has(> [role="dialog"] [data-qcms-dialog="wide"]) {
   display: flex;
   flex-direction: column;
   gap: 1px;
-  padding: 0.35rem 0.5rem;
+  padding: var(--space-1) var(--space-2);
   border: 1px solid var(--color-border);
   border-radius: var(--radius-sm);
   background-color: var(--color-surface);
@@ -2198,14 +2258,14 @@ div:has(> [role="dialog"] [data-qcms-dialog="wide"]) {
 }
 .qcms-choice__label {
   color: var(--color-text);
-  font-size: 0.9rem;
+  font-size: 14px;
 }
 .qcms-choice__hint {
   /* Indented to the label's own text edge, so the sentence reads as belonging to the option
      above it rather than to the group. */
   padding-inline-start: calc(0.5rem + 13px);
   color: var(--color-text-muted);
-  font-size: 0.8rem;
+  font-size: 13px;
 }
 /* Selection is carried by the radio's own state, so this is an echo and never the
    message: `:has` styles the row whose input is checked, and a browser without it shows
@@ -2227,7 +2287,7 @@ div:has(> [role="dialog"] [data-qcms-dialog="wide"]) {
   padding: 0;
   list-style: none;
   color: var(--color-danger-fg);
-  font-size: 0.8rem;
+  font-size: 13px;
 }
 .qcms-pinissues__none {
   color: var(--color-text-muted);
@@ -2268,8 +2328,8 @@ div:has(> [role="dialog"] [data-qcms-dialog="wide"]) {
   .qcms-opt-cell--id {
     grid-column: 2;
     padding-block: 0 6px;
-    padding-inline: 1.15rem;
-    font-size: 0.72rem;
+    padding-inline: var(--space-4);
+    font-size: 11px;
   }
   /* The wide layout's mid-drag clamp to one control height cannot survive the fold:
      with the id on a SECOND line inside the row, a 40px cap pushes it out through the
@@ -2313,7 +2373,7 @@ div:has(> [role="dialog"] [data-qcms-dialog="wide"]) {
   display: block;
   margin-block-start: 0.25rem;
   font-family: var(--font-mono);
-  font-size: 1.1rem;
+  font-size: 16px;
   color: var(--color-text);
   overflow-wrap: anywhere;
 }
@@ -2386,7 +2446,7 @@ div:has(> [role="dialog"] [data-qcms-dialog="wide"]) {
   font-weight: 400;
 }
 .qcms-question-head__version {
-  font-size: 1.125rem;
+  font-size: 16px;
   font-weight: 600;
   color: var(--color-text);
 }
@@ -2474,9 +2534,9 @@ div:has(> [role="dialog"] [data-qcms-dialog="wide"]) {
   border-radius: var(--radius-sm);
   background-color: var(--color-warning-subtle);
   color: var(--color-warning-fg);
-  padding-inline: 0.6em;
-  padding-block: 0.2em;
-  font-size: 0.8125rem;
+  padding-inline: var(--space-1-5);
+  padding-block: var(--space-0-5);
+  font-size: 13px;
   font-weight: 600;
 }
 :root.hc .qcms-preview-banner {
@@ -2513,7 +2573,7 @@ div:has(> [role="dialog"] [data-qcms-dialog="wide"]) {
 .qcms-link-url,
 .qcms-link-id {
   font-family: var(--font-mono);
-  font-size: 0.8125rem;
+  font-size: 13px;
   overflow-wrap: anywhere;
 }
 
@@ -2544,7 +2604,7 @@ div:has(> [role="dialog"] [data-qcms-dialog="wide"]) {
 }
 .qcms-entityid__value {
   font-family: var(--font-mono);
-  font-size: 0.8125rem;
+  font-size: 13px;
   font-variant-numeric: tabular-nums;
   overflow-wrap: anywhere;
 }
@@ -2848,7 +2908,7 @@ div:has(> [role="dialog"] [data-qcms-dialog="wide"]) {
  * portal and not like the page around it.
  *
  * `--font-portal` is the sixth: the portal's default is the brand-neutral system
- * stack, this app's face is Lexend, and text inherits, so without this the preview
+ * stack, this app's face is Inter, and text inherits, so without this the preview
  * would be the right size in the wrong typeface. It is named with no inline fallback
  * (issue #27): this app imports the token sheet, so the token always resolves, and the
  * inline list that used to sit here was a third copy of the portal's fallback tail
@@ -2952,17 +3012,14 @@ div:has(> [role="dialog"] [data-qcms-dialog="wide"]) {
   border: 1px solid var(--color-border-strong);
   border-radius: var(--radius-card);
   background-color: var(--color-surface);
-  box-shadow:
-    0 1px 2px hsl(var(--shadow-color) / 0.12),
-    0 12px 28px -12px hsl(var(--shadow-color) / 0.22);
 }
 .qcms-respondent-frame__bar {
   padding: 0.5rem 1rem;
   border-block-end: 1px solid var(--color-border);
   background-color: var(--color-background-muted);
   color: var(--color-text-muted);
-  font-size: 0.72rem;
-  font-weight: 700;
+  font-size: 11px;
+  font-weight: 600;
   letter-spacing: 0.06em;
   text-transform: uppercase;
 }
@@ -3110,7 +3167,7 @@ div:has(> [role="dialog"] [data-qcms-dialog="wide"]) {
   padding-inline: 1rem;
   padding-block: 0.75rem;
   font-size: 0.875rem;
-  font-weight: 700;
+  font-weight: 600;
   color: var(--color-text);
   cursor: pointer;
   list-style: none;
@@ -3289,8 +3346,9 @@ div:has(> [role="dialog"] [data-qcms-dialog="wide"]) {
 .qcms-autosave-flash {
   flex-shrink: 0;
   color: var(--color-text-muted);
-  font-size: 0.8125rem;
-  font-weight: 500;
+  font-size: 13px;
+  line-height: 18px;
+  font-weight: 600;
 }
 
 /* A "?" that opens an explanation. Round, muted and the size of the copy control beside
@@ -3363,7 +3421,7 @@ div:has(> [role="dialog"] [data-qcms-dialog="wide"]) {
   flex-direction: column;
   gap: var(--admin-rail-row-gap);
   padding-block: 0;
-  margin-block-start: 0.5rem;
+  margin-block-start: var(--space-4);
 }
 .qcms-rail__actions > button {
   flex: 1 1 auto;
@@ -3389,8 +3447,9 @@ div:has(> [role="dialog"] [data-qcms-dialog="wide"]) {
   border-radius: var(--radius-control);
   background-color: transparent;
   color: var(--color-text);
-  font-size: 0.875rem;
-  font-weight: 500;
+  font-size: 14px;
+  line-height: 20px;
+  font-weight: 600;
   text-decoration: none;
 }
 .qcms-rail__action-link:hover {
@@ -3416,8 +3475,8 @@ div:has(> [role="dialog"] [data-qcms-dialog="wide"]) {
   align-items: center;
   gap: 0.5rem;
   margin: 0;
-  font-size: 0.8125rem;
-  font-weight: 700;
+  font-size: 13px;
+  font-weight: 600;
   color: var(--color-text);
 }
 .qcms-rail__filters-title > .qcms-tag {
@@ -3436,7 +3495,7 @@ div:has(> [role="dialog"] [data-qcms-dialog="wide"]) {
 }
 .qcms-rail__filters-apply > a {
   align-self: start;
-  font-size: 0.8125rem;
+  font-size: 13px;
 }
 
 /* The builder's own screens, as a block: everything the Form row contains is one thing,
@@ -3523,7 +3582,7 @@ div:has(> [role="dialog"] [data-qcms-dialog="wide"]) {
   min-block-size: var(--admin-control-h);
   gap: 0.5rem;
   padding-inline: 0.5rem;
-  padding-block: 0.4rem;
+  padding-block: var(--space-2);
   /* 2px, which is what §7.0 writes the accent edge as. Present and transparent on every
      row, so marking the current one moves no text. */
   border-inline-start: 2px solid transparent;
@@ -3557,7 +3616,7 @@ div:has(> [role="dialog"] [data-qcms-dialog="wide"]) {
   border-inline-start-color: var(--color-primary);
   background-color: var(--color-info-subtle);
   color: var(--color-info-fg);
-  font-weight: 700;
+  font-weight: 600;
 }
 /* THE PARENT OF THE CURRENT ROW: weight 600 and no fill (§7.0 ruling 2).
    "Exactly one row reads as selected" is the requirement, and a nested rail has two true
@@ -3696,7 +3755,7 @@ div:has(> [role="dialog"] [data-qcms-dialog="wide"]) {
 .qcms-rail__position {
   flex-shrink: 0;
   color: var(--color-text-muted);
-  font-weight: 500;
+  font-weight: 400;
   font-variant-numeric: tabular-nums;
 }
 /* The per-step issue count, pushed to the trailing edge and never shrunk. */
@@ -3803,7 +3862,7 @@ div:has(> [role="dialog"] [data-qcms-dialog="wide"]) {
   padding-block: 0.25rem;
   margin-block-end: 0.5rem;
   color: var(--color-primary);
-  font-size: 0.8125rem;
+  font-size: 13px;
   font-weight: 600;
   text-decoration: none;
 }
@@ -3981,12 +4040,12 @@ div:has(> [role="dialog"] [data-qcms-dialog="wide"]) {
 .qcms-picker__chosen {
   display: flex;
   flex-direction: column;
-  gap: 0.4rem;
+  gap: var(--space-2);
 }
 .qcms-picker__chosen-list {
   display: flex;
   flex-direction: column;
-  gap: 0.4rem;
+  gap: var(--space-2);
   margin: 0;
   padding: 0;
   list-style: none;
@@ -4000,9 +4059,9 @@ div:has(> [role="dialog"] [data-qcms-dialog="wide"]) {
 }
 .qcms-picker__chosen-list li {
   display: flex;
-  gap: 0.6rem;
+  gap: var(--space-2);
   align-items: center;
-  padding: 0.4rem 0.6rem;
+  padding: var(--space-2) var(--space-3);
   border: 1px solid var(--color-border);
   border-radius: var(--radius-control);
   background-color: var(--color-background-muted);
@@ -4119,7 +4178,7 @@ div:has(> [role="dialog"] [data-qcms-dialog="wide"]) {
 .qcms-assist__actions {
   display: flex;
   align-items: center;
-  gap: 0.25rem;
+  gap: var(--space-1);
 }
 .qcms-assist__body {
   display: flex;
@@ -4229,13 +4288,13 @@ div:has(> [role="dialog"] [data-qcms-dialog="wide"]) {
   gap: 0.25rem;
 }
 .qcms-assist-composer__label {
-  font-size: 0.8125rem;
+  font-size: 13px;
   font-weight: 600;
   color: var(--color-text);
 }
 .qcms-assist-composer__input {
   inline-size: 100%;
-  padding: 0.5rem 0.625rem;
+  padding: var(--space-2) var(--space-3);
   border: 1px solid var(--color-border-strong);
   border-radius: var(--radius-md);
   background-color: var(--color-background);
@@ -4256,8 +4315,8 @@ div:has(> [role="dialog"] [data-qcms-dialog="wide"]) {
 .qcms-assist-composer__actions {
   display: flex;
   flex-wrap: wrap;
-  gap: 0.5rem;
-  padding-block-start: 0.25rem;
+  gap: var(--space-2);
+  padding-block-start: var(--space-4);
 }
 
 .qcms-assist-md {
@@ -4276,7 +4335,7 @@ div:has(> [role="dialog"] [data-qcms-dialog="wide"]) {
 }
 .qcms-assist-md code {
   font-family: var(--font-mono);
-  font-size: 0.8125rem;
+  font-size: 13px;
   padding: 0 0.25rem;
   border-radius: var(--radius-sm);
   background-color: var(--color-background-muted);
@@ -4313,7 +4372,7 @@ div:has(> [role="dialog"] [data-qcms-dialog="wide"]) {
   display: flex;
   flex-direction: column;
   gap: 0.25rem;
-  font-size: 0.8125rem;
+  font-size: 13px;
   color: var(--color-text-muted);
 }
 .qcms-assist-steps li {
@@ -4362,7 +4421,7 @@ div:has(> [role="dialog"] [data-qcms-dialog="wide"]) {
 
 /* Shimmer only while the summary is still arriving. */
 .qcms-assist-think {
-  font-size: 0.8125rem;
+  font-size: 13px;
   color: var(--color-text-muted);
 }
 .qcms-assist-think > summary {
@@ -4397,8 +4456,8 @@ div:has(> [role="dialog"] [data-qcms-dialog="wide"]) {
 .qcms-assist-card__actions {
   display: flex;
   flex-wrap: wrap;
-  gap: 0.5rem;
-  padding-block-start: 0.75rem;
+  gap: var(--space-2);
+  padding-block-start: var(--space-4);
   border-block-start: 1px solid var(--color-border);
 }
 
@@ -4438,7 +4497,7 @@ div:has(> [role="dialog"] [data-qcms-dialog="wide"]) {
   flex-wrap: wrap;
   align-items: center;
   justify-content: space-between;
-  gap: 0.75rem;
+  gap: var(--space-2);
 }
 
 /* ===========================================================================
@@ -4458,8 +4517,9 @@ div:has(> [role="dialog"] [data-qcms-dialog="wide"]) {
   max-inline-size: 24rem;
 }
 .qcms-combobox__label {
-  font-size: 0.875rem;
-  font-weight: 500;
+  font-size: 14px;
+  line-height: 20px;
+  font-weight: 600;
   color: var(--color-text);
 }
 /* The input and its toggle share one box, so the pair reads as the single control it is
@@ -4521,7 +4581,7 @@ div:has(> [role="dialog"] [data-qcms-dialog="wide"]) {
   z-index: 50;
   min-inline-size: var(--trigger-width);
   border: 1px solid var(--color-border);
-  border-radius: var(--radius-control);
+  border-radius: var(--radius-modal);
   background-color: var(--color-background);
   /* The card's own elevation, from `--shadow-color`, so the popover sits at the same
      height as every other floating surface in the app and follows the theme. */
@@ -4553,7 +4613,7 @@ div:has(> [role="dialog"] [data-qcms-dialog="wide"]) {
   background-color: var(--color-background-muted);
 }
 .qcms-combobox__option[data-selected] {
-  font-weight: 500;
+  font-weight: 600;
   color: var(--color-primary);
 }
 /* Unavailable, not absent: the operator list keeps the operators this question's type
@@ -4600,12 +4660,12 @@ div:has(> [role="dialog"] [data-qcms-dialog="wide"]) {
   display: inline-flex;
   align-items: center;
   gap: 0.375rem;
-  padding-inline: 0.625rem;
+  padding-inline: var(--space-3);
   border: 1px solid var(--color-border);
   border-radius: var(--radius-control);
   background-color: var(--color-surface);
   color: var(--color-text);
-  font-size: 0.78rem;
+  font-size: 11px;
   font-weight: 600;
   letter-spacing: 0.02em;
   cursor: pointer;
@@ -4648,10 +4708,10 @@ div:has(> [role="dialog"] [data-qcms-dialog="wide"]) {
   border-block-start: 1px solid var(--color-warning);
   background-color: var(--color-warning-subtle);
   color: var(--color-warning-fg);
-  font-size: 0.8rem;
+  font-size: 13px;
 }
 .qcms-envbanner__name {
-  font-weight: 700;
+  font-weight: 600;
   letter-spacing: 0.04em;
   text-transform: uppercase;
 }
@@ -4674,8 +4734,8 @@ div:has(> [role="dialog"] [data-qcms-dialog="wide"]) {
   border-radius: var(--radius-control);
   background-color: var(--color-warning-subtle);
   color: var(--color-warning-fg);
-  font-size: 0.7rem;
-  font-weight: 700;
+  font-size: 11px;
+  font-weight: 600;
   text-transform: uppercase;
   letter-spacing: 0.04em;
   /* Figures in this cell are tabular; the badge is not a figure. */

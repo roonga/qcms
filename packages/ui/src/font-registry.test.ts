@@ -358,7 +358,7 @@ describe("add and remove are one-entry manifest changes", () => {
     const removed = before.filter((rule) => !after.includes(rule));
     expect(removed).toEqual([
       '@font-face { font-family: "Inter"; font-style: normal; font-weight: 400;' +
-        ' font-display: swap; src: url("./fonts/inter-400.woff2") format("woff2"); }',
+        ' font-display: swap; src: url("./fonts/inter-variable.woff2") format("woff2"); }',
       `${SCOPE_ANCHOR}.font-inter { --font-portal: "Inter", var(--font-fallback-sans); }`,
     ]);
     expect(after.filter((rule) => !before.includes(rule))).toEqual([]);

@@ -271,7 +271,7 @@ It is a **development** tool. It writes the database directly, which is why it l
 | Rendered component behaviour, in jsdom with testing-library                 | `**/*.test.tsx` (the `qcms-admin-dom` project)      |
 | First-run bootstrap against a real Postgres                                 | `lib/server/bootstrap.integration.test.ts` (Docker) |
 | Browser: the whole 2FA loop, axe in all three modes, keyboard               | `e2e/*.pw.ts` (the root Playwright config)          |
-| Browser: mode default, persistence, no flash, Lexend                        | `e2e/appearance.pw.ts`                              |
+| Browser: mode default, persistence, no flash, the two faces                 | `e2e/appearance.pw.ts`                              |
 | Browser: the operations arc (browse, export, erase, dead-letter, redeliver) | `e2e/responses-ops.pw.ts`                           |
 | The theme gates themselves (tokens-only, drift, naming)                     | `scripts/check-admin-theme.test.ts`                 |
 

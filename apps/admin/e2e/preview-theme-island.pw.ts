@@ -43,7 +43,7 @@ import { createDraft, openPanel } from "./support/questions.js";
  *    which is exactly the state task 058's predecessor parked on.
  * 2. **The carrier's restatement of the type-scale floors removed** (attribute intact).
  *    The first-paint test fails on the type-scale object with `letterSpacing`,
- *    `wordSpacing` and `fontFamily` moved: the island renders in Lexend at the authoring
+ *    `wordSpacing` and `fontFamily` moved: the island renders in Inter at the authoring
  *    app's spacing while every colour and geometry token still resolves correctly. It
  *    also showed that `fontSize` and `lineHeight` do NOT discriminate (see TYPE_FLOORS).
  * 3. **The container frozen at the defaults** while the switcher still moves visibly.
@@ -118,14 +118,14 @@ const PORTAL_RADIUS_CONTROL = "6px";
  * `--type-letter-spacing: 0.12em` and `--type-word-spacing: 0.16em` against a 16px
  * `--type-body`, with `--type-line-height: 1.5` and the brand-neutral system stack.
  *
- * **Three of these five discriminate and two do not, and the difference was measured
- * rather than assumed.** Stripping the carrier's restatement (see the header's provable-
- * red note) moves `letterSpacing`, `wordSpacing` and `fontFamily`; it leaves `fontSize`
- * and `lineHeight` exactly where they are, because Tailwind's preflight already sets
- * `line-height: 1.5` on the document and the authoring app's own body size is 16px too.
- * So those two agree by coincidence: they are consistency checks that the island did not
- * drift, not evidence that the carrier applied anything. They are kept for that first
- * job and labelled here so no later reader mistakes them for the second.
+ * **All five discriminate since rev 8** (issue #1121), and two of them only just
+ * started to. Stripping the carrier's restatement (see the header's provable-red note)
+ * has always moved `letterSpacing`, `wordSpacing` and `fontFamily`. It used to leave
+ * `fontSize` and `lineHeight` exactly where they are, because the authoring app's own
+ * body was 16px too and Tailwind's preflight set `line-height: 1.5` on the document -
+ * so those two agreed by coincidence and were kept only as consistency checks. The
+ * authoring app's body is now 15px / 22px, so a carrier that failed to apply would
+ * show up in all five.
  */
 const TYPE_FLOORS = {
   fontSize: "16px",
@@ -133,7 +133,7 @@ const TYPE_FLOORS = {
   letterSpacing: "1.92px",
   wordSpacing: "2.56px",
   // The first family only: the portal's stack resolved from `--font-portal`, against
-  // this app's Lexend. `fonts.css` is deliberately not imported here, so this value can
+  // this app's Inter. `fonts.css` is deliberately not imported here, so this value can
   // only have come from the token sheet's anchor block resolving on the carrier.
   fontFamily: "ui-sans-serif",
 } as const;
