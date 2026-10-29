@@ -342,7 +342,7 @@ subset:
 | Families              | 22 self-hosted + System (which downloads nothing)            |
 | Faces                 | 25 (the Accessibility group ships 400 and 700)               |
 | Files                 | 24 (Lexend is a variable font: its two faces share one file) |
-| Total committed       | 710,984 bytes (~694 KiB)                                     |
+| Total committed       | 754,812 bytes (~737 KiB)                                     |
 | Largest single family | OpenDyslexic, 235,636 bytes across two weights               |
 
 A respondent downloads **one** family, so the per-visit cost is 8-60 KB, not the

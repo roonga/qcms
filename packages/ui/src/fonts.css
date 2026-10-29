@@ -88,7 +88,7 @@
   font-style: normal;
   font-weight: 400;
   font-display: swap;
-  src: url("./fonts/inter-400.woff2") format("woff2");
+  src: url("./fonts/inter-variable.woff2") format("woff2");
 }
 :is(:root, [data-qcms-theme-scope]).font-inter {
   --font-portal: "Inter", var(--font-fallback-sans);
@@ -321,7 +321,7 @@
   font-style: normal;
   font-weight: 400;
   font-display: swap;
-  src: url("./fonts/jetbrainsmono-400.woff2") format("woff2");
+  src: url("./fonts/jetbrainsmono-variable.woff2") format("woff2");
 }
 :is(:root, [data-qcms-theme-scope]).font-jetbrainsmono {
   --font-portal: "JetBrains Mono", var(--font-fallback-mono);

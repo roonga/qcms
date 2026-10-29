@@ -10,7 +10,7 @@
 // Run: node build.mjs (from this directory)
 
 import { readFileSync, writeFileSync } from "node:fs";
-import { lexendFontFaceCss } from "./lexend-font.mjs";
+import { adminFontFaceCss } from "./admin-font.mjs";
 
 // ---------- The shared fallback tails ----------
 
@@ -73,10 +73,10 @@ const light = {
   "--color-primary-hover": "#1e4aad",
   "--color-primary-active": "#193f95",
   "--color-primary-foreground": "#ffffff",
-  "--color-secondary": "#4f5b70",
-  "--color-secondary-hover": "#475265",
-  "--color-secondary-active": "#3f495a",
-  "--color-secondary-foreground": "#ffffff",
+  "--color-secondary": "#edf0f5",
+  "--color-secondary-hover": "#e2e8f0",
+  "--color-secondary-active": "#cbd5e1",
+  "--color-secondary-foreground": "#0f1729",
   "--color-danger": "#c0271f",
   "--color-danger-hover": "#ad231c",
   "--color-danger-active": "#9a1f19",
@@ -85,7 +85,7 @@ const light = {
   "--color-danger-fg": "#8f1d18",
   "--color-ghost": "transparent",
   "--color-ghost-hover": "#eef1f6",
-  "--color-ghost-active": "#e4e8ef",
+  "--color-ghost-active": "#e2e8f0",
   "--color-info": "#2456c6",
   "--color-info-subtle": "#e9effb",
   "--color-info-fg": "#1b44a0",
@@ -97,12 +97,12 @@ const light = {
   "--color-warning-fg": "#6e4700",
   "--color-text": "#0f1729",
   "--color-text-muted": "#55617a",
-  "--color-border": "#dde2ea",
-  "--color-border-strong": "#838ca4",
-  "--color-background": "#fbfcfd",
-  "--color-background-muted": "#eef1f6",
+  "--color-border": "#e2e8f0",
+  "--color-border-strong": "#78819a",
+  "--color-background": "#f4f6f9",
+  "--color-background-muted": "#edf0f5",
   "--color-surface": "#ffffff",
-  "--color-surface-hover": "#f4f6fa",
+  "--color-surface-hover": "#eef1f6",
   "--color-focus-ring": "#2456c6",
   "--color-overlay": "rgb(0 0 0 / 0.5)",
   "--shadow-color": "222deg 30% 20%",
@@ -112,20 +112,20 @@ const dark = {
   "--color-primary": "#7aa2ff",
   "--color-primary-hover": "#8fb1ff",
   "--color-primary-active": "#a1beff",
-  "--color-primary-foreground": "#0b0f1a",
-  "--color-secondary": "#97a2b8",
-  "--color-secondary-hover": "#a3adc1",
-  "--color-secondary-active": "#aeb6c8",
-  "--color-secondary-foreground": "#0b0f1a",
+  "--color-primary-foreground": "#04080f",
+  "--color-secondary": "#0e1626",
+  "--color-secondary-hover": "#182335",
+  "--color-secondary-active": "#1e3048",
+  "--color-secondary-foreground": "#f0f6ff",
   "--color-danger": "#ff7b80",
   "--color-danger-hover": "#ff8b8f",
   "--color-danger-active": "#ff989c",
-  "--color-danger-foreground": "#0b0f1a",
+  "--color-danger-foreground": "#04080f",
   "--color-danger-subtle": "#2b1615",
   "--color-danger-fg": "#ffb3b5",
   "--color-ghost": "transparent",
-  "--color-ghost-hover": "#1b2230",
-  "--color-ghost-active": "#232c3c",
+  "--color-ghost-hover": "#0e1626",
+  "--color-ghost-active": "#182335",
   "--color-info": "#7aa2ff",
   "--color-info-subtle": "#16233a",
   "--color-info-fg": "#a9c4ff",
@@ -135,14 +135,14 @@ const dark = {
   "--color-warning": "#e0a93b",
   "--color-warning-subtle": "#2a2110",
   "--color-warning-fg": "#f0cd85",
-  "--color-text": "#e6eaf2",
-  "--color-text-muted": "#97a2b8",
-  "--color-border": "#262e3d",
-  "--color-border-strong": "#626c88",
-  "--color-background": "#0b0f1a",
-  "--color-background-muted": "#10151f",
-  "--color-surface": "#141a26",
-  "--color-surface-hover": "#1b2230",
+  "--color-text": "#f0f6ff",
+  "--color-text-muted": "#8ba3be",
+  "--color-border": "#1e3048",
+  "--color-border-strong": "#4f7396",
+  "--color-background": "#04080f",
+  "--color-background-muted": "#02050c",
+  "--color-surface": "#080f1a",
+  "--color-surface-hover": "#0e1626",
   "--color-focus-ring": "#7aa2ff",
   "--color-overlay": "rgb(0 0 0 / 0.6)",
   "--shadow-color": "222deg 60% 2%",
@@ -193,18 +193,32 @@ const hcAccent = {
   "--color-primary-foreground": "#ffffff",
 };
 
-// Admin density default: dense chrome (36px controls; WCAG 2.5.8 floor is 24px).
-// Radius (rev 4): sharper, more industrial than the DS 8px base - control 4px,
-// card 8px, small 2px. A deliberate admin-level divergence; see ADMIN_THEME.md.
+// The 4px scale is the whole spacing vocabulary: nothing outside it, and nothing
+// derived from `em`. The two odd steps are for chips only.
 const spacing = {
+  "--space-0-5": "2px",
+  "--space-1": "4px",
+  "--space-1-5": "6px",
+  "--space-2": "8px",
+  "--space-3": "12px",
+  "--space-4": "16px",
+  "--space-5": "20px",
+  "--space-6": "24px",
+  "--space-8": "32px",
+  "--space-10": "40px",
+  "--space-12": "48px",
   "--admin-control-h": "40px",
-  "--admin-control-pad-x": "0.6rem",
-  "--admin-stack": "0.35rem",
-  "--admin-section-pad": "1.25rem",
+  // Literal rather than `var(--space-N)`: a custom property computes to its
+  // authored text, and these four are read back as lengths by `e2e/appearance.pw.ts`
+  // and `e2e/rail.pw.ts`. The equalities are 12 = space-3, 8 = space-2, 20 = space-5.
+  "--admin-control-pad-x": "12px",
+  "--admin-stack": "8px",
+  "--admin-section-pad": "20px",
   "--admin-table-row-h": "44px",
   "--radius-control": "4px",
-  "--radius-card": "8px",
+  "--radius-card": "6px",
   "--radius-sm": "2px",
+  "--radius-modal": "8px",
 };
 
 // ---------- Contrast gates ----------
@@ -212,8 +226,12 @@ const spacing = {
 const modePairs = (t) => [
   [`text / background`, t["--color-text"], t["--color-background"], 4.5],
   [`text / surface`, t["--color-text"], t["--color-surface"], 4.5],
+  [`text / surface-hover`, t["--color-text"], t["--color-surface-hover"], 4.5],
+  [`text / background-muted`, t["--color-text"], t["--color-background-muted"], 4.5],
   [`text-muted / background`, t["--color-text-muted"], t["--color-background"], 4.5],
   [`text-muted / surface`, t["--color-text-muted"], t["--color-surface"], 4.5],
+  [`text-muted / surface-hover`, t["--color-text-muted"], t["--color-surface-hover"], 4.5],
+  [`text-muted / background-muted`, t["--color-text-muted"], t["--color-background-muted"], 4.5],
   [`primary-fg / primary`, t["--color-primary-foreground"], t["--color-primary"], 4.5],
   [`primary-fg / primary-hover`, t["--color-primary-foreground"], t["--color-primary-hover"], 4.5],
   [
@@ -223,6 +241,18 @@ const modePairs = (t) => [
     4.5,
   ],
   [`secondary-fg / secondary`, t["--color-secondary-foreground"], t["--color-secondary"], 4.5],
+  [
+    `secondary-fg / secondary-hover`,
+    t["--color-secondary-foreground"],
+    t["--color-secondary-hover"],
+    4.5,
+  ],
+  [
+    `secondary-fg / secondary-active`,
+    t["--color-secondary-foreground"],
+    t["--color-secondary-active"],
+    4.5,
+  ],
   [`danger-fg-btn / danger`, t["--color-danger-foreground"], t["--color-danger"], 4.5],
   [`danger-fg / danger-subtle`, t["--color-danger-fg"], t["--color-danger-subtle"], 4.5],
   [`info-fg / info-subtle`, t["--color-info-fg"], t["--color-info-subtle"], 4.5],
@@ -230,6 +260,13 @@ const modePairs = (t) => [
   [`warning-fg / warning-subtle`, t["--color-warning-fg"], t["--color-warning-subtle"], 4.5],
   [`border-strong / surface`, t["--color-border-strong"], t["--color-surface"], 3.0],
   [`border-strong / background`, t["--color-border-strong"], t["--color-background"], 3.0],
+  [`border-strong / surface-hover`, t["--color-border-strong"], t["--color-surface-hover"], 3.0],
+  [
+    `border-strong / background-muted`,
+    t["--color-border-strong"],
+    t["--color-background-muted"],
+    3.0,
+  ],
   [`focus-ring / background`, t["--color-focus-ring"], t["--color-background"], 3.0],
   [`focus-ring / surface`, t["--color-focus-ring"], t["--color-surface"], 3.0],
   [`primary / surface (link-UI)`, t["--color-primary"], t["--color-surface"], 3.0],
@@ -307,7 +344,7 @@ const indent = (text) =>
     .map((line) => `  ${line}`)
     .join("\n");
 
-const css = `/* QCMS app theme - Cobalt (rev 2, aligned to the QCMS Design System).
+const css = `/* QCMS app theme - Cobalt (rev 8, the SigPilot foundations).
    Generated by plan/admin-theme/build.mjs. All values WCAG 2.2-verified at
    build time; see ADMIN_THEME.md.
    Mode convention matches the portal theme registry (051):
@@ -317,7 +354,12 @@ const css = `/* QCMS app theme - Cobalt (rev 2, aligned to the QCMS Design Syste
    as the DS overview's --ring == --primary). The topbar is translucent and
    mode-following (styled from standard tokens; no dedicated chrome group). */
 
-${block(":root", { ...light, ...spacing, "--font-admin": `"Lexend", var(--font-fallback-sans)` })}
+${block(":root", {
+  ...light,
+  ...spacing,
+  "--font-admin": `"Inter", var(--font-fallback-sans)`,
+  "--font-mono": `"JetBrains Mono", var(--font-fallback-mono)`,
+})}
 
 ${block(":root.dark", dark)}
 
@@ -344,12 +386,49 @@ writeFileSync("tokens.css", css);
 
 // ---------- Emit ADMIN_THEME.md ----------
 
-const md = `# QCMS app theme - Cobalt (rev 2)
+const md = `# QCMS app theme - Cobalt (rev 8)
 
 Design deliverable for the QCMS app's visual theme (apps/admin, tasks 031-035).
 Generated by \`build.mjs\`; every ratio below is computed from the exact token
 values with the WCAG 2.2 relative-luminance formula, so the numbers cannot
 drift from the tokens.
+
+**Rev 8 (2026-10-24, issue #1121): the SigPilot foundations.** The Code Owner
+reviewed QCMS beside its sister product SigPilot and adopted that product's
+visual foundations for this app. The accent and the portal are unchanged.
+
+- **Faces.** Inter replaces Lexend for every UI string, and JetBrains Mono is
+  the face for ids, hashes, versions and data values. Both are self-hosted
+  variable \`woff2\` files in \`packages/ui/src/fonts\` (OFL-1.1, recorded in that
+  directory's NOTICE.md), so the 600 of a title is a real instance rather than a
+  synthesized one. \`--font-admin\` and \`--font-mono\` are declared here; both
+  still end in a \`--font-fallback-*\` tail from \`packages/ui/src/theme.css\`.
+  Rev 5's Lexend pick and rev 1's weight step-down are withdrawn.
+- **Dark is a navy ramp**: page \`#04080f\`, surface \`#080f1a\`, hover \`#0e1626\`,
+  overlay \`#182335\`, inset \`#02050c\`, hairline \`#1e3048\`. \`border-strong\` is
+  \`#4f7396\` rather than SigPilot's own \`#3d6080\`, which measures 2.91:1 on the
+  surface and so misses the 3:1 the table below holds every bounding edge to.
+- **Light takes SigPilot's surfaces and keeps QCMS's own text colours**
+  (Code Owner, 2026-10-24, follow-up): \`color-text\` \`#0f1729\` and
+  \`color-text-muted\` \`#55617a\` over \`#f4f6f9\` / \`#ffffff\` / \`#eef1f6\`.
+- **Secondary is tonal** in Light and Dark - the muted surface with
+  \`color-text\` on it and a \`color-border\` hairline edge - so primary is the
+  only filled button in a row. Both high-contrast themes keep the solid
+  secondary, and the three new secondary pairs are in the table below.
+- **Corners are 4 / 6 / 2** with a new \`--radius-modal\` at 8px for dialogs,
+  menus and popovers. Rev 4's 4 / 8 / 2 and the withdrawn 6 / 10 / 4 are both
+  superseded.
+- **No card shadows** in any theme. A card is \`color-surface\` with a 1px
+  \`color-border\` and lifts on hover to \`color-surface-hover\`; only overlays
+  keep the \`--shadow-color\` pair. There is one border weight, 1px, outside the
+  high-contrast themes.
+- **A 4px spacing scale** is the whole vocabulary: \`--space-1\` through
+  \`--space-12\`, with \`--space-0-5\` (2px) and \`--space-1-5\` (6px) for chips
+  only. \`--admin-stack\` is 8px and \`--admin-control-pad-x\` is 12px.
+- **The admin's type scale** is a 15px base with 13px small and 11px
+  extra-small, titles at 600, and fixed line heights 15/22, 14/20, 13/18, 12/16
+  and 11/16. There is no 18px or 22px level. The portal keeps its 16px WCAG
+  floor and is untouched.
 
 **Rev 6 (2026-07-31, task 055):** the sheet gained an auto block - a
 \`prefers-color-scheme: dark\` layer that applies the Dark values when the root
@@ -466,7 +545,7 @@ writeFileSync("ADMIN_THEME.md", md);
 const html = `<!-- @dsCard group="QCMS" name="QCMS app theme - Cobalt" subtitle="Shell chrome, data table, auth card - light / dark / HC" -->
 <title>QCMS app theme - Cobalt</title>
 <style>
-${lexendFontFaceCss()}
+${adminFontFaceCss()}
 /* Supplied in the product by packages/ui/src/theme.css, which this standalone
    preview cannot import. Read from that sheet at build time, never retyped. */
 :root {
@@ -477,7 +556,7 @@ ${lexendFontFaceCss()}
 }
 ${css}
 * { box-sizing: border-box; }
-body { margin: 0; font-family: var(--font-admin); font-size: 16px; line-height: 1.5;
+body { margin: 0; font-family: var(--font-admin); font-size: 15px; line-height: 22px;
   color: var(--color-text); background: var(--color-background); }
 button, input, select { font: inherit; }
 :focus-visible { outline: 2px solid var(--color-focus-ring); outline-offset: 2px; }
@@ -494,7 +573,7 @@ button, input, select { font: inherit; }
   border-bottom: 1px solid var(--color-border); }
 :root.hc .topbar { background: var(--color-surface); backdrop-filter: none; border-bottom: 2px solid var(--color-border-strong); }
 .topbar .brand { display: flex; align-items: baseline; gap: 0.5rem; }
-.topbar .brand .mark { font-weight: 800; letter-spacing: -0.02em; color: var(--color-text); }
+.topbar .brand .mark { font-weight: 700; letter-spacing: -0.02em; color: var(--color-text); }
 .topbar .brand .sub { font-size: 0.85rem; color: var(--color-text-muted); }
 .topbar nav { display: flex; gap: 0.25rem; flex: 1; }
 .topbar nav a { color: var(--color-text-muted); text-decoration: none; padding: 0.4rem 0.7rem; border-radius: var(--radius-control); position: relative; }
@@ -507,13 +586,13 @@ button, input, select { font: inherit; }
 /* layout */
 .content { max-width: 1100px; margin: 0 auto; padding: 1.5rem; display: grid; gap: 1.5rem; }
 .row { display: flex; gap: 1.5rem; flex-wrap: wrap; align-items: flex-start; }
-h1 { font-size: 1.7rem; font-weight: 700; letter-spacing: -0.02em; margin: 0; }
-h2 { font-size: 1.1rem; font-weight: 700; letter-spacing: -0.01em; margin: 0 0 0.75rem; }
+h1 { font-size: 20px; line-height: 28px; font-weight: 600; letter-spacing: -0.01em; margin: 0; }
+h2 { font-size: 16px; line-height: 24px; font-weight: 600; letter-spacing: -0.01em; margin: 0 0 var(--space-3); }
 
 /* buttons (DS language: weight 600, generous padding, soft radius, icon-ready flex) */
 .btn { display: inline-flex; align-items: center; justify-content: center; gap: 8px;
   height: var(--admin-control-h); padding: 0 18px; border-radius: var(--radius-control);
-  border: 1.5px solid transparent; font-weight: 600; font-size: 0.95rem; cursor: pointer;
+  border: 1px solid transparent; font-weight: 600; font-size: 14px; cursor: pointer;
   transition: background 0.12s ease, border-color 0.12s ease; }
 .btn-primary { background: var(--color-primary); color: var(--color-primary-foreground); }
 .btn-primary:hover { background: var(--color-primary-hover); }
@@ -526,20 +605,17 @@ h2 { font-size: 1.1rem; font-weight: 700; letter-spacing: -0.01em; margin: 0 0 0
 .btn-danger:hover { background: var(--color-danger-hover); }
 
 /* toolbar + table */
-.card { background: var(--color-surface); border: 1px solid var(--color-border); border-radius: var(--radius-card); padding: var(--admin-section-pad);
-  box-shadow: 0 1px 2px hsl(var(--shadow-color) / 0.06), 0 12px 40px -12px hsl(var(--shadow-color) / 0.18); }
-:root.hc .card { box-shadow: none; }
+.card { background: var(--color-surface); border: 1px solid var(--color-border); border-radius: var(--radius-card); padding: var(--admin-section-pad); }
 .toolbar { display: flex; gap: 0.75rem; align-items: center; margin-bottom: 1rem; flex-wrap: wrap; }
 .toolbar input[type="search"], .toolbar select { height: var(--admin-control-h); padding: 0 var(--admin-control-pad-x); border-radius: var(--radius-control); border: 1px solid var(--color-border-strong); background: var(--color-surface); color: var(--color-text); }
 .toolbar .spacer { flex: 1; }
 table { width: 100%; border-collapse: collapse; font-size: 0.95rem; }
-th { text-align: left; color: var(--color-text-muted); font-weight: 600; font-size: 0.78rem; text-transform: uppercase; letter-spacing: 0.06em; padding: 0.5rem 0.75rem; border-bottom: 2px solid var(--color-border-strong); }
-td { padding: 0 0.75rem; height: var(--admin-table-row-h); border-bottom: 1px solid var(--color-border); font-variant-numeric: tabular-nums; }
-tbody tr:nth-child(even) { background: var(--color-background-muted); }
+th { text-align: left; color: var(--color-text-muted); font-weight: 600; font-size: 11px; line-height: 16px; text-transform: uppercase; letter-spacing: 0.08em; padding: var(--space-2) var(--space-3); border-bottom: 1px solid var(--color-border-strong); }
+td { padding: 0 var(--space-3); height: var(--admin-table-row-h); border-bottom: 1px solid var(--color-border); font-size: 13px; font-variant-numeric: tabular-nums; }
 tbody tr:hover { background: var(--color-surface-hover); }
 /* chips (DS language: squared, mono, colour dot, softened border) */
-.chip { display: inline-flex; align-items: center; gap: 7px; padding: 4px 11px; border-radius: var(--radius-control);
-  font-family: var(--font-mono); font-size: 12px; font-weight: 600;
+.chip { display: inline-flex; align-items: center; gap: var(--space-1); padding: var(--space-0-5) var(--space-1-5); border-radius: var(--radius-sm);
+  font-family: var(--font-mono); font-size: 12px; line-height: 16px; font-weight: 600;
   border: 1px solid color-mix(in srgb, currentColor 30%, transparent); }
 .chip::before { content: ""; width: 8px; height: 8px; border-radius: 2px; background: currentColor; }
 .chip-published { background: var(--color-success-subtle); color: var(--color-success-fg); }

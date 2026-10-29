@@ -959,7 +959,7 @@ The eight rulings:
    4. **Filters:** the screen's filters in `<form role="search">`, with a "Filters" heading and an active count. They are ordered Search, status, type or other, then sort. "Apply" submits the filter form and the URL carries the state, so a filtered list can be bookmarked and reloaded. This is not a no-JS path: the admin requires JavaScript (the 2026-09-27 ruling above).
    5. **Actions:** structural actions only ("New question", "New form", "Add step", "New version").
    - The root is `<aside aria-label="<subject>">`.
-   - **One current-row mark:** tinted fill, weight 700 and a 2px inline-start accent edge. A parent of the current row gets weight 600 and no fill, so exactly one row reads as selected.
+   - **One current-row mark:** tinted fill, weight 600 and a 2px inline-start accent edge. A parent of the current row gets the same weight and no fill, so exactly one row reads as selected. (The mark was weight 700 until the foundations ruling of 2026-10-24 made 600 the app's ceiling, issue #1121; the fill is what carries the distinction now.)
    - 240px wide, under the topbar, sticky, viewport height, scrolling on its own. Its background runs to the bottom of the window.
 3. **The way back is the Header's back link.** It replaces the content-column breadcrumb on every screen.
 4. **Filters live in the rail.** List filters (Questions, Forms, Responses index, Webhooks) and section filters (a form's Responses and Version history) move out of the content column.
