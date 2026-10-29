@@ -34,7 +34,8 @@ flag-gated, and streams rather than returning a modelled JSON body.
 | `system-prompt.ts`                      | The versioned system prompt, assembled from the kernel's own contracts. Reviewed like code.                               |
 | `assistant.ts`                          | The `streamText` tool loop, the stop-reason mapping, and the provider selector.                                           |
 | `fake-model.ts`                         | The deterministic scripted model CI drives, including the hostile scripts.                                                |
-| `route.ts` / `handler.ts` / `schema.ts` | The flag-gated registrar, the SSE relay, the request schema.                                                              |
+| `route.ts` / `handler.ts` / `schema.ts` | The flag-gated registrar, the SSE relay and its 15 second keep-alive, the request schema.                                 |
+| `thinking.ts`                           | One function from `QCMS_AGENT_THINKING` to the provider's own options, and nothing vendor-shaped anywhere else (081).     |
 
 ## The tool allowlist is a security control
 
@@ -96,11 +97,36 @@ draft that references that run's own fixtures and actually publishes.
 A script is selected by a `#qcms-fake:<script>` directive in a user turn:
 `default`, `rogue-publish`, `rogue-erase`, `rogue-webhook`, `rogue-responses`,
 `refusal`, `provider-error`, `provider-rejected`, `tool-then-provider-error`,
-`tool-error-recovered`, `propose-questions`, `no-proposal`, `length`, `step-limit`.
+`tool-error-recovered`, `propose-questions`, `no-proposal`, `length`,
+`step-limit`, `narrate-then-tools`.
 The `rogue-*` scripts
 exist because a hostile model is the threat the allowlist is for, and the only
 honest way to test a refusal is to have something actually attempt the forbidden
 call.
+
+`reasoning` emits reasoning parts carrying a sentinel string on **every** round,
+whatever `QCMS_AGENT_THINKING` says, so one script proves both halves of the
+setting: under `summary` the sentinel reaches the panel, and under `off` it
+reaches nothing at all - not the wire, not the log, not the exported telemetry,
+not the next turn's request and not the replayed conversation. Emitting them
+unconditionally is the point. The property is that the **event mapping** drops
+reasoning, not that the request declined to ask for it, and a provider
+volunteering reasoning nobody asked for is exactly what an `openai-compatible`
+endpoint and the newer Anthropic models do. Its text also carries a Markdown
+construct, so "the disclosure is plain text, never Markdown" has something to
+fail on.
+
+`narrate-then-tools` is the only script that streams a tool call's **input
+phase** - `tool-input-start`, then the JSON as deltas, then the parsed call - so
+it is the only one that produces the window the timeline row is announced in.
+Every other script emits a parsed `tool-call` with no input phase, so its row
+appears and settles in the same instant and no amount of browser waiting can see
+it running. It also says one sentence per round under its own text segment id,
+which is what makes the segment column and "the card quotes the last segment"
+observable end to end. The `rogue-*` scripts stream their input phase too, which
+is how the refusal is proven against the arrival order a real provider produces:
+a name outside the allowlist must put nothing on the timeline, and the refusal
+must still come off the parsed call.
 
 `propose-questions` is the one script that calls `propose_questions`, and it was
 added with issue #823's fix. Until then the verb had **no e2e consumer at all**:

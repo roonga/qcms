@@ -727,6 +727,22 @@ describe("AssistPanel", () => {
       expect(screen.getByLabelText(t("forms.assist.inputLabel"))).toBeTruthy();
     });
 
+    it("moves focus to the composer when the panel opens", async () => {
+      render(
+        <AssistPanel
+          endpoint="/forms/frm_quote/assist"
+          draft={DRAFT}
+          draftUpdatedAt={undefined}
+          onAccept={vi.fn()}
+        />,
+      );
+      fireEvent.click(screen.getByRole("button", { name: t("forms.assist.collapse") }));
+      fireEvent.click(screen.getByRole("button", { name: t("forms.assist.expand") }));
+      await waitFor(() => {
+        expect(document.activeElement).toBe(composer());
+      });
+    });
+
     it("starts a new conversation, clearing the turns and the card", async () => {
       vi.stubGlobal(
         "fetch",
@@ -768,5 +784,364 @@ describe("AssistPanel", () => {
     expect(screen.queryByTestId("qcms-assist-proposal")).toBeNull();
     expect(screen.queryByRole("alert")).toBeNull();
     expect(screen.getByText(t("forms.assist.emptyHint"))).toBeTruthy();
+  });
+});
+
+function renderPanel(onAccept = vi.fn()) {
+  return render(
+    <AssistPanel
+      endpoint="/forms/frm_quote/assist"
+      draft={DRAFT}
+      draftUpdatedAt={undefined}
+      onAccept={onAccept}
+    />,
+  );
+}
+
+function composer(): HTMLElement {
+  return screen.getByLabelText(t("forms.assist.inputLabel"));
+}
+
+/** A proposal frame over the fixture draft, with one added step. */
+function proposalFrame(): string {
+  return frame("proposal", {
+    proposal: {
+      proposedDraft: {
+        ...DRAFT,
+        steps: [
+          ...DRAFT.steps,
+          { stepId: "stp_history", title: { en: "Driving history" }, items: [] },
+        ],
+      },
+      newQuestions: [],
+      rationale: "Added a driving-history step.",
+      issues: [],
+      warnings: [],
+    },
+  });
+}
+
+/** A `fetch` stub that leaves the body open until the request signal aborts, as a real stream does. */
+function openTurn(
+  capture: (signal: AbortSignal | undefined) => void,
+  frames: readonly string[] = [frame("text", { delta: "Working" })],
+) {
+  return (_url: string, init: RequestInit) => {
+    const signal = init.signal ?? undefined;
+    capture(signal);
+    const body = new ReadableStream<Uint8Array>({
+      start(controller) {
+        controller.enqueue(new TextEncoder().encode(frames.join("")));
+        signal?.addEventListener("abort", () => {
+          controller.error(new DOMException("aborted", "AbortError"));
+        });
+      },
+    });
+    return Promise.resolve(
+      new Response(body, { status: 200, headers: { "content-type": "text/event-stream" } }),
+    );
+  };
+}
+
+function stubFetch(frames: readonly string[]): void {
+  vi.stubGlobal(
+    "fetch",
+    vi.fn().mockResolvedValue(
+      new Response(sseBody(frames), {
+        status: 200,
+        headers: { "content-type": "text/event-stream" },
+      }),
+    ),
+  );
+}
+
+describe("AssistPanel composer", () => {
+  it("is a multi-line area where Enter sends", () => {
+    stubFetch([frame("text", { delta: "On it." })]);
+    renderPanel();
+
+    const area = composer();
+    expect(area.tagName).toBe("TEXTAREA");
+    fireEvent.change(area, { target: { value: "Add a step" } });
+    fireEvent.keyDown(area, { key: "Enter" });
+
+    expect(vi.mocked(fetch)).toHaveBeenCalledTimes(1);
+    const sent = vi.mocked(fetch).mock.calls[0]?.[1]?.body;
+    expect(typeof sent).toBe("string");
+    const body: unknown = JSON.parse(typeof sent === "string" ? sent : "{}");
+    expect(body).toMatchObject({ conversation: [{ role: "user", content: "Add a step" }] });
+  });
+
+  it("leaves Shift+Enter to the browser, so it inserts a newline and sends nothing", () => {
+    stubFetch([frame("text", { delta: "On it." })]);
+    renderPanel();
+
+    const area = composer();
+    fireEvent.change(area, { target: { value: "First line" } });
+    const event = fireEvent.keyDown(area, { key: "Enter", shiftKey: true });
+
+    // Not prevented, which is what lets the textarea do its own thing with it.
+    expect(event).toBe(true);
+    expect(vi.mocked(fetch)).not.toHaveBeenCalled();
+  });
+
+  it("leaves Enter alone while an input method is composing", () => {
+    stubFetch([frame("text", { delta: "On it." })]);
+    renderPanel();
+
+    const area = composer();
+    fireEvent.change(area, { target: { value: "日本語" } });
+    fireEvent.keyDown(area, { key: "Enter", isComposing: true });
+    expect(vi.mocked(fetch)).not.toHaveBeenCalled();
+  });
+
+  it("shows Stop only while a turn runs, and aborts the request", async () => {
+    let signal: AbortSignal | undefined;
+    vi.stubGlobal("fetch", vi.fn().mockImplementation(openTurn((s) => (signal = s))));
+
+    renderPanel();
+    expect(screen.queryByTestId("qcms-assist-stop")).toBeNull();
+
+    fireEvent.change(composer(), { target: { value: "Add a step" } });
+    fireEvent.keyDown(composer(), { key: "Enter" });
+
+    const stop = await screen.findByRole("button", { name: t("forms.assist.stop") });
+    fireEvent.click(stop);
+
+    await waitFor(() => {
+      expect(signal?.aborted).toBe(true);
+    });
+    await waitFor(() => {
+      expect(screen.queryByTestId("qcms-assist-stop")).toBeNull();
+    });
+    expect(screen.queryByTestId("qcms-assist-error")).toBeNull();
+  });
+});
+
+describe("AssistPanel focus", () => {
+  it("leaves focus where it was when a card arrives from outside the panel", async () => {
+    stubFetch([proposalFrame()]);
+    const outside = document.createElement("button");
+    document.body.append(outside);
+    renderPanel();
+
+    fireEvent.change(composer(), { target: { value: "Add a step" } });
+    fireEvent.keyDown(composer(), { key: "Enter" });
+    outside.focus();
+
+    await waitFor(() => {
+      expect(screen.getByTestId("qcms-assist-proposal")).toBeTruthy();
+    });
+    expect(document.activeElement).toBe(outside);
+    outside.remove();
+  });
+
+  it("moves focus to the card heading when a card arrives with focus inside the panel", async () => {
+    stubFetch([proposalFrame()]);
+    renderPanel();
+
+    fireEvent.change(composer(), { target: { value: "Add a step" } });
+    fireEvent.keyDown(composer(), { key: "Enter" });
+    composer().focus();
+
+    const heading = await screen.findByRole("heading", { name: t("forms.assist.proposalHeading") });
+    await waitFor(() => {
+      expect(document.activeElement).toBe(heading);
+    });
+  });
+
+  it("moves focus to the outcome line after Accept, and keeps the line in the record", async () => {
+    stubFetch([proposalFrame()]);
+    const onAccept = vi.fn();
+    renderPanel(onAccept);
+
+    fireEvent.change(composer(), { target: { value: "Add a step" } });
+    fireEvent.keyDown(composer(), { key: "Enter" });
+    await waitFor(() => {
+      expect(screen.getByTestId("qcms-assist-proposal")).toBeTruthy();
+    });
+
+    fireEvent.click(screen.getByRole("button", { name: t("forms.assist.accept") }));
+
+    expect(onAccept).toHaveBeenCalledTimes(1);
+    const line = await screen.findByTestId("qcms-assist-result");
+    expect(line.textContent).toBe(t("forms.assist.resultAccepted"));
+    await waitFor(() => {
+      expect(document.activeElement).toBe(line);
+    });
+    expect(screen.queryByTestId("qcms-assist-proposal")).toBeNull();
+  });
+
+  it("moves focus to the outcome line after Discard", async () => {
+    stubFetch([proposalFrame()]);
+    renderPanel();
+
+    fireEvent.change(composer(), { target: { value: "Add a step" } });
+    fireEvent.keyDown(composer(), { key: "Enter" });
+    await waitFor(() => {
+      expect(screen.getByTestId("qcms-assist-proposal")).toBeTruthy();
+    });
+
+    fireEvent.click(screen.getByRole("button", { name: t("forms.assist.discard") }));
+
+    const line = await screen.findByTestId("qcms-assist-result");
+    expect(line.textContent).toBe(t("forms.assist.resultDiscarded"));
+    await waitFor(() => {
+      expect(document.activeElement).toBe(line);
+    });
+  });
+
+  it("moves nothing when a turn simply ends", async () => {
+    stubFetch([frame("text", { delta: "Here is what I found." })]);
+    renderPanel();
+
+    fireEvent.change(composer(), { target: { value: "Tell me" } });
+    fireEvent.keyDown(composer(), { key: "Enter" });
+    const before = document.activeElement;
+
+    await waitFor(() => {
+      expect(screen.getByText("Here is what I found.")).toBeTruthy();
+    });
+    expect(document.activeElement).toBe(before);
+  });
+});
+
+describe("AssistPanel thinking disclosure", () => {
+  it("renders nothing when no reasoning frame arrives", async () => {
+    stubFetch([frame("text", { delta: "Here is the draft." })]);
+    renderPanel();
+
+    fireEvent.change(composer(), { target: { value: "Go" } });
+    fireEvent.keyDown(composer(), { key: "Enter" });
+
+    await waitFor(() => {
+      expect(screen.getByText("Here is the draft.")).toBeTruthy();
+    });
+    expect(screen.queryByTestId("qcms-assist-thinking")).toBeNull();
+  });
+
+  it("renders collapsed, in plain text, with a duration once the summary ends", async () => {
+    stubFetch([
+      frame("reasoning", { delta: "Checking **one** thing first.\nThen the other." }),
+      frame("reasoning-end", {}),
+      frame("text", { delta: "Here is the draft." }),
+    ]);
+    renderPanel();
+
+    fireEvent.change(composer(), { target: { value: "Go" } });
+    fireEvent.keyDown(composer(), { key: "Enter" });
+
+    const disclosure = await screen.findByTestId("qcms-assist-thinking");
+    expect((disclosure as HTMLDetailsElement).open).toBe(false);
+    expect(disclosure.textContent).toContain(t("forms.assist.thinking"));
+
+    // Plain text, never Markdown.
+    expect(disclosure.textContent).toContain("**one**");
+    expect(disclosure.querySelector("strong")).toBeNull();
+    expect(disclosure.querySelector(".qcms-assist-md")).toBeNull();
+
+    await waitFor(() => {
+      expect(disclosure.textContent).toMatch(/Thought for \d+ s/u);
+    });
+    expect(disclosure.querySelector(".qcms-assist-think__pulse")).toBeNull();
+  });
+
+  it("shows the running indicator while the summary is still arriving", async () => {
+    vi.stubGlobal(
+      "fetch",
+      vi
+        .fn()
+        .mockImplementation(
+          openTurn(() => undefined, [frame("reasoning", { delta: "weighing it up" })]),
+        ),
+    );
+    renderPanel();
+
+    fireEvent.change(composer(), { target: { value: "Go" } });
+    fireEvent.keyDown(composer(), { key: "Enter" });
+
+    const disclosure = await screen.findByTestId("qcms-assist-thinking");
+    expect(disclosure.querySelector(".qcms-assist-think__pulse")).not.toBeNull();
+    expect(disclosure.textContent).not.toMatch(/Thought for/u);
+  });
+
+  it("keeps the summary out of the conversation the API is sent next", async () => {
+    stubFetch([
+      frame("reasoning", { delta: "SENTINEL-REASONING" }),
+      frame("reasoning-end", {}),
+      frame("text", { delta: "Here is the draft." }),
+    ]);
+    renderPanel();
+
+    fireEvent.change(composer(), { target: { value: "First" } });
+    fireEvent.keyDown(composer(), { key: "Enter" });
+    await waitFor(() => {
+      expect(screen.getByText("Here is the draft.")).toBeTruthy();
+    });
+
+    fireEvent.change(composer(), { target: { value: "Second" } });
+    fireEvent.keyDown(composer(), { key: "Enter" });
+
+    await waitFor(() => {
+      expect(vi.mocked(fetch)).toHaveBeenCalledTimes(2);
+    });
+    const sent = vi.mocked(fetch).mock.calls[1]?.[1]?.body;
+    expect(typeof sent === "string" ? sent : "").not.toContain("SENTINEL-REASONING");
+  });
+});
+
+describe("AssistPanel identity", () => {
+  it("names the panel from the header mark, with no visible title word", () => {
+    renderPanel();
+
+    const panel = screen.getByTestId("qcms-assist-panel");
+    const labelledBy = panel.getAttribute("aria-labelledby");
+    expect(labelledBy).toBe("qcms-assist-heading");
+
+    const named = document.getElementById(labelledBy ?? "");
+    expect(named?.getAttribute("role")).toBe("img");
+    expect(named?.getAttribute("aria-label")).toBe(t("agent.title"));
+    // The word is the mark's name, not text on screen.
+    expect(named?.textContent).toBe("");
+    expect(screen.queryByRole("heading", { name: t("agent.title") })).toBeNull();
+  });
+
+  it("gives each assistant turn the mark as its avatar", async () => {
+    stubFetch([frame("text", { delta: "Looking now." })]);
+    renderPanel();
+
+    fireEvent.change(composer(), { target: { value: "Go" } });
+    fireEvent.keyDown(composer(), { key: "Enter" });
+
+    await waitFor(() => {
+      expect(screen.getByText("Looking now.")).toBeTruthy();
+    });
+    expect(screen.getAllByRole("img", { name: t("agent.title") })).toHaveLength(2);
+  });
+
+  it("carries the working state exactly while the live region reports a running turn", async () => {
+    vi.stubGlobal(
+      "fetch",
+      vi
+        .fn()
+        .mockImplementation(openTurn(() => undefined, [frame("status", { phase: "thinking" })])),
+    );
+
+    renderPanel();
+    const header = () => screen.getAllByTestId("qcms-assist-mark")[0];
+    expect(header()?.getAttribute("data-working")).toBeNull();
+
+    fireEvent.change(composer(), { target: { value: "Go" } });
+    fireEvent.keyDown(composer(), { key: "Enter" });
+
+    await waitFor(() => {
+      expect(header()?.getAttribute("data-working")).toBe("true");
+    });
+    expect(screen.getByTestId("qcms-assist-status").textContent).toBe(t("forms.assist.working"));
+
+    fireEvent.click(screen.getByRole("button", { name: t("forms.assist.stop") }));
+    await waitFor(() => {
+      expect(header()?.getAttribute("data-working")).toBeNull();
+    });
   });
 });
