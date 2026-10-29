@@ -11,13 +11,9 @@ import { trackedFilesUnder } from "../../../scripts/tracked-files.mjs";
  * Which screens carry a rail, and what each one's section carries, checked against the route
  * tree rather than claimed.
  *
- * ## The property this file pins gained a second half, and it is the load-bearing one
- *
- * Issue 561 asserted that the eight form-scoped screens have a slot page and that no fourth
- * rail root appears. Eleven screens have a rail and seven do not - the eleventh is the rules
- * route issue #669 added, which is a ninth form-scoped screen. What has not changed is that
- * EVERY screen has a PAGE under `app/(shell)/@rail`: the seven without a rail have one that
- * returns `null`, which is a different thing from having no page at all.
+ * §7.0 of `plan/admin-design-contracts.md` gives every screen a rail unless its own table
+ * records an exception, so the `NO_SECTION` list below is empty and is the gate. Every screen
+ * also has a PAGE under `app/(shell)/@rail`.
  *
  * **That is a correctness requirement, not tidiness.** On a soft navigation Next keeps the
  * previously active state of any slot the new URL does not match, and consults `default.tsx`
@@ -66,31 +62,12 @@ const CURRENT_SECTION: Readonly<Record<string, string>> = {
 };
 
 /**
- * The routes that carry NO rail, restated rather than read off the tree.
+ * The routes that carry no rail: the Exception column of §7.0's table, and empty.
  *
- * `plan/admin-ux-audit.md` §3 and §5.4 reject a rail on each of them and give the reason: a
- * rail there would either be empty or would repeat the page's own body, "and now there are
- * two of them and they can disagree". Each still has a page in the slot, returning `null`,
- * because a route that matches nothing keeps the previous screen's rail on a soft
- * navigation. Written down here, granting one a rail is a change to this list and therefore
- * a change someone reviews.
+ * A screen granted an exception is an entry here and a row in that table, which is two edits
+ * somebody reviews rather than one slot page quietly losing its rail.
  */
-const NO_SECTION = [
-  "/forms",
-  "/forms/new",
-  "/questions",
-  "/questions/new",
-  "/responses",
-  "/responses/erasures",
-  "/webhooks",
-  // Membership and the access audit (ADR-41, task 069). No rail on either, for the reason
-  // the list above gives: a rail there would either be empty or repeat the page's own
-  // headings, "and now there are two of them and they can disagree". The workspace page
-  // has four panels in one scroll and each is a different authority, which is a shape the
-  // Settings exception does not cover.
-  "/workspaces",
-  "/workspaces/[workspaceId]",
-];
+const NO_SECTION: readonly string[] = [];
 
 /**
  * Every Next route pattern under one directory, read from the repository.
@@ -148,13 +125,30 @@ describe("every screen has a page in the slot, whether or not it has a rail", ()
   });
 
   it("accounts for every route as either carrying a rail or deliberately not", () => {
-    const withRail = [...Object.keys(CURRENT_SECTION), "/questions/[questionId]", "/settings"];
+    const withRail = [
+      ...Object.keys(CURRENT_SECTION),
+      "/questions/[questionId]",
+      "/settings",
+      // Listed rather than derived, for the reason the table above is: a list read out of
+      // the files it checks passes on any files.
+      "/questions",
+      "/questions/new",
+      "/forms",
+      "/forms/new",
+      "/responses",
+      "/responses/erasures",
+      "/webhooks",
+      "/workspaces",
+      "/workspaces/[workspaceId]",
+    ];
     expect(sorted([...withRail, ...NO_SECTION])).toEqual(sorted(shellScreens()));
   });
 
   it("returns null from every slot page that carries no section, and only those", () => {
-    // Read off the files rather than trusted: a page that quietly grew a section would
-    // still be listed in `NO_SECTION` and nobody would be asked about it.
+    // Read off the files in both directions: a page that quietly grew a section would still
+    // be listed in `NO_SECTION`, and a page that quietly lost one is a screen whose rail
+    // went away without a ruling. Both sides are empty, so this also asserts that
+    // `no-section.ts` has no caller.
     const empty = railSlotRoutes().filter((route) => slotSource(route).includes("NoRailSection"));
     expect(sorted(empty)).toEqual(sorted(NO_SECTION));
   });
@@ -184,23 +178,22 @@ describe("which screens carry the form-subtree section", () => {
     ]);
   });
 
-  it("keeps the three section-bearing roots to the three that were argued for", () => {
-    // Each was granted separately and the grants are not one rule:
-    //
-    // - `forms/` is the form-subtree section (issue 559, rolled out by 561).
-    // - `settings/` was §7a's single named exception (issue 562, rebuilt to its POC by 655).
-    // - `questions/` is issue 650, and its authority is the screen's own POC
-    //   (`plan/admin-shell-poc/question-editor-poc.html`), which draws a rail carrying the
-    //   question's versions.
-    //
-    // A fourth is the moment a section on a new screen has to be argued rather than
-    // assumed, which is what the `NO_SECTION` list above keeps honest for the rest.
+  it("carries a rail on every root in the shell, with no screen left out", () => {
+    // Every root a screen lives under carries a rail, so a root missing from this list is a
+    // screen that lost one. `NO_SECTION` is where an exception would be written.
     const roots = new Set(
       railSlotRoutes()
         .filter((route) => !slotSource(route).includes("NoRailSection"))
         .map((route) => route.split("/")[1] ?? ""),
     );
-    expect(sorted([...roots])).toEqual(["forms", "questions", "settings"]);
+    expect(sorted([...roots])).toEqual([
+      "forms",
+      "questions",
+      "responses",
+      "settings",
+      "webhooks",
+      "workspaces",
+    ]);
   });
 });
 

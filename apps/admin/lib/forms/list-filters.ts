@@ -34,6 +34,11 @@ export interface FormListFilters {
    * filter can hide a form, so only they count here.
    */
   readonly isFiltered: boolean;
+  /**
+   * How many of the list's filters are set, for the rail's active count. The sort is
+   * excluded for the reason {@link isFiltered} gives, so the two are the same statement.
+   */
+  readonly activeCount: number;
 }
 
 /** The first value of a repeated param, or `undefined`. */
@@ -65,10 +70,12 @@ export function readFormListFilters(
 ): FormListFilters {
   const status = parseStatus(params["status"]);
   const search = firstValue(params["q"]) ?? "";
+  const activeCount = (status === undefined ? 0 : 1) + (search.trim() === "" ? 0 : 1);
   return {
     status,
     sort: parseSort(params["sort"]),
     search,
-    isFiltered: status !== undefined || search.trim() !== "",
+    isFiltered: activeCount > 0,
+    activeCount,
   };
 }

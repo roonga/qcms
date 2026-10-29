@@ -862,7 +862,8 @@ test("the list filters, and says something useful when it finds nothing", async 
   // The filter lives in the URL, so it is a place an author can link to.
   await expect(page).toHaveURL(/[?&]q=no-such-question/);
 
-  await page.getByRole("link", { name: "Clear filters" }).click();
+  // Scoped to the column: the panel carries §3's CTA and the rail carries one of its own.
+  await page.getByRole("main").getByRole("link", { name: "Clear filters" }).click();
   await expect(page.getByRole("table", { name: "Question library" })).toBeVisible();
 });
 
@@ -881,7 +882,7 @@ test("the type column and the type filter narrow the library (issue #218)", asyn
   await expect(page.getByRole("row").filter({ hasText: questionIdFor("date") })).toBeVisible();
   await expect(page.getByRole("row").filter({ hasText: questionIdFor("number") })).toHaveCount(0);
 
-  // And it is reachable from the toolbar, not just from a hand-written URL.
+  // And it is reachable from the control in the rail, not just from a hand-written URL.
   await page.goto("/questions");
   const picker = page.getByRole("button", { name: /Type$/ });
   await picker.click();

@@ -19,6 +19,7 @@ describe("readFormListFilters", () => {
       sort: "slug-asc",
       search: "",
       isFiltered: false,
+      activeCount: 0,
     });
   });
 
@@ -29,6 +30,8 @@ describe("readFormListFilters", () => {
         sort: "published-desc",
         search: "vehicle",
         isFiltered: true,
+        // Two, not three: the sort is in the URL and is not a filter, because it hides no row.
+        activeCount: 2,
       },
     );
   });

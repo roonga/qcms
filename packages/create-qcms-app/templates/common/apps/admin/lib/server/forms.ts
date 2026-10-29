@@ -89,6 +89,18 @@ export async function listForms(
   return result.ok ? { ok: true, data: result.data.forms } : result;
 }
 
+/**
+ * The whole, unfiltered form library, memoized per request so a page and its `@rail` slot
+ * share one round trip.
+ *
+ * Separate from {@link listForms} because `cache()` keys on argument identity: a filter
+ * object literal would miss on every call. A screen that filters still calls `listForms`.
+ */
+export const listAllForms: (session: AdminSession) => Promise<ApiResult<readonly FormListItem[]>> =
+  cache(async (session: AdminSession): Promise<ApiResult<readonly FormListItem[]>> =>
+    listForms(session),
+  );
+
 /** `POST /admin/forms` - the identity and its empty first draft, in one call. */
 export async function createForm(
   session: AdminSession,

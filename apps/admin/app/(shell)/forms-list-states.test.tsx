@@ -74,6 +74,8 @@ vi.mock("@/lib/server/session", () => ({
 }));
 vi.mock("@/lib/server/forms", () => ({
   listForms: () => Promise.resolve(formsResult),
+  // The webhook screen and its rail share one round trip through the memoized wrapper.
+  listAllForms: () => Promise.resolve(formsResult),
 }));
 vi.mock("@/lib/server/webhook-ops", () => ({
   listDeadLetters: () => Promise.resolve(deadLettersResult),
@@ -111,12 +113,13 @@ const LIST_ELEMENT = /<(?:ul|ol)[\s>]/;
 
 async function renderResponses(): Promise<string> {
   const { default: ResponsesPage } = await import("./responses/page.tsx");
-  return renderToStaticMarkup(await ResponsesPage());
+  // Both screens take `searchParams` now; neither case here sets a filter.
+  return renderToStaticMarkup(await ResponsesPage({ searchParams: Promise.resolve({}) }));
 }
 
 async function renderWebhooks(): Promise<string> {
   const { default: WebhooksPage } = await import("./webhooks/page.tsx");
-  return renderToStaticMarkup(await WebhooksPage());
+  return renderToStaticMarkup(await WebhooksPage({ searchParams: Promise.resolve({}) }));
 }
 
 describe.each([
