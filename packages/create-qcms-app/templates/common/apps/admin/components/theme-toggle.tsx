@@ -206,7 +206,7 @@ export function ThemeToggle({
     globalThis.setTimeout(() => {
       const active = document.activeElement;
       if (active === null || active === document.body) return;
-      if (panel.contains(active) || active === triggerRef.current) return;
+      if (panel.contains(active)) return;
       setOpen(false);
     }, 0);
   };
