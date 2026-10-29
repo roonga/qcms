@@ -353,7 +353,10 @@ test("675 spends one section-padding token on the bar and the column alike, at 1
     };
   });
 
-  expect(pads.token.trim(), "the POC's token is the one declared").toBe("1.25rem");
+  // Authored as `20px` since rev 8 (issue #1121), where the token became the 4px
+  // scale's `--space-5`. A custom property computes to its authored text, so this is
+  // the spelling and not the value: the three measurements below are still 20.
+  expect(pads.token.trim(), "the POC's token is the one declared").toBe("20px");
   expect(pads.barStart, "the bar's inline padding is the token").toBe(20);
   expect(pads.mainStart, "and so is the column's").toBe(20);
   expect(pads.barEnd, "on both sides of the bar").toBe(20);

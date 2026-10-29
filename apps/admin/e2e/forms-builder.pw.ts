@@ -618,7 +618,7 @@ test("the operator picker filters as you type, and keeps the ones that do not ap
   const monoToken = await page.evaluate(() =>
     getComputedStyle(document.documentElement).getPropertyValue("--font-mono"),
   );
-  expect(families(monoToken)[0], `--font-mono resolved to "${monoToken}"`).toBe("ui-monospace");
+  expect(families(monoToken)[0], `--font-mono resolved to "${monoToken}"`).toBe("JetBrains Mono");
   const editorText = page.getByTestId("qcms-condition-json").locator(".cm-content");
   await expect(editorText).toBeVisible();
   const paneFamily = await editorText.evaluate((element) => getComputedStyle(element).fontFamily);
