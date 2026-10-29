@@ -47,11 +47,15 @@ const EMAIL = uniqueAdminEmail("appearance");
 /** The classes the control owns, which is what a root-class read has to filter to. */
 const CLASSES = ["light", "dark", "hc"] as const;
 
-/** The four states the sheet can paint, as the root classes that select each. */
+/**
+ * The four states the sheet can paint, with the root classes an EXPLICIT polarity choice
+ * stamps for each. Under Auto the polarity class is absent and the sheet's media blocks
+ * paint the same four; the Auto test asserts that separately.
+ */
 const STATES = [
-  { name: "light", classes: [] as readonly string[], dark: false, high: false },
+  { name: "light", classes: ["light"] as readonly string[], dark: false, high: false },
   { name: "dark", classes: ["dark"], dark: true, high: false },
-  { name: "light high contrast", classes: ["hc"], dark: false, high: true },
+  { name: "light high contrast", classes: ["light", "hc"], dark: false, high: true },
   { name: "dark high contrast", classes: ["dark", "hc"], dark: true, high: true },
 ] as const;
 type State = (typeof STATES)[number];
