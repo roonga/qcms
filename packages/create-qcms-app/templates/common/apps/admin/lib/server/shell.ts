@@ -1,21 +1,14 @@
 import {
+  NO_CONTEXT,
   parseWorkspaceContext,
   SHELL_MODE_COOKIE,
   SHELL_WORKSPACE_COOKIE,
+  type RememberedContext,
 } from "../shell/context.ts";
-import { parseShellMode, type ShellCapabilities } from "../shell/modes.ts";
+import { parseShellMode, type ShellCapabilities, type ShellMode } from "../shell/modes.ts";
 
 import { readMyAccess } from "./membership.ts";
 import type { AdminSession } from "./session.ts";
-
-/**
- * What the shell knows about the signed-in caller's areas, and the context each mode
- * remembers.
- *
- * The capability projection is a navigation convenience, never the authority: every route
- * and server action re-decides, which is what keeps a menu this app forgot to hide from
- * being a permission.
- */
 
 /**
  * `unknown` is a third state rather than an absence. A failed discovery read is not a
@@ -56,15 +49,22 @@ export async function administeredWorkspaceIds(session: AdminSession): Promise<r
   return access.data.workspaces.map((workspace) => workspace.workspaceId);
 }
 
-/** What each mode remembered, read from the request's cookies. */
-export function rememberedContext(cookieStore: {
+/** Which mode the shell was last in, read from the request's cookies. */
+export function rememberedMode(cookieStore: {
   get(name: string): { readonly value: string } | undefined;
-}): {
-  readonly mode: ReturnType<typeof parseShellMode>;
-  readonly workspace: string | undefined;
-} {
-  return {
-    mode: parseShellMode(cookieStore.get(SHELL_MODE_COOKIE)?.value),
-    workspace: parseWorkspaceContext(cookieStore.get(SHELL_WORKSPACE_COOKIE)?.value),
-  };
+}): ShellMode | undefined {
+  return parseShellMode(cookieStore.get(SHELL_MODE_COOKIE)?.value);
+}
+
+/**
+ * What each mode remembered, with the permitted set resolved so a cookie naming a
+ * workspace the caller no longer administers restores nothing.
+ */
+export async function rememberedContext(
+  session: AdminSession,
+  cookieStore: { get(name: string): { readonly value: string } | undefined },
+): Promise<RememberedContext> {
+  const workspace = parseWorkspaceContext(cookieStore.get(SHELL_WORKSPACE_COOKIE)?.value);
+  if (workspace === undefined) return NO_CONTEXT;
+  return { workspace, permittedWorkspaceIds: await administeredWorkspaceIds(session) };
 }

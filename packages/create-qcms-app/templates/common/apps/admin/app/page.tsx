@@ -1,8 +1,10 @@
+import { cookies } from "next/headers";
 import { redirect } from "next/navigation";
 
-import { navigableCapabilities, shellAccess } from "@/lib/server/shell";
+import { navigableCapabilities, rememberedContext, shellAccess } from "@/lib/server/shell";
 import { requireAdminSession } from "@/lib/server/session";
-import { landingPath } from "@/lib/shell/modes";
+import { restoredModePath } from "@/lib/shell/context";
+import { landingArea, MY_ACCESS_PATH } from "@/lib/shell/modes";
 
 /**
  * The admin root, which resolves where this caller lands.
@@ -10,7 +12,7 @@ import { landingPath } from "@/lib/shell/modes";
  * There is no landing page and no one home area: an Operations-only caller holds no
  * authoring screen, a workspace-only manager holds neither, and a caller with no feature
  * grant gets My access rather than a fabricated one. So the areas are read here and the
- * first permitted one is the destination.
+ * first permitted one is the destination, restoring whatever that mode remembered.
  *
  * Written as a redirect rather than a `proxy.ts` rewrite so it uses the same session
  * authority as every other gate here, and `requireAdminSession` applies the sign-in and
@@ -18,5 +20,10 @@ import { landingPath } from "@/lib/shell/modes";
  */
 export default async function AdminRootPage() {
   const session = await requireAdminSession();
-  redirect(landingPath(navigableCapabilities(await shellAccess(session))));
+  const [capabilities, context] = await Promise.all([
+    shellAccess(session).then(navigableCapabilities),
+    rememberedContext(session, await cookies()),
+  ]);
+  const area = landingArea(capabilities);
+  redirect(area === undefined ? MY_ACCESS_PATH : restoredModePath(area, context));
 }

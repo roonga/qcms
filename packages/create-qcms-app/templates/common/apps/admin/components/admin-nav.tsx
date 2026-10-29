@@ -4,6 +4,7 @@ import Link from "next/link";
 import { usePathname } from "next/navigation";
 
 import { t } from "@/lib/i18n/en";
+import { restoredModePath, type RememberedContext } from "@/lib/shell/context";
 import {
   AUTHORING_PATH,
   OPERATIONS_PATH,
@@ -33,7 +34,6 @@ const ITEMS = [
   // moves them into the Operations mode.
   { href: "/responses", label: t("nav.responses"), area: undefined },
   { href: "/webhooks", label: t("nav.webhooks"), area: undefined },
-  { href: WORKSPACES_PATH, label: t("nav.workspaces"), area: "workspaces" },
 ] as const;
 
 /** Entering it replaces the menus above rather than joining them, so it is drawn apart. */
@@ -51,12 +51,18 @@ function NavLink({
   href,
   label,
   pathname,
+  activeFor = href,
 }: {
   readonly href: string;
   readonly label: string;
   readonly pathname: string;
+  /**
+   * What the active mark tests, when it is not {@link href}. The Workspaces entry points
+   * at a remembered workspace but is lit by the whole area.
+   */
+  readonly activeFor?: string;
 }) {
-  const active = isActive(pathname, href);
+  const active = isActive(pathname, activeFor);
   return (
     // One class in both states: the active treatment is selected by `aria-current` in
     // `globals.css`, so the accessible signal and the visual one cannot drift apart.
@@ -66,7 +72,13 @@ function NavLink({
   );
 }
 
-export function AdminNav({ capabilities }: { readonly capabilities: ShellCapabilities }) {
+export function AdminNav({
+  capabilities,
+  context,
+}: {
+  readonly capabilities: ShellCapabilities;
+  readonly context: RememberedContext;
+}) {
   const pathname = usePathname();
   const items = ITEMS.filter((item) => item.area === undefined || capabilities[item.area]);
 
@@ -78,6 +90,18 @@ export function AdminNav({ capabilities }: { readonly capabilities: ShellCapabil
             <NavLink href={item.href} label={item.label} pathname={pathname} />
           </li>
         ))}
+        {/* Entering Workspaces restores the one it was last on, while the caller still
+            administers it, so this entry's href is not the area's own path. */}
+        {capabilities.workspaces && (
+          <li>
+            <NavLink
+              href={restoredModePath("workspaces", context)}
+              label={t("nav.workspaces")}
+              pathname={pathname}
+              activeFor={WORKSPACES_PATH}
+            />
+          </li>
+        )}
         {capabilities[SEPARATED.area] && (
           <li className="qcms-nav__separated">
             <NavLink href={SEPARATED.href} label={SEPARATED.label} pathname={pathname} />

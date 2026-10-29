@@ -6,10 +6,12 @@ import { useEffect, type ReactNode } from "react";
 import { AdminNav } from "@/components/admin-nav";
 import { ModeHeader } from "@/components/shell/mode-header";
 import { t } from "@/lib/i18n/en";
-import { shellModeCookie, shellWorkspaceCookie } from "@/lib/shell/context";
+import { shellModeCookie, shellWorkspaceCookie, type RememberedContext } from "@/lib/shell/context";
 import {
+  declaredMode,
   focusedMode,
   modeForPath,
+  permitsMode,
   type ShellCapabilities,
   type ShellMode,
 } from "@/lib/shell/modes";
@@ -26,38 +28,46 @@ import {
 export function ShellChrome({
   capabilities,
   rememberedMode,
+  context,
   secureCookies,
   trailing,
 }: {
   readonly capabilities: ShellCapabilities;
-  /** Which focused mode the shell was last in, so a personal route can stay inside it. */
+  /** Which mode the shell was last in, so a personal route can stay inside it. */
   readonly rememberedMode: ShellMode | undefined;
+  /** What each mode remembered, already checked against what this caller still holds. */
+  readonly context: RememberedContext;
   readonly secureCookies: boolean;
   readonly trailing: ReactNode;
 }) {
   const pathname = usePathname();
   const focused = focusedMode(modeForPath(pathname, rememberedMode));
 
-  // Written here rather than by the server, because a layout may not set a cookie during
-  // render. The next request then resolves a personal route into the mode it was opened
-  // from without this component having to run again.
+  // Every declared mode is remembered, normal included: remembering only the focused ones
+  // left `operations` standing after the caller had gone back to Questions, so Settings
+  // opened from normal mode wore the Operations header. A personal route declares no mode
+  // and so writes nothing, which is what lets it stay inside the one it was opened from.
+  // A mode the caller may not enter is never remembered either, or a denied bookmark would
+  // decide where their next personal route thinks it is.
+  const declared = declaredMode(pathname);
+  const remember =
+    declared !== undefined && permitsMode(capabilities, declared) ? declared : undefined;
   useEffect(() => {
-    if (focused === undefined) return;
-    document.cookie = shellModeCookie(focused, secureCookies);
-  }, [focused, secureCookies]);
+    if (remember === undefined) return;
+    document.cookie = shellModeCookie(remember, secureCookies);
+  }, [remember, secureCookies]);
 
   return (
     <>
       <div className="min-w-0 flex-1 basis-40">
         {focused === undefined ? (
-          <AdminNav capabilities={capabilities} />
+          <AdminNav capabilities={capabilities} context={context} />
         ) : (
-          <ModeHeader mode={focused} capabilities={capabilities} />
+          <ModeHeader mode={focused} capabilities={capabilities} context={context} />
         )}
       </div>
       <div className="flex flex-shrink-0 items-center gap-x-2">{trailing}</div>
-      {/* The mode is also stated once for a screen reader, since a header swapping for a
-          navigation is a change of place rather than of styling. */}
+      {/* A header swapping for a navigation is a change of place rather than of styling. */}
       <span className="qcms-visually-hidden" role="status" data-testid="qcms-shell-mode-status">
         {focused === undefined ? "" : t(`shell.mode.${focused}.announce`)}
       </span>
@@ -65,10 +75,7 @@ export function ShellChrome({
   );
 }
 
-/**
- * Remembers which workspace the Workspaces mode was on, so re-entering it returns there
- * while the caller still administers it.
- */
+/** Remembers which workspace the Workspaces mode was on, so re-entering it returns there. */
 export function RememberWorkspace({
   workspaceId,
   secureCookies,

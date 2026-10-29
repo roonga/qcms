@@ -15,7 +15,12 @@ import { shownEnvironment } from "@/lib/environment";
 import { secureCookies } from "@/lib/server/config";
 import { resolvedEnvironment } from "@/lib/server/environments";
 import { t } from "@/lib/i18n/en";
-import { navigableCapabilities, rememberedContext, shellAccess } from "@/lib/server/shell";
+import {
+  navigableCapabilities,
+  rememberedContext,
+  rememberedMode,
+  shellAccess,
+} from "@/lib/server/shell";
 import { requireAdminSession } from "@/lib/server/session";
 
 /**
@@ -92,8 +97,10 @@ export default async function ShellLayout({
   // Which areas this caller has, so the navigation offers no area that would refuse. A
   // read that failed is not a refusal: `navigableCapabilities` narrows nothing then, and
   // every route behind an entry decides for itself.
-  const remembered = rememberedContext(cookieStore);
-  const capabilities = navigableCapabilities(await shellAccess(session));
+  const [capabilities, context] = await Promise.all([
+    shellAccess(session).then(navigableCapabilities),
+    rememberedContext(session, cookieStore),
+  ]);
   // The environment set is the API's answer, not a literal here (ADR-40: the set is a
   // table and an operator may add to it), and the selection is validated against it so a
   // cookie naming an environment this deployment no longer serves falls through to
@@ -164,7 +171,8 @@ export default async function ShellLayout({
           <span className="qcms-wordmark flex-shrink-0">{t("app.title")}</span>
           <ShellChrome
             capabilities={capabilities}
-            rememberedMode={remembered.mode}
+            rememberedMode={rememberedMode(cookieStore)}
+            context={context}
             secureCookies={secureCookies()}
             trailing={
               <>

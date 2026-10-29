@@ -133,14 +133,8 @@ export async function submitRecoveryCode(page: Page, code: string): Promise<void
 }
 
 /**
- * Where a full-grant account lands, which is every spec in this suite but the few that
- * seed a narrower persona.
- *
- * The landing area is the caller's own: an Operations-only account reaches `/operations`
- * and a workspace-only one `/workspaces`. That is the exception rather than the rule here,
- * so it is an argument a spec passes rather than a looser wait for everybody - a predicate
- * that accepted any non-auth route would stop reporting a sign-in that landed somewhere
- * nobody chose.
+ * Where a full-grant account lands. A narrower persona passes its own, rather than every
+ * spec here waiting for any route, which would stop reporting a sign-in that went astray.
  */
 const DEFAULT_LANDING = /\/questions$/;
 

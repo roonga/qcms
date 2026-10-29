@@ -163,21 +163,26 @@ export function permitsMode(capabilities: ShellCapabilities, mode: ShellMode): b
 }
 
 /**
- * Where a caller lands with no route of their own: their first permitted area, and My
- * access when they hold no feature grant at all.
+ * Which area a caller lands in with no route of their own, or `undefined` when they hold
+ * none and so get My access rather than a fabricated authoring screen.
  */
+export function landingArea(capabilities: ShellCapabilities): ShellMode | undefined {
+  return permittedAreas(capabilities)[0];
+}
+
+/** {@link landingArea} as a path, for a caller with no remembered context to restore. */
 export function landingPath(capabilities: ShellCapabilities): string {
-  const first = permittedAreas(capabilities)[0];
+  const first = landingArea(capabilities);
   return first === undefined ? MY_ACCESS_PATH : landingPathForMode(first);
 }
 
 /**
- * Where an explicit Exit goes, or `undefined` when the caller has no other permitted area
- * and so is offered no Exit.
+ * Which area an explicit Exit leaves for, or `undefined` when the caller has no other
+ * permitted area and so is offered none. The caller turns it into a path, so a remembered
+ * context is restored by the one function that knows about them.
  */
-export function exitPath(from: ShellMode, capabilities: ShellCapabilities): string | undefined {
-  const next = permittedAreas(capabilities).find((area) => area !== from);
-  return next === undefined ? undefined : landingPathForMode(next);
+export function exitMode(from: ShellMode, capabilities: ShellCapabilities): ShellMode | undefined {
+  return permittedAreas(capabilities).find((area) => area !== from);
 }
 
 /**

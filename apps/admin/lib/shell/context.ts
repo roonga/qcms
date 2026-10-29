@@ -70,16 +70,21 @@ export function restoredWorkspacePath(
 }
 
 /**
+ * What the modes remembered, carrying the permitted set a remembered value is checked
+ * against so nothing here can widen what the caller reaches.
+ */
+export interface RememberedContext {
+  readonly workspace: string | undefined;
+  readonly permittedWorkspaceIds: readonly string[];
+}
+
+export const NO_CONTEXT: RememberedContext = { workspace: undefined, permittedWorkspaceIds: [] };
+
+/**
  * Where entering a mode goes. Operations returns to its forms list rather than to a form,
  * which is what re-entering it is for.
  */
-export function restoredModePath(
-  mode: ShellMode,
-  context: {
-    readonly workspace?: string | undefined;
-    readonly permittedWorkspaceIds?: readonly string[];
-  } = {},
-): string {
+export function restoredModePath(mode: ShellMode, context: RememberedContext): string {
   if (mode !== "workspaces") return landingPathForMode(mode);
-  return restoredWorkspacePath(context.workspace, context.permittedWorkspaceIds ?? []);
+  return restoredWorkspacePath(context.workspace, context.permittedWorkspaceIds);
 }
