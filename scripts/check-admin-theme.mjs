@@ -19,7 +19,7 @@ const SCAN_EXTENSIONS = [".css", ".ts", ".tsx"];
 
 /**
  * Bounded on both sides, and a digits-only run of three or four characters is excluded,
- * so an issue reference such as `#513` is not read as a three-digit colour.
+ * so a short numeric reference is not read as a three-digit colour.
  */
 const HEX = /(?<![\w#&])#(?:[0-9a-fA-F]{6}|[0-9a-fA-F]{8}|(?!\d{3,4}\b)[0-9a-fA-F]{3,4})\b/g;
 

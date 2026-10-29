@@ -583,7 +583,7 @@ function parseFlags(env: Env, issues: string[]): Flags {
 
 export const TURNSTILE_SITE_KEY_VAR = "QCMS_TURNSTILE_SITE_KEY";
 
-/** The pre-#331 spelling this process still accepts, with a boot warning. */
+/** The old unprefixed spelling this process still accepts, with a boot warning. */
 export const DEPRECATED_TURNSTILE_SITE_KEY_VAR = "TURNSTILE_SITE_KEY";
 
 /**

@@ -52,7 +52,7 @@ function reportedText(c: Case): string {
   return c.reported ?? c.line;
 }
 
-/** Fault spellings the pattern already caught before #120; these must not regress. */
+/** Fault spellings the pattern already caught before the extension; these must not regress. */
 const CAUGHT_BEFORE: readonly Case[] = [
   { why: "Next.js error glyph", line: "⨯ unhandledRejection: [Error: boom]" },
   {
@@ -66,7 +66,7 @@ const CAUGHT_BEFORE: readonly Case[] = [
 ];
 
 /**
- * Fault spellings #120 added. Each of these was silently ignored by the previous
+ * Fault spellings added later. Each of these was silently ignored by the previous
  * pattern, so each row is a fault the gate would have let through.
  */
 const CAUGHT_BY_120: readonly Case[] = [
