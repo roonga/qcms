@@ -70,16 +70,9 @@
  * why the condition is permitted and why the block must not be deleted as
  * redundant. Read them before touching it.
  */
-/*
- * THE ADMIN TYPE LADDER (Code Owner, 2026-10-24, issue #1121). This app's base is
- * 15px, small 13px and extra-small 11px, each with a FIXED line height rather than a
- * ratio, so a step's leading does not change with the step's size: 15/22, 13/18 and
- * 11/16. The three steps above are the only ones the app compiles, and there is no
- * 18px or 22px level, so `text-lg` is not a heading here.
- *
- * The portal is untouched and keeps its 16px WCAG 1.4.12 floor; the block below is
- * what stops `theme-components.css` raising this app's steps to it.
- */
+/* Line heights are fixed rather than ratios, so a step's leading does not change
+   with its size. Re-pinning every step is also what stops the imported
+   `theme-components.css` raising this app's text to the portal's 16px WCAG floor. */
 @theme {
   --text-xl: 20px;
   --text-xl--line-height: 28px;
@@ -93,16 +86,22 @@
   --text-xs--line-height: 16px;
 }
 
-/* TWO WEIGHTS, 400 AND 600 (rev 8). `font-medium` and `font-bold` in markup cannot
-   be allowed to reach a step the ruling does not have, and the 500 remap rev 1
-   proposed is NOT this: Inter at 600 already reads lighter than Lexend did at 500.
-   Written as plain rules rather than as `--font-weight-*` in the `@theme` block
-   above, because `scripts/check-font-tokens.mjs` reads every `--font-*` declaration
-   as a family stack and would ask these two to end in a fallback tail. Unlayered, so
-   they win over Tailwind's own utilities. */
+/* Plain rules rather than `--font-weight-*` in the `@theme` block above, because
+   `scripts/check-font-tokens.mjs` reads every `--font-*` declaration as a family
+   stack and would ask these two to end in a fallback tail. Unlayered, so they win
+   over Tailwind's own utilities. */
 .font-medium,
 .font-bold {
   font-weight: 600;
+}
+/* The respondent preview is not this app, so the two rules above must not reach it
+   (ADR-38's carrier). The fallback is there because Tailwind emits a theme variable
+   only while a utility still references it. */
+[data-qcms-theme-scope] .font-medium {
+  font-weight: var(--font-weight-medium, 500);
+}
+[data-qcms-theme-scope] .font-bold {
+  font-weight: var(--font-weight-bold, 700);
 }
 
 /*
@@ -285,23 +284,14 @@
 }
 
 /*
- * The app's two faces (ADMIN_THEME.md rev 8, Code Owner 2026-10-24, issue #1121):
- * Inter for every UI string and JetBrains Mono for ids, hashes, versions and data
- * values. Lexend (rev 5) is withdrawn.
+ * Both files are registry assets referenced across the workspace rather than copied
+ * (OFL-1.1, recorded in that package's NOTICE.md), so nothing is fetched from a
+ * third-party origin and the CSP needs no font allowance. The registry's own
+ * `fonts.css` is deliberately NOT imported: its `.font-*` classes repoint
+ * `--font-portal` for the respondent's font switcher, and there is no switcher here.
  *
- * Both files are registry assets, referenced across the workspace rather than
- * copied: `packages/ui/src/fonts/inter-variable.woff2` and
- * `jetbrainsmono-variable.woff2`, OFL-1.1, recorded in that package's NOTICE.md.
- * No new dependency, no second copy, and nothing fetched from a third-party
- * origin, so the CSP needs no font allowance (`default-src 'self'` covers it).
- * The registry's own `fonts.css` is deliberately NOT imported: it declares two
- * dozen faces and a set of `.font-*` classes that repoint `--font-portal` for the
- * respondent's font switcher, and operators get no font switcher here.
- *
- * `font-weight: 100 900` because both files are the variable fonts: the registry
- * pins a static instance off each for the portal's switcher, but this app's chrome
- * sets its titles, labels and buttons at 600 and a pinned axis would synthesize
- * that instead of using the real instance.
+ * `font-weight: 100 900` because both files carry the whole axis: a pinned instance
+ * would have the browser synthesize this app's 600 instead of using the real one.
  */
 @font-face {
   font-family: "Inter";
@@ -323,15 +313,13 @@
  *
  * The vendored kit styles its own corners with `rounded` / `rounded-md` utilities
  * rather than the `--radius-*` contract, so without this the app would wear
- * Tailwind's defaults (4/6/8px) instead of its 4/6/2 scale (ADMIN_THEME.md rev 8).
- * Repointing the scale is one edit and covers every current and future `rounded-*`
- * in the app; overriding each component's utility one by one would not. Only
- * `--radius-sm` needs no line here: the app theme already owns that name (2px), and
- * Tailwind's `rounded-sm` reads the same variable.
+ * Tailwind's defaults instead of its own scale. Repointing the scale is one edit and
+ * covers every current and future `rounded-*` in the app; overriding each
+ * component's utility one by one would not. Only `--radius-sm` needs no line here:
+ * the app theme already owns that name, and `rounded-sm` reads the same variable.
  *
- * `rounded-lg` is the kit's menu and `rounded-xl` its dialog, which are the two
- * shapes rev 8 gives the 8px `--radius-modal`; everything else stays on the card
- * and control corners.
+ * `rounded-lg` is the kit's menu and `rounded-xl` its dialog, which is why those two
+ * take `--radius-modal` while everything else stays on the card and control corners.
  */
 :root {
   --radius: var(--radius-control);
@@ -416,8 +404,6 @@ body {
   -webkit-font-smoothing: antialiased;
 }
 
-/* Heading language (rev 8): 600, and the tracking relaxed from -0.02em now that
-   hierarchy comes from size rather than weight. */
 h1,
 h2,
 h3 {
@@ -582,15 +568,10 @@ button {
   border-radius: var(--radius-sm);
 }
 
-/*
- * Cards. NO SHADOW IN ANY THEME (rev 8, Code Owner 2026-10-24): a card is
- * `color-surface` inside a 1px `color-border`, and the only thing this wrapper owns
- * is the corner. The vendored `Card` takes no className, so the app's chrome rides
- * on a wrapper rather than on a fork of the component (ADR-22: no wrapper layer of
- * variants, but a layout element carrying the app's own chrome is not that).
- * Elevation is now reserved for what actually floats - menus, popovers, dialogs and
- * a dragged row - which keep the `--shadow-color` pair.
- */
+/* The vendored `Card` takes no className, so the corner rides on a wrapper rather
+   than on a fork of the component (ADR-22: no wrapper layer of variants, but a
+   layout element carrying the app's own chrome is not that). A card carries no
+   shadow in any theme; only what floats keeps the `--shadow-color` pair. */
 .qcms-card {
   border-radius: var(--radius-card);
 }
@@ -854,12 +835,9 @@ button {
  * and share the density and radius tokens above.
  */
 
-/* NOTICES ARE HAIRLINE-EDGED (rev 8, Code Owner 2026-10-24). The vendored `Alert`
-   draws its edge in the saturated semantic colour, which on a screen with three of
-   them reads as three competing boxes. `role="alert"` is the hook the component
-   gives us, so the tint stays and the edge drops to the page hairline. High contrast
-   keeps a border that carries the edge on its own, because the tint vanishes there.
-   ADR-22 keeps `alert.styles.ts` byte-for-byte, so this is where it belongs. */
+/* ADR-22 keeps the vendored `Alert` byte-for-byte, so its saturated semantic edge
+   is overridden here; `role="alert"` is the only hook the component offers. High
+   contrast keeps a visible border, because the tint vanishes there. */
 [role="alert"] {
   border-color: var(--color-border);
 }
@@ -1013,8 +991,8 @@ button {
   font-size: 0.875rem;
 }
 
-/* 44px rows and 12px / 16px cell padding (§2, rev 8). The height goes on the cells:
-   a `<tr>` ignores `block-size`, while a cell's acts as the row's minimum. */
+/* The height goes on the cells: a `<tr>` ignores `block-size`, while a cell's acts
+   as the row's minimum (§2). */
 .qcms-table th,
 .qcms-table td {
   block-size: var(--admin-table-row-h);
@@ -1024,9 +1002,8 @@ button {
   border-block-end: 1px solid var(--color-border);
 }
 
-/* Header: the 11px eyebrow over a strong-border hairline (§2, rev 8 - one border
-   weight outside high contrast). `block-size: auto` because the 44px minimum is the
-   DATA row's rhythm, not the header's. */
+/* `block-size: auto` because the 44px minimum is the DATA row's rhythm, not the
+   header's (§2). */
 .qcms-table thead th {
   block-size: auto;
   font-size: 11px;
@@ -1167,12 +1144,9 @@ button {
   min-inline-size: 10rem;
 }
 
-/* A TITLED GROUP, NOT A SECOND BOX (rev 8, Code Owner 2026-10-24). This is the
-   constraints panel and the option list, and both sit inside a card: a border here
-   drew a box inside a box, which is what the ruling calls too much on a busy screen.
-   The fieldset/legend semantics are what the element is for and they are untouched;
-   only the paint goes. `--flat` therefore now says what the base already does, and
-   it stays because markup names it. */
+/* A titled group, not a second box: these sit inside a card, so only the paint
+   goes and the fieldset/legend semantics stay. `--flat` therefore says what the base
+   already does, and survives only because markup names it. */
 .qcms-fieldset {
   display: flex;
   flex-direction: column;
@@ -3024,7 +2998,6 @@ div:has(> [role="dialog"] [data-qcms-dialog="wide"]) {
   text-transform: uppercase;
 }
 :root.hc .qcms-respondent-frame {
-  box-shadow: none;
   border-width: 2px;
 }
 :root.hc .qcms-respondent-frame__bar {
@@ -3421,9 +3394,9 @@ div:has(> [role="dialog"] [data-qcms-dialog="wide"]) {
   flex-direction: column;
   gap: var(--admin-rail-row-gap);
   padding-block: 0;
-  /* The rail's own rhythm is 2px inside a group and 8px between groups (Code Owner,
-     2026-08-30), which `e2e/rail-screens.pw.ts` measures. The 16px above a button row
-     in rev 8's density rules is a rule about content, not about this column. */
+  /* The rail's rhythm is 2px inside a group and 8px between groups, which
+     `e2e/rail-screens.pw.ts` measures; the wider gap above a content button row does
+     not apply to this column. */
   margin-block-start: var(--space-2);
 }
 .qcms-rail__actions > button {

@@ -1,11 +1,6 @@
-// Shared helper: embeds the QCMS app's two faces - Inter for UI text and
-// JetBrains Mono for ids, hashes, versions and data values (Code Owner,
-// 2026-10-24, issue #1121, SigPilot foundations) - as self-hosted, base64
-// @font-face rules for the design-doc HTML files in this directory. Reads the
-// product's own already-vendored assets: no new dependency, no CDN, no re-fetch.
-// The paths are derived from this file's own location (repo root is two levels
-// up from plan/admin-theme/) so nothing machine-specific ends up in committed
-// content.
+// Embeds the app's two faces as base64 @font-face rules, so the design-doc HTML in
+// this directory is self-contained. Paths are derived from this file's own location,
+// to keep anything machine-specific out of committed content.
 
 import { readFileSync } from "node:fs";
 import { fileURLToPath } from "node:url";
@@ -16,10 +11,9 @@ const FACES = [
 ];
 
 /**
- * Returns self-contained @font-face rules embedding the product's two variable
- * woff2 files (OFL-1.1, recorded in packages/ui/src/fonts/NOTICE.md). Variable
- * weight (100 900) on each, so the 600 titles and labels use the real instance
- * rather than a synthesized one.
+ * The product's two vendored variable woff2 files (OFL-1.1, recorded in
+ * packages/ui/src/fonts/NOTICE.md), declared over the whole 100-900 axis so a 600
+ * title uses the real instance rather than a synthesized one.
  */
 export function adminFontFaceCss() {
   return FACES.map(({ family, file }) => {

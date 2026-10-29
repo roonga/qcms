@@ -193,10 +193,8 @@ const hcAccent = {
   "--color-primary-foreground": "#ffffff",
 };
 
-// Rev 8 (Code Owner, 2026-10-24, issue #1121): a 4px spacing scale is the whole
-// vocabulary - no gap or padding outside it, and none derived from `em`. The two
-// odd steps exist for chips only. Corners are 4 / 6 / 2 with a separate 8px for
-// dialogs, menus and popovers, which is the only place the app lifts anything.
+// The 4px scale is the whole spacing vocabulary: nothing outside it, and nothing
+// derived from `em`. The two odd steps are for chips only.
 const spacing = {
   "--space-0-5": "2px",
   "--space-1": "4px",

@@ -42,10 +42,9 @@ import { createDraft, openPanel } from "./support/questions.js";
  *    without it the class and the attribute are both still present and still inert -
  *    which is exactly the state task 058's predecessor parked on.
  * 2. **The carrier's restatement of the type-scale floors removed** (attribute intact).
- *    The first-paint test fails on the type-scale object with `letterSpacing`,
- *    `wordSpacing` and `fontFamily` moved: the island renders in Inter at the authoring
- *    app's spacing while every colour and geometry token still resolves correctly. It
- *    also showed that `fontSize` and `lineHeight` do NOT discriminate (see TYPE_FLOORS).
+ *    The first-paint test fails on the type-scale object: the island renders in Inter
+ *    at the authoring app's spacing while every colour and geometry token still
+ *    resolves correctly. Every member of that object discriminates (see TYPE_FLOORS).
  * 3. **The container frozen at the defaults** while the switcher still moves visibly.
  *    The first-paint test still passes, and "switching the island restyles the island
  *    only" fails on `islandAfter.primary`. That is the probe that matters most: it is the
@@ -113,23 +112,22 @@ const PLUM_DARK = { primary: "#c08cf0", background: "rgb(21, 10, 34)" } as const
 const COBALT_LIGHT = { primary: "#2456c6", radiusControl: "4px" } as const;
 const PORTAL_RADIUS_CONTROL = "6px";
 
+/** Tailwind's own `font-medium`, which is what a label inside the carrier must keep. */
+const PORTAL_LABEL_WEIGHT = "500";
+
 /**
  * The WCAG 1.4.12 text-spacing floors as they compute at the portal's 16px body size:
  * `--type-letter-spacing: 0.12em` and `--type-word-spacing: 0.16em` against a 16px
  * `--type-body`, with `--type-line-height: 1.5` and the brand-neutral system stack.
  *
- * **All five discriminate since rev 8** (issue #1121), and two of them only just
- * started to. Stripping the carrier's restatement (see the header's provable-red note)
- * has always moved `letterSpacing`, `wordSpacing` and `fontFamily`. It used to leave
- * `fontSize` and `lineHeight` exactly where they are, because the authoring app's own
- * body was 16px too and Tailwind's preflight set `line-height: 1.5` on the document -
- * so those two agreed by coincidence and were kept only as consistency checks. The
- * authoring app's body is now 15px / 22px, so a carrier that failed to apply would
- * show up in all five.
+ * Every member discriminates: stripping the carrier's restatement (see the header's
+ * provable-red note) moves all of them, because the authoring app's own body is 15px
+ * over 22px in Inter with no extra tracking.
  */
 const TYPE_FLOORS = {
   fontSize: "16px",
   lineHeight: "24px",
+  fontWeight: "400",
   letterSpacing: "1.92px",
   wordSpacing: "2.56px",
   // The first family only: the portal's stack resolved from `--font-portal`, against
@@ -176,13 +174,14 @@ function computed(target: Locator, property: string): Promise<string> {
   );
 }
 
-/** The five text-spacing properties {@link TYPE_FLOORS} names, in one round trip. */
+/** The properties {@link TYPE_FLOORS} names, in one round trip. */
 function typeScaleOf(target: Locator): Promise<Record<string, string>> {
   return target.evaluate((element) => {
     const style = getComputedStyle(element);
     return {
       fontSize: style.fontSize,
       lineHeight: style.lineHeight,
+      fontWeight: style.fontWeight,
       letterSpacing: style.letterSpacing,
       wordSpacing: style.wordSpacing,
       fontFamily: style.fontFamily.split(",")[0]!.trim(),
@@ -257,6 +256,15 @@ test("the island paints the deployment's configured theme before anything is tou
   expect(await token(control, "--color-primary")).not.toBe(COBALT_LIGHT.primary);
   expect(await token(control, "--radius-control")).toBe(PORTAL_RADIUS_CONTROL);
   expect(await token(control, "--radius-control")).not.toBe(COBALT_LIGHT.radiusControl);
+
+  // A VENDORED LABEL KEEPS THE RESPONDENT'S WEIGHT. The authoring app caps its own
+  // `font-medium` at 600 in `app/globals.css`, unlayered, so it outranks the utility
+  // the kit's label carries; without the carrier restating the token, a respondent's
+  // label in this island would render at the authoring weight. `fontWeight` on the
+  // carrier above cannot see that: the carrier itself has no such class.
+  const label = surface.locator(".font-medium").first();
+  await expect(label).toBeVisible();
+  expect(await computed(label, "font-weight")).toBe(PORTAL_LABEL_WEIGHT);
 
   // And the document root is untouched: the app is still wearing Cobalt.
   const root = page.locator("html");

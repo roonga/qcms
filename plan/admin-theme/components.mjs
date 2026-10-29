@@ -8,10 +8,10 @@
 // Run: node components.mjs (from this directory)
 
 import { readFileSync, writeFileSync } from "node:fs";
-import { lexendFontFaceCss } from "./lexend-font.mjs";
+import { adminFontFaceCss } from "./admin-font.mjs";
 
 const tokens = readFileSync("tokens.css", "utf8");
-const lexendFontFace = lexendFontFaceCss();
+const adminFontFace = adminFontFaceCss();
 
 const BASE = `
 * { box-sizing: border-box; }
@@ -124,7 +124,7 @@ const page = (card, title, extraCss, body) =>
   `<!-- @dsCard group="Components" name="${card}" subtitle="${title}" -->
 <title>QCMS DS - ${card}</title>
 <style>
-${lexendFontFace}
+${adminFontFace}
 ${tokens}
 ${BASE}
 ${extraCss}

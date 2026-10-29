@@ -603,15 +603,10 @@ test("1116 gives the parent of the current row no fill, so one row reads as sele
   await page.setViewportSize({ width: 1280, height: 900 });
   await page.goto(detailPath());
 
-  // §7.0 ruling 2: one current mark - a tinted fill, a title weight and a 2px
-  // inline-start accent edge - and a PARENT of the current row gets no fill. Since rev 8
-  // (issue #1121) 600 is the app's ceiling, so the two rows share the weight and it is the
-  // FILL that says which one is selected; the edge and `aria-current` are unchanged. This rail is
-  // where the defect was: a version row and the panel row nested under it are both true
-  // statements about the address, so both carry `aria-current="page"`, and until #1116 both
-  // wore the identical mark one directly above the other. The form rail had the same problem
-  // and solved it by dropping the accent edge from every row of its tree, which is why the
-  // rule is now one rule for every rail rather than one per rail.
+  // §7.0 ruling 2: one current mark, a tinted fill over a 2px inline-start accent
+  // edge, and no fill on a PARENT of the current row. Both rows carry
+  // `aria-current="page"` - a version and the panel nested under it are each a true
+  // statement about the address - and the weight is shared, so the FILL is the signal.
   const rail = page.getByTestId("qcms-question-rail");
   const marked = rail.locator('.qcms-rail__link[aria-current="page"]');
   await expect(marked, "the selected version and the open panel under it").toHaveCount(2);
