@@ -449,14 +449,18 @@ test("the enrollment and recovery-code states have zero violations", async ({ pa
 });
 
 test("the authenticated shell states have zero violations", async ({ page }) => {
-  // Nine screens, three axe modes each, which outlasts the file's default 60s budget.
-  test.setTimeout(300_000);
+  // Eleven screens, three axe modes each, which outlasts the file's default 60s budget.
+  test.setTimeout(360_000);
   await signInWithTotp(page, EMAIL, totpSecret);
   for (const path of [
     "/questions",
     "/questions/new",
     "/forms",
     "/forms/new",
+    // The two areas the shell's modes added: My access under the avatar, and the
+    // Operations landing with its focused header in place of the navigation.
+    "/me/access",
+    "/operations",
     "/responses",
     "/responses/erasures",
     "/webhooks",

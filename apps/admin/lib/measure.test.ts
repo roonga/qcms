@@ -14,7 +14,7 @@ import {
 /**
  * The route-to-cap table is the mechanism, so these are its tests (issues 558, 648, 657).
  *
- * Each of the twenty-one screens takes the cap its own POC draws, or - for the four with no POC - the cap of the screen it is shaped like, and the acceptance asks
+ * Each of the twenty-three screens takes the cap its own POC draws, or - for the six with no POC - the cap of the screen it is shaped like, and the acceptance asks
  * that adding one more make its cap an obvious one-line decision. Issue 685 is the first
  * time that promise was called in: `/forms/new` arrived and its cap was one row. A table
  * only earns

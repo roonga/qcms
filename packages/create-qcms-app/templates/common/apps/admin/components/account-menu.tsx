@@ -6,6 +6,7 @@ import { Menu } from "@/components/kit";
 import { menuClasses } from "@/components/menu-slots";
 import { t } from "@/lib/i18n/en";
 import { initialsFor } from "@/lib/initials";
+import { MY_ACCESS_PATH, SETTINGS_PATH } from "@/lib/shell/modes";
 
 /**
  * The account control in the topbar's trailing group (task 032).
@@ -99,6 +100,11 @@ export function AccountMenu({ email, name }: { readonly email: string; readonly 
           if (key === "sign-out") signOutForm.current?.requestSubmit();
         }}
         items={[
+          // Settings and My access belong to the signed-in account rather than to an area,
+          // so they are here rather than in the application navigation. Opening either
+          // inside a focused mode keeps that mode (`lib/shell/modes.ts`).
+          { id: "settings", label: t("nav.settings"), href: SETTINGS_PATH },
+          { id: "access", label: t("access.title"), href: MY_ACCESS_PATH },
           // A real anchor, so it behaves like a link (middle-click, copy address) and
           // needs no router. The settings screen anchors the password card.
           {

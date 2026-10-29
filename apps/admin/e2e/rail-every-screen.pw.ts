@@ -46,6 +46,8 @@ function screens(): readonly { readonly path: string; readonly testId: string }[
     { path: "/forms", testId: "qcms-forms-rail" },
     { path: "/forms/new", testId: "qcms-new-form-rail" },
     { path: `/forms/${FORM_ID}`, testId: "qcms-rail" },
+    { path: "/me/access", testId: "qcms-my-access-rail" },
+    { path: "/operations", testId: "qcms-operations-rail" },
     { path: "/responses", testId: "qcms-responses-rail" },
     { path: "/responses/erasures", testId: "qcms-erasures-rail" },
     { path: "/webhooks", testId: "qcms-webhooks-rail" },

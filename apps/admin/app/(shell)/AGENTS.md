@@ -19,6 +19,11 @@ running anything.
 | `apps/admin/e2e/measure.pw.ts`       | The screen in `screens()`, with the cap it takes, in route order.                                                                                                                                               |
 | `apps/admin/e2e/rail-screens.pw.ts`  | **Form-scoped screens only.** The screen in `screens()`, with the rail row it marks and the browser tab it names.                                                                                               |
 
+`lib/rail-routes.test.ts` holds **two further hand-written arrays** beyond `CURRENT_SECTION`,
+`NO_SECTION` and the `withRail` list: the shell's top-level roots, and the ten form-scoped
+screens. A new top-level area fails on the roots array as well as on `withRail`, and neither
+failure is one the table above predicts.
+
 Three of those rows are worth a sentence each. A route with **no slot page** does not
 render an empty rail: on a soft navigation Next keeps the previous screen's, so the rail
 stands beside a screen it says nothing about. And both `screens()` lists are
@@ -37,7 +42,7 @@ every gate stayed green.
   an `<h1>` and a rail row. Adding one also means `FormSection` in
   `apps/admin/lib/page-title.ts` and `RAIL_SECTIONS` in `apps/admin/lib/forms/subtree-rail.ts`.
 - **The screen count is spelled out in prose in several files** and every one of them moves
-  when a screen arrives. `grep -rn "twenty-one screens" apps/admin packages/create-qcms-app`
+  when a screen arrives. `grep -rn "twenty-three screens" apps/admin packages/create-qcms-app`
   finds them, whatever the current number is. Issue #882 proposes deriving or deleting
   those counts; until that is decided they are hand-maintained.
 - **This app has a twin.** Non-test source under `apps/admin` is generated into

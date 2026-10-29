@@ -1,3 +1,4 @@
+import Link from "next/link";
 import type { Metadata } from "next";
 
 import { Alert } from "@/components/kit";
@@ -5,11 +6,16 @@ import { AccessGroupsPanel } from "@/components/membership/access-groups-panel";
 import { AuditPanel } from "@/components/membership/audit-panel";
 import { MembersPanel } from "@/components/membership/members-panel";
 import { WorkspaceSettingsPanel } from "@/components/membership/workspace-settings-panel";
+import { DeniedRecovery } from "@/components/shell/denied-recovery";
+import { RememberWorkspace } from "@/components/shell/shell-chrome";
 import { t } from "@/lib/i18n/en";
 import { pageMetadata } from "@/lib/page-title";
 import { listEnvironments } from "@/lib/server/environments";
 import { listAccessGroups, listMembers, listWorkspaces, readAudit } from "@/lib/server/membership";
+import { secureCookies } from "@/lib/server/config";
+import { navigableCapabilities, shellAccess } from "@/lib/server/shell";
 import { requireAdminSession } from "@/lib/server/session";
+import { permitsPath, WORKSPACES_PATH } from "@/lib/shell/modes";
 
 import {
   createAccessGroupAction,
@@ -86,6 +92,10 @@ export default async function WorkspacePage({
 }) {
   const { workspaceId } = await params;
   const session = await requireAdminSession();
+  const capabilities = navigableCapabilities(await shellAccess(session));
+  if (!permitsPath(capabilities, WORKSPACES_PATH)) {
+    return <DeniedRecovery capabilities={capabilities} />;
+  }
   const [workspaces, members, groups, audit, environments] = await Promise.all([
     listWorkspaces(session),
     listMembers(session, workspaceId),
@@ -104,10 +114,22 @@ export default async function WorkspacePage({
         <h1 className="text-xl font-semibold text-(--color-text)">
           {t("membership.workspace.title", { name: workspace?.name ?? workspaceId })}
         </h1>
+        {/* A rejected bookmark still has All workspaces, and the mode keeps it: the
+            identifier is the one already in the address bar, and no name is resolved for
+            it. Remembering it as this mode's context would make a revoked grant the thing
+            that decides where re-entering lands. */}
         {workspace === undefined && (
-          <Alert variant="warning">{t("membership.workspace.notFound")}</Alert>
+          <Alert variant="warning">
+            {t("membership.workspace.notFound")}{" "}
+            <Link className="qcms-text-link" href={WORKSPACES_PATH}>
+              {t("membership.workspace.allWorkspaces")}
+            </Link>
+          </Alert>
         )}
       </div>
+      {workspace !== undefined && (
+        <RememberWorkspace workspaceId={workspaceId} secureCookies={secureCookies()} />
+      )}
 
       <MembersPanel
         workspaceId={workspaceId}
