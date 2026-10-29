@@ -32,8 +32,7 @@ export async function fillNativeDate(page: Page, name: string, iso: string): Pro
  * Start counting the whole-step POSTs this page makes, so "the browser blocked it"
  * is a counted fact rather than an absence observed for an arbitrary length of time.
  *
- * Scoped to the step route: anonymous entry is a native form POST of its own (issue
- * #579), so an unscoped counter starts at one.
+ * Scoped to the step route: anonymous entry is a native form POST of its own, so an unscoped counter starts at one.
  */
 export function countStepPosts(page: Page): () => number {
   const posts: string[] = [];

@@ -280,13 +280,10 @@ export async function listQuestionOwnership(
 }
 
 /**
- * The library half of the id-reuse check, split from the ledger half because the control
- * role deliberately holds no read on any data-plane table.
+ * The library half of the id-reuse check; the control role holds no read on a data-plane
+ * table, so the ledger half is `isQuestionIdInAnswerLedger`.
  *
- * Only a pre-check that widens a refusal: `control.questions`' primary key, inside the
- * caller's transaction, is what stops two questions sharing an id.
- *
- * @see isQuestionIdInAnswerLedger for the data-plane half.
+ * Only a pre-check: `control.questions`' primary key is what stops two questions sharing an id.
  */
 export async function isQuestionIdTaken(exec: Executor, questionId: QuestionId): Promise<boolean> {
   const result = await exec.execute<{ taken: boolean }>(sql`

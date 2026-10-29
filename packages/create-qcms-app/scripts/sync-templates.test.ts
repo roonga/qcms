@@ -490,7 +490,7 @@ describe("the seam document the generator writes (issue #866)", () => {
     return prettier.check(text, { ...options, filepath: path });
   }
 
-  // Proved red as well as green, the way the #456 guards are. The green case alone
+  // Proved red as well as green, the way the other guards are. The green case alone
   // would still pass if someone deleted the formatting step and Prettier happened to
   // like the compact form; this pair says the step is doing work.
   it("needs formatting when the block goes in as rendered", async () => {
