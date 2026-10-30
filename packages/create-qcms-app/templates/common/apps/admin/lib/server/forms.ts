@@ -26,6 +26,7 @@ import type {
 import type { QuestionListItem } from "../questions/types.ts";
 
 import { adminApiFetch } from "./api.ts";
+import type { AssistParamsRelay, AssistTurnRelay } from "./assist-request.ts";
 import type { ApiResult } from "./api-result.ts";
 import { readResult as read } from "./api-result.ts";
 import type { AdminSession } from "./session.ts";
@@ -251,11 +252,11 @@ export function assist(
   session: AdminSession,
   formId: string,
   body: {
-    readonly conversation: readonly {
-      readonly role: "user" | "assistant";
-      readonly content: string;
-    }[];
+    readonly conversation: readonly AssistTurnRelay[];
     readonly clientState?: string;
+    readonly screen?: string;
+    readonly params?: AssistParamsRelay;
+    readonly conversationId?: string;
   },
 ): Promise<Response> {
   return adminApiFetch(session, `/forms/${encodeURIComponent(formId)}/draft/assist`, {
@@ -273,12 +274,9 @@ export function assist(
 export function screenAssist(
   session: AdminSession,
   body: {
-    readonly conversation: readonly {
-      readonly role: "user" | "assistant";
-      readonly content: string;
-    }[];
+    readonly conversation: readonly AssistTurnRelay[];
     readonly screen: string;
-    readonly params?: Record<string, string | number>;
+    readonly params?: AssistParamsRelay;
     readonly conversationId: string;
   },
 ): Promise<Response> {

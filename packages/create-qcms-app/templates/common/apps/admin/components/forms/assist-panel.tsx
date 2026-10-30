@@ -3,6 +3,8 @@
 import { useEffect, useRef, useState, type ReactNode, type RefObject } from "react";
 
 import { Alert, Button, Card } from "@/components/kit";
+import type { AgentTurnRecord, ConversationHandle } from "@/lib/agent/conversation";
+import type { ResolvedScreen } from "@/lib/agent/screens";
 import {
   acceptedDraft,
   isPendingNewQuestionPin,
@@ -94,6 +96,8 @@ export function AssistPanel({
   hosted = false,
   onWorkingChange,
   onStatusChange,
+  conversation,
+  screen,
 }: {
   /** This form's assist route, e.g. `/forms/frm_x/assist` (relative to this app). */
   readonly endpoint: string;
@@ -116,9 +120,19 @@ export function AssistPanel({
   readonly onWorkingChange?: (working: boolean) => void;
   /** Hosted only: the host's single polite live region speaks this. */
   readonly onStatusChange?: (status: string) => void;
+  /**
+   * Hosted only: the form subtree's conversation. The turns are held there rather than
+   * here, so walking to another screen of this form keeps them and coming back restores
+   * them. A restored assistant turn is its prose; its step timeline was this mount's.
+   */
+  readonly conversation?: ConversationHandle;
+  /** Hosted only: the screen this turn is on, which travels with the turn. */
+  readonly screen?: ResolvedScreen;
 }) {
   const [collapsedChoice, setCollapsed] = useState(false);
-  const [turns, setTurns] = useState<readonly DisplayTurn[]>([]);
+  const [turns, setTurns] = useState<readonly DisplayTurn[]>(() =>
+    restoredTurns(conversation?.turns),
+  );
   const [inputValue, setInputValue] = useState("");
   const [live, setLive] = useState<AssistantTurnView | undefined>(undefined);
   const [proposal, setProposal] = useState<ProposalState | undefined>(undefined);
@@ -176,8 +190,14 @@ export function AssistPanel({
     });
   }
 
+  /** Mirror what the conversation keeps: the host restores a panel from these records. */
+  function record(entries: readonly AgentTurnRecord[]) {
+    conversation?.append(entries);
+  }
+
   function newConversation() {
     if (working) return;
+    conversation?.restart();
     setTurns([]);
     setProposal(undefined);
     setPanelError(undefined);
@@ -198,6 +218,7 @@ export function AssistPanel({
 
     const nextTurns: readonly DisplayTurn[] = [...turns, { role: "user", content }];
     setTurns(nextTurns);
+    record([{ role: "user", content }]);
     setInputValue("");
     setPanelError(undefined);
     setProposal(undefined);
@@ -215,6 +236,8 @@ export function AssistPanel({
         body: JSON.stringify({
           conversation: toConversation(nextTurns),
           ...(draftUpdatedAt === undefined ? {} : { clientState: draftUpdatedAt }),
+          ...(screen === undefined ? {} : { screen: screen.screen, params: screen.params }),
+          ...(conversation === undefined ? {} : { conversationId: conversation.id }),
         }),
         signal: controller.signal,
       });
@@ -257,6 +280,7 @@ export function AssistPanel({
       setLive(undefined);
       if (finished.segments.length > 0) {
         setTurns((current) => [...current, { role: "assistant", view: finished }]);
+        record([{ role: "assistant", content: turnText(finished) }]);
       }
     }
   }
@@ -264,6 +288,7 @@ export function AssistPanel({
   /** Record a card's outcome in the conversation and move focus to it. */
   function recordOutcome(outcome: ResultOutcome) {
     setTurns((current) => [...current, { role: "result", outcome }]);
+    record([{ role: "result", content: outcome }]);
     setProposal(undefined);
     setResultToken((token) => token + 1);
   }
@@ -541,6 +566,24 @@ export function AssistPanel({
       )}
     </aside>
   );
+}
+
+/**
+ * The turns a restored conversation shows. An assistant turn comes back as its prose: the
+ * step timeline belonged to the mount that streamed it, and the prose is also exactly what
+ * the next request replays.
+ */
+function restoredTurns(records: readonly AgentTurnRecord[] | undefined): readonly DisplayTurn[] {
+  return (records ?? []).map((entry): DisplayTurn => {
+    if (entry.role === "user") return { role: "user", content: entry.content };
+    if (entry.role === "result") {
+      return { role: "result", outcome: entry.content === "accepted" ? "accepted" : "discarded" };
+    }
+    return {
+      role: "assistant",
+      view: finishTurn(applyTurnEvent(EMPTY_TURN, { type: "text", delta: entry.content })),
+    };
+  });
 }
 
 const COLLAPSE_STORAGE_KEY = "qcms-assist-collapsed";

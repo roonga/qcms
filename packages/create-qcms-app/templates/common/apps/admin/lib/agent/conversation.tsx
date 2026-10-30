@@ -16,8 +16,18 @@ import { conversationSubject, screenForPath } from "./screens";
  */
 
 export interface AgentTurnRecord {
-  readonly role: "user" | "assistant";
+  /** `result` is the builder panel's own record of a card's outcome, never a model turn. */
+  readonly role: "user" | "assistant" | "result";
   readonly content: string;
+}
+
+/** The history a turn replays: the prose, without the panel's own outcome lines. */
+export function promptTurns(
+  turns: readonly AgentTurnRecord[],
+): readonly { readonly role: "user" | "assistant"; readonly content: string }[] {
+  return turns.flatMap((turn) =>
+    turn.role === "result" ? [] : [{ role: turn.role, content: turn.content }],
+  );
 }
 
 export interface ConversationHandle {

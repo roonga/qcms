@@ -5,6 +5,7 @@ import { expect, test } from "../../portal/e2e/support/gates.js";
 
 import { createTestAdmin, uniqueAdminEmail } from "./support/admin-account.js";
 import { enrollNewAdmin, fillStable, signInWithTotp } from "./support/flow.js";
+import { submitResponse } from "./support/ops.js";
 import { waitForHydration } from "./support/hydration.js";
 import { TOPBAR_SELECTOR } from "../lib/topbar.js";
 
@@ -60,15 +61,36 @@ const FORM_ID = "frm_auto_quote";
 /** The workspace a bootstrapped installation is seeded with. */
 const WORKSPACE_ID = "org_default_workspace";
 
-/** Every `(shell)` page the button has to be on, Settings included (Q18). */
+/** The seeded fixture's published version, which its history screen addresses. */
+const VERSION = 1;
+
+/** A question of the seeded fixture, which its detail screen addresses. */
+const QUESTION_ID = "q_at_fault_accident";
+
+/** The respondent path this spec submits one response through, for the detail screen. */
+const SLUG = "auto";
+const ACCIDENT = "q_at_fault_accident";
+const COUNT = "q_accident_count";
+
+/**
+ * Every `(shell)` page pattern the button has to be on, Settings included (Q18). One entry
+ * per row of `lib/agent/screens.ts`, so criterion 2 walks the whole table rather than the
+ * screens that need no id; the response detail screen's id is submitted by the test.
+ */
 const SHELL_PAGES: readonly string[] = [
   "/questions",
   "/questions/new",
+  `/questions/${QUESTION_ID}`,
   "/forms",
   "/forms/new",
   `/forms/${FORM_ID}`,
   `/forms/${FORM_ID}/rules`,
+  `/forms/${FORM_ID}/preview`,
+  `/forms/${FORM_ID}/versions`,
+  `/forms/${FORM_ID}/versions/${String(VERSION)}`,
   `/forms/${FORM_ID}/releases`,
+  `/forms/${FORM_ID}/links`,
+  `/forms/${FORM_ID}/webhooks`,
   `/forms/${FORM_ID}/responses`,
   "/me/access",
   "/operations",
@@ -148,7 +170,13 @@ test("puts the button first in the trailing group on every shell screen, and on 
   totpSecret = await enrollNewAdmin(page, EMAIL);
   await page.setViewportSize({ width: WIDE, height: 900 });
 
-  for (const path of SHELL_PAGES) {
+  // One real submission, so the response detail screen has a session to address.
+  const sessionId = await submitResponse(SLUG, [
+    [ACCIDENT, true],
+    [COUNT, 1],
+  ]);
+
+  for (const path of [...SHELL_PAGES, `/forms/${FORM_ID}/responses/${sessionId}`]) {
     await page.goto(path);
     await expect(button(page), `${path} carries the assistant button`).toBeVisible();
     await expect.soft(button(page), `${path} carries exactly one`).toHaveCount(1);
@@ -439,6 +467,103 @@ test("names the screen in the context chip, and keeps the conversation across a 
   for (const key of [...stored.local, ...stored.session]) {
     expect(key, "no assistant key in tab storage").not.toMatch(/assist|agent|conversation/iu);
   }
+});
+
+test("carries the builder's turns across the form's subtree and starts fresh outside it (exit criterion 9)", async ({
+  page,
+}) => {
+  test.setTimeout(300_000);
+  await signInWithTotp(page, EMAIL, totpSecret);
+  await page.setViewportSize({ width: WIDE, height: 900 });
+  await page.goto(`/forms/${FORM_ID}`);
+  await open(page);
+
+  // The builder's own panel is the dock's body here, so its composer is the one to type in.
+  const hosted = page.locator("#qcms-assist-composer");
+  await fillStable(hosted, "#qcms-fake:no-proposal what is on this screen");
+  await page.getByTestId("qcms-assist-send").locator("button").click();
+  await expect(page.getByTestId("qcms-assist-conversation")).toContainText("more detail");
+
+  // Soft navigation, which is what the conversation survives: the turns are held in memory
+  // for as long as the tab's shell lives.
+  const turns = page.getByTestId("qcms-assistant-turns");
+  await page.locator("aside.qcms-rail").getByRole("link", { name: "Releases" }).click();
+  await page.waitForURL(`**/forms/${FORM_ID}/releases`);
+  await expect(turns, "the builder's turns are still here").toContainText(
+    "what is on this screen",
+  );
+  await expect(turns).toContainText("more detail");
+
+  // Leaving the form is a new subject, so the conversation starts empty.
+  await page.locator("header").getByRole("link", { name: "Operations" }).click();
+  await page.waitForURL("**/operations");
+  await expect(page.getByTestId("qcms-assistant-empty")).toBeVisible();
+
+  // Returning within the tab restores the form's own conversation.
+  await page.goBack();
+  await page.waitForURL(`**/forms/${FORM_ID}/releases`);
+  await expect(turns, "returning restores the conversation").toContainText(
+    "what is on this screen",
+  );
+
+  // A reload starts fresh: nothing of it was written anywhere.
+  await page.reload();
+  await waitForHydration(page);
+  await expect(page.getByTestId("qcms-assistant-empty")).toBeVisible();
+});
+
+test("prints the shortcut in a dismissible, hoverable, persistent tooltip (SC 1.4.13)", async ({
+  page,
+}) => {
+  await signInWithTotp(page, EMAIL, totpSecret);
+  await page.setViewportSize({ width: WIDE, height: 900 });
+  await page.goto("/operations");
+  await waitForHydration(page);
+
+  // A native `title` satisfies none of the three properties, so there is none.
+  await expect(button(page)).not.toHaveAttribute("title", /.*/u);
+
+  await button(page).hover();
+  const tip = page.getByTestId("qcms-assist-tip");
+  await expect(tip).toBeVisible();
+  await expect(tip, "the tooltip prints the chord").toContainText("Alt+Shift+A");
+
+  // Hoverable: the pointer can rest on the bubble itself.
+  await tip.hover();
+  await expect(tip).toBeVisible();
+
+  // Dismissible, without moving the pointer.
+  await page.keyboard.press("Escape");
+  await expect(tip).toBeHidden();
+});
+
+test("keeps the dock the height of the viewport, with the composer inside it", async ({
+  page,
+}) => {
+  await signInWithTotp(page, EMAIL, totpSecret);
+  await page.setViewportSize({ width: WIDE, height: 800 });
+  await page.goto(`/forms/${FORM_ID}`);
+  await open(page);
+
+  const geometry = await page.evaluate(() => {
+    const dock = document.getElementById("qcms-assistant-panel")?.getBoundingClientRect();
+    const composer = document.getElementById("qcms-assist-composer")?.getBoundingClientRect();
+    return {
+      dock: Math.round(dock?.height ?? 0),
+      composerBottom: Math.round(composer?.bottom ?? 0),
+      viewport: window.innerHeight,
+    };
+  });
+  expect(geometry.dock, "the dock is the viewport's height, not the page's").toBeLessThanOrEqual(
+    geometry.viewport,
+  );
+  expect(geometry.dock, "the dock fills the area below the top bar").toBeGreaterThan(
+    geometry.viewport - 120,
+  );
+  expect(geometry.composerBottom, "the composer is within the viewport").toBeLessThanOrEqual(
+    geometry.viewport,
+  );
+  expect(geometry.composerBottom).toBeGreaterThan(0);
 });
 
 test("runs no animation on open, close or expand under reduced motion (exit criterion 5)", async ({

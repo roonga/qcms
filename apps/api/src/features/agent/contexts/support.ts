@@ -197,11 +197,9 @@ const CONVERSATION_WINDOW_MS = 12 * 60 * 60 * 1_000;
 
 /**
  * Run an audited read, telling it whether it owes SEC-15 a `read` row: the first turn of a
- * conversation to reach this subject does, later ones do not.
- *
- * The claim is released when the read fails, so a row that never committed cannot make a
- * later turn skip it. Releasing can only add rows; a forged conversation id can do the
- * same, and neither can leave a subject with no row at all.
+ * conversation to reach this subject does, later ones do not. The claim is released when
+ * the read fails, so a row that never committed cannot make a later turn skip it, and
+ * releasing can only ever add rows.
  */
 export async function auditedRead<T>(
   input: ScreenBuildInput,

@@ -212,8 +212,8 @@ interface BeltedRoute {
  */
 const BELTED_ROUTES: readonly BeltedRoute[] = [
   {
-    // The assistant's turn on a screen with no form in its route (082). No dynamic
-    // segment: the screen id travels in the body, where the API validates it.
+    // The assistant's turn on a screen with no form in its route. No dynamic segment:
+    // the screen id travels in the body, where the API validates it.
     route: "/assist",
     pattern: /^\/assist\/?$/u,
     outcome: "refused-403",

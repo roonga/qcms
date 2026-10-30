@@ -55,7 +55,7 @@ export interface ScreenDef {
   /** Checks its own SEC-3 cell before it reads anything. */
   build(input: ScreenBuildInput): Promise<unknown>;
   readonly readTools: readonly AgentToolName[];
-  /** 083 fills these; a screen with none offers explanation and navigation. */
+  /** A screen with no action kind offers explanation and navigation. */
   readonly actionKinds: readonly string[];
 }
 

@@ -161,10 +161,12 @@ async function buildScreenContext(args: {
   readonly screen: ScreenId;
   readonly build: ScreenBuildInput;
   readonly conversation: readonly AssistTurn[];
-  readonly drafts?: AssistContext;
+  /** Resolved after the screen's own cell check, so no draft is read before it. */
+  readonly drafts?: () => Promise<AssistContext | undefined>;
 }): Promise<AgentContext> {
   const screen = SCREENS[args.screen];
   const facts = screen.facts.parse(await screen.build(args.build));
+  const drafts = await args.drafts?.();
   const workspaceId = await screenWorkspace(args.build);
   return {
     screen: args.screen,
@@ -182,15 +184,15 @@ async function buildScreenContext(args: {
         action: cell.action,
       });
     },
-    ...(args.drafts === undefined
+    ...(drafts === undefined
       ? {}
       : {
-          draft: args.drafts.draft,
-          questionLibrary: args.drafts.questionLibrary,
-          validate: args.drafts.validate,
+          draft: drafts.draft,
+          questionLibrary: drafts.questionLibrary,
+          validate: drafts.validate,
         }),
-    ...(screen.readTools.includes("project_draft") && args.drafts !== undefined
-      ? { projectDraft: projectionPort(args.deps, args.drafts.draft) }
+    ...(screen.readTools.includes("project_draft") && drafts !== undefined
+      ? { projectDraft: projectionPort(args.deps, drafts.draft) }
       : {}),
   };
 }
@@ -340,7 +342,7 @@ export function makeAssistHandler(deps: Deps): RouteHandler<typeof assistRoute, 
       deps,
       screen,
       conversation: body.conversation,
-      drafts: buildContext(deps, definition, body.conversation),
+      drafts: () => Promise.resolve(buildContext(deps, definition, body.conversation)),
       build: screenBuildInput({
         deps,
         principal: callerOf(c),
@@ -407,13 +409,14 @@ export function makeScreenAssistHandler(
       params: body.params ?? {},
       conversationId: body.conversationId,
     });
-    const drafts = isFormSubtreeScreen(screen) ? await formSubtreeDrafts(deps, build) : undefined;
     const ctx = await buildScreenContext({
       deps,
       screen,
       conversation: body.conversation,
       build,
-      ...(drafts === undefined ? {} : { drafts }),
+      ...(isFormSubtreeScreen(screen)
+        ? { drafts: () => formSubtreeDrafts(deps, build) }
+        : {}),
     });
 
     return new Response(assistStream(deps, ctx, controller), {

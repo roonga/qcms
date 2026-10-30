@@ -15,13 +15,13 @@ import {
 } from "@roonga/qcms-db";
 import type { FormId } from "@roonga/qcms-core";
 
-import { ApiError } from "../../../errors.js";
 import { decideAccess, holdsStatement } from "../../membership/policy.js";
 import { resolveCallerWorkspaces } from "../../membership/resolver.js";
 import { endpointUrlFor } from "../../webhooks/mask.js";
 import {
   FACT_ROW_LIMIT,
   Instant,
+  auditedRead,
   forbidden,
   iso,
   membershipIn,
@@ -65,28 +65,6 @@ function filterDigest(filters: FilterSet): string {
   ]);
 }
 
-/**
- * Whether this conversation has yet had its row for this subject, so an audited read
- * writes one row per conversation for each distinct filter set rather than one per turn.
- * A forged id can add rows or skip a recorded subject, never leave one unrecorded.
- */
-const CONVERSATION_WINDOW_MS = 12 * 60 * 60 * 1_000;
-
-async function firstReadInConversation(input: ScreenBuildInput, subject: string): Promise<boolean> {
-  const key = `agent-read:${input.principal.userId}:${input.conversationId}:${subject}`;
-  const hit = await input.deps.rateLimitStore.hit(key, CONVERSATION_WINDOW_MS);
-  return hit.count === 1;
-}
-
-function auditRefused(): ApiError {
-  return new ApiError(
-    "AUDIT_ACTOR_UNRESOLVED",
-    500,
-    "A response read could not be audited, so it is refused: SEC-15 records every read, " +
-      "and a read without its row is the one failure this control may not have.",
-  );
-}
-
 const ResponseMetadataFact = z.strictObject({
   sessionId: z.string(),
   formVersion: z.number().int(),
@@ -122,29 +100,30 @@ async function buildResponseList(
   });
   const filters = filterSet(input);
   const request = input.deps.databases.forRequest(input.environment);
-  const audit = await firstReadInConversation(input, `list:${formId}:${filterDigest(filters)}`);
 
-  const page = await request.exec.transaction(async (tx) => {
-    if (audit) {
-      await writeAccessAuditRow(tx, {
-        actor: input.principal.userId,
-        workspaceId,
-        environment: request.environment,
+  const page = await auditedRead(input, `list:${formId}:${filterDigest(filters)}`, (audit) =>
+    request.exec.transaction(async (tx) => {
+      if (audit) {
+        await writeAccessAuditRow(tx, {
+          actor: input.principal.userId,
+          workspaceId,
+          environment: request.environment,
+          formId,
+          kind: "read",
+          occurredAt: input.deps.clock.now(),
+        });
+      }
+      return listResponseMetadata(tx, request.environment, {
         formId,
-        kind: "read",
-        occurredAt: input.deps.clock.now(),
+        ...(filters.version === undefined ? {} : { version: filters.version }),
+        ...(filters.from === undefined ? {} : { from: new Date(filters.from) }),
+        ...(filters.to === undefined ? {} : { to: new Date(filters.to) }),
+        ...(filters.flagged === undefined ? {} : { flagged: filters.flagged }),
+        limit: FACT_ROW_LIMIT,
+        offset: 0,
       });
-    }
-    return listResponseMetadata(tx, request.environment, {
-      formId,
-      ...(filters.version === undefined ? {} : { version: filters.version }),
-      ...(filters.from === undefined ? {} : { from: new Date(filters.from) }),
-      ...(filters.to === undefined ? {} : { to: new Date(filters.to) }),
-      ...(filters.flagged === undefined ? {} : { flagged: filters.flagged }),
-      limit: FACT_ROW_LIMIT,
-      offset: 0,
-    });
-  });
+    }),
+  );
 
   return {
     formId,
@@ -182,21 +161,22 @@ async function buildResponseDetail(
   await requireCell(input, { workspaceId, resource: "response", action: "read", formId });
   const sessionId = requireSession(input);
   const request = input.deps.databases.forRequest(input.environment);
-  const audit = await firstReadInConversation(input, `detail:${formId}:${sessionId}`);
 
-  const row = await request.exec.transaction(async (tx) => {
-    if (audit) {
-      await writeAccessAuditRow(tx, {
-        actor: input.principal.userId,
-        workspaceId,
-        environment: request.environment,
-        formId,
-        kind: "read",
-        occurredAt: input.deps.clock.now(),
-      });
-    }
-    return getResponseMetadata(tx, request.environment, formId, sessionId);
-  });
+  const row = await auditedRead(input, `detail:${formId}:${sessionId}`, (audit) =>
+    request.exec.transaction(async (tx) => {
+      if (audit) {
+        await writeAccessAuditRow(tx, {
+          actor: input.principal.userId,
+          workspaceId,
+          environment: request.environment,
+          formId,
+          kind: "read",
+          occurredAt: input.deps.clock.now(),
+        });
+      }
+      return getResponseMetadata(tx, request.environment, formId, sessionId);
+    }),
+  );
 
   return {
     formId,
@@ -514,5 +494,3 @@ export const operationsContexts = {
   responseDetail: { facts: responseDetailFacts, build: buildResponseDetail },
   formWebhooks: { facts: formWebhooksFacts, build: buildFormWebhooks },
 } as const;
-
-export { auditRefused };

@@ -7,7 +7,7 @@ import { AssistMarkdown } from "@/components/forms/assist-markdown";
 import { AssistPanel } from "@/components/forms/assist-panel";
 import { Button } from "@/components/kit";
 import type { BuilderAssistSnapshot } from "@/lib/agent/builder-assist-bridge";
-import type { ConversationHandle } from "@/lib/agent/conversation";
+import { promptTurns, type ConversationHandle } from "@/lib/agent/conversation";
 import type { ResolvedScreen } from "@/lib/agent/screens";
 import { readAssistEvents } from "@/lib/forms/assist-stream";
 import {
@@ -56,6 +56,10 @@ export function AssistantConversation({
         onAccept={builder.accept}
         onWorkingChange={onWorkingChange}
         onStatusChange={onAnnounce}
+        // The one conversation this form's subtree shares, so leaving the builder for
+        // another of its screens keeps the turns and returning restores them.
+        conversation={conversation}
+        {...(screen === undefined ? {} : { screen })}
       />
     );
   }
@@ -116,7 +120,7 @@ function ScreenConversation({
         headers: { "content-type": "application/json" },
         signal: controller.signal,
         body: JSON.stringify({
-          conversation: [...conversation.turns, { role: "user", content: message }],
+          conversation: [...promptTurns(conversation.turns), { role: "user", content: message }],
           screen: screen.screen,
           params: screen.params,
           conversationId: conversation.id,

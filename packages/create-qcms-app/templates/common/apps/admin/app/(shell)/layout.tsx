@@ -49,9 +49,9 @@ import { SIDEBAR_COOKIE, parseSidebarSetting } from "@/lib/sidebar";
  * menu without changing any of that - the form is still rendered on every page and
  * still the only sign-out path (`components/account-menu.tsx`).
  *
- * The trailing group is two controls and nothing else (task 032, design card
- * `plan/admin-theme/ds-navbar.html`): a 32px icon-only appearance trigger and a 32px
- * circular account monogram.
+ * The trailing group is the assistant's button, a 32px icon-only appearance trigger and a
+ * 32px circular account monogram, in that order (design card
+ * `plan/admin-theme/ds-navbar.html`).
  */
 export default async function ShellLayout({
   children,

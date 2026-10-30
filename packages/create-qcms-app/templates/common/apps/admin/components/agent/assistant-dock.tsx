@@ -1,6 +1,6 @@
 "use client";
 
-import { usePathname } from "next/navigation";
+import { usePathname, useSearchParams } from "next/navigation";
 import {
   useCallback,
   useEffect,
@@ -19,6 +19,7 @@ import { useSidebar } from "@/components/sidebar-toggle";
 import { useBuilderAssist } from "@/lib/agent/builder-assist-bridge";
 import { contextChipLabel } from "@/lib/agent/context-chip";
 import { ConversationProvider, useConversation } from "@/lib/agent/conversation";
+import { screenWithFilters } from "@/lib/agent/screen-filters";
 import {
   ASSISTANT_BUTTON_ID,
   PANEL_ID,
@@ -41,7 +42,7 @@ import { t, type MessageKey } from "@/lib/i18n/en";
 
 /**
  * The assistant's top-bar button and its panel, mounted once by the shell layout on every
- * `(shell)` screen (Q18, issue #1133).
+ * `(shell)` screen.
  *
  * The button sits in the top bar's trailing group and the panel is a track of the shell
  * body grid, which are two places in the tree, so the state they share lives in a provider
@@ -57,15 +58,16 @@ import { t, type MessageKey } from "@/lib/i18n/en";
  *
  * ## One header on every screen, the builder included
  *
- * The header is this component's everywhere. On the builder the body is 080's panel in its
- * hosted mode, so the draft proposal, its diff and its Accept keep working while the
- * title, the context chip and the four controls are the ones every other screen shows.
+ * The header is this component's everywhere. On the builder the body is the builder's own
+ * panel in its hosted mode, so the draft proposal, its diff and its Accept keep working
+ * while the title, the context chip and the four controls are the ones every other screen
+ * shows.
  *
  * ## The rail between 1024 and 1279 CSS px
  *
  * There a rail, a panel and 640px of content do not fit together, so opening the panel
- * takes #1119's hold on the rail. A hold writes no cookie, so closing the panel returns
- * the operator's own Hide sidebar setting rather than overwriting it (ruling O1).
+ * takes the Hide sidebar hold on the rail. A hold writes no cookie, so closing the panel
+ * returns the operator's own Hide sidebar setting rather than overwriting it.
  */
 
 function modeFor(sheet: boolean, expanded: boolean): AssistantMode {
@@ -108,6 +110,9 @@ export function AssistantProvider({
   readonly children: ReactNode;
 }) {
   const pathname = usePathname();
+  // The address, not only the path: the response list's facts are about the filtered rows
+  // the operator is looking at.
+  const search = useSearchParams();
   const [open, setOpen] = useState(initial.open);
   const [width, setWidth] = useState(initial.width);
   const [expanded, setExpanded] = useState(false);
@@ -172,7 +177,7 @@ export function AssistantProvider({
       width,
       working,
       announcement,
-      screen: screenForPath(pathname),
+      screen: screenWithFilters(screenForPath(pathname), search ?? undefined),
       composerRef,
       show: () => {
         setOpen(true);
@@ -198,7 +203,7 @@ export function AssistantProvider({
       setWorking,
       announce: setAnnouncement,
     }),
-    [announcement, expanded, open, pathname, remember, sheet, width, working],
+    [announcement, expanded, open, pathname, remember, search, sheet, width, working],
   );
 
   // `Alt+Shift+A` opens or focuses the panel. A modifier chord, so SC 2.1.4 does not bind
@@ -280,7 +285,7 @@ export function AssistantPanelSlot() {
   const { mode, width } = control;
   // Closed, the panel stays in the document `hidden` rather than unmounting, because a
   // turn survives the panel closing: that is what puts the "Working" text beside the
-  // top-bar button with nothing on screen (ruling O3). `hidden` is `display: none`, so the
+  // top-bar button with nothing on screen. `hidden` is `display: none`, so the
   // grid rule in `globals.css` excludes it and the dock takes no track.
   const closed = !control.open;
   const subject =

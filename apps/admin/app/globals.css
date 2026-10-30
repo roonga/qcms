@@ -5078,6 +5078,24 @@ div:has(> [role="dialog"] [data-qcms-dialog="wide"]) {
   border-inline-start: 1px solid var(--color-border);
   background-color: var(--color-surface);
 }
+/* THE DOCK IS THE HEIGHT OF THE VIEWPORT BELOW THE TOP BAR, NOT THE HEIGHT OF THE PAGE. As
+   a grid item it stretched to the row, so on a long screen the composer sat below the fold
+   and reaching it scrolled the page. Sticky keeps the track and the panel's own body is
+   what scrolls; `align-self: start` is what stops the stretch. */
+.qcms-assistant[data-mode="dock"] {
+  position: sticky;
+  align-self: start;
+  inset-block-start: var(--admin-topbar-measured, var(--admin-topbar-h));
+  block-size: calc(100dvh - var(--admin-topbar-measured, var(--admin-topbar-h)));
+}
+/* The turns scroll and the composer stays put, so the dock's own height is what the
+   composer is inside rather than the conversation's length. */
+.qcms-assistant__conversation {
+  display: flex;
+  flex-direction: column;
+  min-block-size: 0;
+  block-size: 100%;
+}
 /* THE CONTENT TRACK'S FLOOR IS `--bp-compact`, NOT ITS CONTENT'S OWN WIDTH. A bare `1fr`
    takes a min-content minimum, so a wide table sized the column instead of scrolling
    inside it, and the track then moved whenever the content's intrinsic width did: a shift
@@ -5166,8 +5184,11 @@ div:has(> [role="dialog"] [data-qcms-dialog="wide"]) {
 }
 .qcms-assistant__turns {
   display: flex;
+  flex: 1 1 auto;
   flex-direction: column;
   gap: 0.75rem;
+  min-block-size: 0;
+  overflow-y: auto;
 }
 .qcms-assistant__turn {
   display: flex;
