@@ -346,6 +346,12 @@ export interface FormDetail {
    * the state a single-administrator installation stays in (Q13).
    */
   readonly requiresSecondApprover: boolean;
+  /**
+   * Whether the caller holds `form: write` on this form in the request's environment.
+   * Defaults towards **off**, so a build talking to an API that does not send it offers no
+   * write the API would refuse.
+   */
+  readonly canWriteDraft: boolean;
 }
 
 /**

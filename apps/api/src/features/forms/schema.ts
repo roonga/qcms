@@ -295,6 +295,12 @@ export const FormDetailResponse = z
      * so nothing else can tell them the second-approver rule applies before a 403.
      */
     requiresSecondApprover: z.boolean().openapi({ example: false }),
+    /**
+     * Whether the caller holds `form: write` on this form in the request's environment,
+     * and nothing else. Independent of the deprecated `workflow` object, so a reader of
+     * this field is not also reading a workflow verdict.
+     */
+    canWriteDraft: z.boolean().openapi({ example: true }),
     // Deprecated: `POST /admin/forms/{id}/release-review` answers per target rather than
     // for whichever environment the switcher held. Nothing new should read this.
     workflow: z

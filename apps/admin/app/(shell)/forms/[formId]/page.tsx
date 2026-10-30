@@ -204,7 +204,12 @@ export default async function FormBuilderPage({
         validateDraft={validateDraftAction.bind(null, form.formId)}
         updateSettings={updateSettingsAction.bind(null, form.formId)}
         {...(agentAuthoringEnabled()
-          ? { assist: { endpoint: `/forms/${encodeURIComponent(form.formId)}/assist` } }
+          ? {
+              assist: {
+                endpoint: `/forms/${encodeURIComponent(form.formId)}/assist`,
+                canPropose: form.canWriteDraft,
+              },
+            }
           : {})}
       />
     </div>

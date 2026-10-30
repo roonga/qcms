@@ -112,6 +112,7 @@ export const ORIGIN_BELT_REFUSED = "origin.belt.refused";
  * sign-out form" from "something is posting at the TOTP verifier".
  */
 export type BeltRoute =
+  | "/assist"
   | "/change-password/submit"
   | "/forms/{formId}/assist"
   | "/settings/password"
@@ -210,6 +211,13 @@ interface BeltedRoute {
  * `"unrecognized"`.
  */
 const BELTED_ROUTES: readonly BeltedRoute[] = [
+  {
+    // The assistant's turn on a screen with no form in its route. No dynamic segment:
+    // the screen id travels in the body, where the API validates it.
+    route: "/assist",
+    pattern: /^\/assist\/?$/u,
+    outcome: "refused-403",
+  },
   {
     // Task 041, and the first belted admin route to carry a dynamic segment - the
     // reason the docblock above insists this field is a template rather than a

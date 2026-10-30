@@ -119,6 +119,30 @@ export async function findAdminsByEmail(
   }));
 }
 
+/** One admin's own account row, for a caller reading their own account. */
+export async function findAdminById(
+  exec: Executor,
+  userId: string,
+): Promise<(AdminIdentityRow & { readonly name: string }) | undefined> {
+  const [row] = await exec
+    .select({
+      userId: authUser.id,
+      email: authUser.email,
+      name: authUser.name,
+      twoFactorEnabled: authUser.twoFactorEnabled,
+    })
+    .from(authUser)
+    .where(eq(authUser.id, userId))
+    .limit(1);
+  if (row === undefined) return undefined;
+  return {
+    userId: row.userId,
+    email: row.email,
+    name: row.name,
+    twoFactorEnabled: row.twoFactorEnabled === true,
+  };
+}
+
 /**
  * Delete every second factor on one account and clear its enrolment flag. Both halves
  * always: either alone leaves an account nobody can sign in to. Zero deleted rows is not

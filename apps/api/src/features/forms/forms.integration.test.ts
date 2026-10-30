@@ -37,6 +37,10 @@ import { createApp } from "../../app.js";
 import type { Deps } from "../../deps.js";
 import { registerGrantCheck } from "../membership/middleware.js";
 import { ADMIN_SESSION_HEADER, registerAdminAuth } from "../../middleware/admin-auth.js";
+import {
+  REQUEST_ENVIRONMENT_HEADER,
+  registerRequestEnvironment,
+} from "../../middleware/request-environment.js";
 import { internalTokenFor, makeDeps, seedAdminSession, validEnv } from "../../test-support.js";
 import { registerForms } from "./route.js";
 
@@ -1668,5 +1672,63 @@ describe("GET /admin/forms - search, status filter and sort", () => {
     ["a search term past the length bound", `search=${"x".repeat(201)}`],
   ])("400s %s before the handler runs", async (_name, query) => {
     expect((await listGet(`/forms?${query}`)).status).toBe(400);
+  });
+});
+
+/**
+ * `canWriteDraft` is the caller's own `form: write` and nothing else, which is why the
+ * production read asserts it while the deprecated `workflow.canEdit` says the opposite.
+ */
+describe("the form detail write capability", () => {
+  const formId = "frm_capability";
+  let viewer: { token: string; userId: string };
+  // Its own app, because the switcher header only names an environment where the admin
+  // composition's environment middleware is mounted.
+  let envApp: ReturnType<typeof createApp>;
+
+  async function capability(
+    caller: { readonly token: string },
+    environment: string,
+  ): Promise<{ canWriteDraft: unknown; workflow: { canEdit: boolean } }> {
+    const res = await envApp.request(`/admin/forms/${formId}`, {
+      headers: {
+        "content-type": "application/json",
+        "x-qcms-internal-token": internalToken,
+        [ADMIN_SESSION_HEADER]: caller.token,
+        [REQUEST_ENVIRONMENT_HEADER]: environment,
+      },
+    });
+    expect(res.status).toBe(200);
+    return (await res.json()) as { canWriteDraft: unknown; workflow: { canEdit: boolean } };
+  }
+
+  beforeAll(async () => {
+    envApp = createApp(deps, ADMIN_ONLY, {
+      groups: {
+        admin: [registerAdminAuth, registerGrantCheck, registerRequestEnvironment, registerForms],
+      },
+    });
+    await post("/forms", { formId, slug: "capability", defaultLocale: "en" });
+    viewer = await seedAdminSession(testDb.db, {
+      label: "capability_viewer",
+      claim: false,
+      grants: ["forms.viewer"],
+      owner: false,
+    });
+  });
+
+  it("answers the write grant a holder has in the request's environment", async () => {
+    expect((await capability({ token: adminSessionToken }, "test")).canWriteDraft).toBe(true);
+  });
+
+  it("stays true in production, where the deprecated workflow verdict is false", async () => {
+    const body = await capability({ token: adminSessionToken }, "prod");
+    expect(body.canWriteDraft).toBe(true);
+    expect(body.workflow.canEdit).toBe(false);
+  });
+
+  it("is false for a caller holding only forms.viewer", async () => {
+    expect((await capability(viewer, "test")).canWriteDraft).toBe(false);
+    expect((await capability(viewer, "prod")).canWriteDraft).toBe(false);
   });
 });

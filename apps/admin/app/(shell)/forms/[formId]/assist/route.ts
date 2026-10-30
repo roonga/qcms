@@ -1,6 +1,7 @@
 import type { NextRequest } from "next/server";
 
 import { agentAuthoringEnabled } from "@/lib/server/agent";
+import { parseAssistConversation, parseAssistParams } from "@/lib/server/assist-request";
 import { assist } from "@/lib/server/forms";
 import { isSameOriginPost } from "@/lib/server/route-helpers";
 import { requireAdminSessionForRequest } from "@/lib/server/session";
@@ -56,33 +57,32 @@ export async function POST(
 
   const { formId } = await context.params;
   const body = (await request.json().catch(() => undefined)) as
-    { readonly conversation?: unknown; readonly clientState?: unknown } | undefined;
+    | {
+        readonly conversation?: unknown;
+        readonly clientState?: unknown;
+        readonly screen?: unknown;
+        readonly params?: unknown;
+        readonly conversationId?: unknown;
+      }
+    | undefined;
+
+  // The screen and the conversation id travel from here too, validated as the screen route
+  // validates them: a turn from the builder names its screen, and an audited read on
+  // another screen of this form groups with the same conversation.
+  const params = parseAssistParams(body?.params);
 
   const upstream = await assist(session, formId, {
-    conversation: parseConversation(body?.conversation),
+    conversation: parseAssistConversation(body?.conversation),
     ...(typeof body?.clientState === "string" ? { clientState: body.clientState } : {}),
+    ...(typeof body?.screen === "string" ? { screen: body.screen } : {}),
+    ...(params === undefined ? {} : { params }),
+    ...(typeof body?.conversationId === "string" ? { conversationId: body.conversationId } : {}),
   });
 
   return new Response(upstream.body, {
     status: upstream.status,
     headers: forwardedHeaders(upstream),
   });
-}
-
-/** Every turn whose shape this route trusts enough to forward; anything else is dropped. */
-function parseConversation(
-  raw: unknown,
-): readonly { readonly role: "user" | "assistant"; readonly content: string }[] {
-  if (!Array.isArray(raw)) return [];
-  const turns: { readonly role: "user" | "assistant"; readonly content: string }[] = [];
-  for (const entry of raw) {
-    if (typeof entry !== "object" || entry === null) continue;
-    const { role, content } = entry as { role?: unknown; content?: unknown };
-    if ((role === "user" || role === "assistant") && typeof content === "string") {
-      turns.push({ role, content });
-    }
-  }
-  return turns;
 }
 
 /**

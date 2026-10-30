@@ -33,14 +33,14 @@ function states(turn: AssistantTurnView): string[] {
 }
 
 const API_TOOLS = fileURLToPath(
-  new URL("../../../api/src/features/forms/assist/tools.ts", import.meta.url),
+  new URL("../../../api/src/features/agent/tools/registry.ts", import.meta.url),
 );
 
-/** The API's `ASSIST_TOOL_NAMES`, read as text (R2: no value import across the app boundary). */
+/** The API's `AGENT_TOOL_NAMES`, read as text (R2: no value import across the app boundary). */
 function apiToolNames(): string[] {
   const source = readFileSync(API_TOOLS, "utf8");
-  const start = source.indexOf("export const ASSIST_TOOL_NAMES = [");
-  expect(start, "the API no longer declares ASSIST_TOOL_NAMES as an array").toBeGreaterThan(-1);
+  const start = source.indexOf("export const AGENT_TOOL_NAMES = [");
+  expect(start, "the API no longer declares AGENT_TOOL_NAMES as an array").toBeGreaterThan(-1);
   const body = source.slice(source.indexOf("[", start) + 1, source.indexOf("]", start));
   return [...body.matchAll(/"([a-z_]+)"/gu)].map((match) => match[1] ?? "");
 }

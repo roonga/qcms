@@ -32,7 +32,7 @@ import { ASSIST_ERROR_CODES } from "@/lib/forms/assist-stream";
  */
 
 const API_TYPES = fileURLToPath(
-  new URL("../../../api/src/features/forms/assist/types.ts", import.meta.url),
+  new URL("../../../api/src/features/agent/types.ts", import.meta.url),
 );
 
 /** The `ASSIST_ERROR_CODES` array literal, lifted out of the API's source. */

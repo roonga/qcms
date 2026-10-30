@@ -93,15 +93,15 @@ regeneration and `git add` the result rather than merging two sets of counts.
 
 <!-- BEGIN GENERATED: ownership-seam (pnpm qcms:sync-templates) -->
 
-### Scaffolded paths (503 files common to both shapes)
+### Scaffolded paths (521 files common to both shapes)
 
 | Path                                                                 | Files |
 | -------------------------------------------------------------------- | ----- |
 | `(project root)`                                                     | 8     |
-| `apps/`                                                              | 492   |
-| `apps/admin/`                                                        | 305   |
-| `apps/admin/app/`                                                    | 82    |
-| `apps/admin/app/(shell)/`                                            | 63    |
+| `apps/`                                                              | 510   |
+| `apps/admin/`                                                        | 318   |
+| `apps/admin/app/`                                                    | 83    |
+| `apps/admin/app/(shell)/`                                            | 64    |
 | `apps/admin/app/(shell)/@rail/`                                      | 26    |
 | `apps/admin/app/(shell)/@rail/forms/`                                | 13    |
 | `apps/admin/app/(shell)/@rail/forms/[formId]/`                       | 11    |
@@ -127,6 +127,7 @@ regeneration and `git add` the result rather than merging two sets of counts.
 | `apps/admin/app/(shell)/@rail/webhooks/`                             | 1     |
 | `apps/admin/app/(shell)/@rail/workspaces/`                           | 2     |
 | `apps/admin/app/(shell)/@rail/workspaces/[workspaceId]/`             | 1     |
+| `apps/admin/app/(shell)/assist/`                                     | 1     |
 | `apps/admin/app/(shell)/forms/`                                      | 18    |
 | `apps/admin/app/(shell)/forms/[formId]/`                             | 12    |
 | `apps/admin/app/(shell)/forms/[formId]/assist/`                      | 1     |
@@ -170,27 +171,31 @@ regeneration and `git add` the result rather than merging two sets of counts.
 | `apps/admin/app/two-factor/recovery-codes/`                          | 2     |
 | `apps/admin/app/two-factor/recovery-codes/confirm/`                  | 1     |
 | `apps/admin/app/two-factor/recovery/verify/`                         | 1     |
-| `apps/admin/components/`                                             | 110   |
-| `apps/admin/components/forms/`                                       | 40    |
+| `apps/admin/components/`                                             | 114   |
+| `apps/admin/components/agent/`                                       | 3     |
+| `apps/admin/components/forms/`                                       | 41    |
 | `apps/admin/components/membership/`                                  | 7     |
 | `apps/admin/components/ops/`                                         | 12    |
 | `apps/admin/components/questions/`                                   | 15    |
 | `apps/admin/components/shell/`                                       | 4     |
 | `apps/admin/components/test-support/`                                | 3     |
-| `apps/admin/lib/`                                                    | 106   |
+| `apps/admin/lib/`                                                    | 114   |
+| `apps/admin/lib/agent/`                                              | 7     |
 | `apps/admin/lib/forms/`                                              | 29    |
 | `apps/admin/lib/i18n/`                                               | 2     |
 | `apps/admin/lib/membership/`                                         | 2     |
 | `apps/admin/lib/ops/`                                                | 12    |
 | `apps/admin/lib/questions/`                                          | 9     |
-| `apps/admin/lib/server/`                                             | 29    |
+| `apps/admin/lib/server/`                                             | 30    |
 | `apps/admin/lib/shell/`                                              | 2     |
-| `apps/api/`                                                          | 113   |
-| `apps/api/src/`                                                      | 110   |
-| `apps/api/src/features/`                                             | 78    |
+| `apps/api/`                                                          | 118   |
+| `apps/api/src/`                                                      | 115   |
+| `apps/api/src/features/`                                             | 83    |
+| `apps/api/src/features/agent/`                                       | 15    |
+| `apps/api/src/features/agent/contexts/`                              | 4     |
+| `apps/api/src/features/agent/tools/`                                 | 2     |
 | `apps/api/src/features/auth/`                                        | 5     |
-| `apps/api/src/features/forms/`                                       | 13    |
-| `apps/api/src/features/forms/assist/`                                | 10    |
+| `apps/api/src/features/forms/`                                       | 3     |
 | `apps/api/src/features/links/`                                       | 3     |
 | `apps/api/src/features/membership/`                                  | 9     |
 | `apps/api/src/features/operations/`                                  | 3     |
@@ -250,7 +255,7 @@ regeneration and `git add` the result rather than merging two sets of counts.
 
 ### QCMS-internal references in the scaffolded source
 
-`1737` lines across `350` scaffolded files cite a QCMS issue, ADR, SEC control, plan task or repository path.
+`1748` lines across `357` scaffolded files cite a QCMS issue, ADR, SEC control, plan task or repository path.
 
 These are comments, and they stay (issue #457, tier 3). They are the engineering
 rationale for code you now own, which is worth more to you than a tidy file, and
@@ -265,7 +270,7 @@ rather than documented: the images no longer claim to be built from this
 repository, and no scaffolded message names a script your project does not define.
 
 <details>
-<summary>Every scaffolded file (503)</summary>
+<summary>Every scaffolded file (521)</summary>
 
 ```
 .dockerignore
@@ -299,6 +304,7 @@ apps/admin/app/(shell)/@rail/settings/page.tsx
 apps/admin/app/(shell)/@rail/webhooks/page.tsx
 apps/admin/app/(shell)/@rail/workspaces/[workspaceId]/page.tsx
 apps/admin/app/(shell)/@rail/workspaces/page.tsx
+apps/admin/app/(shell)/assist/route.ts
 apps/admin/app/(shell)/forms/[formId]/assist/route.ts
 apps/admin/app/(shell)/forms/[formId]/export/route.ts
 apps/admin/app/(shell)/forms/[formId]/links/page.tsx
@@ -357,6 +363,9 @@ apps/admin/app/two-factor/recovery/page.tsx
 apps/admin/app/two-factor/recovery/verify/route.ts
 apps/admin/components/account-menu.tsx
 apps/admin/components/admin-nav.tsx
+apps/admin/components/agent/assistant-button.tsx
+apps/admin/components/agent/assistant-conversation.tsx
+apps/admin/components/agent/assistant-dock.tsx
 apps/admin/components/announcer.tsx
 apps/admin/components/appearance-glyph.tsx
 apps/admin/components/auth-screen.tsx
@@ -370,6 +379,7 @@ apps/admin/components/forms/assist-icon-button.tsx
 apps/admin/components/forms/assist-mark.tsx
 apps/admin/components/forms/assist-markdown.tsx
 apps/admin/components/forms/assist-panel.tsx
+apps/admin/components/forms/assist-tip.tsx
 apps/admin/components/forms/condition-editor.tsx
 apps/admin/components/forms/condition-json-pane.tsx
 apps/admin/components/forms/draft-preview.tsx
@@ -466,6 +476,13 @@ apps/admin/components/test-support/markup.ts
 apps/admin/components/theme-toggle.tsx
 apps/admin/components/topbar-height.tsx
 apps/admin/instrumentation.ts
+apps/admin/lib/agent/builder-assist-bridge.ts
+apps/admin/lib/agent/context-chip.ts
+apps/admin/lib/agent/conversation.tsx
+apps/admin/lib/agent/panel-context.ts
+apps/admin/lib/agent/panel.ts
+apps/admin/lib/agent/screen-filters.ts
+apps/admin/lib/agent/screens.ts
 apps/admin/lib/announce.ts
 apps/admin/lib/appearance.ts
 apps/admin/lib/auth-failure-message.ts
@@ -539,6 +556,7 @@ apps/admin/lib/recovery-copy.ts
 apps/admin/lib/server/agent.ts
 apps/admin/lib/server/api-result.ts
 apps/admin/lib/server/api.ts
+apps/admin/lib/server/assist-request.ts
 apps/admin/lib/server/auth-api.ts
 apps/admin/lib/server/client-address.ts
 apps/admin/lib/server/config.ts
@@ -586,21 +604,26 @@ apps/api/src/create-admin.ts
 apps/api/src/deps.ts
 apps/api/src/environments.ts
 apps/api/src/errors.ts
+apps/api/src/features/agent/assistant.ts
+apps/api/src/features/agent/contexts/administration.ts
+apps/api/src/features/agent/contexts/authoring.ts
+apps/api/src/features/agent/contexts/operations.ts
+apps/api/src/features/agent/contexts/support.ts
+apps/api/src/features/agent/fake-model.ts
+apps/api/src/features/agent/handler.ts
+apps/api/src/features/agent/route.ts
+apps/api/src/features/agent/schema.ts
+apps/api/src/features/agent/screens.ts
+apps/api/src/features/agent/system-prompt.ts
+apps/api/src/features/agent/thinking.ts
+apps/api/src/features/agent/tools/registry.ts
+apps/api/src/features/agent/tools/tool-schema.ts
+apps/api/src/features/agent/types.ts
 apps/api/src/features/auth/bootstrap.ts
 apps/api/src/features/auth/instance.ts
 apps/api/src/features/auth/plugin-write-backstop.ts
 apps/api/src/features/auth/reset-two-factor.ts
 apps/api/src/features/auth/route.ts
-apps/api/src/features/forms/assist/assistant.ts
-apps/api/src/features/forms/assist/fake-model.ts
-apps/api/src/features/forms/assist/handler.ts
-apps/api/src/features/forms/assist/route.ts
-apps/api/src/features/forms/assist/schema.ts
-apps/api/src/features/forms/assist/system-prompt.ts
-apps/api/src/features/forms/assist/thinking.ts
-apps/api/src/features/forms/assist/tool-schema.ts
-apps/api/src/features/forms/assist/tools.ts
-apps/api/src/features/forms/assist/types.ts
 apps/api/src/features/forms/handler.ts
 apps/api/src/features/forms/route.ts
 apps/api/src/features/forms/schema.ts

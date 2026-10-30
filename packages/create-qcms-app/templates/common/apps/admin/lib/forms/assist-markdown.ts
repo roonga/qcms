@@ -25,13 +25,16 @@
  *
  * ## Links
  *
- * A link survives only for a same-origin path matching a pattern on {@link ADMIN_PAGE_ROUTES},
- * with no query or fragment; anything else renders as its text. The list is closed rather than
- * a prefix test because `/forms/frm_x/export` (a download handler) must never become a link.
+ * A link survives only for a same-origin path that is a row of the screen table
+ * (`lib/agent/screens.ts`), with no query or fragment; anything else renders as its text.
+ * The table is closed rather than a prefix test because `/forms/frm_x/export` (a download
+ * handler) must never become a link.
  *
  * Underscores only mark emphasis at a word boundary, so identifiers such as
  * `q_vehicle_make` are never italicised in the middle.
  */
+
+import { adminPageHref } from "../agent/screens";
 
 export type MarkdownInline =
   | { readonly kind: "text"; readonly text: string }
@@ -44,53 +47,6 @@ export type MarkdownInline =
       readonly href: string;
       readonly children: readonly MarkdownInline[];
     };
-
-/**
- * Every admin **page** route under `apps/admin/app/(shell)/`; `[segment]` matches one segment.
- * Route handlers are deliberately absent.
- */
-export const ADMIN_PAGE_ROUTES: readonly string[] = [
-  "/forms",
-  "/forms/new",
-  "/forms/[formId]",
-  "/forms/[formId]/rules",
-  "/forms/[formId]/preview",
-  "/forms/[formId]/versions",
-  "/forms/[formId]/versions/[version]",
-  "/forms/[formId]/releases",
-  "/forms/[formId]/links",
-  "/forms/[formId]/webhooks",
-  "/forms/[formId]/responses",
-  "/forms/[formId]/responses/[sessionId]",
-  "/questions",
-  "/questions/new",
-  "/questions/[questionId]",
-  "/responses",
-  "/responses/erasures",
-  "/webhooks",
-  "/workspaces",
-  "/workspaces/[workspaceId]",
-  "/settings",
-];
-
-/** A path segment safe to put in an `href`: no traversal, no encoding tricks. */
-const SEGMENT = /^[A-Za-z0-9._~-]+$/u;
-
-function matchesPattern(pattern: string, segments: readonly string[]): boolean {
-  const expected = pattern.slice(1).split("/");
-  if (expected.length !== segments.length) return false;
-  return expected.every((part, index) => (part.startsWith("[") ? true : part === segments[index]));
-}
-
-/** The `href` a link target may keep, or `undefined` when it must render as text. */
-export function adminPageHref(target: string): string | undefined {
-  const path = target.trim();
-  if (!path.startsWith("/") || path.startsWith("//")) return undefined;
-  if (path.includes("?") || path.includes("#")) return undefined;
-  const segments = path.slice(1).split("/");
-  if (!segments.every((segment) => SEGMENT.test(segment) && segment !== "..")) return undefined;
-  return ADMIN_PAGE_ROUTES.some((pattern) => matchesPattern(pattern, segments)) ? path : undefined;
-}
 
 export type MarkdownBlock =
   | {

@@ -1,0 +1,234 @@
+# Agent slice (tasks 041 and 082, ADR-25, SEC-17)
+
+Flag-gated agent assistance on every admin screen: one bounded tool loop,
+relayed to the admin as server-sent events. On the form builder it proposes a
+draft `FormDefinition`; on every other screen it explains and navigates.
+
+**ADR-25 in one line: the agent proposes, the kernel validates, the human
+publishes.** Nothing here touches the serving path, and nothing here can reach a
+respondent's answers.
+
+Operator-facing documentation (setup, provider matrix, local-model walkthrough,
+the PII boundary statement) is `docs/agent-authoring.md`.
+
+## Routes
+
+| Method & path                               | Scope (SEC-5)                    | Notes                                                                                                                         |
+| ------------------------------------------- | -------------------------------- | ----------------------------------------------------------------------------------------------------------------------------- |
+| `POST /admin/forms/:id/draft/assist`        | `forms:write`                    | One agent turn. Body `{ conversation, clientState?, screen?, params?, conversationId? }`. Answers `text/event-stream`.        |
+| `POST /admin/forms/:id/draft/assist/accept` | `forms:write`, `questions:write` | The human's Accept. Body `{ definition, newQuestions }`. Answers a saved-draft JSON body.                                     |
+| `POST /admin/assist`                        | `forms:read`                     | One turn on the screen the body names. Body `{ conversation, screen, params?, conversationId }`. Answers `text/event-stream`. |
+
+Both turn routes share **one per-principal limiter key** (Q19), so ten turns a
+minute is the caller's whole budget rather than one budget per route.
+
+**The flag gates the mount, not a handler branch.** With
+`QCMS_FLAG_AGENT_AUTHORING=none` (the default) `registerFormsAssist` registers
+nothing, so the path does not exist and a request 404s - the ADR-09 shape. There
+is no "feature disabled" branch a misconfiguration could reach, and a default
+build's generated OpenAPI document carries no assist route. This surface is
+deliberately **not** part of the frozen 027 core contract: it is optional,
+flag-gated, and streams rather than returning a modelled JSON body.
+
+## Files
+
+| File                                    | What it is                                                                                                                            |
+| --------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------- |
+| `types.ts`                              | The `DraftAssistant` port, `AgentContext`, `AssistContext`, `AssistEvent`, `AssistProposal`. The PII boundary is the context's shape. |
+| `screens.ts`                            | The frozen `SCREENS` registry: one row per `(shell)` page, each with its facts schema, context builder, read tools and action kinds.  |
+| `contexts/`                             | The per-screen context builders, grouped by area, each checking its own SEC-3 cell before it reads anything.                          |
+| `tools/registry.ts`                     | The frozen tool registry, the single dispatch door, and the provider tool set built from the current screen's list.                   |
+| `system-prompt.ts`                      | The versioned system prompt, assembled from the kernel's own contracts. Reviewed like code.                                           |
+| `assistant.ts`                          | The `streamText` tool loop, the stop-reason mapping, and the provider selector.                                                       |
+| `fake-model.ts`                         | The deterministic scripted model CI drives, including the hostile scripts.                                                            |
+| `route.ts` / `handler.ts` / `schema.ts` | The flag-gated registrar, the SSE relay and its 15 second keep-alive, the request schema.                                             |
+| `thinking.ts`                           | One function from `QCMS_AGENT_THINKING` to the provider's own options, and nothing vendor-shaped anywhere else (081).                 |
+
+## The registry and the door are security controls
+
+Five verbs exist: `search_question_library`, `propose_questions`,
+`propose_draft`, `validate_draft` and `project_draft`. Publish, erase, link
+minting, webhook configuration and every read of response **content** are absent
+from the module, so an agent cannot call them however it is prompted, jailbroken
+or swapped.
+
+Three properties hold structurally, and all three are tested:
+
+1. **One door, per screen.** `runAgentTool` is the only way a tool executes. It
+   refuses a name outside the registry and a registered name outside **the
+   current screen's** list, before dispatch; the tool set handed to the provider
+   is built from that same list, so the model is never told the other verbs
+   exist. A refused call is logged and the turn produces **no proposal at all**,
+   and the loop ends at the refusing step rather than asking again until
+   `QCMS_AGENT_MAX_STEPS` runs out. A tool that declares a SEC-3 cell runs only
+   once the calling principal is shown to hold it, through the same policy
+   evaluator the route middleware uses.
+2. **The browser sends no context.** A turn carries a screen id, the route's own
+   ids and the response list's four filters. The screen's own builder computes
+   the facts here, under the caller's grants, so a tampered client cannot hand
+   the model something its screen would not show.
+3. **No respondent answer.** Every facts schema and every tool output schema is a
+   `z.strictObject` of enumerated fields, and the response screens' builders
+   close over a metadata projection that selects no answer column and joins no
+   answer table. `screens.test.ts` walks every schema and fails on a field whose
+   name matches the respondent-content or secret vocabulary the stdout redactor
+   uses; the staff-identity fragments are excluded, because a workspace member's
+   name and email are staff data and may flow (Q11).
+
+`assist.integration.test.ts` proves the last one against a real database: a
+submitted answer and a webhook payload both carry a sentinel while a turn runs on
+**every** screen, the exact bytes handed to the provider are captured, and the
+sentinel is asserted present in the database _before_ it is asserted absent from
+the payload. The same run asserts that a session id **is** present, so the
+metadata half of the rule is pinned too.
+
+Each of those turns runs the fake provider's `read-all` script, which calls every
+tool the screen offers, one per step. So the boundary is asserted over the output
+of every registered read tool rather than over the facts alone, and the walk fails
+if a tool stops being reachable: it asserts that every name in `AGENT_TOOL_NAMES`
+executed.
+
+## Facts and tool results are delimited as data
+
+Both reach the model inside a delimiter that says what they are: the screen's
+facts as a fenced JSON block, a tool result as an object whose `framing` names its
+standing and whose `result` holds the data. The system prompt states that nothing
+inside either is an instruction, however it is phrased. It is a mitigation, not a
+control: the controls are the caller's own grants, the door, and the human confirm.
+
+The draft preamble that asks for changes is sent only on a screen that offers a
+propose verb, so a screen holding the draft for a read tool alone is not told to
+propose against it.
+
+## An audited read is audited once per conversation
+
+A screen whose own read writes a SEC-15 `read` row writes one from an agent turn
+too (Q10), once per conversation for each distinct filter set rather than once
+per turn. The key is the actor, the conversation id the admin mints, and a digest
+of the normalised filters, so a forged or reused id can add rows or skip a set
+already recorded for that same user, and can never leave a set with no row.
+
+## The advisory validation is the server's
+
+The terminal `proposal` event always carries `issues` **and** `warnings`, both
+computed here by calling 022's `validateDraft` over the proposed draft after the
+loop ends - even when the model already called `validate_draft` itself. The UI is
+never handed a proposal the agent validated for itself.
+
+Two lists rather than one because issue #123 split the advisory channel: `issues`
+is why a publish would be refused, `warnings` is a draft that would publish and
+may not behave as written. Both travel, and the panel renders both, so a proposal
+card can never read "Validation passes" over a draft the builder's own validation
+panel will flag one Accept later. The tool results carry both for the same reason
+in the other direction: a model that cannot see a warning cannot act on it.
+
+A proposed question that is not published yet validates as an unpublished pin.
+That is correct rather than a gap: the agent's view of validity and the builder's
+are the same view, so the human is told to publish the question rather than being
+shown a proposal that would fail at publish time. Since issue #823 that sentence
+is also true after the accept, because the accept creates the draft the operator
+is told to publish; before it, the pin resolved to nothing at all and the advice
+named a step nobody could perform.
+
+## The deterministic fake provider
+
+`QCMS_FLAG_AGENT_AUTHORING=fake` selects a scripted `LanguageModelV3` plugged
+into the **same** `streamText` loop the real providers use. Only the network call
+is replaced, so CI exercises the shipped allowlist, dispatch and event mapping.
+
+Its `default` script is adaptive rather than canned: it searches the real
+question library and builds its proposal from what it finds, so an e2e run gets a
+draft that references that run's own fixtures and actually publishes.
+
+A script is selected by a `#qcms-fake:<script>` directive in a user turn:
+`default`, `rogue-publish`, `rogue-erase`, `rogue-webhook`, `rogue-responses`,
+`refusal`, `provider-error`, `provider-rejected`, `tool-then-provider-error`,
+`tool-error-recovered`, `propose-questions`, `no-proposal`, `length`,
+`step-limit`, `narrate-then-tools`, `reasoning`, `read-all`.
+The `rogue-*` scripts
+exist because a hostile model is the threat the allowlist is for, and the only
+honest way to test a refusal is to have something actually attempt the forbidden
+call.
+
+`reasoning` emits reasoning parts carrying a sentinel string on **every** round,
+whatever `QCMS_AGENT_THINKING` says, so one script proves both halves of the
+setting: under `summary` the sentinel reaches the panel, and under `off` it
+reaches nothing at all - not the wire, not the log, not the exported telemetry,
+not the next turn's request and not the replayed conversation. Emitting them
+unconditionally is the point. The property is that the **event mapping** drops
+reasoning, not that the request declined to ask for it, and a provider
+volunteering reasoning nobody asked for is exactly what an `openai-compatible`
+endpoint and the newer Anthropic models do. Its text also carries a Markdown
+construct, so "the disclosure is plain text, never Markdown" has something to
+fail on.
+
+`narrate-then-tools` is the only script that streams a tool call's **input
+phase** - `tool-input-start`, then the JSON as deltas, then the parsed call - so
+it is the only one that produces the window the timeline row is announced in.
+Every other script emits a parsed `tool-call` with no input phase, so its row
+appears and settles in the same instant and no amount of browser waiting can see
+it running. It also says one sentence per round under its own text segment id,
+which is what makes the segment column and "the card quotes the last segment"
+observable end to end. The `rogue-*` scripts stream their input phase too, which
+is how the refusal is proven against the arrival order a real provider produces:
+a name outside the allowlist must put nothing on the timeline, and the refusal
+must still come off the parsed call.
+
+`propose-questions` is the one script that calls `propose_questions`, and it was
+added with issue #823's fix. Until then the verb had **no e2e consumer at all**:
+every scripted proposal pinned questions the run had already published, so an
+accept that silently discarded the proposed definitions looked green from the
+deterministic lane. A tool the fake provider never calls is a tool the browser
+suite cannot vouch for, which is the same blind spot issue #820 found on the tool
+schemas. The script proposes one question and a step that pins it; the id suffix
+comes from a `#qcms-fake-new:<word>` directive, because accepting **creates** the
+question and a `questionId` is never reused (R6), so a canned id would work once
+against the shared harness database and fail every run after.
+
+## Accepting a proposal
+
+Accepting a proposal that only re-pins **existing library questions** is the
+ordinary draft save (`PUT /admin/forms/:id/draft`) with `agentAssisted: true`,
+which sets a sticky provenance flag on the draft row. The builder header and the
+publish confirmation show it, so the human publishing knows what they are
+signing. An ordinary later save never clears it; discarding the draft does,
+because that removes the row.
+
+Accepting a proposal that carries **new question definitions** goes to
+`POST /admin/forms/:id/draft/assist/accept` instead, and that route is issue
+#823's fix. It stores the draft and materialises every proposed definition as an
+**unpublished question draft** in the library, in one transaction.
+
+Three things about it are decisions rather than details.
+
+**One transaction, not ordered-with-rollback.** Both halves are single-row
+inserts through `@roonga/qcms-db` helpers that take an `Executor`, and the slice
+owns the transaction boundary (R5), so the publish handler's shape applies here
+too: open a transaction, write the questions, write the draft, let a refusal roll
+the lot back. A stored draft therefore never pins a question whose creation
+failed, and no compensating delete has to be written or tested.
+
+**The questions slice's own door, not a second one.** Every proposed definition
+goes through `checkQuestionDefinition` in `features/questions/create.ts`, which
+is the kernel parse plus the authoring-boundary refusals the kernel deliberately
+does not carry - the #453-era `v`-flag pattern check among them. `POST
+/admin/questions` calls the same function and the same
+`createQuestionWithFirstDraft`. An accept is an authoring act by the human who
+pressed Accept, so it meets the boundary a hand-authored question meets, and a
+refused definition fails the **whole** accept with a message naming which
+question and why. Validation runs before the transaction opens, so a refusal
+costs no database work.
+
+**A route of its own, not a field on the draft save.** Accept creates library
+questions, so it needs `questions:write` beside `forms:write`; declaring both on
+`PUT /forms/{id}/draft` would overstate what every keystroke autosave requires.
+And an agent-authoring capability belongs behind the mount flag: a field on the
+core draft route would have handed every `forms:write` caller a second way to
+create questions whether `QCMS_FLAG_AGENT_AUTHORING` was set or not.
+
+The advisories then describe reality. The created drafts resolve, so the pins
+stop being `DANGLING_QUESTION_REF` and become `UNPUBLISHED_QUESTION_PIN` until
+the operator publishes them, which is the resolution step the assistant's own
+narration promises. The builder grid shows an accepted-but-unpublished pin the
+way it shows any unpublished pin, and it resolves fully once the operator
+publishes the question from the library screen.

@@ -3,6 +3,8 @@
 import { useEffect, useRef, useState, type ReactNode, type RefObject } from "react";
 
 import { Alert, Button, Card } from "@/components/kit";
+import type { AgentTurnRecord, ConversationHandle } from "@/lib/agent/conversation";
+import type { ResolvedScreen } from "@/lib/agent/screens";
 import {
   acceptedDraft,
   isPendingNewQuestionPin,
@@ -91,6 +93,11 @@ export function AssistPanel({
   draft,
   draftUpdatedAt,
   onAccept,
+  hosted = false,
+  onWorkingChange,
+  onStatusChange,
+  conversation,
+  screen,
 }: {
   /** This form's assist route, e.g. `/forms/frm_x/assist` (relative to this app). */
   readonly endpoint: string;
@@ -103,9 +110,29 @@ export function AssistPanel({
    * ready for the builder's own save path.
    */
   readonly onAccept: (proposedDraft: DraftForm, newQuestions: readonly unknown[]) => void;
+  /**
+   * Rendered inside the shell's assistant dock, which owns the header, the mark and the
+   * live region. This then draws the conversation and nothing around it, so the builder
+   * screen shows the same header every other screen shows.
+   */
+  readonly hosted?: boolean;
+  /** Hosted only: the host's header mark and its "Working" badge follow this. */
+  readonly onWorkingChange?: (working: boolean) => void;
+  /** Hosted only: the host's single polite live region speaks this. */
+  readonly onStatusChange?: (status: string) => void;
+  /**
+   * Hosted only: the form subtree's conversation. The turns are held there rather than
+   * here, so walking to another screen of this form keeps them and coming back restores
+   * them. A restored assistant turn is its prose; its step timeline was this mount's.
+   */
+  readonly conversation?: ConversationHandle;
+  /** Hosted only: the screen this turn is on, which travels with the turn. */
+  readonly screen?: ResolvedScreen;
 }) {
-  const [collapsed, setCollapsed] = useState(false);
-  const [turns, setTurns] = useState<readonly DisplayTurn[]>([]);
+  const [collapsedChoice, setCollapsed] = useState(false);
+  const [turns, setTurns] = useState<readonly DisplayTurn[]>(() =>
+    restoredTurns(conversation?.turns),
+  );
   const [inputValue, setInputValue] = useState("");
   const [live, setLive] = useState<AssistantTurnView | undefined>(undefined);
   const [proposal, setProposal] = useState<ProposalState | undefined>(undefined);
@@ -120,14 +147,18 @@ export function AssistPanel({
   /** Set by Stop so its abort is not reported as a provider failure. */
   const stoppedRef = useRef(false);
   const working = live !== undefined;
+  // Hosted, the top-bar button is how the panel comes back, so there is no collapse and
+  // nothing of the panel reaches tab storage (Q15).
+  const collapsed = hosted ? false : collapsedChoice;
 
   useEffect(() => {
+    if (hosted) return;
     try {
       setCollapsed(window.localStorage.getItem(COLLAPSE_STORAGE_KEY) === "1");
     } catch {
       // Storage may be unavailable (private browsing, disabled). Default stands.
     }
-  }, []);
+  }, [hosted]);
 
   useEffect(() => {
     return () => {
@@ -159,8 +190,14 @@ export function AssistPanel({
     });
   }
 
+  /** Mirror what the conversation keeps: the host restores a panel from these records. */
+  function record(entries: readonly AgentTurnRecord[]) {
+    conversation?.append(entries);
+  }
+
   function newConversation() {
     if (working) return;
+    conversation?.restart();
     setTurns([]);
     setProposal(undefined);
     setPanelError(undefined);
@@ -181,6 +218,7 @@ export function AssistPanel({
 
     const nextTurns: readonly DisplayTurn[] = [...turns, { role: "user", content }];
     setTurns(nextTurns);
+    record([{ role: "user", content }]);
     setInputValue("");
     setPanelError(undefined);
     setProposal(undefined);
@@ -198,6 +236,8 @@ export function AssistPanel({
         body: JSON.stringify({
           conversation: toConversation(nextTurns),
           ...(draftUpdatedAt === undefined ? {} : { clientState: draftUpdatedAt }),
+          ...(screen === undefined ? {} : { screen: screen.screen, params: screen.params }),
+          ...(conversation === undefined ? {} : { conversationId: conversation.id }),
         }),
         signal: controller.signal,
       });
@@ -240,6 +280,7 @@ export function AssistPanel({
       setLive(undefined);
       if (finished.segments.length > 0) {
         setTurns((current) => [...current, { role: "assistant", view: finished }]);
+        record([{ role: "assistant", content: turnText(finished) }]);
       }
     }
   }
@@ -247,6 +288,7 @@ export function AssistPanel({
   /** Record a card's outcome in the conversation and move focus to it. */
   function recordOutcome(outcome: ResultOutcome) {
     setTurns((current) => [...current, { role: "result", outcome }]);
+    record([{ role: "result", content: outcome }]);
     setProposal(undefined);
     setResultToken((token) => token + 1);
   }
@@ -265,56 +307,73 @@ export function AssistPanel({
   const statusText = computeStatusText(live, proposal);
   const hasConversation = turns.length > 0 || live !== undefined;
 
+  useEffect(() => {
+    onWorkingChange?.(working);
+  }, [onWorkingChange, working]);
+
+  useEffect(() => {
+    onStatusChange?.(statusText);
+  }, [onStatusChange, statusText]);
+
   return (
     <aside
       ref={panelRef}
-      aria-labelledby="qcms-assist-heading"
+      // Hosted, the dock is the `complementary` landmark named "Assistant", so this
+      // element carries no second one.
+      {...(hosted
+        ? { role: "presentation" as const }
+        : { "aria-labelledby": "qcms-assist-heading" })}
       data-testid="qcms-assist-panel"
-      className="qcms-assist"
+      className={hosted ? "qcms-assist qcms-assist--hosted" : "qcms-assist"}
     >
-      <div className="qcms-assist__header">
-        <AssistMark id="qcms-assist-heading" size={24} working={working} />
-        <div className="qcms-assist__actions">
-          {!collapsed && (
+      {!hosted && (
+        <div className="qcms-assist__header">
+          <AssistMark id="qcms-assist-heading" size={24} working={working} />
+          <div className="qcms-assist__actions">
+            {!collapsed && (
+              <AssistIconButton
+                label={t("forms.assist.newConversation")}
+                onPress={newConversation}
+                isDisabled={working || (turns.length === 0 && proposal === undefined)}
+                testId="qcms-assist-new"
+              >
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                  <path d="M12 5v14M5 12h14" strokeLinecap="round" />
+                </svg>
+              </AssistIconButton>
+            )}
             <AssistIconButton
-              label={t("forms.assist.newConversation")}
-              onPress={newConversation}
-              isDisabled={working || (turns.length === 0 && proposal === undefined)}
-              testId="qcms-assist-new"
+              label={collapsed ? t("forms.assist.expand") : t("forms.assist.collapse")}
+              onPress={toggleCollapsed}
+              expanded={!collapsed}
+              controls={BODY_ID}
+              testId="qcms-assist-toggle"
             >
               <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-                <path d="M12 5v14M5 12h14" strokeLinecap="round" />
+                <path
+                  d={collapsed ? "m6 9 6 6 6-6" : "m18 15-6-6-6 6"}
+                  strokeLinecap="round"
+                  strokeLinejoin="round"
+                />
               </svg>
             </AssistIconButton>
-          )}
-          <AssistIconButton
-            label={collapsed ? t("forms.assist.expand") : t("forms.assist.collapse")}
-            onPress={toggleCollapsed}
-            expanded={!collapsed}
-            controls={BODY_ID}
-            testId="qcms-assist-toggle"
-          >
-            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-              <path
-                d={collapsed ? "m6 9 6 6 6-6" : "m18 15-6-6-6 6"}
-                strokeLinecap="round"
-                strokeLinejoin="round"
-              />
-            </svg>
-          </AssistIconButton>
+          </div>
         </div>
-      </div>
+      )}
 
       {!collapsed && (
         <div id={BODY_ID} className="qcms-assist__body">
-          <p
-            aria-live="polite"
-            aria-busy={working}
-            data-testid="qcms-assist-status"
-            className="qcms-visually-hidden"
-          >
-            {statusText}
-          </p>
+          {/* Hosted, the dock's own region is the one that speaks, so there is one. */}
+          {!hosted && (
+            <p
+              aria-live="polite"
+              aria-busy={working}
+              data-testid="qcms-assist-status"
+              className="qcms-visually-hidden"
+            >
+              {statusText}
+            </p>
+          )}
 
           {!hasConversation ? (
             <p className="text-sm text-(--color-text-muted)">{t("forms.assist.emptyHint")}</p>
@@ -507,6 +566,24 @@ export function AssistPanel({
       )}
     </aside>
   );
+}
+
+/**
+ * The turns a restored conversation shows. An assistant turn comes back as its prose: the
+ * step timeline belonged to the mount that streamed it, and the prose is also exactly what
+ * the next request replays.
+ */
+function restoredTurns(records: readonly AgentTurnRecord[] | undefined): readonly DisplayTurn[] {
+  return (records ?? []).map((entry): DisplayTurn => {
+    if (entry.role === "user") return { role: "user", content: entry.content };
+    if (entry.role === "result") {
+      return { role: "result", outcome: entry.content === "accepted" ? "accepted" : "discarded" };
+    }
+    return {
+      role: "assistant",
+      view: finishTurn(applyTurnEvent(EMPTY_TURN, { type: "text", delta: entry.content })),
+    };
+  });
 }
 
 const COLLAPSE_STORAGE_KEY = "qcms-assist-collapsed";

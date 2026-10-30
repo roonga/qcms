@@ -2,7 +2,7 @@
 
 **Status:** shipped by task 041 · flag-gated, **off by default** · governed by **ADR-25**
 
-QCMS can put a chat panel beside the form builder that drafts a form for you: describe what you want, get a proposal, look at the diff, accept it into your draft, then publish it yourself through the ordinary publish flow. Questions the proposal invented are created as unpublished drafts when you accept, so publishing them stays your decision too.
+QCMS can put a chat panel beside any admin screen. On the form builder it drafts a form for you: describe what you want, get a proposal, look at the diff, accept it into your draft, then publish it yourself through the ordinary publish flow. Questions the proposal invented are created as unpublished drafts when you accept, so publishing them stays your decision too.
 
 The whole feature rests on one sentence, and it is worth reading twice:
 
@@ -14,7 +14,7 @@ An authoring agent in QCMS is just another author. It emits the same domain JSON
 
 ## 1. Turning it on
 
-Nothing is required for a default deployment. `QCMS_FLAG_AGENT_AUTHORING` defaults to `none`, which means the assist routes are **not mounted at all** (a request 404s), no chat panel renders in the admin, and boot requires no provider key.
+Nothing is required for a default deployment. `QCMS_FLAG_AGENT_AUTHORING` defaults to `none`, which means the assist routes are **not mounted at all** (a request 404s), no assistant button and no chat panel render in the admin, and boot requires no provider key.
 
 To enable it, set three environment variables on the **API** process, and the flag on the **admin** process:
 
@@ -91,7 +91,7 @@ Any OpenAI-protocol server works the same way (Ollama, vLLM, LM Studio, llama.cp
 
 3. If the API runs in a container and Ollama runs on the host, `localhost` inside the container is the container. Use `http://host.docker.internal:11434/v1` (Docker Desktop) or the host's private address on Linux.
 
-4. Restart the API, restart the admin with the flag set, open a form in the builder. The Assistant panel appears docked beside it.
+4. Restart the API, restart the admin with the flag set, and press the assistant button in the top bar. The panel opens beside the content.
 
 Expect a local model to be slower and less reliable at producing a valid `FormDefinition` than a frontier hosted model. That is a quality trade, not a correctness one: the kernel validates every proposal identically whatever produced it, so a weak model wastes your time but cannot corrupt anything.
 
@@ -138,12 +138,21 @@ LM Studio is the same `openai-compatible` provider as everything above, and its 
 
 ## 4. What the agent can and cannot do
 
+### Where it is
+
+**On every authenticated screen.** A button carrying the assistant's mark sits first in the top bar's trailing group, on every screen behind sign-in, Settings included, and `Alt+Shift+A` opens or focuses it. There is no floating launcher and no floating window: the panel opens as a column beside the content, so nothing it draws can cover the page. Its header's Expand control fills the area below the top bar, and below 1024 CSS px the panel is a sheet over the whole area instead. Between 1024 and 1279 px, where a sidebar, a panel and a readable content column do not fit together, opening the panel hides the sidebar until you close it again; your own Hide sidebar setting is not changed, and "Show sidebar" brings it back and closes the panel.
+
+Whether the panel is open and how wide are remembered in a cookie, so it is already in place on the first paint of the next screen. The panel's edge is focusable: arrow keys change its width by 40 px and Home and End go to the narrowest and the widest, and its Help menu offers Narrow, Default and Wide for the same thing with single clicks.
+
+The header's context chip names what the assistant can see from where you are, screen by screen: the form and its draft on the builder, "Response metadata across forms, no answers" on the response list, "Workspace settings" on Settings. What that line says is what the turn carries.
+
 ### Can
 
 - **Search the published question library.** It sees question _definitions_ and reuses existing questions rather than inventing near-duplicates.
 - **Propose new question definitions.** They come back to you for review. Nothing is created or published by the agent.
 - **Propose a draft `FormDefinition`** for the form you have open: steps, question pins, and visibility rules.
 - **Run the same publish validation** the builder runs, and iterate on what it reports.
+- **Explain the screen you are on, and take you to what it names.** Away from the builder the assistant reads that screen's own facts and answers about them; it has nothing to propose there yet.
 
 ### Cannot
 
@@ -173,7 +182,7 @@ Counts are logged per turn (input tokens, output tokens, step count, provider, p
 
 ## 5. The system prompt
 
-The prompt lives at `apps/api/src/features/forms/assist/system-prompt.ts`, is committed to the repository, and carries a version number that travels with every logged turn. **Prompt changes are reviewed like code**, because a prompt describing a DSL the kernel no longer speaks produces confidently wrong proposals.
+The prompt lives at `apps/api/src/features/agent/system-prompt.ts`, is committed to the repository, and carries a version number that travels with every logged turn. **Prompt changes are reviewed like code**, because a prompt describing a DSL the kernel no longer speaks produces confidently wrong proposals.
 
 It is assembled from the kernel's own exports where the kernel exposes a list (question types, the semantics version), and a test asserts that every rule operator the prompt names parses and that no operator the kernel accepts is missing.
 
@@ -181,7 +190,7 @@ It is assembled from the kernel's own exports where the kernel exposes a list (q
 
 ## 6. How a turn actually runs
 
-1. You type a description. The admin posts it to its own BFF route, which forwards it to `POST /admin/forms/{id}/draft/assist` with your admin session.
+1. You type a description. The admin posts it to its own BFF route, which forwards it with your admin session: to `POST /admin/forms/{id}/draft/assist` on a form screen, and to `POST /admin/assist` on a screen with no form in its route. Your browser sends the screen's id, the route's own ids and the conversation id, and never any context content: the API builds that screen's facts itself, under your own permissions.
 2. The API builds the bounded context described above and starts one bounded tool loop against the configured provider.
 3. Progress streams back as server-sent events, and the turn is visibly alive from its first second.
    - **The reply arrives in chat bubbles as it is written**, rendered as a small, safe subset of Markdown: bold, italic, inline code and lists, never raw HTML and never an image. A link survives as a link only when it points at an admin page and carries no query string and no fragment; anything else, including an external URL, is shown as its text. A route handler is never a link target, so the assistant's prose cannot start the response export download.
@@ -238,4 +247,8 @@ Before this behaviour existed, accepting such a proposal stored a draft pinning 
 
 ## 8. Conversation memory
 
-The conversation is the memory, and it lasts as long as the panel does. Nothing is stored server-side between turns, and there is no cross-session memory (deliberately out of scope for 041).
+The conversation is the memory, and it lasts as long as the tab's session does. Nothing is stored server-side between turns, and there is no cross-session memory (deliberately out of scope for 041).
+
+**One conversation per subject.** A form's whole subtree is one subject, so walking from the builder to Rules, Releases or Responses of the same form keeps the conversation, and the next turn is prefaced with the screen you moved to. Leaving that form starts a new conversation, and coming back to it within the tab restores the one you left. New conversation in the header starts a fresh one for the subject you are on.
+
+Nothing about the conversation or the panel is written to `localStorage` or `sessionStorage`, deliberately: signing out does not clear tab storage, so on a shared workstation anything kept there would still be readable by the next person. A reload therefore starts fresh.
