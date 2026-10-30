@@ -502,7 +502,10 @@ describe("R2 import surface (strict BFF)", () => {
     // close, exemption or not.
     for (const suffix of ALLOWED_CLIENT_FETCH_SUFFIXES) {
       const exempt = files.find((f) => f.path.endsWith(suffix));
-      expect(exempt, `the client-fetch exemption ${suffix} names a file that no longer exists`).toBeDefined();
+      expect(
+        exempt,
+        `the client-fetch exemption ${suffix} names a file that no longer exists`,
+      ).toBeDefined();
       for (const forbidden of [
         "x-qcms-internal-token",
         "x-qcms-admin-session",
@@ -510,7 +513,9 @@ describe("R2 import surface (strict BFF)", () => {
         "adminApiFetch",
         "apiBaseUrl",
       ]) {
-        expect(exempt?.text ?? "", `${suffix} must not contain ${forbidden}`).not.toContain(forbidden);
+        expect(exempt?.text ?? "", `${suffix} must not contain ${forbidden}`).not.toContain(
+          forbidden,
+        );
       }
     }
   });
