@@ -168,8 +168,17 @@ async function childHrefs(page: Page): Promise<string[]> {
     .evaluateAll((links) => links.map((link) => link.getAttribute("href") ?? ""));
 }
 
-test.beforeAll(async () => {
+// The enrollment and the response opened the first test, and this file is serial, so
+// parking that test for issue #1194 left the rest signing in with no secret.
+test.beforeAll(async ({ browser }) => {
   await createTestAdmin(EMAIL);
+  const page = await browser.newPage();
+  try {
+    totpSecret = await enrollNewAdmin(page, EMAIL);
+    sessionId = await submitResponse(SLUG, [[ACCIDENT, false]]);
+  } finally {
+    await page.close();
+  }
 });
 
 // Issue #1194: its step assertions match the rail only before the builder hydrates.
@@ -177,8 +186,7 @@ test.fixme("561 puts the rail on all ten form-scoped screens, marking the row th
   page,
 }) => {
   test.setTimeout(600_000);
-  totpSecret = await enrollNewAdmin(page, EMAIL);
-  sessionId = await submitResponse(SLUG, [[ACCIDENT, false]]);
+  await signInWithTotp(page, EMAIL, totpSecret);
 
   await page.setViewportSize({ width: SIDEBAR, height: 900 });
   for (const screen of screens()) {
