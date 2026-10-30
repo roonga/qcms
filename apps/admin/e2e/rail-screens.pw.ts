@@ -54,7 +54,7 @@ const ACCIDENT = "q_at_fault_accident";
 /** The rail turns into its column at `--bp-sidebar`, which is 64rem at the default root size. */
 const SIDEBAR = 1024;
 
-/** Set by the first test; the rest sign in again with it (serial shares no context). */
+/** Set in `beforeAll`; each test signs in again with it (serial shares no context). */
 let totpSecret = "";
 /** A submitted response, purely so the response-detail route has a subject. */
 let sessionId = "";
@@ -168,8 +168,7 @@ async function childHrefs(page: Page): Promise<string[]> {
     .evaluateAll((links) => links.map((link) => link.getAttribute("href") ?? ""));
 }
 
-// The enrollment and the response opened the first test, and this file is serial, so
-// parking that test for issue #1194 left the rest signing in with no secret.
+// The file is serial and any test may be parked, so shared setup lives in `beforeAll`.
 test.beforeAll(async ({ browser }) => {
   await createTestAdmin(EMAIL);
   const page = await browser.newPage();
