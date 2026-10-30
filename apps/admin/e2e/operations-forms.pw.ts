@@ -1,6 +1,7 @@
 import { expect, test } from "../../portal/e2e/support/gates.js";
 
 import { createTestAdmin, uniqueAdminEmail } from "./support/admin-account.js";
+import { chooseEnvironment } from "./support/environment.js";
 import { createForm } from "./support/forms.js";
 import { enrollNewAdmin, fillStable, signInWithTotp } from "./support/flow.js";
 import { waitForHydration } from "./support/hydration.js";
@@ -83,8 +84,11 @@ test("leaving the environment an address names resets the page and keeps the ter
   page,
 }) => {
   await signInWithTotp(page, EMAIL, totpSecret);
-  // The header's control decides the environment, so this address names one the operator
-  // is not in: `createForm` left the selection on `test`.
+  // The selection is this browser context's own, so it is made here rather than inherited
+  // from the test that created the forms: Playwright gives each test a fresh context.
+  await chooseEnvironment(page, "test");
+
+  // The address now names an environment the operator is not in.
   await page.goto(`/operations?env=prod&q=${ALPHA}&cursor=stale`);
   await waitForHydration(page);
 
