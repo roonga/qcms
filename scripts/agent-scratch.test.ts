@@ -144,7 +144,10 @@ describe("scratchPath", () => {
     const environment = { QCMS_AGENT_SCRATCH_ROOT: root };
     const lane = "chore/scratch-path";
     const first = scratchPath({ directory: process.cwd(), environment, lane, name: "verify.log" });
-    writeFileSync(first, "EXIT=0\n", "utf8");
+    // Written through the `mkdtemp` root rather than through the returned path: the two are
+    // asserted equal, and CodeQL cannot follow the root's provenance through the helper.
+    expect(first).toBe(join(root, "chore-scratch-path", "verify.log"));
+    writeFileSync(join(root, "chore-scratch-path", "verify.log"), "EXIT=0\n", "utf8");
 
     const again = scratchPath({
       directory: process.cwd(),
