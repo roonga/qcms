@@ -1,6 +1,6 @@
 import type { FormDefinition, QuestionDefinition, QuestionId } from "@roonga/qcms-core";
 
-import type { PublishIssue, PublishWarning } from "../handler.js";
+import type { PublishIssue, PublishWarning } from "../forms/handler.js";
 
 export interface AssistTurn {
   readonly role: "user" | "assistant";

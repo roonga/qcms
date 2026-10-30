@@ -4,7 +4,7 @@ import { createApp } from "./app.js";
 import { systemClock } from "./clock.js";
 import { logSignInThrottleState, warnIfBreachCheckDisabled } from "./features/auth/instance.js";
 import { adminAuthFor } from "./features/auth/route.js";
-import { selectDraftAssistant } from "./features/forms/assist/assistant.js";
+import { selectDraftAssistant } from "./features/agent/assistant.js";
 import { selectChallengeVerifier } from "./features/responses/challenge.js";
 import { appGroups } from "./registrars.js";
 import { loadConfig, turnstileSiteKeyDeprecationWarning } from "./config.js";

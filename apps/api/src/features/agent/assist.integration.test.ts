@@ -11,18 +11,18 @@ import { startTestDb, type TestDb } from "@roonga/qcms-db/testing";
 import { MockLanguageModelV3 } from "ai/test";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 
-import { createApp } from "../../../app.js";
-import type { Deps } from "../../../deps.js";
-import { registerGrantCheck } from "../../membership/middleware.js";
-import { ADMIN_SESSION_HEADER, registerAdminAuth } from "../../../middleware/admin-auth.js";
+import { createApp } from "../../app.js";
+import type { Deps } from "../../deps.js";
+import { registerGrantCheck } from "../membership/middleware.js";
+import { ADMIN_SESSION_HEADER, registerAdminAuth } from "../../middleware/admin-auth.js";
 import {
   internalTokenFor,
   makeDeps,
   recordingLogger,
   seedAdminSession,
   validEnv,
-} from "../../../test-support.js";
-import { registerForms } from "../route.js";
+} from "../../test-support.js";
+import { registerForms } from "../forms/route.js";
 import { aiSdkDraftAssistant } from "./assistant.js";
 import { fakeAssistantModel } from "./fake-model.js";
 import { registerFormsAssist } from "./route.js";

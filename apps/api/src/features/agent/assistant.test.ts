@@ -7,9 +7,9 @@ import {
   stepQuestionRefs,
 } from "@roonga/qcms-core";
 
-import type { AgentThinking } from "../../../config.js";
-import { createNullLogger, type Logger } from "../../../logger.js";
-import { recordingLogger } from "../../../test-support.js";
+import type { AgentThinking } from "../../config.js";
+import { createNullLogger, type Logger } from "../../logger.js";
+import { recordingLogger } from "../../test-support.js";
 import {
   aiSdkDraftAssistant,
   appendTextSegment,

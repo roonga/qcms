@@ -1,6 +1,6 @@
 import { z } from "@hono/zod-openapi";
 
-import { SavedDraftResponse } from "../schema.js";
+import { SavedDraftResponse } from "../forms/schema.js";
 
 export const AssistTurnBody = z.strictObject({
   role: z.enum(["user", "assistant"]),

@@ -1,6 +1,6 @@
 import type { RouteGroups } from "./app.js";
 import { registerAdminAuthProxy } from "./features/auth/route.js";
-import { registerFormsAssist } from "./features/forms/assist/route.js";
+import { registerFormsAssist } from "./features/agent/route.js";
 import { registerForms } from "./features/forms/route.js";
 import { registerLinks } from "./features/links/route.js";
 import { registerMembership } from "./features/membership/route.js";

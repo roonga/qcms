@@ -1,12 +1,12 @@
 import { createRoute } from "@hono/zod-openapi";
 import type { Context } from "hono";
 
-import type { SliceRegistrar } from "../../../app.js";
-import type { Deps } from "../../../deps.js";
-import { errorResponses, jsonBody, withScopes, type ApiEnv } from "../../../openapi.js";
-import { clientAddress } from "../../../client-address.js";
-import { rateLimit } from "../../../rate-limit.js";
-import { FormIdParam } from "../schema.js";
+import type { SliceRegistrar } from "../../app.js";
+import type { Deps } from "../../deps.js";
+import { errorResponses, jsonBody, withScopes, type ApiEnv } from "../../openapi.js";
+import { clientAddress } from "../../client-address.js";
+import { rateLimit } from "../../rate-limit.js";
+import { FormIdParam } from "../forms/schema.js";
 import { makeAcceptProposalHandler, makeAssistHandler } from "./handler.js";
 import { AcceptProposalBody, AcceptProposalResponse, AssistBody } from "./schema.js";
 

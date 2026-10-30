@@ -10,8 +10,8 @@ import {
 
 import type { FormDefinition } from "@roonga/qcms-core";
 
-import type { AgentThinking, Config } from "../../../config.js";
-import type { Logger } from "../../../logger.js";
+import type { AgentThinking, Config } from "../../config.js";
+import type { Logger } from "../../logger.js";
 import { fakeAssistantModel } from "./fake-model.js";
 import { buildSystemPrompt, SYSTEM_PROMPT_VERSION } from "./system-prompt.js";
 import { thinkingProviderOptions, type ProviderOptions } from "./thinking.js";
@@ -20,7 +20,7 @@ import {
   createProposalState,
   isAllowedToolName,
   type ProposalState,
-} from "./tools.js";
+} from "./tools/registry.js";
 import type { AssistContext, AssistEvent, DraftAssistant } from "./types.js";
 
 export interface TextSegment {

@@ -5,8 +5,8 @@ import { parseFormDefinition, type FormDefinition } from "@roonga/qcms-core";
 import { createNullLogger } from "../../../logger.js";
 import { recordingLogger, validEnv } from "../../../test-support.js";
 import { loadConfig } from "../../../config.js";
-import { aiSdkDraftAssistant, selectDraftAssistant } from "./assistant.js";
-import { fakeAssistantModel } from "./fake-model.js";
+import { aiSdkDraftAssistant, selectDraftAssistant } from "../assistant.js";
+import { fakeAssistantModel } from "../fake-model.js";
 import { collectRefs } from "./tool-schema.js";
 import {
   ASSIST_TOOL_NAMES,
@@ -16,8 +16,8 @@ import {
   isAllowedToolName,
   runAssistTool,
   ToolNotAllowedError,
-} from "./tools.js";
-import type { AssistContext, AssistEvent } from "./types.js";
+} from "./registry.js";
+import type { AssistContext, AssistEvent } from "../types.js";
 
 const FORBIDDEN = [
   "publish_form",

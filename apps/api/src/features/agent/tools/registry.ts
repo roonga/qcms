@@ -16,7 +16,7 @@ import {
 } from "@roonga/qcms-core";
 
 import { selfContainedToolSchema } from "./tool-schema.js";
-import type { AssistContext } from "./types.js";
+import type { AssistContext } from "../types.js";
 
 /** Adding a name here is a security decision: the registry, tool set and guard all read it. */
 export const ASSIST_TOOL_NAMES = [

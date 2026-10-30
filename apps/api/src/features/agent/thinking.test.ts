@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 
-import { AGENT_PROVIDERS, type AgentProvider } from "../../../config.js";
+import { AGENT_PROVIDERS, type AgentProvider } from "../../config.js";
 import { thinkingProviderOptions } from "./thinking.js";
 
 const REAL_PROVIDERS = AGENT_PROVIDERS.filter(

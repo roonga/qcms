@@ -6,7 +6,7 @@
 
 import type { JSONValue } from "ai";
 
-import type { AgentThinking, AgentProvider } from "../../../config.js";
+import type { AgentThinking, AgentProvider } from "../../config.js";
 
 /** The SDK's per-provider options passthrough, spelled without its internal package. */
 export type ProviderOptions = Record<string, Record<string, JSONValue>>;

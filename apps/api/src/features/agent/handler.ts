@@ -10,16 +10,16 @@ import { getForm } from "@roonga/qcms-db";
 import type { QuestionRow, QuestionVersionRow } from "@roonga/qcms-db";
 import { parseFormId, type FormDefinition, type FormId, type QuestionId } from "@roonga/qcms-core";
 
-import type { Deps } from "../../../deps.js";
-import { ApiError } from "../../../errors.js";
-import type { ApiEnv } from "../../../openapi.js";
+import type { Deps } from "../../deps.js";
+import { ApiError } from "../../errors.js";
+import type { ApiEnv } from "../../openapi.js";
 import {
   checkQuestionDefinition,
   createQuestionWithFirstDraft,
   requireUnusedQuestionId,
   type DefinitionRefusal,
-} from "../../questions/create.js";
-import { requireFormDefinition, storeDraftDefinition, validateDraft } from "../handler.js";
+} from "../questions/create.js";
+import { requireFormDefinition, storeDraftDefinition, validateDraft } from "../forms/handler.js";
 import type { acceptProposalRoute, assistRoute } from "./route.js";
 import type { AssistContext, AssistEvent, AssistTurn, LibraryEntry } from "./types.js";
 
