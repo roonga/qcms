@@ -320,6 +320,29 @@ pnpm install --frozen-lockfile && pnpm build && pnpm verify
 
 **Run `pnpm build` once in a fresh worktree before `test:tooling:no-build`.** That script's name is accurate - it skips the build - and several tooling tests read `dist/`, so in a worktree that has never been built they fail for a missing artifact rather than for anything the branch did.
 
+**Drive a WSL gate by piping a script to `wsl.exe bash -s`, not by passing it as `-lc '...'`.** A heredoc with LF endings reaches bash as a file it reads itself, so `$var`, `$(...)` and quoting all mean what they say:
+
+```sh
+wsl.exe bash -s <<'EOF'
+cd ~/src/qcms-wt/<slug>
+log=$(node scripts/agent-scratch.mjs verify.log)
+pnpm verify > "$log" 2>&1; rc=$?; echo "EXIT=$rc"
+EOF
+```
+
+Two traps the `-lc` form has, both silent:
+
+- **The outer shell expands the command string first.** From Git Bash or PowerShell, `wsl.exe bash -lc '... $(node ...) ...'` is one argument that the caller's own quoting rules reach into, so `$var` and `$(...)` are resolved on the Windows side against variables that do not exist there and bash receives the already-substituted, usually empty, result.
+- **A POSIX path given as an argument is translated.** `wsl.exe bash /tmp/script.sh` has the argument rewritten to a Windows path on the way through, and bash then reports a file it cannot find at a path nobody wrote. Keep POSIX paths inside the script, where nothing translates them.
+
+**`Execution context was destroyed, most likely because of a navigation` in a local browser run is usually the dev server, not the branch.** `next dev` compiles a route on its first visit and swaps the document under the page while it does. It is the first attempt in a cold worktree that sees it, and a retry passes. `QCMS_HARNESS_BUILD=1` serves a production build instead and removes the shape entirely; see "Serving a production build instead of `next dev`" below.
+
+**`gh pr edit --body-file` can fail on this repository with a GraphQL deprecation error about Projects (classic)**, which has nothing to do with the body being written: `gh` asks for project fields in the same query and the API refuses the whole request. Set the body through the REST endpoint instead, which touches no project field:
+
+```sh
+gh api -X PATCH repos/roonga/qcms/pulls/<n> -F body=@<path-to-body.md>
+```
+
 **A stray quote character in a `Path` entry defeats Node's PATH lookup for every child process it starts**, and the errors never mention it: a gate reports `spawn pnpm ENOENT`, or git "not found", on a machine where both run fine from the prompt. Windows accepts the quote in the environment variable and Node's lookup does not strip it. Before believing a tool is missing, print `$env:Path -split ';'` in PowerShell and look for an entry carrying a quote or an apostrophe, then fix that entry rather than working around it in every command.
 
 ## The whole stack, and the developer toolbox
