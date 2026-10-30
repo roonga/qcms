@@ -217,8 +217,21 @@ export function AssistantPanelSlot() {
   // order and the accessibility tree, which is also what traps focus inside the panel.
   // `inert` is a DOM property rather than a style, so it is set here and not in
   // `globals.css`; the dock is a grid track and takes none of this.
+  //
+  // Every sibling on the panel's own path to the body, rather than a list of the shell's
+  // landmarks: the skip link and the live region are siblings further up, and a trap that
+  // named only the landmarks leaked to the first Tab out of the sheet.
   useEffect(() => {
-    const behind = [...document.querySelectorAll<HTMLElement>(".qcms-topbar, .qcms-rail, main")];
+    const panel = document.getElementById(PANEL_ID);
+    if (panel === null) return undefined;
+    const behind: HTMLElement[] = [];
+    for (let node = panel as HTMLElement | null; node !== null && node !== document.body; ) {
+      const parent: HTMLElement | null = node.parentElement;
+      for (const sibling of parent?.children ?? []) {
+        if (sibling !== node && sibling instanceof HTMLElement) behind.push(sibling);
+      }
+      node = parent;
+    }
     for (const element of behind) element.inert = modal;
     return () => {
       for (const element of behind) element.inert = false;
@@ -241,17 +254,19 @@ export function AssistantPanelSlot() {
       setHelpOpen(false);
       return;
     }
-    // A header tooltip is open, so this Escape is its dismissal and focus must not move
-    // (SC 1.4.13). `AssistIconButton`'s own document listener closes it.
-    if (document.querySelector('[data-testid="qcms-assist-tip"]') !== null) return;
+    const tip = document.querySelector('[data-testid="qcms-assist-tip"]') !== null;
     event.stopPropagation();
-    if (mode === "sheet") {
-      control.close();
-      return;
-    }
+    // Returning to the dock leaves focus on the Expand control, so it can share the key
+    // with a tooltip dismissal; the other two modes move focus, which SC 1.4.13 forbids
+    // while a tooltip is open, so there the dismissal has the key to itself.
     if (mode === "expanded") {
       control.toggleExpanded();
       document.querySelector<HTMLElement>('[data-testid="qcms-assistant-expand"]')?.focus();
+      return;
+    }
+    if (tip) return;
+    if (mode === "sheet") {
+      control.close();
       return;
     }
     // In the dock, Escape moves focus back to the page and the dock stays open. The
