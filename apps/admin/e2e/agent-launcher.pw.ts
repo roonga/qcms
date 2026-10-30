@@ -4,6 +4,7 @@ import type { Page } from "@playwright/test";
 import { expect, test } from "../../portal/e2e/support/gates.js";
 
 import { createTestAdmin, uniqueAdminEmail } from "./support/admin-account.js";
+import { chooseEnvironment } from "./support/environment.js";
 import { enrollNewAdmin, fillStable, signInWithTotp } from "./support/flow.js";
 import { submitResponse } from "./support/ops.js";
 import { waitForHydration } from "./support/hydration.js";
@@ -476,10 +477,12 @@ test("carries the builder's turns across the form's subtree and starts fresh out
   await signInWithTotp(page, EMAIL, totpSecret);
   await page.setViewportSize({ width: WIDE, height: 900 });
   await page.goto(`/forms/${FORM_ID}`);
+  // The draft is the test environment's, so the builder is only mounted there.
+  await chooseEnvironment(page, "test");
   await open(page);
 
   // The builder's own panel is the dock's body here, so its composer is the one to type in.
-  const hosted = page.locator("#qcms-assist-composer");
+  const hosted = page.getByTestId("qcms-assist-input").locator("textarea");
   await fillStable(hosted, "#qcms-fake:no-proposal what is on this screen");
   await page.getByTestId("qcms-assist-send").locator("button").click();
   await expect(page.getByTestId("qcms-assist-conversation")).toContainText("more detail");
@@ -539,11 +542,14 @@ test("keeps the dock the height of the viewport, with the composer inside it", a
   await signInWithTotp(page, EMAIL, totpSecret);
   await page.setViewportSize({ width: WIDE, height: 800 });
   await page.goto(`/forms/${FORM_ID}`);
+  await chooseEnvironment(page, "test");
   await open(page);
 
   const geometry = await page.evaluate(() => {
     const dock = document.getElementById("qcms-assistant-panel")?.getBoundingClientRect();
-    const composer = document.getElementById("qcms-assist-composer")?.getBoundingClientRect();
+    const composer = document
+      .querySelector("#qcms-assist-composer, #qcms-assistant-composer")
+      ?.getBoundingClientRect();
     return {
       dock: Math.round(dock?.height ?? 0),
       composerBottom: Math.round(composer?.bottom ?? 0),

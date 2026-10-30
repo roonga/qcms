@@ -23,6 +23,8 @@ const HOVER_CLOSE_DELAY_MS = 200;
  */
 export function useAssistTip(): {
   readonly open: boolean;
+  /** Close it now, for a control whose press leaves the pointer resting on it. */
+  readonly dismiss: () => void;
   readonly hover: {
     readonly onMouseEnter: () => void;
     readonly onMouseLeave: () => void;
@@ -58,6 +60,9 @@ export function useAssistTip(): {
 
   return {
     open,
+    dismiss: () => {
+      setDismissed(true);
+    },
     hover: {
       onMouseEnter: () => {
         clearTimeout(closeTimer.current);

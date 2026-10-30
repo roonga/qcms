@@ -36,7 +36,12 @@ export function AssistantButton({
           aria-label={t("agent.open")}
           aria-expanded={open}
           aria-controls={PANEL_ID}
-          onClick={onPress}
+          onClick={() => {
+            // The pointer rests on this button after the press and the panel is now what the
+            // reader is looking at, so the tooltip goes rather than hanging over it.
+            tip.dismiss();
+            onPress();
+          }}
           {...tip.control}
         >
           <AssistMark size={24} working={working} />

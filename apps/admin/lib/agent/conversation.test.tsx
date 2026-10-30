@@ -34,6 +34,18 @@ function Probe({ append }: { readonly append?: readonly AgentTurnRecord[] }) {
       </button>
       <button
         type="button"
+        data-testid="append-twice"
+        onClick={() => {
+          // One handle, two appends: a panel records the user's turn and then the reply it
+          // streamed, both from the handle its send started with.
+          conversation.append([{ role: "user", content: "ask" }]);
+          conversation.append([{ role: "assistant", content: "answer" }]);
+        }}
+      >
+        append twice
+      </button>
+      <button
+        type="button"
         data-testid="restart"
         onClick={() => {
           conversation.restart();
@@ -95,6 +107,12 @@ describe("the conversation context", () => {
     expect(second.turns).toBe("");
 
     view.unmount();
+  });
+
+  it("keeps both turns when a panel appends twice from the handle it started with", () => {
+    render(at("/forms/frm_d"));
+    fireEvent.click(screen.getByTestId("append-twice"));
+    expect(screen.getByTestId("turns").textContent).toBe("ask|answer");
   });
 
   it("replays the prose and never the panel's own outcome line", () => {

@@ -76,8 +76,12 @@ export function ConversationProvider({
       subject,
       id: existing.id,
       turns: existing.turns,
+      // Read back from the map rather than from this handle: a panel that appends twice in
+      // one turn holds the handle it started with, and appending onto that handle's own
+      // snapshot would drop whichever turn was recorded first.
       append: (turns) => {
-        replace({ id: existing.id, turns: [...existing.turns, ...turns] });
+        const current = held.current.get(subject) ?? existing;
+        replace({ id: current.id, turns: [...current.turns, ...turns] });
       },
       restart: () => {
         replace({ id: mint(), turns: [] });
