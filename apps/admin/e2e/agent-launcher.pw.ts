@@ -129,9 +129,11 @@ async function tracks(
   });
 }
 
+/** Open the panel if it is not already: the panel cookie carries an open panel across a
+ * navigation, and a second press on the top-bar button would close it. */
 async function open(page: Page): Promise<void> {
   await waitForHydration(page);
-  await button(page).click();
+  if (!(await panel(page).isVisible())) await button(page).click();
   await expect(panel(page)).toBeVisible();
 }
 
