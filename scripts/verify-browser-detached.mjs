@@ -978,6 +978,23 @@ export function checkoutRootOf(directory, hasGit = gitEntryExists) {
 export const SUPERVISOR_ARGV_MARK = "verify-browser-detached.mjs supervise";
 
 /**
+ * One process's argv, flattened and UNCAPPED, for matching {@link SUPERVISOR_ARGV_MARK}.
+ * {@link commandLineOf} is the capped form, and in a deeply nested worktree the mark sits
+ * past that cap, so matching on it would silently answer "not a supervisor".
+ *
+ * @param {number} pid
+ * @param {(pid: number) => string | undefined} [read]
+ * @returns {string | undefined}
+ */
+export function supervisorArgvOf(pid, read = readProcCmdline) {
+  if (!Number.isInteger(pid) || pid < 1) return undefined;
+  const raw = read(pid);
+  if (raw === undefined) return undefined;
+  const flat = flattenArgv(raw);
+  return flat === "" ? undefined : flat;
+}
+
+/**
  * Matched on argv rather than on a pid file: reading every lane's scratch directory is
  * the shared-state trap, and a stale pid file there is indistinguishable from a live run.
  *
@@ -1419,7 +1436,7 @@ export const DEFAULT_STOP_TIMEOUT_MS = 60_000;
  * group, releases the seat by port and writes the rc file. Only pids this run recorded are
  * signalled, and a runner already gone has its recorded suite group signalled instead.
  *
- * @param {{ directory: string; out?: (line: string) => void; kill?: (pid: number, signal: NodeJS.Signals) => void; alive?: (pid: number) => boolean; pollMs?: number; timeoutMs?: number }} options
+ * @param {{ directory: string; out?: (line: string) => void; kill?: (pid: number, signal: NodeJS.Signals) => void; alive?: (pid: number) => boolean; commandLine?: (pid: number) => string | undefined; pollMs?: number; timeoutMs?: number }} options
  * @returns {Promise<number>}
  */
 export async function stopRun({
@@ -1431,6 +1448,7 @@ export async function stopRun({
     process.kill(pid, signal);
   },
   alive = isAlive,
+  commandLine = supervisorArgvOf,
   pollMs = DEFAULT_POLL_MS,
   timeoutMs = DEFAULT_STOP_TIMEOUT_MS,
 }) {
@@ -1439,24 +1457,25 @@ export async function stopRun({
     pid: join(directory, RUN_FILES.pid),
     rc: join(directory, RUN_FILES.rc),
   };
+
+  // Before anything is signalled, and before the pid is even read: a finished run leaves
+  // its pid file behind, so a pid the kernel has since handed to somebody else would be
+  // signalled and the previous run's rc read back as this stop's own result.
+  if (readRc(paths.rc) !== undefined) {
+    out(`the run in ${directory} has already finished; nothing to stop.`);
+    return 0;
+  }
+
   const pid = readPid(paths.pid);
   const group = readSuiteGroup(paths.pid);
 
   if (pid === undefined) {
-    if (readRc(paths.rc) !== undefined) {
-      out(`the run in ${directory} has already finished; nothing to stop.`);
-      return 0;
-    }
     out(`no detached browser run recorded in ${directory}`);
     out("Start one with: QCMS_PORT_SEAT=<0-9> pnpm verify:browser:detached");
     return EXIT_USAGE;
   }
 
   if (!alive(pid)) {
-    if (readRc(paths.rc) !== undefined) {
-      out(`the run in ${directory} has already finished; nothing to stop.`);
-      return 0;
-    }
     out(`the runner (pid ${String(pid)}) is gone and recorded no rc, so it was SIGKILLed.`);
     if (group === undefined) {
       out("It recorded no suite group either, so there is nothing left to signal here.");
@@ -1472,6 +1491,17 @@ export async function stopRun({
       }
     }
     out("The seat was not released by the runner, so re-check it before the next run.");
+    return EXIT_STOP_INCOMPLETE;
+  }
+
+  // The pid file records a number, and a number outlives the process it named. So the
+  // argv is checked before the signal: a live stranger on a recycled pid must not be hit.
+  const argv = commandLine(pid);
+  if (argv === undefined || !argv.includes(SUPERVISOR_ARGV_MARK)) {
+    out(`pid ${String(pid)} is alive but is not this lane's detached runner.`);
+    out(`  recorded pid:  ${String(pid)}  (${paths.pid})`);
+    out(`  its command:   ${argv === undefined ? "unreadable" : boundedLine(argv)}`);
+    out("Nothing was signalled: the recorded pid belongs to something else now.");
     return EXIT_STOP_INCOMPLETE;
   }
 

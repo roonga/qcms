@@ -5,14 +5,7 @@ import { afterEach, describe, expect, it, vi } from "vitest";
 import { ThemeToggle } from "./theme-toggle.tsx";
 import { APPEARANCE_CLASSES, MODE_COOKIE } from "../lib/appearance.ts";
 
-/**
- * The appearance panel's open and close bookkeeping.
- *
- * The panel closes itself when focus leaves it, which it has to measure on the next tick
- * because a press inside reports focus passing through nothing. That deferred check is
- * what is pinned here: the palette and the keyboard model belong to
- * `apps/admin/e2e/appearance.pw.ts`, which needs a real compositor and real focus.
- */
+// The palette and the keyboard model need a real compositor: `e2e/appearance.pw.ts`.
 
 function toggle() {
   return render(
@@ -48,10 +41,6 @@ describe("the appearance panel's close-on-blur check", () => {
   });
 
   it("survives a reopen that beats the previous close's deferred check", () => {
-    // Closing moves focus back to the trigger, so the check sees focus outside the panel
-    // and would close it - except that by the time it runs the operator may have pressed
-    // the trigger again. It reopened and then shut on its own, which is the appearance
-    // keyboard spec's first-attempt failure on a loaded host.
     vi.useFakeTimers();
     toggle();
     fireEvent.click(trigger());

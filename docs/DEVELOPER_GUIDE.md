@@ -301,10 +301,14 @@ If the answers say load, say so in the report with the numbers and re-run on a q
 | `pnpm verify:browser`                    | no, refused with a message | WSL or the dev container |
 | `pnpm verify:browser:detached` / `:wait` | no, refused with a message | WSL or the dev container |
 | `QCMS_PORT_SEAT=<0-9> pnpm up:e2e`       | no, refused with a message | WSL or the dev container |
+| `pnpm test:e2e` / `:headed`              | no, refused with a message | WSL or the dev container |
+| `pnpm docker:up` / `docker:down`         | yes                        | anywhere                 |
 
 The three are POSIX by construction, not by accident. The detached runner puts the suite in a session of its own with `setsid` so it outlives the shell the harness kills, signals a **process group** to stop a suite and its dev servers together, and reads `/proc/<pid>/cwd` to say which worktree owns a port that is already held. Windows has no equivalent of any of the three, so `verify:browser:detached` **fails fast** on `win32` with a message naming WSL rather than failing several frames down on a missing `setsid`.
 
-**All three now refuse on `win32` rather than running unguarded** (issue #1138). The seat guard identifies a port's holder through `/proc`, so on Windows it finds no occupant: the refusals that protect a lane from adopting an orphan dev server or tearing down a neighbour's Compose stack would all be silently inert. `assertPosixHost` in `scripts/ports.mjs` is the one refusal, called from the browser harness preflight and from `scripts/compose-e2e.mjs`.
+**A gate that takes a browser seat refuses on `win32` rather than running unguarded** (issue #1138). The seat guard identifies a port's holder through `/proc`, so on Windows it finds no occupant and the refusals that keep a lane from adopting an orphan dev server, or from tearing down a neighbour's Compose stack, are all silently inert. `assertPosixHost` in `scripts/ports.mjs` is the one refusal, called from the browser harness preflight and, for the suite-driving modes only, from `scripts/compose-e2e.mjs`.
+
+**`pnpm docker:up` and `pnpm docker:down` stay available on Windows** (Code Owner, 2026-10-30). They manage the stack and run no suite, so refusing them would leave an operator on Windows unable to clear a stack they had started. The seat rule still applies to them: `down` runs `down --volumes --remove-orphans` under the seat's project name, and with the occupancy half of the guard blind there, the seat you name is the only thing keeping you off another lane's stack.
 
 **WSL2 Ubuntu is the supported route** (Node 24, pnpm 11, per the `packageManager` pin), and the dev container is the canonical one (ADR-29). Keep a separate worktree on the Linux side rather than reaching across to the Windows filesystem: the cross-filesystem path is slow enough to change how the suites behave, and `node_modules` cannot be shared between the two platforms in any case.
 
@@ -317,6 +321,10 @@ pnpm install --frozen-lockfile && pnpm build && pnpm verify
 ```
 
 **Docker Desktop is shared, so port seats are shared across both sides.** A seat is a machine-wide claim whichever side of the boundary asked for it, and the Windows and WSL views of the Docker daemon are the same daemon. Pick a seat from `docs/PORTS.md` the way a second lane on one host would, and never run `pnpm dev:down` while another seat is live. The occupancy half of the seat guard reads `/proc`, so it reports a collision only for the run that asked from the Linux side; a Windows run is refused outright rather than left unguarded.
+
+**Every lane folder keeps its branch checked out: no detached lanes** (Code Owner, 2026-10-30). A lane directory is created with `git worktree add <dir> -b <branch> origin/main`, or on an existing branch, and it stays on that branch for its whole life. The reason is the sweep: a branch can be asked whether its PR merged, and a detached HEAD cannot, because a squash merge leaves the lane's tip outside `origin/main`'s history, so nothing distinguishes finished work from unfinished. A folder found detached is therefore unsweepable by merge status and falls back to the age rule below.
+
+**Sweeping `~/src/qcms-wt/`.** `pnpm worktrees:prune` does **not** cover it: that sweep is scoped to `.claude/worktrees` inside the checkout. For the WSL lane root the rule is: remove a folder only when `git status --porcelain` in it is empty, including untracked files, and nothing under it has been touched for 14 days or more (ignore `node_modules` when reading mtimes). Never a folder with work in progress, and never one another session is using. Remove with `git worktree remove <dir>` from the owning repository, then `git worktree prune`.
 
 **Run `pnpm build` once in a fresh worktree before `test:tooling:no-build`.** That script's name is accurate - it skips the build - and several tooling tests read `dist/`, so in a worktree that has never been built they fail for a missing artifact rather than for anything the branch did.
 

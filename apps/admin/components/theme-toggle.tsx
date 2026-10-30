@@ -147,10 +147,7 @@ export function ThemeToggle({
    * Focus is not contained, so tabbing past the last control has to close the panel.
    * Measured on the next tick from `activeElement`, because a press inside reports focus
    * passing through nothing, and the body means focus was dropped rather than moved out.
-   *
-   * A panel no longer in the document has already closed, and the blur that scheduled
-   * this was that close moving focus to the trigger. Acting on it would shut a panel the
-   * operator reopened in between, which is what a late tick under load allows.
+   * A detached panel is one already closed, and acting on its blur would shut a reopen.
    */
   const onPanelBlur = (event: React.FocusEvent<HTMLDivElement>): void => {
     const panel = event.currentTarget;

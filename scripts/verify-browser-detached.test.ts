@@ -38,6 +38,7 @@ import {
   readRc,
   readSuiteGroup,
   relayedSignal,
+  SUPERVISOR_ARGV_MARK,
   releaseLines,
   stopRun,
   signalProvenance,
@@ -190,6 +191,59 @@ describe("stopRun", () => {
     SPAWN_BUDGET_MS,
   );
 
+  it("reads the rc before the pid, so a recycled pid is never signalled", async () => {
+    // A finished run leaves its pid file. If the kernel has handed that number to
+    // somebody else, signalling it first and reading the old rc afterwards reports a
+    // clean stop for a process this lane never owned.
+    const directory = temporaryDirectory();
+    writeFileSync(join(directory, RUN_FILES.pid), "4242' + esc + '", "utf8");
+    writeFileSync(join(directory, RUN_FILES.rc), "EXIT=0' + esc + '", "utf8");
+    const signalled: number[] = [];
+    const code = await stopRun({
+      directory,
+      alive: () => true,
+      kill: (pid) => signalled.push(pid),
+      out: () => {},
+    });
+    expect(code).toBe(0);
+    expect(signalled, "a live recycled pid must not be signalled").toEqual([]);
+  });
+
+  it("refuses a live pid whose argv is not this lane's runner", async () => {
+    const directory = temporaryDirectory();
+    writeFileSync(join(directory, RUN_FILES.pid), "4242' + esc + '", "utf8");
+    const lines: string[] = [];
+    const signalled: number[] = [];
+    const code = await stopRun({
+      directory,
+      alive: () => true,
+      commandLine: () => "/usr/bin/postgres -D /var/lib/postgresql/data",
+      kill: (pid) => signalled.push(pid),
+      out: (line) => lines.push(line),
+    });
+    expect(code).toBe(EXIT_STOP_INCOMPLETE);
+    expect(signalled).toEqual([]);
+    expect(lines.join("' + esc + '")).toContain("is not this lane's detached runner");
+    expect(lines.join("' + esc + '")).toContain("postgres");
+  });
+
+  it("refuses a live pid whose argv cannot be read at all", async () => {
+    const directory = temporaryDirectory();
+    writeFileSync(join(directory, RUN_FILES.pid), "4242' + esc + '", "utf8");
+    const signalled: number[] = [];
+    const lines: string[] = [];
+    const code = await stopRun({
+      directory,
+      alive: () => true,
+      commandLine: () => undefined,
+      kill: (pid) => signalled.push(pid),
+      out: (line) => lines.push(line),
+    });
+    expect(code).toBe(EXIT_STOP_INCOMPLETE);
+    expect(signalled).toEqual([]);
+    expect(lines.join("' + esc + '")).toContain("unreadable");
+  });
+
   it("reports a finished run rather than signalling anything", async () => {
     const directory = temporaryDirectory();
     writeFileSync(join(directory, RUN_FILES.rc), "EXIT=0\n", "utf8");
@@ -239,6 +293,7 @@ describe("stopRun", () => {
     const code = await stopRun({
       directory,
       alive: () => true,
+      commandLine: () => `node /repo/scripts/${SUPERVISOR_ARGV_MARK} --log /x`,
       kill: () => {},
       pollMs: 5,
       timeoutMs: 40,

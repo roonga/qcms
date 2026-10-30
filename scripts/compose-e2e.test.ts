@@ -9,6 +9,7 @@ import { afterAll, describe, expect, it } from "vitest";
 import {
   composeEnvironmentOverrides,
   harnessSecrets,
+  needsPosixHost,
   pnpmInvocation,
   joinComposeNetwork,
   soleNetworkName,
@@ -292,5 +293,21 @@ describe("pnpmInvocation", () => {
       command: "pnpm.cmd",
       prefix: [],
     });
+  });
+});
+
+describe("needsPosixHost", () => {
+  it("guards the modes that drive the suite and take a browser seat", () => {
+    for (const mode of ["test", "test-headed", "run", "run-headed"]) {
+      expect(needsPosixHost(mode), mode).toBe(true);
+    }
+    // An unrecognised mode reaches the usage error, and is guarded on the way.
+    expect(needsPosixHost(undefined)).toBe(true);
+    expect(needsPosixHost("nonsense")).toBe(true);
+  });
+
+  it("leaves stack management available, so Windows can still clear a stack", () => {
+    expect(needsPosixHost("up")).toBe(false);
+    expect(needsPosixHost("down")).toBe(false);
   });
 });
