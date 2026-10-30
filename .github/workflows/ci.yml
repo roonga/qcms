@@ -553,38 +553,14 @@ jobs:
   # still reported. It has a second gear the others do not - see `admin_only` on the
   # `changes` job and the two mutually exclusive run steps below (issue #696).
   #
-  # IT RUNS AS A SHARD MATRIX AND THE REQUIRED CONTEXT IS THE AGGREGATE BELOW
-  # (issue #1192). The suite reached 46.1 minutes of Playwright time on `workers: 1`
-  # against a 60-minute budget, which is the "split the suite" the paragraph above
-  # promised rather than another raised line. `--shard` partitions Playwright's test
-  # GROUPS, a group is one file per project while `fullyParallel` is false, so a
-  # serial `describe` is never split and the per-file ordering inside a shard is the
-  # ordering the unsharded run had.
-  #
-  # Balance is by TEST COUNT in project-then-file order, not by duration, and this
-  # suite's per-test cost is not uniform: `admin-chromium` is 36.3 of those 46.1
-  # minutes over 294 of the 523 tests, the three portal projects 9.3 minutes over the
-  # other 229. So the later shards are admin-heavy and the earlier ones finish sooner.
-  # Measured at four shards: 5.4, 10.8, 17.8 and 11.9 minutes of Playwright time over
-  # 131, 141, 136 and 115 tests. The number that matters is the slowest shard, because
-  # that is the wait, and 17.8 was over the fifteen this was aiming at - hence five,
-  # over 106, 110, 108, 102 and 97 tests. Two runs of those five: 6.1, 5.5, 13.5, 13.7,
-  # 12.8 and then 6.2, 3.7, 17.0, 13.8, 8.6, so a quarter of runner-to-runner variance
-  # on the same slice, and 15.9 then 19.1 minutes from the first shard starting to the
-  # aggregate reporting. The unsharded job was p50 39.5 / max 49.3 before this.
-  #
-  # Each shard is a whole job: its own checkout, install, build, Chromium, mirrored
-  # Postgres image and globalSetup, about 1.8 minutes of it before the first test.
-  # Sharing one build was considered and declined: it would mean uploading `dist/`
-  # plus both `.next/` trees and a serial job ahead of all five, against a setup cost
-  # that is already a small part of each leg.
+  # Sharded: the required context is the `browser-e2e` aggregate job below, not these
+  # legs. `--shard` splits Playwright test groups (one file per project), so a serial
+  # `describe` is never split. Balance is by test count, not duration, so later shards
+  # run longer.
   browser-e2e-shard:
     name: browser-e2e (shard ${{ matrix.shard }}/${{ strategy.job-total }})
     runs-on: ubuntu-latest
-    # Off the measurement, not off the old 60: the slowest shard is about 13 minutes
-    # of Playwright plus 2 of setup, so this is a little over 2x it. The unsharded job
-    # had drifted to 1.2x its own max, which is what makes a kill at the cap and a red
-    # suite hard to tell apart.
+    # About 1.5x the slowest measured shard.
     timeout-minutes: 30
     needs: changes
     if: ${{ !cancelled() }}
@@ -598,8 +574,6 @@ jobs:
     env:
       PLAN_ONLY: ${{ needs.changes.outputs.plan_only }}
       ADMIN_ONLY: ${{ needs.changes.outputs.admin_only }}
-      # `strategy.job-total` rather than a second literal count, so the matrix list
-      # above is the only place the shard count is written.
       SHARD: ${{ matrix.shard }}
       SHARD_TOTAL: ${{ strategy.job-total }}
     steps:
@@ -677,11 +651,7 @@ jobs:
       # server logs, uploaded only when the job fails. The shard is in the name
       # because `actions/upload-artifact` v4 and later refuse a duplicate name, so
       # without it a second red shard would lose its upload.
-      #
-      # Deliberately per-shard rather than a blob report merged in the aggregate: the
-      # aggregate below publishes the required context, and anything it does beyond
-      # reading four results is a new way for `browser-e2e` to go red over something
-      # that is not a rendered surface.
+      # No HTML reporter is configured, so each shard uploads its own failure artifact.
       - uses: actions/upload-artifact@v7
         if: ${{ failure() && env.PLAN_ONLY != 'true' }}
         with:
@@ -692,23 +662,12 @@ jobs:
           retention-days: 7
           if-no-files-found: warn
 
-  # THE REQUIRED CONTEXT (issue #1192). `protect-main` requires exactly four checks
-  # and has no bypass actors, so the name of this job is load-bearing in the way the
-  # paragraph above describes: it is `browser-e2e` because the ruleset says
-  # `browser-e2e`, and sharding the suite was allowed to change how the work is done
-  # and not what reports. Renaming this job is still a branch-protection change.
-  #
-  # It must be impossible for this to pass while a shard did not. `needs.<job>.result`
-  # on a matrix job is the aggregate of every leg: `success` only when all of them
-  # succeeded, and `failure`, `cancelled` or `skipped` otherwise. So the assertion is
-  # one string comparison, and the default is to fail - an unrecognised result is a
-  # red context, not a green one.
-  #
-  # `!cancelled()` rather than `always()`, matching the four jobs above: a context
-  # that reports nothing strands the pull request at "Expected - waiting for status"
-  # forever, and a context reported as `skipped` counts as SATISFIED, which is worse.
-  # On the plan-only lane the shards report green without running the suite, so this
-  # reports green too, which is the lane working rather than a hole in it.
+  # THE REQUIRED CONTEXT. `protect-main` requires exactly four checks and has no
+  # bypass actors, so the name of this job is load-bearing and renaming it is a
+  # branch-protection change.
+  # `needs.<job>.result` on a matrix is `success` only when every leg succeeded, so an
+  # unrecognised result fails. `!cancelled()` rather than `always()`: a context that
+  # reports nothing strands the PR, and a `skipped` one counts as satisfied.
   browser-e2e:
     runs-on: ubuntu-latest
     # A checkout-free one-line comparison. Five minutes is a hang, not a slow run.
