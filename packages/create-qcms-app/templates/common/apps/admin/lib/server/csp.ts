@@ -33,15 +33,6 @@
  * enrollment screen, which is generated in-process and never fetched.
  *
  * The admin is same-origin with its own BFF and sends NO CORS headers, ever (SEC).
- *
- * ## `'unsafe-eval'` in development only
- *
- * `next dev` compiles with `eval`-based sourcemaps and its Fast Refresh client evaluates
- * the modules it swaps in, so a policy without it blocks the reload machinery rather than
- * the page: the browser refuses every update, Fast Refresh retries, and the loop logs
- * `eval() is not supported` without end. {@link devScriptSrc} is the whole of that
- * relaxation and `NODE_ENV` is the whole of its condition, so a production policy is
- * byte-identical to the one that shipped before it (`csp.test.ts` asserts both).
  */
 export function buildAdminCsp(nonce: string): string {
   const directives = [
@@ -62,10 +53,8 @@ export function buildAdminCsp(nonce: string): string {
 }
 
 /**
- * Read per call rather than captured at import, so a test can state both policies.
- *
- * `NODE_ENV` is set by the Next CLI itself (`development` under `next dev`, `production`
- * under `next build`), so neither a deployment nor an operator can turn this on.
+ * `next dev` needs eval for sourcemaps and Fast Refresh. `next build` inlines `NODE_ENV` as
+ * `production`, so built output never carries it. Read per call so a test can state both.
  */
 function devScriptSrc(): string {
   return process.env.NODE_ENV === "development" ? " 'unsafe-eval'" : "";

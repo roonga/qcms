@@ -53,13 +53,7 @@ let totpSecret = "";
 /** Read off the one-time display. Each is usable exactly once. */
 let recoveryCodes: string[] = [];
 
-/**
- * The page's own alert, not Next's route announcer.
- *
- * Next mounts `__next-route-announcer__` - a second `role="alert"` - outside `main` as
- * the app hydrates, so an unscoped alert locator is a race against hydration rather
- * than an assertion (`a11y-axe.pw.ts` records the day it resolved to two).
- */
+/** Scoped to `main`: Next's route announcer is a second `role="alert"` outside it. */
 function authAlert(page: Page): Locator {
   return page.getByRole("main").getByRole("alert");
 }

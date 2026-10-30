@@ -20,7 +20,7 @@ disagree with the list the same caller can open. It authorises nothing and write
 audit row: an aggregate is not a read of anybody's answers, and showing one is the
 caller's to authorise per form and environment.
 
-`lastReleaseAtByForm` answers when each form was last released to any environment, and
+`lastReleaseAtByForm` answers when each form was last released to one environment, and
 `publishedTitlesByForm` answers each named form's newest published title. Both are one
 query for a whole page. The title read cannot reach an open draft, which is the point
 rather than an optimisation: a caller who may be told what a form is called may not be

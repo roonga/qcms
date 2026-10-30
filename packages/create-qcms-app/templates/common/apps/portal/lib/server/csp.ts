@@ -24,9 +24,8 @@ export function buildCsp(provider: ChallengeProvider, nonce: string): string {
   return directives.join("; ");
 }
 
-// `next dev` compiles with `eval`-based sourcemaps and its Fast Refresh client evaluates
-// what it swaps in, so without this the reload machinery loops instead of the page loading.
-// Read per call rather than captured at import, so a test can state both policies.
+// `next dev` needs eval for sourcemaps and Fast Refresh. `next build` inlines `NODE_ENV` as
+// `production`, so built output never carries it. Read per call so a test can state both.
 function devScriptSrc(): string {
   return process.env.NODE_ENV === "development" ? " 'unsafe-eval'" : "";
 }
