@@ -241,6 +241,23 @@ export async function publishedTitlesByForm(
   return new Map(rows.map((row) => [row.formId, row.title]));
 }
 
+/** The newest published version number of each named form, in one query. */
+export async function latestVersionsByForm(
+  exec: Executor,
+  formIds: readonly FormId[],
+): Promise<Map<FormId, number>> {
+  if (formIds.length === 0) return new Map();
+  const rows = await exec
+    .selectDistinctOn([formVersions.formId], {
+      formId: formVersions.formId,
+      version: formVersions.version,
+    })
+    .from(formVersions)
+    .where(inArray(formVersions.formId, [...formIds]))
+    .orderBy(formVersions.formId, desc(formVersions.version));
+  return new Map(rows.map((row) => [row.formId, row.version]));
+}
+
 /** All versions of a form, newest first. */
 export async function listFormVersions(exec: Executor, formId: FormId): Promise<FormVersionRow[]> {
   return exec

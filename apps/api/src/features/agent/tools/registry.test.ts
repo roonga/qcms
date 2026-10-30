@@ -3,18 +3,18 @@ import { describe, expect, it } from "vitest";
 import { parseFormDefinition, type FormDefinition } from "@roonga/qcms-core";
 
 import { createNullLogger } from "../../../logger.js";
-import { recordingLogger, validEnv } from "../../../test-support.js";
+import { builderTurnContext, recordingLogger, validEnv } from "../../../test-support.js";
 import { loadConfig } from "../../../config.js";
 import { aiSdkDraftAssistant, selectDraftAssistant } from "../assistant.js";
 import { fakeAssistantModel } from "../fake-model.js";
 import { collectRefs } from "./tool-schema.js";
 import {
-  ASSIST_TOOL_NAMES,
-  assistToolJsonSchemas,
-  assistToolSet,
+  AGENT_TOOL_NAMES,
+  agentToolJsonSchemas,
+  agentToolSet,
   createProposalState,
-  isAllowedToolName,
-  runAssistTool,
+  isAgentToolName,
+  runAgentTool,
   ToolNotAllowedError,
 } from "./registry.js";
 import type { AssistContext, AssistEvent } from "../types.js";
@@ -52,9 +52,10 @@ function contextFixture(message: string): AssistContext {
   };
 }
 
-describe("the assist tool allowlist", () => {
-  it("is exactly the four authoring verbs", () => {
-    expect([...ASSIST_TOOL_NAMES].sort()).toEqual([
+describe("the agent tool registry", () => {
+  it("is the four authoring verbs and the preview projection, and nothing else", () => {
+    expect([...AGENT_TOOL_NAMES].sort()).toEqual([
+      "project_draft",
       "propose_draft",
       "propose_questions",
       "search_question_library",
@@ -62,9 +63,17 @@ describe("the assist tool allowlist", () => {
     ]);
   });
 
-  it("offers the provider nothing beyond the allowlist", () => {
-    const offered = Object.keys(assistToolSet(contextFixture("hi"), createProposalState()));
-    expect([...offered].sort()).toEqual([...ASSIST_TOOL_NAMES].sort());
+  it("offers the provider the current screen's list and nothing else", () => {
+    const offered = Object.keys(
+      agentToolSet(builderTurnContext(contextFixture("hi")), createProposalState()),
+    );
+    // The builder's four: `project_draft` is registered and belongs to another screen.
+    expect([...offered].sort()).toEqual([
+      "propose_draft",
+      "propose_questions",
+      "search_question_library",
+      "validate_draft",
+    ]);
     for (const forbidden of FORBIDDEN) {
       expect(offered).not.toContain(forbidden);
     }
@@ -74,19 +83,19 @@ describe("the assist tool allowlist", () => {
     const ctx = contextFixture("hi");
     const state = createProposalState();
     for (const forbidden of FORBIDDEN) {
-      expect(isAllowedToolName(forbidden)).toBe(false);
-      await expect(runAssistTool(forbidden, {}, ctx, state)).rejects.toBeInstanceOf(
-        ToolNotAllowedError,
-      );
+      expect(isAgentToolName(forbidden)).toBe(false);
+      await expect(
+        runAgentTool(forbidden, {}, builderTurnContext(ctx), state),
+      ).rejects.toBeInstanceOf(ToolNotAllowedError);
     }
   });
 
   it("still dispatches an allowlisted verb (so the refusal above is not vacuous)", async () => {
     const ctx = contextFixture("hi");
     const state = createProposalState();
-    await expect(runAssistTool("validate_draft", {}, ctx, state)).resolves.toMatchObject({
-      valid: true,
-    });
+    await expect(
+      runAgentTool("validate_draft", {}, builderTurnContext(ctx), state),
+    ).resolves.toMatchObject({ valid: true });
   });
 
   it("hands the model the warnings without letting them decide publishability", async () => {
@@ -100,11 +109,9 @@ describe("the assist tool allowlist", () => {
       validate: () => Promise.resolve({ issues: [], warnings: [warning] }),
     };
     const state = createProposalState();
-    await expect(runAssistTool("validate_draft", {}, ctx, state)).resolves.toEqual({
-      valid: true,
-      issues: [],
-      warnings: [warning],
-    });
+    await expect(
+      runAgentTool("validate_draft", {}, builderTurnContext(ctx), state),
+    ).resolves.toEqual({ valid: true, issues: [], warnings: [warning] });
   });
 });
 
@@ -120,7 +127,7 @@ describe("a scripted rogue model", () => {
     });
     const events: AssistEvent[] = [];
     for await (const event of assistant.assist(
-      contextFixture(`#qcms-fake:${script} do it`),
+      builderTurnContext(contextFixture(`#qcms-fake:${script} do it`)),
       new AbortController().signal,
     )) {
       events.push(event);
@@ -179,10 +186,10 @@ describe("the assist context", () => {
           ]),
       },
     };
-    const result = await runAssistTool(
+    const result = await runAgentTool(
       "search_question_library",
       { limit: 5 },
-      ctx,
+      builderTurnContext(ctx),
       createProposalState(),
     );
     expect(JSON.stringify(result)).not.toContain("SECRET-ANSWER-VALUE");
@@ -195,7 +202,7 @@ describe("the configured selector", () => {
     expect(config.agent.provider).toBe("none");
     const events: AssistEvent[] = [];
     for await (const event of selectDraftAssistant(config, createNullLogger()).assist(
-      contextFixture("hi"),
+      builderTurnContext(contextFixture("hi")),
       new AbortController().signal,
     )) {
       events.push(event);
@@ -213,7 +220,7 @@ describe("the configured selector", () => {
     const config = loadConfig(validEnv({ QCMS_FLAG_AGENT_AUTHORING: "fake" }));
     const events: AssistEvent[] = [];
     for await (const event of selectDraftAssistant(config, createNullLogger()).assist(
-      contextFixture("build me something"),
+      builderTurnContext(contextFixture("build me something")),
       new AbortController().signal,
     )) {
       events.push(event);
@@ -228,15 +235,15 @@ describe("the configured selector", () => {
  */
 describe("every emitted tool schema is one a provider can convert", () => {
   it("names every tool in the allowlist and nothing else", async () => {
-    const schemas = await assistToolJsonSchemas();
-    expect(Object.keys(schemas).sort()).toEqual([...ASSIST_TOOL_NAMES].sort());
+    const schemas = await agentToolJsonSchemas();
+    expect(Object.keys(schemas).sort()).toEqual([...AGENT_TOOL_NAMES].sort());
   });
 
   it("resolves every $ref inside the document it ships", async () => {
     // The dangling half of the defect: the conversion hoisted the recursive
     // `Condition` into a block, and a reader that did not carry the block with
     // the schema was left holding a pointer to nothing.
-    const schemas = await assistToolJsonSchemas();
+    const schemas = await agentToolJsonSchemas();
     for (const [name, schema] of Object.entries(schemas)) {
       for (const { ref, resolves } of collectRefs(schema)) {
         expect(resolves, `${name} ships a $ref to ${ref} that resolves to nothing`).toBe(true);
@@ -247,7 +254,7 @@ describe("every emitted tool schema is one a provider can convert", () => {
   it("uses the $defs spelling, never draft-07 definitions", async () => {
     // LM Studio reads `$defs` while Zod writes `definitions`, so the $ref resolves to nothing.
     // A resolve check alone passes on that document; the spelling assertion catches it.
-    const schemas = await assistToolJsonSchemas();
+    const schemas = await agentToolJsonSchemas();
     for (const [name, schema] of Object.entries(schemas)) {
       expect(JSON.stringify(schema), `${name} emits a draft-07 definitions block`).not.toContain(
         '"definitions"',
@@ -258,7 +265,7 @@ describe("every emitted tool schema is one a provider can convert", () => {
   it("ships no reference cycle", async () => {
     // A recursive $ref is unconvertible for providers that resolve by inlining; the AI SDK's
     // Google provider refuses it outright.
-    const schemas = await assistToolJsonSchemas();
+    const schemas = await agentToolJsonSchemas();
     for (const [name, schema] of Object.entries(schemas)) {
       const defs = (schema.$defs ?? {}) as Record<string, unknown>;
       const edges = new Map<string, string[]>();
@@ -288,7 +295,7 @@ describe("every emitted tool schema is one a provider can convert", () => {
   it("still validates against the kernel's own schema, not the bounded one", () => {
     // The tool set's `validate` is the untouched Zod schema, so a draft the bounded document
     // does not describe is still accepted and one the kernel rejects is still rejected.
-    const set = assistToolSet(contextFixture("x"), createProposalState());
+    const set = agentToolSet(builderTurnContext(contextFixture("x")), createProposalState());
     const schema = (set.propose_draft as { inputSchema: { validate?: unknown } }).inputSchema;
     expect(typeof schema.validate).toBe("function");
     const validate = schema.validate as (v: unknown) => { success: boolean };

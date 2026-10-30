@@ -16,7 +16,8 @@ import { loadConfig } from "./config.js";
 import type { Deps } from "./deps.js";
 import { PROD_ENVIRONMENT, type Databases } from "./environments.js";
 import { selectDraftAssistant } from "./features/agent/assistant.js";
-import type { DraftAssistant } from "./features/agent/types.js";
+import { SCREENS } from "./features/agent/screens.js";
+import type { AgentContext, AssistContext, DraftAssistant } from "./features/agent/types.js";
 import { type ChallengeVerifier, nullChallengeVerifier } from "./features/responses/challenge.js";
 import { createJsonLogger, createNullLogger, type Logger } from "./logger.js";
 import { InMemoryRateLimitStore, type RateLimitStore } from "./rate-limit.js";
@@ -267,6 +268,28 @@ export async function seedGrants(
     teamIds[role] = group.teamId;
   }
   return { workspaceId, teamIds };
+}
+
+/**
+ * A turn on the builder screen: the draft ports {@link AssistContext} holds, that screen's
+ * own tool list, and an authorisation that has nothing to refuse because no grant is
+ * resolved in a unit test.
+ */
+export function builderTurnContext(
+  assist: AssistContext,
+  facts: Readonly<Record<string, unknown>> = {},
+): AgentContext {
+  return {
+    screen: "/forms/[formId]",
+    facts,
+    conversation: assist.conversation,
+    maxSteps: assist.maxSteps,
+    tools: SCREENS["/forms/[formId]"].readTools,
+    authorize: () => Promise.resolve(),
+    draft: assist.draft,
+    questionLibrary: assist.questionLibrary,
+    validate: assist.validate,
+  };
 }
 
 export type { MountFlags };

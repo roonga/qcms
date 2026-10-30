@@ -7,14 +7,62 @@ export const AssistTurnBody = z.strictObject({
   content: z.string().min(1).max(8_000),
 });
 
+/**
+ * A screen id and the route's own ids, and nothing else. The browser never sends context
+ * content, so a tampered client cannot hand the model something its screen would not show
+ * (SEC-17).
+ */
+const ScreenParamsBody = z.strictObject({
+  formId: z.string().max(200).optional(),
+  questionId: z.string().max(200).optional(),
+  workspaceId: z.string().max(200).optional(),
+  sessionId: z.string().max(200).optional(),
+  version: z.number().int().min(1).max(1_000_000).optional(),
+  /** The response list's own four filters, none of which takes an answer value. */
+  filters: z
+    .strictObject({
+      version: z.number().int().min(1).max(1_000_000).optional(),
+      from: z.string().max(40).optional(),
+      to: z.string().max(40).optional(),
+      flagged: z.boolean().optional(),
+    })
+    .optional(),
+});
+
+const screenRef = {
+  screen: z.string().min(1).max(200),
+  params: ScreenParamsBody.optional(),
+  /**
+   * Random, minted by the admin when a conversation starts. The key an audited read is
+   * deduplicated by, never an identity: forging one can only add rows.
+   */
+  conversationId: z.string().min(1).max(64),
+};
+
 export const AssistBody = z
   .strictObject({
     // Capped because an unbounded history is an unbounded upstream bill.
     conversation: z.array(AssistTurnBody).min(1).max(40),
     // The draft `updatedAt` the client proposed against; a mismatch is refused.
     clientState: z.string().max(64).optional(),
+    // Optional here and required on the screen route: this route is the builder's own,
+    // so a turn that names no screen is a turn on the builder. A named screen must be one
+    // of this form's subtree.
+    screen: screenRef.screen.optional(),
+    params: screenRef.params,
+    // Absent means no deduplication rather than a shared key, which is the safe
+    // direction: an audited read then writes its row for every turn.
+    conversationId: screenRef.conversationId.optional(),
   })
   .openapi("AssistRequest");
+
+/** A turn on a screen with no form in its route: the screen id decides what it may read. */
+export const ScreenAssistBody = z
+  .strictObject({
+    conversation: z.array(AssistTurnBody).min(1).max(40),
+    ...screenRef,
+  })
+  .openapi("ScreenAssistRequest");
 
 // Opaque so an invalid definition reaches the kernel and earns its 422 rather than a bare 400.
 // Unnamed because this flag-gated route must not register a component into a default build's document.

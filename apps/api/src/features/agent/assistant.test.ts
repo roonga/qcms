@@ -9,7 +9,7 @@ import {
 
 import type { AgentThinking } from "../../config.js";
 import { createNullLogger, type Logger } from "../../logger.js";
-import { recordingLogger } from "../../test-support.js";
+import { builderTurnContext, recordingLogger } from "../../test-support.js";
 import {
   aiSdkDraftAssistant,
   appendTextSegment,
@@ -99,7 +99,7 @@ async function collect(
     logger,
   });
   const events: AssistEvent[] = [];
-  for await (const event of assistant.assist(ctx, new AbortController().signal)) {
+  for await (const event of assistant.assist(builderTurnContext(ctx), new AbortController().signal)) {
     events.push(event);
   }
   return events;
@@ -117,7 +117,7 @@ async function collectWithThinking(
     thinking,
   });
   const events: AssistEvent[] = [];
-  for await (const event of assistant.assist(ctx, new AbortController().signal)) {
+  for await (const event of assistant.assist(builderTurnContext(ctx), new AbortController().signal)) {
     events.push(event);
   }
   return events;

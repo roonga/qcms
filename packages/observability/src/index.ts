@@ -1,4 +1,5 @@
 export {
+  REDACT_FRAGMENTS,
   createJsonLogger,
   createNullLogger,
   type JsonLoggerOptions,
