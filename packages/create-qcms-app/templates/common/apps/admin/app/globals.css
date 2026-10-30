@@ -5078,20 +5078,41 @@ div:has(> [role="dialog"] [data-qcms-dialog="wide"]) {
   border-inline-start: 1px solid var(--color-border);
   background-color: var(--color-surface);
 }
+/* THE CONTENT TRACK'S FLOOR IS `--bp-compact`, NOT ITS CONTENT'S OWN WIDTH. A bare `1fr`
+   takes a min-content minimum, so a wide table sized the column instead of scrolling
+   inside it, and the track then moved whenever the content's intrinsic width did: a shift
+   at hydration rather than the stable first paint the cookie is there to buy. */
 .qcms-shell-body:has(> .qcms-assistant[data-mode="dock"]:not([hidden])) {
   display: grid;
-  grid-template-columns: 1fr auto;
+  grid-template-columns: minmax(var(--bp-compact), 1fr) auto;
 }
 @variant sidebar {
   .qcms-shell-body:has(> .qcms-rail):has(> .qcms-assistant[data-mode="dock"]:not([hidden])) {
-    grid-template-columns: 15rem 1fr auto;
+    grid-template-columns: 15rem minmax(var(--bp-compact), 1fr) auto;
   }
   :root[data-sidebar="hidden"]
     .qcms-shell-body:has(> .qcms-rail):has(> .qcms-assistant[data-mode="dock"]:not([hidden])),
   :root[data-sidebar-hold="hidden"]
     .qcms-shell-body:has(> .qcms-rail):has(> .qcms-assistant[data-mode="dock"]:not([hidden])) {
-    grid-template-columns: 1fr auto;
+    grid-template-columns: minmax(var(--bp-compact), 1fr) auto;
   }
+  /* The Show row spans both tracks there. Left in one it takes the content column's own
+     track, which puts the dock on a second row below the column instead of beside it. */
+  :root[data-sidebar="hidden"]
+    .qcms-shell-body:has(> .qcms-assistant[data-mode="dock"]:not([hidden]))
+    > .qcms-rail__show,
+  :root[data-sidebar-hold="hidden"]
+    .qcms-shell-body:has(> .qcms-assistant[data-mode="dock"]:not([hidden]))
+    > .qcms-rail__show {
+    grid-column: 1 / -1;
+  }
+}
+/* And the column itself takes the track rather than its own content's width, for the same
+   reason: a grid item's automatic minimum is its min-content size, so without this the
+   floor above would be read past and the table would widen the page instead of scrolling
+   inside its own `.qcms-table` box. */
+.qcms-shell-body:has(> .qcms-assistant[data-mode="dock"]:not([hidden])) > #main-content {
+  min-inline-size: 0;
 }
 /* Expanded and the sheet both fill the area below the top bar. The top bar's own height is
    already published as a scroll padding, so the same number positions these. */

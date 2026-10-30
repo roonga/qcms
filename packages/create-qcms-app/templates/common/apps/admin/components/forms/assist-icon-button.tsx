@@ -21,8 +21,9 @@ const HOVER_CLOSE_DELAY_MS = 200;
  *   A short close delay covers the pointer leaving at a corner on its way across.
  * - **Dismissible.** Escape closes it wherever keyboard focus is, not only on the
  *   button: while a tooltip is open, a document listener watches for Escape and is
- *   removed again when it closes. Escape on the focused button stops there; elsewhere
- *   the key goes on to whatever else wants it, and focus never moves.
+ *   removed again when it closes. The key is never consumed, so a host that gives Escape
+ *   a meaning of its own still sees it; keeping focus still is the host's part, and the
+ *   assistant dock's handler holds off while a tooltip is in the document.
  * - **Persistent.** It stays until the pointer and focus have both left, or Escape.
  *
  * The target is 28 CSS px, above SC 2.5.8's 24px floor. Geometry and Escape are proven
@@ -106,10 +107,7 @@ export function AssistIconButton({
           setFocused(false);
         }}
         onKeyDown={(event) => {
-          if (event.key === "Escape" && open) {
-            event.stopPropagation();
-            setDismissed(true);
-          }
+          if (event.key === "Escape" && open) setDismissed(true);
         }}
       >
         <span aria-hidden="true" className="qcms-assist-iconbtn__icon">
