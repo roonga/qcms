@@ -38,7 +38,10 @@ test("the SSR nonce is the nonce the response's own CSP names", async ({ page })
 
   const scriptSrc = /script-src ([^;]*)/.exec(csp ?? "")?.[1] ?? "";
   expect(scriptSrc).not.toContain("'unsafe-inline'");
-  expect(scriptSrc).not.toContain("'unsafe-eval'");
+  // `next dev` compiles with `eval`-based sourcemaps and a production build never does,
+  // so which answer is correct depends on what this harness is serving; the production
+  // string itself is asserted byte-for-byte in `lib/server/csp.test.ts`.
+  expect(scriptSrc.includes("'unsafe-eval'")).toBe(process.env["QCMS_HARNESS_BUILD"] !== "1");
 
   await expect(page.locator("html")).toHaveClass(/\b(light|dark)\b/);
   const applied = await page.evaluate(() => {
