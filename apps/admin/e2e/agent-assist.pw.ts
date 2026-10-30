@@ -377,7 +377,11 @@ test("Stop ends a running turn with no error shown (exit criterion 5)", async ({
 
   const stop = page.getByTestId("qcms-assist-stop").locator("button");
   await expect(stop).toBeVisible({ timeout: 30_000 });
-  await stop.click();
+  // From the keyboard, because a step this script keeps appending moves the control under
+  // the pointer: a click waits for it to hold still and the script is written never to let
+  // it. Stopping a turn is a keyboard path in its own right.
+  await stop.focus();
+  await page.keyboard.press("Enter");
 
   await expect(page.getByTestId("qcms-assist-stop")).toHaveCount(0, { timeout: 30_000 });
   await expect(page.getByTestId("qcms-assist-live")).toHaveCount(0);
