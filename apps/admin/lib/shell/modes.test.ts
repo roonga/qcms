@@ -135,6 +135,7 @@ describe("landing rules", () => {
 
   it("lands a caller with no grant on My access rather than fabricating authoring", () => {
     expect(landingPath(NO_CAPABILITIES)).toBe(MY_ACCESS_PATH);
+    expect(landingPath(capabilities({ siteConfiguration: true }))).toBe(MY_ACCESS_PATH);
   });
 
   it("names the area rather than a path, so a remembered context can be restored", () => {
@@ -198,10 +199,16 @@ describe("which routes a capability admits", () => {
   it("admits the installation claim to Operations, whose global queues are its own", () => {
     const claim = capabilities({ siteConfiguration: true });
     expect(permitsMode(claim, "operations")).toBe(true);
+    expect(permitsPath(claim, OPERATIONS_PATH)).toBe(true);
     expect(permitsPath(claim, "/webhooks")).toBe(true);
     expect(permitsPath(claim, "/responses/erasures")).toBe(true);
-    expect(permittedAreas(claim)).toEqual(["operations"]);
-    expect(landingPath(claim)).toBe(OPERATIONS_PATH);
+  });
+
+  it("does not land the claim in Operations, where it discovers no form", () => {
+    const claim = capabilities({ siteConfiguration: true, workspaces: true });
+    expect(permittedAreas(claim)).toEqual(["workspaces"]);
+    expect(landingPath(claim)).toBe(WORKSPACES_PATH);
+    expect(exitMode("operations", claim)).toBe("workspaces");
   });
 
   it("refuses the queues to a caller holding neither cell nor claim", () => {

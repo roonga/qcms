@@ -384,8 +384,12 @@ test("648 puts the wordmark, the nav and the content column on one left edge, at
   //
   // The column starts at the rail's edge rather than the viewport's, so each track's edge is
   // compared with its own origin: the bar's with the page edge, the column's with the rail.
-  await setScreenEnvironment(page, "/webhooks");
-  await page.goto("/webhooks");
+  //
+  // A NORMAL-MODE screen, because the trailing group below is located through the bar's
+  // `<nav>`: a focused mode renders its own header in place of that navigation, so the
+  // query would find nothing and every edge would read `NaN`.
+  await setScreenEnvironment(page, "/questions");
+  await page.goto("/questions");
   await expect(page.locator(".qcms-rail")).toHaveCount(1);
 
   const edges = await page.evaluate(() => {

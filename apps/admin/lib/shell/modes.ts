@@ -149,8 +149,10 @@ export function landingPathForMode(mode: ShellMode): string {
 export function permittedAreas(capabilities: ShellCapabilities): readonly ShellMode[] {
   const areas: ShellMode[] = [];
   if (capabilities.authoring) areas.push("normal");
-  if (permitsMode(capabilities, "operations")) areas.push("operations");
-  if (permitsMode(capabilities, "workspaces")) areas.push("workspaces");
+  // The real operational cells, not the admission rule: the installation claim discovers
+  // no form, so landing it on an empty table would be a worse answer than its own area.
+  if (capabilities.operations) areas.push("operations");
+  if (capabilities.workspaces) areas.push("workspaces");
   return areas;
 }
 
