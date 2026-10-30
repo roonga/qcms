@@ -1,5 +1,7 @@
 ---
 "create-qcms-app": minor
+"@roonga/qcms-db": minor
+"@roonga/qcms-observability": minor
 ---
 
 Grow the assist slice into an agent slice with a frozen registry of admin screens, a typed
@@ -17,6 +19,10 @@ context per screen and one door per screen.
   shown to hold it.
 - `POST /admin/assist` serves a screen with no form in its route and shares the
   per-principal limiter key with the per-form route.
+- `@roonga/qcms-db` gains `listResponseMetadata`, `getResponseMetadata`,
+  `latestVersionsByForm` and `findAdminById`; `@roonga/qcms-observability` exports the
+  stdout redactor's key fragments, so a test asserting against that vocabulary cannot
+  drift from it.
 - The response screens read a metadata projection that selects no answer column and joins
   no answer table, and an agent read the screen audits writes one SEC-15 `read` row per
   conversation for each distinct filter set.
