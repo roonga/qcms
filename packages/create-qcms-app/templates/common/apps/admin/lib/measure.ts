@@ -26,9 +26,9 @@
  * drawn rather than at that size minus two paddings.
  *
  * WHERE A POC'S OUTER LAYER IS "NONE", THIS TABLE STILL CARRIES THE INNER NUMBER.
- * `deployment-ops-poc.html` caps nothing outer, so `/responses` and `/responses/erasures`
- * have no outer number to take and keep the per-screen cap 657 gave them. That is also why
- * issue 668's own closing list names three screens rather than six.
+ * `deployment-ops-poc.html` caps nothing outer, so `/responses/erasures` has no outer
+ * number to take and keeps the per-screen cap 657 gave it. That is also why issue 668's own
+ * closing list names three screens rather than six.
  *
  * READING A MULTI-SCREEN POC, which is where that rule earns its keep. Six of the eleven
  * files pack two or three screens behind a switcher, and a shared `.main` in such a file
@@ -215,24 +215,21 @@ export const MEASURE_BY_ROUTE = {
   /** `settings-newquestion-poc.html` `.page-main` 40rem, its New question screen. */
   "/questions/new": "prose",
   /**
-   * `deployment-ops-poc.html` `.ops-inner--responses` 900. That file's `.main` carries no
-   * cap at all (`:229`), so its three screens are pure per-screen statements: where the
-   * author wanted a per-screen width they wrote an inner class for it.
-   */
-  /**
-   * **No POC draws these two**, and that is stated rather than papered over. The caps are
-   * chosen from what each screen is, by the reading the drawn rows apply to their files.
+   * **No POC draws `/me/access`**, and that is stated rather than papered over: it is one
+   * panel of the reader's own grants, so it takes the prose cap `/settings` takes.
    *
-   * `/me/access` is one panel of the reader's own grants: prose, like the account screen
-   * `/settings` takes.
+   * `/operations` IS drawn. `environment-navigation-poc.html` `.content` is 1120, shared
+   * by every screen in that file, and 1120 is not a member of the vocabulary; an eighth
+   * value is a change to the scheme rather than a row here, so this takes the nearest
+   * value below the drawing, `list` at 1080, rather than rounding up past it.
    *
-   * `/operations` is the forms table a caller operates, which is the same shape as
-   * `/responses` below and takes that screen's `ops` cap. The table that fills it is the
-   * first thing to correct this row if its columns ask for more.
+   * `/responses` redirects to `/operations` and renders no column of its own, so it takes
+   * that screen's cap: the column an operator actually measures there is the one they land
+   * on. The row stays because the route does.
    */
   "/me/access": "prose",
-  "/operations": "ops",
-  "/responses": "ops",
+  "/operations": "list",
+  "/responses": "list",
   /** `deployment-ops-poc.html` `.ops-inner--erasures` 1180. */
   "/responses/erasures": "log",
   /** `settings-newquestion-poc.html` `.page-main` 40rem, its Account screen (issue 655). */

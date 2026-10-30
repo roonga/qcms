@@ -49,7 +49,7 @@ test.beforeAll(async () => {
 
 /** The screens the shell renders, one per top-level area plus one form-scoped screen. */
 function everyArea(): readonly string[] {
-  return ["/questions", "/forms", "/responses", "/settings"];
+  return ["/questions", "/forms", "/operations", "/settings"];
 }
 
 function switcher(page: Page) {

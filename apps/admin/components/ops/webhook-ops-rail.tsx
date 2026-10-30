@@ -5,6 +5,7 @@ import { activeFilterCount, RailFilters } from "@/components/rail-filters";
 import { RailCount, RailFrame } from "@/components/rail-frame";
 import { t } from "@/lib/i18n/en";
 import type { WebhookOpsFilters } from "@/lib/ops/list-filters";
+import { OPERATIONS_PATH } from "@/lib/shell/modes";
 
 /** One form, as the rail lists it and as an option on the form filter. */
 export interface WebhookRailForm {
@@ -35,6 +36,7 @@ export function WebhookOpsRail({
   return (
     <RailFrame
       subject={t("ops.area.webhooks.title")}
+      back={{ href: OPERATIONS_PATH, label: t("shell.mode.operations.name") }}
       title={t("ops.area.webhooks.title")}
       testId="qcms-webhooks-rail"
       {...(activeCount > 0

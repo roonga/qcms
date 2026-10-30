@@ -93,15 +93,15 @@ regeneration and `git add` the result rather than merging two sets of counts.
 
 <!-- BEGIN GENERATED: ownership-seam (pnpm qcms:sync-templates) -->
 
-### Scaffolded paths (499 files common to both shapes)
+### Scaffolded paths (503 files common to both shapes)
 
 | Path                                                                 | Files |
 | -------------------------------------------------------------------- | ----- |
 | `(project root)`                                                     | 8     |
-| `apps/`                                                              | 488   |
-| `apps/admin/`                                                        | 301   |
-| `apps/admin/app/`                                                    | 81    |
-| `apps/admin/app/(shell)/`                                            | 62    |
+| `apps/`                                                              | 492   |
+| `apps/admin/`                                                        | 305   |
+| `apps/admin/app/`                                                    | 82    |
+| `apps/admin/app/(shell)/`                                            | 63    |
 | `apps/admin/app/(shell)/@rail/`                                      | 26    |
 | `apps/admin/app/(shell)/@rail/forms/`                                | 13    |
 | `apps/admin/app/(shell)/@rail/forms/[formId]/`                       | 11    |
@@ -143,7 +143,7 @@ regeneration and `git add` the result rather than merging two sets of counts.
 | `apps/admin/app/(shell)/forms/new/`                                  | 2     |
 | `apps/admin/app/(shell)/me/`                                         | 1     |
 | `apps/admin/app/(shell)/me/access/`                                  | 1     |
-| `apps/admin/app/(shell)/operations/`                                 | 1     |
+| `apps/admin/app/(shell)/operations/`                                 | 2     |
 | `apps/admin/app/(shell)/questions/`                                  | 4     |
 | `apps/admin/app/(shell)/questions/[questionId]/`                     | 1     |
 | `apps/admin/app/(shell)/questions/new/`                              | 1     |
@@ -170,20 +170,20 @@ regeneration and `git add` the result rather than merging two sets of counts.
 | `apps/admin/app/two-factor/recovery-codes/`                          | 2     |
 | `apps/admin/app/two-factor/recovery-codes/confirm/`                  | 1     |
 | `apps/admin/app/two-factor/recovery/verify/`                         | 1     |
-| `apps/admin/components/`                                             | 110   |
+| `apps/admin/components/`                                             | 111   |
 | `apps/admin/components/forms/`                                       | 40    |
 | `apps/admin/components/membership/`                                  | 7     |
-| `apps/admin/components/ops/`                                         | 11    |
+| `apps/admin/components/ops/`                                         | 13    |
 | `apps/admin/components/questions/`                                   | 15    |
-| `apps/admin/components/shell/`                                       | 5     |
+| `apps/admin/components/shell/`                                       | 4     |
 | `apps/admin/components/test-support/`                                | 3     |
-| `apps/admin/lib/`                                                    | 103   |
+| `apps/admin/lib/`                                                    | 105   |
 | `apps/admin/lib/forms/`                                              | 29    |
 | `apps/admin/lib/i18n/`                                               | 2     |
 | `apps/admin/lib/membership/`                                         | 2     |
-| `apps/admin/lib/ops/`                                                | 11    |
+| `apps/admin/lib/ops/`                                                | 12    |
 | `apps/admin/lib/questions/`                                          | 9     |
-| `apps/admin/lib/server/`                                             | 28    |
+| `apps/admin/lib/server/`                                             | 29    |
 | `apps/admin/lib/shell/`                                              | 2     |
 | `apps/api/`                                                          | 113   |
 | `apps/api/src/`                                                      | 110   |
@@ -250,7 +250,7 @@ regeneration and `git add` the result rather than merging two sets of counts.
 
 ### QCMS-internal references in the scaffolded source
 
-`1743` lines across `350` scaffolded files cite a QCMS issue, ADR, SEC control, plan task or repository path.
+`1739` lines across `349` scaffolded files cite a QCMS issue, ADR, SEC control, plan task or repository path.
 
 These are comments, and they stay (issue #457, tier 3). They are the engineering
 rationale for code you now own, which is worth more to you than a tidy file, and
@@ -265,7 +265,7 @@ rather than documented: the images no longer claim to be built from this
 repository, and no scaffolded message names a script your project does not define.
 
 <details>
-<summary>Every scaffolded file (499)</summary>
+<summary>Every scaffolded file (503)</summary>
 
 ```
 .dockerignore
@@ -319,6 +319,7 @@ apps/admin/app/(shell)/forms/page.tsx
 apps/admin/app/(shell)/forms/published-cell.tsx
 apps/admin/app/(shell)/layout.tsx
 apps/admin/app/(shell)/me/access/page.tsx
+apps/admin/app/(shell)/operations/loading.tsx
 apps/admin/app/(shell)/operations/page.tsx
 apps/admin/app/(shell)/questions/[questionId]/page.tsx
 apps/admin/app/(shell)/questions/actions.ts
@@ -422,10 +423,12 @@ apps/admin/components/ops/dead-letters.tsx
 apps/admin/components/ops/delivery-dashboard.tsx
 apps/admin/components/ops/endpoint-proposals.tsx
 apps/admin/components/ops/erasure-elsewhere.tsx
+apps/admin/components/ops/operations-environment.tsx
+apps/admin/components/ops/operations-forms-rail.tsx
+apps/admin/components/ops/operations-forms-table.tsx
 apps/admin/components/ops/ops-tags.tsx
 apps/admin/components/ops/response-browser.tsx
 apps/admin/components/ops/response-detail.tsx
-apps/admin/components/ops/responses-index-rail.tsx
 apps/admin/components/ops/tombstone-card.tsx
 apps/admin/components/ops/webhook-config.tsx
 apps/admin/components/ops/webhook-ops-rail.tsx
@@ -457,7 +460,6 @@ apps/admin/components/settings-section-rail.tsx
 apps/admin/components/shell/denied-recovery.tsx
 apps/admin/components/shell/mode-header.tsx
 apps/admin/components/shell/my-access-rail.tsx
-apps/admin/components/shell/operations-rail.tsx
 apps/admin/components/shell/shell-chrome.tsx
 apps/admin/components/test-support/git-binary.ts
 apps/admin/components/test-support/jsx-cells.ts
@@ -515,6 +517,7 @@ apps/admin/lib/ops/erasure.ts
 apps/admin/lib/ops/export.ts
 apps/admin/lib/ops/labels.ts
 apps/admin/lib/ops/list-filters.ts
+apps/admin/lib/ops/operations-forms.ts
 apps/admin/lib/ops/paging.ts
 apps/admin/lib/ops/post-action-focus.ts
 apps/admin/lib/ops/response-filters.ts
@@ -549,6 +552,7 @@ apps/admin/lib/server/forms.ts
 apps/admin/lib/server/links.ts
 apps/admin/lib/server/logger.ts
 apps/admin/lib/server/membership.ts
+apps/admin/lib/server/operations.ts
 apps/admin/lib/server/origin-belt-log.ts
 apps/admin/lib/server/password-refusal.ts
 apps/admin/lib/server/question-rail.ts

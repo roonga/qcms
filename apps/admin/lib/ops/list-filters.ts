@@ -1,9 +1,9 @@
 /**
- * The two operations screens' URL state, read in one place because each screen's page and
+ * The webhook operations screen's URL state, read in one place because its page and its
  * `@rail` slot are two React trees rendered from one address.
  *
- * The responses term goes to `GET /admin/forms`. The webhook form filter is applied to the
- * queue the render read, because `GET /admin/outbox/dead-letters` is global by design.
+ * The form filter is applied to the queue the render read, because
+ * `GET /admin/outbox/dead-letters` is global by design.
  */
 
 /** One raw search-param value, as Next hands it over. */
@@ -11,22 +11,6 @@ export type SearchParam = string | string[] | undefined;
 
 function firstValue(raw: SearchParam): string | undefined {
   return Array.isArray(raw) ? raw[0] : raw;
-}
-
-/** What the URL says the responses index should list. */
-export interface ResponsesIndexFilters {
-  /** The term to match forms on. The API trims what it matches. */
-  readonly search: string;
-  /** Zero or one, for the rail's active count. */
-  readonly activeCount: number;
-}
-
-/** Read the responses index's URL state. */
-export function readResponsesIndexFilters(
-  params: Readonly<Record<string, SearchParam>>,
-): ResponsesIndexFilters {
-  const search = firstValue(params["q"]) ?? "";
-  return { search, activeCount: search.trim() === "" ? 0 : 1 };
 }
 
 /** What the URL says the webhook operations screen should show. */

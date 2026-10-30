@@ -1,13 +1,19 @@
-import { ResponsesIndexRail } from "@/components/ops/responses-index-rail";
-import { readResponsesIndexFilters } from "@/lib/ops/list-filters";
+import { RailFrame } from "@/components/rail-frame";
+import { t } from "@/lib/i18n/en";
 import { requireAdminSession } from "@/lib/server/session";
 
-/** The responses index's rail. Reads the query and performs no read of its own. */
-export default async function ResponsesIndexRailSlot({
-  searchParams,
-}: {
-  readonly searchParams: Promise<Record<string, string | string[] | undefined>>;
-}) {
+/**
+ * The slot beside `/responses`, which redirects to the Operations forms table before
+ * anything renders. It exists because every page route answers for one, and it names the
+ * place the redirect goes.
+ */
+export default async function ResponsesRailSlot() {
   await requireAdminSession();
-  return <ResponsesIndexRail filters={readResponsesIndexFilters(await searchParams)} />;
+  return (
+    <RailFrame
+      subject={t("shell.mode.operations.name")}
+      title={t("shell.mode.operations.name")}
+      testId="qcms-operations-rail"
+    />
+  );
 }

@@ -258,7 +258,7 @@ const SCREENS: readonly ScreenRow[] = [
   {
     route: "app/(shell)/@rail/responses/page.tsx",
     model: "readonly",
-    why: "Returns null. The route has a rail, contributes no section of its own, and so has nothing on it to save.",
+    why: "A rail Header beside a route that redirects, so nothing renders and nothing is stored.",
   },
   {
     route: "app/(shell)/@rail/responses/erasures/page.tsx",
@@ -340,12 +340,12 @@ const SCREENS: readonly ScreenRow[] = [
   {
     route: "app/(shell)/@rail/operations/page.tsx",
     model: "readonly",
-    why: "A rail Header, which the forms table's filters join.",
+    why: "The forms table's filters and the installation queues. Filters live in the address.",
   },
   {
     route: "app/(shell)/responses/page.tsx",
     model: "readonly",
-    why: "An index of per-form response browsers.",
+    why: "Redirects to the Operations forms table and renders nothing.",
   },
   {
     route: "app/(shell)/responses/erasures/page.tsx",

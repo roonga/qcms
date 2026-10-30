@@ -53,8 +53,12 @@ describe("the route table resolves the mode", () => {
     expect(declaredMode("/forms/frm_1/responses")).toBe("normal");
     expect(declaredMode("/forms/frm_1/links")).toBe("normal");
     expect(declaredMode("/forms/frm_1/webhooks")).toBe("normal");
-    expect(declaredMode("/responses")).toBe("normal");
-    expect(declaredMode("/webhooks")).toBe("normal");
+  });
+
+  it("puts the global queues and the legacy picker in Operations", () => {
+    expect(declaredMode("/webhooks")).toBe("operations");
+    expect(declaredMode("/responses")).toBe("operations");
+    expect(declaredMode("/responses/erasures")).toBe("operations");
   });
 
   it("matches a whole segment, so a longer name cannot borrow a mode", () => {
@@ -131,7 +135,6 @@ describe("landing rules", () => {
 
   it("lands a caller with no grant on My access rather than fabricating authoring", () => {
     expect(landingPath(NO_CAPABILITIES)).toBe(MY_ACCESS_PATH);
-    expect(landingPath(capabilities({ siteConfiguration: true }))).toBe(MY_ACCESS_PATH);
   });
 
   it("names the area rather than a path, so a remembered context can be restored", () => {
@@ -192,9 +195,23 @@ describe("which routes a capability admits", () => {
     expect(permitsPath(NO_CAPABILITIES, "/workspaces/ws_1")).toBe(false);
   });
 
+  it("admits the installation claim to Operations, whose global queues are its own", () => {
+    const claim = capabilities({ siteConfiguration: true });
+    expect(permitsMode(claim, "operations")).toBe(true);
+    expect(permitsPath(claim, "/webhooks")).toBe(true);
+    expect(permitsPath(claim, "/responses/erasures")).toBe(true);
+    expect(permittedAreas(claim)).toEqual(["operations"]);
+    expect(landingPath(claim)).toBe(OPERATIONS_PATH);
+  });
+
+  it("refuses the queues to a caller holding neither cell nor claim", () => {
+    expect(permitsPath(NO_CAPABILITIES, "/webhooks")).toBe(false);
+    expect(permitsPath(NO_CAPABILITIES, "/responses")).toBe(false);
+  });
+
   it("gates no normal or personal route, which decide on the server for themselves", () => {
     expect(permitsPath(NO_CAPABILITIES, "/questions")).toBe(true);
-    expect(permitsPath(NO_CAPABILITIES, "/responses")).toBe(true);
+    expect(permitsPath(NO_CAPABILITIES, "/forms/frm_1/responses")).toBe(true);
     expect(permitsPath(NO_CAPABILITIES, "/settings")).toBe(true);
     expect(permitsPath(NO_CAPABILITIES, MY_ACCESS_PATH)).toBe(true);
   });

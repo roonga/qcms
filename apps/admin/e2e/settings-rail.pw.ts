@@ -329,8 +329,7 @@ test("655 leaves every other screen without a Settings rail, on a hard load and 
   for (const [name, path] of [
     ["Questions", "/questions"],
     ["Forms", "/forms"],
-    ["Responses", "/responses"],
-    ["Webhooks", "/webhooks"],
+    ["Operations", "/operations"],
   ] as const) {
     await page.goto("/settings");
     await expect(page.getByTestId("qcms-settings-rail")).toBeVisible();

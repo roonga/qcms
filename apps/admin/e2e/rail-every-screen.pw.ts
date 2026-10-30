@@ -48,7 +48,8 @@ function screens(): readonly { readonly path: string; readonly testId: string }[
     { path: `/forms/${FORM_ID}`, testId: "qcms-rail" },
     { path: "/me/access", testId: "qcms-my-access-rail" },
     { path: "/operations", testId: "qcms-operations-rail" },
-    { path: "/responses", testId: "qcms-responses-rail" },
+    // `/responses` redirects to the Operations table, so its rail is that screen's.
+    { path: "/responses", testId: "qcms-operations-rail" },
     { path: "/responses/erasures", testId: "qcms-erasures-rail" },
     { path: "/webhooks", testId: "qcms-webhooks-rail" },
     { path: "/workspaces", testId: "qcms-workspaces-rail" },
@@ -114,7 +115,7 @@ test("1117 puts the list filters in the rail and nowhere else", async ({ page })
   await signInWithTotp(page, EMAIL, totpSecret);
   await page.setViewportSize({ width: WIDE, height: 900 });
 
-  for (const path of ["/questions", "/forms", "/responses", "/webhooks"]) {
+  for (const path of ["/questions", "/forms", "/operations", "/webhooks"]) {
     await page.goto(path);
     const filters = page.getByTestId("qcms-rail-filters");
     await expect(filters, `${path} has the Filters part`).toBeVisible();
@@ -212,6 +213,6 @@ test("1117 shuts the rail below --bp-sidebar into a summary naming the subject a
 function screenRail(path: string): string {
   if (path === "/questions") return "qcms-questions-rail";
   if (path === "/forms") return "qcms-forms-rail";
-  if (path === "/responses") return "qcms-responses-rail";
+  if (path === "/operations") return "qcms-operations-rail";
   return "qcms-webhooks-rail";
 }

@@ -195,8 +195,6 @@ export const messages = {
   "nav.label": "Primary",
   "nav.questions": "Questions",
   "nav.forms": "Forms",
-  "nav.responses": "Responses",
-  "nav.webhooks": "Webhooks",
   "nav.workspaces": "Workspaces",
   "nav.settings": "Settings",
   // The Operations entry is separated from the authoring menus, because entering it
@@ -222,6 +220,56 @@ export const messages = {
   "shell.denied.myAccess": "See what you can access",
 
   "operations.intro": "The forms you can operate, and the installation's delivery queues.",
+
+  // THE OPERATIONS FORMS TABLE. Every cell that is empty because the caller holds no cell
+  // for it reads the same way as one that is empty because there is nothing to report, so
+  // no sentence here says which: the table states what it knows and claims nothing else.
+  "operations.environment.legend": "Environment",
+  "operations.environment.choose": "Operate in {environment}",
+  "operations.count.one": "1 form",
+  "operations.count.other": "{count} forms",
+  "operations.table": "Forms you can operate",
+  "operations.column.form": "Form",
+  "operations.column.workspace": "Workspace",
+  "operations.column.released": "Released",
+  "operations.column.intake": "Intake",
+  "operations.column.lastRelease": "Last release",
+  "operations.column.submitted": "Submitted",
+  "operations.column.inProgress": "In progress",
+  // Unreleased is a third reading rather than a shade of closed: a form with no release
+  // accepts no session and mints no usable link.
+  "operations.intake.open": "Open",
+  "operations.intake.closed": "Closed",
+  "operations.intake.unreleased": "No release",
+  "operations.release.none": "No release",
+  "operations.loading": "Loading the forms you can operate.",
+  "operations.loadFailed": "The forms could not be loaded: {message}",
+  "operations.empty.title": "No forms to operate here",
+  "operations.empty.body":
+    "You hold no operational grant on a form in this environment. Ask an owner of the " +
+    "workspace you need to add you to one of its access groups.",
+  "operations.empty.filtered": "No forms match these filters.",
+  "operations.filter.search": "Search",
+  "operations.filter.searchHint": "Matches a form's name or identifier.",
+  "operations.filter.workspace": "Workspace",
+  "operations.filter.workspaceAll": "Any workspace",
+  "operations.filter.intake": "Intake",
+  "operations.filter.intakeAll": "Any intake",
+  "operations.filter.sort": "Sort",
+  "operations.filter.sort.slug-asc": "Identifier A to Z",
+  "operations.filter.sort.slug-desc": "Identifier Z to A",
+  "operations.filter.sort.released-desc": "Released, newest first",
+  "operations.filter.sort.released-asc": "Released, oldest first",
+  "operations.filter.sort.submitted-desc": "Submitted, most first",
+  "operations.filter.sort.submitted-asc": "Submitted, fewest first",
+  "operations.pagination": "Pages",
+  "operations.page.next": "Next page",
+  "operations.page.first": "First page",
+  // The two installation-wide destinations. They are independent of the table's filters
+  // and of any selected form, so they sit apart from both.
+  "operations.queues": "Installation queues",
+  "operations.queue.deliveryFailures": "Delivery failures",
+  "operations.queue.erasureLog": "Erasure log",
 
   // Everybody holds this, so it is where a caller with no feature grant lands rather than
   // being given a fabricated authoring screen.
@@ -2011,22 +2059,7 @@ export const messages = {
   "ops.common.copied": "Copied to the clipboard.",
   "ops.common.copyFailed": "That could not be copied. Select the text and copy it manually.",
 
-  // The responses area landing screen: pick a form, or open the erasure log.
-  "ops.area.responses.title": "Responses",
-  "ops.area.responses.intro":
-    "Responses are held per form. Open a form to browse, export or erase what it collected.",
-  // `{slug}` and not `{title}` (issue #312). Both list screens are fed `form.slug`, and
-  // they can be fed nothing else: `GET /admin/forms` answers with `FormListItem`, which
-  // carries no title at all. A placeholder named for a value the caller cannot supply is
-  // a promise the catalog cannot keep, and the slug is what these screens identify a form
-  // by everywhere else ("Open a form from the link in its Slug column").
-  "ops.area.responses.pickForm": "Open responses for {slug}",
-  "ops.area.responses.noForms": "No forms exist yet, so nothing has been collected.",
-  "ops.area.responses.erasureLog": "Erasure log",
   "ops.area.responses.formsFailed": "The form list could not be loaded. {message}",
-  // Names forms, because this screen's list is forms rather than answers.
-  "ops.area.responses.filter.search": "Search forms",
-  "ops.area.responses.filter.searchHint": "Matches the slug and the form title.",
 
   "ops.area.webhooks.title": "Webhook operations",
   // "screen", not "tab" (issue #651). This sentence is the one place the app explains the
