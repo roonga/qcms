@@ -80,6 +80,7 @@ interface Candidate {
     readonly name: string;
   };
   readonly state: FormEnvironmentState | undefined;
+  /** When this form last went out IN the selected environment (Code Owner, 2026-10-31). */
   readonly lastReleaseAt: Date | undefined;
   readonly mayReadForm: boolean;
   readonly mayCount: boolean;
@@ -122,7 +123,7 @@ export function makeOperationsFormsHandler(
     const formIds = rows.map((row) => row.formId);
     const [states, lastReleases, titles, workspaces] = await Promise.all([
       environmentStatesByForm(exec, environment, formIds),
-      lastReleaseAtByForm(exec, formIds),
+      lastReleaseAtByForm(exec, environment, formIds),
       publishedTitlesByForm(exec, formIds),
       listWorkspaces(exec),
     ]);

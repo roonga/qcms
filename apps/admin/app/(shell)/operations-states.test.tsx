@@ -75,6 +75,8 @@ const CLOSED: OperationsFormRow = {
 /** Set per case before the page renders; one set of module mocks serves every state. */
 let capabilities: ShellCapabilities = EVERYTHING;
 let listResult: unknown = { status: "ok", page: page([]) };
+/** The query the page asked the API for, which is where the environment has to appear. */
+let apiQuery = "";
 
 function page(rows: readonly OperationsFormRow[], nextCursor: string | null = null) {
   return {
@@ -103,7 +105,10 @@ vi.mock("@/lib/server/environments", () => ({
     }),
 }));
 vi.mock("@/lib/server/operations", () => ({
-  listOperationsForms: () => Promise.resolve(listResult),
+  listOperationsForms: (_session: unknown, query: string) => {
+    apiQuery = query;
+    return Promise.resolve(listResult);
+  },
 }));
 vi.mock("@/lib/i18n/en", () => ({
   t: (key: string) => key,
@@ -207,6 +212,17 @@ describe("the Operations forms table's states", () => {
     expect(html).toContain("cursor=cur2");
     // The page position rides with the filters rather than replacing them.
     expect(html).toContain("q=in");
+  });
+
+  it("asks for the chip's environment, so Last release is read where the chip says", async () => {
+    capabilities = EVERYTHING;
+    listResult = { status: "ok", page: page([RELEASED]) };
+
+    // The header's control says `test`; the address was built in `prod`.
+    await render({ env: "prod" });
+
+    expect(apiQuery).toContain("environment=test");
+    expect(apiQuery).not.toContain("environment=prod");
   });
 
   it("resets the page when the address names an environment the operator has left", async () => {

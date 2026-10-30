@@ -77,7 +77,7 @@ const OperationsFormRow = z.object({
   release: z
     .object({ version: z.number().int(), releasedAt: z.string(), closed: z.boolean() })
     .nullable(),
-  // When this form was last released to any environment. Null without `form: read`.
+  // When this form last went out IN this environment. Null without `form: read`.
   lastReleaseAt: z.string().nullable(),
   // Null unless the caller holds `response: read` for this form and environment. Reading
   // it writes no access-audit row: an aggregate is not a read of anybody's answers.

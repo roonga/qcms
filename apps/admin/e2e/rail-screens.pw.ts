@@ -227,8 +227,11 @@ test("561 puts the rail on all ten form-scoped screens, marking the row the scre
       .toHaveCount(screen.children ? 1 : 0);
     await expect
       .soft(
+        // The Form row's own list item, whichever shape the row inside it has: the
+        // builder wraps its row in a flex container so the form menu can sit beside it,
+        // which is not a sibling of the steps list and never was.
         page.locator(
-          '[data-rail-item="section:builder"] ~ [data-rail-group="steps"], li:has(> [data-rail-item="section:builder"]) [data-rail-group="steps"]',
+          '[data-rail-group="sections"] > li:has([data-rail-item="section:builder"]) [data-rail-group="steps"]',
         ),
         `${screen.path} nests them inside the Form row`,
       )

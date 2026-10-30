@@ -1,3 +1,5 @@
+import type { Locator, Page } from "@playwright/test";
+
 import { expect, test } from "../../portal/e2e/support/gates.js";
 
 import { TEST_PASSWORD, createTestAdmin, uniqueAdminEmail } from "./support/admin-account.js";
@@ -50,6 +52,17 @@ const EMAIL = uniqueAdminEmail("auth2fa");
 let totpSecret = "";
 /** Read off the one-time display. Each is usable exactly once. */
 let recoveryCodes: string[] = [];
+
+/**
+ * The page's own alert, not Next's route announcer.
+ *
+ * Next mounts `__next-route-announcer__` - a second `role="alert"` - outside `main` as
+ * the app hydrates, so an unscoped alert locator is a race against hydration rather
+ * than an assertion (`a11y-axe.pw.ts` records the day it resolved to two).
+ */
+function authAlert(page: Page): Locator {
+  return page.getByRole("main").getByRole("alert");
+}
 
 test.beforeAll(async () => {
   await createTestAdmin(EMAIL);
@@ -120,7 +133,7 @@ test("first sign-in is forced into 2FA enrollment, which a wrong code cannot byp
   await fillStable(page.getByLabel(/Six-digit code/), "000000");
   await page.getByRole("button", { name: "Verify" }).click();
   await expect(page).toHaveURL(/\/two-factor\/enroll\?error=1$/);
-  await expect(page.getByRole("alert")).toContainText("Those details did not match");
+  await expect(authAlert(page)).toContainText("Those details did not match");
   // A mistyped digit must not throw away the secret already added to the authenticator.
   await expect(page.getByLabel(/Setup key/)).toHaveValue(secret);
 
@@ -179,7 +192,7 @@ test("a wrong TOTP code is rejected with the same generic message", async ({ pag
   await fillStable(page.getByLabel(/Six-digit code/), "000000");
   await page.getByRole("button", { name: "Verify" }).click();
   await expect(page).toHaveURL(/\/two-factor\/challenge\?error=1$/);
-  await expect(page.getByRole("alert")).toContainText("Those details did not match");
+  await expect(authAlert(page)).toContainText("Those details did not match");
 });
 
 test("a real otplib code completes the challenge and the shell nav marks the active area", async ({
@@ -242,7 +255,7 @@ test("a recovery code signs in once and then never again", async ({ page }) => {
   await page.goto("/two-factor/recovery");
   await submitRecoveryCode(page, code!);
   await expect(page).toHaveURL(/\/two-factor\/recovery\?error=1$/);
-  await expect(page.getByRole("alert")).toContainText("Those details did not match");
+  await expect(authAlert(page)).toContainText("Those details did not match");
 });
 
 test("a second recovery code still works, and the TOTP factor is unaffected", async ({ page }) => {
@@ -283,7 +296,7 @@ test("changing the password reports success and keeps this session signed in", a
   // button, correctly, so an unscoped query matches two controls once the panel is up.
   await panel.getByRole("button", { name: "Change password" }).click();
   await expect(page).toHaveURL(/\/settings\?error=1$/);
-  await expect(page.getByRole("alert")).toContainText("Those details did not match");
+  await expect(authAlert(page)).toContainText("Those details did not match");
 });
 
 test("regenerating recovery codes needs the password, and retires the old set (issue #319)", async ({
@@ -305,7 +318,7 @@ test("regenerating recovery codes needs the password, and retires the old set (i
   await fillStable(passwordField, "not-the-current-password");
   await page.getByRole("button", { name: "Generate new recovery codes" }).click();
   await expect(page).toHaveURL(/\/settings\?codesError=1$/);
-  await expect(page.getByRole("alert")).toContainText("Those details did not match");
+  await expect(authAlert(page)).toContainText("Those details did not match");
 
   await fillStable(page.getByLabel("Your password"), TEST_PASSWORD);
   await page.getByRole("button", { name: "Generate new recovery codes" }).click();
