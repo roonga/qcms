@@ -8,10 +8,9 @@ import { ModeHeader } from "@/components/shell/mode-header";
 import { t } from "@/lib/i18n/en";
 import { shellModeCookie, shellWorkspaceCookie } from "@/lib/shell/context";
 import {
-  declaredMode,
   focusedMode,
   modeForPath,
-  permitsMode,
+  rememberableMode,
   type ShellCapabilities,
   type ShellMode,
 } from "@/lib/shell/modes";
@@ -40,12 +39,7 @@ export function ShellChrome({
   const pathname = usePathname();
   const focused = focusedMode(modeForPath(pathname, rememberedMode));
 
-  // A personal route declares no mode and so writes nothing, which is what lets it stay
-  // inside the one it was opened from. A mode the caller may not enter is never
-  // remembered, or a denied bookmark would decide where their next personal route sits.
-  const declared = declaredMode(pathname);
-  const remember =
-    declared !== undefined && permitsMode(capabilities, declared) ? declared : undefined;
+  const remember = rememberableMode(pathname, capabilities);
   useEffect(() => {
     if (remember === undefined) return;
     document.cookie = shellModeCookie(remember, secureCookies);

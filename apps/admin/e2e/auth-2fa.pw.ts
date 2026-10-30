@@ -190,8 +190,7 @@ test("a real otplib code completes the challenge and the shell nav marks the act
 
   const nav = page.getByRole("navigation", { name: "Primary" });
   // Settings is not here: it belongs to the signed-in account rather than to an area, so
-  // it is under the avatar. Responses and Webhooks are not here either: they are Operations
-  // destinations now. This account holds every area, so both focused-mode entries are
+  // it is under the avatar. This account holds every area, so both focused-mode entries are
   // offered beside the authoring menus.
   for (const item of ["Questions", "Forms", "Workspaces", "Operations"]) {
     await expect(nav.getByRole("link", { name: item })).toBeVisible();

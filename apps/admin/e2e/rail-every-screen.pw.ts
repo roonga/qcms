@@ -48,7 +48,6 @@ function screens(): readonly { readonly path: string; readonly testId: string }[
     { path: `/forms/${FORM_ID}`, testId: "qcms-rail" },
     { path: "/me/access", testId: "qcms-my-access-rail" },
     { path: "/operations", testId: "qcms-operations-rail" },
-    // `/responses` redirects to the Operations table, so its rail is that screen's.
     { path: "/responses", testId: "qcms-operations-rail" },
     { path: "/responses/erasures", testId: "qcms-erasures-rail" },
     { path: "/webhooks", testId: "qcms-webhooks-rail" },

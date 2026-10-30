@@ -23,6 +23,8 @@ import {
   permitsMode,
   permitsPath,
   permittedAreas,
+  rememberableMode,
+  SETTINGS_PATH,
   WORKSPACES_PATH,
   type ShellCapabilities,
 } from "./modes.ts";
@@ -214,6 +216,21 @@ describe("which routes a capability admits", () => {
   it("refuses the queues to a caller holding neither cell nor claim", () => {
     expect(permitsPath(NO_CAPABILITIES, "/webhooks")).toBe(false);
     expect(permitsPath(NO_CAPABILITIES, "/responses")).toBe(false);
+  });
+
+  it("remembers only a mode the caller may enter, and never a personal route", () => {
+    const authoring = capabilities({ authoring: true });
+    expect(rememberableMode("/questions", authoring)).toBe("normal");
+    expect(rememberableMode(OPERATIONS_PATH, capabilities({ operations: true }))).toBe(
+      "operations",
+    );
+    // A refused mode is not remembered, or a denied bookmark would decide where this
+    // caller's next personal route sits.
+    expect(rememberableMode(OPERATIONS_PATH, authoring)).toBeUndefined();
+    expect(rememberableMode("/webhooks", authoring)).toBeUndefined();
+    expect(rememberableMode(WORKSPACES_PATH, authoring)).toBeUndefined();
+    expect(rememberableMode(SETTINGS_PATH, EVERYTHING)).toBeUndefined();
+    expect(rememberableMode(MY_ACCESS_PATH, EVERYTHING)).toBeUndefined();
   });
 
   it("gates no normal or personal route, which decide on the server for themselves", () => {

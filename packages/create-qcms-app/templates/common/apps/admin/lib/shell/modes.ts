@@ -187,6 +187,22 @@ export function exitMode(from: ShellMode, capabilities: ShellCapabilities): Shel
 }
 
 /**
+ * The mode this route is worth remembering as, or `undefined` for one that is not.
+ *
+ * A personal route declares none, which is what lets it stay inside the mode it was opened
+ * from. A mode the caller may not enter is never remembered either, or a denied bookmark
+ * would decide where their next personal route sits.
+ */
+export function rememberableMode(
+  pathname: string,
+  capabilities: ShellCapabilities,
+): ShellMode | undefined {
+  const declared = declaredMode(pathname);
+  if (declared === undefined) return undefined;
+  return permitsMode(capabilities, declared) ? declared : undefined;
+}
+
+/**
  * Whether a caller may be on this route. Only a focused mode's routes are gated here;
  * every other route decides on the server for itself.
  */
