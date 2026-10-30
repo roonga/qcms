@@ -4,6 +4,7 @@ import { useEffect, useMemo, useRef, useState, type ReactNode } from "react";
 
 import { Alert, Button, TextField } from "@/components/kit";
 import { AmbientSaveStatus, AutosaveFlash } from "@/components/save-model";
+import { usePublishBuilderAssist } from "@/lib/agent/builder-assist-bridge";
 import { AUTOSAVE_DEBOUNCE_MS, useDraftAutosave } from "@/lib/forms/autosave";
 import type { SaveDraftState, SettingsState, ValidateDraftState } from "@/lib/forms/builder-state";
 import {
@@ -42,7 +43,6 @@ import { textOf } from "@/lib/questions/definition";
 import type { ReadState } from "@/lib/read-state";
 
 import { AgentProvenanceTag } from "./agent-provenance-tag";
-import { AssistPanel } from "./assist-panel";
 import { FormSettingsPanel } from "./form-settings-panel";
 import { GroupPanel } from "./group-panel";
 import { RulesLens } from "./rules-lens";
@@ -500,6 +500,19 @@ export function FormBuilder({
    * branch renders `null` - one press after the author accepted a change they were
    * told would rewrite the form, with nothing on screen saying so.
    */
+  // The panel lives in the shell now, so the draft and its accept path cross a module
+  // seam rather than a prop (`lib/agent/builder-assist-bridge.ts`).
+  usePublishBuilderAssist(
+    assist === undefined
+      ? undefined
+      : {
+          endpoint: assist.endpoint,
+          draft,
+          draftUpdatedAt,
+          accept: acceptAssistProposal,
+        },
+  );
+
   function acceptAssistProposal(proposedDraft: DraftForm, newQuestions: readonly unknown[]) {
     pendingAgentAssisted.current = true;
     pendingNewQuestions.current = newQuestions;
@@ -543,10 +556,10 @@ export function FormBuilder({
           docked pane. */}
       <div
         className={
-          assist === undefined ? "contents" : "grid gap-4 sidebar:grid-cols-[minmax(0,1fr)_22rem]"
+          "contents"
         }
       >
-        <div className={assist === undefined ? "contents" : "flex flex-col gap-6"}>
+        <div className="contents">
           {/* TWO SCREENS BEHIND ONE ROUTE, and the rail is the switch (Code Owner, 2026-08-26).
             `plan/admin-shell-poc/admin-shell-poc.html` says so in its own card subtitle -
             "left rail navigating a form screen and a step screen" - and draws them, a Form
@@ -812,14 +825,6 @@ export function FormBuilder({
           )}
         </div>
 
-        {assist !== undefined && (
-          <AssistPanel
-            endpoint={assist.endpoint}
-            draft={draft}
-            draftUpdatedAt={draftUpdatedAt}
-            onAccept={acceptAssistProposal}
-          />
-        )}
       </div>
     </div>
   );

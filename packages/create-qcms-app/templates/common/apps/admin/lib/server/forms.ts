@@ -264,6 +264,27 @@ export function assist(
   });
 }
 
+/**
+ * `POST /admin/assist` - one turn about a screen with no form in its route.
+ *
+ * The body carries a screen id, the route's own ids and the conversation id, and never
+ * context content: the API builds the screen's facts itself under the caller's grants.
+ */
+export function screenAssist(
+  session: AdminSession,
+  body: {
+    readonly conversation: readonly {
+      readonly role: "user" | "assistant";
+      readonly content: string;
+    }[];
+    readonly screen: string;
+    readonly params?: Record<string, string | number>;
+    readonly conversationId: string;
+  },
+): Promise<Response> {
+  return adminApiFetch(session, "/assist", { method: "POST", body });
+}
+
 /** `POST /admin/forms/{id}/draft/validate` - dry run, no save. */
 export async function validateDraft(
   session: AdminSession,

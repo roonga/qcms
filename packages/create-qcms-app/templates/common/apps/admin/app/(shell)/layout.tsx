@@ -2,6 +2,11 @@ import { cookies } from "next/headers";
 import type { ReactNode } from "react";
 
 import { AccountMenu } from "@/components/account-menu";
+import {
+  AssistantButtonSlot,
+  AssistantPanelSlot,
+  AssistantProvider,
+} from "@/components/agent/assistant-dock";
 import { Announcer } from "@/components/announcer";
 import { EnvironmentScope } from "@/components/environment-scope";
 import { EnvironmentSwitcher } from "@/components/environment-switcher";
@@ -17,6 +22,8 @@ import { resolvedEnvironment } from "@/lib/server/environments";
 import { t } from "@/lib/i18n/en";
 import { navigableCapabilities, rememberedMode, shellAccess } from "@/lib/server/shell";
 import { requireAdminSession } from "@/lib/server/session";
+import { PANEL_COOKIE, parsePanelState, type PanelState } from "@/lib/agent/panel";
+import { agentAuthoringEnabled } from "@/lib/server/agent";
 import { SIDEBAR_COOKIE, parseSidebarSetting } from "@/lib/sidebar";
 
 /**
@@ -113,30 +120,42 @@ export default async function ShellLayout({
   const [access, resolved] = await Promise.all([accessPromise, resolvedEnvironment(session)]);
   const capabilities = navigableCapabilities(access);
   const sidebar = parseSidebarSetting(cookieStore.get(SIDEBAR_COOKIE)?.value);
+  // Read here for the reason the appearance mode is: an open panel has to render docked in
+  // the first paint rather than jumping into place after hydration. With the flag off the
+  // assistant is not rendered at all, so there is no entry anywhere to find.
+  const assistant = agentAuthoringEnabled();
+  const panel = parsePanelState(cookieStore.get(PANEL_COOKIE)?.value);
 
   return (
-    <div className="flex min-h-dvh flex-col">
-      {/* The one live region every authenticated screen speaks into (issue #355). It is
+    // Both providers wrap the whole shell, top bar included. The Hide and Show sidebar
+    // buttons sit in different tracks, and the assistant's button is in the top bar while
+    // its panel is a track of the body, so in each case the two ends share a context
+    // rather than a prop. The attribute on `<html>` is what hides the rail; the sidebar
+    // state here is what the labels, `aria-expanded` and the panel's hold read.
+    <SidebarProvider setting={sidebar} secureCookies={secureCookies()}>
+      <AssistantShell enabled={assistant} initial={panel} secureCookies={secureCookies()}>
+        <div className="flex min-h-dvh flex-col">
+          {/* The one live region every authenticated screen speaks into (issue #355). It is
           here, above the page, because an action that revalidates its own route unmounts
           the screen that performed it - and a region taken out of the document mid
           announcement says nothing. See `components/announcer.tsx`. */}
-      <Announcer />
-      {/* The bar below WRAPS, and the page's scroll padding has to know how far (issue
+          <Announcer />
+          {/* The bar below WRAPS, and the page's scroll padding has to know how far (issue
           #1011). The nav is this row's elastic member, so at narrow widths its items take
           further lines and the bar is 145px rather than the 57px `--admin-topbar-h`
           derives - and that token is what reserves room for the sticky bar when the
           browser scrolls a control into view (WCAG 2.2 SC 2.4.11). This measures the bar
           and publishes the number; `app/globals.css` prefers it and falls back to the
           token. Layout is untouched: scroll padding paints nothing. */}
-      <TopbarHeight />
-      <header className="qcms-topbar">
-        {/* Three siblings of one wrapping row, not two nested groups, and the design
+          <TopbarHeight />
+          <header className="qcms-topbar">
+            {/* Three siblings of one wrapping row, not two nested groups, and the design
             card's 390px demo is why (task 032): the nav is the only elastic member
             (`flex-1 basis-40 min-w-0`), so as the bar narrows the nav shrinks and its
             own items wrap onto further lines while the trailing controls stay on the
             top row beside the wordmark. Nested inside a "wordmark plus nav" group they
             were pushed onto a row of their own below the whole nav instead. */}
-        {/* THE BAR IS NOT CAPPED AND NOT CENTRED (issue 648). Every POC that draws the
+            {/* THE BAR IS NOT CAPPED AND NOT CENTRED (issue 648). Every POC that draws the
             shell writes one identical rule for it, `.topbar__inner { display: flex;
             flex-wrap: wrap; align-items: center; gap: 1.25rem; padding: 0 1.25rem;
             min-height: 56px; }`, with NO `max-width` and NO auto margin - ten of the
@@ -162,48 +181,51 @@ export default async function ShellLayout({
             token on `<main>`, so the edge is still one edge and it is now the drawn one.
             The footer that used to carry the third copy of this number is gone (Code
             Owner decision, 2026-08-23), so there are two call sites rather than three. */}
-        <div className="flex w-full flex-wrap items-center gap-x-5 gap-y-2 px-(--admin-section-pad) py-2">
-          {/* "QCMS" and nothing else. No sub-label, and no word here names this app
+            <div className="flex w-full flex-wrap items-center gap-x-5 gap-y-2 px-(--admin-section-pad) py-2">
+              {/* "QCMS" and nothing else. No sub-label, and no word here names this app
               to an operator: the product is QCMS and the respondent app is the
               Portal (Code Owner naming call, 2026-07-30). */}
-          <span className="qcms-wordmark flex-shrink-0">{t("app.title")}</span>
-          <ShellChrome
-            capabilities={capabilities}
-            rememberedMode={rememberedMode(cookieStore)}
-            secureCookies={secureCookies()}
-            environment={
-              resolved.status === "known" ? (
-                <EnvironmentSwitcher
-                  environments={resolved.environments}
-                  selected={resolved.environment}
-                  secureCookies={secureCookies()}
-                />
-              ) : (
-                // Nothing to offer: the set is what the menu lists, and it could not be read.
-                // Not a button, because pressing it could do nothing.
-                <div
-                  className="qcms-envswitch"
-                  data-testid="qcms-environment-switcher"
-                  data-environment=""
-                  data-kind={environmentKind(undefined)}
-                  data-pending="false"
-                >
-                  <span className="qcms-envtrigger qcms-envtrigger--static">
-                    {t("environment.unknown")}
-                  </span>
-                </div>
-              )
-            }
-            trailing={
-              <>
-                <ThemeToggle appearance={appearance} secureCookies={secureCookies()} />
-                <AccountMenu email={session.email} name={session.name} />
-              </>
-            }
-          />
-        </div>
-      </header>
-      {/* The shell body: the rail's track and the content column, and the thing that grows
+              <span className="qcms-wordmark flex-shrink-0">{t("app.title")}</span>
+              <ShellChrome
+                capabilities={capabilities}
+                rememberedMode={rememberedMode(cookieStore)}
+                secureCookies={secureCookies()}
+                environment={
+                  resolved.status === "known" ? (
+                    <EnvironmentSwitcher
+                      environments={resolved.environments}
+                      selected={resolved.environment}
+                      secureCookies={secureCookies()}
+                    />
+                  ) : (
+                    // Nothing to offer: the set is what the menu lists, and it could not be read.
+                    // Not a button, because pressing it could do nothing.
+                    <div
+                      className="qcms-envswitch"
+                      data-testid="qcms-environment-switcher"
+                      data-environment=""
+                      data-kind={environmentKind(undefined)}
+                      data-pending="false"
+                    >
+                      <span className="qcms-envtrigger qcms-envtrigger--static">
+                        {t("environment.unknown")}
+                      </span>
+                    </div>
+                  )
+                }
+                trailing={
+                  <>
+                    {/* First in the trailing group, before the appearance toggle and the
+                        account (Topbar card, issue #1133). */}
+                    {assistant && <AssistantButtonSlot />}
+                    <ThemeToggle appearance={appearance} secureCookies={secureCookies()} />
+                    <AccountMenu email={session.email} name={session.name} />
+                  </>
+                }
+              />
+            </div>
+          </header>
+          {/* The shell body: the rail's track and the content column, and the thing that grows
           to fill whatever height the topbar leaves (issue 559, and N2 of
           `plan/admin-redesign-implementation-plan.md` §1). Without a rail it is a flex
           column and `<main>`'s own `flex-1` keeps stretching it exactly as before; with
@@ -219,25 +241,48 @@ export default async function ShellLayout({
 
           Every screen has a rail (§7.0 ruling 1), so above `--bp-sidebar` the grid branch
           always renders; the flex fallback is what every width below it takes. */}
-      {/* What every environment-sensitive control below reads to disable itself while the
+          {/* What every environment-sensitive control below reads to disable itself while the
           environment is unknown, and the watcher that re-reads this tab when it comes back
           into view under a selection another tab changed (local UX list A1, A12). */}
-      <EnvironmentScope selection={resolved.selection} unknown={resolved.status === "unknown"}>
-        {/* Wrapping both tracks, because the Hide and Show buttons sit in different ones and
-            neither can hand the other a prop. The attribute on `<html>` is what hides the
-            rail; this is the state the labels and `aria-expanded` read. */}
-        <SidebarProvider setting={sidebar} secureCookies={secureCookies()}>
-          <div className="qcms-shell-body">
-            {rail}
-            {/* The content column's cap is set by the ROUTE, not by one number here (issue
+          <EnvironmentScope selection={resolved.selection} unknown={resolved.status === "unknown"}>
+            <div className="qcms-shell-body">
+              {rail}
+              {/* The content column's cap is set by the ROUTE, not by one number here (issue
                 558, `plan/admin-ux-audit.md` §6): five screens earn width, two render
                 respondent-facing content and take less than the default, nine keep the
                 measure they have. The sixteen answers are one table in `lib/measure.ts`;
                 `MeasuredMain` only applies the row that matches the pathname. */}
-            <MeasuredMain>{children}</MeasuredMain>
-          </div>
-        </SidebarProvider>
-      </EnvironmentScope>
-    </div>
+              <MeasuredMain>{children}</MeasuredMain>
+              {assistant && <AssistantPanelSlot />}
+            </div>
+          </EnvironmentScope>
+        </div>
+      </AssistantShell>
+    </SidebarProvider>
+  );
+}
+
+/**
+ * The assistant's provider, or nothing at all.
+ *
+ * With the flag off it is not rendered, so neither slot finds a provider and both render
+ * nothing: the assistant is absent from the document rather than hidden in it.
+ */
+function AssistantShell({
+  enabled,
+  initial,
+  secureCookies,
+  children,
+}: {
+  readonly enabled: boolean;
+  readonly initial: PanelState;
+  readonly secureCookies: boolean;
+  readonly children: ReactNode;
+}) {
+  if (!enabled) return <>{children}</>;
+  return (
+    <AssistantProvider initial={initial} secureCookies={secureCookies}>
+      {children}
+    </AssistantProvider>
   );
 }

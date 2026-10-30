@@ -33,6 +33,7 @@ export function AssistIconButton({
   onPress,
   isDisabled = false,
   expanded,
+  pressed,
   controls,
   testId,
   children,
@@ -42,6 +43,8 @@ export function AssistIconButton({
   readonly isDisabled?: boolean;
   /** For a disclosure toggle: whether what it controls is open. */
   readonly expanded?: boolean;
+  /** For a state toggle, such as the assistant's Expand control: whether it is on. */
+  readonly pressed?: boolean;
   readonly controls?: string;
   readonly testId?: string;
   /** The icon. Decorative: it is rendered `aria-hidden`. */
@@ -90,6 +93,7 @@ export function AssistIconButton({
         className="qcms-assist-iconbtn__button"
         aria-label={label}
         aria-expanded={expanded}
+        aria-pressed={pressed}
         aria-controls={controls}
         disabled={isDisabled}
         data-testid={testId}
