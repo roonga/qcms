@@ -44,6 +44,18 @@ if (FIRST_LOAD) {
 
 const PORT = PORTAL_PORT;
 
+/**
+ * `QCMS_HARNESS_BUILD=1` makes each wrapper build its app and serve it with `next start`,
+ * so no route is compiled on its first visit. The wait has to cover that build, which no
+ * dev server pays, and the flag is unset everywhere else including CI.
+ */
+const PRODUCTION_SERVERS = process.env.QCMS_HARNESS_BUILD === "1";
+const SERVER_TIMEOUT_MS = PRODUCTION_SERVERS ? 900_000 : 180_000;
+
+if (FIRST_LOAD && PRODUCTION_SERVERS) {
+  process.stdout.write("[playwright] QCMS_HARNESS_BUILD=1: serving production builds\n");
+}
+
 const MULTI_VIEWPORT_SPECS = [
   "**/kitchen-sink-flow.pw.ts",
   "**/a11y-axe.pw.ts",
@@ -118,7 +130,7 @@ export default defineConfig({
       command: `node ./apps/portal/e2e/support/portal-server.mjs`,
       url: `http://localhost:${PORT}`,
       reuseExistingServer: !process.env.CI && ADOPTABLE.has("portal"),
-      timeout: 180_000,
+      timeout: SERVER_TIMEOUT_MS,
       env: {
         PORTAL_PORT: String(PORT),
         QCMS_PORTAL_BASE_URL: `http://localhost:${PORT}`,
@@ -157,7 +169,7 @@ export default defineConfig({
       // on readiness, so probing a page that needs the API would wait on globalSetup.
       url: `${ADMIN_BASE_URL}/healthz`,
       reuseExistingServer: !process.env.CI && ADOPTABLE.has("admin"),
-      timeout: 180_000,
+      timeout: SERVER_TIMEOUT_MS,
       env: {
         ADMIN_PORT: String(ADMIN_PORT),
         // The SEC-9 origin check compares every state-changing POST against this value.

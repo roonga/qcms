@@ -62,6 +62,9 @@ const UNICODE_WORKSPACE = "org_ops_unicode";
 const FORM_CLAIMS = FormId.parse("frm_ops_claims");
 const FORM_PERMITS = FormId.parse("frm_ops_permits");
 const FORM_OTHER = FormId.parse("frm_ops_other");
+
+/** One instant for both `prod` releases, so the released sort's tie is deterministic. */
+const PROD_RELEASED_AT = new Date("2026-03-01T12:00:00.000Z");
 const FORM_UNICODE_A = FormId.parse("frm_ops_unicode_a");
 const FORM_UNICODE_B = FormId.parse("frm_ops_unicode_b");
 
@@ -244,12 +247,17 @@ beforeAll(async () => {
     environment: "test",
     version: 1,
     releasedBy: "au_seed",
+    releasedAt: PROD_RELEASED_AT,
   });
+  // One pinned instant for every release, so the released sort ties deterministically
+  // rather than whenever two inserts share a microsecond. The key is the last release in
+  // ANY environment, so `claims` needs its `test` row pinned too.
   await insertFormRelease(control, {
     formId: FORM_CLAIMS,
     environment: "prod",
     version: 1,
     releasedBy: "au_seed",
+    releasedAt: PROD_RELEASED_AT,
   });
   await insertFormRelease(control, {
     formId: FORM_PERMITS,
@@ -257,6 +265,7 @@ beforeAll(async () => {
     version: 1,
     releasedBy: "au_seed",
     closed: true,
+    releasedAt: PROD_RELEASED_AT,
   });
 
   await seedSubmitted("prod", FORM_CLAIMS, "p1");
@@ -620,7 +629,7 @@ describe("operations discovery: bounds, filters and pagination", () => {
     }
   });
 
-  it("pages a released sort in both directions, and the two orders are reverses", async () => {
+  it("pages a released sort in both directions, breaking a tie the same way in each", async () => {
     const walk = async (sort: string): Promise<string[]> => {
       const seen: string[] = [];
       let cursor: string | null = null;
@@ -639,10 +648,15 @@ describe("operations discovery: bounds, filters and pagination", () => {
       expect(cursor, sort).toBeNull();
       return seen;
     };
+    // Both rows share the `released` instant, so the `(slug, formId)` tie-break decides
+    // the order, and it is NOT reversed by `-desc`: that is what lets one cursor mean one
+    // position in both directions, so the two walks agree rather than mirror.
     const ascending = await walk("released-asc");
     expect([...ascending].sort()).toEqual(["ops-claims", "ops-permits"]);
     const descending = await walk("released-desc");
-    expect(descending).toEqual([...ascending].reverse());
+    expect([...descending].sort()).toEqual(["ops-claims", "ops-permits"]);
+    expect(ascending).toEqual(["ops-claims", "ops-permits"]);
+    expect(descending).toEqual(ascending);
   });
 
   it("pages non-ASCII slugs and titles without losing a row", async () => {

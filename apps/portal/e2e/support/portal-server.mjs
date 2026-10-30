@@ -21,8 +21,14 @@ const defaultLogPath = fileURLToPath(
 );
 const repoRoot = fileURLToPath(new URL("../../../../", import.meta.url));
 
-const devCommand =
-  process.env.QCMS_PORTAL_SERVER_COMMAND ?? `pnpm --filter qcms-portal dev --port ${port}`;
+// `QCMS_HARNESS_BUILD=1` serves a production build instead of `next dev`, for the reason
+// the admin wrapper records: a dev server's first-visit compile replaces the document
+// under the page. Opt-in, because it costs a build per run; CI does not set it.
+const production = process.env.QCMS_HARNESS_BUILD === "1";
+const defaultCommand = production
+  ? `pnpm --filter qcms-portal build && pnpm --filter qcms-portal start --port ${port}`
+  : `pnpm --filter qcms-portal dev --port ${port}`;
+const devCommand = process.env.QCMS_PORTAL_SERVER_COMMAND ?? defaultCommand;
 const logPath = process.env.QCMS_PORTAL_SERVER_LOG ?? defaultLogPath;
 
 /** How many lines of the captured log to surface when startup fails. */

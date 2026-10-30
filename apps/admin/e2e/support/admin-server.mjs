@@ -56,8 +56,15 @@ const repoRoot = fileURLToPath(new URL("../../../../", import.meta.url));
 // and where to tee it. Both default to the real thing, so nothing about a normal
 // Playwright run changes, and `admin-server.test.ts` drives the shipped code with a
 // stub child instead of a real Next server.
-const devCommand =
-  process.env.QCMS_ADMIN_SERVER_COMMAND ?? `pnpm --filter qcms-admin dev --port ${port}`;
+// `QCMS_HARNESS_BUILD=1` serves a production build instead of `next dev`. A dev server
+// compiles each route on its first visit and swaps the document under the page, which
+// Playwright reports as "Execution context was destroyed"; a built server has nothing
+// left to compile. It costs a build per run, so it is opt-in and CI does not set it.
+const production = process.env.QCMS_HARNESS_BUILD === "1";
+const defaultCommand = production
+  ? `pnpm --filter qcms-admin build && pnpm --filter qcms-admin start --port ${port}`
+  : `pnpm --filter qcms-admin dev --port ${port}`;
+const devCommand = process.env.QCMS_ADMIN_SERVER_COMMAND ?? defaultCommand;
 const logPath = process.env.QCMS_ADMIN_SERVER_LOG ?? defaultLogPath;
 
 /** How many lines of the captured log to surface when startup fails. */

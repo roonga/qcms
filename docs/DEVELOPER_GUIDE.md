@@ -293,16 +293,22 @@ If the answers say load, say so in the report with the numbers and re-run on a q
 
 ## Windows and WSL
 
-**A native Windows checkout runs `pnpm verify` and nothing heavier.** The three gates below were not ported, because what they need is not a shell difference. A handful of wrapper and scaffolding-CLI tests inside `pnpm verify` also still need POSIX process semantics (signals and a POSIX shell); they are listed in issue #1126 and are container-only too.
+**A native Windows checkout runs `pnpm verify` and nothing heavier.** The refused gates below were not ported, because what they need is not a shell difference. A handful of wrapper and scaffolding-CLI tests inside `pnpm verify` also still need POSIX process semantics (signals and a POSIX shell); they are listed in issue #1126 and are container-only too.
 
 | Gate                                     | Native Windows             | Where it runs            |
 | ---------------------------------------- | -------------------------- | ------------------------ |
 | `pnpm verify`                            | yes                        | anywhere                 |
-| `pnpm verify:browser`                    | no                         | WSL or the dev container |
+| `pnpm verify:browser`                    | no, refused with a message | WSL or the dev container |
 | `pnpm verify:browser:detached` / `:wait` | no, refused with a message | WSL or the dev container |
-| `QCMS_PORT_SEAT=<0-9> pnpm up:e2e`       | no                         | WSL or the dev container |
+| `QCMS_PORT_SEAT=<0-9> pnpm up:e2e`       | no, refused with a message | WSL or the dev container |
+| `pnpm test:e2e` / `:headed`              | no, refused with a message | WSL or the dev container |
+| `pnpm docker:up` / `docker:down`         | yes                        | anywhere                 |
 
-The three are POSIX by construction, not by accident. The detached runner puts the suite in a session of its own with `setsid` so it outlives the shell the harness kills, signals a **process group** to stop a suite and its dev servers together, and reads `/proc/<pid>/cwd` to say which worktree owns a port that is already held. Windows has no equivalent of any of the three, so `verify:browser:detached` **fails fast** on `win32` with a message naming WSL rather than failing several frames down on a missing `setsid`.
+They are POSIX by construction, not by accident. The detached runner puts the suite in a session of its own with `setsid` so it outlives the shell the harness kills, signals a **process group** to stop a suite and its dev servers together, and reads `/proc/<pid>/cwd` to say which worktree owns a port that is already held. Windows has no equivalent of any of the three mechanisms, so `verify:browser:detached` **fails fast** on `win32` with a message naming WSL rather than failing several frames down on a missing `setsid`.
+
+**A gate that takes a browser seat refuses on `win32` rather than running unguarded** (issue #1138). The seat guard identifies a port's holder through `/proc`, so on Windows it finds no occupant and the refusals that keep a lane from adopting an orphan dev server, or from tearing down a neighbour's Compose stack, are all silently inert. `assertPosixHost` in `scripts/ports.mjs` is the one refusal, called from the browser harness preflight and, for the suite-driving modes only, from `scripts/compose-e2e.mjs`.
+
+**`pnpm docker:up` and `pnpm docker:down` stay available on Windows** (Code Owner, 2026-10-30). They manage the stack and run no suite, so refusing them would leave an operator on Windows unable to clear a stack they had started. The seat rule still applies to them: `down` runs `down --volumes --remove-orphans` under the seat's project name, and with the occupancy half of the guard blind there, the seat you name is the only thing keeping you off another lane's stack.
 
 **WSL2 Ubuntu is the supported route** (Node 24, pnpm 11, per the `packageManager` pin), and the dev container is the canonical one (ADR-29). Keep a separate worktree on the Linux side rather than reaching across to the Windows filesystem: the cross-filesystem path is slow enough to change how the suites behave, and `node_modules` cannot be shared between the two platforms in any case.
 
@@ -314,9 +320,36 @@ cd ~/src/qcms-wt/<branch-slug>
 pnpm install --frozen-lockfile && pnpm build && pnpm verify
 ```
 
-**Docker Desktop is shared, so port seats are shared across both sides.** A seat is a machine-wide claim whichever side of the boundary asked for it, and the Windows and WSL views of the Docker daemon are the same daemon. Pick a seat from `docs/PORTS.md` the way a second lane on one host would, and never run `pnpm dev:down` while another seat is live. The occupancy half of the seat guard is inert (issue #1138), so a collision is not reported for you: the seat you chose is the only thing keeping two runs apart.
+**Docker Desktop is shared, so port seats are shared across both sides.** A seat is a machine-wide claim whichever side of the boundary asked for it, and the Windows and WSL views of the Docker daemon are the same daemon. Pick a seat from `docs/PORTS.md` the way a second lane on one host would, and never run `pnpm dev:down` while another seat is live. The occupancy half of the seat guard reads `/proc`, so it reports a collision only for the run that asked from the Linux side; a Windows run is refused outright rather than left unguarded.
+
+**Every lane folder keeps its branch checked out: no detached lanes** (Code Owner, 2026-10-30). A lane directory is created with `git worktree add <dir> -b <branch> origin/main`, or on an existing branch, and it stays on that branch for its whole life. The reason is the sweep: a branch can be asked whether its PR merged, and a detached HEAD cannot, because a squash merge leaves the lane's tip outside `origin/main`'s history, so nothing distinguishes finished work from unfinished. A folder found detached is therefore unsweepable by merge status and falls back to the age rule below.
+
+**Sweeping `~/src/qcms-wt/`.** `pnpm worktrees:prune` does **not** cover it: that sweep is scoped to `.claude/worktrees` inside the checkout. For the WSL lane root the rule is: remove a folder only when `git status --porcelain` in it is empty, including untracked files, and nothing under it has been touched for 14 days or more (ignore `node_modules` when reading mtimes). Never a folder with work in progress, and never one another session is using. Remove with `git worktree remove <dir>` from the owning repository, then `git worktree prune`.
 
 **Run `pnpm build` once in a fresh worktree before `test:tooling:no-build`.** That script's name is accurate - it skips the build - and several tooling tests read `dist/`, so in a worktree that has never been built they fail for a missing artifact rather than for anything the branch did.
+
+**Drive a WSL gate by piping a script to `wsl.exe bash -s`, not by passing it as `-lc '...'`.** A heredoc with LF endings reaches bash as a file it reads itself, so `$var`, `$(...)` and quoting all mean what they say:
+
+```sh
+wsl.exe bash -s <<'EOF'
+cd ~/src/qcms-wt/<slug>
+log=$(node scripts/agent-scratch.mjs verify.log)
+pnpm verify > "$log" 2>&1; rc=$?; echo "EXIT=$rc"
+EOF
+```
+
+Two traps the `-lc` form has, both silent:
+
+- **The outer shell expands the command string first.** From Git Bash or PowerShell, `wsl.exe bash -lc '... $(node ...) ...'` is one argument that the caller's own quoting rules reach into, so `$var` and `$(...)` are resolved on the Windows side against variables that do not exist there and bash receives the already-substituted, usually empty, result.
+- **A POSIX path given as an argument is translated.** `wsl.exe bash /tmp/script.sh` has the argument rewritten to a Windows path on the way through, and bash then reports a file it cannot find at a path nobody wrote. Keep POSIX paths inside the script, where nothing translates them.
+
+**`Execution context was destroyed, most likely because of a navigation` in a local browser run is usually the dev server, not the branch.** `next dev` compiles a route on its first visit and swaps the document under the page while it does. It is the first attempt in a cold worktree that sees it, and a retry passes. `QCMS_HARNESS_BUILD=1` serves a production build instead and removes the shape entirely; see "Serving a production build instead of `next dev`" below.
+
+**`gh pr edit --body-file` can fail on this repository with a GraphQL deprecation error about Projects (classic)**, which has nothing to do with the body being written: `gh` asks for project fields in the same query and the API refuses the whole request. Set the body through the REST endpoint instead, which touches no project field:
+
+```sh
+gh api -X PATCH repos/roonga/qcms/pulls/<n> -F body=@<path-to-body.md>
+```
 
 **A stray quote character in a `Path` entry defeats Node's PATH lookup for every child process it starts**, and the errors never mention it: a gate reports `spawn pnpm ENOENT`, or git "not found", on a machine where both run fine from the prompt. Windows accepts the quote in the environment variable and Node's lookup does not strip it. Before believing a tool is missing, print `$env:Path -split ';'` in PowerShell and look for an entry carrying a quote or an apostrophe, then fix that entry rather than working around it in every command.
 
@@ -570,7 +603,13 @@ QCMS_PORT_SEAT=<0-9> pnpm verify:browser:detached
 log=$(node scripts/agent-scratch.mjs browser-wait.log)
 pnpm verify:browser:wait <dir> > "$log" 2>&1; rc=$?; echo "EXIT=$rc"
 pnpm verify:browser:wait <dir> --slice 300 --tail 80 > "$log" 2>&1; rc=$?; echo "EXIT=$rc"
+
+# Stop a run you started, before it finishes. Signals the recorded runner, which
+# stops the suite and clears the seat, then reports whether the seat came free.
+pnpm verify:browser:stop <dir>
 ```
+
+**`stop` is the supported way to end a run early**, and it exists so nobody has to kill a gate by hand. It signals the runner pid the run recorded and nothing else, so the runner's own handler does the work: the suite's process group is stopped, the seat is released by port, and the rc file is written. It then waits for that rc file and says whether the seat actually came free, so a seat left occupied is reported rather than assumed. Exit 0 means the run stopped and the seat is released as far as it owned it; 79 means it was signalled but did not finish cleanly, and the lines above it name what is left. Two other shapes it handles: a run that has already finished is reported as nothing to stop, and a runner that was SIGKILLed (so it never trapped anything, and its suite and dev servers outlived it) has its **recorded suite group** signalled instead. Never `pkill -f` a gate command name, whatever the hurry: every lane on this host runs the same command names (issue #890).
 
 **One `wait` call is the entire wait for that slice** (issue #915). It blocks in the foreground for the whole slice, which is 540 seconds by default, so a single call fits inside a 10-minute command timeout; it prints each heartbeat line as that line arrives, so a blocked slice is not a silent one; and it returns 75 with the suite still running rather than a verdict. The loop is therefore: call it, read `rc`, call it again while `rc` is 75. Polling anything else between calls adds no information and costs a turn each: a lane on 2026-09-13 spent about 150 near-identical polls over an 18-minute run watching a background monitor instead of blocking here. If you do pipe it anyway, zsh spells the first element's code `$pipestatus[1]` (never the bash `${PIPESTATUS[0]}`, which is unset in zsh and falls through to a stale `$?`, issue #481).
 
@@ -586,6 +625,7 @@ The suite runs under `setsid`, in a session of its own, so killing the shell tha
 | 76   | the runner is gone and recorded no rc, so it was SIGKILLed. Expect orphans         |
 | 77   | the runner was signalled; it stopped the suite and cleared the seat. Not a verdict |
 | 78   | the SUITE died on a signal while the runner was never touched. Not a verdict       |
+| 79   | `stop` only: the run was signalled but did not release the seat cleanly            |
 
 **75 and 77 are the point of the whole thing.** A slice that ends early says so in a code of its own rather than resembling a failure, and a killed runner says it was killed rather than leaving a truncated log to be read as a red suite.
 
@@ -609,6 +649,20 @@ A signalled run records, at the instant the signal arrived, these fields, and `w
 
 `--shard 1/2` and `--project <name>` are passed through to Playwright, which is how the #808 lane finished under a cap before this existed (the portal projects plus two admin shards, 111 + 94 + 88 = 293). Anything after `--` is handed to Playwright verbatim. The `--project` value is forwarded in the `--project=<name>` form because Playwright's own flag is variadic and the space form swallows the next argument as a second project name. **A spec run directly rather than through the runner has to spell it that way itself**, and `CONTRIBUTING.md` carries the copy-pastable pair (issue #890).
 
+### Serving a production build instead of `next dev`
+
+**`QCMS_HARNESS_BUILD=1` makes both harness wrappers build their app and serve it with `next start`.** The default is still `next dev`, and nothing about CI changes.
+
+```sh
+QCMS_PORT_SEAT=<0-9> QCMS_HARNESS_BUILD=1 pnpm verify:browser:detached
+```
+
+The reason to reach for it is one failure shape. A dev server compiles a route on its **first** visit and swaps the document under the page while it does, which Playwright reports as `Execution context was destroyed, most likely because of a navigation` - an error that names nothing about the test and looks like a product bug or a flaky locator. A built server has no route left to compile, so that shape cannot occur; the existing `actionTimeout` and the specs' own waits already absorb the slow first visit, so this is about the document swap rather than about speed.
+
+What it costs, and why it is opt-in: a `next build` per app per run, before any test starts. The `webServer` wait rises from 180 to 900 seconds to cover it (`playwright.config.ts`), and a run that would have reused an already-warm dev server no longer can. **CI keeps `next dev`** deliberately: `browser-e2e` is the browser verdict, it is already green on that configuration, and changing what CI serves is a bigger question than this flag. Use the flag locally to decide whether a failure is the dev server or the branch, and say which configuration a result came from.
+
+Two things to expect. `next start` prints `"next start" does not work with "output: standalone" configuration` on both apps, because `output: "standalone"` is what the images ship (issue #291); it is an advisory about the deployment path and the server serves normally underneath it. And the wrappers keep their own seams, `QCMS_ADMIN_SERVER_COMMAND` and `QCMS_PORTAL_SERVER_COMMAND`, which override the flag's command entirely.
+
 **A fresh worktree needs `pnpm build` before any of this** (issue #890): with no `packages/*/dist` the portal dev server cannot come up inside the config's hard-coded 180 s `webServer` timeout, and the failure reads as a hung server rather than as a missing build.
 
 **Clearing orphan servers, when a run was killed hard enough to leave some.** The seat preflight names them: it refuses to start and prints each occupant's pid and `/proc/<pid>/cwd` (`docs/PORTS.md`). To list them independently, match real port numbers rather than the `17Sxx` shorthand, whose `S` is a placeholder that matches nothing as written. Two forms, both copy-pastable: `ss -ltnp | grep -E ":17${QCMS_PORT_SEAT:-0}(00|10|30|40)"` for this seat's four ports (17200, 17210, 17230 and 17240 at seat 2), and `ss -ltnp | grep -E ':17[0-9]{3}'` for every seat at once, which is what you want when the question is whether a neighbour is running. Then:
@@ -616,6 +670,7 @@ A signalled run records, at the instant the signal arrived, these fields, and `w
 - **Kill the pids the preflight named, one pid per argument**: `kill -9 <pid> <pid>`. In zsh an unquoted parameter is not word-split, so `kill -9 $pids` built from a space-joined string sends nothing to anything and reports success.
 - **Do not trust `kill`'s exit code, and be ready to run it outside the sandbox.** A sandboxed `kill` has been seen to exit 0 while every orphan survived (issue #846, the #808 lane); it has also been seen to work. Both report success, so the exit code is not evidence either way. Check with one of the two commands above afterwards, and if the listener is still there, run the kill outside the sandbox.
 - **Never `pkill -f` a gate command name.** Every lane on this host runs the same command names, so `pkill -f "pnpm verify"` is lane-agnostic: it can take out a neighbour's gate, and a second such pattern once killed the caller's own shell (issue #890). The recorded pid is the only safe target, which is why the detached runner writes one.
+- **For a run that is still live, reach for `pnpm verify:browser:stop <dir>` first.** It signals exactly that recorded pid and lets the runner clear its own seat, so the hand cleanup above is what is left for a run that was already SIGKILLed.
 
 A runner that is signalled rather than SIGKILLed cleans up after itself, and it is worth knowing exactly how far that goes. It traps SIGTERM, SIGINT and SIGHUP, signals the suite's whole process group, and then **clears the seat by port rather than by ancestry**: it asks `/proc` who is listening on this seat's four harness ports, signals those pids one at a time, waits, and SIGKILLs whoever is left. The second half is not belt and braces. Playwright starts each `webServer` in a session of its own, so the two `next dev` servers are in process groups the suite's leader pid cannot address at all, and a group signal on its own leaves both of them bound to the seat 25 seconds later (measured twice while building this, which is why the rc file now reports what the port check found rather than what the cleanup intended). The rc file says `Seat released: nothing is listening on <ports>` only when that check came back empty; if anything survived even the SIGKILL it writes `seat_survivors=<port>:<pid>` instead, and those pids are yours to kill by the rules above.
 
