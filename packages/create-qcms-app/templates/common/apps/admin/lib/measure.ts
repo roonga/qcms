@@ -26,9 +26,8 @@
  * drawn rather than at that size minus two paddings.
  *
  * WHERE A POC'S OUTER LAYER IS "NONE", THIS TABLE STILL CARRIES THE INNER NUMBER.
- * `deployment-ops-poc.html` caps nothing outer, so `/responses/erasures` has no outer
- * number to take and keeps the per-screen cap 657 gave it. That is also why issue 668's own
- * closing list names three screens rather than six.
+ * `deployment-ops-poc.html` caps nothing outer, so a screen of its own has no outer number
+ * to take and its per-screen cap is the only layer there is.
  *
  * READING A MULTI-SCREEN POC, which is where that rule earns its keep. Six of the eleven
  * files pack two or three screens behind a switcher, and a shared `.main` in such a file

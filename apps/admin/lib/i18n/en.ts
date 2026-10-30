@@ -2082,7 +2082,8 @@ export const messages = {
   // click away on this page.
   "ops.area.webhooks.intro":
     "The dead-letter queue below covers every form. Endpoints are configured per form, on that form's Webhooks screen - open one from the list below.",
-  // `{slug}`, for the same reason as `ops.area.responses.pickForm` above.
+  // `{slug}` and not `{title}`: `GET /admin/forms` answers with no title, so a
+  // placeholder named for one would be a promise the catalog cannot keep.
   "ops.area.webhooks.pickForm": "Configure webhooks for {slug}",
   "ops.area.webhooks.noForms": "No forms exist yet, so there is nothing to deliver.",
   "ops.area.webhooks.filter.form": "Form",
