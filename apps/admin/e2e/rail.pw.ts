@@ -453,8 +453,8 @@ test("pins the rail to the viewport below the bar, at the height the token claim
 
   await waitForBarMeasurement(page);
   const at = await scrollState(page);
-  // The effective value includes the test banner inside the sticky header. A derived
-  // single-row height would leave the rail behind the banner and beyond the viewport.
+  // The effective value is the measured one, which includes whatever the sticky header
+  // actually carries. A derived single-row height would leave the rail behind it.
   expect(at.barHeight, "the effective height includes the entire header").toBeCloseTo(
     at.barToken,
     0,

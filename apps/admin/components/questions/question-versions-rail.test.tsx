@@ -193,7 +193,9 @@ describe("the question rail's markup", () => {
     // The column is complementary content about the subject; the version list inside it is
     // the navigation. It was a `<nav>` all the way out, which made the panel switches, the
     // facts and the actions part of a navigation landmark too (§7.0 ruling 2).
-    expect(html).toContain('<aside id="qcms-rail-region" class="qcms-rail" aria-label="q_smoking_status"');
+    expect(html).toContain(
+      '<aside id="qcms-rail-region" class="qcms-rail" aria-label="q_smoking_status"',
+    );
     expect(html).toContain('<nav aria-label="q_smoking_status sections">');
   });
 

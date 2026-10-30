@@ -148,155 +148,155 @@ carry the DS tight tracking.
 
 ## Targets
 
-| Mode | Body text | Large / secondary | UI / borders / focus |
-|---|---|---|---|
-| Light | 4.5:1 (AA) | 3:1 | 3:1 |
-| Dark | 4.5:1 (AA) | 3:1 | 3:1 |
-| High-contrast, light field | 7:1 (AAA) | 4.5:1 | 3:1 |
-| High-contrast, dark field | 7:1 (AAA) | 4.5:1 | 3:1 |
+| Mode                       | Body text  | Large / secondary | UI / borders / focus |
+| -------------------------- | ---------- | ----------------- | -------------------- |
+| Light                      | 4.5:1 (AA) | 3:1               | 3:1                  |
+| Dark                       | 4.5:1 (AA) | 3:1               | 3:1                  |
+| High-contrast, light field | 7:1 (AAA)  | 4.5:1             | 3:1                  |
+| High-contrast, dark field  | 7:1 (AAA)  | 4.5:1             | 3:1                  |
 
 ## Verified contrast pairs
 
 ### cobalt / light
 
-| Pair | Foreground | Background | Ratio | Target | Result |
-|---|---|---|---:|---:|:--:|
-| text / background | `#0f1729` | `#f4f6f9` | 16.51 | 4.5 | PASS |
-| text / surface | `#0f1729` | `#ffffff` | 17.87 | 4.5 | PASS |
-| text / surface-hover | `#0f1729` | `#eef1f6` | 15.79 | 4.5 | PASS |
-| text / background-muted | `#0f1729` | `#edf0f5` | 15.65 | 4.5 | PASS |
-| text-muted / background | `#55617a` | `#f4f6f9` | 5.74 | 4.5 | PASS |
-| text-muted / surface | `#55617a` | `#ffffff` | 6.22 | 4.5 | PASS |
-| text-muted / surface-hover | `#55617a` | `#eef1f6` | 5.49 | 4.5 | PASS |
-| text-muted / background-muted | `#55617a` | `#edf0f5` | 5.44 | 4.5 | PASS |
-| primary-fg / primary | `#ffffff` | `#2456c6` | 6.52 | 4.5 | PASS |
-| primary-fg / primary-hover | `#ffffff` | `#1e4aad` | 7.96 | 4.5 | PASS |
-| primary-fg / primary-active | `#ffffff` | `#193f95` | 9.61 | 4.5 | PASS |
-| secondary-fg / secondary | `#0f1729` | `#edf0f5` | 15.65 | 4.5 | PASS |
-| secondary-fg / secondary-hover | `#0f1729` | `#e2e8f0` | 14.50 | 4.5 | PASS |
-| secondary-fg / secondary-active | `#0f1729` | `#cbd5e1` | 12.04 | 4.5 | PASS |
-| danger-fg-btn / danger | `#ffffff` | `#c0271f` | 5.91 | 4.5 | PASS |
-| danger-fg / danger-subtle | `#8f1d18` | `#f9e7e5` | 7.46 | 4.5 | PASS |
-| info-fg / info-subtle | `#1b44a0` | `#e9effb` | 7.65 | 4.5 | PASS |
-| success-fg / success-subtle | `#16603a` | `#e4f1ea` | 6.53 | 4.5 | PASS |
-| warning-fg / warning-subtle | `#6e4700` | `#f6eeda` | 7.08 | 4.5 | PASS |
-| border-strong / surface | `#78819a` | `#ffffff` | 3.89 | 3 | PASS |
-| border-strong / background | `#78819a` | `#f4f6f9` | 3.59 | 3 | PASS |
-| border-strong / surface-hover | `#78819a` | `#eef1f6` | 3.43 | 3 | PASS |
-| border-strong / background-muted | `#78819a` | `#edf0f5` | 3.40 | 3 | PASS |
-| focus-ring / background | `#2456c6` | `#f4f6f9` | 6.02 | 3 | PASS |
-| focus-ring / surface | `#2456c6` | `#ffffff` | 6.52 | 3 | PASS |
-| primary / surface (link-UI) | `#2456c6` | `#ffffff` | 6.52 | 3 | PASS |
-| primary / background (topbar active) | `#2456c6` | `#f4f6f9` | 6.02 | 3 | PASS |
-| env-prod-fg / env-prod (chip) | `#ffffff` | `#1e293b` | 14.63 | 4.5 | PASS |
-| env-test-fg / env-test-subtle (chip) | `#5b2fae` | `#f3eefc` | 7.49 | 4.5 | PASS |
-| env-test / env-test-subtle (chip edge) | `#7040c8` | `#f3eefc` | 5.66 | 3 | PASS |
-| env-prod / background (bar edge) | `#1e293b` | `#f4f6f9` | 13.51 | 3 | PASS |
-| env-test / background (bar edge) | `#7040c8` | `#f4f6f9` | 5.96 | 3 | PASS |
+| Pair                                   | Foreground | Background | Ratio | Target | Result |
+| -------------------------------------- | ---------- | ---------- | ----: | -----: | :----: |
+| text / background                      | `#0f1729`  | `#f4f6f9`  | 16.51 |    4.5 |  PASS  |
+| text / surface                         | `#0f1729`  | `#ffffff`  | 17.87 |    4.5 |  PASS  |
+| text / surface-hover                   | `#0f1729`  | `#eef1f6`  | 15.79 |    4.5 |  PASS  |
+| text / background-muted                | `#0f1729`  | `#edf0f5`  | 15.65 |    4.5 |  PASS  |
+| text-muted / background                | `#55617a`  | `#f4f6f9`  |  5.74 |    4.5 |  PASS  |
+| text-muted / surface                   | `#55617a`  | `#ffffff`  |  6.22 |    4.5 |  PASS  |
+| text-muted / surface-hover             | `#55617a`  | `#eef1f6`  |  5.49 |    4.5 |  PASS  |
+| text-muted / background-muted          | `#55617a`  | `#edf0f5`  |  5.44 |    4.5 |  PASS  |
+| primary-fg / primary                   | `#ffffff`  | `#2456c6`  |  6.52 |    4.5 |  PASS  |
+| primary-fg / primary-hover             | `#ffffff`  | `#1e4aad`  |  7.96 |    4.5 |  PASS  |
+| primary-fg / primary-active            | `#ffffff`  | `#193f95`  |  9.61 |    4.5 |  PASS  |
+| secondary-fg / secondary               | `#0f1729`  | `#edf0f5`  | 15.65 |    4.5 |  PASS  |
+| secondary-fg / secondary-hover         | `#0f1729`  | `#e2e8f0`  | 14.50 |    4.5 |  PASS  |
+| secondary-fg / secondary-active        | `#0f1729`  | `#cbd5e1`  | 12.04 |    4.5 |  PASS  |
+| danger-fg-btn / danger                 | `#ffffff`  | `#c0271f`  |  5.91 |    4.5 |  PASS  |
+| danger-fg / danger-subtle              | `#8f1d18`  | `#f9e7e5`  |  7.46 |    4.5 |  PASS  |
+| info-fg / info-subtle                  | `#1b44a0`  | `#e9effb`  |  7.65 |    4.5 |  PASS  |
+| success-fg / success-subtle            | `#16603a`  | `#e4f1ea`  |  6.53 |    4.5 |  PASS  |
+| warning-fg / warning-subtle            | `#6e4700`  | `#f6eeda`  |  7.08 |    4.5 |  PASS  |
+| border-strong / surface                | `#78819a`  | `#ffffff`  |  3.89 |      3 |  PASS  |
+| border-strong / background             | `#78819a`  | `#f4f6f9`  |  3.59 |      3 |  PASS  |
+| border-strong / surface-hover          | `#78819a`  | `#eef1f6`  |  3.43 |      3 |  PASS  |
+| border-strong / background-muted       | `#78819a`  | `#edf0f5`  |  3.40 |      3 |  PASS  |
+| focus-ring / background                | `#2456c6`  | `#f4f6f9`  |  6.02 |      3 |  PASS  |
+| focus-ring / surface                   | `#2456c6`  | `#ffffff`  |  6.52 |      3 |  PASS  |
+| primary / surface (link-UI)            | `#2456c6`  | `#ffffff`  |  6.52 |      3 |  PASS  |
+| primary / background (topbar active)   | `#2456c6`  | `#f4f6f9`  |  6.02 |      3 |  PASS  |
+| env-prod-fg / env-prod (chip)          | `#ffffff`  | `#1e293b`  | 14.63 |    4.5 |  PASS  |
+| env-test-fg / env-test-subtle (chip)   | `#5b2fae`  | `#f3eefc`  |  7.49 |    4.5 |  PASS  |
+| env-test / env-test-subtle (chip edge) | `#7040c8`  | `#f3eefc`  |  5.66 |      3 |  PASS  |
+| env-prod / background (bar edge)       | `#1e293b`  | `#f4f6f9`  | 13.51 |      3 |  PASS  |
+| env-test / background (bar edge)       | `#7040c8`  | `#f4f6f9`  |  5.96 |      3 |  PASS  |
 
 ### cobalt / dark
 
-| Pair | Foreground | Background | Ratio | Target | Result |
-|---|---|---|---:|---:|:--:|
-| text / background | `#f0f6ff` | `#04080f` | 18.47 | 4.5 | PASS |
-| text / surface | `#f0f6ff` | `#080f1a` | 17.68 | 4.5 | PASS |
-| text / surface-hover | `#f0f6ff` | `#0e1626` | 16.64 | 4.5 | PASS |
-| text / background-muted | `#f0f6ff` | `#02050c` | 18.78 | 4.5 | PASS |
-| text-muted / background | `#8ba3be` | `#04080f` | 7.72 | 4.5 | PASS |
-| text-muted / surface | `#8ba3be` | `#080f1a` | 7.39 | 4.5 | PASS |
-| text-muted / surface-hover | `#8ba3be` | `#0e1626` | 6.96 | 4.5 | PASS |
-| text-muted / background-muted | `#8ba3be` | `#02050c` | 7.85 | 4.5 | PASS |
-| primary-fg / primary | `#04080f` | `#7aa2ff` | 8.06 | 4.5 | PASS |
-| primary-fg / primary-hover | `#04080f` | `#8fb1ff` | 9.46 | 4.5 | PASS |
-| primary-fg / primary-active | `#04080f` | `#a1beff` | 10.82 | 4.5 | PASS |
-| secondary-fg / secondary | `#f0f6ff` | `#0e1626` | 16.64 | 4.5 | PASS |
-| secondary-fg / secondary-hover | `#f0f6ff` | `#182335` | 14.53 | 4.5 | PASS |
-| secondary-fg / secondary-active | `#f0f6ff` | `#1e3048` | 12.30 | 4.5 | PASS |
-| danger-fg-btn / danger | `#04080f` | `#ff7b80` | 8.02 | 4.5 | PASS |
-| danger-fg / danger-subtle | `#ffb3b5` | `#2b1615` | 10.07 | 4.5 | PASS |
-| info-fg / info-subtle | `#a9c4ff` | `#16233a` | 9.00 | 4.5 | PASS |
-| success-fg / success-subtle | `#8fe0bd` | `#132a20` | 9.83 | 4.5 | PASS |
-| warning-fg / warning-subtle | `#f0cd85` | `#2a2110` | 10.41 | 4.5 | PASS |
-| border-strong / surface | `#4f7396` | `#080f1a` | 3.86 | 3 | PASS |
-| border-strong / background | `#4f7396` | `#04080f` | 4.04 | 3 | PASS |
-| border-strong / surface-hover | `#4f7396` | `#0e1626` | 3.64 | 3 | PASS |
-| border-strong / background-muted | `#4f7396` | `#02050c` | 4.10 | 3 | PASS |
-| focus-ring / background | `#7aa2ff` | `#04080f` | 8.06 | 3 | PASS |
-| focus-ring / surface | `#7aa2ff` | `#080f1a` | 7.72 | 3 | PASS |
-| primary / surface (link-UI) | `#7aa2ff` | `#080f1a` | 7.72 | 3 | PASS |
-| primary / background (topbar active) | `#7aa2ff` | `#04080f` | 8.06 | 3 | PASS |
-| env-prod-fg / env-prod (chip) | `#0b0f1a` | `#cbd5e1` | 12.89 | 4.5 | PASS |
-| env-test-fg / env-test-subtle (chip) | `#d6c8ff` | `#221a38` | 10.66 | 4.5 | PASS |
-| env-test / env-test-subtle (chip edge) | `#b69cff` | `#221a38` | 7.22 | 3 | PASS |
-| env-prod / background (bar edge) | `#cbd5e1` | `#04080f` | 13.51 | 3 | PASS |
-| env-test / background (bar edge) | `#b69cff` | `#04080f` | 8.78 | 3 | PASS |
+| Pair                                   | Foreground | Background | Ratio | Target | Result |
+| -------------------------------------- | ---------- | ---------- | ----: | -----: | :----: |
+| text / background                      | `#f0f6ff`  | `#04080f`  | 18.47 |    4.5 |  PASS  |
+| text / surface                         | `#f0f6ff`  | `#080f1a`  | 17.68 |    4.5 |  PASS  |
+| text / surface-hover                   | `#f0f6ff`  | `#0e1626`  | 16.64 |    4.5 |  PASS  |
+| text / background-muted                | `#f0f6ff`  | `#02050c`  | 18.78 |    4.5 |  PASS  |
+| text-muted / background                | `#8ba3be`  | `#04080f`  |  7.72 |    4.5 |  PASS  |
+| text-muted / surface                   | `#8ba3be`  | `#080f1a`  |  7.39 |    4.5 |  PASS  |
+| text-muted / surface-hover             | `#8ba3be`  | `#0e1626`  |  6.96 |    4.5 |  PASS  |
+| text-muted / background-muted          | `#8ba3be`  | `#02050c`  |  7.85 |    4.5 |  PASS  |
+| primary-fg / primary                   | `#04080f`  | `#7aa2ff`  |  8.06 |    4.5 |  PASS  |
+| primary-fg / primary-hover             | `#04080f`  | `#8fb1ff`  |  9.46 |    4.5 |  PASS  |
+| primary-fg / primary-active            | `#04080f`  | `#a1beff`  | 10.82 |    4.5 |  PASS  |
+| secondary-fg / secondary               | `#f0f6ff`  | `#0e1626`  | 16.64 |    4.5 |  PASS  |
+| secondary-fg / secondary-hover         | `#f0f6ff`  | `#182335`  | 14.53 |    4.5 |  PASS  |
+| secondary-fg / secondary-active        | `#f0f6ff`  | `#1e3048`  | 12.30 |    4.5 |  PASS  |
+| danger-fg-btn / danger                 | `#04080f`  | `#ff7b80`  |  8.02 |    4.5 |  PASS  |
+| danger-fg / danger-subtle              | `#ffb3b5`  | `#2b1615`  | 10.07 |    4.5 |  PASS  |
+| info-fg / info-subtle                  | `#a9c4ff`  | `#16233a`  |  9.00 |    4.5 |  PASS  |
+| success-fg / success-subtle            | `#8fe0bd`  | `#132a20`  |  9.83 |    4.5 |  PASS  |
+| warning-fg / warning-subtle            | `#f0cd85`  | `#2a2110`  | 10.41 |    4.5 |  PASS  |
+| border-strong / surface                | `#4f7396`  | `#080f1a`  |  3.86 |      3 |  PASS  |
+| border-strong / background             | `#4f7396`  | `#04080f`  |  4.04 |      3 |  PASS  |
+| border-strong / surface-hover          | `#4f7396`  | `#0e1626`  |  3.64 |      3 |  PASS  |
+| border-strong / background-muted       | `#4f7396`  | `#02050c`  |  4.10 |      3 |  PASS  |
+| focus-ring / background                | `#7aa2ff`  | `#04080f`  |  8.06 |      3 |  PASS  |
+| focus-ring / surface                   | `#7aa2ff`  | `#080f1a`  |  7.72 |      3 |  PASS  |
+| primary / surface (link-UI)            | `#7aa2ff`  | `#080f1a`  |  7.72 |      3 |  PASS  |
+| primary / background (topbar active)   | `#7aa2ff`  | `#04080f`  |  8.06 |      3 |  PASS  |
+| env-prod-fg / env-prod (chip)          | `#0b0f1a`  | `#cbd5e1`  | 12.89 |    4.5 |  PASS  |
+| env-test-fg / env-test-subtle (chip)   | `#d6c8ff`  | `#221a38`  | 10.66 |    4.5 |  PASS  |
+| env-test / env-test-subtle (chip edge) | `#b69cff`  | `#221a38`  |  7.22 |      3 |  PASS  |
+| env-prod / background (bar edge)       | `#cbd5e1`  | `#04080f`  | 13.51 |      3 |  PASS  |
+| env-test / background (bar edge)       | `#b69cff`  | `#04080f`  |  8.78 |      3 |  PASS  |
 
 ### cobalt / high-contrast, light field (universal layer + cobalt accent)
 
-| Pair | Foreground | Background | Ratio | Target | Result |
-|---|---|---|---:|---:|:--:|
-| text / background (AAA) | `#000000` | `#ffffff` | 21.00 | 7 | PASS |
-| text / surface-hover (AAA) | `#000000` | `#eceef1` | 18.07 | 7 | PASS |
-| text-muted / background (AAA) | `#22262e` | `#ffffff` | 15.17 | 7 | PASS |
-| text-muted / background-muted (AAA) | `#22262e` | `#f2f3f5` | 13.66 | 7 | PASS |
-| primary-fg / primary (AAA) | `#ffffff` | `#0a3ea8` | 9.26 | 7 | PASS |
-| primary-fg / primary-hover (AAA) | `#ffffff` | `#08348f` | 11.06 | 7 | PASS |
-| primary-fg / primary-active (AAA) | `#ffffff` | `#062a75` | 13.16 | 7 | PASS |
-| secondary-fg / secondary (AAA) | `#ffffff` | `#1c2433` | 15.56 | 7 | PASS |
-| secondary-fg / secondary-hover (AAA) | `#ffffff` | `#19202e` | 16.31 | 7 | PASS |
-| secondary-fg / secondary-active (AAA) | `#ffffff` | `#161d29` | 16.91 | 7 | PASS |
-| danger-fg-btn / danger (AAA) | `#ffffff` | `#8a0f0a` | 9.75 | 7 | PASS |
-| danger-fg / danger-subtle (AAA) | `#6b0b07` | `#ffecea` | 11.00 | 7 | PASS |
-| info-fg / info-subtle (AAA) | `#08337d` | `#e6efff` | 10.20 | 7 | PASS |
-| success-fg / success-subtle (AAA) | `#064023` | `#e2f4e9` | 10.39 | 7 | PASS |
-| warning-fg / warning-subtle (AAA) | `#4a3000` | `#fbf0d6` | 10.82 | 7 | PASS |
-| border-strong / surface | `#000000` | `#ffffff` | 21.00 | 3 | PASS |
-| border-strong / background | `#000000` | `#ffffff` | 21.00 | 3 | PASS |
-| border / surface | `#5a616e` | `#ffffff` | 6.23 | 3 | PASS |
-| focus-ring / background | `#0a3ea8` | `#ffffff` | 9.26 | 3 | PASS |
-| focus-ring / surface | `#0a3ea8` | `#ffffff` | 9.26 | 3 | PASS |
-| primary / surface | `#0a3ea8` | `#ffffff` | 9.26 | 3 | PASS |
-| env-prod-fg / env-prod (chip, AAA) | `#ffffff` | `#000000` | 21.00 | 7 | PASS |
-| env-test-fg / env-test-subtle (chip, AAA) | `#3d1585` | `#ffffff` | 12.77 | 7 | PASS |
-| env-prod / background (bar edge) | `#000000` | `#ffffff` | 21.00 | 3 | PASS |
-| env-test / background (bar edge) | `#4a1d9e` | `#ffffff` | 10.71 | 3 | PASS |
+| Pair                                      | Foreground | Background | Ratio | Target | Result |
+| ----------------------------------------- | ---------- | ---------- | ----: | -----: | :----: |
+| text / background (AAA)                   | `#000000`  | `#ffffff`  | 21.00 |      7 |  PASS  |
+| text / surface-hover (AAA)                | `#000000`  | `#eceef1`  | 18.07 |      7 |  PASS  |
+| text-muted / background (AAA)             | `#22262e`  | `#ffffff`  | 15.17 |      7 |  PASS  |
+| text-muted / background-muted (AAA)       | `#22262e`  | `#f2f3f5`  | 13.66 |      7 |  PASS  |
+| primary-fg / primary (AAA)                | `#ffffff`  | `#0a3ea8`  |  9.26 |      7 |  PASS  |
+| primary-fg / primary-hover (AAA)          | `#ffffff`  | `#08348f`  | 11.06 |      7 |  PASS  |
+| primary-fg / primary-active (AAA)         | `#ffffff`  | `#062a75`  | 13.16 |      7 |  PASS  |
+| secondary-fg / secondary (AAA)            | `#ffffff`  | `#1c2433`  | 15.56 |      7 |  PASS  |
+| secondary-fg / secondary-hover (AAA)      | `#ffffff`  | `#19202e`  | 16.31 |      7 |  PASS  |
+| secondary-fg / secondary-active (AAA)     | `#ffffff`  | `#161d29`  | 16.91 |      7 |  PASS  |
+| danger-fg-btn / danger (AAA)              | `#ffffff`  | `#8a0f0a`  |  9.75 |      7 |  PASS  |
+| danger-fg / danger-subtle (AAA)           | `#6b0b07`  | `#ffecea`  | 11.00 |      7 |  PASS  |
+| info-fg / info-subtle (AAA)               | `#08337d`  | `#e6efff`  | 10.20 |      7 |  PASS  |
+| success-fg / success-subtle (AAA)         | `#064023`  | `#e2f4e9`  | 10.39 |      7 |  PASS  |
+| warning-fg / warning-subtle (AAA)         | `#4a3000`  | `#fbf0d6`  | 10.82 |      7 |  PASS  |
+| border-strong / surface                   | `#000000`  | `#ffffff`  | 21.00 |      3 |  PASS  |
+| border-strong / background                | `#000000`  | `#ffffff`  | 21.00 |      3 |  PASS  |
+| border / surface                          | `#5a616e`  | `#ffffff`  |  6.23 |      3 |  PASS  |
+| focus-ring / background                   | `#0a3ea8`  | `#ffffff`  |  9.26 |      3 |  PASS  |
+| focus-ring / surface                      | `#0a3ea8`  | `#ffffff`  |  9.26 |      3 |  PASS  |
+| primary / surface                         | `#0a3ea8`  | `#ffffff`  |  9.26 |      3 |  PASS  |
+| env-prod-fg / env-prod (chip, AAA)        | `#ffffff`  | `#000000`  | 21.00 |      7 |  PASS  |
+| env-test-fg / env-test-subtle (chip, AAA) | `#3d1585`  | `#ffffff`  | 12.77 |      7 |  PASS  |
+| env-prod / background (bar edge)          | `#000000`  | `#ffffff`  | 21.00 |      3 |  PASS  |
+| env-test / background (bar edge)          | `#4a1d9e`  | `#ffffff`  | 10.71 |      3 |  PASS  |
 
 ### cobalt / high-contrast, dark field (universal layer + cobalt dark accent)
 
-| Pair | Foreground | Background | Ratio | Target | Result |
-|---|---|---|---:|---:|:--:|
-| text / background (AAA) | `#ffffff` | `#000000` | 21.00 | 7 | PASS |
-| text / surface-hover (AAA) | `#ffffff` | `#16181c` | 17.77 | 7 | PASS |
-| text-muted / background (AAA) | `#d6dae2` | `#000000` | 14.99 | 7 | PASS |
-| text-muted / background-muted (AAA) | `#d6dae2` | `#0b0d11` | 13.88 | 7 | PASS |
-| primary-fg / primary (AAA) | `#000000` | `#a9c4ff` | 12.03 | 7 | PASS |
-| primary-fg / primary-hover (AAA) | `#000000` | `#b8cfff` | 13.41 | 7 | PASS |
-| primary-fg / primary-active (AAA) | `#000000` | `#c6d9ff` | 14.77 | 7 | PASS |
-| secondary-fg / secondary (AAA) | `#000000` | `#cfd5e0` | 14.25 | 7 | PASS |
-| secondary-fg / secondary-hover (AAA) | `#000000` | `#e2e6ee` | 16.79 | 7 | PASS |
-| secondary-fg / secondary-active (AAA) | `#000000` | `#f2f4f8` | 19.07 | 7 | PASS |
-| danger-fg-btn / danger (AAA) | `#000000` | `#ff9ea2` | 10.66 | 7 | PASS |
-| danger-fg / danger-subtle (AAA) | `#ffc2c4` | `#1f0a0a` | 12.45 | 7 | PASS |
-| info-fg / info-subtle (AAA) | `#b9ccff` | `#0a1024` | 11.81 | 7 | PASS |
-| success-fg / success-subtle (AAA) | `#9ceabf` | `#04160c` | 13.27 | 7 | PASS |
-| warning-fg / warning-subtle (AAA) | `#ffd98a` | `#171003` | 13.98 | 7 | PASS |
-| border-strong / surface | `#ffffff` | `#000000` | 21.00 | 3 | PASS |
-| border-strong / background | `#ffffff` | `#000000` | 21.00 | 3 | PASS |
-| border / surface | `#9aa2b1` | `#000000` | 8.18 | 3 | PASS |
-| focus-ring / background | `#8ab4ff` | `#000000` | 10.05 | 3 | PASS |
-| focus-ring / surface | `#8ab4ff` | `#000000` | 10.05 | 3 | PASS |
-| primary / surface | `#a9c4ff` | `#000000` | 12.03 | 3 | PASS |
-| env-prod-fg / env-prod (chip, AAA) | `#000000` | `#ffffff` | 21.00 | 7 | PASS |
-| env-test-fg / env-test-subtle (chip, AAA) | `#e2d8ff` | `#000000` | 15.50 | 7 | PASS |
-| env-prod / background (bar edge) | `#ffffff` | `#000000` | 21.00 | 3 | PASS |
-| env-test / background (bar edge) | `#cdb8ff` | `#000000` | 11.90 | 3 | PASS |
+| Pair                                      | Foreground | Background | Ratio | Target | Result |
+| ----------------------------------------- | ---------- | ---------- | ----: | -----: | :----: |
+| text / background (AAA)                   | `#ffffff`  | `#000000`  | 21.00 |      7 |  PASS  |
+| text / surface-hover (AAA)                | `#ffffff`  | `#16181c`  | 17.77 |      7 |  PASS  |
+| text-muted / background (AAA)             | `#d6dae2`  | `#000000`  | 14.99 |      7 |  PASS  |
+| text-muted / background-muted (AAA)       | `#d6dae2`  | `#0b0d11`  | 13.88 |      7 |  PASS  |
+| primary-fg / primary (AAA)                | `#000000`  | `#a9c4ff`  | 12.03 |      7 |  PASS  |
+| primary-fg / primary-hover (AAA)          | `#000000`  | `#b8cfff`  | 13.41 |      7 |  PASS  |
+| primary-fg / primary-active (AAA)         | `#000000`  | `#c6d9ff`  | 14.77 |      7 |  PASS  |
+| secondary-fg / secondary (AAA)            | `#000000`  | `#cfd5e0`  | 14.25 |      7 |  PASS  |
+| secondary-fg / secondary-hover (AAA)      | `#000000`  | `#e2e6ee`  | 16.79 |      7 |  PASS  |
+| secondary-fg / secondary-active (AAA)     | `#000000`  | `#f2f4f8`  | 19.07 |      7 |  PASS  |
+| danger-fg-btn / danger (AAA)              | `#000000`  | `#ff9ea2`  | 10.66 |      7 |  PASS  |
+| danger-fg / danger-subtle (AAA)           | `#ffc2c4`  | `#1f0a0a`  | 12.45 |      7 |  PASS  |
+| info-fg / info-subtle (AAA)               | `#b9ccff`  | `#0a1024`  | 11.81 |      7 |  PASS  |
+| success-fg / success-subtle (AAA)         | `#9ceabf`  | `#04160c`  | 13.27 |      7 |  PASS  |
+| warning-fg / warning-subtle (AAA)         | `#ffd98a`  | `#171003`  | 13.98 |      7 |  PASS  |
+| border-strong / surface                   | `#ffffff`  | `#000000`  | 21.00 |      3 |  PASS  |
+| border-strong / background                | `#ffffff`  | `#000000`  | 21.00 |      3 |  PASS  |
+| border / surface                          | `#9aa2b1`  | `#000000`  |  8.18 |      3 |  PASS  |
+| focus-ring / background                   | `#8ab4ff`  | `#000000`  | 10.05 |      3 |  PASS  |
+| focus-ring / surface                      | `#8ab4ff`  | `#000000`  | 10.05 |      3 |  PASS  |
+| primary / surface                         | `#a9c4ff`  | `#000000`  | 12.03 |      3 |  PASS  |
+| env-prod-fg / env-prod (chip, AAA)        | `#000000`  | `#ffffff`  | 21.00 |      7 |  PASS  |
+| env-test-fg / env-test-subtle (chip, AAA) | `#e2d8ff`  | `#000000`  | 15.50 |      7 |  PASS  |
+| env-prod / background (bar edge)          | `#ffffff`  | `#000000`  | 21.00 |      3 |  PASS  |
+| env-test / background (bar edge)          | `#cdb8ff`  | `#000000`  | 11.90 |      3 |  PASS  |
 
 ### cobalt / the dark-field accent rule
 
-| Pair | Foreground | Background | Ratio | Target | Result |
-|---|---|---|---:|---:|:--:|
-| light-HC accent / dark-HC background (measured; 7:1 here retires the dark accent) | `#0a3ea8` | `#000000` | 2.27 | 0 | PASS |
-| dark-HC accent / dark-HC background (AAA) | `#a9c4ff` | `#000000` | 12.03 | 7 | PASS |
+| Pair                                                                              | Foreground | Background | Ratio | Target | Result |
+| --------------------------------------------------------------------------------- | ---------- | ---------- | ----: | -----: | :----: |
+| light-HC accent / dark-HC background (measured; 7:1 here retires the dark accent) | `#0a3ea8`  | `#000000`  |  2.27 |      0 |  PASS  |
+| dark-HC accent / dark-HC background (AAA)                                         | `#a9c4ff`  | `#000000`  | 12.03 |      7 |  PASS  |
 
 ## Files
 

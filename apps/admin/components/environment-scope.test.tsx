@@ -199,7 +199,7 @@ describe("a refusal because another tab switched", { timeout: 30_000 }, () => {
 
 describe("the switcher after a re-read", () => {
   it("shows the selection the server re-rendered, not the one it was mounted with", () => {
-    // The CI failure this pins: the re-read on return worked and the banner said test, but
+    // The CI failure this pins: the re-read on return worked and the server said test, but
     // the switcher kept the name its state was initialised with and went on saying prod.
     const { rerender } = render(
       <EnvironmentSwitcher environments={["prod", "test"]} selected="prod" secureCookies={false} />,

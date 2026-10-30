@@ -19,6 +19,7 @@ export function ResponsesIndexRail({ filters }: { readonly filters: ResponsesInd
       subject={t("ops.area.responses.title")}
       title={t("ops.area.responses.title")}
       testId="qcms-responses-rail"
+      filterCount={activeCount}
       {...(activeCount > 0
         ? { count: <RailCount>{activeFilterCount(activeCount)}</RailCount> }
         : {})}

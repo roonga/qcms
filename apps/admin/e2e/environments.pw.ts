@@ -2,35 +2,40 @@ import type { Page } from "@playwright/test";
 
 import { expect, test } from "../../portal/e2e/support/gates.js";
 
+import { MODE_COOKIE } from "../lib/appearance.js";
 import { createTestAdmin, uniqueAdminEmail } from "./support/admin-account.js";
-import { enrollNewAdmin, openMenu, signInWithTotp } from "./support/flow.js";
+import { chooseEnvironment, environmentChip, OPERATIONS_PATH } from "./support/environment.js";
+import { enrollNewAdmin, signInWithTotp } from "./support/flow.js";
 import { createForm } from "./support/forms.js";
+import { ADMIN_BASE_URL } from "./support/harness-config.js";
 
 /**
- * The global environment switcher and its banner (ADR-40 Q6, task 065, criterion 6).
+ * The environment chip (ADR-40 Q6, `plan/admin-design-contracts.md` §10).
  *
- * ## Why this criterion is a browser test and says so
+ * ## Why these are browser claims
  *
- * The work order names it: **a banner nobody renders is the failure mode here**, and a unit
- * test on the component does not catch a shell that never mounts it. Everything below is a
- * property of the composed app rather than of a component - which screens carry the shell,
- * what survives a navigation, what survives a reload, and what a confirmation dialog says
- * when it opens.
+ * An indicator nobody renders is the failure mode here, and a unit test on the component
+ * does not catch a header that never mounts it. Everything below is a property of the
+ * composed app: which header carries the chip, what survives a navigation and a reload,
+ * what a confirmation says when it opens, and whether a switch moves the page.
  *
- * ## The three claims, and the order they are made in
+ * ## The claims, in order
  *
- *  1. **The switcher is on every screen** and shows one selection across all of them.
- *  2. **The banner is present under a non-prod environment and absent under `prod`**, which
- *     is what makes its presence information rather than furniture.
- *  3. **A destructive confirmation names the environment**, because an act performed
- *     against the wrong one is not undoable. The close dialog is the one reached here; the
- *     release dialog's own restatement is asserted in `forms-publish.pw.ts` where a
- *     published version exists to release, and the erasure dialog's in the component test
- *     that drives its reasons and its typed confirmation.
+ *  1. **The chip is in the Operations header and nowhere else.** Normal mode has no
+ *     environment context, so it draws neither the chip nor the bar's environment edge.
+ *  2. **The states are distinguishable and the name is always written**, so an operator who
+ *     cannot see the colour still reads where they are.
+ *  3. **Switching moves nothing**: the bar's height and the content column's position are
+ *     the same under `test` and under `prod`, at desktop, at 390 and under high contrast.
+ *     That is the property the retired banner could not have.
+ *  4. **A destructive confirmation names the environment**, because an act performed
+ *     against the wrong one is not undoable.
+ *  5. **A tab never acts in an environment another tab switched to**, and a tab coming back
+ *     into view is re-read.
  *
- * Nothing here hard-codes a colour. The banner is found by its role and its text, and the
- * switcher by the name it carries, so a palette revision changes neither - and a banner
- * that stopped rendering still fails.
+ * Nothing here hard-codes a colour. The states are told apart by their computed values
+ * DIFFERING, so a palette revision changes nothing and a chip that stopped distinguishing
+ * them still fails.
  */
 
 test.describe.configure({ mode: "serial" });
@@ -47,71 +52,135 @@ test.beforeAll(async () => {
   await createTestAdmin(EMAIL);
 });
 
-/** The screens the shell renders, one per top-level area plus one form-scoped screen. */
-function everyArea(): readonly string[] {
+/** Normal-mode screens, which carry no environment context at all. */
+function normalScreens(): readonly string[] {
   return ["/questions", "/forms", "/responses", "/settings"];
 }
 
-function switcher(page: Page) {
-  return page.getByTestId("qcms-environment-switcher");
-}
+/** The chip's drawn state and the bar's edge, read off the live computed values. */
+const chipState = (page: Page) =>
+  page.evaluate(() => {
+    const chip = document.querySelector('[data-testid="qcms-environment-switcher"]');
+    const bar = document.querySelector("header.qcms-topbar");
+    if (bar === null) throw new Error("no topbar");
+    const barStyle = getComputedStyle(bar);
+    const trigger = chip?.querySelector(".qcms-envtrigger") ?? null;
+    const triggerStyle = trigger === null ? null : getComputedStyle(trigger);
+    const main = document.querySelector("main");
+    return {
+      kind: chip?.getAttribute("data-kind") ?? "",
+      text: (trigger?.textContent ?? "").trim(),
+      fill: triggerStyle?.backgroundColor ?? "",
+      borderStyle: triggerStyle?.borderTopStyle ?? "",
+      borderWidth: triggerStyle?.borderTopWidth ?? "",
+      edgeWidth: barStyle.borderTopWidth,
+      edgeColour: barStyle.borderTopColor,
+      barHeight: bar.getBoundingClientRect().height,
+      mainTop: main?.getBoundingClientRect().top ?? 0,
+    };
+  });
 
-function banner(page: Page) {
-  return page.getByTestId("qcms-environment-banner");
-}
-
-/** Choose an environment through the switcher and wait for the screen to be re-read. */
-async function choose(page: Page, environment: string): Promise<void> {
-  await openMenu(switcher(page).getByRole("button"));
-  await page.getByRole("menuitemradio", { name: environment }).click();
-  // The control says when the refresh is in flight, so the wait is on the app's own state
-  // rather than on a timeout.
-  await expect(switcher(page)).toHaveAttribute("data-pending", "false");
-  await expect(switcher(page)).toHaveAttribute("data-environment", environment);
-}
-
-test("every screen carries the switcher, and production carries no banner", async ({ page }) => {
+test("the chip is in the Operations header and on no normal screen", async ({ page }) => {
   test.setTimeout(300_000);
   totpSecret = await enrollNewAdmin(page, EMAIL);
 
-  for (const area of everyArea()) {
+  await page.goto(OPERATIONS_PATH);
+  const chip = environmentChip(page);
+  await expect(chip, "Operations carries the chip").toBeVisible();
+  await expect(chip).toHaveAttribute("data-environment", "prod");
+  await expect(chip).toHaveAttribute("data-kind", "prod");
+  // In the mode header, which is the ruling: the explicit selector belongs to Operations.
+  await expect(
+    page.getByTestId("qcms-mode-header").getByTestId("qcms-environment-switcher"),
+  ).toBeVisible();
+  const operations = await chipState(page);
+  expect(operations.text, "the name is always written").toBe("prod");
+  expect(operations.edgeWidth, "the bar carries the environment edge").toBe("3px");
+
+  for (const area of normalScreens()) {
     await page.goto(area);
-    await expect(switcher(page), `${area} carries the switcher`).toBeVisible();
-    await expect(switcher(page)).toHaveAttribute("data-environment", "prod");
-    // Absent, not hidden: under `prod` there is nothing on screen to read, which is what
-    // makes a banner meaningful when it is there.
-    await expect(banner(page), `${area} shows no banner under prod`).toHaveCount(0);
+    await expect(chip, `${area} has no environment context`).toHaveCount(0);
+    const normal = await chipState(page);
+    expect(normal.edgeWidth, `${area} draws no environment edge`).toBe("0px");
   }
 });
 
-test("selecting a non-prod environment banners every screen, and persists", async ({ page }) => {
+test("draws prod and a non-prod environment differently, and announces the switch", async ({
+  page,
+}) => {
   test.setTimeout(300_000);
   await signInWithTotp(page, EMAIL, totpSecret);
 
+  await page.goto(OPERATIONS_PATH);
+  const production = await chipState(page);
+  expect(production.borderWidth, "2px in every state, so no state is wider").toBe("2px");
+  expect(production.borderStyle).toBe("solid");
+
+  await chooseEnvironment(page, "test");
+  const nonProd = await chipState(page);
+  expect(nonProd.kind).toBe("nonprod");
+  expect(nonProd.text, "the environment is named in words (WCAG 1.4.1)").toBe("test");
+  expect(nonProd.borderWidth).toBe("2px");
+  // Solid under prod, outlined under test: the fill separates them, so the hue is never
+  // the only carrier.
+  expect(nonProd.fill).not.toBe(production.fill);
+  expect(nonProd.edgeColour).not.toBe(production.edgeColour);
+
+  // Announced, and only after a switch: the chip beside the region already names the
+  // environment, so a region that spoke on every render would be ignored.
+  await expect(page.getByTestId("qcms-environment-status")).toHaveText(/Now working in test/u);
+
+  // Across a navigation into Normal mode and back, and across a reload: the cookie rides
+  // the request, so the first byte of HTML already carries the selection.
   await page.goto("/forms");
-  await choose(page, "test");
+  await page.goto(OPERATIONS_PATH);
+  await expect(environmentChip(page)).toHaveAttribute("data-environment", "test");
+  await page.reload();
+  await expect(environmentChip(page)).toHaveAttribute("data-environment", "test");
+  await chooseEnvironment(page, "prod");
+});
 
-  // The banner names the environment in words (WCAG 1.4.1: never colour alone) and is a
-  // `role="status"` rather than an alert, because it states where the operator is instead
-  // of interrupting them.
-  await expect(banner(page)).toBeVisible();
-  await expect(banner(page)).toHaveAttribute("data-environment", "test");
-  await expect(banner(page)).toContainText("test");
+test("switching environments moves neither the bar nor the content column", async ({
+  page,
+  context,
+}) => {
+  test.setTimeout(300_000);
+  await signInWithTotp(page, EMAIL, totpSecret);
 
-  // Every screen, on a soft navigation. The shell is the only thing that renders it, so a
-  // screen outside the shell's layout would simply not have it.
-  for (const area of everyArea()) {
-    await page.goto(area);
-    await expect(banner(page), `${area} banners the selection`).toBeVisible();
-    await expect(switcher(page)).toHaveAttribute("data-environment", "test");
+  for (const width of [1280, 390]) {
+    await page.setViewportSize({ width, height: 900 });
+    await page.goto(OPERATIONS_PATH);
+    await chooseEnvironment(page, "test");
+    const inTest = await chipState(page);
+    await chooseEnvironment(page, "prod");
+    const inProd = await chipState(page);
+    await chooseEnvironment(page, "test");
+    const back = await chipState(page);
+
+    expect(inProd.barHeight, `the bar is one height at ${String(width)}`).toBeCloseTo(
+      inTest.barHeight,
+      1,
+    );
+    expect(back.barHeight).toBeCloseTo(inTest.barHeight, 1);
+    expect(inProd.mainTop, `the column does not move at ${String(width)}`).toBeCloseTo(
+      inTest.mainTop,
+      1,
+    );
+    expect(back.mainTop).toBeCloseTo(inTest.mainTop, 1);
   }
 
-  // And across a reload, which is what proves the server resolved it rather than a script
-  // correcting the page after load: the cookie rides the navigation, so the first byte of
-  // HTML already carries the banner.
-  await page.reload();
-  await expect(banner(page)).toBeVisible();
-  await expect(switcher(page)).toHaveAttribute("data-environment", "test");
+  // And under high contrast, where the chip and the bar both take stronger edges: the
+  // states still have to be the same size as each other.
+  await context.addCookies([{ name: MODE_COOKIE, value: "light-hc", url: ADMIN_BASE_URL }]);
+  await page.setViewportSize({ width: 1280, height: 900 });
+  await page.goto(OPERATIONS_PATH);
+  await chooseEnvironment(page, "test");
+  const hcTest = await chipState(page);
+  await chooseEnvironment(page, "prod");
+  const hcProd = await chipState(page);
+  expect(hcProd.barHeight, "high contrast is one height too").toBeCloseTo(hcTest.barHeight, 1);
+  expect(hcProd.mainTop).toBeCloseTo(hcTest.mainTop, 1);
+  await context.clearCookies({ name: MODE_COOKIE });
 });
 
 test("a destructive confirmation names the environment it is about", async ({ page }) => {
@@ -120,10 +189,8 @@ test("a destructive confirmation names the environment it is about", async ({ pa
 
   // Chosen here rather than inherited from the test above: a Playwright test gets a fresh
   // browser context, so the cookie that carries the selection does not cross between them.
-  // Persistence is asserted where it is real - across a navigation and a reload, inside one
-  // context - rather than against a cookie jar the harness threw away.
   await page.goto("/forms");
-  await choose(page, "test");
+  await chooseEnvironment(page, "test");
 
   formId = await createForm(page, FORM_SLUG, "Environment restatement");
   await page.goto(`/forms/${formId}`);
@@ -154,15 +221,15 @@ test("a dialog never acts in an environment another tab switched to", async ({ p
   // B switched to test, and confirming in tab A closed the form in TEST. The selection is a
   // cookie both tabs share, so tab B is a second page in the same context.
   await page.goto("/forms");
-  await choose(page, "prod");
+  await chooseEnvironment(page, "prod");
   await page.goto(`/forms/${formId}`);
   await page.getByRole("button", { name: "Close in prod" }).click();
   const dialog = page.getByRole("alertdialog");
   await expect(dialog.getByRole("button", { name: "Close it in prod" })).toBeVisible();
 
   const tabB = await page.context().newPage();
-  await tabB.goto("/forms");
-  await choose(tabB, "test");
+  await tabB.goto(OPERATIONS_PATH);
+  await chooseEnvironment(tabB, "test");
 
   // Tab A still names prod, and its confirmation is refused rather than obeyed in test.
   await dialog.getByRole("button", { name: "Close it in prod" }).click();
@@ -172,9 +239,8 @@ test("a dialog never acts in an environment another tab switched to", async ({ p
   // Nothing was closed in either environment. Tab A, reloaded, is in test and the form is
   // still open there; tab B, back in prod, finds it open there too.
   await page.reload();
-  await expect(switcher(page)).toHaveAttribute("data-environment", "test");
   await expect(page.getByRole("button", { name: "Close in test" })).toBeVisible();
-  await choose(tabB, "prod");
+  await chooseEnvironment(tabB, "prod");
   await tabB.goto(`/forms/${formId}`);
   await expect(tabB.getByRole("button", { name: "Close in prod" })).toBeVisible();
   await tabB.close();
@@ -184,16 +250,16 @@ test("a tab coming back into view is re-read under another tab's switch", async 
   test.setTimeout(300_000);
   await signInWithTotp(page, EMAIL, totpSecret);
 
-  await page.goto("/forms");
-  await choose(page, "prod");
+  await page.goto(OPERATIONS_PATH);
+  await chooseEnvironment(page, "prod");
 
   const tabB = await page.context().newPage();
-  await tabB.goto("/forms");
-  await choose(tabB, "test");
+  await tabB.goto(OPERATIONS_PATH);
+  await chooseEnvironment(tabB, "test");
   await tabB.close();
 
   // Still rendered from prod until it is looked at again.
-  await expect(switcher(page)).toHaveAttribute("data-environment", "prod");
+  await expect(environmentChip(page)).toHaveAttribute("data-environment", "prod");
   // Playwright's default Chromium (the headless shell) never hides a page: measured with
   // probes on every one, page A reports `visible` before tab B opens, while it is open,
   // after it closes and after `bringToFront()`, and receives no `visibilitychange` at any of
@@ -206,29 +272,9 @@ test("a tab coming back into view is re-read under another tab's switch", async 
   await page.evaluate(() => {
     document.dispatchEvent(new Event("visibilitychange"));
   });
-  await expect(banner(page)).toBeVisible();
-  await expect(banner(page)).toHaveAttribute("data-environment", "test");
-  // The switcher follows the re-read too, rather than keeping the name it was mounted with.
-  await expect(switcher(page)).toHaveAttribute("data-environment", "test");
+  // The chip follows the re-read rather than keeping the name it was mounted with.
+  await expect(environmentChip(page)).toHaveAttribute("data-environment", "test");
+  await expect(environmentChip(page)).toHaveAttribute("data-kind", "nonprod");
 
-  await choose(page, "prod");
-});
-
-test("returning to production takes the banner away", async ({ page }) => {
-  test.setTimeout(300_000);
-  await signInWithTotp(page, EMAIL, totpSecret);
-
-  // The whole round trip in one context, because that is the only place it is a round trip:
-  // out to `test`, where the banner is, and back to `prod`, where it is not.
-  await page.goto("/forms");
-  await choose(page, "test");
-  await expect(banner(page)).toBeVisible();
-
-  await choose(page, "prod");
-  await expect(banner(page)).toHaveCount(0);
-
-  // On a reload too: the cookie now says `prod`, so there is nothing to take away.
-  await page.reload();
-  await expect(banner(page)).toHaveCount(0);
-  await expect(switcher(page)).toHaveAttribute("data-environment", "prod");
+  await chooseEnvironment(page, "prod");
 });

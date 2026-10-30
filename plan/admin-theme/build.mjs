@@ -358,8 +358,18 @@ const modePairs = (t) => [
   [`primary / surface (link-UI)`, t["--color-primary"], t["--color-surface"], 3.0],
   [`primary / background (topbar active)`, t["--color-primary"], t["--color-background"], 3.0],
   [`env-prod-fg / env-prod (chip)`, t["--color-env-prod-foreground"], t["--color-env-prod"], 4.5],
-  [`env-test-fg / env-test-subtle (chip)`, t["--color-env-test-fg"], t["--color-env-test-subtle"], 4.5],
-  [`env-test / env-test-subtle (chip edge)`, t["--color-env-test"], t["--color-env-test-subtle"], 3.0],
+  [
+    `env-test-fg / env-test-subtle (chip)`,
+    t["--color-env-test-fg"],
+    t["--color-env-test-subtle"],
+    4.5,
+  ],
+  [
+    `env-test / env-test-subtle (chip edge)`,
+    t["--color-env-test"],
+    t["--color-env-test-subtle"],
+    3.0,
+  ],
   [`env-prod / background (bar edge)`, t["--color-env-prod"], t["--color-background"], 3.0],
   [`env-test / background (bar edge)`, t["--color-env-test"], t["--color-background"], 3.0],
 ];

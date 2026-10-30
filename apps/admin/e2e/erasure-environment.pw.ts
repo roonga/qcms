@@ -3,7 +3,8 @@ import type { Page } from "@playwright/test";
 import { expect, test } from "../../portal/e2e/support/gates.js";
 
 import { createTestAdmin, uniqueAdminEmail } from "./support/admin-account.js";
-import { enrollNewAdmin, openMenu, signInWithTotp } from "./support/flow.js";
+import { chooseEnvironment } from "./support/environment.js";
+import { enrollNewAdmin, signInWithTotp } from "./support/flow.js";
 import { submitResponse } from "./support/ops.js";
 
 /**
@@ -56,20 +57,6 @@ test.beforeAll(async () => {
   prodSession = await submitResponse(SLUG, [[ACCIDENT, false]]);
 });
 
-function switcher(page: Page) {
-  return page.getByTestId("qcms-environment-switcher");
-}
-
-/** Choose an environment through the real switcher and wait for the screen to be re-read. */
-async function choose(page: Page, environment: string): Promise<void> {
-  await openMenu(switcher(page).getByRole("button"));
-  await page.getByRole("menuitemradio", { name: environment }).click();
-  // The control reports its own pending state, so the wait is on the app rather than on a
-  // timeout.
-  await expect(switcher(page)).toHaveAttribute("data-pending", "false");
-  await expect(switcher(page)).toHaveAttribute("data-environment", environment);
-}
-
 test("a response's detail offers no other environment when there is nothing elsewhere", async ({
   page,
 }) => {
@@ -120,12 +107,12 @@ test("a response read reaches the selected environment and no other", async ({
   // environment in its URL (ADR-40, Q6), so this is the same route reading a different
   // pool - which is what makes "one environment and no other" a thing an operator can see
   // rather than a property of a schema.
-  await choose(page, "test");
+  await chooseEnvironment(page, "test");
   await page.goto(`/forms/${FORM_ID}/responses/${prodSession}`);
   await expect(page.locator("body")).not.toContainText("Erase respondent data…");
 
   await page.goto(`/forms/${FORM_ID}/responses`);
-  await choose(page, "prod");
+  await chooseEnvironment(page, "prod");
   await page.goto(`/forms/${FORM_ID}/responses/${prodSession}`);
   await expect(page.getByRole("button", { name: "Erase respondent data…" })).toBeVisible();
 });
@@ -140,10 +127,10 @@ test("an export downloads under the environment it was read from (Q8)", async ({
   // changes nothing about its name: the environment is in the name whether or not the file
   // has rows, since the name is what tells an operator which environment the file on
   // their desktop came from.
-  await choose(page, "test");
+  await chooseEnvironment(page, "test");
   expect((await downloadExport(page)).suggestedFilename()).toBe(`${FORM_ID}-test-v1-responses.csv`);
 
-  await choose(page, "prod");
+  await chooseEnvironment(page, "prod");
   expect((await downloadExport(page)).suggestedFilename()).toBe(`${FORM_ID}-prod-v1-responses.csv`);
 });
 

@@ -136,12 +136,7 @@ export function RailFrame({
           it and not of the panel switches, the filters or the actions beside them. The
           navigation is the `<nav>` below; the column around it is complementary content
           about the subject. */}
-      <aside
-        id={RAIL_REGION_ID}
-        className="qcms-rail"
-        aria-label={subject}
-        data-testid={testId}
-      >
+      <aside id={RAIL_REGION_ID} className="qcms-rail" aria-label={subject} data-testid={testId}>
         {back !== undefined && (
           <Link href={back.href} className="qcms-rail__back">
             {/* Decorative: the link's own text says where it goes, and "single left-pointing

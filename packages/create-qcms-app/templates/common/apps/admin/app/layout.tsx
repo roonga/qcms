@@ -7,6 +7,7 @@ import { LocaleProvider } from "@/components/locale-context";
 import { MODE_COOKIE, appearanceClassName, parseAppearance } from "@/lib/appearance";
 import { t } from "@/lib/i18n/en";
 import { appLocale } from "@/lib/server/config";
+import { SIDEBAR_ATTRIBUTE, SIDEBAR_COOKIE, parseSidebarSetting } from "@/lib/sidebar";
 
 import "./globals.css";
 
@@ -105,10 +106,19 @@ const REQUIRES_JS_CSS =
   ".qcms-requires-js{display:flex!important}";
 
 export default async function AdminRootLayout({ children }: { readonly children: ReactNode }) {
-  const appearance = parseAppearance((await cookies()).get(MODE_COOKIE)?.value);
+  const cookieStore = await cookies();
+  const appearance = parseAppearance(cookieStore.get(MODE_COOKIE)?.value);
+  // Stamped here for the reason the appearance classes are: the rail is hidden by CSS
+  // reading this attribute, so a rail the operator put away is absent in the first byte of
+  // HTML rather than taken off the screen after it.
+  const sidebar = parseSidebarSetting(cookieStore.get(SIDEBAR_COOKIE)?.value);
 
   return (
-    <html lang="en" className={appearanceClassName(appearance)}>
+    <html
+      lang="en"
+      className={appearanceClassName(appearance)}
+      {...{ [SIDEBAR_ATTRIBUTE]: sidebar }}
+    >
       <head>
         {/* The scripting gate. See `REQUIRES_JS_CSS` above for the whole argument. */}
         <noscript>

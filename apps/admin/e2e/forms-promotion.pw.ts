@@ -8,7 +8,8 @@ import { waitForHydration as waitForPortalHydration } from "../../portal/e2e/sup
 import { answerPosted, fillText } from "../../portal/e2e/support/kitchen-sink.js";
 
 import { createTestAdmin, uniqueAdminEmail } from "./support/admin-account.js";
-import { enrollNewAdmin, openMenu } from "./support/flow.js";
+import { chooseEnvironment } from "./support/environment.js";
+import { enrollNewAdmin } from "./support/flow.js";
 import {
   addRule,
   addStep,
@@ -38,14 +39,6 @@ const PORTAL_ORIGIN = `http://localhost:${String(PORTAL_PORT)}`;
 test.beforeAll(async () => {
   await createTestAdmin(EMAIL);
 });
-
-async function chooseEnvironment(page: Page, environment: "test" | "prod"): Promise<void> {
-  const switcher = page.getByTestId("qcms-environment-switcher");
-  await openMenu(switcher.getByRole("button"));
-  await page.getByRole("menuitemradio", { name: environment, exact: true }).click();
-  await expect(switcher).toHaveAttribute("data-pending", "false");
-  await expect(switcher).toHaveAttribute("data-environment", environment);
-}
 
 async function releaseVersion(page: Page, environment: "test" | "prod"): Promise<void> {
   await waitForHydration(page);
