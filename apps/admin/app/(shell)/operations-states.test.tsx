@@ -74,7 +74,7 @@ const CLOSED: OperationsFormRow = {
 
 /** Set per case before the page renders; one set of module mocks serves every state. */
 let capabilities: ShellCapabilities = EVERYTHING;
-let listResult: unknown = { ok: true, data: page([]) };
+let listResult: unknown = { status: "ok", page: page([]) };
 
 function page(rows: readonly OperationsFormRow[], nextCursor: string | null = null) {
   return {
@@ -136,7 +136,7 @@ describe("the Operations forms table's states", () => {
 
   it("renders the alert and nothing else when the discovery read fails", async () => {
     capabilities = EVERYTHING;
-    listResult = { ok: false, code: "http_503", message: "upstream said 503", issues: [] };
+    listResult = { status: "failed", message: "upstream said 503" };
 
     const html = await render();
 
@@ -146,9 +146,21 @@ describe("the Operations forms table's states", () => {
     expect(html).not.toContain('data-testid="qcms-operations-table"');
   });
 
+  it("tells a refusal from a failure, and renders the panel rather than the alert", async () => {
+    capabilities = EVERYTHING;
+    listResult = { status: "denied" };
+
+    const html = await render({ q: "nothing" });
+
+    expect(html).toContain("operations.empty.title");
+    expect(html).not.toContain("operations.loadFailed");
+    // A refusal is not a filtered result either: the clear link would change nothing.
+    expect(html).not.toContain("operations.empty.filtered");
+  });
+
   it("offers the access route when an unfiltered read comes back with nothing", async () => {
     capabilities = EVERYTHING;
-    listResult = { ok: true, data: page([]) };
+    listResult = { status: "ok", page: page([]) };
 
     const html = await render();
 
@@ -159,7 +171,7 @@ describe("the Operations forms table's states", () => {
 
   it("offers the clear link, and drops the explanation, when a filter matched nothing", async () => {
     capabilities = EVERYTHING;
-    listResult = { ok: true, data: page([]) };
+    listResult = { status: "ok", page: page([]) };
 
     const html = await render({ q: "nothing", env: "test" });
 
@@ -170,7 +182,7 @@ describe("the Operations forms table's states", () => {
 
   it("separates no release from closed intake, and masks what the caller cannot count", async () => {
     capabilities = EVERYTHING;
-    listResult = { ok: true, data: page([RELEASED, UNRELEASED, CLOSED]) };
+    listResult = { status: "ok", page: page([RELEASED, UNRELEASED, CLOSED]) };
 
     const html = await render();
 
@@ -185,11 +197,11 @@ describe("the Operations forms table's states", () => {
 
   it("links each row to its form and offers the next page only when there is one", async () => {
     capabilities = EVERYTHING;
-    listResult = { ok: true, data: page([RELEASED]) };
+    listResult = { status: "ok", page: page([RELEASED]) };
 
     expect(await render()).not.toContain('data-testid="qcms-operations-pager"');
 
-    listResult = { ok: true, data: page([RELEASED], "cur2") };
+    listResult = { status: "ok", page: page([RELEASED], "cur2") };
     const html = await render({ env: "test", q: "in" });
 
     expect(html).toContain('href="/forms/frm_intake"');
@@ -201,7 +213,7 @@ describe("the Operations forms table's states", () => {
 
   it("names the environment as an address, with the selected one marked", async () => {
     capabilities = EVERYTHING;
-    listResult = { ok: true, data: page([RELEASED]) };
+    listResult = { status: "ok", page: page([RELEASED]) };
 
     const html = await render({ env: "test" });
 

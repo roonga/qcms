@@ -77,22 +77,26 @@ export default async function OperationsPage({
         <Alert variant="warning">{t("environment.unknownBanner")}</Alert>
       )}
 
-      {result !== undefined && !result.ok && (
+      {result?.status === "failed" && (
         <Alert variant="error">{t("operations.loadFailed", { message: result.message })}</Alert>
       )}
 
+      {/* A refusal says this caller operates no form, which is the unfiltered empty panel
+          and not the alert above: the two states are told apart here rather than merged. */}
+      {result?.status === "denied" && <NoForms state={{ ...state, isFiltered: false }} />}
+
       {/* The table, both empty states and the pager are inside the ok branch: a read that
           failed knows nothing about how many forms this installation has. */}
-      {result?.ok === true &&
-        (result.data.forms.length === 0 ? (
+      {result?.status === "ok" &&
+        (result.page.forms.length === 0 ? (
           <NoForms state={state} />
         ) : (
           <div className="flex flex-col gap-2">
             <p className="text-sm text-(--color-text-muted)" data-testid="qcms-operations-count">
-              {tPlural("operations.count.one", "operations.count.other", result.data.total)}
+              {tPlural("operations.count.one", "operations.count.other", result.page.total)}
             </p>
-            <OperationsFormsTable rows={result.data.forms} />
-            <Pager state={state} next={result.data.nextCursor} />
+            <OperationsFormsTable rows={result.page.forms} />
+            <Pager state={state} next={result.page.nextCursor} />
           </div>
         ))}
     </div>

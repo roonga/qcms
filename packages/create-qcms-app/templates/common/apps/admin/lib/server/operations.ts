@@ -16,9 +16,18 @@ import type {
 } from "../ops/operations-forms.ts";
 
 import { adminApiFetch } from "./api.ts";
-import type { ApiResult } from "./api-result.ts";
 import { readResult } from "./api-result.ts";
 import type { AdminSession } from "./session.ts";
+
+/**
+ * A refusal is an answer and not a failure, so it is its own state: the grant middleware
+ * refuses a caller holding no operational cell anywhere, which is "no forms to operate"
+ * rather than "the forms could not be read".
+ */
+export type OperationsDiscovery =
+  | { readonly status: "ok"; readonly page: OperationsFormsPage }
+  | { readonly status: "denied" }
+  | { readonly status: "failed"; readonly message: string };
 
 /**
  * The query string is one argument so `cache()` can memoize it: the page and its `@rail`
@@ -27,16 +36,16 @@ import type { AdminSession } from "./session.ts";
 export const listOperationsForms: (
   session: AdminSession,
   query: string,
-) => Promise<ApiResult<OperationsFormsPage>> = cache(
-  async (session: AdminSession, query: string): Promise<ApiResult<OperationsFormsPage>> => {
+) => Promise<OperationsDiscovery> = cache(
+  async (session: AdminSession, query: string): Promise<OperationsDiscovery> => {
     const environment = new URLSearchParams(query).get("environment") ?? undefined;
-    const result = await readResult<Record<string, unknown>>(
-      await adminApiFetch(session, `/operations/forms?${query}`, {
-        ...(environment === undefined ? {} : { environment }),
-      }),
-    );
-    if (!result.ok) return result;
-    return { ok: true, data: parsePage(result.data) };
+    const response = await adminApiFetch(session, `/operations/forms?${query}`, {
+      ...(environment === undefined ? {} : { environment }),
+    });
+    if (response.status === 403) return { status: "denied" };
+    const result = await readResult<Record<string, unknown>>(response);
+    if (!result.ok) return { status: "failed", message: result.message };
+    return { status: "ok", page: parsePage(result.data) };
   },
 );
 

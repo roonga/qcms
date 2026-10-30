@@ -30,7 +30,7 @@ export default async function OperationsRailSlot({
   return (
     <OperationsFormsRail
       state={state}
-      workspaces={result?.ok === true ? result.data.workspaces : []}
+      workspaces={result?.status === "ok" ? result.page.workspaces : []}
       showQueues={navigableCapabilities(access).siteConfiguration}
     />
   );
