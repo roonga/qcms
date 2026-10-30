@@ -554,11 +554,7 @@ export function FormBuilder({
           (640px) column would leave the builder itself under 300px. Below it the panel
           stacks under the builder, full width, which is the phone-shaped reading of a
           docked pane. */}
-      <div
-        className={
-          "contents"
-        }
-      >
+      <div className={"contents"}>
         <div className="contents">
           {/* TWO SCREENS BEHIND ONE ROUTE, and the rail is the switch (Code Owner, 2026-08-26).
             `plan/admin-shell-poc/admin-shell-poc.html` says so in its own card subtitle -
@@ -824,7 +820,6 @@ export function FormBuilder({
             </div>
           )}
         </div>
-
       </div>
     </div>
   );

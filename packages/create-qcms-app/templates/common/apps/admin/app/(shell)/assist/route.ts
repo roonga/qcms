@@ -66,7 +66,9 @@ function parseConversation(
 /** Route ids only: a string or a number per key, and nothing nested. */
 function isParams(raw: unknown): raw is Record<string, string | number> {
   if (typeof raw !== "object" || raw === null || Array.isArray(raw)) return false;
-  return Object.values(raw).every((value) => typeof value === "string" || typeof value === "number");
+  return Object.values(raw).every(
+    (value) => typeof value === "string" || typeof value === "number",
+  );
 }
 
 function forwardedHeaders(upstream: Response): Headers {
