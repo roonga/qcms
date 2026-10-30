@@ -2,12 +2,8 @@
 // @ts-check
 /**
  * Measures the JOB (`started_at` to `completed_at`), never the workflow run, which includes queue time.
- * The job name is matched exactly, so a renamed job contributes no sample to the old figures.
- *
- * `--prefix` measures a SET of jobs as one wait: every job whose name starts with the argument,
- * spanned from the earliest start to the latest completion. A shard matrix has that figure and a
- * single job does not, and `browser-e2e` by its exact name is now the aggregate's one string
- * comparison rather than the browser suite (issue #1192).
+ * The job name is matched exactly, so a renamed job contributes no sample to the old figures; `--prefix`
+ * instead spans a SET of jobs, which is the only honest figure for a sharded one.
  */
 
 import { execFileSync } from "node:child_process";
