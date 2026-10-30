@@ -3,7 +3,7 @@
 /**
  * The harness calls its scratchpad session-specific, but one directory per checkout is shared by
  * every session. The lane key is the branch, and a named path is made run-fresh so a stale file
- * cannot pass as this run's output.
+ * cannot pass as this run's output; `--path` resolves one without removing it.
  */
 
 import { execFileSync } from "node:child_process";
@@ -89,10 +89,22 @@ export function resolveRoot(environment) {
 }
 
 /**
- * @param {{ directory: string; environment: NodeJS.ProcessEnv; lane?: string; name?: string; printLane?: boolean }} options
+ * A named path is removed before it is returned, so what a gate writes there cannot be
+ * confused with an older run's output. `keep` is for the second and later mentions of a
+ * path already created this run: resolving the same name twice would otherwise delete the
+ * output the first call produced.
+ *
+ * @param {{ directory: string; environment: NodeJS.ProcessEnv; lane?: string; name?: string; printLane?: boolean; keep?: boolean }} options
  * @returns {string}
  */
-export function scratchPath({ directory, environment, lane, name, printLane = false }) {
+export function scratchPath({
+  directory,
+  environment,
+  lane,
+  name,
+  printLane = false,
+  keep = false,
+}) {
   const key = lane === undefined ? resolveLane(directory, environment) : laneSlug(lane);
   if (printLane) return key;
 
@@ -105,17 +117,17 @@ export function scratchPath({ directory, environment, lane, name, printLane = fa
     throw new Error(`file name must be a single path segment, got '${name}'`);
   }
   const file = join(laneDirectory, name);
-  rmSync(file, { force: true, recursive: true });
+  if (!keep) rmSync(file, { force: true, recursive: true });
   return file;
 }
 
 /**
  * @param {string[]} args
- * @returns {{ lane?: string; name?: string; printLane: boolean }}
+ * @returns {{ lane?: string; name?: string; printLane: boolean; keep: boolean }}
  */
 export function parseArgs(args) {
-  /** @type {{ lane?: string; name?: string; printLane: boolean }} */
-  const parsed = { printLane: false };
+  /** @type {{ lane?: string; name?: string; printLane: boolean; keep: boolean }} */
+  const parsed = { printLane: false, keep: false };
   const remaining = [...args];
   while (remaining.length > 0) {
     const arg = /** @type {string} */ (remaining.shift());
@@ -125,6 +137,8 @@ export function parseArgs(args) {
       parsed.lane = value;
     } else if (arg === "--print-lane") {
       parsed.printLane = true;
+    } else if (arg === "--path") {
+      parsed.keep = true;
     } else if (arg.startsWith("-")) {
       throw new Error(`unknown option: ${arg}`);
     } else if (parsed.name === undefined) {
@@ -144,8 +158,8 @@ export function parseArgs(args) {
  */
 export function main(args, directory, environment) {
   try {
-    const { lane, name, printLane } = parseArgs(args);
-    console.log(scratchPath({ directory, environment, lane, name, printLane }));
+    const { lane, name, printLane, keep } = parseArgs(args);
+    console.log(scratchPath({ directory, environment, lane, name, printLane, keep }));
     return 0;
   } catch (error) {
     console.error(`agent-scratch: ${error instanceof Error ? error.message : String(error)}`);

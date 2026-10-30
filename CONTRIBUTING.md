@@ -307,6 +307,11 @@ So: **one lane, one directory, and no log is evidence unless the command that wr
 dir=$(node scripts/agent-scratch.mjs)              # this lane's directory, created
 log=$(node scripts/agent-scratch.mjs verify.log)   # a path in it, leftovers removed
 pnpm verify > "$log" 2>&1; rc=$?; echo "EXIT=$rc"
+
+# Later in the same lane, to READ that log again. Without --path this call would
+# delete the very file it is being asked for.
+log=$(node scripts/agent-scratch.mjs --path verify.log)
+tail -40 "$log"
 ```
 
 The lane is keyed on the branch, because the branch **is** the claim (see "Git and PR rules" below), so exactly one executor owns it. A second agent working the same branch - a reviewer running the gates independently while its executor still runs them - takes its own lane rather than sharing the directory and reproducing the same collision inside one branch:
@@ -316,6 +321,8 @@ log=$(node scripts/agent-scratch.mjs --lane fix-396-scratchpad-review verify.log
 ```
 
 **Pass the lane as an argument, not as an environment prefix.** The obvious one-liner - `QCMS_AGENT_LANE=<branch>-review log=...` with the helper in a command substitution - does not work, in bash or in zsh: a simple command that is only assignments sets its variables in the current shell **without exporting them**, so the substitution runs without the variable and falls back to the branch, which is the executor's lane. The failure is silent and it is worse than plain sharing, because asking for a named file removes what is already there: the reviewer would delete the executor's in-progress `verify.log`. `QCMS_AGENT_LANE` is still honoured when it is genuinely exported (`export QCMS_AGENT_LANE=...`, or a prefix on a command that runs the script directly); `--lane` is the spelling that cannot be got wrong, and `scripts/agent-scratch.test.ts` pins both halves. Asking for a named file also removes anything already at that path, so a log read back after the command that should have written it either holds this run's output or does not exist. Not existing is a clear failure; a previous run's contents is not.
+
+**The removal is why a second call for the same name needs `--path`.** The default is a write path, made fresh; `--path` is the same path resolved and left alone. So the rule is one plain call per file, at the point the file is created, and `--path` everywhere the name is mentioned again - reading the log back, printing a tail, passing it to a later command. Two plain calls for one name destroy the first call's output, and the gate result that went with it.
 
 **That directory is scratch, and scratch does not survive a reset** (issue #933). `scripts/agent-scratch.mjs` roots the lane directory at the platform temp directory unless `QCMS_AGENT_SCRATCH_ROOT` says otherwise, so a reboot or a harness reset takes every captured rc file, log and draft with it: a wipe on 2026-09-13 cost one lane two full `verify` cycles re-deriving results it had already paid for, while a lane that lost its directory to three usage-limit restarts kept everything it had committed. The rule that follows is not to move the directory but to stop relying on it across a turn boundary: **anything a resumed lane has to be able to read is a commit on its branch**, and the lane directory holds only the evidence for the turn that is running.
 

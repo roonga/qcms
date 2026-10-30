@@ -139,6 +139,24 @@ describe("scratchPath", () => {
     expect(existsSync(path)).toBe(false);
   });
 
+  it("keeps the file under --path, so resolving a name twice does not destroy it", () => {
+    const root = temporaryDirectory("qcms-agent-scratch-root-");
+    const environment = { QCMS_AGENT_SCRATCH_ROOT: root };
+    const lane = "chore/scratch-path";
+    const first = scratchPath({ directory: process.cwd(), environment, lane, name: "verify.log" });
+    writeFileSync(first, "EXIT=0\n", "utf8");
+
+    const again = scratchPath({
+      directory: process.cwd(),
+      environment,
+      lane,
+      name: "verify.log",
+      keep: true,
+    });
+    expect(again).toBe(first);
+    expect(readFileSync(again, "utf8")).toBe("EXIT=0\n");
+  });
+
   it("refuses a name that would reach outside the lane directory", () => {
     const root = temporaryDirectory("qcms-agent-scratch-root-");
     for (const name of ["../verify.log", "nested/verify.log", "..", ""]) {
@@ -168,15 +186,25 @@ describe("scratchPath", () => {
 });
 
 describe("parseArgs", () => {
-  it("reads the file name, the lane override and the lane-only flag", () => {
-    expect(parseArgs([])).toEqual({ printLane: false });
-    expect(parseArgs(["verify.log"])).toEqual({ printLane: false, name: "verify.log" });
+  it("reads the file name, the lane override and the two flags", () => {
+    expect(parseArgs([])).toEqual({ printLane: false, keep: false });
+    expect(parseArgs(["verify.log"])).toEqual({
+      printLane: false,
+      keep: false,
+      name: "verify.log",
+    });
     expect(parseArgs(["--lane", "x", "browser.log"])).toEqual({
       printLane: false,
+      keep: false,
       lane: "x",
       name: "browser.log",
     });
-    expect(parseArgs(["--print-lane"])).toEqual({ printLane: true });
+    expect(parseArgs(["--print-lane"])).toEqual({ printLane: true, keep: false });
+    expect(parseArgs(["--path", "verify.log"])).toEqual({
+      printLane: false,
+      keep: true,
+      name: "verify.log",
+    });
   });
 
   it("rejects an unknown option rather than treating it as a file name", () => {
