@@ -1,6 +1,6 @@
 "use client";
 
-import { usePathname } from "next/navigation";
+import { usePathname, useSearchParams } from "next/navigation";
 import {
   useCallback,
   useEffect,
@@ -19,6 +19,7 @@ import { useSidebar } from "@/components/sidebar-toggle";
 import { useBuilderAssist } from "@/lib/agent/builder-assist-bridge";
 import { contextChipLabel } from "@/lib/agent/context-chip";
 import { ConversationProvider, useConversation } from "@/lib/agent/conversation";
+import { screenWithFilters } from "@/lib/agent/screen-filters";
 import {
   ASSISTANT_BUTTON_ID,
   PANEL_ID,
@@ -109,6 +110,9 @@ export function AssistantProvider({
   readonly children: ReactNode;
 }) {
   const pathname = usePathname();
+  // The address, not only the path: the response list's facts are about the filtered rows
+  // the operator is looking at.
+  const search = useSearchParams();
   const [open, setOpen] = useState(initial.open);
   const [width, setWidth] = useState(initial.width);
   const [expanded, setExpanded] = useState(false);
@@ -173,7 +177,7 @@ export function AssistantProvider({
       width,
       working,
       announcement,
-      screen: screenForPath(pathname),
+      screen: screenWithFilters(screenForPath(pathname), search ?? undefined),
       composerRef,
       show: () => {
         setOpen(true);
@@ -199,7 +203,7 @@ export function AssistantProvider({
       setWorking,
       announce: setAnnouncement,
     }),
-    [announcement, expanded, open, pathname, remember, sheet, width, working],
+    [announcement, expanded, open, pathname, remember, search, sheet, width, working],
   );
 
   // `Alt+Shift+A` opens or focuses the panel. A modifier chord, so SC 2.1.4 does not bind

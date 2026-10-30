@@ -39,14 +39,24 @@ export const AGENT_SCREENS = [
 
 export type AgentScreen = (typeof AGENT_SCREENS)[number];
 
+/** The response list's four filters, as the API's body names them. */
+export interface AgentResponseFilters {
+  version?: number;
+  from?: string;
+  to?: string;
+  flagged?: boolean;
+}
+
 /** The route ids a screen's context builder reads, named as the API's body names them. */
 export interface AgentScreenParams {
-  [key: string]: string | number | undefined;
+  [key: string]: string | number | AgentResponseFilters | undefined;
   formId?: string;
   questionId?: string;
   workspaceId?: string;
   sessionId?: string;
   version?: number;
+  /** The response list screen only: the filter set the operator is looking at. */
+  filters?: AgentResponseFilters;
 }
 
 export interface ResolvedScreen {

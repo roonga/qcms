@@ -1,6 +1,7 @@
 import type { NextRequest } from "next/server";
 
 import { agentAuthoringEnabled } from "@/lib/server/agent";
+import { parseAssistConversation, parseAssistParams } from "@/lib/server/assist-request";
 import { screenAssist } from "@/lib/server/forms";
 import { isSameOriginPost } from "@/lib/server/route-helpers";
 import { requireAdminSessionForRequest } from "@/lib/server/session";
@@ -34,10 +35,12 @@ export async function POST(request: NextRequest): Promise<Response> {
       }
     | undefined;
 
+  const params = parseAssistParams(body?.params);
+
   const upstream = await screenAssist(session, {
-    conversation: parseConversation(body?.conversation),
+    conversation: parseAssistConversation(body?.conversation),
     screen: typeof body?.screen === "string" ? body.screen : "",
-    ...(isParams(body?.params) ? { params: body.params } : {}),
+    ...(params === undefined ? {} : { params }),
     conversationId: typeof body?.conversationId === "string" ? body.conversationId : "",
   });
 
@@ -45,30 +48,6 @@ export async function POST(request: NextRequest): Promise<Response> {
     status: upstream.status,
     headers: forwardedHeaders(upstream),
   });
-}
-
-/** Every turn whose shape this route trusts enough to forward; anything else is dropped. */
-function parseConversation(
-  raw: unknown,
-): readonly { readonly role: "user" | "assistant"; readonly content: string }[] {
-  if (!Array.isArray(raw)) return [];
-  const turns: { readonly role: "user" | "assistant"; readonly content: string }[] = [];
-  for (const entry of raw) {
-    if (typeof entry !== "object" || entry === null) continue;
-    const { role, content } = entry as { role?: unknown; content?: unknown };
-    if ((role === "user" || role === "assistant") && typeof content === "string") {
-      turns.push({ role, content });
-    }
-  }
-  return turns;
-}
-
-/** Route ids only: a string or a number per key, and nothing nested. */
-function isParams(raw: unknown): raw is Record<string, string | number> {
-  if (typeof raw !== "object" || raw === null || Array.isArray(raw)) return false;
-  return Object.values(raw).every(
-    (value) => typeof value === "string" || typeof value === "number",
-  );
 }
 
 function forwardedHeaders(upstream: Response): Headers {
