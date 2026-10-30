@@ -73,6 +73,31 @@ function modeFor(sheet: boolean, expanded: boolean): AssistantMode {
   return expanded ? "expanded" : "dock";
 }
 
+const TAB_STOPS = [
+  "a[href]",
+  "button:not([disabled])",
+  "input:not([disabled])",
+  "textarea:not([disabled])",
+  "select:not([disabled])",
+  '[tabindex]:not([tabindex="-1"])',
+].join(",");
+
+/** Keep Tab and Shift+Tab inside the panel while it is modal. */
+function wrapTab(event: ReactKeyboardEvent<HTMLDivElement>): void {
+  const panel = document.getElementById(PANEL_ID);
+  if (panel === null) return;
+  const stops = [...panel.querySelectorAll<HTMLElement>(TAB_STOPS)].filter(
+    (element) => element.getClientRects().length > 0,
+  );
+  const first = stops.at(0);
+  const last = stops.at(-1);
+  if (first === undefined || last === undefined) return;
+  const edge = event.shiftKey ? first : last;
+  if (document.activeElement !== edge) return;
+  event.preventDefault();
+  (event.shiftKey ? last : first).focus();
+}
+
 export function AssistantProvider({
   initial,
   secureCookies,
@@ -249,6 +274,12 @@ export function AssistantPanelSlot() {
     builder === undefined ? undefined : builder.draft.title[builder.draft.defaultLocale];
 
   const onKeyDown = (event: ReactKeyboardEvent<HTMLDivElement>): void => {
+    // `inert` behind the panel takes every other control out of the order but adds no
+    // wrap, so Tab off the last one leaves the document for the browser's own chrome.
+    if (event.key === "Tab" && mode !== "dock") {
+      wrapTab(event);
+      return;
+    }
     if (event.key !== "Escape") return;
     if (helpOpen) {
       setHelpOpen(false);

@@ -423,7 +423,8 @@ test("names the screen in the context chip, and keeps the conversation across a 
   await expect(chip).toHaveText("Workspace settings");
 
   // A different screen says a different thing: the chip is per screen, not one string.
-  await page.goto("/responses");
+  // The form's response screen rather than `/responses`, which redirects to Operations.
+  await page.goto(`/forms/${FORM_ID}/responses`);
   await expect(chip).toContainText("no answers");
   await page.goto(`/forms/${FORM_ID}/releases`);
   await expect(chip).toContainText("releases");
