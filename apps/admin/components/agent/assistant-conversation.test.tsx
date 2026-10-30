@@ -68,7 +68,7 @@ describe("the hosted panel for a caller who may not write the draft", () => {
   });
 
   it("posts the turn to the screen route", async () => {
-    const fetchMock = vi.fn((_input: unknown, _init?: unknown) =>
+    const fetchMock = vi.fn<(input: unknown, init?: unknown) => Promise<Response>>(() =>
       Promise.resolve(new Response(null, { status: 500 })),
     );
     vi.stubGlobal("fetch", fetchMock);

@@ -201,14 +201,10 @@ const openClaims = new Map<string, Promise<unknown>>();
 const settled = (): undefined => undefined;
 
 /**
- * Run an audited read, telling it whether it owes SEC-15 a `read` row: the first turn of a
- * conversation to reach this subject does, later ones do not. The claim is released when
- * the read fails, so a row that never committed cannot make a later turn skip it, and
- * releasing can only ever add rows.
- *
- * A turn that would skip the row waits for an open claim on the same key first. Deciding
- * while the claiming read is still open is what let two concurrent turns leave the subject
- * with no row at all: the second skipped, the first then failed and released.
+ * Run an audited read, telling it whether it owes SEC-15 a `read` row: the conversation's
+ * first turn on this subject does, later ones do not. A failed read releases the claim,
+ * and a turn that would skip the row waits for an open claim first, so two concurrent
+ * turns cannot leave the subject with no row at all; releasing can only ever add rows.
  */
 export async function auditedRead<T>(
   input: ScreenBuildInput,

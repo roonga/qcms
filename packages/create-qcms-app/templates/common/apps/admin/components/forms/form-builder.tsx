@@ -707,13 +707,7 @@ export function FormBuilder({
                             pin.version,
                             index + offset,
                           )
-                        : addPinToGroup(
-                            next,
-                            groupId,
-                            pin.questionId,
-                            pin.version,
-                            index + offset,
-                          ),
+                        : addPinToGroup(next, groupId, pin.questionId, pin.version, index + offset),
                     draft,
                   ),
                 );
@@ -795,9 +789,7 @@ export function FormBuilder({
                 mutate(removePin(draft, questionId));
               }}
               onReorderPin={(questionId, delta) => {
-                mutate(
-                  movePinWithinGroup(draft, selectedGroup.group.groupId, questionId, delta),
-                );
+                mutate(movePinWithinGroup(draft, selectedGroup.group.groupId, questionId, delta));
               }}
             />
           )}
