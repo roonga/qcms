@@ -556,44 +556,45 @@ jobs:
   # IT RUNS AS A SHARD MATRIX AND THE REQUIRED CONTEXT IS THE AGGREGATE BELOW
   # (issue #1192). The suite reached 46.1 minutes of Playwright time on `workers: 1`
   # against a 60-minute budget, which is the "split the suite" the paragraph above
-  # promised rather than another raised line. Four shards is what the measurement
-  # supports: `--shard` partitions Playwright's test GROUPS, a group is one file per
-  # project when `fullyParallel` is false, so a serial `describe` is never split and
-  # the per-file ordering inside a shard is the ordering the unsharded run had.
+  # promised rather than another raised line. `--shard` partitions Playwright's test
+  # GROUPS, a group is one file per project while `fullyParallel` is false, so a
+  # serial `describe` is never split and the per-file ordering inside a shard is the
+  # ordering the unsharded run had.
   #
   # Balance is by TEST COUNT in project-then-file order, not by duration, and this
-  # suite's per-test cost is not uniform: `admin-chromium` was 36.3 of those 46.1
-  # minutes over 294 of the 523 tests, the portal projects 9.3 minutes over 229. So
-  # the later shards are admin-heavy and the earlier ones finish sooner; the measured
-  # spread is in CONTRIBUTING.md. The number that matters is the slowest shard,
-  # because that is the wait, and it is roughly a third of the unsharded run.
+  # suite's per-test cost is not uniform: `admin-chromium` is 36.3 of those 46.1
+  # minutes over 294 of the 523 tests, the three portal projects 9.3 minutes over the
+  # other 229. So the later shards are admin-heavy and the earlier ones finish sooner.
+  # Measured at four shards: 5.4, 10.8, 17.8 and 11.9 minutes of Playwright time over
+  # 131, 141, 136 and 115 tests. The number that matters is the slowest shard, because
+  # that is the wait, and 17.8 was over the fifteen this was aiming at - hence five.
   #
   # Each shard is a whole job: its own checkout, install, build, Chromium, mirrored
-  # Postgres image and globalSetup. Sharing a build between them was considered and
-  # declined - it would mean uploading `dist/` plus both `.next/` trees and a serial
-  # upstream job ahead of every shard, for a per-shard overhead of about five minutes
-  # of a roughly twenty-minute job.
+  # Postgres image and globalSetup, about 1.8 minutes of it before the first test.
+  # Sharing one build was considered and declined: it would mean uploading `dist/`
+  # plus both `.next/` trees and a serial job ahead of all five, against a setup cost
+  # that is already a small part of each leg.
   browser-e2e-shard:
     name: browser-e2e (shard ${{ matrix.shard }}/${{ strategy.job-total }})
     runs-on: ubuntu-latest
-    # Off the measurement, not off the old 60: the slowest shard is expected around
-    # 16 minutes of Playwright plus about 5 of setup, so this is about 1.5x it. The
-    # unsharded job sat at 1.2x its own max by the end, which is what made a kill at
-    # the cap and a red suite hard to tell apart.
-    timeout-minutes: 35
+    # Off the measurement, not off the old 60: the slowest shard is about 13 minutes
+    # of Playwright plus 2 of setup, so this is a little over 2x it. The unsharded job
+    # had drifted to 1.2x its own max, which is what makes a kill at the cap and a red
+    # suite hard to tell apart.
+    timeout-minutes: 30
     needs: changes
     if: ${{ !cancelled() }}
     strategy:
       # One red shard must not cancel the others. A cancelled leg would fail the
-      # aggregate anyway, so fail-fast buys nothing and costs the other three shards'
+      # aggregate anyway, so fail-fast buys nothing and costs the other shards'
       # verdicts, which is the whole point of reading a sharded failure.
       fail-fast: false
       matrix:
-        shard: [1, 2, 3, 4]
+        shard: [1, 2, 3, 4, 5]
     env:
       PLAN_ONLY: ${{ needs.changes.outputs.plan_only }}
       ADMIN_ONLY: ${{ needs.changes.outputs.admin_only }}
-      # `strategy.job-total` rather than a second literal `4`, so the matrix list
+      # `strategy.job-total` rather than a second literal count, so the matrix list
       # above is the only place the shard count is written.
       SHARD: ${{ matrix.shard }}
       SHARD_TOTAL: ${{ strategy.job-total }}
@@ -659,8 +660,8 @@ jobs:
       # `admin_only` runs everything.
       #
       # It shards too. `--project` is applied before the split, so the groups being
-      # partitioned are the admin files alone and the four shards divide the 294
-      # admin tests rather than three of them inheriting the whole suite's offsets.
+      # partitioned are the admin files alone and the shards divide the 294 admin
+      # tests rather than most of them inheriting the whole suite's offsets.
       - name: Admin browser suite only (diff cannot reach a portal surface)
         run: pnpm exec playwright test --project admin-chromium --shard="$SHARD/$SHARD_TOTAL"
         if: env.PLAN_ONLY != 'true' && env.ADMIN_ONLY == 'true'
@@ -671,7 +672,7 @@ jobs:
       # Ephemeral failure forensics: Playwright output and captured portal/API
       # server logs, uploaded only when the job fails. The shard is in the name
       # because `actions/upload-artifact` v4 and later refuse a duplicate name, so
-      # without it three red shards out of four would lose two uploads.
+      # without it a second red shard would lose its upload.
       #
       # Deliberately per-shard rather than a blob report merged in the aggregate: the
       # aggregate below publishes the required context, and anything it does beyond

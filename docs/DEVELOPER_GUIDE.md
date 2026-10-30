@@ -566,7 +566,7 @@ The admin has the same marker and the same wait (`apps/admin/e2e/support/hydrati
 **`pnpm ci:durations` answers "is this run slow, or is it normal?"** (issue #858). `CONTRIBUTING.md` quotes a p50 and a max for the browser gate so a long wait can be told from a hang, and that sentence has gone stale four times, always because re-measuring meant a run list, a jobs call per run and a pile of date arithmetic. The script does that in one command, dependency-free over `gh`:
 
 ```sh
-pnpm ci:durations --prefix "browser-e2e (shard"  # the four shards as one wait
+pnpm ci:durations --prefix "browser-e2e (shard"  # the five shards as one wait
 pnpm ci:durations "verify (node-24)"             # any job, matched exactly
 pnpm ci:durations api-e2e --runs 30              # a wider window
 ```
