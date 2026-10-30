@@ -327,7 +327,7 @@ describe("FormBuilder and the assist panel (task 041)", () => {
       ),
     );
 
-    render(
+    renderWithPanel(
       <>
         <FormBuilder
           detail={DETAIL}

@@ -113,6 +113,7 @@ const seams = {
   enableTwoFactor: vi.fn(),
   proxiedSession: vi.fn(),
   assist: vi.fn(),
+  screenAssist: vi.fn(),
   requireAdminSessionForRequest: vi.fn(),
   pendingEnrollmentCookie: vi.fn(() => "qcms_admin.enrollment=uri; Path=/"),
   recoveryCodesCookie: vi.fn(() => "qcms_admin.recovery_codes=%5B%5D; Path=/"),
@@ -131,12 +132,13 @@ vi.mock("@/lib/server/auth-api", () => ({
   proxiedSession: seams.proxiedSession,
 }));
 
-// Task 041's assist proxy reaches the API through `lib/server/forms.ts`. Only `assist`
-// is replaced, and only so the "a refused request reached nothing" sweep has something
-// to watch on this route: the belt itself is the real one.
+// The assist proxies reach the API through `lib/server/forms.ts`. Only those two are
+// replaced, and only so the "a refused request reached nothing" sweep has something
+// to watch on these routes: the belt itself is the real one.
 vi.mock("@/lib/server/forms", async () => ({
   ...(await import("./forms.ts")),
   assist: seams.assist,
+  screenAssist: seams.screenAssist,
 }));
 
 vi.mock("@/lib/server/enrollment", () => ({
@@ -205,6 +207,7 @@ const passwordRoute = await import("../../app/(shell)/settings/password/route.ts
 const forcedPasswordRoute = await import("../../app/change-password/submit/route.ts");
 const codesRoute = await import("../../app/(shell)/settings/recovery-codes/route.ts");
 const assistRoute = await import("../../app/(shell)/forms/[formId]/assist/route.ts");
+const screenAssistRoute = await import("../../app/(shell)/assist/route.ts");
 
 /** The refusal lines written since the last test started, parsed. */
 function refusalLines(): Record<string, unknown>[] {
@@ -479,6 +482,25 @@ const ROUTES: readonly GuardedRoute[] = [
     refusalStatus: 403,
     logged: { beltRoute: "/forms/{formId}/assist", beltOutcome: "refused-403" },
   },
+  {
+    // Task 082's screen route. The flag is stubbed on for the same reason the per-form
+    // route's case stubs it: with it off the handler answers 404 before the belt runs.
+    path: "app/(shell)/assist/route.ts",
+    post: (headers) => {
+      vi.stubEnv("QCMS_FLAG_AGENT_AUTHORING", "fake");
+      return screenAssistRoute.POST(
+        new Request(`${ADMIN_BASE}/assist`, {
+          method: "POST",
+          headers: { ...headers, "content-type": "application/json" },
+          body: JSON.stringify({ conversation: [], screen: "/settings", conversationId: "cnv_1" }),
+        }) as never,
+      );
+    },
+    reached: () => seams.screenAssist,
+    refusalLocation: null,
+    refusalStatus: 403,
+    logged: { beltRoute: "/assist", beltOutcome: "refused-403" },
+  },
 ];
 
 describe("isSameOriginPost", () => {
@@ -546,6 +568,9 @@ describe.each(ROUTES)("$path", (route) => {
     // An upstream SSE turn the assist proxy relays. Empty body: this file is about the
     // belt, and what the panel does with the stream is `assist-stream.test.ts`'s.
     seams.assist.mockResolvedValue(
+      new Response(null, { status: 200, headers: { "content-type": "text/event-stream" } }),
+    );
+    seams.screenAssist.mockResolvedValue(
       new Response(null, { status: 200, headers: { "content-type": "text/event-stream" } }),
     );
     seams.requireAdminSessionForRequest.mockResolvedValue(SESSION);
