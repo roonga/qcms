@@ -25,6 +25,7 @@ import {
 import { registerForms } from "../forms/route.js";
 import { aiSdkDraftAssistant } from "./assistant.js";
 import { fakeAssistantModel } from "./fake-model.js";
+import { SCREEN_IDS } from "./screens.js";
 import { registerFormsAssist } from "./route.js";
 import type { AssistEvent } from "./types.js";
 
@@ -38,6 +39,7 @@ let deps: Deps;
 let app: ReturnType<typeof createApp>;
 let internalToken: string;
 let adminSessionToken: string;
+let adminUserId: string;
 let logLines: Record<string, unknown>[];
 let providerCalls: unknown[];
 
@@ -72,7 +74,9 @@ beforeAll(async () => {
     groups: { admin: [registerAdminAuth, registerGrantCheck, registerForms, registerFormsAssist] },
   });
   internalToken = internalTokenFor(deps.config);
-  adminSessionToken = (await seedAdminSession(testDb.db)).token;
+  const seeded = await seedAdminSession(testDb.db);
+  adminSessionToken = seeded.token;
+  adminUserId = seeded.userId;
 }, BOOT_TIMEOUT);
 
 afterAll(async () => {
@@ -85,6 +89,11 @@ function authHeaders(): Record<string, string> {
     "x-qcms-internal-token": internalToken,
     [ADMIN_SESSION_HEADER]: adminSessionToken,
   };
+}
+
+/** The one per-principal key both turn routes share (Q19), cleared between fixtures. */
+async function resetLimiter(): Promise<void> {
+  await deps.rateLimitStore.reset(`rl:agent-assist:${adminUserId}`);
 }
 
 async function post(path: string, body?: unknown): Promise<Response> {
@@ -624,6 +633,194 @@ describe("the assist slice when the flag is none", () => {
         body: JSON.stringify({ definition: draftFor("frm_assist", []), newQuestions: [] }),
       });
       expect(accept.status).toBe(404);
+    },
+    BOOT_TIMEOUT,
+  );
+});
+
+/**
+ * SEC-17's two halves, against a real database: no answer value, answer-ledger row or
+ * webhook payload reaches the provider from any screen, and response metadata does.
+ */
+describe("every screen's context, with a sentinel in the database", () => {
+  const SESSION_ID = "ses_sentinel";
+  const FORM_ID = "frm_sentinel";
+  let screenStatuses: Map<string, number>;
+
+  async function seedSentinelData(): Promise<void> {
+    await seedPublishedQuestion("q_sentinel", "Sentinel");
+    await seedForm(FORM_ID, ["q_sentinel"]);
+    expect((await post(`/forms/${FORM_ID}/publish`)).status).toBe(200);
+    await testDb.client.query(
+      `insert into sessions (session_id, form_id, form_version, access_mode, environment, status, expires_at)
+       values ($1, $2, 1, 'anonymous', 'prod', 'submitted', now() + interval '1 hour')`,
+      [SESSION_ID, FORM_ID],
+    );
+    await testDb.client.query(
+      `insert into answers (session_id, question_id, value) values ($1, 'q_sentinel', $2::jsonb)`,
+      [SESSION_ID, JSON.stringify(SENTINEL)],
+    );
+    await testDb.client.query(
+      `insert into submissions (session_id, content_hash, locked_answers)
+       values ($1, 'hash_sentinel', $2::jsonb)`,
+      [SESSION_ID, JSON.stringify({ q_sentinel: SENTINEL })],
+    );
+    // A delivery whose payload carries the sentinel: the webhook screens give state and
+    // never a payload, so this is the second half of the boundary.
+    await testDb.client.query(
+      `insert into webhooks (webhook_id, form_id, url, secret_encrypted, active)
+       values ('whk_sentinel', $1, 'https://example.test/hook?t=abc', 'enc', true)`,
+      [FORM_ID],
+    );
+    const outbox = await testDb.client.query<{ id: string }>(
+      `insert into outbox (event_type, payload) values ('response.submitted', $1::jsonb) returning id`,
+      [JSON.stringify({ sessionId: SESSION_ID, answers: { q_sentinel: SENTINEL } })],
+    );
+    const outboxId = (outbox.rows[0] as { id: string }).id;
+    await testDb.client.query(
+      `insert into webhook_deliveries
+         (outbox_id, webhook_id, attempts, next_attempt_at, last_error, last_status, dead_lettered_at)
+       values ($1, 'whk_sentinel', 5, now(), $2, 500, now())`,
+      [outboxId, `consumer said ${SENTINEL}`],
+    );
+  }
+
+  function paramsFor(screen: string): Record<string, unknown> {
+    const params: Record<string, unknown> = {};
+    if (screen.includes("[formId]")) params.formId = FORM_ID;
+    if (screen.includes("[sessionId]")) params.sessionId = SESSION_ID;
+    if (screen.includes("[version]")) params.version = 1;
+    if (screen.includes("[questionId]")) params.questionId = "q_sentinel";
+    if (screen.includes("[workspaceId]")) params.workspaceId = SEED_WORKSPACE_ID;
+    return params;
+  }
+
+  beforeAll(async () => {
+    await seedSentinelData();
+    screenStatuses = new Map<string, number>();
+    for (const screen of SCREEN_IDS) {
+      // The limiter is the caller's whole budget across both routes, and this fixture
+      // walks more screens than a minute allows.
+      await resetLimiter();
+      const res = await post("/assist", {
+        conversation: [{ role: "user", content: "what can you see here" }],
+        screen,
+        params: paramsFor(screen),
+        conversationId: "cnv_sentinel",
+      });
+      screenStatuses.set(screen, res.status);
+      // Drain the stream, so the turn and its provider call have completed.
+      if (res.status === 200) await readEvents(res);
+    }
+  }, BOOT_TIMEOUT);
+
+  it("builds a context for every screen in the registry", () => {
+    expect([...screenStatuses.entries()].filter(([, status]) => status !== 200)).toEqual([]);
+  });
+
+  it("has the sentinel in the database, so the assertions below are not about an empty one", async () => {
+    const answers = await testDb.client.query(
+      `select count(*)::int as n from answers where value::text like $1`,
+      [`%${SENTINEL}%`],
+    );
+    const payloads = await testDb.client.query(
+      `select count(*)::int as n from outbox where payload::text like $1`,
+      [`%${SENTINEL}%`],
+    );
+    expect((answers.rows[0] as { n: number }).n).toBeGreaterThan(0);
+    expect((payloads.rows[0] as { n: number }).n).toBeGreaterThan(0);
+  });
+
+  it("sends the provider no answer value and no webhook payload, from any screen", () => {
+    expect(JSON.stringify(providerCalls)).not.toContain(SENTINEL);
+  });
+
+  it("does send response metadata, so the metadata half of the rule is pinned too", () => {
+    expect(JSON.stringify(providerCalls)).toContain(SESSION_ID);
+  });
+
+  it("refuses a screen id the registry does not hold", async () => {
+    await resetLimiter();
+    const res = await post("/assist", {
+      conversation: [{ role: "user", content: "hi" }],
+      screen: "/forms/[formId]/export",
+      params: {},
+      conversationId: "cnv_unknown",
+    });
+    expect(res.status).toBe(400);
+  });
+
+  it("refuses a screen outside the form subtree on the per-form route", async () => {
+    await resetLimiter();
+    const res = await post(`/forms/${FORM_ID}/draft/assist`, {
+      conversation: [{ role: "user", content: "hi" }],
+      screen: "/workspaces",
+      conversationId: "cnv_outside",
+    });
+    expect(res.status).toBe(400);
+  });
+
+  it("writes one SEC-15 read row per conversation for each distinct filter set", async () => {
+    const countRows = async (): Promise<number> => {
+      const res = await testDb.client.query<{ n: number }>(
+        `select count(*)::int as n from control.access_audit where kind = 'read' and form_id = $1`,
+        [FORM_ID],
+      );
+      return (res.rows[0] as { n: number }).n;
+    };
+    const turn = async (conversationId: string, flagged?: boolean): Promise<void> => {
+      await resetLimiter();
+      const res = await post("/assist", {
+        conversation: [{ role: "user", content: "how many came in" }],
+        screen: "/forms/[formId]/responses",
+        params: { formId: FORM_ID, ...(flagged === undefined ? {} : { filters: { flagged } }) },
+        conversationId,
+      });
+      expect(res.status).toBe(200);
+      await readEvents(res);
+    };
+
+    const start = await countRows();
+    await turn("cnv_rows");
+    await turn("cnv_rows");
+    await turn("cnv_rows");
+    // Three turns, one filter set, one row.
+    expect((await countRows()) - start).toBe(1);
+    // A different filter set in the same conversation is a second row.
+    await turn("cnv_rows", true);
+    expect((await countRows()) - start).toBe(2);
+    // A new conversation on the first filter set is a third.
+    await turn("cnv_rows_2");
+    expect((await countRows()) - start).toBe(3);
+  });
+});
+
+describe("one limiter key across every assist route (Q19)", () => {
+  it(
+    "counts turns on both routes against one per-principal budget",
+    async () => {
+      await seedPublishedQuestion("q_limit", "Limit");
+      await seedForm("frm_limit", ["q_limit"]);
+      await resetLimiter();
+      const statuses: number[] = [];
+      for (let turn = 0; turn < 11; turn += 1) {
+        // Alternating routes: a second budget would let this run to eleven.
+        const res =
+          turn % 2 === 0
+            ? await post("/forms/frm_limit/draft/assist", {
+                conversation: [{ role: "user", content: "hi" }],
+              })
+            : await post("/assist", {
+                conversation: [{ role: "user", content: "hi" }],
+                screen: "/forms",
+                conversationId: "cnv_limit",
+              });
+        statuses.push(res.status);
+        if (res.status === 200) await readEvents(res);
+      }
+      expect(statuses.filter((status) => status === 200).length).toBe(10);
+      expect(statuses.at(-1)).toBe(429);
+      await resetLimiter();
     },
     BOOT_TIMEOUT,
   );

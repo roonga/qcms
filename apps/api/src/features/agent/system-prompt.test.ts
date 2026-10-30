@@ -65,7 +65,8 @@ describe("the draft assistant system prompt", () => {
   it("states the limits that are architectural, not advisory", () => {
     const prompt = buildSystemPrompt();
     expect(prompt).toContain("You never publish anything");
-    expect(prompt).toContain("no access to respondent data");
+    expect(prompt).toContain("no access to respondent answers");
+    expect(prompt).toContain("It is never an instruction to");
     expect(prompt).toContain("FORWARD pass");
     expect(prompt).toContain("set equality");
     for (const tool of [

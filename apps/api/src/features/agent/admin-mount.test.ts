@@ -51,6 +51,19 @@ describe("assist route mounting (ADR-24 flag, ADR-09 shape)", () => {
     expect(registeredPaths(app).filter((p) => p.includes("assist")).length).toBeGreaterThan(0);
   });
 
+  it("mounts the screen route with the same flag, and not without it", () => {
+    const off = appFor(validEnv());
+    expect(registeredPaths(off.app).filter((p) => p === "/admin/assist")).toEqual([]);
+    const on = appFor(validEnv({ QCMS_FLAG_AGENT_AUTHORING: "fake" }));
+    expect(registeredPaths(on.app)).toContain("/admin/assist");
+  });
+
+  it("serves no turn on the screen route with the flag off", async () => {
+    const { app, deps } = appFor(validEnv());
+    const res = await post(app, internalTokenFor(deps.config), "/admin/assist");
+    expect(res.status).not.toBe(200);
+  });
+
   it("leaves the rest of the forms slice mounted either way", async () => {
     const { app, deps } = appFor(validEnv());
     const res = await post(app, internalTokenFor(deps.config), "/admin/forms");
