@@ -568,9 +568,10 @@ jobs:
   # Measured at four shards: 5.4, 10.8, 17.8 and 11.9 minutes of Playwright time over
   # 131, 141, 136 and 115 tests. The number that matters is the slowest shard, because
   # that is the wait, and 17.8 was over the fifteen this was aiming at - hence five,
-  # which measured 6.1, 5.5, 13.5, 13.7 and 12.8 over 106, 110, 108, 102 and 97 tests,
-  # for 15.9 minutes from the first shard starting to the aggregate reporting. The
-  # unsharded job was p50 39.5 / max 49.3 over the eight runs before this.
+  # over 106, 110, 108, 102 and 97 tests. Two runs of those five: 6.1, 5.5, 13.5, 13.7,
+  # 12.8 and then 6.2, 3.7, 17.0, 13.8, 8.6, so a quarter of runner-to-runner variance
+  # on the same slice, and 15.9 then 19.1 minutes from the first shard starting to the
+  # aggregate reporting. The unsharded job was p50 39.5 / max 49.3 before this.
   #
   # Each shard is a whole job: its own checkout, install, build, Chromium, mirrored
   # Postgres image and globalSetup, about 1.8 minutes of it before the first test.
