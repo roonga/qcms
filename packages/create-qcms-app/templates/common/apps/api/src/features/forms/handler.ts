@@ -696,6 +696,7 @@ export function makeGetFormHandler(deps: Deps): RouteHandler<typeof getFormRoute
         },
         challengeEnforceable: challengeEnforceable(deps.config.flags),
         requiresSecondApprover: workspace?.requireSecondApprover ?? false,
+        canWriteDraft: allows("form", "write"),
         workflow,
       },
       200,
@@ -1176,6 +1177,49 @@ function rosterRecord(
  * the same pair the portal's serve-step returns so the admin is not a second
  * implementation of visibility. Nothing here writes.
  */
+/**
+ * The preview's forward pass over a draft and a set of hypothetical answers, without the
+ * compile the screen also needs, so the agent's preview read and the preview screen reach
+ * the same kernel through the same path.
+ */
+export async function projectDraftFlow(
+  deps: Deps,
+  definition: FormDefinition,
+  answers: Readonly<Record<string, unknown>>,
+): Promise<{
+  readonly visibleSteps: readonly string[];
+  readonly visibleQuestions: readonly string[];
+  readonly complete: boolean;
+}> {
+  const { issues, snapshot } = await validateDraft(deps, definition);
+  if (issues.length > 0 || snapshot === undefined) {
+    if (issues.length === 0) throw fail.previewUnavailable();
+    throw fail.previewRejected(issues);
+  }
+  const definitionByQuestion = new Map(
+    snapshot.questions.map((record) => [record.questionId, record.definition] as const),
+  );
+  const resolve: ResolveQuestion = (questionId) => definitionByQuestion.get(questionId);
+  const asked = hypotheticalRosters(definition, undefined);
+  const keyed = collectKeyedAnswers(
+    answers,
+    definition,
+    pinsByQuestion(definition),
+    asked.rosters,
+    "skip",
+  );
+  if (keyed === undefined) throw fail.previewUnavailable();
+  const flow = evaluateRules(snapshot, keyed, resolve, asked.rosters);
+  if (!flow.ok) throw fail.previewUnavailable();
+  return {
+    visibleSteps: [...flow.value.visibleSteps],
+    visibleQuestions: flow.value.visible.map((entry) =>
+      String(answerKey(entry.questionId, entry.instanceId)),
+    ),
+    complete: flow.value.complete,
+  };
+}
+
 export function makePreviewDraftHandler(
   deps: Deps,
 ): RouteHandler<typeof previewDraftRoute, ApiEnv> {

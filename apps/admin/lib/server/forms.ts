@@ -26,6 +26,7 @@ import type {
 import type { QuestionListItem } from "../questions/types.ts";
 
 import { adminApiFetch } from "./api.ts";
+import type { AssistParamsRelay, AssistTurnRelay } from "./assist-request.ts";
 import type { ApiResult } from "./api-result.ts";
 import { readResult as read } from "./api-result.ts";
 import type { AdminSession } from "./session.ts";
@@ -167,6 +168,9 @@ export const getForm: (session: AdminSession, formId: string) => Promise<ApiResu
         // a build talking to a pre-070 API shows no rule rather than claiming one the API
         // will not enforce.
         requiresSecondApprover: raw["requiresSecondApprover"] === true,
+        // Defaults towards **off** for the same reason: no write offered that the API would
+        // refuse.
+        canWriteDraft: raw["canWriteDraft"] === true,
         ...readWorkflow(raw["workflow"]),
       },
     };
@@ -251,17 +255,35 @@ export function assist(
   session: AdminSession,
   formId: string,
   body: {
-    readonly conversation: readonly {
-      readonly role: "user" | "assistant";
-      readonly content: string;
-    }[];
+    readonly conversation: readonly AssistTurnRelay[];
     readonly clientState?: string;
+    readonly screen?: string;
+    readonly params?: AssistParamsRelay;
+    readonly conversationId?: string;
   },
 ): Promise<Response> {
   return adminApiFetch(session, `/forms/${encodeURIComponent(formId)}/draft/assist`, {
     method: "POST",
     body,
   });
+}
+
+/**
+ * `POST /admin/assist` - one turn about a screen with no form in its route.
+ *
+ * The body carries a screen id, the route's own ids and the conversation id, and never
+ * context content: the API builds the screen's facts itself under the caller's grants.
+ */
+export function screenAssist(
+  session: AdminSession,
+  body: {
+    readonly conversation: readonly AssistTurnRelay[];
+    readonly screen: string;
+    readonly params?: AssistParamsRelay;
+    readonly conversationId: string;
+  },
+): Promise<Response> {
+  return adminApiFetch(session, "/assist", { method: "POST", body });
 }
 
 /** `POST /admin/forms/{id}/draft/validate` - dry run, no save. */

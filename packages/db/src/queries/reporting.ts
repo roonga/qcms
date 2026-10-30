@@ -229,6 +229,81 @@ export async function listTombstones(
 }
 
 /**
+ * Response metadata, with no answer column selected and no answer table joined, so the
+ * row type carries no field an answer value could arrive in (SEC-17).
+ */
+export type ResponseMetadataRow = {
+  readonly sessionId: SessionId;
+  readonly formId: FormId;
+  readonly formVersion: number;
+  /** Absent once the session row has been swept, while the submission remains. */
+  readonly startedAt: Date | null;
+  readonly submittedAt: Date;
+  readonly accessMode: AccessMode;
+  readonly flagged: boolean;
+  readonly flaggedReason: string | null;
+};
+
+function normalizeMetadata(row: ResponseMetadataRow): ResponseMetadataRow {
+  return {
+    ...row,
+    submittedAt: toDate(row.submittedAt),
+    startedAt: row.startedAt === null ? null : toDate(row.startedAt),
+  };
+}
+
+const METADATA_COLUMNS = sql`
+  r.session_id as "sessionId", r.form_id as "formId", r.form_version as "formVersion",
+  r.submitted_at as "submittedAt", r.access_mode as "accessMode",
+  s.created_at as "startedAt",
+  sub.flagged_reason is not null as "flagged", sub.flagged_reason as "flaggedReason"
+`;
+
+/** {@link listResponses}' page, metadata only. */
+export async function listResponseMetadata(
+  exec: Executor,
+  environment: string,
+  filter: ResponseFilter & { flagged?: boolean; limit: number; offset: number },
+): Promise<{ rows: ResponseMetadataRow[]; total: number }> {
+  const where = responseWhere(filter, filter.flagged);
+  const page = await exec.execute<ResponseMetadataRow>(sql`
+    select ${METADATA_COLUMNS}
+    from ${reportingSchema(environment)} r
+    join submissions sub on sub.session_id = r.session_id
+    left join sessions s on s.session_id = r.session_id
+    where ${where}
+    order by r.submitted_at desc, r.session_id desc
+    limit ${filter.limit} offset ${filter.offset}
+  `);
+  const counted = await exec.execute<{ total: number }>(sql`
+    select count(*)::int as "total"
+    from ${reportingSchema(environment)} r
+    join submissions sub on sub.session_id = r.session_id
+    where ${where}
+  `);
+  return { rows: page.rows.map(normalizeMetadata), total: counted.rows[0]?.total ?? 0 };
+}
+
+/** {@link getResponse}'s row, metadata only. */
+export async function getResponseMetadata(
+  exec: Executor,
+  environment: string,
+  formId: FormId,
+  sessionId: SessionId,
+): Promise<ResponseMetadataRow | undefined> {
+  const res = await exec.execute<ResponseMetadataRow>(sql`
+    select ${METADATA_COLUMNS}
+    from ${reportingSchema(environment)} r
+    join submissions sub on sub.session_id = r.session_id
+    left join sessions s on s.session_id = r.session_id
+    where r.form_id = ${formId} and r.session_id = ${sessionId}
+    limit 1
+  `);
+  const row = res.rows[0];
+  return row === undefined ? undefined : normalizeMetadata(row);
+}
+
+/**
  * Release a submission's anti-abuse flag, reporting whether this call performed the
  * transition; the conditional clear lets exactly one caller win the flip.
  *

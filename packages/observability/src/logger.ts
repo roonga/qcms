@@ -18,7 +18,11 @@ export interface Logger {
   child(bindings: LogFields): Logger;
 }
 
-const REDACT_FRAGMENTS = [
+/**
+ * The key fragments the stdout redactor treats as secret-like or respondent-content-like.
+ * Exported so a reader of this list cannot drift from a test that asserts against it.
+ */
+export const REDACT_FRAGMENTS = [
   "token",
   "secret",
   "password",

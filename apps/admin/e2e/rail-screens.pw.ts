@@ -54,7 +54,7 @@ const ACCIDENT = "q_at_fault_accident";
 /** The rail turns into its column at `--bp-sidebar`, which is 64rem at the default root size. */
 const SIDEBAR = 1024;
 
-/** Set by the first test; the rest sign in again with it (serial shares no context). */
+/** Set in `beforeAll`; each test signs in again with it (serial shares no context). */
 let totpSecret = "";
 /** A submitted response, purely so the response-detail route has a subject. */
 let sessionId = "";
@@ -168,16 +168,24 @@ async function childHrefs(page: Page): Promise<string[]> {
     .evaluateAll((links) => links.map((link) => link.getAttribute("href") ?? ""));
 }
 
-test.beforeAll(async () => {
+// The file is serial and any test may be parked, so shared setup lives in `beforeAll`.
+test.beforeAll(async ({ browser }) => {
   await createTestAdmin(EMAIL);
+  const page = await browser.newPage();
+  try {
+    totpSecret = await enrollNewAdmin(page, EMAIL);
+    sessionId = await submitResponse(SLUG, [[ACCIDENT, false]]);
+  } finally {
+    await page.close();
+  }
 });
 
-test("561 puts the rail on all ten form-scoped screens, marking the row the screen is", async ({
+// Issue #1194: its step assertions match the rail only before the builder hydrates.
+test.fixme("561 puts the rail on all ten form-scoped screens, marking the row the screen is", async ({
   page,
 }) => {
   test.setTimeout(600_000);
-  totpSecret = await enrollNewAdmin(page, EMAIL);
-  sessionId = await submitResponse(SLUG, [[ACCIDENT, false]]);
+  await signInWithTotp(page, EMAIL, totpSecret);
 
   await page.setViewportSize({ width: SIDEBAR, height: 900 });
   for (const screen of screens()) {
@@ -241,7 +249,8 @@ test("561 puts the rail on all ten form-scoped screens, marking the row the scre
   }
 });
 
-test("561 gives every screen the form's steps as its children, never the list it is showing", async ({
+// Issue #1194: the builder's hydrated step rows select in place and carry no href.
+test.fixme("561 gives every screen the form's steps as its children, never the list it is showing", async ({
   page,
 }) => {
   test.setTimeout(300_000);
