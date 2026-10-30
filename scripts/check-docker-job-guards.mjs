@@ -55,11 +55,17 @@ export const JOB_GUARDS = {
     prepull: false,
     why: "each of the API scenario files boots its own Testcontainers Postgres.",
   },
-  "ci.yml#browser-e2e": {
+  "ci.yml#browser-e2e-shard": {
     mirror: true,
     assert: true,
     prepull: false,
-    why: "the Playwright globalSetup boots a Testcontainers Postgres and composes the API against it.",
+    why: "the Playwright globalSetup boots a Testcontainers Postgres and composes the API against it, once per shard: every leg of the matrix is a whole job with its own container.",
+  },
+  "ci.yml#browser-e2e": {
+    mirror: false,
+    assert: false,
+    prepull: false,
+    why: "the aggregate that publishes the required context. It reads the shard matrix result and compares one string: no checkout, no container, no registry call.",
   },
   "codeql.yml#analyze": {
     mirror: false,

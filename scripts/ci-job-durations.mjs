@@ -3,6 +3,11 @@
 /**
  * Measures the JOB (`started_at` to `completed_at`), never the workflow run, which includes queue time.
  * The job name is matched exactly, so a renamed job contributes no sample to the old figures.
+ *
+ * `--prefix` measures a SET of jobs as one wait: every job whose name starts with the argument,
+ * spanned from the earliest start to the latest completion. A shard matrix has that figure and a
+ * single job does not, and `browser-e2e` by its exact name is now the aggregate's one string
+ * comparison rather than the browser suite (issue #1192).
  */
 
 import { execFileSync } from "node:child_process";
@@ -132,14 +137,15 @@ export function render(summary) {
 
 /**
  * @param {string[]} args
- * @returns {{ job: string; workflow: string; branch: string; runs: number; json: boolean }}
+ * @returns {{ job: string; workflow: string; branch: string; runs: number; json: boolean; prefix: boolean }}
  */
 export function parseArgs(args) {
-  const parsed = { job: "", ...DEFAULTS, json: false };
+  const parsed = { job: "", ...DEFAULTS, json: false, prefix: false };
   const remaining = [...args];
   while (remaining.length > 0) {
     const arg = /** @type {string} */ (remaining.shift());
     if (arg === "--json") parsed.json = true;
+    else if (arg === "--prefix") parsed.prefix = true;
     else if (arg === "--workflow") {
       const value = remaining.shift();
       if (value === undefined || value.startsWith("-")) throw new Error(`${arg} needs a value`);
@@ -161,7 +167,7 @@ export function parseArgs(args) {
   }
   if (parsed.job === "") {
     throw new Error(
-      "usage: pnpm ci:durations <job-name> [--runs N] [--branch B] [--workflow W] [--json]",
+      "usage: pnpm ci:durations <job-name> [--prefix] [--runs N] [--branch B] [--workflow W] [--json]",
     );
   }
   return parsed;
@@ -219,22 +225,36 @@ export function runJobs(runId) {
 }
 
 /**
+ * Under `prefix` the whole matching set has to have succeeded, so a run where one shard was
+ * skipped or red contributes nothing rather than a span measured over a partial suite.
+ *
  * @param {Job[]} jobs
  * @param {number} runId
  * @param {string} job
+ * @param {boolean} [prefix]
  * @returns {Sample | undefined}
  */
-export function sampleFrom(jobs, runId, job) {
-  const match = jobs.find(
-    (candidate) =>
-      candidate.name === job && candidate.conclusion === "success" && candidate.completed_at,
+export function sampleFrom(jobs, runId, job, prefix = false) {
+  const matches = jobs.filter((candidate) =>
+    prefix ? candidate.name.startsWith(job) : candidate.name === job,
   );
-  if (match === undefined || match.completed_at === null) return undefined;
+  if (matches.length === 0) return undefined;
+  if (matches.some((match) => match.conclusion !== "success" || match.completed_at === null)) {
+    return undefined;
+  }
+  const byInstant = (/** @type {string} */ a, /** @type {string} */ b) =>
+    Date.parse(a) - Date.parse(b);
+  const startedAt = matches.map((match) => match.started_at).sort(byInstant)[0] ?? "";
+  const completedAt =
+    matches
+      .map((match) => /** @type {string} */ (match.completed_at))
+      .sort(byInstant)
+      .at(-1) ?? "";
   return {
     runId,
-    startedAt: match.started_at,
-    completedAt: match.completed_at,
-    seconds: durationSeconds(match.started_at, match.completed_at),
+    startedAt,
+    completedAt,
+    seconds: durationSeconds(startedAt, completedAt),
   };
 }
 
@@ -268,7 +288,7 @@ export function main(args) {
       scanned += 1;
       const jobs = runJobs(run.databaseId);
       for (const candidate of jobs) namesSeen.add(candidate.name);
-      const sample = sampleFrom(jobs, run.databaseId, options.job);
+      const sample = sampleFrom(jobs, run.databaseId, options.job, options.prefix);
       if (sample !== undefined) samples.push(sample);
     }
   } catch (error) {
@@ -276,7 +296,8 @@ export function main(args) {
     return 2;
   }
 
-  const summary = summarize(options.job, samples, scanned, namesSeen);
+  const label = options.prefix ? `${options.job}*` : options.job;
+  const summary = summarize(label, samples, scanned, namesSeen);
   console.log(options.json ? JSON.stringify(summary, null, 2) : render(summary));
   return summary.count === 0 ? 1 : 0;
 }
