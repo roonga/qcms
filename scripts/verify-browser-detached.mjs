@@ -60,6 +60,9 @@ export const EXIT_RUNNER_VANISHED = 76;
 /** The runner was signalled, killed the suite and released the seat. Not a verdict. */
 export const EXIT_RUNNER_KILLED = 77;
 
+/** `stop` signalled the run but it did not finish releasing the seat in time. */
+export const EXIT_STOP_INCOMPLETE = 79;
+
 /**
  * The SUITE died on a signal while the runner stayed up, which points at the host rather
  * than at a cap or another lane. Not a verdict either.
@@ -92,8 +95,9 @@ export function validateShard(plan) {
 /**
  * @typedef {{ mode: "start"; projects: string[]; shard?: string; passthrough: string[] }} StartArgs
  * @typedef {{ mode: "wait"; directory: string; sliceSeconds: number; tailLines: number }} WaitArgs
+ * @typedef {{ mode: "stop"; directory: string }} StopArgs
  * @typedef {{ mode: "supervise"; heartbeat: string; log: string; pid: string; rc: string; releasePorts: number[]; seat?: string; repoRoot?: string; command: string[] }} SuperviseArgs
- * @typedef {StartArgs | WaitArgs | SuperviseArgs} Args
+ * @typedef {StartArgs | WaitArgs | StopArgs | SuperviseArgs} Args
  */
 
 /**
@@ -127,7 +131,7 @@ function positiveInteger(raw, flag) {
 export function parseArgs(args) {
   const remaining = [...args];
   const mode = remaining.shift();
-  if (mode === undefined) throw new Error("expected a mode: start, wait or supervise");
+  if (mode === undefined) throw new Error("expected a mode: start, wait, stop or supervise");
 
   if (mode === "start") {
     /** @type {StartArgs} */
@@ -175,6 +179,20 @@ export function parseArgs(args) {
     }
     if (parsed.directory === "")
       throw new Error("wait requires the run directory that start printed");
+    return parsed;
+  }
+
+  if (mode === "stop") {
+    /** @type {StopArgs} */
+    const parsed = { mode: "stop", directory: "" };
+    while (remaining.length > 0) {
+      const arg = /** @type {string} */ (remaining.shift());
+      if (arg.startsWith("--")) throw new Error(`unknown option for stop: ${arg}`);
+      if (parsed.directory !== "") throw new Error(`unexpected argument: ${arg}`);
+      parsed.directory = arg;
+    }
+    if (parsed.directory === "")
+      throw new Error("stop requires the run directory that start printed");
     return parsed;
   }
 
@@ -228,7 +246,7 @@ export function parseArgs(args) {
     };
   }
 
-  throw new Error(`unknown mode: ${mode} (expected start, wait or supervise)`);
+  throw new Error(`unknown mode: ${mode} (expected start, wait, stop or supervise)`);
 }
 
 /**
@@ -409,7 +427,7 @@ export async function startDetached({
   if (existing !== undefined && isAlive(existing)) {
     out(`a detached browser run is already live in this lane: pid ${String(existing)}`);
     out(`  ${laneDirectory}`);
-    out("Wait for it, or stop it with: kill " + String(existing));
+    out(`Wait for it, or stop it with: pnpm verify:browser:stop ${laneDirectory}`);
     return { code: EXIT_USAGE, directory: laneDirectory };
   }
 
@@ -481,6 +499,8 @@ export async function startDetached({
   out("");
   out("Wait for it in bounded slices, re-invoking while it exits 75:");
   out(`  pnpm verify:browser:wait ${laneDirectory}`);
+  out("Stop it cleanly, releasing the seat, with:");
+  out(`  pnpm verify:browser:stop ${laneDirectory}`);
   return { code: 0, directory: laneDirectory, pid };
 }
 
@@ -569,7 +589,8 @@ export async function supervise({
       // so the suite and its dev servers survive their supervisor.
       `suite_group=${String(child.pid ?? 0)}`,
       "# The first line is the runner pid, in a session of its own.",
-      `# Stop the run with: kill ${String(process.pid)}  (never pkill -f, see issue #890)`,
+      `# Stop the run with: pnpm verify:browser:stop ${dirname(pidPath)}`,
+      `# or kill ${String(process.pid)} directly (never pkill -f, see issue #890)`,
       "",
     ].join("\n"),
   );
@@ -1391,6 +1412,108 @@ export async function waitForRun({
   }
 }
 
+export const DEFAULT_STOP_TIMEOUT_MS = 60_000;
+
+/**
+ * Stop a run this lane started, through the runner's own handler: it kills the suite's
+ * group, releases the seat by port and writes the rc file. Only pids this run recorded are
+ * signalled, and a runner already gone has its recorded suite group signalled instead.
+ *
+ * @param {{ directory: string; out?: (line: string) => void; kill?: (pid: number, signal: NodeJS.Signals) => void; alive?: (pid: number) => boolean; pollMs?: number; timeoutMs?: number }} options
+ * @returns {Promise<number>}
+ */
+export async function stopRun({
+  directory,
+  out = (line) => {
+    process.stdout.write(`${line}\n`);
+  },
+  kill = (pid, signal) => {
+    process.kill(pid, signal);
+  },
+  alive = isAlive,
+  pollMs = DEFAULT_POLL_MS,
+  timeoutMs = DEFAULT_STOP_TIMEOUT_MS,
+}) {
+  const paths = {
+    log: join(directory, RUN_FILES.log),
+    pid: join(directory, RUN_FILES.pid),
+    rc: join(directory, RUN_FILES.rc),
+  };
+  const pid = readPid(paths.pid);
+  const group = readSuiteGroup(paths.pid);
+
+  if (pid === undefined) {
+    if (readRc(paths.rc) !== undefined) {
+      out(`the run in ${directory} has already finished; nothing to stop.`);
+      return 0;
+    }
+    out(`no detached browser run recorded in ${directory}`);
+    out("Start one with: QCMS_PORT_SEAT=<0-9> pnpm verify:browser:detached");
+    return EXIT_USAGE;
+  }
+
+  if (!alive(pid)) {
+    if (readRc(paths.rc) !== undefined) {
+      out(`the run in ${directory} has already finished; nothing to stop.`);
+      return 0;
+    }
+    out(`the runner (pid ${String(pid)}) is gone and recorded no rc, so it was SIGKILLed.`);
+    if (group === undefined) {
+      out("It recorded no suite group either, so there is nothing left to signal here.");
+      out("Check the seat as docs/DEVELOPER_GUIDE.md describes before the next run.");
+      return EXIT_STOP_INCOMPLETE;
+    }
+    out(`Signalling the suite group it recorded (${String(group)}), which outlived it.`);
+    for (const signal of /** @type {NodeJS.Signals[]} */ (["SIGTERM", "SIGKILL"])) {
+      try {
+        kill(-group, signal);
+      } catch {
+        // Already gone, which is the outcome being asked for.
+      }
+    }
+    out("The seat was not released by the runner, so re-check it before the next run.");
+    return EXIT_STOP_INCOMPLETE;
+  }
+
+  out(`[verify:browser:stop] signalling the runner, pid ${String(pid)}`);
+  try {
+    kill(pid, "SIGTERM");
+  } catch (error) {
+    out(`could not signal pid ${String(pid)}: ${error instanceof Error ? error.message : "?"}`);
+    return EXIT_STOP_INCOMPLETE;
+  }
+
+  const deadline = Date.now() + timeoutMs;
+  for (;;) {
+    const rc = readRc(paths.rc);
+    if (rc !== undefined) {
+      out(`the runner stopped and recorded EXIT=${String(rc.code)}.`);
+      if (rc.survivors !== undefined) {
+        out(`THE SEAT WAS NOT RELEASED: ${rc.survivors} (port:pid) still hold their ports.`);
+        out("Kill those pids by hand, one pid per argument, from outside any sandbox.");
+        return EXIT_STOP_INCOMPLETE;
+      }
+      if (rc.foreign !== undefined) {
+        out(`Left alone on this seat, deliberately: ${rc.foreign} (port:pid:grounds).`);
+        out(`The grounds and what to do about each are in ${paths.rc}.`);
+      }
+      out("The seat is released as far as this run owned it.");
+      return 0;
+    }
+    if (!alive(pid)) {
+      out("the runner exited without recording an rc, so the seat may hold orphans.");
+      out(`  log: ${paths.log}`);
+      return EXIT_STOP_INCOMPLETE;
+    }
+    if (Date.now() >= deadline) {
+      out(`the runner is still up ${String(Math.round(timeoutMs / 1000))}s after SIGTERM.`);
+      out(`Re-run this stop, or kill ${String(pid)} by hand; never pkill a gate by name.`);
+      return EXIT_STOP_INCOMPLETE;
+    }
+    await sleep(Math.min(pollMs, Math.max(1, deadline - Date.now())));
+  }
+}
+
 /**
  * @param {string[]} args
  * @param {string} directory
@@ -1417,6 +1540,9 @@ export async function main(args, directory, environment) {
         environment,
       });
       return code;
+    }
+    if (parsed.mode === "stop") {
+      return await stopRun({ directory: parsed.directory });
     }
     if (parsed.mode === "wait") {
       return await waitForRun({

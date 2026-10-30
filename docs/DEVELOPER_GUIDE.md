@@ -572,7 +572,13 @@ QCMS_PORT_SEAT=<0-9> pnpm verify:browser:detached
 log=$(node scripts/agent-scratch.mjs browser-wait.log)
 pnpm verify:browser:wait <dir> > "$log" 2>&1; rc=$?; echo "EXIT=$rc"
 pnpm verify:browser:wait <dir> --slice 300 --tail 80 > "$log" 2>&1; rc=$?; echo "EXIT=$rc"
+
+# Stop a run you started, before it finishes. Signals the recorded runner, which
+# stops the suite and clears the seat, then reports whether the seat came free.
+pnpm verify:browser:stop <dir>
 ```
+
+**`stop` is the supported way to end a run early**, and it exists so nobody has to kill a gate by hand. It signals the runner pid the run recorded and nothing else, so the runner's own handler does the work: the suite's process group is stopped, the seat is released by port, and the rc file is written. It then waits for that rc file and says whether the seat actually came free, so a seat left occupied is reported rather than assumed. Exit 0 means the run stopped and the seat is released as far as it owned it; 79 means it was signalled but did not finish cleanly, and the lines above it name what is left. Two other shapes it handles: a run that has already finished is reported as nothing to stop, and a runner that was SIGKILLed (so it never trapped anything, and its suite and dev servers outlived it) has its **recorded suite group** signalled instead. Never `pkill -f` a gate command name, whatever the hurry: every lane on this host runs the same command names (issue #890).
 
 **One `wait` call is the entire wait for that slice** (issue #915). It blocks in the foreground for the whole slice, which is 540 seconds by default, so a single call fits inside a 10-minute command timeout; it prints each heartbeat line as that line arrives, so a blocked slice is not a silent one; and it returns 75 with the suite still running rather than a verdict. The loop is therefore: call it, read `rc`, call it again while `rc` is 75. Polling anything else between calls adds no information and costs a turn each: a lane on 2026-09-13 spent about 150 near-identical polls over an 18-minute run watching a background monitor instead of blocking here. If you do pipe it anyway, zsh spells the first element's code `$pipestatus[1]` (never the bash `${PIPESTATUS[0]}`, which is unset in zsh and falls through to a stale `$?`, issue #481).
 
@@ -588,6 +594,7 @@ The suite runs under `setsid`, in a session of its own, so killing the shell tha
 | 76   | the runner is gone and recorded no rc, so it was SIGKILLed. Expect orphans         |
 | 77   | the runner was signalled; it stopped the suite and cleared the seat. Not a verdict |
 | 78   | the SUITE died on a signal while the runner was never touched. Not a verdict       |
+| 79   | `stop` only: the run was signalled but did not release the seat cleanly            |
 
 **75 and 77 are the point of the whole thing.** A slice that ends early says so in a code of its own rather than resembling a failure, and a killed runner says it was killed rather than leaving a truncated log to be read as a red suite.
 
@@ -618,6 +625,7 @@ A signalled run records, at the instant the signal arrived, these fields, and `w
 - **Kill the pids the preflight named, one pid per argument**: `kill -9 <pid> <pid>`. In zsh an unquoted parameter is not word-split, so `kill -9 $pids` built from a space-joined string sends nothing to anything and reports success.
 - **Do not trust `kill`'s exit code, and be ready to run it outside the sandbox.** A sandboxed `kill` has been seen to exit 0 while every orphan survived (issue #846, the #808 lane); it has also been seen to work. Both report success, so the exit code is not evidence either way. Check with one of the two commands above afterwards, and if the listener is still there, run the kill outside the sandbox.
 - **Never `pkill -f` a gate command name.** Every lane on this host runs the same command names, so `pkill -f "pnpm verify"` is lane-agnostic: it can take out a neighbour's gate, and a second such pattern once killed the caller's own shell (issue #890). The recorded pid is the only safe target, which is why the detached runner writes one.
+- **For a run that is still live, reach for `pnpm verify:browser:stop <dir>` first.** It signals exactly that recorded pid and lets the runner clear its own seat, so the hand cleanup above is what is left for a run that was already SIGKILLed.
 
 A runner that is signalled rather than SIGKILLed cleans up after itself, and it is worth knowing exactly how far that goes. It traps SIGTERM, SIGINT and SIGHUP, signals the suite's whole process group, and then **clears the seat by port rather than by ancestry**: it asks `/proc` who is listening on this seat's four harness ports, signals those pids one at a time, waits, and SIGKILLs whoever is left. The second half is not belt and braces. Playwright starts each `webServer` in a session of its own, so the two `next dev` servers are in process groups the suite's leader pid cannot address at all, and a group signal on its own leaves both of them bound to the seat 25 seconds later (measured twice while building this, which is why the rc file now reports what the port check found rather than what the cleanup intended). The rc file says `Seat released: nothing is listening on <ports>` only when that check came back empty; if anything survived even the SIGKILL it writes `seat_survivors=<port>:<pid>` instead, and those pids are yours to kill by the rules above.
 
