@@ -155,7 +155,9 @@ test("puts the button first in the trailing group on every shell screen, and on 
     // order inside the group rather than by x, because the bar wraps at narrow widths and
     // an x comparison would then be reading two different rows (issue #1011).
     const order = await page.evaluate(() => {
-      const group = document.querySelector("header.qcms-topbar .flex-shrink-0");
+      // The group is the account control's own parent: `header .flex-shrink-0` also
+      // matches the wordmark, which is a sibling of the whole group rather than part of it.
+      const group = document.querySelector('[data-testid="account-menu"]')?.parentElement;
       const children = [...(group?.children ?? [])];
       const entry = children.findIndex((child) =>
         child.querySelector('[data-testid="qcms-assistant-button"]'),
