@@ -712,7 +712,9 @@ describe("every screen's context, with a sentinel in the database", () => {
       // Drain the stream, so the turn and its provider call have completed.
       if (res.status === 200) await readEvents(res);
     }
-  }, BOOT_TIMEOUT);
+    // Every screen in the registry runs a turn here, so this fixture is longer than one
+    // boot.
+  }, BOOT_TIMEOUT * 3);
 
   it("builds a context for every screen in the registry", () => {
     expect([...screenStatuses.entries()].filter(([, status]) => status !== 200)).toEqual([]);

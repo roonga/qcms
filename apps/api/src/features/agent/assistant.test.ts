@@ -99,7 +99,10 @@ async function collect(
     logger,
   });
   const events: AssistEvent[] = [];
-  for await (const event of assistant.assist(builderTurnContext(ctx), new AbortController().signal)) {
+  for await (const event of assistant.assist(
+    builderTurnContext(ctx),
+    new AbortController().signal,
+  )) {
     events.push(event);
   }
   return events;
@@ -117,7 +120,10 @@ async function collectWithThinking(
     thinking,
   });
   const events: AssistEvent[] = [];
-  for await (const event of assistant.assist(builderTurnContext(ctx), new AbortController().signal)) {
+  for await (const event of assistant.assist(
+    builderTurnContext(ctx),
+    new AbortController().signal,
+  )) {
     events.push(event);
   }
   return events;

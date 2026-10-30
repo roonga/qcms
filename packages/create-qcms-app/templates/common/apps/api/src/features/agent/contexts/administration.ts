@@ -92,10 +92,7 @@ async function buildWorkspaces(input: ScreenBuildInput): Promise<z.infer<typeof 
 }
 
 /** The screen lists what the caller administers, so a refusal narrows rather than throws. */
-async function requireCellSilently(
-  input: ScreenBuildInput,
-  workspaceId: string,
-): Promise<boolean> {
+async function requireCellSilently(input: ScreenBuildInput, workspaceId: string): Promise<boolean> {
   try {
     await requireCell(input, { workspaceId, resource: "workspace", action: "read" });
     return true;

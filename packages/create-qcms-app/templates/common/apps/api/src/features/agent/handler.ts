@@ -152,12 +152,9 @@ function buildContext(
 }
 
 /**
- * The turn's context: the screen's facts, built by the screen's own builder under the
- * caller's grants and parsed against the screen's strict schema, and the ports the
- * screen's declared tools close over.
- *
- * The facts are parsed rather than trusted, so a field a builder added without adding it
- * to the schema fails here instead of reaching the provider.
+ * The turn's context: the screen's facts, built under the caller's grants, and the ports
+ * its declared tools close over. The facts are parsed rather than trusted, so a field a
+ * builder added without declaring it fails here instead of reaching the provider.
  */
 async function buildScreenContext(args: {
   readonly deps: Deps;
@@ -410,9 +407,7 @@ export function makeScreenAssistHandler(
       params: body.params ?? {},
       conversationId: body.conversationId,
     });
-    const drafts = isFormSubtreeScreen(screen)
-      ? await formSubtreeDrafts(deps, build)
-      : undefined;
+    const drafts = isFormSubtreeScreen(screen) ? await formSubtreeDrafts(deps, build) : undefined;
     const ctx = await buildScreenContext({
       deps,
       screen,

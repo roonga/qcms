@@ -66,19 +66,13 @@ function filterDigest(filters: FilterSet): string {
 }
 
 /**
- * Whether this conversation has not yet had its row for this subject, so an agent read
- * the screen audits writes one SEC-15 row per conversation for each distinct filter set
- * rather than one per turn (Q10).
- *
- * A client that forges or reuses a conversation id can only cause more rows, or skip a row
- * for a subject already recorded for that same user; it cannot leave one with no row.
+ * Whether this conversation has yet had its row for this subject, so an audited read
+ * writes one row per conversation for each distinct filter set rather than one per turn.
+ * A forged id can add rows or skip a recorded subject, never leave one unrecorded.
  */
 const CONVERSATION_WINDOW_MS = 12 * 60 * 60 * 1_000;
 
-async function firstReadInConversation(
-  input: ScreenBuildInput,
-  subject: string,
-): Promise<boolean> {
+async function firstReadInConversation(input: ScreenBuildInput, subject: string): Promise<boolean> {
   const key = `agent-read:${input.principal.userId}:${input.conversationId}:${subject}`;
   const hit = await input.deps.rateLimitStore.hit(key, CONVERSATION_WINDOW_MS);
   return hit.count === 1;

@@ -54,6 +54,23 @@ export const OPERATIONAL_CELLS: readonly {
   { resource: "response", action: "dispose" },
 ];
 
+/**
+ * The cells any one of which admits an agent turn about a screen. A turn reads what its
+ * screen reads, so the union is the screens' own first cells; which one a given screen
+ * needs is checked by that screen's context builder.
+ */
+export const AGENT_SCREEN_CELLS: readonly {
+  readonly resource: Resource;
+  readonly action: string;
+}[] = [
+  { resource: "form", action: "read" },
+  { resource: "question", action: "read" },
+  { resource: "response", action: "read" },
+  { resource: "membership", action: "read" },
+  { resource: "webhook", action: "read" },
+  { resource: "audit", action: "read" },
+];
+
 // Ordered by path, because a reader arrives with a path and the question "who may call
 // this".
 export const ROUTE_POLICIES: readonly RoutePolicy[] = [
@@ -278,23 +295,17 @@ export const ROUTE_POLICIES: readonly RoutePolicy[] = [
   // The agent-authoring routes exist only under `QCMS_FLAG_AGENT_AUTHORING`, so the test's
   // route derivation cannot see them; name their rows here or they become a 403.
   {
-    // One row, because this table is keyed by path and this one path serves every screen.
-    // The union admits a caller who may read something somewhere; which screen they may
-    // have a context built for is that screen's own cell, checked by its context builder
-    // through this same evaluator before it reads anything (SEC-17).
+    // One row, because this table is keyed by path and this path serves every screen. The
+    // union admits a caller who may read something somewhere; the screen's own cell is
+    // checked by its context builder through this evaluator before it reads (SEC-17).
     method: "POST",
     path: "/admin/assist",
     resource: "form",
     action: "read",
     workspace: "caller",
-    anyOf: [
-      { resource: "form", action: "read" },
-      { resource: "question", action: "read" },
-      { resource: "response", action: "read" },
-      { resource: "membership", action: "read" },
-      { resource: "webhook", action: "read" },
-      { resource: "audit", action: "read" },
-    ],
+    anyOf: AGENT_SCREEN_CELLS,
+    namesEnvironment: true,
+    environmentFrom: "switcher",
   },
   {
     method: "POST",

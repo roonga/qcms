@@ -44,7 +44,7 @@ function propertyNames(node: unknown, found: Set<string> = new Set()): Set<strin
   if (node === null || typeof node !== "object") return found;
   for (const [key, value] of Object.entries(node)) {
     if (key === "properties" && value !== null && typeof value === "object") {
-      for (const name of Object.keys(value)) found.add(name);
+      for (const name of Object.keys(value as Record<string, unknown>)) found.add(name);
     }
     propertyNames(value, found);
   }
@@ -119,7 +119,7 @@ describe("one door per screen", () => {
   it("offers the provider exactly the screen's declared list", () => {
     for (const id of SCREEN_IDS) {
       const offered = Object.keys(agentToolSet(turnContext(id), createProposalState()));
-      expect(offered.sort(), id).toEqual([...SCREENS[id].readTools].sort());
+      expect([...offered].sort(), id).toEqual([...SCREENS[id].readTools].sort());
     }
   });
 

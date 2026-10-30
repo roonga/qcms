@@ -63,12 +63,9 @@ export interface ToolCell {
 }
 
 /**
- * One turn's context. The screen decides what is in it: its facts, the tools it declares,
- * and the ports those tools close over. A port absent is a tool the screen does not offer,
- * which is why no tool can reach past its own screen (SEC-17).
- *
- * {@link AssistContext} is the builder screen's shape, and its draft members appear here
- * as the optional half.
+ * One turn's context: the screen's facts, the tools it declares and the ports those tools
+ * close over. A port absent is a tool the screen does not offer, which is why no tool can
+ * reach past its own screen (SEC-17). {@link AssistContext} is the builder's own shape.
  */
 export interface AgentContext {
   readonly screen: string;

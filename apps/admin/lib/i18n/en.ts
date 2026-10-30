@@ -1995,6 +1995,7 @@ export const messages = {
   "forms.assist.step.propose_questions": "Drafting questions",
   "forms.assist.step.propose_draft": "Drafting the form",
   "forms.assist.step.validate_draft": "Checking the draft",
+  "forms.assist.step.project_draft": "Trying the draft out",
   "forms.assist.step.other": "Working on your request",
 
   "forms.assist.proposalHeading": "Proposal",

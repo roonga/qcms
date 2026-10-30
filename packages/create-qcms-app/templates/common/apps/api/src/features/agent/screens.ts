@@ -7,15 +7,10 @@ import type { ScreenBuildInput } from "./contexts/support.js";
 import type { AgentToolName } from "./tools/registry.js";
 
 /**
- * The frozen registry of admin screens: one row per `(shell)` page, each with the context
- * builder that computes its facts, the read tools a turn on it may use, and the action
- * kinds it offers.
- *
- * A screen id is the admin route pattern, so the admin's own table and this registry are
- * checked against the same route tree rather than against each other's prose.
- *
- * One door per screen: a turn's tool set is the intersection of the registry and the
- * current screen's list, and `runAgentTool` refuses every other name (SEC-17).
+ * The frozen registry of admin screens: one row per `(shell)` page, holding its context
+ * builder, its read tools and its action kinds. A screen id is the admin route pattern,
+ * so the admin's table and this registry are checked against one route tree. A turn's
+ * tool set is this registry intersected with the current screen's list (SEC-17).
  */
 export const SCREEN_IDS = [
   "/forms",
@@ -75,10 +70,18 @@ const DRAFT_TOOLS: readonly AgentToolName[] = [
 const NONE: readonly string[] = [];
 
 function screen(
-  context: { readonly facts: z.ZodType; build(input: ScreenBuildInput): Promise<unknown> },
+  context: {
+    readonly facts: z.ZodType;
+    readonly build: (input: ScreenBuildInput) => Promise<unknown>;
+  },
   readTools: readonly AgentToolName[] = [],
 ): ScreenDef {
-  return { facts: context.facts, build: context.build, readTools, actionKinds: NONE };
+  return {
+    facts: context.facts,
+    build: (input) => context.build(input),
+    readTools,
+    actionKinds: NONE,
+  };
 }
 
 /** Frozen so nothing can graft a screen, a tool or an action kind on at runtime. */

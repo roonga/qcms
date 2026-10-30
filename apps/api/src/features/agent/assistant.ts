@@ -275,9 +275,8 @@ export function handlePart(
 function stopOnRejectedTool(offered: readonly string[]): StopCondition<ToolSet> {
   const names: ReadonlySet<string> = new Set(offered);
   return ({ steps }) =>
-    steps
-      .at(-1)
-      ?.content.some((part) => part.type === "tool-call" && !names.has(part.toolName)) ?? false;
+    steps.at(-1)?.content.some((part) => part.type === "tool-call" && !names.has(part.toolName)) ??
+    false;
 }
 
 async function* runTurn(args: {

@@ -181,9 +181,7 @@ function draftShape(definition: unknown, locale: string): z.infer<typeof builder
   }));
 }
 
-async function structureFacts(
-  input: ScreenBuildInput,
-): Promise<z.infer<typeof builderFacts>> {
+async function structureFacts(input: ScreenBuildInput): Promise<z.infer<typeof builderFacts>> {
   const { formId, workspaceId, row } = await requireForm(input);
   await requireCell(input, { workspaceId, resource: "form", action: "read" });
   const subject = await formSubject(input, formId);
@@ -303,10 +301,7 @@ export const releasesFacts = z.strictObject({
 
 async function buildReleases(input: ScreenBuildInput): Promise<z.infer<typeof releasesFacts>> {
   const subject = await subjectFor(input);
-  const releases = await listFormReleases(
-    input.deps.databases.control,
-    subject.formId as FormId,
-  );
+  const releases = await listFormReleases(input.deps.databases.control, subject.formId as FormId);
   return {
     ...subject,
     releases: releases.slice(0, FACT_ROW_LIMIT).map((release) => ({

@@ -13,10 +13,10 @@ the PII boundary statement) is `docs/agent-authoring.md`.
 
 ## Routes
 
-| Method & path                               | Scope (SEC-5)                    | Notes                                                                                     |
-| ------------------------------------------- | -------------------------------- | ----------------------------------------------------------------------------------------- |
-| `POST /admin/forms/:id/draft/assist`        | `forms:write`                    | One agent turn. Body `{ conversation, clientState? }`. Answers `text/event-stream`.       |
-| `POST /admin/forms/:id/draft/assist/accept` | `forms:write`, `questions:write` | The human's Accept. Body `{ definition, newQuestions }`. Answers a saved-draft JSON body. |
+| Method & path                               | Scope (SEC-5)                    | Notes                                                                                                                         |
+| ------------------------------------------- | -------------------------------- | ----------------------------------------------------------------------------------------------------------------------------- |
+| `POST /admin/forms/:id/draft/assist`        | `forms:write`                    | One agent turn. Body `{ conversation, clientState? }`. Answers `text/event-stream`.                                           |
+| `POST /admin/forms/:id/draft/assist/accept` | `forms:write`, `questions:write` | The human's Accept. Body `{ definition, newQuestions }`. Answers a saved-draft JSON body.                                     |
 | `POST /admin/assist`                        | `forms:read`                     | One turn on the screen the body names. Body `{ conversation, screen, params?, conversationId }`. Answers `text/event-stream`. |
 
 Both turn routes share **one per-principal limiter key** (Q19), so ten turns a
@@ -32,17 +32,17 @@ flag-gated, and streams rather than returning a modelled JSON body.
 
 ## Files
 
-| File                                    | What it is                                                                                                                |
-| --------------------------------------- | ------------------------------------------------------------------------------------------------------------------------- |
+| File                                    | What it is                                                                                                                            |
+| --------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------- |
 | `types.ts`                              | The `DraftAssistant` port, `AgentContext`, `AssistContext`, `AssistEvent`, `AssistProposal`. The PII boundary is the context's shape. |
-| `screens.ts`                            | The frozen `SCREENS` registry: one row per `(shell)` page, each with its facts schema, context builder, read tools and action kinds. |
-| `contexts/`                             | The per-screen context builders, grouped by area, each checking its own SEC-3 cell before it reads anything.               |
-| `tools/registry.ts`                     | The frozen tool registry, the single dispatch door, and the provider tool set built from the current screen's list.        |
-| `system-prompt.ts`                      | The versioned system prompt, assembled from the kernel's own contracts. Reviewed like code.                               |
-| `assistant.ts`                          | The `streamText` tool loop, the stop-reason mapping, and the provider selector.                                           |
-| `fake-model.ts`                         | The deterministic scripted model CI drives, including the hostile scripts.                                                |
-| `route.ts` / `handler.ts` / `schema.ts` | The flag-gated registrar, the SSE relay and its 15 second keep-alive, the request schema.                                 |
-| `thinking.ts`                           | One function from `QCMS_AGENT_THINKING` to the provider's own options, and nothing vendor-shaped anywhere else (081).     |
+| `screens.ts`                            | The frozen `SCREENS` registry: one row per `(shell)` page, each with its facts schema, context builder, read tools and action kinds.  |
+| `contexts/`                             | The per-screen context builders, grouped by area, each checking its own SEC-3 cell before it reads anything.                          |
+| `tools/registry.ts`                     | The frozen tool registry, the single dispatch door, and the provider tool set built from the current screen's list.                   |
+| `system-prompt.ts`                      | The versioned system prompt, assembled from the kernel's own contracts. Reviewed like code.                                           |
+| `assistant.ts`                          | The `streamText` tool loop, the stop-reason mapping, and the provider selector.                                                       |
+| `fake-model.ts`                         | The deterministic scripted model CI drives, including the hostile scripts.                                                            |
+| `route.ts` / `handler.ts` / `schema.ts` | The flag-gated registrar, the SSE relay and its 15 second keep-alive, the request schema.                                             |
+| `thinking.ts`                           | One function from `QCMS_AGENT_THINKING` to the provider's own options, and nothing vendor-shaped anywhere else (081).                 |
 
 ## The registry and the door are security controls
 

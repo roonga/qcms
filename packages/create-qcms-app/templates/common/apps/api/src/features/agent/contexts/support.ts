@@ -57,7 +57,7 @@ export type ScreenParams = z.infer<typeof ScreenParams>;
 export interface ScreenBuildInput {
   readonly deps: Deps;
   readonly principal: { readonly userId: string; readonly claim: boolean };
-  /** The environment the switcher header named for this turn (task 065). */
+  /** The environment the switcher header named for this turn. */
   readonly environment: string;
   readonly params: ScreenParams;
   /**

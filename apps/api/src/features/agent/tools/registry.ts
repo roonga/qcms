@@ -1,10 +1,7 @@
 /**
- * One frozen registry and one door. A turn's tool set is the intersection of this
- * registry and the current screen's declared list, and {@link runAgentTool} refuses every
- * other name before anything is dispatched (SEC-17, ADR-25).
- *
- * Each read tool declares the SEC-3 cell it needs, and the door checks that cell for the
- * calling principal through the same policy evaluator the route middleware uses.
+ * One frozen registry and one door: {@link runAgentTool} refuses every name outside the
+ * current screen's declared list before anything is dispatched, and checks a tool's
+ * declared SEC-3 cell for the calling principal first (SEC-17, ADR-25).
  */
 
 import { asSchema, jsonSchema, tool, type JSONSchema7, type Schema, type ToolSet } from "ai";
@@ -150,10 +147,7 @@ function port<T>(value: T | undefined, name: string): T {
   return value;
 }
 
-async function searchLibrary(
-  input: unknown,
-  ctx: AgentContext,
-): Promise<{ questions: unknown[] }> {
+async function searchLibrary(input: unknown, ctx: AgentContext): Promise<{ questions: unknown[] }> {
   const { query, limit } = SearchInput.parse(input);
   const entries = await port(ctx.questionLibrary, "search_question_library").search(query, limit);
   return {
