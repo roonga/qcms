@@ -27,7 +27,6 @@ import { ADMIN_BASE_URL } from "./support/harness-config.js";
  *     cannot see the colour still reads where they are.
  *  3. **Switching moves nothing**: the bar's height and the content column's position are
  *     the same under `test` and under `prod`, at desktop, at 390 and under high contrast.
- *     That is the property the retired banner could not have.
  *  4. **A destructive confirmation names the environment**, because an act performed
  *     against the wrong one is not undoable.
  *  5. **A tab never acts in an environment another tab switched to**, and a tab coming back

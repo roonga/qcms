@@ -365,9 +365,9 @@ html {
      label, a second locale or a different density - where the height is a fact the browser
      already holds.
 
-     The rail uses this measured height too: the environment banner is inside the sticky
-     header and adds height even at desktop widths. The derived fallback covers the
-     initial render until the observer publishes the complete header height. */
+     The rail uses this measured height too: in Operations the bar carries a 3px
+     environment edge, so it is taller than the derivation even at desktop widths. The
+     derived fallback covers the initial render until the observer publishes it. */
   scroll-padding-block-start: var(--admin-topbar-measured-h, var(--admin-topbar-h));
   /* NO `scrollbar-gutter: stable`, and it was tried (Code Owner, 2026-08-26). The form's
      own screen scrolls and its Preview does not, so moving between them makes the page
@@ -4942,10 +4942,8 @@ div:has(> [role="dialog"] [data-qcms-dialog="wide"]) {
 
 /* --- The environment chip (ADR-40 Q6, `plan/admin-design-contracts.md` §10) -------------
 
-   ONE CONTROL THAT IS ALSO THE INDICATOR, in the Operations header. The banner it replaces
-   was the bar's second line under a non-prod environment only, so every switch between
-   `test` and `prod` moved every screen by its height. The chip is the same height and the
-   same border in every state, so switching moves nothing.
+   ONE CONTROL THAT IS ALSO THE INDICATOR, in the Operations header. It is the same height
+   and the same border in every state, so switching environments moves no screen.
 
    AN ENVIRONMENT IS NEVER A STATUS COLOUR. The `--color-env-*` family is its own, because
    the warning family said "something is wrong" about an ordinary test environment and left
