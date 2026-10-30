@@ -1,6 +1,36 @@
-HANDOFF: AWAITING-HUMAN rule on splitting 082 into two PRs (API half ready, admin half not started)
+HANDOFF: INTERRUPTED the admin half is written and compiles; two admin test suites are red
 
-## Where this branch stands
+## Read this first (second executor turn, admin half)
+
+The Code Owner ruled one PR, not a split, and the three deviations below were accepted and
+still need recording in `docs/SECURITY_DESIGN.md` 8d, `plan/agent-everywhere.md` 7.2 and
+the work order, dated 2026-10-30.
+
+The admin half is now written and typechecks and lints clean. **It is not green**: two
+admin suites are red and must be fixed first.
+
+1. `lib/server/origin-guard.test.ts` drives every belted route end to end from a `ROUTES`
+   table and asserts the table equals `BELTED_ROUTE_TEMPLATES`. `/assist` was added to
+   `BeltRoute` and to `BELTED_ROUTES` in `lib/server/origin-belt-log.ts`, so that test
+   needs a case for `app/(shell)/assist/route.ts` beside the `/forms/{formId}/assist` one.
+2. `components/forms/form-builder.test.tsx`: three accept-path tests still fail to find the
+   composer. `renderWithPanel` (added at the top of the describe) mounts the builder beside
+   a bridge consumer that renders `AssistPanel`; the three failures are the renders that
+   still need switching to it, or an await before the panel's first paint.
+
+Still to do after that: `e2e/agent-launcher.pw.ts`, the docs above plus
+`docs/agent-authoring.md` section 4, `pnpm qcms:sync-templates`, the changeset entry for
+the admin half, deleting this file, then `pnpm verify`, the forced Docker run,
+`QCMS_PORT_SEAT=7 pnpm up:e2e` and the detached browser gate, in sequence, and the PR.
+
+What the admin half added: `lib/agent/{screens,panel,conversation,builder-assist-bridge}`,
+`components/agent/{assistant-button,assistant-dock,assistant-conversation}`,
+`app/(shell)/assist/route.ts`, the `agent.*` catalog keys, the panel CSS in
+`app/globals.css`, the provider and both slots in `app/(shell)/layout.tsx`, and the
+builder publishing its draft through the bridge instead of mounting the panel itself.
+The context chip is one generic key rather than per-screen copy: a deviation to rule on.
+
+## Where the API half stands
 
 The API half of 082 is complete and green: `pnpm verify` passes, and
 `pnpm exec turbo run test --force` ran 20 of 20 tasks with 0 cached.

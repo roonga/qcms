@@ -65,7 +65,12 @@ const API_CLIENT_SUFFIX = "lib/server/api.ts";
  * actual property ("the credentials are attached in one place") still holds. Widening
  * this set to a second file is an amendment to this comment, not a silent regex edit.
  */
-const ALLOWED_CLIENT_FETCH_SUFFIX = "/components/forms/assist-panel.tsx";
+const ALLOWED_CLIENT_FETCH_SUFFIXES: readonly string[] = [
+  "/components/forms/assist-panel.tsx",
+  // The same exemption, for the panel the shell renders on a screen with no form: it
+  // streams an SSE turn from this app's own route and parses nothing else.
+  "/components/agent/assistant-conversation.tsx",
+];
 
 /**
  * The complete set of value bindings the admin may take from `@roonga/qcms-db`: **none**.
@@ -485,7 +490,7 @@ describe("R2 import surface (strict BFF)", () => {
     const offenders: string[] = [];
     for (const { path, text } of files) {
       if (path.endsWith(API_CLIENT_SUFFIX)) continue;
-      if (path.endsWith(ALLOWED_CLIENT_FETCH_SUFFIX)) continue;
+      if (ALLOWED_CLIENT_FETCH_SUFFIXES.some((suffix) => path.endsWith(suffix))) continue;
       const matched = /\bfetch\s*\(/.exec(withoutComments(text))?.[0];
       if (matched !== undefined) {
         offenders.push(`${path}: matched \`${matched}\` - rule: one API client, one place`);
@@ -497,8 +502,13 @@ describe("R2 import surface (strict BFF)", () => {
     // credential of its own. Assert that rather than trusting the comment: a
     // session or channel token appearing there is the hole rule 5 exists to
     // close, exemption or not.
-    const exempt = files.find((f) => f.path.endsWith(ALLOWED_CLIENT_FETCH_SUFFIX));
-    expect(exempt, "the client-fetch exemption names a file that no longer exists").toBeDefined();
+    for (const suffix of ALLOWED_CLIENT_FETCH_SUFFIXES) {
+      expect(
+        files.find((f) => f.path.endsWith(suffix)),
+        "the client-fetch exemption names a file that no longer exists",
+      ).toBeDefined();
+    }
+    const exempt = files.find((f) => f.path.endsWith(ALLOWED_CLIENT_FETCH_SUFFIXES[0] ?? ""));
     for (const forbidden of [
       "x-qcms-internal-token",
       "x-qcms-admin-session",

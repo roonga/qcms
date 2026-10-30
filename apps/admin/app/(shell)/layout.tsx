@@ -2,6 +2,11 @@ import { cookies } from "next/headers";
 import type { ReactNode } from "react";
 
 import { AccountMenu } from "@/components/account-menu";
+import {
+  AssistantButtonSlot,
+  AssistantPanelSlot,
+  AssistantProvider,
+} from "@/components/agent/assistant-dock";
 import { Announcer } from "@/components/announcer";
 import { EnvironmentScope } from "@/components/environment-scope";
 import { EnvironmentSwitcher } from "@/components/environment-switcher";
@@ -17,6 +22,8 @@ import { resolvedEnvironment } from "@/lib/server/environments";
 import { t } from "@/lib/i18n/en";
 import { navigableCapabilities, rememberedMode, shellAccess } from "@/lib/server/shell";
 import { requireAdminSession } from "@/lib/server/session";
+import { PANEL_COOKIE, parsePanelState, type PanelState } from "@/lib/agent/panel";
+import { agentAuthoringEnabled } from "@/lib/server/agent";
 import { SIDEBAR_COOKIE, parseSidebarSetting } from "@/lib/sidebar";
 
 /**
@@ -113,6 +120,11 @@ export default async function ShellLayout({
   const [access, resolved] = await Promise.all([accessPromise, resolvedEnvironment(session)]);
   const capabilities = navigableCapabilities(access);
   const sidebar = parseSidebarSetting(cookieStore.get(SIDEBAR_COOKIE)?.value);
+  // Read here for the reason the appearance mode is: an open panel has to render docked in
+  // the first paint rather than jumping into place after hydration. With the flag off the
+  // assistant is not rendered at all, so there is no entry anywhere to find.
+  const assistant = agentAuthoringEnabled();
+  const panel = parsePanelState(cookieStore.get(PANEL_COOKIE)?.value);
 
   return (
     <div className="flex min-h-dvh flex-col">
@@ -197,6 +209,9 @@ export default async function ShellLayout({
             trailing={
               <>
                 <ThemeToggle appearance={appearance} secureCookies={secureCookies()} />
+                {/* First in the trailing group's own order: the assistant, then the
+                    account (Topbar card, issue #1133). */}
+                {assistant && <AssistantButtonSlot />}
                 <AccountMenu email={session.email} name={session.name} />
               </>
             }
@@ -227,17 +242,44 @@ export default async function ShellLayout({
             neither can hand the other a prop. The attribute on `<html>` is what hides the
             rail; this is the state the labels and `aria-expanded` read. */}
         <SidebarProvider setting={sidebar} secureCookies={secureCookies()}>
-          <div className="qcms-shell-body">
-            {rail}
+          <AssistantShell enabled={assistant} initial={panel} secureCookies={secureCookies()}>
+            <div className="qcms-shell-body">
+              {rail}
             {/* The content column's cap is set by the ROUTE, not by one number here (issue
                 558, `plan/admin-ux-audit.md` §6): five screens earn width, two render
                 respondent-facing content and take less than the default, nine keep the
                 measure they have. The sixteen answers are one table in `lib/measure.ts`;
                 `MeasuredMain` only applies the row that matches the pathname. */}
-            <MeasuredMain>{children}</MeasuredMain>
-          </div>
+              <MeasuredMain>{children}</MeasuredMain>
+              {assistant && <AssistantPanelSlot />}
+            </div>
+          </AssistantShell>
         </SidebarProvider>
       </EnvironmentScope>
     </div>
+  );
+}
+
+/**
+ * The provider wraps the top bar's trailing group and the shell body, because the button
+ * and the panel are in two places and share one state. With the flag off it is not
+ * rendered, so neither slot has a provider and both render nothing.
+ */
+function AssistantShell({
+  enabled,
+  initial,
+  secureCookies,
+  children,
+}: {
+  readonly enabled: boolean;
+  readonly initial: PanelState;
+  readonly secureCookies: boolean;
+  readonly children: ReactNode;
+}) {
+  if (!enabled) return <>{children}</>;
+  return (
+    <AssistantProvider initial={initial} secureCookies={secureCookies}>
+      {children}
+    </AssistantProvider>
   );
 }

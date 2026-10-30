@@ -1,3 +1,6 @@
+import type { ReactElement } from "react";
+import { AssistPanel } from "./assist-panel";
+import { useBuilderAssist } from "@/lib/agent/builder-assist-bridge";
 import { fireEvent, render, screen, waitFor } from "@testing-library/react";
 import { afterEach, describe, expect, it, vi } from "vitest";
 
@@ -112,16 +115,43 @@ afterEach(() => {
   vi.restoreAllMocks();
 });
 
+/**
+ * The panel is the shell's now (082), so these tests mount the builder beside the one
+ * consumer the shell has: whatever the builder publishes through the bridge is rendered as
+ * the panel. The accept path under test is unchanged - the builder still owns the draft.
+ */
+function HostedAssistPanel() {
+  const published = useBuilderAssist();
+  if (published === undefined) return null;
+  return (
+    <AssistPanel
+      endpoint={published.endpoint}
+      draft={published.draft}
+      draftUpdatedAt={published.draftUpdatedAt}
+      onAccept={published.accept}
+    />
+  );
+}
+
+function renderWithPanel(element: ReactElement): void {
+  render(
+    <>
+      {element}
+      <HostedAssistPanel />
+    </>,
+  );
+}
+
 describe("FormBuilder and the assist panel (task 041)", () => {
   it("renders no assist panel, and no assist affordance, when the assist prop is absent", () => {
-    render(<FormBuilder detail={DETAIL} {...CHROME} {...builderActions()} />);
+    renderWithPanel(<FormBuilder detail={DETAIL} {...CHROME} {...builderActions()} />);
     expect(screen.queryByTestId("qcms-assist-panel")).toBeNull();
     expect(screen.queryByRole("img", { name: t("agent.title") })).toBeNull();
     expect(screen.queryByLabelText(t("forms.assist.inputLabel"))).toBeNull();
   });
 
-  it("renders the assist panel when the assist prop is present", () => {
-    render(
+  it("publishes the draft for the shell's panel when the assist prop is present", () => {
+    renderWithPanel(
       <FormBuilder
         detail={DETAIL}
         {...CHROME}
@@ -164,7 +194,7 @@ describe("FormBuilder and the assist panel (task 041)", () => {
       ),
     );
 
-    render(
+    renderWithPanel(
       <FormBuilder
         detail={DETAIL}
         {...CHROME}
@@ -230,7 +260,7 @@ describe("FormBuilder and the assist panel (task 041)", () => {
       ),
     );
 
-    render(
+    renderWithPanel(
       <FormBuilder
         detail={DETAIL}
         {...CHROME}
