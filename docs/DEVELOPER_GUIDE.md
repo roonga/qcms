@@ -618,6 +618,20 @@ A signalled run records, at the instant the signal arrived, these fields, and `w
 
 `--shard 1/2` and `--project <name>` are passed through to Playwright, which is how the #808 lane finished under a cap before this existed (the portal projects plus two admin shards, 111 + 94 + 88 = 293). Anything after `--` is handed to Playwright verbatim. The `--project` value is forwarded in the `--project=<name>` form because Playwright's own flag is variadic and the space form swallows the next argument as a second project name. **A spec run directly rather than through the runner has to spell it that way itself**, and `CONTRIBUTING.md` carries the copy-pastable pair (issue #890).
 
+### Serving a production build instead of `next dev`
+
+**`QCMS_HARNESS_BUILD=1` makes both harness wrappers build their app and serve it with `next start`.** The default is still `next dev`, and nothing about CI changes.
+
+```sh
+QCMS_PORT_SEAT=<0-9> QCMS_HARNESS_BUILD=1 pnpm verify:browser:detached
+```
+
+The reason to reach for it is one failure shape. A dev server compiles a route on its **first** visit and swaps the document under the page while it does, which Playwright reports as `Execution context was destroyed, most likely because of a navigation` - an error that names nothing about the test and looks like a product bug or a flaky locator. A built server has no route left to compile, so that shape cannot occur; the existing `actionTimeout` and the specs' own waits already absorb the slow first visit, so this is about the document swap rather than about speed.
+
+What it costs, and why it is opt-in: a `next build` per app per run, before any test starts. The `webServer` wait rises from 180 to 900 seconds to cover it (`playwright.config.ts`), and a run that would have reused an already-warm dev server no longer can. **CI keeps `next dev`** deliberately: `browser-e2e` is the browser verdict, it is already green on that configuration, and changing what CI serves is a bigger question than this flag. Use the flag locally to decide whether a failure is the dev server or the branch, and say which configuration a result came from.
+
+Two things to expect. `next start` prints `"next start" does not work with "output: standalone" configuration` on both apps, because `output: "standalone"` is what the images ship (issue #291); it is an advisory about the deployment path and the server serves normally underneath it. And the wrappers keep their own seams, `QCMS_ADMIN_SERVER_COMMAND` and `QCMS_PORTAL_SERVER_COMMAND`, which override the flag's command entirely.
+
 **A fresh worktree needs `pnpm build` before any of this** (issue #890): with no `packages/*/dist` the portal dev server cannot come up inside the config's hard-coded 180 s `webServer` timeout, and the failure reads as a hung server rather than as a missing build.
 
 **Clearing orphan servers, when a run was killed hard enough to leave some.** The seat preflight names them: it refuses to start and prints each occupant's pid and `/proc/<pid>/cwd` (`docs/PORTS.md`). To list them independently, match real port numbers rather than the `17Sxx` shorthand, whose `S` is a placeholder that matches nothing as written. Two forms, both copy-pastable: `ss -ltnp | grep -E ":17${QCMS_PORT_SEAT:-0}(00|10|30|40)"` for this seat's four ports (17200, 17210, 17230 and 17240 at seat 2), and `ss -ltnp | grep -E ':17[0-9]{3}'` for every seat at once, which is what you want when the question is whether a neighbour is running. Then:
