@@ -74,7 +74,6 @@ export function ConversationProvider({
       },
     };
     // `revision` is what republishes the handle after an append.
-
   }, [subject, revision]);
 
   return <ConversationContext.Provider value={handle}>{children}</ConversationContext.Provider>;

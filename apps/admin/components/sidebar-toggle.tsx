@@ -2,6 +2,8 @@
 
 import { createContext, useContext, useEffect, useState, type ReactNode } from "react";
 
+import { useAssistant } from "@/lib/agent/panel-context";
+import { announce } from "@/lib/announce";
 import { t, tPlural } from "@/lib/i18n/en";
 import {
   HIDE_SIDEBAR_ID,
@@ -117,6 +119,7 @@ export function HideSidebarButton() {
  */
 export function ShowSidebarButton({ filterCount }: { readonly filterCount: number }) {
   const { hidden, setSetting } = useSidebar();
+  const assistant = useAssistant();
   const label =
     filterCount > 0
       ? t("rail.show.filtered", {
@@ -134,6 +137,14 @@ export function ShowSidebarButton({ filterCount }: { readonly filterCount: numbe
         aria-expanded={!hidden}
         onClick={() => {
           setSetting("shown");
+          // Between 1024 and 1279px the open panel is what hid the rail, so showing it
+          // again has to close the panel or the rail would not fit (ruling O2). The
+          // announcement goes through the shell's region, because the panel's own is
+          // inside the panel that is closing.
+          if (assistant?.open === true) {
+            assistant.close();
+            announce(t("agent.sidebar.shown"));
+          }
         }}
       >
         {label}

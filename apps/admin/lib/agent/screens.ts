@@ -96,7 +96,8 @@ export function screenForPath(pathname: string): ResolvedScreen | undefined {
   const segments = segmentsOf(pathname);
   // Longest literal prefix first, so a literal beats a placeholder where both match.
   const ordered = [...AGENT_SCREENS].sort(
-    (a, b) => b.split("/").filter((part) => !part.startsWith("[")).length -
+    (a, b) =>
+      b.split("/").filter((part) => !part.startsWith("[")).length -
       a.split("/").filter((part) => !part.startsWith("[")).length,
   );
   for (const pattern of ordered) {

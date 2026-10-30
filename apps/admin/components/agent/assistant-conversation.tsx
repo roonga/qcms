@@ -23,10 +23,10 @@ import { t } from "@/lib/i18n/en";
 /**
  * The conversation inside the panel.
  *
- * On a form screen with a builder mounted this is the builder's own panel, so the draft
- * proposal, its diff and its Accept keep working exactly as they shipped; everywhere else
- * it is the explain-and-navigate conversation, which has nothing to propose until action
- * kinds arrive.
+ * On a form screen with a builder mounted this is the builder's own panel in its hosted
+ * mode, so the draft proposal, its diff and its Accept keep working exactly as they
+ * shipped while the dock draws the header; everywhere else it is the explain-and-navigate
+ * conversation, which has nothing to propose until action kinds arrive.
  *
  * A turn sends the screen id, the route's own ids and the conversation id, and never
  * context content: the API computes what the screen can see under the caller's own grants.
@@ -49,10 +49,13 @@ export function AssistantConversation({
   if (builder !== undefined) {
     return (
       <AssistPanel
+        hosted
         endpoint={builder.endpoint}
         draft={builder.draft}
         draftUpdatedAt={builder.draftUpdatedAt}
         onAccept={builder.accept}
+        onWorkingChange={onWorkingChange}
+        onStatusChange={onAnnounce}
       />
     );
   }

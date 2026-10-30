@@ -4,12 +4,7 @@ import { describe, expect, it } from "vitest";
 
 import { trackedFilesUnder } from "../../../../scripts/tracked-files.mjs";
 
-import {
-  AGENT_SCREENS,
-  adminPageHref,
-  conversationSubject,
-  screenForPath,
-} from "./screens.js";
+import { AGENT_SCREENS, adminPageHref, conversationSubject, screenForPath } from "./screens.js";
 
 /**
  * The screen table against the route tree, the way `lib/rail-routes.test.ts` checks the

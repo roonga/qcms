@@ -2,15 +2,13 @@
 
 import { usePathname } from "next/navigation";
 import {
-  createContext,
   useCallback,
-  useContext,
   useEffect,
   useMemo,
   useRef,
   useState,
+  type KeyboardEvent as ReactKeyboardEvent,
   type ReactNode,
-  type RefObject,
 } from "react";
 
 import { AssistIconButton } from "@/components/forms/assist-icon-button";
@@ -19,6 +17,7 @@ import { AssistantButton } from "@/components/agent/assistant-button";
 import { AssistantConversation } from "@/components/agent/assistant-conversation";
 import { useSidebar } from "@/components/sidebar-toggle";
 import { useBuilderAssist } from "@/lib/agent/builder-assist-bridge";
+import { contextChipLabel } from "@/lib/agent/context-chip";
 import { ConversationProvider, useConversation } from "@/lib/agent/conversation";
 import {
   ASSISTANT_BUTTON_ID,
@@ -31,7 +30,13 @@ import {
   panelCookie,
   type PanelState,
 } from "@/lib/agent/panel";
-import { screenForPath, type ResolvedScreen } from "@/lib/agent/screens";
+import {
+  AssistantContext,
+  useAssistant,
+  type AssistantControl,
+  type AssistantMode,
+} from "@/lib/agent/panel-context";
+import { screenForPath } from "@/lib/agent/screens";
 import { t, type MessageKey } from "@/lib/i18n/en";
 
 /**
@@ -50,6 +55,12 @@ import { t, type MessageKey } from "@/lib/i18n/en";
  * below `--bp-sidebar` the sheet is one too. One element changes role with its state,
  * which is why it is a `div`: an `aside` cannot take the dialog role.
  *
+ * ## One header on every screen, the builder included
+ *
+ * The header is this component's everywhere. On the builder the body is 080's panel in its
+ * hosted mode, so the draft proposal, its diff and its Accept keep working while the
+ * title, the context chip and the four controls are the ones every other screen shows.
+ *
  * ## The rail between 1024 and 1279 CSS px
  *
  * There a rail, a panel and 640px of content do not fit together, so opening the panel
@@ -57,33 +68,9 @@ import { t, type MessageKey } from "@/lib/i18n/en";
  * the operator's own Hide sidebar setting rather than overwriting it (ruling O1).
  */
 
-type Mode = "dock" | "expanded" | "sheet";
-
-function modeFor(sheet: boolean, expanded: boolean): Mode {
+function modeFor(sheet: boolean, expanded: boolean): AssistantMode {
   if (sheet) return "sheet";
   return expanded ? "expanded" : "dock";
-}
-
-interface AssistantControl {
-  readonly open: boolean;
-  readonly mode: Mode;
-  readonly width: number;
-  readonly working: boolean;
-  readonly announcement: string;
-  readonly screen: ResolvedScreen | undefined;
-  readonly show: () => void;
-  readonly close: () => void;
-  readonly toggleExpanded: () => void;
-  readonly resize: (width: number) => void;
-  readonly setWorking: (working: boolean) => void;
-  readonly announce: (message: string) => void;
-  readonly composerRef: RefObject<HTMLTextAreaElement | null>;
-}
-
-const AssistantContext = createContext<AssistantControl | undefined>(undefined);
-
-function useAssistant(): AssistantControl | undefined {
-  return useContext(AssistantContext);
 }
 
 export function AssistantProvider({
@@ -221,17 +208,26 @@ export function AssistantPanelSlot() {
   const conversation = useConversation();
   const builder = useBuilderAssist();
   const [helpOpen, setHelpOpen] = useState(false);
+  const expanded = control?.open === true && control.mode === "expanded";
+
+  // The expanded state is modal, so what is behind it leaves the tab order and the
+  // accessibility tree. `inert` is a DOM property rather than a style, so it is set here
+  // and not in `globals.css`.
+  useEffect(() => {
+    const behind = [...document.querySelectorAll<HTMLElement>(".qcms-rail, main")];
+    for (const element of behind) element.inert = expanded;
+    return () => {
+      for (const element of behind) element.inert = false;
+    };
+  }, [expanded]);
 
   if (control === undefined || !control.open) return null;
   const { mode, width } = control;
   const modal = mode !== "dock";
-  // The builder's own panel brings its header, its mark and its live region with it, so on
-  // that screen the dock is the track and nothing more.
-  const hosting = builder !== undefined;
-  const contextKey: MessageKey =
-    control.screen === undefined ? "agent.context.none" : "agent.context.screen";
+  const subject =
+    builder === undefined ? undefined : builder.draft.title[builder.draft.defaultLocale];
 
-  const onKeyDown = (event: React.KeyboardEvent<HTMLDivElement>): void => {
+  const onKeyDown = (event: ReactKeyboardEvent<HTMLDivElement>): void => {
     if (event.key !== "Escape") return;
     if (helpOpen) {
       setHelpOpen(false);
@@ -251,7 +247,7 @@ export function AssistantPanelSlot() {
     document.querySelector<HTMLElement>("main")?.focus();
   };
 
-  const onSeparatorKeyDown = (event: React.KeyboardEvent<HTMLDivElement>): void => {
+  const onSeparatorKeyDown = (event: ReactKeyboardEvent<HTMLDivElement>): void => {
     const next: Readonly<Record<string, number>> = {
       ArrowLeft: width + PANEL_WIDTH_STEP,
       ArrowRight: width - PANEL_WIDTH_STEP,
@@ -272,9 +268,7 @@ export function AssistantPanelSlot() {
       data-mode={mode}
       role={modal ? "dialog" : "complementary"}
       aria-modal={modal ? true : undefined}
-      {...(hosting
-        ? { "aria-label": t("agent.title") }
-        : { "aria-labelledby": `${PANEL_ID}-name` })}
+      aria-labelledby={`${PANEL_ID}-name`}
       onKeyDown={onKeyDown}
       style={mode === "dock" ? { inlineSize: `${String(width)}px` } : undefined}
     >
@@ -292,55 +286,62 @@ export function AssistantPanelSlot() {
           onKeyDown={onSeparatorKeyDown}
         />
       )}
-      {!hosting && (
-        <div className="qcms-assistant__header">
-          <AssistMark size={24} working={control.working} id={`${PANEL_ID}-name`} />
-          <span className="qcms-tag" data-testid="qcms-assistant-context">
-            {t(contextKey)}
-          </span>
-          <div className="qcms-assistant__controls">
+      <div className="qcms-assistant__header">
+        <AssistMark size={24} working={control.working} id={`${PANEL_ID}-name`} />
+        <span className="qcms-tag" data-testid="qcms-assistant-context">
+          {contextChipLabel(control.screen, subject)}
+        </span>
+        <div className="qcms-assistant__controls">
+          <AssistIconButton
+            label={t("agent.new")}
+            testId="qcms-assistant-new"
+            onPress={() => {
+              conversation.restart();
+              control.announce(t("agent.new.announce"));
+            }}
+          >
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+              <path d="M12 5v14M5 12h14" strokeLinecap="round" />
+            </svg>
+          </AssistIconButton>
+          {mode !== "sheet" && (
             <AssistIconButton
-              label={t("agent.new")}
-              testId="qcms-assistant-new"
-              onPress={() => {
-                conversation.restart();
-                control.announce(t("agent.new.announce"));
-              }}
+              label={t("agent.expand")}
+              testId="qcms-assistant-expand"
+              pressed={mode === "expanded"}
+              controls={PANEL_ID}
+              onPress={control.toggleExpanded}
             >
-              <span aria-hidden>+</span>
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                <path d="M4 9V4h5M20 15v5h-5" strokeLinecap="round" strokeLinejoin="round" />
+              </svg>
             </AssistIconButton>
-            {mode !== "sheet" && (
-              <AssistIconButton
-                label={t("agent.expand")}
-                testId="qcms-assistant-expand"
-                expanded={mode === "expanded"}
-                controls={PANEL_ID}
-                onPress={control.toggleExpanded}
-              >
-                <span aria-hidden>[ ]</span>
-              </AssistIconButton>
-            )}
-            <AssistIconButton
-              label={t("agent.help")}
-              testId="qcms-assistant-help"
-              expanded={helpOpen}
-              onPress={() => {
-                setHelpOpen((was) => !was);
-              }}
-            >
-              <span aria-hidden>?</span>
-            </AssistIconButton>
-            <AssistIconButton
-              label={t("agent.close")}
-              testId="qcms-assistant-close"
-              onPress={control.close}
-            >
-              <span aria-hidden>x</span>
-            </AssistIconButton>
-          </div>
+          )}
+          <AssistIconButton
+            label={t("agent.help")}
+            testId="qcms-assistant-help"
+            expanded={helpOpen}
+            onPress={() => {
+              setHelpOpen((was) => !was);
+            }}
+          >
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+              <path d="M9.5 9a2.5 2.5 0 1 1 3.5 2.3V13" strokeLinecap="round" />
+              <circle cx="12" cy="17" r="0.9" fill="currentColor" stroke="none" />
+            </svg>
+          </AssistIconButton>
+          <AssistIconButton
+            label={t("agent.close")}
+            testId="qcms-assistant-close"
+            onPress={control.close}
+          >
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+              <path d="m6 6 12 12M18 6 6 18" strokeLinecap="round" />
+            </svg>
+          </AssistIconButton>
         </div>
-      )}
-      {!hosting && helpOpen && (
+      </div>
+      {helpOpen && (
         <div className="qcms-assistant__help" data-testid="qcms-assistant-help-panel">
           <p>{t("agent.help.shortcut")}</p>
           <fieldset className="qcms-assistant__widths">
@@ -363,7 +364,10 @@ export function AssistantPanelSlot() {
         </div>
       )}
       <div className="qcms-assistant__body">
+        {/* Keyed by the conversation, so New conversation empties the hosted builder panel
+            as well as the screen conversation this component owns. */}
         <AssistantConversation
+          key={conversation.id}
           screen={control.screen}
           conversation={conversation}
           builder={builder}
@@ -372,11 +376,14 @@ export function AssistantPanelSlot() {
           onAnnounce={control.announce}
         />
       </div>
-      {!hosting && (
-        <p className="qcms-visually-hidden" role="status" data-testid="qcms-assistant-live">
-          {control.announcement}
-        </p>
-      )}
+      <p
+        className="qcms-visually-hidden"
+        role="status"
+        data-testid="qcms-assistant-live"
+        aria-busy={control.working}
+      >
+        {control.announcement}
+      </p>
     </div>
   );
 }
