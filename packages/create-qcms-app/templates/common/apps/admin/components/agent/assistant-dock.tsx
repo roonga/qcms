@@ -254,8 +254,13 @@ export function AssistantPanelSlot() {
       document.querySelector<HTMLElement>('[data-testid="qcms-assistant-expand"]')?.focus();
       return;
     }
-    // In the dock, Escape moves focus back to the page and the dock stays open.
-    document.querySelector<HTMLElement>("main")?.focus();
+    // In the dock, Escape moves focus back to the page and the dock stays open. The
+    // content column is a container rather than a control, so it needs a tab index before
+    // it will take programmatic focus at all.
+    const main = document.querySelector<HTMLElement>("main");
+    if (main === null) return;
+    main.tabIndex = -1;
+    main.focus();
   };
 
   const onSeparatorKeyDown = (event: ReactKeyboardEvent<HTMLDivElement>): void => {

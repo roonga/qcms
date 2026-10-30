@@ -228,7 +228,7 @@ test("1133 shows the Working text beside the closed button while a turn runs (ex
   });
   await open(page);
   await fillStable(composer(page), "What is on this screen?");
-  await page.getByTestId("qcms-assistant-send").click();
+  await page.getByTestId("qcms-assistant-send").locator("button").click();
 
   // Closed, with the turn still running: the state is short text, never colour or motion
   // alone (ruling O3).
@@ -532,10 +532,10 @@ test("is axe-green on the button, the dock, the expanded state, the sheet, the e
     await route.fulfill({ status: 200, contentType: "text/event-stream", body: "" });
   });
   await fillStable(composer(page), "What is on this screen?");
-  await page.getByTestId("qcms-assistant-send").click();
+  await page.getByTestId("qcms-assistant-send").locator("button").click();
   await expect(page.locator('#qcms-assistant-panel [aria-busy="true"]').first()).toBeVisible();
   await sweep("a streaming turn", '[data-testid="qcms-assistant-panel"]');
-  await page.getByTestId("qcms-assistant-stop").click();
+  await page.getByTestId("qcms-assistant-stop").locator("button").click();
   await page.unroute("**/assist");
 
   await page.setViewportSize({ width: 390, height: 844 });

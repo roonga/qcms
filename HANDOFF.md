@@ -8,44 +8,37 @@ head. The PR is not open; its body is the one the conductor asked for, in the la
 directory as `pr-body.md`, with the proposed title `feat(agent): 082 the assistant on every
 screen`.
 
-## The only thing left: two reds in the browser suite
+## The only thing left: finish walking `agent-launcher.pw.ts`
 
-Two tests fail in a full `verify:browser` run and nothing else does. Both were reproduced
-three times, and every run carried the cross-lane contention report (issue #395): another
-lane was on the machine throughout, so neither red has had a clean-machine verdict yet.
+`origin/main` is merged (it carries #1188's `onPanelBlur` fix, which is what
+`appearance.pw.ts:400` needed). On a quiet machine, targeted on its own, the new spec now
+gets through its first six tests and stops at the seventh:
 
-1. `apps/admin/e2e/agent-launcher.pw.ts:186`, the `Alt+Shift+A` test. The chord half passes;
-   the failure is the second half, which needs a text input the PAGE owns so the chord can be
-   shown to be ignored while one has focus. `/forms/new` has no text box under
-   `main#main-content`, and the last commit moved that step to the question library's rail
-   filter instead. **That change has not been run.** Run the spec alone first:
-   `QCMS_PORT_SEAT=7 pnpm exec playwright test --project=admin-chromium apps/admin/e2e/agent-launcher.pw.ts`.
-   The spec is serial, so this test failing skips the eleven after it; those eleven have
-   never run to completion and are the ones that still need a green.
-2. `apps/admin/e2e/appearance.pw.ts:400`, "the panel is reachable, navigable and dismissable
-   from the keyboard alone". It fails only in a full run and **passes 19 of 19 in isolation on
-   this tree**, so it is ordering or contention rather than a property of the change. Its two
-   failure shapes are "exactly one radio is tabbable" reading 0 and the high-contrast switch
-   detaching from the DOM while a `focus()` retries, which are both the appearance panel
-   remounting under the test.
+`QCMS_PORT_SEAT=<free seat> pnpm exec playwright test --project=admin-chromium apps/admin/e2e/agent-launcher.pw.ts`
 
-   What was ruled out: an unstable sidebar control. `SidebarProvider` now memoises its control
-   and gives `hold` a stable identity, because the assistant's rail-hold effect lists `hold`
-   in its dependencies and the provider wraps the whole shell since this task; that was a real
-   render loop and it is fixed, and the test still fails in a full run. Swapping the trailing
-   group's order back (the appearance toggle before the assistant button) does not change it,
-   so the order is not the cause either.
+- Tests 1 to 6 pass: the button's place on every screen and on none outside it, the chord
+  and the page-input hold, the Working text beside the closed button, the cookie-stamped
+  first paint, the 1024 to 1279 px hold, and Show sidebar.
+- Test 7, Escape in all three modes, failed on `main#main-content` not taking focus. The
+  content column is a container, so it needs a tab index before `focus()` does anything;
+  the last commit sets one in the dock's Escape handler. **That change has not been run.**
+- Tests 8 to 13 have never run, because the spec is serial: the sheet's trap and its 320 px
+  reflow, the separator and width menu, the chip and tab storage, reduced motion, the
+  2.4.11 tab-through and the axe sweep. Expect one or two more handles of the same shape as
+  the two already found (a kit control that does not forward `data-testid`, an element that
+  is not focusable), and run the spec targeted until it is green before spending a full
+  31-minute gate on it.
 
-   If it turns out to be the hoisted provider rather than contention, the repository already
-   has the answer for this shape of problem: `lib/agent/builder-assist-bridge.ts` shares state
-   between two client trees through a module and `useSyncExternalStore` rather than a context
-   wrapping both. Moving the assistant's control to that pattern would let the top bar's button
-   and the body's panel share state with no provider above the header at all, and the hoist in
-   `app/(shell)/layout.tsx` would come back out.
+Two gates have to be re-run on the final head once it is: `pnpm verify` and the whole
+browser suite, detached and in slices, never in the foreground. Then delete this file.
 
-## Then
+### For the record: what the previous turn's two reds were
 
-Re-run the whole gate on the final head, detached and in slices, never in the foreground:
-`QCMS_PORT_SEAT=7 pnpm verify:browser:detached`, then
-`pnpm verify:browser:wait <dir>` while it exits 75. Open the PR from `pr-body.md` and delete
-this file.
+The full suite at `b0a5a682` was 515 passed, 2 failed: this spec's chord test, fixed and
+now passing, and `appearance.pw.ts:400`, which #1188 fixes on main.
+
+### A seat note
+
+Seat 7 was left holding ports 17710 and 17730 by orphan processes of a finished detached
+run (its `browser-run.rc` says `EXIT=1`), and the auto-mode classifier refused
+`pnpm verify:browser:stop`. Seat 6 was used instead. Those orphans are still there.

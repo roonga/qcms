@@ -198,26 +198,30 @@ function ScreenConversation({
             void send();
           }}
         />
+        {/* The kit's `Button` takes no `data-testid`, so the handle is the wrapper, which
+            is the shape `assist-panel.tsx` already uses for its own composer. */}
         {live === undefined ? (
-          <Button
-            onPress={() => {
-              void send();
-            }}
-            isDisabled={value.trim() === "" || screen === undefined}
-            data-testid="qcms-assistant-send"
-          >
-            {t("agent.send")}
-          </Button>
+          <span data-testid="qcms-assistant-send">
+            <Button
+              onPress={() => {
+                void send();
+              }}
+              isDisabled={value.trim() === "" || screen === undefined}
+            >
+              {t("agent.send")}
+            </Button>
+          </span>
         ) : (
-          <Button
-            onPress={() => {
-              stoppedRef.current = true;
-              abortRef.current?.abort();
-            }}
-            data-testid="qcms-assistant-stop"
-          >
-            {t("agent.stop")}
-          </Button>
+          <span data-testid="qcms-assistant-stop">
+            <Button
+              onPress={() => {
+                stoppedRef.current = true;
+                abortRef.current?.abort();
+              }}
+            >
+              {t("agent.stop")}
+            </Button>
+          </span>
         )}
       </div>
     </div>
