@@ -9,6 +9,7 @@ import { afterAll, describe, expect, it } from "vitest";
 import {
   composeEnvironmentOverrides,
   harnessSecrets,
+  pnpmInvocation,
   joinComposeNetwork,
   soleNetworkName,
   soleTcpPort,
@@ -265,5 +266,31 @@ describe("harness secrets (task 040)", () => {
     const second = harnessSecrets(generate);
     expect(Object.values(first)).not.toEqual(Object.values(second));
     expect(first.QCMS_APP_KEY).not.toBe(second.QCMS_APP_KEY);
+  });
+});
+
+describe("pnpmInvocation", () => {
+  it("runs a JavaScript entry point through node", () => {
+    expect(
+      pnpmInvocation({ execPath: "/opt/pnpm/bin/pnpm.cjs", nodePath: "/usr/bin/node" }),
+    ).toEqual({ command: "/usr/bin/node", prefix: ["/opt/pnpm/bin/pnpm.cjs"] });
+  });
+
+  it("runs a standalone binary directly, which is what issue #1176 was", () => {
+    expect(pnpmInvocation({ execPath: "/usr/local/bin/pnpm" })).toEqual({
+      command: "/usr/local/bin/pnpm",
+      prefix: [],
+    });
+  });
+
+  it("falls back to pnpm on PATH when no entry point was passed through", () => {
+    expect(pnpmInvocation({ execPath: "", platform: "linux" })).toEqual({
+      command: "pnpm",
+      prefix: [],
+    });
+    expect(pnpmInvocation({ execPath: "  ", platform: "win32" })).toEqual({
+      command: "pnpm.cmd",
+      prefix: [],
+    });
   });
 });
