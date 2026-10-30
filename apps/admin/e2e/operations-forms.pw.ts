@@ -63,9 +63,8 @@ test("a filter narrows the rows below it and changes nothing above them", async 
 
   const heading = page.getByRole("heading", { level: 1, name: "Operations" });
   await expect(heading).toBeVisible();
-  const environment = await page
-    .getByTestId("qcms-operations-environment")
-    .getAttribute("data-environment");
+  const chip = page.getByTestId("qcms-mode-header").getByTestId("qcms-environment-switcher");
+  const environment = await chip.getAttribute("data-environment");
 
   const filters = page.getByTestId("qcms-rail-filters");
   await fillStable(filters.getByRole("textbox", { name: "Search" }), ALPHA);
@@ -77,10 +76,7 @@ test("a filter narrows the rows below it and changes nothing above them", async 
   // The header, the mode, the environment and the heading are all where they were.
   await expect(page.getByTestId("qcms-mode-header")).toHaveAttribute("data-mode", "operations");
   await expect(heading).toBeVisible();
-  await expect(page.getByTestId("qcms-operations-environment")).toHaveAttribute(
-    "data-environment",
-    environment ?? "",
-  );
+  await expect(chip).toHaveAttribute("data-environment", environment ?? "");
 });
 
 test("leaving the environment an address names resets the page and keeps the term", async ({
