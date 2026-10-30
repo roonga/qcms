@@ -267,7 +267,6 @@ export const messages = {
   "operations.page.first": "First page",
   // The two installation-wide destinations. They are independent of the table's filters
   // and of any selected form, so they sit apart from both.
-  "operations.queues": "Installation queues",
   "operations.queue.deliveryFailures": "Delivery failures",
   "operations.queue.erasureLog": "Erasure log",
 

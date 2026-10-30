@@ -74,7 +74,7 @@ export default async function OperationsPage({
           state={state}
         />
       ) : (
-        <Alert variant="warning">{t("environment.unknown")}</Alert>
+        <Alert variant="warning">{t("environment.unknownBanner")}</Alert>
       )}
 
       {result !== undefined && !result.ok && (

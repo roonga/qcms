@@ -89,7 +89,10 @@ test("choosing an environment keeps the valid filters and browser back restores 
   await signInWithTotp(page, EMAIL, totpSecret);
   await page.goto(`/operations?env=test&q=${ALPHA}&cursor=stale`);
 
-  await page.getByTestId("qcms-operations-environment").getByRole("link", { name: /prod/u }).click();
+  await page
+    .getByTestId("qcms-operations-environment")
+    .getByRole("link", { name: /prod/u })
+    .click();
 
   await expect(page).toHaveURL(/env=prod/u);
   // The term survives the change; the page position does not.

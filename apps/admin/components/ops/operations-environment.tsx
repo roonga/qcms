@@ -1,10 +1,7 @@
 import Link from "next/link";
 
 import { t } from "@/lib/i18n/en";
-import {
-  operationsEnvironmentHref,
-  type OperationsListState,
-} from "@/lib/ops/operations-forms";
+import { operationsEnvironmentHref, type OperationsListState } from "@/lib/ops/operations-forms";
 
 /**
  * Operations' explicit environment selector.

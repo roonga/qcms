@@ -46,10 +46,7 @@ export function OperationsFormsTable({ rows }: { readonly rows: readonly Operati
           {rows.map((row) => (
             <tr key={row.formId} data-form-id={row.formId}>
               <th scope="row">
-                <Link
-                  className="qcms-text-link"
-                  href={`/forms/${encodeURIComponent(row.formId)}`}
-                >
+                <Link className="qcms-text-link" href={`/forms/${encodeURIComponent(row.formId)}`}>
                   {row.displayName}
                 </Link>
                 {row.displayName !== row.slug && (

@@ -117,7 +117,9 @@ export function readOperationsListState(
   const workspaceId = presentValue(params["workspace"]);
   const intake = parseIntake(params["intake"]);
   const activeCount =
-    (search.trim() === "" ? 0 : 1) + (workspaceId === undefined ? 0 : 1) + (intake === undefined ? 0 : 1);
+    (search.trim() === "" ? 0 : 1) +
+    (workspaceId === undefined ? 0 : 1) +
+    (intake === undefined ? 0 : 1);
   return {
     environment: presentValue(params["env"]),
     search,
@@ -163,10 +165,7 @@ export function operationsHref(
  * and keeps the filters that are still valid. The workspace options are one environment's
  * answer, so that filter is not among them.
  */
-export function operationsEnvironmentHref(
-  state: OperationsListState,
-  environment: string,
-): string {
+export function operationsEnvironmentHref(state: OperationsListState, environment: string): string {
   return operationsHref({ ...state, environment, workspaceId: undefined, cursor: undefined });
 }
 
