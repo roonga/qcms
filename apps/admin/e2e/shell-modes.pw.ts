@@ -206,7 +206,6 @@ test("a rejected workspace bookmark still has All workspaces", async ({ page }) 
   await expect(page).toHaveURL(/\/workspaces$/);
 });
 
-
 test("the root lands an authoring caller in authoring, whatever a mode remembered", async ({
   page,
 }) => {
