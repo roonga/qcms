@@ -263,7 +263,7 @@ export function AssistantPanelSlot() {
     const panel = document.getElementById(PANEL_ID);
     if (panel === null) return undefined;
     const behind: HTMLElement[] = [];
-    for (let node = panel as HTMLElement | null; node !== null && node !== document.body; ) {
+    for (let node = panel as HTMLElement | null; node !== null && node !== document.body;) {
       const parent: HTMLElement | null = node.parentElement;
       for (const sibling of parent?.children ?? []) {
         if (sibling !== node && sibling instanceof HTMLElement) behind.push(sibling);
