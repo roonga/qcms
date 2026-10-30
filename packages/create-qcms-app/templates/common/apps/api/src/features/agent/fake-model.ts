@@ -451,11 +451,7 @@ function planReadAllStep(
     return [...textParts("I have read everything this screen offers.", "t1"), finishPart("stop")];
   }
   const input = (READ_ALL_INPUTS[next] ?? (() => ({})))(prompt, results);
-  return [
-    ...toolInputParts(next, input),
-    toolCallPart(next, input),
-    finishPart("tool-calls"),
-  ];
+  return [...toolInputParts(next, input), toolCallPart(next, input), finishPart("tool-calls")];
 }
 
 /** The tool names this turn offered, which is the screen's own list. */

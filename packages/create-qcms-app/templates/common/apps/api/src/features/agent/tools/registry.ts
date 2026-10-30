@@ -311,7 +311,10 @@ const TOOL_RESULT_FRAMING =
  * screen's facts are, so the framing travels with every result rather than with the facts
  * alone. The system prompt states what that framing means.
  */
-export function asToolData(result: unknown): { readonly framing: string; readonly result: unknown } {
+export function asToolData(result: unknown): {
+  readonly framing: string;
+  readonly result: unknown;
+} {
   return { framing: TOOL_RESULT_FRAMING, result };
 }
 

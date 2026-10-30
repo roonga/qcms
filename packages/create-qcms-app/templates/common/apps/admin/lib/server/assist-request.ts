@@ -55,7 +55,7 @@ export function parseAssistParams(raw: unknown): AssistParamsRelay | undefined {
   if (typeof raw["version"] === "number") params["version"] = raw["version"];
   const filters = parseAssistFilters(raw["filters"]);
   if (filters !== undefined) params["filters"] = filters;
-  return params as AssistParamsRelay;
+  return params;
 }
 
 function parseAssistFilters(raw: unknown): AssistFiltersRelay | undefined {
@@ -65,7 +65,7 @@ function parseAssistFilters(raw: unknown): AssistFiltersRelay | undefined {
   if (typeof raw["from"] === "string") filters["from"] = raw["from"];
   if (typeof raw["to"] === "string") filters["to"] = raw["to"];
   if (typeof raw["flagged"] === "boolean") filters["flagged"] = raw["flagged"];
-  return Object.keys(filters).length === 0 ? undefined : (filters as AssistFiltersRelay);
+  return Object.keys(filters).length === 0 ? undefined : filters;
 }
 
 function isRecord(raw: unknown): raw is Record<string, unknown> {

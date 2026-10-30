@@ -489,9 +489,7 @@ test("carries the builder's turns across the form's subtree and starts fresh out
   const turns = page.getByTestId("qcms-assistant-turns");
   await page.locator("aside.qcms-rail").getByRole("link", { name: "Releases" }).click();
   await page.waitForURL(`**/forms/${FORM_ID}/releases`);
-  await expect(turns, "the builder's turns are still here").toContainText(
-    "what is on this screen",
-  );
+  await expect(turns, "the builder's turns are still here").toContainText("what is on this screen");
   await expect(turns).toContainText("more detail");
 
   // Leaving the form is a new subject, so the conversation starts empty.
@@ -537,9 +535,7 @@ test("prints the shortcut in a dismissible, hoverable, persistent tooltip (SC 1.
   await expect(tip).toBeHidden();
 });
 
-test("keeps the dock the height of the viewport, with the composer inside it", async ({
-  page,
-}) => {
+test("keeps the dock the height of the viewport, with the composer inside it", async ({ page }) => {
   await signInWithTotp(page, EMAIL, totpSecret);
   await page.setViewportSize({ width: WIDE, height: 800 });
   await page.goto(`/forms/${FORM_ID}`);

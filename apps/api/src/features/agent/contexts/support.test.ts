@@ -32,7 +32,9 @@ describe("auditedRead", () => {
   it("asks again when the write that owed the row failed", async () => {
     const input = inputWith(store());
     await expect(
-      auditedRead(input, "list:frm_a:[]", () => Promise.reject(new Error("transaction rolled back"))),
+      auditedRead(input, "list:frm_a:[]", () =>
+        Promise.reject(new Error("transaction rolled back")),
+      ),
     ).rejects.toThrow("transaction rolled back");
 
     let asked: boolean | undefined;

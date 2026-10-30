@@ -76,9 +76,7 @@ export async function POST(
     ...(typeof body?.clientState === "string" ? { clientState: body.clientState } : {}),
     ...(typeof body?.screen === "string" ? { screen: body.screen } : {}),
     ...(params === undefined ? {} : { params }),
-    ...(typeof body?.conversationId === "string"
-      ? { conversationId: body.conversationId }
-      : {}),
+    ...(typeof body?.conversationId === "string" ? { conversationId: body.conversationId } : {}),
   });
 
   return new Response(upstream.body, {

@@ -414,9 +414,7 @@ export function makeScreenAssistHandler(
       screen,
       conversation: body.conversation,
       build,
-      ...(isFormSubtreeScreen(screen)
-        ? { drafts: () => formSubtreeDrafts(deps, build) }
-        : {}),
+      ...(isFormSubtreeScreen(screen) ? { drafts: () => formSubtreeDrafts(deps, build) } : {}),
     });
 
     return new Response(assistStream(deps, ctx, controller), {

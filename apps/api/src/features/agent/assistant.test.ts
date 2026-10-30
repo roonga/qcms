@@ -649,11 +649,12 @@ describe("prompt framing", () => {
       providerId: "fake",
       logger: createNullLogger(),
     });
-    for await (const _event of assistant.assist(
+    // Drained: what the provider was sent is what this asserts.
+    for await (const event of assistant.assist(
       builderTurnContext(ctx),
       new AbortController().signal,
     )) {
-      // Drained: what the provider was sent is what this asserts.
+      expect(event.type).toBeDefined();
     }
 
     const prompts = JSON.stringify(sent);
