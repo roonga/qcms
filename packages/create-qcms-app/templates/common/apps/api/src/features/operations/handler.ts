@@ -80,7 +80,7 @@ interface Candidate {
     readonly name: string;
   };
   readonly state: FormEnvironmentState | undefined;
-  /** When this form last went out IN the selected environment (Code Owner, 2026-10-31). */
+  /** When this form last went out IN the selected environment, not in whichever is newest. */
   readonly lastReleaseAt: Date | undefined;
   readonly mayReadForm: boolean;
   readonly mayCount: boolean;

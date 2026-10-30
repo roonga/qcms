@@ -251,10 +251,9 @@ beforeAll(async () => {
     releasedBy: "au_seed",
     releasedAt: TEST_RELEASED_AT,
   });
-  // One pinned instant per environment, so the released sort ties deterministically in
-  // `prod` rather than whenever two inserts share a microsecond, while `test` carries a
-  // different instant: the key is the last release in the SELECTED environment (Code
-  // Owner, 2026-10-31), so the two have to be told apart.
+  // One pinned instant per environment: `prod`'s ties the released sort deterministically
+  // rather than whenever two inserts share a microsecond, and `test`'s differs because the
+  // key is the last release in the SELECTED environment.
   await insertFormRelease(control, {
     formId: FORM_CLAIMS,
     environment: "prod",
