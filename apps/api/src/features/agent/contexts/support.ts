@@ -192,6 +192,33 @@ export async function workspacesHolding(
   return allowed;
 }
 
+/** How long one conversation's audited-read claims live. */
+const CONVERSATION_WINDOW_MS = 12 * 60 * 60 * 1_000;
+
+/**
+ * Run an audited read, telling it whether it owes SEC-15 a `read` row: the first turn of a
+ * conversation to reach this subject does, later ones do not.
+ *
+ * The claim is released when the read fails, so a row that never committed cannot make a
+ * later turn skip it. Releasing can only add rows; a forged conversation id can do the
+ * same, and neither can leave a subject with no row at all.
+ */
+export async function auditedRead<T>(
+  input: ScreenBuildInput,
+  subject: string,
+  run: (audit: boolean) => Promise<T>,
+): Promise<T> {
+  const key = `agent-read:${input.principal.userId}:${input.conversationId}:${subject}`;
+  const hit = await input.deps.rateLimitStore.hit(key, CONVERSATION_WINDOW_MS);
+  const audit = hit.count === 1;
+  try {
+    return await run(audit);
+  } catch (error) {
+    if (audit) await input.deps.rateLimitStore.reset(key);
+    throw error;
+  }
+}
+
 /** An ISO instant, or `null`, which is what a fact line says about an absent time. */
 export function iso(value: Date | null | undefined): string | null {
   return value === null || value === undefined ? null : value.toISOString();

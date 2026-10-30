@@ -6,11 +6,10 @@ import { ASSISTANT_BUTTON_ID, PANEL_ID } from "@/lib/agent/panel";
 
 /**
  * The assistant's entry: a 32 CSS px button in the top bar's trailing group, before the
- * account avatar (issue #1133). There is no floating launcher.
+ * account avatar.
  *
- * With the flag off the component is not rendered at all, which is the stance the builder
- * prop took: absent rather than hidden. Its badge is short text immediately after it, so a
- * running turn is never signalled by colour or motion alone (ruling O3).
+ * Its badge is short text immediately after it, so a running turn is never signalled by
+ * colour or motion alone.
  */
 export function AssistantButton({
   open,

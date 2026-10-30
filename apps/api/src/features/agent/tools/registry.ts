@@ -129,6 +129,13 @@ const Outputs = {
   }),
 } as const satisfies Record<AgentToolName, z.ZodType>;
 
+/**
+ * The draft verbs' cell, which is the one the per-form assist route requires. Declared on
+ * the tools as well, so a reader reaching the builder screen through the screen route is
+ * refused them there too rather than by which route carried the turn.
+ */
+const DRAFT_WRITE: ToolCell = { resource: "form", action: "write" };
+
 /** An executor may only touch the {@link AgentContext} it is handed. */
 interface AgentToolDef {
   readonly description: string;
@@ -229,6 +236,7 @@ export const TOOLS: Readonly<Record<AgentToolName, AgentToolDef>> = Object.freez
       "Propose new question definitions. They are returned to the human for review and are not created or published by this call.",
     inputSchema: ProposeQuestionsInput,
     outputSchema: Outputs.propose_questions,
+    cell: DRAFT_WRITE,
     execute: (input, _ctx, state) => Promise.resolve(proposeQuestions(input, state)),
   },
   propose_draft: {
@@ -236,6 +244,7 @@ export const TOOLS: Readonly<Record<AgentToolName, AgentToolDef>> = Object.freez
       "Propose the complete draft FormDefinition for this form. Returns the advisory validation issues that would block a publish, and the warnings that would not. Never publishes.",
     inputSchema: ProposeDraftInput,
     outputSchema: Outputs.propose_draft,
+    cell: DRAFT_WRITE,
     execute: (input, ctx, state) => proposeDraft(input, ctx, state),
   },
   validate_draft: {
@@ -243,6 +252,7 @@ export const TOOLS: Readonly<Record<AgentToolName, AgentToolDef>> = Object.freez
       "Run the publish validation over the currently proposed draft and return its blocking issues and its non-blocking warnings.",
     inputSchema: ValidateInput,
     outputSchema: Outputs.validate_draft,
+    cell: DRAFT_WRITE,
     execute: (_input, ctx, state) => validateProposal(ctx, state),
   },
   project_draft: {

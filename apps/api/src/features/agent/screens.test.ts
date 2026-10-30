@@ -161,6 +161,28 @@ describe("one door per screen", () => {
     ).rejects.toThrow("refused");
     expect(refused).toEqual(["form:preview"]);
   });
+
+  // The per-form route requires `form: write` of every caller, so the draft verbs ask for
+  // it here too: a reader on the builder screen is refused them whichever route carried
+  // the turn.
+  it.each(["propose_draft", "propose_questions", "validate_draft"] as const)(
+    "refuses %s for a caller who holds no form write",
+    async (name) => {
+      const asked: string[] = [];
+      const ctx: AgentContext = {
+        ...turnContext("/forms/[formId]"),
+        authorize: (cell) => {
+          asked.push(`${cell.resource}:${cell.action}`);
+          return Promise.reject(new Error("refused"));
+        },
+        validate: () => {
+          throw new Error("the port must not be reached once the cell is refused");
+        },
+      };
+      await expect(runAgentTool(name, {}, ctx, createProposalState())).rejects.toThrow("refused");
+      expect(asked).toEqual(["form:write"]);
+    },
+  );
 });
 
 describe("no answer value can be described by any schema", () => {

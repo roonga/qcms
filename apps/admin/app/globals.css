@@ -5049,7 +5049,7 @@ div:has(> [role="dialog"] [data-qcms-dialog="wide"]) {
   color: var(--color-text);
 }
 
-/* THE ASSISTANT (issue #1133). No float: the dock is a track of the shell body grid, so
+/* THE ASSISTANT. No float: the dock is a track of the shell body grid, so
    nothing the assistant draws can overlay page content (WCAG 2.2 SC 2.4.11). The expanded
    state and the sheet are modal, so nothing behind them is reachable either. */
 .qcms-assistant-entry {
