@@ -358,7 +358,9 @@ The test that pins it: for every screen, the provider-facing tool set equals the
 
 ### 7.2 No answers
 
-Every screen's facts schema and every read tool's output schema is `z.strictObject` with enumerated fields. A unit test walks every schema and fails on a field whose name matches the respondent-content vocabulary the stdout redactor uses (`packages/observability/src/logger.ts`). The sentinel test in section 10 proves the property against a real database.
+Every screen's facts schema and every read tool's output schema is `z.strictObject` with enumerated fields. A unit test walks every schema and fails on a field whose name matches the respondent-content vocabulary the stdout redactor uses (`packages/observability/src/logger.ts`).
+
+**The vocabulary is that redactor's fragment list minus the staff-identity fragments** - email, and first, last, full and display name - because Q11 allows staff names and emails to reach the provider (Code Owner, 2026-10-30, issue #1133). `REDACT_FRAGMENTS` is exported from `@roonga/qcms-observability` so the test reads the one list rather than restating it. The sentinel test in section 10 proves the property against a real database.
 
 ### 7.3 Prompt framing
 
@@ -493,7 +495,7 @@ Compact header with icon buttons; bubbles and segments; the in-house Markdown re
 `QCMS_AGENT_THINKING`, the provider mapping, the `reasoning` events, the disclosure, rows in `docs/agent-authoring.md` and `docs/operations.md` and the env reference, and the fake provider's reasoning scripts.
 
 **C. Top-bar button and docked panel on every screen, the form subtree first** (Code Owner, 2026-10-24, issue #1133).
-The top-bar button; the dock (by default), the expanded state and the sheet, with the rail hidden at 1024 to 1279 px (Code Owner, 2026-10-24, issue #1133); the admin screen table and its filesystem test; the API `SCREENS` registry with context builders; a second assist route for screens with no form (`POST /admin/assist`, the same limiter key, a route-policy row per screen cell); conversation continuity.
+The top-bar button; the dock (by default), the expanded state and the sheet, with the rail hidden at 1024 to 1279 px (Code Owner, 2026-10-24, issue #1133); the admin screen table and its filesystem test; the API `SCREENS` registry with context builders; a second assist route for screens with no form (`POST /admin/assist`, the same limiter key, and one route-policy row that is an `anyOf` over the screens' cells, with each context builder checking its own cell; Code Owner, 2026-10-30, issue #1133); conversation continuity.
 
 **D. Actions, screen by screen.**
 **D0 first:** `proposal-token.ts` with the derived key and the ordered step list, `provenance.ts` with the in-order and reference checks, the `control.agent_actions` migration with its grants and revokes, the grant filter over offered action kinds, the `action` and `plan` SSE events, the card and plan-card shell with the four rules of 4.10, the hand-off variant, the sequential runner with stop-at-first-failure and its per-step report, and the SEC-17 tests.
