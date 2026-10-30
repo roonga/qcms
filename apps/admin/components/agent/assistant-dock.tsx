@@ -143,6 +143,21 @@ export function AssistantProvider({
     };
   }, [open, hold]);
 
+  // Opening focuses the composer, in the commit that opens the panel rather than in a
+  // later task: a focus that lands a task late undoes whatever the reader did in between,
+  // which is how Escape in the dock lost the page again. A panel the cookie opened starts
+  // focused, so a reload steals nothing, and neither does navigation between screens.
+  const grabbed = useRef(initial.open);
+  useEffect(() => {
+    if (!open) {
+      grabbed.current = false;
+      return;
+    }
+    if (grabbed.current) return;
+    grabbed.current = true;
+    composerRef.current?.focus();
+  }, [open]);
+
   const remember = useCallback(
     (next: PanelState) => {
       document.cookie = panelCookie(next, secureCookies);
@@ -162,8 +177,6 @@ export function AssistantProvider({
       show: () => {
         setOpen(true);
         remember({ open: true, width });
-        // Opening focuses the composer; navigation between screens never steals focus.
-        window.setTimeout(() => composerRef.current?.focus(), 0);
       },
       close: () => {
         setOpen(false);

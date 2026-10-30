@@ -450,11 +450,22 @@ test("runs no animation on open, close or expand under reduced motion (exit crit
   await page.getByTestId("qcms-assistant-expand").click();
   await expect(panel(page)).toHaveAttribute("data-mode", "expanded");
 
+  // Keyframe animations, and the transitions that would move or fade something. A colour
+  // or outline transition on the control the pointer is still over is not the open, close
+  // or expand motion the criterion is about, and the reduced-motion reset in `globals.css`
+  // has already cut every transition to a single frame.
   const animated = await page.evaluate(() =>
     [...document.querySelectorAll("#qcms-assistant-panel, #qcms-assistant-panel *")]
       .flatMap((element) => element.getAnimations())
       .filter((animation) => animation.playState === "running")
-      .map((animation) => animation.id),
+      .filter(
+        (animation) =>
+          !(animation instanceof CSSTransition) ||
+          /transform|opacity|inset|inline-size|block-size|translate|scale|margin/u.test(
+            animation.transitionProperty,
+          ),
+      )
+      .map((animation) => `${animation.constructor.name}:${animation.id}`),
   );
   expect(animated, "animations still running under prefers-reduced-motion: reduce").toEqual([]);
 });
