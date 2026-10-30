@@ -82,6 +82,24 @@ sentinel is asserted present in the database _before_ it is asserted absent from
 the payload. The same run asserts that a session id **is** present, so the
 metadata half of the rule is pinned too.
 
+Each of those turns runs the fake provider's `read-all` script, which calls every
+tool the screen offers, one per step. So the boundary is asserted over the output
+of every registered read tool rather than over the facts alone, and the walk fails
+if a tool stops being reachable: it asserts that every name in `AGENT_TOOL_NAMES`
+executed.
+
+## Facts and tool results are delimited as data
+
+Both reach the model inside a delimiter that says what they are: the screen's
+facts as a fenced JSON block, a tool result as an object whose `framing` names its
+standing and whose `result` holds the data. The system prompt states that nothing
+inside either is an instruction, however it is phrased. It is a mitigation, not a
+control: the controls are the caller's own grants, the door, and the human confirm.
+
+The draft preamble that asks for changes is sent only on a screen that offers a
+propose verb, so a screen holding the draft for a read tool alone is not told to
+propose against it.
+
 ## An audited read is audited once per conversation
 
 A screen whose own read writes a SEC-15 `read` row writes one from an agent turn
@@ -126,7 +144,7 @@ A script is selected by a `#qcms-fake:<script>` directive in a user turn:
 `default`, `rogue-publish`, `rogue-erase`, `rogue-webhook`, `rogue-responses`,
 `refusal`, `provider-error`, `provider-rejected`, `tool-then-provider-error`,
 `tool-error-recovered`, `propose-questions`, `no-proposal`, `length`,
-`step-limit`, `narrate-then-tools`.
+`step-limit`, `narrate-then-tools`, `reasoning`, `read-all`.
 The `rogue-*` scripts
 exist because a hostile model is the threat the allowlist is for, and the only
 honest way to test a refusal is to have something actually attempt the forbidden

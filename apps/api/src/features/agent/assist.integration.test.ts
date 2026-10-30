@@ -26,6 +26,7 @@ import { registerForms } from "../forms/route.js";
 import { aiSdkDraftAssistant } from "./assistant.js";
 import { fakeAssistantModel } from "./fake-model.js";
 import { SCREEN_IDS } from "./screens.js";
+import { AGENT_TOOL_NAMES } from "./tools/registry.js";
 import { registerFormsAssist } from "./route.js";
 import type { AssistEvent } from "./types.js";
 
@@ -702,8 +703,10 @@ describe("every screen's context, with a sentinel in the database", () => {
       // The limiter is the caller's whole budget across both routes, and this fixture
       // walks more screens than a minute allows.
       await resetLimiter();
+      // `read-all` calls every tool the screen offers, so each read tool's own executor
+      // runs under the sentinel rather than only the ones a narrative script needs.
       const res = await post("/assist", {
-        conversation: [{ role: "user", content: "what can you see here" }],
+        conversation: [{ role: "user", content: "what can you see here #qcms-fake:read-all" }],
         screen,
         params: paramsFor(screen),
         conversationId: "cnv_sentinel",
@@ -718,6 +721,21 @@ describe("every screen's context, with a sentinel in the database", () => {
 
   it("builds a context for every screen in the registry", () => {
     expect([...screenStatuses.entries()].filter(([, status]) => status !== 200)).toEqual([]);
+  });
+
+  it("ran every registered read tool during the walk", () => {
+    const executed = new Set<string>();
+    for (const call of providerCalls) {
+      const prompt = (call as { prompt?: unknown }).prompt;
+      if (!Array.isArray(prompt)) continue;
+      for (const message of prompt as { role?: unknown; content?: unknown }[]) {
+        if (message.role !== "tool" || !Array.isArray(message.content)) continue;
+        for (const part of message.content as { toolName?: unknown }[]) {
+          if (typeof part.toolName === "string") executed.add(part.toolName);
+        }
+      }
+    }
+    expect([...executed].sort()).toEqual([...AGENT_TOOL_NAMES].sort());
   });
 
   it("has the sentinel in the database, so the assertions below are not about an empty one", async () => {

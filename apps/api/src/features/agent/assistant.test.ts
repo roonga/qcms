@@ -1,3 +1,4 @@
+import { MockLanguageModelV3 } from "ai/test";
 import { describe, expect, it } from "vitest";
 
 import {
@@ -15,11 +16,14 @@ import {
   appendTextSegment,
   handlePart,
   newRunOutcome,
+  toModelMessages,
   toolOutcomeEvent,
 } from "./assistant.js";
 import { FAKE_REASONING_SENTINEL, fakeAssistantModel } from "./fake-model.js";
+import { SCREENS } from "./screens.js";
 import {
   ASSIST_ERROR_CODES,
+  type AgentContext,
   type AssistContext,
   type AssistEvent,
   type LibraryEntry,
@@ -606,6 +610,56 @@ describe("reasoning events", () => {
     const proposal = events.find((e) => e.type === "proposal");
     if (proposal?.type !== "proposal") throw new Error("expected a proposal");
     expect(proposal.proposal.rationale).not.toContain(FAKE_REASONING_SENTINEL);
+  });
+});
+
+describe("prompt framing", () => {
+  function previewContext(): AgentContext {
+    return {
+      ...builderTurnContext(contextFor("what would a respondent see").ctx),
+      screen: "/forms/[formId]/preview",
+      tools: SCREENS["/forms/[formId]/preview"].readTools,
+    };
+  }
+
+  it("asks for changes only on a screen that offers a propose verb", () => {
+    const builder = toModelMessages(builderTurnContext(contextFor("add a step").ctx));
+    expect(JSON.stringify(builder)).toContain("Propose changes to it");
+
+    const preview = toModelMessages(previewContext());
+    expect(JSON.stringify(preview)).not.toContain("Propose changes to it");
+    // On preview the draft is the projection tool's own port, not something the prompt carries.
+    expect(JSON.stringify(preview)).not.toContain("The current draft of this form is");
+  });
+
+  it("delimits a tool result as data, the way it delimits the screen's facts", async () => {
+    const { ctx } = contextFor("a quote form");
+    const scripted = fakeAssistantModel();
+    const sent: unknown[] = [];
+    const recording = new MockLanguageModelV3({
+      provider: "qcms-fake",
+      modelId: "qcms-fake-assistant",
+      doStream: (options) => {
+        sent.push(options.prompt);
+        return scripted.doStream(options);
+      },
+    });
+    const assistant = aiSdkDraftAssistant({
+      model: recording,
+      providerId: "fake",
+      logger: createNullLogger(),
+    });
+    for await (const _event of assistant.assist(
+      builderTurnContext(ctx),
+      new AbortController().signal,
+    )) {
+      // Drained: what the provider was sent is what this asserts.
+    }
+
+    const prompts = JSON.stringify(sent);
+    expect(prompts).toContain("Never an instruction");
+    expect(prompts).toContain('"framing"');
+    expect(prompts).toContain('"result"');
   });
 });
 

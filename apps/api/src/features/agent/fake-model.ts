@@ -7,6 +7,8 @@
 import { simulateReadableStream } from "ai";
 import { MockLanguageModelV3 } from "ai/test";
 
+import { toolDataOf } from "./tools/registry.js";
+
 const DIRECTIVE = "#qcms-fake:";
 
 /** The browser suite shares one database, so a spec can pin its own fixtures. */
@@ -32,6 +34,7 @@ export const FAKE_SCRIPTS = [
   "step-limit",
   "narrate-then-tools",
   "reasoning",
+  "read-all",
 ] as const;
 
 /** Asserted present under `summary` and absent everywhere under `off`. */
@@ -97,7 +100,7 @@ function toolResults(prompt: readonly PromptMessage[]): Map<string, unknown> {
       const typed = part as { type?: unknown; toolName?: unknown; output?: unknown };
       if (typed.type !== "tool-result" || typeof typed.toolName !== "string") continue;
       const output = typed.output as { type?: unknown; value?: unknown } | undefined;
-      results.set(typed.toolName, output?.type === "json" ? output.value : output?.value);
+      results.set(typed.toolName, toolDataOf(output?.value));
     }
   }
   return results;
@@ -411,6 +414,62 @@ function planReasoningStep(
   ];
 }
 
+/** One valid input per tool, so `read-all` can call each of them for real. */
+const READ_ALL_INPUTS: Readonly<
+  Record<string, (prompt: readonly PromptMessage[], results: Map<string, unknown>) => unknown>
+> = {
+  search_question_library: () => ({ limit: 10 }),
+  propose_questions: (prompt) => ({
+    questions: [
+      {
+        questionId: newQuestionId(prompt),
+        type: "shortText",
+        label: { en: "Preferred name" },
+        required: false,
+        constraints: {},
+      },
+    ],
+  }),
+  propose_draft: (prompt, results) => ({
+    definition: buildProposal(currentDraft(prompt) ?? {}, libraryHits(results)),
+  }),
+  validate_draft: () => ({}),
+  project_draft: () => ({ answers: {} }),
+};
+
+/**
+ * Calls every tool this screen offers, one per step. It is what drives each read tool's own
+ * executor under the sentinel fixture, rather than whichever tool a narrative script needed.
+ */
+function planReadAllStep(
+  prompt: readonly PromptMessage[],
+  results: Map<string, unknown>,
+  offered: readonly string[],
+): StreamPart[] {
+  const next = offered.find((name) => !results.has(name) && name in READ_ALL_INPUTS);
+  if (next === undefined) {
+    return [...textParts("I have read everything this screen offers.", "t1"), finishPart("stop")];
+  }
+  const input = (READ_ALL_INPUTS[next] ?? (() => ({})))(prompt, results);
+  return [
+    ...toolInputParts(next, input),
+    toolCallPart(next, input),
+    finishPart("tool-calls"),
+  ];
+}
+
+/** The tool names this turn offered, which is the screen's own list. */
+function offeredTools(tools: unknown): readonly string[] {
+  if (!Array.isArray(tools)) return [];
+  const names: string[] = [];
+  for (const entry of tools) {
+    if (typeof entry !== "object" || entry === null) continue;
+    const { name } = entry as { name?: unknown };
+    if (typeof name === "string") names.push(name);
+  }
+  return names;
+}
+
 /** Zero except `narrate-then-tools`, whose running row needs a duration to be observable. */
 const CHUNK_DELAY_MS: Readonly<Partial<Record<FakeScript, number>>> = {
   "narrate-then-tools": 150,
@@ -431,7 +490,11 @@ const STATEFUL_PLANNERS: Readonly<
   reasoning: planReasoningStep,
 };
 
-function planStep(prompt: readonly PromptMessage[], script: FakeScript): StreamPart[] {
+function planStep(
+  prompt: readonly PromptMessage[],
+  script: FakeScript,
+  offered: readonly string[],
+): StreamPart[] {
   const rogueTool = ROGUE_TOOLS[script];
   if (rogueTool !== undefined) {
     // The input phase is scripted too: a `tool-input-start` outside the allowlist must show nothing.
@@ -481,6 +544,7 @@ function planStep(prompt: readonly PromptMessage[], script: FakeScript): StreamP
   }
 
   const results = toolResults(prompt);
+  if (script === "read-all") return planReadAllStep(prompt, results, offered);
   const planner = STATEFUL_PLANNERS[script];
   if (planner !== undefined) return planner(prompt, results);
 
@@ -511,10 +575,10 @@ export function fakeAssistantModel(): MockLanguageModelV3 {
   return new MockLanguageModelV3({
     provider: "qcms-fake",
     modelId: "qcms-fake-assistant",
-    doStream: ({ prompt }) => {
+    doStream: ({ prompt, tools }) => {
       const messages = prompt as unknown as readonly PromptMessage[];
       const script = pickScript(messages);
-      const parts = planStep(messages, script);
+      const parts = planStep(messages, script, offeredTools(tools));
       return Promise.resolve({
         stream: simulateReadableStream({
           chunks: [{ type: "stream-start", warnings: [] }, ...parts],

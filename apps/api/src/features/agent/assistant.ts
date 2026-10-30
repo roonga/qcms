@@ -19,6 +19,7 @@ import {
   AGENT_TOOL_NAMES,
   agentToolSet,
   createProposalState,
+  toolDataOf,
   type ProposalState,
 } from "./tools/registry.js";
 import type { AgentContext, AssistEvent, DraftAssistant } from "./types.js";
@@ -93,8 +94,15 @@ function factsPreamble(screen: string, facts: unknown): string {
   ].join("\n");
 }
 
-function toModelMessages(ctx: AgentContext): { role: "user" | "assistant"; content: string }[] {
-  const draft = ctx.draft;
+/** The propose verbs, which are what makes "Propose changes to it" true on a screen. */
+const PROPOSE_TOOLS = ["propose_draft", "propose_questions"] as const;
+
+export function toModelMessages(
+  ctx: AgentContext,
+): { role: "user" | "assistant"; content: string }[] {
+  // A screen can hold the draft ports for a read tool and still have nothing to propose,
+  // so the preamble that asks for changes is sent only where a propose verb is offered.
+  const draft = PROPOSE_TOOLS.some((name) => ctx.tools.includes(name)) ? ctx.draft : undefined;
   return [
     ...(draft === undefined ? [] : [{ role: "user" as const, content: draftPreamble(draft) }]),
     { role: "user" as const, content: factsPreamble(ctx.screen, ctx.facts) },
@@ -175,10 +183,11 @@ export function toolOutcomeEvent(
 ): AssistEvent | undefined {
   const step = toolSteps.get(toolCallId);
   if (step === undefined || preliminary) return undefined;
+  const result = toolDataOf(output);
   const refused =
-    typeof output === "object" &&
-    output !== null &&
-    (output as { accepted?: unknown }).accepted === false;
+    typeof result === "object" &&
+    result !== null &&
+    (result as { accepted?: unknown }).accepted === false;
   return { type: "tool-outcome", step, outcome: errored || refused ? "failed" : "done" };
 }
 
