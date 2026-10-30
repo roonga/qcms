@@ -489,7 +489,9 @@ test("leaves no control wholly covered with the panel docked (SC 2.4.11, exit cr
       await page.keyboard.press("Tab");
       const covered = await page.evaluate(() => {
         const active = document.activeElement;
-        if (!(active instanceof HTMLElement)) return null;
+        // The body is where focus lands once it has left the last control of the document,
+        // and it is not a control the criterion says anything about.
+        if (!(active instanceof HTMLElement) || active === document.body) return null;
         const dock = document.getElementById("qcms-assistant-panel");
         if (dock === null || dock.contains(active)) return null;
         const box = active.getBoundingClientRect();
