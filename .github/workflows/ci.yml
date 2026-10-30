@@ -645,7 +645,7 @@ jobs:
       # plus the axe, keyboard and Lighthouse accessibility gates - this shard's slice
       # of them.
       - name: Portal and admin browser suites (all Playwright projects)
-        run: echo "probe: suite not run"
+        run: echo "probe - suite not run"
         if: env.PLAN_ONLY != 'true' && env.ADMIN_ONLY != 'true'
 
       # The narrow gear (issue #696). When the diff touches nothing outside
@@ -667,7 +667,7 @@ jobs:
       # partitioned are the admin files alone and the shards divide the 294 admin
       # tests rather than most of them inheriting the whole suite's offsets.
       - name: Admin browser suite only (diff cannot reach a portal surface)
-        run: echo "probe: admin suite not run"
+        run: echo "probe - admin suite not run"
         if: env.PLAN_ONLY != 'true' && env.ADMIN_ONLY == 'true'
 
       - uses: ./.github/actions/assert-no-docker-hub-pulls
