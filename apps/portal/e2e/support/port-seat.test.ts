@@ -18,6 +18,7 @@ import {
   type SeatPortOccupant,
   adoptableServices,
   adoptionRefusal,
+  assertPosixHost,
   assertSeatChosen,
   assertSeatPortsOutsideEphemeralRange,
   assertSeatPortsUsable,
@@ -318,6 +319,19 @@ describe("assertSeatChosen", () => {
   it("accepts any explicit seat in a worktree, including 0", () => {
     expect(() => assertSeatChosen(linkedWorktree, "0")).not.toThrow();
     expect(() => assertSeatChosen(linkedWorktree, "3")).not.toThrow();
+  });
+});
+
+describe("assertPosixHost", () => {
+  it("refuses on win32, where the occupancy guard can see nothing", () => {
+    const call = () => assertPosixHost("pnpm verify:browser", "win32");
+    expect(call).toThrow("does not run on native Windows");
+    expect(call).toThrow("/proc");
+    expect(call).toThrow("WSL");
+  });
+
+  it("passes on every platform that has /proc", () => {
+    expect(() => assertPosixHost("pnpm verify:browser", "linux")).not.toThrow();
   });
 });
 

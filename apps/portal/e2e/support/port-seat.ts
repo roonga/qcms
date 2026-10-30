@@ -9,6 +9,7 @@ import {
   PORT_SEAT,
   PORT_SEAT_ENV_VAR,
   assertPortSeatChosen,
+  assertPosixHost,
   assertSeatPortsOutsideEphemeralRange,
   harnessPorts,
   withoutTrailingSlash,
@@ -24,6 +25,7 @@ export {
   PORT_SEAT,
   PORT_SEAT_ENV_VAR,
   STABLE_SERVICES,
+  assertPosixHost,
   assertSeatPortsOutsideEphemeralRange,
   composeProjectName,
   ephemeralPortRange,
@@ -300,6 +302,7 @@ export const PREFLIGHT_DONE_VAR = "QCMS_PORT_SEAT_PREFLIGHT_DONE";
  */
 export function seatPreflight(seat: number = PORT_SEAT): Set<HarnessService> {
   if (process.env[PREFLIGHT_DONE_VAR] === "1") return new Set();
+  assertPosixHost("pnpm verify:browser");
   assertSeatChosen();
   assertSeatPortsOutsideEphemeralRange(seat);
   const occupants = seatOccupants(seat);
@@ -310,6 +313,7 @@ export function seatPreflight(seat: number = PORT_SEAT): Set<HarnessService> {
 
 /** Every startup refusal, in the order a run needs them. Exported for tests. */
 export function assertSeatUsable(seat: number = PORT_SEAT): void {
+  assertPosixHost("pnpm verify:browser");
   assertSeatChosen();
   assertSeatPortsOutsideEphemeralRange(seat);
   assertSeatPortsUsable(seat);

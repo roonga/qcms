@@ -298,11 +298,13 @@ If the answers say load, say so in the report with the numbers and re-run on a q
 | Gate                                     | Native Windows             | Where it runs            |
 | ---------------------------------------- | -------------------------- | ------------------------ |
 | `pnpm verify`                            | yes                        | anywhere                 |
-| `pnpm verify:browser`                    | no                         | WSL or the dev container |
+| `pnpm verify:browser`                    | no, refused with a message | WSL or the dev container |
 | `pnpm verify:browser:detached` / `:wait` | no, refused with a message | WSL or the dev container |
-| `QCMS_PORT_SEAT=<0-9> pnpm up:e2e`       | no                         | WSL or the dev container |
+| `QCMS_PORT_SEAT=<0-9> pnpm up:e2e`       | no, refused with a message | WSL or the dev container |
 
 The three are POSIX by construction, not by accident. The detached runner puts the suite in a session of its own with `setsid` so it outlives the shell the harness kills, signals a **process group** to stop a suite and its dev servers together, and reads `/proc/<pid>/cwd` to say which worktree owns a port that is already held. Windows has no equivalent of any of the three, so `verify:browser:detached` **fails fast** on `win32` with a message naming WSL rather than failing several frames down on a missing `setsid`.
+
+**All three now refuse on `win32` rather than running unguarded** (issue #1138). The seat guard identifies a port's holder through `/proc`, so on Windows it finds no occupant: the refusals that protect a lane from adopting an orphan dev server or tearing down a neighbour's Compose stack would all be silently inert. `assertPosixHost` in `scripts/ports.mjs` is the one refusal, called from the browser harness preflight and from `scripts/compose-e2e.mjs`.
 
 **WSL2 Ubuntu is the supported route** (Node 24, pnpm 11, per the `packageManager` pin), and the dev container is the canonical one (ADR-29). Keep a separate worktree on the Linux side rather than reaching across to the Windows filesystem: the cross-filesystem path is slow enough to change how the suites behave, and `node_modules` cannot be shared between the two platforms in any case.
 
@@ -314,7 +316,7 @@ cd ~/src/qcms-wt/<branch-slug>
 pnpm install --frozen-lockfile && pnpm build && pnpm verify
 ```
 
-**Docker Desktop is shared, so port seats are shared across both sides.** A seat is a machine-wide claim whichever side of the boundary asked for it, and the Windows and WSL views of the Docker daemon are the same daemon. Pick a seat from `docs/PORTS.md` the way a second lane on one host would, and never run `pnpm dev:down` while another seat is live. The occupancy half of the seat guard is inert (issue #1138), so a collision is not reported for you: the seat you chose is the only thing keeping two runs apart.
+**Docker Desktop is shared, so port seats are shared across both sides.** A seat is a machine-wide claim whichever side of the boundary asked for it, and the Windows and WSL views of the Docker daemon are the same daemon. Pick a seat from `docs/PORTS.md` the way a second lane on one host would, and never run `pnpm dev:down` while another seat is live. The occupancy half of the seat guard reads `/proc`, so it reports a collision only for the run that asked from the Linux side; a Windows run is refused outright rather than left unguarded.
 
 **Run `pnpm build` once in a fresh worktree before `test:tooling:no-build`.** That script's name is accurate - it skips the build - and several tooling tests read `dist/`, so in a worktree that has never been built they fail for a missing artifact rather than for anything the branch did.
 

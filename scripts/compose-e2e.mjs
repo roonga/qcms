@@ -12,7 +12,12 @@ import { fileURLToPath, pathToFileURL } from "node:url";
 
 import { createFirstAdmin, generatePassword } from "./compose-admin.mjs";
 import { isInDockerContainer } from "./docker-host.mjs";
-import { assertPortSeatChosen, composeProjectName, harnessPort } from "./ports.mjs";
+import {
+  assertPortSeatChosen,
+  assertPosixHost,
+  composeProjectName,
+  harnessPort,
+} from "./ports.mjs";
 
 const root = dirname(dirname(fileURLToPath(import.meta.url)));
 const project = `${composeProjectName()}-full-stack-e2e`;
@@ -516,6 +521,7 @@ async function main() {
   // name, so an adopted seat would delete another lane's stack. Rethrown as a UsageError so the
   // message prints without a stack trace.
   try {
+    assertPosixHost(invokedAs(command));
     assertPortSeatChosen(root, invokedAs(command));
   } catch (error) {
     throw new UsageError(error instanceof Error ? error.message : String(error));

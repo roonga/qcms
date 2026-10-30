@@ -183,6 +183,32 @@ export function assertSeatPortsOutsideEphemeralRange(
 }
 
 /**
+ * Refuse a seat-guarded gate on native Windows: the occupancy guard identifies a port's
+ * holder through `/proc`, so there it finds no occupant and never refuses an orphan dev
+ * server or another lane's Compose stack. Running unguarded is the hazard.
+ *
+ * @param {string} command
+ * @param {NodeJS.Platform} [platform]
+ * @returns {void}
+ */
+export function assertPosixHost(command, platform = process.platform) {
+  if (platform !== "win32") return;
+  throw new Error(
+    [
+      `${command} does not run on native Windows.`,
+      "",
+      "The port-seat occupancy guard identifies a port's holder through /proc, which",
+      "Windows does not have, so it would run with none of the protection the seat",
+      "scheme promises: an orphan dev server or another lane's Compose stack would be",
+      "adopted or torn down silently.",
+      "",
+      "Run it from WSL or the dev container. Native Windows runs `pnpm verify` only.",
+      "See docs/DEVELOPER_GUIDE.md, 'Windows and WSL'.",
+    ].join("\n"),
+  );
+}
+
+/**
  * A loop rather than a `/\/+$/` replace, which `sonarjs/super-linear-regex` rejects.
  *
  * @param {string} path
