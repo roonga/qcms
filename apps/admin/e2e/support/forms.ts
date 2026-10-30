@@ -68,10 +68,9 @@ export async function createForm(page: Page, slug: string, title: string): Promi
   if (await switchToTest.isVisible()) {
     await waitForHydration(page);
     await switchToTest.click();
-    await expect(page.getByTestId("qcms-environment-switcher")).toHaveAttribute(
-      "data-environment",
-      "test",
-    );
+    // The screen's own control, not the chip: the chip is in the Operations header and this
+    // is a Normal-mode screen. Its own disappearance is what says the re-read landed.
+    await expect(switchToTest).toHaveCount(0);
   }
 
   await fillStable(field(page, "Slug"), slug);

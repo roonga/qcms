@@ -365,9 +365,9 @@ html {
      label, a second locale or a different density - where the height is a fact the browser
      already holds.
 
-     The rail uses this measured height too: the environment banner is inside the sticky
-     header and adds height even at desktop widths. The derived fallback covers the
-     initial render until the observer publishes the complete header height. */
+     The rail uses this measured height too: in Operations the bar carries a 3px
+     environment edge, so it is taller than the derivation even at desktop widths. The
+     derived fallback covers the initial render until the observer publishes it. */
   scroll-padding-block-start: var(--admin-topbar-measured-h, var(--admin-topbar-h));
   /* NO `scrollbar-gutter: stable`, and it was tried (Code Owner, 2026-08-26). The form's
      own screen scrolls and its Preview does not, so moving between them makes the page
@@ -3365,6 +3365,73 @@ div:has(> [role="dialog"] [data-qcms-dialog="wide"]) {
   }
 }
 
+/* THE OPERATOR'S HIDE SIDEBAR (§7.0 ruling 8).
+
+   Above `--bp-sidebar` only: below it the shut disclosure governs and nothing here
+   applies, which is why both toggles are `display: none` by default and the branch below
+   is the only thing that shows either.
+
+   TWO ATTRIBUTES, ONE EFFECT. `data-sidebar` is the operator's own setting, stamped by
+   `app/layout.tsx` from the cookie before a byte of HTML leaves, so a rail they put away is
+   never painted. `data-sidebar-hold` is a temporary hold another surface may take while it
+   needs the width; it writes no cookie, so releasing it returns the operator's own choice
+   rather than a value something else left behind. Both hide the rail, and `lib/sidebar.ts`
+   is where the pair is defined.
+
+   THE RAIL IS ABSENT, NOT NARROWED (no icon strip), so the grid drops to one track and the
+   Show button takes the row above the content column. `display: none` removes an element
+   from the grid entirely, which is what lets one `grid-template` serve both states. */
+.qcms-rail__hide,
+.qcms-rail__show {
+  display: none;
+}
+@variant sidebar {
+  .qcms-rail__hide {
+    display: flex;
+    justify-content: flex-end;
+    padding-inline-end: 0.5rem;
+  }
+  :root[data-sidebar="hidden"] .qcms-rail,
+  :root[data-sidebar-hold="hidden"] .qcms-rail {
+    display: none;
+  }
+  :root[data-sidebar="hidden"] .qcms-rail__show,
+  :root[data-sidebar-hold="hidden"] .qcms-rail__show {
+    display: flex;
+    padding-block-start: var(--admin-section-pad);
+    padding-inline: var(--admin-section-pad);
+  }
+  :root[data-sidebar="hidden"] .qcms-shell-body:has(> .qcms-rail),
+  :root[data-sidebar-hold="hidden"] .qcms-shell-body:has(> .qcms-rail) {
+    grid-template-columns: 1fr;
+    /* `1fr` on the second row rather than `auto`, so a short screen still fills the shell
+       the way `<main class="flex-1">` does in the flex branch. */
+    grid-template-rows: auto 1fr;
+  }
+}
+
+/* Both toggles. Chrome rather than a lifecycle control, so it takes the quiet shape the
+   rail's own links take. The wrappers above own `display`; this owns only the shape. */
+.qcms-railtoggle {
+  display: inline-flex;
+  align-items: center;
+  min-block-size: 32px;
+  padding-inline: 0.5rem;
+  border: 1px solid transparent;
+  border-radius: var(--radius-control);
+  background-color: transparent;
+  color: var(--color-primary);
+  font-size: 13px;
+  font-weight: 600;
+  cursor: pointer;
+}
+.qcms-railtoggle:hover {
+  background-color: var(--color-ghost-hover);
+}
+:root.hc .qcms-railtoggle {
+  border-color: var(--color-border-strong);
+}
+
 /* The rail's own surface. `min-width: 0` is load-bearing rather than tidy: a
    grid item's default `min-width: auto` lets its content push it wider than its
    track, and this track is full of author-supplied step titles. */
@@ -4873,102 +4940,95 @@ div:has(> [role="dialog"] [data-qcms-dialog="wide"]) {
   font-size: 0.875rem;
 }
 
-/* --- The environment switcher and its banner (ADR-40 Q6, task 065) --------------------
+/* --- The environment chip (ADR-40 Q6, `plan/admin-design-contracts.md` §10) -------------
 
-   Q6 asks for one global switcher and a persistent banner on every page while a non-prod
-   environment is selected, because an erasure performed against the wrong environment is
-   not undoable. Both live in the sticky bar: the control in the trailing group beside
-   appearance and account, the banner as the bar's own second line, which is what keeps it
-   on screen while the operator scrolls and keeps `--admin-topbar-measured-h` honest.
+   ONE CONTROL THAT IS ALSO THE INDICATOR, in the Operations header. It is the same height
+   and the same border in every state, so switching environments moves no screen.
 
-   THE COLOUR IS NEVER THE ONLY CARRIER (WCAG 1.4.1). The banner names the environment in
-   words, the switcher shows the same name, and the trigger carries a border of its own
-   rather than a tint alone - so an operator who cannot distinguish the warning hue still
-   reads which environment they are in. The tokens are the warning family the alert
-   components already use; nothing here invents a colour. */
+   AN ENVIRONMENT IS NEVER A STATUS COLOUR. The `--color-env-*` family is its own, because
+   the warning family said "something is wrong" about an ordinary test environment and left
+   no colour for a real warning beside it.
+
+   THE COLOUR IS NEVER THE ONLY CARRIER (WCAG 1.4.1): the name is always written, the fill
+   differs between solid, outlined and dashed, and the trigger's accessible name states it
+   in words. */
 .qcms-envswitch {
   display: inline-flex;
+  align-items: center;
   flex-shrink: 0;
 }
-/* Wider than the two 32px icon triggers beside it, because it carries a WORD: an
-   environment name is data (`test`, `prod`, whatever an operator created) and truncating
-   it would make the one control that says where you are the one control you cannot read.
-   The 32px block size matches its neighbours, so the bar's first row is one height. */
+/* Wider than the two 32px icon triggers in the trailing group, because it carries a WORD:
+   an environment name is data (`test`, `prod`, whatever an operator created) and truncating
+   it would make the one control that says where you are the one control you cannot read. */
 .qcms-envtrigger {
   block-size: 32px;
   /* Same opt-out as the appearance trigger: a `min-block-size` floor beats `block-size`,
      and these bar controls are 32px by design. */
   min-block-size: 32px;
+  min-inline-size: 5.5rem;
   display: inline-flex;
   align-items: center;
+  justify-content: center;
   gap: 0.375rem;
   padding-inline: var(--space-3);
-  border: 1px solid var(--color-border);
+  /* 2px in EVERY state, so no state is a pixel wider or taller than another. */
+  border: 2px solid var(--color-border-strong);
   border-radius: var(--radius-control);
   background-color: var(--color-surface);
   color: var(--color-text);
   font-size: 11px;
   font-weight: 600;
-  letter-spacing: 0.02em;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
   cursor: pointer;
   flex-shrink: 0;
 }
+.qcms-envswitch[data-kind="prod"] .qcms-envtrigger {
+  border-color: var(--color-env-prod);
+  background-color: var(--color-env-prod);
+  color: var(--color-env-prod-foreground);
+}
+.qcms-envswitch[data-kind="nonprod"] .qcms-envtrigger {
+  border-color: var(--color-env-test);
+  background-color: var(--color-env-test-subtle);
+  color: var(--color-env-test-fg);
+}
+/* The unknown state (local UX list A12): dashed, saying so, with nothing to press. A
+   screen that could not check the selection must not look like one that did. */
+.qcms-envswitch[data-kind="unknown"] .qcms-envtrigger {
+  border-style: dashed;
+}
 .qcms-envtrigger[data-hovered],
 .qcms-envtrigger[aria-expanded="true"] {
-  background-color: var(--color-ghost-hover);
   box-shadow: 0 0 0 2px var(--color-border-strong);
-}
-/* The non-prod state is on the WRAPPER, so the trigger reads as part of the banner's
-   warning rather than as a second, unrelated signal. Still not colour alone: the name
-   inside it is the fact. */
-.qcms-envswitch[data-nonprod="true"] .qcms-envtrigger {
-  border-color: var(--color-warning);
-  background-color: var(--color-warning-subtle);
-  color: var(--color-warning-fg);
 }
 .qcms-envswitch[data-pending="true"] .qcms-envtrigger {
   /* The refresh re-reads every server component on the screen; the control says so rather
      than looking idle while the page changes under it. */
   opacity: 0.7;
 }
-:root.hc .qcms-envtrigger {
-  border: 2px solid var(--color-border-strong);
-}
-/* The unknown state (local UX list A12): the same chip, saying so, with nothing to press. */
 .qcms-envtrigger--static {
   cursor: default;
 }
 
-/* The banner is the bar's second line: full width, left-aligned with everything else on
-   the page through the same `--admin-section-pad` the bar and `<main>` both spend. */
-.qcms-envbanner {
-  display: flex;
-  align-items: baseline;
-  gap: 0.5rem;
-  flex-wrap: wrap;
-  padding: 0.375rem var(--admin-section-pad);
-  border-block-start: 1px solid var(--color-warning);
-  background-color: var(--color-warning-subtle);
-  color: var(--color-warning-fg);
-  font-size: 13px;
+/* THE BAR'S ENVIRONMENT EDGE, 3px in every state, keyed off the chip's own kind rather
+   than a second attribute: one value cannot disagree with itself. It is therefore present
+   exactly where the chip is, which is the Operations header and nowhere else. */
+.qcms-topbar:has(.qcms-envswitch[data-kind="prod"]) {
+  border-block-start: 3px solid var(--color-env-prod);
 }
-.qcms-envbanner__name {
-  font-weight: 600;
-  letter-spacing: 0.04em;
-  text-transform: uppercase;
+.qcms-topbar:has(.qcms-envswitch[data-kind="nonprod"]) {
+  border-block-start: 3px solid var(--color-env-test);
 }
-:root.hc .qcms-envbanner {
-  border-block-start: 2px solid var(--color-border-strong);
-  background-color: var(--color-surface);
-  color: var(--color-text);
+.qcms-topbar:has(.qcms-envswitch[data-kind="unknown"]) {
+  border-block-start: 3px solid var(--color-border-strong);
 }
 
 /* The rollback marking on a release row (ADR-40, criterion 4).
    A WORD in a badge, never a colour on its own (WCAG 1.4.1): "released version 4 after
    version 7" is what an incident review reads, so the row says "Rollback" and the cell
-   under it says which version it went back from. The badge is the same warning family the
-   environment banner uses, which is the one other place this app says "look at this
-   because of where it lands". */
+   under it says which version it went back from. The badge is the warning family, which is
+   where this app says "look at this because of what it did". */
 .qcms-rollback {
   display: inline-block;
   padding-inline: 0.375rem;

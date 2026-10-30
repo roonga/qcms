@@ -51,6 +51,14 @@ export const messages = {
   "rail.filters.apply": "Apply",
   "rail.filters.clear": "Clear filters",
 
+  // The operator's sidebar toggle, above `--bp-sidebar` only. The show button carries the
+  // filter count, because a hidden rail is where a set filter would otherwise be invisible.
+  "rail.hide": "Hide sidebar",
+  "rail.show": "Show sidebar",
+  "rail.show.filtered": "Show sidebar · {filters}",
+  "rail.show.oneFilter": "1 filter",
+  "rail.show.filters": "{count} filters",
+
   "app.title": "QCMS",
   "app.description": "Author questionnaires, publish forms, and review responses.",
 
@@ -149,21 +157,20 @@ export const messages = {
   "appearance.preview.lightHc": "Light, high contrast",
   "appearance.preview.darkHc": "Dark, high contrast",
 
-  // The global environment switcher and its banner (ADR-40 Q6, task 065). The environment
-  // NAMES are data, not copy: they come from `control.environments` and an operator may
-  // create a third, so no key here spells one.
+  // The environment chip (ADR-40 Q6). The environment NAMES are data, not copy: they come
+  // from `control.environments` and an operator may create a third, so no key here spells
+  // one.
   "environment.legend": "Environment",
   "environment.trigger": "Environment: {environment}",
-  "environment.banner":
-    "You are working in {environment}. It is not production: what you release, close or erase here affects this environment only.",
+  // Announced after a switch and not on first render: the chip already names the
+  // environment, so a region that spoke on every navigation would be ignored.
+  "environment.nowWorking": "Now working in {environment}.",
   // Named in a destructive confirmation, which Q6 requires of each one: an erasure
   // performed against the wrong environment is not undoable.
   "environment.inThis": "In {environment}.",
   // The shell when the live set could not be read (local UX list A12). Never shown as
   // `prod`: a screen that could not check the selection must not look like one that did.
   "environment.unknown": "Environment unknown",
-  "environment.unknownBanner":
-    "QCMS could not read the environment list, so it cannot confirm which environment this screen shows. Actions that change an environment are unavailable until it can. Reload to try again.",
   // An environment-sensitive action refusing to run (local UX list A1). The selection is a
   // cookie every tab shares, so a tab can be showing one environment after another tab
   // switched to a different one; the action refuses rather than act where it was not shown.

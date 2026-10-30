@@ -22,13 +22,32 @@ export const TEST_ENVIRONMENT_STORAGE = {
   origins: [],
 };
 
+/** The one screen the chip is on: Normal mode carries no environment context. */
+export const OPERATIONS_PATH = "/operations";
+
+export function environmentChip(page: Page) {
+  return page.getByTestId("qcms-environment-switcher");
+}
+
+/**
+ * Switch through the real chip, which lives in the Operations header and nowhere else.
+ *
+ * The selection is a cookie every screen is read from, so the trip is out to Operations and
+ * back to wherever the caller was. Callers `goto` their screen immediately before this, so
+ * the return navigation costs a re-read rather than any state.
+ */
 export async function chooseEnvironment(page: Page, environment: "test" | "prod"): Promise<void> {
-  const switcher = page.getByTestId("qcms-environment-switcher");
-  if ((await switcher.getAttribute("data-environment")) === environment) return;
-  await openMenu(switcher.getByRole("button"));
-  await page.getByRole("menuitemradio", { name: environment, exact: true }).click();
-  await expect(switcher).toHaveAttribute("data-pending", "false");
-  await expect(switcher).toHaveAttribute("data-environment", environment);
+  const from = page.url();
+  const away = new URL(from).pathname !== OPERATIONS_PATH;
+  if (away) await page.goto(OPERATIONS_PATH);
+  const chip = environmentChip(page);
+  if ((await chip.getAttribute("data-environment")) !== environment) {
+    await openMenu(chip.getByRole("button"));
+    await page.getByRole("menuitemradio", { name: environment, exact: true }).click();
+    await expect(chip).toHaveAttribute("data-pending", "false");
+    await expect(chip).toHaveAttribute("data-environment", environment);
+  }
+  if (away) await page.goto(from);
 }
 
 /** Layout sweeps prepare a preference; behavior journeys exercise the actual switcher. */

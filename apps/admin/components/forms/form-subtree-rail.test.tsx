@@ -87,7 +87,7 @@ describe("the rail's markup", () => {
     // navigation. It was a `<nav class="qcms-rail qcms-rail--form">` all the way out until
     // §7.0: one element for the whole column made the Actions part navigation too, and the
     // modifier existed so that one rule could hide this rail's summary alone.
-    expect(html).toMatch(/^<aside class="qcms-rail" aria-label="life"/u);
+    expect(html).toContain('<aside id="qcms-rail-region" class="qcms-rail" aria-label="life"');
     expect(html).toContain('<nav aria-label="life sections">');
     expect(html).not.toContain("qcms-rail--form");
   });
