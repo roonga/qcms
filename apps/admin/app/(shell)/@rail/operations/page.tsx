@@ -1,6 +1,10 @@
 import { OperationsFormsRail } from "@/components/ops/operations-forms-rail";
 import { shownEnvironment } from "@/lib/environment";
-import { operationsApiQuery, readOperationsListState } from "@/lib/ops/operations-forms";
+import {
+  operationsApiQuery,
+  operationsInEnvironment,
+  readOperationsListState,
+} from "@/lib/ops/operations-forms";
 import { resolvedEnvironment } from "@/lib/server/environments";
 import { listOperationsForms } from "@/lib/server/operations";
 import { navigableCapabilities, shellAccess } from "@/lib/server/shell";
@@ -16,12 +20,13 @@ export default async function OperationsRailSlot({
   readonly searchParams: Promise<Record<string, string | string[] | undefined>>;
 }) {
   const session = await requireAdminSession();
-  const state = readOperationsListState(await searchParams);
+  const read = readOperationsListState(await searchParams);
   const [access, resolved] = await Promise.all([
     shellAccess(session),
     resolvedEnvironment(session),
   ]);
-  const environment = state.environment ?? shownEnvironment(resolved);
+  const environment = shownEnvironment(resolved);
+  const state = environment === undefined ? read : operationsInEnvironment(read, environment);
   const result =
     environment === undefined
       ? undefined

@@ -4,8 +4,8 @@ import {
   intakeOf,
   operationsApiQuery,
   operationsClearHref,
-  operationsEnvironmentHref,
   operationsHref,
+  operationsInEnvironment,
   readOperationsListState,
   type OperationsFormRow,
 } from "./operations-forms.ts";
@@ -109,10 +109,34 @@ describe("the addresses the screen links to", () => {
     expect(operationsHref(state, { cursor: undefined })).not.toContain("cursor=");
   });
 
-  it("resets the page and the workspace when the environment changes, keeping the rest", () => {
-    expect(operationsEnvironmentHref(state, "prod")).toBe(
+  it("resets the page and the workspace when the environment moves, keeping the rest", () => {
+    const moved = operationsInEnvironment(state, "prod");
+    expect(moved).toMatchObject({
+      environment: "prod",
+      workspaceId: undefined,
+      cursor: undefined,
+      search: "intake",
+      intake: "open",
+      sort: "released-desc",
+      activeCount: 2,
+      isFiltered: true,
+    });
+    expect(operationsHref(moved)).toBe(
       "/operations?env=prod&q=intake&intake=open&sort=released-desc",
     );
+  });
+
+  it("is the same state when the address already names the environment in force", () => {
+    expect(operationsInEnvironment(state, "test")).toBe(state);
+  });
+
+  it("records the environment on an address that named none", () => {
+    const bare = readOperationsListState({});
+    expect(operationsInEnvironment(bare, "prod")).toMatchObject({
+      environment: "prod",
+      activeCount: 0,
+      isFiltered: false,
+    });
   });
 
   it("clears to the same environment, which is not a filter", () => {

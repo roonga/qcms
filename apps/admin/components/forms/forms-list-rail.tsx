@@ -23,6 +23,7 @@ export function FormsListRail({ filters }: { readonly filters: FormListFilters }
       subject={t("forms.title")}
       title={t("forms.title")}
       testId="qcms-forms-rail"
+      filterCount={activeCount}
       {...(activeCount > 0
         ? { count: <RailCount>{activeFilterCount(activeCount)}</RailCount> }
         : {})}

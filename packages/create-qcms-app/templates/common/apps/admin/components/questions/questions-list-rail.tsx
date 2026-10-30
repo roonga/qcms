@@ -22,6 +22,7 @@ export function QuestionsListRail({ filters }: { readonly filters: QuestionListF
       subject={t("questions.title")}
       title={t("questions.title")}
       testId="qcms-questions-rail"
+      filterCount={activeCount}
       {...(activeCount > 0
         ? { count: <RailCount>{activeFilterCount(activeCount)}</RailCount> }
         : {})}

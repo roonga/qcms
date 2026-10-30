@@ -161,12 +161,26 @@ export function operationsHref(
 }
 
 /**
- * Where choosing an environment goes: an Operations-wide change that resets pagination
- * and keeps the filters that are still valid. The workspace options are one environment's
- * answer, so that filter is not among them.
+ * This state read in the environment now selected.
+ *
+ * The environment is the Operations header's own control, so an address can name one the
+ * operator has since left. Meeting that is an Operations-wide change: it resets the page
+ * position and drops the workspace filter, whose options are one environment's answer.
  */
-export function operationsEnvironmentHref(state: OperationsListState, environment: string): string {
-  return operationsHref({ ...state, environment, workspaceId: undefined, cursor: undefined });
+export function operationsInEnvironment(
+  state: OperationsListState,
+  environment: string,
+): OperationsListState {
+  if (state.environment === environment) return state;
+  const activeCount = (state.search.trim() === "" ? 0 : 1) + (state.intake === undefined ? 0 : 1);
+  return {
+    ...state,
+    environment,
+    workspaceId: undefined,
+    cursor: undefined,
+    isFiltered: activeCount > 0,
+    activeCount,
+  };
 }
 
 /** The unfiltered table in the same environment, for the rail's clear link. */

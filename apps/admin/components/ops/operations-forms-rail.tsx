@@ -39,6 +39,7 @@ export function OperationsFormsRail({
       subject={t("shell.mode.operations.name")}
       title={t("shell.mode.operations.name")}
       testId="qcms-operations-rail"
+      filterCount={activeCount}
       {...(activeCount > 0
         ? { count: <RailCount>{activeFilterCount(activeCount)}</RailCount> }
         : {})}

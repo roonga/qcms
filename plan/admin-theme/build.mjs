@@ -68,6 +68,43 @@ const ratio = (fg, bg) => {
 // #7AA2FF dark (the values the DS overview and the portal focus ring already
 // use), so primary == focus-ring == info hue, as in the DS (--ring == --primary).
 
+// The environment family. An environment is a PLACE, not a state, so it takes a
+// family of its own rather than borrowing success, warning or danger: a warning
+// hue on the chip said "something is wrong" about an ordinary test environment
+// and left the app with no colour for a real warning beside it
+// (`plan/admin-design-contracts.md` §10).
+const envLight = {
+  "--color-env-prod": "#1e293b",
+  "--color-env-prod-foreground": "#ffffff",
+  "--color-env-test": "#7040c8",
+  "--color-env-test-subtle": "#f3eefc",
+  "--color-env-test-fg": "#5b2fae",
+};
+
+const envDark = {
+  "--color-env-prod": "#cbd5e1",
+  "--color-env-prod-foreground": "#0b0f1a",
+  "--color-env-test": "#b69cff",
+  "--color-env-test-subtle": "#221a38",
+  "--color-env-test-fg": "#d6c8ff",
+};
+
+const envHc = {
+  "--color-env-prod": "#000000",
+  "--color-env-prod-foreground": "#ffffff",
+  "--color-env-test": "#4a1d9e",
+  "--color-env-test-subtle": "#ffffff",
+  "--color-env-test-fg": "#3d1585",
+};
+
+const envDarkHc = {
+  "--color-env-prod": "#ffffff",
+  "--color-env-prod-foreground": "#000000",
+  "--color-env-test": "#cdb8ff",
+  "--color-env-test-subtle": "#000000",
+  "--color-env-test-fg": "#e2d8ff",
+};
+
 const light = {
   "--color-primary": "#2456c6",
   "--color-primary-hover": "#1e4aad",
@@ -106,6 +143,7 @@ const light = {
   "--color-focus-ring": "#2456c6",
   "--color-overlay": "rgb(0 0 0 / 0.5)",
   "--shadow-color": "222deg 30% 20%",
+  ...envLight,
 };
 
 const dark = {
@@ -146,6 +184,7 @@ const dark = {
   "--color-focus-ring": "#7aa2ff",
   "--color-overlay": "rgb(0 0 0 / 0.6)",
   "--shadow-color": "222deg 60% 2%",
+  ...envDark,
 };
 
 // HC: the universal 051 HC mode-layer (carried verbatim from the portal theme
@@ -318,10 +357,25 @@ const modePairs = (t) => [
   [`focus-ring / surface`, t["--color-focus-ring"], t["--color-surface"], 3.0],
   [`primary / surface (link-UI)`, t["--color-primary"], t["--color-surface"], 3.0],
   [`primary / background (topbar active)`, t["--color-primary"], t["--color-background"], 3.0],
+  [`env-prod-fg / env-prod (chip)`, t["--color-env-prod-foreground"], t["--color-env-prod"], 4.5],
+  [
+    `env-test-fg / env-test-subtle (chip)`,
+    t["--color-env-test-fg"],
+    t["--color-env-test-subtle"],
+    4.5,
+  ],
+  [
+    `env-test / env-test-subtle (chip edge)`,
+    t["--color-env-test"],
+    t["--color-env-test-subtle"],
+    3.0,
+  ],
+  [`env-prod / background (bar edge)`, t["--color-env-prod"], t["--color-background"], 3.0],
+  [`env-test / background (bar edge)`, t["--color-env-test"], t["--color-background"], 3.0],
 ];
 
-const hc = { ...hcUniversal, ...hcAccent };
-const darkHc = { ...darkHcUniversal, ...darkHcAccent };
+const hc = { ...hcUniversal, ...hcAccent, ...envHc };
+const darkHc = { ...darkHcUniversal, ...darkHcAccent, ...envDarkHc };
 
 const hcPairs = (t) => [
   [`text / background (AAA)`, t["--color-text"], t["--color-background"], 7.0],
@@ -375,6 +429,20 @@ const hcPairs = (t) => [
   [`focus-ring / background`, t["--color-focus-ring"], t["--color-background"], 3.0],
   [`focus-ring / surface`, t["--color-focus-ring"], t["--color-surface"], 3.0],
   [`primary / surface`, t["--color-primary"], t["--color-surface"], 3.0],
+  [
+    `env-prod-fg / env-prod (chip, AAA)`,
+    t["--color-env-prod-foreground"],
+    t["--color-env-prod"],
+    7.0,
+  ],
+  [
+    `env-test-fg / env-test-subtle (chip, AAA)`,
+    t["--color-env-test-fg"],
+    t["--color-env-test-subtle"],
+    7.0,
+  ],
+  [`env-prod / background (bar edge)`, t["--color-env-prod"], t["--color-background"], 3.0],
+  [`env-test / background (bar edge)`, t["--color-env-test"], t["--color-background"], 3.0],
 ];
 
 // The rule a theme follows for the dark field: an accent that clears AAA against that
@@ -506,18 +574,18 @@ ${indent(block(":root:not(.light):not(.dark):not(.hc)", dark))}
    from the 051 registry so this sheet is self-contained) plus the QCMS app's
    cobalt accent - the accent is the only part the QCMS app contributes, like any
    theme. */
-${block(":root.hc", { ...hcUniversal, ...hcAccent })}
+${block(":root.hc", hc)}
 
 /* High-contrast, the dark field. .dark.hc is (0,3,0) and beats the .hc block
    above on specificity, so it overrides only what the field flips. */
-${block(":root.dark.hc", { ...darkHcUniversal, ...darkHcAccent })}
+${block(":root.dark.hc", darkHc)}
 
 /* High contrast under Auto polarity: the operator chose contrast but left
    polarity to the machine, so the dark field has to be reachable with no .dark
    class to select it. (0,4,0), above the .hc layer and disjoint from the auto
    block at the top, which excludes .hc. */
 @media (prefers-color-scheme: dark) {
-${indent(block(":root.hc:not(.light):not(.dark)", { ...darkHcUniversal, ...darkHcAccent }))}
+${indent(block(":root.hc:not(.light):not(.dark)", darkHc))}
 }
 
 /* The appearance control's preview tiles, which show the three states the

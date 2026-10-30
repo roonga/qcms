@@ -10,9 +10,9 @@
  * member, so at 390 the nav's own items wrap onto further lines and the bar measures 145px
  * against the token's 57px.
  *
- * The environment banner is inside the sticky header, so desktop widths also need the
- * measured height. Both the rail's sticky offset and its height use it to stay below the
- * complete header and within the viewport. `scroll-padding-block-start` also uses it,
+ * The bar also carries a 3px environment edge in Operations, so desktop widths need the
+ * measured height too. Both the rail's sticky offset and its height use it to stay below
+ * the complete header and within the viewport. `scroll-padding-block-start` also uses it,
  * which keeps a control the browser scrolls INTO view
  * from landing underneath the sticky bar (WCAG 2.2 SC 2.4.11 Focus Not Obscured). At 390 it
  * reserved 57px against a 145px bar, so a control focused from further down the page landed
@@ -30,7 +30,8 @@
  *
  * CSS falls back to `--admin-topbar-h`, so the derived value
  * remains the initial fallback. The observer then corrects the rail's geometry to include
- * a banner or wrapped navigation; scroll padding follows the same complete height.
+ * the environment edge or wrapped navigation; scroll padding follows the same complete
+ * height.
  *
  * ## Why this module holds no React import
  *

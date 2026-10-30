@@ -170,14 +170,14 @@ regeneration and `git add` the result rather than merging two sets of counts.
 | `apps/admin/app/two-factor/recovery-codes/`                          | 2     |
 | `apps/admin/app/two-factor/recovery-codes/confirm/`                  | 1     |
 | `apps/admin/app/two-factor/recovery/verify/`                         | 1     |
-| `apps/admin/components/`                                             | 111   |
+| `apps/admin/components/`                                             | 110   |
 | `apps/admin/components/forms/`                                       | 40    |
 | `apps/admin/components/membership/`                                  | 7     |
-| `apps/admin/components/ops/`                                         | 13    |
+| `apps/admin/components/ops/`                                         | 12    |
 | `apps/admin/components/questions/`                                   | 15    |
 | `apps/admin/components/shell/`                                       | 4     |
 | `apps/admin/components/test-support/`                                | 3     |
-| `apps/admin/lib/`                                                    | 105   |
+| `apps/admin/lib/`                                                    | 106   |
 | `apps/admin/lib/forms/`                                              | 29    |
 | `apps/admin/lib/i18n/`                                               | 2     |
 | `apps/admin/lib/membership/`                                         | 2     |
@@ -250,7 +250,7 @@ regeneration and `git add` the result rather than merging two sets of counts.
 
 ### QCMS-internal references in the scaffolded source
 
-`1739` lines across `349` scaffolded files cite a QCMS issue, ADR, SEC control, plan task or repository path.
+`1737` lines across `350` scaffolded files cite a QCMS issue, ADR, SEC control, plan task or repository path.
 
 These are comments, and they stay (issue #457, tier 3). They are the engineering
 rationale for code you now own, which is worth more to you than a tidy file, and
@@ -363,7 +363,6 @@ apps/admin/components/auth-screen.tsx
 apps/admin/components/copy-entity-id.tsx
 apps/admin/components/empty-state.tsx
 apps/admin/components/entity-id.tsx
-apps/admin/components/environment-banner.tsx
 apps/admin/components/environment-scope.tsx
 apps/admin/components/environment-switcher.tsx
 apps/admin/components/forms/agent-provenance-tag.tsx
@@ -423,7 +422,6 @@ apps/admin/components/ops/dead-letters.tsx
 apps/admin/components/ops/delivery-dashboard.tsx
 apps/admin/components/ops/endpoint-proposals.tsx
 apps/admin/components/ops/erasure-elsewhere.tsx
-apps/admin/components/ops/operations-environment.tsx
 apps/admin/components/ops/operations-forms-rail.tsx
 apps/admin/components/ops/operations-forms-table.tsx
 apps/admin/components/ops/ops-tags.tsx
@@ -461,6 +459,7 @@ apps/admin/components/shell/denied-recovery.tsx
 apps/admin/components/shell/mode-header.tsx
 apps/admin/components/shell/my-access-rail.tsx
 apps/admin/components/shell/shell-chrome.tsx
+apps/admin/components/sidebar-toggle.tsx
 apps/admin/components/test-support/git-binary.ts
 apps/admin/components/test-support/jsx-cells.ts
 apps/admin/components/test-support/markup.ts
@@ -570,6 +569,7 @@ apps/admin/lib/settings-panel.ts
 apps/admin/lib/settings-sections.ts
 apps/admin/lib/shell/context.ts
 apps/admin/lib/shell/modes.ts
+apps/admin/lib/sidebar.ts
 apps/admin/lib/time-zone.ts
 apps/admin/lib/topbar.ts
 apps/admin/next.config.ts

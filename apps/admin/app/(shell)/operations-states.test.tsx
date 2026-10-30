@@ -130,8 +130,6 @@ describe("the Operations forms table's states", () => {
 
     expect(html).toContain('data-testid="qcms-denied-recovery"');
     expect(html).not.toContain('data-testid="qcms-operations-table"');
-    // It names nothing it refused, the environment included.
-    expect(html).not.toContain('data-testid="qcms-operations-environment"');
   });
 
   it("renders the alert and nothing else when the discovery read fails", async () => {
@@ -211,15 +209,20 @@ describe("the Operations forms table's states", () => {
     expect(html).toContain("q=in");
   });
 
-  it("names the environment as an address, with the selected one marked", async () => {
+  it("resets the page when the address names an environment the operator has left", async () => {
     capabilities = EVERYTHING;
-    listResult = { status: "ok", page: page([RELEASED]) };
+    listResult = { status: "ok", page: page([RELEASED], "cur2") };
 
-    const html = await render({ env: "test" });
+    // The header's control says `test`; this address was built in `prod`.
+    const html = await render({ env: "prod", q: "in", workspace: "ws_1", cursor: "stale" });
 
-    expect(html).toContain('data-environment="test"');
-    expect(html).toContain('href="/operations?env=prod"');
-    expect(html).toContain('aria-current="true"');
+    // Every link the screen emits names the environment in force, carries the term, and
+    // has dropped both the page position and the workspace filter.
+    expect(html).toContain("env=test");
+    expect(html).not.toContain("env=prod");
+    expect(html).not.toContain("cursor=stale");
+    expect(html).not.toContain("workspace=ws_1");
+    expect(html).toContain("q=in");
   });
 });
 

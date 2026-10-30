@@ -83,25 +83,22 @@ test("a filter narrows the rows below it and changes nothing above them", async 
   );
 });
 
-test("choosing an environment keeps the valid filters and browser back restores the view", async ({
+test("leaving the environment an address names resets the page and keeps the term", async ({
   page,
 }) => {
   await signInWithTotp(page, EMAIL, totpSecret);
-  await page.goto(`/operations?env=test&q=${ALPHA}&cursor=stale`);
+  // The header's control decides the environment, so this address names one the operator
+  // is not in: `createForm` left the selection on `test`.
+  await page.goto(`/operations?env=prod&q=${ALPHA}&cursor=stale`);
+  await waitForHydration(page);
 
-  await page
-    .getByTestId("qcms-operations-environment")
-    .getByRole("link", { name: /prod/u })
-    .click();
+  const chip = page.getByTestId("qcms-mode-header").getByTestId("qcms-environment-switcher");
+  await expect(chip).toHaveAttribute("data-environment", "test");
 
-  await expect(page).toHaveURL(/env=prod/u);
-  // The term survives the change; the page position does not.
-  await expect(page).toHaveURL(new RegExp(`q=${ALPHA}`, "u"));
-  await expect(page).not.toHaveURL(/cursor=/u);
-
-  await page.goBack();
-
-  await expect(page).toHaveURL(/env=test/u);
+  // The term survives; the page position does not, and every link names the environment
+  // in force rather than the one the address asked for.
+  const clear = page.getByTestId("qcms-rail-filters").getByRole("link", { name: "Clear filters" });
+  await expect(clear).toHaveAttribute("href", "/operations?env=test");
   await expect(
     page.getByTestId("qcms-rail-filters").getByRole("textbox", { name: "Search" }),
   ).toHaveValue(ALPHA);

@@ -39,6 +39,7 @@ export function WebhookOpsRail({
       back={{ href: OPERATIONS_PATH, label: t("shell.mode.operations.name") }}
       title={t("ops.area.webhooks.title")}
       testId="qcms-webhooks-rail"
+      filterCount={activeCount}
       {...(activeCount > 0
         ? { count: <RailCount>{activeFilterCount(activeCount)}</RailCount> }
         : {})}

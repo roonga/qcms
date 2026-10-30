@@ -3,7 +3,6 @@ import type { Metadata } from "next";
 
 import { EmptyState } from "@/components/empty-state";
 import { Alert } from "@/components/kit";
-import { OperationsEnvironment } from "@/components/ops/operations-environment";
 import { OperationsFormsTable } from "@/components/ops/operations-forms-table";
 import { DeniedRecovery } from "@/components/shell/denied-recovery";
 import { shownEnvironment } from "@/lib/environment";
@@ -12,6 +11,7 @@ import {
   operationsApiQuery,
   operationsClearHref,
   operationsHref,
+  operationsInEnvironment,
   readOperationsListState,
   type OperationsListState,
 } from "@/lib/ops/operations-forms";
@@ -29,9 +29,10 @@ export function generateMetadata(): Metadata {
 /**
  * Operations: the forms a caller operates in one explicitly chosen environment.
  *
- * The whole view is the address, so the filters, the order, the page position and the
- * environment survive a bookmark, a refresh and browser back, and the `@rail` slot beside
- * this column reads that same address.
+ * The filters, the order and the page position are the address, so a filtered table is a
+ * link, survives a refresh and is restored by browser back; the `@rail` slot beside this
+ * column reads that same address. The environment is the header's own control, and the
+ * address records which one a view was built for so that leaving it resets the page.
  *
  * The capability gate here is what a denied bookmark meets, and it names nothing it
  * refused. It is not the authority: `GET /admin/operations/forms` re-decides per form,
@@ -48,11 +49,13 @@ export default async function OperationsPage({
     return <DeniedRecovery capabilities={capabilities} />;
   }
 
-  const state = readOperationsListState(await searchParams);
   const resolved = await resolvedEnvironment(session);
-  // The address first, then the remembered selection: a convenience for a bare link and
-  // never an authority, since the API decides what the name reaches.
-  const environment = state.environment ?? shownEnvironment(resolved);
+  // One authority for the environment, and it is the header's control rather than the
+  // address: a chip saying `prod` beside a table reading `test` is the disagreement A12
+  // exists to prevent.
+  const environment = shownEnvironment(resolved);
+  const read = readOperationsListState(await searchParams);
+  const state = environment === undefined ? read : operationsInEnvironment(read, environment);
   const result =
     environment === undefined
       ? undefined
@@ -67,14 +70,8 @@ export default async function OperationsPage({
         <p className="text-sm text-(--color-text-muted)">{t("operations.intro")}</p>
       </div>
 
-      {resolved.status === "known" && environment !== undefined ? (
-        <OperationsEnvironment
-          environments={resolved.environments}
-          selected={environment}
-          state={state}
-        />
-      ) : (
-        <Alert variant="warning">{t("environment.unknownBanner")}</Alert>
+      {environment === undefined && (
+        <Alert variant="warning">{t("operations.environmentUnknown")}</Alert>
       )}
 
       {result?.status === "failed" && (
