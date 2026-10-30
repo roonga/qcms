@@ -23,6 +23,8 @@ import {
   permitsMode,
   permitsPath,
   permittedAreas,
+  rememberableMode,
+  SETTINGS_PATH,
   WORKSPACES_PATH,
   type ShellCapabilities,
 } from "./modes.ts";
@@ -53,8 +55,12 @@ describe("the route table resolves the mode", () => {
     expect(declaredMode("/forms/frm_1/responses")).toBe("normal");
     expect(declaredMode("/forms/frm_1/links")).toBe("normal");
     expect(declaredMode("/forms/frm_1/webhooks")).toBe("normal");
-    expect(declaredMode("/responses")).toBe("normal");
-    expect(declaredMode("/webhooks")).toBe("normal");
+  });
+
+  it("puts the global queues and the legacy picker in Operations", () => {
+    expect(declaredMode("/webhooks")).toBe("operations");
+    expect(declaredMode("/responses")).toBe("operations");
+    expect(declaredMode("/responses/erasures")).toBe("operations");
   });
 
   it("matches a whole segment, so a longer name cannot borrow a mode", () => {
@@ -192,9 +198,44 @@ describe("which routes a capability admits", () => {
     expect(permitsPath(NO_CAPABILITIES, "/workspaces/ws_1")).toBe(false);
   });
 
+  it("admits the installation claim to Operations, whose global queues are its own", () => {
+    const claim = capabilities({ siteConfiguration: true });
+    expect(permitsMode(claim, "operations")).toBe(true);
+    expect(permitsPath(claim, OPERATIONS_PATH)).toBe(true);
+    expect(permitsPath(claim, "/webhooks")).toBe(true);
+    expect(permitsPath(claim, "/responses/erasures")).toBe(true);
+  });
+
+  it("does not land the claim in Operations, where it discovers no form", () => {
+    const claim = capabilities({ siteConfiguration: true, workspaces: true });
+    expect(permittedAreas(claim)).toEqual(["workspaces"]);
+    expect(landingPath(claim)).toBe(WORKSPACES_PATH);
+    expect(exitMode("operations", claim)).toBe("workspaces");
+  });
+
+  it("refuses the queues to a caller holding neither cell nor claim", () => {
+    expect(permitsPath(NO_CAPABILITIES, "/webhooks")).toBe(false);
+    expect(permitsPath(NO_CAPABILITIES, "/responses")).toBe(false);
+  });
+
+  it("remembers only a mode the caller may enter, and never a personal route", () => {
+    const authoring = capabilities({ authoring: true });
+    expect(rememberableMode("/questions", authoring)).toBe("normal");
+    expect(rememberableMode(OPERATIONS_PATH, capabilities({ operations: true }))).toBe(
+      "operations",
+    );
+    // A refused mode is not remembered, or a denied bookmark would decide where this
+    // caller's next personal route sits.
+    expect(rememberableMode(OPERATIONS_PATH, authoring)).toBeUndefined();
+    expect(rememberableMode("/webhooks", authoring)).toBeUndefined();
+    expect(rememberableMode(WORKSPACES_PATH, authoring)).toBeUndefined();
+    expect(rememberableMode(SETTINGS_PATH, EVERYTHING)).toBeUndefined();
+    expect(rememberableMode(MY_ACCESS_PATH, EVERYTHING)).toBeUndefined();
+  });
+
   it("gates no normal or personal route, which decide on the server for themselves", () => {
     expect(permitsPath(NO_CAPABILITIES, "/questions")).toBe(true);
-    expect(permitsPath(NO_CAPABILITIES, "/responses")).toBe(true);
+    expect(permitsPath(NO_CAPABILITIES, "/forms/frm_1/responses")).toBe(true);
     expect(permitsPath(NO_CAPABILITIES, "/settings")).toBe(true);
     expect(permitsPath(NO_CAPABILITIES, MY_ACCESS_PATH)).toBe(true);
   });

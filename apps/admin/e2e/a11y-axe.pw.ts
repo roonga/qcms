@@ -1199,9 +1199,9 @@ async function sweepOperations(
     honeypotField: deliverer.honeypotField,
   });
 
-  await page.goto("/responses");
-  await expect(page.getByTestId("qcms-responses-form-list")).toBeVisible();
-  await expectNoViolations(page, "the responses area");
+  await page.goto("/operations");
+  await expect(page.getByTestId("qcms-operations-table")).toBeVisible();
+  await expectNoViolations(page, "the Operations forms table");
 
   await page.goto("/responses/erasures");
   await expect(page.getByRole("heading", { name: "Erasure log" })).toBeVisible();

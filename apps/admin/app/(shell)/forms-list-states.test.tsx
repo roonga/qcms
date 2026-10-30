@@ -3,10 +3,10 @@ import { renderToStaticMarkup } from "react-dom/server";
 import { describe, expect, it, vi } from "vitest";
 
 /**
- * Issue #513: `/responses` and `/webhooks` have **three** states for the form list, and
- * for a while the JSX only distinguished two.
+ * Issue #513: `/webhooks` has **three** states for its form list, and for a while the JSX
+ * only distinguished two.
  *
- * Both screens read the form list through `listForms`, which answers `{ok:false}` on a
+ * The screen reads the form list through `listForms`, which answers `{ok:false}` on a
  * failed read. The old shape was `forms.ok && forms.data.length === 0 ? <p/> : <ul/>`,
  * whose `else` branch catches the failure case as well as the populated one - so a failed
  * read rendered an empty `<ul>` beneath the error alert. A screen reader announces that as
@@ -111,25 +111,12 @@ vi.mock("@/components/ops/dead-letters", () => ({
 /** Any element that announces itself as a list. The whole point of the issue. */
 const LIST_ELEMENT = /<(?:ul|ol)[\s>]/;
 
-async function renderResponses(): Promise<string> {
-  const { default: ResponsesPage } = await import("./responses/page.tsx");
-  // Both screens take `searchParams` now; neither case here sets a filter.
-  return renderToStaticMarkup(await ResponsesPage({ searchParams: Promise.resolve({}) }));
-}
-
 async function renderWebhooks(): Promise<string> {
   const { default: WebhooksPage } = await import("./webhooks/page.tsx");
   return renderToStaticMarkup(await WebhooksPage({ searchParams: Promise.resolve({}) }));
 }
 
 describe.each([
-  {
-    area: "/responses",
-    render: renderResponses,
-    emptyKey: "ops.area.responses.noForms",
-    pickKey: "ops.area.responses.pickForm",
-    failedKey: "ops.area.responses.formsFailed",
-  },
   {
     area: "/webhooks",
     render: renderWebhooks,

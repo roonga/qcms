@@ -84,16 +84,11 @@ describe("the route-to-cap table", () => {
     // Four since My access, which is one panel of the reader's own grants and so takes the
     // account screen's prose width. No POC draws it.
     expect(count("prose")).toBe(4);
-    expect(count("list")).toBe(2);
-    // Two each since task 069's membership screens, and **neither is a drawing**: no POC
-    // draws either, so each takes the cap of the screen it is shaped like - a list and a
-    // reader's own grants at `/responses`' width, and four panels whose widest member is a
-    // six-column log at the erasure log's. The counts are restated here rather than
-    // derived for the reason the comment above gives, and these two are the rows a POC for
-    // either screen corrects first.
-    // Three `ops` since the Operations forms table, which is `/responses`' shape and so
-    // takes its cap until a drawing says otherwise.
-    expect(count("ops")).toBe(3);
+    // `list` is the nearest vocabulary value below the 1120 the Operations table is drawn
+    // at, and `/responses` redirects there.
+    expect(count("list")).toBe(4);
+    // No POC draws `/workspaces`, so it borrows the deployment POC's 900.
+    expect(count("ops")).toBe(1);
     expect(count("log")).toBe(2);
     expect(measures).toHaveLength(23);
   });
@@ -147,13 +142,10 @@ describe("the route-to-cap table", () => {
 
   it("keeps the inner cap where the POC's outer layer is `none`", () => {
     // `deployment-ops-poc.html` caps `.main` at nothing at all (`:229`) and states each of
-    // its three screens separately, so there is no outer number for `<main>` to take and
-    // the per-screen cap issue 657 assigned is the only layer that exists. That is why
-    // issue 668's own closing list names three screens rather than six, and it is asserted
-    // beside the three that moved so the difference reads as a rule rather than an
-    // inconsistency.
-    expect(MEASURE_BY_ROUTE["/responses"]).toBe("ops"); // .ops-inner--responses 900
+    // its screens separately, so there is no outer number for `<main>` to take and the
+    // per-screen cap is the only layer that exists.
     expect(MEASURE_BY_ROUTE["/responses/erasures"]).toBe("log"); // .ops-inner--erasures 1180
+    expect(MEASURE_BY_ROUTE["/workspaces"]).toBe("ops"); // the same file's 900, borrowed
   });
 
   it("leaves the one route whose drawing has no token where it was, rather than guessing", () => {
@@ -207,7 +199,7 @@ describe("resolving a live pathname to a cap", () => {
     expect(measureFor("/questions/new")).toBe("prose");
     expect(measureFor("/questions/q_full_name")).toBe("wide");
     expect(measureFor("/responses/erasures")).toBe("log");
-    expect(measureFor("/responses")).toBe("ops");
+    expect(measureFor("/responses")).toBe("list");
   });
 
   it("keeps a trailing slash and a query-free path meaning the same route", () => {

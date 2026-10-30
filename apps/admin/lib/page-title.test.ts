@@ -38,13 +38,14 @@ import { formSectionName, pageMetadata } from "./page-title.ts";
 const APP = fileURLToPath(new URL("../app", import.meta.url));
 
 /**
- * The one route with no title, and the reason it needs none.
+ * The routes with no title, and the reason neither needs one.
  *
- * `app/page.tsx` renders nothing: it reads the session and `redirect()`s to the shell or
- * to sign-in, so no document it could title is ever produced. Listed rather than pattern-
- * matched, so a second exemption is a line someone writes and a reviewer reads.
+ * Both render nothing: `app/page.tsx` reads the session and `redirect()`s to the shell or
+ * to sign-in, and `/responses` redirects to the Operations forms table. No document either
+ * could title is ever produced. Listed rather than pattern-matched, so a further exemption
+ * is a line someone writes and a reviewer reads.
  */
-const NO_TITLE = ["/"];
+const NO_TITLE = ["/", "/responses"];
 
 /** One screen: the route pattern it answers, and the file that answers it. */
 interface Screen {
@@ -147,8 +148,8 @@ describe("every route titles its own browser tab", () => {
     expect(missing, "these routes would inherit the layout's static title").toEqual([]);
   });
 
-  it("exempts only the redirect, and only while it is still a redirect", () => {
-    // The exemption is spent the moment `/` renders anything, so it is checked rather
+  it("exempts only redirects, and only while each is still a redirect", () => {
+    // An exemption is spent the moment its route renders anything, so it is checked rather
     // than trusted: a landing page arriving under this list would be a screen with no
     // title and no reviewer asked about it.
     for (const screen of screens().filter((candidate) => NO_TITLE.includes(candidate.route))) {

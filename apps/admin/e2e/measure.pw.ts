@@ -125,13 +125,13 @@ function screens(sessionId: string): readonly Screen[] {
     { path: "/questions", cap: "list" },
     { path: `/questions/${QUESTION_ID}`, cap: "wide" },
     { path: "/questions/new", cap: "prose" },
-    // Neither is drawn by a POC, so each takes the cap of the screen it is shaped like:
-    // one panel of the reader's own grants at the account screen's prose width, and the
-    // forms table a caller operates at `/responses`'s. `lib/measure.ts` carries the same
-    // reading.
+    // My access is drawn by no POC and takes the account screen's prose width. The
+    // Operations table IS drawn, at 1120, and takes the nearest value below it; `/responses`
+    // redirects there, so it is measured as the column it lands on. `lib/measure.ts`
+    // carries the same reading.
     { path: "/me/access", cap: "prose" },
-    { path: "/operations", cap: "ops" },
-    { path: "/responses", cap: "ops" },
+    { path: "/operations", cap: "list" },
+    { path: "/responses", cap: "list" },
     { path: "/responses/erasures", cap: "log" },
     { path: "/settings", cap: "prose" },
     { path: "/webhooks", cap: "wide" },
@@ -384,8 +384,12 @@ test("648 puts the wordmark, the nav and the content column on one left edge, at
   //
   // The column starts at the rail's edge rather than the viewport's, so each track's edge is
   // compared with its own origin: the bar's with the page edge, the column's with the rail.
-  await setScreenEnvironment(page, "/webhooks");
-  await page.goto("/webhooks");
+  //
+  // A NORMAL-MODE screen, because the trailing group below is located through the bar's
+  // `<nav>`: a focused mode renders its own header in place of that navigation, so the
+  // query would find nothing and every edge would read `NaN`.
+  await setScreenEnvironment(page, "/questions");
+  await page.goto("/questions");
   await expect(page.locator(".qcms-rail")).toHaveCount(1);
 
   const edges = await page.evaluate(() => {

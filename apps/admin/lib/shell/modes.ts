@@ -39,10 +39,10 @@ interface ModeDefinition {
   /** Whether the mode hides the normal application menus. */
   readonly focused: boolean;
   /**
-   * The capability a caller needs to enter the mode deliberately. `undefined` on normal,
-   * which is not an area a caller is admitted to: its routes decide for themselves.
+   * The capabilities that admit a caller, any one of them. Empty on normal, which is not
+   * an area a caller is admitted to: its routes decide for themselves.
    */
-  readonly capability: keyof ShellCapabilities | undefined;
+  readonly capabilities: readonly (keyof ShellCapabilities)[];
   /** Route prefixes the mode owns. The longest match wins. */
   readonly routes: readonly string[];
 }
@@ -52,25 +52,24 @@ const DEFINITIONS: readonly ModeDefinition[] = [
     mode: "operations",
     landing: OPERATIONS_PATH,
     focused: true,
-    capability: "operations",
-    // `/webhooks` and `/responses` join this mode with the forms table that replaces the
-    // picker. A route moved into a focused mode before anything in it links there is a
-    // screen nobody can reach.
-    routes: [OPERATIONS_PATH],
+    // The installation claim holds no operational cell and so discovers no form, but the
+    // two global queues below are its own destinations, so it is admitted to the mode.
+    capabilities: ["operations", "siteConfiguration"],
+    routes: [OPERATIONS_PATH, "/responses", "/webhooks"],
   },
   {
     mode: "workspaces",
     landing: WORKSPACES_PATH,
     focused: true,
-    capability: "workspaces",
+    capabilities: ["workspaces"],
     routes: [WORKSPACES_PATH],
   },
   {
     mode: "normal",
     landing: AUTHORING_PATH,
     focused: false,
-    capability: undefined,
-    routes: ["/questions", "/forms", "/responses", "/webhooks"],
+    capabilities: [],
+    routes: ["/questions", "/forms"],
   },
 ];
 
@@ -150,6 +149,8 @@ export function landingPathForMode(mode: ShellMode): string {
 export function permittedAreas(capabilities: ShellCapabilities): readonly ShellMode[] {
   const areas: ShellMode[] = [];
   if (capabilities.authoring) areas.push("normal");
+  // The real operational cells, not the admission rule: the installation claim discovers
+  // no form, so landing it on an empty table would be a worse answer than its own area.
   if (capabilities.operations) areas.push("operations");
   if (capabilities.workspaces) areas.push("workspaces");
   return areas;
@@ -157,9 +158,9 @@ export function permittedAreas(capabilities: ShellCapabilities): readonly ShellM
 
 /** Whether a caller may deliberately enter the mode. */
 export function permitsMode(capabilities: ShellCapabilities, mode: ShellMode): boolean {
-  const capability = definitionFor(mode).capability;
-  if (capability === undefined) return true;
-  return capabilities[capability];
+  const admitting = definitionFor(mode).capabilities;
+  if (admitting.length === 0) return true;
+  return admitting.some((capability) => capabilities[capability]);
 }
 
 /**
@@ -183,6 +184,22 @@ export function landingPath(capabilities: ShellCapabilities): string {
  */
 export function exitMode(from: ShellMode, capabilities: ShellCapabilities): ShellMode | undefined {
   return permittedAreas(capabilities).find((area) => area !== from);
+}
+
+/**
+ * The mode this route is worth remembering as, or `undefined` for one that is not.
+ *
+ * A personal route declares none, which is what lets it stay inside the mode it was opened
+ * from. A mode the caller may not enter is never remembered either, or a denied bookmark
+ * would decide where their next personal route sits.
+ */
+export function rememberableMode(
+  pathname: string,
+  capabilities: ShellCapabilities,
+): ShellMode | undefined {
+  const declared = declaredMode(pathname);
+  if (declared === undefined) return undefined;
+  return permitsMode(capabilities, declared) ? declared : undefined;
 }
 
 /**

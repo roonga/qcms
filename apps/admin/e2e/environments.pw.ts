@@ -53,7 +53,8 @@ test.beforeAll(async () => {
 
 /** Normal-mode screens, which carry no environment context at all. */
 function normalScreens(): readonly string[] {
-  return ["/questions", "/forms", "/responses", "/settings"];
+  // Not `/responses`: it redirects into Operations, which carries the chip.
+  return ["/questions", "/forms", "/settings"];
 }
 
 /** The chip's drawn state and the bar's edge, read off the live computed values. */

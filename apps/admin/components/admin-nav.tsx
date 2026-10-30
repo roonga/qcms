@@ -7,6 +7,7 @@ import { t } from "@/lib/i18n/en";
 import {
   AUTHORING_PATH,
   OPERATIONS_PATH,
+  permitsMode,
   WORKSPACES_PATH,
   type ShellCapabilities,
 } from "@/lib/shell/modes";
@@ -29,10 +30,6 @@ import {
 const ITEMS = [
   { href: AUTHORING_PATH, label: t("nav.questions"), area: "authoring" },
   { href: "/forms", label: t("nav.forms"), area: "authoring" },
-  // The two global operational screens, until the forms table that replaces the picker
-  // moves them into the Operations mode.
-  { href: "/responses", label: t("nav.responses"), area: undefined },
-  { href: "/webhooks", label: t("nav.webhooks"), area: undefined },
 ] as const;
 
 /** Entering it replaces the menus above rather than joining them, so it is drawn apart. */
@@ -67,7 +64,7 @@ function NavLink({
 
 export function AdminNav({ capabilities }: { readonly capabilities: ShellCapabilities }) {
   const pathname = usePathname();
-  const items = ITEMS.filter((item) => item.area === undefined || capabilities[item.area]);
+  const items = ITEMS.filter((item) => capabilities[item.area]);
 
   return (
     <nav aria-label={t("nav.label")}>
@@ -82,7 +79,7 @@ export function AdminNav({ capabilities }: { readonly capabilities: ShellCapabil
             <NavLink href={WORKSPACES_PATH} label={t("nav.workspaces")} pathname={pathname} />
           </li>
         )}
-        {capabilities[SEPARATED.area] && (
+        {permitsMode(capabilities, SEPARATED.area) && (
           <li className="qcms-nav__separated">
             <NavLink href={SEPARATED.href} label={SEPARATED.label} pathname={pathname} />
           </li>

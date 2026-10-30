@@ -6,20 +6,19 @@ import { enrollNewAdmin, signInWithTotp } from "./support/flow.js";
 import { waitForHydration } from "./support/hydration.js";
 
 /**
- * The shell's modes in a browser: what each caller's navigation offers, where they land,
- * and what a bookmark into an area they do not hold renders.
+ * The shell's modes in a browser: what each caller's navigation offers, and where they
+ * land.
  *
  * # What only a browser can report
  *
  * The rules themselves are unit-tested in `lib/shell/modes.test.ts`, exhaustively and
- * without a database. Three facts are not available there:
+ * without a database. Two facts are not available there:
  *
  *   - a focused mode renders its own header **in place of** the application navigation, so
- *     the normal menus are absent from the document rather than styled away;
- *   - `/` resolves to a different area per caller, which is a redirect chain; and
- *   - a denied bookmark renders a recovery that names nothing it refused.
+ *     the normal menus are absent from the document rather than styled away; and
+ *   - `/` resolves to a different area per caller, which is a redirect chain.
  *
- * # Why one persona's landing is not asserted here
+ * # Why one persona's landing, and the denied bookmark, are not asserted here
  *
  * Every account this harness creates holds the installation claim: `role` defaults to
  * `admin` in the auth instance, and the claim resolves as a `forms.owner` grant, which
@@ -27,6 +26,11 @@ import { waitForHydration } from "./support/hydration.js";
  * no-grant landing on My access is asserted in the unit suite instead. The personas below
  * differ in the capabilities the harness can actually vary: authoring and operations come
  * from seeded access groups.
+ *
+ * Since the claim admits a caller to Operations, whose two global queues are its own
+ * destinations, no persona here is refused a focused mode either. `permitsPath` and the
+ * refusal's recovery are covered by `lib/shell/modes.test.ts` and
+ * `app/(shell)/operations-states.test.tsx`.
  */
 
 test.describe.configure({ mode: "serial" });
@@ -171,22 +175,22 @@ test("a workspace-only caller lands in Workspaces with no Exit at all", async ({
   await expect(page.getByRole("link", { name: "Questions" })).toHaveCount(0);
 });
 
-test("a denied bookmark offers a permitted route and names nothing it refused", async ({
+test("a caller holding only the claim gets the queues, no form rows and no names", async ({
   page,
 }) => {
   await signInWithTotp(page, WORKSPACES_ONLY, workspacesSecret, /\/workspaces$/);
 
   await page.goto("/operations");
 
-  const denied = page.getByTestId("qcms-denied-recovery");
-  await expect(denied).toBeVisible();
-  await expect(
-    page.getByRole("heading", { level: 1, name: "You do not have access to this area" }),
-  ).toBeVisible();
-  await expect(denied.getByRole("link", { name: "Go to an area you can use" })).toBeVisible();
-  await expect(denied.getByRole("link", { name: "See what you can access" })).toBeVisible();
+  // Decision 3's installation-claim row: no form is discovered, and the two global queues
+  // are its own destinations.
+  await expect(page.getByTestId("qcms-operations-empty")).toBeVisible();
+  await expect(page.getByTestId("qcms-operations-table")).toHaveCount(0);
+  const rail = page.getByTestId("qcms-operations-rail");
+  await expect(rail.getByRole("link", { name: "Delivery failures" })).toBeVisible();
+  await expect(rail.getByRole("link", { name: "Erasure log" })).toBeVisible();
 
-  // The leak this guards is a refusal that resolves an identifier to a title.
+  // The leak this guards is an empty answer that resolves an identifier to a title.
   const body = (await page.locator("body").textContent()) ?? "";
   expect(body).not.toContain("org_default_workspace");
   expect(body).not.toContain("frm_");
@@ -200,19 +204,6 @@ test("a rejected workspace bookmark still has All workspaces", async ({ page }) 
   await expect(page.getByText("No such workspace, or you do not manage it")).toBeVisible();
   await page.getByRole("link", { name: "All workspaces" }).click();
   await expect(page).toHaveURL(/\/workspaces$/);
-});
-
-test("a denied bookmark is not remembered as the mode a personal route sits in", async ({
-  page,
-}) => {
-  await signInWithTotp(page, WORKSPACES_ONLY, workspacesSecret, /\/workspaces$/);
-
-  await page.goto("/operations");
-  await expect(page.getByTestId("qcms-denied-recovery")).toBeVisible();
-
-  await page.goto("/settings");
-  // Operations was refused, so it is not what Settings is standing inside.
-  await expect(page.getByTestId("qcms-mode-header")).not.toHaveAttribute("data-mode", "operations");
 });
 
 test("the root lands an authoring caller in authoring, whatever a mode remembered", async ({
