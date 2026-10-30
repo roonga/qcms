@@ -151,23 +151,23 @@ test("puts the button first in the trailing group on every shell screen, and on 
     await expect(button(page), `${path} carries the assistant button`).toBeVisible();
     await expect.soft(button(page), `${path} carries exactly one`).toHaveCount(1);
 
-    // First in the trailing group, and before the account control. Measured by document
-    // order inside the group rather than by x, because the bar wraps at narrow widths and
-    // an x comparison would then be reading two different rows (issue #1011).
-    const order = await page.evaluate(() => {
-      // The group is the account control's own parent: `header .flex-shrink-0` also
-      // matches the wordmark, which is a sibling of the whole group rather than part of it.
-      const group = document.querySelector('[data-testid="account-menu"]')?.parentElement;
-      const children = [...(group?.children ?? [])];
-      const entry = children.findIndex((child) =>
-        child.querySelector('[data-testid="qcms-assistant-button"]'),
-      );
-      const account = children.findIndex((child) => child.matches('[data-testid="account-menu"]'));
-      return { entry, account, inGroup: entry !== -1 };
-    });
-    expect(order.inGroup, `${path} puts the button in the trailing group`).toBe(true);
-    expect(order.entry, `${path} puts it first in that group`).toBe(0);
-    expect(order.entry, `${path} puts it before the account control`).toBeLessThan(order.account);
+    // First in the trailing group, which is also what puts it before the account control:
+    // both are children of that one group. Document order rather than x, because the bar
+    // wraps at narrow widths and an x comparison would be reading two rows (issue #1011).
+    //
+    // The group is the account control's own parent, because `header .flex-shrink-0` also
+    // matches the wordmark, which is a sibling of the whole group rather than part of it.
+    // Asserted with locators rather than `page.evaluate`, so a navigation the admin makes
+    // mid-walk retries instead of destroying the execution context under the read.
+    const group = page.locator('[data-testid="account-menu"]').locator("xpath=..");
+    await expect(
+      group.locator(':scope > *:first-child [data-testid="qcms-assistant-button"]'),
+      `${path} puts the button first in the top bar's trailing group`,
+    ).toHaveCount(1);
+    await expect(
+      group.locator(':scope > [data-testid="account-menu"]'),
+      `${path} keeps the account control in that same group`,
+    ).toHaveCount(1);
 
     // Retired with the dock (issue #1133): no corner launcher anywhere.
     await expect
