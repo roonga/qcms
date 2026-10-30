@@ -13,6 +13,8 @@ It is the phase that makes the "no answers" property hold for every screen rathe
 
 Principle point 5 (everywhere, the same principle on every screen) and point 4 (response metadata may flow, answers may not). **Q2** (`Alt+Shift+A`, ruled by the Code Owner directly). **Q18** (the launcher on every screen, Settings included). **Q15** (memory only; nothing in `localStorage` or `sessionStorage`, because sign-out does not clear tab storage). **Q19** (one limiter key, 10 turns per minute per user, across every assist route). **Q10** (an agent read that the screen audits writes the same SEC-15 `read` row). **Q11** (staff names and emails may go to the provider). Section 1.4 (no launcher outside `(shell)`: there is no signed-in user to act for). Section 4.2's table decides the modes and their geometry; `plan/admin-mobile-stance.md` names the two breakpoints, and the sheet is the mode below `--bp-sidebar`.
 
+Code Owner, 2026-10-31: the form detail response gains a write capability for the builder's assistant; the deprecated `workflow.canEdit` is not read for it.
+
 ## Deliverables
 
 **Admin: the top-bar button and the panel.**

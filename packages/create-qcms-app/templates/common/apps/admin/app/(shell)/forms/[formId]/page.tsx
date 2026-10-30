@@ -207,9 +207,7 @@ export default async function FormBuilderPage({
           ? {
               assist: {
                 endpoint: `/forms/${encodeURIComponent(form.formId)}/assist`,
-                // The caller's own `form: write`, which this screen already reads to decide
-                // whether it renders the builder at all.
-                canPropose: form.workflow?.canEdit !== false,
+                canPropose: form.canWriteDraft,
               },
             }
           : {})}

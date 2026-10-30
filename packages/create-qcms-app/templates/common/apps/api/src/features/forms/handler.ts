@@ -696,6 +696,7 @@ export function makeGetFormHandler(deps: Deps): RouteHandler<typeof getFormRoute
         },
         challengeEnforceable: challengeEnforceable(deps.config.flags),
         requiresSecondApprover: workspace?.requireSecondApprover ?? false,
+        canWriteDraft: allows("form", "write"),
         workflow,
       },
       200,

@@ -26,3 +26,6 @@ launcher and no float mode.
   the panel reaches `localStorage` or `sessionStorage`.
 - A second BFF route, `POST /assist`, for screens with no form in their route, carrying the
   session gate and SEC-9's origin belt and answering 404 with the flag off.
+- `GET /admin/forms/{id}` answers `canWriteDraft`, the caller's own `form: write` on that
+  form in the request's environment. The builder reads it to decide whether its assistant
+  may propose, in place of the deprecated `workflow.canEdit`.

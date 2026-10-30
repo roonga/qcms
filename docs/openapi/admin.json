@@ -534,6 +534,10 @@
             "type": "boolean",
             "example": false
           },
+          "canWriteDraft": {
+            "type": "boolean",
+            "example": true
+          },
           "workflow": {
             "type": "object",
             "properties": {
@@ -599,6 +603,7 @@
           "settings",
           "challengeEnforceable",
           "requiresSecondApprover",
+          "canWriteDraft",
           "workflow"
         ]
       },

@@ -3,11 +3,15 @@ import { describe, expect, it } from "vitest";
 import { InMemoryRateLimitStore } from "../../../rate-limit.js";
 import { auditedRead, type ScreenBuildInput } from "./support.js";
 
-function inputWith(store: InMemoryRateLimitStore, conversationId = "cnv_1"): ScreenBuildInput {
+function inputWith(
+  store: InMemoryRateLimitStore,
+  conversationId = "cnv_1",
+  environment = "prod",
+): ScreenBuildInput {
   return {
     deps: { rateLimitStore: store } as unknown as ScreenBuildInput["deps"],
     principal: { userId: "usr_1", claim: false },
-    environment: "prod",
+    environment,
     params: {},
     conversationId,
   };
@@ -102,5 +106,18 @@ describe("auditedRead", () => {
     await auditedRead(inputWith(shared), "list:frm_a:[1,null,null,null]", record);
     await auditedRead(inputWith(shared, "cnv_2"), "list:frm_a:[]", record);
     expect(asked).toEqual([true, true, true]);
+  });
+
+  it("asks for a row in each environment the one conversation reads the subject in", async () => {
+    const shared = store();
+    const asked: boolean[] = [];
+    const record = (audit: boolean): Promise<undefined> => {
+      asked.push(audit);
+      return Promise.resolve(undefined);
+    };
+    await auditedRead(inputWith(shared, "cnv_1", "test"), "list:frm_a:[]", record);
+    await auditedRead(inputWith(shared, "cnv_1", "prod"), "list:frm_a:[]", record);
+    await auditedRead(inputWith(shared, "cnv_1", "prod"), "list:frm_a:[]", record);
+    expect(asked).toEqual([true, true, false]);
   });
 });

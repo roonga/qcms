@@ -168,6 +168,9 @@ export const getForm: (session: AdminSession, formId: string) => Promise<ApiResu
         // a build talking to a pre-070 API shows no rule rather than claiming one the API
         // will not enforce.
         requiresSecondApprover: raw["requiresSecondApprover"] === true,
+        // Defaults towards **off** for the same reason: no write offered that the API would
+        // refuse.
+        canWriteDraft: raw["canWriteDraft"] === true,
         ...readWorkflow(raw["workflow"]),
       },
     };

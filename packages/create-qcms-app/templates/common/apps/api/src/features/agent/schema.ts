@@ -8,11 +8,6 @@ export const AssistTurnBody = z.strictObject({
 });
 
 /**
- * A screen id and the route's own ids, and nothing else. The browser never sends context
- * content, so a tampered client cannot hand the model something its screen would not show
- * (SEC-17).
- */
-/**
  * A filter date the response query can use. Parsed here because `new Date` on an
  * unparsable string reaches the query as `Invalid Date` and fails as a 500.
  */
@@ -21,6 +16,11 @@ const FilterDate = z
   .max(40)
   .refine((value) => !Number.isNaN(Date.parse(value)), { message: "Not a date" });
 
+/**
+ * A screen id and the route's own ids, and nothing else. The browser never sends context
+ * content, so a tampered client cannot hand the model something its screen would not show
+ * (SEC-17).
+ */
 const ScreenParamsBody = z.strictObject({
   formId: z.string().max(200).optional(),
   questionId: z.string().max(200).optional(),

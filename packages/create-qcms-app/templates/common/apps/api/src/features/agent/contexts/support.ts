@@ -195,37 +195,48 @@ export async function workspacesHolding(
 /** How long one conversation's audited-read claims live. */
 const CONVERSATION_WINDOW_MS = 12 * 60 * 60 * 1_000;
 
-/** The claims open in this process, keyed as the limiter keys them. */
-const openClaims = new Map<string, Promise<unknown>>();
+/**
+ * One in-flight audited read. The claim is held by this token rather than by the promise
+ * itself, so taking it back out of the map never compares promise values.
+ */
+interface OpenClaim {
+  readonly done: Promise<unknown>;
+}
 
-const settled = (): undefined => undefined;
+/** The claims open in this process, keyed as the limiter keys them. */
+const openClaims = new Map<string, OpenClaim>();
+
+const ignore = (): undefined => undefined;
 
 /**
  * Run an audited read, telling it whether it owes SEC-15 a `read` row: the conversation's
- * first turn on this subject does, later ones do not. A failed read releases the claim,
- * and a turn that would skip the row waits for an open claim first, so two concurrent
- * turns cannot leave the subject with no row at all; releasing can only ever add rows.
+ * first turn on this subject does, later ones do not. The key carries the environment, so
+ * the same subject read in `test` and then in `prod` owes a row in each. A failed read
+ * releases the claim, and a turn that would skip the row waits for an open claim first, so
+ * two concurrent turns cannot leave the subject with no row at all; releasing can only ever
+ * add rows.
  */
 export async function auditedRead<T>(
   input: ScreenBuildInput,
   subject: string,
   run: (audit: boolean) => Promise<T>,
 ): Promise<T> {
-  const key = `agent-read:${input.principal.userId}:${input.conversationId}:${subject}`;
+  const key = `agent-read:${input.principal.userId}:${input.environment}:${input.conversationId}:${subject}`;
   let open = openClaims.get(key);
   while (open !== undefined) {
-    await open.then(settled, settled);
+    await open.done.then(ignore, ignore);
     if (openClaims.get(key) === open) openClaims.delete(key);
     open = openClaims.get(key);
   }
   // Registered before its own first await, so a turn arriving later cannot pass the wait
   // above and then race this one for the claim.
   const attempt = claimed(input, key, run);
-  openClaims.set(key, attempt);
+  const claim: OpenClaim = { done: attempt };
+  openClaims.set(key, claim);
   try {
     return await attempt;
   } finally {
-    if (openClaims.get(key) === attempt) openClaims.delete(key);
+    if (openClaims.get(key) === claim) openClaims.delete(key);
   }
 }
 

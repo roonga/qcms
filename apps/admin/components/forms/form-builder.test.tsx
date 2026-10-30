@@ -77,6 +77,7 @@ const DETAIL: FormDetail = {
   draftAgentAssisted: false,
   draftUpdatedAt: null,
   requiresSecondApprover: false,
+  canWriteDraft: true,
 };
 
 /** The builder's non-assist props, none of which this file is about. */
