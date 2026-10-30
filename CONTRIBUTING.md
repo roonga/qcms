@@ -22,7 +22,7 @@ What is deliberately **not** proposed is relaxing "write to `main`" so that exec
 
 ## Development environment
 
-**The dev container is the recommended path (ADR-29).** It is the canonical, tested environment: one preinstalled Ubuntu 24.04 box with Node 24, pnpm (from the `packageManager` pin), Docker access, the GitHub CLI, Playwright's Chromium, and a configured zsh. Running the host toolchain directly still works and is fully supported; the container just removes the "works on my machine" class of problem. **On Windows, the container or WSL2 is the supported path** (Docker Desktop or Codespaces) rather than a native-PowerShell checkout. A native Windows checkout runs `pnpm verify` and nothing heavier: `verify:browser`, `verify:browser:detached`/`:wait` and `up:e2e` need POSIX sessions, process groups and `/proc`, and the detached runner refuses to start on `win32` rather than failing on a missing `setsid`. Read [`docs/DEVELOPER_GUIDE.md`](docs/DEVELOPER_GUIDE.md#windows-and-wsl) ("Windows and WSL") before running a gate from Windows, including the shared-seat rule and the stray-quote `Path` trap.
+**The dev container is the recommended path (ADR-29).** It is the canonical, tested environment: one preinstalled Ubuntu 24.04 box with Node 24, pnpm (from the `packageManager` pin), Docker access, the GitHub CLI, Playwright's Chromium, and a configured zsh. Running the host toolchain directly still works and is fully supported; the container just removes the "works on my machine" class of problem. **On Windows, the container or WSL2 is the supported path** (Docker Desktop or Codespaces) rather than a native-PowerShell checkout. A native Windows checkout runs `pnpm verify` and nothing heavier: `verify:browser`, `verify:browser:detached`/`:wait`, `up:e2e` and `test:e2e` need POSIX sessions, process groups and `/proc`, and each one **refuses to start on `win32`** rather than failing on a missing `setsid` or, worse, running with a port-seat guard that the absence of `/proc` has made inert (issue #1138). `pnpm docker:up` and `docker:down` are the exception and stay available there, because they manage the stack and run no suite (Code Owner, 2026-10-30). Read [`docs/DEVELOPER_GUIDE.md`](docs/DEVELOPER_GUIDE.md#windows-and-wsl) ("Windows and WSL") before running a gate from Windows, including the shared-seat rule and the stray-quote `Path` trap.
 
 **Prerequisites:** Docker (Docker Desktop, or Docker Engine under WSL2/Linux) and either the VS Code **Dev Containers** extension or the `@devcontainers/cli`.
 
@@ -307,6 +307,11 @@ So: **one lane, one directory, and no log is evidence unless the command that wr
 dir=$(node scripts/agent-scratch.mjs)              # this lane's directory, created
 log=$(node scripts/agent-scratch.mjs verify.log)   # a path in it, leftovers removed
 pnpm verify > "$log" 2>&1; rc=$?; echo "EXIT=$rc"
+
+# Later in the same lane, to READ that log again. Without --path this call would
+# delete the very file it is being asked for.
+log=$(node scripts/agent-scratch.mjs --path verify.log)
+tail -40 "$log"
 ```
 
 The lane is keyed on the branch, because the branch **is** the claim (see "Git and PR rules" below), so exactly one executor owns it. A second agent working the same branch - a reviewer running the gates independently while its executor still runs them - takes its own lane rather than sharing the directory and reproducing the same collision inside one branch:
@@ -316,6 +321,8 @@ log=$(node scripts/agent-scratch.mjs --lane fix-396-scratchpad-review verify.log
 ```
 
 **Pass the lane as an argument, not as an environment prefix.** The obvious one-liner - `QCMS_AGENT_LANE=<branch>-review log=...` with the helper in a command substitution - does not work, in bash or in zsh: a simple command that is only assignments sets its variables in the current shell **without exporting them**, so the substitution runs without the variable and falls back to the branch, which is the executor's lane. The failure is silent and it is worse than plain sharing, because asking for a named file removes what is already there: the reviewer would delete the executor's in-progress `verify.log`. `QCMS_AGENT_LANE` is still honoured when it is genuinely exported (`export QCMS_AGENT_LANE=...`, or a prefix on a command that runs the script directly); `--lane` is the spelling that cannot be got wrong, and `scripts/agent-scratch.test.ts` pins both halves. Asking for a named file also removes anything already at that path, so a log read back after the command that should have written it either holds this run's output or does not exist. Not existing is a clear failure; a previous run's contents is not.
+
+**The removal is why a second call for the same name needs `--path`.** The default is a write path, made fresh; `--path` is the same path resolved and left alone. So the rule is one plain call per file, at the point the file is created, and `--path` everywhere the name is mentioned again - reading the log back, printing a tail, passing it to a later command. Two plain calls for one name destroy the first call's output, and the gate result that went with it.
 
 **That directory is scratch, and scratch does not survive a reset** (issue #933). `scripts/agent-scratch.mjs` roots the lane directory at the platform temp directory unless `QCMS_AGENT_SCRATCH_ROOT` says otherwise, so a reboot or a harness reset takes every captured rc file, log and draft with it: a wipe on 2026-09-13 cost one lane two full `verify` cycles re-deriving results it had already paid for, while a lane that lost its directory to three usage-limit restarts kept everything it had committed. The rule that follows is not to move the directory but to stop relying on it across a turn boundary: **anything a resumed lane has to be able to read is a commit on its branch**, and the lane directory holds only the evidence for the turn that is running.
 

@@ -20,6 +20,7 @@ import {
   EXIT_RUNNER_KILLED,
   EXIT_RUNNER_VANISHED,
   EXIT_STILL_RUNNING,
+  EXIT_STOP_INCOMPLETE,
   EXIT_SUITE_SIGNALLED,
   EXIT_USAGE,
   RUN_FILES,
@@ -37,7 +38,9 @@ import {
   readRc,
   readSuiteGroup,
   relayedSignal,
+  SUPERVISOR_ARGV_MARK,
   releaseLines,
+  stopRun,
   signalProvenance,
   startDetached,
   tailLines,
@@ -165,6 +168,143 @@ async function until(condition: () => boolean, timeoutMs = 10_000): Promise<void
   }
 }
 
+describe("stopRun", () => {
+  it(
+    "signals the recorded runner, which releases the seat and records its rc",
+    async () => {
+      const directory = temporaryDirectory();
+      supervise(directory, SLEEPER);
+      await until(() => readPid(join(directory, RUN_FILES.pid)) !== undefined);
+      const lines: string[] = [];
+      const code = await stopRun({
+        directory,
+        pollMs: 25,
+        timeoutMs: 20_000,
+        out: (line) => lines.push(line),
+      });
+      expect(code).toBe(0);
+      const printed = lines.join("\n");
+      expect(printed).toContain("signalling the runner");
+      expect(printed).toContain("The seat is released");
+      expect(readRc(join(directory, RUN_FILES.rc))?.signalled).toBe(true);
+    },
+    SPAWN_BUDGET_MS,
+  );
+
+  it("reads the rc before the pid, so a recycled pid is never signalled", async () => {
+    // A finished run leaves its pid file. If the kernel has handed that number to
+    // somebody else, signalling it first and reading the old rc afterwards reports a
+    // clean stop for a process this lane never owned.
+    const directory = temporaryDirectory();
+    writeFileSync(join(directory, RUN_FILES.pid), "4242' + esc + '", "utf8");
+    writeFileSync(join(directory, RUN_FILES.rc), "EXIT=0' + esc + '", "utf8");
+    const signalled: number[] = [];
+    const code = await stopRun({
+      directory,
+      alive: () => true,
+      kill: (pid) => signalled.push(pid),
+      out: () => {},
+    });
+    expect(code).toBe(0);
+    expect(signalled, "a live recycled pid must not be signalled").toEqual([]);
+  });
+
+  it("refuses a live pid whose argv is not this lane's runner", async () => {
+    const directory = temporaryDirectory();
+    writeFileSync(join(directory, RUN_FILES.pid), "4242' + esc + '", "utf8");
+    const lines: string[] = [];
+    const signalled: number[] = [];
+    const code = await stopRun({
+      directory,
+      alive: () => true,
+      commandLine: () => "/usr/bin/postgres -D /var/lib/postgresql/data",
+      kill: (pid) => signalled.push(pid),
+      out: (line) => lines.push(line),
+    });
+    expect(code).toBe(EXIT_STOP_INCOMPLETE);
+    expect(signalled).toEqual([]);
+    expect(lines.join("' + esc + '")).toContain("was not confirmed as this lane's detached runner");
+    expect(lines.join("' + esc + '")).toContain("postgres");
+  });
+
+  it("refuses a live pid whose argv cannot be read at all", async () => {
+    const directory = temporaryDirectory();
+    writeFileSync(join(directory, RUN_FILES.pid), "4242' + esc + '", "utf8");
+    const signalled: number[] = [];
+    const lines: string[] = [];
+    const code = await stopRun({
+      directory,
+      alive: () => true,
+      commandLine: () => undefined,
+      kill: (pid) => signalled.push(pid),
+      out: (line) => lines.push(line),
+    });
+    expect(code).toBe(EXIT_STOP_INCOMPLETE);
+    expect(signalled).toEqual([]);
+    expect(lines.join("' + esc + '")).toContain("could not be read");
+  });
+
+  it("reports a finished run rather than signalling anything", async () => {
+    const directory = temporaryDirectory();
+    writeFileSync(join(directory, RUN_FILES.rc), "EXIT=0\n", "utf8");
+    const lines: string[] = [];
+    const signalled: number[] = [];
+    const code = await stopRun({
+      directory,
+      out: (line) => lines.push(line),
+      kill: (pid) => signalled.push(pid),
+    });
+    expect(code).toBe(0);
+    expect(signalled).toEqual([]);
+    expect(lines.join("\n")).toContain("already finished");
+  });
+
+  it("refuses a directory holding no run", async () => {
+    const lines: string[] = [];
+    const code = await stopRun({
+      directory: temporaryDirectory(),
+      out: (line) => lines.push(line),
+    });
+    expect(code).toBe(EXIT_USAGE);
+    expect(lines.join("\n")).toContain("no detached browser run recorded");
+  });
+
+  it("signals the recorded suite group when the runner was SIGKILLed", async () => {
+    const directory = temporaryDirectory();
+    writeFileSync(join(directory, RUN_FILES.pid), "4242\nsuite_group=4243\n", "utf8");
+    const lines: string[] = [];
+    const signalled: number[] = [];
+    const code = await stopRun({
+      directory,
+      alive: () => false,
+      kill: (pid) => signalled.push(pid),
+      out: (line) => lines.push(line),
+    });
+    expect(code).toBe(EXIT_STOP_INCOMPLETE);
+    // The group, negated, and never the dead runner pid.
+    expect(signalled).toEqual([-4243, -4243]);
+    expect(lines.join("\n")).toContain("SIGKILLed");
+  });
+
+  it("gives up with a bounded message when the runner ignores the signal", async () => {
+    const directory = temporaryDirectory();
+    writeFileSync(join(directory, RUN_FILES.pid), "4242\n", "utf8");
+    const lines: string[] = [];
+    const code = await stopRun({
+      directory,
+      alive: () => true,
+      commandLine: () => `node /repo/scripts/${SUPERVISOR_ARGV_MARK} --log /x`,
+      kill: () => {},
+      pollMs: 5,
+      timeoutMs: 40,
+      out: (line) => lines.push(line),
+    });
+    expect(code).toBe(EXIT_STOP_INCOMPLETE);
+    expect(lines.join("\n")).toContain("still up");
+    expect(lines.join("\n")).toContain("never pkill");
+  });
+});
+
 describe("parseArgs", () => {
   it("takes a shard plan and a project, and hands the rest to Playwright verbatim", () => {
     expect(parseArgs(["start", "--shard", "1/2", "--project", "admin-chromium"])).toEqual({
@@ -184,6 +324,13 @@ describe("parseArgs", () => {
     expect(() => parseArgs(["start", "--shard", "2"])).toThrow(/1-based/);
     expect(() => parseArgs(["start", "--shard", "3/2"])).toThrow(/exceeds total/);
     expect(() => validateShard("0/2")).toThrow(/1-based/);
+  });
+
+  it("takes a stop directory, and nothing else", () => {
+    expect(parseArgs(["stop", "/run/dir"])).toEqual({ mode: "stop", directory: "/run/dir" });
+    expect(() => parseArgs(["stop"])).toThrow(/requires the run directory/);
+    expect(() => parseArgs(["stop", "/a", "/b"])).toThrow(/unexpected argument/);
+    expect(() => parseArgs(["stop", "--force"])).toThrow(/unknown option for stop/);
   });
 
   it("refuses an unknown start option rather than passing it on", () => {

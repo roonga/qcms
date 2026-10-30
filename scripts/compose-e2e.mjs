@@ -12,7 +12,12 @@ import { fileURLToPath, pathToFileURL } from "node:url";
 
 import { createFirstAdmin, generatePassword } from "./compose-admin.mjs";
 import { isInDockerContainer } from "./docker-host.mjs";
-import { assertPortSeatChosen, composeProjectName, harnessPort } from "./ports.mjs";
+import {
+  assertPortSeatChosen,
+  assertPosixHost,
+  composeProjectName,
+  harnessPort,
+} from "./ports.mjs";
 
 const root = dirname(dirname(fileURLToPath(import.meta.url)));
 const project = `${composeProjectName()}-full-stack-e2e`;
@@ -25,8 +30,25 @@ const docker =
   (process.platform === "win32" && dockerForWindows !== undefined && existsSync(dockerForWindows)
     ? dockerForWindows
     : "docker");
-const pnpm = process.platform === "win32" ? "pnpm.cmd" : "pnpm";
-const pnpmEntrypoint = process.env.npm_execpath;
+/**
+ * How to re-invoke pnpm. `npm_execpath` is its own entry point, a JavaScript file only
+ * under a Node-managed install: the standalone `@pnpm/exe` build points it at a native
+ * binary that `node` refuses, and unsetting the variable does not help, pnpm re-sets it.
+ *
+ * @param {{ execPath?: string; nodePath?: string; platform?: NodeJS.Platform }} [options]
+ * @returns {{ command: string; prefix: string[] }}
+ */
+export function pnpmInvocation({
+  execPath = process.env.npm_execpath,
+  nodePath = process.execPath,
+  platform = process.platform,
+} = {}) {
+  const fallback = platform === "win32" ? "pnpm.cmd" : "pnpm";
+  if (execPath === undefined || execPath.trim() === "") return { command: fallback, prefix: [] };
+  if (/\.[cm]?js$/i.test(execPath)) return { command: nodePath, prefix: [execPath] };
+  return { command: execPath, prefix: [] };
+}
+
 const compose = ["compose", "--project-name", project, "--env-file", ".env.compose.example"];
 export const credentialsPath = join(root, ".e2e-full-stack-credentials.json");
 const portalPort = harnessPort("portal");
@@ -443,24 +465,27 @@ export function down() {
 function buildTestDependencies() {
   // The runner process resolves workspace packages from their local dist directories,
   // unlike the Compose images, so they have to be built before it starts.
-  const args = ["--filter", "@roonga/qcms-db...", "build"];
-  if (pnpmEntrypoint !== undefined)
-    run(process.execPath, [pnpmEntrypoint, ...args], e2eEnvironment);
-  else run(pnpm, args, e2eEnvironment);
+  runPnpm(["--filter", "@roonga/qcms-db...", "build"]);
+}
+
+/**
+ * @param {string[]} args
+ * @returns {void}
+ */
+function runPnpm(args) {
+  const { command, prefix } = pnpmInvocation();
+  run(command, [...prefix, ...args], e2eEnvironment);
 }
 
 export function test({ headed = false } = {}) {
   buildTestDependencies();
-  const args = [
+  runPnpm([
     "exec",
     "playwright",
     "test",
     "--config=playwright.compose.config.ts",
     ...(headed ? ["--headed"] : []),
-  ];
-  if (pnpmEntrypoint !== undefined)
-    run(process.execPath, [pnpmEntrypoint, ...args], e2eEnvironment);
-  else run(pnpm, args, e2eEnvironment);
+  ]);
 }
 
 /**
@@ -510,12 +535,27 @@ function invokedAs(command) {
   return `pnpm ${(command !== undefined && scripts[command]) || "up:e2e"}`;
 }
 
+/**
+ * Stack management alone, so these stay available on a host the suite cannot run on: an
+ * operator there still has to be able to clear a stack.
+ */
+const STACK_ONLY_MODES = new Set(["up", "down"]);
+
+/**
+ * @param {string | undefined} command
+ * @returns {boolean}
+ */
+export function needsPosixHost(command) {
+  return command === undefined || !STACK_ONLY_MODES.has(command);
+}
+
 async function main() {
   const command = process.argv[2];
-  // Before anything spawns: `down()` runs `down --volumes --remove-orphans` under the seat's project
-  // name, so an adopted seat would delete another lane's stack. Rethrown as a UsageError so the
-  // message prints without a stack trace.
+  // The seat is settled before anything spawns, for every mode: `down()` runs
+  // `down --volumes --remove-orphans` under the seat's project name, so an adopted seat
+  // would delete another lane's stack. Rethrown as a UsageError to print without a stack.
   try {
+    if (needsPosixHost(command)) assertPosixHost(invokedAs(command));
     assertPortSeatChosen(root, invokedAs(command));
   } catch (error) {
     throw new UsageError(error instanceof Error ? error.message : String(error));
