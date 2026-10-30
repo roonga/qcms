@@ -203,10 +203,13 @@ test("opens with Alt+Shift+A, and leaves the chord alone while a page input has 
   await page.getByTestId("qcms-assistant-close").click();
   await expect(panel(page)).toBeHidden();
 
-  // A page text input holds the chord: `a` has to reach the field.
-  const title = page.locator('main#main-content input[type="text"]').first();
-  await fillStable(title, "A");
-  await title.focus();
+  // A page text input holds the chord: `a` has to reach the field. By role inside the
+  // content column, so the field this walks to is whatever the screen's first text box is
+  // rather than a markup detail of one control kit.
+  const title = page.locator("main#main-content").getByRole("textbox").first();
+  await expect(title).toBeVisible();
+  await title.click();
+  await expect(title).toBeFocused();
   await page.keyboard.press("Alt+Shift+A");
   await expect(panel(page), "the chord is ignored while a page input has focus").toBeHidden();
 });
