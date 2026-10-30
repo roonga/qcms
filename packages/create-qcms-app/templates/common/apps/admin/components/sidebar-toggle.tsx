@@ -1,7 +1,17 @@
 "use client";
 
-import { createContext, useContext, useEffect, useState, type ReactNode } from "react";
+import {
+  createContext,
+  useCallback,
+  useContext,
+  useEffect,
+  useMemo,
+  useState,
+  type ReactNode,
+} from "react";
 
+import { useAssistant } from "@/lib/agent/panel-context";
+import { announce } from "@/lib/announce";
 import { t, tPlural } from "@/lib/i18n/en";
 import {
   HIDE_SIDEBAR_ID,
@@ -66,21 +76,29 @@ export function SidebarProvider({
     setFocusId(undefined);
   }, [focusId]);
 
-  const control: SidebarControl = {
-    setting: chosen,
-    hidden: sidebarHidden(chosen, held),
-    setSetting: (next) => {
+  const setSetting = useCallback(
+    (next: SidebarSetting) => {
       setChosen(next);
       document.cookie = sidebarCookie(next, secureCookies);
       document.documentElement.setAttribute(SIDEBAR_ATTRIBUTE, next);
       setFocusId(next === "hidden" ? SHOW_SIDEBAR_ID : HIDE_SIDEBAR_ID);
     },
-    hold: (next) => {
-      setHeld(next);
-      if (next) document.documentElement.setAttribute(SIDEBAR_HOLD_ATTRIBUTE, "hidden");
-      else document.documentElement.removeAttribute(SIDEBAR_HOLD_ATTRIBUTE);
-    },
-  };
+    [secureCookies],
+  );
+
+  // Stable identity, and the whole shell depends on it: the assistant's hold effect lists
+  // `hold` in its dependencies, so a function rebuilt on each render would re-run that
+  // effect on each render, and the `setHeld` inside it would schedule the next one.
+  const hold = useCallback((next: boolean) => {
+    setHeld(next);
+    if (next) document.documentElement.setAttribute(SIDEBAR_HOLD_ATTRIBUTE, "hidden");
+    else document.documentElement.removeAttribute(SIDEBAR_HOLD_ATTRIBUTE);
+  }, []);
+
+  const control = useMemo<SidebarControl>(
+    () => ({ setting: chosen, hidden: sidebarHidden(chosen, held), setSetting, hold }),
+    [chosen, held, hold, setSetting],
+  );
 
   return <SidebarContext.Provider value={control}>{children}</SidebarContext.Provider>;
 }
@@ -117,6 +135,7 @@ export function HideSidebarButton() {
  */
 export function ShowSidebarButton({ filterCount }: { readonly filterCount: number }) {
   const { hidden, setSetting } = useSidebar();
+  const assistant = useAssistant();
   const label =
     filterCount > 0
       ? t("rail.show.filtered", {
@@ -134,6 +153,14 @@ export function ShowSidebarButton({ filterCount }: { readonly filterCount: numbe
         aria-expanded={!hidden}
         onClick={() => {
           setSetting("shown");
+          // Between 1024 and 1279px the open panel is what hid the rail, so showing it
+          // again has to close the panel or the rail would not fit (ruling O2). The
+          // announcement goes through the shell's region, because the panel's own is
+          // inside the panel that is closing.
+          if (assistant?.open === true) {
+            assistant.close();
+            announce(t("agent.sidebar.shown"));
+          }
         }}
       >
         {label}

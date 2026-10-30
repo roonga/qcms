@@ -5,6 +5,7 @@ import { describe, expect, it } from "vitest";
 
 import { ACTIONS, isEnvironmentScoped, isFormScoped } from "./policy.js";
 import {
+  AGENT_SCREEN_CELLS,
   GRANT_EXEMPT_ROUTES,
   OPERATIONAL_CELLS,
   ROUTE_POLICIES,
@@ -20,6 +21,7 @@ const VERBS = new Set(["get", "post", "put", "patch", "delete"]);
 // The shipped document is generated with every flag off, so a flag-gated admin route is
 // invisible to the derivation below and has to be named here instead.
 const FLAG_GATED_ROUTES: readonly string[] = [
+  "POST /admin/assist",
   "POST /admin/forms/{id}/draft/assist",
   "POST /admin/forms/{id}/draft/assist/accept",
 ];
@@ -143,9 +145,14 @@ describe("every row names an action the policy declares", () => {
 
     for (const row of ROUTE_POLICIES) {
       const label = `${row.method} ${row.path}`;
-      // A flag-gated route has no document entry to compare against.
+      // A flag-gated route has no document entry to compare against, so the only source
+      // it may name is the switcher's header, which no document would show either.
       if (FLAG_GATED_ROUTES.includes(label)) {
-        expect(row.namesEnvironment, `${label} is flag-gated`).toBeUndefined();
+        if (row.namesEnvironment === true) {
+          expect(row.environmentFrom, `${label} is flag-gated`).toBe("switcher");
+        } else {
+          expect(row.environmentFrom, `${label} names no environment`).toBeUndefined();
+        }
         continue;
       }
       if (row.namesEnvironment !== true) {
@@ -178,11 +185,18 @@ describe("every row names an action the policy declares", () => {
     }
   });
 
-  it("gives the operations row every operational cell, and gives no other row an `anyOf`", () => {
+  it("gives the operations and agent rows their cell unions, and no other row an `anyOf`", () => {
     const withAnyOf = ROUTE_POLICIES.filter((row) => row.anyOf !== undefined);
-    expect(withAnyOf.map((row) => `${row.method} ${row.path}`)).toEqual([
+    expect([...withAnyOf.map((row) => `${row.method} ${row.path}`)].sort()).toEqual([
       "GET /admin/operations/forms",
+      "POST /admin/assist",
     ]);
+    // The agent row serves every screen, so its union is the screens' own first cells and
+    // the screen's own cell is checked by its context builder.
+    const agent = policyForRequest("POST", "/admin/assist");
+    expect(agent?.anyOf).toBe(AGENT_SCREEN_CELLS);
+    expect(agent?.workspace).toBe("caller");
+    expect(agent?.environmentFrom).toBe("switcher");
     const row = policyForRequest("GET", "/admin/operations/forms");
     expect(row?.resource).toBe("form");
     expect(row?.action).toBe("read");

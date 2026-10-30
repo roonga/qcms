@@ -1,7 +1,7 @@
 import type { Clock } from "./clock.js";
 import type { Databases } from "./environments.js";
 import type { Config, Flags } from "./config.js";
-import type { DraftAssistant } from "./features/forms/assist/types.js";
+import type { DraftAssistant } from "./features/agent/types.js";
 import type { ChallengeVerifier } from "./features/responses/challenge.js";
 import type { Logger } from "./logger.js";
 import type { RateLimitStore } from "./rate-limit.js";

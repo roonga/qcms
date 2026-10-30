@@ -59,6 +59,7 @@ const DETAIL: FormDetail = {
   draftAgentAssisted: false,
   draftUpdatedAt: null,
   requiresSecondApprover: false,
+  canWriteDraft: true,
 };
 
 /** A session object the mocked client never looks at. */

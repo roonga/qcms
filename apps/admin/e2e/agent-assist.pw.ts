@@ -45,7 +45,30 @@ import { confirmLifecycle, createDraft } from "./support/questions.js";
  * deterministic rather than dependent on spec ordering.
  */
 
-test.use({ storageState: TEST_ENVIRONMENT_STORAGE });
+/**
+ * The panel lives in the shell's dock, so this spec carries the panel cookie open: the
+ * layout then stamps it docked on the first paint of every screen below and each test's
+ * fresh context starts with the panel already there, rather than every `goto` being
+ * followed by a click on the top-bar button.
+ */
+const ASSIST_STORAGE = {
+  ...TEST_ENVIRONMENT_STORAGE,
+  cookies: [
+    ...TEST_ENVIRONMENT_STORAGE.cookies,
+    {
+      name: "qcms-assistant",
+      value: "open:400",
+      domain: "localhost",
+      path: "/",
+      expires: -1,
+      httpOnly: false,
+      secure: false,
+      sameSite: "Lax" as const,
+    },
+  ],
+};
+
+test.use({ storageState: ASSIST_STORAGE });
 
 test.describe.configure({ mode: "serial" });
 
@@ -244,10 +267,12 @@ test("header tooltips stay open across the gap and close on Escape from anywhere
   await page.goto(`/forms/${formId}`);
   await expect(page.getByTestId("qcms-assist-panel")).toBeVisible({ timeout: 30_000 });
 
-  const toggle = page.getByTestId("qcms-assist-toggle");
+  // The dock's header owns these controls, so the criterion is measured on Close, which
+  // is in the header on every screen.
+  const toggle = page.getByTestId("qcms-assistant-close");
   const tip = page.getByTestId("qcms-assist-tip");
   const button = await toggle.boundingBox();
-  if (button === null) throw new Error("the collapse toggle has no box");
+  if (button === null) throw new Error("the Close control has no box");
   const x = button.x + button.width / 2;
 
   // Hoverable: from the button, down through the strip under it, onto the bubble.
@@ -322,8 +347,9 @@ test("streams prose and a running step before the first tool result (exit criter
   );
   await expect(mark).not.toHaveAttribute("data-working", "true");
 
-  // The panel is named by the mark, with no visible title word.
-  await expect(page.getByTestId("qcms-assist-panel")).toHaveAccessibleName("Assistant");
+  // The dock is the named landmark, named by the header's mark with no visible title
+  // word; the conversation body inside it carries no name of its own.
+  await expect(page.getByTestId("qcms-assistant-panel")).toHaveAccessibleName("Assistant");
 
   // axe over the finished turn: the mark, the bubbles, the timeline and the card.
   const results = await new AxeBuilder({ page })
@@ -350,7 +376,11 @@ test("Stop ends a running turn with no error shown (exit criterion 5)", async ({
 
   const stop = page.getByTestId("qcms-assist-stop").locator("button");
   await expect(stop).toBeVisible({ timeout: 30_000 });
-  await stop.click();
+  // From the keyboard, because a step this script keeps appending moves the control under
+  // the pointer: a click waits for it to hold still and the script is written never to let
+  // it. Stopping a turn is a keyboard path in its own right.
+  await stop.focus();
+  await page.keyboard.press("Enter");
 
   await expect(page.getByTestId("qcms-assist-stop")).toHaveCount(0, { timeout: 30_000 });
   await expect(page.getByTestId("qcms-assist-live")).toHaveCount(0);

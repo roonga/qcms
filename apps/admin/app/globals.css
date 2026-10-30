@@ -5048,3 +5048,168 @@ div:has(> [role="dialog"] [data-qcms-dialog="wide"]) {
   background-color: var(--color-surface);
   color: var(--color-text);
 }
+
+/* THE ASSISTANT. No float: the dock is a track of the shell body grid, so
+   nothing the assistant draws can overlay page content (WCAG 2.2 SC 2.4.11). The expanded
+   state and the sheet are modal, so nothing behind them is reachable either. */
+.qcms-assistant-entry {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.5rem;
+}
+.qcms-assistant-trigger {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  inline-size: 32px;
+  block-size: 32px;
+  border: 1px solid transparent;
+  border-radius: var(--radius-control);
+  background-color: transparent;
+  color: inherit;
+}
+.qcms-assistant-trigger:hover {
+  background-color: var(--color-surface-hover);
+}
+.qcms-assistant {
+  display: flex;
+  flex-direction: column;
+  min-block-size: 0;
+  border-inline-start: 1px solid var(--color-border);
+  background-color: var(--color-surface);
+}
+/* THE DOCK IS THE HEIGHT OF THE VIEWPORT BELOW THE TOP BAR, NOT THE HEIGHT OF THE PAGE. As
+   a grid item it stretched to the row, so on a long screen the composer sat below the fold
+   and reaching it scrolled the page. Sticky keeps the track and the panel's own body is
+   what scrolls; `align-self: start` is what stops the stretch. */
+.qcms-assistant[data-mode="dock"] {
+  position: sticky;
+  align-self: start;
+  inset-block-start: var(--admin-topbar-measured, var(--admin-topbar-h));
+  block-size: calc(100dvh - var(--admin-topbar-measured, var(--admin-topbar-h)));
+}
+/* The turns scroll and the composer stays put, so the dock's own height is what the
+   composer is inside rather than the conversation's length. */
+.qcms-assistant__conversation {
+  display: flex;
+  flex-direction: column;
+  min-block-size: 0;
+  block-size: 100%;
+}
+/* THE CONTENT TRACK'S FLOOR IS `--bp-compact`, NOT ITS CONTENT'S OWN WIDTH. A bare `1fr`
+   takes a min-content minimum, so a wide table sized the column instead of scrolling
+   inside it, and the track then moved whenever the content's intrinsic width did: a shift
+   at hydration rather than the stable first paint the cookie is there to buy. */
+.qcms-shell-body:has(> .qcms-assistant[data-mode="dock"]:not([hidden])) {
+  display: grid;
+  grid-template-columns: minmax(var(--bp-compact), 1fr) auto;
+}
+@variant sidebar {
+  .qcms-shell-body:has(> .qcms-rail):has(> .qcms-assistant[data-mode="dock"]:not([hidden])) {
+    grid-template-columns: 15rem minmax(var(--bp-compact), 1fr) auto;
+  }
+  :root[data-sidebar="hidden"]
+    .qcms-shell-body:has(> .qcms-rail):has(> .qcms-assistant[data-mode="dock"]:not([hidden])),
+  :root[data-sidebar-hold="hidden"]
+    .qcms-shell-body:has(> .qcms-rail):has(> .qcms-assistant[data-mode="dock"]:not([hidden])) {
+    grid-template-columns: minmax(var(--bp-compact), 1fr) auto;
+  }
+  /* The Show row spans both tracks there. Left in one it takes the content column's own
+     track, which puts the dock on a second row below the column instead of beside it. */
+  :root[data-sidebar="hidden"]
+    .qcms-shell-body:has(> .qcms-assistant[data-mode="dock"]:not([hidden]))
+    > .qcms-rail__show,
+  :root[data-sidebar-hold="hidden"]
+    .qcms-shell-body:has(> .qcms-assistant[data-mode="dock"]:not([hidden]))
+    > .qcms-rail__show {
+    grid-column: 1 / -1;
+  }
+}
+/* And the column itself takes the track rather than its own content's width, for the same
+   reason: a grid item's automatic minimum is its min-content size, so without this the
+   floor above would be read past and the table would widen the page instead of scrolling
+   inside its own `.qcms-table` box. */
+.qcms-shell-body:has(> .qcms-assistant[data-mode="dock"]:not([hidden])) > #main-content {
+  min-inline-size: 0;
+}
+/* Expanded and the sheet both fill the area below the top bar. The top bar's own height is
+   already published as a scroll padding, so the same number positions these. */
+.qcms-assistant[data-mode="expanded"],
+.qcms-assistant[data-mode="sheet"] {
+  position: fixed;
+  inset-block-start: var(--admin-topbar-measured, var(--admin-topbar-h));
+  inset-block-end: 0;
+  inset-inline: 0;
+  z-index: 40;
+  inline-size: auto;
+}
+.qcms-assistant__edge {
+  align-self: stretch;
+  inline-size: 6px;
+  margin-inline-start: -6px;
+  cursor: col-resize;
+  background-color: transparent;
+}
+.qcms-assistant__edge:focus-visible {
+  outline: 2px solid var(--color-focus);
+  outline-offset: -2px;
+}
+.qcms-assistant__header {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  min-block-size: 44px;
+  padding-inline: 0.75rem;
+  border-block-end: 1px solid var(--color-border);
+}
+.qcms-assistant__controls {
+  display: flex;
+  margin-inline-start: auto;
+  gap: 0.25rem;
+}
+.qcms-assistant__help,
+.qcms-assistant__body {
+  padding: 0.75rem;
+}
+.qcms-assistant__body {
+  flex: 1 1 auto;
+  min-block-size: 0;
+  overflow-y: auto;
+}
+.qcms-assistant__widths {
+  display: flex;
+  gap: 0.25rem;
+  border: 0;
+  padding: 0;
+}
+.qcms-assistant__turns {
+  display: flex;
+  flex: 1 1 auto;
+  flex-direction: column;
+  gap: 0.75rem;
+  min-block-size: 0;
+  overflow-y: auto;
+}
+.qcms-assistant__turn {
+  display: flex;
+  gap: 0.5rem;
+}
+.qcms-assistant__turn[data-role="user"] {
+  justify-content: flex-end;
+}
+.qcms-assistant__composer {
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+  padding-block-start: 0.75rem;
+}
+.qcms-assistant__composer textarea {
+  inline-size: 100%;
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-control);
+  padding: 0.5rem;
+  background-color: var(--color-surface);
+  color: inherit;
+}
+/* Open, close, expand and the rail's return are all without motion under a reduced-motion
+   preference, which is why none of the rules above animates anything. */
