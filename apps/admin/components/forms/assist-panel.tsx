@@ -112,8 +112,8 @@ export function AssistPanel({
   readonly onAccept: (proposedDraft: DraftForm, newQuestions: readonly unknown[]) => void;
   /**
    * Rendered inside the shell's assistant dock, which owns the header, the mark and the
-   * live region (082). This then draws the conversation and nothing around it, so the
-   * builder screen shows the same header every other screen shows.
+   * live region. This then draws the conversation and nothing around it, so the builder
+   * screen shows the same header every other screen shows.
    */
   readonly hosted?: boolean;
   /** Hosted only: the host's header mark and its "Working" badge follow this. */

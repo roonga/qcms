@@ -28,6 +28,10 @@ import { t } from "@/lib/i18n/en";
  * shipped while the dock draws the header; everywhere else it is the explain-and-navigate
  * conversation, which has nothing to propose until action kinds arrive.
  *
+ * A caller who may not write this draft takes the screen route as well. The builder's own
+ * route requires `form: write`, so the hosted panel would answer them 403 for every turn,
+ * while the screen route builds the same facts under the grants they do hold.
+ *
  * A turn sends the screen id, the route's own ids and the conversation id, and never
  * context content: the API computes what the screen can see under the caller's own grants.
  */
@@ -46,7 +50,7 @@ export function AssistantConversation({
   readonly onWorkingChange: (working: boolean) => void;
   readonly onAnnounce: (message: string) => void;
 }) {
-  if (builder !== undefined) {
+  if (builder !== undefined && builder.canPropose) {
     return (
       <AssistPanel
         hosted

@@ -116,9 +116,9 @@ afterEach(() => {
 });
 
 /**
- * The panel is the shell's now (082), so these tests mount the builder beside the one
- * consumer the shell has: whatever the builder publishes through the bridge is rendered as
- * the panel. The accept path under test is unchanged - the builder still owns the draft.
+ * The shell renders whatever the builder publishes through the bridge, so these tests
+ * mount that one consumer beside the builder. The builder still owns the draft, so the
+ * accept path under test is the real one.
  */
 function HostedAssistPanel() {
   const published = useBuilderAssist();

@@ -215,8 +215,6 @@ export default async function ShellLayout({
                 }
                 trailing={
                   <>
-                    {/* First in the trailing group, before the appearance toggle and the
-                        account (Topbar card, issue #1133). */}
                     {assistant && <AssistantButtonSlot />}
                     <ThemeToggle appearance={appearance} secureCookies={secureCookies()} />
                     <AccountMenu email={session.email} name={session.name} />

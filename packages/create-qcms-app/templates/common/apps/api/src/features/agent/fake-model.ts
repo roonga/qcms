@@ -106,6 +106,25 @@ function toolResults(prompt: readonly PromptMessage[]): Map<string, unknown> {
   return results;
 }
 
+/**
+ * The tools this turn has already called, which is what `read-all` walks by: a refused
+ * tool returns no result, so walking results alone would call it forever.
+ */
+function toolCalls(prompt: readonly PromptMessage[]): Set<string> {
+  const called = new Set<string>();
+  for (const message of prompt) {
+    if (message.role !== "assistant" || !Array.isArray(message.content)) continue;
+    for (const part of message.content) {
+      if (typeof part !== "object" || part === null) continue;
+      const typed = part as { type?: unknown; toolName?: unknown };
+      if (typed.type === "tool-call" && typeof typed.toolName === "string") {
+        called.add(typed.toolName);
+      }
+    }
+  }
+  return called;
+}
+
 function currentDraft(prompt: readonly PromptMessage[]): Record<string, unknown> | undefined {
   const text = userText(prompt);
   const open = text.indexOf("```json");
@@ -446,7 +465,8 @@ function planReadAllStep(
   results: Map<string, unknown>,
   offered: readonly string[],
 ): StreamPart[] {
-  const next = offered.find((name) => !results.has(name) && name in READ_ALL_INPUTS);
+  const called = toolCalls(prompt);
+  const next = offered.find((name) => !called.has(name) && name in READ_ALL_INPUTS);
   if (next === undefined) {
     return [...textParts("I have read everything this screen offers.", "t1"), finishPart("stop")];
   }

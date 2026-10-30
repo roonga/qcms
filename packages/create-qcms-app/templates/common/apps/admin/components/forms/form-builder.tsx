@@ -171,7 +171,7 @@ export function FormBuilder({
    * at all when the flag is off, so there is no assist affordance anywhere in this
    * tree to find, not merely one that renders nothing.
    */
-  readonly assist?: { readonly endpoint: string };
+  readonly assist?: { readonly endpoint: string; readonly canPropose?: boolean };
 }) {
   const [draft, setDraft] = useState<DraftForm>(
     detail.draft ?? blankDraft(detail.formId, detail.defaultLocale),
@@ -507,6 +507,7 @@ export function FormBuilder({
       ? undefined
       : {
           endpoint: assist.endpoint,
+          canPropose: assist.canPropose !== false,
           draft,
           draftUpdatedAt,
           accept: acceptAssistProposal,
@@ -539,288 +540,269 @@ export function FormBuilder({
         </div>
       )}
 
-      {/* Task 041: the assist panel docks beside the builder as a complementary landmark,
-          so the three screens below split into two columns only when the panel is actually
-          present. With the flag off both wrappers are `display: contents`, which means a
-          default deployment renders the identical box tree it did before this task: no
-          grid, no extra column, and no assist affordance anywhere in the tree to find.
+      {/* TWO SCREENS BEHIND ONE ROUTE, and the rail is the switch (Code Owner, 2026-08-26).
+        `plan/admin-shell-poc/admin-shell-poc.html` says so in its own card subtitle -
+        "left rail navigating a form screen and a step screen" - and draws them, a Form
+        screen of Form title, Form settings, Rules, Rule test bench and Validation, and a
+        Step screen of that step's questions and nothing else.
 
-          `sidebar:`, and it has to be one of the two. `globals.css` clears Tailwind's own
-          sm/md/lg/xl scale with `--breakpoint-*: initial`, so a `lg:` prefix does not
-          compile at all - it is a dead class, not a narrower boundary, which is exactly
-          what that block exists to prevent. Of the two the app does have, `--bp-sidebar`
-          is the right one: it is where the rail becomes a permanent sidebar and the
-          content column is at its widest, and a 22rem pane taken out of a `--bp-compact`
-          (640px) column would leave the builder itself under 300px. Below it the panel
-          stacks under the builder, full width, which is the phone-shaped reading of a
-          docked pane. */}
-      <div className={"contents"}>
-        <div className="contents">
-          {/* TWO SCREENS BEHIND ONE ROUTE, and the rail is the switch (Code Owner, 2026-08-26).
-            `plan/admin-shell-poc/admin-shell-poc.html` says so in its own card subtitle -
-            "left rail navigating a form screen and a step screen" - and draws them, a Form
-            screen of Form title, Form settings, Rules, Rule test bench and Validation, and a
-            Step screen of that step's questions and nothing else.
+        IT WAS THREE FOR TEN DAYS. The rules took a selection of their own on 2026-08-26
+        because `plan/admin-ux-audit.md` §5.5 refused them a ROUTE - every rule-scoped
+        validation anchor would resolve to nothing - and a selection let an issue entry
+        switch screens and then focus. The Code Owner ruled on 2026-09-05 (issue #669)
+        that `rules-screen-poc.html` is built as drawn instead, with the anchors rebuilt
+        as route-plus-fragment links so that nothing resolves to nothing. So the rules
+        are a route, this screen keeps the read-only lens above, and the two halves of
+        that POC screen deliberately use different mechanisms: Validation stayed a
+        selection (#659, built as #719) because its entries point at controls THIS screen
+        renders. `plan/admin-design-contracts.md` §7 writes the pair up as one decision.
 
-            IT WAS THREE FOR TEN DAYS. The rules took a selection of their own on 2026-08-26
-            because `plan/admin-ux-audit.md` §5.5 refused them a ROUTE - every rule-scoped
-            validation anchor would resolve to nothing - and a selection let an issue entry
-            switch screens and then focus. The Code Owner ruled on 2026-09-05 (issue #669)
-            that `rules-screen-poc.html` is built as drawn instead, with the anchors rebuilt
-            as route-plus-fragment links so that nothing resolves to nothing. So the rules
-            are a route, this screen keeps the read-only lens above, and the two halves of
-            that POC screen deliberately use different mechanisms: Validation stayed a
-            selection (#659, built as #719) because its entries point at controls THIS screen
-            renders. `plan/admin-design-contracts.md` §7 writes the pair up as one decision.
+        It used to be ONE screen carrying everything, which meant the five FORM-level panels
+        sat under whichever step was selected and followed the reader from step to step.
+        Nothing was duplicated in the DOM, but the arrangement said the wrong thing: panels
+        that belong to the form read as though each step had its own copy of them, and the
+        only way to reach the form's settings was through a step that has nothing to do with
+        them.
 
-            It used to be ONE screen carrying everything, which meant the five FORM-level panels
-            sat under whichever step was selected and followed the reader from step to step.
-            Nothing was duplicated in the DOM, but the arrangement said the wrong thing: panels
-            that belong to the form read as though each step had its own copy of them, and the
-            only way to reach the form's settings was through a step that has nothing to do with
-            them.
+        The grid below is the builder's only responsive behaviour. `plan/admin-design-
+        contracts.md` §1 fixes two boundaries and sorts side-by-side layouts between them;
+        this is page content, so it keys to `--bp-compact`, which is what §1 assigns to
+        ordinary side-by-side panes. Two of the three grids this comment used to describe
+        are gone with the screens they laid out: rules no longer sit beside the validation
+        panel, and the settings no longer sit beside the rule bench. The step list is not
+        one of them either - it left this column for the rail on 2026-08-25, and
+        `components/forms/rail-steps.tsx` is where it went. */}
+      {selection.kind === "form" && (
+        <>
+          {/* WRAPPED, and the wrapper is load-bearing rather than layout. `formActions` is
+            rendered by the SERVER and handed across the client boundary, which strips the
+            marking React uses to tell a statically-written child from a dynamic one. As a
+            bare member of this fragment's children array it therefore reads as a keyless
+            list item, and React logs "Each child in a list should have a unique key" on
+            every visit to the builder - which `e2e/support/gates.ts` fails the test for,
+            correctly: a console error on a screen is a defect whether or not anything
+            looks wrong. Being an only child, it is not in a list at all. */}
+          {/* The heading, the two things you can do to the form, how it last saved, and
+            what it is - in two rows, where it was five.
 
-            The grid below is the builder's only responsive behaviour. `plan/admin-design-
-            contracts.md` §1 fixes two boundaries and sorts side-by-side layouts between them;
-            this is page content, so it keys to `--bp-compact`, which is what §1 assigns to
-            ordinary side-by-side panes. Two of the three grids this comment used to describe
-            are gone with the screens they laid out: rules no longer sit beside the validation
-            panel, and the settings no longer sit beside the rule bench. The step list is not
-            one of them either - it left this column for the rail on 2026-08-25, and
-            `components/forms/rail-steps.tsx` is where it went. */}
-          {selection.kind === "form" && (
-            <>
-              {/* WRAPPED, and the wrapper is load-bearing rather than layout. `formActions` is
-                rendered by the SERVER and handed across the client boundary, which strips the
-                marking React uses to tell a statically-written child from a dynamic one. As a
-                bare member of this fragment's children array it therefore reads as a keyless
-                list item, and React logs "Each child in a list should have a unique key" on
-                every visit to the builder - which `e2e/support/gates.ts` fails the test for,
-                correctly: a console error on a screen is a defect whether or not anything
-                looks wrong. Being an only child, it is not in a list at all. */}
-              {/* The heading, the two things you can do to the form, how it last saved, and
-                what it is - in two rows, where it was five.
+            `display: contents` on the heading's wrapper is load-bearing. The wrapper
+            exists because a server-rendered node arriving across the client boundary
+            reads to React as a keyless list item when it sits bare in a multi-child
+            array, but the heading inside it is visually hidden and therefore out of
+            flow, so the wrapper was an empty flex ITEM: zero wide, followed by the
+            row's `gap-x-4`, indenting the buttons past the breadcrumb above them by
+            16px. `contents` keeps the element and removes its box.
 
-                `display: contents` on the heading's wrapper is load-bearing. The wrapper
-                exists because a server-rendered node arriving across the client boundary
-                reads to React as a keyless list item when it sits bare in a multi-child
-                array, but the heading inside it is visually hidden and therefore out of
-                flow, so the wrapper was an empty flex ITEM: zero wide, followed by the
-                row's `gap-x-4`, indenting the buttons past the breadcrumb above them by
-                16px. `contents` keeps the element and removes its box.
-
-                `items-start` rather than baseline: the right column is two stacked lines
-                now, and aligning its first baseline to a button's would hang it below the
-                row it belongs to. */}
-              <div className="flex flex-wrap items-start justify-between gap-x-4 gap-y-2">
-                {/* THE SCREEN'S NAME, and the same string the breadcrumb's last crumb uses -
-                  one lookup, so a screen cannot answer to two names. Visually hidden because
-                  the crumb directly above already says it; kept in the tree because a page
-                  without a level-one heading is one a screen reader cannot navigate by.
-                  `display: contents` on the wrapper: the heading is out of flow, and a
-                  wrapper that generated a box would be an empty flex item indenting the
-                  buttons past the breadcrumb. */}
-                <div className="contents">
-                  <h1 className="qcms-visually-hidden">{screenName}</h1>
-                </div>
-                <div>{formActions}</div>
-                {/* What the form IS, above how it last saved: both are facts about the form
-                  rather than actions on it, so they share the row's trailing edge and read
-                  as one block rather than as chrome scattered across the header. */}
-                <div className="flex flex-col items-end gap-1">
-                  <div>{formMeta}</div>
-                  {/* ONE STRIP FOR BOTH SAVES (Code Owner, 2026-08-29). The settings stopped
-                    having a save model of their own, so they stopped having a save statement
-                    of their own: a settings save is in flight here, and a settings save that
-                    failed is a failed save here. §6's "exactly one save statement per screen"
-                    is kept by the strip covering everything the screen stores, not by the
-                    strip covering only some of it and a second sentence covering the rest. */}
-                  <AmbientSaveStatus
-                    isSaving={status === "saving" || settingsSaving}
-                    hasFailed={saveError !== undefined || settingsError !== undefined}
-                    savedAt={lastSavedAt}
-                  />
-                </div>
-              </div>
-              <FormNotices detail={detail} concurrentRead={concurrentNoticeRead} />
-              <TextField
-                label={t("forms.builder.formTitle")}
-                description={t("forms.builder.formTitleHint")}
-                value={textOf(draft.title, draft.defaultLocale)}
-                onChange={(next) => {
-                  mutate({ ...draft, title: { ...draft.title, [draft.defaultLocale]: next } });
-                }}
-              />
-
-              {/* THE RULES, AS A COMPACT READ-ONLY LENS (Code Owner, 2026-09-05, issue
-                #669), which is exactly what `plan/admin-shell-poc/admin-shell-poc.html`
-                draws in this card: a digest, the sentences, and two ways through to the
-                screen that edits them. Above the validation panel because the panel's
-                rule-scoped entries point AT this route, and a reader meets the list before
-                the complaints about it.
-
-                Every one of its links carries `/forms/{formId}/rules` as well as its
-                fragment. That is the ruling's mandatory constraint rather than a detail:
-                a bare `#rule-x` fired from this screen would scroll to nothing now. */}
-              <RulesLens draft={draft} library={library} issues={issues ?? []} />
-
-              {/* VALIDATION STAYS HERE while the rules moved to a route of their own (Code
-                Owner, 2026-08-26; reaffirmed 2026-09-05 by issue #669's ruling, which moved
-                the other half). `plan/admin-ux-audit.md` §5.5 is emphatic that it should:
-                "Validation is not a destination. It is a companion to editing and it has to be
-                on the page whose controls it points at." Its entries are links that move focus
-                to the offending rule, step or pin - a pin lives inside one step's editor on
-                this route, and a rule lives on `/forms/{formId}/rules`. So what makes them
-                work is `IssueEntry` switching first and focusing second: a step selection for
-                the two that stay here, a ROUTE for the ones that left. #659 kept this panel a
-                selection for exactly that reason, and #719 built it that way. */}
-              <ValidationPanel draft={draft} issues={issues} warnings={warnings} status={status} />
-
-              {/* ONE COLUMN (Code Owner, 2026-08-26). The settings shared a two-track grid with
-                the rule test bench, and the bench has gone to the rules it tests, so there is
-                nothing to sit beside. A lone panel in a two-column grid is a column of
-                whitespace. */}
-              <FormSettingsPanel
-                settings={settings}
-                challengeEnforceable={detail.challengeEnforceable}
-                saveError={settingsError}
-                onChange={setSettings}
-              />
-            </>
-          )}
-          {selection.kind === "step" && (
-            <div>
-              {/* Nothing rather than a second copy of the rail's own empty-state sentence: a
-                step editor with no step is exactly the state the rail is already explaining,
-                and saying it twice reads as two different facts. */}
-              {selectedStep === undefined ? null : (
-                <StepEditor
-                  draft={draft}
-                  step={selectedStep}
-                  saveFlash={<AutosaveFlash savedAt={lastSavedAt} />}
-                  library={library}
-                  issues={issues}
-                  /* One `mutate` for the whole batch, folded left over the pins.
-                 `addPinAt` is pure and returns the next draft, so the fold is what makes a
-                 multi-pin add correct: calling this handler once per pin would hand
-                 `addPinAt` the SAME closed-over `draft` every time and keep only the last
-                 result. Folding also makes the batch one entry in the draft's history, which
-                 is what it is to the author: one press of one button.
-                 The boundary advances with each pin so the batch lands in the order it was
-                 chosen, rather than every pin insetting at `index` and arriving reversed. */
-                  /* The CONTAINER comes with the boundary now (ADR-42): `groupId` is
-                 `undefined` for the step itself and a group id for one of its groups, so one
-                 handler serves both add controls and the row menus inside either. */
-                  onAddPins={(pins, index, groupId) => {
-                    mutate(
-                      pins.reduce(
-                        (next, pin, offset) =>
-                          groupId === undefined
-                            ? addPinAt(
-                                next,
-                                selectedStep.stepId,
-                                pin.questionId,
-                                pin.version,
-                                index + offset,
-                              )
-                            : addPinToGroup(
-                                next,
-                                groupId,
-                                pin.questionId,
-                                pin.version,
-                                index + offset,
-                              ),
-                        draft,
-                      ),
-                    );
-                  }}
-                  onMovePin={(questionId, version) => {
-                    mutate(movePin(draft, questionId, version));
-                  }}
-                  onRemovePin={(questionId) => {
-                    mutate(removePin(draft, questionId));
-                  }}
-                  onReorderPin={(questionId, delta, groupId) => {
-                    mutate(
-                      groupId === undefined
-                        ? movePinWithinStep(draft, selectedStep.stepId, questionId, delta)
-                        : movePinWithinGroup(draft, groupId, questionId, delta),
-                    );
-                  }}
-                  onAddGroup={(label) => {
-                    addGroupToStep(selectedStep.stepId, label);
-                  }}
-                  onOpenGroup={(groupId) => {
-                    setSelection({ kind: "group", stepId: selectedStep.stepId, groupId });
-                  }}
-                  onMoveGroup={(groupId, delta) => {
-                    mutate(moveGroupWithinStep(draft, selectedStep.stepId, groupId, delta));
-                  }}
-                  onRemoveGroup={(groupId) => {
-                    mutate(removeGroup(draft, groupId));
-                  }}
-                />
-              )}
+            `items-start` rather than baseline: the right column is two stacked lines
+            now, and aligning its first baseline to a button's would hang it below the
+            row it belongs to. */}
+          <div className="flex flex-wrap items-start justify-between gap-x-4 gap-y-2">
+            {/* THE SCREEN'S NAME, and the same string the breadcrumb's last crumb uses -
+              one lookup, so a screen cannot answer to two names. Visually hidden because
+              the crumb directly above already says it; kept in the tree because a page
+              without a level-one heading is one a screen reader cannot navigate by.
+              `display: contents` on the wrapper: the heading is out of flow, and a
+              wrapper that generated a box would be an empty flex item indenting the
+              buttons past the breadcrumb. */}
+            <div className="contents">
+              <h1 className="qcms-visually-hidden">{screenName}</h1>
             </div>
-          )}
-          {/* THE REPEATING GROUP'S PANEL, the builder's third screen (task 074, ADR-42).
-              A panel rather than a route for the reason `lib/forms/builder-bridge.ts` states
-              at length: the rail may carry a same-page panel switch, and a route would make a
-              fourth place a draft is edited for six fields about a span inside one step. */}
-          {selection.kind === "group" && (
-            <div>
-              {selectedGroup === undefined || selectedGroupStep === undefined ? null : (
-                <GroupPanel
-                  draft={draft}
-                  step={selectedGroupStep}
-                  group={selectedGroup.group}
-                  library={library}
-                  issues={issues}
-                  saveFlash={<AutosaveFlash savedAt={lastSavedAt} />}
-                  onRename={(label) => {
-                    mutate(renameGroup(draft, selectedGroup.group.groupId, label));
-                  }}
-                  onInstanceLabel={(template) => {
-                    mutate(setGroupInstanceLabel(draft, selectedGroup.group.groupId, template));
-                  }}
-                  onCount={(count) => {
-                    mutate(setGroupCount(draft, selectedGroup.group.groupId, count));
-                  }}
-                  onPresentation={(presentation) => {
-                    mutate(setGroupPresentation(draft, selectedGroup.group.groupId, presentation));
-                  }}
-                  onAddPins={(pins, index) => {
-                    mutate(
-                      pins.reduce(
-                        (next, pin, offset) =>
-                          addPinToGroup(
+            <div>{formActions}</div>
+            {/* What the form IS, above how it last saved: both are facts about the form
+              rather than actions on it, so they share the row's trailing edge and read
+              as one block rather than as chrome scattered across the header. */}
+            <div className="flex flex-col items-end gap-1">
+              <div>{formMeta}</div>
+              {/* ONE STRIP FOR BOTH SAVES (Code Owner, 2026-08-29). The settings stopped
+                having a save model of their own, so they stopped having a save statement
+                of their own: a settings save is in flight here, and a settings save that
+                failed is a failed save here. §6's "exactly one save statement per screen"
+                is kept by the strip covering everything the screen stores, not by the
+                strip covering only some of it and a second sentence covering the rest. */}
+              <AmbientSaveStatus
+                isSaving={status === "saving" || settingsSaving}
+                hasFailed={saveError !== undefined || settingsError !== undefined}
+                savedAt={lastSavedAt}
+              />
+            </div>
+          </div>
+          <FormNotices detail={detail} concurrentRead={concurrentNoticeRead} />
+          <TextField
+            label={t("forms.builder.formTitle")}
+            description={t("forms.builder.formTitleHint")}
+            value={textOf(draft.title, draft.defaultLocale)}
+            onChange={(next) => {
+              mutate({ ...draft, title: { ...draft.title, [draft.defaultLocale]: next } });
+            }}
+          />
+
+          {/* THE RULES, AS A COMPACT READ-ONLY LENS (Code Owner, 2026-09-05, issue
+            #669), which is exactly what `plan/admin-shell-poc/admin-shell-poc.html`
+            draws in this card: a digest, the sentences, and two ways through to the
+            screen that edits them. Above the validation panel because the panel's
+            rule-scoped entries point AT this route, and a reader meets the list before
+            the complaints about it.
+
+            Every one of its links carries `/forms/{formId}/rules` as well as its
+            fragment. That is the ruling's mandatory constraint rather than a detail:
+            a bare `#rule-x` fired from this screen would scroll to nothing now. */}
+          <RulesLens draft={draft} library={library} issues={issues ?? []} />
+
+          {/* VALIDATION STAYS HERE while the rules moved to a route of their own (Code
+            Owner, 2026-08-26; reaffirmed 2026-09-05 by issue #669's ruling, which moved
+            the other half). `plan/admin-ux-audit.md` §5.5 is emphatic that it should:
+            "Validation is not a destination. It is a companion to editing and it has to be
+            on the page whose controls it points at." Its entries are links that move focus
+            to the offending rule, step or pin - a pin lives inside one step's editor on
+            this route, and a rule lives on `/forms/{formId}/rules`. So what makes them
+            work is `IssueEntry` switching first and focusing second: a step selection for
+            the two that stay here, a ROUTE for the ones that left. #659 kept this panel a
+            selection for exactly that reason, and #719 built it that way. */}
+          <ValidationPanel draft={draft} issues={issues} warnings={warnings} status={status} />
+
+          {/* ONE COLUMN (Code Owner, 2026-08-26). The settings shared a two-track grid with
+            the rule test bench, and the bench has gone to the rules it tests, so there is
+            nothing to sit beside. A lone panel in a two-column grid is a column of
+            whitespace. */}
+          <FormSettingsPanel
+            settings={settings}
+            challengeEnforceable={detail.challengeEnforceable}
+            saveError={settingsError}
+            onChange={setSettings}
+          />
+        </>
+      )}
+      {selection.kind === "step" && (
+        <div>
+          {/* Nothing rather than a second copy of the rail's own empty-state sentence: a
+            step editor with no step is exactly the state the rail is already explaining,
+            and saying it twice reads as two different facts. */}
+          {selectedStep === undefined ? null : (
+            <StepEditor
+              draft={draft}
+              step={selectedStep}
+              saveFlash={<AutosaveFlash savedAt={lastSavedAt} />}
+              library={library}
+              issues={issues}
+              /* One `mutate` for the whole batch, folded left over the pins.
+             `addPinAt` is pure and returns the next draft, so the fold is what makes a
+             multi-pin add correct: calling this handler once per pin would hand
+             `addPinAt` the SAME closed-over `draft` every time and keep only the last
+             result. Folding also makes the batch one entry in the draft's history, which
+             is what it is to the author: one press of one button.
+             The boundary advances with each pin so the batch lands in the order it was
+             chosen, rather than every pin insetting at `index` and arriving reversed. */
+              /* The CONTAINER comes with the boundary now (ADR-42): `groupId` is
+             `undefined` for the step itself and a group id for one of its groups, so one
+             handler serves both add controls and the row menus inside either. */
+              onAddPins={(pins, index, groupId) => {
+                mutate(
+                  pins.reduce(
+                    (next, pin, offset) =>
+                      groupId === undefined
+                        ? addPinAt(
                             next,
-                            selectedGroup.group.groupId,
+                            selectedStep.stepId,
+                            pin.questionId,
+                            pin.version,
+                            index + offset,
+                          )
+                        : addPinToGroup(
+                            next,
+                            groupId,
                             pin.questionId,
                             pin.version,
                             index + offset,
                           ),
-                        draft,
-                      ),
-                    );
-                  }}
-                  onMovePin={(questionId, version) => {
-                    mutate(movePin(draft, questionId, version));
-                  }}
-                  onRemovePin={(questionId) => {
-                    mutate(removePin(draft, questionId));
-                  }}
-                  onReorderPin={(questionId, delta) => {
-                    mutate(
-                      movePinWithinGroup(draft, selectedGroup.group.groupId, questionId, delta),
-                    );
-                  }}
-                />
-              )}
-            </div>
+                    draft,
+                  ),
+                );
+              }}
+              onMovePin={(questionId, version) => {
+                mutate(movePin(draft, questionId, version));
+              }}
+              onRemovePin={(questionId) => {
+                mutate(removePin(draft, questionId));
+              }}
+              onReorderPin={(questionId, delta, groupId) => {
+                mutate(
+                  groupId === undefined
+                    ? movePinWithinStep(draft, selectedStep.stepId, questionId, delta)
+                    : movePinWithinGroup(draft, groupId, questionId, delta),
+                );
+              }}
+              onAddGroup={(label) => {
+                addGroupToStep(selectedStep.stepId, label);
+              }}
+              onOpenGroup={(groupId) => {
+                setSelection({ kind: "group", stepId: selectedStep.stepId, groupId });
+              }}
+              onMoveGroup={(groupId, delta) => {
+                mutate(moveGroupWithinStep(draft, selectedStep.stepId, groupId, delta));
+              }}
+              onRemoveGroup={(groupId) => {
+                mutate(removeGroup(draft, groupId));
+              }}
+            />
           )}
         </div>
-      </div>
+      )}
+      {/* THE REPEATING GROUP'S PANEL, the builder's third screen (task 074, ADR-42).
+          A panel rather than a route for the reason `lib/forms/builder-bridge.ts` states
+          at length: the rail may carry a same-page panel switch, and a route would make a
+          fourth place a draft is edited for six fields about a span inside one step. */}
+      {selection.kind === "group" && (
+        <div>
+          {selectedGroup === undefined || selectedGroupStep === undefined ? null : (
+            <GroupPanel
+              draft={draft}
+              step={selectedGroupStep}
+              group={selectedGroup.group}
+              library={library}
+              issues={issues}
+              saveFlash={<AutosaveFlash savedAt={lastSavedAt} />}
+              onRename={(label) => {
+                mutate(renameGroup(draft, selectedGroup.group.groupId, label));
+              }}
+              onInstanceLabel={(template) => {
+                mutate(setGroupInstanceLabel(draft, selectedGroup.group.groupId, template));
+              }}
+              onCount={(count) => {
+                mutate(setGroupCount(draft, selectedGroup.group.groupId, count));
+              }}
+              onPresentation={(presentation) => {
+                mutate(setGroupPresentation(draft, selectedGroup.group.groupId, presentation));
+              }}
+              onAddPins={(pins, index) => {
+                mutate(
+                  pins.reduce(
+                    (next, pin, offset) =>
+                      addPinToGroup(
+                        next,
+                        selectedGroup.group.groupId,
+                        pin.questionId,
+                        pin.version,
+                        index + offset,
+                      ),
+                    draft,
+                  ),
+                );
+              }}
+              onMovePin={(questionId, version) => {
+                mutate(movePin(draft, questionId, version));
+              }}
+              onRemovePin={(questionId) => {
+                mutate(removePin(draft, questionId));
+              }}
+              onReorderPin={(questionId, delta) => {
+                mutate(
+                  movePinWithinGroup(draft, selectedGroup.group.groupId, questionId, delta),
+                );
+              }}
+            />
+          )}
+        </div>
+      )}
     </div>
   );
 }

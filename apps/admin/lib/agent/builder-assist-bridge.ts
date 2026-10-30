@@ -18,6 +18,12 @@ import type { DraftForm } from "../forms/types";
 export interface BuilderAssistSnapshot {
   /** This form's assist route, relative to this app. */
   readonly endpoint: string;
+  /**
+   * Whether this caller may write this form's draft. False sends the turn to the screen
+   * route instead: the per-form route requires `form: write`, and a caller who cannot
+   * write has nothing to accept.
+   */
+  readonly canPropose: boolean;
   readonly draft: DraftForm;
   readonly draftUpdatedAt: string | undefined;
   readonly accept: (proposedDraft: DraftForm, newQuestions: readonly unknown[]) => void;

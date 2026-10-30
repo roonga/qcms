@@ -15,7 +15,7 @@ the PII boundary statement) is `docs/agent-authoring.md`.
 
 | Method & path                               | Scope (SEC-5)                    | Notes                                                                                                                         |
 | ------------------------------------------- | -------------------------------- | ----------------------------------------------------------------------------------------------------------------------------- |
-| `POST /admin/forms/:id/draft/assist`        | `forms:write`                    | One agent turn. Body `{ conversation, clientState? }`. Answers `text/event-stream`.                                           |
+| `POST /admin/forms/:id/draft/assist`        | `forms:write`                    | One agent turn. Body `{ conversation, clientState?, screen?, params?, conversationId? }`. Answers `text/event-stream`.        |
 | `POST /admin/forms/:id/draft/assist/accept` | `forms:write`, `questions:write` | The human's Accept. Body `{ definition, newQuestions }`. Answers a saved-draft JSON body.                                     |
 | `POST /admin/assist`                        | `forms:read`                     | One turn on the screen the body names. Body `{ conversation, screen, params?, conversationId }`. Answers `text/event-stream`. |
 

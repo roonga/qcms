@@ -461,10 +461,8 @@ const ROUTES: readonly GuardedRoute[] = [
     logged: { beltRoute: "/settings/recovery-codes", beltOutcome: "redirect-with-failure" },
   },
   {
-    // Task 041. The flag is stubbed on for this route only, because with it off the
-    // handler answers 404 before the belt runs at all - which is exit criterion 1
-    // working, not a hole in this one: a route that does not exist cannot be posted to
-    // cross-origin either.
+    // The flag is stubbed on because with it off the handler answers 404 before the belt
+    // runs at all: a route that does not exist cannot be posted to cross-origin either.
     path: "app/(shell)/forms/[formId]/assist/route.ts",
     post: (headers) => {
       vi.stubEnv("QCMS_FLAG_AGENT_AUTHORING", "fake");
@@ -483,8 +481,8 @@ const ROUTES: readonly GuardedRoute[] = [
     logged: { beltRoute: "/forms/{formId}/assist", beltOutcome: "refused-403" },
   },
   {
-    // Task 082's screen route. The flag is stubbed on for the same reason the per-form
-    // route's case stubs it: with it off the handler answers 404 before the belt runs.
+    // The flag is stubbed on for the same reason the per-form route's case stubs it:
+    // with it off the handler answers 404 before the belt runs.
     path: "app/(shell)/assist/route.ts",
     post: (headers) => {
       vi.stubEnv("QCMS_FLAG_AGENT_AUTHORING", "fake");

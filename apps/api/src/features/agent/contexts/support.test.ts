@@ -45,6 +45,52 @@ describe("auditedRead", () => {
     expect(asked).toBe(true);
   });
 
+  it("asks a concurrent turn for the row when the claiming turn fails", async () => {
+    const input = inputWith(store());
+    const asked: boolean[] = [];
+    let fail: ((error: Error) => void) | undefined;
+    const blocked = new Promise<undefined>((_resolve, reject) => {
+      fail = reject;
+    });
+
+    const first = auditedRead(input, "list:frm_a:[]", (audit) => {
+      asked.push(audit);
+      return blocked;
+    });
+    const second = auditedRead(input, "list:frm_a:[]", (audit) => {
+      asked.push(audit);
+      return Promise.resolve(undefined);
+    });
+    fail?.(new Error("transaction rolled back"));
+
+    await expect(first).rejects.toThrow("transaction rolled back");
+    await second;
+    expect(asked).toEqual([true, true]);
+  });
+
+  it("lets a concurrent turn skip the row once the claiming turn has written it", async () => {
+    const input = inputWith(store());
+    const asked: boolean[] = [];
+    let commit: ((value: undefined) => void) | undefined;
+    const blocked = new Promise<undefined>((resolve) => {
+      commit = resolve;
+    });
+
+    const first = auditedRead(input, "list:frm_a:[]", (audit) => {
+      asked.push(audit);
+      return blocked;
+    });
+    const second = auditedRead(input, "list:frm_a:[]", (audit) => {
+      asked.push(audit);
+      return Promise.resolve(undefined);
+    });
+    commit?.(undefined);
+
+    await first;
+    await second;
+    expect(asked).toEqual([true, false]);
+  });
+
   it("keys each distinct subject and conversation on its own row", async () => {
     const shared = store();
     const asked: boolean[] = [];

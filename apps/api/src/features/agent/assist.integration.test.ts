@@ -845,3 +845,122 @@ describe("one limiter key across every assist route (Q19)", () => {
     BOOT_TIMEOUT,
   );
 });
+
+/**
+ * A caller holding `forms.viewer` and no claim, through the real `authorize` the route
+ * middleware and the context builders use. The unit tests pin the door with a stubbed
+ * evaluator; this pins it with grants a workspace actually holds.
+ */
+describe("a reduced-grant caller over HTTP", () => {
+  const FORM_ID = "frm_viewer";
+  let viewer: { token: string; userId: string };
+  let stranger: { token: string; userId: string };
+
+  async function turnAs(
+    caller: { token: string; userId: string },
+    path: string,
+    body: unknown,
+  ): Promise<Response> {
+    await deps.rateLimitStore.reset(`rl:agent-assist:${caller.userId}`);
+    return app.request(`/admin${path}`, {
+      method: "POST",
+      headers: {
+        "content-type": "application/json",
+        "x-qcms-internal-token": internalToken,
+        [ADMIN_SESSION_HEADER]: caller.token,
+      },
+      body: JSON.stringify(body),
+    });
+  }
+
+  /** Which tool each step ran, and how that step ended. */
+  function outcomes(events: readonly AssistEvent[]): Map<string, string> {
+    const tools = new Map<number, string>();
+    const ended = new Map<string, string>();
+    for (const event of events) {
+      if (event.type === "status" && event.step !== undefined && event.tool !== undefined) {
+        tools.set(event.step, event.tool);
+      }
+      if (event.type === "tool-outcome") {
+        const tool = tools.get(event.step);
+        if (tool !== undefined) ended.set(tool, event.outcome);
+      }
+    }
+    return ended;
+  }
+
+  beforeAll(async () => {
+    await seedPublishedQuestion("q_viewer", "Viewer");
+    await seedForm(FORM_ID, ["q_viewer"]);
+    viewer = await seedAdminSession(testDb.db, {
+      label: "viewer",
+      claim: false,
+      grants: ["forms.viewer"],
+      owner: false,
+    });
+    stranger = await seedAdminSession(testDb.db, {
+      label: "stranger",
+      claim: false,
+      membership: false,
+    });
+  }, BOOT_TIMEOUT);
+
+  it(
+    "builds the builder screen's facts for a caller holding only forms.viewer",
+    async () => {
+      const res = await turnAs(viewer, "/assist", {
+        conversation: [{ role: "user", content: "what is on this screen #qcms-fake:no-proposal" }],
+        screen: "/forms/[formId]",
+        params: { formId: FORM_ID },
+        conversationId: "cnv_viewer_facts",
+      });
+      expect(res.status).toBe(200);
+      const events = await readEvents(res);
+      expect(events.some((event) => event.type === "text")).toBe(true);
+      expect(events.some((event) => event.type === "error")).toBe(false);
+      // The facts the screen built reached the provider, so this is a turn with a context
+      // rather than one that answered from nothing.
+      expect(JSON.stringify(providerCalls)).toContain(FORM_ID);
+    },
+    BOOT_TIMEOUT,
+  );
+
+  it(
+    "refuses that caller every draft verb and reaches no proposal",
+    async () => {
+      const res = await turnAs(viewer, "/assist", {
+        conversation: [{ role: "user", content: "rewrite this form #qcms-fake:read-all" }],
+        screen: "/forms/[formId]",
+        params: { formId: FORM_ID },
+        conversationId: "cnv_viewer_verbs",
+      });
+      expect(res.status).toBe(200);
+      const events = await readEvents(res);
+      const ended = outcomes(events);
+      // The read tool the viewer's grants do cover, so the three refusals below are the
+      // cell and not a turn that failed before any tool ran.
+      expect(ended.get("search_question_library")).toBe("done");
+      expect(ended.get("propose_questions")).toBe("failed");
+      expect(ended.get("propose_draft")).toBe("failed");
+      expect(ended.get("validate_draft")).toBe("failed");
+      expect(events.some((event) => event.type === "proposal")).toBe(false);
+    },
+    BOOT_TIMEOUT,
+  );
+
+  it("refuses that caller the builder's own route, which asks for form write", async () => {
+    const res = await turnAs(viewer, `/forms/${FORM_ID}/draft/assist`, {
+      conversation: [{ role: "user", content: "rewrite this form" }],
+    });
+    expect(res.status).toBe(403);
+  });
+
+  it("refuses a caller holding no grant in any workspace", async () => {
+    const res = await turnAs(stranger, "/assist", {
+      conversation: [{ role: "user", content: "what can you see" }],
+      screen: "/forms",
+      conversationId: "cnv_stranger",
+    });
+    expect(res.status).toBe(403);
+  });
+});

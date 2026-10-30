@@ -59,7 +59,7 @@ export interface ScreenDef {
   readonly actionKinds: readonly string[];
 }
 
-/** The builder's own four verbs, which this task leaves exactly as they are. */
+/** The builder's own four verbs. */
 const DRAFT_TOOLS: readonly AgentToolName[] = [
   "search_question_library",
   "propose_questions",

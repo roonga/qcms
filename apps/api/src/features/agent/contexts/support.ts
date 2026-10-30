@@ -195,11 +195,20 @@ export async function workspacesHolding(
 /** How long one conversation's audited-read claims live. */
 const CONVERSATION_WINDOW_MS = 12 * 60 * 60 * 1_000;
 
+/** The claims open in this process, keyed as the limiter keys them. */
+const openClaims = new Map<string, Promise<unknown>>();
+
+const settled = (): undefined => undefined;
+
 /**
  * Run an audited read, telling it whether it owes SEC-15 a `read` row: the first turn of a
  * conversation to reach this subject does, later ones do not. The claim is released when
  * the read fails, so a row that never committed cannot make a later turn skip it, and
  * releasing can only ever add rows.
+ *
+ * A turn that would skip the row waits for an open claim on the same key first. Deciding
+ * while the claiming read is still open is what let two concurrent turns leave the subject
+ * with no row at all: the second skipped, the first then failed and released.
  */
 export async function auditedRead<T>(
   input: ScreenBuildInput,
@@ -207,12 +216,34 @@ export async function auditedRead<T>(
   run: (audit: boolean) => Promise<T>,
 ): Promise<T> {
   const key = `agent-read:${input.principal.userId}:${input.conversationId}:${subject}`;
-  const hit = await input.deps.rateLimitStore.hit(key, CONVERSATION_WINDOW_MS);
-  const audit = hit.count === 1;
+  let open = openClaims.get(key);
+  while (open !== undefined) {
+    await open.then(settled, settled);
+    if (openClaims.get(key) === open) openClaims.delete(key);
+    open = openClaims.get(key);
+  }
+  // Registered before its own first await, so a turn arriving later cannot pass the wait
+  // above and then race this one for the claim.
+  const attempt = claimed(input, key, run);
+  openClaims.set(key, attempt);
   try {
-    return await run(audit);
+    return await attempt;
+  } finally {
+    if (openClaims.get(key) === attempt) openClaims.delete(key);
+  }
+}
+
+async function claimed<T>(
+  input: ScreenBuildInput,
+  key: string,
+  run: (audit: boolean) => Promise<T>,
+): Promise<T> {
+  const hit = await input.deps.rateLimitStore.hit(key, CONVERSATION_WINDOW_MS);
+  if (hit.count !== 1) return run(false);
+  try {
+    return await run(true);
   } catch (error) {
-    if (audit) await input.deps.rateLimitStore.reset(key);
+    await input.deps.rateLimitStore.reset(key);
     throw error;
   }
 }

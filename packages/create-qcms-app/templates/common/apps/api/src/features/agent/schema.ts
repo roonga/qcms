@@ -12,6 +12,15 @@ export const AssistTurnBody = z.strictObject({
  * content, so a tampered client cannot hand the model something its screen would not show
  * (SEC-17).
  */
+/**
+ * A filter date the response query can use. Parsed here because `new Date` on an
+ * unparsable string reaches the query as `Invalid Date` and fails as a 500.
+ */
+const FilterDate = z
+  .string()
+  .max(40)
+  .refine((value) => !Number.isNaN(Date.parse(value)), { message: "Not a date" });
+
 const ScreenParamsBody = z.strictObject({
   formId: z.string().max(200).optional(),
   questionId: z.string().max(200).optional(),
@@ -22,8 +31,8 @@ const ScreenParamsBody = z.strictObject({
   filters: z
     .strictObject({
       version: z.number().int().min(1).max(1_000_000).optional(),
-      from: z.string().max(40).optional(),
-      to: z.string().max(40).optional(),
+      from: FilterDate.optional(),
+      to: FilterDate.optional(),
       flagged: z.boolean().optional(),
     })
     .optional(),
