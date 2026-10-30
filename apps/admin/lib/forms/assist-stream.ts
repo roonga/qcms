@@ -4,7 +4,7 @@ import { parseIssues } from "./issues.ts";
 /**
  * The assist SSE stream, parsed client-side (task 041).
  *
- * The API relays `apps/api/src/features/forms/assist/types.ts`'s `AssistEvent` union as
+ * The API relays `apps/api/src/features/agent/types.ts`'s `AssistEvent` union as
  * one `event: <type>\ndata: <json>\n\n` frame per item. This module redeclares that
  * union rather than importing it: the admin has no path across the app boundary (R2,
  * and there is no shared package for it), so what lives here is a *view* of the wire

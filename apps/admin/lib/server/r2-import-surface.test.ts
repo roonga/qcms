@@ -51,24 +51,22 @@ const EXTRA_FILES = ["proxy.ts"];
 const API_CLIENT_SUFFIX = "lib/server/api.ts";
 
 /**
- * The one client-side `fetch` this rule allows, and why it is not the hole rule 5
+ * The client-side `fetch` calls this rule allows, and why they are not the hole rule 5
  * exists to close.
  *
- * `AssistPanel` (task 041) reads a streamed SSE response as it arrives, which needs
- * the browser's own `fetch`: there is no other way to get a `ReadableStream` body for
- * a `POST` carrying a JSON payload (`EventSource` cannot `POST` or set a body at
- * all). What it calls is this app's *own* same-origin route
- * (`app/(shell)/forms/[formId]/assist/route.ts`), never the API directly - neither the
- * admin session token nor the internal service token is anywhere in this file. The
- * one call that does carry them still runs through `lib/server/forms.ts`'s `assist()`,
- * built on `adminApiFetch` like every other API call this app makes, so rule 5's
- * actual property ("the credentials are attached in one place") still holds. Widening
- * this set to a second file is an amendment to this comment, not a silent regex edit.
+ * `AssistPanel` (task 041) and the assistant conversation panel each read a streamed
+ * SSE response as it arrives, which needs the browser's own `fetch`: there is no other
+ * way to get a `ReadableStream` body for a `POST` carrying a JSON payload
+ * (`EventSource` cannot `POST` or set a body at all). Each calls only this app's *own*
+ * same-origin route, never the API directly, and neither the admin session token nor
+ * the internal service token is anywhere in either file. The one call that does carry
+ * them still runs through `lib/server/forms.ts`'s `assist()`, built on `adminApiFetch`
+ * like every other API call this app makes, so rule 5's actual property ("the
+ * credentials are attached in one place") still holds. Widening this set to another
+ * file is an amendment to this comment, not a silent regex edit.
  */
 const ALLOWED_CLIENT_FETCH_SUFFIXES: readonly string[] = [
   "/components/forms/assist-panel.tsx",
-  // The same exemption, for the panel the shell renders on a screen with no form: it
-  // streams an SSE turn from this app's own route and parses nothing else.
   "/components/agent/assistant-conversation.tsx",
 ];
 
@@ -503,20 +501,17 @@ describe("R2 import surface (strict BFF)", () => {
     // session or channel token appearing there is the hole rule 5 exists to
     // close, exemption or not.
     for (const suffix of ALLOWED_CLIENT_FETCH_SUFFIXES) {
-      expect(
-        files.find((f) => f.path.endsWith(suffix)),
-        "the client-fetch exemption names a file that no longer exists",
-      ).toBeDefined();
-    }
-    const exempt = files.find((f) => f.path.endsWith(ALLOWED_CLIENT_FETCH_SUFFIXES[0] ?? ""));
-    for (const forbidden of [
-      "x-qcms-internal-token",
-      "x-qcms-admin-session",
-      "QCMS_INTERNAL_TOKEN",
-      "adminApiFetch",
-      "apiBaseUrl",
-    ]) {
-      expect(exempt?.text ?? "", forbidden).not.toContain(forbidden);
+      const exempt = files.find((f) => f.path.endsWith(suffix));
+      expect(exempt, `the client-fetch exemption ${suffix} names a file that no longer exists`).toBeDefined();
+      for (const forbidden of [
+        "x-qcms-internal-token",
+        "x-qcms-admin-session",
+        "QCMS_INTERNAL_TOKEN",
+        "adminApiFetch",
+        "apiBaseUrl",
+      ]) {
+        expect(exempt?.text ?? "", `${suffix} must not contain ${forbidden}`).not.toContain(forbidden);
+      }
     }
   });
 

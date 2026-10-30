@@ -50,8 +50,8 @@ export interface AssistantTurnView {
 }
 
 /**
- * The four tool names the API registers (`apps/api/src/features/forms/assist/tools.ts`,
- * `ASSIST_TOOL_NAMES`), each with what a person would call it.
+ * The tool names the API registers (`apps/api/src/features/agent/tools/registry.ts`,
+ * `AGENT_TOOL_NAMES`), each with what a person would call it.
  */
 export const TOOL_STEP_LABELS: Readonly<Record<string, MessageKey>> = {
   search_question_library: "forms.assist.step.search_question_library",
