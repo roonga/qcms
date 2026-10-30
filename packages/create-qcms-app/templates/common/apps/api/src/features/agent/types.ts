@@ -1,6 +1,6 @@
 import type { FormDefinition, QuestionDefinition, QuestionId } from "@roonga/qcms-core";
 
-import type { PublishIssue, PublishWarning } from "../handler.js";
+import type { PublishIssue, PublishWarning } from "../forms/handler.js";
 
 export interface AssistTurn {
   readonly role: "user" | "assistant";
@@ -39,6 +39,51 @@ export interface AssistContext {
   readonly conversation: readonly AssistTurn[];
   readonly validate: ValidateDraftPort;
   readonly maxSteps: number;
+}
+
+/** What a draft projection tells the model: the visible set, never an answer value. */
+export interface DraftProjection {
+  readonly visibleSteps: readonly string[];
+  readonly visibleQuestions: readonly string[];
+  readonly complete: boolean;
+}
+
+/**
+ * Hypothetical answers travel inward only, from the model to the kernel; nothing a
+ * respondent submitted is read here.
+ */
+export type ProjectDraftPort = (
+  answers: Readonly<Record<string, unknown>>,
+) => Promise<DraftProjection>;
+
+/** The SEC-3 cell a read tool declares, checked for the calling principal by the door. */
+export interface ToolCell {
+  readonly resource: string;
+  readonly action: string;
+}
+
+/**
+ * One turn's context. The screen decides what is in it: its facts, the tools it declares,
+ * and the ports those tools close over. A port absent is a tool the screen does not offer,
+ * which is why no tool can reach past its own screen (SEC-17).
+ *
+ * {@link AssistContext} is the builder screen's shape, and its draft members appear here
+ * as the optional half.
+ */
+export interface AgentContext {
+  readonly screen: string;
+  /** The screen's typed facts, already validated against its strict schema. */
+  readonly facts: unknown;
+  readonly conversation: readonly AssistTurn[];
+  readonly maxSteps: number;
+  /** The screen's declared list; the door refuses every other name. */
+  readonly tools: readonly string[];
+  /** The policy evaluator, closed over this caller and this screen's workspace. */
+  readonly authorize: (cell: ToolCell) => Promise<void>;
+  readonly draft?: FormDefinition;
+  readonly questionLibrary?: QuestionLibraryPort;
+  readonly validate?: ValidateDraftPort;
+  readonly projectDraft?: ProjectDraftPort;
 }
 
 /** Both advisory lists are server-computed, so the UI can never be handed an unvalidated proposal. */
@@ -92,5 +137,5 @@ export type AssistEvent =
 
 /** The caller owns the `AbortSignal` so a disconnected client stops the upstream call. */
 export interface DraftAssistant {
-  assist(context: AssistContext, signal: AbortSignal): AsyncIterable<AssistEvent>;
+  assist(context: AgentContext, signal: AbortSignal): AsyncIterable<AssistEvent>;
 }

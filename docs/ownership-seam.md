@@ -93,12 +93,12 @@ regeneration and `git add` the result rather than merging two sets of counts.
 
 <!-- BEGIN GENERATED: ownership-seam (pnpm qcms:sync-templates) -->
 
-### Scaffolded paths (503 files common to both shapes)
+### Scaffolded paths (508 files common to both shapes)
 
 | Path                                                                 | Files |
 | -------------------------------------------------------------------- | ----- |
 | `(project root)`                                                     | 8     |
-| `apps/`                                                              | 492   |
+| `apps/`                                                              | 497   |
 | `apps/admin/`                                                        | 305   |
 | `apps/admin/app/`                                                    | 82    |
 | `apps/admin/app/(shell)/`                                            | 63    |
@@ -185,12 +185,14 @@ regeneration and `git add` the result rather than merging two sets of counts.
 | `apps/admin/lib/questions/`                                          | 9     |
 | `apps/admin/lib/server/`                                             | 29    |
 | `apps/admin/lib/shell/`                                              | 2     |
-| `apps/api/`                                                          | 113   |
-| `apps/api/src/`                                                      | 110   |
-| `apps/api/src/features/`                                             | 78    |
+| `apps/api/`                                                          | 118   |
+| `apps/api/src/`                                                      | 115   |
+| `apps/api/src/features/`                                             | 83    |
+| `apps/api/src/features/agent/`                                       | 15    |
+| `apps/api/src/features/agent/contexts/`                              | 4     |
+| `apps/api/src/features/agent/tools/`                                 | 2     |
 | `apps/api/src/features/auth/`                                        | 5     |
-| `apps/api/src/features/forms/`                                       | 13    |
-| `apps/api/src/features/forms/assist/`                                | 10    |
+| `apps/api/src/features/forms/`                                       | 3     |
 | `apps/api/src/features/links/`                                       | 3     |
 | `apps/api/src/features/membership/`                                  | 9     |
 | `apps/api/src/features/operations/`                                  | 3     |
@@ -250,7 +252,7 @@ regeneration and `git add` the result rather than merging two sets of counts.
 
 ### QCMS-internal references in the scaffolded source
 
-`1737` lines across `350` scaffolded files cite a QCMS issue, ADR, SEC control, plan task or repository path.
+`1751` lines across `355` scaffolded files cite a QCMS issue, ADR, SEC control, plan task or repository path.
 
 These are comments, and they stay (issue #457, tier 3). They are the engineering
 rationale for code you now own, which is worth more to you than a tidy file, and
@@ -265,7 +267,7 @@ rather than documented: the images no longer claim to be built from this
 repository, and no scaffolded message names a script your project does not define.
 
 <details>
-<summary>Every scaffolded file (503)</summary>
+<summary>Every scaffolded file (508)</summary>
 
 ```
 .dockerignore
@@ -586,21 +588,26 @@ apps/api/src/create-admin.ts
 apps/api/src/deps.ts
 apps/api/src/environments.ts
 apps/api/src/errors.ts
+apps/api/src/features/agent/assistant.ts
+apps/api/src/features/agent/contexts/administration.ts
+apps/api/src/features/agent/contexts/authoring.ts
+apps/api/src/features/agent/contexts/operations.ts
+apps/api/src/features/agent/contexts/support.ts
+apps/api/src/features/agent/fake-model.ts
+apps/api/src/features/agent/handler.ts
+apps/api/src/features/agent/route.ts
+apps/api/src/features/agent/schema.ts
+apps/api/src/features/agent/screens.ts
+apps/api/src/features/agent/system-prompt.ts
+apps/api/src/features/agent/thinking.ts
+apps/api/src/features/agent/tools/registry.ts
+apps/api/src/features/agent/tools/tool-schema.ts
+apps/api/src/features/agent/types.ts
 apps/api/src/features/auth/bootstrap.ts
 apps/api/src/features/auth/instance.ts
 apps/api/src/features/auth/plugin-write-backstop.ts
 apps/api/src/features/auth/reset-two-factor.ts
 apps/api/src/features/auth/route.ts
-apps/api/src/features/forms/assist/assistant.ts
-apps/api/src/features/forms/assist/fake-model.ts
-apps/api/src/features/forms/assist/handler.ts
-apps/api/src/features/forms/assist/route.ts
-apps/api/src/features/forms/assist/schema.ts
-apps/api/src/features/forms/assist/system-prompt.ts
-apps/api/src/features/forms/assist/thinking.ts
-apps/api/src/features/forms/assist/tool-schema.ts
-apps/api/src/features/forms/assist/tools.ts
-apps/api/src/features/forms/assist/types.ts
 apps/api/src/features/forms/handler.ts
 apps/api/src/features/forms/route.ts
 apps/api/src/features/forms/schema.ts

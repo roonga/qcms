@@ -1,7 +1,8 @@
-# Draft-assistant slice (task 041, ADR-25)
+# Agent slice (tasks 041 and 082, ADR-25, SEC-17)
 
-Flag-gated agent-assisted authoring: one bounded tool loop that proposes a draft
-`FormDefinition`, relayed to the admin builder as server-sent events.
+Flag-gated agent assistance on every admin screen: one bounded tool loop,
+relayed to the admin as server-sent events. On the form builder it proposes a
+draft `FormDefinition`; on every other screen it explains and navigates.
 
 **ADR-25 in one line: the agent proposes, the kernel validates, the human
 publishes.** Nothing here touches the serving path, and nothing here can reach a
@@ -16,6 +17,10 @@ the PII boundary statement) is `docs/agent-authoring.md`.
 | ------------------------------------------- | -------------------------------- | ----------------------------------------------------------------------------------------- |
 | `POST /admin/forms/:id/draft/assist`        | `forms:write`                    | One agent turn. Body `{ conversation, clientState? }`. Answers `text/event-stream`.       |
 | `POST /admin/forms/:id/draft/assist/accept` | `forms:write`, `questions:write` | The human's Accept. Body `{ definition, newQuestions }`. Answers a saved-draft JSON body. |
+| `POST /admin/assist`                        | `forms:read`                     | One turn on the screen the body names. Body `{ conversation, screen, params?, conversationId }`. Answers `text/event-stream`. |
+
+Both turn routes share **one per-principal limiter key** (Q19), so ten turns a
+minute is the caller's whole budget rather than one budget per route.
 
 **The flag gates the mount, not a handler branch.** With
 `QCMS_FLAG_AGENT_AUTHORING=none` (the default) `registerFormsAssist` registers
@@ -29,38 +34,61 @@ flag-gated, and streams rather than returning a modelled JSON body.
 
 | File                                    | What it is                                                                                                                |
 | --------------------------------------- | ------------------------------------------------------------------------------------------------------------------------- |
-| `types.ts`                              | The `DraftAssistant` port, `AssistContext`, `AssistEvent`, `AssistProposal`. The PII boundary is `AssistContext`'s shape. |
-| `tools.ts`                              | The four-verb allowlist, the single dispatch door, and the provider tool set built from the same registry.                |
+| `types.ts`                              | The `DraftAssistant` port, `AgentContext`, `AssistContext`, `AssistEvent`, `AssistProposal`. The PII boundary is the context's shape. |
+| `screens.ts`                            | The frozen `SCREENS` registry: one row per `(shell)` page, each with its facts schema, context builder, read tools and action kinds. |
+| `contexts/`                             | The per-screen context builders, grouped by area, each checking its own SEC-3 cell before it reads anything.               |
+| `tools/registry.ts`                     | The frozen tool registry, the single dispatch door, and the provider tool set built from the current screen's list.        |
 | `system-prompt.ts`                      | The versioned system prompt, assembled from the kernel's own contracts. Reviewed like code.                               |
 | `assistant.ts`                          | The `streamText` tool loop, the stop-reason mapping, and the provider selector.                                           |
 | `fake-model.ts`                         | The deterministic scripted model CI drives, including the hostile scripts.                                                |
 | `route.ts` / `handler.ts` / `schema.ts` | The flag-gated registrar, the SSE relay and its 15 second keep-alive, the request schema.                                 |
 | `thinking.ts`                           | One function from `QCMS_AGENT_THINKING` to the provider's own options, and nothing vendor-shaped anywhere else (081).     |
 
-## The tool allowlist is a security control
+## The registry and the door are security controls
 
-Four verbs exist: `search_question_library`, `propose_questions`,
-`propose_draft`, `validate_draft`. Publish, erase, link minting, webhook
-configuration and every read of response data are **absent from the module**, so
-an agent cannot call them however it is prompted, jailbroken or swapped.
+Five verbs exist: `search_question_library`, `propose_questions`,
+`propose_draft`, `validate_draft` and `project_draft`. Publish, erase, link
+minting, webhook configuration and every read of response **content** are absent
+from the module, so an agent cannot call them however it is prompted, jailbroken
+or swapped.
 
-Two properties hold structurally, and both are tested:
+Three properties hold structurally, and all three are tested:
 
-1. **One door.** `runAssistTool` is the only way a tool executes and refuses any
-   name outside `ASSIST_TOOL_NAMES` before dispatch. The tool set handed to the
-   provider is built from the same frozen registry, so the model is never told
-   the other verbs exist. A refused call is logged and the turn produces **no
-   proposal at all**, and since issue #814 the loop also ends at the refusing
-   step rather than asking again until `QCMS_AGENT_MAX_STEPS` runs out.
-2. **No respondent data.** Every tool draws on `AssistContext`, which carries the
-   draft, a search-only library port, an advisory validation function and the
-   conversation. There is no `Executor` on it, no session reader and no answer
-   reader, so there is no code path from a tool to an `answers` row.
+1. **One door, per screen.** `runAgentTool` is the only way a tool executes. It
+   refuses a name outside the registry and a registered name outside **the
+   current screen's** list, before dispatch; the tool set handed to the provider
+   is built from that same list, so the model is never told the other verbs
+   exist. A refused call is logged and the turn produces **no proposal at all**,
+   and the loop ends at the refusing step rather than asking again until
+   `QCMS_AGENT_MAX_STEPS` runs out. A tool that declares a SEC-3 cell runs only
+   once the calling principal is shown to hold it, through the same policy
+   evaluator the route middleware uses.
+2. **The browser sends no context.** A turn carries a screen id, the route's own
+   ids and the response list's four filters. The screen's own builder computes
+   the facts here, under the caller's grants, so a tampered client cannot hand
+   the model something its screen would not show.
+3. **No respondent answer.** Every facts schema and every tool output schema is a
+   `z.strictObject` of enumerated fields, and the response screens' builders
+   close over a metadata projection that selects no answer column and joins no
+   answer table. `screens.test.ts` walks every schema and fails on a field whose
+   name matches the respondent-content or secret vocabulary the stdout redactor
+   uses; the staff-identity fragments are excluded, because a workspace member's
+   name and email are staff data and may flow (Q11).
 
-`assist.integration.test.ts` proves the second one against a real database: a
-submitted answer with a sentinel value sits in the tables while a turn runs, the
-exact bytes handed to the provider are captured, and the sentinel is asserted
-present in the database _before_ it is asserted absent from the payload.
+`assist.integration.test.ts` proves the last one against a real database: a
+submitted answer and a webhook payload both carry a sentinel while a turn runs on
+**every** screen, the exact bytes handed to the provider are captured, and the
+sentinel is asserted present in the database _before_ it is asserted absent from
+the payload. The same run asserts that a session id **is** present, so the
+metadata half of the rule is pinned too.
+
+## An audited read is audited once per conversation
+
+A screen whose own read writes a SEC-15 `read` row writes one from an agent turn
+too (Q10), once per conversation for each distinct filter set rather than once
+per turn. The key is the actor, the conversation id the admin mints, and a digest
+of the normalised filters, so a forged or reused id can add rows or skip a set
+already recorded for that same user, and can never leave a set with no row.
 
 ## The advisory validation is the server's
 

@@ -173,7 +173,7 @@ Counts are logged per turn (input tokens, output tokens, step count, provider, p
 
 ## 5. The system prompt
 
-The prompt lives at `apps/api/src/features/forms/assist/system-prompt.ts`, is committed to the repository, and carries a version number that travels with every logged turn. **Prompt changes are reviewed like code**, because a prompt describing a DSL the kernel no longer speaks produces confidently wrong proposals.
+The prompt lives at `apps/api/src/features/agent/system-prompt.ts`, is committed to the repository, and carries a version number that travels with every logged turn. **Prompt changes are reviewed like code**, because a prompt describing a DSL the kernel no longer speaks produces confidently wrong proposals.
 
 It is assembled from the kernel's own exports where the kernel exposes a list (question types, the semantics version), and a test asserts that every rule operator the prompt names parses and that no operator the kernel accepts is missing.
 

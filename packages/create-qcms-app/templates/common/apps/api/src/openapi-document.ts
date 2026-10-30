@@ -5,7 +5,7 @@ import { createApp } from "./app.js";
 import { systemClock } from "./clock.js";
 import { loadConfig } from "./config.js";
 import type { Deps } from "./deps.js";
-import { unavailableDraftAssistant } from "./features/forms/assist/assistant.js";
+import { unavailableDraftAssistant } from "./features/agent/assistant.js";
 import { nullChallengeVerifier } from "./features/responses/challenge.js";
 import { createNullLogger } from "./logger.js";
 import { InMemoryRateLimitStore } from "./rate-limit.js";

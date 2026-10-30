@@ -10,18 +10,40 @@ import { getForm } from "@roonga/qcms-db";
 import type { QuestionRow, QuestionVersionRow } from "@roonga/qcms-db";
 import { parseFormId, type FormDefinition, type FormId, type QuestionId } from "@roonga/qcms-core";
 
-import type { Deps } from "../../../deps.js";
-import { ApiError } from "../../../errors.js";
-import type { ApiEnv } from "../../../openapi.js";
+import type { Deps } from "../../deps.js";
+import { ApiError } from "../../errors.js";
+import type { ApiEnv } from "../../openapi.js";
 import {
   checkQuestionDefinition,
   createQuestionWithFirstDraft,
   requireUnusedQuestionId,
   type DefinitionRefusal,
-} from "../../questions/create.js";
-import { requireFormDefinition, storeDraftDefinition, validateDraft } from "../handler.js";
-import type { acceptProposalRoute, assistRoute } from "./route.js";
-import type { AssistContext, AssistEvent, AssistTurn, LibraryEntry } from "./types.js";
+} from "../questions/create.js";
+import {
+  projectDraftFlow,
+  requireFormDefinition,
+  storeDraftDefinition,
+  validateDraft,
+} from "../forms/handler.js";
+import type { Resource } from "../membership/policy.js";
+import { holdsInstallationClaim } from "../membership/resolver.js";
+import {
+  requireCell,
+  requireForm,
+  requireQuestion,
+  type ScreenBuildInput,
+  type ScreenParams,
+} from "./contexts/support.js";
+import { isFormSubtreeScreen, isScreenId, SCREENS, type ScreenId } from "./screens.js";
+import type { acceptProposalRoute, assistRoute, screenAssistRoute } from "./route.js";
+import type {
+  AgentContext,
+  AssistContext,
+  AssistEvent,
+  AssistTurn,
+  LibraryEntry,
+  ProjectDraftPort,
+} from "./types.js";
 
 const fail = {
   noDraft: (): ApiError => new ApiError("NOT_FOUND", 404, "This form has no draft to work on yet"),
@@ -32,6 +54,24 @@ const fail = {
       "DRAFT_STALE",
       409,
       "The draft changed since this conversation started; reload the builder and try again",
+    ),
+  unknownScreen: (): ApiError =>
+    new ApiError(
+      "UNKNOWN_SCREEN",
+      400,
+      "That screen is not in this deployment's screen registry, so there is no context to build.",
+    ),
+  screenOutsideForm: (): ApiError =>
+    new ApiError(
+      "SCREEN_NOT_IN_FORM",
+      400,
+      "This route is one form's own, so its turns name a screen of that form's subtree.",
+    ),
+  noWorkspaceForTool: (): ApiError =>
+    new ApiError(
+      "FORBIDDEN",
+      403,
+      "This screen has no workspace of its own, so no tool that needs a grant runs on it.",
     ),
   /** Names which question, since a proposal card can list several. */
   proposedQuestionRefused: (questionId: string, issues: readonly DefinitionRefusal[]): ApiError =>
@@ -88,6 +128,11 @@ function draftToken(updatedAt: Date): string {
   return updatedAt.toISOString();
 }
 
+function maxStepsFor(deps: Deps): number {
+  return deps.config.agent.provider === "none" ? 1 : deps.config.agent.maxSteps;
+}
+
+/** The builder screen's draft ports, which are {@link AssistContext}'s shape. */
 function buildContext(
   deps: Deps,
   draft: FormDefinition,
@@ -102,7 +147,83 @@ function buildContext(
       const { issues, warnings } = await validateDraft(deps, definition);
       return { issues, warnings };
     },
-    maxSteps: deps.config.agent.provider === "none" ? 1 : deps.config.agent.maxSteps,
+    maxSteps: maxStepsFor(deps),
+  };
+}
+
+/**
+ * The turn's context: the screen's facts, built by the screen's own builder under the
+ * caller's grants and parsed against the screen's strict schema, and the ports the
+ * screen's declared tools close over.
+ *
+ * The facts are parsed rather than trusted, so a field a builder added without adding it
+ * to the schema fails here instead of reaching the provider.
+ */
+async function buildScreenContext(args: {
+  readonly deps: Deps;
+  readonly screen: ScreenId;
+  readonly build: ScreenBuildInput;
+  readonly conversation: readonly AssistTurn[];
+  readonly drafts?: AssistContext;
+}): Promise<AgentContext> {
+  const screen = SCREENS[args.screen];
+  const facts = screen.facts.parse(await screen.build(args.build));
+  const workspaceId = await screenWorkspace(args.build);
+  return {
+    screen: args.screen,
+    facts,
+    conversation: args.conversation,
+    maxSteps: maxStepsFor(args.deps),
+    tools: screen.readTools,
+    // The same evaluator the route middleware uses, closed over this caller and the
+    // workspace this screen's subject belongs to.
+    authorize: async (cell) => {
+      if (workspaceId === undefined) throw fail.noWorkspaceForTool();
+      await requireCell(args.build, {
+        workspaceId,
+        resource: cell.resource as Resource,
+        action: cell.action,
+      });
+    },
+    ...(args.drafts === undefined
+      ? {}
+      : {
+          draft: args.drafts.draft,
+          questionLibrary: args.drafts.questionLibrary,
+          validate: args.drafts.validate,
+        }),
+    ...(screen.readTools.includes("project_draft") && args.drafts !== undefined
+      ? { projectDraft: projectionPort(args.deps, args.drafts.draft) }
+      : {}),
+  };
+}
+
+/** The workspace a tool's cell is judged against: the screen's own subject. */
+async function screenWorkspace(input: ScreenBuildInput): Promise<string | undefined> {
+  if (input.params.formId !== undefined) return (await requireForm(input)).workspaceId;
+  if (input.params.questionId !== undefined) return (await requireQuestion(input)).workspaceId;
+  return input.params.workspaceId;
+}
+
+function projectionPort(deps: Deps, draft: FormDefinition): ProjectDraftPort {
+  return async (answers) => projectDraftFlow(deps, draft, answers);
+}
+
+function screenBuildInput(args: {
+  readonly deps: Deps;
+  readonly principal: { readonly userId: string; readonly claim: boolean };
+  readonly environment: string;
+  readonly params: ScreenParams;
+  readonly conversationId: string | undefined;
+}): ScreenBuildInput {
+  return {
+    deps: args.deps,
+    principal: args.principal,
+    environment: args.environment,
+    params: args.params,
+    // A turn with no conversation id is deduplicated against nothing, so an audited read
+    // writes its row every time rather than sharing a forged key.
+    conversationId: args.conversationId ?? `turn:${crypto.randomUUID()}`,
   };
 }
 
@@ -167,7 +288,7 @@ export function assistSseStream(args: {
 
 function assistStream(
   deps: Deps,
-  ctx: AssistContext,
+  ctx: AgentContext,
   controller: AbortController,
 ): ReadableStream<Uint8Array> {
   return assistSseStream({
@@ -207,24 +328,121 @@ export function makeAssistHandler(deps: Deps): RouteHandler<typeof assistRoute, 
       }
     }
 
+    // This route is the builder's own, so a turn that names no screen is a turn on the
+    // builder, and a named screen has to be one of this form's subtree.
+    const screen = requireScreen(body.screen ?? "/forms/[formId]");
+    if (!isFormSubtreeScreen(screen)) throw fail.screenOutsideForm();
+
     const controller = new AbortController();
     // The request's own signal is the client's disconnect: relay it upstream.
     c.req.raw.signal.addEventListener("abort", () => {
       controller.abort();
     });
 
-    const ctx = buildContext(deps, definition, body.conversation);
+    const ctx = await buildScreenContext({
+      deps,
+      screen,
+      conversation: body.conversation,
+      drafts: buildContext(deps, definition, body.conversation),
+      build: screenBuildInput({
+        deps,
+        principal: callerOf(c),
+        environment: deps.databases.forRequest(c.get("requestEnvironment")).environment,
+        // The form the route names wins over anything a body says, so a turn cannot ask
+        // about another form.
+        params: { ...(body.params ?? {}), formId },
+        conversationId: body.conversationId,
+      }),
+    });
 
     return new Response(assistStream(deps, ctx, controller), {
       status: 200,
-      headers: {
-        "content-type": "text/event-stream; charset=utf-8",
-        "cache-control": "no-store",
-        // Proxies that buffer would defeat the point of streaming progress.
-        "x-accel-buffering": "no",
-      },
+      headers: sseHeaders(),
     });
   };
+}
+
+function sseHeaders(): Record<string, string> {
+  return {
+    "content-type": "text/event-stream; charset=utf-8",
+    "cache-control": "no-store",
+    // Proxies that buffer would defeat the point of streaming progress.
+    "x-accel-buffering": "no",
+  };
+}
+
+function requireScreen(raw: string): ScreenId {
+  if (!isScreenId(raw)) throw fail.unknownScreen();
+  return raw;
+}
+
+function callerOf(c: {
+  get(key: "adminPrincipal"): { readonly userId: string; readonly role: string } | undefined;
+}): { readonly userId: string; readonly claim: boolean } {
+  const principal = c.get("adminPrincipal");
+  if (principal === undefined) {
+    throw new ApiError("unauthorized", 401, "Admin authentication required");
+  }
+  return { userId: principal.userId, claim: holdsInstallationClaim(principal.role) };
+}
+
+/**
+ * The turn for a screen with no form in its route. One screen id, one context builder,
+ * one door: the registry decides what this turn may read, and the builder checks its own
+ * SEC-3 cell before it reads it.
+ */
+export function makeScreenAssistHandler(
+  deps: Deps,
+): RouteHandler<typeof screenAssistRoute, ApiEnv> {
+  return async (c) => {
+    const body = c.req.valid("json");
+    const screen = requireScreen(body.screen);
+
+    const controller = new AbortController();
+    c.req.raw.signal.addEventListener("abort", () => {
+      controller.abort();
+    });
+
+    const build = screenBuildInput({
+      deps,
+      principal: callerOf(c),
+      environment: deps.databases.forRequest(c.get("requestEnvironment")).environment,
+      params: body.params ?? {},
+      conversationId: body.conversationId,
+    });
+    const drafts = isFormSubtreeScreen(screen)
+      ? await formSubtreeDrafts(deps, build)
+      : undefined;
+    const ctx = await buildScreenContext({
+      deps,
+      screen,
+      conversation: body.conversation,
+      build,
+      ...(drafts === undefined ? {} : { drafts }),
+    });
+
+    return new Response(assistStream(deps, ctx, controller), {
+      status: 200,
+      headers: sseHeaders(),
+    });
+  };
+}
+
+/**
+ * A form-subtree screen reached through this route still gets the draft ports its own
+ * route would give it, so one screen behaves the same whichever route carried the turn.
+ */
+async function formSubtreeDrafts(
+  deps: Deps,
+  build: ScreenBuildInput,
+): Promise<AssistContext | undefined> {
+  const { formId } = await requireForm(build);
+  const draftRow = await getDraft(deps.databases.control, formId);
+  const definition =
+    draftRow?.definition ??
+    (await getLatestPublishedVersion(deps.databases.control, formId))?.definition;
+  if (definition === undefined) return undefined;
+  return buildContext(deps, definition, []);
 }
 
 /** Derived so the operator can predict it; a collision is a clean 409, not a mangled name. */

@@ -278,6 +278,25 @@ export const ROUTE_POLICIES: readonly RoutePolicy[] = [
   // The agent-authoring routes exist only under `QCMS_FLAG_AGENT_AUTHORING`, so the test's
   // route derivation cannot see them; name their rows here or they become a 403.
   {
+    // One row, because this table is keyed by path and this one path serves every screen.
+    // The union admits a caller who may read something somewhere; which screen they may
+    // have a context built for is that screen's own cell, checked by its context builder
+    // through this same evaluator before it reads anything (SEC-17).
+    method: "POST",
+    path: "/admin/assist",
+    resource: "form",
+    action: "read",
+    workspace: "caller",
+    anyOf: [
+      { resource: "form", action: "read" },
+      { resource: "question", action: "read" },
+      { resource: "response", action: "read" },
+      { resource: "membership", action: "read" },
+      { resource: "webhook", action: "read" },
+      { resource: "audit", action: "read" },
+    ],
+  },
+  {
     method: "POST",
     path: "/admin/forms/{id}/draft/assist",
     resource: "form",
