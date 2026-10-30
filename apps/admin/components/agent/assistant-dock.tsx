@@ -144,7 +144,10 @@ export function AssistantProvider({
         setOpen(false);
         setExpanded(false);
         remember({ open: false, width });
-        document.getElementById(ASSISTANT_BUTTON_ID)?.focus();
+        // After the paint that drops the panel, because closing the sheet or the expanded
+        // state releases the `inert` the top bar is under: focusing into an inert subtree
+        // does nothing at all.
+        window.setTimeout(() => document.getElementById(ASSISTANT_BUTTON_ID)?.focus(), 0);
       },
       toggleExpanded: () => {
         setExpanded((was) => !was);
@@ -208,22 +211,27 @@ export function AssistantPanelSlot() {
   const conversation = useConversation();
   const builder = useBuilderAssist();
   const [helpOpen, setHelpOpen] = useState(false);
-  const expanded = control?.open === true && control.mode === "expanded";
+  const modal = control?.open === true && control.mode !== "dock";
 
-  // The expanded state is modal, so what is behind it leaves the tab order and the
-  // accessibility tree. `inert` is a DOM property rather than a style, so it is set here
-  // and not in `globals.css`.
+  // The expanded state and the sheet are modal, so everything behind them leaves the tab
+  // order and the accessibility tree, which is also what traps focus inside the panel.
+  // `inert` is a DOM property rather than a style, so it is set here and not in
+  // `globals.css`; the dock is a grid track and takes none of this.
   useEffect(() => {
-    const behind = [...document.querySelectorAll<HTMLElement>(".qcms-rail, main")];
-    for (const element of behind) element.inert = expanded;
+    const behind = [...document.querySelectorAll<HTMLElement>(".qcms-topbar, .qcms-rail, main")];
+    for (const element of behind) element.inert = modal;
     return () => {
       for (const element of behind) element.inert = false;
     };
-  }, [expanded]);
+  }, [modal]);
 
-  if (control === undefined || !control.open) return null;
+  if (control === undefined) return null;
   const { mode, width } = control;
-  const modal = mode !== "dock";
+  // Closed, the panel stays in the document `hidden` rather than unmounting, because a
+  // turn survives the panel closing: that is what puts the "Working" text beside the
+  // top-bar button with nothing on screen (ruling O3). `hidden` is `display: none`, so the
+  // grid rule in `globals.css` excludes it and the dock takes no track.
+  const closed = !control.open;
   const subject =
     builder === undefined ? undefined : builder.draft.title[builder.draft.defaultLocale];
 
@@ -233,6 +241,9 @@ export function AssistantPanelSlot() {
       setHelpOpen(false);
       return;
     }
+    // A header tooltip is open, so this Escape is its dismissal and focus must not move
+    // (SC 1.4.13). `AssistIconButton`'s own document listener closes it.
+    if (document.querySelector('[data-testid="qcms-assist-tip"]') !== null) return;
     event.stopPropagation();
     if (mode === "sheet") {
       control.close();
@@ -266,8 +277,9 @@ export function AssistantPanelSlot() {
       className="qcms-assistant"
       data-testid="qcms-assistant-panel"
       data-mode={mode}
-      role={modal ? "dialog" : "complementary"}
-      aria-modal={modal ? true : undefined}
+      hidden={closed}
+      role={mode === "dock" ? "complementary" : "dialog"}
+      aria-modal={mode === "dock" ? undefined : true}
       aria-labelledby={`${PANEL_ID}-name`}
       onKeyDown={onKeyDown}
       style={mode === "dock" ? { inlineSize: `${String(width)}px` } : undefined}

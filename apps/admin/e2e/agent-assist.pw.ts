@@ -45,7 +45,30 @@ import { confirmLifecycle, createDraft } from "./support/questions.js";
  * deterministic rather than dependent on spec ordering.
  */
 
-test.use({ storageState: TEST_ENVIRONMENT_STORAGE });
+/**
+ * The panel is the shell's dock now (082), so this spec carries the panel cookie open: the
+ * layout then stamps it docked on the first paint of every screen below and each test's
+ * fresh context starts with the panel already there, rather than every `goto` being
+ * followed by a click on the top-bar button.
+ */
+const ASSIST_STORAGE = {
+  ...TEST_ENVIRONMENT_STORAGE,
+  cookies: [
+    ...TEST_ENVIRONMENT_STORAGE.cookies,
+    {
+      name: "qcms-assistant",
+      value: "open:400",
+      domain: "localhost",
+      path: "/",
+      expires: -1,
+      httpOnly: false,
+      secure: false,
+      sameSite: "Lax" as const,
+    },
+  ],
+};
+
+test.use({ storageState: ASSIST_STORAGE });
 
 test.describe.configure({ mode: "serial" });
 
@@ -244,10 +267,13 @@ test("header tooltips stay open across the gap and close on Escape from anywhere
   await page.goto(`/forms/${formId}`);
   await expect(page.getByTestId("qcms-assist-panel")).toBeVisible({ timeout: 30_000 });
 
-  const toggle = page.getByTestId("qcms-assist-toggle");
+  // The dock's header owns these controls now (082), and they are the same
+  // `AssistIconButton` the collapse toggle was, so the criterion is measured on one of
+  // them: Close, which is in the header on every screen.
+  const toggle = page.getByTestId("qcms-assistant-close");
   const tip = page.getByTestId("qcms-assist-tip");
   const button = await toggle.boundingBox();
-  if (button === null) throw new Error("the collapse toggle has no box");
+  if (button === null) throw new Error("the Close control has no box");
   const x = button.x + button.width / 2;
 
   // Hoverable: from the button, down through the strip under it, onto the bubble.
@@ -322,8 +348,9 @@ test("streams prose and a running step before the first tool result (exit criter
   );
   await expect(mark).not.toHaveAttribute("data-working", "true");
 
-  // The panel is named by the mark, with no visible title word.
-  await expect(page.getByTestId("qcms-assist-panel")).toHaveAccessibleName("Assistant");
+  // The panel is named by the header's mark, with no visible title word. The dock is the
+  // named landmark now, and 080's panel is its conversation body (082).
+  await expect(page.getByTestId("qcms-assistant-panel")).toHaveAccessibleName("Assistant");
 
   // axe over the finished turn: the mark, the bubbles, the timeline and the card.
   const results = await new AxeBuilder({ page })

@@ -5078,16 +5078,18 @@ div:has(> [role="dialog"] [data-qcms-dialog="wide"]) {
   border-inline-start: 1px solid var(--color-border);
   background-color: var(--color-surface);
 }
-.qcms-shell-body:has(> .qcms-assistant[data-mode="dock"]) {
+.qcms-shell-body:has(> .qcms-assistant[data-mode="dock"]:not([hidden])) {
   display: grid;
   grid-template-columns: 1fr auto;
 }
 @variant sidebar {
-  .qcms-shell-body:has(> .qcms-rail):has(> .qcms-assistant[data-mode="dock"]) {
+  .qcms-shell-body:has(> .qcms-rail):has(> .qcms-assistant[data-mode="dock"]:not([hidden])) {
     grid-template-columns: 15rem 1fr auto;
   }
-  :root[data-sidebar="hidden"] .qcms-shell-body:has(> .qcms-rail):has(> .qcms-assistant[data-mode="dock"]),
-  :root[data-sidebar-hold="hidden"] .qcms-shell-body:has(> .qcms-rail):has(> .qcms-assistant[data-mode="dock"]) {
+  :root[data-sidebar="hidden"]
+    .qcms-shell-body:has(> .qcms-rail):has(> .qcms-assistant[data-mode="dock"]:not([hidden])),
+  :root[data-sidebar-hold="hidden"]
+    .qcms-shell-body:has(> .qcms-rail):has(> .qcms-assistant[data-mode="dock"]:not([hidden])) {
     grid-template-columns: 1fr auto;
   }
 }

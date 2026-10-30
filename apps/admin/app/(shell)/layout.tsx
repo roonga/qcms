@@ -215,10 +215,10 @@ export default async function ShellLayout({
                 }
                 trailing={
                   <>
-                    <ThemeToggle appearance={appearance} secureCookies={secureCookies()} />
-                    {/* First in the trailing group's own order: the assistant, then the
-                    account (Topbar card, issue #1133). */}
+                    {/* First in the trailing group, before the appearance toggle and the
+                        account (Topbar card, issue #1133). */}
                     {assistant && <AssistantButtonSlot />}
+                    <ThemeToggle appearance={appearance} secureCookies={secureCookies()} />
                     <AccountMenu email={session.email} name={session.name} />
                   </>
                 }
