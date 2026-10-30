@@ -223,7 +223,7 @@ describe("stopRun", () => {
     });
     expect(code).toBe(EXIT_STOP_INCOMPLETE);
     expect(signalled).toEqual([]);
-    expect(lines.join("' + esc + '")).toContain("is not this lane's detached runner");
+    expect(lines.join("' + esc + '")).toContain("was not confirmed as this lane's detached runner");
     expect(lines.join("' + esc + '")).toContain("postgres");
   });
 
@@ -241,7 +241,7 @@ describe("stopRun", () => {
     });
     expect(code).toBe(EXIT_STOP_INCOMPLETE);
     expect(signalled).toEqual([]);
-    expect(lines.join("' + esc + '")).toContain("unreadable");
+    expect(lines.join("' + esc + '")).toContain("could not be read");
   });
 
   it("reports a finished run rather than signalling anything", async () => {

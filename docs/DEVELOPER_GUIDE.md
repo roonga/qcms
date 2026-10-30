@@ -293,7 +293,7 @@ If the answers say load, say so in the report with the numbers and re-run on a q
 
 ## Windows and WSL
 
-**A native Windows checkout runs `pnpm verify` and nothing heavier.** The three gates below were not ported, because what they need is not a shell difference. A handful of wrapper and scaffolding-CLI tests inside `pnpm verify` also still need POSIX process semantics (signals and a POSIX shell); they are listed in issue #1126 and are container-only too.
+**A native Windows checkout runs `pnpm verify` and nothing heavier.** The refused gates below were not ported, because what they need is not a shell difference. A handful of wrapper and scaffolding-CLI tests inside `pnpm verify` also still need POSIX process semantics (signals and a POSIX shell); they are listed in issue #1126 and are container-only too.
 
 | Gate                                     | Native Windows             | Where it runs            |
 | ---------------------------------------- | -------------------------- | ------------------------ |
@@ -304,7 +304,7 @@ If the answers say load, say so in the report with the numbers and re-run on a q
 | `pnpm test:e2e` / `:headed`              | no, refused with a message | WSL or the dev container |
 | `pnpm docker:up` / `docker:down`         | yes                        | anywhere                 |
 
-The three are POSIX by construction, not by accident. The detached runner puts the suite in a session of its own with `setsid` so it outlives the shell the harness kills, signals a **process group** to stop a suite and its dev servers together, and reads `/proc/<pid>/cwd` to say which worktree owns a port that is already held. Windows has no equivalent of any of the three, so `verify:browser:detached` **fails fast** on `win32` with a message naming WSL rather than failing several frames down on a missing `setsid`.
+They are POSIX by construction, not by accident. The detached runner puts the suite in a session of its own with `setsid` so it outlives the shell the harness kills, signals a **process group** to stop a suite and its dev servers together, and reads `/proc/<pid>/cwd` to say which worktree owns a port that is already held. Windows has no equivalent of any of the three mechanisms, so `verify:browser:detached` **fails fast** on `win32` with a message naming WSL rather than failing several frames down on a missing `setsid`.
 
 **A gate that takes a browser seat refuses on `win32` rather than running unguarded** (issue #1138). The seat guard identifies a port's holder through `/proc`, so on Windows it finds no occupant and the refusals that keep a lane from adopting an orphan dev server, or from tearing down a neighbour's Compose stack, are all silently inert. `assertPosixHost` in `scripts/ports.mjs` is the one refusal, called from the browser harness preflight and, for the suite-driving modes only, from `scripts/compose-e2e.mjs`.
 

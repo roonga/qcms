@@ -1498,10 +1498,14 @@ export async function stopRun({
   // argv is checked before the signal: a live stranger on a recycled pid must not be hit.
   const argv = commandLine(pid);
   if (argv === undefined || !argv.includes(SUPERVISOR_ARGV_MARK)) {
-    out(`pid ${String(pid)} is alive but is not this lane's detached runner.`);
+    out(`pid ${String(pid)} is alive but was not confirmed as this lane's detached runner.`);
     out(`  recorded pid:  ${String(pid)}  (${paths.pid})`);
-    out(`  its command:   ${argv === undefined ? "unreadable" : boundedLine(argv)}`);
-    out("Nothing was signalled: the recorded pid belongs to something else now.");
+    out(
+      argv === undefined
+        ? "  its command:   could not be read, so ownership could not be established"
+        : `  its command:   ${boundedLine(argv)}`,
+    );
+    out("Nothing was signalled.");
     return EXIT_STOP_INCOMPLETE;
   }
 

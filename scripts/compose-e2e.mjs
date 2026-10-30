@@ -551,9 +551,9 @@ export function needsPosixHost(command) {
 
 async function main() {
   const command = process.argv[2];
-  // Before anything spawns: `down()` runs `down --volumes --remove-orphans` under the seat's project
-  // name, so an adopted seat would delete another lane's stack. Rethrown as a UsageError so the
-  // message prints without a stack trace.
+  // The seat is settled before anything spawns, for every mode: `down()` runs
+  // `down --volumes --remove-orphans` under the seat's project name, so an adopted seat
+  // would delete another lane's stack. Rethrown as a UsageError to print without a stack.
   try {
     if (needsPosixHost(command)) assertPosixHost(invokedAs(command));
     assertPortSeatChosen(root, invokedAs(command));
