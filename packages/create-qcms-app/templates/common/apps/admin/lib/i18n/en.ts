@@ -2215,7 +2215,7 @@ export const messages = {
     "That person loses the access this group carried. Every other holder keeps theirs.",
   "agent.card.member.role.title": "Set {userId} to {role} in this workspace",
   "agent.card.member.role.consequence":
-    "An owner administers the workspace: its access groups, its members and its settings. Removing the last owner is refused.",
+    "An owner looks after this workspace: its access groups, its members and its settings. Removing the last owner is refused.",
   "agent.card.workspace.settings.title": "Change this workspace's settings",
   "agent.card.workspace.settings.consequence":
     "These two switches decide whether a production release and a responses self-grant need a second account, and whether a new editor is granted the dev and test response data.",

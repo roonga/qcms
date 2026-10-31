@@ -81,7 +81,10 @@ function recordedFrom(
   }));
 }
 
-/** The one destination a batch names, or nothing when it names none or several. */
+/**
+ * The one destination a batch names, or nothing: a step binds one environment, so a batch
+ * naming none or several is refused rather than reduced to a guess.
+ */
 function soleDestination(environments: readonly string[] | undefined): string | undefined {
   return environments?.length === 1 ? environments[0] : undefined;
 }
@@ -112,11 +115,8 @@ export function agentProvenance(deps: Deps): MiddlewareHandler<ApiEnv> {
       throw refusal("AGENT_PROPOSAL_ROUTE");
     }
 
-    // The environment the request is **performed in**, from the policy row's own source:
-    // the grant check resolved it already, and a row that names none acts in the
-    // switcher's. A `targets` row carries one environment per destination the body names,
-    // and a step binds one environment, so only a batch naming exactly one is verifiable;
-    // none and two are both refused rather than reduced to a guess.
+    // The environment the request is **performed in**, from the policy row's own source,
+    // which the grant check resolved already; a row naming none acts in the switcher's.
     const grant = c.get("grantContext");
     const switcher = deps.databases.forRequest(c.get("requestEnvironment")).environment;
     const environment =

@@ -64,6 +64,21 @@ export const ALLOWED = {
     "agent.card.webhook.redeliver.title": "named by the webhook.redeliver action-kind descriptor",
     "agent.card.webhook.redeliver.consequence":
       "named by the webhook.redeliver action-kind descriptor",
+    "agent.card.access.groupCreate.title": "named by the access.groupCreate action-kind descriptor",
+    "agent.card.access.groupCreate.consequence":
+      "named by the access.groupCreate action-kind descriptor",
+    "agent.card.access.groupRemove.title": "named by the access.groupRemove action-kind descriptor",
+    "agent.card.access.groupRemove.consequence":
+      "named by the access.groupRemove action-kind descriptor",
+    "agent.card.access.grant.title": "named by the access.grant action-kind descriptor",
+    "agent.card.access.grant.consequence": "named by the access.grant action-kind descriptor",
+    "agent.card.access.revoke.title": "named by the access.revoke action-kind descriptor",
+    "agent.card.access.revoke.consequence": "named by the access.revoke action-kind descriptor",
+    "agent.card.member.role.title": "named by the member.role action-kind descriptor",
+    "agent.card.member.role.consequence": "named by the member.role action-kind descriptor",
+    "agent.card.workspace.settings.title": "named by the workspace.settings action-kind descriptor",
+    "agent.card.workspace.settings.consequence":
+      "named by the workspace.settings action-kind descriptor",
   },
 };
 

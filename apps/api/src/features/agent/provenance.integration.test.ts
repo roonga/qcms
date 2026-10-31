@@ -631,9 +631,9 @@ describe("`plan-three` runs end to end, with the reference checked (criterion 4)
 });
 
 /**
- * The batch route takes its environment from the body's `targets`, and a step binds one
- * environment, so only a batch naming exactly one destination is verifiable (Code Owner,
- * 2026-11-01). The wizard's own stale-review check is unchanged by the token.
+ * The batch route takes its environment from the body's `targets` and a step binds one
+ * environment, so only a batch naming exactly one destination is verifiable. The wizard's
+ * own stale-review check is unchanged by the token.
  */
 describe("a publish step on the batch route carries exactly one destination", () => {
   async function publishToken(

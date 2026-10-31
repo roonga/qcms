@@ -186,10 +186,9 @@ function stepRefusal(
 }
 
 /**
- * ADR-41 refuses a release by the account that published the version, so neither of these
- * can ever complete: a publish step followed by a production release, and a publish step
- * that releases into production itself, which is one act on the batch route. Refusing
- * here tells the model why, rather than failing the user halfway through a confirmed run.
+ * ADR-41 refuses a release by the account that published the version, so a publish and a
+ * production release by one account can never complete, in one step or in two. Refusing
+ * here tells the model why rather than failing the user halfway through a confirmed run.
  */
 function secondApproverRefusal(
   input: ProposeInput,
