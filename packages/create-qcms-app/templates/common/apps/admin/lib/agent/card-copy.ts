@@ -257,7 +257,10 @@ export function createdHref(
   if (link === undefined || result === undefined) return undefined;
   const id = result[link.field];
   if (typeof id !== "string" || id === "") return undefined;
-  const path = link.screen.replace(/\[[^\]]+\]/u, encodeURIComponent(id));
+  const path = link.screen
+    .split("/")
+    .map((segment) => (segment.startsWith("[") ? encodeURIComponent(id) : segment))
+    .join("/");
   return adminPageHref(path);
 }
 

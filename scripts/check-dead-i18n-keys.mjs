@@ -29,17 +29,14 @@ export const ALLOWED = {
     // and those keys are named by the API's action-kind descriptors rather than by any
     // literal here. `actions/registry.test.ts` pins each descriptor's keys to its kind.
     "agent.card.question.create.title": "named by the question.create action-kind descriptor",
-    "agent.card.question.create.consequence":
-      "named by the question.create action-kind descriptor",
-    "agent.card.question.saveDraft.title":
-      "named by the question.saveDraft action-kind descriptor",
+    "agent.card.question.create.consequence": "named by the question.create action-kind descriptor",
+    "agent.card.question.saveDraft.title": "named by the question.saveDraft action-kind descriptor",
     "agent.card.question.saveDraft.consequence":
       "named by the question.saveDraft action-kind descriptor",
     "agent.card.question.publish.title": "named by the question.publish action-kind descriptor",
     "agent.card.question.publish.consequence":
       "named by the question.publish action-kind descriptor",
-    "agent.card.question.deprecate.title":
-      "named by the question.deprecate action-kind descriptor",
+    "agent.card.question.deprecate.title": "named by the question.deprecate action-kind descriptor",
     "agent.card.question.deprecate.consequence":
       "named by the question.deprecate action-kind descriptor",
     "agent.card.question.newVersion.title":

@@ -31,8 +31,9 @@ describe("form.create", () => {
   });
 
   it("recomputes the slug and the locale from the body, and the optional workspace with it", () => {
-    expect(createForm.recomputeArgs(facts({ formId: "frm_x", slug: "x", defaultLocale: "en" })))
-      .toEqual({ slug: "x", defaultLocale: "en" });
+    expect(
+      createForm.recomputeArgs(facts({ formId: "frm_x", slug: "x", defaultLocale: "en" })),
+    ).toEqual({ slug: "x", defaultLocale: "en" });
     expect(
       createForm.recomputeArgs(
         facts({ formId: "frm_x", slug: "x", defaultLocale: "en", workspaceId: "wsp_a" }),

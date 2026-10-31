@@ -43,7 +43,7 @@ Nothing else below is waiting on a decision.
 | D3          | `link.mint`, `link.revoke`                                                                                              |
 | D4          | `response.erase`, `response.unflag`, `response.export` (a hand-off into the screen's own dialog)                        |
 | D5          | `webhook.create`, `webhook.rotate`, `webhook.retarget`, `webhook.reactivate`, `webhook.deactivate`, `webhook.redeliver` |
-| D6          | `question.create`, `question.saveDraft`, `question.publish`, `question.deprecate`, `question.newVersion`               |
+| D6          | `question.create`, `question.saveDraft`, `question.publish`, `question.deprecate`, `question.newVersion`                |
 | D7          | `form.create`                                                                                                           |
 | D8 (writes) | `access.groupCreate`, `access.groupRemove`, `access.grant`, `access.revoke`, `member.role`, `workspace.settings`        |
 

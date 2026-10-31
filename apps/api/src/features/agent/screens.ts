@@ -121,12 +121,11 @@ export const SCREENS: Readonly<Record<ScreenId, ScreenDef>> = Object.freeze({
   ),
   "/questions": screen(authoringContexts.questions, [], ["question.create"]),
   "/questions/new": screen(authoringContexts.newQuestion, [], ["question.create"]),
-  "/questions/[questionId]": screen(authoringContexts.questionDetail, [], [
-    "question.saveDraft",
-    "question.publish",
-    "question.deprecate",
-    "question.newVersion",
-  ]),
+  "/questions/[questionId]": screen(
+    authoringContexts.questionDetail,
+    [],
+    ["question.saveDraft", "question.publish", "question.deprecate", "question.newVersion"],
+  ),
   "/me/access": screen(administrationContexts.myAccess),
   "/operations": screen(operationsContexts.operations),
   "/responses": screen(operationsContexts.responsePicker),
