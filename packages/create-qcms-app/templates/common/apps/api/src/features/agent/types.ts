@@ -13,7 +13,7 @@ export interface AssistTextTurn {
 export interface ActionStepResult {
   readonly kind: string;
   readonly outcome: "done" | "failed" | "pending-approval" | "not-run" | "cancelled" | "expired";
-  readonly result?: Readonly<Record<string, string | number | boolean>> | undefined;
+  readonly result?: Readonly<Record<string, string | number | boolean | undefined>> | undefined;
 }
 
 /**

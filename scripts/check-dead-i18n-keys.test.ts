@@ -175,10 +175,24 @@ describe("the repository", () => {
     expect(deadKeys()).toEqual([]);
   });
 
-  it("carries no standing exemption", () => {
-    // An entry is a claim that a key is rendered through a shape the scan cannot read,
-    // so the empty set is what makes adding one deliberate.
-    expect(ALLOWED).toEqual({});
+  it("carries only the action-card exemptions, each with a reason", () => {
+    // An entry claims a key is rendered through a shape the scan cannot read, so the
+    // pinned set is what makes adding a ninth deliberate. These eight are the action
+    // card's keys, which the API's descriptors name rather than any admin literal.
+    expect(Object.keys(ALLOWED)).toEqual(["apps/admin"]);
+    expect(Object.keys(ALLOWED["apps/admin"] ?? {}).sort()).toEqual([
+      "agent.card.form.publish.consequence",
+      "agent.card.form.publish.title",
+      "agent.card.form.release.consequence",
+      "agent.card.form.release.title",
+      "agent.card.link.mint.consequence",
+      "agent.card.link.mint.title",
+      "agent.card.link.revoke.consequence",
+      "agent.card.link.revoke.title",
+    ]);
+    for (const reason of Object.values(ALLOWED["apps/admin"] ?? {})) {
+      expect(reason.trim().length).toBeGreaterThan(20);
+    }
   });
 
   it("finds both catalogs, so the scan is not silently scoped to one app", () => {
