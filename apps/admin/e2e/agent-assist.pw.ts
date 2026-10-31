@@ -4,6 +4,7 @@ import type { Page } from "@playwright/test";
 import { expect, test } from "../../portal/e2e/support/gates.js";
 
 import { TEST_ENVIRONMENT_STORAGE } from "./support/environment.js";
+import { pinProposalClock } from "./support/agent.js";
 import { createTestAdmin, uniqueAdminEmail } from "./support/admin-account.js";
 import { enrollNewAdmin, fillStable, signInWithTotp } from "./support/flow.js";
 import {
@@ -99,6 +100,10 @@ function questionIdFor(slug: string): string {
 
 test.beforeAll(async () => {
   await createTestAdmin(EMAIL);
+});
+
+test.beforeEach(async ({ page }) => {
+  await pinProposalClock(page);
 });
 
 async function publishQuestion(page: Page, slug: string, typeLabel: string): Promise<void> {
