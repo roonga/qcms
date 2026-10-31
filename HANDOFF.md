@@ -46,6 +46,7 @@ Nothing else below is waiting on a decision.
 | D6          | `question.create`, `question.saveDraft`, `question.publish`, `question.deprecate`, `question.newVersion`                |
 | D7          | `form.create`                                                                                                           |
 | D8 (writes) | `access.groupCreate`, `access.groupRemove`, `access.grant`, `access.revoke`, `member.role`, `workspace.settings`        |
+| D8 (read)   | the agent audit beside the access audit on `workspaces/[workspaceId]`, for the same readers                             |
 
 **The cross-screen seam is in.** `apps/admin/lib/agent/waiting.tsx` is the context the panel
 publishes the waiting card to and every heading row reads;
@@ -65,20 +66,24 @@ new id or version returned as the one allowlisted field a later step may referen
 card shows a link to what it made, built from the kind's own `createdLink` page route and
 run through the admin's page-route allowlist, so it can never point at a route handler.
 
+**The read tools of D1 to D7 are in.** `apps/api/src/features/agent/contexts/reads.ts` holds
+one port per tool, each re-making its own screen's read check, and the registry holds
+`test_rule`, `diff_form_versions`, `count_links`, `list_responses`, `count_responses`,
+`delivery_status`, `count_dead_letters`, `diff_question_versions` and `search_forms`.
+`search_question_library` is declared on the question screens too. D4's two reads write
+SEC-15's `read` row once per conversation for each distinct filter set, sharing the row the
+screen's own facts write. `delivery_status` and `count_dead_letters` count over a fixed scan
+window and report `scanned` and `truncated` beside the counts; every other read is exact.
+
 ## Not started
 
-- **D8's read half**: the agent audit surfaced beside the access audit on
-  `workspaces/[workspaceId]`.
 - **D1's `apply-draft` kind**, blocked above.
-- **The read tools of D1 to D8** (the rule test, the version diffs, the link count, the
-  response list and count, delivery status, dead-letter count, library search, form search).
-  Each needs a context port on its screen, an output schema and a place in the vocabulary
-  sentinel walk.
 - **Criterion 11's Playwright matrix** (a confirm path alone and inside a plan, a cancel
-  path, and axe over all eight card states, per kind) and **criterion 13's** rehearsal of
-  038's goal 7.
+  path, and axe over all eight card states, per kind), and the read tools' own browser
+  coverage, which the same matrix is the place for.
+- **Criterion 13's** rehearsal of 038's goal 7.
 - **The records "The records this task closes" names**: ADR-25's and SEC-17's status lines
   still read "decided, not built", `docs/agent-authoring.md` section 4 is not rewritten,
   `docs/SECURITY_DESIGN.md` section 8's four-tool paragraph is not retired, 038's header
   still lists 080 to 083, the four work orders are still in `docs/features/`, and the ledger
-  rows are still open. They close when `apply-draft`, D8's read half and the read tools do.
+  rows are still open. They close when `apply-draft` and the remaining criteria do.
