@@ -12,6 +12,7 @@ import {
   field,
   openFormDetails,
   pinQuestion,
+  waitForSaved,
 } from "./support/forms.js";
 import { publishDraftThroughWizard } from "./support/publish.js";
 
@@ -127,6 +128,9 @@ test("creates the library this spec reads, and closes one of its forms", async (
   const bravoId = await createForm(page, BRAVO, "Bravo quokka");
   await addStep(page, "Driving history");
   await pinQuestion(page, "q_at_fault_accident", 2);
+  // The wizard is a screen of its own, which server-renders the STORED draft: a page
+  // opened before the autosave landed would offer an empty draft to freeze.
+  await waitForSaved(page);
   await publishDraftThroughWizard(page, { formId: bravoId, version: 1, environment: "test" });
 
   // Back to the form's own screen: the lifecycle actions live there, and the wizard is a

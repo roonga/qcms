@@ -196,6 +196,8 @@ test("publishes a draft, verifies it in test, then promotes the same version to 
   await expect(page.getByRole("textbox", { name: "Title", exact: true })).toHaveCount(0);
   await page.goto(`/forms/${formId}/versions`);
   await releaseVersion(page, formId, "prod");
+  // The wizard ends on its own recorded outcome, so the summary is read back on Versions.
+  await page.goto(`/forms/${formId}/versions`);
   for (const environment of ["test", "prod"]) {
     await expect(released.locator(`tr[data-environment="${environment}"]`)).toContainText("v1");
   }
