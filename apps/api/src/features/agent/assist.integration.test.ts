@@ -814,6 +814,19 @@ describe("every screen's context, with a sentinel in the database", () => {
     // A new conversation on the first filter set is a third.
     await turn("cnv_rows_2");
     expect((await countRows()) - start).toBe(3);
+
+    // The D4 read tools key their row by the subject the facts builder keys it by, so a
+    // turn whose facts, list and count all run over no filter writes one row, not three.
+    await resetLimiter();
+    const walk = await post("/assist", {
+      conversation: [{ role: "user", content: "what came in #qcms-fake:read-all" }],
+      screen: "/forms/[formId]/responses",
+      params: { formId: FORM_ID },
+      conversationId: "cnv_rows_tools",
+    });
+    expect(walk.status).toBe(200);
+    await readEvents(walk);
+    expect((await countRows()) - start).toBe(4);
   });
 });
 
@@ -966,6 +979,44 @@ describe("a reduced-grant caller over HTTP", () => {
       conversation: [{ role: "user", content: "what can you see" }],
       screen: "/forms",
       conversationId: "cnv_stranger",
+    });
+    expect(res.status).toBe(403);
+  });
+
+  it(
+    "refuses the rule test to a caller with no preview cell, on a screen that still builds",
+    async () => {
+      const res = await turnAs(viewer, "/assist", {
+        conversation: [{ role: "user", content: "try this rule #qcms-fake:read-all" }],
+        screen: "/forms/[formId]/rules",
+        params: { formId: FORM_ID },
+        conversationId: "cnv_viewer_rule",
+      });
+      expect(res.status).toBe(200);
+      const events = await readEvents(res);
+      // The screen's own read is `form: read`, which this caller holds, so the facts
+      // reached the provider and the refusal below is the tool's own cell.
+      expect(JSON.stringify(providerCalls)).toContain(FORM_ID);
+      expect(outcomes(events).get("test_rule")).toBe("failed");
+    },
+    BOOT_TIMEOUT,
+  );
+
+  it("refuses the response read tools by refusing the screen they live on", async () => {
+    const res = await turnAs(viewer, "/assist", {
+      conversation: [{ role: "user", content: "how many came in #qcms-fake:read-all" }],
+      screen: "/forms/[formId]/responses",
+      params: { formId: FORM_ID },
+      conversationId: "cnv_viewer_responses",
+    });
+    expect(res.status).toBe(403);
+  });
+
+  it("refuses the dead-letter count to a caller without the installation claim", async () => {
+    const res = await turnAs(viewer, "/assist", {
+      conversation: [{ role: "user", content: "how many are dead #qcms-fake:read-all" }],
+      screen: "/webhooks",
+      conversationId: "cnv_viewer_dead",
     });
     expect(res.status).toBe(403);
   });

@@ -37,6 +37,7 @@ flag-gated, and streams rather than returning a modelled JSON body.
 | `types.ts`                              | The `DraftAssistant` port, `AgentContext`, `AssistContext`, `AssistEvent`, `AssistProposal`. The PII boundary is the context's shape.                                                 |
 | `screens.ts`                            | The frozen `SCREENS` registry: one row per `(shell)` page, each with its facts schema, context builder, read tools and action kinds.                                                  |
 | `contexts/`                             | The per-screen context builders, grouped by area, each checking its own SEC-3 cell before it reads anything.                                                                          |
+| `contexts/reads.ts`                     | The read ports of D1 to D7: one per read tool a screen declares, each re-making its own screen's read check.                                                                          |
 | `tools/registry.ts`                     | The frozen tool registry, the single dispatch door, and the provider tool set built from the current screen's list.                                                                   |
 | `system-prompt.ts`                      | The versioned system prompt, assembled from the kernel's own contracts. Reviewed like code.                                                                                           |
 | `assistant.ts`                          | The `streamText` tool loop, the stop-reason mapping, and the provider selector.                                                                                                       |
@@ -51,11 +52,15 @@ flag-gated, and streams rather than returning a modelled JSON body.
 
 ## The registry and the door are security controls
 
-Five verbs exist: `search_question_library`, `propose_questions`,
-`propose_draft`, `validate_draft` and `project_draft`. Publish, erase, link
-minting, webhook configuration and every read of response **content** are absent
-from the module, so an agent cannot call them however it is prompted, jailbroken
-or swapped.
+The read verbs are the builder's four (`search_question_library`,
+`propose_questions`, `propose_draft`, `validate_draft`), the preview projection
+(`project_draft`) and D1 to D7's screen reads: `test_rule`,
+`diff_form_versions`, `count_links`, `list_responses`, `count_responses`,
+`delivery_status`, `count_dead_letters`, `diff_question_versions` and
+`search_forms`. Beside them sit the two propose tools, which execute nothing.
+Publish, erase, link minting, webhook configuration and every read of response
+**content** are absent from the module, so an agent cannot call them however it
+is prompted, jailbroken or swapped.
 
 Three properties hold structurally, and all three are tested:
 
@@ -105,11 +110,35 @@ The draft preamble that asks for changes is sent only on a screen that offers a
 propose verb, so a screen holding the draft for a read tool alone is not told to
 propose against it.
 
+## A read tool is refused wherever its screen would be
+
+Each read port in `contexts/reads.ts` re-makes the grant check its own screen's
+read makes, which is not always the one cell the door can express: the response
+reads are per-form, the form search is over the workspaces the caller holds
+`form: read` in, and the dead-letter count needs the installation-wide claim the
+screen itself needs. So a port absent and a port refused are both "nothing" to
+the model, and a caller the screen would refuse learns nothing through a tool.
+
+Two counts are bounded rather than exact, and say so in their own result:
+`delivery_status` and `count_dead_letters` scan a fixed window and report
+`scanned` and `truncated` beside the counts, because a turn is a payload rather
+than a page. Every other read is exact: the response count comes off the same
+query the list does, and the link count is the whole of one form's links in one
+environment.
+
+A diff reports **structure**: which step and question ids moved, which pins were
+re-pinned to another version, how many rules each side carries, and for a
+question which members of the definition differ **by name**. Not their content,
+because a diff of authored text is not what the model needs to tell a person
+what changed between two versions.
+
 ## An audited read is audited once per conversation
 
 A screen whose own read writes a SEC-15 `read` row writes one from an agent turn
 too (Q10), once per conversation for each distinct filter set rather than once
-per turn. The key is the actor, the conversation id the admin mints, and a digest
+per turn. D4's `list_responses` and `count_responses` key their row by the
+subject the facts builder keys it by, so a turn whose facts, list and count all
+run over one filter set writes one row and not three. The key is the actor, the conversation id the admin mints, and a digest
 of the normalised filters, so a forged or reused id can add rows or skip a set
 already recorded for that same user, and can never leave a set with no row.
 

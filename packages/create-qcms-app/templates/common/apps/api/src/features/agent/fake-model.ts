@@ -504,7 +504,36 @@ const READ_ALL_INPUTS: Readonly<
   }),
   validate_draft: () => ({}),
   project_draft: () => ({ answers: {} }),
+  // D1 to D7's read tools. Each input is one the screen's own facts justify, so the walk
+  // runs every executor against the fixture rather than against a canned id.
+  test_rule: (prompt) => ({ ruleId: firstRuleId(prompt), answers: {} }),
+  diff_form_versions: (prompt) => ({ from: factPublishedVersion(prompt), to: null }),
+  count_links: () => ({}),
+  list_responses: () => ({ limit: 5 }),
+  count_responses: () => ({}),
+  delivery_status: () => ({}),
+  count_dead_letters: () => ({}),
+  diff_question_versions: () => ({ from: 1, to: 1 }),
+  search_forms: () => ({ limit: 5 }),
 };
+
+/** A rule the draft actually declares, or a probe id so the bench answers `ruleNotFound`. */
+function firstRuleId(prompt: readonly PromptMessage[]): string {
+  for (const block of jsonBlocks(prompt)) {
+    const rules = (block as { rules?: unknown }).rules;
+    if (!Array.isArray(rules)) continue;
+    for (const rule of rules) {
+      const id = (rule as { ruleId?: unknown } | null)?.ruleId;
+      if (typeof id === "string" && id !== "") return id;
+    }
+  }
+  return "rul_probe";
+}
+
+function factPublishedVersion(prompt: readonly PromptMessage[]): number | null {
+  const version = screenFacts(prompt).latestPublishedVersion;
+  return typeof version === "number" ? version : null;
+}
 
 /**
  * Calls every tool this screen offers, one per step. It is what drives each read tool's own

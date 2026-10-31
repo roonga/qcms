@@ -31,6 +31,7 @@ import { holdsInstallationClaim, resolveGrants } from "../membership/resolver.js
 import { offeredActionKinds, offersNoAction } from "./grant-filter.js";
 import { buildProposal } from "./tools/propose.js";
 import { AGENT_PROPOSE_TOOL_NAMES, type AgentToolName } from "./tools/registry.js";
+import { readPorts } from "./contexts/reads.js";
 import {
   requireCell,
   requireForm,
@@ -213,6 +214,9 @@ async function buildScreenContext(args: {
     ...(screen.readTools.includes("project_draft") && drafts !== undefined
       ? { projectDraft: projectionPort(args.deps, drafts.draft) }
       : {}),
+    // Each port re-makes its own screen's read check, so a declared tool is still refused
+    // for a caller the screen itself would refuse.
+    ...readPorts({ input: args.build, declared: screen.readTools, draft: drafts?.draft }),
     ...actions.ports,
   };
 }

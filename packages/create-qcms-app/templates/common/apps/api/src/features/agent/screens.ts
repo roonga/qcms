@@ -87,7 +87,7 @@ function screen(
 
 /** Frozen so nothing can graft a screen, a tool or an action kind on at runtime. */
 export const SCREENS: Readonly<Record<ScreenId, ScreenDef>> = Object.freeze({
-  "/forms": screen(authoringContexts.formsList, [], ["form.create"]),
+  "/forms": screen(authoringContexts.formsList, ["search_forms"], ["form.create"]),
   "/forms/new": screen(authoringContexts.newForm, [], ["form.create"]),
   "/forms/[formId]": screen(authoringContexts.builder, DRAFT_TOOLS, [
     "form.publish",
@@ -95,15 +95,21 @@ export const SCREENS: Readonly<Record<ScreenId, ScreenDef>> = Object.freeze({
     "form.close",
     "form.reopen",
   ]),
-  "/forms/[formId]/rules": screen(authoringContexts.rules),
+  "/forms/[formId]/rules": screen(authoringContexts.rules, ["validate_draft", "test_rule"]),
   "/forms/[formId]/preview": screen(authoringContexts.preview, ["project_draft"]),
-  "/forms/[formId]/versions": screen(authoringContexts.versions),
-  "/forms/[formId]/versions/[version]": screen(authoringContexts.versionDetail),
+  "/forms/[formId]/versions": screen(authoringContexts.versions, ["diff_form_versions"]),
+  "/forms/[formId]/versions/[version]": screen(authoringContexts.versionDetail, [
+    "diff_form_versions",
+  ]),
   "/forms/[formId]/publish": screen(authoringContexts.releases, [], ["form.release"]),
-  "/forms/[formId]/links": screen(authoringContexts.links, [], ["link.mint", "link.revoke"]),
+  "/forms/[formId]/links": screen(
+    authoringContexts.links,
+    ["count_links"],
+    ["link.mint", "link.revoke"],
+  ),
   "/forms/[formId]/webhooks": screen(
     operationsContexts.formWebhooks,
-    [],
+    ["delivery_status"],
     [
       "webhook.create",
       "webhook.rotate",
@@ -113,17 +119,25 @@ export const SCREENS: Readonly<Record<ScreenId, ScreenDef>> = Object.freeze({
       "webhook.redeliver",
     ],
   ),
-  "/forms/[formId]/responses": screen(operationsContexts.responseList, [], ["response.export"]),
+  "/forms/[formId]/responses": screen(
+    operationsContexts.responseList,
+    ["list_responses", "count_responses"],
+    ["response.export"],
+  ),
   "/forms/[formId]/responses/[sessionId]": screen(
     operationsContexts.responseDetail,
     [],
     ["response.erase", "response.unflag"],
   ),
-  "/questions": screen(authoringContexts.questions, [], ["question.create"]),
-  "/questions/new": screen(authoringContexts.newQuestion, [], ["question.create"]),
+  "/questions": screen(authoringContexts.questions, ["search_question_library"], [
+    "question.create",
+  ]),
+  "/questions/new": screen(authoringContexts.newQuestion, ["search_question_library"], [
+    "question.create",
+  ]),
   "/questions/[questionId]": screen(
     authoringContexts.questionDetail,
-    [],
+    ["search_question_library", "diff_question_versions"],
     ["question.saveDraft", "question.publish", "question.deprecate", "question.newVersion"],
   ),
   "/me/access": screen(administrationContexts.myAccess),
@@ -131,7 +145,7 @@ export const SCREENS: Readonly<Record<ScreenId, ScreenDef>> = Object.freeze({
   "/responses": screen(operationsContexts.responsePicker),
   "/responses/erasures": screen(operationsContexts.erasures),
   "/settings": screen(administrationContexts.settings),
-  "/webhooks": screen(operationsContexts.deadLetters),
+  "/webhooks": screen(operationsContexts.deadLetters, ["count_dead_letters"]),
   "/workspaces": screen(administrationContexts.workspaces),
   "/workspaces/[workspaceId]": screen(
     administrationContexts.workspaceDetail,

@@ -167,9 +167,20 @@ interface DraftShape {
   readonly steps?: readonly {
     readonly stepId?: unknown;
     readonly title?: unknown;
-    readonly questions?: readonly unknown[];
+    readonly items?: readonly unknown[];
   }[];
   readonly rules?: readonly unknown[];
+}
+
+/** A step item is a pinned question or a repeating group holding them, never both. */
+function stepQuestionCount(step: { readonly items?: readonly unknown[] }): number {
+  let total = 0;
+  for (const item of step.items ?? []) {
+    if (typeof item !== "object" || item === null) continue;
+    const group = (item as { items?: unknown }).items;
+    total += Array.isArray(group) ? group.length : 1;
+  }
+  return total;
 }
 
 function draftShape(definition: unknown, locale: string): z.infer<typeof builderFacts>["steps"] {
@@ -177,7 +188,7 @@ function draftShape(definition: unknown, locale: string): z.infer<typeof builder
   return steps.slice(0, FACT_ROW_LIMIT).map((step) => ({
     stepId: typeof step.stepId === "string" ? step.stepId : "",
     title: titleText(step.title, locale),
-    questionCount: step.questions?.length ?? 0,
+    questionCount: stepQuestionCount(step),
   }));
 }
 
@@ -195,7 +206,7 @@ async function structureFacts(input: ScreenBuildInput): Promise<z.infer<typeof b
     ...subject,
     stepCount: shape?.steps?.length ?? 0,
     questionCount: (shape?.steps ?? []).reduce(
-      (total, step) => total + (step.questions?.length ?? 0),
+      (total, step) => total + stepQuestionCount(step),
       0,
     ),
     ruleCount: shape?.rules?.length ?? 0,
@@ -276,7 +287,7 @@ async function buildVersionDetail(
     ],
     stepCount: shape?.steps?.length ?? 0,
     questionCount: (shape?.steps ?? []).reduce(
-      (total, step) => total + (step.questions?.length ?? 0),
+      (total, step) => total + stepQuestionCount(step),
       0,
     ),
   };

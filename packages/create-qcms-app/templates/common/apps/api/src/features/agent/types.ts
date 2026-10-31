@@ -88,6 +88,162 @@ export type ProposePort = (
   proposalsThisTurn: number,
 ) => Promise<ProposeOutcome>;
 
+/** One rule's verdict over hypothetical answers, as the rules screen's own bench gives it. */
+export interface RuleVerdict {
+  readonly ruleId: string;
+  readonly outcome: "match" | "noMatch" | "unavailable";
+  readonly reason: string | null;
+  readonly references: readonly string[];
+  readonly targetGroupId: string | null;
+  readonly instanceOutcomes:
+    | readonly { readonly instanceId: string; readonly outcome: "match" | "noMatch" }[]
+    | null;
+}
+
+/**
+ * Hypothetical answers travel inward only, as {@link ProjectDraftPort}'s do: these are the
+ * model's own hypotheses and nothing a respondent submitted is read.
+ */
+export type TestRulePort = (input: {
+  readonly ruleId: string;
+  readonly answers: Readonly<Record<string, unknown>>;
+  readonly instances?: Readonly<Record<string, readonly string[]>> | undefined;
+}) => Promise<RuleVerdict>;
+
+/** Structure only: which ids moved, and how many rules each side carries. */
+export interface FormVersionDiff {
+  readonly from: string;
+  readonly to: string;
+  readonly fromFound: boolean;
+  readonly toFound: boolean;
+  readonly identical: boolean;
+  readonly stepsAdded: readonly string[];
+  readonly stepsRemoved: readonly string[];
+  readonly questionsAdded: readonly string[];
+  readonly questionsRemoved: readonly string[];
+  readonly questionsRepinned: readonly {
+    readonly questionId: string;
+    readonly from: number;
+    readonly to: number;
+  }[];
+  readonly ruleCountFrom: number;
+  readonly ruleCountTo: number;
+}
+
+/** `null` names the working draft on either side, which is what the versions screen diffs against. */
+export type DiffFormVersionsPort = (input: {
+  readonly from: number | null;
+  readonly to: number | null;
+}) => Promise<FormVersionDiff>;
+
+export interface LinkCounts {
+  readonly environment: string;
+  readonly active: number;
+  readonly consumed: number;
+  readonly revoked: number;
+  readonly expired: number;
+  readonly total: number;
+}
+
+export type CountLinksPort = () => Promise<LinkCounts>;
+
+/** The response list's own four filters and nothing else; no filter takes an answer value. */
+export interface ResponseFilterInput {
+  readonly version?: number | undefined;
+  readonly from?: string | undefined;
+  readonly to?: string | undefined;
+  readonly flagged?: boolean | undefined;
+  readonly limit: number;
+}
+
+/** Metadata only, under the same projection the response screens' facts use. */
+export interface ResponseMetadataRow {
+  readonly sessionId: string;
+  readonly formVersion: number;
+  readonly startedAt: string | null;
+  readonly submittedAt: string | null;
+  readonly accessMode: string;
+  readonly flagged: boolean;
+  readonly flaggedReason: string | null;
+}
+
+export interface ResponsePage {
+  readonly total: number;
+  readonly responses: readonly ResponseMetadataRow[];
+}
+
+export type ListResponsesPort = (input: ResponseFilterInput) => Promise<ResponsePage>;
+
+export type CountResponsesPort = (
+  input: Omit<ResponseFilterInput, "limit">,
+) => Promise<{ readonly total: number }>;
+
+/** Delivery state and timing, never a payload, a response body or a last-error string. */
+export interface DeliveryStatusReport {
+  readonly scanned: number;
+  readonly truncated: boolean;
+  readonly delivered: number;
+  readonly pending: number;
+  readonly dead: number;
+  readonly cancelled: number;
+  readonly endpoints: readonly {
+    readonly webhookId: string;
+    readonly url: string;
+    readonly active: boolean;
+  }[];
+}
+
+export type DeliveryStatusPort = (input: {
+  readonly webhookId?: string | undefined;
+}) => Promise<DeliveryStatusReport>;
+
+export interface DeadLetterCounts {
+  readonly scanned: number;
+  readonly truncated: boolean;
+  readonly total: number;
+  readonly byForm: readonly { readonly formId: string; readonly count: number }[];
+}
+
+export type CountDeadLettersPort = () => Promise<DeadLetterCounts>;
+
+/** Which top-level members of the definition differ, never their content. */
+export interface QuestionVersionDiff {
+  readonly questionId: string;
+  readonly from: number;
+  readonly to: number;
+  readonly fromFound: boolean;
+  readonly toFound: boolean;
+  readonly identical: boolean;
+  readonly statusFrom: string | null;
+  readonly statusTo: string | null;
+  readonly typeFrom: string | null;
+  readonly typeTo: string | null;
+  readonly changedFields: readonly string[];
+}
+
+export type DiffQuestionVersionsPort = (input: {
+  readonly from: number;
+  readonly to: number;
+}) => Promise<QuestionVersionDiff>;
+
+export interface FormSearchResult {
+  readonly environment: string;
+  readonly matched: number;
+  readonly forms: readonly {
+    readonly formId: string;
+    readonly slug: string;
+    readonly title: string | null;
+    readonly latestVersion: number | null;
+    readonly releasedVersion: number | null;
+    readonly closed: boolean;
+  }[];
+}
+
+export type SearchFormsPort = (input: {
+  readonly query?: string | undefined;
+  readonly limit: number;
+}) => Promise<FormSearchResult>;
+
 /** The SEC-3 cell a read tool declares, checked for the calling principal by the door. */
 export interface ToolCell {
   readonly resource: string;
@@ -113,6 +269,20 @@ export interface AgentContext {
   readonly questionLibrary?: QuestionLibraryPort;
   readonly validate?: ValidateDraftPort;
   readonly projectDraft?: ProjectDraftPort;
+  /**
+   * D1 to D7's read ports. Each one re-makes the grant check its own screen's read makes,
+   * including the per-form and installation-wide checks the door's single cell cannot
+   * express, so a port absent and a port refused are both "nothing" to the model.
+   */
+  readonly testRule?: TestRulePort;
+  readonly diffFormVersions?: DiffFormVersionsPort;
+  readonly countLinks?: CountLinksPort;
+  readonly listResponses?: ListResponsesPort;
+  readonly countResponses?: CountResponsesPort;
+  readonly deliveryStatus?: DeliveryStatusPort;
+  readonly countDeadLetters?: CountDeadLettersPort;
+  readonly diffQuestionVersions?: DiffQuestionVersionsPort;
+  readonly searchForms?: SearchFormsPort;
   /** Absent on a screen with no action kind, which is what leaves its propose tools unoffered. */
   readonly propose?: ProposePort;
   /**
