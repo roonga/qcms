@@ -45,9 +45,17 @@ export function buildAdminCsp(nonce: string): string {
     `object-src 'none'`,
     `img-src 'self' data:`,
     `style-src 'self' 'unsafe-inline'`,
-    `script-src 'self' 'nonce-${nonce}'`,
+    `script-src 'self' 'nonce-${nonce}'${devScriptSrc()}`,
     `connect-src 'self'`,
     `frame-src 'none'`,
   ];
   return directives.join("; ");
+}
+
+/**
+ * `next dev` needs eval for sourcemaps and Fast Refresh. `next build` inlines `NODE_ENV` as
+ * `production`, so built output never carries it. Read per call so a test can state both.
+ */
+function devScriptSrc(): string {
+  return process.env.NODE_ENV === "development" ? " 'unsafe-eval'" : "";
 }

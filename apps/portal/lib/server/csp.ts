@@ -17,9 +17,15 @@ export function buildCsp(provider: ChallengeProvider, nonce: string): string {
     `img-src 'self' data:`,
     // `'unsafe-inline'` for styles only, never script: Tailwind injects a stylesheet.
     `style-src 'self' 'unsafe-inline'`,
-    `script-src 'self' 'nonce-${nonce}'${turnstile}`,
+    `script-src 'self' 'nonce-${nonce}'${turnstile}${devScriptSrc()}`,
     `connect-src 'self'${turnstile}`,
     `frame-src${turnstile === "" ? " 'none'" : turnstile}`,
   ];
   return directives.join("; ");
+}
+
+// `next dev` needs eval for sourcemaps and Fast Refresh. `next build` inlines `NODE_ENV` as
+// `production`, so built output never carries it. Read per call so a test can state both.
+function devScriptSrc(): string {
+  return process.env.NODE_ENV === "development" ? " 'unsafe-eval'" : "";
 }
