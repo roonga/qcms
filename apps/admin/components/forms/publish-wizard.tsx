@@ -106,6 +106,127 @@ function transition(target: ReviewTarget, review: ReleaseReview): string {
   });
 }
 
+/** The source the review will be read for, or `undefined` while there is nothing to read. */
+function sourceOf(
+  kind: "draft" | "version",
+  version: number | undefined,
+): { kind: "draft" } | { kind: "version"; version: number } | undefined {
+  if (kind === "draft") return { kind: "draft" };
+  if (version === undefined) return undefined;
+  return { kind: "version", version };
+}
+
+/**
+ * What the recorded outcome looks like, with a link into each affected Operations context.
+ *
+ * A component of its own because it is a different screen: once a confirmation has
+ * committed there is nothing left to choose, and offering the wizard's controls beside the
+ * result would invite a second press of a spent intent.
+ */
+function PublishResult({
+  formId,
+  state,
+}: {
+  readonly formId: string;
+  readonly state: PublishBatchState;
+}) {
+  const releases = state.releases ?? [];
+  return (
+    <section className="flex flex-col gap-4" data-testid="qcms-publish-result">
+      <div aria-live="polite" className="flex flex-col gap-2">
+        <Alert variant="success">
+          {t("forms.publish.result.version", { version: state.version ?? 0 })}
+        </Alert>
+        {state.replayed === true && (
+          <Alert variant="info">{t("forms.publish.result.replayed")}</Alert>
+        )}
+      </div>
+      <h2 className="text-base font-semibold">{t("forms.publish.result.heading")}</h2>
+      {releases.length === 0 ? (
+        <p>{t("forms.publish.result.noRelease")}</p>
+      ) : (
+        <ul className="flex flex-col gap-2">
+          {releases.map((release) => (
+            <li key={release.environment} data-environment={release.environment}>
+              {t(
+                release.rollback
+                  ? "forms.publish.result.rolledBackIn"
+                  : "forms.publish.result.releasedIn",
+                { environment: release.environment },
+              )}{" "}
+              {/* The affected Operations context, which is where an operator goes next to
+                  see what that environment is now serving. The link carries the environment
+                  explicitly rather than relying on a browser's own preference. */}
+              <Link
+                className="qcms-text-link"
+                href={`/operations?environment=${encodeURIComponent(release.environment)}`}
+              >
+                {t("forms.publish.result.operations", { environment: release.environment })}
+              </Link>
+            </li>
+          ))}
+        </ul>
+      )}
+      <div>
+        <Link className="qcms-text-link" href={`/forms/${encodeURIComponent(formId)}/versions`}>
+          {t("forms.publish.result.versions")}
+        </Link>
+      </div>
+    </section>
+  );
+}
+
+/**
+ * The confirm step's control, which is three different controls depending on what the last
+ * press answered.
+ *
+ * Separate because the three are not variations of one button. Confirm commits. After an
+ * uncertain answer the primary action is the **lookup**, because confirming again is only
+ * safe as the replay it would be and reading the recorded result is the shorter path to the
+ * same truth. After a stale refusal the only action is reading the review again: nothing
+ * was written, and the expectation the operator held is gone.
+ */
+function ConfirmControls({
+  state,
+  isPending,
+  canConfirm,
+  onConfirm,
+  onLookup,
+  onRefresh,
+}: {
+  readonly state: PublishBatchState;
+  readonly isPending: boolean;
+  readonly canConfirm: boolean;
+  readonly onConfirm: () => void;
+  readonly onLookup: () => void;
+  readonly onRefresh: () => void;
+}) {
+  if (state.status === "uncertain") {
+    return (
+      <>
+        <Button variant="primary" size="md" isDisabled={isPending} onPress={onLookup}>
+          {t("forms.publish.lookup")}
+        </Button>
+        <Button variant="ghost" size="md" isDisabled={isPending} onPress={onConfirm}>
+          {t("forms.publish.wizardConfirm")}
+        </Button>
+      </>
+    );
+  }
+  if (state.status === "stale") {
+    return (
+      <Button variant="primary" size="md" isDisabled={isPending} onPress={onRefresh}>
+        {t("forms.publish.refresh")}
+      </Button>
+    );
+  }
+  return (
+    <Button variant="primary" size="md" isDisabled={!canConfirm || isPending} onPress={onConfirm}>
+      {isPending ? t("forms.publish.wizardPending") : t("forms.publish.wizardConfirm")}
+    </Button>
+  );
+}
+
 export function PublishWizard({
   formId,
   versions,
@@ -163,8 +284,7 @@ export function PublishWizard({
     setState(IDLE_PUBLISH_BATCH);
   }, []);
 
-  const source: { kind: "draft" } | { kind: "version"; version: number } | undefined =
-    sourceKind === "draft" ? { kind: "draft" } : version === undefined ? undefined : { kind: "version", version };
+  const source = sourceOf(sourceKind, version);
 
   const loadReview = useCallback(
     (next: Step) => {
@@ -239,52 +359,7 @@ export function PublishWizard({
     });
   }, [key, lookup]);
 
-  if (state.status === "done") {
-    return (
-      <section className="flex flex-col gap-4" data-testid="qcms-publish-result">
-        <div aria-live="polite" className="flex flex-col gap-2">
-          <Alert variant="success">
-            {t("forms.publish.result.version", { version: state.version ?? 0 })}
-          </Alert>
-          {state.replayed === true && <Alert variant="info">{t("forms.publish.result.replayed")}</Alert>}
-        </div>
-        <h2 className="text-base font-semibold">{t("forms.publish.result.heading")}</h2>
-        {(state.releases ?? []).length === 0 ? (
-          <p>{t("forms.publish.result.noRelease")}</p>
-        ) : (
-          <ul className="flex flex-col gap-2">
-            {(state.releases ?? []).map((release) => (
-              <li key={release.environment} data-environment={release.environment}>
-                {t(
-                  release.rollback
-                    ? "forms.publish.result.rolledBackIn"
-                    : "forms.publish.result.releasedIn",
-                  { environment: release.environment },
-                )}{" "}
-                {/* The affected Operations context, which is where the operator goes next
-                    to look at what that environment is now serving. The link carries the
-                    environment explicitly rather than relying on a browser preference. */}
-                <Link
-                  className="qcms-text-link"
-                  href={`/operations?environment=${encodeURIComponent(release.environment)}`}
-                >
-                  {t("forms.publish.result.operations", { environment: release.environment })}
-                </Link>
-              </li>
-            ))}
-          </ul>
-        )}
-        <div>
-          <Link
-            className="qcms-text-link"
-            href={`/forms/${encodeURIComponent(formId)}/versions`}
-          >
-            {t("forms.publish.result.versions")}
-          </Link>
-        </div>
-      </section>
-    );
-  }
+  if (state.status === "done") return <PublishResult formId={formId} state={state} />;
 
   return (
     <section className="flex flex-col gap-6" data-testid="qcms-publish-wizard" data-step={step}>
@@ -300,10 +375,22 @@ export function PublishWizard({
           </div>
         )}
         {state.status === "rejected" && (
-          <Alert variant="error">{t("forms.publish.wizardFailed", { message: state.message ?? "" })}</Alert>
+          <Alert variant="error">
+            {t("forms.publish.wizardFailed", { message: state.message ?? "" })}
+          </Alert>
         )}
         {state.status === "error" && (
-          <Alert variant="error">{t("forms.publish.wizardFailed", { message: state.message ?? "" })}</Alert>
+          <Alert variant="error">
+            {t("forms.publish.wizardFailed", { message: state.message ?? "" })}
+          </Alert>
+        )}
+        {/* The lookup's own answer when nothing committed. A 404 on a key means the
+            confirmation never landed, so the key is free and confirming again is safe -
+            which is the opposite of what silence after an uncertain press would imply. */}
+        {state.status === "idle" && key !== undefined && !isPending && (
+          <div data-testid="qcms-publish-nothing-committed">
+            <Alert variant="info">{t("forms.publish.lookupNothing")}</Alert>
+          </div>
         )}
         {reviewFailed && <Alert variant="error">{t("forms.publish.reviewFailed")}</Alert>}
       </div>
@@ -562,40 +649,20 @@ export function PublishWizard({
             </ul>
           )}
           <div className="flex flex-wrap gap-2">
-            {state.status === "uncertain" ? (
-              <>
-                <Button variant="primary" size="md" isDisabled={isPending} onPress={runLookup}>
-                  {t("forms.publish.lookup")}
-                </Button>
-                <Button variant="ghost" size="md" isDisabled={isPending} onPress={run}>
-                  {t("forms.publish.wizardConfirm")}
-                </Button>
-              </>
-            ) : state.status === "stale" ? (
-              <Button
-                variant="primary"
-                size="md"
-                isDisabled={isPending}
-                onPress={() => {
-                  // The review is read again and the operator confirms the new one. The key
-                  // is dropped with it: a changed expectation is a different act.
-                  setKey(undefined);
-                  setState(IDLE_PUBLISH_BATCH);
-                  loadReview("review");
-                }}
-              >
-                {t("forms.publish.refresh")}
-              </Button>
-            ) : (
-              <Button
-                variant="primary"
-                size="md"
-                isDisabled={!canConfirm || isPending}
-                onPress={run}
-              >
-                {isPending ? t("forms.publish.wizardPending") : t("forms.publish.wizardConfirm")}
-              </Button>
-            )}
+            <ConfirmControls
+              state={state}
+              isPending={isPending}
+              canConfirm={canConfirm}
+              onConfirm={run}
+              onLookup={runLookup}
+              onRefresh={() => {
+                // The review is read again and the operator confirms the new one. The key
+                // is dropped with it: a changed expectation is a different act.
+                setKey(undefined);
+                setState(IDLE_PUBLISH_BATCH);
+                loadReview("review");
+              }}
+            />
             <Button
               variant="ghost"
               size="md"

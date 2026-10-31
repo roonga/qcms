@@ -1748,14 +1748,12 @@ export const messages = {
   "forms.versions.column.intake": "Intake",
   "forms.versions.publishEntry": "Publish…",
 
-  "forms.publish.name": "Publish",
   "forms.publish.intro":
     "Choose what to publish and where it goes. Nothing is written until you confirm, and a " +
     "confirmation releases into every destination or into none of them.",
   "forms.publish.step.source": "What to publish",
   "forms.publish.step.destinations": "Where it goes",
   "forms.publish.step.review": "Review and confirm",
-  "forms.publish.source.legend": "Source",
   "forms.publish.source.draft": "The shared draft",
   "forms.publish.source.draftHint": "Publishing freezes a new immutable version of the draft.",
   "forms.publish.source.version": "An existing version",
@@ -1763,7 +1761,6 @@ export const messages = {
   "forms.publish.source.noDraft": "There is no saved draft to publish.",
   "forms.publish.source.noVersions": "No version of this form has been published yet.",
   "forms.publish.source.publishedBy": "Published by {publisher}.",
-  "forms.publish.destinations.legend": "Destinations",
   "forms.publish.destinations.hint":
     "Only the environments you may release this form into are listed.",
   "forms.publish.destinations.none":
@@ -1791,7 +1788,6 @@ export const messages = {
   "forms.publish.blocked.approverUnknownAuthor":
     "The publisher of this version was not recorded, so the second-account rule cannot be checked.",
   "forms.publish.blocked.other": "Not eligible here: {code}.",
-  "forms.publish.review.heading": "What this confirmation will do",
   "forms.publish.review.sourceDraft": "The shared draft becomes a new immutable version.",
   "forms.publish.review.sourceVersion": "v{version} is released, and nothing is published.",
   "forms.publish.review.publishOnly":
@@ -1799,7 +1795,8 @@ export const messages = {
   "forms.publish.review.transition": "{environment}: v{current} becomes v{version}",
   "forms.publish.review.transitionFirst": "{environment}: nothing released becomes v{version}",
   "forms.publish.review.transitionDraft": "{environment}: v{current} becomes the new version",
-  "forms.publish.review.transitionDraftFirst": "{environment}: nothing released becomes the new version",
+  "forms.publish.review.transitionDraftFirst":
+    "{environment}: nothing released becomes the new version",
   "forms.publish.review.secondPerson":
     "{environment} requires a second account: this release is recorded against you as the approver.",
   "forms.publish.wizardConfirm": "Confirm",

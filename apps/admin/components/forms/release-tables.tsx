@@ -33,6 +33,12 @@ function movement(row: ReleaseRecord): string {
   return t("forms.releases.replaced", { replaced: row.replacedVersion });
 }
 
+/** The intake cell: blank where nothing is released, because there is no intake to report. */
+function intakeLabel(released: ReleaseRecord | undefined): string {
+  if (released === undefined) return "";
+  return t(released.closed ? "forms.versions.intakeClosed" : "forms.versions.intakeOpen");
+}
+
 /**
  * What each environment is serving, and whether its intake is open.
  *
@@ -81,13 +87,7 @@ export function EnvironmentSummary({
                     carrying the version forward, so one read answers both questions and a
                     separate source could not disagree with this one. */}
                 <td data-intake={released?.closed === true ? "closed" : "open"}>
-                  {released === undefined
-                    ? ""
-                    : t(
-                        released.closed
-                          ? "forms.versions.intakeClosed"
-                          : "forms.versions.intakeOpen",
-                      )}
+                  {intakeLabel(released)}
                 </td>
                 <td>{released === undefined ? "" : <OperatorDay iso={released.releasedAt} />}</td>
                 <td className="qcms-cell--drop">{released?.releasedBy ?? ""}</td>
@@ -169,7 +169,9 @@ export function ReleaseHistory({ releases }: { readonly releases: readonly Relea
               <td className="qcms-cell--drop">
                 {row.fromEnvironment ?? t("forms.releases.noSource")}
               </td>
-              <td className="qcms-cell--drop">{row.approvedBy ?? t("forms.releases.noApproval")}</td>
+              <td className="qcms-cell--drop">
+                {row.approvedBy ?? t("forms.releases.noApproval")}
+              </td>
             </tr>
           ))}
         </tbody>

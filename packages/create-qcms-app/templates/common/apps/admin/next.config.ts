@@ -88,5 +88,21 @@ export default function adminNextConfig(phase: string): NextConfig {
       // `false`.
       agentUpgrade: false,
     },
+    /**
+     * Legacy route aliases.
+     *
+     * `/forms/{id}/releases` was task 065's own screen until the version and release views
+     * merged into Versions (issue #1197). It is a redirect rather than a page so the route
+     * costs none of the six registrations a screen costs, and a bookmark or an outcome
+     * banner from before the merge still lands on the screen that answers it.
+     */
+    redirects: () =>
+      Promise.resolve([
+        {
+          source: "/forms/:formId/releases",
+          destination: "/forms/:formId/versions",
+          permanent: false,
+        },
+      ]),
   };
 }

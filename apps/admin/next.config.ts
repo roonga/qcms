@@ -96,12 +96,13 @@ export default function adminNextConfig(phase: string): NextConfig {
      * costs none of the six registrations a screen costs, and a bookmark or an outcome
      * banner from before the merge still lands on the screen that answers it.
      */
-    redirects: async () => [
-      {
-        source: "/forms/:formId/releases",
-        destination: "/forms/:formId/versions",
-        permanent: false,
-      },
-    ],
+    redirects: () =>
+      Promise.resolve([
+        {
+          source: "/forms/:formId/releases",
+          destination: "/forms/:formId/versions",
+          permanent: false,
+        },
+      ]),
   };
 }

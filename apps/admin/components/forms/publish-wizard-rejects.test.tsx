@@ -58,9 +58,9 @@ async function toReview(props: {
       versions={[2, 1]}
       hasDraft={false}
       canPublishDraft={false}
-      review={props.review ?? (async () => ({ ok: true, data: PROD_ONLY }))}
-      confirm={props.confirm ?? (async () => ({ status: "idle" }))}
-      lookup={props.lookup ?? (async () => ({ status: "idle" }))}
+      review={props.review ?? (() => Promise.resolve({ ok: true, data: PROD_ONLY }))}
+      confirm={props.confirm ?? (() => Promise.resolve({ status: "idle" }))}
+      lookup={props.lookup ?? (() => Promise.resolve({ status: "idle" }))}
     />,
   );
   await user.click(screen.getByRole("button", { name: t("forms.publish.next") }));
@@ -79,8 +79,8 @@ describe("a rejected review", () => {
         hasDraft={false}
         canPublishDraft={false}
         review={transportFailure}
-        confirm={async () => ({ status: "idle" })}
-        lookup={async () => ({ status: "idle" })}
+        confirm={() => Promise.resolve({ status: "idle" })}
+        lookup={() => Promise.resolve({ status: "idle" })}
       />,
     );
 

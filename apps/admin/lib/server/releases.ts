@@ -101,8 +101,9 @@ export interface BatchOutcome {
   readonly replayed: boolean;
 }
 
-function readBatch(result: ApiResult<{ version?: unknown; releases?: unknown; replayed?: unknown }>):
-  | ApiResult<BatchOutcome> {
+function readBatch(
+  result: ApiResult<{ version?: unknown; releases?: unknown; replayed?: unknown }>,
+): ApiResult<BatchOutcome> {
   if (!result.ok) return result;
   if (typeof result.data.version !== "number") {
     return { ok: false, code: "internal", message: "", issues: [] };

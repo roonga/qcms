@@ -67,7 +67,9 @@ export interface PublishDestination {
 }
 
 function readStringArray(value: unknown): readonly string[] {
-  return Array.isArray(value) ? value.filter((entry): entry is string => typeof entry === "string") : [];
+  return Array.isArray(value)
+    ? value.filter((entry): entry is string => typeof entry === "string")
+    : [];
 }
 
 function readEvidence(value: unknown): readonly ReleaseEvidenceRecord[] {
@@ -103,7 +105,12 @@ function readBlockers(value: unknown): readonly ReleaseBlockerRecord[] {
 }
 
 function readSource(value: unknown): ReviewSource | undefined {
-  const row = value as { kind?: unknown; draftRevision?: unknown; version?: unknown; publishedBy?: unknown };
+  const row = value as {
+    kind?: unknown;
+    draftRevision?: unknown;
+    version?: unknown;
+    publishedBy?: unknown;
+  };
   if (row.kind === "draft" && typeof row.draftRevision === "number") {
     return { kind: "draft", draftRevision: row.draftRevision };
   }
@@ -143,7 +150,12 @@ function readTargets(value: unknown): readonly ReviewTarget[] {
 
 /** Shape-check a review. `undefined` is "this answer was not a review", not "no targets". */
 export function parseReleaseReview(value: unknown): ReleaseReview | undefined {
-  const body = value as { source?: unknown; workflowRevision?: unknown; workflowSource?: unknown; targets?: unknown };
+  const body = value as {
+    source?: unknown;
+    workflowRevision?: unknown;
+    workflowSource?: unknown;
+    targets?: unknown;
+  };
   const source = readSource(body.source);
   if (source === undefined) return undefined;
   return {

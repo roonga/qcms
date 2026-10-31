@@ -311,9 +311,9 @@ export function FormActions({
           >
             <Link
               className="qcms-text-link"
-              href={`/forms/${encodeURIComponent(formId)}/${workflow?.enabled ? "links" : "releases"}`}
+              href={`/forms/${encodeURIComponent(formId)}/${workflow?.enabled ? "links" : "versions"}`}
             >
-              {workflow?.enabled ? t("forms.tab.links") : t("forms.tab.releases")}
+              {workflow?.enabled ? t("forms.tab.links") : t("forms.tab.versions")}
             </Link>
           </Alert>
         )}

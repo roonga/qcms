@@ -208,6 +208,40 @@ export interface PublishReleaseState {
 
 export const IDLE_PUBLISH_RELEASE: PublishReleaseState = { status: "idle" };
 
+/** One destination's outcome, as the wizard's result panel names it. */
+export interface PublishBatchRelease {
+  readonly environment: string;
+  readonly version: number;
+  readonly rollback: boolean;
+}
+
+/**
+ * One confirmation of the publish wizard (issue #1197).
+ *
+ * `uncertain` is the state the plan's invariant exists for: the confirmation may have
+ * committed and the answer was lost. From there the wizard looks the result up by the same
+ * idempotency key, and never offers a second publish, so a browser timeout cannot mint a
+ * second version.
+ *
+ * `stale` is separate from `error` because its recovery is different and not the operator's
+ * to guess: the review is out of date, so it is read again and confirmed again.
+ *
+ * `rejected` carries the publish issues a draft source can refuse with, exactly as
+ * {@link PublishState} does. There is no partial status: the API writes every destination
+ * or none of them.
+ */
+export interface PublishBatchState {
+  readonly status: "idle" | "done" | "rejected" | "stale" | "uncertain" | "error";
+  readonly version?: number;
+  readonly releases?: readonly PublishBatchRelease[];
+  /** True when the API answered with the stored result of an earlier attempt. */
+  readonly replayed?: boolean;
+  readonly issues?: readonly FormIssue[];
+  readonly message?: string;
+}
+
+export const IDLE_PUBLISH_BATCH: PublishBatchState = { status: "idle" };
+
 /** Close/reopen. The screen re-reads the form afterwards; this only reports the outcome. */
 export interface FormStatusState {
   readonly status: "idle" | "changed" | "error";

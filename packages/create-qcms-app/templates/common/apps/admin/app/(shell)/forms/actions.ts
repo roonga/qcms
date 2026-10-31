@@ -9,6 +9,7 @@ import type {
   FormStatusState,
   MintLinksState,
   PreviewConditionState,
+  PublishBatchState,
   PublishReleaseState,
   PublishState,
   ReleaseState,
@@ -17,11 +18,17 @@ import type {
   SettingsState,
   ValidateDraftState,
 } from "@/lib/forms/builder-state";
+import { IDLE_PUBLISH_BATCH } from "@/lib/forms/builder-state";
 import { formIdFromSlug } from "@/lib/forms/draft";
 import { t } from "@/lib/i18n/en";
 import { messageForFormCode } from "@/lib/forms/errors";
 import { readState, type ReadState } from "@/lib/read-state";
-import type { DraftForm, FormVersionSnapshot } from "@/lib/forms/types";
+import type {
+  PublishDestination,
+  PublishIntent,
+  ReleaseReview,
+} from "@/lib/forms/release-candidate";
+import type { DraftForm, FormIssue, FormVersionSnapshot } from "@/lib/forms/types";
 import {
   createForm,
   getFormVersion,
@@ -34,7 +41,15 @@ import {
   validateDraft,
 } from "@/lib/server/forms";
 import { MAX_LINK_BATCH, mintLinks, revokeLink } from "@/lib/server/links";
-import { publishAndRelease, releaseVersion } from "@/lib/server/releases";
+import type { BatchOutcome } from "@/lib/server/releases";
+import {
+  lookupReleaseBatch,
+  publishAndRelease,
+  publishBatch,
+  releaseBatch,
+  releaseVersion,
+  reviewRelease,
+} from "@/lib/server/releases";
 import { confirmShownEnvironment } from "@/lib/server/environments";
 import { requireAdminSession } from "@/lib/server/session";
 
@@ -499,6 +514,119 @@ export async function publishAndReleaseAction(
     status: "released",
     version: result.data.version,
     environment: result.data.environment,
+  };
+}
+
+// --- the publish wizard (issue #1197, phase 5) ------------------------------
+
+/**
+ * Read what releasing one source would do, per destination this caller may release into.
+ *
+ * No environment is bound here and none is confirmed against the switcher, deliberately:
+ * the review reports **every** permitted destination and the wizard chooses among them, so
+ * the Operations selector decides operational data and not where a draft is released
+ * (the plan's "Versions and publishing flow"). The API filters the list to the caller's
+ * own `release: create` grants, so a destination outside their access never arrives.
+ */
+export async function reviewReleaseAction(
+  formId: string,
+  source: { readonly kind: "draft" } | { readonly kind: "version"; readonly version: number },
+): Promise<ReadState<ReleaseReview>> {
+  const session = await requireAdminSession();
+  return readState(await reviewRelease(session, formId, source));
+}
+
+/**
+ * Confirm one publish or release: one call, one transaction, every destination or none.
+ *
+ * Its arguments are plain data on purpose - a source, a list of destinations, the two
+ * expectations the review reported and the idempotency key - so the same act can be driven
+ * by the wizard or by another caller that holds the review (task 083). Nothing about the
+ * intent is recovered from component state.
+ *
+ * **The key is minted by the caller and is the whole retry story.** The same key with the
+ * same intent replays the stored result, so a retry after an uncertain response answers
+ * what the first attempt did rather than freezing a second snapshot; the same key with a
+ * different intent is refused. A `STALE_REVIEW` leaves the key free, because only
+ * successes are stored.
+ */
+export async function confirmPublishAction(
+  formId: string,
+  request: {
+    readonly idempotencyKey: string;
+    readonly expectedWorkflowRevision: number | null;
+    readonly source: PublishIntent;
+    readonly targets: readonly PublishDestination[];
+  },
+): Promise<PublishBatchState> {
+  const session = await requireAdminSession();
+  const result =
+    request.source.kind === "draft"
+      ? await publishBatch(session, formId, {
+          idempotencyKey: request.idempotencyKey,
+          expectedWorkflowRevision: request.expectedWorkflowRevision,
+          draftRevision: request.source.draftRevision,
+          targets: request.targets,
+        })
+      : await releaseBatch(session, formId, {
+          idempotencyKey: request.idempotencyKey,
+          expectedWorkflowRevision: request.expectedWorkflowRevision,
+          version: request.source.version,
+          targets: request.targets,
+        });
+  if (!result.ok) return refusedPublish(result);
+  return committedPublish(formId, result.data);
+}
+
+/**
+ * Look one confirmation's recorded result up by its idempotency key.
+ *
+ * The other half of the uncertain-response contract. A 404 means the confirmation never
+ * committed and the same key may be resent; it is reported as `idle` rather than as an
+ * error, because "nothing happened" is an answer the wizard acts on.
+ */
+export async function lookupPublishResultAction(
+  formId: string,
+  idempotencyKey: string,
+): Promise<PublishBatchState> {
+  const session = await requireAdminSession();
+  const result = await lookupReleaseBatch(session, formId, idempotencyKey);
+  if (!result.ok) {
+    if (result.code === "RELEASE_BATCH_NOT_FOUND" || result.code === "http_404") {
+      return IDLE_PUBLISH_BATCH;
+    }
+    return refusedPublish(result);
+  }
+  return committedPublish(formId, result.data);
+}
+
+/** The refusal, with `STALE_REVIEW` kept apart because its recovery is a re-read. */
+function refusedPublish(result: {
+  readonly code: string;
+  readonly message: string;
+  readonly issues: readonly FormIssue[];
+}): PublishBatchState {
+  if (result.code === "STALE_REVIEW") return { status: "stale", message: result.message };
+  if (result.issues.length > 0) {
+    return { status: "rejected", issues: result.issues, message: result.message };
+  }
+  return { status: "error", message: result.message };
+}
+
+/** A committed confirmation. The whole form subtree is re-read: its header says what is released. */
+function committedPublish(formId: string, outcome: BatchOutcome): PublishBatchState {
+  revalidatePath("/forms");
+  revalidatePath("/operations");
+  revalidatePath(`/forms/${formId}`, "layout");
+  return {
+    status: "done",
+    version: outcome.version,
+    replayed: outcome.replayed,
+    releases: outcome.releases.map((release) => ({
+      environment: release.environment,
+      version: release.version,
+      rollback: release.rollback,
+    })),
   };
 }
 
