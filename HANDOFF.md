@@ -28,7 +28,7 @@ piece in detail.
   registered kind's `resultAllowlist`, so the request-body walk reads a closed object rather than
   an effects wrapper. The per-kind narrowing moved off the schema into the route:
   `actionResultRefusal` runs on both assist handlers and answers `400
-  ACTION_RESULT_NOT_ALLOWED`.
+ACTION_RESULT_NOT_ALLOWED`.
 - **The read-tool walk** asserts `AGENT_READ_TOOL_NAMES`, a new registry split beside
   `AGENT_PROPOSE_TOOL_NAMES`, rather than every registered name. The propose tools put a card up
   for the user to confirm, so a read walk never executes one.
