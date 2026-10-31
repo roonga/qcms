@@ -2043,19 +2043,7 @@ export const messages = {
   // only signal - the marker travels in the sentence itself.
   // `agent.title` is the mark's `aria-label`, which names the panel landmark (ADR-27).
   "agent.title": "Assistant",
-  "forms.assist.collapse": "Collapse the assistant panel",
-  "forms.assist.expand": "Expand the assistant panel",
-  "forms.assist.emptyHint": "Describe the form you want.",
-  "forms.assist.conversationLabel": "Conversation with the assistant",
-  "forms.assist.turnYou": "You",
-  "forms.assist.inputLabel": "Describe the next change",
-  "forms.assist.composerHint": "Enter sends. Shift and Enter start a new line.",
-  "forms.assist.send": "Send",
-  "forms.assist.stop": "Stop",
-  "forms.assist.newConversation": "Start a new conversation",
   "forms.assist.working": "The assistant is working.",
-  "forms.assist.resultAccepted": "Accepted into the draft.",
-  "forms.assist.resultDiscarded": "Discarded.",
   "forms.assist.thinking": "Thinking",
   "forms.assist.thoughtFor": "Thought for {seconds} s",
   // The step timeline. Each tool is named by what it does for the author, never by its
@@ -2111,7 +2099,6 @@ export const messages = {
   "agent.context.workspaces": "Workspaces you can read",
   "agent.context.workspace": "Workspace {subject}",
   "agent.empty": "Ask about this screen. The assistant explains what is here and takes you to it.",
-  "agent.error": "That turn did not finish. Try again.",
   "agent.composer": "Ask the assistant",
   "agent.send": "Send",
   "agent.stop": "Stop",
@@ -2134,7 +2121,6 @@ export const messages = {
   "forms.assist.step.propose_action": "Preparing an action for you to confirm",
   "forms.assist.step.propose_plan": "Preparing a plan for you to confirm",
 
-  "forms.assist.proposalHeading": "Proposal",
   "forms.assist.diffCount.one": "1 change proposed.",
   "forms.assist.diffCount.other": "{count} changes proposed.",
   "forms.assist.validationClean": "Validation passes.",
@@ -2144,11 +2130,8 @@ export const messages = {
   "forms.assist.kind.step": "Step",
   "forms.assist.kind.question": "Question",
   "forms.assist.kind.rule": "Rule",
-  "forms.assist.rationaleAbove": "The assistant's explanation is in the conversation above.",
   "forms.assist.newQuestionPending":
     "New question {questionId}. Accepting creates it as an unpublished draft in the question library. Publish it there before you publish this form.",
-  "forms.assist.accept": "Accept into draft",
-  "forms.assist.discard": "Discard",
 
   // THE ACTION CARD (SEC-17 section 4.10).
   //
@@ -2188,6 +2171,11 @@ export const messages = {
   "agent.card.form.release.title": "Release version {version} of {formId} to {environment}",
   "agent.card.form.release.consequence":
     "Respondents starting from now get this version in {environment}.",
+  "agent.card.apply-draft.title": "Apply the proposed draft to {formId}",
+  "agent.card.apply-draft.consequence":
+    "The working draft is replaced by the one below. It publishes nothing and releases nothing: respondents see no change until this form is published.",
+  "agent.card.apply-draft.provenance":
+    "The draft is marked as carrying agent-assisted changes, and keeps that mark until it is published.",
   "agent.card.form.settings.title": "Change the form settings of {formId}",
   "agent.card.form.settings.consequence":
     "Abuse controls for this form. They apply the next time it is published.",
@@ -2352,6 +2340,8 @@ export const messages = {
   "agent.card.note.unreachable": "The request did not reach the server.",
   "agent.card.note.stale": "This proposal is more than ten minutes old.",
   "agent.card.note.notWired": "This screen's control is not wired to the assistant yet.",
+  "agent.card.note.noBuilder":
+    "This draft can only be applied from the form's own screen, with the builder open.",
   "agent.card.note.unknownRole": "That is not a role this workspace's member rows can carry.",
   "agent.card.note.noDraftToPublish":
     "There is no draft to publish into that environment any more. Read the form again and ask for a fresh proposal.",

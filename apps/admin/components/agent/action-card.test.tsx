@@ -38,6 +38,7 @@ function step(overrides: Partial<AgentPlanStep> = {}): AgentPlanStep {
     args: { formId: "frm_quote", count: 20, expiresAt: "2026-11-30", oneTime: true },
     environment: "test",
     handOff: false,
+    local: false,
     card: {
       titleKey: "agent.card.link.mint.title",
       consequenceKeys: ["agent.card.link.mint.consequence"],

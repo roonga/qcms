@@ -54,19 +54,17 @@ const API_CLIENT_SUFFIX = "lib/server/api.ts";
  * The client-side `fetch` calls this rule allows, and why they are not the hole rule 5
  * exists to close.
  *
- * `AssistPanel` (task 041) and the assistant conversation panel each read a streamed
- * SSE response as it arrives, which needs the browser's own `fetch`: there is no other
- * way to get a `ReadableStream` body for a `POST` carrying a JSON payload
- * (`EventSource` cannot `POST` or set a body at all). Each calls only this app's *own*
- * same-origin route, never the API directly, and neither the admin session token nor
- * the internal service token is anywhere in either file. The one call that does carry
- * them still runs through `lib/server/forms.ts`'s `assist()`, built on `adminApiFetch`
- * like every other API call this app makes, so rule 5's actual property ("the
- * credentials are attached in one place") still holds. Widening this set to another
+ * The assistant conversation reads a streamed SSE response as it arrives, which needs the
+ * browser's own `fetch`: there is no other way to get a `ReadableStream` body for a `POST`
+ * carrying a JSON payload (`EventSource` cannot `POST` or set a body at all). It calls
+ * only this app's *own* same-origin routes, never the API directly, and neither the admin
+ * session token nor the internal service token is anywhere in that file. The one call that
+ * does carry them still runs through `lib/server/forms.ts`'s `assist()`, built on
+ * `adminApiFetch` like every other API call this app makes, so rule 5's actual property
+ * ("the credentials are attached in one place") still holds. Widening this set to another
  * file is an amendment to this comment, not a silent regex edit.
  */
 const ALLOWED_CLIENT_FETCH_SUFFIXES: readonly string[] = [
-  "/components/forms/assist-panel.tsx",
   "/components/agent/assistant-conversation.tsx",
 ];
 

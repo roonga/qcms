@@ -90,6 +90,7 @@ export const SCREENS: Readonly<Record<ScreenId, ScreenDef>> = Object.freeze({
   "/forms": screen(authoringContexts.formsList, ["search_forms"], ["form.create"]),
   "/forms/new": screen(authoringContexts.newForm, [], ["form.create"]),
   "/forms/[formId]": screen(authoringContexts.builder, DRAFT_TOOLS, [
+    "apply-draft",
     "form.publish",
     "form.settings",
     "form.close",

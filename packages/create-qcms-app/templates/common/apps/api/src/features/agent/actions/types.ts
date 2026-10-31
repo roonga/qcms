@@ -65,7 +65,10 @@ export interface ActionKindDef {
   readonly kind: string;
   /** The screen whose control this kind mirrors, which is where its marker shows. */
   readonly screen: ScreenId;
-  /** Absent for a hand-off: it carries no token, so no request is ever routed to it. */
+  /**
+   * Absent for a hand-off and for a local step: both carry no token, so no request is ever
+   * routed to them.
+   */
   readonly route?: ActionRoute;
   readonly cell: { readonly resource: Resource; readonly action: string };
   /** A second cell the route also requires, as its policy row declares it. */
@@ -89,6 +92,18 @@ export interface ActionKindDef {
   readonly resultAllowlist: readonly string[];
   /** A step whose arguments include a secret the user must type; carries no token. */
   readonly handOff?: true;
+  /**
+   * A step the screen completes through its own client-side write path rather than a
+   * request of its own. It reaches no route, so it carries no token and the screen's own
+   * save is what authorises it.
+   */
+  readonly local?: true;
+  /**
+   * The draft this kind applies is the turn's own proposed draft rather than an argument,
+   * so the propose tool refuses the step until one has been proposed and attaches the
+   * server's two advisory lists to it.
+   */
+  readonly carriesProposedDraft?: true;
   readonly card: ActionCardTemplate;
   readonly description: string;
 }

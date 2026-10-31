@@ -1,10 +1,9 @@
 "use client";
 
-import { useEffect, useId, useRef, useState, type RefObject } from "react";
+import { useEffect, useId, useRef, useState, type ReactNode, type RefObject } from "react";
 
 import { AssistMark } from "@/components/forms/assist-mark";
 import { AssistMarkdown } from "@/components/forms/assist-markdown";
-import { AssistPanel } from "@/components/forms/assist-panel";
 import { Button } from "@/components/kit";
 import type { BuilderAssistSnapshot } from "@/lib/agent/builder-assist-bridge";
 import { isProseTurn, promptTurns, type ConversationHandle } from "@/lib/agent/conversation";
@@ -22,6 +21,11 @@ import {
 import { runPlan } from "@/lib/agent/runner";
 import { stepTitle } from "@/lib/agent/card-copy";
 import { useProposalSeam } from "@/lib/agent/waiting";
+import {
+  errorForResponse,
+  messageForError,
+  type AssistError,
+} from "@/lib/forms/assist-errors";
 import { readAssistEvents, type AgentProposal } from "@/lib/forms/assist-stream";
 
 import { ActionCard } from "./action-card";
@@ -47,26 +51,28 @@ import {
   applyTurnEvent,
   EMPTY_TURN,
   finishTurn,
+  lastTextSegment,
   runningStep,
   turnText,
   type AssistantTurnView,
+  type StepState,
+  type TurnSegment,
+  type TurnStep,
 } from "@/lib/forms/assist-turn";
-import { t } from "@/lib/i18n/en";
+import { t, type MessageKey } from "@/lib/i18n/en";
 
 /**
- * The conversation inside the panel.
- *
- * On a form screen with a builder mounted this is the builder's own panel in its hosted
- * mode, so the draft proposal, its diff and its Accept keep working exactly as they
- * shipped while the dock draws the header; everywhere else it is the explain-and-navigate
- * conversation, which has nothing to propose until action kinds arrive.
- *
- * A caller who may not write this draft takes the screen route as well. The builder's own
- * route requires `form: write`, so the hosted panel would answer them 403 for every turn,
- * while the screen route builds the same facts under the grants they do hold.
+ * The conversation inside the dock: one component for every screen, including the builder,
+ * and one card renderer for every act it can propose.
  *
  * A turn sends the screen id, the route's own ids and the conversation id, and never
  * context content: the API computes what the screen can see under the caller's own grants.
+ *
+ * With a writable builder mounted the turn takes that form's own assist route and carries
+ * the stored draft's `updatedAt`, so a draft saved between the turn and Confirm is refused
+ * rather than silently overwritten. A caller who may not write the draft takes the screen
+ * route instead: the per-form route requires `form: write` and would answer them 403 for
+ * every turn, while the screen route builds the same facts under the grants they do hold.
  */
 export function AssistantConversation({
   screen,
@@ -83,27 +89,13 @@ export function AssistantConversation({
   readonly onWorkingChange: (working: boolean) => void;
   readonly onAnnounce: (message: string) => void;
 }) {
-  if (builder !== undefined && builder.canPropose) {
-    return (
-      <AssistPanel
-        hosted
-        endpoint={builder.endpoint}
-        draft={builder.draft}
-        draftUpdatedAt={builder.draftUpdatedAt}
-        onAccept={builder.accept}
-        onWorkingChange={onWorkingChange}
-        onStatusChange={onAnnounce}
-        // The one conversation this form's subtree shares, so leaving the builder for
-        // another of its screens keeps the turns and returning restores them.
-        conversation={conversation}
-        {...(screen === undefined ? {} : { screen })}
-      />
-    );
-  }
+  const writable = builder !== undefined && builder.canPropose ? builder : undefined;
   return (
     <ScreenConversation
+      key={writable === undefined ? "screen" : "builder"}
       screen={screen}
       conversation={conversation}
+      builder={writable}
       composerRef={composerRef}
       onWorkingChange={onWorkingChange}
       onAnnounce={onAnnounce}
@@ -114,19 +106,22 @@ export function AssistantConversation({
 function ScreenConversation({
   screen,
   conversation,
+  builder,
   composerRef,
   onWorkingChange,
   onAnnounce,
 }: {
   readonly screen: ResolvedScreen | undefined;
   readonly conversation: ConversationHandle;
+  /** Present only on a screen whose builder this caller may write. */
+  readonly builder: BuilderAssistSnapshot | undefined;
   readonly composerRef: RefObject<HTMLTextAreaElement | null>;
   readonly onWorkingChange: (working: boolean) => void;
   readonly onAnnounce: (message: string) => void;
 }) {
   const [value, setValue] = useState("");
   const [live, setLive] = useState<AssistantTurnView | undefined>(undefined);
-  const [failed, setFailed] = useState(false);
+  const [failure, setFailure] = useState<AssistError | undefined>(undefined);
   // One card or one plan per turn (P1), waiting on the user's Confirm. Nothing runs until
   // they press it, and nothing about it is sent back until it settles.
   const [proposal, setProposal] = useState<AgentProposal | undefined>(undefined);
@@ -204,7 +199,7 @@ function ScreenConversation({
     const message = value.trim();
     if (message === "" || screen === undefined || live !== undefined) return;
     setValue("");
-    setFailed(false);
+    setFailure(undefined);
     conversation.append([{ role: "user", content: message }]);
     let turn = EMPTY_TURN;
     setLive(turn);
@@ -215,7 +210,7 @@ function ScreenConversation({
     stoppedRef.current = false;
 
     try {
-      const response = await fetch("/assist", {
+      const response = await fetch(builder?.endpoint ?? "/assist", {
         method: "POST",
         headers: { "content-type": "application/json" },
         signal: controller.signal,
@@ -224,11 +219,16 @@ function ScreenConversation({
           screen: screen.screen,
           params: screen.params,
           conversationId: conversation.id,
+          // The stored draft this turn is proposed against; the route refuses a mismatch.
+          ...(builder?.draftUpdatedAt === undefined
+            ? {}
+            : { clientState: builder.draftUpdatedAt }),
         }),
       });
       if (!response.ok || response.body === null) {
-        setFailed(true);
-        onAnnounce(t("agent.announce.failed"));
+        const failed = await errorForResponse(response);
+        setFailure(failed);
+        onAnnounce(messageForError(failed));
         return;
       }
       for await (const event of readAssistEvents(response.body)) {
@@ -239,6 +239,8 @@ function ScreenConversation({
           setCard(initialCard(event.proposal, Date.now()));
           onAnnounce(t("agent.launcher.toReview"));
         }
+        if (event.type === "tool-rejected") setFailure({ kind: "TOOL_REJECTED", tool: event.tool });
+        if (event.type === "error") setFailure({ kind: event.code, message: event.message });
         const step = runningStep(turn);
         if (step !== undefined) onAnnounce(t(step.label));
       }
@@ -246,11 +248,11 @@ function ScreenConversation({
       const text = turnText(ended).trim();
       if (text !== "") conversation.append([{ role: "assistant", content: text }]);
       // The model's words, and the one place they reach the card.
-      setReason(text.slice(0, MAX_REASON));
+      setReason(lastTextSegment(ended).trim().slice(0, MAX_REASON));
       onAnnounce(stoppedRef.current ? t("agent.announce.stopped") : t("agent.announce.done"));
     } catch {
       if (!stoppedRef.current) {
-        setFailed(true);
+        setFailure((current) => current ?? { kind: "PROVIDER_ERROR" });
         onAnnounce(t("agent.announce.failed"));
       }
     } finally {
@@ -280,7 +282,28 @@ function ScreenConversation({
         {live !== undefined && (
           <li className="qcms-assistant__turn" data-role="assistant" aria-busy="true">
             <AssistMark size={20} working />
-            <AssistMarkdown text={turnText(live)} />
+            <div className="qcms-assistant__segments">
+              {live.segments.length === 0 ? (
+                <p>
+                  {t("forms.assist.working")}
+                  <span className="qcms-assist-caret" aria-hidden="true" />
+                </p>
+              ) : (
+                live.segments.map((segment, at) => (
+                  <Segment
+                    key={`${segment.kind}:${String(at)}`}
+                    segment={segment}
+                    // The caret marks where the text is growing, for a sighted reader;
+                    // the live region says the same thing in words.
+                    trailing={
+                      at === live.segments.length - 1 ? (
+                        <span className="qcms-assist-caret" aria-hidden="true" />
+                      ) : undefined
+                    }
+                  />
+                ))
+              )}
+            </div>
           </li>
         )}
         {/* The card is the last segment of the turn that proposed it, and the only place
@@ -304,9 +327,9 @@ function ScreenConversation({
           {t("agent.empty")}
         </p>
       )}
-      {failed && (
+      {failure !== undefined && (
         <p className="qcms-assistant__error" data-testid="qcms-assistant-error">
-          {t("agent.error")}
+          {messageForError(failure)}
         </p>
       )}
       <div className="qcms-assistant__composer">
@@ -355,5 +378,99 @@ function ScreenConversation({
         )}
       </div>
     </div>
+  );
+}
+
+/**
+ * One segment of the turn being streamed: prose as the Markdown subset, the provider's
+ * reasoning summary collapsed, and the tool calls as a plain-language timeline. A turn
+ * restored from the conversation is its prose alone, because the timeline belonged to the
+ * mount that streamed it.
+ */
+function Segment({
+  segment,
+  trailing,
+}: {
+  readonly segment: TurnSegment;
+  readonly trailing?: ReactNode;
+}) {
+  if (segment.kind === "text") return <AssistMarkdown text={segment.text} trailing={trailing} />;
+  if (segment.kind === "thinking") return <Thinking segment={segment} />;
+  return <StepTimeline steps={segment.steps} />;
+}
+
+/** Collapsed plain text: reasoning is working-out, not an answer, so it skips Markdown. */
+function Thinking({ segment }: { readonly segment: Extract<TurnSegment, { kind: "thinking" }> }) {
+  const running = segment.endedAt === undefined;
+  const seconds = running
+    ? undefined
+    : Math.max(1, Math.round((segment.endedAt - segment.startedAt) / 1000));
+  return (
+    <details className="qcms-assist-think" data-testid="qcms-assistant-thinking">
+      <summary>
+        <span>{t("forms.assist.thinking")}</span>
+        {running ? (
+          <span className="qcms-assist-think__pulse" aria-hidden="true" />
+        ) : (
+          <span className="qcms-assist-think__took">
+            {t("forms.assist.thoughtFor", { seconds: String(seconds) })}
+          </span>
+        )}
+      </summary>
+      <p className="qcms-assist-think__body">{segment.text}</p>
+    </details>
+  );
+}
+
+const STEP_STATE_LABELS: Readonly<Record<StepState, MessageKey>> = {
+  running: "forms.assist.stepRunning",
+  done: "forms.assist.stepDone",
+  failed: "forms.assist.stepFailed",
+  interrupted: "forms.assist.stepInterrupted",
+};
+
+/** One step's icon. Each state has its own shape, so state never rests on colour. */
+function StepIcon({ state }: { readonly state: StepState }) {
+  if (state === "running") return <span className="qcms-assist-steps__pulse" />;
+  const path = {
+    done: "M20 6 9 17l-5-5",
+    failed: "M18 6 6 18M6 6l12 12",
+    interrupted: "M5 12h14",
+  }[state];
+  return (
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5">
+      <path d={path} strokeLinecap="round" strokeLinejoin="round" />
+    </svg>
+  );
+}
+
+/**
+ * The plain-language step list. A step that went wrong says so in words beside its label;
+ * a running or finished step's state is spoken but not printed, because the icon and the
+ * list's own progress already show it.
+ */
+function StepTimeline({ steps }: { readonly steps: readonly TurnStep[] }) {
+  return (
+    <ol
+      className="qcms-assist-steps"
+      aria-label={t("forms.assist.stepsLabel")}
+      data-testid="qcms-assistant-steps"
+    >
+      {steps.map((step, at) => {
+        const problem = step.state === "failed" || step.state === "interrupted";
+        return (
+          <li key={`${step.label}:${String(at)}`} data-state={step.state}>
+            <span className="qcms-assist-steps__icon" aria-hidden="true">
+              <StepIcon state={step.state} />
+            </span>
+            <span>{t(step.label)}</span>
+            <span className="qcms-visually-hidden">, </span>
+            <span className={problem ? "qcms-assist-steps__state" : "qcms-visually-hidden"}>
+              {t(STEP_STATE_LABELS[step.state])}
+            </span>
+          </li>
+        );
+      })}
+    </ol>
   );
 }

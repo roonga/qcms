@@ -3,7 +3,7 @@
  * at the propose tool, and nothing can graft one on at runtime.
  */
 
-import { closeForm, reopenForm, updateFormSettings } from "./forms.js";
+import { applyDraft, closeForm, reopenForm, updateFormSettings } from "./forms.js";
 import { createForm } from "./forms-library.js";
 import { mintLinks, revokeLink } from "./links.js";
 import {
@@ -35,6 +35,7 @@ import {
 
 const DEFS: readonly ActionKindDef[] = [
   createForm,
+  applyDraft,
   publishForm,
   releaseVersion,
   updateFormSettings,

@@ -286,6 +286,21 @@ function toolCallPart(toolName: string, input: unknown, nonce = ""): StreamPart 
   };
 }
 
+/**
+ * The card a proposed draft reaches the user as. A script that proposes a draft follows it
+ * with this call, because a recorded draft is not itself a proposal: the user confirms it
+ * on the apply-draft card like any other action.
+ */
+function applyDraftCall(prompt: readonly PromptMessage[]): StreamPart[] {
+  const formId = currentDraft(prompt)?.formId ?? factFormId(prompt);
+  const input = { action: { kind: "apply-draft", args: { formId } } };
+  return [
+    ...toolInputParts("propose_action", input),
+    toolCallPart("propose_action", input),
+    finishPart("tool-calls"),
+  ];
+}
+
 function planRecoveredStep(
   prompt: readonly PromptMessage[],
   results: Map<string, unknown>,
@@ -312,6 +327,7 @@ function planRecoveredStep(
       finishPart("tool-calls"),
     ];
   }
+  if (!results.has("propose_action")) return applyDraftCall(prompt);
   return [...textParts("I have proposed the draft.", "t3"), finishPart("stop")];
 }
 
@@ -384,6 +400,8 @@ function planProposeQuestionsStep(
     ];
   }
 
+  if (!results.has("propose_action")) return applyDraftCall(prompt);
+
   return [
     ...textParts(
       "I proposed one new question and a step that pins it. Accepting will create it as an unpublished draft in the library; publish it there and the pin resolves.",
@@ -432,6 +450,7 @@ function planNarrateStep(
       finishPart("tool-calls"),
     ];
   }
+  if (!results.has("propose_action")) return applyDraftCall(prompt);
   return [
     ...textParts(
       "I added a driving-history step and gated the follow-up on it, so the second question only appears once the first is answered.",
@@ -476,6 +495,7 @@ function planReasoningStep(
       finishPart("tool-calls"),
     ];
   }
+  if (!results.has("propose_action")) return [...reasoning, ...applyDraftCall(prompt)];
   return [
     ...reasoning,
     ...textParts("I proposed a driving-history step with a gated follow-up.", "t2"),
@@ -1089,6 +1109,7 @@ function planStep(
     const definition = buildProposal(draft, libraryHits(results));
     return [toolCallPart("propose_draft", { definition }), finishPart("tool-calls")];
   }
+  if (!results.has("propose_action")) return applyDraftCall(prompt);
   return [
     ...textParts(
       "I added a driving-history step and gated an accident-detail step on it, so the follow-up only appears when the first question is answered.",

@@ -28,6 +28,8 @@ import {
 } from "@/lib/agent/plan-state";
 import { t, tPlural } from "@/lib/i18n/en";
 
+import { ApplyDraftDetail } from "./apply-draft-detail";
+
 /**
  * The action card, which a plan of one step also is (SEC-17 section 4.10). The four rules
  * it has to keep:
@@ -371,6 +373,11 @@ export function ActionCard(props: ActionCardProps): React.ReactElement {
                   ))}
                   {step.handOff ? <span>{t("agent.card.handOffHint")}</span> : null}
                 </p>
+                {/* The one step that carries a document rather than arguments alone: its
+                    diff against the working draft, and its two advisory lists, in full. */}
+                {step.draft === undefined ? null : (
+                  <ApplyDraftDetail draft={step.draft} id={`${base}-${String(index)}`} />
+                )}
                 {view?.message === undefined ? null : (
                   <p className="qcms-acard__note">{view.message}</p>
                 )}

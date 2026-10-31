@@ -22,8 +22,13 @@ export interface RunStepRequest {
   readonly index: number;
   /** The step's arguments with every reference resolved from an earlier step's result. */
   readonly args: Readonly<Record<string, unknown>>;
-  /** Absent for a hand-off step, which carries no token. */
+  /** Absent for a hand-off or a local step, which carry no token. */
   readonly agentProposal: string | undefined;
+  /**
+   * This step's index in the token rather than in the card. The two differ once a plan
+   * holds a step that reaches no route, because the token binds only the steps that do.
+   */
+  readonly tokenStep: number;
   /** The selection the turn ran under, which a screen action confirms its tab against. */
   readonly currentEnvironment: string;
 }
@@ -81,8 +86,14 @@ export function hasUnresolvedReference(args: Readonly<Record<string, unknown>>):
   return Object.values(args).some((value) => value === undefined);
 }
 
+/** Whether this step reaches a route of its own, which is what the token binds. */
+function carriesToken(step: AgentPlanStep): boolean {
+  return !step.handOff && !step.local;
+}
+
 export async function runPlan(input: RunPlanInput): Promise<AgentCardView> {
   let card = input.card;
+  let tokenStep = 0;
   const emit = (next: AgentCardView): AgentCardView => {
     card = next;
     input.onChange?.(card);
@@ -94,12 +105,15 @@ export async function runPlan(input: RunPlanInput): Promise<AgentCardView> {
     if (card.steps[index]?.state !== "proposed" && card.steps[index]?.state !== "running") break;
 
     if (step.handOff) {
-      // The one step that carries no token: it opens the screen's own control and the user
-      // completes it there, so the runner sends nothing and waits.
+      // It opens the screen's own control and the user completes it there, so the runner
+      // sends nothing and waits.
       emit(startStep(card, index));
       input.onHandOff?.(step, index, resolveArgs(step, card));
       return card;
     }
+
+    const bound = tokenStep;
+    if (carriesToken(step)) tokenStep += 1;
 
     emit(startStep(card, index));
     const args = resolveArgs(step, card);
@@ -130,7 +144,8 @@ export async function runPlan(input: RunPlanInput): Promise<AgentCardView> {
         step,
         index,
         args,
-        agentProposal: input.proposal.token,
+        agentProposal: carriesToken(step) ? input.proposal.token : undefined,
+        tokenStep: bound,
         currentEnvironment: input.proposal.currentEnvironment,
       });
     } catch {

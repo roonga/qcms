@@ -55,17 +55,11 @@ const COMPONENTS_ROOT = dirname(fileURLToPath(import.meta.url));
  * Nine of these are the ones issue #352 counted: the action-rejection handlers that fire
  * when a server action rejects instead of returning a failure state. Three are clipboard
  * chains, which are the same failure wearing different clothes - a refusal the operator
- * can act on, or silence - and are covered in the same pass. The thirteenth, task 041's,
- * is a body-parse guard: the response arrived, it just was not JSON.
+ * can act on, or silence - and are covered in the same pass. The assistant's own
+ * body-parse guard is not here because it is not in a component: `lib/forms/assist-errors.ts`
+ * holds it, covered by `lib/forms/assist-errors.test.ts`.
  */
 const HANDLERS: Readonly<Record<string, readonly string[]>> = {
-  // Task 041's, and a different shape from the twelve below: not an action that rejected,
-  // but a failing response whose body is not JSON. The panel reads the failure body with
-  // `.json().catch(() => undefined)` so a proxy's HTML error page still reaches the
-  // operator as a status number instead of escaping the send path as an unhandled parse
-  // rejection. Covered in the panel's own rendered test rather than a `-rejects` sibling,
-  // because that file already renders this component and drives its other error states.
-  "forms/assist-panel.tsx": ["non-JSON error body (forms/assist-panel.test.tsx)"],
   // The four from task 035 and the five from issue #303, in file order.
   "forms/draft-preview.tsx": ["preview projection (forms/draft-preview-rejects.test.tsx)"],
   // Publishing is the wizard's act, so its rejection handlers are the wizard's, not this file's.
@@ -162,21 +156,16 @@ describe("the rejection handlers of the admin's forms and ops components", () =>
     expect(found).toStrictEqual(declared);
   });
 
-  it("number eighteen, of which fourteen are action rejections (nine at issue #352)", () => {
+  it("number seventeen, of which fourteen are action rejections (nine at issue #352)", () => {
     const entries = Object.values(HANDLERS).flat();
-    expect(entries).toHaveLength(18);
+    expect(entries).toHaveLength(17);
 
     // Three clipboard chains: a refusal the operator can act on, or silence.
     const clipboard = entries.filter((entry) => entry.startsWith("copy"));
     expect(clipboard).toHaveLength(3);
 
-    // One body-parse guard, added with task 041's assist panel. Not an action rejection:
-    // the request reached the server and the server answered, just not in JSON.
-    const parse = entries.filter((entry) => entry.startsWith("non-JSON"));
-    expect(parse).toHaveLength(1);
-
     // The tripwire: this number moves only when an action-rejection handler is genuinely
     // added or removed, not when a handler of some other shape joins the list.
-    expect(entries.length - clipboard.length - parse.length).toBe(14);
+    expect(entries.length - clipboard.length).toBe(14);
   });
 });

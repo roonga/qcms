@@ -93,13 +93,13 @@ regeneration and `git add` the result rather than merging two sets of counts.
 
 <!-- BEGIN GENERATED: ownership-seam (pnpm qcms:sync-templates) -->
 
-### Scaffolded paths (553 files common to both shapes)
+### Scaffolded paths (554 files common to both shapes)
 
 | Path                                                                 | Files |
 | -------------------------------------------------------------------- | ----- |
 | `(project root)`                                                     | 8     |
-| `apps/`                                                              | 542   |
-| `apps/admin/`                                                        | 331   |
+| `apps/`                                                              | 543   |
+| `apps/admin/`                                                        | 332   |
 | `apps/admin/app/`                                                    | 83    |
 | `apps/admin/app/(shell)/`                                            | 64    |
 | `apps/admin/app/(shell)/@rail/`                                      | 26    |
@@ -172,16 +172,16 @@ regeneration and `git add` the result rather than merging two sets of counts.
 | `apps/admin/app/two-factor/recovery-codes/confirm/`                  | 1     |
 | `apps/admin/app/two-factor/recovery/verify/`                         | 1     |
 | `apps/admin/components/`                                             | 121   |
-| `apps/admin/components/agent/`                                       | 7     |
-| `apps/admin/components/forms/`                                       | 43    |
+| `apps/admin/components/agent/`                                       | 8     |
+| `apps/admin/components/forms/`                                       | 42    |
 | `apps/admin/components/membership/`                                  | 8     |
 | `apps/admin/components/ops/`                                         | 12    |
 | `apps/admin/components/questions/`                                   | 15    |
 | `apps/admin/components/shell/`                                       | 4     |
 | `apps/admin/components/test-support/`                                | 3     |
-| `apps/admin/lib/`                                                    | 120   |
+| `apps/admin/lib/`                                                    | 121   |
 | `apps/admin/lib/agent/`                                              | 11    |
-| `apps/admin/lib/forms/`                                              | 30    |
+| `apps/admin/lib/forms/`                                              | 31    |
 | `apps/admin/lib/i18n/`                                               | 2     |
 | `apps/admin/lib/membership/`                                         | 2     |
 | `apps/admin/lib/ops/`                                                | 12    |
@@ -256,7 +256,7 @@ regeneration and `git add` the result rather than merging two sets of counts.
 
 ### QCMS-internal references in the scaffolded source
 
-`1783` lines across `379` scaffolded files cite a QCMS issue, ADR, SEC control, plan task or repository path.
+`1779` lines across `379` scaffolded files cite a QCMS issue, ADR, SEC control, plan task or repository path.
 
 These are comments, and they stay (issue #457, tier 3). They are the engineering
 rationale for code you now own, which is worth more to you than a tidy file, and
@@ -271,7 +271,7 @@ rather than documented: the images no longer claim to be built from this
 repository, and no scaffolded message names a script your project does not define.
 
 <details>
-<summary>Every scaffolded file (553)</summary>
+<summary>Every scaffolded file (554)</summary>
 
 ```
 .dockerignore
@@ -365,6 +365,7 @@ apps/admin/app/two-factor/recovery/verify/route.ts
 apps/admin/components/account-menu.tsx
 apps/admin/components/admin-nav.tsx
 apps/admin/components/agent/action-card.tsx
+apps/admin/components/agent/apply-draft-detail.tsx
 apps/admin/components/agent/assistant-button.tsx
 apps/admin/components/agent/assistant-conversation.tsx
 apps/admin/components/agent/assistant-dock.tsx
@@ -383,7 +384,6 @@ apps/admin/components/forms/agent-provenance-tag.tsx
 apps/admin/components/forms/assist-icon-button.tsx
 apps/admin/components/forms/assist-mark.tsx
 apps/admin/components/forms/assist-markdown.tsx
-apps/admin/components/forms/assist-panel.tsx
 apps/admin/components/forms/assist-tip.tsx
 apps/admin/components/forms/condition-editor.tsx
 apps/admin/components/forms/condition-json-pane.tsx
@@ -503,6 +503,7 @@ apps/admin/lib/entity-id.ts
 apps/admin/lib/environment.ts
 apps/admin/lib/forms/add-step-request.ts
 apps/admin/lib/forms/assist-diff.ts
+apps/admin/lib/forms/assist-errors.ts
 apps/admin/lib/forms/assist-markdown.ts
 apps/admin/lib/forms/assist-stream.ts
 apps/admin/lib/forms/assist-turn.ts

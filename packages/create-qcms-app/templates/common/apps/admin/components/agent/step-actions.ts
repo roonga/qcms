@@ -33,6 +33,8 @@ import {
   retargetWebhookAction,
   rotateSecretAction,
 } from "@/app/(shell)/webhooks/actions";
+import { builderAssistSnapshot } from "@/lib/agent/builder-assist-bridge";
+import { acceptedDraft, proposalDiff } from "@/lib/forms/assist-diff";
 import { isErasureReason } from "@/lib/ops/erasure";
 import { IDLE_MUTATION } from "@/lib/questions/editor-state";
 import type { MembershipActionState } from "@/lib/membership/types";
@@ -73,19 +75,38 @@ type StepRunner = (request: RunStepRequest) => Promise<AgentStepResult>;
 
 function proposalRef(
   agentProposal: string | undefined,
-  index: number,
+  tokenStep: number,
 ): { agentProposal: string; step: number } | undefined {
-  return agentProposal === undefined ? undefined : { agentProposal, step: index };
+  return agentProposal === undefined ? undefined : { agentProposal, step: tokenStep };
 }
+
+/**
+ * The step that applies the draft this turn proposed. It sends nothing of its own: the
+ * builder owns the draft, so Confirm hands it the accepted draft and the questions it
+ * invents, and the builder's own save stores both with the agent-assisted mark.
+ */
+const applyDraftRunner: StepRunner = ({ step }) => {
+  const proposed = step.draft;
+  const builder = builderAssistSnapshot();
+  if (proposed === undefined || builder === undefined || !builder.canPropose) {
+    return Promise.resolve({ outcome: "failed", message: t("agent.card.note.noBuilder") });
+  }
+  const diff = proposalDiff(builder.draft, proposed.definition, proposed.newQuestions);
+  builder.accept(acceptedDraft(builder.draft, proposed.definition), proposed.newQuestions);
+  return Promise.resolve({
+    outcome: "done",
+    result: { changes: diff.length, newQuestions: proposed.newQuestions.length },
+  });
+};
 
 /** Close and reopen are one screen control and one route pair, so they share a runner. */
 function intakeRunner(action: "close" | "reopen"): StepRunner {
-  return async ({ step, index, args, agentProposal }) => {
+  return async ({ step, tokenStep, args, agentProposal }) => {
     const state = await setFormStatusAction(
       text(args["formId"]),
       step.environment,
       action,
-      proposalRef(agentProposal, index),
+      proposalRef(agentProposal, tokenStep),
     );
     if (state.status !== "changed") {
       return { outcome: "failed", message: text(state.message) };
@@ -131,7 +152,7 @@ function endpointOutcome(
  * two expectations travel with the request. A draft saved in between is refused and
  * nothing is written, exactly as it is for the wizard.
  */
-const publishStep: StepRunner = async ({ step, index, args, agentProposal }) => {
+const publishStep: StepRunner = async ({ step, tokenStep, args, agentProposal }) => {
   const formId = text(args["formId"]);
   const review = await reviewReleaseAction(formId, { kind: "draft" });
   if (!review.ok) return { outcome: "failed", message: t("agent.card.note.noDraftToPublish") };
@@ -148,7 +169,7 @@ const publishStep: StepRunner = async ({ step, index, args, agentProposal }) => 
       source: { kind: "draft", draftRevision: source.draftRevision },
       targets: [{ environment: step.environment, expectedSequence: target.currentSequence }],
     },
-    proposalRef(agentProposal, index),
+    proposalRef(agentProposal, tokenStep),
   );
   if (state.status !== "done" || state.version === undefined) {
     return { outcome: "failed", message: text(state.message) };
@@ -174,7 +195,7 @@ function membershipOutcome(
 }
 
 const MEMBERSHIP_RUNNERS: Readonly<Record<string, StepRunner>> = {
-  "access.groupCreate": async ({ index, args, agentProposal }) => {
+  "access.groupCreate": async ({ tokenStep, args, agentProposal }) => {
     const state = await createAccessGroupAction(
       text(args["workspaceId"]),
       {
@@ -184,7 +205,7 @@ const MEMBERSHIP_RUNNERS: Readonly<Record<string, StepRunner>> = {
         environments: strings(args["environments"]),
         forms: strings(args["forms"]),
       },
-      proposalRef(agentProposal, index),
+      proposalRef(agentProposal, tokenStep),
     );
     return membershipOutcome(state, {
       teamId: state.status === "done" ? text(state.teamId) : "",
@@ -192,39 +213,39 @@ const MEMBERSHIP_RUNNERS: Readonly<Record<string, StepRunner>> = {
       role: text(args["role"]),
     });
   },
-  "access.groupRemove": async ({ index, args, agentProposal }) => {
+  "access.groupRemove": async ({ tokenStep, args, agentProposal }) => {
     const state = await removeAccessGroupAction(
       text(args["workspaceId"]),
       text(args["teamId"]),
-      proposalRef(agentProposal, index),
+      proposalRef(agentProposal, tokenStep),
     );
     return membershipOutcome(state, { teamId: text(args["teamId"]) });
   },
-  "access.grant": async ({ index, args, agentProposal }) => {
+  "access.grant": async ({ tokenStep, args, agentProposal }) => {
     const state = await grantAccessGroupAction(
       text(args["workspaceId"]),
       text(args["teamId"]),
       text(args["email"]),
-      proposalRef(agentProposal, index),
+      proposalRef(agentProposal, tokenStep),
     );
     return membershipOutcome(state, {
       teamId: text(args["teamId"]),
       name: state.status === "done" ? text(state.name) : "",
     });
   },
-  "access.revoke": async ({ index, args, agentProposal }) => {
+  "access.revoke": async ({ tokenStep, args, agentProposal }) => {
     const state = await revokeAccessGroupAction(
       text(args["workspaceId"]),
       text(args["teamId"]),
       text(args["userId"]),
-      proposalRef(agentProposal, index),
+      proposalRef(agentProposal, tokenStep),
     );
     return membershipOutcome(state, {
       teamId: text(args["teamId"]),
       userId: text(args["userId"]),
     });
   },
-  "member.role": async ({ index, args, agentProposal }) => {
+  "member.role": async ({ tokenStep, args, agentProposal }) => {
     const role = args["role"];
     if (role !== "forms.owner" && role !== "member") {
       return { outcome: "failed", message: t("agent.card.note.unknownRole") };
@@ -233,18 +254,18 @@ const MEMBERSHIP_RUNNERS: Readonly<Record<string, StepRunner>> = {
       text(args["workspaceId"]),
       text(args["userId"]),
       role,
-      proposalRef(agentProposal, index),
+      proposalRef(agentProposal, tokenStep),
     );
     return membershipOutcome(state, { userId: text(args["userId"]), role });
   },
-  "workspace.settings": async ({ index, args, agentProposal }) => {
+  "workspace.settings": async ({ tokenStep, args, agentProposal }) => {
     const state = await saveWorkspaceSettingsAction(
       text(args["workspaceId"]),
       {
         requireSecondApprover: args["requireSecondApprover"] === true,
         seedNewEditorsWithTestData: args["seedNewEditorsWithTestData"] === true,
       },
-      proposalRef(agentProposal, index),
+      proposalRef(agentProposal, tokenStep),
     );
     return membershipOutcome(state, {
       requireSecondApprover: state.status === "done" && state.requireSecondApprover === true,
@@ -259,7 +280,7 @@ const MEMBERSHIP_RUNNERS: Readonly<Record<string, StepRunner>> = {
  * `FormData` that form would post rather than a second shape the screen never sends.
  */
 function lifecycleRunner(intent: "publish" | "deprecate"): StepRunner {
-  return async ({ index, args, agentProposal }) => {
+  return async ({ tokenStep, args, agentProposal }) => {
     const version = whole(args["version"]);
     if (version === undefined) {
       return { outcome: "failed", message: t("agent.card.note.unresolvedReference") };
@@ -268,7 +289,7 @@ function lifecycleRunner(intent: "publish" | "deprecate"): StepRunner {
     body.set("questionId", text(args["questionId"]));
     body.set("version", String(version));
     body.set("intent", intent);
-    const state = await lifecycleAction(IDLE_MUTATION, body, proposalRef(agentProposal, index));
+    const state = await lifecycleAction(IDLE_MUTATION, body, proposalRef(agentProposal, tokenStep));
     if (state.status !== "saved") return { outcome: "failed", message: text(state.message) };
     return {
       outcome: "done",
@@ -282,14 +303,14 @@ function lifecycleRunner(intent: "publish" | "deprecate"): StepRunner {
 }
 
 const QUESTION_RUNNERS: Readonly<Record<string, StepRunner>> = {
-  "question.create": async ({ index, args, agentProposal }) => {
+  "question.create": async ({ tokenStep, args, agentProposal }) => {
     const state = await createQuestionForCardAction(
       {
         slug: text(args["slug"]),
         definition: args["definition"],
         ...(typeof args["workspaceId"] === "string" ? { workspaceId: args["workspaceId"] } : {}),
       },
-      proposalRef(agentProposal, index),
+      proposalRef(agentProposal, tokenStep),
     );
     if (state.status !== "done" || state.questionId === undefined) {
       return { outcome: "failed", message: text(state.message) };
@@ -303,7 +324,7 @@ const QUESTION_RUNNERS: Readonly<Record<string, StepRunner>> = {
       },
     };
   },
-  "question.saveDraft": async ({ index, args, agentProposal }) => {
+  "question.saveDraft": async ({ tokenStep, args, agentProposal }) => {
     const version = whole(args["version"]);
     const definition = args["definition"];
     if (version === undefined || typeof definition !== "object" || definition === null) {
@@ -316,7 +337,7 @@ const QUESTION_RUNNERS: Readonly<Record<string, StepRunner>> = {
     const state = await saveQuestionDraftAction(
       IDLE_MUTATION,
       body,
-      proposalRef(agentProposal, index),
+      proposalRef(agentProposal, tokenStep),
     );
     if (state.status !== "saved") return { outcome: "failed", message: text(state.message) };
     return {
@@ -326,10 +347,10 @@ const QUESTION_RUNNERS: Readonly<Record<string, StepRunner>> = {
   },
   "question.publish": lifecycleRunner("publish"),
   "question.deprecate": lifecycleRunner("deprecate"),
-  "question.newVersion": async ({ index, args, agentProposal }) => {
+  "question.newVersion": async ({ tokenStep, args, agentProposal }) => {
     const state = await createQuestionVersionForCardAction(
       text(args["questionId"]),
-      proposalRef(agentProposal, index),
+      proposalRef(agentProposal, tokenStep),
     );
     if (state.status !== "done" || state.version === undefined) {
       return { outcome: "failed", message: text(state.message) };
@@ -346,15 +367,16 @@ const QUESTION_RUNNERS: Readonly<Record<string, StepRunner>> = {
 };
 
 const RUNNERS: Readonly<Record<string, StepRunner>> = {
+  "apply-draft": applyDraftRunner,
   ...QUESTION_RUNNERS,
-  "form.create": async ({ index, args, agentProposal }) => {
+  "form.create": async ({ tokenStep, args, agentProposal }) => {
     const state = await createFormForCardAction(
       {
         slug: text(args["slug"]),
         defaultLocale: text(args["defaultLocale"]),
         ...(typeof args["workspaceId"] === "string" ? { workspaceId: args["workspaceId"] } : {}),
       },
-      proposalRef(agentProposal, index),
+      proposalRef(agentProposal, tokenStep),
     );
     if (state.status !== "created" || state.formId === undefined) {
       return { outcome: "failed", message: text(state.message) };
@@ -362,7 +384,7 @@ const RUNNERS: Readonly<Record<string, StepRunner>> = {
     return { outcome: "done", result: { formId: state.formId, slug: text(state.slug) } };
   },
   "form.publish": publishStep,
-  "form.settings": async ({ index, args, agentProposal }) => {
+  "form.settings": async ({ tokenStep, args, agentProposal }) => {
     const state = await updateSettingsAction(
       text(args["formId"]),
       {
@@ -373,7 +395,7 @@ const RUNNERS: Readonly<Record<string, StepRunner>> = {
           ? { minSubmitMs: args["minSubmitMs"] }
           : {}),
       },
-      proposalRef(agentProposal, index),
+      proposalRef(agentProposal, tokenStep),
     );
     const settings = state.settings;
     if (state.status !== "saved" || settings === undefined) {
@@ -392,7 +414,7 @@ const RUNNERS: Readonly<Record<string, StepRunner>> = {
   },
   "form.close": intakeRunner("close"),
   "form.reopen": intakeRunner("reopen"),
-  "form.release": async ({ step, index, args, agentProposal, currentEnvironment }) => {
+  "form.release": async ({ step, tokenStep, args, agentProposal, currentEnvironment }) => {
     const version = whole(args["version"]);
     if (version === undefined) {
       return { outcome: "failed", message: t("agent.card.note.unresolvedReference") };
@@ -407,7 +429,7 @@ const RUNNERS: Readonly<Record<string, StepRunner>> = {
           ? { fromEnvironment: args["fromEnvironment"] }
           : {}),
       },
-      proposalRef(agentProposal, index),
+      proposalRef(agentProposal, tokenStep),
     );
     if (state.status !== "released" || state.version === undefined) {
       return { outcome: "failed", message: text(state.message) };
@@ -417,7 +439,7 @@ const RUNNERS: Readonly<Record<string, StepRunner>> = {
       result: { version: state.version, environment: state.environment ?? step.environment },
     };
   },
-  "response.erase": async ({ step, index, args, agentProposal }) => {
+  "response.erase": async ({ step, tokenStep, args, agentProposal }) => {
     const reason = text(args["reason"]);
     // Refused rather than defaulted: the reason is written onto a tombstone, and the
     // digest binds the one the card displayed.
@@ -429,7 +451,7 @@ const RUNNERS: Readonly<Record<string, StepRunner>> = {
       step.environment,
       text(args["sessionId"]),
       reason,
-      proposalRef(agentProposal, index),
+      proposalRef(agentProposal, tokenStep),
     );
     if (state.status !== "erased" || state.data === undefined) {
       return { outcome: "failed", message: text(state.message) };
@@ -443,12 +465,12 @@ const RUNNERS: Readonly<Record<string, StepRunner>> = {
       },
     };
   },
-  "response.unflag": async ({ step, index, args, agentProposal }) => {
+  "response.unflag": async ({ step, tokenStep, args, agentProposal }) => {
     const state = await unflagResponseAction(
       text(args["formId"]),
       step.environment,
       text(args["sessionId"]),
-      proposalRef(agentProposal, index),
+      proposalRef(agentProposal, tokenStep),
     );
     if (state.status !== "unflagged") {
       return { outcome: "failed", message: text(state.message) };
@@ -462,58 +484,58 @@ const RUNNERS: Readonly<Record<string, StepRunner>> = {
       },
     };
   },
-  "webhook.create": async ({ step, index, args, agentProposal }) => {
+  "webhook.create": async ({ step, tokenStep, args, agentProposal }) => {
     const state = await createWebhookAction(
       text(args["formId"]),
       step.environment,
       { url: text(args["url"]), active: args["active"] === true },
-      proposalRef(agentProposal, index),
+      proposalRef(agentProposal, tokenStep),
     );
     return endpointOutcome(state, step, text(state.revealed?.webhookId));
   },
-  "webhook.rotate": async ({ step, index, args, agentProposal }) => {
+  "webhook.rotate": async ({ step, tokenStep, args, agentProposal }) => {
     const state = await rotateSecretAction(
       text(args["formId"]),
       step.environment,
       text(args["webhookId"]),
-      proposalRef(agentProposal, index),
+      proposalRef(agentProposal, tokenStep),
     );
     return endpointOutcome(state, step, text(args["webhookId"]));
   },
-  "webhook.retarget": async ({ step, index, args, agentProposal }) => {
+  "webhook.retarget": async ({ step, tokenStep, args, agentProposal }) => {
     const state = await retargetWebhookAction(
       text(args["formId"]),
       step.environment,
       text(args["webhookId"]),
       text(args["url"]),
-      proposalRef(agentProposal, index),
+      proposalRef(agentProposal, tokenStep),
     );
     return endpointOutcome(state, step, text(args["webhookId"]));
   },
-  "webhook.reactivate": async ({ step, index, args, agentProposal }) => {
+  "webhook.reactivate": async ({ step, tokenStep, args, agentProposal }) => {
     const state = await reactivateWebhookAction(
       text(args["formId"]),
       step.environment,
       text(args["webhookId"]),
-      proposalRef(agentProposal, index),
+      proposalRef(agentProposal, tokenStep),
     );
     return endpointOutcome(state, step, text(args["webhookId"]));
   },
-  "webhook.deactivate": async ({ step, index, args, agentProposal }) => {
+  "webhook.deactivate": async ({ step, tokenStep, args, agentProposal }) => {
     const state = await deactivateWebhookAction(
       text(args["formId"]),
       step.environment,
       text(args["webhookId"]),
-      proposalRef(agentProposal, index),
+      proposalRef(agentProposal, tokenStep),
     );
     return endpointOutcome(state, step, text(args["webhookId"]));
   },
-  "webhook.redeliver": async ({ step, index, args, agentProposal }) => {
+  "webhook.redeliver": async ({ step, tokenStep, args, agentProposal }) => {
     const state = await redeliverAction(
       step.environment,
       text(args["formId"]),
       text(args["deliveryId"]),
-      proposalRef(agentProposal, index),
+      proposalRef(agentProposal, tokenStep),
     );
     if (state.status !== "done") {
       return { outcome: "failed", message: text(state.message) };
@@ -527,7 +549,7 @@ const RUNNERS: Readonly<Record<string, StepRunner>> = {
       },
     };
   },
-  "link.mint": async ({ step, index, args, agentProposal }) => {
+  "link.mint": async ({ step, tokenStep, args, agentProposal }) => {
     const state = await mintLinksAction(
       text(args["formId"]),
       step.environment,
@@ -536,7 +558,7 @@ const RUNNERS: Readonly<Record<string, StepRunner>> = {
         oneTime: args["oneTime"] === true,
         count: count(args["count"]),
       },
-      proposalRef(agentProposal, index),
+      proposalRef(agentProposal, tokenStep),
     );
     if (state.status !== "minted") {
       return { outcome: "failed", message: text(state.message) };
@@ -554,12 +576,12 @@ const RUNNERS: Readonly<Record<string, StepRunner>> = {
     };
   },
   ...MEMBERSHIP_RUNNERS,
-  "link.revoke": async ({ step, index, args, agentProposal }) => {
+  "link.revoke": async ({ step, tokenStep, args, agentProposal }) => {
     const state = await revokeLinkAction(
       text(args["formId"]),
       step.environment,
       text(args["linkId"]),
-      proposalRef(agentProposal, index),
+      proposalRef(agentProposal, tokenStep),
     );
     if (state.status !== "revoked") {
       return { outcome: "failed", message: text(state.message) };

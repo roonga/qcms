@@ -1,9 +1,8 @@
-import type { ReactElement } from "react";
-import { AssistPanel } from "./assist-panel";
-import { useBuilderAssist } from "@/lib/agent/builder-assist-bridge";
 import { fireEvent, render, screen, waitFor } from "@testing-library/react";
 import { afterEach, describe, expect, it, vi } from "vitest";
 
+import { runStepAction } from "@/components/agent/step-actions";
+import type { AgentPlanStep } from "@/lib/forms/assist-stream";
 import type { FormDetail, PinnableQuestion } from "@/lib/forms/types";
 import type { ReadState } from "@/lib/read-state";
 import { t } from "@/lib/i18n/en";
@@ -41,15 +40,13 @@ function RailStandIn() {
 }
 
 /**
- * Task 041: the builder's own wiring of the assist panel and its Accept path.
+ * The builder's own end of the `apply-draft` card: the Confirm path.
  *
- * The panel's own states (streaming, errors, the diff) belong to `assist-panel.test.tsx` -
- * a pure component test does not need a whole builder around it. What only the builder can
- * prove is the two facts task 041 actually cares about here: the panel is entirely absent
- * (not hidden) when the page never hands down an `assist` prop, and accepting a proposal
- * goes through the builder's own autosave path rather than any shortcut - the same
- * `saveDraft` call every other edit makes, just with `agentAssisted: true` on the one save
- * that follows an Accept.
+ * What the card shows belongs to `components/agent/action-card.test.tsx`; what only the
+ * builder can prove is that it publishes nothing to the assistant when the page hands down
+ * no `assist` prop, and that applying a draft goes through the builder's own autosave
+ * rather than any shortcut - the same `saveDraft` call every other edit makes, with
+ * `agentAssisted: true` on the one save that follows a Confirm.
  */
 
 const DETAIL: FormDetail = {
@@ -98,104 +95,72 @@ function builderActions() {
   };
 }
 
-function frame(type: string, data: Record<string, unknown>): string {
-  return `event: ${type}\ndata: ${JSON.stringify({ type, ...data })}\n\n`;
+/** One `apply-draft` step, as the card hands it to the runner. */
+function applyDraftStep(draft: {
+  readonly definition: unknown;
+  readonly newQuestions?: readonly unknown[];
+}): AgentPlanStep {
+  return {
+    kind: "apply-draft",
+    screen: "/forms/[formId]",
+    args: { formId: "frm_quote" },
+    environment: "test",
+    handOff: false,
+    local: true,
+    draft: {
+      definition: draft.definition,
+      newQuestions: draft.newQuestions ?? [],
+      issues: [],
+      warnings: [],
+    },
+    card: { titleKey: "agent.card.apply-draft.title", consequenceKeys: [] },
+    resultAllowlist: ["changes", "newQuestions"],
+  };
 }
 
-function sseBody(frames: readonly string[]): ReadableStream<Uint8Array> {
-  const encoder = new TextEncoder();
-  return new ReadableStream({
-    start(controller) {
-      controller.enqueue(encoder.encode(frames.join("")));
-      controller.close();
-    },
+/** Confirm, through the same runner the card presses. */
+function confirmApplyDraft(step: AgentPlanStep) {
+  return runStepAction({
+    step,
+    index: 0,
+    args: step.args,
+    agentProposal: undefined,
+    tokenStep: 0,
+    currentEnvironment: "test",
   });
+}
+
+function renamedDraft(title: string) {
+  return {
+    ...DETAIL.draft,
+    // Renames the existing step rather than adding a new (necessarily empty, since the
+    // draft introduces no pin for it) one: an empty step pauses autosave outright
+    // (`unsaveableReason`), which would make these tests exercise that pause instead of
+    // the confirm-then-save path they are for.
+    steps: [
+      {
+        ...(DETAIL.draft?.steps[0] ?? { stepId: "", title: {}, items: [] }),
+        title: { en: title },
+      },
+    ],
+  };
 }
 
 afterEach(() => {
   vi.restoreAllMocks();
 });
 
-/**
- * The shell renders whatever the builder publishes through the bridge, so these tests
- * mount that one consumer beside the builder. The builder still owns the draft, so the
- * accept path under test is the real one.
- */
-function HostedAssistPanel() {
-  const published = useBuilderAssist();
-  if (published === undefined) return null;
-  return (
-    <AssistPanel
-      endpoint={published.endpoint}
-      draft={published.draft}
-      draftUpdatedAt={published.draftUpdatedAt}
-      onAccept={published.accept}
-    />
-  );
-}
-
-function renderWithPanel(element: ReactElement): void {
-  render(
-    <>
-      {element}
-      <HostedAssistPanel />
-    </>,
-  );
-}
-
-describe("FormBuilder and the assist panel (task 041)", () => {
-  it("renders no assist panel, and no assist affordance, when the assist prop is absent", () => {
-    renderWithPanel(<FormBuilder detail={DETAIL} {...CHROME} {...builderActions()} />);
-    expect(screen.queryByTestId("qcms-assist-panel")).toBeNull();
+describe("FormBuilder and the apply-draft card", () => {
+  it("publishes nothing to the assistant when the assist prop is absent", async () => {
+    render(<FormBuilder detail={DETAIL} {...CHROME} {...builderActions()} />);
     expect(screen.queryByRole("img", { name: t("agent.title") })).toBeNull();
-    expect(screen.queryByLabelText(t("forms.assist.inputLabel"))).toBeNull();
+    const result = await confirmApplyDraft(applyDraftStep({ definition: renamedDraft("Nope") }));
+    expect(result.outcome).toBe("failed");
   });
 
-  it("publishes the draft for the shell's panel when the assist prop is present", () => {
-    renderWithPanel(
-      <FormBuilder
-        detail={DETAIL}
-        {...CHROME}
-        {...builderActions()}
-        assist={{ endpoint: "/forms/frm_quote/assist" }}
-      />,
-    );
-    expect(screen.getByTestId("qcms-assist-panel")).toBeTruthy();
-  });
-
-  it("saves an accepted proposal through the builder's own autosave path, agentAssisted: true", async () => {
+  it("saves a confirmed draft through the builder's own autosave path, agentAssisted: true", async () => {
     const actions = builderActions();
-    const proposal = {
-      proposal: {
-        proposedDraft: {
-          ...DETAIL.draft,
-          // Renames the existing step rather than adding a new (necessarily empty,
-          // since the proposal introduces no pin for it) one: an empty step pauses
-          // autosave outright (`unsaveableReason`), which would make this test
-          // exercise that pause instead of the accept-then-save path it is for.
-          steps: [
-            {
-              ...(DETAIL.draft?.steps[0] ?? { stepId: "", title: {}, items: [] }),
-              title: { en: "Basics (renamed)" },
-            },
-          ],
-        },
-        newQuestions: [],
-        rationale: "Renamed a step.",
-        issues: [],
-      },
-    };
-    vi.stubGlobal(
-      "fetch",
-      vi.fn().mockResolvedValue(
-        new Response(sseBody([frame("proposal", proposal)]), {
-          status: 200,
-          headers: { "content-type": "text/event-stream" },
-        }),
-      ),
-    );
-
-    renderWithPanel(
+    render(
       <FormBuilder
         detail={DETAIL}
         {...CHROME}
@@ -204,15 +169,13 @@ describe("FormBuilder and the assist panel (task 041)", () => {
       />,
     );
 
-    const input = screen.getByLabelText(t("forms.assist.inputLabel"));
-    fireEvent.change(input, { target: { value: "Add a step" } });
-    fireEvent.click(screen.getByRole("button", { name: t("forms.assist.send") }));
-
-    await waitFor(() => expect(screen.getByTestId("qcms-assist-proposal")).toBeTruthy());
-    fireEvent.click(screen.getByRole("button", { name: t("forms.assist.accept") }));
+    const result = await confirmApplyDraft(
+      applyDraftStep({ definition: renamedDraft("Basics (renamed)") }),
+    );
+    expect(result.outcome).toBe("done");
 
     // The accepted draft is stored by the builder's ordinary debounced autosave
-    // (`AUTOSAVE_DEBOUNCE_MS`), not by an immediate call Accept makes itself.
+    // (`AUTOSAVE_DEBOUNCE_MS`), not by an immediate call Confirm makes itself.
     await waitFor(() => expect(actions.saveDraft).toHaveBeenCalled(), { timeout: 2000 });
 
     const call = actions.saveDraft.mock.calls[0] as [
@@ -225,43 +188,17 @@ describe("FormBuilder and the assist panel (task 041)", () => {
   });
 
   /**
-   * Issue #823: the proposal's NEW question definitions have to reach the save.
+   * Issue #823: the draft's NEW question definitions have to reach the save.
    *
-   * Before this they stopped at the diff, so accepting stored a draft pinning
-   * question ids nothing had ever created. The builder is not the thing that
-   * creates them - the accept endpoint is - but it is the thing that has them,
-   * and dropping them here is where the defect started.
+   * Before this they stopped at the diff, so confirming stored a draft pinning question
+   * ids nothing had ever created. The builder is not the thing that creates them - the
+   * accept endpoint is - but it is the thing that has them, and dropping them here is
+   * where the defect started.
    */
-  it("carries the proposal's new question definitions into the accepting save", async () => {
+  it("carries the draft's new question definitions into the accepting save", async () => {
     const actions = builderActions();
     const newQuestion = { questionId: "q_first_name", type: "shortText", label: { en: "First" } };
-    const proposal = {
-      proposal: {
-        proposedDraft: {
-          ...DETAIL.draft,
-          steps: [
-            {
-              ...(DETAIL.draft?.steps[0] ?? { stepId: "", title: {}, items: [] }),
-              title: { en: "Basics (with a new question)" },
-            },
-          ],
-        },
-        newQuestions: [newQuestion],
-        rationale: "Proposed one new question.",
-        issues: [],
-      },
-    };
-    vi.stubGlobal(
-      "fetch",
-      vi.fn().mockResolvedValue(
-        new Response(sseBody([frame("proposal", proposal)]), {
-          status: 200,
-          headers: { "content-type": "text/event-stream" },
-        }),
-      ),
-    );
-
-    renderWithPanel(
+    render(
       <FormBuilder
         detail={DETAIL}
         {...CHROME}
@@ -270,12 +207,12 @@ describe("FormBuilder and the assist panel (task 041)", () => {
       />,
     );
 
-    const input = screen.getByLabelText(t("forms.assist.inputLabel"));
-    fireEvent.change(input, { target: { value: "Add a name question" } });
-    fireEvent.click(screen.getByRole("button", { name: t("forms.assist.send") }));
-
-    await waitFor(() => expect(screen.getByTestId("qcms-assist-proposal")).toBeTruthy());
-    fireEvent.click(screen.getByRole("button", { name: t("forms.assist.accept") }));
+    await confirmApplyDraft(
+      applyDraftStep({
+        definition: renamedDraft("Basics (with a new question)"),
+        newQuestions: [newQuestion],
+      }),
+    );
 
     await waitFor(() => expect(actions.saveDraft).toHaveBeenCalled(), { timeout: 2000 });
 
@@ -290,45 +227,17 @@ describe("FormBuilder and the assist panel (task 041)", () => {
   });
 
   /**
-   * A proposal replaces the whole draft, so it can delete the step the screen is on.
+   * An applied draft replaces the whole draft, so it can delete the step the screen is on.
    *
    * This is the one edit in the builder that can invalidate the selection wholesale -
-   * every other mutation changes a part of the draft - and the browser suite is where
-   * it was found: accepting left the builder on a step that no longer existed, whose
-   * branch renders `null`, so the column went blank with nothing saying why. The rule
-   * applied is the rail's own for a removed step: the form is the one destination that
-   * is always there.
+   * every other mutation changes a part of the draft - and the browser suite is where it
+   * was found: applying left the builder on a step that no longer existed, whose branch
+   * renders `null`, so the column went blank with nothing saying why. The rule applied is
+   * the rail's own for a removed step: the form is the one destination that is always
+   * there.
    */
-  it("returns to the form when the accepted proposal deletes the step on screen", async () => {
-    const proposal = {
-      proposal: {
-        proposedDraft: {
-          ...DETAIL.draft,
-          steps: [
-            {
-              stepId: "stp_history",
-              title: { en: "Driving history" },
-              items: [{ questionId: "q_name", version: 1 }],
-            },
-          ],
-        },
-        newQuestions: [],
-        rationale: "Replaced the step.",
-        issues: [],
-        warnings: [],
-      },
-    };
-    vi.stubGlobal(
-      "fetch",
-      vi.fn().mockResolvedValue(
-        new Response(sseBody([frame("proposal", proposal)]), {
-          status: 200,
-          headers: { "content-type": "text/event-stream" },
-        }),
-      ),
-    );
-
-    renderWithPanel(
+  it("returns to the form when the applied draft deletes the step on screen", async () => {
+    render(
       <>
         <FormBuilder
           detail={DETAIL}
@@ -340,18 +249,26 @@ describe("FormBuilder and the assist panel (task 041)", () => {
       </>,
     );
 
-    // Stand on the step the proposal is about to delete. The form title field is the
-    // form screen's own control, so its absence is what "showing a step" looks like.
+    // Stand on the step the draft is about to delete. The form title field is the form
+    // screen's own control, so its absence is what "showing a step" looks like.
     await waitFor(() => expect(screen.getByText("rail: stp_basics")).toBeTruthy());
     fireEvent.click(screen.getByText("rail: stp_basics"));
     await waitFor(() => expect(screen.queryByLabelText(t("forms.builder.formTitle"))).toBeNull());
 
-    const input = screen.getByLabelText(t("forms.assist.inputLabel"));
-    fireEvent.change(input, { target: { value: "Replace my step" } });
-    fireEvent.click(screen.getByRole("button", { name: t("forms.assist.send") }));
-    await waitFor(() => expect(screen.getByTestId("qcms-assist-proposal")).toBeTruthy());
-
-    fireEvent.click(screen.getByRole("button", { name: t("forms.assist.accept") }));
+    await confirmApplyDraft(
+      applyDraftStep({
+        definition: {
+          ...DETAIL.draft,
+          steps: [
+            {
+              stepId: "stp_history",
+              title: { en: "Driving history" },
+              items: [{ questionId: "q_name", version: 1 }],
+            },
+          ],
+        },
+      }),
+    );
 
     // Back on the form, not on a blank column.
     await waitFor(() => expect(screen.getByLabelText(t("forms.builder.formTitle"))).toBeTruthy());

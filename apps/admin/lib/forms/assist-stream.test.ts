@@ -24,6 +24,30 @@ async function collect(body: ReadableStream<Uint8Array>): Promise<AssistEvent[]>
   return events;
 }
 
+/** One `apply-draft` step, in the wire shape the propose tools emit. */
+function applyDraftStep(draft: Record<string, unknown>): Record<string, unknown> {
+  return {
+    kind: "apply-draft",
+    screen: "/forms/[formId]",
+    args: { formId: "frm_a" },
+    environment: "test",
+    local: true,
+    draft,
+    card: { titleKey: "agent.card.apply-draft.title", consequenceKeys: [] },
+    resultAllowlist: ["changes", "newQuestions"],
+  };
+}
+
+function proposalWith(step: Record<string, unknown>): Record<string, unknown> {
+  return {
+    proposalId: "prp_1",
+    steps: [step],
+    proposedAt: "2026-11-01T09:00:00.000Z",
+    expiresAt: "2026-11-01T09:10:00.000Z",
+    currentEnvironment: "test",
+  };
+}
+
 describe("readAssistEvents", () => {
   it("reads every frame of a multi-frame body, in order", async () => {
     const body = streamOf([
@@ -90,37 +114,44 @@ describe("readAssistEvents", () => {
     ]);
   });
 
-  it("parses a proposal frame, carrying both advisory lists through", async () => {
+  it("carries both advisory lists through on the step that applies a draft", async () => {
     // Both channels, because they are two different claims about the same draft
     // (issue #123) and a parser that read only the first would silently turn a
-    // warned draft into a clean one on the way to the panel.
-    const proposal = {
-      proposedDraft: { steps: [], rules: [] },
+    // warned draft into a clean one on the way to the card.
+    const draft = {
+      definition: { formId: "frm_a", steps: [], rules: [] },
       newQuestions: [],
-      rationale: "Added a follow-up step.",
       issues: [{ code: "DANGLING_STEP_REF", message: "no such step" }],
       warnings: [{ code: "MULTICHOICE_SAME_STEP_TARGET", message: "reveals on the same step" }],
     };
-    const events = await collect(streamOf([frame("proposal", { proposal })]));
-    expect(events).toEqual([{ type: "proposal", proposal }]);
+    const events = await collect(
+      streamOf([frame("action", { proposal: proposalWith(applyDraftStep(draft)) })]),
+    );
+    const event = events[0];
+    if (event?.type !== "action") throw new Error("expected an action frame");
+    expect(event.proposal.steps[0]?.local).toBe(true);
+    expect(event.proposal.steps[0]?.draft).toEqual(draft);
   });
 
-  it("reads a proposal frame with no warnings key as no warnings, not as absent", async () => {
-    // Defensive on the same side `parseIssues` already is: the panel maps over
-    // this list, so a missing key has to arrive as `[]` rather than `undefined`.
+  it("reads an applied draft with no warnings key as no warnings, not as absent", async () => {
+    // Defensive on the same side `parseIssues` already is: the card maps over this list,
+    // so a missing key has to arrive as `[]` rather than `undefined`.
     const events = await collect(
       streamOf([
-        frame("proposal", {
-          proposal: {
-            proposedDraft: { steps: [], rules: [] },
-            newQuestions: [],
-            rationale: "Added a follow-up step.",
-            issues: [],
-          },
+        frame("action", {
+          proposal: proposalWith(
+            applyDraftStep({
+              definition: { formId: "frm_a", steps: [], rules: [] },
+              newQuestions: [],
+              issues: [],
+            }),
+          ),
         }),
       ]),
     );
-    expect(events[0]).toMatchObject({ type: "proposal", proposal: { warnings: [] } });
+    const event = events[0];
+    if (event?.type !== "action") throw new Error("expected an action frame");
+    expect(event.proposal.steps[0]?.draft?.warnings).toEqual([]);
   });
 
   it("parses a terminal error frame, preserving order against what came before it", async () => {

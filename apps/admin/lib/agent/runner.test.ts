@@ -21,6 +21,7 @@ function step(overrides: Partial<AgentPlanStep> = {}): AgentPlanStep {
     args: { formId: "frm_a", count: 2 },
     environment: "test",
     handOff: false,
+    local: false,
     card: { titleKey: "agent.card.link.mint.title", consequenceKeys: [] },
     resultAllowlist: ["count"],
     ...overrides,

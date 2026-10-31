@@ -199,6 +199,15 @@ export function turnText(turn: AssistantTurnView): string {
     .join("");
 }
 
+/**
+ * The turn's closing prose segment, which is what a card quotes as the reason. The last
+ * one rather than all of them: the earlier prose narrates the tool calls and is already in
+ * the conversation above the card.
+ */
+export function lastTextSegment(turn: AssistantTurnView): string {
+  return turn.segments.findLast((segment) => segment.kind === "text")?.text ?? "";
+}
+
 /** The most recently started step still running, if any: what the status line names. */
 export function runningStep(turn: AssistantTurnView): TurnStep | undefined {
   const steps = turn.segments.flatMap((segment) => (segment.kind === "steps" ? segment.steps : []));

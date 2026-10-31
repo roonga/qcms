@@ -13,8 +13,9 @@ import { parseIssues } from "./issues.ts";
  * because a proposal's `issues` are literally the same `PublishIssue[]` shape the
  * builder's own validation panel already renders.
  *
- * `proposedDraft` and `newQuestions` stay `unknown` here on purpose: turning them into
- * something the panel can diff is `lib/forms/assist-diff.ts`'s job, not this parser's.
+ * A proposed draft and the questions it invents stay `unknown` here on purpose: turning
+ * them into something the card can diff is `lib/forms/assist-diff.ts`'s job, not this
+ * parser's.
  */
 
 export interface AssistTurn {
@@ -22,22 +23,19 @@ export interface AssistTurn {
   readonly content: string;
 }
 
-export interface AssistProposal {
+/**
+ * The draft the one `apply-draft` step carries, which is what the card diffs and shows
+ * the two advisory lists for. Both lists are the server's own validation of this draft,
+ * so a card can never claim more about it than the server said.
+ */
+export interface AgentDraftProposal {
   /** The kernel's `FormDefinition`, as JSON. Parsed by `assist-diff.ts`, not here. */
-  readonly proposedDraft: unknown;
-  /** The kernel's `QuestionDefinition[]` for any questions the proposal introduces. */
+  readonly definition: unknown;
+  /** The kernel's `QuestionDefinition[]` for any questions the draft introduces. */
   readonly newQuestions: readonly unknown[];
-  readonly rationale: string;
   /** What would block a publish. */
   readonly issues: readonly FormIssue[];
-  /**
-   * What would not block a publish but may not behave as written (issue #123).
-   *
-   * Carried because the panel must show the same two lists the builder shows for
-   * the same draft: a proposal card that said "validation passes" over a draft
-   * the validation panel flags one Accept later would be claiming more than the
-   * server told it.
-   */
+  /** What would not block a publish but may not behave as written (issue #123). */
   readonly warnings: readonly FormIssue[];
 }
 
@@ -72,6 +70,10 @@ export interface AgentPlanStep {
   readonly environment: string;
   /** A step whose arguments include a secret the user types on the screen itself. */
   readonly handOff: boolean;
+  /** A step the screen's own save completes, which carries no token. */
+  readonly local: boolean;
+  /** Present on the one step that applies the draft this turn proposed. */
+  readonly draft?: AgentDraftProposal;
   readonly card: AgentCardTemplate;
   /** The non-secret fields this step may report to the next turn (SEC-17 section 7.6). */
   readonly resultAllowlist: readonly string[];
@@ -130,7 +132,6 @@ export type AssistEvent =
       readonly outputTokens: number;
       readonly steps: number;
     }
-  | { readonly type: "proposal"; readonly proposal: AssistProposal }
   /** One proposed action, which is a plan of one step. */
   | { readonly type: "action"; readonly proposal: AgentProposal }
   | { readonly type: "plan"; readonly proposal: AgentProposal }
@@ -225,10 +226,6 @@ function toAssistEvent(raw: unknown): AssistEvent | undefined {
         : undefined;
     case "usage":
       return toUsageEvent(raw);
-    case "proposal": {
-      const proposal = toAssistProposal(raw["proposal"]);
-      return proposal === undefined ? undefined : { type: "proposal", proposal };
-    }
     case "action":
     case "plan": {
       const proposal = toAgentProposal(raw["proposal"]);
@@ -340,14 +337,30 @@ function toAgentPlanStep(raw: unknown): AgentPlanStep | undefined {
   if (typeof kind !== "string" || kind === "") return undefined;
   if (typeof screen !== "string" || typeof environment !== "string") return undefined;
   if (!isKeyedObject(args) || card === undefined) return undefined;
+  const draft = toDraftProposal(raw["draft"]);
   return {
     kind,
     screen,
     args,
     environment,
     handOff: raw["handOff"] === true,
+    local: raw["local"] === true,
+    ...(draft === undefined ? {} : { draft }),
     card,
     resultAllowlist: textList(raw["resultAllowlist"]),
+  };
+}
+
+/** The draft an `apply-draft` step carries, or nothing for every other kind. */
+function toDraftProposal(raw: unknown): AgentDraftProposal | undefined {
+  if (!isKeyedObject(raw)) return undefined;
+  const definition = raw["definition"];
+  if (!isKeyedObject(definition)) return undefined;
+  return {
+    definition,
+    newQuestions: Array.isArray(raw["newQuestions"]) ? raw["newQuestions"] : [],
+    issues: parseIssues(raw["issues"]),
+    warnings: parseIssues(raw["warnings"]),
   };
 }
 
@@ -383,17 +396,3 @@ function toAgentProposal(raw: unknown): AgentProposal | undefined {
   };
 }
 
-function toAssistProposal(raw: unknown): AssistProposal | undefined {
-  if (!isKeyedObject(raw)) return undefined;
-  const rationale = raw["rationale"];
-  const proposedDraft = raw["proposedDraft"];
-  if (typeof rationale !== "string" || !isKeyedObject(proposedDraft)) return undefined;
-  const newQuestions = Array.isArray(raw["newQuestions"]) ? raw["newQuestions"] : [];
-  return {
-    proposedDraft,
-    newQuestions,
-    rationale,
-    issues: parseIssues(raw["issues"]),
-    warnings: parseIssues(raw["warnings"]),
-  };
-}

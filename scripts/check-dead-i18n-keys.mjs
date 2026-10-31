@@ -43,6 +43,9 @@ export const ALLOWED = {
       "named by the question.newVersion action-kind descriptor",
     "agent.card.question.newVersion.consequence":
       "named by the question.newVersion action-kind descriptor",
+    "agent.card.apply-draft.title": "named by the apply-draft action-kind descriptor",
+    "agent.card.apply-draft.consequence": "named by the apply-draft action-kind descriptor",
+    "agent.card.apply-draft.provenance": "named by the apply-draft action-kind descriptor",
     "agent.card.form.create.title": "named by the form.create action-kind descriptor",
     "agent.card.form.create.consequence": "named by the form.create action-kind descriptor",
     "agent.card.form.publish.title": "named by the form.publish action-kind descriptor",

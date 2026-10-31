@@ -65,11 +65,6 @@ export function appendTextSegment(segments: TextSegment[], id: string, delta: st
   return id;
 }
 
-/** The proposal's rationale quotes only this segment. */
-function lastSegmentText(segments: readonly TextSegment[]): string {
-  return segments.at(-1)?.text ?? "";
-}
-
 /** A first user turn rather than part of the system prompt, which must stay cacheable. */
 function draftPreamble(draft: FormDefinition): string {
   return [
@@ -468,27 +463,10 @@ async function* finishTurn(args: {
     return;
   }
 
-  // No draft port is a screen that offers no draft proposal, so there is nothing to
-  // validate and nothing to propose.
-  if (state.proposedDraft === undefined || ctx.validate === undefined) {
-    // A turn that proposed an action proposed something, so it is not an empty turn.
-    if (state.actionProposals.length === 0) yield emptyTurnError(outcome, ctx.maxSteps);
-    return;
-  }
-
-  // Always the server's own validation, even if the model already called validate_draft.
-  const { issues, warnings } = await ctx.validate(state.proposedDraft);
-
-  yield {
-    type: "proposal",
-    proposal: {
-      proposedDraft: state.proposedDraft,
-      newQuestions: state.newQuestions,
-      rationale: lastSegmentText(outcome.textSegments).trim(),
-      issues,
-      warnings,
-    },
-  };
+  // A proposed draft is not itself a proposal: it reaches the user as the apply-draft
+  // card, which the model proposes like any other action. A turn that recorded a draft and
+  // proposed no card proposed nothing.
+  if (state.actionProposals.length === 0) yield emptyTurnError(outcome, ctx.maxSteps);
 }
 
 /** Only reachable by a composition error, since nothing mounts the routes when off. */
