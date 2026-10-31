@@ -85,7 +85,8 @@ describe("the provenance middleware as the admin group mounts it", () => {
       [PROPOSAL_STEP_HEADER]: "0",
     });
     expect(res.status).toBe(403);
-    expect((await res.json()).code).toMatch(/^AGENT_PROPOSAL_/);
+    const refusal = (await res.json()) as { code: string };
+    expect(refusal.code).toMatch(/^AGENT_PROPOSAL_/);
   });
 
   it("refuses a token presented without its step header", async () => {
