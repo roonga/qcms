@@ -40,11 +40,7 @@ import {
 } from "./support/forms.js";
 import { waitForHydration } from "./support/hydration.js";
 import { openDeliverer, submitResponse, TestConsumer } from "./support/ops.js";
-import {
-  chooseDestination,
-  chooseSource,
-  publishDraftThroughWizard,
-} from "./support/publish.js";
+import { chooseDestination, chooseSource, publishDraftThroughWizard } from "./support/publish.js";
 import {
   addOption,
   chooseType,

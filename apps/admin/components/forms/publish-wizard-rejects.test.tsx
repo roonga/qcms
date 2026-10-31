@@ -177,7 +177,9 @@ describe("a confirmation whose answer is lost", () => {
     await user.click(screen.getByRole("button", { name: t("forms.publish.wizardConfirm") }));
 
     await screen.findByTestId("qcms-publish-result");
-    expect(confirm.mock.calls[1]?.[0].idempotencyKey).toBe(confirm.mock.calls[0]?.[0].idempotencyKey);
+    expect(confirm.mock.calls[1]?.[0].idempotencyKey).toBe(
+      confirm.mock.calls[0]?.[0].idempotencyKey,
+    );
   });
 });
 

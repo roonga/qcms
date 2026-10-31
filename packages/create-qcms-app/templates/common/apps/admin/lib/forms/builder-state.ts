@@ -235,14 +235,7 @@ export interface PublishBatchRelease {
  * their key is free to confirm again.
  */
 export interface PublishBatchState {
-  readonly status:
-    | "idle"
-    | "done"
-    | "rejected"
-    | "stale"
-    | "uncertain"
-    | "not-committed"
-    | "error";
+  readonly status: "idle" | "done" | "rejected" | "stale" | "uncertain" | "not-committed" | "error";
   readonly version?: number;
   /** True when this confirmation froze the version, false when it released an existing one. */
   readonly froze?: boolean;
