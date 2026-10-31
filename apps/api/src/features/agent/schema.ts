@@ -84,7 +84,6 @@ const screenRef = {
 
 export const AssistBody = z
   .strictObject({
-
     conversation: ConversationBody,
     // The draft `updatedAt` the client proposed against; a mismatch is refused.
     clientState: z.string().max(64).optional(),

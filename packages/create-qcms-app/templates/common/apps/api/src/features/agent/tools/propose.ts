@@ -132,6 +132,15 @@ function stepRefusal(
     if (refusal !== undefined) return { reason: refusal };
   }
 
+  // The provenance check substitutes one reference at a time, so a step with two could
+  // never be verified. Refusing here keeps an unrunnable card off the screen.
+  const references = Object.values(step.args).filter((value) => isStepReference(value)).length;
+  if (references > 1) {
+    return {
+      reason: `Step ${String(index + 1)} refers to an earlier step's result in more than one argument, which this deployment cannot verify. Name one reference per step and state the other argument's value.`,
+    };
+  }
+
   const parsed = def.args.safeParse(argsForSchema(step.args));
   const referenced = Object.values(step.args).some((value) => isStepReference(value));
   if (!parsed.success && !referenced) {

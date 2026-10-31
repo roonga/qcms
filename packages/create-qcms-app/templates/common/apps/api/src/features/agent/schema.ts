@@ -8,6 +8,34 @@ export const AssistTurnBody = z.strictObject({
 });
 
 /**
+ * One step's outcome as the next turn learns it (section 5.3). The schema is closed and
+ * its result fields are the kind's own allowlist, which is why a minted URL, a webhook
+ * secret, a recovery code or an export's bytes cannot travel here (section 7.6, SEC-8).
+ */
+export const ActionStepResultBody = z.strictObject({
+  kind: z.string().min(1).max(100),
+  outcome: z.enum(["done", "failed", "pending-approval", "not-run", "cancelled", "expired"]),
+  /**
+   * The allowlisted non-secret fields, keyed by field name. Scalars only: an object or an
+   * array is how content smuggles itself into a metadata channel.
+   */
+  result: z
+    .record(z.string().max(100), z.union([z.string().max(200), z.number(), z.boolean()]))
+    .optional(),
+});
+
+/**
+ * The `action-result` turn: what ran, what failed and what did not run, in order. It
+ * carries no answer value, no payload and no secret, and the admin writes it rather than
+ * the model.
+ */
+export const ActionResultTurnBody = z.strictObject({
+  role: z.literal("action-result"),
+  proposalId: z.string().min(1).max(64),
+  steps: z.array(ActionStepResultBody).min(1).max(25),
+});
+
+/**
  * A filter date the response query can use. Parsed here because `new Date` on an
  * unparsable string reaches the query as `Invalid Date` and fails as a 500.
  */
@@ -38,6 +66,12 @@ const ScreenParamsBody = z.strictObject({
     .optional(),
 });
 
+// Capped because an unbounded history is an unbounded upstream bill.
+const ConversationBody = z
+  .array(z.union([AssistTurnBody, ActionResultTurnBody]))
+  .min(1)
+  .max(40);
+
 const screenRef = {
   screen: z.string().min(1).max(200),
   params: ScreenParamsBody.optional(),
@@ -50,8 +84,7 @@ const screenRef = {
 
 export const AssistBody = z
   .strictObject({
-    // Capped because an unbounded history is an unbounded upstream bill.
-    conversation: z.array(AssistTurnBody).min(1).max(40),
+    conversation: ConversationBody,
     // The draft `updatedAt` the client proposed against; a mismatch is refused.
     clientState: z.string().max(64).optional(),
     // Optional here and required on the screen route: this route is the builder's own,
@@ -68,7 +101,7 @@ export const AssistBody = z
 /** A turn on a screen with no form in its route: the screen id decides what it may read. */
 export const ScreenAssistBody = z
   .strictObject({
-    conversation: z.array(AssistTurnBody).min(1).max(40),
+    conversation: ConversationBody,
     ...screenRef,
   })
   .openapi("ScreenAssistRequest");

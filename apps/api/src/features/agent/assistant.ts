@@ -131,8 +131,7 @@ function resultFields(step: ActionStepResult): string {
 function modelTurn(turn: AssistTurn): { role: "user" | "assistant"; content: string } {
   if (turn.role !== "action-result") return { role: turn.role, content: turn.content };
   const lines = turn.steps.map(
-    (step, index) =>
-      `${String(index + 1)}. ${step.kind}: ${step.outcome}${resultFields(step)}`,
+    (step, index) => `${String(index + 1)}. ${step.kind}: ${step.outcome}${resultFields(step)}`,
   );
   return {
     role: "user",

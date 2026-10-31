@@ -15,6 +15,8 @@ import {
   type QuestionId,
 } from "@roonga/qcms-core";
 
+import { proposeActionSchema, proposePlanSchema } from "./propose-schema.js";
+import { ProposedStep, type Proposal } from "./propose.js";
 import { selfContainedToolSchema } from "./tool-schema.js";
 import type { AgentContext, ToolCell } from "../types.js";
 
@@ -25,6 +27,8 @@ export const AGENT_TOOL_NAMES = [
   "propose_draft",
   "validate_draft",
   "project_draft",
+  "propose_action",
+  "propose_plan",
 ] as const;
 
 export type AgentToolName = (typeof AGENT_TOOL_NAMES)[number];
@@ -45,14 +49,29 @@ export class ToolNotAllowedError extends Error {
   }
 }
 
+/** One recorded action proposal, waiting to be emitted as its own SSE event. */
+export interface RecordedProposal {
+  readonly variant: "action" | "plan";
+  readonly proposal: Proposal;
+}
+
 /** Mutable by design: the tool loop accumulates across steps and is read once it ends. */
 export interface ProposalState {
   proposedDraft: FormDefinition | undefined;
   readonly newQuestions: QuestionDefinition[];
+  /** Every action proposal this turn recorded, which P1 bounds at one. */
+  readonly actionProposals: RecordedProposal[];
+  /** Recorded but not yet emitted, so the stream can flush each one at once. */
+  readonly unsentProposals: RecordedProposal[];
 }
 
 export function createProposalState(): ProposalState {
-  return { proposedDraft: undefined, newQuestions: [] };
+  return {
+    proposedDraft: undefined,
+    newQuestions: [],
+    actionProposals: [],
+    unsentProposals: [],
+  };
 }
 
 const SearchInput = z.object({
@@ -88,6 +107,16 @@ const ProjectDraftInput = z.object({
       "Hypothetical answers to project the draft against, keyed by question id. These are " +
         "the model's own hypotheses; no submitted answer is ever read.",
     ),
+});
+
+/**
+ * A proposal never returns the token or the steps to the model: the card is the admin's,
+ * and a refusal's reason is the only thing a refused call learns.
+ */
+const ProposeOutput = z.strictObject({
+  proposed: z.boolean(),
+  proposalId: z.string().optional(),
+  reason: z.string().optional(),
 });
 
 /**
@@ -127,6 +156,8 @@ const Outputs = {
     visibleQuestions: z.array(z.string()),
     complete: z.boolean(),
   }),
+  propose_action: ProposeOutput,
+  propose_plan: ProposeOutput,
 } as const satisfies Record<AgentToolName, z.ZodType>;
 
 /**
@@ -140,10 +171,44 @@ const DRAFT_WRITE: ToolCell = { resource: "form", action: "write" };
 interface AgentToolDef {
   readonly description: string;
   readonly inputSchema: z.ZodType;
+  /**
+   * The schema the provider is shown, when it is narrowed per caller. The propose tools
+   * are the only ones: their kinds and environments are the grant filter's answer.
+   */
+  readonly schemaFor?: (ctx: AgentContext) => z.ZodType;
   readonly outputSchema: z.ZodType;
   /** The cell the door checks for the calling principal before the tool runs. */
   readonly cell?: ToolCell;
   execute(input: unknown, ctx: AgentContext, state: ProposalState): Promise<unknown>;
+}
+
+/**
+ * Proposing executes nothing: the port validates every step, checks it against the
+ * caller's grants, applies the caps and mints the token Confirm carries. A refusal returns
+ * its reason to the model rather than ending the turn.
+ */
+async function propose(
+  steps: readonly ProposedStep[],
+  variant: "action" | "plan",
+  ctx: AgentContext,
+  state: ProposalState,
+): Promise<Record<string, unknown>> {
+  const outcome = await port(ctx.propose, `propose_${variant}`)(
+    steps,
+    state.actionProposals.length,
+  );
+  if (!outcome.ok) return { proposed: false, reason: outcome.reason };
+  const recorded = { variant, proposal: outcome.proposal };
+  state.actionProposals.push(recorded);
+  state.unsentProposals.push(recorded);
+  return { proposed: true, proposalId: outcome.proposal.proposalId };
+}
+
+function stepsOf(input: unknown, variant: "action" | "plan"): readonly ProposedStep[] {
+  const body = (input ?? {}) as { action?: unknown; steps?: unknown };
+  const raw = variant === "action" ? [body.action] : body.steps;
+  if (!Array.isArray(raw)) return [];
+  return raw.map((entry) => ProposedStep.parse(entry));
 }
 
 /** A tool reached without its port is a registry that disagrees with a screen's list. */
@@ -263,6 +328,27 @@ export const TOOLS: Readonly<Record<AgentToolName, AgentToolDef>> = Object.freez
     cell: { resource: "form", action: "preview" },
     execute: (input, ctx) => projectDraft(input, ctx),
   },
+  propose_action: {
+    description:
+      "Propose one action for the user to review and confirm. It runs nothing: the user " +
+      "sees a card with every argument in full and confirms it on the screen's own " +
+      "control. Returns whether the proposal was accepted, or the reason it was refused.",
+    inputSchema: proposeActionSchema([]),
+    schemaFor: (ctx) => proposeActionSchema(ctx.offeredActionKinds ?? []),
+    outputSchema: Outputs.propose_action,
+    execute: (input, ctx, state) => propose(stepsOf(input, "action"), "action", ctx, state),
+  },
+  propose_plan: {
+    description:
+      "Propose an ordered plan of actions for the user to review and confirm once. It runs " +
+      "nothing. An argument may reference an earlier step's result as " +
+      "{ fromStep, field }, at most one such reference per step. The plan stops at the " +
+      "first failure. Returns whether the proposal was accepted, or the reason it was refused.",
+    inputSchema: proposePlanSchema([]),
+    schemaFor: (ctx) => proposePlanSchema(ctx.offeredActionKinds ?? []),
+    outputSchema: Outputs.propose_plan,
+    execute: (input, ctx, state) => propose(stepsOf(input, "plan"), "plan", ctx, state),
+  },
 });
 
 /**
@@ -333,11 +419,16 @@ export function agentToolSet(ctx: AgentContext, state: ProposalState): ToolSet {
     const def = TOOLS[name];
     set[name] = tool({
       description: def.description,
-      inputSchema: providerSchema(def.inputSchema),
+      inputSchema: providerSchema(def.schemaFor?.(ctx) ?? def.inputSchema),
       execute: async (input: unknown) => asToolData(await runAgentTool(name, input, ctx, state)),
     });
   }
   return set as ToolSet;
+}
+
+/** One schema exactly as the provider is shown it, for the grant-filter assertions. */
+export async function advertisedJsonSchema(zodType: z.ZodType): Promise<JSONSchema7> {
+  return asSchema(providerSchema(zodType)).jsonSchema;
 }
 
 /** Exported for the tests only: the fake provider never reads a tool schema. */

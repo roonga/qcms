@@ -1,9 +1,7 @@
 /**
  * The propose tools' advertised schemas, built per caller from what the grant filter
- * offered (section 6.1). An argument kind's environment member is narrowed to the
- * environments the caller holds the cell in, so an editor without `prod` in scope is shown
- * a release kind whose environment enum has no `prod`. The narrowing is a courtesy that
- * keeps proposals honest; the API's authorisation at execution is the limit.
+ * offered (section 6.1): an argument kind's environment member is narrowed to the
+ * environments the caller holds the cell in. The API's authorisation at execution is the limit.
  */
 
 import { z } from "zod";
@@ -67,9 +65,7 @@ function stepMember(entry: OfferedActionKind): z.ZodType | undefined {
  * The step union for this caller. `undefined` means nothing is offered, which is what
  * leaves the propose tools out of the turn's tool set entirely.
  */
-export function proposedStepSchema(
-  offered: readonly OfferedActionKind[],
-): z.ZodType | undefined {
+export function proposedStepSchema(offered: readonly OfferedActionKind[]): z.ZodType | undefined {
   const members = offered
     .map((entry) => stepMember(entry))
     .filter((member): member is z.ZodType => member !== undefined);

@@ -133,8 +133,7 @@ function stepRefusal(
   }
 
   // The provenance check substitutes one reference at a time, so a step with two could
-  // never be verified. Refused here rather than at Confirm, so the model never gets a card
-  // that cannot run (Code Owner, 2026-10-31).
+  // never be verified. Refusing here keeps an unrunnable card off the screen.
   const references = Object.values(step.args).filter((value) => isStepReference(value)).length;
   if (references > 1) {
     return {

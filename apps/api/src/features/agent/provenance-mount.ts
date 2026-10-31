@@ -1,8 +1,7 @@
 /**
- * The provenance check as the admin group mounts it (SEC-17). It adds provenance and never
- * rights: it runs after the grant check, so a request carrying a token is authorised by
- * exactly the policy that authorises the same request without one, and a token that fails
- * is a refusal rather than an ordinary human act.
+ * The provenance check as the admin group mounts it (SEC-17). It runs after the grant
+ * check, so a request carrying a token is authorised by exactly the policy that authorises
+ * the same request without one, and a token that fails is refused rather than served.
  */
 
 import { listProposalSteps } from "@roonga/qcms-db";
@@ -15,10 +14,7 @@ import type { ApiEnv } from "../../openapi.js";
 import { policyForRequest } from "../membership/route-policy.js";
 import { actionKindForRoute } from "./actions/registry.js";
 import type { ActionRequestFacts } from "./actions/types.js";
-import {
-  unverifiedProposalId,
-  type ProposalRefusalCode,
-} from "./proposal-token.js";
+import { unverifiedProposalId, type ProposalRefusalCode } from "./proposal-token.js";
 import {
   checkProvenance,
   provenanceMessage,
@@ -34,11 +30,7 @@ function refusal(code: ProposalRefusalCode): ApiError {
 
 /** With the flag off this deployment mints no token, so one presented here is a bad request. */
 function disabled(): ApiError {
-  return new ApiError(
-    "AGENT_PROPOSAL_DISABLED",
-    400,
-    provenanceMessage("AGENT_PROPOSAL_DISABLED"),
-  );
+  return new ApiError("AGENT_PROPOSAL_DISABLED", 400, provenanceMessage("AGENT_PROPOSAL_DISABLED"));
 }
 
 type Ctx = Parameters<MiddlewareHandler<ApiEnv>>[0];
@@ -76,7 +68,11 @@ async function body(c: Ctx): Promise<unknown> {
 }
 
 function recordedFrom(
-  rows: readonly { readonly stepIndex: number; readonly detail: string | null; readonly confirmedAt: Date }[],
+  rows: readonly {
+    readonly stepIndex: number;
+    readonly detail: string | null;
+    readonly confirmedAt: Date;
+  }[],
 ): readonly RecordedStep[] {
   return rows.map((row) => ({
     stepIndex: row.stepIndex,
@@ -129,9 +125,7 @@ export function agentProvenance(deps: Deps): MiddlewareHandler<ApiEnv> {
 
     const proposalId = unverifiedProposalId(token);
     const rows =
-      proposalId === undefined
-        ? []
-        : await listProposalSteps(deps.databases.control, proposalId);
+      proposalId === undefined ? [] : await listProposalSteps(deps.databases.control, proposalId);
 
     const result = await checkProvenance({
       token,
@@ -169,9 +163,7 @@ export function agentProvenanceDisabled(): MiddlewareHandler<ApiEnv> {
 export const registerAgentProvenance: SliceRegistrar = (group, deps) => {
   group.use(
     "*",
-    deps.config.flags.agentAuthoring === "none"
-      ? agentProvenanceDisabled()
-      : agentProvenance(deps),
+    deps.config.flags.agentAuthoring === "none" ? agentProvenanceDisabled() : agentProvenance(deps),
   );
 };
 

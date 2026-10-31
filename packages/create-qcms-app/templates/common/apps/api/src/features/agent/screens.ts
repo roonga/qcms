@@ -75,12 +75,13 @@ function screen(
     readonly build: (input: ScreenBuildInput) => Promise<unknown>;
   },
   readTools: readonly AgentToolName[] = [],
+  actionKinds: readonly string[] = NONE,
 ): ScreenDef {
   return {
     facts: context.facts,
     build: (input) => context.build(input),
     readTools,
-    actionKinds: NONE,
+    actionKinds,
   };
 }
 
@@ -88,13 +89,13 @@ function screen(
 export const SCREENS: Readonly<Record<ScreenId, ScreenDef>> = Object.freeze({
   "/forms": screen(authoringContexts.formsList),
   "/forms/new": screen(authoringContexts.newForm),
-  "/forms/[formId]": screen(authoringContexts.builder, DRAFT_TOOLS),
+  "/forms/[formId]": screen(authoringContexts.builder, DRAFT_TOOLS, ["form.publish"]),
   "/forms/[formId]/rules": screen(authoringContexts.rules),
   "/forms/[formId]/preview": screen(authoringContexts.preview, ["project_draft"]),
   "/forms/[formId]/versions": screen(authoringContexts.versions),
   "/forms/[formId]/versions/[version]": screen(authoringContexts.versionDetail),
-  "/forms/[formId]/releases": screen(authoringContexts.releases),
-  "/forms/[formId]/links": screen(authoringContexts.links),
+  "/forms/[formId]/releases": screen(authoringContexts.releases, [], ["form.release"]),
+  "/forms/[formId]/links": screen(authoringContexts.links, [], ["link.mint", "link.revoke"]),
   "/forms/[formId]/webhooks": screen(operationsContexts.formWebhooks),
   "/forms/[formId]/responses": screen(operationsContexts.responseList),
   "/forms/[formId]/responses/[sessionId]": screen(operationsContexts.responseDetail),

@@ -231,6 +231,25 @@ function parsedPayload(raw: unknown): ProposalTokenPayload | undefined {
   };
 }
 
+/**
+ * The proposal id a token claims, read without verifying it. Its only use is selecting
+ * the `control.agent_actions` rows the verified check then reads: a forged id selects rows
+ * of another proposal, which the signature check refuses a moment later.
+ */
+export function unverifiedProposalId(token: string): string | undefined {
+  const separator = token.indexOf(".");
+  if (separator <= 0) return undefined;
+  try {
+    const raw: unknown = JSON.parse(
+      new TextDecoder().decode(fromBase64url(token.slice(0, separator))),
+    );
+    const pid = (raw as { pid?: unknown } | null)?.pid;
+    return typeof pid === "string" && pid !== "" ? pid : undefined;
+  } catch {
+    return undefined;
+  }
+}
+
 /** Signature and shape only. Step order, route, arguments and environment are the middleware's. */
 export async function verifyProposalToken(
   appKey: string,

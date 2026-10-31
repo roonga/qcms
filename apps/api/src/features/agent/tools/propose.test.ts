@@ -51,6 +51,34 @@ function releaseTo(environment: string, version: unknown): ProposedStep {
   return { kind: "form.release", args: { formId: "frm_a", version, environment } };
 }
 
+describe("buildProposal: a step with more than one reference", () => {
+  it("is refused at proposal time with a reason the model can act on", async () => {
+    const outcome = await propose({
+      steps: [
+        publish,
+        {
+          kind: "form.release",
+          args: {
+            formId: "frm_a",
+            version: { fromStep: 0, field: "version" },
+            environment: { fromStep: 0, field: "version" },
+          },
+        },
+      ],
+    });
+    expect(outcome.ok).toBe(false);
+    if (outcome.ok) return;
+    expect(outcome.reason).toContain("more than one");
+  });
+
+  it("accepts one reference per step", async () => {
+    const outcome = await propose({
+      steps: [publish, releaseTo("test", { fromStep: 0, field: "version" })],
+    });
+    expect(outcome.ok).toBe(true);
+  });
+});
+
 describe("buildProposal: the caps (criterion 15)", () => {
   it("refuses a second proposal in one turn and says to use one plan (P1)", async () => {
     const outcome = await propose({ steps: [mint], proposalsThisTurn: 1 });

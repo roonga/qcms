@@ -193,10 +193,10 @@ async function propose(
   ctx: AgentContext,
   state: ProposalState,
 ): Promise<Record<string, unknown>> {
-  const outcome = await port(
-    ctx.propose,
-    `propose_${variant}`,
-  )(steps, state.actionProposals.length);
+  const outcome = await port(ctx.propose, `propose_${variant}`)(
+    steps,
+    state.actionProposals.length,
+  );
   if (!outcome.ok) return { proposed: false, reason: outcome.reason };
   const recorded = { variant, proposal: outcome.proposal };
   state.actionProposals.push(recorded);

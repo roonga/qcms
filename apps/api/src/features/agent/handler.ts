@@ -209,10 +209,9 @@ async function buildScreenContext(args: {
 }
 
 /**
- * The propose tools' port and the kinds the grant filter offered this caller on this
- * screen. A screen with no action kind, or a caller holding none of them, gets neither the
- * port nor the tools, which is how "a read-only user is offered no write" is structural
- * rather than a prompt (principle point 1, SEC-17).
+ * The propose tools' port and the kinds the grant filter offered this caller. A caller
+ * holding none gets neither the port nor the tools, which is how "a read-only user is
+ * offered no write" is structural rather than a prompt (principle point 1, SEC-17).
  */
 async function actionPorts(args: {
   readonly deps: Deps;
