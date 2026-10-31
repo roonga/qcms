@@ -81,6 +81,29 @@ describe("runPlan", () => {
     expect(card.state).toBe("done");
   });
 
+  it("numbers the token's steps over the steps that reach a route, not over the card's", async () => {
+    const local = step({ kind: "apply-draft", local: true, args: { formId: "frm_a" } });
+    const plan = proposal([local, PUBLISH, step()]);
+    const seen: RunStepRequest[] = [];
+    await runPlan({
+      proposal: plan,
+      card: started(plan),
+      now: () => NOW,
+      runStep: (request) => {
+        seen.push(request);
+        return Promise.resolve({ outcome: "done", result: { version: 7, environment: "test" } });
+      },
+    });
+
+    expect(
+      seen.map((request) => [request.index, request.tokenStep, request.agentProposal]),
+    ).toEqual([
+      [0, 0, undefined],
+      [1, 0, "tok"],
+      [2, 1, "tok"],
+    ]);
+  });
+
   it("resolves a reference from what the earlier step reported", async () => {
     const plan = proposal([PUBLISH, RELEASE]);
     const seen: RunStepRequest[] = [];
