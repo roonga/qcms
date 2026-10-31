@@ -465,7 +465,10 @@ async function projectDraft(input: unknown, ctx: AgentContext): Promise<Record<s
 
 async function testRule(input: unknown, ctx: AgentContext): Promise<Record<string, unknown>> {
   const asked = TestRuleInput.parse(input);
-  const verdict = await port(ctx.testRule, "test_rule")({
+  const verdict = await port(
+    ctx.testRule,
+    "test_rule",
+  )({
     ruleId: asked.ruleId,
     answers: asked.answers,
     instances: asked.instances,

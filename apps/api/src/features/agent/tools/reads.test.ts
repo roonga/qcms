@@ -199,7 +199,7 @@ describe("the read tools of D1 to D7", () => {
           inputs.push(input);
           return Promise.resolve(read.result);
         },
-      } as Partial<AgentContext>);
+      });
       const output = await runAgentTool(read.tool, read.input, ctx, createProposalState());
       // The port is handed the parsed input, and the model is handed what the port said.
       expect(inputs).toHaveLength(1);
@@ -211,9 +211,9 @@ describe("the read tools of D1 to D7", () => {
     "%s fails rather than reading anything else when its port is absent",
     async (_name, read) => {
       const { ctx } = contextFor(read.screen);
-      await expect(
-        runAgentTool(read.tool, read.input, ctx, createProposalState()),
-      ).rejects.toThrow(/has no port/);
+      await expect(runAgentTool(read.tool, read.input, ctx, createProposalState())).rejects.toThrow(
+        /has no port/,
+      );
     },
   );
 
@@ -227,8 +227,8 @@ describe("the read tools of D1 to D7", () => {
   it("refuses an input member no screen filter names", () => {
     expect(TOOLS.count_responses.inputSchema.safeParse({ sessionId: "ses_a" }).success).toBe(true);
     // Unknown members are dropped rather than honoured, so no filter can be smuggled in.
-    expect(
-      TOOLS.count_responses.inputSchema.parse({ sessionId: "ses_a" }),
-    ).not.toHaveProperty("sessionId");
+    expect(TOOLS.count_responses.inputSchema.parse({ sessionId: "ses_a" })).not.toHaveProperty(
+      "sessionId",
+    );
   });
 });

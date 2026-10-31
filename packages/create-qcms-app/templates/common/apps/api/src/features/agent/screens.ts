@@ -129,12 +129,16 @@ export const SCREENS: Readonly<Record<ScreenId, ScreenDef>> = Object.freeze({
     [],
     ["response.erase", "response.unflag"],
   ),
-  "/questions": screen(authoringContexts.questions, ["search_question_library"], [
-    "question.create",
-  ]),
-  "/questions/new": screen(authoringContexts.newQuestion, ["search_question_library"], [
-    "question.create",
-  ]),
+  "/questions": screen(
+    authoringContexts.questions,
+    ["search_question_library"],
+    ["question.create"],
+  ),
+  "/questions/new": screen(
+    authoringContexts.newQuestion,
+    ["search_question_library"],
+    ["question.create"],
+  ),
   "/questions/[questionId]": screen(
     authoringContexts.questionDetail,
     ["search_question_library", "diff_question_versions"],

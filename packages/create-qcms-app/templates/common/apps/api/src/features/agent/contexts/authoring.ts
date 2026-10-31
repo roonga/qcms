@@ -205,10 +205,7 @@ async function structureFacts(input: ScreenBuildInput): Promise<z.infer<typeof b
   return {
     ...subject,
     stepCount: shape?.steps?.length ?? 0,
-    questionCount: (shape?.steps ?? []).reduce(
-      (total, step) => total + stepQuestionCount(step),
-      0,
-    ),
+    questionCount: (shape?.steps ?? []).reduce((total, step) => total + stepQuestionCount(step), 0),
     ruleCount: shape?.rules?.length ?? 0,
     steps,
   };
@@ -286,10 +283,7 @@ async function buildVersionDetail(
       ),
     ],
     stepCount: shape?.steps?.length ?? 0,
-    questionCount: (shape?.steps ?? []).reduce(
-      (total, step) => total + stepQuestionCount(step),
-      0,
-    ),
+    questionCount: (shape?.steps ?? []).reduce((total, step) => total + stepQuestionCount(step), 0),
   };
 }
 

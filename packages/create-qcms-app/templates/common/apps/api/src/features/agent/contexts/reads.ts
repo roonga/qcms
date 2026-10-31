@@ -72,25 +72,28 @@ interface Pin {
   readonly version: number;
 }
 
+function pinOf(entry: unknown): Pin | undefined {
+  if (typeof entry !== "object" || entry === null) return undefined;
+  const ref = entry as { questionId?: unknown; version?: unknown };
+  return typeof ref.questionId === "string" && typeof ref.version === "number"
+    ? { questionId: ref.questionId, version: ref.version }
+    : undefined;
+}
+
+/** A step item is a pinned question or a repeating group holding them, never both. */
+function itemPins(item: unknown): readonly Pin[] {
+  const nested = (item as { items?: unknown } | null)?.items;
+  const entries = Array.isArray(nested) ? nested : [item];
+  return entries.flatMap((entry) => {
+    const pin = pinOf(entry);
+    return pin === undefined ? [] : [pin];
+  });
+}
+
 /** Reads the pins out of a definition positionally: a version row is stored, not parsed. */
 function pinsOf(definition: unknown): readonly Pin[] {
   const steps = (definition as DraftShape | undefined)?.steps ?? [];
-  const pins: Pin[] = [];
-  for (const step of steps) {
-    for (const item of step.items ?? []) {
-      if (typeof item !== "object" || item === null) continue;
-      const typed = item as { questionId?: unknown; version?: unknown; items?: readonly unknown[] };
-      const nested = Array.isArray(typed.items) ? typed.items : [typed];
-      for (const entry of nested) {
-        if (typeof entry !== "object" || entry === null) continue;
-        const ref = entry as { questionId?: unknown; version?: unknown };
-        if (typeof ref.questionId === "string" && typeof ref.version === "number") {
-          pins.push({ questionId: ref.questionId, version: ref.version });
-        }
-      }
-    }
-  }
-  return pins;
+  return steps.flatMap((step) => (step.items ?? []).flatMap((item) => itemPins(item)));
 }
 
 function stepIdsOf(definition: unknown): readonly string[] {
@@ -350,7 +353,9 @@ function deliveryStatusPort(input: ScreenBuildInput): DeliveryStatusPort {
       truncated: deliveries.length >= SCAN_LIMIT,
       ...counts,
       endpoints: endpoints
-        .filter((endpoint) => asked.webhookId === undefined || endpoint.webhookId === asked.webhookId)
+        .filter(
+          (endpoint) => asked.webhookId === undefined || endpoint.webhookId === asked.webhookId,
+        )
         .slice(0, FACT_ROW_LIMIT)
         .map((endpoint) => ({
           webhookId: endpoint.webhookId,

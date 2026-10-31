@@ -96,8 +96,7 @@ export interface RuleVerdict {
   readonly references: readonly string[];
   readonly targetGroupId: string | null;
   readonly instanceOutcomes:
-    | readonly { readonly instanceId: string; readonly outcome: "match" | "noMatch" }[]
-    | null;
+    readonly { readonly instanceId: string; readonly outcome: "match" | "noMatch" }[] | null;
 }
 
 /**
