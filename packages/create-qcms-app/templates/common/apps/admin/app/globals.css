@@ -5511,6 +5511,20 @@ div:has(> [role="dialog"] [data-qcms-dialog="wide"]) {
   font-weight: 600;
 }
 /* The marker is a tint and a dashed hairline, never a second Confirm. */
+.qcms-pmark__group {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-2);
+}
+.qcms-pmark__group[data-block="true"] {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+}
+/* The control keeps its own place in the heading row, marker or no marker. */
+.qcms-pmark__slot {
+  display: contents;
+}
 .qcms-pmark {
   display: inline-flex;
   align-items: center;

@@ -59,9 +59,7 @@ describe("D8's action kinds", () => {
       expect(
         policyForRequest(routeOf(def).method, routeOf(def).path)?.environmentFrom,
         def.kind,
-      ).toBe(
-        undefined,
-      );
+      ).toBe(undefined);
     }
   });
 

@@ -5,6 +5,7 @@ import { useState } from "react";
 import { Alert, Checkbox, NumberField } from "@/components/kit";
 import type { FormSettings } from "@/lib/forms/types";
 import { t } from "@/lib/i18n/en";
+import { HeadingMarker } from "@/components/agent/heading-marker";
 
 /**
  * The per-form abuse controls (task 033; ADR-24 tier 2, task 026).
@@ -124,21 +125,23 @@ export function FormSettingsPanel({
       <div className="mt-3 flex flex-col gap-4">
         <p className="text-sm text-(--color-text-muted)">{t("forms.settings.note")}</p>
 
-        <div className="flex flex-col gap-2">
-          <Checkbox
-            label={t("forms.settings.challengeRequired")}
-            isSelected={settings.challengeRequired}
-            onChange={(isSelected) => {
-              onChange({ ...settings, challengeRequired: isSelected });
-            }}
-          />
-          <p className="text-sm text-(--color-text-muted)">{t("forms.settings.challengeHint")}</p>
-          {!challengeEnforceable && settings.challengeRequired && (
-            <div data-testid="qcms-challenge-unenforceable">
-              <Alert variant="warning">{t("forms.settings.challengeUnenforceable")}</Alert>
-            </div>
-          )}
-        </div>
+        <HeadingMarker control="builder.settings" block>
+          <div className="flex flex-col gap-2">
+            <Checkbox
+              label={t("forms.settings.challengeRequired")}
+              isSelected={settings.challengeRequired}
+              onChange={(isSelected) => {
+                onChange({ ...settings, challengeRequired: isSelected });
+              }}
+            />
+            <p className="text-sm text-(--color-text-muted)">{t("forms.settings.challengeHint")}</p>
+            {!challengeEnforceable && settings.challengeRequired && (
+              <div data-testid="qcms-challenge-unenforceable">
+                <Alert variant="warning">{t("forms.settings.challengeUnenforceable")}</Alert>
+              </div>
+            )}
+          </div>
+        </HeadingMarker>
 
         <div className="flex flex-col gap-2">
           <Checkbox

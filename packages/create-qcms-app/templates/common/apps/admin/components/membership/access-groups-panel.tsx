@@ -4,6 +4,7 @@ import { useState, useTransition } from "react";
 
 import { Alert, Button, Select, TextField } from "@/components/kit";
 import { t } from "@/lib/i18n/en";
+import { HeadingMarker } from "@/components/agent/heading-marker";
 import type { AccessGroupList, MembershipActionState } from "@/lib/membership/types";
 
 /**
@@ -206,12 +207,22 @@ export function AccessGroupsPanel({
         <h3 className="text-sm font-semibold text-(--color-text)">
           {t("membership.groups.create")}
         </h3>
-        <TextField
-          label={t("membership.groups.createName")}
-          value={name}
-          onChange={setName}
-          isRequired
-        />
+        <HeadingMarker
+          control={[
+            "membership.groupCreate",
+            "membership.groupRemove",
+            "membership.grant",
+            "membership.revoke",
+          ]}
+          block
+        >
+          <TextField
+            label={t("membership.groups.createName")}
+            value={name}
+            onChange={setName}
+            isRequired
+          />
+        </HeadingMarker>
         <Select
           label={t("membership.groups.createRole")}
           value={role}

@@ -56,7 +56,8 @@ export interface ActionKindDef {
   readonly kind: string;
   /** The screen whose control this kind mirrors, which is where its marker shows. */
   readonly screen: ScreenId;
-  readonly route: ActionRoute;
+  /** Absent for a hand-off: it carries no token, so no request is ever routed to it. */
+  readonly route?: ActionRoute;
   readonly cell: { readonly resource: Resource; readonly action: string };
   /** A second cell the route also requires, as its policy row declares it. */
   readonly alsoCell?: { readonly resource: Resource; readonly action: string };

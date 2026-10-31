@@ -81,11 +81,9 @@ export const unflagResponse: ActionKindDef = {
 };
 
 /**
- * The export, which is a hand-off in the other direction: the card ends with the screen's
- * own Export control, so the bytes stream into the user's browser and not one reaches the
- * agent code or the provider. It carries no token, may only be the last step of a plan,
- * and writes no `control.agent_actions` row, because the export's own SEC-15 `export` row
- * already records the act.
+ * The export is a hand-off in the other direction: the bytes stream into the user's own
+ * browser, so none reaches the agent code or the provider. It writes no agent audit row,
+ * because the export's own SEC-15 row records the act.
  */
 const ExportArgs = z.strictObject({
   formId: z.string().min(1).max(200),

@@ -82,9 +82,7 @@ export function actionKindForRoute(
   // one can only be a forgery and is refused with the route code.
   const candidates = DEFS.filter(
     (def) =>
-      def.handOff !== true &&
-      def.route?.method === method.toUpperCase() &&
-      def.route.path === path,
+      def.handOff !== true && def.route?.method === method.toUpperCase() && def.route.path === path,
   );
   const first = candidates[0];
   if (first === undefined || (candidates.length === 1 && first.route?.bodyMembers === undefined)) {

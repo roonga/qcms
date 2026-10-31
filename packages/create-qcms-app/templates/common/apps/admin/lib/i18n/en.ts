@@ -2201,6 +2201,11 @@ export const messages = {
   "agent.card.response.unflag.title": "Release the withheld submission for {sessionId}",
   "agent.card.response.unflag.consequence":
     "The withheld submission event is sent to this form's consumers. The response itself is unchanged.",
+  "agent.card.response.export.title": "Export this form's responses as {format}",
+  "agent.card.response.export.consequence":
+    "The file is built from the responses these filters match and downloads in your browser.",
+  "agent.card.response.export.handOff":
+    "Confirm opens the export dialog with these filters. You press Export, and no part of the file is returned to the assistant.",
   "agent.card.access.groupCreate.title": "Create the access group {name} with the role {role}",
   "agent.card.access.groupCreate.consequence":
     "The group exists but grants nobody anything yet. Holding the group is the grant, so nobody's access changes until somebody is added to it.",
@@ -2243,6 +2248,10 @@ export const messages = {
   "agent.card.arg.deliveryId": "Delivery",
   "agent.card.arg.sessionId": "Session",
   "agent.card.arg.reason": "Reason",
+  "agent.card.arg.format": "File format",
+  "agent.card.arg.shape": "Rows",
+  "agent.card.arg.from": "From day",
+  "agent.card.arg.to": "To day",
   "agent.card.arg.challengeRequired": "Require a challenge before answering",
   "agent.card.arg.minSubmitMs": "Minimum time before a submit is accepted (milliseconds)",
   "agent.card.arg.workspaceId": "Workspace",
@@ -2296,7 +2305,7 @@ export const messages = {
   "agent.card.expiresIn.other": "Expires in {count} minutes",
   "agent.card.expiredAsk": "Expired - ask again",
   "agent.card.handOffHint":
-    "This step needs a secret you type on the screen itself. Confirm opens that field.",
+    "This step finishes on the screen itself. Confirm opens that control with these values filled in.",
 
   "agent.card.result.done": "Done. All {count} steps ran, confirmed by you.",
   "agent.card.result.stopped": "Stopped at step {step}. {ran} of {count} ran; nothing was retried.",

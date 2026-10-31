@@ -6,12 +6,7 @@ import { describe, expect, it, vi } from "vitest";
 import { HeadingMarker } from "@/components/agent/heading-marker";
 import { t } from "@/lib/i18n/en";
 
-import {
-  ProposalSeamProvider,
-  useHandOff,
-  useProposalSeam,
-  type WaitingProposal,
-} from "./waiting";
+import { ProposalSeamProvider, useHandOff, useProposalSeam, type WaitingProposal } from "./waiting";
 
 /**
  * The seam between the panel and the heading rows. What it carries is a control: a marker
@@ -74,12 +69,10 @@ describe("the proposal seam", () => {
   it("marks the mirrored control and no other", () => {
     render(<Host waiting={WAITING} />);
     expect(screen.getAllByRole("link")).toHaveLength(1);
-    expect(
-      screen.getByRole("button", { name: "Release a version" }).dataset["proposed"],
-    ).toBe("true");
-    expect(screen.getByRole("button", { name: "Mint links" }).dataset["proposed"]).toBe(
-      undefined,
+    expect(screen.getByRole("button", { name: "Release a version" }).dataset["proposed"]).toBe(
+      "true",
     );
+    expect(screen.getByRole("button", { name: "Mint links" }).dataset["proposed"]).toBe(undefined);
   });
 
   it("shows no marker once nothing waits", () => {

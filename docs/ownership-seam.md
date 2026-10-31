@@ -93,13 +93,13 @@ regeneration and `git add` the result rather than merging two sets of counts.
 
 <!-- BEGIN GENERATED: ownership-seam (pnpm qcms:sync-templates) -->
 
-### Scaffolded paths (547 files common to both shapes)
+### Scaffolded paths (549 files common to both shapes)
 
 | Path                                                                 | Files |
 | -------------------------------------------------------------------- | ----- |
 | `(project root)`                                                     | 8     |
-| `apps/`                                                              | 536   |
-| `apps/admin/`                                                        | 328   |
+| `apps/`                                                              | 538   |
+| `apps/admin/`                                                        | 330   |
 | `apps/admin/app/`                                                    | 83    |
 | `apps/admin/app/(shell)/`                                            | 64    |
 | `apps/admin/app/(shell)/@rail/`                                      | 26    |
@@ -171,16 +171,16 @@ regeneration and `git add` the result rather than merging two sets of counts.
 | `apps/admin/app/two-factor/recovery-codes/`                          | 2     |
 | `apps/admin/app/two-factor/recovery-codes/confirm/`                  | 1     |
 | `apps/admin/app/two-factor/recovery/verify/`                         | 1     |
-| `apps/admin/components/`                                             | 119   |
-| `apps/admin/components/agent/`                                       | 6     |
+| `apps/admin/components/`                                             | 120   |
+| `apps/admin/components/agent/`                                       | 7     |
 | `apps/admin/components/forms/`                                       | 43    |
 | `apps/admin/components/membership/`                                  | 7     |
 | `apps/admin/components/ops/`                                         | 12    |
 | `apps/admin/components/questions/`                                   | 15    |
 | `apps/admin/components/shell/`                                       | 4     |
 | `apps/admin/components/test-support/`                                | 3     |
-| `apps/admin/lib/`                                                    | 119   |
-| `apps/admin/lib/agent/`                                              | 10    |
+| `apps/admin/lib/`                                                    | 120   |
+| `apps/admin/lib/agent/`                                              | 11    |
 | `apps/admin/lib/forms/`                                              | 30    |
 | `apps/admin/lib/i18n/`                                               | 2     |
 | `apps/admin/lib/membership/`                                         | 2     |
@@ -256,7 +256,7 @@ regeneration and `git add` the result rather than merging two sets of counts.
 
 ### QCMS-internal references in the scaffolded source
 
-`1773` lines across `377` scaffolded files cite a QCMS issue, ADR, SEC control, plan task or repository path.
+`1774` lines across `377` scaffolded files cite a QCMS issue, ADR, SEC control, plan task or repository path.
 
 These are comments, and they stay (issue #457, tier 3). They are the engineering
 rationale for code you now own, which is worth more to you than a tidy file, and
@@ -271,7 +271,7 @@ rather than documented: the images no longer claim to be built from this
 repository, and no scaffolded message names a script your project does not define.
 
 <details>
-<summary>Every scaffolded file (547)</summary>
+<summary>Every scaffolded file (549)</summary>
 
 ```
 .dockerignore
@@ -368,6 +368,7 @@ apps/admin/components/agent/action-card.tsx
 apps/admin/components/agent/assistant-button.tsx
 apps/admin/components/agent/assistant-conversation.tsx
 apps/admin/components/agent/assistant-dock.tsx
+apps/admin/components/agent/heading-marker.tsx
 apps/admin/components/agent/proposal-marker.tsx
 apps/admin/components/agent/step-actions.ts
 apps/admin/components/announcer.tsx
@@ -492,6 +493,7 @@ apps/admin/lib/agent/plan-state.ts
 apps/admin/lib/agent/runner.ts
 apps/admin/lib/agent/screen-filters.ts
 apps/admin/lib/agent/screens.ts
+apps/admin/lib/agent/waiting.tsx
 apps/admin/lib/announce.ts
 apps/admin/lib/appearance.ts
 apps/admin/lib/auth-failure-message.ts

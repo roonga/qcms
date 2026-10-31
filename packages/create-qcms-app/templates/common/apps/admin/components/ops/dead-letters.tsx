@@ -11,6 +11,7 @@ import { unexpected } from "@/lib/ops/unexpected";
 import type { ReadState } from "@/lib/read-state";
 import { OperatorDateTime } from "@/components/operator-time";
 import { t, tPlural } from "@/lib/i18n/en";
+import { HeadingMarker } from "@/components/agent/heading-marker";
 
 /** The outcome of one redelivery request, or of a batch of them. */
 export interface RedeliverState {
@@ -173,17 +174,19 @@ export function DeadLetters({
               >
                 {tPlural("ops.deadLetters.total.one", "ops.deadLetters.total.other", rows.length)}
               </p>
-              <Button
-                variant="secondary"
-                size="md"
-                isDisabled={isPending || environmentUnknown}
-                onPress={() => {
-                  setState(IDLE);
-                  setConfirming(true);
-                }}
-              >
-                {t("ops.deadLetters.redeliverAll")}
-              </Button>
+              <HeadingMarker control="deadletters.redeliver">
+                <Button
+                  variant="secondary"
+                  size="md"
+                  isDisabled={isPending || environmentUnknown}
+                  onPress={() => {
+                    setState(IDLE);
+                    setConfirming(true);
+                  }}
+                >
+                  {t("ops.deadLetters.redeliverAll")}
+                </Button>
+              </HeadingMarker>
             </div>
 
             {/* One table family (§2). WHICH COLUMN DROPS AT COMPACT WIDTH: Last error.

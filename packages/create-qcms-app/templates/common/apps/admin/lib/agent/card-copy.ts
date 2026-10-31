@@ -42,6 +42,10 @@ const ARGUMENT_ORDER: readonly string[] = [
   "deliveryId",
   "url",
   "active",
+  "format",
+  "shape",
+  "from",
+  "to",
 ];
 
 const MONO_ARGUMENTS: ReadonlySet<string> = new Set([
