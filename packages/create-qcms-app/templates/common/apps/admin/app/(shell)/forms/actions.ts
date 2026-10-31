@@ -35,6 +35,7 @@ import {
 } from "@/lib/server/forms";
 import { MAX_LINK_BATCH, mintLinks, revokeLink } from "@/lib/server/links";
 import { publishAndRelease, releaseVersion } from "@/lib/server/releases";
+import type { AgentProposalRef } from "@/lib/server/agent-proposal";
 import { confirmShownEnvironment } from "@/lib/server/environments";
 import { requireAdminSession } from "@/lib/server/session";
 
@@ -597,6 +598,11 @@ export async function mintLinksAction(
   formId: string,
   shown: string | undefined,
   request: MintRequest,
+  // The trailing argument a confirmed card's step carries (083 D0). Nothing else about
+  // this action changes: the session gate, the environment confirmation, the API route and
+  // the revalidation below are the ones the mint dialog uses, and the token only adds the
+  // provenance the API audits.
+  proposal?: AgentProposalRef,
 ): Promise<MintLinksState> {
   const session = await requireAdminSession();
   const count = Math.trunc(request.count);
@@ -612,12 +618,17 @@ export async function mintLinksAction(
   // which this screen mints into an environment nobody chose or was not shown.
   const check = await confirmShownEnvironment(session, shown);
   if (!check.ok) return { status: "error", message: check.message };
-  const result = await mintLinks(session, formId, {
-    environment: check.environment,
-    expiresAt: endOfDay(request.expiresAt),
-    oneTime: request.oneTime,
-    count,
-  });
+  const result = await mintLinks(
+    session,
+    formId,
+    {
+      environment: check.environment,
+      expiresAt: endOfDay(request.expiresAt),
+      oneTime: request.oneTime,
+      count,
+    },
+    proposal,
+  );
   if (!result.ok) return { status: "error", message: result.message };
   revalidatePath(`/forms/${formId}/links`);
   return { status: "minted", links: result.data };
@@ -655,6 +666,7 @@ export async function revokeLinkAction(
   formId: string,
   shown: string | undefined,
   linkId: string,
+  proposal?: AgentProposalRef,
 ): Promise<RevokeLinkState> {
   const session = await requireAdminSession();
   // Scoped to the switcher's environment by the API, which the one door's header carries:
@@ -663,7 +675,7 @@ export async function revokeLinkAction(
   // check makes "looking at" true of this tab rather than of whichever tab switched last.
   const check = await confirmShownEnvironment(session, shown);
   if (!check.ok) return { status: "error", message: check.message };
-  const result = await revokeLink(session, formId, linkId);
+  const result = await revokeLink(session, formId, linkId, proposal);
   if (!result.ok) return { status: "error", message: result.message };
   revalidatePath(`/forms/${formId}/links`);
   return { status: "revoked", linkId: result.data.linkId };

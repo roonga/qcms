@@ -38,8 +38,7 @@ export function isProseTurn(turn: AgentTurnRecord): turn is AgentProseTurn {
  * `action-result` turn as the structured record it is.
  */
 export type PromptTurn =
-  | { readonly role: "user" | "assistant"; readonly content: string }
-  | ActionResultTurn;
+  { readonly role: "user" | "assistant"; readonly content: string } | ActionResultTurn;
 
 export function promptTurns(turns: readonly AgentTurnRecord[]): readonly PromptTurn[] {
   return turns.flatMap((turn): readonly PromptTurn[] => {

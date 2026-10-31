@@ -169,11 +169,7 @@ describe("one plan, one Confirm, stopping at the first failure (criterion 4)", (
 describe("Cancel is local", () => {
   it("cancels every step, sends nothing and tells the next turn", () => {
     const card = cancelCard(initialCard(THREE, NOW), PROPOSED_AT);
-    expect(card.steps.map((view) => view.state)).toEqual([
-      "cancelled",
-      "cancelled",
-      "cancelled",
-    ]);
+    expect(card.steps.map((view) => view.state)).toEqual(["cancelled", "cancelled", "cancelled"]);
     expect(resultLine(card)?.key).toBe("agent.card.result.cancelled");
     expect(showsMarker(card)).toBe(false);
     expect(actionResultTurn(THREE, card)?.steps.map((entry) => entry.outcome)).toEqual([

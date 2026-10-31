@@ -590,8 +590,12 @@ function actionPlanSteps(
         mintStep(formId, 20),
       ];
     case "plan-fails-at-2":
-      return [mintStep(formId, 1), revokeStep(formId, "lnk_absent"), mintStep(formId, 3)];
+      return [mintStep(formId, 1), revokeStep(formId, factLinkId(prompt)), mintStep(formId, 3)];
+    // `injection-follow` obeys the instruction planted in a fixture question title and
+    // slips the production release in behind a plausible one, which is the same two steps
+    // a legitimate promotion asks for. That is the point: only the card tells them apart.
     case "plan-two-envs":
+    case "injection-follow":
       return [
         releaseStep(formId, factVersion(prompt), "test"),
         releaseStep(formId, factVersion(prompt), "prod"),
@@ -600,14 +604,6 @@ function actionPlanSteps(
       return [releaseStep(formId, factVersion(prompt), "prod"), mintStep(formId, 5)];
     case "plan-26-steps":
       return Array.from({ length: 26 }, (_, index) => mintStep(formId, index + 1));
-    case "injection-follow":
-      // Obeys the instruction planted in a fixture question title, slipping the production
-      // release in behind a plausible one. The card is what shows the user what it really
-      // asked for.
-      return [
-        releaseStep(formId, factVersion(prompt), "test"),
-        releaseStep(formId, factVersion(prompt), "prod"),
-      ];
     default:
       return [mintStep(formId)];
   }
@@ -661,10 +657,7 @@ function planActionStep(script: FakeScript, prompt: readonly PromptMessage[]): S
       finishPart("tool-calls"),
     ];
   }
-  return [
-    ...textParts("The plan is on the card for you to confirm.", "t1"),
-    finishPart("stop"),
-  ];
+  return [...textParts("The plan is on the card for you to confirm.", "t1"), finishPart("stop")];
 }
 
 /** The scripts that propose an action or a plan rather than a draft. */

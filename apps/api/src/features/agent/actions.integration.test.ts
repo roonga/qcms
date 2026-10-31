@@ -230,8 +230,8 @@ async function turn(args: {
 type ProposalEvent = Extract<AssistEvent, { type: "action" | "plan" }>;
 
 function proposals(events: readonly AssistEvent[]): ProposalEvent[] {
-  return events.filter((event): event is ProposalEvent =>
-    event.type === "action" || event.type === "plan",
+  return events.filter(
+    (event): event is ProposalEvent => event.type === "action" || event.type === "plan",
   );
 }
 

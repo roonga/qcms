@@ -221,9 +221,7 @@ function toAssistEvent(raw: unknown): AssistEvent | undefined {
     case "plan": {
       const proposal = toAgentProposal(raw["proposal"]);
       if (proposal === undefined) return undefined;
-      return raw["type"] === "action"
-        ? { type: "action", proposal }
-        : { type: "plan", proposal };
+      return raw["type"] === "action" ? { type: "action", proposal } : { type: "plan", proposal };
     }
     case "error":
       return toErrorEvent(raw);
@@ -286,7 +284,9 @@ function toErrorEvent(raw: Record<string, unknown>): AssistEvent | undefined {
 }
 
 function textList(raw: unknown): readonly string[] {
-  return Array.isArray(raw) ? raw.filter((entry): entry is string => typeof entry === "string") : [];
+  return Array.isArray(raw)
+    ? raw.filter((entry): entry is string => typeof entry === "string")
+    : [];
 }
 
 function toCardTemplate(raw: unknown): AgentCardTemplate | undefined {

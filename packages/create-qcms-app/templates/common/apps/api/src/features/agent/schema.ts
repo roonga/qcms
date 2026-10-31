@@ -1,6 +1,7 @@
 import { z } from "@hono/zod-openapi";
 
 import { SavedDraftResponse } from "../forms/schema.js";
+import { actionKind } from "./actions/registry.js";
 
 export const AssistTurnBody = z.strictObject({
   role: z.enum(["user", "assistant"]),
@@ -12,17 +13,40 @@ export const AssistTurnBody = z.strictObject({
  * its result fields are the kind's own allowlist, which is why a minted URL, a webhook
  * secret, a recovery code or an export's bytes cannot travel here (section 7.6, SEC-8).
  */
-export const ActionStepResultBody = z.strictObject({
-  kind: z.string().min(1).max(100),
-  outcome: z.enum(["done", "failed", "pending-approval", "not-run", "cancelled", "expired"]),
-  /**
-   * The allowlisted non-secret fields, keyed by field name. Scalars only: an object or an
-   * array is how content smuggles itself into a metadata channel.
-   */
-  result: z
-    .record(z.string().max(100), z.union([z.string().max(200), z.number(), z.boolean()]))
-    .optional(),
-});
+export const ActionStepResultBody = z
+  .strictObject({
+    kind: z.string().min(1).max(100),
+    outcome: z.enum(["done", "failed", "pending-approval", "not-run", "cancelled", "expired"]),
+    /**
+     * The allowlisted non-secret fields, keyed by field name. Scalars only: an object or an
+     * array is how content smuggles itself into a metadata channel.
+     */
+    result: z
+      .record(z.string().max(100), z.union([z.string().max(200), z.number(), z.boolean()]))
+      .optional(),
+  })
+  // Checked here as well as filtered by the card: a client reporting a field outside the
+  // kind's allowlist would be the one path a minted URL or a rotated secret could take
+  // back into the conversation.
+  .superRefine((step, ctx) => {
+    const allowed = actionKind(step.kind)?.resultAllowlist;
+    if (allowed === undefined) {
+      ctx.addIssue({
+        code: "custom",
+        message: `There is no action kind named "${step.kind}".`,
+        path: ["kind"],
+      });
+      return;
+    }
+    for (const field of Object.keys(step.result ?? {})) {
+      if (allowed.includes(field)) continue;
+      ctx.addIssue({
+        code: "custom",
+        message: `"${step.kind}" does not report a field named "${field}".`,
+        path: ["result", field],
+      });
+    }
+  });
 
 /**
  * The `action-result` turn: what ran, what failed and what did not run, in order. It

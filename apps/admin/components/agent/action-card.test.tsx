@@ -82,9 +82,7 @@ function renderCard(
   card: AgentCardView,
   extra: Partial<React.ComponentProps<typeof ActionCard>> = {},
 ) {
-  return render(
-    <ActionCard proposal={plan} card={card} now={NOW} {...NOOP} {...extra} />,
-  );
+  return render(<ActionCard proposal={plan} card={card} now={NOW} {...NOOP} {...extra} />);
 }
 
 describe("rule 1: the admin writes the card", () => {
@@ -323,14 +321,16 @@ describe("the proposal marker", () => {
     const onReview = vi.fn();
     render(<MarkerHost onReview={onReview} />);
     const marker = screen.getByRole("link");
-    // The name reads "Assistant proposed · Review": the word and the icon, never colour.
-    expect(marker.textContent?.replace(/\s+/gu, " ").trim()).toBe("Assistant proposed · Review");
+    // The name reads "Assistant proposed · Review": the mark names the assistant and the
+    // words carry the rest, so neither signal is colour alone.
+    expect(marker.textContent?.replace(/\s+/gu, " ").trim()).toBe("proposed · Review");
+    expect(marker.querySelector('[role="img"]')?.getAttribute("aria-label")).toBe("Assistant");
     expect(marker.getAttribute("href")).toBe("#card-h");
     marker.click();
     expect(onReview).toHaveBeenCalledTimes(1);
-    expect(
-      screen.getByText(/Nothing runs from here/u).textContent,
-    ).toContain("Release version 3 of frm_quote to prod");
+    expect(screen.getByText(/Nothing runs from here/u).textContent).toContain(
+      "Release version 3 of frm_quote to prod",
+    );
   });
 
   it("outlines the heading-row control it mirrors and leaves the control itself unchanged", () => {

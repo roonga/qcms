@@ -38,7 +38,10 @@ const RELEASE = step({
   resultAllowlist: ["version", "environment"],
 });
 
-function proposal(steps: readonly AgentPlanStep[], token: string | undefined = "tok"): AgentProposal {
+function proposal(
+  steps: readonly AgentPlanStep[],
+  token: string | undefined = "tok",
+): AgentProposal {
   return {
     proposalId: "prp_run",
     token,

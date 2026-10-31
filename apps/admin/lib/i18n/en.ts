@@ -2045,6 +2045,8 @@ export const messages = {
   "agent.sidebar.shown": "Showed the sidebar and closed the assistant.",
   "forms.assist.step.project_draft": "Trying the draft out",
   "forms.assist.step.other": "Working on your request",
+  "forms.assist.step.propose_action": "Preparing an action for you to confirm",
+  "forms.assist.step.propose_plan": "Preparing a plan for you to confirm",
 
   "forms.assist.proposalHeading": "Proposal",
   "forms.assist.diffCount.one": "1 change proposed.",
@@ -2076,8 +2078,9 @@ export const messages = {
   "agent.card.planTitle.one": "1 step",
   "agent.card.planTitle.other": "Plan · {count} steps",
   "agent.card.stepsLabel": "The steps this plan runs, in order",
+  // The assistant's mark replaces the word before it, and is named "Assistant" by
+  // `agent.title`, so a screen reader reads "Assistant Reason".
   "agent.card.reasonLabel": "Reason",
-  "agent.card.assistant": "Assistant",
 
   "agent.card.form.publish.title": "Publish {formId} as a new version",
   "agent.card.form.publish.consequence":
@@ -2151,8 +2154,7 @@ export const messages = {
   "agent.card.result.expired": "Expired. Ask again for a fresh proposal.",
   "agent.card.live.running": "Step {step} of {count} running",
 
-  "agent.card.note.unresolvedReference":
-    "This step needed a value an earlier step did not report.",
+  "agent.card.note.unresolvedReference": "This step needed a value an earlier step did not report.",
   "agent.card.note.unreachable": "The request did not reach the server.",
   "agent.card.note.stale": "This proposal is more than ten minutes old.",
   "agent.card.note.notWired": "This screen's control is not wired to the assistant yet.",
@@ -2162,8 +2164,8 @@ export const messages = {
   "agent.marker.text": "proposed · Review",
   "agent.marker.description":
     "Moves focus to the assistant's card for {summary}. Nothing runs from here.",
-  "agent.launcher.toReview.one": "1 action to review",
-  "agent.launcher.toReview.other": "{count} actions to review",
+  // One, always: a turn ends with at most one card or one plan (P1).
+  "agent.launcher.toReview": "1 action to review",
 
   // Two provider failures, two sentences, because the advice is opposite
   // (issue #818). Neither repeats what the provider said: no vendor message,

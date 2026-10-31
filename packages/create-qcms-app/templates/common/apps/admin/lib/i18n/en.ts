@@ -2045,6 +2045,8 @@ export const messages = {
   "agent.sidebar.shown": "Showed the sidebar and closed the assistant.",
   "forms.assist.step.project_draft": "Trying the draft out",
   "forms.assist.step.other": "Working on your request",
+  "forms.assist.step.propose_action": "Preparing an action for you to confirm",
+  "forms.assist.step.propose_plan": "Preparing a plan for you to confirm",
 
   "forms.assist.proposalHeading": "Proposal",
   "forms.assist.diffCount.one": "1 change proposed.",
@@ -2061,6 +2063,109 @@ export const messages = {
     "New question {questionId}. Accepting creates it as an unpublished draft in the question library. Publish it there before you publish this form.",
   "forms.assist.accept": "Accept into draft",
   "forms.assist.discard": "Discard",
+
+  // THE ACTION CARD (083 D0, SEC-17 section 4.10).
+  //
+  // The admin writes the card, which is why every title, consequence sentence, state
+  // word, argument label and result line is here rather than assembled from anything the
+  // model wrote. A model's words reach the screen in exactly one place, the quoted reason,
+  // and that reason is text rather than a template. A card whose title came from model
+  // text would fail criterion 5, so this block is a control and not copy.
+  //
+  // The consequence sentences are the ones the screen's own dialog uses, word for word: a
+  // card that softened what the dialog says would be weaker than the dialog, which is the
+  // third card rule.
+  "agent.card.planTitle.one": "1 step",
+  "agent.card.planTitle.other": "Plan · {count} steps",
+  "agent.card.stepsLabel": "The steps this plan runs, in order",
+  // The assistant's mark replaces the word before it, and is named "Assistant" by
+  // `agent.title`, so a screen reader reads "Assistant Reason".
+  "agent.card.reasonLabel": "Reason",
+
+  "agent.card.form.publish.title": "Publish {formId} as a new version",
+  "agent.card.form.publish.consequence":
+    "The working draft becomes an immutable version. It is released to no environment.",
+  "agent.card.form.release.title": "Release version {version} of {formId} to {environment}",
+  "agent.card.form.release.consequence":
+    "Respondents starting from now get this version in {environment}.",
+  "agent.card.link.mint.title": "Mint {count} respondent links for {formId}",
+  "agent.card.link.mint.consequence":
+    "Each link opens this form for one respondent. The URLs are shown to you once and cannot be read again.",
+  "agent.card.link.revoke.title": "Revoke link {linkId}",
+  "agent.card.link.revoke.consequence":
+    "The link stops working from now on. A session already in progress is unaffected.",
+  // Carried inline on the step's own environment line, with one environment chip per step
+  // and no boxed inset inside the step (Code Owner, 2026-10-24, issue #1131).
+  "agent.card.environment.production": "Production: changes where respondents' answers are sent.",
+  "agent.card.environmentLabel": "Environment",
+  "agent.card.usesStep": "Uses the {field} step {step} sets",
+  // The same reference in a title, which is one sentence rather than a line of its own.
+  "agent.card.fromStepShort": "step {step}'s {field}",
+
+  "agent.card.arg.formId": "Form",
+  "agent.card.arg.count": "How many",
+  "agent.card.arg.expiresAt": "Stops working",
+  "agent.card.arg.oneTime": "One respondent each",
+  "agent.card.arg.version": "Version",
+  "agent.card.arg.environment": "Environment",
+  "agent.card.arg.fromEnvironment": "Promoted from",
+  "agent.card.arg.linkId": "Link",
+  "agent.card.arg.yes": "Yes",
+  "agent.card.arg.no": "No",
+
+  // Each state is a word and an icon, never colour alone. In the Proposed, Cancelled and
+  // Expired states only the heading chip is visible and each step carries its word as
+  // visually hidden text, so the accessible name still gives it (issue #1131).
+  "agent.card.state.proposed": "Proposed",
+  "agent.card.state.running": "Running",
+  "agent.card.state.done": "Done",
+  "agent.card.state.failed": "Failed",
+  "agent.card.state.pendingApproval": "Pending approval",
+  "agent.card.state.notRun": "Not run",
+  "agent.card.state.cancelled": "Cancelled",
+  "agent.card.state.expired": "Expired",
+
+  "agent.card.chip.proposed": "Proposed",
+  "agent.card.chip.running": "Running {step} of {count}",
+  "agent.card.chip.done": "Done",
+  "agent.card.chip.stopped": "Stopped at step {step}",
+  "agent.card.chip.stoppedByYou": "Stopped",
+  "agent.card.chip.pending": "Pending approval",
+  "agent.card.chip.cancelled": "Cancelled",
+  "agent.card.chip.expired": "Expired",
+
+  "agent.card.confirm": "Confirm",
+  "agent.card.confirmAll": "Confirm all {count} steps",
+  "agent.card.cancel": "Cancel",
+  "agent.card.stop": "Stop after this step",
+  "agent.card.stopping": "Stopping after this step",
+  "agent.card.openScreen": "Open the screen",
+  "agent.card.expiresIn.one": "Expires in 1 minute",
+  "agent.card.expiresIn.other": "Expires in {count} minutes",
+  "agent.card.expiredAsk": "Expired - ask again",
+  "agent.card.handOffHint":
+    "This step needs a secret you type on the screen itself. Confirm opens that field.",
+
+  "agent.card.result.done": "Done. All {count} steps ran, confirmed by you.",
+  "agent.card.result.stopped": "Stopped at step {step}. {ran} of {count} ran; nothing was retried.",
+  "agent.card.result.stoppedByYou": "Stopped by you. {ran} of {count} ran.",
+  "agent.card.result.held": "Held at step {step} for a second approver. {ran} of {count} ran.",
+  "agent.card.result.cancelled": "Cancelled by you. Nothing was sent.",
+  "agent.card.result.expired": "Expired. Ask again for a fresh proposal.",
+  "agent.card.live.running": "Step {step} of {count} running",
+
+  "agent.card.note.unresolvedReference": "This step needed a value an earlier step did not report.",
+  "agent.card.note.unreachable": "The request did not reach the server.",
+  "agent.card.note.stale": "This proposal is more than ten minutes old.",
+  "agent.card.note.notWired": "This screen's control is not wired to the assistant yet.",
+
+  // The marker is a link to the card and never a second Confirm (review suggestion S8,
+  // Code Owner, 2026-10-24).
+  "agent.marker.text": "proposed · Review",
+  "agent.marker.description":
+    "Moves focus to the assistant's card for {summary}. Nothing runs from here.",
+  // One, always: a turn ends with at most one card or one plan (P1).
+  "agent.launcher.toReview": "1 action to review",
 
   // Two provider failures, two sentences, because the advice is opposite
   // (issue #818). Neither repeats what the provider said: no vendor message,

@@ -22,7 +22,7 @@ import {
   type AgentCardView,
   type AgentStepState,
 } from "@/lib/agent/plan-state";
-import { t, tPlural, type MessageKey } from "@/lib/i18n/en";
+import { t, tPlural } from "@/lib/i18n/en";
 
 /**
  * The action card and the plan card (083 D0, SEC-17 section 4.10). A card is a plan of
@@ -72,13 +72,22 @@ export interface ActionCardProps {
 
 /** One shape per state, so a state is never colour alone. */
 function stepIcon(state: AgentStepState): React.ReactElement {
-  const common = { className: "qcms-acard__icon", viewBox: "0 0 18 18", "aria-hidden": true } as const;
+  const common = {
+    className: "qcms-acard__icon",
+    viewBox: "0 0 18 18",
+    "aria-hidden": true,
+  } as const;
   switch (state) {
     case "done":
       return (
         <svg {...common} focusable="false">
           <circle cx="9" cy="9" r="8" fill="currentColor" />
-          <path d="M5 9.5l2.5 2.5L13 6.5" stroke="var(--color-surface)" strokeWidth="2" fill="none" />
+          <path
+            d="M5 9.5l2.5 2.5L13 6.5"
+            stroke="var(--color-surface)"
+            strokeWidth="2"
+            fill="none"
+          />
         </svg>
       );
     case "failed":
@@ -91,7 +100,15 @@ function stepIcon(state: AgentStepState): React.ReactElement {
     case "running":
       return (
         <svg {...common} focusable="false">
-          <circle cx="9" cy="9" r="7" stroke="currentColor" strokeWidth="2" fill="none" opacity="0.3" />
+          <circle
+            cx="9"
+            cy="9"
+            r="7"
+            stroke="currentColor"
+            strokeWidth="2"
+            fill="none"
+            opacity="0.3"
+          />
           <path d="M9 2a7 7 0 0 1 7 7" stroke="currentColor" strokeWidth="2" fill="none" />
         </svg>
       );
@@ -105,7 +122,15 @@ function stepIcon(state: AgentStepState): React.ReactElement {
     case "not-run":
       return (
         <svg {...common} focusable="false">
-          <circle cx="9" cy="9" r="7" stroke="currentColor" strokeWidth="2" strokeDasharray="3 3" fill="none" />
+          <circle
+            cx="9"
+            cy="9"
+            r="7"
+            stroke="currentColor"
+            strokeWidth="2"
+            strokeDasharray="3 3"
+            fill="none"
+          />
           <path d="M5.5 9h7" stroke="currentColor" strokeWidth="2" />
         </svg>
       );
@@ -162,6 +187,96 @@ function EnvironmentLine({ step }: { readonly step: AgentPlanStep }): React.Reac
   );
 }
 
+/**
+ * Which controls the footer offers: Confirm and Cancel while the card waits, Stop while it
+ * runs, and after that the one result line that stays in the conversation as the record.
+ */
+function CardFooter(
+  props: ActionCardProps & {
+    readonly base: string;
+    readonly steps: number;
+    readonly confirmable: boolean;
+    readonly minutes: number;
+    readonly typed: string;
+    readonly onTyped: (value: string) => void;
+    readonly resultRef: React.RefObject<HTMLParagraphElement | null>;
+    readonly resultId: string;
+  },
+): React.ReactElement {
+  const { card, base, steps } = props;
+  const waiting = card.state === "proposed";
+  const multi = steps > 1;
+  const settled = resultLine(card);
+
+  return (
+    <footer className="qcms-acard__foot">
+      {props.typedConfirmation === undefined || !waiting ? null : (
+        <div className="qcms-field qcms-acard__typed">
+          <label className="qcms-field__label" htmlFor={`${base}-typed`}>
+            {props.typedConfirmation}
+          </label>
+          <input
+            className="qcms-input qcms-input--mono"
+            id={`${base}-typed`}
+            value={props.typed}
+            onChange={(event) => props.onTyped(event.target.value)}
+          />
+        </div>
+      )}
+
+      {card.state === "running" ? (
+        <button
+          className="qcms-button qcms-button--secondary"
+          type="button"
+          onClick={props.onStop}
+          disabled={card.stopping}
+        >
+          {t(card.stopping ? "agent.card.stopping" : "agent.card.stop")}
+        </button>
+      ) : null}
+
+      {waiting || card.state === "expired" ? (
+        <button
+          className="qcms-button qcms-button--primary"
+          type="button"
+          onClick={props.onConfirm}
+          disabled={!props.confirmable}
+        >
+          {multi ? t("agent.card.confirmAll", { count: steps }) : t("agent.card.confirm")}
+        </button>
+      ) : null}
+
+      {waiting ? (
+        <button className="qcms-button qcms-button--ghost" type="button" onClick={props.onCancel}>
+          {t("agent.card.cancel")}
+        </button>
+      ) : null}
+
+      {!multi && props.onOpenScreen !== undefined ? (
+        <button className="qcms-acard__link" type="button" onClick={props.onOpenScreen}>
+          {t("agent.card.openScreen")}
+        </button>
+      ) : null}
+
+      {waiting ? (
+        <span className="qcms-acard__expiry">
+          {tPlural("agent.card.expiresIn.one", "agent.card.expiresIn.other", props.minutes)}
+        </span>
+      ) : null}
+
+      {card.state === "expired" ? (
+        <span className="qcms-acard__expiry">{t("agent.card.expiredAsk")}</span>
+      ) : null}
+
+      {settled === undefined ? null : (
+        <p className="qcms-acard__result" id={props.resultId} tabIndex={-1} ref={props.resultRef}>
+          {t(settled.key, settled.params)}
+        </p>
+      )}
+    </footer>
+  );
+}
+
 export function ActionCard(props: ActionCardProps): React.ReactElement {
   const { proposal, card } = props;
   const base = useId();
@@ -206,16 +321,15 @@ export function ActionCard(props: ActionCardProps): React.ReactElement {
 
   return (
     <>
-      <article
-        className="qcms-acard"
-        id={base}
-        aria-labelledby={titleId}
-        onKeyDown={onKeyDown}
-      >
+      <article className="qcms-acard" id={base} aria-labelledby={titleId} onKeyDown={onKeyDown}>
         <header className="qcms-acard__head">
           <h2 className="qcms-acard__title" id={titleId} tabIndex={-1} ref={headingRef}>
             {multi
-              ? tPlural("agent.card.planTitle.one", "agent.card.planTitle.other", proposal.steps.length)
+              ? tPlural(
+                  "agent.card.planTitle.one",
+                  "agent.card.planTitle.other",
+                  proposal.steps.length,
+                )
               : stepTitle(proposal.steps[0] as AgentPlanStep, reported)}
           </h2>
           <span className="qcms-acard__state" data-s={card.state}>
@@ -273,82 +387,22 @@ export function ActionCard(props: ActionCardProps): React.ReactElement {
           </div>
         )}
 
-        <footer className="qcms-acard__foot">
-          {props.typedConfirmation === undefined || !canConfirm(card) ? null : (
-            <div className="qcms-field qcms-acard__typed">
-              <label className="qcms-field__label" htmlFor={`${base}-typed`}>
-                {props.typedConfirmation}
-              </label>
-              <input
-                className="qcms-input qcms-input--mono"
-                id={`${base}-typed`}
-                value={typed}
-                onChange={(event) => setTyped(event.target.value)}
-              />
-            </div>
-          )}
-
-          {card.state === "running" ? (
-            <button
-              className="qcms-button qcms-button--secondary"
-              type="button"
-              onClick={props.onStop}
-              disabled={card.stopping}
-            >
-              {t(card.stopping ? "agent.card.stopping" : "agent.card.stop")}
-            </button>
-          ) : null}
-
-          {card.state === "proposed" || card.state === "expired" ? (
-            <button
-              className="qcms-button qcms-button--primary"
-              type="button"
-              onClick={props.onConfirm}
-              disabled={!confirmable}
-            >
-              {multi
-                ? t("agent.card.confirmAll", { count: proposal.steps.length })
-                : t("agent.card.confirm")}
-            </button>
-          ) : null}
-
-          {card.state === "proposed" ? (
-            <button className="qcms-button qcms-button--ghost" type="button" onClick={props.onCancel}>
-              {t("agent.card.cancel")}
-            </button>
-          ) : null}
-
-          {!multi && props.onOpenScreen !== undefined ? (
-            <button className="qcms-acard__link" type="button" onClick={props.onOpenScreen}>
-              {t("agent.card.openScreen")}
-            </button>
-          ) : null}
-
-          {card.state === "proposed" ? (
-            <span className="qcms-acard__expiry">
-              {tPlural(
-                "agent.card.expiresIn.one",
-                "agent.card.expiresIn.other",
-                minutesLeft(proposal.expiresAt, now),
-              )}
-            </span>
-          ) : null}
-
-          {card.state === "expired" ? (
-            <span className="qcms-acard__expiry">{t("agent.card.expiredAsk")}</span>
-          ) : null}
-
-          {settled === undefined ? null : (
-            <p className="qcms-acard__result" id={resultId} tabIndex={-1} ref={resultRef}>
-              {t(settled.key, settled.params)}
-            </p>
-          )}
-        </footer>
+        <CardFooter
+          {...props}
+          base={base}
+          steps={proposal.steps.length}
+          confirmable={confirmable}
+          minutes={minutesLeft(proposal.expiresAt, now)}
+          typed={typed}
+          onTyped={setTyped}
+          resultRef={resultRef}
+          resultId={resultId}
+        />
       </article>
 
       {/* Progress in words, one polite region, never token by token. */}
       <p className="qcms-visually-hidden" role="status">
-        {live === undefined ? "" : t(live.key as MessageKey, live.params)}
+        {live === undefined ? "" : t(live.key, live.params)}
       </p>
     </>
   );

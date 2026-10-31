@@ -55,10 +55,7 @@ describe("the result allowlist, per kind (criterion 8)", () => {
   it("allowlists no field whose name carries a credential, bytes or content", () => {
     for (const def of Object.values(ACTION_KINDS)) {
       for (const field of def.resultAllowlist) {
-        expect(
-          offendingFragment(field),
-          `${def.kind} allowlists "${field}"`,
-        ).toBeUndefined();
+        expect(offendingFragment(field), `${def.kind} allowlists "${field}"`).toBeUndefined();
       }
     }
   });

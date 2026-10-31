@@ -3,7 +3,11 @@
 import { useEffect, useRef, useState, type ReactNode, type RefObject } from "react";
 
 import { Alert, Button, Card } from "@/components/kit";
-import type { AgentTurnRecord, ConversationHandle } from "@/lib/agent/conversation";
+import {
+  isProseTurn,
+  type AgentTurnRecord,
+  type ConversationHandle,
+} from "@/lib/agent/conversation";
 import type { ResolvedScreen } from "@/lib/agent/screens";
 import {
   acceptedDraft,
@@ -574,7 +578,9 @@ export function AssistPanel({
  * the next request replays.
  */
 function restoredTurns(records: readonly AgentTurnRecord[] | undefined): readonly DisplayTurn[] {
-  return (records ?? []).map((entry): DisplayTurn => {
+  // An `action-result` record is a card's own report, already on screen as that card's
+  // result line, so it is history for the model rather than a turn to redisplay.
+  return (records ?? []).filter(isProseTurn).map((entry): DisplayTurn => {
     if (entry.role === "user") return { role: "user", content: entry.content };
     if (entry.role === "result") {
       return { role: "result", outcome: entry.content === "accepted" ? "accepted" : "discarded" };

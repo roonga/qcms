@@ -18,12 +18,26 @@ import { trackedFilesUnder } from "./tracked-files.mjs";
 const REPO_ROOT = fileURLToPath(new URL("../", import.meta.url));
 
 /**
- * Empty, and meant to stay that way. An entry claims a key is rendered through a shape the
- * scan cannot read, carries its reason, and is pinned to one catalog.
+ * An entry claims a key is rendered through a shape the scan cannot read, carries its
+ * reason, and is pinned to one catalog.
  *
  * @type {Readonly<Record<string, Readonly<Record<string, string>>>>}
  */
-export const ALLOWED = {};
+export const ALLOWED = {
+  "apps/admin": {
+    // The card renders `t(step.card.titleKey)` and each consequence key the step carries,
+    // and those keys are named by the API's action-kind descriptors rather than by any
+    // literal here. `actions/registry.test.ts` pins each descriptor's keys to its kind.
+    "agent.card.form.publish.title": "named by the form.publish action-kind descriptor",
+    "agent.card.form.publish.consequence": "named by the form.publish action-kind descriptor",
+    "agent.card.form.release.title": "named by the form.release action-kind descriptor",
+    "agent.card.form.release.consequence": "named by the form.release action-kind descriptor",
+    "agent.card.link.mint.title": "named by the link.mint action-kind descriptor",
+    "agent.card.link.mint.consequence": "named by the link.mint action-kind descriptor",
+    "agent.card.link.revoke.title": "named by the link.revoke action-kind descriptor",
+    "agent.card.link.revoke.consequence": "named by the link.revoke action-kind descriptor",
+  },
+};
 
 /**
  * The generated template tree is excluded by construction: it is a byte-for-byte copy of

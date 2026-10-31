@@ -38,6 +38,12 @@ export interface PlanStep {
   readonly environment: string;
   readonly handOff: boolean;
   readonly card: ActionKindDef["card"];
+  /**
+   * The non-secret result fields the next turn may learn (section 7.6). It travels with
+   * the step so the card filters its report against the kind's own list rather than a
+   * second copy of it.
+   */
+  readonly resultAllowlist: readonly string[];
 }
 
 export interface Proposal {
@@ -167,6 +173,7 @@ function stepRefusal(
       environment,
       handOff: def.handOff === true,
       card: def.card,
+      resultAllowlist: def.resultAllowlist,
     },
     def,
   };

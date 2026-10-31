@@ -29,13 +29,9 @@ import { registerAgentProvenance } from "./provenance-mount.js";
 import { PROPOSAL_HEADER, PROPOSAL_STEP_HEADER } from "./provenance.js";
 
 /**
- * SEC-17's D0 criteria against Postgres: provenance adds no rights (criterion 2), a
- * replayed step rolls back on the unique constraint (criterion 1), a two-environment plan
- * verifies step by step, a reference resolves only to the value its step recorded, and a
- * step's audit row exists exactly when its own transaction committed (criterion 7).
- *
- * The pure checks live in `provenance.test.ts`; what is here needs the recorded rows, the
- * real route policy and the handlers' own transactions.
+ * SEC-17's D0 criteria against Postgres. The pure checks live in `provenance.test.ts`;
+ * what is here needs the recorded rows, the real route policy and the handlers' own
+ * transactions.
  */
 
 const ADMIN_ONLY = { public: false, internal: false, admin: true } as const;
@@ -81,7 +77,11 @@ function buildApp(): { deps: Deps; app: ReturnType<typeof createApp> } {
 
 async function seedPublishedQuestion(id: string, label: string): Promise<void> {
   const questionId = QuestionId.parse(id);
-  const parsed = parseQuestionDefinition({ questionId: id, type: "shortText", label: { en: label } });
+  const parsed = parseQuestionDefinition({
+    questionId: id,
+    type: "shortText",
+    label: { en: label },
+  });
   if (!parsed.ok) throw new Error(`fixture question ${id} did not parse`);
   await createQuestion(testDb.db, {
     workspaceId: SEED_WORKSPACE_ID,
@@ -195,7 +195,9 @@ async function countRows(proposalId: string): Promise<number> {
 
 async function rowsFor(
   proposalId: string,
-): Promise<{ step_index: number; kind: string; environment: string | null; detail: string | null }[]> {
+): Promise<
+  { step_index: number; kind: string; environment: string | null; detail: string | null }[]
+> {
   const res = await testDb.client.query(
     `select step_index, kind, environment, detail from control.agent_actions
       where proposal_id = $1 order by step_index`,
@@ -226,7 +228,11 @@ async function seedFormWithDraft(formId: string): Promise<void> {
         defaultLocale: "en",
         title: { en: "Provenance" },
         steps: [
-          { stepId: "stp_one", title: { en: "One" }, items: [{ questionId: "q_prov_it", version: 1 }] },
+          {
+            stepId: "stp_one",
+            title: { en: "One" },
+            items: [{ questionId: "q_prov_it", version: 1 }],
+          },
         ],
         rules: [],
       },
@@ -813,7 +819,10 @@ describe("a run bounded by step 0's confirmation, not by `exp` (criterion 10)", 
 describe("every D0 kind's route is the one its descriptor names", () => {
   it("matches the route policy row for each registered kind", () => {
     for (const def of Object.values(ACTION_KINDS)) {
-      const policy = policyForRequest(def.route.method, def.route.path.replaceAll(/\{\w+\}/gu, "x"));
+      const policy = policyForRequest(
+        def.route.method,
+        def.route.path.replaceAll(/\{\w+\}/gu, "x"),
+      );
       expect(policy?.path, def.kind).toBe(def.route.path);
       expect(policy?.resource, def.kind).toBe(def.cell.resource);
       expect(policy?.action, def.kind).toBe(def.cell.action);

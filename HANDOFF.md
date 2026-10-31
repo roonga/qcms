@@ -1,131 +1,120 @@
 HANDOFF: INTERRUPTED
 
 Task 083, actions on every screen (`docs/features/083-agent-actions-every-screen.md`). D0's
-server-side foundation **and its wiring into the turn** are on the branch and green. The D0
-admin shell, the D0 fake-provider scripts and every screen group D1 to D9 are not started.
+server side, its SEC-17 tests against Postgres, its nine fake-provider scripts and the admin
+card shell are on the branch and green on the cheap gates. **The heavy gates have not run on
+this head**, and that is the only thing between here and D0 complete. D1 to D9 are not
+started.
 
-## Done
+## Done on this head
 
-### The foundation (earlier lanes)
+### Earlier lanes (unchanged)
 
-- **`apps/api/src/features/agent/proposal-token.ts`** and its tests: HMAC-SHA-256 over
-  `{ v, purpose, sub, pid, steps: [{ kind, argsDigest, environment }], formId?, iat, exp }`
-  through WebCrypto, key derived by HKDF-SHA-256 from `QCMS_APP_KEY` under
-  `qcms/agent-proposal/v1`, canonical JSON with sorted keys at every depth, a
-  `{ fromStep, field }` reference kept symbolic, `exp` ten minutes after `iat`,
-  `PROPOSAL_MAX_STEPS` at 25, and `PROPOSAL_REFUSAL_CODES`. This lane added
-  `unverifiedProposalId`, which selects the rows the verified check then reads.
-- **`packages/db` migration 0007**: append-only `control.agent_actions`, `(proposal_id,
-  step_index)` unique, no foreign key, the grant set emitted by the same function as
-  `control.access_audit`'s, its `GRANT_SOURCES` row, the baseline's guarded per-environment
-  `INSERT`, `writeAgentActionRow` with no `RETURNING`, `listProposalSteps`,
-  `listAgentActions`, and a changeset.
-- **The e2e grant assertions** in `apps/api/e2e/security/03-db-least-privilege.e2e.ts` and
-  `04-db-restore-regrant.e2e.ts`.
-- **`features/agent/actions/`**: the `ActionKindDef` descriptor type, the frozen registry
-  with `actionKindForRoute`, and four kinds: `form.publish`, `form.release`, `link.mint`,
-  `link.revoke`.
-- **`grant-filter.ts`** and its tests: (kind, environment) pairs through `decideAccess`.
-- **`tools/propose.ts`** and its tests: `buildProposal` with P1, P2, the hand-off rule, the
-  reference checks and the ADR-41 publish-then-release-to-`prod` refusal.
-- **`provenance.ts`** and its tests: the pure check over signature, subject, `exp` on step
-  0, the run window, the index, the route, the recorded predecessors, replay, the recomputed
-  arguments and the per-step environment.
+The token (`proposal-token.ts`), migration 0007 and `control.agent_actions` with its grant
+assertions, the four `ActionKindDef` descriptors and the frozen registry, the grant filter,
+the propose tools and their advertised schemas, the pure provenance check, the mounted
+provenance middleware, the audit helper in all four handlers, the `action` and `plan` SSE
+events, the `action-result` turn variant, and `SYSTEM_PROMPT_VERSION` 7. The previous
+`HANDOFF.md` in `git log` lists them in detail.
 
 ### This lane
 
-- **The provenance middleware is mounted.** `provenance-mount.ts` holds `agentProvenance`
-  (the real check) and `agentProvenanceDisabled` (the `400`), and `registerAgentProvenance`
-  installs one or the other on the flag. It sits **fourth in `registrars.ts`'s admin
-  bucket**, after `registerGrantCheck`, so provenance is read from a request the route
-  policy has already authorised. The environment a step is checked against is
-  `grantContext.environment` when the policy row names one and the switcher's otherwise; an
-  `environmentFrom: "targets"` row is refused rather than guessed. `ApiEnv.Variables` gains
-  `agentProposal`. Tests: `provenance-mount.test.ts` (7).
-- **The audit helper.** `features/agent/audit.ts` holds `agentStepSite(c)` and
-  `writeAgentStep(exec, site, detail, confirmedAt)`. It is called **inside the step's own
-  transaction** in all four D0 handlers: `forms/handler.ts` (publish, detail the version),
-  `releases/handler.ts` (release, detail the version), `links/handler.ts` (mint, detail the
-  count; revoke, detail the link id). The mint and revoke handlers were wrapped in a
-  transaction for this, which is what makes "a failed step writes no row" true for them.
-- **The propose tools are registered.** `propose_action` and `propose_plan` are in
-  `AGENT_TOOL_NAMES` and `TOOLS`, over a `ctx.propose` port. `ProposalState` carries
-  `actionProposals` (the P1 count) and `unsentProposals` (the flush queue).
-  `tools/propose-schema.ts` builds the advertised schemas per caller: one union member per
-  offered kind, each argument allowing a symbolic reference, and an argument kind's
-  environment member narrowed to the caller's environments. `advertisedJsonSchema` exposes
-  the provider-facing document to the tests. Tests: `tools/propose-schema.test.ts` (4).
-- **The port** is built in `handler.ts`'s `actionPorts`: the screen's `actionKinds`, the
-  caller's resolved grants, `offeredActionKinds`, the workspace's `requireSecondApprover`,
-  `PRODUCTION_ENVIRONMENT`, the app key and the switcher environment. A caller offered
-  nothing gets `offeredActionKinds: []` and neither tool, which is criterion 3's structural
-  half.
-- **`SCREENS.actionKinds`**: `form.publish` on the builder, `form.release` on the releases
-  screen, `link.mint` and `link.revoke` on the links screen. `screens.test.ts` now asserts
-  every declared kind is registered and sits on the screen its descriptor names.
-- **The `action` and `plan` SSE events** are on `AssistEvent` and flushed from
-  `assistant.ts` as each proposal is recorded, with a final flush in `finishTurn`. A turn
-  that proposed an action no longer reports `NO_PROPOSAL`.
-- **The `action-result` turn variant**: `ActionResultTurnBody` in `schema.ts` with a closed
-  per-step schema (kind, outcome, scalar-only allowlisted result fields), `AssistTurn` is
-  now a union, and `assistant.ts`'s `modelTurn` renders it from structured fields so no
-  content re-enters the conversation.
-- **The system prompt** gained the propose-tools and read-only sentences;
-  `SYSTEM_PROMPT_VERSION` is 7.
-- **The one-reference limit** is refused at the propose tool with a reason to the model, and
-  recorded in the work order's D0 section (Code Owner, 2026-10-31). Test in
-  `tools/propose.test.ts`.
+- **`provenance.integration.test.ts`** (15 tests, Postgres): criterion 2's equivalence in
+  both directions (an allowed act stays allowed, a refused act keeps the route's own code,
+  and only the token writes a row); the replay refused with `AGENT_PROPOSAL_ORDER` minting
+  nothing, plus the unique constraint rolling a step's own transaction back; `plan-two-envs`
+  verified step by step with step 1 rewritten to `test` refused; `plan-three` end to end over
+  the publish, release and mint routes with the reference refused at a value step 0 did not
+  record and accepted at the one it did; `plan-fails-at-2` stopping with exactly one row and
+  step 2 never admitted; the row present or absent per transaction outcome; and criterion
+  10's run that crosses `exp`, the `AGENT_PROPOSAL_WINDOW` refusal past ten minutes and the
+  stale step 0.
+- **`provenance-mount.ts` now reads `deps.clock`** rather than `new Date()`. The handlers
+  stamp `confirmed-at` from that clock, so two clocks put the run window and the rows it is
+  measured from on different time; it is also what makes criterion 10 testable.
+- **`actions/registry.test.ts`** (9 tests): the registry's invariants and criterion 8's
+  per-kind result allowlist, including that no allowlisted field name carries a credential,
+  bytes or content, and that every referenceable field is allowlisted.
+- **`schema.ts` enforces the allowlist server side.** An `action-result` step whose `result`
+  names a field outside its kind's list, or whose kind is outside the registry, is refused.
+  `schema.test.ts` (8 tests).
+- **`PlanStep.resultAllowlist`** travels with each step, so the card filters its report
+  against the descriptor rather than a second copy of the list.
+- **The nine action scripts** in `fake-model.ts` (`plan-three`, `plan-fails-at-2`,
+  `plan-two-envs`, `plan-pending-at-1`, `two-proposals`, `plan-26-steps`, `unknown-tool`,
+  `injection-follow`, `read-only-user`), each reading the form, version and link it names
+  out of the screen's own facts block. **`actions.integration.test.ts`** (8 tests) drives
+  them at the API level: the plan's steps and per-step environments, both caps, the refused
+  unregistered name, a `forms.viewer` offered neither propose tool, and the injected
+  instruction reaching the card with its true arguments while nothing runs.
+- **The admin card shell**: `lib/forms/assist-stream.ts` parses the `action` and `plan`
+  events; `lib/agent/plan-state.ts` is the card's fold (step and card states, the chips-only-
+  once-running rule, Confirm, Cancel, Stop, expiry, the heading chip, the result line, the
+  live line and the allowlist-filtered `action-result` turn); `lib/agent/card-copy.ts` writes
+  every title, argument label and consequence sentence from the kind and the catalog;
+  `lib/agent/runner.ts` is the client-driven sequential runner; `components/agent/
+action-card.tsx` and `proposal-marker.tsx` render them; the `agent.card.*` and
+  `agent.marker.*` catalog strings are in `lib/i18n/en.ts` and the CSS in `app/globals.css`.
+  Tests: `plan-state.test.ts` (16), `runner.test.ts` (10), `action-card.test.tsx` (22, the
+  four card rules, the step states, focus, the live region, Escape and the marker).
+- **The trailing `{ agentProposal, step }` argument** is on `mintLinksAction` and
+  `revokeLinkAction`, forwarded as the two headers by `lib/server/agent-proposal.ts` through
+  `lib/server/links.ts`. `components/agent/step-actions.ts` is the kind-to-server-action
+  bridge the runner calls, and `assistant-conversation.tsx` renders the card as the last
+  segment of the turn that proposed it and appends the settled `action-result` turn.
 
 ## Next, in order
 
-1. **Criterion 2's equivalence test, at integration level.** The mount tests cover the
-   token-free pass-through and the refusals; what is missing is the DB-backed assertion that
-   the *same* request with and without a token is authorised identically by route policy, in
-   both directions (allowed stays allowed, refused stays refused). Put it beside
-   `features/links/links.integration.test.ts`'s harness (`seedAdminSession`, `seedGrants`).
-2. **The remaining SEC-17 D0 tests**, criterion by criterion: the replay rollback against
-   Postgres, the two-environment plan (`plan-two-envs`), the reference resolved to a value
-   other than the recorded one, the audit row written in the step's own transaction and
-   absent for a failed step, and the result-redaction allowlist per kind.
-3. **The fake-provider scripts** in `fake-model.ts`: `plan-three`, `plan-fails-at-2`,
-   `unknown-tool`, `injection-follow`, `read-only-user`, `two-proposals`, `plan-26-steps`,
-   `plan-two-envs` and `plan-pending-at-1`. Conductor decision of 2026-10-31: **`plan-three`
-   runs at the API level** against the `form.publish`, `form.release` and `link.mint`
-   descriptors, and neither the script nor its test says anything about screens; the
-   screen-level Playwright path for publish and release waits for D1 and D2.
-4. **The admin shell**: the card, the plan card, the hand-off variant, the sequential
-   runner, the proposal marker, the step states, the focus and live-region rules, the
-   `agent.*` catalog strings the descriptors' template keys name
-   (`agent.card.link.mint.title` and the rest), and the trailing
-   `{ agentProposal, step }` argument forwarding the two headers on each server action.
-   Follow the design system's ActionCard, ProposalMarker and AssistantPanel cards and the
-   four card rules as tests.
-5. **D1 to D9**, with D1 and D2 held back (see below).
+1. **The gates, on this head.** None of the heavy ones has run here:
+   - `pnpm verify`;
+   - `pnpm exec turbo run test --force`, confirmed 0 cached, because migration 0007 lands
+     on this branch;
+   - `QCMS_PORT_SEAT=7 pnpm up:e2e`;
+   - `QCMS_PORT_SEAT=7 QCMS_HARNESS_BUILD=1 pnpm verify:browser:detached` plus
+     `pnpm verify:browser:wait <dir>` slices, in sequence with the forced run and never
+     concurrently (issue #863).
+     The cheap gates **are** green here: `check:comments`, `check:templates`,
+     `check:dead-i18n-keys`, Prettier over `apps/*`, `docs` and `scripts`, eslint over the
+     changed areas, `turbo typecheck` for `qcms-admin` and `qcms-api`, the whole admin suite
+     (2184 tests) and the agent suites named above.
+2. **Place the marker on a heading row.** `ProposalMarker` and its rules are built and
+   tested, but no screen renders it yet: each kind's `card.headingControl` names the control
+   it mirrors, and wiring a heading row to it is that screen group's work. D3 (links) is the
+   first one whose kinds are runnable today.
+3. **The Playwright paths and axe** over the card's eight states (criterion 11) are per
+   screen group and belong with D3 onwards.
+4. **D3 to D9.** D1 and D2 wait for PR #1200 (environment phase 5): it replaces the publish
+   and release screens and deletes `publishFormAction` and `publishAndReleaseAction`, so
+   `step-actions.ts` deliberately wires only `link.mint` and `link.revoke`, and says so. The
+   `form.publish` and `form.release` descriptors stay on this branch because D0's own
+   criteria need a kind whose environment comes from its arguments.
+5. **The records** criterion 14 names (ADR-25's status, SEC-17's verified-by,
+   `docs/agent-authoring.md` section 4, `docs/SECURITY_DESIGN.md` section 8, 038's header,
+   the ledger rows, the work-order removals) are untouched and belong to the final PR.
 
 ## Decisions and constraints the next lane needs
 
-- **D1 and D2 are deferred** by conductor decision: environment phase 5 (issue #1197) is
-  replacing the versions and releases screens with a Versions view and a publish wizard, and
-  both groups propose publish, release, promote or roll back. The `form.publish` and
-  `form.release` **descriptors** are on this branch anyway, because D0's own criteria cannot
-  be tested without a kind whose environment comes from its arguments, and the API routes
-  those descriptors name are not what #1197 changes. Their screen wiring, cards and
-  Playwright paths stay with D1 and D2.
+- **The kinds offered in a turn are the current screen's**, not the form subtree's union, so
+  a plan spanning two screens (`plan-three`, `plan-pending-at-1`) cannot become a card today
+  even though the runner imports each step's own screen's action. That is the shape 082's
+  registry and `screens.test.ts` fixed; it is recorded here as a discovery for the reviewer
+  rather than changed, because widening it is a design call. The three-route run is asserted
+  against the real routes instead.
 - **A step with more than one reference fails closed** in `provenance.ts` and is refused at
   `propose_plan` (Code Owner, 2026-10-31). Widen both halves together.
-- **Issue #1190** (read-tool filtering) stays separate; not this task.
-- `control.agent_actions.detail` is text, so a reference's recorded value is compared as
-  text (`String(value) === detail`).
+- **The static conditional read-only sentence stays in the system prompt**, byte-identical
+  for caching (Code Owner, 2026-10-31).
 - `link.mint`'s descriptor takes its environment from the switcher while its route policy
-  reads it from the body: the admin posts the switcher's environment, so criterion 9's "a
-  plan proposed under `test` with the switcher moved to `prod` before Confirm is refused"
-  falls out of the digest and environment checks rather than needing a second rule.
-
-## Gates run on this head
-
-- `pnpm exec turbo run typecheck lint`: 30 of 30 tasks successful.
-- `apps/api` unit tests over `src/features/agent`, `links`, `releases`, `forms`: green.
-- `pnpm check:comments`, `pnpm check:templates`, Prettier over `apps/api/src` and `docs`:
-  green. The template mirror is resynced.
-- The forced Docker-backed run, `pnpm up:e2e` and the browser suite have **not** been run on
-  this head: D0 is not complete, so the final gate pass belongs to the lane that finishes it.
+  reads it from the body. The admin posts the switcher's environment, so the two agree;
+  left as is by the Code Owner's open question to the reviewer.
+- The eight card template keys are in `scripts/check-dead-i18n-keys.mjs`'s `ALLOWED`: the
+  card renders `t(step.card.titleKey)`, and the API's descriptors name the keys, which the
+  scan cannot read. `actions/registry.test.ts` pins each descriptor's keys to its kind.
+- `control.agent_actions.detail` is text, so a reference's recorded value is compared as
+  text.
+- The **typed-confirmation gate** is on the card as a prop and tested with a synthetic step;
+  D4's erasure kind is the first that supplies it.
+- **Pending approval** is terminal for the plan in `plan-state.ts`; no D0 kind can return it
+  yet, so the runner path is tested with a stubbed step result and D5's `prod` endpoint
+  mechanism is what exercises it for real.
+- **Issue #1190** (read-tool filtering) stays separate; not this task.

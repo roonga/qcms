@@ -134,7 +134,10 @@ export function agentProvenance(deps: Deps): MiddlewareHandler<ApiEnv> {
       subject: principal.userId,
       facts,
       recorded: recordedFrom(rows),
-      now: new Date(),
+      // The deployment's own clock, which is also the clock the handlers stamp
+      // `confirmed-at` with: two clocks would put the run window and the rows it is
+      // measured from on different time.
+      now: deps.clock.now(),
     });
     if (!result.ok) {
       deps.logger.warn("agent proposal refused", { reason: result.code, kind: facts.path });

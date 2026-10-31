@@ -26,20 +26,22 @@ export type AgentStepState =
 
 /** The card's own state, which its heading chip says once. */
 export type AgentCardState =
-  | "proposed"
-  | "running"
-  | "done"
-  | "stopped"
-  | "pending-approval"
-  | "cancelled"
-  | "expired";
+  "proposed" | "running" | "done" | "stopped" | "pending-approval" | "cancelled" | "expired";
+
+/** A step reports scalars only: an object or an array is content in a metadata channel. */
+export type ScalarField = string | number | boolean;
+
+export type StepResultFields = Readonly<Record<string, ScalarField>>;
+
+/** What each step reported, keyed by its index, which is what resolves a reference. */
+export type ReportedResults = Readonly<Record<number, StepResultFields>>;
 
 export interface AgentStepView {
   readonly state: AgentStepState;
   /** The screen action's own message, quoted under a failed or held step. */
   readonly message?: string;
   /** The allowlisted fields this step reported, which the next turn learns. */
-  readonly result?: Readonly<Record<string, string | number | boolean>>;
+  readonly result?: StepResultFields;
 }
 
 export interface AgentCardView {
@@ -147,9 +149,9 @@ export function startStep(card: AgentCardView, index: number): AgentCardView {
 function scalarsOnly(
   result: Readonly<Record<string, unknown>> | undefined,
   allowlist: readonly string[],
-): Readonly<Record<string, string | number | boolean>> | undefined {
+): StepResultFields | undefined {
   if (result === undefined) return undefined;
-  const kept: Record<string, string | number | boolean> = {};
+  const kept: Record<string, ScalarField> = {};
   for (const field of allowlist) {
     const value = result[field];
     if (typeof value === "string" || typeof value === "number" || typeof value === "boolean") {
@@ -335,7 +337,7 @@ export interface ActionResultTurn {
   readonly steps: readonly {
     readonly kind: string;
     readonly outcome: AgentStepState;
-    readonly result?: Readonly<Record<string, string | number | boolean>>;
+    readonly result?: StepResultFields;
   }[];
 }
 

@@ -2,6 +2,8 @@ import type { AgentPlanStep } from "../forms/assist-stream.ts";
 import { PROD_ENVIRONMENT } from "../environment.ts";
 import { t, type MessageKey } from "../i18n/en.ts";
 
+import type { ReportedResults } from "./plan-state.ts";
+
 /**
  * What one step of a card says (083 D0, card rules 1 and 2).
  *
@@ -41,12 +43,7 @@ const ARGUMENT_ORDER: readonly string[] = [
   "oneTime",
 ];
 
-const MONO_ARGUMENTS: ReadonlySet<string> = new Set([
-  "formId",
-  "linkId",
-  "version",
-  "expiresAt",
-]);
+const MONO_ARGUMENTS: ReadonlySet<string> = new Set(["formId", "linkId", "version", "expiresAt"]);
 
 /** The environment is its own line, with the chip and the production sentence on it. */
 const ENVIRONMENT_ARGUMENT = "environment";
@@ -88,12 +85,26 @@ function orderOf(name: string): number {
 }
 
 /**
+ * A plain argument as it reads, a resolved reference as the value that ran, and an
+ * unresolved one as the words card rule 2 asks for.
+ */
+function referenceText(
+  raw: unknown,
+  reference: StepReference | undefined,
+  resolved: unknown,
+): string {
+  if (reference === undefined) return scalarText(raw);
+  if (resolved !== undefined) return scalarText(resolved);
+  return t("agent.card.usesStep", { field: reference.field, step: reference.fromStep + 1 });
+}
+
+/**
  * Every argument of one step, in run order, with a reference shown as the words the rule
  * asks for rather than as a resolved value the user was never shown.
  */
 export function stepArguments(
   step: AgentPlanStep,
-  reported: Readonly<Record<number, Readonly<Record<string, string | number | boolean>>>> = {},
+  reported: ReportedResults = {},
 ): readonly StepArgumentLine[] {
   const names = Object.keys(step.args)
     .filter((name) => name !== ENVIRONMENT_ARGUMENT)
@@ -104,12 +115,7 @@ export function stepArguments(
     const reference = asReference(raw);
     const resolved =
       reference === undefined ? undefined : reported[reference.fromStep]?.[reference.field];
-    const value =
-      reference === undefined
-        ? scalarText(raw)
-        : resolved === undefined
-          ? t("agent.card.usesStep", { field: reference.field, step: reference.fromStep + 1 })
-          : scalarText(resolved);
+    const value = referenceText(raw, reference, resolved);
     return {
       name,
       label: argumentLabel(name),
@@ -121,10 +127,7 @@ export function stepArguments(
 }
 
 /** The arguments a title template may substitute, as text. */
-function titleParams(
-  step: AgentPlanStep,
-  reported: Readonly<Record<number, Readonly<Record<string, string | number | boolean>>>>,
-): Record<string, string> {
+function titleParams(step: AgentPlanStep, reported: ReportedResults): Record<string, string> {
   const params: Record<string, string> = { environment: step.environment };
   for (const line of stepArguments(step, reported)) {
     const reference = asReference(step.args[line.name]);
@@ -141,10 +144,7 @@ function titleParams(
 }
 
 /** The step's title, written by the admin from the kind's own template. */
-export function stepTitle(
-  step: AgentPlanStep,
-  reported: Readonly<Record<number, Readonly<Record<string, string | number | boolean>>>> = {},
-): string {
+export function stepTitle(step: AgentPlanStep, reported: ReportedResults = {}): string {
   return t(step.card.titleKey as MessageKey, titleParams(step, reported));
 }
 

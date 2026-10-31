@@ -185,7 +185,7 @@ function ScreenConversation({
         if (event.type === "action" || event.type === "plan") {
           setProposal(event.proposal);
           setCard(initialCard(event.proposal, Date.now()));
-          onAnnounce(t("agent.launcher.toReview.one"));
+          onAnnounce(t("agent.launcher.toReview"));
         }
         const step = runningStep(turn);
         if (step !== undefined) onAnnounce(t(step.label));

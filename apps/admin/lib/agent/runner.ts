@@ -118,7 +118,9 @@ export async function runPlan(input: RunPlanInput): Promise<AgentCardView> {
       return card;
     }
     if (isExpired(input.proposal, at.getTime()) && index === 0) {
-      emit(settleStep(card, index, step, { outcome: "failed", message: t(STALE) }, at.toISOString()));
+      emit(
+        settleStep(card, index, step, { outcome: "failed", message: t(STALE) }, at.toISOString()),
+      );
       return card;
     }
 
