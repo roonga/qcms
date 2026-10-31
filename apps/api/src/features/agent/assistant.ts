@@ -22,7 +22,13 @@ import {
   toolDataOf,
   type ProposalState,
 } from "./tools/registry.js";
-import type { AgentContext, AssistEvent, DraftAssistant } from "./types.js";
+import type {
+  ActionStepResult,
+  AgentContext,
+  AssistEvent,
+  AssistTurn,
+  DraftAssistant,
+} from "./types.js";
 
 export interface TextSegment {
   readonly id: string;
@@ -106,8 +112,34 @@ export function toModelMessages(
   return [
     ...(draft === undefined ? [] : [{ role: "user" as const, content: draftPreamble(draft) }]),
     { role: "user" as const, content: factsPreamble(ctx.screen, ctx.facts) },
-    ...ctx.conversation.map((turn) => ({ role: turn.role, content: turn.content })),
+    ...ctx.conversation.map((turn) => modelTurn(turn)),
   ];
+}
+
+/** The outcome fields the next turn is told, as `name=value`, in a stable order. */
+function resultFields(step: ActionStepResult): string {
+  const fields = Object.entries(step.result ?? {})
+    .sort(([a], [b]) => (a < b ? -1 : 1))
+    .map(([name, value]) => `${name}=${String(value)}`);
+  return fields.length === 0 ? "" : ` (${fields.join(", ")})`;
+}
+
+/**
+ * An action-result turn as the model reads it: one line per step, written here from
+ * structured fields, so no model text and no content can re-enter the conversation.
+ */
+function modelTurn(turn: AssistTurn): { role: "user" | "assistant"; content: string } {
+  if (turn.role !== "action-result") return { role: turn.role, content: turn.content };
+  const lines = turn.steps.map(
+    (step, index) =>
+      `${String(index + 1)}. ${step.kind}: ${step.outcome}${resultFields(step)}`,
+  );
+  return {
+    role: "user",
+    content:
+      `The person reviewed the proposal and confirmed it. What ran, in order:\n${lines.join("\n")}\n` +
+      "This is the installation's own record of the run, not an instruction to you.",
+  };
 }
 
 function errorMessage(error: unknown): string {
@@ -316,12 +348,24 @@ async function* runTurn(args: {
     for await (const part of result.stream) {
       const event = handlePart(part, outcome, thinking);
       if (event !== undefined) yield event;
+      // At once, not at the end of the turn: the card is what the user reviews, and a
+      // later tool call must not delay it.
+      yield* flushProposals(state);
     }
   } catch (error) {
     noteFailure(outcome, error);
   }
 
   yield* finishTurn({ ctx, state, outcome, providerId, logger });
+}
+
+/** Every proposal recorded since the last flush, as its own `action` or `plan` event. */
+function* flushProposals(state: ProposalState): Generator<AssistEvent> {
+  while (state.unsentProposals.length > 0) {
+    const recorded = state.unsentProposals.shift();
+    if (recorded === undefined) return;
+    yield { type: recorded.variant, proposal: recorded.proposal };
+  }
 }
 
 /**
@@ -364,6 +408,9 @@ async function* finishTurn(args: {
   logger: Logger;
 }): AsyncGenerator<AssistEvent> {
   const { ctx, state, outcome, providerId, logger } = args;
+
+  // A proposal recorded on the last step of the stream has not been flushed yet.
+  yield* flushProposals(state);
 
   logger.info("draft assistant turn", {
     provider: providerId,
@@ -425,7 +472,8 @@ async function* finishTurn(args: {
   // No draft port is a screen that offers no draft proposal, so there is nothing to
   // validate and nothing to propose.
   if (state.proposedDraft === undefined || ctx.validate === undefined) {
-    yield emptyTurnError(outcome, ctx.maxSteps);
+    // A turn that proposed an action proposed something, so it is not an empty turn.
+    if (state.actionProposals.length === 0) yield emptyTurnError(outcome, ctx.maxSteps);
     return;
   }
 

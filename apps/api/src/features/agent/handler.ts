@@ -6,7 +6,7 @@ import {
   listQuestionVersions,
   listQuestions,
 } from "@roonga/qcms-db";
-import { getForm } from "@roonga/qcms-db";
+import { getForm, getWorkspace } from "@roonga/qcms-db";
 import type { QuestionRow, QuestionVersionRow } from "@roonga/qcms-db";
 import { parseFormId, type FormDefinition, type FormId, type QuestionId } from "@roonga/qcms-core";
 
@@ -26,7 +26,11 @@ import {
   validateDraft,
 } from "../forms/handler.js";
 import type { Resource } from "../membership/policy.js";
-import { holdsInstallationClaim } from "../membership/resolver.js";
+import { PRODUCTION_ENVIRONMENT } from "../membership/policy.js";
+import { holdsInstallationClaim, resolveGrants } from "../membership/resolver.js";
+import { offeredActionKinds, offersNoAction } from "./grant-filter.js";
+import { buildProposal } from "./tools/propose.js";
+import type { AgentToolName } from "./tools/registry.js";
 import {
   requireCell,
   requireForm,
@@ -168,12 +172,18 @@ async function buildScreenContext(args: {
   const facts = screen.facts.parse(await screen.build(args.build));
   const drafts = await args.drafts?.();
   const workspaceId = await screenWorkspace(args.build);
+  const actions = await actionPorts({
+    deps: args.deps,
+    build: args.build,
+    screen: args.screen,
+    workspaceId,
+  });
   return {
     screen: args.screen,
     facts,
     conversation: args.conversation,
     maxSteps: maxStepsFor(args.deps),
-    tools: screen.readTools,
+    tools: [...screen.readTools, ...actions.tools],
     // The same evaluator the route middleware uses, closed over this caller and the
     // workspace this screen's subject belongs to.
     authorize: async (cell) => {
@@ -194,6 +204,64 @@ async function buildScreenContext(args: {
     ...(screen.readTools.includes("project_draft") && drafts !== undefined
       ? { projectDraft: projectionPort(args.deps, drafts.draft) }
       : {}),
+    ...actions.ports,
+  };
+}
+
+/**
+ * The propose tools' port and the kinds the grant filter offered this caller on this
+ * screen. A screen with no action kind, or a caller holding none of them, gets neither the
+ * port nor the tools, which is how "a read-only user is offered no write" is structural
+ * rather than a prompt (principle point 1, SEC-17).
+ */
+async function actionPorts(args: {
+  readonly deps: Deps;
+  readonly build: ScreenBuildInput;
+  readonly screen: ScreenId;
+  readonly workspaceId: string | undefined;
+}): Promise<{
+  readonly tools: readonly AgentToolName[];
+  readonly ports: Partial<Pick<AgentContext, "propose" | "offeredActionKinds">>;
+}> {
+  const kinds = SCREENS[args.screen].actionKinds;
+  if (kinds.length === 0 || args.workspaceId === undefined) return { tools: [], ports: {} };
+
+  const resolved = await resolveGrants(args.deps.databases.control, {
+    userId: args.build.principal.userId,
+    workspaceId: args.workspaceId,
+    claim: args.build.principal.claim,
+  });
+  const offered = offeredActionKinds({
+    memberRole: resolved.memberRole,
+    grants: resolved.grants,
+    environments: args.deps.databases.names,
+    current: args.build.environment,
+    kinds,
+    formId: args.build.params.formId,
+  });
+  // Present with an empty list rather than absent, so the system prompt can say this user
+  // changes nothing here.
+  if (offersNoAction(offered)) return { tools: [], ports: { offeredActionKinds: offered } };
+
+  const workspace = await getWorkspace(args.deps.databases.control, args.workspaceId);
+  return {
+    tools: ["propose_action", "propose_plan"],
+    ports: {
+      offeredActionKinds: offered,
+      propose: (steps, proposalsThisTurn) =>
+        buildProposal({
+          steps,
+          subject: args.build.principal.userId,
+          appKey: args.deps.config.keys.app,
+          current: args.build.environment,
+          offered,
+          requireSecondApprover: workspace?.requireSecondApprover ?? false,
+          productionEnvironment: PRODUCTION_ENVIRONMENT,
+          formId: args.build.params.formId,
+          issuedAt: args.deps.clock.now(),
+          proposalsThisTurn,
+        }),
+    },
   };
 }
 

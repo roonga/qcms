@@ -53,10 +53,12 @@ function contextFixture(message: string): AssistContext {
 }
 
 describe("the agent tool registry", () => {
-  it("is the four authoring verbs and the preview projection, and nothing else", () => {
+  it("is the four authoring verbs, the preview projection and the two propose tools", () => {
     expect([...AGENT_TOOL_NAMES].sort()).toEqual([
       "project_draft",
+      "propose_action",
       "propose_draft",
+      "propose_plan",
       "propose_questions",
       "search_question_library",
       "validate_draft",

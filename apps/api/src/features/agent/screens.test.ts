@@ -3,6 +3,7 @@ import { z } from "zod";
 
 import { REDACT_FRAGMENTS } from "@roonga/qcms-observability";
 
+import { ACTION_KIND_NAMES, actionKind } from "./actions/registry.js";
 import { SCREEN_IDS, SCREENS, isFormSubtreeScreen, isScreenId, type ScreenId } from "./screens.js";
 import {
   AGENT_TOOL_NAMES,
@@ -78,8 +79,19 @@ describe("the screen registry", () => {
     expect(isScreenId("/sign-in")).toBe(false);
   });
 
-  it("offers no action kind anywhere: proposing actions arrives with its own task", () => {
-    for (const id of SCREEN_IDS) expect(SCREENS[id].actionKinds).toEqual([]);
+  it("declares only registered action kinds, each on the screen whose control it mirrors", () => {
+    for (const id of SCREEN_IDS) {
+      for (const kind of SCREENS[id].actionKinds) {
+        expect(ACTION_KIND_NAMES).toContain(kind);
+        expect(actionKind(kind)?.screen).toBe(id);
+      }
+    }
+  });
+
+  it("carries D0's kinds on the builder, the releases screen and the links screen", () => {
+    expect(SCREENS["/forms/[formId]"].actionKinds).toEqual(["form.publish"]);
+    expect(SCREENS["/forms/[formId]/releases"].actionKinds).toEqual(["form.release"]);
+    expect(SCREENS["/forms/[formId]/links"].actionKinds).toEqual(["link.mint", "link.revoke"]);
   });
 
   it("declares only registered tools, and declares them only where their port exists", () => {
