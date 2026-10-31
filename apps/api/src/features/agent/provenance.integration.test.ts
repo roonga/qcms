@@ -501,14 +501,14 @@ describe("a two-environment plan verifies step by step (criterion 1, plan-two-en
   });
 });
 
-describe("a reference resolves only to the value its step recorded (criterion 1)", () => {
+describe("`plan-three` runs end to end, with the reference checked (criterion 4)", () => {
   const FORM_ID = "frm_prov_ref";
 
   beforeAll(async () => {
     await seedFormWithDraft(FORM_ID);
   }, CONTAINER_BOOT_TIMEOUT_MS);
 
-  it("refuses a reference resolved to a value other than the recorded one, then accepts the recorded one", async () => {
+  it("refuses a reference resolved to a value other than the recorded one, then runs all three steps", async () => {
     const steps = [
       await binding("form.publish", { formId: FORM_ID }, "prod"),
       await binding(
@@ -516,6 +516,7 @@ describe("a reference resolves only to the value its step recorded (criterion 1)
         { formId: FORM_ID, version: { fromStep: 0, field: "version" }, environment: "test" },
         "test",
       ),
+      await binding("link.mint", mintArgs(FORM_ID), "prod"),
     ];
     const { token, proposalId } = await mintToken({
       subject: owner.userId,
@@ -555,6 +556,79 @@ describe("a reference resolves only to the value its step recorded (criterion 1)
     });
     expect(right.status).toBe(200);
     expect(await countRows(proposalId)).toBe(2);
+
+    const minted = await send({
+      caller: owner,
+      path: `/forms/${FORM_ID}/links`,
+      environment: "prod",
+      body: mintBody,
+      proposal: { token, step: 2 },
+    });
+    expect(minted.status).toBe(201);
+    expect(await rowsFor(proposalId)).toEqual([
+      { step_index: 0, kind: "form.publish", environment: "prod", detail: String(version) },
+      { step_index: 1, kind: "form.release", environment: "test", detail: String(version) },
+      { step_index: 2, kind: "link.mint", environment: "prod", detail: "1" },
+    ]);
+  });
+});
+
+describe("`plan-fails-at-2` stops at its failed step (criterion 4)", () => {
+  const FORM_ID = "frm_prov_fails";
+
+  beforeAll(async () => {
+    await createForm(testDb.db, {
+      workspaceId: SEED_WORKSPACE_ID,
+      formId: FormId.parse(FORM_ID),
+      slug: "prov-fails",
+      defaultLocale: "en",
+    });
+  }, CONTAINER_BOOT_TIMEOUT_MS);
+
+  it("records step 0, writes nothing for the failed step, and never admits step 2", async () => {
+    const steps = [
+      await binding("link.mint", mintArgs(FORM_ID), "prod"),
+      await binding("link.revoke", { formId: FORM_ID, linkId: "lnk_absent" }, "prod"),
+      await binding("link.mint", { ...mintArgs(FORM_ID), count: 3 }, "prod"),
+    ];
+    const { token, proposalId } = await mintToken({
+      subject: owner.userId,
+      steps,
+      formId: FORM_ID,
+    });
+
+    const first = await send({
+      caller: owner,
+      path: `/forms/${FORM_ID}/links`,
+      environment: "prod",
+      body: mintBody,
+      proposal: { token, step: 0 },
+    });
+    expect(first.status).toBe(201);
+    const afterFirst = await linkCount(FORM_ID);
+
+    const failed = await send({
+      caller: owner,
+      path: `/forms/${FORM_ID}/links/lnk_absent/revoke`,
+      environment: "prod",
+      proposal: { token, step: 1 },
+    });
+    expect(failed.status).toBe(404);
+
+    // The runner would never send step 2; a client that did is refused, because step 1
+    // wrote no row to order it behind.
+    const never = await send({
+      caller: owner,
+      path: `/forms/${FORM_ID}/links`,
+      environment: "prod",
+      body: { ...mintBody, count: 3 },
+      proposal: { token, step: 2 },
+    });
+    expect(never.status).toBe(403);
+    expect(await errorCode(never)).toBe("AGENT_PROPOSAL_ORDER");
+
+    expect(await countRows(proposalId)).toBe(1);
+    expect(await linkCount(FORM_ID)).toBe(afterFirst);
   });
 });
 

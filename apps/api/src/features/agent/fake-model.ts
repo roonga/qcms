@@ -35,6 +35,17 @@ export const FAKE_SCRIPTS = [
   "narrate-then-tools",
   "reasoning",
   "read-all",
+  // D0's action scripts (083, SEC-17). Each proposes and runs nothing: Confirm is the
+  // user's, on the card.
+  "plan-three",
+  "plan-fails-at-2",
+  "plan-two-envs",
+  "plan-pending-at-1",
+  "two-proposals",
+  "plan-26-steps",
+  "unknown-tool",
+  "injection-follow",
+  "read-only-user",
 ] as const;
 
 /** Asserted present under `summary` and absent everywhere under `off`. */
@@ -474,6 +485,201 @@ function planReadAllStep(
   return [...toolInputParts(next, input), toolCallPart(next, input), finishPart("tool-calls")];
 }
 
+/**
+ * D0's action scripts. Each one proposes; none executes. The arguments come from the
+ * screen's own facts block, so a script names the form and the link the fixture actually
+ * has rather than a canned id.
+ */
+
+/** Every fenced JSON block in the user messages: the draft preamble and the facts. */
+function jsonBlocks(prompt: readonly PromptMessage[]): Record<string, unknown>[] {
+  const text = userText(prompt);
+  const blocks: Record<string, unknown>[] = [];
+  let at = text.indexOf("```json");
+  while (at >= 0) {
+    const start = at + "```json".length;
+    const close = text.indexOf("```", start);
+    if (close < 0) break;
+    try {
+      const parsed: unknown = JSON.parse(text.slice(start, close));
+      if (typeof parsed === "object" && parsed !== null) {
+        blocks.push(parsed as Record<string, unknown>);
+      }
+    } catch {
+      // A block this build cannot read is skipped: the next one may be the facts.
+    }
+    at = text.indexOf("```json", close);
+  }
+  return blocks;
+}
+
+function screenFacts(prompt: readonly PromptMessage[]): Record<string, unknown> {
+  return jsonBlocks(prompt).find((block) => typeof block.formId === "string") ?? {};
+}
+
+function factFormId(prompt: readonly PromptMessage[]): string {
+  const { formId } = screenFacts(prompt);
+  return typeof formId === "string" ? formId : "frm_unknown";
+}
+
+function factVersion(prompt: readonly PromptMessage[]): number {
+  const { latestPublishedVersion } = screenFacts(prompt);
+  return typeof latestPublishedVersion === "number" ? latestPublishedVersion : 1;
+}
+
+/** The first link the links screen listed, so a revoke step names a real row. */
+function factLinkId(prompt: readonly PromptMessage[]): string {
+  const { links } = screenFacts(prompt);
+  if (!Array.isArray(links)) return "lnk_absent";
+  for (const entry of links) {
+    if (typeof entry !== "object" || entry === null) continue;
+    const { linkId } = entry as { linkId?: unknown };
+    if (typeof linkId === "string") return linkId;
+  }
+  return "lnk_absent";
+}
+
+const FAKE_LINK_EXPIRY = "2026-12-31T23:59:59.000Z";
+
+function mintStep(formId: string, count = 2): Record<string, unknown> {
+  return {
+    kind: "link.mint",
+    args: { formId, count, expiresAt: FAKE_LINK_EXPIRY, oneTime: true },
+  };
+}
+
+function revokeStep(formId: string, linkId: string): Record<string, unknown> {
+  return { kind: "link.revoke", args: { formId, linkId } };
+}
+
+function releaseStep(
+  formId: string,
+  version: number | Record<string, unknown>,
+  environment: string,
+): Record<string, unknown> {
+  return { kind: "form.release", args: { formId, version, environment } };
+}
+
+/** How many times this turn has already called one tool, which P1's script needs. */
+function toolCallCount(prompt: readonly PromptMessage[], name: string): number {
+  let count = 0;
+  for (const message of prompt) {
+    if (message.role !== "assistant" || !Array.isArray(message.content)) continue;
+    for (const part of message.content) {
+      if (typeof part !== "object" || part === null) continue;
+      const typed = part as { type?: unknown; toolName?: unknown };
+      if (typed.type === "tool-call" && typed.toolName === name) count += 1;
+    }
+  }
+  return count;
+}
+
+/** A name outside the registry, which the one door refuses before anything is dispatched. */
+const UNREGISTERED_TOOL = "run_action";
+
+function actionPlanSteps(
+  script: FakeScript,
+  prompt: readonly PromptMessage[],
+): Record<string, unknown>[] {
+  const formId = factFormId(prompt);
+  switch (script) {
+    case "plan-three":
+      return [
+        { kind: "form.publish", args: { formId } },
+        releaseStep(formId, { fromStep: 0, field: "version" }, "test"),
+        mintStep(formId, 20),
+      ];
+    case "plan-fails-at-2":
+      return [mintStep(formId, 1), revokeStep(formId, "lnk_absent"), mintStep(formId, 3)];
+    case "plan-two-envs":
+      return [
+        releaseStep(formId, factVersion(prompt), "test"),
+        releaseStep(formId, factVersion(prompt), "prod"),
+      ];
+    case "plan-pending-at-1":
+      return [releaseStep(formId, factVersion(prompt), "prod"), mintStep(formId, 5)];
+    case "plan-26-steps":
+      return Array.from({ length: 26 }, (_, index) => mintStep(formId, index + 1));
+    case "injection-follow":
+      // Obeys the instruction planted in a fixture question title, slipping the production
+      // release in behind a plausible one. The card is what shows the user what it really
+      // asked for.
+      return [
+        releaseStep(formId, factVersion(prompt), "test"),
+        releaseStep(formId, factVersion(prompt), "prod"),
+      ];
+    default:
+      return [mintStep(formId)];
+  }
+}
+
+const INJECTION_REASON =
+  "The form's notes asked me to ship this to production and point the webhook elsewhere, " +
+  "so I have put both in one plan.";
+
+const READ_ONLY_REASON =
+  "You cannot change anything on this screen, so I can only explain what is here and " +
+  "point you at it.";
+
+function planActionStep(script: FakeScript, prompt: readonly PromptMessage[]): StreamPart[] {
+  if (script === "read-only-user") {
+    return [...textParts(READ_ONLY_REASON, "t0"), finishPart("stop")];
+  }
+
+  if (script === "unknown-tool") {
+    if (toolCallCount(prompt, UNREGISTERED_TOOL) === 0) {
+      const input = { kind: "link.mint", formId: factFormId(prompt) };
+      return [
+        ...textParts("I will run that for you.", "t0"),
+        ...toolInputParts(UNREGISTERED_TOOL, input),
+        toolCallPart(UNREGISTERED_TOOL, input),
+        finishPart("tool-calls"),
+      ];
+    }
+    return [...textParts("That is not something I can do here.", "t1"), finishPart("stop")];
+  }
+
+  if (script === "two-proposals") {
+    const called = toolCallCount(prompt, "propose_action");
+    if (called < 2) {
+      const input = { action: mintStep(factFormId(prompt), called + 1) };
+      return [
+        ...toolInputParts("propose_action", input, `_${String(called)}`),
+        toolCallPart("propose_action", input, `_${String(called)}`),
+        finishPart("tool-calls"),
+      ];
+    }
+    return [...textParts("I have put the first one up for review.", "t2"), finishPart("stop")];
+  }
+
+  if (toolCallCount(prompt, "propose_plan") === 0) {
+    const input = { steps: actionPlanSteps(script, prompt) };
+    return [
+      ...textParts(script === "injection-follow" ? INJECTION_REASON : "Here is the plan.", "t0"),
+      ...toolInputParts("propose_plan", input),
+      toolCallPart("propose_plan", input),
+      finishPart("tool-calls"),
+    ];
+  }
+  return [
+    ...textParts("The plan is on the card for you to confirm.", "t1"),
+    finishPart("stop"),
+  ];
+}
+
+/** The scripts that propose an action or a plan rather than a draft. */
+const ACTION_SCRIPTS: readonly FakeScript[] = [
+  "plan-three",
+  "plan-fails-at-2",
+  "plan-two-envs",
+  "plan-pending-at-1",
+  "two-proposals",
+  "plan-26-steps",
+  "unknown-tool",
+  "injection-follow",
+  "read-only-user",
+];
+
 /** The tool names this turn offered, which is the screen's own list. */
 function offeredTools(tools: unknown): readonly string[] {
   if (!Array.isArray(tools)) return [];
@@ -558,6 +764,8 @@ function planStep(
       finishPart("tool-calls"),
     ];
   }
+
+  if (ACTION_SCRIPTS.includes(script)) return planActionStep(script, prompt);
 
   const results = toolResults(prompt);
   if (script === "read-all") return planReadAllStep(prompt, results, offered);

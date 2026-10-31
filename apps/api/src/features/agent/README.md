@@ -144,11 +144,22 @@ A script is selected by a `#qcms-fake:<script>` directive in a user turn:
 `default`, `rogue-publish`, `rogue-erase`, `rogue-webhook`, `rogue-responses`,
 `refusal`, `provider-error`, `provider-rejected`, `tool-then-provider-error`,
 `tool-error-recovered`, `propose-questions`, `no-proposal`, `length`,
-`step-limit`, `narrate-then-tools`, `reasoning`, `read-all`.
+`step-limit`, `narrate-then-tools`, `reasoning`, `read-all`, and D0's action
+scripts: `plan-three`, `plan-fails-at-2`, `plan-two-envs`, `plan-pending-at-1`,
+`two-proposals`, `plan-26-steps`, `unknown-tool`, `injection-follow`,
+`read-only-user`.
 The `rogue-*` scripts
 exist because a hostile model is the threat the allowlist is for, and the only
 honest way to test a refusal is to have something actually attempt the forbidden
 call.
+
+The action scripts propose and run nothing: Confirm is the user's and lives on the
+card. Each reads the form, the version and the link it names out of the screen's
+own facts block, so a script names the fixture's rows rather than a canned id. A
+script whose kinds span two screens (`plan-three`, `plan-pending-at-1`) has no
+card to show, because the kinds offered in a turn are the current screen's; the
+three-route run those two describe is asserted in
+`provenance.integration.test.ts` against the real routes.
 
 `reasoning` emits reasoning parts carrying a sentinel string on **every** round,
 whatever `QCMS_AGENT_THINKING` says, so one script proves both halves of the
