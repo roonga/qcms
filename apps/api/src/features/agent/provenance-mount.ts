@@ -102,7 +102,8 @@ export function agentProvenance(deps: Deps): MiddlewareHandler<ApiEnv> {
     // No row means no declared environment source, so there is nothing to check a step
     // against. A route outside the action registry is the same refusal.
     if (policy === undefined) throw refusal("AGENT_PROPOSAL_ROUTE");
-    if (actionKindForRoute(c.req.method, policy.path) === undefined) {
+    const parsedBody = await body(c);
+    if (actionKindForRoute(c.req.method, policy.path, parsedBody) === undefined) {
       throw refusal("AGENT_PROPOSAL_ROUTE");
     }
 
@@ -119,7 +120,7 @@ export function agentProvenance(deps: Deps): MiddlewareHandler<ApiEnv> {
       path: policy.path,
       method: c.req.method,
       params: paramsFor(policy.path, path),
-      body: await body(c),
+      body: parsedBody,
       environment,
     };
 

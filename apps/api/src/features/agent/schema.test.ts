@@ -51,7 +51,9 @@ describe("one step's reported result", () => {
   });
 
   it("refuses a kind outside the registry", () => {
-    expect(refusalFor({ kind: "webhook.rotate", outcome: "done" })).toContain("webhook.rotate");
+    expect(refusalFor({ kind: "workspace.archive", outcome: "done" })).toContain(
+      "workspace.archive",
+    );
   });
 
   it("stays a closed object, so the published body rejects an undeclared key", () => {

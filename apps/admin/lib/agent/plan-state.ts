@@ -36,6 +36,12 @@ export interface AgentStepView {
   readonly message?: string;
   /** The allowlisted fields this step reported, which the next turn learns. */
   readonly result?: StepResultFields;
+  /**
+   * A value the screen itself shows once and cannot show again: a created or rotated
+   * webhook secret, a set of recovery codes. It stays on the card. Nothing writes it into
+   * the `action-result` turn, which carries the kind's allowlist and nothing else.
+   */
+  readonly revealed?: string;
 }
 
 export interface AgentCardView {
@@ -56,6 +62,8 @@ export interface AgentStepResult {
   readonly message?: string;
   /** Whatever the action returned; filtered to the kind's allowlist before it travels. */
   readonly result?: Readonly<Record<string, unknown>>;
+  /** A one-time reveal for the card alone, never for the next turn. */
+  readonly revealed?: string;
 }
 
 /** The states every step of a card shares, where the heading chip says it once. */
@@ -167,6 +175,7 @@ export function settleStep(
     state: result.outcome,
     ...(result.message === undefined ? {} : { message: result.message }),
     ...(kept === undefined ? {} : { result: kept }),
+    ...(result.revealed === undefined ? {} : { revealed: result.revealed }),
   };
   const steps = replace(card.steps, index, settled);
 

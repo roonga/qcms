@@ -147,6 +147,12 @@ describe("the screen registry", () => {
       "form.release",
       "link.mint",
       "link.revoke",
+      "webhook.create",
+      "webhook.rotate",
+      "webhook.retarget",
+      "webhook.reactivate",
+      "webhook.deactivate",
+      "webhook.redeliver",
       "response.erase",
       "response.unflag",
     ];

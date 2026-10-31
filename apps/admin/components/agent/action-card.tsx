@@ -370,6 +370,13 @@ export function ActionCard(props: ActionCardProps): React.ReactElement {
                 {view?.message === undefined ? null : (
                   <p className="qcms-acard__note">{view.message}</p>
                 )}
+                {/* Shown once, as the screen shows it. It reaches no later turn. */}
+                {view?.revealed === undefined ? null : (
+                  <p className="qcms-acard__reveal">
+                    <span>{t("agent.card.revealOnce")}</span>
+                    <code>{view.revealed}</code>
+                  </p>
+                )}
               </li>
             );
           })}

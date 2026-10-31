@@ -2169,6 +2169,26 @@ export const messages = {
   "agent.card.form.reopen.title": "Reopen {formId} in {environment}",
   "agent.card.form.reopen.consequence":
     "New sessions can start in {environment} again, on the version released there.",
+  "agent.card.webhook.create.title": "Add a delivery endpoint at {url}",
+  "agent.card.webhook.create.consequence":
+    "This form's events are delivered to that URL in {environment}, signed with a secret.",
+  "agent.card.webhook.create.secret":
+    "The signing secret is shown here once. It cannot be read again, and it never reaches the assistant.",
+  "agent.card.webhook.rotate.title": "Rotate the signing secret of endpoint {webhookId}",
+  "agent.card.webhook.rotate.consequence":
+    "Every consumer verifying with the old secret starts rejecting the moment the next delivery is signed.",
+  "agent.card.webhook.retarget.title": "Point endpoint {webhookId} at {url}",
+  "agent.card.webhook.retarget.consequence":
+    "Deliveries go to the new URL from now on. Nothing already in flight is re-aimed.",
+  "agent.card.webhook.reactivate.title": "Put endpoint {webhookId} back in service",
+  "agent.card.webhook.reactivate.consequence":
+    "Deliveries to that endpoint resume in {environment}.",
+  "agent.card.webhook.deactivate.title": "Stop delivering to endpoint {webhookId}",
+  "agent.card.webhook.deactivate.consequence":
+    "The endpoint and its delivery history stay. A delivery already in flight keeps its own retry state.",
+  "agent.card.webhook.redeliver.title": "Redeliver {deliveryId}",
+  "agent.card.webhook.redeliver.consequence":
+    "The delivery is reset to due-now and the worker attempts it again.",
   "agent.card.link.mint.title": "Mint {count} respondent links for {formId}",
   "agent.card.link.mint.consequence":
     "Each link opens this form for one respondent. The URLs are shown to you once and cannot be read again.",
@@ -2198,6 +2218,10 @@ export const messages = {
   "agent.card.arg.environment": "Environment",
   "agent.card.arg.fromEnvironment": "Promoted from",
   "agent.card.arg.linkId": "Link",
+  "agent.card.arg.url": "URL",
+  "agent.card.arg.active": "Delivering",
+  "agent.card.arg.webhookId": "Endpoint",
+  "agent.card.arg.deliveryId": "Delivery",
   "agent.card.arg.sessionId": "Session",
   "agent.card.arg.reason": "Reason",
   "agent.card.arg.challengeRequired": "Require a challenge before answering",
@@ -2230,6 +2254,7 @@ export const messages = {
   // The dialog's own cost in front of an act with no inverse, asked for on the card.
   "agent.card.band.irreversible":
     "This cannot be undone. Nothing here is archived and nothing can be restored.",
+  "agent.card.revealOnce": "Shown once, here only:",
   "agent.card.typed.label": "Type the session id to confirm",
   "agent.card.typed.hint": "Type {value} exactly.",
   "agent.card.confirm": "Confirm",

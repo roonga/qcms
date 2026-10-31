@@ -38,12 +38,19 @@ const ARGUMENT_ORDER: readonly string[] = [
   "minSubmitMs",
   "sessionId",
   "reason",
+  "webhookId",
+  "deliveryId",
+  "url",
+  "active",
 ];
 
 const MONO_ARGUMENTS: ReadonlySet<string> = new Set([
   "formId",
   "linkId",
   "sessionId",
+  "webhookId",
+  "deliveryId",
+  "url",
   "version",
   "expiresAt",
 ]);

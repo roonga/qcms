@@ -53,6 +53,12 @@ export const FAKE_SCRIPTS = [
   "propose-form-release",
   "propose-response-erase",
   "propose-response-unflag",
+  "propose-webhook-create",
+  "propose-webhook-rotate",
+  "propose-webhook-retarget",
+  "propose-webhook-reactivate",
+  "propose-webhook-deactivate",
+  "propose-webhook-redeliver",
 ] as const;
 
 /** Asserted present under `summary` and absent everywhere under `off`. */
@@ -554,6 +560,27 @@ function factSessionId(prompt: readonly PromptMessage[]): string {
 
 const FAKE_LINK_EXPIRY = "2026-12-31T23:59:59.000Z";
 
+const FAKE_ENDPOINT_URL = "https://hooks.example.test/qcms?channel=ops";
+
+/** The first endpoint and the first delivery the webhooks screen listed. */
+function factWebhookId(prompt: readonly PromptMessage[]): string {
+  return firstId(screenFacts(prompt)["webhooks"], "webhookId", "wh_absent");
+}
+
+function factDeliveryId(prompt: readonly PromptMessage[]): string {
+  return firstId(screenFacts(prompt)["deliveries"], "deliveryId", "dlv_absent");
+}
+
+function firstId(rows: unknown, member: string, fallback: string): string {
+  if (!Array.isArray(rows)) return fallback;
+  for (const entry of rows) {
+    if (typeof entry !== "object" || entry === null) continue;
+    const value = (entry as Record<string, unknown>)[member];
+    if (typeof value === "string") return value;
+  }
+  return fallback;
+}
+
 function mintStep(formId: string, count = 2): Record<string, unknown> {
   return {
     kind: "link.mint",
@@ -654,6 +681,34 @@ const SINGLE_ACTIONS: Readonly<
   "propose-response-unflag": (prompt) => ({
     kind: "response.unflag",
     args: { formId: factFormId(prompt), sessionId: factSessionId(prompt) },
+  }),
+  "propose-webhook-create": (prompt) => ({
+    kind: "webhook.create",
+    args: { formId: factFormId(prompt), url: FAKE_ENDPOINT_URL, active: true },
+  }),
+  "propose-webhook-rotate": (prompt) => ({
+    kind: "webhook.rotate",
+    args: { formId: factFormId(prompt), webhookId: factWebhookId(prompt) },
+  }),
+  "propose-webhook-retarget": (prompt) => ({
+    kind: "webhook.retarget",
+    args: {
+      formId: factFormId(prompt),
+      webhookId: factWebhookId(prompt),
+      url: FAKE_ENDPOINT_URL,
+    },
+  }),
+  "propose-webhook-reactivate": (prompt) => ({
+    kind: "webhook.reactivate",
+    args: { formId: factFormId(prompt), webhookId: factWebhookId(prompt) },
+  }),
+  "propose-webhook-deactivate": (prompt) => ({
+    kind: "webhook.deactivate",
+    args: { formId: factFormId(prompt), webhookId: factWebhookId(prompt) },
+  }),
+  "propose-webhook-redeliver": (prompt) => ({
+    kind: "webhook.redeliver",
+    args: { formId: factFormId(prompt), deliveryId: factDeliveryId(prompt) },
   }),
 };
 

@@ -104,6 +104,12 @@ describe("the kinds a screen offers", () => {
       "form.release",
       "link.mint",
       "link.revoke",
+      "webhook.create",
+      "webhook.rotate",
+      "webhook.retarget",
+      "webhook.reactivate",
+      "webhook.deactivate",
+      "webhook.redeliver",
     ];
     expect(kindsOn("/forms/[formId]/links", approver)).toEqual(subtree);
     expect(kindsOn("/forms/[formId]/responses", approver)).toEqual(subtree);

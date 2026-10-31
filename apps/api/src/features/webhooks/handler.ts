@@ -2,7 +2,7 @@
 // for storage; it is never logged and never returned on a read (SEC-6/SEC-8).
 
 import type { RouteHandler } from "@hono/zod-openapi";
-import type { MiddlewareHandler } from "hono";
+import type { Context, MiddlewareHandler } from "hono";
 import { type FormId, parseFormId } from "@roonga/qcms-core";
 import {
   deactivateWebhook,
@@ -19,6 +19,7 @@ import {
 import type { Executor } from "@roonga/qcms-db";
 
 import type { Deps } from "../../deps.js";
+import { agentStepSite, writeAgentStep } from "../agent/audit.js";
 import { ApiError } from "../../errors.js";
 import type { ApiEnv } from "../../openapi.js";
 import { twoPersonRuleApplies } from "../membership/two-person.js";
@@ -206,6 +207,17 @@ async function requireProposal(
   return proposal;
 }
 
+/**
+ * One confirmed step's SEC-17 row. The endpoint lives in an environment's database and the
+ * row in the control one, so the two cannot share a transaction; the row is written once
+ * the act has committed, which keeps the property that a failed step wrote none. A change
+ * the two-person rule holds pending is recorded too: it was confirmed and performed, and
+ * only its effect waits.
+ */
+async function recordStep(deps: Deps, c: Context<ApiEnv>, webhookId: string): Promise<void> {
+  await writeAgentStep(deps.databases.control, agentStepSite(c), webhookId, deps.clock.now());
+}
+
 export function makeCreateWebhookHandler(
   deps: Deps,
 ): RouteHandler<typeof createWebhookRoute, ApiEnv> {
@@ -235,6 +247,7 @@ export function makeCreateWebhookHandler(
         proposedBy: act.actor,
         workspaceId: act.workspaceId,
       });
+      await recordStep(deps, c, webhookId);
       return c.json(
         {
           pending: true as const,
@@ -253,6 +266,7 @@ export function makeCreateWebhookHandler(
       active: body.active,
     });
 
+    await recordStep(deps, c, row.webhookId);
     return c.json(
       {
         webhookId: row.webhookId,
@@ -327,6 +341,7 @@ export function makeUpdateWebhookHandler(
         proposedBy: act.actor,
         workspaceId: act.workspaceId,
       });
+      await recordStep(deps, c, webhookId);
       return c.json(
         {
           pending: true as const,
@@ -353,6 +368,7 @@ export function makeUpdateWebhookHandler(
     );
     if (updated === undefined) throw fail.webhookNotFound();
 
+    await recordStep(deps, c, updated.webhookId);
     return c.json(
       {
         webhookId: updated.webhookId,
@@ -393,6 +409,7 @@ export function makeDeactivateWebhookHandler(
         proposedBy: act.actor,
         workspaceId: act.workspaceId,
       });
+      await recordStep(deps, c, webhookId);
       return c.json({ pending: true as const, proposal: proposalBody(proposal, "whole") }, 202);
     }
 
@@ -404,6 +421,7 @@ export function makeDeactivateWebhookHandler(
     );
     if (row === undefined) throw fail.webhookNotFound();
 
+    await recordStep(deps, c, row.webhookId);
     return c.json(
       {
         webhookId: row.webhookId,

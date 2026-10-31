@@ -8,8 +8,18 @@ import {
   updateSettingsAction,
 } from "@/app/(shell)/forms/actions";
 import { eraseSessionAction, unflagResponseAction } from "@/app/(shell)/responses/actions";
+import {
+  createWebhookAction,
+  deactivateWebhookAction,
+  reactivateWebhookAction,
+  redeliverAction,
+  retargetWebhookAction,
+  rotateSecretAction,
+} from "@/app/(shell)/webhooks/actions";
 import { isErasureReason } from "@/lib/ops/erasure";
+import type { WebhookActionState } from "@/components/ops/webhook-config";
 import type { AgentStepResult } from "@/lib/agent/plan-state";
+import type { AgentPlanStep } from "@/lib/forms/assist-stream";
 import type { RunStepRequest } from "@/lib/agent/runner";
 import { t } from "@/lib/i18n/en";
 
@@ -60,6 +70,34 @@ function intakeRunner(action: "close" | "reopen"): StepRunner {
       result: { status: state.formStatus, environment: state.environment },
     };
   };
+}
+
+/**
+ * One endpoint change's answer. The two-person rule makes `pending` a third outcome rather
+ * than an error: the change is stored, the endpoint is as it was, and the plan ends there
+ * with the screen's own sentence about who confirms it.
+ */
+function endpointOutcome(
+  state: WebhookActionState,
+  step: AgentPlanStep,
+  webhookId: string,
+): AgentStepResult {
+  if (state.status === "error") {
+    return { outcome: "failed", message: text(state.message) };
+  }
+  // The secret exists in plaintext here and on the card, and nowhere else (SEC-6).
+  const revealed = state.revealed?.secret;
+  const result = { webhookId, environment: step.environment };
+  if (state.status === "pending") {
+    return {
+      outcome: "pending-approval",
+      // The screen's own sentence about who confirms it, word for word.
+      message: t("ops.proposals.stored", { environment: step.environment }),
+      result,
+      ...(revealed === undefined ? {} : { revealed }),
+    };
+  }
+  return { outcome: "done", result, ...(revealed === undefined ? {} : { revealed }) };
 }
 
 const RUNNERS: Readonly<Record<string, StepRunner>> = {
@@ -162,6 +200,71 @@ const RUNNERS: Readonly<Record<string, StepRunner>> = {
         sessionId: text(args["sessionId"]),
         environment: step.environment,
         released: state.released === true,
+      },
+    };
+  },
+  "webhook.create": async ({ step, index, args, agentProposal }) => {
+    const state = await createWebhookAction(
+      text(args["formId"]),
+      step.environment,
+      { url: text(args["url"]), active: args["active"] === true },
+      proposalRef(agentProposal, index),
+    );
+    return endpointOutcome(state, step, text(state.revealed?.webhookId));
+  },
+  "webhook.rotate": async ({ step, index, args, agentProposal }) => {
+    const state = await rotateSecretAction(
+      text(args["formId"]),
+      step.environment,
+      text(args["webhookId"]),
+      proposalRef(agentProposal, index),
+    );
+    return endpointOutcome(state, step, text(args["webhookId"]));
+  },
+  "webhook.retarget": async ({ step, index, args, agentProposal }) => {
+    const state = await retargetWebhookAction(
+      text(args["formId"]),
+      step.environment,
+      text(args["webhookId"]),
+      text(args["url"]),
+      proposalRef(agentProposal, index),
+    );
+    return endpointOutcome(state, step, text(args["webhookId"]));
+  },
+  "webhook.reactivate": async ({ step, index, args, agentProposal }) => {
+    const state = await reactivateWebhookAction(
+      text(args["formId"]),
+      step.environment,
+      text(args["webhookId"]),
+      proposalRef(agentProposal, index),
+    );
+    return endpointOutcome(state, step, text(args["webhookId"]));
+  },
+  "webhook.deactivate": async ({ step, index, args, agentProposal }) => {
+    const state = await deactivateWebhookAction(
+      text(args["formId"]),
+      step.environment,
+      text(args["webhookId"]),
+      proposalRef(agentProposal, index),
+    );
+    return endpointOutcome(state, step, text(args["webhookId"]));
+  },
+  "webhook.redeliver": async ({ step, index, args, agentProposal }) => {
+    const state = await redeliverAction(
+      step.environment,
+      text(args["formId"]),
+      text(args["deliveryId"]),
+      proposalRef(agentProposal, index),
+    );
+    if (state.status !== "done") {
+      return { outcome: "failed", message: text(state.message) };
+    }
+    return {
+      outcome: "done",
+      result: {
+        deliveryId: text(args["deliveryId"]),
+        environment: step.environment,
+        queued: state.queued ?? 0,
       },
     };
   },
