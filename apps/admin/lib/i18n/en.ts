@@ -1576,6 +1576,11 @@ export const messages = {
   // them, and issue #536 composes each screen's browser-tab title from them, so all six
   // are still one place. Only the strip's own landmark label went with `form-tabs.tsx`.
   //
+  // "Versions" since issue #1197, which merged task 065's release screen into this one:
+  // the screen now answers what exists and what is serving where, and "Version history"
+  // named only the first half. The paragraph below is issue 679's reasoning for the name it
+  // replaced, kept because the rule it argues still decides this key.
+  //
   // "Version history" rather than "History" (issue 679). Three things pushed the same way
   // and none of them was consistency for its own sake. The screen's approved drawing names
   // it that (`plan/admin-shell-poc/preview-versions-poc.html`, the `<h1>` at the head of
@@ -2116,7 +2121,7 @@ export const messages = {
   "agent.context.form.preview": "Form {subject}: draft preview",
   "agent.context.form.versions": "Form {subject}: versions",
   "agent.context.form.version": "Form {subject}: version {version}",
-  "agent.context.form.releases": "Form {subject}: releases",
+  "agent.context.form.publish": "Form {subject}: publish",
   "agent.context.form.links": "Form {subject}: links",
   "agent.context.form.webhooks": "Form {subject}: webhooks, no payloads",
   "agent.context.form.responses": "Form {subject}: response metadata, no answers",

@@ -57,7 +57,7 @@ describe("the form-subtree rail's contents", () => {
       "rules",
       "preview",
       "versions",
-      "releases",
+      "publish",
       "links",
       "responses",
       "webhooks",
@@ -84,11 +84,11 @@ describe("the form-subtree rail's contents", () => {
       // nested under it, which is where `rules-screen-poc.html` draws it.
       "Rules",
       "Preview",
-      // "Version history" since issue 679, which named the version list's screen and so,
-      // by §7's rule that the rail carries the screen's own name, named this row too.
-      "Version history",
-      // Task 065's screen, named the same way: the rail carries the screen's own name.
-      "Releases",
+      // "Versions" since issue #1197 merged the release screen into it, by §7's rule that
+      // the rail carries the screen's own name.
+      "Versions",
+      // The publish wizard, named the same way: the rail carries the screen's own name.
+      "Publish",
       "Links",
       "Responses",
       "Webhooks",
@@ -102,7 +102,7 @@ describe("the form-subtree rail's contents", () => {
       "/forms/frm_life/rules",
       "/forms/frm_life/preview",
       "/forms/frm_life/versions",
-      "/forms/frm_life/releases",
+      "/forms/frm_life/publish",
       "/forms/frm_life/links",
       "/forms/frm_life/responses",
       "/forms/frm_life/webhooks",

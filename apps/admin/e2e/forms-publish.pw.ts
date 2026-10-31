@@ -383,7 +383,7 @@ test("history renders the stored compiled document and never previews (exit crit
   // the right one. Issue #537 removed the ambiguity at its source - an embedded document's
   // headings are demoted a level, so the chrome's is the only `<h1>` on either route - and
   // the assertion below now says so directly.
-  await expect(page.locator("h1").first()).toHaveText("Version history");
+  await expect(page.locator("h1").first()).toHaveText("Versions");
   await expect(
     page.locator("h1").first(),
     "the form's name is the rail Header's job",

@@ -22,7 +22,7 @@ const CHIPS: Readonly<Record<AgentScreen, MessageKey>> = {
   "/forms/[formId]/preview": "agent.context.form.preview",
   "/forms/[formId]/versions": "agent.context.form.versions",
   "/forms/[formId]/versions/[version]": "agent.context.form.version",
-  "/forms/[formId]/releases": "agent.context.form.releases",
+  "/forms/[formId]/publish": "agent.context.form.publish",
   "/forms/[formId]/links": "agent.context.form.links",
   "/forms/[formId]/webhooks": "agent.context.form.webhooks",
   "/forms/[formId]/responses": "agent.context.form.responses",

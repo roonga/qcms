@@ -99,7 +99,7 @@ const SLUG = "Life insurance";
 const SECTIONS = [
   ["rules", "Rules"],
   ["preview", "Preview"],
-  ["versions", "Version history"],
+  ["versions", "Versions"],
   ["links", "Links"],
   ["responses", "Responses"],
   ["webhooks", "Webhooks"],

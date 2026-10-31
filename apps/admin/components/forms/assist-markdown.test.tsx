@@ -112,7 +112,7 @@ describe("AssistMarkdown, the safe subset", () => {
     "/forms",
     "/forms/new",
     "/forms/frm_x",
-    "/forms/frm_x/releases",
+    "/forms/frm_x/publish",
     "/forms/frm_x/responses/ses_y",
     "/questions/q_name",
     "/settings",
