@@ -2160,6 +2160,15 @@ export const messages = {
   "agent.card.form.release.title": "Release version {version} of {formId} to {environment}",
   "agent.card.form.release.consequence":
     "Respondents starting from now get this version in {environment}.",
+  "agent.card.form.settings.title": "Change the form settings of {formId}",
+  "agent.card.form.settings.consequence":
+    "Abuse controls for this form. They apply the next time it is published.",
+  "agent.card.form.close.title": "Close {formId} to new sessions in {environment}",
+  "agent.card.form.close.consequence":
+    "No one can start this form in {environment} after it closes. Every other environment is unaffected: a test run keeps going if one is under way. Sessions already under way here keep going too and finish on the version they pinned (R1); their answers are unaffected.",
+  "agent.card.form.reopen.title": "Reopen {formId} in {environment}",
+  "agent.card.form.reopen.consequence":
+    "New sessions can start in {environment} again, on the version released there.",
   "agent.card.link.mint.title": "Mint {count} respondent links for {formId}",
   "agent.card.link.mint.consequence":
     "Each link opens this form for one respondent. The URLs are shown to you once and cannot be read again.",
@@ -2181,6 +2190,9 @@ export const messages = {
   "agent.card.arg.environment": "Environment",
   "agent.card.arg.fromEnvironment": "Promoted from",
   "agent.card.arg.linkId": "Link",
+  "agent.card.arg.challengeRequired": "Require a challenge before answering",
+  "agent.card.arg.minSubmitMs": "Minimum time before a submit is accepted (milliseconds)",
+  "agent.card.arg.unset": "The deployment's own setting",
   "agent.card.arg.yes": "Yes",
   "agent.card.arg.no": "No",
 

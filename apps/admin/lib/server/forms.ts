@@ -25,6 +25,7 @@ import type {
 } from "../forms/types.ts";
 import type { QuestionListItem } from "../questions/types.ts";
 
+import { proposalHeaders, type AgentProposalRef } from "./agent-proposal.ts";
 import { adminApiFetch } from "./api.ts";
 import type { AssistParamsRelay, AssistTurnRelay } from "./assist-request.ts";
 import type { ApiResult } from "./api-result.ts";
@@ -330,11 +331,13 @@ export async function updateSettings(
   session: AdminSession,
   formId: string,
   patch: { readonly challengeRequired?: boolean; readonly minSubmitMs?: number | null },
+  proposal?: AgentProposalRef,
 ): Promise<ApiResult<{ readonly settings: FormSettings; readonly challengeEnforceable: boolean }>> {
   const result = await read<Record<string, unknown>>(
     await adminApiFetch(session, `/forms/${encodeURIComponent(formId)}/settings`, {
       method: "PATCH",
       body: patch,
+      headers: proposalHeaders(proposal),
     }),
   );
   if (!result.ok) return result;
@@ -567,11 +570,13 @@ export async function setFormStatus(
   formId: string,
   action: "close" | "reopen",
   environment: string,
+  proposal?: AgentProposalRef,
 ): Promise<ApiResult<{ readonly status: "open" | "closed"; readonly environment: string }>> {
   const result = await read<{ status?: unknown; environment?: unknown }>(
     await adminApiFetch(session, `/forms/${encodeURIComponent(formId)}/${action}`, {
       method: "POST",
       body: { environment },
+      headers: proposalHeaders(proposal),
     }),
   );
   if (!result.ok) return result;

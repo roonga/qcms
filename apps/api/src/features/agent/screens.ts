@@ -89,7 +89,12 @@ function screen(
 export const SCREENS: Readonly<Record<ScreenId, ScreenDef>> = Object.freeze({
   "/forms": screen(authoringContexts.formsList),
   "/forms/new": screen(authoringContexts.newForm),
-  "/forms/[formId]": screen(authoringContexts.builder, DRAFT_TOOLS, ["form.publish"]),
+  "/forms/[formId]": screen(authoringContexts.builder, DRAFT_TOOLS, [
+    "form.publish",
+    "form.settings",
+    "form.close",
+    "form.reopen",
+  ]),
   "/forms/[formId]/rules": screen(authoringContexts.rules),
   "/forms/[formId]/preview": screen(authoringContexts.preview, ["project_draft"]),
   "/forms/[formId]/versions": screen(authoringContexts.versions),

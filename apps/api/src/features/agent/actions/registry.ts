@@ -3,11 +3,20 @@
  * at the propose tool, and nothing can graft one on at runtime.
  */
 
+import { closeForm, reopenForm, updateFormSettings } from "./forms.js";
 import { mintLinks, revokeLink } from "./links.js";
 import { publishForm, releaseVersion } from "./releases.js";
 import type { ActionKindDef } from "./types.js";
 
-const DEFS: readonly ActionKindDef[] = [publishForm, releaseVersion, mintLinks, revokeLink];
+const DEFS: readonly ActionKindDef[] = [
+  publishForm,
+  releaseVersion,
+  updateFormSettings,
+  closeForm,
+  reopenForm,
+  mintLinks,
+  revokeLink,
+];
 
 export const ACTION_KINDS: Readonly<Record<string, ActionKindDef>> = Object.freeze(
   Object.fromEntries(DEFS.map((def) => [def.kind, def])),

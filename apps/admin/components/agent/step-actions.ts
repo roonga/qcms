@@ -1,6 +1,11 @@
 "use client";
 
-import { mintLinksAction, revokeLinkAction } from "@/app/(shell)/forms/actions";
+import {
+  mintLinksAction,
+  revokeLinkAction,
+  setFormStatusAction,
+  updateSettingsAction,
+} from "@/app/(shell)/forms/actions";
 import type { AgentStepResult } from "@/lib/agent/plan-state";
 import type { RunStepRequest } from "@/lib/agent/runner";
 import { t } from "@/lib/i18n/en";
@@ -22,7 +27,65 @@ function count(value: unknown): number {
 
 type StepRunner = (request: RunStepRequest) => Promise<AgentStepResult>;
 
+function proposalRef(
+  agentProposal: string | undefined,
+  index: number,
+): { agentProposal: string; step: number } | undefined {
+  return agentProposal === undefined ? undefined : { agentProposal, step: index };
+}
+
+/** Close and reopen are one screen control and one route pair, so they share a runner. */
+function intakeRunner(action: "close" | "reopen"): StepRunner {
+  return async ({ step, index, args, agentProposal }) => {
+    const state = await setFormStatusAction(
+      text(args["formId"]),
+      step.environment,
+      action,
+      proposalRef(agentProposal, index),
+    );
+    if (state.status !== "changed") {
+      return { outcome: "failed", message: text(state.message) };
+    }
+    return {
+      outcome: "done",
+      result: { status: state.formStatus, environment: state.environment },
+    };
+  };
+}
+
 const RUNNERS: Readonly<Record<string, StepRunner>> = {
+  "form.settings": async ({ index, args, agentProposal }) => {
+    const state = await updateSettingsAction(
+      text(args["formId"]),
+      {
+        ...(typeof args["challengeRequired"] === "boolean"
+          ? { challengeRequired: args["challengeRequired"] }
+          : {}),
+        ...(typeof args["minSubmitMs"] === "number" || args["minSubmitMs"] === null
+          ? { minSubmitMs: args["minSubmitMs"] as number | null }
+          : {}),
+      },
+      proposalRef(agentProposal, index),
+    );
+    const settings = state.settings;
+    if (state.status !== "saved" || settings === undefined) {
+      return { outcome: "failed", message: text(state.message) };
+    }
+    return {
+      outcome: "done",
+      // `minSubmitMs: null` is the deployment's own floor, so it is reported as absent
+      // rather than as a number nobody set.
+      result: {
+        challengeRequired: settings.challengeRequired,
+        ...(typeof settings.minSubmitMs === "number"
+          ? { minSubmitMs: settings.minSubmitMs }
+          : {}),
+        challengeEnforceable: state.challengeEnforceable === true,
+      },
+    };
+  },
+  "form.close": intakeRunner("close"),
+  "form.reopen": intakeRunner("reopen"),
   "link.mint": async ({ step, index, args, agentProposal }) => {
     const state = await mintLinksAction(
       text(args["formId"]),
@@ -32,7 +95,7 @@ const RUNNERS: Readonly<Record<string, StepRunner>> = {
         oneTime: args["oneTime"] === true,
         count: count(args["count"]),
       },
-      agentProposal === undefined ? undefined : { agentProposal, step: index },
+      proposalRef(agentProposal, index),
     );
     if (state.status !== "minted") {
       return { outcome: "failed", message: text(state.message) };
@@ -54,7 +117,7 @@ const RUNNERS: Readonly<Record<string, StepRunner>> = {
       text(args["formId"]),
       step.environment,
       text(args["linkId"]),
-      agentProposal === undefined ? undefined : { agentProposal, step: index },
+      proposalRef(agentProposal, index),
     );
     if (state.status !== "revoked") {
       return { outcome: "failed", message: text(state.message) };

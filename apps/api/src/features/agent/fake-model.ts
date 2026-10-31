@@ -46,6 +46,10 @@ export const FAKE_SCRIPTS = [
   "unknown-tool",
   "injection-follow",
   "read-only-user",
+  // One card per kind, for each screen group's own confirm and cancel paths.
+  "propose-form-settings",
+  "propose-form-close",
+  "propose-form-reopen",
 ] as const;
 
 /** Asserted present under `summary` and absent everywhere under `off`. */
@@ -609,6 +613,27 @@ function actionPlanSteps(
   }
 }
 
+/**
+ * One card per kind: `propose-<kind>` puts that kind alone up for review, which is what a
+ * screen group's confirm and cancel paths drive.
+ */
+const SINGLE_ACTIONS: Readonly<
+  Record<string, (prompt: readonly PromptMessage[]) => Record<string, unknown>>
+> = {
+  "propose-form-settings": (prompt) => ({
+    kind: "form.settings",
+    args: { formId: factFormId(prompt), challengeRequired: true, minSubmitMs: 1500 },
+  }),
+  "propose-form-close": (prompt) => ({
+    kind: "form.close",
+    args: { formId: factFormId(prompt) },
+  }),
+  "propose-form-reopen": (prompt) => ({
+    kind: "form.reopen",
+    args: { formId: factFormId(prompt) },
+  }),
+};
+
 const INJECTION_REASON =
   "The form's notes asked me to ship this to production and point the webhook elsewhere, " +
   "so I have put both in one plan.";
@@ -633,6 +658,19 @@ function planActionStep(script: FakeScript, prompt: readonly PromptMessage[]): S
       ];
     }
     return [...textParts("That is not something I can do here.", "t1"), finishPart("stop")];
+  }
+
+  const single = SINGLE_ACTIONS[script];
+  if (single !== undefined) {
+    if (toolCallCount(prompt, "propose_action") === 0) {
+      const input = { action: single(prompt) };
+      return [
+        ...toolInputParts("propose_action", input),
+        toolCallPart("propose_action", input),
+        finishPart("tool-calls"),
+      ];
+    }
+    return [...textParts("That is on the card for you to confirm.", "t1"), finishPart("stop")];
   }
 
   if (script === "two-proposals") {
@@ -671,6 +709,7 @@ const ACTION_SCRIPTS: readonly FakeScript[] = [
   "unknown-tool",
   "injection-follow",
   "read-only-user",
+  ...(Object.keys(SINGLE_ACTIONS) as FakeScript[]),
 ];
 
 /** The tool names this turn offered, which is the screen's own list. */

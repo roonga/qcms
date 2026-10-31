@@ -75,10 +75,9 @@ describe("the result allowlist, per kind (criterion 8)", () => {
     }
   });
 
-  it("declares a non-empty allowlist and at least one referenceable field for every kind", () => {
+  it("declares a non-empty allowlist for every kind", () => {
     for (const def of Object.values(ACTION_KINDS)) {
       expect(def.resultAllowlist.length, def.kind).toBeGreaterThan(0);
-      expect(def.references.length, def.kind).toBeGreaterThan(0);
     }
   });
 
@@ -90,6 +89,12 @@ describe("the result allowlist, per kind (criterion 8)", () => {
 
   it("keeps the environment off `form.release`'s referenceable fields", () => {
     expect(actionKind("form.release")?.references).toEqual(["version"]);
+  });
+
+  it("names no referenceable field on a kind whose result nothing can stand in for", () => {
+    for (const kind of ["form.settings", "form.close", "form.reopen"]) {
+      expect(actionKind(kind)?.references, kind).toEqual([]);
+    }
   });
 
   it("takes `link.mint`'s expiry as a full instant, which is what the request body carries", () => {

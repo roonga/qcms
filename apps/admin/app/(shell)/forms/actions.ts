@@ -309,6 +309,7 @@ interface SettingsPatch {
 export async function updateSettingsAction(
   formId: string,
   patch: SettingsPatch,
+  proposal?: AgentProposalRef,
 ): Promise<SettingsState> {
   const session = await requireAdminSession();
   const outgoing: SettingsPatch = {
@@ -321,7 +322,7 @@ export async function updateSettingsAction(
     return { status: "error", message: messageForFormCode("INVALID_FORM_SETTINGS") };
   }
 
-  const result = await updateSettings(session, formId, outgoing);
+  const result = await updateSettings(session, formId, outgoing, proposal);
   if (!result.ok) return { status: "error", message: result.message };
   revalidatePath(`/forms/${formId}`);
   return {
@@ -617,11 +618,12 @@ export async function setFormStatusAction(
   formId: string,
   shown: string | undefined,
   action: "close" | "reopen",
+  proposal?: AgentProposalRef,
 ): Promise<FormStatusState> {
   const session = await requireAdminSession();
   const check = await confirmShownEnvironment(session, shown);
   if (!check.ok) return { status: "error", message: check.message };
-  const result = await setFormStatus(session, formId, action, check.environment);
+  const result = await setFormStatus(session, formId, action, check.environment, proposal);
   if (!result.ok) return { status: "error", message: result.message };
   revalidatePath("/forms");
   // "layout", for the reason `saveDraftAction` records: closing a form changes the header

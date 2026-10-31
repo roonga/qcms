@@ -34,6 +34,8 @@ const ARGUMENT_ORDER: readonly string[] = [
   "count",
   "expiresAt",
   "oneTime",
+  "challengeRequired",
+  "minSubmitMs",
 ];
 
 const MONO_ARGUMENTS: ReadonlySet<string> = new Set(["formId", "linkId", "version", "expiresAt"]);
@@ -65,6 +67,8 @@ function argumentLabel(name: string): string {
 }
 
 function scalarText(value: unknown): string {
+  // `null` is a value rather than an omission: it means the deployment's own setting.
+  if (value === null) return t("agent.card.arg.unset");
   if (typeof value === "boolean") return t(value ? "agent.card.arg.yes" : "agent.card.arg.no");
   if (typeof value === "string" || typeof value === "number") return String(value);
   // Never reached for a D0 kind, whose arguments are all scalars; written out rather than

@@ -95,8 +95,13 @@ describe("the screen registry", () => {
     }
   });
 
-  it("carries D0's kinds on the builder, the releases screen and the links screen", () => {
-    expect(SCREENS["/forms/[formId]"].actionKinds).toEqual(["form.publish"]);
+  it("carries each screen's own kinds on the builder, the releases screen and the links screen", () => {
+    expect(SCREENS["/forms/[formId]"].actionKinds).toEqual([
+      "form.publish",
+      "form.settings",
+      "form.close",
+      "form.reopen",
+    ]);
     expect(SCREENS["/forms/[formId]/publish"].actionKinds).toEqual(["form.release"]);
     expect(SCREENS["/forms/[formId]/links"].actionKinds).toEqual(["link.mint", "link.revoke"]);
   });
@@ -134,7 +139,15 @@ describe("the screen registry", () => {
   });
 
   it("offers the whole form subtree's kinds on every form-scoped screen", () => {
-    const subtree = ["form.publish", "form.release", "link.mint", "link.revoke"];
+    const subtree = [
+      "form.publish",
+      "form.settings",
+      "form.close",
+      "form.reopen",
+      "form.release",
+      "link.mint",
+      "link.revoke",
+    ];
     for (const id of SCREEN_IDS.filter(isFormSubtreeScreen)) {
       expect(offerableActionKinds(id), id).toEqual(subtree);
     }

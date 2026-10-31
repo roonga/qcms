@@ -96,7 +96,15 @@ describe("the kinds a screen offers", () => {
     // Both roles, because publishing is the editor's cell and a production release is the
     // approver's.
     const approver = [editorIn(["test", "prod"]), approverIn(["test", "prod"])];
-    const subtree = ["form.publish", "form.release", "link.mint", "link.revoke"];
+    const subtree = [
+      "form.publish",
+      "form.settings",
+      "form.close",
+      "form.reopen",
+      "form.release",
+      "link.mint",
+      "link.revoke",
+    ];
     expect(kindsOn("/forms/[formId]/links", approver)).toEqual(subtree);
     expect(kindsOn("/forms/[formId]/responses", approver)).toEqual(subtree);
     expect(kindsOn("/forms/[formId]", approver)).toEqual(subtree);
