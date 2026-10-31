@@ -2,6 +2,7 @@
 
 import { createContext, useContext, useMemo, useRef, useState, type ReactNode } from "react";
 
+import type { ActionResultTurn } from "./plan-state";
 import { conversationSubject, screenForPath } from "./screens";
 
 /**
@@ -15,19 +16,36 @@ import { conversationSubject, screenForPath } from "./screens";
  * user the last user's conversation (Q15).
  */
 
-export interface AgentTurnRecord {
+export interface AgentProseTurn {
   /** `result` is the builder panel's own record of a card's outcome, never a model turn. */
   readonly role: "user" | "assistant" | "result";
   readonly content: string;
 }
 
-/** The history a turn replays: the prose, without the panel's own outcome lines. */
-export function promptTurns(
-  turns: readonly AgentTurnRecord[],
-): readonly { readonly role: "user" | "assistant"; readonly content: string }[] {
-  return turns.flatMap((turn) =>
-    turn.role === "result" ? [] : [{ role: turn.role, content: turn.content }],
-  );
+/**
+ * One confirmed card's report (083 D0, section 5.3). The admin writes it from the card's
+ * own fold and each kind's result allowlist, so it carries no model text, no content and
+ * no secret, and the API renders it to the model from these fields rather than from prose.
+ */
+export type AgentTurnRecord = AgentProseTurn | ActionResultTurn;
+
+export function isProseTurn(turn: AgentTurnRecord): turn is AgentProseTurn {
+  return turn.role !== "action-result";
+}
+
+/**
+ * The history a turn replays: the prose without the panel's own outcome lines, and every
+ * `action-result` turn as the structured record it is.
+ */
+export type PromptTurn =
+  | { readonly role: "user" | "assistant"; readonly content: string }
+  | ActionResultTurn;
+
+export function promptTurns(turns: readonly AgentTurnRecord[]): readonly PromptTurn[] {
+  return turns.flatMap((turn): readonly PromptTurn[] => {
+    if (!isProseTurn(turn)) return [turn];
+    return turn.role === "result" ? [] : [{ role: turn.role, content: turn.content }];
+  });
 }
 
 export interface ConversationHandle {

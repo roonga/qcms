@@ -1,5 +1,6 @@
 import type { MintedLink, SecureLink } from "../forms/types.ts";
 
+import { proposalHeaders, type AgentProposalRef } from "./agent-proposal.ts";
 import { adminApiFetch } from "./api.ts";
 import type { ApiResult } from "./api-result.ts";
 import { readResult } from "./api-result.ts";
@@ -55,11 +56,14 @@ export async function mintLinks(
     readonly oneTime: boolean;
     readonly count: number;
   },
+  /** The confirmed agent step this mint is, when it is one (083 D0). */
+  proposal?: AgentProposalRef,
 ): Promise<ApiResult<readonly MintedLink[]>> {
   const result = await readResult<{ links?: unknown }>(
     await adminApiFetch(session, `/forms/${encodeURIComponent(formId)}/links`, {
       method: "POST",
       body: request,
+      headers: proposalHeaders(proposal),
     }),
   );
   if (!result.ok) return result;
@@ -93,10 +97,11 @@ export async function revokeLink(
   session: AdminSession,
   formId: string,
   linkId: string,
+  proposal?: AgentProposalRef,
 ): Promise<ApiResult<{ readonly linkId: string; readonly revokedAt: string }>> {
   const path: `/${string}` = `/forms/${encodeURIComponent(formId)}/links/${encodeURIComponent(linkId)}/revoke`;
   const result = await readResult<Record<string, unknown>>(
-    await adminApiFetch(session, path, { method: "POST" }),
+    await adminApiFetch(session, path, { method: "POST", headers: proposalHeaders(proposal) }),
   );
   if (!result.ok) return result;
   return {

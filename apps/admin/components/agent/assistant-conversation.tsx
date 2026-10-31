@@ -7,9 +7,25 @@ import { AssistMarkdown } from "@/components/forms/assist-markdown";
 import { AssistPanel } from "@/components/forms/assist-panel";
 import { Button } from "@/components/kit";
 import type { BuilderAssistSnapshot } from "@/lib/agent/builder-assist-bridge";
-import { promptTurns, type ConversationHandle } from "@/lib/agent/conversation";
+import { isProseTurn, promptTurns, type ConversationHandle } from "@/lib/agent/conversation";
 import type { ResolvedScreen } from "@/lib/agent/screens";
-import { readAssistEvents } from "@/lib/forms/assist-stream";
+import {
+  actionResultTurn,
+  cancelCard,
+  initialCard,
+  requestStop,
+  startRun,
+  type AgentCardView,
+} from "@/lib/agent/plan-state";
+import { runPlan } from "@/lib/agent/runner";
+import { readAssistEvents, type AgentProposal } from "@/lib/forms/assist-stream";
+
+import { ActionCard } from "./action-card";
+import { runStepAction } from "./step-actions";
+
+/** The reason is clamped before it reaches the card, and rendered as text there. */
+const MAX_REASON = 280;
+
 import {
   applyTurnEvent,
   EMPTY_TURN,
@@ -94,6 +110,11 @@ function ScreenConversation({
   const [value, setValue] = useState("");
   const [live, setLive] = useState<AssistantTurnView | undefined>(undefined);
   const [failed, setFailed] = useState(false);
+  // One card or one plan per turn (P1), waiting on the user's Confirm. Nothing runs until
+  // they press it, and nothing about it is sent back until it settles.
+  const [proposal, setProposal] = useState<AgentProposal | undefined>(undefined);
+  const [reason, setReason] = useState("");
+  const [card, setCard] = useState<AgentCardView | undefined>(undefined);
   const abortRef = useRef<AbortController | null>(null);
   const stoppedRef = useRef(false);
 
@@ -103,6 +124,29 @@ function ScreenConversation({
     },
     [],
   );
+
+  /**
+   * A settled card leaves one `action-result` turn in the conversation, written from the
+   * card's own fold and the kinds' allowlists: no model text and no content re-enters it.
+   */
+  const settle = (plan: AgentProposal, settled: AgentCardView): void => {
+    setCard(settled);
+    const turn = actionResultTurn(plan, settled);
+    if (turn !== undefined) conversation.append([turn]);
+  };
+
+  const confirmCard = async (plan: AgentProposal, from: AgentCardView): Promise<void> => {
+    const started = startRun(from);
+    setCard(started);
+    const settled = await runPlan({
+      proposal: plan,
+      card: started,
+      runStep: runStepAction,
+      onChange: setCard,
+      now: () => new Date(),
+    });
+    settle(plan, settled);
+  };
 
   const send = async (): Promise<void> => {
     const message = value.trim();
@@ -138,12 +182,19 @@ function ScreenConversation({
       for await (const event of readAssistEvents(response.body)) {
         turn = applyTurnEvent(turn, event);
         setLive(turn);
+        if (event.type === "action" || event.type === "plan") {
+          setProposal(event.proposal);
+          setCard(initialCard(event.proposal, Date.now()));
+          onAnnounce(t("agent.launcher.toReview.one"));
+        }
         const step = runningStep(turn);
         if (step !== undefined) onAnnounce(t(step.label));
       }
       const ended = finishTurn(turn);
       const text = turnText(ended).trim();
       if (text !== "") conversation.append([{ role: "assistant", content: text }]);
+      // The model's words, and the one place they reach the card.
+      setReason(text.slice(0, MAX_REASON));
       onAnnounce(stoppedRef.current ? t("agent.announce.stopped") : t("agent.announce.done"));
     } catch {
       if (!stoppedRef.current) {
@@ -160,20 +211,38 @@ function ScreenConversation({
   return (
     <div className="qcms-assistant__conversation">
       <ol className="qcms-assistant__turns" data-testid="qcms-assistant-turns">
-        {conversation.turns.map((turn, index) => (
-          <li
-            key={`${turn.role}-${String(index)}`}
-            className="qcms-assistant__turn"
-            data-role={turn.role}
-          >
-            {turn.role === "assistant" && <AssistMark size={20} />}
-            <AssistMarkdown text={turn.content} />
-          </li>
-        ))}
+        {conversation.turns.map((turn, index) =>
+          // An `action-result` turn is the card's own record and is already on screen as
+          // the card's result line, so it is history for the model and not a second turn.
+          isProseTurn(turn) ? (
+            <li
+              key={`${turn.role}-${String(index)}`}
+              className="qcms-assistant__turn"
+              data-role={turn.role}
+            >
+              {turn.role === "assistant" && <AssistMark size={20} />}
+              <AssistMarkdown text={turn.content} />
+            </li>
+          ) : null,
+        )}
         {live !== undefined && (
           <li className="qcms-assistant__turn" data-role="assistant" aria-busy="true">
             <AssistMark size={20} working />
             <AssistMarkdown text={turnText(live)} />
+          </li>
+        )}
+        {/* The card is the last segment of the turn that proposed it, and the only place
+            an action can run. */}
+        {proposal !== undefined && card !== undefined && (
+          <li className="qcms-assistant__turn" data-role="assistant">
+            <ActionCard
+              proposal={proposal}
+              card={card}
+              reason={reason}
+              onConfirm={() => void confirmCard(proposal, card)}
+              onCancel={() => settle(proposal, cancelCard(card, new Date().toISOString()))}
+              onStop={() => setCard(requestStop(card))}
+            />
           </li>
         )}
       </ol>

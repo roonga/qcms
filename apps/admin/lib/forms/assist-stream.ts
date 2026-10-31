@@ -42,6 +42,42 @@ export interface AssistProposal {
 }
 
 /**
+ * One step of a proposed action or plan, as the `action` and `plan` events carry it
+ * (083 D0). `args` stays an opaque map: the card renders each argument from the kind and
+ * the catalog, and an argument may be a `{ fromStep, field }` reference the card resolves
+ * from the earlier step's own returned state.
+ */
+export interface AgentCardTemplate {
+  readonly titleKey: string;
+  readonly consequenceKeys: readonly string[];
+  /** The heading-row control the proposal marker sits on, or absent for none. */
+  readonly headingControl?: string;
+}
+
+export interface AgentPlanStep {
+  readonly kind: string;
+  /** The screen whose own server action Confirm calls for this step. */
+  readonly screen: string;
+  readonly args: Readonly<Record<string, unknown>>;
+  readonly environment: string;
+  /** A step whose arguments include a secret the user types on the screen itself. */
+  readonly handOff: boolean;
+  readonly card: AgentCardTemplate;
+  /** The non-secret fields this step may report to the next turn (SEC-17 section 7.6). */
+  readonly resultAllowlist: readonly string[];
+}
+
+export interface AgentProposal {
+  readonly proposalId: string;
+  /** Absent when every step is a hand-off, which carries no token. */
+  readonly token: string | undefined;
+  readonly steps: readonly AgentPlanStep[];
+  readonly proposedAt: string;
+  readonly expiresAt: string;
+  readonly formId: string | undefined;
+}
+
+/**
  * The API's assist error codes, mirrored here.
  *
  * Mirrored rather than imported: this app is a strict BFF and takes no value
@@ -83,6 +119,9 @@ export type AssistEvent =
       readonly steps: number;
     }
   | { readonly type: "proposal"; readonly proposal: AssistProposal }
+  /** One proposed action, which is a plan of one step. */
+  | { readonly type: "action"; readonly proposal: AgentProposal }
+  | { readonly type: "plan"; readonly proposal: AgentProposal }
   | { readonly type: "error"; readonly code: AssistErrorCode; readonly message: string };
 
 /** SSE frames are separated by one blank line, whatever their own line endings are. */
@@ -178,6 +217,14 @@ function toAssistEvent(raw: unknown): AssistEvent | undefined {
       const proposal = toAssistProposal(raw["proposal"]);
       return proposal === undefined ? undefined : { type: "proposal", proposal };
     }
+    case "action":
+    case "plan": {
+      const proposal = toAgentProposal(raw["proposal"]);
+      if (proposal === undefined) return undefined;
+      return raw["type"] === "action"
+        ? { type: "action", proposal }
+        : { type: "plan", proposal };
+    }
     case "error":
       return toErrorEvent(raw);
     default:
@@ -236,6 +283,75 @@ function toErrorEvent(raw: Record<string, unknown>): AssistEvent | undefined {
   if (typeof code !== "string" || typeof message !== "string") return undefined;
   const known = ASSIST_ERROR_CODES.find((candidate) => candidate === code);
   return known === undefined ? undefined : { type: "error", code: known, message };
+}
+
+function textList(raw: unknown): readonly string[] {
+  return Array.isArray(raw) ? raw.filter((entry): entry is string => typeof entry === "string") : [];
+}
+
+function toCardTemplate(raw: unknown): AgentCardTemplate | undefined {
+  if (!isKeyedObject(raw)) return undefined;
+  const titleKey = raw["titleKey"];
+  if (typeof titleKey !== "string" || titleKey === "") return undefined;
+  const headingControl = raw["headingControl"];
+  return {
+    titleKey,
+    consequenceKeys: textList(raw["consequenceKeys"]),
+    ...(typeof headingControl === "string" ? { headingControl } : {}),
+  };
+}
+
+/**
+ * One step, or `undefined` when the frame cannot be read. A step this build cannot read
+ * drops the whole proposal rather than showing a plan with a gap in it: the card's second
+ * rule is that every step is displayed, so a partial plan must not reach the screen.
+ */
+function toAgentPlanStep(raw: unknown): AgentPlanStep | undefined {
+  if (!isKeyedObject(raw)) return undefined;
+  const kind = raw["kind"];
+  const screen = raw["screen"];
+  const environment = raw["environment"];
+  const args = raw["args"];
+  const card = toCardTemplate(raw["card"]);
+  if (typeof kind !== "string" || kind === "") return undefined;
+  if (typeof screen !== "string" || typeof environment !== "string") return undefined;
+  if (!isKeyedObject(args) || card === undefined) return undefined;
+  return {
+    kind,
+    screen,
+    args,
+    environment,
+    handOff: raw["handOff"] === true,
+    card,
+    resultAllowlist: textList(raw["resultAllowlist"]),
+  };
+}
+
+function toAgentProposal(raw: unknown): AgentProposal | undefined {
+  if (!isKeyedObject(raw)) return undefined;
+  const proposalId = raw["proposalId"];
+  const proposedAt = raw["proposedAt"];
+  const expiresAt = raw["expiresAt"];
+  if (typeof proposalId !== "string" || proposalId === "") return undefined;
+  if (typeof proposedAt !== "string" || typeof expiresAt !== "string") return undefined;
+  if (!Array.isArray(raw["steps"]) || raw["steps"].length === 0) return undefined;
+
+  const steps: AgentPlanStep[] = [];
+  for (const entry of raw["steps"]) {
+    const step = toAgentPlanStep(entry);
+    if (step === undefined) return undefined;
+    steps.push(step);
+  }
+  const token = raw["token"];
+  const formId = raw["formId"];
+  return {
+    proposalId,
+    token: typeof token === "string" && token !== "" ? token : undefined,
+    steps,
+    proposedAt,
+    expiresAt,
+    formId: typeof formId === "string" ? formId : undefined,
+  };
 }
 
 function toAssistProposal(raw: unknown): AssistProposal | undefined {
