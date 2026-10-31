@@ -18,6 +18,7 @@ import {
   getReleasedVersion,
   insertFormRelease,
   insertFormVersion,
+  lastReleaseAtByForm,
   listFormReleases,
   listReleasedVersions,
   reopenFormInEnvironment,
@@ -253,6 +254,32 @@ describe("what is released where (criteria 1 and 5)", () => {
     expect((await getReleasedVersion(testDb.db, formId, "test"))?.version).toBe(3);
     expect((await getReleasedVersion(testDb.db, formId, "prod"))?.version).toBe(1);
     expect(await listFormReleases(testDb.db, formId)).toHaveLength(4);
+  });
+
+  it("answers when a form last went out in one environment, not in whichever was latest", async () => {
+    const formId = await seedForm("lastwent", 2);
+    const inTest = new Date("2026-03-01T12:00:00.000Z");
+    const inProd = new Date("2026-04-01T12:00:00.000Z");
+    await insertFormRelease(testDb.db, {
+      formId,
+      environment: "prod",
+      version: 1,
+      releasedBy: "usr_alice",
+      releasedAt: inProd,
+    });
+    await insertFormRelease(testDb.db, {
+      formId,
+      environment: "test",
+      version: 2,
+      releasedBy: "usr_alice",
+      releasedAt: inTest,
+    });
+
+    expect((await lastReleaseAtByForm(testDb.db, "test", [formId])).get(formId)).toEqual(inTest);
+    expect((await lastReleaseAtByForm(testDb.db, "prod", [formId])).get(formId)).toEqual(inProd);
+    // An environment this form never reached answers nothing for it, rather than falling
+    // back to the one that is newest somewhere else.
+    expect((await lastReleaseAtByForm(testDb.db, "dev", [formId])).has(formId)).toBe(false);
   });
 });
 

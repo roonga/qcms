@@ -1,4 +1,4 @@
-import { describe, expect, it } from "vitest";
+import { afterEach, describe, expect, it, vi } from "vitest";
 
 import { TURNSTILE_ORIGIN } from "../turnstile";
 import { buildCsp } from "./csp";
@@ -28,4 +28,22 @@ describe("content security policy", () => {
     expect(csp).toContain("'nonce-nonce-value'");
     expect(csp).not.toContain("script-src 'self' 'unsafe-inline'");
   });
+
+  it("adds 'unsafe-eval' under next dev, and nothing else moves", () => {
+    vi.stubEnv("NODE_ENV", "production");
+    const production = buildCsp("none", "abc123");
+    vi.stubEnv("NODE_ENV", "development");
+
+    expect(buildCsp("none", "abc123")).toBe(
+      production.replace(
+        "script-src 'self' 'nonce-abc123'",
+        "script-src 'self' 'nonce-abc123' 'unsafe-eval'",
+      ),
+    );
+    expect(production).not.toContain("'unsafe-eval'");
+  });
+});
+
+afterEach(() => {
+  vi.unstubAllEnvs();
 });

@@ -168,6 +168,19 @@ async function childHrefs(page: Page): Promise<string[]> {
     .evaluateAll((links) => links.map((link) => link.getAttribute("href") ?? ""));
 }
 
+/** The titles the children group's select buttons carry, in order. */
+async function childSelects(page: Page): Promise<string[]> {
+  return page
+    .locator('[data-rail-group="steps"] [data-rail-step-select]')
+    .evaluateAll((rows) => rows.map((row) => row.getAttribute("data-rail-step-select") ?? ""));
+}
+
+/** The builder renders steps as anchors until it publishes, then as buttons with no href; either shape is the form's steps. */
+async function childSteps(page: Page): Promise<string[]> {
+  const hrefs = await childHrefs(page);
+  return hrefs.length > 0 ? hrefs : childSelects(page);
+}
+
 // The file is serial and any test may be parked, so shared setup lives in `beforeAll`.
 test.beforeAll(async ({ browser }) => {
   await createTestAdmin(EMAIL);
@@ -180,8 +193,7 @@ test.beforeAll(async ({ browser }) => {
   }
 });
 
-// Issue #1194: its step assertions match the rail only before the builder hydrates.
-test.fixme("561 puts the rail on all ten form-scoped screens, marking the row the screen is", async ({
+test("561 puts the rail on all ten form-scoped screens, marking the row the screen is", async ({
   page,
 }) => {
   test.setTimeout(600_000);
@@ -233,10 +245,13 @@ test.fixme("561 puts the rail on all ten form-scoped screens, marking the row th
     await expect
       .soft(page.locator('[data-rail-group="steps"]'), `${screen.path} carries the form's steps`)
       .toHaveCount(screen.children ? 1 : 0);
+    // Anchored at the sections list and matched through the Form row's own `<li>`, so it
+    // holds whether that row is the server's anchor or the builder's wrapped button, and
+    // still fails if the steps stack above the sections instead of nesting under the row.
     await expect
       .soft(
         page.locator(
-          '[data-rail-item="section:builder"] ~ [data-rail-group="steps"], li:has(> [data-rail-item="section:builder"]) [data-rail-group="steps"]',
+          '[data-rail-group="sections"] > li:has([data-rail-item="section:builder"]) [data-rail-group="steps"]',
         ),
         `${screen.path} nests them inside the Form row`,
       )
@@ -249,32 +264,34 @@ test.fixme("561 puts the rail on all ten form-scoped screens, marking the row th
   }
 });
 
-// Issue #1194: the builder's hydrated step rows select in place and carry no href.
-test.fixme("561 gives every screen the form's steps as its children, never the list it is showing", async ({
+test("561 gives every screen the form's steps as its children, never the list it is showing", async ({
   page,
 }) => {
   test.setTimeout(300_000);
   await signInWithTotp(page, EMAIL, totpSecret);
   await page.setViewportSize({ width: SIDEBAR, height: 900 });
 
-  // The seeded form has one step, so the whole children group is one known href: the
-  // builder's URL with that step's anchor. `lib/forms/issues.ts` mints the same id the
-  // validation panel's focus links use, which is the property issue 559 chose deliberately
-  // and this keeps true across every screen in the list above.
-  const expected = [`/forms/${FORM_ID}#step-${STEP_ID}`];
+  // The seeded form has one step, so each screen's children group is that one known row.
+  const linked = [`/forms/${FORM_ID}#step-${STEP_ID}`];
+  const selected = [STEP_TITLE];
 
   for (const screen of screens()) {
     await setScreenEnvironment(page, screen.path);
     await page.goto(screen.path);
     await expect(page.getByTestId("qcms-rail")).toBeVisible();
+    const children = await childSteps(page);
+    // A linked row starts at the route and a selection carries a title, so an empty group
+    // is measured against the selection: a rail with no steps, or one listing versions or
+    // responses, fails whichever shape it came back in.
+    const shape = children[0]?.startsWith("/") === true ? linked : selected;
     expect
       .soft(
-        await childHrefs(page),
+        children,
         screen.children
           ? `${screen.path} lists the form's steps as its children`
           : `${screen.path} carries no children group at all`,
       )
-      .toEqual(screen.children ? expected : []);
+      .toEqual(screen.children ? shape : []);
   }
 
   // THE BUILDER HAS ONE STEP LIST NOW, and it is in the rail (Code Owner, 2026-08-25).
