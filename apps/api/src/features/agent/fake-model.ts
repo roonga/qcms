@@ -54,6 +54,7 @@ export const FAKE_SCRIPTS = [
   "propose-form-release",
   "propose-response-erase",
   "propose-response-unflag",
+  "propose-response-export",
   "propose-webhook-create",
   "propose-webhook-rotate",
   "propose-webhook-retarget",
@@ -711,6 +712,10 @@ const SINGLE_ACTIONS: Readonly<
   "propose-response-unflag": (prompt) => ({
     kind: "response.unflag",
     args: { formId: factFormId(prompt), sessionId: factSessionId(prompt) },
+  }),
+  "propose-response-export": (prompt) => ({
+    kind: "response.export",
+    args: { formId: factFormId(prompt), format: "csv", shape: "long" },
   }),
   "propose-webhook-create": (prompt) => ({
     kind: "webhook.create",

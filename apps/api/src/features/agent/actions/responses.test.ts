@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest";
 
 import { policyForRequest } from "../../membership/route-policy.js";
 import { eraseResponse, unflagResponse } from "./responses.js";
+import type { ActionKindDef, ActionRoute } from "./types.js";
 
 /**
  * D4's two writes. The erasure's own card is the gate the screen's dialog is: it asks for
@@ -9,11 +10,18 @@ import { eraseResponse, unflagResponse } from "./responses.js";
  * anything a model wrote.
  */
 
+/** A routed kind's own route. Only a hand-off declares none, and none of these is one. */
+function routeOf(def: ActionKindDef): ActionRoute {
+  const route = def.route;
+  if (route === undefined) throw new Error(`${def.kind} declares no route`);
+  return route;
+}
+
 describe("D4's action kinds", () => {
   it("names a route the policy table authorises, with the same cell", () => {
     for (const def of [eraseResponse, unflagResponse]) {
-      const policy = policyForRequest(def.route.method, def.route.path);
-      expect(policy?.path, def.kind).toBe(def.route.path);
+      const policy = policyForRequest(routeOf(def).method, routeOf(def).path);
+      expect(policy?.path, def.kind).toBe(routeOf(def).path);
       expect({ resource: policy?.resource, action: policy?.action }, def.kind).toEqual(def.cell);
     }
   });
@@ -37,7 +45,7 @@ describe("D4's action kinds", () => {
   it("recomputes both kinds' arguments from the route and the body", () => {
     expect(
       eraseResponse.recomputeArgs({
-        path: eraseResponse.route.path,
+        path: routeOf(eraseResponse).path,
         method: "POST",
         params: { id: "frm_a", sessionId: "ses_a" },
         body: { reason: "operator_error" },
@@ -47,7 +55,7 @@ describe("D4's action kinds", () => {
 
     expect(
       unflagResponse.recomputeArgs({
-        path: unflagResponse.route.path,
+        path: routeOf(unflagResponse).path,
         method: "POST",
         params: { id: "frm_a", sessionId: "ses_a" },
         body: undefined,

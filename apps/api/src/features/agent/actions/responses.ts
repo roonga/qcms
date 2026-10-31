@@ -79,3 +79,50 @@ export const unflagResponse: ActionKindDef = {
   description:
     "Release one flagged response's withheld submission event, so its consumers receive it.",
 };
+
+/**
+ * The export, which is a hand-off in the other direction: the card ends with the screen's
+ * own Export control, so the bytes stream into the user's browser and not one reaches the
+ * agent code or the provider. It carries no token, may only be the last step of a plan,
+ * and writes no `control.agent_actions` row, because the export's own SEC-15 `export` row
+ * already records the act.
+ */
+const ExportArgs = z.strictObject({
+  formId: z.string().min(1).max(200),
+  format: z.enum(["csv", "json"]).describe("The file format the download produces."),
+  shape: z
+    .enum(["long", "wide"])
+    .describe("One row per answer, or one row per submission. CSV only."),
+  version: z
+    .number()
+    .int()
+    .min(1)
+    .optional()
+    .describe("The version whose shape the export follows. Required for a wide CSV."),
+  from: z.string().max(40).optional().describe("The first day of the range, as YYYY-MM-DD."),
+  to: z.string().max(40).optional().describe("The last day of the range, as YYYY-MM-DD."),
+});
+
+export const exportResponses: ActionKindDef = {
+  kind: "response.export",
+  screen: "/forms/[formId]/responses",
+  cell: { resource: "response", action: "export" },
+  environmentFrom: "switcher",
+  args: ExportArgs,
+  recomputeArgs: () => ({}),
+  references: [],
+  // The filters the user chose, and nothing read out of the file.
+  resultAllowlist: ["format", "shape", "version", "environment"],
+  handOff: true,
+  card: {
+    titleKey: "agent.card.response.export.title",
+    consequenceKeys: [
+      "agent.card.response.export.consequence",
+      "agent.card.response.export.handOff",
+    ],
+    headingControl: "responses.export",
+  },
+  description:
+    "Open the export dialog with these filters. The user presses Export and the file " +
+    "downloads in their browser; no part of it is returned to you.",
+};

@@ -2,7 +2,7 @@ import { describe, expect, it } from "vitest";
 
 import { policyForRequest } from "../../membership/route-policy.js";
 import { closeForm, reopenForm, updateFormSettings } from "./forms.js";
-import type { ActionKindDef, ActionRequestFacts } from "./types.js";
+import type { ActionKindDef, ActionRequestFacts, ActionRoute } from "./types.js";
 
 /**
  * D1's three kinds. What matters per kind is that the arguments the card displays are the
@@ -20,19 +20,26 @@ const SETTINGS_FACTS: ActionRequestFacts = {
 
 function factsFor(def: ActionKindDef, body: unknown): ActionRequestFacts {
   return {
-    path: def.route.path,
-    method: def.route.method,
+    path: routeOf(def).path,
+    method: routeOf(def).method,
     params: { id: "frm_a" },
     body,
     environment: "test",
   };
 }
 
+/** A routed kind's own route. Only a hand-off declares none, and none of these is one. */
+function routeOf(def: ActionKindDef): ActionRoute {
+  const route = def.route;
+  if (route === undefined) throw new Error(`${def.kind} declares no route`);
+  return route;
+}
+
 describe("D1's action kinds", () => {
   it("names a route the policy table authorises, with the same cell", () => {
     for (const def of [updateFormSettings, closeForm, reopenForm]) {
-      const policy = policyForRequest(def.route.method, def.route.path);
-      expect(policy?.path, def.kind).toBe(def.route.path);
+      const policy = policyForRequest(routeOf(def).method, routeOf(def).path);
+      expect(policy?.path, def.kind).toBe(routeOf(def).path);
       expect({ resource: policy?.resource, action: policy?.action }, def.kind).toEqual(def.cell);
     }
   });
@@ -78,7 +85,7 @@ describe("D1's action kinds", () => {
   });
 
   it("keeps close and reopen on their own routes", () => {
-    expect(closeForm.route.path).toBe("/admin/forms/{id}/close");
-    expect(reopenForm.route.path).toBe("/admin/forms/{id}/reopen");
+    expect(routeOf(closeForm).path).toBe("/admin/forms/{id}/close");
+    expect(routeOf(reopenForm).path).toBe("/admin/forms/{id}/reopen");
   });
 });

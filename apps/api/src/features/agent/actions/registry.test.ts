@@ -44,14 +44,19 @@ describe("the action-kind registry", () => {
 
   it("resolves each kind from its own route and nothing else", () => {
     for (const def of Object.values(ACTION_KINDS)) {
+      const route = def.route;
+      if (route === undefined) {
+        expect(def.handOff, def.kind).toBe(true);
+        continue;
+      }
       // A route one kind owns needs no body; a route several share is told apart by the
       // member set each declares.
       const body =
-        def.route.bodyMembers === undefined
+        route.bodyMembers === undefined
           ? undefined
-          : Object.fromEntries(def.route.bodyMembers.map((member) => [member, true]));
-      expect(actionKindForRoute(def.route.method, def.route.path, body)?.kind).toBe(def.kind);
-      expect(actionKindForRoute("GET", def.route.path, body)).toBeUndefined();
+          : Object.fromEntries(route.bodyMembers.map((member) => [member, true]));
+      expect(actionKindForRoute(route.method, route.path, body)?.kind).toBe(def.kind);
+      expect(actionKindForRoute("GET", route.path, body)).toBeUndefined();
     }
     expect(actionKindForRoute("POST", "/admin/forms/{id}/draft")).toBeUndefined();
   });

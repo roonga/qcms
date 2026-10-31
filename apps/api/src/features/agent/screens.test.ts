@@ -153,6 +153,7 @@ describe("the screen registry", () => {
       "webhook.reactivate",
       "webhook.deactivate",
       "webhook.redeliver",
+      "response.export",
       "response.erase",
       "response.unflag",
     ];

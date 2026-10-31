@@ -113,7 +113,7 @@ export const SCREENS: Readonly<Record<ScreenId, ScreenDef>> = Object.freeze({
       "webhook.redeliver",
     ],
   ),
-  "/forms/[formId]/responses": screen(operationsContexts.responseList),
+  "/forms/[formId]/responses": screen(operationsContexts.responseList, [], ["response.export"]),
   "/forms/[formId]/responses/[sessionId]": screen(
     operationsContexts.responseDetail,
     [],

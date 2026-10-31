@@ -9,7 +9,7 @@ import {
   saveWorkspaceSettings,
   setMemberRole,
 } from "./membership.js";
-import type { ActionKindDef, ActionRequestFacts } from "./types.js";
+import type { ActionKindDef, ActionRequestFacts, ActionRoute } from "./types.js";
 
 /**
  * D8's six kinds. The properties that matter per kind are the same two as everywhere: the
@@ -28,19 +28,26 @@ const DEFS: readonly ActionKindDef[] = [
 
 function factsFor(def: ActionKindDef, body: unknown): ActionRequestFacts {
   return {
-    path: def.route.path,
-    method: def.route.method,
+    path: routeOf(def).path,
+    method: routeOf(def).method,
     params: { id: "wsp_a", teamId: "grp_a", userId: "usr_a" },
     body,
     environment: "test",
   };
 }
 
+/** A routed kind's own route. Only a hand-off declares none, and none of these is one. */
+function routeOf(def: ActionKindDef): ActionRoute {
+  const route = def.route;
+  if (route === undefined) throw new Error(`${def.kind} declares no route`);
+  return route;
+}
+
 describe("D8's action kinds", () => {
   it("names a route the policy table authorises, with the same cell", () => {
     for (const def of DEFS) {
-      const policy = policyForRequest(def.route.method, def.route.path);
-      expect(policy?.path, def.kind).toBe(def.route.path);
+      const policy = policyForRequest(routeOf(def).method, routeOf(def).path);
+      expect(policy?.path, def.kind).toBe(routeOf(def).path);
       expect({ resource: policy?.resource, action: policy?.action }, def.kind).toEqual(def.cell);
     }
   });
@@ -49,7 +56,10 @@ describe("D8's action kinds", () => {
     for (const def of DEFS) {
       expect(def.environmentFrom, def.kind).toBe("switcher");
       expect(def.environmentArgument, def.kind).toBeUndefined();
-      expect(policyForRequest(def.route.method, def.route.path)?.environmentFrom, def.kind).toBe(
+      expect(
+        policyForRequest(routeOf(def).method, routeOf(def).path)?.environmentFrom,
+        def.kind,
+      ).toBe(
         undefined,
       );
     }

@@ -219,10 +219,10 @@ describe("rule 3: never weaker than the screen's dialog", () => {
     expect(screen.getByText("Data subject request")).toBeTruthy();
   });
 
-  it("says a hand-off step needs the secret typed on the screen itself", () => {
+  it("says a hand-off step finishes on the screen itself", () => {
     const plan = proposal([step({ handOff: true })]);
     renderCard(plan, initialCard(plan, NOW));
-    expect(screen.getByText(/secret you type on the screen itself/u)).toBeTruthy();
+    expect(screen.getByText(/finishes on the screen itself/u)).toBeTruthy();
   });
 });
 

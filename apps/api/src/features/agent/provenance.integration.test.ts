@@ -1039,11 +1039,15 @@ describe("a mint proposed in the shape the model may produce runs end to end", (
 describe("every D0 kind's route is the one its descriptor names", () => {
   it("matches the route policy row for each registered kind", () => {
     for (const def of Object.values(ACTION_KINDS)) {
-      const policy = policyForRequest(
-        def.route.method,
-        def.route.path.replaceAll(/\{\w+\}/gu, "x"),
-      );
-      expect(policy?.path, def.kind).toBe(def.route.path);
+      // A hand-off carries no token, so it is routed by nothing and declares no route.
+      if (def.handOff === true) {
+        expect(def.route, def.kind).toBeUndefined();
+        continue;
+      }
+      const route = def.route;
+      if (route === undefined) throw new Error(def.kind);
+      const policy = policyForRequest(route.method, route.path.replaceAll(/\{\w+\}/gu, "x"));
+      expect(policy?.path, def.kind).toBe(route.path);
       expect(policy?.resource, def.kind).toBe(def.cell.resource);
       expect(policy?.action, def.kind).toBe(def.cell.action);
     }

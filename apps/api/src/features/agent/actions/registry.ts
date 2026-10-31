@@ -14,7 +14,7 @@ import {
   setMemberRole,
 } from "./membership.js";
 import { publishForm, releaseVersion } from "./releases.js";
-import { eraseResponse, unflagResponse } from "./responses.js";
+import { eraseResponse, exportResponses, unflagResponse } from "./responses.js";
 import type { ActionKindDef } from "./types.js";
 import {
   createWebhook,
@@ -35,6 +35,7 @@ const DEFS: readonly ActionKindDef[] = [
   revokeLink,
   eraseResponse,
   unflagResponse,
+  exportResponses,
   createWebhook,
   rotateWebhookSecret,
   retargetWebhook,
@@ -77,15 +78,20 @@ export function actionKindForRoute(
   path: string,
   body?: unknown,
 ): ActionKindDef | undefined {
+  // A hand-off is excluded rather than matched: it carries no token, so a token naming
+  // one can only be a forgery and is refused with the route code.
   const candidates = DEFS.filter(
-    (def) => def.route.method === method.toUpperCase() && def.route.path === path,
+    (def) =>
+      def.handOff !== true &&
+      def.route?.method === method.toUpperCase() &&
+      def.route.path === path,
   );
   const first = candidates[0];
-  if (first === undefined || (candidates.length === 1 && first.route.bodyMembers === undefined)) {
+  if (first === undefined || (candidates.length === 1 && first.route?.bodyMembers === undefined)) {
     return first;
   }
   const members = typeof body === "object" && body !== null ? Object.keys(body) : [];
   return candidates.find(
-    (def) => def.route.bodyMembers !== undefined && sameMembers(def.route.bodyMembers, members),
+    (def) => def.route?.bodyMembers !== undefined && sameMembers(def.route.bodyMembers, members),
   );
 }
