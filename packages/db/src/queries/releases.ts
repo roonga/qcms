@@ -140,13 +140,15 @@ export async function environmentStatesByForm(
 }
 
 /**
- * When each named form was last released to any environment, in one query.
+ * When each named form was last released into one environment, in one query.
  *
  * A different question from {@link environmentStatesByForm}, which answers what is
- * serving in one environment.
+ * serving there now: this one is the most recent release row whatever has happened since,
+ * so a form closed and reopened still reports when it last went out.
  */
 export async function lastReleaseAtByForm(
   exec: Executor,
+  environment: string,
   formIds: readonly FormId[],
 ): Promise<Map<FormId, Date>> {
   if (formIds.length === 0) return new Map();
@@ -156,7 +158,9 @@ export async function lastReleaseAtByForm(
       lastReleaseAt: sql<Date | string>`max(${formReleases.releasedAt})`.as("last_release_at"),
     })
     .from(formReleases)
-    .where(inArray(formReleases.formId, [...formIds]))
+    .where(
+      and(eq(formReleases.environment, environment), inArray(formReleases.formId, [...formIds])),
+    )
     .groupBy(formReleases.formId);
   return new Map(
     rows.map((row) => [

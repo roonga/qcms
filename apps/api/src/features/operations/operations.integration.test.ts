@@ -65,6 +65,8 @@ const FORM_OTHER = FormId.parse("frm_ops_other");
 
 /** One instant for both `prod` releases, so the released sort's tie is deterministic. */
 const PROD_RELEASED_AT = new Date("2026-03-01T12:00:00.000Z");
+/** Later than the `prod` instant, so a column reading the wrong environment shows it. */
+const TEST_RELEASED_AT = new Date("2026-04-01T12:00:00.000Z");
 const FORM_UNICODE_A = FormId.parse("frm_ops_unicode_a");
 const FORM_UNICODE_B = FormId.parse("frm_ops_unicode_b");
 
@@ -247,11 +249,11 @@ beforeAll(async () => {
     environment: "test",
     version: 1,
     releasedBy: "au_seed",
-    releasedAt: PROD_RELEASED_AT,
+    releasedAt: TEST_RELEASED_AT,
   });
-  // One pinned instant for every release, so the released sort ties deterministically
-  // rather than whenever two inserts share a microsecond. The key is the last release in
-  // ANY environment, so `claims` needs its `test` row pinned too.
+  // One pinned instant per environment: `prod`'s ties the released sort deterministically
+  // rather than whenever two inserts share a microsecond, and `test`'s differs because the
+  // key is the last release in the SELECTED environment.
   await insertFormRelease(control, {
     formId: FORM_CLAIMS,
     environment: "prod",
@@ -422,6 +424,35 @@ describe("operations discovery: which rows each persona is served", () => {
     expect(await slugsFor(viewer.token, "environment=test&intake=unreleased")).toEqual([
       "ops-permits",
     ]);
+  });
+
+  it("reads the last release in the chosen environment, never the newest anywhere", async () => {
+    const inProd = await operations(viewer.token, "environment=prod");
+    const inTest = await operations(viewer.token, "environment=test");
+    const row = (body: OperationsBody, slug: string): OperationsRow | undefined =>
+      body.forms.find((candidate) => candidate.slug === slug);
+
+    expect(row(inProd.body, "ops-claims")?.lastReleaseAt).toBe(PROD_RELEASED_AT.toISOString());
+    expect(row(inTest.body, "ops-claims")?.lastReleaseAt).toBe(TEST_RELEASED_AT.toISOString());
+    // `permits` went out in `prod` only, so `test` has nothing to report for it.
+    expect(row(inProd.body, "ops-permits")?.lastReleaseAt).toBe(PROD_RELEASED_AT.toISOString());
+    expect(row(inTest.body, "ops-permits")?.lastReleaseAt).toBeNull();
+  });
+
+  it("orders the released sort on that same environment's key", async () => {
+    // In `test` only `claims` has a key, and a null sorts last in both directions, so the
+    // order is the same either way. Reading `prod`'s instants here would key `permits`
+    // too and reverse one of the two walks.
+    expect(
+      (await operations(viewer.token, "environment=test&sort=released-asc")).body.forms.map(
+        (candidate) => candidate.slug,
+      ),
+    ).toEqual(["ops-claims", "ops-permits"]);
+    expect(
+      (await operations(viewer.token, "environment=test&sort=released-desc")).body.forms.map(
+        (candidate) => candidate.slug,
+      ),
+    ).toEqual(["ops-claims", "ops-permits"]);
   });
 
   it("gives a test-only editor its writes in test and none of them in prod", async () => {
