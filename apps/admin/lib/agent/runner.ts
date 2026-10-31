@@ -91,6 +91,27 @@ function carriesToken(step: AgentPlanStep): boolean {
   return !step.handOff && !step.local;
 }
 
+/** Whether the runner may still send this step, or the card has moved past it. */
+function stillPending(card: AgentCardView, index: number): boolean {
+  const state = card.steps[index]?.state;
+  return card.state === "running" && (state === "proposed" || state === "running");
+}
+
+/**
+ * The reason this step cannot be sent at all, if there is one: a reference nothing
+ * resolved, or a card already stale when Confirm reached its first step.
+ */
+function unsendable(
+  input: RunPlanInput,
+  args: Readonly<Record<string, unknown>>,
+  index: number,
+  at: Date,
+): string | undefined {
+  if (hasUnresolvedReference(args)) return t(UNRESOLVED_REFERENCE);
+  if (isExpired(input.proposal, at.getTime()) && index === 0) return t(STALE);
+  return undefined;
+}
+
 export async function runPlan(input: RunPlanInput): Promise<AgentCardView> {
   let card = input.card;
   let tokenStep = 0;
@@ -101,8 +122,7 @@ export async function runPlan(input: RunPlanInput): Promise<AgentCardView> {
   };
 
   for (const [index, step] of input.proposal.steps.entries()) {
-    if (card.state !== "running") break;
-    if (card.steps[index]?.state !== "proposed" && card.steps[index]?.state !== "running") break;
+    if (!stillPending(card, index)) break;
 
     if (step.handOff) {
       // It opens the screen's own control and the user completes it there, so the runner
@@ -119,21 +139,10 @@ export async function runPlan(input: RunPlanInput): Promise<AgentCardView> {
     const args = resolveArgs(step, card);
     const at = input.now();
 
-    if (hasUnresolvedReference(args)) {
+    const refusal = unsendable(input, args, index, at);
+    if (refusal !== undefined) {
       emit(
-        settleStep(
-          card,
-          index,
-          step,
-          { outcome: "failed", message: t(UNRESOLVED_REFERENCE) },
-          at.toISOString(),
-        ),
-      );
-      return card;
-    }
-    if (isExpired(input.proposal, at.getTime()) && index === 0) {
-      emit(
-        settleStep(card, index, step, { outcome: "failed", message: t(STALE) }, at.toISOString()),
+        settleStep(card, index, step, { outcome: "failed", message: refusal }, at.toISOString()),
       );
       return card;
     }

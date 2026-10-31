@@ -338,9 +338,9 @@ test("streams prose and a running step before the first tool result (exit criter
   await expect(
     page.getByTestId("qcms-assistant-steps").locator("li[data-state='running']"),
   ).toHaveCount(1, { timeout: 30_000 });
-  await expect(page.getByTestId("qcms-assistant-steps").locator("li[data-state='done']")).toHaveCount(
-    0,
-  );
+  await expect(
+    page.getByTestId("qcms-assistant-steps").locator("li[data-state='done']"),
+  ).toHaveCount(0);
 
   // The header mark carries the working state while the live region says so.
   const mark = page.getByTestId("qcms-assist-mark").first();

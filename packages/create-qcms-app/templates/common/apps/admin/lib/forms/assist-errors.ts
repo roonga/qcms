@@ -20,7 +20,10 @@ export interface AssistError {
 
 /** The kinds whose sentence needs no interpolation, keyed to the catalog. */
 const SIMPLE_ERROR_MESSAGES: Readonly<
-  Record<Exclude<AssistErrorKind, "REFUSED" | "TOOL_REJECTED" | "RATE_LIMITED" | "HTTP">, MessageKey>
+  Record<
+    Exclude<AssistErrorKind, "REFUSED" | "TOOL_REJECTED" | "RATE_LIMITED" | "HTTP">,
+    MessageKey
+  >
 > = {
   PROVIDER_ERROR: "forms.assist.error.PROVIDER_ERROR",
   PROVIDER_REJECTED: "forms.assist.error.PROVIDER_REJECTED",

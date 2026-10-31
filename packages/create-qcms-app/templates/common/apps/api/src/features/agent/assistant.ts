@@ -394,13 +394,13 @@ function emptyTurnError(outcome: RunOutcome, maxSteps: number): AssistEvent {
 }
 
 /** A refused turn produces no proposal at all, whatever else it managed to do. */
-async function* finishTurn(args: {
+function* finishTurn(args: {
   ctx: AgentContext;
   state: ProposalState;
   outcome: RunOutcome;
   providerId: string;
   logger: Logger;
-}): AsyncGenerator<AssistEvent> {
+}): Generator<AssistEvent> {
   const { ctx, state, outcome, providerId, logger } = args;
 
   // A proposal recorded on the last step of the stream has not been flushed yet.

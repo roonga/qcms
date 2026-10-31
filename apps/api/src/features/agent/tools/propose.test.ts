@@ -5,12 +5,7 @@ import { parseFormDefinition, type FormDefinition } from "@roonga/qcms-core";
 import type { HeldGrant } from "../../membership/policy.js";
 import { offeredActionKinds } from "../grant-filter.js";
 import { verifyProposalToken } from "../proposal-token.js";
-import {
-  buildProposal,
-  MAX_PLAN_STEPS,
-  type ProposeInput,
-  type ProposedStep,
-} from "./propose.js";
+import { buildProposal, MAX_PLAN_STEPS, type ProposeInput, type ProposedStep } from "./propose.js";
 
 const APP_KEY = "test-app-key-0123456789abcdefghijklmn";
 const issuedAt = new Date("2026-10-31T09:00:00.000Z");

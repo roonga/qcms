@@ -26,12 +26,8 @@ import {
 import { runPlan } from "@/lib/agent/runner";
 import { stepTitle } from "@/lib/agent/card-copy";
 import { useProposalSeam } from "@/lib/agent/waiting";
-import {
-  errorForResponse,
-  messageForError,
-  type AssistError,
-} from "@/lib/forms/assist-errors";
-import { readAssistEvents, type AgentProposal } from "@/lib/forms/assist-stream";
+import { errorForResponse, messageForError, type AssistError } from "@/lib/forms/assist-errors";
+import { readAssistEvents, type AgentProposal, type AssistEvent } from "@/lib/forms/assist-stream";
 
 import { ActionCard } from "./action-card";
 import { runStepAction } from "./step-actions";
@@ -204,6 +200,33 @@ function ScreenConversation({
     settle(plan, settled);
   };
 
+  const postTurn = (message: string, on: ResolvedScreen, signal: AbortSignal): Promise<Response> =>
+    fetch(builder?.endpoint ?? "/assist", {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      signal,
+      body: JSON.stringify({
+        conversation: [...promptTurns(conversation.turns), { role: "user", content: message }],
+        screen: on.screen,
+        params: on.params,
+        conversationId: conversation.id,
+        // The stored draft this turn is proposed against; the route refuses a mismatch.
+        ...(builder?.draftUpdatedAt === undefined ? {} : { clientState: builder.draftUpdatedAt }),
+      }),
+    });
+
+  /** One event's effects beyond the turn's own fold: the card, and what went wrong. */
+  const absorb = (event: AssistEvent): void => {
+    if (event.type === "action" || event.type === "plan") {
+      setProposal(event.proposal);
+      setCard(initialCard(event.proposal, Date.now()));
+      onAnnounce(t("agent.launcher.toReview"));
+      return;
+    }
+    if (event.type === "tool-rejected") setFailure({ kind: "TOOL_REJECTED", tool: event.tool });
+    if (event.type === "error") setFailure({ kind: event.code, message: event.message });
+  };
+
   const send = async (): Promise<void> => {
     const message = value.trim();
     if (message === "" || screen === undefined || live !== undefined) return;
@@ -220,21 +243,7 @@ function ScreenConversation({
     stoppedRef.current = false;
 
     try {
-      const response = await fetch(builder?.endpoint ?? "/assist", {
-        method: "POST",
-        headers: { "content-type": "application/json" },
-        signal: controller.signal,
-        body: JSON.stringify({
-          conversation: [...promptTurns(conversation.turns), { role: "user", content: message }],
-          screen: screen.screen,
-          params: screen.params,
-          conversationId: conversation.id,
-          // The stored draft this turn is proposed against; the route refuses a mismatch.
-          ...(builder?.draftUpdatedAt === undefined
-            ? {}
-            : { clientState: builder.draftUpdatedAt }),
-        }),
-      });
+      const response = await postTurn(message, screen, controller.signal);
       if (!response.ok || response.body === null) {
         const failed = await errorForResponse(response);
         setFailure(failed);
@@ -244,13 +253,7 @@ function ScreenConversation({
       for await (const event of readAssistEvents(response.body)) {
         turn = applyTurnEvent(turn, event);
         setLive(turn);
-        if (event.type === "action" || event.type === "plan") {
-          setProposal(event.proposal);
-          setCard(initialCard(event.proposal, Date.now()));
-          onAnnounce(t("agent.launcher.toReview"));
-        }
-        if (event.type === "tool-rejected") setFailure({ kind: "TOOL_REJECTED", tool: event.tool });
-        if (event.type === "error") setFailure({ kind: event.code, message: event.message });
+        absorb(event);
         const step = runningStep(turn);
         if (step !== undefined) onAnnounce(t(step.label));
       }

@@ -1093,7 +1093,14 @@ function planStep(
   if (script === "read-all") return planReadAllStep(prompt, results, offered);
   const planner = STATEFUL_PLANNERS[script];
   if (planner !== undefined) return planner(prompt, results);
+  return planDefaultStep(prompt, results);
+}
 
+/** The `default` script: search, propose the draft, then put it up as a card. */
+function planDefaultStep(
+  prompt: readonly PromptMessage[],
+  results: Map<string, unknown>,
+): StreamPart[] {
   if (!results.has("search_question_library")) {
     const query = pickSearchQuery(prompt);
     return [

@@ -370,7 +370,10 @@ async function propose(
   ctx: AgentContext,
   state: ProposalState,
 ): Promise<Record<string, unknown>> {
-  const outcome = await port(ctx.propose, `propose_${variant}`)({
+  const outcome = await port(
+    ctx.propose,
+    `propose_${variant}`,
+  )({
     steps,
     proposalsThisTurn: state.actionProposals.length,
     // Present only once `propose_draft` has recorded one, which is what the kind that

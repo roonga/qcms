@@ -19,7 +19,11 @@ const CURRENT: DraftForm = {
   defaultLocale: "en",
   title: { en: "Vehicle insurance quote" },
   steps: [
-    { stepId: "stp_basics", title: { en: "Basics" }, items: [{ questionId: "q_name", version: 1 }] },
+    {
+      stepId: "stp_basics",
+      title: { en: "Basics" },
+      items: [{ questionId: "q_name", version: 1 }],
+    },
   ],
   rules: [],
 };
@@ -113,8 +117,9 @@ describe("the apply-draft step's detail", () => {
       />,
     );
     expect(screen.queryByText(t("forms.assist.validationClean"))).toBeNull();
-    expect(screen.getByText(tPlural("forms.validation.countOne", "forms.validation.count", 1)))
-      .toBeTruthy();
+    expect(
+      screen.getByText(tPlural("forms.validation.countOne", "forms.validation.count", 1)),
+    ).toBeTruthy();
     const warnings = screen.getByTestId("qcms-acard-warnings");
     expect(warnings.textContent).toContain(t("forms.warning.heading"));
     expect(warnings.textContent).toContain(
@@ -153,16 +158,14 @@ describe("the apply-draft step's detail", () => {
               code: "DANGLING_QUESTION_REF",
               message: "Pin a question that exists.",
               path: { step: "stp_new", question: "q_preferred_name" },
-            } as never,
+            },
           ],
         })}
         current={CURRENT}
       />,
     );
     expect(
-      screen.getByText(
-        t("forms.assist.newQuestionPending", { questionId: "q_preferred_name" }),
-      ),
+      screen.getByText(t("forms.assist.newQuestionPending", { questionId: "q_preferred_name" })),
     ).toBeTruthy();
   });
 

@@ -395,4 +395,3 @@ function toAgentProposal(raw: unknown): AgentProposal | undefined {
     currentEnvironment,
   };
 }
-
