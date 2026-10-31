@@ -275,8 +275,3 @@ export interface RevokeLinkState {
 }
 
 export const IDLE_REVOKE: RevokeLinkState = { status: "idle" };
-
-/**
- * One confirmation of the publish wizard (issue #1197).
- *
- * `uncertain` is the state the plans

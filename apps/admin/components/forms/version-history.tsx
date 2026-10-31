@@ -39,6 +39,7 @@ export function VersionHistory({
   versions,
   definitionsByVersion,
   releasedBy = {},
+  availableIn = {},
 }: {
   readonly formId: string;
   /** Newest first, as the detail read returns them. */
@@ -55,6 +56,18 @@ export function VersionHistory({
    * know before they go looking for their form in front of a respondent.
    */
   readonly releasedBy?: Readonly<Record<string, readonly string[]>>;
+  /**
+   * Which environments each version is releasing **now**, keyed by version number (issue
+   * #1197). A version absent from this map is available nowhere.
+   *
+   * Separate from `releasedBy` because the two answer different questions and only one of
+   * them belongs in a column. `releasedBy` is "has reached", which is the right basis for
+   * the filter: a version released and later replaced still reached that environment, and
+   * a filter that hid it would be a worse answer than the unfiltered list. Available in is
+   * "is serving now", which is what an operator reads to decide whether a respondent is
+   * being shown this version.
+   */
+  readonly availableIn?: Readonly<Record<string, readonly string[]>>;
 }) {
   const [older, setOlder] = useState<string>("");
   const [newer, setNewer] = useState<string>("");
@@ -171,6 +184,16 @@ export function VersionHistory({
                   question the Published column used to answer on its own and no longer
                   does. */}
               <th scope="col">{t("forms.history.column.released")}</th>
+              {/* Where this version is serving right now, which is a different column from
+                  the one beside it and the one an operator acts on (issue #1197). */}
+              <th scope="col">{t("forms.versions.availableIn")}</th>
+              <th scope="col" className="qcms-cell--drop">
+                {t("forms.versions.publishedBy")}
+              </th>
+              {/* A stable action on every row, deliberately not a variable Next action: a
+                  column whose control changed per row would make an operator read it before
+                  every press, and what to do next is the publish wizard's question. */}
+              <th scope="col">{t("forms.versions.review")}</th>
             </tr>
           </thead>
           <tbody>
@@ -210,6 +233,23 @@ export function VersionHistory({
                     : t("forms.history.releasedIn", {
                         environments: (releasedBy[String(version.version)] ?? []).join(", "),
                       })}
+                </td>
+                <td data-available-in={(availableIn[String(version.version)] ?? []).join(" ")}>
+                  {(availableIn[String(version.version)] ?? []).length === 0
+                    ? t("forms.versions.availableNowhere")
+                    : (availableIn[String(version.version)] ?? []).join(", ")}
+                </td>
+                <td className="qcms-cell--drop">
+                  {version.publishedBy ?? t("forms.versions.publisherUnknown")}
+                </td>
+                <td>
+                  <Link
+                    className="qcms-text-link"
+                    href={`/forms/${encodeURIComponent(formId)}/versions/${String(version.version)}`}
+                    aria-label={t("forms.versions.reviewVersion", { version: version.version })}
+                  >
+                    {t("forms.versions.review")}
+                  </Link>
                 </td>
               </tr>
             ))}

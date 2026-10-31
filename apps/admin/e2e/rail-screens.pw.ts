@@ -115,16 +115,16 @@ function screens(): readonly Screen[] {
       path: `/forms/${FORM_ID}/versions`,
       current: "section:versions",
       children: true,
-      title: `Version history: ${FORM_ID} - QCMS`,
+      title: `Versions: ${FORM_ID} - QCMS`,
     },
     {
-      // Task 065's screen. Its rail carries the form's STEPS like every other one: a rail
-      // listing environments beside a table of environments is the rail §5.4 rejects for
-      // repeating the page's own body.
-      path: `/forms/${FORM_ID}/releases`,
-      current: "section:releases",
+      // The publish wizard (issue #1197). Its rail carries the form's STEPS like every
+      // other one: a rail listing environments beside a wizard whose own body lists
+      // environments is the rail §5.4 rejects for repeating the page.
+      path: `/forms/${FORM_ID}/publish`,
+      current: "section:publish",
       children: true,
-      title: `Releases: ${FORM_ID} - QCMS`,
+      title: `Publish: ${FORM_ID} - QCMS`,
     },
     {
       path: `/forms/${FORM_ID}/versions/1`,

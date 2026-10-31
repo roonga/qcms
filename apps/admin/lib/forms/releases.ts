@@ -24,6 +24,14 @@ export interface ReleaseRecord {
   readonly approvedBy: string | null;
   readonly replacedVersion: number | null;
   readonly rollback: boolean;
+  /**
+   * Whether intake was closed in that environment as of this row (Q18).
+   *
+   * The same release state carries it, so the newest row for a (form, environment) pair
+   * answers both "which version is released here" and "is intake open here". A release
+   * carries the current value forward: releasing a version does not reopen closed intake.
+   */
+  readonly closed: boolean;
 }
 
 /** Shape-check the list, dropping any entry that is not a release row. */
@@ -54,6 +62,7 @@ export function parseReleases(value: unknown): readonly ReleaseRecord[] {
         approvedBy: typeof row.approvedBy === "string" ? row.approvedBy : null,
         replacedVersion: typeof row.replacedVersion === "number" ? row.replacedVersion : null,
         rollback: row.rollback,
+        closed: row.closed === true,
       },
     ];
   });
