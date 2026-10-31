@@ -26,7 +26,7 @@ export async function generateMetadata({
 
 /**
  * Versions: what exists, who published it, where it is serving, and how it got there
- * (task 034, ADR-18; merged with task 065's release screen by issue #1197).
+ * (task 034, ADR-18; includes task 065's release history).
  *
  * ## Why the two screens became one
  *
@@ -106,7 +106,7 @@ export default async function FormVersionsPage({
         <h2 className="text-base font-semibold">{t("forms.versions.summaryHeading")}</h2>
         <EnvironmentSummary releases={releases} environments={environments} />
         <div className="flex flex-wrap gap-2">
-          {/* The one publish entry (issue #1197). A link rather than a dialog, because the
+          {/* The one publish entry. A link rather than a dialog, because the
               wizard is three steps over an intent that must survive a reload and write
               nothing until its last press. */}
           <Link

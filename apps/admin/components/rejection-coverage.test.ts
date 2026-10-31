@@ -68,14 +68,13 @@ const HANDLERS: Readonly<Record<string, readonly string[]>> = {
   "forms/assist-panel.tsx": ["non-JSON error body (forms/assist-panel.test.tsx)"],
   // The four from task 035 and the five from issue #303, in file order.
   "forms/draft-preview.tsx": ["preview projection (forms/draft-preview-rejects.test.tsx)"],
-  // One handler since the builder's publish dialogs were retired (Code Owner,
-  // 2026-10-31): publishing is the wizard's act, and so are its rejection handlers.
+  // Publishing is the wizard's act, so its rejection handlers are the wizard's, not this file's.
   "forms/form-actions.tsx": ["close/reopen (forms/form-actions-rejects.test.tsx)"],
   // Task 065's release action. Its refusal keeps the dialog open, because a release that
   // may or may not have landed in production is the one state an operator must not be
   // left guessing about.
   "forms/release-panel.tsx": ["release (forms/release-panel-rejects.test.tsx)"],
-  // The publish wizard's three (issue #1197). The confirmation's is the one that does not
+  // The publish wizard's three. The confirmation's is the one that does not
   // report a failure: a lost answer may have committed, so it leaves the operator a result
   // lookup and a replay of the same key rather than an invitation to press again.
   "forms/publish-wizard.tsx": [

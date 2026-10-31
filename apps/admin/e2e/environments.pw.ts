@@ -208,8 +208,8 @@ test("a destructive confirmation names the environment it is about", async ({ pa
   await expect(dialog.getByRole("button", { name: "Close it in test" })).toBeVisible();
   await dialog.getByRole("button", { name: "Cancel" }).click();
 
-  // Publishing names no environment here, and that is the point since the wizard became
-  // the one entry (issue #1197): the destination is chosen in the wizard's own body, so
+  // Publishing names no environment here, and that is the point: the destination is chosen
+  // in the wizard's own body, so
   // nothing on this screen offers a second environment to confuse with the one the
   // lifecycle dialog has just restated.
   await expect(page.getByRole("button", { name: /^Publish/u })).toHaveCount(0);

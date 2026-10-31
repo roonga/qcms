@@ -462,8 +462,7 @@ test("expands a group through the portal's own renderer (case 61)", async ({ pag
 
   // The form has to be published for a respondent to have anything to compare against, and the
   // two rules authored above are legal, so this is the first clean publish of it.
-  // Published AND released to test in one confirmation, which is what the wizard makes of
-  // the two presses this used to need (issue #1197).
+  // Published AND released to test in one confirmation.
   await openPublishWizard(page, formId);
   await chooseSource(page, "The shared draft");
   await page.getByRole("button", { name: "Continue", exact: true }).click();

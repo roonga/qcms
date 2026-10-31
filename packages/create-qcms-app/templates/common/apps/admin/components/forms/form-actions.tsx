@@ -83,7 +83,7 @@ export function FormActions({
       </h2>
 
       <div className="flex flex-wrap items-center gap-2">
-        {/* The one publish entry (issue #1197). A link rather than a dialog: one
+        {/* The one publish entry. A link rather than a dialog: one
             confirmation can name several destinations, each with its own transition and
             eligibility to read first, and the act writes nothing until its last press. */}
         {canPublish && (

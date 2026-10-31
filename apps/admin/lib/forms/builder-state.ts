@@ -216,7 +216,7 @@ export interface PublishBatchRelease {
 }
 
 /**
- * One confirmation of the publish wizard (issue #1197).
+ * One confirmation of the publish wizard.
  *
  * `uncertain` is the state the plan's invariant exists for: the confirmation may have
  * committed and the answer was lost. From there the wizard looks the result up by the same

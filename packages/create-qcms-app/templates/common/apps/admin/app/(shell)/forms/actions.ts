@@ -443,7 +443,7 @@ export async function releaseVersionAction(
   };
 }
 
-// --- the publish wizard (issue #1197, phase 5) ------------------------------
+// --- the publish wizard ------------------------------
 
 /**
  * Read what releasing one source would do, per destination this caller may release into.

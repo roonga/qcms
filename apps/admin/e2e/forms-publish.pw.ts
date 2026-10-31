@@ -217,7 +217,7 @@ test("releases a published version to an environment and records it (task 065)",
   test.setTimeout(180_000);
   await signInWithTotp(page, EMAIL, totpSecret);
 
-  // The legacy route lands on the screen that answers it now (issue #1197).
+  // The legacy route lands on the Versions screen.
   await page.goto(`/forms/${formId}/releases`);
   await page.waitForURL(`**/forms/${formId}/versions`);
   await chooseEnvironment(page, "prod");
@@ -250,8 +250,8 @@ test("releases a published version to an environment and records it (task 065)",
   // ADR-27 again: an operator-facing table renders a formatted date, never the wire value.
   await expect(history).not.toContainText(ISO_TIMESTAMP);
 
-  // The version table now says where v1 reached and where it is serving, which the
-  // Published column used to answer on its own and no longer does.
+  // The version table says where v1 reached and where it is serving, which the Published
+  // column alone does not answer.
   const versions = page.getByRole("table", { name: "Published versions" });
   await expect(versions.locator('tr[data-form-version="1"]')).toContainText("prod");
   await expect(versions.locator('tr[data-form-version="1"] td[data-available-in]')).toContainText(
@@ -523,8 +523,7 @@ test("a refused publish lists every issue and each one moves focus (exit criteri
   }).toPass({ timeout: 30_000 });
 
   // AND THE PUBLISH ITSELF IS REFUSED, which is what the panel's count is a claim about.
-  // The refusal is the wizard's now, and it is SPOKEN - which a rejection was not before
-  // issue #377. The helper asserts the live region, the sentence, and that the pointer to
+  // The refusal is the wizard's, and it is SPOKEN. The helper asserts the live region, the sentence, and that the pointer to
   // the work list is NOT inside the region: a screenful of links read out as one flat
   // interruption is neither navigable nor wanted.
   await refuseDraftThroughWizard(page, { formId, environment: "test" });

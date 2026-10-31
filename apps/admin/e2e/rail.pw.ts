@@ -380,10 +380,8 @@ test("559 gives every rail row a real destination, which is what anchors-not-but
   const hrefs = await page
     .locator(".qcms-rail__link")
     .evaluateAll((links) => links.map((link) => link.getAttribute("href") ?? ""));
-  // TEN: the form's own row, its two steps, and the seven sibling screens - eight siblings
-  // since the publish wizard took a route of its own. Rules became one of them when #669 gave it
-  // a route; it used to be a row `rail-steps.tsx` drew itself, carrying `#rules` because it
-  // switched a selection the builder made, and it is an ordinary sibling link now.
+  // TEN: the form's own row, its two steps, and the seven sibling screens, Rules and the
+  // publish wizard among them as ordinary sibling links.
   expect(hrefs).toHaveLength(10);
   expect(
     hrefs.filter((href) => href.endsWith("/publish")),

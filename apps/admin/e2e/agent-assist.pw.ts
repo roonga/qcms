@@ -206,8 +206,7 @@ test("publishes the accepted draft through the unchanged human flow (exit criter
   await expect(page.getByTestId("qcms-builder-provenance")).toBeVisible({ timeout: 30_000 });
 
   // The publish confirmation carries it too (041 deliverable), and that confirmation is
-  // the wizard's review step since the builder's dialogs were retired (Code Owner,
-  // 2026-10-31).
+  // the wizard's review step.
   await openPublishWizard(page, formId);
   await chooseSource(page, "The shared draft");
   await page.getByRole("button", { name: "Continue", exact: true }).click();

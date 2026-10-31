@@ -1,5 +1,5 @@
 /**
- * The review and the confirmation, as the publish wizard reads them (phase 5, issue #1197).
+ * The review and the confirmation, as the publish wizard reads them.
  *
  * Client-safe and pure, like `lib/forms/releases.ts`, because the wizard is a client
  * component and a client module cannot reach into `lib/server/` at all (the R2

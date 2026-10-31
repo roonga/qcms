@@ -68,7 +68,7 @@ export const RAIL_SECTIONS = [
   "preview",
   "versions",
   // Directly after Versions, because that screen is what an operator reads to decide what
-  // to publish and this is the one entry that does it (issue #1197).
+  // to publish and this is the one entry that does it.
   "publish",
   "links",
   "responses",

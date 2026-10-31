@@ -48,7 +48,7 @@ import { t } from "./i18n/en.ts";
  * Six until issue #669, which gave rule editing a route (`/forms/{formId}/rules`) rather
  * than leaving it a selection on the builder. The seventh and eighth are Versions, which
  * answers what exists and what is serving where in one screen, and Publish, the one entry
- * that changes either (issue #1197). A section here is a screen with a tab title, a
+ * that changes either. A section here is a screen with a tab title, a
  * breadcrumb crumb, an `<h1>` and a rail row, and both are all four.
  */
 export type FormSection =

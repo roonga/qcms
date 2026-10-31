@@ -139,7 +139,7 @@ export async function openRail(page: Page): Promise<void> {
  */
 /**
  * Release a form's newest published version through the publish wizard (ADR-40, task 065;
- * the wizard since issue #1197).
+ * the publish wizard).
  *
  * **Every spec that publishes through the UI and then walks the portal needs this**, and
  * that is the model rather than a harness quirk: a published version is served nowhere

@@ -146,8 +146,7 @@ export default async function FormBuilderPage({
         </Alert>
       )}
 
-      {/* CLOSE/REOPEN AND THE WAY TO THE WIZARD RIDE INSIDE THE BUILDER (Code Owner,
-          2026-08-26), on the screen that carries the form's own details, because that is
+      {/* CLOSE/REOPEN AND THE WAY TO THE WIZARD RIDE INSIDE THE BUILDER on the screen that carries the form's own details, because that is
           what they act on: they close the FORM, and standing them above a column that is
           usually showing one step said they were about the step.
 

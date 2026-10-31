@@ -109,7 +109,7 @@ export async function refuseDraftThroughWizard(
 
   const rejected = page.getByTestId("qcms-publish-rejected");
   await expect(rejected).toBeVisible({ timeout: 30_000 });
-  // The refusal is SPOKEN, which a rejection was not before issue #377, and the count is
+  // The refusal is SPOKEN, and the count is
   // what the live region carries: a screenful of links read out as one flat interruption
   // is neither navigable nor wanted, so the pointer stays outside it.
   const status = page.getByTestId("qcms-publish-status");

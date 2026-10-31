@@ -84,8 +84,7 @@ describe("the form-subtree rail's contents", () => {
       // nested under it, which is where `rules-screen-poc.html` draws it.
       "Rules",
       "Preview",
-      // "Versions" since issue #1197 merged the release screen into it, by §7's rule that
-      // the rail carries the screen's own name.
+      // §7's rule: the rail carries the screen's own name.
       "Versions",
       // The publish wizard, named the same way: the rail carries the screen's own name.
       "Publish",

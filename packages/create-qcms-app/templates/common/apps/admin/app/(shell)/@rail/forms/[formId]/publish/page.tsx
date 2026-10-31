@@ -1,7 +1,7 @@
 import { FormRailSlot } from "../rail-slot";
 
 /**
- * The §7 rail on the publish wizard (issue #1197).
+ * The §7 rail on the publish wizard.
  *
  * The children group is the form's **steps**, exactly as it is on every other form-scoped
  * screen. A rail listing environments beside a wizard whose own body lists environments

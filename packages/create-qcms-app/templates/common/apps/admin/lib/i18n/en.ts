@@ -1710,7 +1710,7 @@ export const messages = {
   "forms.releases.failed": "Nothing was released. {message}",
   "forms.releases.rollbackDone": "v{version} is released to {environment} again, as a rollback.",
 
-  // The merged Versions view and the publish wizard (issue #1197). "Available in" names
+  // The Versions view and the publish wizard. "Available in" names
   // the environments a version is serving NOW, not every environment it ever reached: a
   // column that kept the old destination would present history as what is live.
   "forms.versions.availableIn": "Available in",

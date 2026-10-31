@@ -118,7 +118,7 @@ function screens(): readonly Screen[] {
       title: `Versions: ${FORM_ID} - QCMS`,
     },
     {
-      // The publish wizard (issue #1197). Its rail carries the form's STEPS like every
+      // The publish wizard. Its rail carries the form's STEPS like every
       // other one: a rail listing environments beside a wizard whose own body lists
       // environments is the rail §5.4 rejects for repeating the page.
       path: `/forms/${FORM_ID}/publish`,

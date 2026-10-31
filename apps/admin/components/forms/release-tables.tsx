@@ -5,7 +5,7 @@ import { t } from "@/lib/i18n/en";
 
 /**
  * The two readings of a release history, as the Versions view and the builder's production
- * review both render them (ADR-40; issue #1197 merged the release screen into Versions).
+ * review both render them (ADR-40).
  *
  * Everything here comes from one history, because the history is the model: the newest row
  * for a (form, environment) pair **is** what is released there and whether intake is open,

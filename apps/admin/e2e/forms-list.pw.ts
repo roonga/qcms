@@ -134,7 +134,7 @@ test("creates the library this spec reads, and closes one of its forms", async (
   await publishDraftThroughWizard(page, { formId: bravoId, version: 1, environment: "test" });
 
   // Back to the form's own screen: the lifecycle actions live there, and the wizard is a
-  // screen of its own since issue #1197.
+  // screen of its own.
   await page.goto(`/forms/${bravoId}`);
   await openFormDetails(page);
   await page.getByRole("button", { name: "Close in test" }).click();

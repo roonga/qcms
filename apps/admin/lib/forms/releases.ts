@@ -113,7 +113,7 @@ export function environmentsByVersion(
 /**
  * Which environments each version is releasing **now**, keyed by version number.
  *
- * The Versions view's Available in column (issue #1197). Deliberately not
+ * The Versions view's Available in column. Deliberately not
  * `environmentsByVersion`: that one answers "has reached", which is the right answer for a
  * filter and the wrong one for a column an operator reads to decide what is serving. A
  * version replaced or rolled away from is available in nowhere, and a column that still

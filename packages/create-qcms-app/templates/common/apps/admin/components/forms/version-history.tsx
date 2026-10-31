@@ -57,8 +57,7 @@ export function VersionHistory({
    */
   readonly releasedBy?: Readonly<Record<string, readonly string[]>>;
   /**
-   * Which environments each version is releasing **now**, keyed by version number (issue
-   * #1197). A version absent from this map is available nowhere.
+   * Which environments each version is releasing **now**, keyed by version number. A version absent from this map is available nowhere.
    *
    * Separate from `releasedBy` because the two answer different questions and only one of
    * them belongs in a column. `releasedBy` is "has reached", which is the right basis for
@@ -185,7 +184,7 @@ export function VersionHistory({
                   does. */}
               <th scope="col">{t("forms.history.column.released")}</th>
               {/* Where this version is serving right now, which is a different column from
-                  the one beside it and the one an operator acts on (issue #1197). */}
+                  the one beside it and the one an operator acts on. */}
               <th scope="col">{t("forms.versions.availableIn")}</th>
               <th scope="col" className="qcms-cell--drop">
                 {t("forms.versions.publishedBy")}
