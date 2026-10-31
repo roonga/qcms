@@ -40,7 +40,11 @@ import {
 } from "./support/forms.js";
 import { waitForHydration } from "./support/hydration.js";
 import { openDeliverer, submitResponse, TestConsumer } from "./support/ops.js";
-import { chooseDestination, publishDraftThroughWizard } from "./support/publish.js";
+import {
+  chooseDestination,
+  chooseSource,
+  publishDraftThroughWizard,
+} from "./support/publish.js";
 import {
   addOption,
   chooseType,
@@ -962,8 +966,7 @@ test("publish, preview, history and secure links have zero violations", async ({
   // reload it replaces did the same job of proving the draft reached the server.
   await page.goto(`/forms/${formId}`);
 
-  // The wizard is the one publish entry (Code Owner, 2026-10-31), so the act the builder's
-  // dialog used to perform happens on its own screen and the sweep follows it there.
+  // Publishing has a screen of its own, so the sweep follows it there.
   await publishDraftThroughWizard(page, { formId, version: 1, environment: "test" });
   // That success alert is announced only because the container it arrives in is a live
   // region, and nothing else in the suite says so (issue #368). The visibility assertion
@@ -1003,10 +1006,10 @@ test("publish, preview, history and secure links have zero violations", async ({
   await expectNoViolations(page, "close-form confirmation");
   await page.keyboard.press("Escape");
 
-  // The Versions view and every step of the publish wizard (issue #1197). Swept here, with
-  // the other acts, because the wizard is a form filled in over three steps, each with its
-  // own controls and its own live region - and the release itself is what lets the
-  // operations sweep below start a respondent session on this form.
+  // The Versions view and every step of the publish wizard. Swept here, with the other
+  // acts, because the wizard is a form filled in over three steps, each with its own
+  // controls and its own live region - and the release itself is what lets the operations
+  // sweep below start a respondent session on this form.
   await page.goto(`/forms/${formId}/versions`);
   await chooseEnvironment(page, "prod");
   await expect(page.getByTestId("qcms-released-now")).toBeVisible();
@@ -1015,14 +1018,23 @@ test("publish, preview, history and secure links have zero violations", async ({
   await page.goto(`/forms/${formId}/publish`);
   await expect(page.getByTestId("qcms-publish-source")).toBeVisible();
   await expectNoViolations(page, "the publish wizard, choosing a source");
-  await page.getByRole("radio", { name: "An existing version" }).check();
+  await chooseSource(page, "An existing version");
   await page.getByRole("button", { name: "Continue", exact: true }).click();
   const destinations = page.getByTestId("qcms-publish-destinations");
   await expect(destinations).toBeVisible();
+  // A step change takes focus to the heading of the step that replaced the one the pressed
+  // control went with. The axe sweep cannot see a dropped focus, so it is asserted.
+  await expect(destinations.locator("legend")).toBeFocused();
   await expectNoViolations(page, "the publish wizard, choosing destinations");
   await chooseDestination(destinations, "prod");
   await page.getByRole("button", { name: "Continue", exact: true }).click();
-  await expect(page.getByTestId("qcms-publish-review")).toBeVisible();
+  const wizardReview = page.getByTestId("qcms-publish-review");
+  await expect(wizardReview).toBeVisible();
+  await expect(wizardReview.getByRole("heading", { name: "Review and confirm" })).toBeFocused();
+  await page.getByRole("button", { name: "Back", exact: true }).click();
+  await expect(destinations.locator("legend")).toBeFocused();
+  await page.getByRole("button", { name: "Continue", exact: true }).click();
+  await expect(wizardReview).toBeVisible();
   await expectNoViolations(page, "the publish wizard, reviewing one destination");
   await page.getByRole("button", { name: "Confirm", exact: true }).click();
   await expect(page.getByTestId("qcms-publish-result")).toBeVisible({ timeout: 30_000 });

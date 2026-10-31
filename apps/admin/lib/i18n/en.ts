@@ -1576,21 +1576,10 @@ export const messages = {
   // them, and issue #536 composes each screen's browser-tab title from them, so all six
   // are still one place. Only the strip's own landmark label went with `form-tabs.tsx`.
   //
-  // "Versions" since issue #1197, which merged task 065's release screen into this one:
-  // the screen now answers what exists and what is serving where, and "Version history"
-  // named only the first half. The paragraph below is issue 679's reasoning for the name it
-  // replaced, kept because the rule it argues still decides this key.
-  //
-  // "Version history" rather than "History" (issue 679). Three things pushed the same way
-  // and none of them was consistency for its own sake. The screen's approved drawing names
-  // it that (`plan/admin-shell-poc/preview-versions-poc.html`, the `<h1>` at the head of
-  // its version-list screen). The app's own prose already did, twice, in the two links that
-  // point at this screen: `forms.publish.viewHistory` and `forms.history.backToHistory`
-  // both read "version history". And "History" was the one name in the six that did not say
-  // what it listed, which reads as under-specified in a rail and outright ambiguous once
-  // composed into a heading, where "History: Life insurance" could as easily mean the
-  // form's edit history or its responses. The rail follows the screen's name by the rule
-  // `plan/admin-design-contracts.md` §7 records, which anticipates exactly this rename.
+  // The name says what the screen lists, because a bare "History" is ambiguous once
+  // composed into a heading: "History: Life insurance" could as easily mean a form's edit
+  // history or its responses. The rail follows the screen's name by the rule
+  // `plan/admin-design-contracts.md` §7 records.
   //
   // `forms.section.heading` ("{section}: {slug}") stood here until issue #538's sweep.
   // The Code Owner's 2026-08-26 amendment took it out of the `<h1>`, which left it
@@ -1744,6 +1733,7 @@ export const messages = {
   "forms.publish.step.source": "What to publish",
   "forms.publish.step.destinations": "Where it goes",
   "forms.publish.step.review": "Review and confirm",
+  "forms.publish.step.announce": "Step: {step}",
   "forms.publish.source.draft": "The shared draft",
   "forms.publish.source.draftHint": "Publishing freezes a new immutable version of the draft.",
   "forms.publish.source.version": "An existing version",
@@ -1855,7 +1845,7 @@ export const messages = {
     "Draft changes are shared. Select test in the top navigation to edit and publish them.",
   "forms.workflow.switchToTest": "Switch to test",
   "forms.workflow.noReleasedVersion":
-    "Nothing is released in this environment yet. Select a published version on Releases to review and release it.",
+    "Nothing is released in this environment yet. Select a published version on Versions to review and release it.",
   "forms.workflow.reviewCurrent": "Currently released: v{version}",
 
   "forms.preview.heading": "Preview",

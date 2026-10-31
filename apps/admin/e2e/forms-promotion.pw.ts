@@ -25,6 +25,7 @@ import {
 import { waitForHydration } from "./support/hydration.js";
 import {
   chooseDestination,
+  chooseSource,
   openPublishWizard,
   publishDraftThroughWizard,
 } from "./support/publish.js";
@@ -46,11 +47,11 @@ test.beforeAll(async () => {
 });
 
 /**
- * Promote the tested v1 into one destination through the publish wizard (issue #1197).
+ * Promote the tested v1 into one destination through the publish wizard.
  *
- * It asserts the two things the old release dialog asserted and the wizard still owes: the
- * destination is chosen here and not taken from the switcher, and a destination this
- * caller cannot release into is absent from the list rather than disabled.
+ * It asserts the two things the wizard owes: the destination is chosen here and not taken
+ * from the switcher, and a destination this caller cannot release into is absent from the
+ * list rather than disabled.
  */
 async function releaseVersion(
   page: Page,
@@ -58,7 +59,7 @@ async function releaseVersion(
   environment: "test" | "prod",
 ): Promise<void> {
   await openPublishWizard(page, formId);
-  await page.getByRole("radio", { name: "An existing version" }).check();
+  await chooseSource(page, "An existing version");
   await chooseOption(page.getByTestId("qcms-publish-source"), "Version to release", "v1");
   await page.getByRole("button", { name: "Continue", exact: true }).click();
   const destinations = page.getByTestId("qcms-publish-destinations");
@@ -135,8 +136,7 @@ test("publishes a draft, verifies it in test, then promotes the same version to 
 
   await page.goto(`/forms/${formId}`);
   await waitForHydration(page);
-  // The builder offers no publish of its own at all (Code Owner, 2026-10-31): one entry,
-  // and it is the way to the wizard.
+  // The builder offers no publish of its own: one entry, and it is the way to the wizard.
   await expect(page.getByRole("button", { name: /^Publish/u })).toHaveCount(0);
   await expect(page.getByTestId("qcms-publish-entry")).toBeVisible();
 
@@ -145,7 +145,7 @@ test("publishes a draft, verifies it in test, then promotes the same version to 
   // the wizard lists prod disabled with that as the reason rather than omitting it or
   // letting the confirmation refuse it.
   await openPublishWizard(page, formId);
-  await page.getByRole("radio", { name: "The shared draft" }).check();
+  await chooseSource(page, "The shared draft");
   await page.getByRole("button", { name: "Continue", exact: true }).click();
   const destinations = page.getByTestId("qcms-publish-destinations");
   await expect(destinations).toBeVisible();

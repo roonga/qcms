@@ -5,13 +5,11 @@ import { expect } from "../../../portal/e2e/support/gates.js";
 import { waitForHydration } from "./hydration.js";
 
 /**
- * The publish wizard, driven the way an operator drives it (issue #1197).
+ * The publish wizard, driven the way an operator drives it.
  *
- * One helper because the wizard is the one entry that publishes or releases anything: the
- * release dialog on the old `/forms/{id}/releases` screen and the builder's own publish
- * dialogs are gone, and every spec that used to press one comes through here. The steps are
- * the wizard's own - a source, its destinations, then one confirmation - so a spec that
- * drifts from the real flow fails here once rather than in each spec separately.
+ * One helper because the wizard is the one entry that publishes or releases anything, so
+ * every spec that publishes comes through here and a spec that drifts from the real flow
+ * fails here once rather than in each spec separately.
  */
 
 /** Open the wizard on a form, from its own route. */
@@ -19,6 +17,19 @@ export async function openPublishWizard(page: Page, formId: string): Promise<voi
   await page.goto(`/forms/${formId}/publish`);
   await waitForHydration(page);
   await expect(page.getByTestId("qcms-publish-wizard")).toBeVisible();
+}
+
+/**
+ * Choose the wizard's source, by the option's visible label.
+ *
+ * BY ITS LABEL, for the reason `chooseDestination` below records: the kit's radio hides its
+ * own input behind a painted indicator, so `.check()` spends its whole timeout being told
+ * the press was intercepted. The assertion still reads the input's checked state.
+ */
+export async function chooseSource(page: Page, label: string): Promise<void> {
+  const source = page.getByTestId("qcms-publish-source");
+  await source.getByText(label, { exact: true }).click();
+  await expect(source.getByRole("radio", { name: label })).toBeChecked();
 }
 
 /**
@@ -54,7 +65,7 @@ export async function releaseThroughWizard(
 
   // An existing version, which is what a release is. The radio is already the default when
   // there is no publishable draft, and checking it again is harmless and explicit.
-  await page.getByRole("radio", { name: "An existing version" }).check();
+  await chooseSource(page, "An existing version");
   await page.getByRole("button", { name: "Continue", exact: true }).click();
 
   const destinations = page.getByTestId("qcms-publish-destinations");
@@ -85,7 +96,7 @@ export async function refuseDraftThroughWizard(
 ): Promise<void> {
   await openPublishWizard(page, input.formId);
 
-  await page.getByRole("radio", { name: "The shared draft" }).check();
+  await chooseSource(page, "The shared draft");
   await page.getByRole("button", { name: "Continue", exact: true }).click();
 
   const destinations = page.getByTestId("qcms-publish-destinations");
@@ -111,10 +122,8 @@ export async function refuseDraftThroughWizard(
  * Freeze the stored draft and release the new version into one destination, in one
  * confirmation.
  *
- * This is the act the builder's "Publish to {env}" dialog used to perform (Code Owner,
- * 2026-10-31: the builder's publish dialogs are retired). The freeze summary an author
- * reads before pressing is the wizard's own review step, so the assertion lives here rather
- * than in each caller.
+ * The freeze summary an author reads before pressing is the wizard's own review step, so
+ * the assertion lives here rather than in each caller.
  */
 export async function publishDraftThroughWizard(
   page: Page,
@@ -128,7 +137,7 @@ export async function publishDraftThroughWizard(
 ): Promise<void> {
   await openPublishWizard(page, input.formId);
 
-  await page.getByRole("radio", { name: "The shared draft" }).check();
+  await chooseSource(page, "The shared draft");
   await page.getByRole("button", { name: "Continue", exact: true }).click();
 
   const destinations = page.getByTestId("qcms-publish-destinations");

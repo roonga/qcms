@@ -229,9 +229,20 @@ export interface PublishBatchRelease {
  * `rejected` carries the publish issues a draft source can refuse with, exactly as
  * {@link PublishState} does. There is no partial status: the API writes every destination
  * or none of them.
+ *
+ * `not-committed` is a lookup's own answer and never an inference: only a 404 on the key
+ * establishes that the confirmation never landed, so only that answer may tell an operator
+ * their key is free to confirm again.
  */
 export interface PublishBatchState {
-  readonly status: "idle" | "done" | "rejected" | "stale" | "uncertain" | "error";
+  readonly status:
+    | "idle"
+    | "done"
+    | "rejected"
+    | "stale"
+    | "uncertain"
+    | "not-committed"
+    | "error";
   readonly version?: number;
   /** True when this confirmation froze the version, false when it released an existing one. */
   readonly froze?: boolean;

@@ -10,8 +10,7 @@ import { unexpected } from "../../lib/ops/unexpected.ts";
  * What an author sees when a form-level action REJECTS rather than returning a failure
  * (issue #352, handler 6 of nine).
  *
- * One handler is left here. The publish and publish-and-release ones went with the dialogs
- * that drove them (Code Owner, 2026-10-31), and the wizard's three stand in their place in
+ * One handler is left here; the publish wizard's three are asserted in
  * `publish-wizard-rejects.test.tsx`.
  *
  * ## What is faked, and why it is the right edge

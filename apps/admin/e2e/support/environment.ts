@@ -50,6 +50,19 @@ export async function chooseEnvironment(page: Page, environment: "test" | "prod"
   if (away) await page.goto(from);
 }
 
+/**
+ * Write the preference without the chip, for a spec proving that some act does not read it.
+ *
+ * Deliberately not `chooseEnvironment`, which navigates out to Operations and back: a spec
+ * asserting that a control carries its own environment needs the preference to disagree
+ * with it while the screen under test stays where it is.
+ */
+export async function presetEnvironment(page: Page, environment: "test" | "prod"): Promise<void> {
+  await page
+    .context()
+    .addCookies([{ name: ENVIRONMENT_COOKIE, value: environment, url: ADMIN_BASE_URL }]);
+}
+
 /** Layout sweeps prepare a preference; behavior journeys exercise the actual switcher. */
 export async function setScreenEnvironment(page: Page, path: string): Promise<void> {
   const authoring = /^\/forms\/(?:new$|frm_[^/?#]+(?:\/(?:rules|preview))?(?:[?#]|$))/u.test(path);

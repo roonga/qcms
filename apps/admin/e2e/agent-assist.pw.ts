@@ -16,7 +16,7 @@ import {
   waitForSaveAfter,
   waitForSaved,
 } from "./support/forms.js";
-import { chooseDestination, openPublishWizard } from "./support/publish.js";
+import { chooseDestination, chooseSource, openPublishWizard } from "./support/publish.js";
 import { confirmLifecycle, createDraft } from "./support/questions.js";
 
 /**
@@ -209,7 +209,7 @@ test("publishes the accepted draft through the unchanged human flow (exit criter
   // the wizard's review step since the builder's dialogs were retired (Code Owner,
   // 2026-10-31).
   await openPublishWizard(page, formId);
-  await page.getByRole("radio", { name: "The shared draft" }).check();
+  await chooseSource(page, "The shared draft");
   await page.getByRole("button", { name: "Continue", exact: true }).click();
   const destinations = page.getByTestId("qcms-publish-destinations");
   await expect(destinations).toBeVisible();

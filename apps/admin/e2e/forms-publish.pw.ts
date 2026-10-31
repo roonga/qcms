@@ -3,7 +3,12 @@ import type { Download, Locator, Page, Request } from "@playwright/test";
 import { PORTAL_PORT } from "../../portal/e2e/support/harness-config.js";
 import { expect, test } from "../../portal/e2e/support/gates.js";
 
-import { TEST_ENVIRONMENT_STORAGE, chooseEnvironment } from "./support/environment.js";
+import {
+  TEST_ENVIRONMENT_STORAGE,
+  chooseEnvironment,
+  environmentChip,
+  presetEnvironment,
+} from "./support/environment.js";
 import { createTestAdmin, uniqueAdminEmail } from "./support/admin-account.js";
 import { domShape, headingTags, withDemotedHeadings } from "./support/dom-shape.js";
 import { activeElementId, enrollNewAdmin, signInWithTotp } from "./support/flow.js";
@@ -30,6 +35,7 @@ import {
 } from "./support/forms.js";
 import {
   chooseDestination,
+  chooseSource,
   openPublishWizard,
   refuseDraftThroughWizard,
   releaseThroughWizard,
@@ -172,7 +178,7 @@ test("publishes a draft and reports what it froze (exit criterion 1)", async ({ 
   // selection on this route; since issue #669 the rule work happened on
   // `/forms/{formId}/rules`, so this is a navigation back to the screen Publish is on.
   await openPublishWizard(page, formId);
-  await page.getByRole("radio", { name: "The shared draft" }).check();
+  await chooseSource(page, "The shared draft");
   await page.getByRole("button", { name: "Continue", exact: true }).click();
   const destinations = page.getByTestId("qcms-publish-destinations");
   await expect(destinations).toBeVisible();
@@ -191,10 +197,15 @@ test("publishes a draft and reports what it froze (exit criterion 1)", async ({ 
   await page.getByRole("button", { name: "Confirm", exact: true }).click();
   const result = page.getByTestId("qcms-publish-result");
   await expect(result).toContainText("Version 1 is published.", { timeout: 30_000 });
-  // The way on to the environment this version is now serving in.
-  await expect(
-    result.getByRole("link", { name: "Open test operations", exact: true }),
-  ).toBeVisible();
+  // THE WAY ON TO THE ENVIRONMENT THIS VERSION NOW SERVES, which has to be that
+  // environment and not whatever the header last showed: Operations reads the selector's
+  // cookie rather than its address, so the control makes that selection first. The
+  // preference is set to prod behind the screen, so the press is what decides where this
+  // lands.
+  await presetEnvironment(page, "prod");
+  await result.getByRole("button", { name: "Open test operations", exact: true }).click();
+  await page.waitForURL("**/operations");
+  await expect(environmentChip(page)).toHaveAttribute("data-environment", "test");
 });
 
 test("releases a published version to an environment and records it (task 065)", async ({
@@ -478,8 +489,7 @@ test("a refused publish lists every issue and each one moves focus (exit criteri
   await waitForSaveAfter(page, beforeBreak);
 
   // THE WORK LIST IS THE BUILDER'S, because that is the only screen whose entries can move
-  // focus to the rule, step or pin at fault (Code Owner, 2026-10-31: the builder's publish
-  // dialogs are retired, so a refusal no longer renders a list of its own). The panel holds
+  // focus to the rule, step or pin at fault. The panel holds
   // the verdict the save that broke the rule produced, so this reads it where the author
   // does - a rail switch away, in the tab that made the edit.
   await openFormDetails(page);

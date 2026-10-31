@@ -165,13 +165,6 @@ describe("the rejection handlers of the admin's forms and ops components", () =>
 
   it("number eighteen, of which fourteen are action rejections (nine at issue #352)", () => {
     const entries = Object.values(HANDLERS).flat();
-    // Fifteen since task 065: the combined publish-and-release action and the release
-    // panel's own each added one. **Sixteen since task 070**, whose pending-change panel
-    // drives a confirm and a withdraw through one handler. Seventeen with the immutable
-    // release-candidate loader, whose failed read keeps production confirmation disabled.
-    // **Twenty with issue #1197's wizard**, which reads a review, confirms it and looks its
-    // recorded result up, and all three can lose their answer - then **eighteen**, because
-    // retiring the builder's publish dialogs took the two handlers they drove with them.
     expect(entries).toHaveLength(18);
 
     // Three clipboard chains: a refusal the operator can act on, or silence.
@@ -183,16 +176,8 @@ describe("the rejection handlers of the admin's forms and ops components", () =>
     const parse = entries.filter((entry) => entry.startsWith("non-JSON"));
     expect(parse).toHaveLength(1);
 
-    // What is left is issue #352's original nine, and that number is the tripwire: it
-    // moves only when an action-rejection handler is genuinely added or removed, not when
-    // a handler of some other shape joins the list.
-    // Eleven since task 065: the combined publish-and-release action and the release
-    // panel's own release are both action rejections. **Twelve since task 070**: a
-    // confirmation of a pending production endpoint change is one too, and it is the one
-    // whose silence would be worst - an operator left wondering whether a production
-    // endpoint just moved. Thirteen with the candidate snapshot read, sixteen with the
-    // publish wizard's three, and **fourteen** once the builder's two publish handlers
-    // went with their dialogs.
+    // The tripwire: this number moves only when an action-rejection handler is genuinely
+    // added or removed, not when a handler of some other shape joins the list.
     expect(entries.length - clipboard.length - parse.length).toBe(14);
   });
 });

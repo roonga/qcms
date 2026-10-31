@@ -3,7 +3,7 @@ import { expect, type Locator, type Page } from "@playwright/test";
 import { chooseEnvironment } from "./environment.js";
 import { fillStable } from "./flow.js";
 import { waitForHydration } from "./hydration.js";
-import { chooseDestination, openPublishWizard } from "./publish.js";
+import { chooseDestination, chooseSource, openPublishWizard } from "./publish.js";
 
 /**
  * Browser steps for the form builder, shared by the build walk and accessibility suite.
@@ -158,7 +158,7 @@ export async function releaseNewestVersion(
 ): Promise<void> {
   await chooseEnvironment(page, environment);
   await openPublishWizard(page, formId);
-  await page.getByRole("radio", { name: "An existing version" }).check();
+  await chooseSource(page, "An existing version");
   await page.getByRole("button", { name: "Continue", exact: true }).click();
   const destinations = page.getByTestId("qcms-publish-destinations");
   await expect(destinations).toBeVisible();

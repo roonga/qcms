@@ -1,10 +1,20 @@
 "use client";
 
-import { useCallback, useState, useTransition } from "react";
+import { useCallback, useEffect, useRef, useState, useTransition } from "react";
 import Link from "next/link";
+import { useRouter } from "next/navigation";
 
-import { Alert, Button, Checkbox, Select } from "@/components/kit";
+import {
+  Alert,
+  Button,
+  Checkbox,
+  RadioButton,
+  RadioField,
+  RadioGroup,
+  Select,
+} from "@/components/kit";
 import { AgentProvenanceTag } from "@/components/forms/agent-provenance-tag";
+import { environmentCookie } from "@/lib/environment";
 import type { PublishBatchState } from "@/lib/forms/builder-state";
 import { IDLE_PUBLISH_BATCH } from "@/lib/forms/builder-state";
 import { freezeSummary } from "@/lib/forms/publish";
@@ -22,44 +32,37 @@ import { t, tPlural } from "@/lib/i18n/en";
 import { unexpected } from "@/lib/ops/unexpected";
 
 /**
- * The publish wizard: one entry, one confirmation, every destination or none (issue #1197,
- * the plan's "Versions and publishing flow").
+ * The publish wizard: one entry, one confirmation, every destination or none.
  *
- * ## Four properties this component exists to hold, and none of them is cosmetic
- *
- * **Back and cancel write nothing.** Nothing is persisted between steps: the source, the
+ * Nothing is persisted between steps, so a half-built intent is unrecoverable by
+ * construction rather than by a cleanup path somebody has to remember: the source, the
  * destinations and the review live in this component's state and the only call that writes
- * is the last press. That is why the wizard is state rather than three routes with saved
- * progress - a half-built intent has to be unrecoverable by construction, not by a cleanup
- * path somebody has to remember.
+ * is the last press.
  *
- * **Eligibility is the server's.** Every destination the review omits is one the caller
- * holds no `release: create` in, and every blocker on a destination it reports is a refusal
- * the confirmation would raise. Nothing here computes a prerequisite, a workflow rule or a
- * second-approver verdict; it renders what the review said and disables what the review
- * refused. A disabled destination still states its reason, because a control that is
- * simply inert teaches the operator nothing.
+ * Eligibility is the server's. Every destination the review omits is one the caller holds
+ * no `release: create` in, and every blocker it reports is a refusal the confirmation would
+ * raise, so nothing here computes a prerequisite, a workflow rule or a second-approver
+ * verdict. A disabled destination still states its reason, because a control that is simply
+ * inert teaches the operator nothing.
  *
- * **One call, never a loop.** A draft becomes one immutable snapshot reused by every
- * destination, and the API writes all of them in one transaction. A client-side loop over
- * single-target releases would leave the first release standing after the second was
- * denied, which is the failure the plan's invariant names.
+ * One call, never a loop: a client-side loop over single-target releases would leave the
+ * first release standing after the second was denied.
  *
- * **An uncertain answer is resolved, never retried blindly.** The idempotency key is minted
- * once per confirmed intent and kept, so a timeout offers a result lookup and a replay of
- * the same key. Neither can create a second version. Changing the source or the
- * destinations mints a new key, because that is a different act.
- *
- * ## Why the confirm step calls an action with plain data
- *
- * `confirm` takes a source, a destination list and the two expectations the review
- * reported. Nothing about the intent is recovered from this component's state on the server
- * side, so the same act can be driven by a caller holding a review rather than a rendered
- * wizard.
+ * The idempotency key is minted once per confirmed intent and kept, so an uncertain answer
+ * offers a result lookup and a replay of the same key, neither of which can create a second
+ * version. Changing the source or the destinations mints a new key, because that is a
+ * different act.
  */
 
 /** Which step is on screen. Source and destinations are chosen before anything is read. */
 type Step = "source" | "destinations" | "review";
+
+/** The step's own heading, which is what the live region announces when a step replaces one. */
+function stepName(step: Step): string {
+  if (step === "source") return t("forms.publish.step.source");
+  if (step === "destinations") return t("forms.publish.step.destinations");
+  return t("forms.publish.step.review");
+}
 
 /** The blocker's sentence, by the code the API sends. An unknown code names itself. */
 function blockerSentence(blocker: ReleaseBlockerRecord, environment: string): string {
@@ -120,7 +123,7 @@ function sourceOf(
 }
 
 /**
- * What the recorded outcome looks like, with a link into each affected Operations context.
+ * What the recorded outcome looks like, with a way into each affected Operations context.
  *
  * A component of its own because it is a different screen: once a confirmation has
  * committed there is nothing left to choose, and offering the wizard's controls beside the
@@ -129,11 +132,30 @@ function sourceOf(
 function PublishResult({
   formId,
   state,
+  secureCookies,
 }: {
   readonly formId: string;
   readonly state: PublishBatchState;
+  readonly secureCookies: boolean;
 }) {
+  const router = useRouter();
+  const [isPending, startTransition] = useTransition();
   const releases = state.releases ?? [];
+
+  /**
+   * Open Operations in the environment this release reached.
+   *
+   * Operations takes its environment from the selector's cookie and not from its address,
+   * so reaching it in a named environment means making that selection first: this writes
+   * the same cookie the header's own control writes, which is why pressing it is the
+   * operator's explicit choice rather than a URL parameter overriding one.
+   */
+  const openOperations = (environment: string): void => {
+    document.cookie = environmentCookie(environment, secureCookies);
+    startTransition(() => {
+      router.push("/operations");
+    });
+  };
   return (
     <section className="flex flex-col gap-4" data-testid="qcms-publish-result">
       {/* Testid on the region rather than only on its contents, so the `aria-live` can be
@@ -169,15 +191,16 @@ function PublishResult({
                   : "forms.publish.result.releasedIn",
                 { environment: release.environment },
               )}{" "}
-              {/* The affected Operations context, which is where an operator goes next to
-                  see what that environment is now serving. The link carries the environment
-                  explicitly rather than relying on a browser's own preference. */}
-              <Link
-                className="qcms-text-link"
-                href={`/operations?environment=${encodeURIComponent(release.environment)}`}
+              <Button
+                variant="secondary"
+                size="sm"
+                isDisabled={isPending}
+                onPress={() => {
+                  openOperations(release.environment);
+                }}
               >
                 {t("forms.publish.result.operations", { environment: release.environment })}
-              </Link>
+              </Button>
             </li>
           ))}
         </ul>
@@ -336,6 +359,7 @@ export function PublishWizard({
   review: readReview,
   confirm,
   lookup,
+  secureCookies,
 }: {
   readonly formId: string;
   /** Every published version, newest first. */
@@ -358,6 +382,8 @@ export function PublishWizard({
     targets: readonly PublishDestination[];
   }) => Promise<PublishBatchState>;
   readonly lookup: (idempotencyKey: string) => Promise<PublishBatchState>;
+  /** Whether the environment cookie this screen's Operations link writes carries `Secure`. */
+  readonly secureCookies: boolean;
 }) {
   const [step, setStep] = useState<Step>("source");
   const [sourceKind, setSourceKind] = useState<"draft" | "version">(
@@ -371,6 +397,29 @@ export function PublishWizard({
   const [key, setKey] = useState<string>();
   const [state, setState] = useState<PublishBatchState>(IDLE_PUBLISH_BATCH);
   const [isPending, startTransition] = useTransition();
+  // A callback ref because the three steps head themselves with different elements, and one
+  // object ref cannot be typed for a legend and a heading at once.
+  const headingRef = useRef<HTMLElement | null>(null);
+  const setHeading = useCallback((node: HTMLElement | null) => {
+    headingRef.current = node;
+  }, []);
+  // Counts the step changes rather than watching `step`, so the first render leaves focus
+  // where the operator put it and only a Continue or a Back moves it.
+  const [moves, setMoves] = useState(0);
+
+  const goTo = useCallback((next: Step) => {
+    setStep(next);
+    setMoves((count) => count + 1);
+  }, []);
+
+  /**
+   * The step that replaced the unmounted one takes focus, because the control the operator
+   * pressed went with it: without this, focus falls to the document and a keyboard or
+   * screen-reader user restarts from the top of the page on every step.
+   */
+  useEffect(() => {
+    if (moves > 0) headingRef.current?.focus();
+  }, [moves]);
 
   /**
    * Changing the source clears everything that depended on it.
@@ -403,7 +452,7 @@ export function PublishWizard({
               return;
             }
             setReview(result.data);
-            setStep(next);
+            goTo(next);
           })
           // `adminApiFetch` does not throw on a non-2xx, which is the trap: a transport
           // failure still rejects, and without this the step would sit there looking like
@@ -413,7 +462,7 @@ export function PublishWizard({
           });
       });
     },
-    [readReview, source],
+    [goTo, readReview, source],
   );
 
   const targets = review?.targets ?? [];
@@ -473,7 +522,9 @@ export function PublishWizard({
     });
   }, [key, lookup]);
 
-  if (state.status === "done") return <PublishResult formId={formId} state={state} />;
+  if (state.status === "done") {
+    return <PublishResult formId={formId} state={state} secureCookies={secureCookies} />;
+  }
 
   return (
     <section className="flex flex-col gap-6" data-testid="qcms-publish-wizard" data-step={step}>
@@ -498,15 +549,18 @@ export function PublishWizard({
             {t("forms.publish.wizardFailed", { message: state.message ?? "" })}
           </Alert>
         )}
-        {/* The lookup's own answer when nothing committed. A 404 on a key means the
-            confirmation never landed, so the key is free and confirming again is safe -
-            which is the opposite of what silence after an uncertain press would imply. */}
-        {state.status === "idle" && key !== undefined && !isPending && (
+        {/* A state of its own rather than an inference from idle: only a lookup that
+            answered 404 knows the confirmation never landed, and nothing else may claim
+            it. The key is kept, so confirming again replays that same key. */}
+        {state.status === "not-committed" && (
           <div data-testid="qcms-publish-nothing-committed">
             <Alert variant="info">{t("forms.publish.lookupNothing")}</Alert>
           </div>
         )}
         {reviewFailed && <Alert variant="error">{t("forms.publish.reviewFailed")}</Alert>}
+        <span className="qcms-visually-hidden" data-testid="qcms-publish-step-status">
+          {moves > 0 ? t("forms.publish.step.announce", { step: stepName(step) }) : ""}
+        </span>
       </div>
 
       {/* Outside the live region, as the builder's work list was: a screenful of issues
@@ -518,50 +572,48 @@ export function PublishWizard({
 
       {step === "source" && (
         <fieldset className="flex flex-col gap-3" data-testid="qcms-publish-source">
-          <legend className="text-base font-semibold">{t("forms.publish.step.source")}</legend>
+          <legend className="text-base font-semibold" ref={setHeading} tabIndex={-1}>
+            {t("forms.publish.step.source")}
+          </legend>
           {/* A radio pair rather than a checkbox: "an existing version" is a real choice an
               approver makes without holding draft-edit or publish permission, not the
               absence of the other one. */}
-          <label className="flex items-start gap-2">
-            <input
-              type="radio"
-              name="qcms-publish-source"
-              value="draft"
-              checked={sourceKind === "draft"}
-              disabled={!hasDraft || !canPublishDraft}
-              onChange={() => {
-                setSourceKind("draft");
-                resetFromSource();
-              }}
-            />
-            <span className="flex flex-col">
-              <span>{t("forms.publish.source.draft")}</span>
-              <span className="text-sm text-(--color-text-muted)">
-                {hasDraft ? t("forms.publish.source.draftHint") : t("forms.publish.source.noDraft")}
-              </span>
-            </span>
-          </label>
-          <label className="flex items-start gap-2">
-            <input
-              type="radio"
-              name="qcms-publish-source"
-              value="version"
-              checked={sourceKind === "version"}
-              disabled={versions.length === 0}
-              onChange={() => {
-                setSourceKind("version");
-                resetFromSource();
-              }}
-            />
-            <span className="flex flex-col">
-              <span>{t("forms.publish.source.version")}</span>
-              {versions.length === 0 && (
-                <span className="text-sm text-(--color-text-muted)">
-                  {t("forms.publish.source.noVersions")}
+          <RadioGroup
+            className="flex flex-col gap-3"
+            aria-label={t("forms.publish.step.source")}
+            value={sourceKind}
+            onChange={(next) => {
+              setSourceKind(next === "draft" ? "draft" : "version");
+              resetFromSource();
+            }}
+          >
+            <RadioField value="draft" isDisabled={!hasDraft || !canPublishDraft}>
+              <RadioButton className="qcms-radio">
+                <span className="qcms-radio__dot" aria-hidden="true" />
+                <span className="flex flex-col">
+                  <span>{t("forms.publish.source.draft")}</span>
+                  <span className="text-sm text-(--color-text-muted)">
+                    {hasDraft
+                      ? t("forms.publish.source.draftHint")
+                      : t("forms.publish.source.noDraft")}
+                  </span>
                 </span>
-              )}
-            </span>
-          </label>
+              </RadioButton>
+            </RadioField>
+            <RadioField value="version" isDisabled={versions.length === 0}>
+              <RadioButton className="qcms-radio">
+                <span className="qcms-radio__dot" aria-hidden="true" />
+                <span className="flex flex-col">
+                  <span>{t("forms.publish.source.version")}</span>
+                  {versions.length === 0 && (
+                    <span className="text-sm text-(--color-text-muted)">
+                      {t("forms.publish.source.noVersions")}
+                    </span>
+                  )}
+                </span>
+              </RadioButton>
+            </RadioField>
+          </RadioGroup>
           {sourceKind === "version" && versions.length > 0 && (
             <Select
               label={t("forms.publish.source.versionLabel")}
@@ -596,7 +648,7 @@ export function PublishWizard({
 
       {step === "destinations" && review !== undefined && (
         <fieldset className="flex flex-col gap-3" data-testid="qcms-publish-destinations">
-          <legend className="text-base font-semibold">
+          <legend className="text-base font-semibold" ref={setHeading} tabIndex={-1}>
             {t("forms.publish.step.destinations")}
           </legend>
           <p className="text-sm text-(--color-text-muted)">
@@ -689,7 +741,7 @@ export function PublishWizard({
               size="md"
               isDisabled={!canConfirm || isPending}
               onPress={() => {
-                setStep("review");
+                goTo("review");
               }}
             >
               {t("forms.publish.next")}
@@ -699,7 +751,7 @@ export function PublishWizard({
               size="md"
               isDisabled={isPending}
               onPress={() => {
-                setStep("source");
+                goTo("source");
               }}
             >
               {t("forms.publish.back")}
@@ -710,7 +762,9 @@ export function PublishWizard({
 
       {step === "review" && review !== undefined && (
         <div className="flex flex-col gap-3" data-testid="qcms-publish-review">
-          <h2 className="text-base font-semibold">{t("forms.publish.step.review")}</h2>
+          <h2 className="text-base font-semibold" ref={setHeading} tabIndex={-1}>
+            {t("forms.publish.step.review")}
+          </h2>
           <p>
             {review.source.kind === "draft"
               ? t("forms.publish.review.sourceDraft")
@@ -792,7 +846,7 @@ export function PublishWizard({
               size="md"
               isDisabled={isPending}
               onPress={() => {
-                setStep("destinations");
+                goTo("destinations");
                 setState(IDLE_PUBLISH_BATCH);
               }}
             >

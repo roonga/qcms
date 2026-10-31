@@ -16,7 +16,6 @@ import type {
   SettingsState,
   ValidateDraftState,
 } from "@/lib/forms/builder-state";
-import { IDLE_PUBLISH_BATCH } from "@/lib/forms/builder-state";
 import { formIdFromSlug } from "@/lib/forms/draft";
 import { t } from "@/lib/i18n/en";
 import { messageForFormCode } from "@/lib/forms/errors";
@@ -502,15 +501,15 @@ export async function confirmPublishAction(
           targets: request.targets,
         });
   if (!result.ok) return refusedPublish(result);
-  return committedPublish(formId, result.data, request.source.kind === "draft");
+  return committedPublish(formId, result.data);
 }
 
 /**
  * Look one confirmation's recorded result up by its idempotency key.
  *
  * The other half of the uncertain-response contract. A 404 means the confirmation never
- * committed and the same key may be resent; it is reported as `idle` rather than as an
- * error, because "nothing happened" is an answer the wizard acts on.
+ * committed and the same key may be resent, which is `not-committed` rather than an error:
+ * "nothing happened" is an answer the wizard acts on.
  */
 export async function lookupPublishResultAction(
   formId: string,
@@ -520,13 +519,11 @@ export async function lookupPublishResultAction(
   const result = await lookupReleaseBatch(session, formId, idempotencyKey);
   if (!result.ok) {
     if (result.code === "RELEASE_BATCH_NOT_FOUND" || result.code === "http_404") {
-      return IDLE_PUBLISH_BATCH;
+      return { status: "not-committed" };
     }
     return refusedPublish(result);
   }
-  // A looked-up result does not say which source produced it, and the recorded releases
-  // are the answer the operator came for either way, so it reports neither.
-  return committedPublish(formId, result.data, false);
+  return committedPublish(formId, result.data);
 }
 
 /** The refusal, with `STALE_REVIEW` kept apart because its recovery is a re-read. */
@@ -543,18 +540,14 @@ function refusedPublish(result: {
 }
 
 /** A committed confirmation. The whole form subtree is re-read: its header says what is released. */
-function committedPublish(
-  formId: string,
-  outcome: BatchOutcome,
-  froze: boolean,
-): PublishBatchState {
+function committedPublish(formId: string, outcome: BatchOutcome): PublishBatchState {
   revalidatePath("/forms");
   revalidatePath("/operations");
   revalidatePath(`/forms/${formId}`, "layout");
   return {
     status: "done",
     version: outcome.version,
-    froze,
+    froze: outcome.froze,
     replayed: outcome.replayed,
     releases: outcome.releases.map((release) => ({
       environment: release.environment,

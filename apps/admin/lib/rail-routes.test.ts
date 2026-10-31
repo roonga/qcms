@@ -159,14 +159,9 @@ describe("every screen has a page in the slot, whether or not it has a rail", ()
 describe("which screens carry the form-subtree section", () => {
   it("counts the ten form-scoped screens: the audit's eight, the rules route and publish", () => {
     // `plan/admin-ux-audit.md` §1: "of the sixteen authenticated screens, eight are
-    // form-scoped and would get a populated rail". A NINTH arrived on 2026-09-05, and it
-    // arrived the way this test asks a screen to: the Code Owner ruled on issue #669 that
-    // `plan/admin-shell-poc/rules-screen-poc.html` is built as drawn, so rule editing left
-    // the builder for `/forms/[formId]/rules` and its rail row is `rules`. A TENTH arrived
-    // with task 065 and became the publish wizard with issue #1197, which merged the
-    // release screen into Versions and made the wizard the one entry that releases
-    // anything. An eleventh is the moment the same question has to be asked again, so it
-    // fails here.
+    // form-scoped and would get a populated rail". The list has grown twice since, each
+    // time by a deliberate ruling; an eleventh entry is the moment the same question has to
+    // be asked again, so it fails here.
     expect(sorted(formScopedScreens())).toEqual([
       "/forms/[formId]",
       "/forms/[formId]/links",

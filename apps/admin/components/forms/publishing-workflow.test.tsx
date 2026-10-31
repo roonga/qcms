@@ -38,7 +38,7 @@ describe("environment-bound publishing", () => {
         setStatus={() => Promise.resolve({ status: "idle" })}
       />,
     );
-    // No dialog of its own at all (Code Owner, 2026-10-31): one entry, and it is a link.
+    // No dialog of its own at all: one entry, and it is a link.
     expect(screen.queryByRole("button", { name: /Publish/u })).toBeNull();
     expect(
       screen.getByRole("link", { name: t("forms.versions.publishEntry") }).getAttribute("href"),
@@ -150,9 +150,8 @@ describe("release confirmations across environment changes", () => {
   });
 
   it("does not offer to publish an unchanged seed as another version", () => {
-    // The gate moved to the wizard's source step with the dialogs (Code Owner,
-    // 2026-10-31): a seeded draft is not stored, so there is nothing to freeze and the
-    // draft source says so rather than being silently unavailable.
+    // A seeded draft is not stored, so there is nothing to freeze: the wizard's draft
+    // source says so rather than being silently unavailable.
     render(
       <PublishWizard
         formId="frm_intake"
@@ -163,6 +162,7 @@ describe("release confirmations across environment changes", () => {
         review={() => Promise.resolve({ ok: false })}
         confirm={() => Promise.resolve({ status: "idle" })}
         lookup={() => Promise.resolve({ status: "idle" })}
+        secureCookies={false}
       />,
     );
     expect(

@@ -15,26 +15,14 @@ import { unexpected } from "@/lib/ops/unexpected";
  * The form-level actions: the way to the publish wizard, and close/reopen (task 034; screen
  * contract "close/reopen").
  *
- * ## Publishing is not here
+ * Publishing is the wizard's, so what is here is a link, gated by the same capability the
+ * act is: a caller who may not publish sees no way to. The anchored work list a refusal
+ * leaves is the builder's own validation panel, whose entries move focus to the rule, step
+ * or pin at fault; only that screen renders those, so the wizard names the count and sends
+ * the author back here.
  *
- * It was, as two dialogs - publish, and publish-and-release to the screen's environment -
- * and they were a second entry to an act the wizard owns (Code Owner, 2026-10-31: the
- * builder's publish dialogs are retired; the wizard is the only publish entry). What is
- * left here is a link, gated by the same capability the buttons were: a caller who may not
- * publish sees no way to.
- *
- * The things those dialogs taught moved with them rather than being dropped. The freeze
- * summary and the agent-provenance marker are the wizard's review step, computed from the
- * same stored draft. The anchored work list a refusal used to render here is the builder's
- * own validation panel, which lists the same issues: every entry is a link that moves focus
- * to the rule, step or pin at fault, and only this screen renders those - so the wizard
- * names the count and sends the author back here.
- *
- * ## Close and reopen carry their environment
- *
- * The closed state is per (form, environment), so every confirmation names the environment
- * it acts in: an act performed against the wrong environment is not undoable, which is the
- * whole reason Q6 asks for the restatement.
+ * Close and reopen carry their environment, because the closed state is per (form,
+ * environment) and an act performed against the wrong one is not undoable (Q6).
  */
 export function FormActions({
   slug,

@@ -42,6 +42,7 @@ import {
 } from "./support/forms.js";
 import {
   chooseDestination,
+  chooseSource,
   openPublishWizard,
   refuseDraftThroughWizard,
 } from "./support/publish.js";
@@ -223,9 +224,8 @@ test("defines a group, walks all three count sources, and round-trips through sa
   // `REPEAT_MAX_MISSING` naming the group rather than the form.
   await waitForSaved(page);
   // The work list is the builder's, which is the only screen whose entry can move focus to
-  // the group it names (Code Owner, 2026-10-31: the builder's publish dialogs are retired).
-  // Read a rail switch away rather than after a reload, because the panel holds the verdict
-  // the save just produced.
+  // the group it names. Read a rail switch away rather than after a reload, because the
+  // panel holds the verdict the save just produced.
   await openFormDetails(page);
   const rejected = validationPanel(page);
   await expect(issue(rejected, "REPEAT_MAX_MISSING")).toBeVisible({ timeout: 30_000 });
@@ -465,7 +465,7 @@ test("expands a group through the portal's own renderer (case 61)", async ({ pag
   // Published AND released to test in one confirmation, which is what the wizard makes of
   // the two presses this used to need (issue #1197).
   await openPublishWizard(page, formId);
-  await page.getByRole("radio", { name: "The shared draft" }).check();
+  await chooseSource(page, "The shared draft");
   await page.getByRole("button", { name: "Continue", exact: true }).click();
   const destinations = page.getByTestId("qcms-publish-destinations");
   await expect(destinations).toBeVisible();

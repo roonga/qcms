@@ -50,6 +50,12 @@ export interface BatchResult {
   version: number;
   releases: ReleaseBody[];
   replayed: boolean;
+  /**
+   * True when this confirmation froze the version it reports, false when it released one
+   * that already existed. Stored with the result, because a client that lost its answer
+   * cannot tell a frozen version from a released one apart from this.
+   */
+  froze: boolean;
 }
 
 interface ReleaseBody {
@@ -226,7 +232,12 @@ export async function commitReleaseBatch(deps: Deps, input: CommitInput): Promis
         version: released,
       });
 
-      const result: BatchResult = { version: released, releases: written, replayed: false };
+      const result: BatchResult = {
+        version: released,
+        releases: written,
+        replayed: false,
+        froze: input.source.kind === "draft",
+      };
       await insertReleaseBatch(tx, {
         principalId: input.principalId,
         formId: input.formId,

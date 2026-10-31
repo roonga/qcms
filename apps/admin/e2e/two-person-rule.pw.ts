@@ -9,6 +9,7 @@ import { readFixtures } from "../../portal/e2e/support/fixtures.js";
 import { createTestAdmin, uniqueAdminEmail } from "./support/admin-account.js";
 import { enrollNewAdmin, signInWithTotp } from "./support/flow.js";
 import { waitForHydration } from "./support/hydration.js";
+import { chooseSource } from "./support/publish.js";
 
 /**
  * The two-person rule for production, in a browser (ADR-41's release rule, Q13, Q30, Q51;
@@ -391,7 +392,7 @@ test("the publish wizard carries the rule's notice with the switch on", async ({
   await signInWithTotp(page, APPROVER, approverSecret);
   await page.goto(`/forms/${FORM_ID}/publish`);
 
-  await page.getByRole("radio", { name: "An existing version" }).check();
+  await chooseSource(page, "An existing version");
   await page.getByRole("button", { name: "Continue", exact: true }).click();
   const destinations = page.getByTestId("qcms-publish-destinations");
   await expect(destinations).toBeVisible();
@@ -420,7 +421,7 @@ test("the publish wizard says nothing about the rule once the switch is off", as
   await setTwoPersonSwitch(page, false);
 
   await page.goto(`/forms/${FORM_ID}/publish`);
-  await page.getByRole("radio", { name: "An existing version" }).check();
+  await chooseSource(page, "An existing version");
   await page.getByRole("button", { name: "Continue", exact: true }).click();
   const destinations = page.getByTestId("qcms-publish-destinations");
   await expect(destinations).toBeVisible();

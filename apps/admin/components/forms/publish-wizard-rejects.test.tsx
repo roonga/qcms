@@ -6,21 +6,22 @@ import { PublishWizard } from "./publish-wizard.tsx";
 import type { ReleaseReview } from "../../lib/forms/release-candidate.ts";
 import { t } from "../../lib/i18n/en.ts";
 
+vi.mock("next/navigation", () => ({ useRouter: () => ({ push: vi.fn() }) }));
+
 /**
  * The publish wizard's three rejection handlers, and the properties its state machine
- * exists to hold (issue #352's rule, applied to issue #1197's wizard).
+ * exists to hold (issue #352's rule).
  *
  * Every call is a prop, so the fakes are the props and nothing else: the `.then` chains,
  * the `useTransition`, the state they set and the markup that reads it are all the real
- * component. `adminApiFetch` documents that it does not throw for a non-2xx, which is the
- * trap all three guard - a transport failure still rejects with a `TypeError`, and
- * `readResult`'s `response.json()` rejects on a truncated body.
+ * component. `adminApiFetch` does not throw for a non-2xx, which is the trap all three
+ * guard - a transport failure still rejects with a `TypeError`, and `readResult`'s
+ * `response.json()` rejects on a truncated body.
  *
- * The confirm handler is the one that matters most, and it does not report an error: a
- * confirmation whose answer was lost may have committed, so the state is `uncertain` and
- * the operator is offered a result lookup. Reporting it as a failure would invite a second
- * press, and a second press of a *new* key would be the duplicate version the plan's
- * invariant forbids.
+ * The confirm handler does not report an error: a confirmation whose answer was lost may
+ * have committed, so the state is `uncertain` and the operator is offered a result lookup.
+ * Reporting it as a failure would invite a second press of a new key, which is the
+ * duplicate version the invariant forbids.
  */
 
 const PROD_ONLY: ReleaseReview = {
@@ -62,6 +63,7 @@ async function toReview(props: {
       review={props.review ?? (() => Promise.resolve({ ok: true, data: PROD_ONLY }))}
       confirm={props.confirm ?? (() => Promise.resolve({ status: "idle" }))}
       lookup={props.lookup ?? (() => Promise.resolve({ status: "idle" }))}
+      secureCookies={false}
     />,
   );
   await user.click(screen.getByRole("button", { name: t("forms.publish.next") }));
@@ -83,6 +85,7 @@ describe("a rejected review", () => {
         review={transportFailure}
         confirm={() => Promise.resolve({ status: "idle" })}
         lookup={() => Promise.resolve({ status: "idle" })}
+        secureCookies={false}
       />,
     );
 
@@ -134,5 +137,81 @@ describe("a confirmation whose answer is lost", () => {
 
     expect(await screen.findByTestId("qcms-publish-uncertain")).toBeTruthy();
     expect(screen.getByRole("button", { name: t("forms.publish.lookup") })).toBeTruthy();
+  });
+
+  it("claims nothing was committed only once a lookup has said so", async () => {
+    const user = await toReview({
+      confirm: transportFailure,
+      lookup: () => Promise.resolve({ status: "not-committed" }),
+    });
+
+    await user.click(screen.getByRole("button", { name: t("forms.publish.wizardConfirm") }));
+    await screen.findByTestId("qcms-publish-uncertain");
+    // Back from an uncertain confirmation keeps the key, so the recovery sentence must not
+    // follow from the key's existence: no lookup has run and nothing is known.
+    await user.click(screen.getByRole("button", { name: t("forms.publish.back") }));
+    expect(screen.queryByTestId("qcms-publish-nothing-committed")).toBeNull();
+
+    await user.click(screen.getByRole("button", { name: t("forms.publish.next") }));
+    await user.click(screen.getByRole("button", { name: t("forms.publish.wizardConfirm") }));
+    await screen.findByTestId("qcms-publish-uncertain");
+    await user.click(screen.getByRole("button", { name: t("forms.publish.lookup") }));
+
+    expect(await screen.findByTestId("qcms-publish-nothing-committed")).toBeTruthy();
+  });
+
+  it("replays the same key after a lookup that found nothing committed", async () => {
+    const confirm = vi
+      .fn<Parameters<typeof PublishWizard>[0]["confirm"]>()
+      .mockRejectedValueOnce(new TypeError("fetch failed"))
+      .mockResolvedValueOnce({ status: "done", version: 3, froze: false, releases: [] });
+    const user = await toReview({
+      confirm,
+      lookup: () => Promise.resolve({ status: "not-committed" }),
+    });
+
+    await user.click(screen.getByRole("button", { name: t("forms.publish.wizardConfirm") }));
+    await screen.findByTestId("qcms-publish-uncertain");
+    await user.click(screen.getByRole("button", { name: t("forms.publish.lookup") }));
+    await screen.findByTestId("qcms-publish-nothing-committed");
+    await user.click(screen.getByRole("button", { name: t("forms.publish.wizardConfirm") }));
+
+    await screen.findByTestId("qcms-publish-result");
+    expect(confirm.mock.calls[1]?.[0].idempotencyKey).toBe(confirm.mock.calls[0]?.[0].idempotencyKey);
+  });
+});
+
+describe("moving between steps", () => {
+  it("puts focus on the step that replaced the one the pressed control went with", async () => {
+    const user = userEvent.setup();
+    render(
+      <PublishWizard
+        formId="frm_intake"
+        versions={[2, 1]}
+        hasDraft={false}
+        canPublishDraft={false}
+        draft={null}
+        review={() => Promise.resolve({ ok: true, data: PROD_ONLY })}
+        confirm={() => Promise.resolve({ status: "idle" })}
+        lookup={() => Promise.resolve({ status: "idle" })}
+        secureCookies={false}
+      />,
+    );
+    // Nothing is stolen on arrival: the first render leaves focus where the operator put it.
+    expect(document.activeElement).toBe(document.body);
+
+    await user.click(screen.getByRole("button", { name: t("forms.publish.next") }));
+    await screen.findByTestId("qcms-publish-destinations");
+    expect(document.activeElement?.textContent).toBe(t("forms.publish.step.destinations"));
+    expect(screen.getByTestId("qcms-publish-step-status").textContent).toBe(
+      t("forms.publish.step.announce", { step: t("forms.publish.step.destinations") }),
+    );
+
+    await user.click(await screen.findByRole("checkbox", { name: "prod" }));
+    await user.click(screen.getByRole("button", { name: t("forms.publish.next") }));
+    expect(document.activeElement?.textContent).toBe(t("forms.publish.step.review"));
+
+    await user.click(screen.getByRole("button", { name: t("forms.publish.back") }));
+    expect(document.activeElement?.textContent).toBe(t("forms.publish.step.destinations"));
   });
 });

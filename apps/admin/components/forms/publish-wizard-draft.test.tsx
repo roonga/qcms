@@ -3,25 +3,25 @@ import userEvent from "@testing-library/user-event";
 import { describe, expect, it, vi } from "vitest";
 
 import { PublishWizard } from "./publish-wizard.tsx";
+import { ENVIRONMENT_COOKIE } from "../../lib/environment.ts";
 import type { ReleaseReview } from "../../lib/forms/release-candidate.ts";
 import type { DraftForm } from "../../lib/forms/types.ts";
 import { t, tPlural } from "../../lib/i18n/en.ts";
 
+const push = vi.fn();
+vi.mock("next/navigation", () => ({ useRouter: () => ({ push }) }));
+
 /**
- * What a DRAFT source owes the author, which the builder's retired publish dialogs used to
- * owe them (Code Owner, 2026-10-31: the builder's publish dialogs are retired; the wizard
- * is the only publish entry).
+ * What a DRAFT source owes the author.
  *
- * Two of the three things those dialogs taught live here now. What freezes is read back
- * before the one press that freezes it, computed from the stored draft rather than from a
- * document in a browser tab, and an agent-assisted draft says so (ADR-25). The third - the
- * anchored work list a refusal leaves - stays on the builder, because its entries move
- * focus to the rule, step or pin at fault and only the builder renders those; this file
- * asserts that the refusal names the count and points there.
+ * What freezes is read back before the one press that freezes it, computed from the stored
+ * draft rather than from a document in a browser tab, and an agent-assisted draft says so
+ * (ADR-25). The anchored work list a refusal leaves stays on the builder, because its
+ * entries move focus to the rule, step or pin at fault and only the builder renders those;
+ * this file asserts that the refusal names the count and points there.
  *
- * The last case is about a version source rather than a draft, and belongs beside them
- * because it is the same question asked of the confirmation: what the wizard sends is what
- * the audit record will say happened.
+ * The version-source cases belong beside them because they ask the same question of the
+ * confirmation: what the wizard sends is what the audit record will say happened.
  */
 
 const DRAFT: DraftForm = {
@@ -70,6 +70,7 @@ async function toReview(props: {
       review={() => Promise.resolve({ ok: true, data: TEST_ONLY })}
       confirm={props.confirm ?? (() => Promise.resolve({ status: "idle" }))}
       lookup={() => Promise.resolve({ status: "idle" })}
+      secureCookies={false}
     />,
   );
   await user.click(screen.getByRole("button", { name: t("forms.publish.next") }));
@@ -121,6 +122,7 @@ describe("the review step of a draft publish", () => {
         }
         confirm={() => Promise.resolve({ status: "idle" })}
         lookup={() => Promise.resolve({ status: "idle" })}
+        secureCookies={false}
       />,
     );
     await user.click(screen.getByRole("button", { name: t("forms.publish.next") }));
@@ -154,6 +156,36 @@ describe("the review step of a draft publish", () => {
     expect(
       screen.getByRole("link", { name: t("forms.publish.wizardBlockedLink") }).getAttribute("href"),
     ).toBe("/forms/frm_intake");
+  });
+});
+
+describe("the recorded outcome's way into Operations", () => {
+  it("makes the environment selection, then opens Operations on it", async () => {
+    push.mockClear();
+    document.cookie = `${ENVIRONMENT_COOKIE}=prod; Path=/`;
+    const user = await toReview({
+      confirm: () =>
+        Promise.resolve({
+          status: "done",
+          version: 1,
+          froze: true,
+          releases: [{ environment: "test", version: 1, rollback: false }],
+        }),
+    });
+
+    await user.click(screen.getByRole("button", { name: t("forms.publish.wizardConfirm") }));
+    await screen.findByTestId("qcms-publish-result");
+    await user.click(
+      screen.getByRole("button", {
+        name: t("forms.publish.result.operations", { environment: "test" }),
+      }),
+    );
+
+    // Operations reads the selector's cookie rather than its address, so the way into an
+    // environment is that selection: the header's own last choice does not decide where
+    // this lands, and no URL parameter overrides the selector either.
+    expect(document.cookie).toContain(`${ENVIRONMENT_COOKIE}=test`);
+    expect(push).toHaveBeenCalledWith("/operations");
   });
 });
 
@@ -209,6 +241,7 @@ describe("a promotion's recorded source", () => {
         }
         confirm={confirm}
         lookup={() => Promise.resolve({ status: "idle" })}
+        secureCookies={false}
       />,
     );
 

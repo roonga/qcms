@@ -99,10 +99,17 @@ export interface BatchOutcome {
   readonly releases: readonly ReleaseRecord[];
   /** True when this is the stored result of an earlier attempt with the same key. */
   readonly replayed: boolean;
+  /** True when the confirmation froze this version rather than releasing an existing one. */
+  readonly froze: boolean;
 }
 
 function readBatch(
-  result: ApiResult<{ version?: unknown; releases?: unknown; replayed?: unknown }>,
+  result: ApiResult<{
+    version?: unknown;
+    releases?: unknown;
+    replayed?: unknown;
+    froze?: unknown;
+  }>,
 ): ApiResult<BatchOutcome> {
   if (!result.ok) return result;
   if (typeof result.data.version !== "number") {
@@ -114,6 +121,7 @@ function readBatch(
       version: result.data.version,
       releases: parseReleases(result.data.releases),
       replayed: result.data.replayed === true,
+      froze: result.data.froze === true,
     },
   };
 }

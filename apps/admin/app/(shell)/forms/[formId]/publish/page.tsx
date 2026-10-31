@@ -6,6 +6,7 @@ import { FormPageHeader } from "@/components/forms/form-page-header";
 import { PublishWizard } from "@/components/forms/publish-wizard";
 import { t } from "@/lib/i18n/en";
 import { formSectionName, pageMetadata } from "@/lib/page-title";
+import { secureCookies } from "@/lib/server/config";
 import { getForm } from "@/lib/server/forms";
 import { requireAdminSession } from "@/lib/server/session";
 
@@ -26,31 +27,19 @@ export async function generateMetadata({
 }
 
 /**
- * Publish: the one entry that creates a version or releases one (issue #1197).
+ * Publish: the one entry that creates a version or releases one.
  *
- * ## Why this is a screen and not a dialog
+ * A screen rather than a dialog because one confirmation can name several destinations, and
+ * each needs its own transition, intake state, eligibility evidence and second-approver
+ * reading in front of the operator before they press anything.
  *
- * One confirmation can name several destinations, and each needs its own transition, intake
- * state, eligibility evidence and second-approver reading in front of the operator before
- * they press anything. That does not fit a dialog, and it should not: the act is
- * all-or-nothing across every destination, so the review of all of them is the thing being
- * confirmed.
+ * No environment is bound here, unlike every other act on a form, which carries the one its
+ * screen showed and confirms it against the switcher (A1). This screen has no such promise
+ * to keep: the destinations are chosen in its own body, the review reports exactly the ones
+ * this caller may release into, and the API authorises each one again at commit.
  *
- * ## No environment is bound here, deliberately
- *
- * Every other act on a form carries the environment its screen showed, confirmed against
- * the switcher (A1), because the screen's own banner is the promise being kept. This screen
- * has no such promise to keep: the destinations are chosen in its own body, the review
- * reports exactly the ones this caller may release into, and the API authorises each one
- * again at commit. The Operations selector controls operational data, not where a draft is
- * released (the plan's "Versions and publishing flow").
- *
- * ## What is read here and what is not
- *
- * The form, for its published versions and whether a draft exists to publish. The review
- * itself is **not** read here: it is read by the wizard when a source is chosen, because a
- * review read on page load would be stale by the time a source was picked and would be a
- * review of a source nobody had chosen yet.
+ * The review is deliberately not read here. The wizard reads it when a source is chosen,
+ * because one read on page load would be a review of a source nobody had picked yet.
  */
 export default async function FormPublishPage({
   params,
@@ -86,6 +75,7 @@ export default async function FormPublishPage({
         review={reviewReleaseAction.bind(null, form.formId)}
         confirm={confirmPublishAction.bind(null, form.formId)}
         lookup={lookupPublishResultAction.bind(null, form.formId)}
+        secureCookies={secureCookies()}
       />
     </div>
   );

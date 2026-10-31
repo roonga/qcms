@@ -2518,6 +2518,60 @@ div:has(> [role="dialog"] [data-qcms-dialog="wide"]) {
   border-width: 2px;
 }
 
+/* ---------------------------------------------------------------------------
+   The kit's radio, where each option carries a sentence under its label.
+
+   react-aria hides the native input and `RadioButton` ships unstyled, so selection has to
+   be drawn here or it is not visible at all. Never colour alone (WCAG 1.4.1): the chosen
+   option takes a filled disc, a drawn edge and the surface, each of which survives a
+   two-colour palette, and the input's own state is what a screen reader hears.
+   --------------------------------------------------------------------------- */
+.qcms-radio {
+  display: flex;
+  align-items: flex-start;
+  gap: 0.5rem;
+  min-block-size: 24px;
+  padding: var(--space-1) var(--space-2);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-sm);
+  background-color: var(--color-surface);
+  color: var(--color-text);
+  font-size: 14px;
+  cursor: pointer;
+}
+.qcms-radio[data-hovered] {
+  background-color: var(--color-surface-hover);
+}
+.qcms-radio[data-selected] {
+  border-color: var(--color-border-strong);
+  background-color: var(--color-background-muted);
+}
+.qcms-radio[data-disabled] {
+  color: var(--color-text-muted);
+  cursor: not-allowed;
+}
+.qcms-radio[data-focus-visible] {
+  outline: 2px solid var(--color-focus-ring);
+  outline-offset: 2px;
+}
+.qcms-radio__dot {
+  flex-shrink: 0;
+  inline-size: 14px;
+  block-size: 14px;
+  margin-block-start: 3px;
+  border: 1px solid var(--color-border-strong);
+  border-radius: 50%;
+  background-color: var(--color-surface);
+}
+.qcms-radio[data-selected] .qcms-radio__dot {
+  border-color: var(--color-primary);
+  background-color: var(--color-primary);
+  box-shadow: inset 0 0 0 3px var(--color-surface);
+}
+:root.hc .qcms-radio {
+  border-width: 2px;
+}
+
 /* Library-owned again: what the engine says about this pin, as text. */
 .qcms-pinissues {
   display: flex;

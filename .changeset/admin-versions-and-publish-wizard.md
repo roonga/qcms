@@ -30,6 +30,12 @@ that drives the release-review, release-batch and publish-batch routes.
   agent-provenance marker are the wizard's review step; a refused draft publish names how
   many issues blocked it and sends the author to the builder, whose validation panel holds
   the anchored work list.
+- The recorded outcome's way into Operations makes the environment selection that the
+  selector itself writes and then opens `/operations`, so it reaches the environment the
+  release reached whatever the header last showed.
+- Each step change moves focus to the new step's heading and announces it.
+- A confirmation records whether it froze its version, so a result recovered by its
+  idempotency key reads as the same outcome the confirmation reported.
 - `/forms/{id}/releases` redirects to the Versions view, and the agent screen table names
   `/forms/[formId]/publish` in its place.
 - The admin's `publishForm` and `publishAndRelease` clients are gone with the dialogs that
