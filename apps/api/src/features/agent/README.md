@@ -157,8 +157,11 @@ puts that kind alone up for review: `propose-form-settings`,
 `propose-form-close`, `propose-form-reopen`, `propose-form-release`,
 `propose-response-erase`, `propose-response-unflag`, `propose-webhook-create`,
 `propose-webhook-rotate`, `propose-webhook-retarget`,
-`propose-webhook-reactivate`, `propose-webhook-deactivate` and
-`propose-webhook-redeliver`.
+`propose-form-publish`, `propose-webhook-reactivate`,
+`propose-webhook-deactivate`, `propose-webhook-redeliver`,
+`propose-access-group-create`, `propose-access-group-remove`,
+`propose-access-grant`, `propose-access-revoke`, `propose-member-role` and
+`propose-workspace-settings`.
 The `rogue-*` scripts
 exist because a hostile model is the threat the allowlist is for, and the only
 honest way to test a refusal is to have something actually attempt the forbidden
@@ -264,6 +267,23 @@ route and differ only in the body, so each declares in `route.bodyMembers` the
 exact member set its request carries, and a configure body matching none of them
 resolves to no kind and is refused. The digest already binds the body, so the
 member set is a second lock rather than the only one.
+
+## Publishing goes through the batch route
+
+`form.publish` runs `POST /admin/forms/{id}/publish-batch`, the route the Publish
+wizard confirms through, and freezes the draft into **one** destination (Code
+Owner, 2026-11-01). Two properties come with that route rather than with the
+card: the draft revision and the workflow revision the review reported travel
+with the request, so a draft saved between the proposal and Confirm is refused
+and nothing is written; and the two-person rule refuses a gated production
+destination whose publisher is this account, exactly as it refuses the wizard.
+
+That row takes its environment from the body's `targets`, and a token's step
+binds one environment, so the provenance check accepts the row **only** when the
+batch names exactly one destination and it equals the step's own environment.
+None and two are both refused with `AGENT_PROPOSAL_ENVIRONMENT`. The accepted
+consequence is that a publish releasing nowhere is not proposable: the agent's
+publish always names the environment the new version lands in.
 
 ## A step's row is written where the step's act is not
 
