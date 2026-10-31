@@ -175,14 +175,7 @@ async function childSelects(page: Page): Promise<string[]> {
     .evaluateAll((rows) => rows.map((row) => row.getAttribute("data-rail-step-select") ?? ""));
 }
 
-/**
- * One screen's children group, in order, in whichever shape its rows are in.
- *
- * `components/forms/rail-steps.tsx` renders the builder's row twice over: the steps the
- * server resolved are anchors to the step fragment, and once the builder publishes they
- * become buttons that select in place and carry no href. Both are the form's steps, so
- * both answer here and the caller matches whichever came back.
- */
+/** The builder renders steps as anchors until it publishes, then as buttons with no href; either shape is the form's steps. */
 async function childSteps(page: Page): Promise<string[]> {
   const hrefs = await childHrefs(page);
   return hrefs.length > 0 ? hrefs : childSelects(page);
@@ -278,11 +271,7 @@ test("561 gives every screen the form's steps as its children, never the list it
   await signInWithTotp(page, EMAIL, totpSecret);
   await page.setViewportSize({ width: SIDEBAR, height: 900 });
 
-  // The seeded form has one step, so the whole children group is one known row: the
-  // builder's URL with that step's anchor, or, where the builder has turned the rows into
-  // selections, that step's title. `lib/forms/issues.ts` mints the same id the validation
-  // panel's focus links use, which is the property issue 559 chose deliberately and this
-  // keeps true across every screen in the list above.
+  // The seeded form has one step, so each screen's children group is that one known row.
   const linked = [`/forms/${FORM_ID}#step-${STEP_ID}`];
   const selected = [STEP_TITLE];
 
