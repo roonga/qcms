@@ -64,6 +64,7 @@ import {
 import type { Executor, FormDraftRow, FormVersionRow, QuestionOwnership } from "@roonga/qcms-db";
 
 import { challengeEnforceable } from "../../config.js";
+import { agentStepSite, writeAgentStep } from "../agent/audit.js";
 import type { Deps } from "../../deps.js";
 import { ApiError } from "../../errors.js";
 import { workspaceFilterFor } from "../membership/context.js";
@@ -1399,9 +1400,13 @@ export function makePublishFormHandler(deps: Deps): RouteHandler<typeof publishF
 
     // Publishing enqueues nothing in any environment. One transaction still, so the draft
     // never lingers past its publish; `form.released` is written by the release itself.
-    const inserted = await deps.databases.control.transaction((tx) =>
-      writeVersion(tx, formId, frozen, now, principal.userId),
-    );
+    const site = agentStepSite(c);
+    const inserted = await deps.databases.control.transaction(async (tx) => {
+      const written = await writeVersion(tx, formId, frozen, now, principal.userId);
+      // The version a later step references, recorded in this step's own transaction.
+      await writeAgentStep(tx, site, String(written.version), now);
+      return written;
+    });
 
     return c.json(
       { version: inserted.version, publishedAt: inserted.publishedAt.toISOString() },
