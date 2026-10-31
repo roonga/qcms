@@ -2,11 +2,7 @@ import { describe, expect, it } from "vitest";
 
 import type { ActionRequestFacts } from "./actions/types.js";
 import { checkProvenance, type RecordedStep } from "./provenance.js";
-import {
-  argumentsDigest,
-  signProposalToken,
-  type ProposalStepBinding,
-} from "./proposal-token.js";
+import { argumentsDigest, signProposalToken, type ProposalStepBinding } from "./proposal-token.js";
 
 const APP_KEY = "test-app-key-0123456789abcdefghijklmn";
 const issuedAt = new Date("2026-10-31T09:00:00.000Z");
@@ -147,7 +143,9 @@ describe("checkProvenance: a single-step card", () => {
     const token = await tokenFor([await binding("link.mint", MINT_ARGS, "test")]);
     const result = await check({
       token,
-      facts: mintFacts({ body: { environment: "test", count: 200, expiresAt: MINT_ARGS.expiresAt, oneTime: true } }),
+      facts: mintFacts({
+        body: { environment: "test", count: 200, expiresAt: MINT_ARGS.expiresAt, oneTime: true },
+      }),
     });
     expect(result).toEqual({ ok: false, code: "AGENT_PROPOSAL_ARGUMENTS" });
   });

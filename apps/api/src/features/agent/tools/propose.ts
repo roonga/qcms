@@ -1,10 +1,7 @@
 /**
- * The propose tools (section 6.1). `propose_action` takes one action; `propose_plan` takes
- * an ordered list of steps. Neither executes anything: each validates every step's
- * arguments, checks each step against the caller's grants, applies the two caps and the
- * hand-off and ADR-41 rules, and on success mints the token the card's Confirm carries.
- *
- * A failed check returns its reason to the model and is not a turn-ending refusal.
+ * The propose tools' own logic (section 6.1). It executes nothing: it validates every
+ * step, checks it against the caller's grants, applies the caps and the hand-off and
+ * ADR-41 rules, and mints the token Confirm carries. A refusal goes to the model.
  */
 
 import { z } from "zod";
@@ -99,12 +96,8 @@ function referenceRefusal(
  * Symbolic references are lifted out before the kind's own schema runs, because a schema
  * describes the value a reference stands for and not the reference.
  */
-function argsForSchema(
-  args: Readonly<Record<string, unknown>>,
-): Readonly<Record<string, unknown>> {
-  return Object.fromEntries(
-    Object.entries(args).filter(([, value]) => !isStepReference(value)),
-  );
+function argsForSchema(args: Readonly<Record<string, unknown>>): Readonly<Record<string, unknown>> {
+  return Object.fromEntries(Object.entries(args).filter(([, value]) => !isStepReference(value)));
 }
 
 function environmentOf(
@@ -147,7 +140,9 @@ function stepRefusal(
 
   const environment = environmentOf(def, step.args, input.current);
   if (environment === undefined) {
-    return { reason: `Step ${String(index + 1)} names no environment, and ${step.kind} acts in one.` };
+    return {
+      reason: `Step ${String(index + 1)} names no environment, and ${step.kind} acts in one.`,
+    };
   }
   if (!allowed.includes(environment)) {
     return {
@@ -169,12 +164,14 @@ function stepRefusal(
 }
 
 /**
- * ADR-41 refuses a release by the account that published the version, so a plan that
- * publishes and then releases to production under the workspace's switch can never
- * complete. Refusing it at the propose tool tells the model why rather than failing the
- * user halfway through a confirmed run.
+ * ADR-41 refuses a release by the account that published the version, so this plan can
+ * never complete. Refusing it here tells the model why, rather than failing the user
+ * halfway through a confirmed run.
  */
-function secondApproverRefusal(input: ProposeInput, steps: readonly PlanStep[]): string | undefined {
+function secondApproverRefusal(
+  input: ProposeInput,
+  steps: readonly PlanStep[],
+): string | undefined {
   if (!input.requireSecondApprover) return undefined;
   const publishedAt = steps.findIndex((step) => step.kind === "form.publish");
   if (publishedAt < 0) return undefined;

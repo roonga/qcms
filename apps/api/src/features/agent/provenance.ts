@@ -1,11 +1,7 @@
 /**
- * The provenance check (SEC-17, section 7.4). A request carrying `X-QCMS-Agent-Proposal`
- * and `X-QCMS-Agent-Step` is verified against the user, the ordered step list, that step's
- * arguments and that step's environment before the handler runs.
- *
- * It adds provenance and never rights: the route policy authorises the request exactly as
- * it authorises the same request without a token, and a token that fails verification is
- * refused outright rather than degrading to an ordinary human act.
+ * The provenance check (SEC-17, section 7.4), over the user, the ordered step list, the
+ * step's arguments and its environment. It adds provenance and never rights, and a token
+ * that fails never degrades to an ordinary human act.
  */
 
 import { actionKind, actionKindForRoute } from "./actions/registry.js";
@@ -68,11 +64,9 @@ function stepIndexOf(raw: string): number | undefined {
 }
 
 /**
- * The card resolves a reference from the earlier step's returned state, so the request
- * carries a value where the token's digest carries `{ fromStep, field }`. A candidate
- * symbolic form is rebuilt here from the audit rows alone, never from anything the browser
- * says: a member is treated as a reference only when an earlier recorded step's detail
- * equals it and that step's kind declares the field.
+ * The request carries a value where the token's digest carries `{ fromStep, field }`. The
+ * symbolic form is rebuilt from the audit rows alone, never from anything the browser
+ * says, so a reference resolves only to what its step recorded.
  */
 function symbolicCandidates(
   args: Readonly<Record<string, unknown>>,
@@ -118,11 +112,7 @@ async function argumentsMatch(
 ): Promise<boolean> {
   const recomputed = def.recomputeArgs(input.facts);
   if (typeof recomputed !== "object" || recomputed === null) return false;
-  for (const candidate of symbolicCandidates(
-    recomputed as Record<string, unknown>,
-    input,
-    token,
-  )) {
+  for (const candidate of symbolicCandidates(recomputed as Record<string, unknown>, input, token)) {
     try {
       if ((await argumentsDigest(candidate)) === expectedDigest) return true;
     } catch {

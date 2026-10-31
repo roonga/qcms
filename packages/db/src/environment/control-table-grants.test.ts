@@ -4,10 +4,7 @@ import { fileURLToPath } from "node:url";
 import { describe, expect, it } from "vitest";
 
 import { ACCESS_AUDIT_TABLE } from "../schema/control/access-audit.js";
-import {
-  AGENT_ACTIONS_STEP_UNIQUE,
-  AGENT_ACTIONS_TABLE,
-} from "../schema/control/agent-actions.js";
+import { AGENT_ACTIONS_STEP_UNIQUE, AGENT_ACTIONS_TABLE } from "../schema/control/agent-actions.js";
 import { ENDPOINT_PROPOSALS_TABLE } from "../schema/control/endpoint-proposals.js";
 import { RELEASE_BATCHES_TABLE } from "../schema/control/release-batches.js";
 import {

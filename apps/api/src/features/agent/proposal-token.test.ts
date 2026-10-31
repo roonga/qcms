@@ -15,7 +15,11 @@ const APP_KEY = "test-app-key-0123456789abcdefghijklmn";
 
 const issuedAt = new Date("2026-10-31T09:00:00.000Z");
 
-async function step(kind: string, args: unknown, environment: string): Promise<ProposalStepBinding> {
+async function step(
+  kind: string,
+  args: unknown,
+  environment: string,
+): Promise<ProposalStepBinding> {
   return { kind, argsDigest: await argumentsDigest(args), environment };
 }
 

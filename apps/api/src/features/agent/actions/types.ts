@@ -4,13 +4,9 @@ import type { Resource } from "../../membership/policy.js";
 import type { ScreenId } from "../screens.js";
 
 /**
- * One action kind's descriptor (section 6.2): the route its step's request must hit, the
- * SEC-3 cell it needs, its argument schema as the card displays it, how to recompute those
- * arguments from a request, which result fields a later step may reference, its card
- * template keys and its result allowlist.
- *
- * A descriptor is the whole of what the propose tools, the grant filter and the provenance
- * middleware know about a kind, so a kind cannot be half-declared.
+ * One action kind's descriptor (section 6.2). It is the whole of what the propose tools,
+ * the grant filter and the provenance check know about a kind, so none can be
+ * half-declared.
  */
 
 /** Where the environment a step acts in comes from, per the kind's route-policy row. */

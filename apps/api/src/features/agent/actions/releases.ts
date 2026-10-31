@@ -67,10 +67,7 @@ export const releaseVersion: ActionKindDef = {
   resultAllowlist: ["version", "environment", "replacedVersion"],
   card: {
     titleKey: "agent.card.form.release.title",
-    consequenceKeys: [
-      "agent.card.form.release.consequence",
-      "agent.card.environment.production",
-    ],
+    consequenceKeys: ["agent.card.form.release.consequence", "agent.card.environment.production"],
     headingControl: "releases.release",
   },
   description:

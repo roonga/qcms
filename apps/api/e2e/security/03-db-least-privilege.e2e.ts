@@ -832,17 +832,16 @@ describe("the SEC-17 agent audit's grants and revokes (task 083, Q12)", () => {
     "lets qcms_app_%s write a step's row in the step's own transaction, with no RETURNING",
     async (environment) => {
       const client = clients.get(ENVIRONMENT_ROLES[environment]) as pg.Client;
+      const committed = stepValues(`prp_${environment}`, 0, environment);
+      const returning = stepValues(`prp_returning_${environment}`, 0, environment);
       await client.query("begin");
-      await client.query(
-        `insert into ${table} ${columns} values ${stepValues(`prp_${environment}`, 0, environment)}`,
-      );
+      await client.query(`insert into ${table} ${columns} values ${committed}`);
       await client.query("commit");
 
       expect(
         await refusalFor(
           client,
-          `insert into ${table} ${columns}
-             values ${stepValues(`prp_returning_${environment}`, 0, environment)} returning id`,
+          `insert into ${table} ${columns} values ${returning} returning id`,
         ),
       ).toMatch(/permission denied/i);
     },
@@ -850,7 +849,9 @@ describe("the SEC-17 agent audit's grants and revokes (task 083, Q12)", () => {
 
   it("refuses a replayed step on the unique constraint, so the step rolls back", async () => {
     const client = clients.get(CONTROL_ROLE) as pg.Client;
-    await client.query(`insert into ${table} ${columns} values ${stepValues("prp_replay", 0, "test")}`);
+    await client.query(
+      `insert into ${table} ${columns} values ${stepValues("prp_replay", 0, "test")}`,
+    );
     await expect(
       client.query(`insert into ${table} ${columns} values ${stepValues("prp_replay", 0, "test")}`),
     ).rejects.toMatchObject({ code: "23505" });

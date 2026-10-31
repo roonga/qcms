@@ -1,13 +1,15 @@
 /**
- * The grant filter (section 6.1). Before a turn starts, the action kinds offered in the
- * propose tools' schemas are filtered on **(kind, environment)** pairs, through the same
- * evaluator the route middleware uses.
- *
- * It is a courtesy that keeps proposals honest; the API's authorisation at execution is
- * the limit, and a kind the filter missed fails at its own route.
+ * The grant filter (section 6.1): the kinds offered in the propose tools' schemas,
+ * filtered on (kind, environment) pairs through the evaluator the route middleware uses.
+ * It keeps proposals honest; the API's authorisation at execution is the limit.
  */
 
-import { decideAccess, isEnvironmentScoped, isFormScoped, type HeldGrant } from "../membership/policy.js";
+import {
+  decideAccess,
+  isEnvironmentScoped,
+  isFormScoped,
+  type HeldGrant,
+} from "../membership/policy.js";
 import { ACTION_KIND_NAMES, actionKind } from "./actions/registry.js";
 import type { ActionKindDef } from "./actions/types.js";
 
