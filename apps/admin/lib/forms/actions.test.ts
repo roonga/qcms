@@ -38,6 +38,11 @@ const answers = vi.hoisted(
   (): { publish?: unknown; preview?: unknown; mint?: unknown; lookup?: unknown } => ({}),
 );
 
+/** What the mocked API layer was asked for, where a test asserts on the request itself. */
+const sent = vi.hoisted((): { mintExpiresAt: string | undefined } => ({
+  mintExpiresAt: undefined,
+}));
+
 vi.mock("next/cache", () => ({ revalidatePath: () => undefined }));
 vi.mock("next/navigation", () => ({
   redirect: (to: string) => {
@@ -107,8 +112,9 @@ vi.mock("@/lib/server/environments", () => ({
 }));
 vi.mock("@/lib/server/links", () => ({
   MAX_LINK_BATCH: 100,
-  mintLinks: () => {
+  mintLinks: (_session: unknown, _formId: string, request: { expiresAt: string }) => {
     calls.mintLinks += 1;
+    sent.mintExpiresAt = request.expiresAt;
     return Promise.resolve(answers.mint ?? { ok: true, data: [] });
   },
   listLinks: () => Promise.resolve({ ok: true, data: [] }),
@@ -225,6 +231,7 @@ describe("034's actions keep a refusal distinct from an error", () => {
     answers.preview = undefined;
     answers.mint = undefined;
     answers.lookup = undefined;
+    sent.mintExpiresAt = undefined;
   });
 
   /** A 422 as the proxy normalises it: a code, a sentence, and the kernel's issues. */
@@ -351,6 +358,28 @@ describe("034's actions keep a refusal distinct from an error", () => {
     expect(state).toMatchObject({ status: "error" });
     expect(state.message).toBe(t("forms.error.linkExpiryInvalid"));
     expect(calls.mintLinks).toBe(before);
+  });
+
+  it("sends a full instant unchanged, so a card's digest is taken over the body it posts", async () => {
+    const state = await mintLinksAction("frm_demo_form", "prod", {
+      expiresAt: "2030-01-01T09:30:00.000Z",
+      oneTime: false,
+      count: 1,
+    });
+
+    expect(state.status).toBe("minted");
+    expect(sent.mintExpiresAt).toBe("2030-01-01T09:30:00.000Z");
+  });
+
+  it("still widens the mint dialog's calendar day to the end of that day in UTC", async () => {
+    const state = await mintLinksAction("frm_demo_form", "prod", {
+      expiresAt: "2030-01-01",
+      oneTime: false,
+      count: 1,
+    });
+
+    expect(state.status).toBe("minted");
+    expect(sent.mintExpiresAt).toBe("2030-01-01T23:59:59.999Z");
   });
 
   it("never echoes an answer value in a preview failure message (SEC-13)", async () => {

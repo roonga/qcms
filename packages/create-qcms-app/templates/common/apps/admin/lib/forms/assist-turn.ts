@@ -59,6 +59,8 @@ export const TOOL_STEP_LABELS: Readonly<Record<string, MessageKey>> = {
   propose_draft: "forms.assist.step.propose_draft",
   validate_draft: "forms.assist.step.validate_draft",
   project_draft: "forms.assist.step.project_draft",
+  propose_action: "forms.assist.step.propose_action",
+  propose_plan: "forms.assist.step.propose_plan",
 };
 
 export function toolStepLabel(tool: string | undefined): MessageKey {

@@ -881,6 +881,15 @@ $$;
 --> statement-breakpoint
 DO $$
 BEGIN
+	IF EXISTS (SELECT 1 FROM pg_roles WHERE rolname = 'qcms_app_test')
+		AND EXISTS (SELECT 1 FROM pg_tables WHERE schemaname = 'control' AND tablename = 'agent_actions') THEN
+		EXECUTE 'GRANT INSERT ON "control"."agent_actions" TO "qcms_app_test"';
+	END IF;
+END
+$$;
+--> statement-breakpoint
+DO $$
+BEGIN
 	IF EXISTS (SELECT 1 FROM pg_roles WHERE rolname = 'qcms_app_control') THEN
 		EXECUTE 'GRANT USAGE ON SCHEMA "data_test" TO "qcms_app_control"';
 		EXECUTE 'GRANT INSERT ON "data_test"."outbox" TO "qcms_app_control"';
@@ -934,6 +943,15 @@ BEGIN
 	IF EXISTS (SELECT 1 FROM pg_roles WHERE rolname = 'qcms_app_prod')
 		AND EXISTS (SELECT 1 FROM pg_tables WHERE schemaname = 'control' AND tablename = 'access_audit') THEN
 		EXECUTE 'GRANT INSERT ON "control"."access_audit" TO "qcms_app_prod"';
+	END IF;
+END
+$$;
+--> statement-breakpoint
+DO $$
+BEGIN
+	IF EXISTS (SELECT 1 FROM pg_roles WHERE rolname = 'qcms_app_prod')
+		AND EXISTS (SELECT 1 FROM pg_tables WHERE schemaname = 'control' AND tablename = 'agent_actions') THEN
+		EXECUTE 'GRANT INSERT ON "control"."agent_actions" TO "qcms_app_prod"';
 	END IF;
 END
 $$;

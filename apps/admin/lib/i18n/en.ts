@@ -2122,6 +2122,8 @@ export const messages = {
   "agent.sidebar.shown": "Showed the sidebar and closed the assistant.",
   "forms.assist.step.project_draft": "Trying the draft out",
   "forms.assist.step.other": "Working on your request",
+  "forms.assist.step.propose_action": "Preparing an action for you to confirm",
+  "forms.assist.step.propose_plan": "Preparing a plan for you to confirm",
 
   "forms.assist.proposalHeading": "Proposal",
   "forms.assist.diffCount.one": "1 change proposed.",
@@ -2138,6 +2140,186 @@ export const messages = {
     "New question {questionId}. Accepting creates it as an unpublished draft in the question library. Publish it there before you publish this form.",
   "forms.assist.accept": "Accept into draft",
   "forms.assist.discard": "Discard",
+
+  // THE ACTION CARD (SEC-17 section 4.10).
+  //
+  // Every title, consequence sentence, state word, argument label and result line is
+  // here rather than assembled from model text, and the consequence sentences are the
+  // ones the screen's own dialog uses word for word, so a card can never say less than
+  // the dialog it mirrors. This block is a control, not copy.
+  "agent.card.planTitle.one": "1 step",
+  "agent.card.planTitle.other": "Plan · {count} steps",
+  "agent.card.stepsLabel": "The steps this plan runs, in order",
+  // The assistant's mark replaces the word before it, and is named "Assistant" by
+  // `agent.title`, so a screen reader reads "Assistant Reason".
+  "agent.card.reasonLabel": "Reason",
+
+  "agent.card.form.publish.title":
+    "Publish {formId} as a new version and release it to {environment}",
+  "agent.card.form.publish.consequence":
+    "The working draft becomes an immutable version, and that version is released to {environment} in the same act. Respondents starting from now get it there.",
+  "agent.card.form.release.title": "Release version {version} of {formId} to {environment}",
+  "agent.card.form.release.consequence":
+    "Respondents starting from now get this version in {environment}.",
+  "agent.card.form.settings.title": "Change the form settings of {formId}",
+  "agent.card.form.settings.consequence":
+    "Abuse controls for this form. They apply the next time it is published.",
+  "agent.card.form.close.title": "Close {formId} to new sessions in {environment}",
+  "agent.card.form.close.consequence":
+    "No one can start this form in {environment} after it closes. Every other environment is unaffected: a test run keeps going if one is under way. Sessions already under way here keep going too and finish on the version they pinned (R1); their answers are unaffected.",
+  "agent.card.form.reopen.title": "Reopen {formId} in {environment}",
+  "agent.card.form.reopen.consequence":
+    "New sessions can start in {environment} again, on the version released there.",
+  "agent.card.webhook.create.title": "Add a delivery endpoint at {url}",
+  "agent.card.webhook.create.consequence":
+    "This form's events are delivered to that URL in {environment}, signed with a secret.",
+  "agent.card.webhook.create.secret":
+    "The signing secret is shown here once. It cannot be read again, and it never reaches the assistant.",
+  "agent.card.webhook.rotate.title": "Rotate the signing secret of endpoint {webhookId}",
+  "agent.card.webhook.rotate.consequence":
+    "Every consumer verifying with the old secret starts rejecting the moment the next delivery is signed.",
+  "agent.card.webhook.retarget.title": "Point endpoint {webhookId} at {url}",
+  "agent.card.webhook.retarget.consequence":
+    "Deliveries go to the new URL from now on. Nothing already in flight is re-aimed.",
+  "agent.card.webhook.reactivate.title": "Put endpoint {webhookId} back in service",
+  "agent.card.webhook.reactivate.consequence":
+    "Deliveries to that endpoint resume in {environment}.",
+  "agent.card.webhook.deactivate.title": "Stop delivering to endpoint {webhookId}",
+  "agent.card.webhook.deactivate.consequence":
+    "The endpoint and its delivery history stay. A delivery already in flight keeps its own retry state.",
+  "agent.card.webhook.redeliver.title": "Redeliver {deliveryId}",
+  "agent.card.webhook.redeliver.consequence":
+    "The delivery is reset to due-now and the worker attempts it again.",
+  "agent.card.link.mint.title": "Mint {count} respondent links for {formId}",
+  "agent.card.link.mint.consequence":
+    "Each link opens this form for one respondent. The URLs are shown to you once and cannot be read again.",
+  "agent.card.response.erase.title": "Erase the respondent data for {sessionId}",
+  "agent.card.response.erase.consequence":
+    "The answers and the submission are deleted. There is no undo, no archive and no restore.",
+  "agent.card.response.erase.tombstone":
+    "A tombstone records that the session existed, who erased it, when and why. It carries no answer.",
+  "agent.card.response.unflag.title": "Release the withheld submission for {sessionId}",
+  "agent.card.response.unflag.consequence":
+    "The withheld submission event is sent to this form's consumers. The response itself is unchanged.",
+  "agent.card.access.groupCreate.title": "Create the access group {name} with the role {role}",
+  "agent.card.access.groupCreate.consequence":
+    "The group exists but grants nobody anything yet. Holding the group is the grant, so nobody's access changes until somebody is added to it.",
+  "agent.card.access.groupRemove.title": "Remove the access group {teamId}",
+  "agent.card.access.groupRemove.consequence":
+    "Every holder loses the access this group carried, at once. One revoke row is written for each of them.",
+  "agent.card.access.grant.title": "Grant the access group {teamId} to {email}",
+  "agent.card.access.grant.consequence":
+    "That person gains everything the group's role, environments and forms allow, from now on.",
+  "agent.card.access.revoke.title": "Revoke {userId} from the access group {teamId}",
+  "agent.card.access.revoke.consequence":
+    "That person loses the access this group carried. Every other holder keeps theirs.",
+  "agent.card.member.role.title": "Set {userId} to {role} in this workspace",
+  "agent.card.member.role.consequence":
+    "An owner looks after this workspace: its access groups, its members and its settings. Removing the last owner is refused.",
+  "agent.card.workspace.settings.title": "Change this workspace's settings",
+  "agent.card.workspace.settings.consequence":
+    "These two switches decide whether a production release and a responses self-grant need a second account, and whether a new editor is granted the dev and test response data.",
+  "agent.card.link.revoke.title": "Revoke link {linkId}",
+  "agent.card.link.revoke.consequence":
+    "The link stops working from now on. A session already in progress is unaffected.",
+  // Carried inline on the step's own environment line, with one chip per step.
+  "agent.card.environment.production": "Production: changes where respondents' answers are sent.",
+  "agent.card.environmentLabel": "Environment",
+  "agent.card.usesStep": "Uses the {field} step {step} sets",
+  // The same reference in a title, which is one sentence rather than a line of its own.
+  "agent.card.fromStepShort": "step {step}'s {field}",
+
+  "agent.card.arg.formId": "Form",
+  "agent.card.arg.count": "How many",
+  "agent.card.arg.expiresAt": "Stops working",
+  "agent.card.arg.oneTime": "One respondent each",
+  "agent.card.arg.version": "Version",
+  "agent.card.arg.environment": "Environment",
+  "agent.card.arg.fromEnvironment": "Promoted from",
+  "agent.card.arg.linkId": "Link",
+  "agent.card.arg.url": "URL",
+  "agent.card.arg.active": "Delivering",
+  "agent.card.arg.webhookId": "Endpoint",
+  "agent.card.arg.deliveryId": "Delivery",
+  "agent.card.arg.sessionId": "Session",
+  "agent.card.arg.reason": "Reason",
+  "agent.card.arg.challengeRequired": "Require a challenge before answering",
+  "agent.card.arg.minSubmitMs": "Minimum time before a submit is accepted (milliseconds)",
+  "agent.card.arg.workspaceId": "Workspace",
+  "agent.card.arg.teamId": "Access group",
+  "agent.card.arg.userId": "Person",
+  "agent.card.arg.email": "Address",
+  "agent.card.arg.name": "Name",
+  "agent.card.arg.role": "Role",
+  "agent.card.arg.environments": "Environments",
+  "agent.card.arg.forms": "Forms",
+  "agent.card.arg.requireSecondApprover": "Require a second approver",
+  "agent.card.arg.seedNewEditorsWithTestData": "Seed a new editor with dev and test data",
+  "agent.card.arg.unset": "The deployment's own setting",
+  "agent.card.arg.yes": "Yes",
+  "agent.card.arg.no": "No",
+
+  // Each state is a word and an icon, never colour alone. Where only the heading chip is
+  // visible, each step carries its word as visually hidden text, so the accessible name
+  // of a step row still gives it.
+  "agent.card.state.proposed": "Proposed",
+  "agent.card.state.running": "Running",
+  "agent.card.state.done": "Done",
+  "agent.card.state.failed": "Failed",
+  "agent.card.state.pendingApproval": "Pending approval",
+  "agent.card.state.notRun": "Not run",
+  "agent.card.state.cancelled": "Cancelled",
+  "agent.card.state.expired": "Expired",
+
+  "agent.card.chip.proposed": "Proposed",
+  "agent.card.chip.running": "Running {step} of {count}",
+  "agent.card.chip.done": "Done",
+  "agent.card.chip.stopped": "Stopped at step {step}",
+  "agent.card.chip.stoppedByYou": "Stopped",
+  "agent.card.chip.pending": "Pending approval",
+  "agent.card.chip.cancelled": "Cancelled",
+  "agent.card.chip.expired": "Expired",
+
+  // The dialog's own cost in front of an act with no inverse, asked for on the card.
+  "agent.card.band.irreversible":
+    "This cannot be undone. Nothing here is archived and nothing can be restored.",
+  "agent.card.revealOnce": "Shown once, here only:",
+  "agent.card.typed.label": "Type the session id to confirm",
+  "agent.card.typed.hint": "Type {value} exactly.",
+  "agent.card.confirm": "Confirm",
+  "agent.card.confirmAll": "Confirm all {count} steps",
+  "agent.card.cancel": "Cancel",
+  "agent.card.stop": "Stop after this step",
+  "agent.card.stopping": "Stopping after this step",
+  "agent.card.openScreen": "Open the screen",
+  "agent.card.expiresIn.one": "Expires in 1 minute",
+  "agent.card.expiresIn.other": "Expires in {count} minutes",
+  "agent.card.expiredAsk": "Expired - ask again",
+  "agent.card.handOffHint":
+    "This step needs a secret you type on the screen itself. Confirm opens that field.",
+
+  "agent.card.result.done": "Done. All {count} steps ran, confirmed by you.",
+  "agent.card.result.stopped": "Stopped at step {step}. {ran} of {count} ran; nothing was retried.",
+  "agent.card.result.stoppedByYou": "Stopped by you. {ran} of {count} ran.",
+  "agent.card.result.held": "Held at step {step} for a second approver. {ran} of {count} ran.",
+  "agent.card.result.cancelled": "Cancelled by you. Nothing was sent.",
+  "agent.card.result.expired": "Expired. Ask again for a fresh proposal.",
+  "agent.card.live.running": "Step {step} of {count} running",
+
+  "agent.card.note.unresolvedReference": "This step needed a value an earlier step did not report.",
+  "agent.card.note.unreachable": "The request did not reach the server.",
+  "agent.card.note.stale": "This proposal is more than ten minutes old.",
+  "agent.card.note.notWired": "This screen's control is not wired to the assistant yet.",
+  "agent.card.note.unknownRole": "That is not a role this workspace's member rows can carry.",
+  "agent.card.note.noDraftToPublish":
+    "There is no draft to publish into that environment any more. Read the form again and ask for a fresh proposal.",
+
+  // The marker is a link to the card and never a second Confirm.
+  "agent.marker.text": "proposed · Review",
+  "agent.marker.description":
+    "Moves focus to the assistant's card for {summary}. Nothing runs from here.",
+  // One, always: a turn ends with at most one card or one plan (P1).
+  "agent.launcher.toReview": "1 action to review",
 
   // Two provider failures, two sentences, because the advice is opposite
   // (issue #818). Neither repeats what the provider said: no vendor message,

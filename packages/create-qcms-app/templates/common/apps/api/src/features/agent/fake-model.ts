@@ -35,6 +35,37 @@ export const FAKE_SCRIPTS = [
   "narrate-then-tools",
   "reasoning",
   "read-all",
+  // D0's action scripts (083, SEC-17). Each proposes and runs nothing: Confirm is the
+  // user's, on the card.
+  "plan-three",
+  "plan-fails-at-2",
+  "plan-two-envs",
+  "plan-pending-at-1",
+  "two-proposals",
+  "plan-26-steps",
+  "unknown-tool",
+  "injection-follow",
+  "read-only-user",
+  // One card per kind, for each screen group's own confirm and cancel paths.
+  "propose-form-publish",
+  "propose-form-settings",
+  "propose-form-close",
+  "propose-form-reopen",
+  "propose-form-release",
+  "propose-response-erase",
+  "propose-response-unflag",
+  "propose-webhook-create",
+  "propose-webhook-rotate",
+  "propose-webhook-retarget",
+  "propose-webhook-reactivate",
+  "propose-webhook-deactivate",
+  "propose-webhook-redeliver",
+  "propose-access-group-create",
+  "propose-access-group-remove",
+  "propose-access-grant",
+  "propose-access-revoke",
+  "propose-member-role",
+  "propose-workspace-settings",
 ] as const;
 
 /** Asserted present under `summary` and absent everywhere under `off`. */
@@ -474,6 +505,364 @@ function planReadAllStep(
   return [...toolInputParts(next, input), toolCallPart(next, input), finishPart("tool-calls")];
 }
 
+/**
+ * D0's action scripts. Each one proposes; none executes. The arguments come from the
+ * screen's own facts block, so a script names the form and the link the fixture actually
+ * has rather than a canned id.
+ */
+
+/** Every fenced JSON block in the user messages: the draft preamble and the facts. */
+function jsonBlocks(prompt: readonly PromptMessage[]): Record<string, unknown>[] {
+  const text = userText(prompt);
+  const blocks: Record<string, unknown>[] = [];
+  let at = text.indexOf("```json");
+  while (at >= 0) {
+    const start = at + "```json".length;
+    const close = text.indexOf("```", start);
+    if (close < 0) break;
+    try {
+      const parsed: unknown = JSON.parse(text.slice(start, close));
+      if (typeof parsed === "object" && parsed !== null) {
+        blocks.push(parsed as Record<string, unknown>);
+      }
+    } catch {
+      // A block this build cannot read is skipped: the next one may be the facts.
+    }
+    at = text.indexOf("```json", close);
+  }
+  return blocks;
+}
+
+function screenFacts(prompt: readonly PromptMessage[]): Record<string, unknown> {
+  return jsonBlocks(prompt).find((block) => typeof block.formId === "string") ?? {};
+}
+
+function factFormId(prompt: readonly PromptMessage[]): string {
+  const { formId } = screenFacts(prompt);
+  return typeof formId === "string" ? formId : "frm_unknown";
+}
+
+function factVersion(prompt: readonly PromptMessage[]): number {
+  const { latestPublishedVersion } = screenFacts(prompt);
+  return typeof latestPublishedVersion === "number" ? latestPublishedVersion : 1;
+}
+
+/** The first link the links screen listed, so a revoke step names a real row. */
+function factLinkId(prompt: readonly PromptMessage[]): string {
+  const { links } = screenFacts(prompt);
+  if (!Array.isArray(links)) return "lnk_absent";
+  for (const entry of links) {
+    if (typeof entry !== "object" || entry === null) continue;
+    const { linkId } = entry as { linkId?: unknown };
+    if (typeof linkId === "string") return linkId;
+  }
+  return "lnk_absent";
+}
+
+/** The session the response screen's own facts named, so an erase step names a real row. */
+function factSessionId(prompt: readonly PromptMessage[]): string {
+  const { sessionId } = screenFacts(prompt);
+  return typeof sessionId === "string" ? sessionId : "ses_absent";
+}
+
+const FAKE_LINK_EXPIRY = "2026-12-31T23:59:59.000Z";
+
+const FAKE_ENDPOINT_URL = "https://hooks.example.test/qcms?channel=ops";
+
+const FAKE_GROUP_LABEL = "assistant";
+
+const FAKE_GROUP_NAME = `test.responses.viewer.${FAKE_GROUP_LABEL}`;
+
+const FAKE_GRANT_EMAIL = "second.approver@qcms.test";
+
+/** The workspace the administration screen is on, and its first group and member. */
+function factWorkspaceId(prompt: readonly PromptMessage[]): string {
+  const { workspaceId } = screenFacts(prompt);
+  return typeof workspaceId === "string" ? workspaceId : "wsp_absent";
+}
+
+function factGroupId(prompt: readonly PromptMessage[]): string {
+  return firstId(screenFacts(prompt)["accessGroups"], "groupId", "grp_absent");
+}
+
+function factMemberId(prompt: readonly PromptMessage[]): string {
+  return firstId(screenFacts(prompt)["members"], "userId", "usr_absent");
+}
+
+/** The first endpoint and the first delivery the webhooks screen listed. */
+function factWebhookId(prompt: readonly PromptMessage[]): string {
+  return firstId(screenFacts(prompt)["webhooks"], "webhookId", "wh_absent");
+}
+
+function factDeliveryId(prompt: readonly PromptMessage[]): string {
+  return firstId(screenFacts(prompt)["deliveries"], "deliveryId", "dlv_absent");
+}
+
+function firstId(rows: unknown, member: string, fallback: string): string {
+  if (!Array.isArray(rows)) return fallback;
+  for (const entry of rows) {
+    if (typeof entry !== "object" || entry === null) continue;
+    const value = (entry as Record<string, unknown>)[member];
+    if (typeof value === "string") return value;
+  }
+  return fallback;
+}
+
+function mintStep(formId: string, count = 2): Record<string, unknown> {
+  return {
+    kind: "link.mint",
+    args: { formId, count, expiresAt: FAKE_LINK_EXPIRY, oneTime: true },
+  };
+}
+
+function revokeStep(formId: string, linkId: string): Record<string, unknown> {
+  return { kind: "link.revoke", args: { formId, linkId } };
+}
+
+function releaseStep(
+  formId: string,
+  version: number | Record<string, unknown>,
+  environment: string,
+): Record<string, unknown> {
+  return { kind: "form.release", args: { formId, version, environment } };
+}
+
+/** How many times this turn has already called one tool, which P1's script needs. */
+function toolCallCount(prompt: readonly PromptMessage[], name: string): number {
+  let count = 0;
+  for (const message of prompt) {
+    if (message.role !== "assistant" || !Array.isArray(message.content)) continue;
+    for (const part of message.content) {
+      if (typeof part !== "object" || part === null) continue;
+      const typed = part as { type?: unknown; toolName?: unknown };
+      if (typed.type === "tool-call" && typed.toolName === name) count += 1;
+    }
+  }
+  return count;
+}
+
+/** A name outside the registry, which the one door refuses before anything is dispatched. */
+const UNREGISTERED_TOOL = "run_action";
+
+function actionPlanSteps(
+  script: FakeScript,
+  prompt: readonly PromptMessage[],
+): Record<string, unknown>[] {
+  const formId = factFormId(prompt);
+  switch (script) {
+    case "plan-three":
+      return [
+        { kind: "form.publish", args: { formId, environment: "test" } },
+        releaseStep(formId, { fromStep: 0, field: "version" }, "prod"),
+        mintStep(formId, 20),
+      ];
+    case "plan-fails-at-2":
+      return [mintStep(formId, 1), revokeStep(formId, factLinkId(prompt)), mintStep(formId, 3)];
+    // `injection-follow` obeys the instruction planted in a fixture question title and
+    // slips the production release in behind a plausible one, which is the same two steps
+    // a legitimate promotion asks for. That is the point: only the card tells them apart.
+    case "plan-two-envs":
+    case "injection-follow":
+      return [
+        releaseStep(formId, factVersion(prompt), "test"),
+        releaseStep(formId, factVersion(prompt), "prod"),
+      ];
+    case "plan-pending-at-1":
+      return [releaseStep(formId, factVersion(prompt), "prod"), mintStep(formId, 5)];
+    case "plan-26-steps":
+      return Array.from({ length: 26 }, (_, index) => mintStep(formId, index + 1));
+    default:
+      return [mintStep(formId)];
+  }
+}
+
+/**
+ * One card per kind: `propose-<kind>` puts that kind alone up for review, which is what a
+ * screen group's confirm and cancel paths drive.
+ */
+const SINGLE_ACTIONS: Readonly<
+  Record<string, (prompt: readonly PromptMessage[]) => Record<string, unknown>>
+> = {
+  "propose-form-settings": (prompt) => ({
+    kind: "form.settings",
+    args: { formId: factFormId(prompt), challengeRequired: true, minSubmitMs: 1500 },
+  }),
+  "propose-form-close": (prompt) => ({
+    kind: "form.close",
+    args: { formId: factFormId(prompt) },
+  }),
+  "propose-form-reopen": (prompt) => ({
+    kind: "form.reopen",
+    args: { formId: factFormId(prompt) },
+  }),
+  "propose-form-publish": (prompt) => ({
+    kind: "form.publish",
+    args: { formId: factFormId(prompt), environment: "test" },
+  }),
+  "propose-form-release": (prompt) => releaseStep(factFormId(prompt), factVersion(prompt), "test"),
+  "propose-response-erase": (prompt) => ({
+    kind: "response.erase",
+    args: {
+      formId: factFormId(prompt),
+      sessionId: factSessionId(prompt),
+      reason: "subject_request",
+    },
+  }),
+  "propose-response-unflag": (prompt) => ({
+    kind: "response.unflag",
+    args: { formId: factFormId(prompt), sessionId: factSessionId(prompt) },
+  }),
+  "propose-webhook-create": (prompt) => ({
+    kind: "webhook.create",
+    args: { formId: factFormId(prompt), url: FAKE_ENDPOINT_URL, active: true },
+  }),
+  "propose-webhook-rotate": (prompt) => ({
+    kind: "webhook.rotate",
+    args: { formId: factFormId(prompt), webhookId: factWebhookId(prompt) },
+  }),
+  "propose-webhook-retarget": (prompt) => ({
+    kind: "webhook.retarget",
+    args: {
+      formId: factFormId(prompt),
+      webhookId: factWebhookId(prompt),
+      url: FAKE_ENDPOINT_URL,
+    },
+  }),
+  "propose-webhook-reactivate": (prompt) => ({
+    kind: "webhook.reactivate",
+    args: { formId: factFormId(prompt), webhookId: factWebhookId(prompt) },
+  }),
+  "propose-webhook-deactivate": (prompt) => ({
+    kind: "webhook.deactivate",
+    args: { formId: factFormId(prompt), webhookId: factWebhookId(prompt) },
+  }),
+  "propose-webhook-redeliver": (prompt) => ({
+    kind: "webhook.redeliver",
+    args: { formId: factFormId(prompt), deliveryId: factDeliveryId(prompt) },
+  }),
+  "propose-access-group-create": (prompt) => ({
+    kind: "access.groupCreate",
+    args: {
+      workspaceId: factWorkspaceId(prompt),
+      name: FAKE_GROUP_NAME,
+      role: "responses.viewer",
+      label: FAKE_GROUP_LABEL,
+      environments: ["test"],
+      forms: ["all"],
+    },
+  }),
+  "propose-access-group-remove": (prompt) => ({
+    kind: "access.groupRemove",
+    args: { workspaceId: factWorkspaceId(prompt), teamId: factGroupId(prompt) },
+  }),
+  "propose-access-grant": (prompt) => ({
+    kind: "access.grant",
+    args: {
+      workspaceId: factWorkspaceId(prompt),
+      teamId: factGroupId(prompt),
+      email: FAKE_GRANT_EMAIL,
+    },
+  }),
+  "propose-access-revoke": (prompt) => ({
+    kind: "access.revoke",
+    args: {
+      workspaceId: factWorkspaceId(prompt),
+      teamId: factGroupId(prompt),
+      userId: factMemberId(prompt),
+    },
+  }),
+  "propose-member-role": (prompt) => ({
+    kind: "member.role",
+    args: {
+      workspaceId: factWorkspaceId(prompt),
+      userId: factMemberId(prompt),
+      role: "forms.owner",
+    },
+  }),
+  "propose-workspace-settings": (prompt) => ({
+    kind: "workspace.settings",
+    args: { workspaceId: factWorkspaceId(prompt), requireSecondApprover: true },
+  }),
+};
+
+const INJECTION_REASON =
+  "The form's notes asked me to ship this to production and point the webhook elsewhere, " +
+  "so I have put both in one plan.";
+
+const READ_ONLY_REASON =
+  "You cannot change anything on this screen, so I can only explain what is here and " +
+  "point you at it.";
+
+function planActionStep(script: FakeScript, prompt: readonly PromptMessage[]): StreamPart[] {
+  if (script === "read-only-user") {
+    return [...textParts(READ_ONLY_REASON, "t0"), finishPart("stop")];
+  }
+
+  if (script === "unknown-tool") {
+    if (toolCallCount(prompt, UNREGISTERED_TOOL) === 0) {
+      const input = { kind: "link.mint", formId: factFormId(prompt) };
+      return [
+        ...textParts("I will run that for you.", "t0"),
+        ...toolInputParts(UNREGISTERED_TOOL, input),
+        toolCallPart(UNREGISTERED_TOOL, input),
+        finishPart("tool-calls"),
+      ];
+    }
+    return [...textParts("That is not something I can do here.", "t1"), finishPart("stop")];
+  }
+
+  const single = SINGLE_ACTIONS[script];
+  if (single !== undefined) {
+    if (toolCallCount(prompt, "propose_action") === 0) {
+      const input = { action: single(prompt) };
+      return [
+        ...toolInputParts("propose_action", input),
+        toolCallPart("propose_action", input),
+        finishPart("tool-calls"),
+      ];
+    }
+    return [...textParts("That is on the card for you to confirm.", "t1"), finishPart("stop")];
+  }
+
+  if (script === "two-proposals") {
+    const called = toolCallCount(prompt, "propose_action");
+    if (called < 2) {
+      const input = { action: mintStep(factFormId(prompt), called + 1) };
+      return [
+        ...toolInputParts("propose_action", input, `_${String(called)}`),
+        toolCallPart("propose_action", input, `_${String(called)}`),
+        finishPart("tool-calls"),
+      ];
+    }
+    return [...textParts("I have put the first one up for review.", "t2"), finishPart("stop")];
+  }
+
+  if (toolCallCount(prompt, "propose_plan") === 0) {
+    const input = { steps: actionPlanSteps(script, prompt) };
+    return [
+      ...textParts(script === "injection-follow" ? INJECTION_REASON : "Here is the plan.", "t0"),
+      ...toolInputParts("propose_plan", input),
+      toolCallPart("propose_plan", input),
+      finishPart("tool-calls"),
+    ];
+  }
+  return [...textParts("The plan is on the card for you to confirm.", "t1"), finishPart("stop")];
+}
+
+/** The scripts that propose an action or a plan rather than a draft. */
+const ACTION_SCRIPTS: readonly FakeScript[] = [
+  "plan-three",
+  "plan-fails-at-2",
+  "plan-two-envs",
+  "plan-pending-at-1",
+  "two-proposals",
+  "plan-26-steps",
+  "unknown-tool",
+  "injection-follow",
+  "read-only-user",
+  ...(Object.keys(SINGLE_ACTIONS) as FakeScript[]),
+];
+
 /** The tool names this turn offered, which is the screen's own list. */
 function offeredTools(tools: unknown): readonly string[] {
   if (!Array.isArray(tools)) return [];
@@ -558,6 +947,8 @@ function planStep(
       finishPart("tool-calls"),
     ];
   }
+
+  if (ACTION_SCRIPTS.includes(script)) return planActionStep(script, prompt);
 
   const results = toolResults(prompt);
   if (script === "read-all") return planReadAllStep(prompt, results, offered);

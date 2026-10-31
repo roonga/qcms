@@ -37,6 +37,7 @@ import {
   validateDraft,
 } from "@/lib/server/forms";
 import { MAX_LINK_BATCH, mintLinks, revokeLink } from "@/lib/server/links";
+import type { AgentProposalRef } from "@/lib/server/agent-proposal";
 import type { BatchOutcome } from "@/lib/server/releases";
 import {
   lookupReleaseBatch,
@@ -308,6 +309,7 @@ interface SettingsPatch {
 export async function updateSettingsAction(
   formId: string,
   patch: SettingsPatch,
+  proposal?: AgentProposalRef,
 ): Promise<SettingsState> {
   const session = await requireAdminSession();
   const outgoing: SettingsPatch = {
@@ -320,7 +322,7 @@ export async function updateSettingsAction(
     return { status: "error", message: messageForFormCode("INVALID_FORM_SETTINGS") };
   }
 
-  const result = await updateSettings(session, formId, outgoing);
+  const result = await updateSettings(session, formId, outgoing, proposal);
   if (!result.ok) return { status: "error", message: result.message };
   revalidatePath(`/forms/${formId}`);
   return {
@@ -420,16 +422,28 @@ export async function releaseVersionAction(
   input: {
     readonly version: number;
     readonly fromEnvironment?: string;
+    /**
+     * Where the release lands, when that is not the environment the screen is showing. The
+     * release panel omits it; a promotion names it, and the API authorises `release: create`
+     * against the destination rather than against the selection.
+     */
+    readonly environment?: string;
   },
+  proposal?: AgentProposalRef,
 ): Promise<ReleaseState> {
   const session = await requireAdminSession();
   const check = await confirmShownEnvironment(session, shown);
   if (!check.ok) return { status: "error", message: check.message };
-  const result = await releaseVersion(session, formId, {
-    version: input.version,
-    ...(input.fromEnvironment === undefined ? {} : { fromEnvironment: input.fromEnvironment }),
-    environment: check.environment,
-  });
+  const result = await releaseVersion(
+    session,
+    formId,
+    {
+      version: input.version,
+      ...(input.fromEnvironment === undefined ? {} : { fromEnvironment: input.fromEnvironment }),
+      environment: input.environment ?? check.environment,
+    },
+    proposal,
+  );
   if (!result.ok) return { status: "error", message: result.message };
   // The release screen, the version list and the form's own header all describe what is
   // released, so the whole subtree is re-read rather than one route of it.
@@ -484,16 +498,22 @@ export async function confirmPublishAction(
     readonly source: PublishIntent;
     readonly targets: readonly PublishDestination[];
   },
+  proposal?: AgentProposalRef,
 ): Promise<PublishBatchState> {
   const session = await requireAdminSession();
   const result =
     request.source.kind === "draft"
-      ? await publishBatch(session, formId, {
-          idempotencyKey: request.idempotencyKey,
-          expectedWorkflowRevision: request.expectedWorkflowRevision,
-          draftRevision: request.source.draftRevision,
-          targets: request.targets,
-        })
+      ? await publishBatch(
+          session,
+          formId,
+          {
+            idempotencyKey: request.idempotencyKey,
+            expectedWorkflowRevision: request.expectedWorkflowRevision,
+            draftRevision: request.source.draftRevision,
+            targets: request.targets,
+          },
+          proposal,
+        )
       : await releaseBatch(session, formId, {
           idempotencyKey: request.idempotencyKey,
           expectedWorkflowRevision: request.expectedWorkflowRevision,
@@ -616,11 +636,12 @@ export async function setFormStatusAction(
   formId: string,
   shown: string | undefined,
   action: "close" | "reopen",
+  proposal?: AgentProposalRef,
 ): Promise<FormStatusState> {
   const session = await requireAdminSession();
   const check = await confirmShownEnvironment(session, shown);
   if (!check.ok) return { status: "error", message: check.message };
-  const result = await setFormStatus(session, formId, action, check.environment);
+  const result = await setFormStatus(session, formId, action, check.environment, proposal);
   if (!result.ok) return { status: "error", message: result.message };
   revalidatePath("/forms");
   // "layout", for the reason `saveDraftAction` records: closing a form changes the header
@@ -652,6 +673,7 @@ export async function mintLinksAction(
   formId: string,
   shown: string | undefined,
   request: MintRequest,
+  proposal?: AgentProposalRef,
 ): Promise<MintLinksState> {
   const session = await requireAdminSession();
   const count = Math.trunc(request.count);
@@ -667,12 +689,17 @@ export async function mintLinksAction(
   // which this screen mints into an environment nobody chose or was not shown.
   const check = await confirmShownEnvironment(session, shown);
   if (!check.ok) return { status: "error", message: check.message };
-  const result = await mintLinks(session, formId, {
-    environment: check.environment,
-    expiresAt: endOfDay(request.expiresAt),
-    oneTime: request.oneTime,
-    count,
-  });
+  const result = await mintLinks(
+    session,
+    formId,
+    {
+      environment: check.environment,
+      expiresAt: endOfDay(request.expiresAt),
+      oneTime: request.oneTime,
+      count,
+    },
+    proposal,
+  );
   if (!result.ok) return { status: "error", message: result.message };
   revalidatePath(`/forms/${formId}/links`);
   return { status: "minted", links: result.data };
@@ -710,6 +737,7 @@ export async function revokeLinkAction(
   formId: string,
   shown: string | undefined,
   linkId: string,
+  proposal?: AgentProposalRef,
 ): Promise<RevokeLinkState> {
   const session = await requireAdminSession();
   // Scoped to the switcher's environment by the API, which the one door's header carries:
@@ -718,7 +746,7 @@ export async function revokeLinkAction(
   // check makes "looking at" true of this tab rather than of whichever tab switched last.
   const check = await confirmShownEnvironment(session, shown);
   if (!check.ok) return { status: "error", message: check.message };
-  const result = await revokeLink(session, formId, linkId);
+  const result = await revokeLink(session, formId, linkId, proposal);
   if (!result.ok) return { status: "error", message: result.message };
   revalidatePath(`/forms/${formId}/links`);
   return { status: "revoked", linkId: result.data.linkId };

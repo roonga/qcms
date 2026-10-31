@@ -18,12 +18,69 @@ import { trackedFilesUnder } from "./tracked-files.mjs";
 const REPO_ROOT = fileURLToPath(new URL("../", import.meta.url));
 
 /**
- * Empty, and meant to stay that way. An entry claims a key is rendered through a shape the
- * scan cannot read, carries its reason, and is pinned to one catalog.
+ * An entry claims a key is rendered through a shape the scan cannot read, carries its
+ * reason, and is pinned to one catalog.
  *
  * @type {Readonly<Record<string, Readonly<Record<string, string>>>>}
  */
-export const ALLOWED = {};
+export const ALLOWED = {
+  "apps/admin": {
+    // The card renders `t(step.card.titleKey)` and each consequence key the step carries,
+    // and those keys are named by the API's action-kind descriptors rather than by any
+    // literal here. `actions/registry.test.ts` pins each descriptor's keys to its kind.
+    "agent.card.form.publish.title": "named by the form.publish action-kind descriptor",
+    "agent.card.form.publish.consequence": "named by the form.publish action-kind descriptor",
+    "agent.card.form.release.title": "named by the form.release action-kind descriptor",
+    "agent.card.form.release.consequence": "named by the form.release action-kind descriptor",
+    "agent.card.link.mint.title": "named by the link.mint action-kind descriptor",
+    "agent.card.link.mint.consequence": "named by the link.mint action-kind descriptor",
+    "agent.card.link.revoke.title": "named by the link.revoke action-kind descriptor",
+    "agent.card.link.revoke.consequence": "named by the link.revoke action-kind descriptor",
+    "agent.card.form.settings.title": "named by the form.settings action-kind descriptor",
+    "agent.card.form.settings.consequence": "named by the form.settings action-kind descriptor",
+    "agent.card.form.close.title": "named by the form.close action-kind descriptor",
+    "agent.card.form.close.consequence": "named by the form.close action-kind descriptor",
+    "agent.card.form.reopen.title": "named by the form.reopen action-kind descriptor",
+    "agent.card.form.reopen.consequence": "named by the form.reopen action-kind descriptor",
+    "agent.card.response.erase.title": "named by the response.erase action-kind descriptor",
+    "agent.card.response.erase.consequence": "named by the response.erase action-kind descriptor",
+    "agent.card.response.erase.tombstone": "named by the response.erase action-kind descriptor",
+    "agent.card.response.unflag.title": "named by the response.unflag action-kind descriptor",
+    "agent.card.response.unflag.consequence": "named by the response.unflag action-kind descriptor",
+    "agent.card.webhook.create.title": "named by the webhook.create action-kind descriptor",
+    "agent.card.webhook.create.consequence": "named by the webhook.create action-kind descriptor",
+    "agent.card.webhook.create.secret": "named by the webhook.create action-kind descriptor",
+    "agent.card.webhook.rotate.title": "named by the webhook.rotate action-kind descriptor",
+    "agent.card.webhook.rotate.consequence": "named by the webhook.rotate action-kind descriptor",
+    "agent.card.webhook.retarget.title": "named by the webhook.retarget action-kind descriptor",
+    "agent.card.webhook.retarget.consequence":
+      "named by the webhook.retarget action-kind descriptor",
+    "agent.card.webhook.reactivate.title": "named by the webhook.reactivate action-kind descriptor",
+    "agent.card.webhook.reactivate.consequence":
+      "named by the webhook.reactivate action-kind descriptor",
+    "agent.card.webhook.deactivate.title": "named by the webhook.deactivate action-kind descriptor",
+    "agent.card.webhook.deactivate.consequence":
+      "named by the webhook.deactivate action-kind descriptor",
+    "agent.card.webhook.redeliver.title": "named by the webhook.redeliver action-kind descriptor",
+    "agent.card.webhook.redeliver.consequence":
+      "named by the webhook.redeliver action-kind descriptor",
+    "agent.card.access.groupCreate.title": "named by the access.groupCreate action-kind descriptor",
+    "agent.card.access.groupCreate.consequence":
+      "named by the access.groupCreate action-kind descriptor",
+    "agent.card.access.groupRemove.title": "named by the access.groupRemove action-kind descriptor",
+    "agent.card.access.groupRemove.consequence":
+      "named by the access.groupRemove action-kind descriptor",
+    "agent.card.access.grant.title": "named by the access.grant action-kind descriptor",
+    "agent.card.access.grant.consequence": "named by the access.grant action-kind descriptor",
+    "agent.card.access.revoke.title": "named by the access.revoke action-kind descriptor",
+    "agent.card.access.revoke.consequence": "named by the access.revoke action-kind descriptor",
+    "agent.card.member.role.title": "named by the member.role action-kind descriptor",
+    "agent.card.member.role.consequence": "named by the member.role action-kind descriptor",
+    "agent.card.workspace.settings.title": "named by the workspace.settings action-kind descriptor",
+    "agent.card.workspace.settings.consequence":
+      "named by the workspace.settings action-kind descriptor",
+  },
+};
 
 /**
  * The generated template tree is excluded by construction: it is a byte-for-byte copy of

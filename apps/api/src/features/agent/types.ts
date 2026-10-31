@@ -1,11 +1,33 @@
 import type { FormDefinition, QuestionDefinition, QuestionId } from "@roonga/qcms-core";
 
 import type { PublishIssue, PublishWarning } from "../forms/handler.js";
+import type { OfferedActionKind } from "./grant-filter.js";
+import type { Proposal, ProposedStep, ProposeOutcome } from "./tools/propose.js";
 
-export interface AssistTurn {
+export interface AssistTextTurn {
   readonly role: "user" | "assistant";
   readonly content: string;
 }
+
+/** One step's outcome, carrying the kind's allowlisted non-secret result fields only. */
+export interface ActionStepResult {
+  readonly kind: string;
+  readonly outcome: "done" | "failed" | "pending-approval" | "not-run" | "cancelled" | "expired";
+  readonly result?: Readonly<Record<string, string | number | boolean | undefined>> | undefined;
+}
+
+/**
+ * What ran, what failed and what did not run, after the user confirmed a card or a plan
+ * (section 5.3). The admin writes it, so no model text reaches it, and the allowlist is
+ * what keeps a minted URL, a secret or an export's bytes out of it.
+ */
+export interface ActionResultTurn {
+  readonly role: "action-result";
+  readonly proposalId: string;
+  readonly steps: readonly ActionStepResult[];
+}
+
+export type AssistTurn = AssistTextTurn | ActionResultTurn;
 
 /** Definition only: no response counts, no respondent data, no answer values. */
 export interface LibraryEntry {
@@ -56,6 +78,16 @@ export type ProjectDraftPort = (
   answers: Readonly<Record<string, unknown>>,
 ) => Promise<DraftProjection>;
 
+/**
+ * The propose tools' port. It validates, filters and signs; it executes nothing, so a
+ * screen that offers no action kind simply has no port.
+ */
+export type ProposePort = (
+  steps: readonly ProposedStep[],
+  /** Already proposed in this turn, which P1 bounds at one. */
+  proposalsThisTurn: number,
+) => Promise<ProposeOutcome>;
+
 /** The SEC-3 cell a read tool declares, checked for the calling principal by the door. */
 export interface ToolCell {
   readonly resource: string;
@@ -81,6 +113,13 @@ export interface AgentContext {
   readonly questionLibrary?: QuestionLibraryPort;
   readonly validate?: ValidateDraftPort;
   readonly projectDraft?: ProjectDraftPort;
+  /** Absent on a screen with no action kind, which is what leaves its propose tools unoffered. */
+  readonly propose?: ProposePort;
+  /**
+   * What the grant filter offered this caller on this screen, which is what narrows the
+   * propose tools' advertised schemas. Empty means this user changes nothing here.
+   */
+  readonly offeredActionKinds?: readonly OfferedActionKind[];
 }
 
 /** Both advisory lists are server-computed, so the UI can never be handed an unvalidated proposal. */
@@ -123,6 +162,12 @@ export type AssistEvent =
   /** A tool call outside the allowlist was refused server-side. */
   | { readonly type: "tool-rejected"; readonly tool: string }
   | { readonly type: "proposal"; readonly proposal: AssistProposal }
+  /**
+   * One proposed action, or one ordered plan. The steps and their arguments are the
+   * admin's to display; the token is what Confirm carries. Nothing has run (SEC-17).
+   */
+  | { readonly type: "action"; readonly proposal: Proposal }
+  | { readonly type: "plan"; readonly proposal: Proposal }
   | { readonly type: "error"; readonly code: AssistErrorCode; readonly message: string }
   /** Counts only, never content (SEC-8). */
   | {

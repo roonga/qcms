@@ -19,6 +19,7 @@ import {
 } from "../reporting-views.js";
 import { sqlLiteral as literal } from "../sql-literal.js";
 import { ACCESS_AUDIT_TABLE } from "../schema/control/access-audit.js";
+import { AGENT_ACTIONS_TABLE } from "../schema/control/agent-actions.js";
 import {
   APPLICATION_ROLE_PREFIX,
   CONTROL_ROLE,
@@ -334,10 +335,12 @@ export function grantEnvironmentStatements(environment: string): string[] {
       ]),
     ),
     // `INSERT` and nothing else, so an environment role may add an audit row and may not
-    // read, change or remove one (SEC-15).
-    guardedOnRoleAndTable(role, CONTROL_SCHEMA, ACCESS_AUDIT_TABLE, [
-      `GRANT INSERT ON ${quote(CONTROL_SCHEMA)}.${quote(ACCESS_AUDIT_TABLE)} TO ${quote(role)}`,
-    ]),
+    // read, change or remove one (SEC-15, and SEC-17 on the same terms).
+    ...[ACCESS_AUDIT_TABLE, AGENT_ACTIONS_TABLE].map((auditTable) =>
+      guardedOnRoleAndTable(role, CONTROL_SCHEMA, auditTable, [
+        `GRANT INSERT ON ${quote(CONTROL_SCHEMA)}.${quote(auditTable)} TO ${quote(role)}`,
+      ]),
+    ),
     guardedOnRole(CONTROL_ROLE, controlRoleGrants),
     // Emitted here too, so an environment created later cannot arrive holding it.
     revokeMigrateOnlyStatement(),
@@ -408,16 +411,28 @@ export function grantControlTableStatements(table: string): string[] {
  * An environment role therefore cannot use `RETURNING` on an audit insert.
  */
 export function grantAccessAuditStatements(): string[] {
-  const table = `${quote(CONTROL_SCHEMA)}.${quote(ACCESS_AUDIT_TABLE)}`;
+  return appendOnlyAuditGrantStatements(ACCESS_AUDIT_TABLE);
+}
+
+/**
+ * SEC-17's agent audit takes the same grant set, emitted by the same function rather than
+ * written out again, so the two tables cannot diverge (criterion 7).
+ */
+export function grantAgentActionsStatements(): string[] {
+  return appendOnlyAuditGrantStatements(AGENT_ACTIONS_TABLE);
+}
+
+function appendOnlyAuditGrantStatements(auditTable: string): string[] {
+  const table = `${quote(CONTROL_SCHEMA)}.${quote(auditTable)}`;
   return [
     guardedOnRole(CONTROL_ROLE, [`GRANT SELECT, INSERT ON ${table} TO ${quote(CONTROL_ROLE)}`]),
-    grantAccessAuditInsertToEnvironmentRolesStatement(),
-    revokeAccessAuditWritesStatement(),
+    grantAuditInsertToEnvironmentRolesStatement(auditTable),
+    revokeAuditWritesStatement(auditTable),
   ];
 }
 
-function grantAccessAuditInsertToEnvironmentRolesStatement(): string {
-  const grant = `GRANT INSERT ON ${quote(CONTROL_SCHEMA)}.${quote(ACCESS_AUDIT_TABLE)} TO %I`;
+function grantAuditInsertToEnvironmentRolesStatement(auditTable: string): string {
+  const grant = `GRANT INSERT ON ${quote(CONTROL_SCHEMA)}.${quote(auditTable)} TO %I`;
   return `DO $$
 DECLARE environment_role text;
 BEGIN
@@ -435,7 +450,7 @@ $$;`;
 }
 
 // Against the role prefix, so a role an operator creates later is covered too.
-function revokeAccessAuditWritesStatement(): string {
+function revokeAuditWritesStatement(auditTable: string): string {
   return `DO $$
 DECLARE application_role text;
 BEGIN
@@ -443,7 +458,7 @@ BEGIN
 \t\tSELECT rolname FROM pg_roles WHERE rolname LIKE 'qcms\\_app%'
 \tLOOP
 \t\tEXECUTE format(
-\t\t\t'REVOKE UPDATE, DELETE ON TABLE ${CONTROL_SCHEMA}.${ACCESS_AUDIT_TABLE} FROM %I',
+\t\t\t'REVOKE UPDATE, DELETE ON TABLE ${CONTROL_SCHEMA}.${auditTable} FROM %I',
 \t\t\tapplication_role);
 \tEND LOOP;
 END

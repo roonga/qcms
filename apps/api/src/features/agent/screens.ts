@@ -75,12 +75,13 @@ function screen(
     readonly build: (input: ScreenBuildInput) => Promise<unknown>;
   },
   readTools: readonly AgentToolName[] = [],
+  actionKinds: readonly string[] = NONE,
 ): ScreenDef {
   return {
     facts: context.facts,
     build: (input) => context.build(input),
     readTools,
-    actionKinds: NONE,
+    actionKinds,
   };
 }
 
@@ -88,16 +89,36 @@ function screen(
 export const SCREENS: Readonly<Record<ScreenId, ScreenDef>> = Object.freeze({
   "/forms": screen(authoringContexts.formsList),
   "/forms/new": screen(authoringContexts.newForm),
-  "/forms/[formId]": screen(authoringContexts.builder, DRAFT_TOOLS),
+  "/forms/[formId]": screen(authoringContexts.builder, DRAFT_TOOLS, [
+    "form.publish",
+    "form.settings",
+    "form.close",
+    "form.reopen",
+  ]),
   "/forms/[formId]/rules": screen(authoringContexts.rules),
   "/forms/[formId]/preview": screen(authoringContexts.preview, ["project_draft"]),
   "/forms/[formId]/versions": screen(authoringContexts.versions),
   "/forms/[formId]/versions/[version]": screen(authoringContexts.versionDetail),
-  "/forms/[formId]/publish": screen(authoringContexts.releases),
-  "/forms/[formId]/links": screen(authoringContexts.links),
-  "/forms/[formId]/webhooks": screen(operationsContexts.formWebhooks),
+  "/forms/[formId]/publish": screen(authoringContexts.releases, [], ["form.release"]),
+  "/forms/[formId]/links": screen(authoringContexts.links, [], ["link.mint", "link.revoke"]),
+  "/forms/[formId]/webhooks": screen(
+    operationsContexts.formWebhooks,
+    [],
+    [
+      "webhook.create",
+      "webhook.rotate",
+      "webhook.retarget",
+      "webhook.reactivate",
+      "webhook.deactivate",
+      "webhook.redeliver",
+    ],
+  ),
   "/forms/[formId]/responses": screen(operationsContexts.responseList),
-  "/forms/[formId]/responses/[sessionId]": screen(operationsContexts.responseDetail),
+  "/forms/[formId]/responses/[sessionId]": screen(
+    operationsContexts.responseDetail,
+    [],
+    ["response.erase", "response.unflag"],
+  ),
   "/questions": screen(authoringContexts.questions),
   "/questions/new": screen(authoringContexts.newQuestion),
   "/questions/[questionId]": screen(authoringContexts.questionDetail),
@@ -108,7 +129,18 @@ export const SCREENS: Readonly<Record<ScreenId, ScreenDef>> = Object.freeze({
   "/settings": screen(administrationContexts.settings),
   "/webhooks": screen(operationsContexts.deadLetters),
   "/workspaces": screen(administrationContexts.workspaces),
-  "/workspaces/[workspaceId]": screen(administrationContexts.workspaceDetail),
+  "/workspaces/[workspaceId]": screen(
+    administrationContexts.workspaceDetail,
+    [],
+    [
+      "access.groupCreate",
+      "access.groupRemove",
+      "access.grant",
+      "access.revoke",
+      "member.role",
+      "workspace.settings",
+    ],
+  ),
 });
 
 /** The screens of one form's subtree, which is the span of one conversation. */
@@ -118,4 +150,24 @@ export const FORM_SUBTREE_SCREENS: readonly ScreenId[] = SCREEN_IDS.filter((id) 
 
 export function isFormSubtreeScreen(screenId: ScreenId): boolean {
   return FORM_SUBTREE_SCREENS.includes(screenId);
+}
+
+const FORM_SUBTREE_ACTION_KINDS: readonly string[] = (() => {
+  const kinds: string[] = [];
+  for (const id of FORM_SUBTREE_SCREENS) {
+    for (const kind of SCREENS[id].actionKinds) {
+      if (!kinds.includes(kind)) kinds.push(kind);
+    }
+  }
+  return Object.freeze(kinds);
+})();
+
+/**
+ * The kinds a turn on this screen may propose: the whole form subtree's on a form-scoped
+ * screen, so one plan can span it, and the screen's own elsewhere. Every step still runs
+ * its own screen's action under its own route's checks, and the grant filter still cuts
+ * the list to the pairs the caller holds.
+ */
+export function offerableActionKinds(screenId: ScreenId): readonly string[] {
+  return isFormSubtreeScreen(screenId) ? FORM_SUBTREE_ACTION_KINDS : SCREENS[screenId].actionKinds;
 }

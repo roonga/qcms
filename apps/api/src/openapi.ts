@@ -1,5 +1,6 @@
 import { z } from "@hono/zod-openapi";
 
+import type { VerifiedProposal } from "./features/agent/provenance.js";
 import type { GrantContext } from "./features/membership/context.js";
 
 /** `scopes` is SEC-5 metadata, reserved for `/api/v1` and inert at launch. */
@@ -26,6 +27,12 @@ export interface ApiEnv {
      * chance to disagree with the first (ADR-41, SEC-3).
      */
     grantContext?: GrantContext;
+    /**
+     * Set only by the provenance middleware, and only for a request whose token verified
+     * against the authenticated principal. Its presence is what makes a handler write a
+     * `control.agent_actions` row; it carries no authority of its own (SEC-17).
+     */
+    agentProposal?: VerifiedProposal;
   };
 }
 

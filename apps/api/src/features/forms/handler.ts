@@ -64,6 +64,7 @@ import {
 import type { Executor, FormDraftRow, FormVersionRow, QuestionOwnership } from "@roonga/qcms-db";
 
 import { challengeEnforceable } from "../../config.js";
+import { agentStepSite, writeAgentStep } from "../agent/audit.js";
 import type { Deps } from "../../deps.js";
 import { ApiError } from "../../errors.js";
 import { workspaceFilterFor } from "../membership/context.js";
@@ -1313,11 +1314,20 @@ export function makeUpdateFormSettingsHandler(
     const formId = requireFormId(c.req.valid("param").id);
     const body = c.req.valid("json");
 
-    const updated = await updateFormSettings(deps.databases.control, formId, {
-      ...(body.challengeRequired === undefined
-        ? {}
-        : { challengeRequired: body.challengeRequired }),
-      ...(body.minSubmitMs === undefined ? {} : { minSubmitMs: body.minSubmitMs }),
+    // The patch and the step's row share one transaction, so a patch that finds no form
+    // writes neither.
+    const site = agentStepSite(c);
+    const now = deps.clock.now();
+    const updated = await deps.databases.control.transaction(async (tx) => {
+      const row = await updateFormSettings(tx, formId, {
+        ...(body.challengeRequired === undefined
+          ? {}
+          : { challengeRequired: body.challengeRequired }),
+        ...(body.minSubmitMs === undefined ? {} : { minSubmitMs: body.minSubmitMs }),
+      });
+      if (row === undefined) return undefined;
+      await writeAgentStep(tx, site, String(row.challengeRequired), now);
+      return row;
     });
     if (updated === undefined) throw fail.formNotFound();
 
@@ -1524,6 +1534,7 @@ export function makePublishBatchHandler(
       formId,
       workspaceId: c.get("grantContext")?.workspaceId ?? form.workspaceId,
       principalId: principal.userId,
+      agent: agentStepSite(c),
       idempotencyKey: body.idempotencyKey,
       intentHash,
       expectedWorkflowRevision: body.expectedWorkflowRevision,
@@ -1562,13 +1573,16 @@ async function setIntake(
   const form = await getForm(deps.databases.control, formId);
   if (form === undefined) throw fail.formNotFound();
 
+  const site = agentStepSite(c);
   const row = await deps.databases.control.transaction(async (tx) => {
     const current = await getFormEnvironmentState(tx, formId, environment);
     if (current === undefined) throw fail.notReleasedHere(environment);
     if (current.closed === closed) throw fail.alreadyInState(environment, closed);
-    return closed
+    const written = closed
       ? await closeFormInEnvironment(tx, { formId, environment, closedBy: principal.userId })
       : await reopenFormInEnvironment(tx, { formId, environment, reopenedBy: principal.userId });
+    await writeAgentStep(tx, site, environment, deps.clock.now());
+    return written;
   });
   // Unreachable: the read inside the transaction already refused the only case that
   // produces it.

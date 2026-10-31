@@ -175,10 +175,60 @@ describe("the repository", () => {
     expect(deadKeys()).toEqual([]);
   });
 
-  it("carries no standing exemption", () => {
-    // An entry is a claim that a key is rendered through a shape the scan cannot read,
-    // so the empty set is what makes adding one deliberate.
-    expect(ALLOWED).toEqual({});
+  it("carries only the action-card exemptions, each with a reason", () => {
+    // The card renders the keys the API's action-kind descriptors name, so no admin
+    // literal mentions them. Pinned rather than matched by pattern, which is what makes
+    // each screen group's addition a line somebody reviews.
+    expect(Object.keys(ALLOWED)).toEqual(["apps/admin"]);
+    expect(Object.keys(ALLOWED["apps/admin"] ?? {}).sort()).toEqual([
+      "agent.card.access.grant.consequence",
+      "agent.card.access.grant.title",
+      "agent.card.access.groupCreate.consequence",
+      "agent.card.access.groupCreate.title",
+      "agent.card.access.groupRemove.consequence",
+      "agent.card.access.groupRemove.title",
+      "agent.card.access.revoke.consequence",
+      "agent.card.access.revoke.title",
+      "agent.card.form.close.consequence",
+      "agent.card.form.close.title",
+      "agent.card.form.publish.consequence",
+      "agent.card.form.publish.title",
+      "agent.card.form.release.consequence",
+      "agent.card.form.release.title",
+      "agent.card.form.reopen.consequence",
+      "agent.card.form.reopen.title",
+      "agent.card.form.settings.consequence",
+      "agent.card.form.settings.title",
+      "agent.card.link.mint.consequence",
+      "agent.card.link.mint.title",
+      "agent.card.link.revoke.consequence",
+      "agent.card.link.revoke.title",
+      "agent.card.member.role.consequence",
+      "agent.card.member.role.title",
+      "agent.card.response.erase.consequence",
+      "agent.card.response.erase.title",
+      "agent.card.response.erase.tombstone",
+      "agent.card.response.unflag.consequence",
+      "agent.card.response.unflag.title",
+      "agent.card.webhook.create.consequence",
+      "agent.card.webhook.create.secret",
+      "agent.card.webhook.create.title",
+      "agent.card.webhook.deactivate.consequence",
+      "agent.card.webhook.deactivate.title",
+      "agent.card.webhook.reactivate.consequence",
+      "agent.card.webhook.reactivate.title",
+      "agent.card.webhook.redeliver.consequence",
+      "agent.card.webhook.redeliver.title",
+      "agent.card.webhook.retarget.consequence",
+      "agent.card.webhook.retarget.title",
+      "agent.card.webhook.rotate.consequence",
+      "agent.card.webhook.rotate.title",
+      "agent.card.workspace.settings.consequence",
+      "agent.card.workspace.settings.title",
+    ]);
+    for (const reason of Object.values(ALLOWED["apps/admin"] ?? {})) {
+      expect(reason.trim().length).toBeGreaterThan(20);
+    }
   });
 
   it("finds both catalogs, so the scan is not silently scoped to one app", () => {
